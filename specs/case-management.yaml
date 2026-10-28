@@ -1278,7 +1278,11 @@ groups:
       When a participant accepts the stub Invite
       (`Accept(Invite(Actor, VulnerabilityCaseStub))`), the CASE_MANAGER MUST
       leave the participant's RM state at `RM.RECEIVED`, set its VF state to
-      `V` when it holds the VENDOR role, and, when an embargo is active, mark its consent row for that embargo `AGREED`, making it a signatory. Accepting the stub is joining the case
+      `V` when it holds the VENDOR role, and, when an embargo is active, mark
+      its consent row for that embargo `AGREED`, making it a signatory, unless
+      that row is `DECLINED`. A `DECLINED` row stays `DECLINED`: joining is not
+      an answer to the embargo, so only the participant's own `Accept` of the
+      embargo changes it (CM-18-003). Accepting the stub is joining the case
       and consenting to the active embargo; it is not a judgement of the case.
     rationale: >-
       The invitee has seen only the stub. Its judgement of the case comes after
@@ -3174,7 +3178,7 @@ groups:
     - story_2022_014
   - id: CM-18-003
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
       The consent row machine MUST implement exactly the following valid triggers, each applied to
       the row for one embargo: INVITE (from `UNINVITED`, `DECLINED` or `TIMED_OUT`, to `INVITED`),
@@ -3228,6 +3232,8 @@ groups:
     - ADR-0093
     - ADR-0118
     - ADR-0122
+    stories:
+    - story_2022_014
   - id: CM-18-004
     priority: MUST_NOT
     kind: protocol

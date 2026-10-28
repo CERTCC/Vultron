@@ -27,15 +27,16 @@ groups:
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) receiving CV MUST
       update their model of the sending Participant's CS state to Vendor Aware
-      (q^cs ∈ Vfd···) and emit CK to acknowledge receipt.
+      (q^cs ∈ Vfd···). "Emit CK" is discharged by the
+      CASE_MANAGER's commit of the received activity, fanned out as
+      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
     rationale: >-
       CV announces a Vendor-specific CS transition. The receiver does not change
-      their own CS state; they update their awareness model for the sender. The
-      CK acknowledges receipt per VP-12 messaging norms.
+      their own CS state; they update their awareness model for the sender.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CV in an active RM
-      state updates the sender's CS model to Vfd··· and enqueues CK without
-      changing the receiver's own CS state.
+      state updates the sender's CS model to Vfd··· without changing the
+      receiver's own CS state, with no CK message queued.
     testable: true
     preconditions:
     - rm_state:
@@ -54,10 +55,14 @@ groups:
       expected: Receiver's awareness model for sender reflects CS=Vfd
     - order: 2
       actor: receiver
-      action: Emit CK to acknowledge receipt of CV
-      expected: CK queued for sender
+      action: >-
+        CASE_MANAGER commits the received CV and announces the ledger
+        entry (discharges CK)
+      expected: Ledger entry committed and fanned out; no CK message exists
     postconditions:
-    - description: Sender's CS state recorded as Vfd; CK emitted; receiver CS unchanged
+    - description: >-
+        Sender's CS state recorded as Vfd; CK discharged by the ledger
+        commit; receiver CS unchanged
     relationships:
     - rel_type: satisfies
       spec_id: MSM-03-001
@@ -79,14 +84,16 @@ groups:
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) receiving CF MUST
       update their model of the sending Participant's CS state to Fix Ready
-      (q^cs ∈ VFd···) and emit CK to acknowledge receipt.
+      (q^cs ∈ VFd···). "Emit CK" is discharged by the
+      CASE_MANAGER's commit of the received activity, fanned out as
+      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
     rationale: >-
       CF announces a Vendor-specific CS transition. The receiver does not change
       their own CS state; they update their awareness model for the sender.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CF in an active RM
-      state updates the sender's CS model to VFd··· and enqueues CK without
-      changing the receiver's own CS state.
+      state updates the sender's CS model to VFd··· without changing the
+      receiver's own CS state, with no CK message queued.
     testable: true
     preconditions:
     - rm_state:
@@ -105,10 +112,14 @@ groups:
       expected: Receiver's awareness model for sender reflects CS=VFd
     - order: 2
       actor: receiver
-      action: Emit CK to acknowledge receipt of CF
-      expected: CK queued for sender
+      action: >-
+        CASE_MANAGER commits the received CF and announces the ledger
+        entry (discharges CK)
+      expected: Ledger entry committed and fanned out; no CK message exists
     postconditions:
-    - description: Sender's CS state recorded as VFd; CK emitted; receiver CS unchanged
+    - description: >-
+        Sender's CS state recorded as VFd; CK discharged by the ledger
+        commit; receiver CS unchanged
     relationships:
     - rel_type: satisfies
       spec_id: MSM-03-002
@@ -130,14 +141,16 @@ groups:
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) receiving CD MUST
       update their model of the sending Participant's CS state to Fix Deployed
-      (q^cs ∈ VFD···) and emit CK to acknowledge receipt.
+      (q^cs ∈ VFD···). "Emit CK" is discharged by the
+      CASE_MANAGER's commit of the received activity, fanned out as
+      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
     rationale: >-
       CD announces a Vendor-specific CS transition. The receiver does not change
       their own CS state; they update their awareness model for the sender.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CD in an active RM
-      state updates the sender's CS model to VFD··· and enqueues CK without
-      changing the receiver's own CS state.
+      state updates the sender's CS model to VFD··· without changing the
+      receiver's own CS state, with no CK message queued.
     testable: true
     preconditions:
     - rm_state:
@@ -156,10 +169,14 @@ groups:
       expected: Receiver's awareness model for sender reflects CS=VFD
     - order: 2
       actor: receiver
-      action: Emit CK to acknowledge receipt of CD
-      expected: CK queued for sender
+      action: >-
+        CASE_MANAGER commits the received CD and announces the ledger
+        entry (discharges CK)
+      expected: Ledger entry committed and fanned out; no CK message exists
     postconditions:
-    - description: Sender's CS state recorded as VFD; CK emitted; receiver CS unchanged
+    - description: >-
+        Sender's CS state recorded as VFD; CK discharged by the ledger
+        commit; receiver CS unchanged
     relationships:
     - rel_type: satisfies
       spec_id: MSM-03-003

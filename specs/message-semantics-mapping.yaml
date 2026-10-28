@@ -1317,7 +1317,7 @@ groups:
     - missing_story_reference
   - id: MSM-07-008
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
       The wire activity ACTIVATE_EMBARGO_ON_CASE (wire form:
       Accept(Event)[target=VulnerabilityCase], the EmbargoEvent itself as the object) is the
@@ -1357,9 +1357,11 @@ groups:
       spec_id: MSM-02-005
     adr:
     - ADR-0122
+    stories:
+    - story_2022_014
   - id: MSM-07-009
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
       The wire activity REJECT_EMBARGO_PROPOSAL_ON_CASE (wire form:
       Reject(Event)[target=VulnerabilityCase], the EmbargoEvent itself as the object) is the
@@ -1402,9 +1404,11 @@ groups:
       spec_id: MSM-02-006
     adr:
     - ADR-0122
+    stories:
+    - story_2022_014
   - id: MSM-07-010
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
       The wire activity `Leave(EmbargoEvent)[context=VulnerabilityCase]` is a
       participant's withdrawal of its consent to the case's *active* embargo. For a
@@ -1437,6 +1441,8 @@ groups:
     adr:
     - ADR-0093
     - ADR-0122
+    stories:
+    - story_2022_014
 - id: MSM-08
   title: Occasions
   description: >-

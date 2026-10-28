@@ -19,12 +19,12 @@ The five states below describe the case's collective position, not any one parti
 *None* here means no embargo is in effect **for the case**.
 A participant's consent row for an embargo has a separate start state, `UNINVITED`, meaning the participant has not been asked about that embargo ([§9.1 States](tracking-models.md#91-states)).
 The case state and a consent row can legitimately disagree.
-A case at Active may hold a participant whose row for the embargo in force is `INVITED` or `DECLINED`.
+A case at Active can hold a participant whose row for the embargo in force is `INVITED` or `DECLINED`.
 In that example, the row is `INVITED` because the participant has been invited to the case and has not yet accepted.
 
 #### 7.1.1 The Embargo Register
 
-A case keeps one **embargo register entry** for every embargo ever proposed on it (ADR-0122).
+A case keeps one **embargo register entry** for every embargo ever proposed on it.
 An entry names the embargo, holds its status, and, for an activated revision, names the embargo it replaced.
 Entries are appended and never removed, so the register is the whole embargo history of the case, including rejected and canceled proposals.
 
@@ -50,18 +50,21 @@ Six triggers move an entry:
 | `CANCEL` | `PROPOSED` → `CANCELLED`, in the step that terminates the embargo in force, or on a threat signal while no entry is `ACTIVE` |
 
 A **register step** is the whole change that one act causes.
-A termination and the cancellation of every open proposal therefore happen in one step and are checked together (EP-08-004).
-Every step keeps these invariants.
-A step that would break one is refused:
+A termination and the cancellation of every open proposal therefore happen in one step and are checked together.
+Every step keeps these invariants:
 
 1. At most one entry is `ACTIVE` and at most one is `TERMINATED`, and never one of each.
 2. A `SUPERSEDED` entry exists only alongside exactly one `ACTIVE` or `TERMINATED` entry.
 3. No entry is `PROPOSED` while an entry is `TERMINATED`.
 4. Once a step has left an entry `TERMINATED`, no later step adds or changes an entry.
 
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-08-004"))
+```
+
 A termination records two things.
 What ended the embargo is `END_TIME_REACHED` or `EARLY`.
-Why it ended, when known, is a structured cause (EMB-13-004).
+Why it ended, when known, is a structured cause.
 The `kind` of the cause is one of these values:
 
 - `THREAT_SIGNAL`, with the signals `P`, `X` or `A`
@@ -70,7 +73,11 @@ The `kind` of the cause is one of these values:
 - `OTHER`
 
 Every cause is `EARLY`, and an `END_TIME_REACHED` termination has none.
-The termination message carries the what as `content` and the why as `terminationCause` (EMB-13-005).
+The termination message carries the what as `content` and the why as `terminationCause`.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-13-004", "EMB-13-005"))
+```
 
 !!! note "Register status is not EM state"
     The register statuses and the EM states share the words *proposed* and *active*, but they name different things.
@@ -80,7 +87,7 @@ The termination message carries the what as `content` and the why as `terminatio
 
 #### 7.1.2 Deriving EM from the Register
 
-The case's EM state is a read of its register's statuses, never set directly (EMB-18-001):
+The case's EM state is a read of its register's statuses, never set directly:
 
 | `ACTIVE` entries | `PROPOSED` entries | `TERMINATED` entries | EM |
 |---|---|---|---|
@@ -93,8 +100,7 @@ The case's EM state is a read of its register's statuses, never set directly (EM
 `REJECTED`, `SUPERSEDED` and `CANCELLED` entries do not move EM.
 A register that breaks an invariant matches no row, and the derivation refuses it.
 The case's status carries a copy of the derived EM, stamped from the register.
-A received status can report EM but can never move it.
-An asserted EM that differs from the derived one is refused.
+A received status can report EM, but only a register step moves it.
 
 Because EM aggregates over every entry, the case moves from Proposed or Revised to None or Active only when no proposal remains open.
 Rejecting one of several open proposals leaves the others open, so EM stays where it was.
@@ -105,9 +111,8 @@ A case that has had an embargo in force therefore never returns to None or Propo
 ### 7.2 Transitions and Guards
 
 Four triggers drive the machine: **propose**, **accept**, **reject** and **terminate**.
-The register computes EM, and the table below constrains how EM may move.
-Every register step names its EM trigger.
-A step whose EM move is not in the table is refused, and nothing is written (EMB-18-005, EMB-18-006, ADR-0130).
+The register computes EM, and the table below constrains how EM moves.
+Every register step names its EM trigger, and a step whose EM move is not in the table writes nothing.
 Register steps map to EM triggers as follows:
 
 - A proposal is propose.
@@ -139,6 +144,17 @@ A participant causes a transition by sending the corresponding message, not by w
 | Active | terminate | Exited | |
 | Revised | terminate | Exited | Every open revision is canceled in the same step |
 
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-18-005"))
+```
+
+Each participant's replica of the case moves along the same table when it copies a step from the case ledger.
+The requirements below state each move from the side of a participant that receives the message, with the CASE_MANAGER's ledger commit as the acknowledgment.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-01-001", "EMB-01-003", "EMB-02-001", "EMB-06-001", "EMB-03-001", "EMB-03-002", "EMB-04-001", "EMB-05-001", "EMB-07-001", "EMB-07-002", "EMB-07-003"))
+```
+
 !!! warning "Rejecting a revision does not end the embargo"
     Reject behaves differently depending on where it arrives.
     The difference is easy to get backwards.
@@ -154,35 +170,55 @@ A participant causes a transition by sending the corresponding message, not by w
 **Reaching Exited.**
 Exited means that the embargo has ended at the case level.
 A participant does not put the case into Exited by deciding to stop observing the embargo.
-A participant may instead withdraw its own consent, report that it intends to exit, propose a shorter embargo, or propose an earlier end date.
+A participant can instead withdraw its own consent, report that it intends to exit, propose a shorter embargo, or propose an earlier end date.
 The CASE_MANAGER then terminates the embargo and records the termination ([§11.2 Embargo Revision and Termination Cascades](interactions.md#112-embargo-revision-and-termination-cascades)).
-Terminating an embargo requires Case Owner authorization by default, on the same terms as any other change to canonical case state ([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)).
-The CASE_MANAGER itself terminates an embargo whose end time has passed, with the reason `END_TIME_REACHED` (EMB-13-003).
+Terminating an embargo takes Case Owner authorization by default, on the same terms as any other change to canonical case state ([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)).
+The CASE_MANAGER itself terminates an embargo whose end time has passed, with the reason `END_TIME_REACHED`.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-02-005", "EMB-13-003", "EMB-14-001"))
+```
 
 {% include-markdown "./_oq-embargo-termination-authority.md" %}
 
 **Embargo duration selection.**
-Where several proposals are outstanding, participants SHOULD accept the shortest and propose the remainder as a revision (EP-08-001).
-Other policies are also admissible.
-An implementation MAY defer the choice to the Case Owner, or apply its own organizational policy.
+Where several proposals are outstanding, the protocol recommends that participants accept the shortest and propose the remainder as revisions.
+The rule is a recommendation, so other policies remain admissible.
+An implementation can defer the choice to the Case Owner, or apply its own organizational policy.
 This specification does not mandate shortest-wins.
 
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-08-001"))
+```
+
 **Tacit acceptance.**
-A receiver MAY publish a default embargo policy.
-Where it has, a sender that submits a report without proposing terms accepts that default.
+A receiver can publish a default embargo policy, its actor default.
+Where it has, a sender that submits a report without proposing terms accepts that default, and the case begins with that embargo active.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-01-001", "EP-04-001"))
+```
 
 **A protocol default applies when nobody proposes anything.**
-Where neither party proposes terms and the receiver has published no default, an embargo-eligible case MUST still begin with an active embargo, at a short duration fixed by the protocol rather than by either party.
-The duration MUST be configurable, and MUST be no less than 72 hours and no more than 5 days.
+Where neither party proposes terms and the receiver has published no default, an embargo-eligible case still begins with an active embargo, at a short duration fixed by the protocol rather than by either party.
+The duration is no less than 72 hours and no more than 5 days.
 Where the case is not embargo-eligible (the vulnerability is public, an exploit is public, or attacks are observed), no embargo is established and the case remains in *None*.
 
 The protocol default is not a proposal.
-It MUST NOT take part in the shortest-wins comparison above.
+It takes no part in the shortest-wins comparison above.
 If it did, a default short enough to be useful would win against every longer proposal and cap every embargo at its own length.
 The protocol default is also not a minimum.
-A party that proposes a shorter duration MUST get the duration it proposed.
+A party that proposes a shorter duration gets the duration it proposed.
 
-Outside these two default paths, embargo agreement and rejection SHOULD be explicit.
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-04-005", "EP-04-006", "EP-04-007", "EP-04-008"))
+```
+
+Outside these two default paths, participants answer embargo proposals explicitly.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VP-06-004"))
+```
 
 ### 7.3 Relationship to Embargo Consent
 
@@ -204,7 +240,11 @@ Only one of them writes rows:
   The step writes a `CARRY_OVER` on the row of each signatory for the revision.
   Proposing a revision changes no one's consent to the embargo in force.
 - **Terminating the embargo** leaves no entry `ACTIVE`, so nobody is a signatory and nobody has lapsed.
-  The termination writes no consent row, and every row for a final entry is frozen as it stood (CM-18-003, CM-18-016).
+  The termination writes no consent row, and every row for a final entry is frozen as it stood.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-05-001", "EP-05-002", "MSM-07-006"))
+```
 
 [§11.2 Embargo Revision and Termination Cascades](interactions.md#112-embargo-revision-and-termination-cascades) specifies both cascades.
 

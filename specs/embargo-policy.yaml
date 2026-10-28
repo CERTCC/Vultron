@@ -1798,8 +1798,10 @@ groups:
       proposal is open, it MUST relay an `Invite(EmbargoEvent)` for every open proposal to
       the joiner and commit each as a ledger entry, after the joiner holds the case and the
       prior ledger. Each Invite has `actor` set to the CASE_MANAGER's ID and `attributedTo`
-      set to the proposal's original proposer (EP-09-002). A proposal the joiner already
-      holds a consent row for is not relayed again. The joiner's row for the active
+      set to the proposal's original proposer (EP-09-002). A proposal whose consent row
+      for the joiner has already left `UNINVITED` is not relayed again: every participant
+      holds a row for every register entry (CM-18-001), so the row's state, not its
+      presence, says whether the joiner was asked. The joiner's row for the active
       embargo is unchanged (EP-09-004), so a joiner that accepts the revision is a
       signatory of it at activation and one that does not lapses (ADR-0093, EP-05-001).
     rationale: >-

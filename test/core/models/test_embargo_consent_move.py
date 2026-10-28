@@ -211,10 +211,14 @@ class TestJoinerAgreement:
         assert change.row.embargo_id == E1
         assert change.row.state is _S.AGREED
 
-    @pytest.mark.spec("CM-18-003")
+    @pytest.mark.spec("CM-18-003", "CM-11-001")
     @pytest.mark.parametrize("held", [_S.AGREED, _S.DECLINED])
     def test_an_answered_row_is_left_as_it_is(self, held):
-        """Seeding never overrides an answer the participant gave."""
+        """Seeding never overrides an answer the participant gave.
+
+        A DECLINED row stays DECLINED when the joiner accepts the stub
+        Invite: joining is not an answer to the embargo (CM-11-001).
+        """
         assert joiner_agreement(_case_file(joiner={E1: held}), JOINER) is None
 
     def test_no_embargo_in_force_moves_nothing(self):

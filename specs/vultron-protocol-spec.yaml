@@ -587,13 +587,16 @@ groups:
     kind: protocol
     statement: >-
       Recipients who receive an $R*$ message (other than $RS$) while in RM Start ($q^{rm}
-      \in S$) SHOULD respond with both $RE$ to signal the error and $GI$ to find out what
-      the sender expected
+      \in S$) SHOULD answer it with `Create(ProcessingFault)` (ASK-07-001), which signals
+      the error and tells the sender that the recipient holds no report the message could
+      be about. $RE$ has no wire activity of its own (MSM-05-001), and the fault, not a
+      separate $GI$, asks what the sender expected.
     rationale: >-
       An $R*$ message from a party the recipient has no report from means the two
-      disagree about whether a report was sent. $RE$ flags the mismatch and $GI$ asks
-      what the sender expected, so the missing report can be recovered rather than
-      silently ignored.
+      disagree about whether a report was sent. The recipient cannot process a message
+      about a report it does not hold, so it reports that failure, and the sender can then
+      re-send the report rather than leave it silently ignored. Faults are grouped by
+      failure mode, not by state machine, so no $RE$ message exists (MSM-05-001).
   - id: VP-03-011
     priority: SHOULD
     kind: protocol
