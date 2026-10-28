@@ -559,10 +559,18 @@ class DemoActorRoleError(VultronError):
 class DemoRecordingError(VultronError):
     """Raised when a demo scenario cannot be recorded for the demo UI.
 
-    Raised by :mod:`vultron.demo.recordings` when the Docker
-    compose file lacks the container layout a scenario's roles name, or when a
-    run ends without capturing every ledger its dump names.  A scenario that
-    itself fails raises :class:`DemoFailureError` instead.
+    Raised by :mod:`vultron.demo.recordings` when:
+
+    - the Docker compose file lacks the container layout a scenario's roles
+      name, or sets a malformed case-roles value;
+    - a scenario addresses a host that no role's container slot serves;
+    - a run ends without capturing every ledger its dump names, or the dump
+      holds no CaseActor (canonical) ledger;
+    - a dumped ledger line is not an entry with a ``logIndex``;
+    - a replica holds an entry that differs from, or is absent from, the
+      canonical ledger at the same ``logIndex``.
+
+    A scenario that itself fails raises :class:`DemoFailureError` instead.
     """
 
 

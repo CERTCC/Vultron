@@ -160,6 +160,15 @@ class TestAddRole:
         p.add_role(CVDRole.CASE_OWNER)
         assert p.roles == [*held, CVDRole.CASE_OWNER]
 
+    def test_add_role_drops_a_duplicate_held_role(self):
+        """The set-based rebuild this replaced de-duplicated the held roles;
+        the ordered rebuild keeps doing so, first occurrence first (#3901)."""
+        p = _make_participant(
+            roles=[CVDRole.VENDOR, CVDRole.REPORTER, CVDRole.VENDOR]
+        )
+        p.add_role(CVDRole.DEPLOYER)
+        assert p.roles == [CVDRole.VENDOR, CVDRole.REPORTER, CVDRole.DEPLOYER]
+
 
 # ---------------------------------------------------------------------------
 # remove_role() (PRM-02-004 through PRM-02-006, PRM-05-002)
@@ -198,6 +207,14 @@ class TestRemoveRole:
             CVDRole.DEPLOYER,
             CVDRole.CASE_OWNER,
         ]
+
+    def test_remove_role_drops_a_duplicate_held_role(self):
+        """See test_add_role_drops_a_duplicate_held_role (#3901)."""
+        p = _make_participant(
+            roles=[CVDRole.VENDOR, CVDRole.REPORTER, CVDRole.VENDOR]
+        )
+        p.remove_role(CVDRole.REPORTER)
+        assert p.roles == [CVDRole.VENDOR]
 
     def test_remove_role_idempotent_no_exception(self):
         """remove_role() is idempotent: removing absent role does not raise (PRM-05-002b)."""

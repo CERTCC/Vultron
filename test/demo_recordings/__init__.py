@@ -11,10 +11,9 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for demo helpers that need no running node.
+"""Integration tests that run real demo scenarios in process (#3901).
 
-Separate from ``test/demo/`` because that package's ``conftest`` auto-marks every
-test it collects as ``integration``, and ``integration`` is deselected by default.
-A pure function tested there is invisible to the unit suite and to the ``Tests
-(pytest)`` CI tier, which is how several ADR-0073 defects reached review.
+Separate from ``test/demo/`` because that directory's autouse fixtures stub
+protocol steps, and a recording must come from the real run.  Each module marks
+its tests ``integration`` itself, so the unit suite does not run them.
 """

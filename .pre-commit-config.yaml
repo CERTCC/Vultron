@@ -209,7 +209,7 @@ repos:
         # checked daily on main (.github/workflows/demo-recordings.yml).
         entry: uv run export-demo-recordings --check
         language: system
-        files: ^(vultron/demo/scenario/.*\.py|vultron/demo/recordings\.py|ui/src/recordings/.*)$
+        files: ^(vultron/demo/scenario/.*\.py|vultron/demo/recordings/.*\.py|ui/src/recordings/.*)$
         pass_filenames: false
 
       - id: msm-occasions-sync

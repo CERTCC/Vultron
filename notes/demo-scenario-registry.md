@@ -142,6 +142,16 @@ membership from `in_pr_set`, and the semantic-type ticks from each harness's
 `_XXX_EXPECTED_SEMANTIC_TYPES` constant (read by AST, so the hook never imports a
 test module). A column with no named authority goes unratcheted and drifts.
 
+**A recording is generated, never hand-edited.** Run
+`uv run export-demo-recordings --scenario <name>` (`vultron/demo/recordings/`)
+to rewrite `ui/src/recordings/<name>/case-actor.jsonl`. A PR need not regenerate:
+the daily `demo-recordings` workflow files a refresh Task when one lags `main`.
+Regenerate in the PR only when the change needs current recordings (a UI change,
+or a new scenario, which the `--check` hook requires). Each role's `url_env` must
+name a container slot the `demo-runner` service in
+`docker/docker-compose-multi-actor.yml` sets: the recorder reads the container
+layout from there and refuses a role it cannot place (#3901).
+
 **The mkdocs-tree boundary is load-bearing.** `include-markdown` expands only at
 build time and only under `docs/`; in `notes/` or `test/ci/` it renders as
 literal text.

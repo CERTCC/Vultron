@@ -14,11 +14,12 @@ import { buildTimelineFromCaseLedger } from './utils/caseLedgerMapper'
 // Committed recordings the "Load …" buttons import at build time via `?raw`.
 // A recording is the canonical case ledger (`case-actor.jsonl`) a registered
 // scenario writes when it runs, produced by `uv run export-demo-recordings`
-// (vultron/demo/recordings.py), which runs each scenario in process with seeded
-// ids and a fixed clock and checks every replica against the canonical ledger.
-// A recording may lag main by a few days; the daily `demo-recordings` workflow
-// files a refresh Task when one is stale. Never hand-edit one: regenerate it. They live in-tree, apart from the
-// gitignored repo-root `devlogs/` (see ui/AGENTS.md §7), so a fresh clone builds.
+// (vultron/demo/recordings/), which runs each scenario in process with seeded
+// ids and a stepping clock with a fixed start, and checks every replica against
+// the canonical ledger. A recording may lag main by a few days; the daily
+// `demo-recordings` workflow files a refresh Task when one is stale. Never
+// hand-edit one: regenerate it. They live in-tree, apart from the gitignored
+// repo-root `devlogs/` (see ui/AGENTS.md §7), so a fresh clone builds.
 //
 // rv: the happy-path recording (Reporter + Vendor).
 import sampleLedgerRaw from './recordings/rv/case-actor.jsonl?raw'

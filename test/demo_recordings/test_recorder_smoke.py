@@ -31,7 +31,7 @@ import json
 import pytest
 
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.demo.recordings import record_scenario
+from vultron.demo.recordings.runner import record_scenario
 from vultron.demo.scenario.registry import discover_scenarios
 
 pytestmark = pytest.mark.integration

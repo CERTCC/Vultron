@@ -447,7 +447,7 @@ def every_demo_case_rebuilds_from_its_ledger():
 
 
 # The two autouse stubs below change what the protocol does for every test in
-# this directory. A test that needs the real run, such as the recording drift
+# this directory. A test that needs the real run, such as the recorder smoke
 # test, lives outside test/demo/ (test/demo_recordings/, #3901).
 @pytest.fixture(autouse=True)
 def stub_summary_seed():

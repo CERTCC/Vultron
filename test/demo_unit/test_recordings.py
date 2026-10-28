@@ -38,15 +38,14 @@ from vultron.adapters.driving.fastapi.outbox_lanes import (
     deliver_batch,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.demo import recordings
 from vultron.demo.helpers.actor_roles import ActorRole
 from vultron.demo.in_process import InProcessRouter
-from vultron.demo.recordings import (
-    RECORDINGS_DIR,
+from vultron.demo.recordings import cli, layout, ledgers as ledger_dump, runner
+from vultron.demo.recordings.layout import RECORDINGS_DIR, write_recording
+from vultron.demo.recordings.topology import (
     REPO_ROOT,
     ContainerTopology,
     load_topology,
-    write_recording,
 )
 from vultron.demo.scenario.registry import discover_scenarios
 from vultron.demo.utils import DataLayerClient
@@ -65,7 +64,7 @@ def _ledger_files() -> list[Path]:
 class TestCommittedRecordings:
     def test_the_recorded_scenarios_are_the_registered_ones(self):
         names = tuple(spec.name for spec in discover_scenarios())
-        assert recordings.layout_problems(names) == []
+        assert layout.layout_problems(names) == []
 
     @pytest.mark.parametrize(
         "path",
@@ -193,7 +192,7 @@ class TestLoadTopology:
 class TestLayoutProblems:
     @pytest.fixture
     def recorded(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(recordings, "RECORDINGS_DIR", tmp_path)
+        monkeypatch.setattr(layout, "RECORDINGS_DIR", tmp_path)
         for name in ("rv", "retired"):
             (tmp_path / name).mkdir()
             (tmp_path / name / "case-actor.jsonl").write_text("{}\n")
@@ -202,7 +201,7 @@ class TestLayoutProblems:
         return tmp_path
 
     def test_each_disagreement_is_named(self, recorded):
-        assert recordings.layout_problems(("rv", "rvv", "rcv")) == [
+        assert layout.layout_problems(("rv", "rvv", "rcv")) == [
             "rcv: registered but not recorded",
             "retired: recorded but not a registered scenario",
             "rvv: has no case-actor.jsonl",
@@ -210,22 +209,20 @@ class TestLayoutProblems:
         ]
 
     def test_the_check_option_fails_on_a_disagreement(self, recorded):
-        result = CliRunner().invoke(recordings.main, ["--check"])
+        result = CliRunner().invoke(cli.main, ["--check"])
         assert result.exit_code == 1
         assert (
             "retired: recorded but not a registered scenario" in result.output
         )
-        assert recordings.REGENERATE_COMMAND in result.output
+        assert cli.REGENERATE_COMMAND in result.output
 
     def test_the_check_option_takes_no_scenario(self):
-        result = CliRunner().invoke(
-            recordings.main, ["--check", "--scenario", "rv"]
-        )
+        result = CliRunner().invoke(cli.main, ["--check", "--scenario", "rv"])
         assert result.exit_code == 2
         assert "takes no --scenario" in result.output
 
     def test_the_check_option_passes_on_the_committed_recordings(self):
-        result = CliRunner().invoke(recordings.main, ["--check"])
+        result = CliRunner().invoke(cli.main, ["--check"])
         assert result.exit_code == 0, result.output
 
 
@@ -248,7 +245,7 @@ class TestReadDump:
             encoding="utf-8",
         )
         with pytest.raises(DemoRecordingError, match=r"vendor.*404"):
-            recordings._read_dump(tmp_path, "rv")
+            ledger_dump.read_dump(tmp_path, "rv")
 
     def test_an_entry_without_a_reason_still_names_the_actor(self, tmp_path):
         (tmp_path / "rv").mkdir()
@@ -256,7 +253,7 @@ class TestReadDump:
             json.dumps({"actors": [{"actorName": "vendor"}]}), encoding="utf-8"
         )
         with pytest.raises(DemoRecordingError, match="no reason recorded"):
-            recordings._read_dump(tmp_path, "rv")
+            ledger_dump.read_dump(tmp_path, "rv")
 
     def test_captured_ledgers_are_returned_in_dump_order(self, tmp_path):
         scenario = tmp_path / "rv"
@@ -275,7 +272,7 @@ class TestReadDump:
         (scenario / "dump-manifest.json").write_text(
             json.dumps({"actors": actors}), encoding="utf-8"
         )
-        assert recordings._read_dump(tmp_path, "rv") == {
+        assert ledger_dump.read_dump(tmp_path, "rv") == {
             "vendor": "v\n",
             "reporter": "r\n",
         }
@@ -283,7 +280,7 @@ class TestReadDump:
 
 class TestWriteRecording:
     def test_only_the_canonical_ledger_is_left(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(recordings, "RECORDINGS_DIR", tmp_path)
+        monkeypatch.setattr(layout, "RECORDINGS_DIR", tmp_path)
         (tmp_path / "rv").mkdir()
         (tmp_path / "rv" / "vendor.jsonl").write_text("old\n")
         path = write_recording("rv", "c\n")
@@ -308,7 +305,7 @@ class TestCanonicalLedger:
             # A participant that left early holds a shorter replica.
             "reporter": _line(0) + "\n" + _line(1) + "\n",
         }
-        assert recordings.canonical_ledger("rv", ledgers) == self.CANONICAL
+        assert ledger_dump.canonical_ledger("rv", ledgers) == self.CANONICAL
 
     def test_a_replica_entry_that_differs_is_refused(self):
         ledgers = {
@@ -318,21 +315,21 @@ class TestCanonicalLedger:
         with pytest.raises(
             DemoRecordingError, match=r"'vendor'.*logIndex 1.*differs"
         ):
-            recordings.canonical_ledger("rv", ledgers)
+            ledger_dump.canonical_ledger("rv", ledgers)
 
     def test_a_replica_entry_the_canonical_ledger_lacks_is_refused(self):
         ledgers = {"case-actor": self.CANONICAL, "vendor": _line(7) + "\n"}
         with pytest.raises(DemoRecordingError, match="does not"):
-            recordings.canonical_ledger("rv", ledgers)
+            ledger_dump.canonical_ledger("rv", ledgers)
 
     def test_a_dump_without_the_canonical_ledger_is_refused(self):
         with pytest.raises(DemoRecordingError, match="no 'case-actor'"):
-            recordings.canonical_ledger("rv", {"vendor": self.CANONICAL})
+            ledger_dump.canonical_ledger("rv", {"vendor": self.CANONICAL})
 
     def test_a_line_without_a_log_index_is_refused(self):
         ledgers = {"case-actor": self.CANONICAL, "vendor": '{"id": 1}\n'}
         with pytest.raises(DemoRecordingError, match="'vendor', line 1"):
-            recordings.canonical_ledger("rv", ledgers)
+            ledger_dump.canonical_ledger("rv", ledgers)
 
 
 class TestNodesCall:
@@ -353,7 +350,7 @@ class TestNodesCall:
             return {"q": q}
 
         with TestClient(app) as client:
-            yield recordings._Nodes(clients={"http://vendor:7999": client})
+            yield runner._Nodes(clients={"http://vendor:7999": client})
 
     @pytest.fixture
     def client(self):
@@ -362,7 +359,7 @@ class TestNodesCall:
     def test_a_host_no_role_names_is_refused(self, client):
         elsewhere = DataLayerClient(base_url="http://elsewhere:7999/api/v2")
         with pytest.raises(DemoRecordingError, match="elsewhere"):
-            recordings._Nodes().call(elsewhere, "GET", "/actors/")
+            runner._Nodes().call(elsewhere, "GET", "/actors/")
 
     def test_an_error_status_raises_as_the_real_client_does(
         self, nodes, client
@@ -403,7 +400,7 @@ class TestOneRowAtATime:
         assert events[:2] == ["start a", "start b"]
 
     def test_wrapped_rows_run_one_at_a_time_in_pop_order(self):
-        events = self._run(recordings._one_row_at_a_time(deliver_batch))
+        events = self._run(runner._one_row_at_a_time(deliver_batch))
         assert events == [
             "start a",
             "end a",
@@ -418,7 +415,7 @@ class TestScenarioNodes:
     def test_the_default_emitter_is_restored_on_exit(self):
         slot = outbox_handler._DEFAULT_EMITTER_SLOT
         before = slot.value
-        with recordings._scenario_nodes([], load_topology()):
+        with runner._scenario_nodes([], load_topology()):
             assert isinstance(slot.value, InProcessRouter)
         assert slot.value is before
 
@@ -427,7 +424,7 @@ class TestScenarioNodes:
         before = slot.value
         with (
             pytest.raises(RuntimeError),
-            recordings._scenario_nodes([], load_topology()),
+            runner._scenario_nodes([], load_topology()),
         ):
             raise RuntimeError("scenario failed")
         assert slot.value is before
@@ -435,21 +432,21 @@ class TestScenarioNodes:
 
 class TestCli:
     def test_an_unregistered_scenario_is_refused(self):
-        result = CliRunner().invoke(recordings.main, ["--scenario", "nope"])
+        result = CliRunner().invoke(cli.main, ["--scenario", "nope"])
         assert result.exit_code != 0
         assert "not registered: nope" in result.output
 
     def test_a_named_scenario_is_recorded_alone(self, tmp_path, monkeypatch):
         (tmp_path / "retired-scenario").mkdir()
-        monkeypatch.setattr(recordings, "RECORDINGS_DIR", tmp_path)
-        monkeypatch.setattr(recordings, "REPO_ROOT", tmp_path)
-        monkeypatch.setattr(recordings, "load_topology", lambda: None)
+        monkeypatch.setattr(layout, "RECORDINGS_DIR", tmp_path)
+        monkeypatch.setattr(layout, "REPO_ROOT", tmp_path)
+        monkeypatch.setattr(cli, "load_topology", lambda: None)
         monkeypatch.setattr(
-            recordings,
+            cli,
             "record_scenario",
             lambda spec, _topology: f"{spec.name}\n",
         )
-        result = CliRunner().invoke(recordings.main, ["--scenario", "rv"])
+        result = CliRunner().invoke(cli.main, ["--scenario", "rv"])
         assert result.exit_code == 0, result.output
         # Only a full run drops the recordings of unregistered scenarios.
         assert sorted(p.name for p in tmp_path.iterdir()) == [
@@ -463,12 +460,12 @@ class TestCli:
         specs = [
             spec for spec in discover_scenarios() if spec.name in {"rv", "rvv"}
         ]
-        monkeypatch.setattr(recordings, "RECORDINGS_DIR", tmp_path)
-        monkeypatch.setattr(recordings, "REPO_ROOT", tmp_path)
-        monkeypatch.setattr(recordings, "discover_scenarios", lambda: specs)
-        monkeypatch.setattr(recordings, "load_topology", lambda: None)
+        monkeypatch.setattr(layout, "RECORDINGS_DIR", tmp_path)
+        monkeypatch.setattr(layout, "REPO_ROOT", tmp_path)
+        monkeypatch.setattr(cli, "discover_scenarios", lambda: specs)
+        monkeypatch.setattr(cli, "load_topology", lambda: None)
         monkeypatch.setattr(
-            recordings,
+            cli,
             "record_scenario",
             lambda spec, _topology: f"{spec.name}\n",
         )
@@ -477,26 +474,26 @@ class TestCli:
         return tmp_path
 
     def test_report_changes_passes_when_nothing_changed(self, stubbed):
-        result = CliRunner().invoke(recordings.main, ["--report-changes"])
+        result = CliRunner().invoke(cli.main, ["--report-changes"])
         assert result.exit_code == 0, result.output
 
     def test_report_changes_names_a_changed_recording(self, stubbed):
         write_recording("rvv", "an older run\n")
-        result = CliRunner().invoke(recordings.main, ["--report-changes"])
-        assert result.exit_code == recordings.CHANGED_EXIT_CODE
+        result = CliRunner().invoke(cli.main, ["--report-changes"])
+        assert result.exit_code == cli.CHANGED_EXIT_CODE
         assert "Changed recordings: rvv" in result.output
         # The fresh recording is written, ready to commit or upload.
-        assert recordings.recording_path("rvv").read_text() == "rvv\n"
+        assert layout.recording_path("rvv").read_text() == "rvv\n"
 
     def test_report_changes_counts_a_removed_scenario(self, stubbed):
         write_recording("retired", "x\n")
-        result = CliRunner().invoke(recordings.main, ["--report-changes"])
-        assert result.exit_code == recordings.CHANGED_EXIT_CODE
+        result = CliRunner().invoke(cli.main, ["--report-changes"])
+        assert result.exit_code == cli.CHANGED_EXIT_CODE
         assert "Changed recordings: retired" in result.output
 
     def test_without_report_changes_a_change_still_exits_zero(self, stubbed):
         write_recording("rv", "an older run\n")
-        result = CliRunner().invoke(recordings.main, [])
+        result = CliRunner().invoke(cli.main, [])
         assert result.exit_code == 0, result.output
 
     def test_a_full_run_records_every_scenario_and_drops_stale_ones(
@@ -506,16 +503,16 @@ class TestCli:
             spec for spec in discover_scenarios() if spec.name in {"rv", "rvv"}
         ]
         (tmp_path / "retired-scenario").mkdir()
-        monkeypatch.setattr(recordings, "RECORDINGS_DIR", tmp_path)
-        monkeypatch.setattr(recordings, "REPO_ROOT", tmp_path)
-        monkeypatch.setattr(recordings, "discover_scenarios", lambda: specs)
-        monkeypatch.setattr(recordings, "load_topology", lambda: None)
+        monkeypatch.setattr(layout, "RECORDINGS_DIR", tmp_path)
+        monkeypatch.setattr(layout, "REPO_ROOT", tmp_path)
+        monkeypatch.setattr(cli, "discover_scenarios", lambda: specs)
+        monkeypatch.setattr(cli, "load_topology", lambda: None)
         monkeypatch.setattr(
-            recordings,
+            cli,
             "record_scenario",
             lambda spec, _topology: f"{spec.name}\n",
         )
-        result = CliRunner().invoke(recordings.main, [])
+        result = CliRunner().invoke(cli.main, [])
         assert result.exit_code == 0, result.output
         assert sorted(p.name for p in tmp_path.iterdir()) == ["rv", "rvv"]
         assert (tmp_path / "rvv" / "case-actor.jsonl").read_text() == "rvv\n"

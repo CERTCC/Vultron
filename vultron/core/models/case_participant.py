@@ -609,7 +609,8 @@ class CaseParticipant(CoreObject):
         """
         # A list, not a set: the roles are serialized in this order, and set
         # order follows PYTHONHASHSEED, so two runs would hash differently.
-        roles = list(self.case_roles)
+        # dict.fromkeys drops a duplicate the set used to drop, in held order.
+        roles = list(dict.fromkeys(self.case_roles))
         if role not in roles:
             roles.append(role)
         else:
@@ -642,7 +643,7 @@ class CaseParticipant(CoreObject):
             KeyError: when ``raise_when_missing`` is ``True`` and the role is
                 not present.
         """
-        roles = list(self.case_roles)  # order kept, as in add_role
+        roles = list(dict.fromkeys(self.case_roles))  # as in add_role
         if role in roles:
             roles = [held for held in roles if held != role]
         else:
