@@ -149,7 +149,6 @@ A participant that joined the case by invitation never saw the report offer, so 
 
     The protocol defines no message meaning "I have read the report".
     `RK` carries no report management state, so it tells the reporter nothing about whether the recipient has examined the content.
-    The recipient's report management state messages are what report that.
 
     ```python exec="true" idprefix=""
     from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RMB-08-003", "VP-03-009"))
@@ -271,7 +270,7 @@ Their status here is **not uniform**: the groups are not symmetric.
 
 Of the eight, only `RK` has a wire activity, `Read(Offer(VulnerabilityReport))` ([§4.5 Report Management Messages](layers.md#45-report-management-messages)).
 The other seven have none.
-No participant sends any of the seven, so a participant that waits for one waits forever.
+None of the seven arrives as a message of its own, so a participant that waits for one waits forever.
 
 The absences have two different reasons.
 

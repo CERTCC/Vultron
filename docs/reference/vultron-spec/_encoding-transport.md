@@ -23,7 +23,7 @@ Every Activity carries these fields:
 | `actor` | The Uniform Resource Identifier (URI) of the actor that performed the action |
 | `object` | The thing acted on, inline or by reference ([§5.2 Serialization](layers.md#52-serialization)) |
 | `id` | A URI uniquely identifying this Activity, used for deduplication ([§15.3 Replay and Idempotency](considerations.md#153-replay-and-idempotency)) |
-| `published` | The time the sender stamps on the Activity when it sends it |
+| `published` | The timestamp its sender stamps on the Activity |
 
 The fields that tell occasions apart, such as `target` and `context`, are the bracketed fields of the [Wire Activity Notation](annex-c-notation.md#wire-activity-notation).
 Vultron's own types are declared in the vocabulary namespace `https://certcc.github.io/Vultron/ns`.
@@ -61,7 +61,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 
 **Objects travel inline or by reference.**
 As AS2 allows, an Activity carries an object inline or names it by URI, and a receiver copes with either form.
-An object the recipient cannot be expected to hold is named only by a reference the recipient can dereference ([§4.2 Knowledge Model and Actor Isolation](layers.md#42-knowledge-model-and-actor-isolation)).
+An object the recipient cannot be expected to hold is carried inline, or named by a reference the recipient can dereference ([§4.2 Knowledge Model and Actor Isolation](layers.md#42-knowledge-model-and-actor-isolation)).
 A production implementation can fetch an object named by a URI it holds no record of.
 
 ```python exec="true" idprefix=""

@@ -43,10 +43,11 @@ groups:
       exists and the case is still pre-public, the receiver transitions to
       Proposed to signal they are evaluating the proposal.
     verification: >-
-      Integration tests in `test/demo/` confirm that receiving EP when EM is NONE
-      and CS matches ...pxa transitions EM to PROPOSED, and that the CASE_MANAGER's
-      ledger commit and announcement of the received EP discharge EK with no EK
-      message queued.
+      `test_case_manager_moves_first_proposal_to_proposed` in
+      `test/core/use_cases/received/test_embargo_revision_relay.py` confirms that
+      receiving EP when EM is NONE transitions EM to PROPOSED, that the
+      CASE_MANAGER commits the received EP once and announces its entry, and that
+      no acknowledgement message is queued.
     testable: true
     preconditions:
     - em_state:
@@ -60,14 +61,16 @@ groups:
       expected: Receiver EM state is PROPOSED
     - order: 2
       actor: receiver
-      action: CASE_MANAGER commits the received EP and announces the ledger entry (discharges EK)
+      action: >-
+        CASE_MANAGER commits the received EP and announces the ledger entry
+        (discharges EK)
       expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
     - description: Receiver EM state is PROPOSED; EK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+      note: VP-11-004's EK is the CASE_MANAGER's ledger commit (EP-09-009)
     - rel_type: satisfies
       spec_id: MSM-02-001
       note: 'EP shorthand wire-type mapping'
@@ -418,9 +421,11 @@ groups:
     adr:
     - ADR-0113
     verification: >-
-      Integration tests in `test/demo/` confirm that receiving EV in EM ACTIVE
-      with CS matching ...pxa transitions EM to REVISE, and that the CASE_MANAGER's ledger
-      commit and announcement of the received EV discharge EK with no EK message queued.
+      `test_case_manager_moves_canonical_case_to_revise` in
+      `test/core/use_cases/received/test_embargo_revision_relay.py` confirms that
+      receiving EV in EM ACTIVE transitions EM to REVISE, that the CASE_MANAGER
+      commits the received EV once and announces its entry, and that no
+      acknowledgement message is queued.
     testable: true
     preconditions:
     - em_state:
@@ -446,7 +451,7 @@ groups:
       note: Once accepted, revisions MAY be proposed
     - rel_type: satisfies
       spec_id: VP-11-004
-      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+      note: VP-11-004's EK is the CASE_MANAGER's ledger commit (EP-09-009)
     - rel_type: satisfies
       spec_id: MSM-02-003
       note: 'EV shorthand wire-type mapping'
