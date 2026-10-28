@@ -628,8 +628,9 @@ groups:
       source and clock that the scenario recordings use.
     rationale: >-
       Every copy is then identical on every run. A copy whose ids or timestamps
-      vary between runs makes the tests that load it nondeterministic (TB-06-006). Sharing the recordings' seeding keeps a
-      starting point and the recording of the same step comparable.
+      vary between runs makes the tests that load it nondeterministic
+      (TB-06-006). Sharing the recordings' seeding keeps a starting point and the
+      recording of the same step comparable.
     verification: >-
       A harness test builds one starting point twice and checks that the two copies
       hold the same records, ids and timestamps included.
