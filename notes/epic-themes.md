@@ -8,7 +8,8 @@ description: >
   `theme-labels` script syncs GitHub from it. The rules for applying a theme:
   classify by outcome, one theme per leaf, an Epic's second theme only when its
   body names the split, the theme contains the grain, the `Theme:` reason line;
-  borderline examples; and how to act on a theme-fit finding.
+  borderline examples; how to act on a theme-fit finding; and triage-label rules
+  (`needs-info`, `ready-for-human`, and retired labels).
 related_specs:
   - specs/parallel-development.yaml
 related_notes:
@@ -305,3 +306,19 @@ and moves nothing; a person or an agent decides each finding:
    that boundary rather than moving them one at a time.
 5. **If an Epic has a second theme with no split named**, either name the split
    in its body or split the Epic.
+
+## Triage Labels
+
+Two triage labels exist alongside `theme:` and the workflow labels in
+`notes/parallel-development.md` § "Label Taxonomy":
+
+- **`needs-info`** — the only hold; keeps an Issue out of `Ready` while waiting
+  on a person or a decision (PAD-16-004/005).
+- **`ready-for-human`** — reserves an Issue for a human: an agent MUST NOT
+  auto-select or claim it. The label does not change the Issue's `Status`
+  (PAD-16-007).
+
+The labels `needs-triage`, `ready-for-agent`, and `wontfix` are not used, because
+each duplicates a fact the tracker already holds: untriaged means "no Epic
+ancestor", `Ready` is computed, and "will not be actioned" is GitHub's "not
+planned" close reason (PAD-16-010). Their retirement is tracked in #3717.

@@ -104,8 +104,9 @@ that the cost of a full scan is justified on every invocation.
    ```
 
    Select on the issue **type**, not a `concern` label — the type is
-   authoritative (see `docs/agents/issue-tracker.md`), and the two do not
-   agree: the label matches 13 open issues where the type matches 53.
+   authoritative (see `notes/parallel-development.md` § "GitHub Issue Tracker"),
+   and the two do not agree: the label matches 13 open issues where the type
+   matches 53.
    `reflect-cycle` gates this same queue on the type, so a label query here
    makes the two skills disagree about whether `learn` has input.
 

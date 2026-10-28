@@ -4,55 +4,10 @@ stakeholder_type: [project-contributor]
 
 # Issue tracker: GitHub
 
-Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
+To fetch an issue, run `gh issue view <number> --comments`.
+A bare `#N` may be a pull request, so try `gh pr view N` first and fall back to `gh issue view N`.
 
-## Conventions
+The full rules for the GitHub issue tracker are in `notes/parallel-development.md` § "GitHub Issue Tracker".
+Never create an issue with `gh issue create`: it cannot set the issue type or the parent and blocker links.
 
-- **Create an issue**: use `.agents/skills/manage-github-issue/manage_github_issue.sh` (or the `createIssue` GraphQL mutation directly). **Never use `gh issue create`** — it cannot set the issue type, parent/child (sub-issue) relationships, or blocker/blocked-by links, all of which are required on create. Type IDs and relationship mutations are in `.agents/skills/manage-github-issue/REFERENCE.md`; use the `create-epic` skill for Epics.
-- **Say why you opened it**: every create also needs `--opened-as excursion|separate-defect|debt|deferred` (which applies an `opened:` label) or `--planned` for planned or user-requested work.
-  `--opened-as debt` also needs `--where`.
-  The labels let a run's net issue count be read afterwards; see `.agents/skills/shared/completeness-doctrine.md` § "Net Issues: Close More Than You Open".
-- **Read an issue**: `gh issue view <number> --comments`, filtering comments by `jq` and also fetching labels.
-- **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
-- **Comment on an issue**: `gh issue comment <number> --body "..."`
-- **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
-- **Close**: `gh issue close <number> --comment "..."`
-
-Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
-
-## Epics
-
-Epics are the `Epic` issue type, **not** a label. An Epic is a first-class GitHub issue whose `issueType` is `Epic`, with its member issues wired as sub-issues via GraphQL (the `addSubIssue` mutation). There is no "epic" label — do not create or search for one. Detect Epics by `issueType.name == "Epic"` and find their contents through the sub-issue relationship, not a label query. Create them with the `create-epic` skill.
-
-## Backtick-safe bodies
-
-**Never pass backtick-containing markdown in a double-quoted `--body`.** Use a single-quoted heredoc:
-
-```bash
-gh issue comment <N> --repo CERTCC/Vultron --body "$(cat <<'EOF'
-Use `code` freely here.
-EOF
-)"
-```
-
-The same rule applies to `gh issue edit --body`, `gh pr create --body`, etc.
-
-## Pull requests as a triage surface
-
-**PRs as a request surface: no.**
-
-When set to `yes`, PRs run through the same labels and states as issues, using the `gh pr` equivalents:
-
-- **Read a PR**: `gh pr view <number> --comments` and `gh pr diff <number>` for the diff.
-- **List external PRs for triage**: `gh pr list --state open --json number,title,body,labels,author,authorAssociation,comments` then keep only `authorAssociation` of `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`, or `NONE` (drop `OWNER`/`MEMBER`/`COLLABORATOR`).
-- **Comment / label / close**: `gh pr comment`, `gh pr edit --add-label`/`--remove-label`, `gh pr close`.
-
-GitHub shares one number space across issues and PRs, so a bare `#42` may be either — resolve with `gh pr view 42` and fall back to `gh issue view 42`.
-
-## When a skill says "publish to the issue tracker"
-
-Create a GitHub issue.
-
-## When a skill says "fetch the relevant ticket"
-
-Run `gh issue view <number> --comments`.
+Epics, label taxonomy, and triage labels are covered there and in `notes/epic-themes.md` § "Triage Labels".
