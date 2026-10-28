@@ -468,9 +468,10 @@ groups:
           label.
         rationale: >-
           Calibrates the size label to the implementation effort measured at PR open
-          time (see PAD-05-002). A 100-line ceiling sits well below the diff of a
-          typical PR, so `size:S` holds the changes that are small, rather than a band
-          that almost no PR falls in.
+          time (see PAD-05-002). The ceiling sits well below the median merged-PR
+          diff measured by the survey in `vultron/metadata/planning/size_bands.py`, so
+          `size:S` holds the changes that are small, rather than a band that almost no
+          PR falls in.
         verification: >-
           `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
           threshold value itself, and
@@ -484,9 +485,10 @@ groups:
           label.
         rationale: >-
           Calibrates the size label to the actual implementation effort
-          measured at PR open time (see PAD-05-002). Merged-PR diff size is
-          lognormal with a median of 258 lines and no natural clusters, so this
-          band covers the normal unit of work (38% of the surveyed window).
+          measured at PR open time (see PAD-05-002). The survey in
+          `vultron/metadata/planning/size_bands.py` found no natural clusters in
+          merged-PR diff size, and this band holds its median, so `size:M` covers
+          the normal unit of work.
         verification: >-
           `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
           threshold value itself, and

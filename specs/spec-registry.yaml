@@ -684,7 +684,8 @@ groups:
     rationale: >-
       A registered marker lets each test name the requirement it verifies, which is what
       the coverage report and coverage guard read. The test configuration turns warnings
-      into errors, so an unregistered marker would fail every test that uses it.
+      into errors, so an unregistered marker would be a collection error for every test
+      module that uses it.
   - id: SR-05-002
     priority: MUST
     kind: project
