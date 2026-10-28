@@ -18,7 +18,7 @@ from pydantic import Field, field_validator, model_validator
 
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.embargo_termination import TerminationCause
-from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.ledger_position import EMPTY_LEDGER_LOG_INDEX
 from vultron.wire.as2.enums import as_TransitiveActivityType as TA_type
 from vultron.wire.as2.vocab.base.base import VULTRON_PROPERTY_EXTRA
 from vultron.wire.as2.vocab.base.objects.activities.base import (
@@ -405,8 +405,8 @@ class as_Reject(as_TransitiveActivity):
 
     ``object`` may be absent in exactly one Vultron message: a replica that
     holds no ledger entry asks the CASE_MANAGER to replay a case from
-    genesis with a ``Reject(CaseLedgerEntry)`` that names no entry, an empty
-    last-accepted hash, and the case as ``target`` (SYNC-16-007).  Any other
+    genesis with a ``Reject(CaseLedgerEntry)`` that names no entry, a
+    ``ledgerPosition`` naming none, and the case as ``target`` (SYNC-16-007).  Any other
     ``Reject`` without an object is refused when it is built or parsed.
     """
 
@@ -423,17 +423,19 @@ class as_Reject(as_TransitiveActivity):
     def asks_for_genesis_replay(self) -> bool:
         """Whether this is the objectless genesis-replay ``Reject``.
 
-        A plain ``Reject`` with no ``object``, an empty last-accepted hash
-        (``context`` absent or ``""``) and a ``target`` that names the case
-        (SYNC-16-007): its id, or an inline ``VulnerabilityCase``; an inline
-        object of any other type names no case.  The one rule the parser and
-        the router both read.
+        A plain ``Reject`` with no ``object``, whose ``ledgerPosition`` is the
+        empty chain's (index -1), and a ``target`` that names the case
+        (SYNC-16-007, SYNC-18-001): its id, or an inline
+        ``VulnerabilityCase``; an inline object of any other type names no
+        case.  The one rule the parser and the router both read.
         """
         target_type = getattr(self.target, "type_", None)
+        position = self.ledger_position
         return (
             self.object_ is None
             and str(self.type_) == str(TA_type.REJECT)
-            and self.context in (None, "")
+            and position is not None
+            and position.log_index == EMPTY_LEDGER_LOG_INDEX
             and bool(_as_id(self.target))
             and (
                 target_type is None or str(target_type) == "VulnerabilityCase"
@@ -447,9 +449,9 @@ class as_Reject(as_TransitiveActivity):
             return self
         raise ValueError(
             f"{self.type_} names no object.  Only a Reject(CaseLedgerEntry)"
-            " asking for a replay from genesis may: it carries an empty"
-            " last-accepted hash and names the case as its target"
-            " (SYNC-16-007)"
+            " asking for a replay from genesis may: it states the empty"
+            " chain's ledgerPosition (index -1) and names the case as its"
+            " target (SYNC-16-007)"
         )
 
 
@@ -474,20 +476,6 @@ class as_Read(as_TransitiveActivity):
         default=TA_type.READ,
         validation_alias="type",
         serialization_alias="type",
-    )
-    # SYNC-17-001: a participant's ``Read(CaseLedgerEntry)`` states the
-    # position of the entry it names as the Vultron property
-    # ``ledgerPosition``, the term a case copy already uses (SYNC-16-005,
-    # ADR-0156).  Declared on the base for the reason ``as_Remove`` declares
-    # ``terminationCause``: an inbound Read is reconstructed as a bare
-    # as_Read, so without the field here the parse edge would set the
-    # position aside (MV-11-003).  ``LedgerPosition`` validates it, so a
-    # malformed position is refused at the edge.
-    ledger_position: LedgerPosition | None = Field(
-        default=None,
-        validation_alias="ledgerPosition",
-        serialization_alias="ledgerPosition",
-        json_schema_extra=VULTRON_PROPERTY_EXTRA,
     )
 
 

@@ -33,7 +33,12 @@ import pytest
 from py_trees.common import Status
 from pydantic import ValidationError
 
-from test.support.received import received_activity, received_event
+from test.support.received import (
+    delivered_body,
+    extract_stamped,
+    received_activity,
+    received_event,
+)
 from test.support.refusal_notice import assert_refusal_notice
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -79,7 +84,6 @@ from vultron.core.states.participant_embargo_consent import (
 from vultron.core.use_cases.received._bt_verdict import find_node
 from vultron.core.use_cases.received.fault import RefusalNoticeReceivedUseCase
 from vultron.errors import VultronWiringError
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import em_accept_embargo_activity
 from vultron.wire.as2.parser import parse_activity
 
@@ -130,7 +134,7 @@ def _accept_event(
         id_=f"{sender}/answers/{tag}",
     )
     body = json.loads(dump_outbound_body(activity))
-    return extract_event(parse_activity(body)).model_copy(
+    return extract_stamped(parse_activity(body)).model_copy(
         update={"receiving_actor_id": receiver}
     )
 
@@ -206,7 +210,7 @@ def test_the_refusal_notice_embeds_the_refused_activity_as_received():
         id_=f"{BYSTANDER}/answers/verbatim",
     )
     body = {
-        **json.loads(dump_outbound_body(answer)),
+        **delivered_body(answer),
         "cc": ["https://example.org/users/watcher"],
         "endTime": "2031-01-01T00:00:00+00:00",
         "x-vendorExtension": {"kept": True},
@@ -464,7 +468,7 @@ def test_the_notice_routes_to_the_refusal_notice_semantics():
     notice_id = _notices(net, MANAGER, BYSTANDER)[0].id_
     body = read_sealed_body_dict(net.stores[MANAGER], notice_id)
 
-    routed = extract_event(parse_activity(cast(dict[str, Any], body)))
+    routed = extract_stamped(parse_activity(cast(dict[str, Any], body)))
     assert isinstance(routed, RefusalNoticeReceivedEvent)
 
     assert routed.semantic_type is MessageSemantics.REFUSAL_NOTICE
@@ -486,7 +490,7 @@ def test_a_notice_naming_no_case_is_refused():
     caseless["object"] = {
         k: v for k, v in body["object"].items() if k != "context"
     }
-    routed = extract_event(parse_activity(caseless)).model_copy(
+    routed = extract_stamped(parse_activity(caseless)).model_copy(
         update={"receiving_actor_id": BYSTANDER}
     )
     assert isinstance(routed, RefusalNoticeReceivedEvent)
@@ -551,11 +555,11 @@ def test_an_event_naming_no_refused_activity_is_refused_at_construction():
     _run(net, MANAGER, _tree(net.case_id, BYSTANDER), event)
     notice_id = _notices(net, MANAGER, BYSTANDER)[0].id_
     body = read_sealed_body_dict(net.stores[MANAGER], notice_id)
-    routed = extract_event(parse_activity(cast(dict[str, Any], body)))
+    routed = extract_stamped(parse_activity(cast(dict[str, Any], body)))
 
     with pytest.raises(ValidationError, match="names no refused activity"):
         RefusalNoticeReceivedEvent(
-            **{**dict(routed), "in_reply_to": None, "object_": None}
+            **{**dict(routed), "in_reply_to": None, "object_": None},
         )
 
 

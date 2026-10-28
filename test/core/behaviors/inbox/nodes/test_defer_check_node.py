@@ -117,11 +117,12 @@ def _run_node(
 
 class TestDeferCheckNodeNonUriContextId:
     def test_genesis_hash_skips_deferral(self):
-        """Non-URI context_id (genesis hash) must not be queued for deferral.
+        """Non-URI context_id (a bare hash) must not be queued for deferral.
 
-        Regression: Reject(CaseLedgerEntry) carries context=tail_hash which is
-        a 64-char hex string.  Without the guard, queue.queue() would have been
-        called with case_id=genesis_hash causing a pydantic ValidationError.
+        Regression: Reject(CaseLedgerEntry) used to carry its tail hash, a
+        64-char hex string, as ``context`` (it names the case now,
+        SYNC-18-001).  Without the guard, queue.queue() would be called with
+        case_id=<hash>, causing a pydantic ValidationError.
         """
         queue = _StubQueuePort(case_known=False)
         status = _run_node(_GENESIS_HASH, queue)

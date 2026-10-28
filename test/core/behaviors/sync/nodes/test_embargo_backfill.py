@@ -185,7 +185,6 @@ def test_genesis_reject_from_an_admitted_peer_seeds_the_case(
         entry=WireCaseLedgerEntry.model_validate(
             entry.model_dump(mode="json")
         ),
-        context="",
         actor=NON_SIGNATORY_ID,
         to=[MANAGER_ID],
     )

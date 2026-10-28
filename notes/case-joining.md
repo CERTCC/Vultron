@@ -294,11 +294,11 @@ distinction in new messages: we accept offers and invitations, never bare object
 - **A reply's RM move follows the shared declaration rule (RSH-06-006).** Forward moves
   are recorded, backward moves refused before the receipt commit, restatements
   `SKIPPED`; see [received-status-authorization](received-status-authorization.md).
-- **A ledger position travels in AS2 `content`**, as the `LedgerPosition` JSON dump
-  (VAM-04-011, VAM-04-019); `target` stays the plain case URI (AKM-02-003). Only
-  `vultron.wire.as2.factories.ledger_position_content` writes it, and the extractor
-  refuses a missing, blank or non-parsing one. An empty ledger is `logIndex` -1 with
-  the case's `genesisHash` (CLP-08-004).
+- **The full-case Invite's position is its `ledgerPosition`** (VAM-04-011,
+  SYNC-18-001); `target` stays the plain case URI (AKM-02-003). The extractor refuses
+  a missing or non-parsing one (SYNC-18-003). A stored stub Invite states the
+  CASE_MANAGER's tail too, but sets no floor (`stored_invite_floor`). An empty ledger
+  is `logIndex` -1 with the case's `genesisHash` (CLP-08-004).
 - **Resolve the case from the stub's `caseId`, never its id.** Stub-Invite reply
   patterns match only a `VulnerabilityCaseStub` target; full-case replies have their
   own patterns.

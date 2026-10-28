@@ -515,8 +515,8 @@ extractor (repository root → set of item IDs in debt) on the merge base with
 `origin/main` and on the working tree, and returns only the items the branch
 added, so a sibling PR cannot turn this one red. `test_spec_coverage_ratchet.py`
 (SR-05-005), `test_spec_kind_ratchet.py` (MS-12-007),
-`test_spec_rationale_guard.py` (MS-10-014) and `test_spec_statement_guard.py`
-(MS-03-007) use it. A debt class
+`test_spec_rationale_guard.py` (MS-10-014), `test_spec_statement_guard.py`
+(MS-03-007) and `test_verification_debt_guard.py` (MS-10-016) use it. A debt class
 already at zero needs no guard: assert the set is empty (MS-12-008).
 
 When adding one, keep three properties:

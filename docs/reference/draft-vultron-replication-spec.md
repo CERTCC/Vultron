@@ -216,8 +216,7 @@ Message ingress MUST NOT use the canonical ledger store as a scratch or lookup c
 
 A receiver MUST reject a replication message whose predecessor hash
 (`prev_log_hash`) does not match the receiver's current log tail hash.
-The receiver sends `Reject(CaseLedgerEntry)` carrying its last accepted hash
-as the recovery signal. (SYNC-03-001, SYNC-08-005)
+The receiver sends `Reject(CaseLedgerEntry)` stating its ledger tail, the last entry it accepted, as its `ledgerPosition`; that position is the recovery signal. (SYNC-03-001, SYNC-08-005, SYNC-18-001)
 
 Before that check, a receiver MUST recompute the entry's hash from its content and compare it with the stated `entry_hash`.
 An entry that states no hash, or whose content does not reproduce it, MUST be refused and logged, and is not buffered, applied or stored.
@@ -304,8 +303,8 @@ The replica's own position is the later of its chain's tail and its case's posit
 A re-delivery of the same announcement is judged the same way: current while the replica is still at the copy's position, stale once its chain is past it.
 A replica stores an entry the copy reflects without applying it, but still stores each record the entry carries that the copy names by id only, such as a note, a case status or a proposed embargo.
 The `Reject(CaseLedgerEntry)` names the last entry the replica's chain stores.
-A replica whose chain stores no entry has none to name, so its `Reject` names no entry, carries an empty last-accepted hash and names the case as its `target`; the CASE_MANAGER answers it with a replay from genesis. (SYNC-16-007)
-A `Reject` that names no entry but carries a hash is refused when it arrives.
+A replica whose chain stores no entry has none to name, so its `Reject` names no entry, states the `ledgerPosition` of its empty chain (`logIndex` -1) and names the case as its `target`; the CASE_MANAGER answers it with a replay from genesis. (SYNC-16-007)
+A `Reject` that names no entry and states no position, or a position naming an entry, is refused when it arrives.
 
 A divergence fault for an entry the last re-seed already reflected, from a participant whose acknowledged position is at or past that re-seed's position, means the CASE_MANAGER's case disagrees with its own ledger, and the CASE_MANAGER SHOULD log it as an error. (SYNC-16-008)
 Without that acknowledgement the copy may have been lost or may still be in flight, so the CASE_MANAGER SHOULD log the fault below error and leave it to the rate-bounded re-seed. (SYNC-16-008)
@@ -345,7 +344,7 @@ When a participant receives a valid `Announce(CaseLedgerEntry)` whose `prev_log_
 It MUST retain the `Announce(CaseLedgerEntry)` that carried it, as the body that arrived, in a non-ledger holding area, keyed by the entry's `prev_log_hash`, pending arrival of its predecessor.
 It MUST NOT retain the entry apart from that `Announce`. (SYNC-14-001)
 
-A forward-gap entry whose `Announce` is held MUST still trigger resynchronization: the participant MUST send `Reject(CaseLedgerEntry)` carrying its last accepted hash, so the CASE_MANAGER can replay entries that are genuinely lost (not merely reordered). (SYNC-14-002)
+A forward-gap entry whose `Announce` is held MUST still trigger resynchronization: the participant MUST send `Reject(CaseLedgerEntry)` stating its ledger tail as its `ledgerPosition`, so the CASE_MANAGER can replay entries that are genuinely lost (not merely reordered). (SYNC-14-002)
 
 ### 6.3 Drain on Predecessor Commit
 
@@ -489,11 +488,11 @@ last acknowledged log entry hash for each peer. (SYNC-04-001)
 Per-peer replication state MUST be persisted so that it survives a leader
 restart. (SYNC-04-002)
 
-When a Participant Actor sends any message to the CASE_MANAGER, it SHOULD
-include the hash of its last accepted canonical log entry as a parameter in
-the activity's `context` field. This allows the CASE_MANAGER to proactively
-detect that a participant is behind and immediately replay missing entries
-without waiting for an explicit sync request. (SYNC-03-004)
+Every activity about a case whose ledger its sender holds, from any sender, MUST state the sender's ledger tail as the activity's `ledgerPosition`: the `logIndex` and `entryHash` of the last entry it had committed or stored when it built the activity. (SYNC-18-001)
+The position MUST be the tail when the sender builds the activity, and a resend MUST carry the position it was first sent with. (SYNC-18-002)
+An activity sent before its sender holds the case's ledger, an activity whose object states its own position (`Announce(CaseLedgerEntry)`, `Announce(VulnerabilityCase)`, `Create(VulnerabilityCase)`, `Update(VulnerabilityCase)`), and `Create(ProcessingFault)` carry none. (SYNC-18-001)
+A receiver MUST refuse an activity in that scope whose `ledgerPosition` is missing or does not parse. (SYNC-18-003)
+The stamp lets the CASE_MANAGER see that a participant is behind without waiting for an explicit sync request.
 
 ---
 
@@ -568,7 +567,6 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-03-001 | §5.1 | Receiver MUST reject on predecessor hash mismatch |
 | SYNC-03-002 | §5.2 | Sender MUST retry from last accepted hash after rejection |
 | SYNC-03-003 | §5.3 | Replication MUST be idempotent |
-| SYNC-03-004 | §9 | Participants SHOULD include last accepted hash in context |
 | SYNC-03-006 | §5.1 | Receiver MUST refuse an entry whose content does not reproduce its hash |
 | SYNC-03-008 | §5.1 | CASE_MANAGER MUST change nothing for a hash-mismatch fault from an active participant, and refuse it from any other sender |
 | SYNC-04-001 | §9 | Leader MUST track per-peer last acknowledged hash |
@@ -642,6 +640,9 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-17-005 | §5.6 | A position the ledger does not hold MUST be logged and answered with nothing |
 | SYNC-17-006 | §5.6 | A `Read(CaseLedgerEntry)` and its answer MUST NOT be ledgered |
 | SYNC-17-007 | §5.6, §10 | Reference participant SHOULD state positions after restart and on an optional interval |
+| SYNC-18-001 | §9 | Every case activity MUST state its sender's ledger tail as `ledgerPosition` |
+| SYNC-18-002 | §9 | The position MUST be the tail when the activity is built, kept on a resend |
+| SYNC-18-003 | §9 | A receiver MUST refuse a case activity whose `ledgerPosition` is missing or malformed |
 | SYNC-19-001 | §6.7 | A coordination decision MUST NOT depend on an arrival order the ledger does not define |
 | SYNC-19-002 | §6.7 | Eventual consistency is the guarantee; every replica reaches the CASE_MANAGER's case file |
 | SYNC-19-003 | §6.7 | Per-recipient delivery order MUST NOT be a protocol guarantee |

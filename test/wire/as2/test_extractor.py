@@ -8,6 +8,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.received import extract_stamped, stamped
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.dimensions import (
     VfDimension,
@@ -15,7 +16,6 @@ from vultron.core.models.dimensions import (
 from vultron.core.models.events import MessageSemantics
 from vultron.semantic_registry import (
     SEMANTIC_REGISTRY,
-    extract_event,
     find_matching_semantics,
 )
 from vultron.wire.as2.extractor import (
@@ -121,7 +121,7 @@ def test_extract_intent_report_pass_through_fields():
         updated=now,
     )
     activity = as_Create(actor="https://example.org/alice", object_=report)
-    event = extract_event(activity)
+    event = extract_stamped(activity)
 
     r = cast(Any, event).report
     assert r is not None
@@ -151,7 +151,7 @@ def test_extract_intent_case_pass_through_fields():
         updated=now,
     )
     activity = as_Create(actor="https://example.org/alice", object_=case)
-    event = extract_event(activity)
+    event = extract_stamped(activity)
 
     c = cast(Any, event).case
     assert c is not None
@@ -181,7 +181,7 @@ def test_extract_refuses_a_case_object_naming_no_owner():
     activity = as_Create(actor="https://example.org/alice", object_=ownerless)
 
     with pytest.raises(VultronParseValidationError, match="names no owner"):
-        extract_event(activity)
+        extract_stamped(activity)
 
 
 @pytest.mark.spec("SYNC-16-005")
@@ -212,7 +212,7 @@ def test_extract_refuses_a_case_object_naming_no_ledger_position():
     with pytest.raises(
         VultronParseValidationError, match="names no ledger position"
     ):
-        extract_event(activity)
+        extract_stamped(activity)
 
 
 @pytest.mark.spec("VAM-05-005")
@@ -236,7 +236,7 @@ def test_extract_intent_embargo_pass_through_fields():
         object_=embargo,
         context="https://example.org/cases/1",
     )
-    event = extract_event(activity)
+    event = extract_stamped(activity)
 
     assert event.semantic_type is MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
     e = cast(Any, event.object_)
@@ -269,7 +269,7 @@ def test_extract_intent_embargo_keeps_its_descriptive_fields():
         object_=embargo,
         context="https://example.org/cases/1",
     )
-    event = extract_event(activity)
+    event = extract_stamped(activity)
 
     e = cast(Any, event.object_)
     assert e is not None
@@ -296,7 +296,7 @@ def test_extract_intent_note_pass_through_fields():
         actor="https://example.org/alice",
         target="https://example.org/cases/1",
     )
-    event = extract_event(activity)
+    event = extract_stamped(activity)
 
     n = cast(Any, event).note
     assert n is not None
@@ -320,7 +320,7 @@ def test_extract_intent_activity_origin_field():
         object_=report,
         origin="https://example.org/cases/original",
     )
-    event = extract_event(activity)
+    event = extract_stamped(activity)
 
     assert event.activity is not None
     assert event.activity.origin == "https://example.org/cases/original"
@@ -351,7 +351,7 @@ def test_extract_intent_preserves_sender_published_timestamp():
         object_=report,
         published=claimed,
     )
-    event = extract_event(activity)
+    event = extract_stamped(activity)
 
     assert event.activity is not None
     assert event.activity.published == claimed
@@ -379,7 +379,7 @@ def test_extract_intent_participant_case_roles():
         object_=participant,
         target="https://example.org/cases/1",
     )
-    event = extract_event(activity)
+    event = extract_stamped(activity)
 
     p = cast(Any, event).participant
     assert p is not None
@@ -401,7 +401,7 @@ def test_extract_intent_case_status_name():
         object_=cs,
         target="https://example.org/cases/1",
     )
-    event = extract_event(activity)
+    event = extract_stamped(activity)
 
     s = cast(Any, event).status
     assert s is not None
@@ -426,7 +426,7 @@ def test_extract_intent_participant_status_vf_state():
         object_=ps,
         target="https://example.org/cases/1/participants/alice",
     )
-    event = extract_event(activity)
+    event = extract_stamped(activity)
 
     s = cast(Any, event).status
     assert s is not None
@@ -454,7 +454,7 @@ def test_extract_intent_participant_status_rm_and_d():
         object_=ps,
         target="https://example.org/cases/1/participants/alice",
     )
-    event = extract_event(activity)
+    event = extract_stamped(activity)
 
     s = cast(Any, event).status
     assert s is not None
@@ -504,7 +504,7 @@ def test_invite_rsvp_deadline_extracted_when_present():
     """AC-2: activity-level end_time is extracted as rsvp_deadline on the event."""
     deadline = datetime.now(tz=UTC) + timedelta(days=5)
     invite = _make_embargo_invite(end_time=deadline)
-    event = extract_event(invite)
+    event = extract_stamped(invite)
 
     assert hasattr(event, "rsvp_deadline")
     ev = cast(Any, event)
@@ -518,7 +518,7 @@ def test_invite_rsvp_deadline_defaults_to_policy_window_when_no_end_time():
     """No Invite.end_time → the 7-day policy window from ``published``."""
     published = datetime.now(tz=UTC)
     invite = _make_embargo_invite(end_time=None, published=published)
-    event = extract_event(invite)
+    event = extract_stamped(invite)
 
     assert cast(Any, event).rsvp_deadline == published + timedelta(days=7)
 
@@ -527,7 +527,7 @@ def test_invite_rsvp_deadline_defaults_to_policy_window_when_no_end_time():
 def test_extract_event_honours_custom_default_rsvp_window():
     published = datetime.now(tz=UTC)
     invite = _make_embargo_invite(end_time=None, published=published)
-    event = extract_event(invite, default_rsvp_window=timedelta(days=10))
+    event = extract_stamped(invite, default_rsvp_window=timedelta(days=10))
 
     assert cast(Any, event).rsvp_deadline == published + timedelta(days=10)
 
@@ -537,7 +537,7 @@ def test_invite_rsvp_deadline_distinct_from_embargo_end_time():
     """AC-2: invite.end_time and invite.object_.end_time are distinct fields."""
     rsvp = datetime.now(tz=UTC) + timedelta(days=5)
     invite = _make_embargo_invite(end_time=rsvp)
-    event = extract_event(invite)
+    event = extract_stamped(invite)
 
     # The nested embargo's end_time is on the activity's object_, not rsvp_deadline
     ev = cast(Any, event)
@@ -556,7 +556,7 @@ def test_invite_rsvp_deadline_clamped_when_below_floor():
     # end_time is in the past / far below the 72h floor
     past_deadline = datetime.now(tz=UTC) - timedelta(hours=1)
     invite = _make_embargo_invite(end_time=past_deadline)
-    event = extract_event(invite)
+    event = extract_stamped(invite)
 
     ev = cast(Any, event)
     assert ev.rsvp_deadline is not None
@@ -580,7 +580,7 @@ def test_invite_rsvp_deadline_normalized_when_naive_end_time():
     assert invite.end_time is not None
     assert invite.end_time.tzinfo is not None
 
-    event = extract_event(invite)
+    event = extract_stamped(invite)
 
     assert hasattr(event, "rsvp_deadline")
     rsvp = cast(Any, event).rsvp_deadline
@@ -596,7 +596,7 @@ def test_invite_rsvp_deadline_clamped_uses_custom_min_rsvp_window():
 
     # deadline 5 days out: above 72 h default floor, but below 10-day custom floor
     deadline = datetime.now(tz=UTC) + timedelta(days=5)
-    invite = _make_embargo_invite(end_time=deadline)
+    invite = stamped(_make_embargo_invite(end_time=deadline))
 
     semantics = find_matching_semantics(invite)
     entry = lookup_entry(semantics)
@@ -616,22 +616,22 @@ def test_invite_rsvp_deadline_clamped_uses_custom_min_rsvp_window():
 
 @pytest.mark.spec("EP-07-003")
 def test_extract_event_honours_custom_min_rsvp_window():
-    """AC-2 (#3045): extract_event() forwards min_rsvp_window to extract_intent.
+    """AC-2 (#3045): extract_stamped() forwards min_rsvp_window to extract_intent.
 
-    Before the fix extract_event() had no min_rsvp_window parameter and always
+    Before the fix extract_stamped() had no min_rsvp_window parameter and always
     applied the 72 h default floor, regardless of actor configuration.
     """
     # deadline 5 days out: above 72 h default, but below the 10-day custom floor
     deadline = datetime.now(tz=UTC) + timedelta(days=5)
     invite = _make_embargo_invite(end_time=deadline)
 
-    event = extract_event(invite, min_rsvp_window=timedelta(days=10))
+    event = extract_stamped(invite, min_rsvp_window=timedelta(days=10))
 
     ev = cast(Any, event)
     assert ev.rsvp_deadline is not None
     # Clamped to 10-day floor — must be strictly greater than 5-day deadline
     assert ev.rsvp_deadline > deadline.astimezone(UTC), (
-        "extract_event() must apply the caller-supplied min_rsvp_window,"
+        "extract_stamped() must apply the caller-supplied min_rsvp_window,"
         " not always use the 72 h default (#3045)"
     )
 
@@ -650,7 +650,7 @@ def test_invite_on_day_28_of_30_day_embargo_gets_two_day_window(caplog):
     )
 
     with caplog.at_level(logging.INFO):
-        event = extract_event(invite)
+        event = extract_stamped(invite)
 
     assert cast(Any, event).rsvp_deadline == embargo_end
     assert any("EP-07-006" in r.getMessage() for r in caplog.records)
@@ -667,7 +667,7 @@ def test_explicit_deadline_after_embargo_end_is_clamped_down(caplog):
     )
 
     with caplog.at_level(logging.INFO):
-        event = extract_event(invite)
+        event = extract_stamped(invite)
 
     assert cast(Any, event).rsvp_deadline == embargo_end
     messages = [r.getMessage() for r in caplog.records]
@@ -692,7 +692,7 @@ def test_minimum_is_the_remaining_embargo_when_shorter_than_72_hours(caplog):
     )
 
     with caplog.at_level(logging.INFO):
-        event = extract_event(invite)
+        event = extract_stamped(invite)
 
     assert cast(Any, event).rsvp_deadline == embargo_end
     assert any("EP-07-003" in r.getMessage() for r in caplog.records)
@@ -706,7 +706,7 @@ def test_clamp_up_is_logged_with_both_values(caplog):
     invite = _make_embargo_invite(end_time=requested, published=published)
 
     with caplog.at_level(logging.INFO):
-        event = extract_event(invite)
+        event = extract_stamped(invite)
 
     effective = cast(Any, event).rsvp_deadline
     assert effective == published + timedelta(hours=72)
@@ -726,7 +726,7 @@ def test_unclamped_deadline_logs_nothing(caplog):
     )
 
     with caplog.at_level(logging.INFO):
-        extract_event(invite)
+        extract_stamped(invite)
 
     assert not any("rsvp_deadline" in r.getMessage() for r in caplog.records)
 
@@ -739,7 +739,7 @@ def test_sub_minimum_deadline_is_not_rejected():
         end_time=published - timedelta(days=1), published=published
     )
 
-    event = extract_event(invite)
+    event = extract_stamped(invite)
 
     assert event.semantic_type == MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
     assert cast(Any, event).rsvp_deadline == published + timedelta(hours=72)
@@ -757,7 +757,7 @@ def test_naive_embargo_end_is_read_as_utc_not_rejected():
     naive_end = (published + timedelta(days=2)).replace(tzinfo=None)
     invite = _make_embargo_invite(embargo_end=naive_end, published=published)
 
-    event = extract_event(invite)
+    event = extract_stamped(invite)
 
     assert cast(Any, event).rsvp_deadline == published + timedelta(days=2)
 
@@ -771,7 +771,7 @@ def test_deadline_already_past_is_warned(caplog):
     )
 
     with caplog.at_level(logging.WARNING):
-        extract_event(invite)
+        extract_stamped(invite)
 
     assert any(
         r.levelno == logging.WARNING and "already past" in r.getMessage()
@@ -784,7 +784,7 @@ def test_deadline_already_past_is_warned(caplog):
 
 @pytest.mark.spec("CS-10-001")
 def test_extract_event_return_type_narrows_via_isinstance():
-    """extract_event() returns a discriminated union; isinstance narrows to the
+    """extract_stamped() returns a discriminated union; isinstance narrows to the
     concrete subclass without any cast(Any, ...) workaround."""
     from vultron.core.models.events.report import CreateReportReceivedEvent
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -799,7 +799,7 @@ def test_extract_event_return_type_narrows_via_isinstance():
         actor="https://example.org/finder",
         object_=report,
     )
-    event = extract_event(activity)
+    event = extract_stamped(activity)
 
     assert isinstance(event, CreateReportReceivedEvent)
     # After narrowing: access the concrete property directly — no cast needed.
@@ -907,7 +907,7 @@ def test_activity_snapshot_carries_attributed_to():
     (#3012).
     """
     vendor = "https://example.org/users/vendor"
-    event = extract_event(_ownership_offer(vendor))
+    event = extract_stamped(_ownership_offer(vendor))
 
     assert event.activity is not None
     assert event.activity.attributed_to == vendor
@@ -947,7 +947,7 @@ def test_activity_snapshot_never_reprs_a_non_uri_attributed_to(raw, expected):
     into `entry_hash` and replicated to every participant, where an absent field
     is recoverable and a garbage string is not (CLP-07-011, ARCH-15-001).
     """
-    event = extract_event(_ownership_offer(raw))
+    event = extract_stamped(_ownership_offer(raw))
 
     assert event.activity is not None
     assert event.activity.attributed_to == expected
@@ -1010,7 +1010,7 @@ def test_ownership_offer_deadline_is_normalised_to_utc_at_the_edge(end_time):
     wire_dict = json.loads(_deadline_offer().to_json())
     wire_dict["endTime"] = end_time
 
-    event = cast(Any, extract_event(parse_activity(wire_dict)))
+    event = cast(Any, extract_stamped(parse_activity(wire_dict)))
 
     expected = datetime(2026, 12, 1, 12, 0, tzinfo=UTC)
     assert (
@@ -1025,7 +1025,7 @@ def test_ownership_offer_deadline_is_normalised_to_utc_at_the_edge(end_time):
 
 @pytest.mark.spec("CM-21-016")
 def test_ownership_offer_without_end_time_has_no_deadline():
-    event = cast(Any, extract_event(_deadline_offer()))
+    event = cast(Any, extract_stamped(_deadline_offer()))
 
     assert event.answer_deadline is None
     assert event.activity.end_time is None
@@ -1053,7 +1053,7 @@ def test_extract_intent_normalises_slash_spelled_sender_id():
     activity = add_note_to_case_activity(
         note, target=case_id, actor=canonical + "/"
     )
-    event = extract_event(activity)
+    event = extract_stamped(activity)
 
     assert event.actor_id == canonical
     assert event.activity is not None

@@ -18,7 +18,7 @@ import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
-from test.support.received import with_evidence
+from test.support.received import TEST_SENDER_POSITION, with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -94,6 +94,7 @@ class TestEngageDeferCaseBTFailureReason:
     ) -> EngageCaseReceivedEvent:
         return with_evidence(
             EngageCaseReceivedEvent(
+                ledger_position=TEST_SENDER_POSITION,
                 activity_id="https://example.org/activities/engage-001",
                 actor_id=actor_id,
                 object_=CoreObject(id_=case_id),
@@ -109,6 +110,7 @@ class TestEngageDeferCaseBTFailureReason:
     ) -> DeferCaseReceivedEvent:
         return with_evidence(
             DeferCaseReceivedEvent(
+                ledger_position=TEST_SENDER_POSITION,
                 activity_id="https://example.org/activities/defer-001",
                 actor_id=actor_id,
                 object_=CoreObject(id_=case_id),
@@ -276,6 +278,7 @@ class TestEngageCaseStoresNoEmbeddedParticipants:
     def engage_event_with_inline_case(self, case_with_inline_participant):
         return with_evidence(
             EngageCaseReceivedEvent(
+                ledger_position=TEST_SENDER_POSITION,
                 activity_id="https://example.org/activities/engage-573",
                 actor_id=self._ACTOR_ID,
                 object_=case_with_inline_participant,
@@ -335,6 +338,7 @@ class TestEngageCaseStoresNoEmbeddedParticipants:
         )  # bare string
         event = with_evidence(
             EngageCaseReceivedEvent(
+                ledger_position=TEST_SENDER_POSITION,
                 activity_id="https://example.org/activities/engage-573-str",
                 actor_id=self._ACTOR_ID,
                 object_=case_str_participants,
@@ -371,6 +375,7 @@ class TestEngageCaseStoresNoEmbeddedParticipants:
         activate(case_with_inline_participant, unheld_id)
         event = with_evidence(
             EngageCaseReceivedEvent(
+                ledger_position=TEST_SENDER_POSITION,
                 activity_id="https://example.org/activities/engage-4032",
                 actor_id=self._ACTOR_ID,
                 object_=case_with_inline_participant,
@@ -478,6 +483,7 @@ class TestEngageCaseLedgerCommit:
         # pair as canonical (CLP-canonical-pairs / _CANONICAL_PAIRS check).
         return with_evidence(
             EngageCaseReceivedEvent(
+                ledger_position=TEST_SENDER_POSITION,
                 activity_id=f"{self._CASE_ID}/activities/engage-2300",
                 actor_id=self._SENDER_ID,
                 receiving_actor_id=self._CASE_MANAGER_ID,
@@ -773,6 +779,7 @@ class TestDeferCaseLedgerCommit:
     def _defer_event(self) -> DeferCaseReceivedEvent:
         return with_evidence(
             DeferCaseReceivedEvent(
+                ledger_position=TEST_SENDER_POSITION,
                 activity_id=f"{self._CASE_ID}/activities/defer-2300",
                 actor_id=self._SENDER_ID,
                 receiving_actor_id=self._CASE_MANAGER_ID,

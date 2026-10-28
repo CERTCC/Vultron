@@ -40,6 +40,7 @@ from test.core.use_cases.received.test_participant_removal_planned import (
     _seed,
 )
 from test.support.ledger import with_genesis
+from test.support.received import peer_position
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -195,7 +196,10 @@ def test_replay_does_not_answer_the_removed_participant(
 
     result = removal.route(
         reject_log_entry_activity(
-            first, context=first.entry_hash, actor=VENDOR, to=[MANAGER]
+            first,
+            ledger_position=peer_position(first.entry_hash),
+            actor=VENDOR,
+            to=[MANAGER],
         )
     )
 

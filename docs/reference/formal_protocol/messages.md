@@ -272,6 +272,13 @@ See [Vultron AS Activity Guides](../../howto/activitypub/activities/index.md) fo
     The formal message type set above remains normative for protocol semantics;
     the AS2 mapping is an implementation detail of the current prototype.
 
+!!! note "Every case message states its sender's ledger position"
+
+    The formal messages carry no ledger position, but on the wire every case message does.
+    The sender puts the tail of its copy of the case ledger in the activity's `ledgerPosition`, an object with `logIndex` and `entryHash`, when it builds the message (SYNC-18-001, [ADR-0156](../../adr/0156-every-case-activity-states-its-senders-ledger-position.md)).
+    The full-case `Invite` that asks a joined participant for $RV$, $RI$ or $RC$ carries the CASE_MANAGER's position as the floor the reply must reach, and the reply carries the participant's own (CM-11-011).
+    A receiver refuses a case message that carries no position, or one that does not parse (SYNC-18-003).
+
 !!! note "Error shorthands have no direct wire counterpart"
 
     $RE$, $EE$, $CE$, and $GE$ are not realized as distinct AS2 activity types.
@@ -287,8 +294,9 @@ See [Vultron AS Activity Guides](../../howto/activitypub/activities/index.md) fo
     state. Acknowledgment is instead **cumulative and implicit** via hash-chain
     continuity: a receiver whose `prev_log_hash` matches its local ledger tail says
     nothing — the match *is* the acknowledgment. On a mismatch the receiver emits
-    `Reject(CaseLedgerEntry)`, whereupon the CASE_MANAGER replays all entries after the
-    last accepted hash (negative acknowledgment with gap-fill replay).
+    `Reject(CaseLedgerEntry)` stating its ledger tail as its `ledgerPosition`, whereupon
+    the CASE_MANAGER replays all entries after that position (negative acknowledgment
+    with gap-fill replay).
 
     $RK$ remains a real wire activity (`Read(Offer(VulnerabilityReport))`) because
     report submission is not ledger-replicated.

@@ -35,7 +35,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from pydantic import BaseModel
@@ -45,6 +45,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.received import delivered_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -79,6 +80,7 @@ from vultron.wire.as2.factories import (
     add_note_to_case_activity,
     announce_vulnerability_case_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -150,7 +152,7 @@ def _stub_invite_body(
 
 
 def _wire_body(activity: BaseModel) -> dict[str, Any]:
-    return activity.model_dump(mode="json", by_alias=True, exclude_none=True)
+    return delivered_body(cast(as_Activity, activity))
 
 
 def _deliver(dl: SqliteDataLayer, body: dict[str, Any]) -> InboxOutcome:

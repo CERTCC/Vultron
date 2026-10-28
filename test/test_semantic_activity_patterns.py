@@ -1092,6 +1092,10 @@ def test_accept_case_participant_role_not_confused_with_other_accepts():
 @pytest.mark.spec("VAM-05-008")
 @pytest.mark.spec("VAM-05-009")
 @pytest.mark.spec("VAM-05-010")
+@pytest.mark.spec("MSM-02-002")
+@pytest.mark.spec("MSM-02-004")
+@pytest.mark.spec("MSM-02-005")
+@pytest.mark.spec("MSM-02-006")
 @pytest.mark.parametrize(
     ("example", "expected"),
     [

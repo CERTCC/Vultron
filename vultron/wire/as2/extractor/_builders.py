@@ -12,8 +12,6 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
-from pydantic import ValidationError
-
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
@@ -134,32 +132,6 @@ def termination_of(activity: as_Activity) -> EmbargoTermination:
         ) from exc
 
 
-def ledger_position_from_content(activity: as_Activity) -> LedgerPosition:
-    """Parse the ledger position an activity carries in its ``content``.
-
-    The full-case Invite and its three replies carry the position as the JSON
-    dump of a :class:`LedgerPosition` (VAM-04-011..014, VAM-04-019; produced only by
-    ``vultron.wire.as2.factories.ledger_position_content``).
-
-    Raises:
-        VultronParseValidationError: when ``content`` is missing, blank or
-            does not parse as a ledger position, naming the activity.
-    """
-    content = getattr(activity, "content", None)
-    if not isinstance(content, str) or not content.strip():
-        raise VultronParseValidationError(
-            f"activity {activity.id_!r} carries no ledger position: its"
-            " `content` is missing or blank (CM-11-011)"
-        )
-    try:
-        return LedgerPosition.model_validate_json(content)
-    except ValidationError as exc:
-        raise VultronParseValidationError(
-            f"activity {activity.id_!r} carries an unparseable ledger"
-            f" position in `content`: {exc.error_count()} error(s) (CM-11-011)"
-        ) from exc
-
-
 def _to_domain_obj(as_obj: object) -> CoreObject | None:
     """Wrap a bare AS2 object reference as a minimal CoreObject.
 
@@ -256,6 +228,9 @@ def _build_activity_snapshot(
         to=_get_id_list(getattr(activity, "to", None)),
         summary=getattr(activity, "summary", None) or None,
         content=getattr(activity, "content", None) or None,
+        # The sender's position (SYNC-18-001), so a reader of the received
+        # activity (the full-case Invite's floor) gets it from core.
+        ledger_position=getattr(activity, "ledger_position", None),
         suggested_roles=getattr(activity, "suggested_roles", None) or None,
         roles=getattr(activity, "roles", None) or None,
         termination_cause=getattr(activity, "termination_cause", None),

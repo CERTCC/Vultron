@@ -17,6 +17,7 @@ from vultron.core.models.base import (
     NonEmptyString,
     ValidatedAssignmentMixin,
 )
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.received_body import require_json_object_text
 from vultron.errors import VultronWiringError
 from vultron.primitives import NormalisedActorId
@@ -278,3 +279,23 @@ class VultronEvent(ValidatedAssignmentMixin, BaseModel):
             if self.inner_context is not None
             else None
         )
+
+
+class LedgerPositionedEvent(VultronEvent):
+    """A received case activity that states its sender's ledger position.
+
+    Every activity about a case whose ledger its sender holds carries the
+    sender's ledger tail for that case as ``ledgerPosition`` (SYNC-18-001,
+    ADR-0156).  The extractor parses it at the parse edge and refuses an
+    activity of such a class that carries none or a malformed one, naming the
+    activity (SYNC-18-003), so core always receives the position (ADR-0032).
+
+    The event classes that subclass this one are the received semantics in
+    SYNC-18-001's scope; a class outside it is a semantic whose sender holds
+    no ledger when it sends (a report, a case proposal, a stub-Invite reply),
+    whose object states its own position (``Announce(CaseLedgerEntry)``, a
+    case copy), or that any receiver may send about any activity
+    (``Create(ProcessingFault)``).
+    """
+
+    ledger_position: LedgerPosition

@@ -22,6 +22,7 @@ from test.support.case_manager import (
     make_case_with_case_manager,
 )
 from test.support.embargo_register import activate, propose
+from test.support.received import TEST_SENDER_POSITION
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.actor import VultronOrganization
@@ -122,6 +123,7 @@ def _proposal(actor: Any) -> Any:
 
 def _announce(case: VulnerabilityCase, embargo: EmbargoEvent) -> Any:
     return AnnounceEmbargoEventToCaseReceivedEvent(
+        ledger_position=TEST_SENDER_POSITION,
         activity_id="https://example.org/activities/announce-1",
         actor_id=CASE_MANAGER_ID,
         object_=embargo,

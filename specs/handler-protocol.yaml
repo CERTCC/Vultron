@@ -18,6 +18,12 @@ groups:
     statement: >-
       A receiver MUST interpret received activities as assertions about the sender's
       state, not as commands to perform work
+    rationale: >-
+      Each actor owns its own state and decisions. If a receiver obeyed a message as a
+      command, any sender could make it act. The receiver would also do the work again
+      on each redelivery. When the receiver reads a message as an assertion, the message
+      only updates what the receiver knows about the sender. The receiver keeps its own
+      decisions.
     verification: Inspection of all handler `execute()` methods confirms they update local state machine records from
       the received `VultronEvent` payload and issue no imperative outbound commands in direct response to receipt.
     stories:
@@ -28,6 +34,12 @@ groups:
     statement: >-
       A receiver MUST update its local RM/EM/CS state to reflect the state transition
       asserted by the received activity
+    rationale: >-
+      A receiver uses its view of the other parties to decide what to do next. For
+      example, it checks whether an embargo is still active or whether a fix exists. The
+      message is the only way that the receiver learns that the state of the sender
+      changed. If the receiver did not record it, the receiver would act on a state that
+      the sender has left.
     verification: Integration tests in `test/demo/` confirm that each inbound activity type results in the expected
       RM, EM, or CS state change in the receiver's DataLayer after the handler completes.
     stories:
@@ -44,6 +56,11 @@ groups:
       parameters — `dl` a narrow persistence port (`CasePersistence` or
       `CaseOutboxPersistence`, DL-07) and `request` the handler's concrete
       `VultronEvent` subclass — and their `execute()` method MUST take no arguments
+    rationale: >-
+      The dispatcher builds each handler the same way from a registry entry. Each
+      handler gets the same two positional arguments, and the dispatcher passes any
+      driven ports by keyword. A narrow port limits what a handler can write (DL-07). A
+      typed request shows that its fields were validated before dispatch.
     verification: >-
       `test/architecture/test_use_case_execute_returns_result.py` reads every
       `execute()` under `vultron/core/use_cases/` (outside `triggers/`) and
@@ -85,13 +102,13 @@ groups:
       or already-present record, and `DEFERRED` when it parked the item for later replay
       rather than declining it. A benign skip or a deferral MUST NOT be reported as `REFUSED`
     rationale: >-
-      Not every behavior-tree FAILURE is a refusal, and not every SUCCESS is applied work.
-      `received/status.py` already special-cases `CASE_STATUS_ALREADY_PRESENT` to keep an
-      idempotent skip from reading as a failure, and the ledger-sync buffer nodes return
-      SUCCESS for an entry they have only parked. Conflating either with a refusal would
-      promote it to `InboxOutcome.status == "rejected"` and produce false alarms; conflating
-      a deferral with `APPLIED` or `SKIPPED` hides the fact that a replay is pending. See
-      ADR-0095 and issue #2255.
+      A behavior-tree FAILURE is not always a refusal, and a SUCCESS is not always
+      applied work. An idempotent skip ends in SUCCESS, for example a status that is
+      already present. An entry that the ledger-sync buffer only holds for later also
+      ends in SUCCESS. If a handler reported either one as a refusal, the pipeline would
+      set `InboxOutcome.status == "rejected"` and give false alarms. If a handler
+      reported a deferral as `APPLIED` or `SKIPPED`, it would hide that a replay is
+      pending (ADR-0095).
     verification: >-
       `test/core/ports/test_use_case.py::TestUnknownUseCase::test_execute_refuses_unrecognized_activity`
       and the `HP-01-003`-marked tests under `test/core/use_cases/received/` drive each
@@ -138,20 +155,22 @@ groups:
       duplicate or otherwise idempotent re-delivery of a message the receiver was entitled to
       act on
     rationale: >-
-      A role gate skips as SUCCESS so that the CASE_MANAGER's own failure stays distinguishable
-      from a non-manager's no-op (BTND-07-005), and several handlers read that skip as "not my
-      job" and reported `SKIPPED`, which `DispatchNode` records as `processed`. The receiver's
-      inbox then showed a misaddressed message as a successful receipt. The disposition is the
-      receiver's own report on its own handling (HP-01-004): it never says anything about
-      another actor. A message the receiver could not act on was addressed to the wrong party
-      by its sender — or, for a courtesy copy the protocol gives it no standing to act on,
-      addressed in a way that asked nothing of it — and `REFUSED` with a reason is the record
-      that says so. Under the narrowed `SKIPPED`, an addressee's first receipt of a message
-      that is now pending its own decision (the Case Owner and `Offer(CaseParticipant)`) is
-      `APPLIED`: it is neither a duplicate nor a refusal. So is a participant's first receipt
-      of the CASE_MANAGER's direct notice that it was removed or reinstated (CM-31-006,
-      CM-31-011): the participant is the notice's rightful addressee, stores it, and applies
-      the move from its ledger entry (CM-31-007). See #3752 and #5010.
+      A role gate returns SUCCESS when it skips, so that a failure of the CASE_MANAGER
+      stays different from a no-op of a non-manager (BT-17-001). If a handler read that
+      skip as "not my job" and reported `SKIPPED`, `DispatchNode` would record it as
+      `processed`. The inbox of the receiver would then show a misaddressed message as a
+      successful receipt. The disposition is the report of the receiver on its own
+      handling (HP-01-004). It never says anything about a different actor. If the
+      receiver cannot act on a message, the sender addressed it to the wrong party. A
+      courtesy copy also gives the receiver no standing to act, because it asks nothing
+      of the receiver. In both situations, `REFUSED` with a reason records this.
+      `SKIPPED` means only a re-delivery. Thus the first receipt of a message that now
+      waits for the receiver's own decision is `APPLIED`. An example is the first
+      `Offer(CaseParticipant)` that the Case Owner receives. That message is not a
+      duplicate and not a refusal. The same applies when a participant first receives
+      the direct notice from the CASE_MANAGER of its removal or reinstatement
+      (CM-31-006, CM-31-011). The participant is the correct addressee of the notice. It
+      stores the notice and applies the move from its ledger entry (CM-31-007).
     verification: >-
       The `HP-01-005`-marked tests under `test/core/use_cases/received/` drive each affected
       handler at a receiver that is not the CASE_MANAGER, or not an entitled addressee, and
@@ -183,10 +202,10 @@ groups:
       SYNC-03-005), and a receiver role check such as the CASE_MANAGER gate (BT-17-001)
       never satisfies it.
     rationale: >-
-      A received activity is an assertion about the sender's state (HP-00-001), so the
-      first question is whether the sender may assert it. An audit found handlers that let
-      any actor claim ownership, admit itself, or obtain the full ledger, each behind a
-      CASE_MANAGER gate that checked only the receiver. See #3733 and ADR-0115.
+      A received activity is an assertion about the state of the sender (HP-00-001).
+      Thus the first question is whether the sender has the right to assert it. A
+      CASE_MANAGER gate checks only the receiver. If only that gate protected a handler,
+      any actor could claim ownership, admit itself, or get the full ledger (ADR-0115).
     verification: >-
       A test marked `HP-01-006`
       drives a received handler with a sender that holds no entitlement and asserts
@@ -210,11 +229,11 @@ groups:
       the tree's guard stage. A handler MUST NOT implement its own sender predicate, and the module
       MUST NOT have a twin.
     rationale: >-
-      Sender checks already existed in seven near-duplicate forms across `behaviors/` and
-      `use_cases/` before this rule, and the handlers that lacked one were found only by a
-      manual audit. One declaration read by the factory and by a ratchet makes a missing
-      check a test failure and makes the remaining gaps a visible exemption list. See
-      ADR-0115.
+      When each handler has its own sender check, the check gets copied in slightly
+      different forms. Some handlers do not get it at all. Only an audit finds the
+      missing checks. The factory and a test read one declaration. Thus a missing check
+      is a test failure. The declaration also shows the remaining gaps as a visible
+      exemption list (ADR-0115).
     verification: >-
       An architecture test under `test/architecture/` walks `SEMANTIC_REGISTRY`, fails on a
       received use case with no entitlement declaration, and fails on a sender predicate
@@ -235,12 +254,11 @@ groups:
       case. The receive-tree factory MUST compose the guard from the declaration alone, and a tree
       MUST NOT add a sender check narrower than its declaration.
     rationale: >-
-      When this was written, `Remove(Note)` declared "an active participant" while CM-30-001
-      entitles only the note's author or the Case Owner, and the embargo Invite declared one
-      kind while its check is two-sided; the full rules lived inside the trees. A
-      declaration that is only a floor is a second sender predicate in disguise, and
-      anything derived from it, such as the occasion table's "Sent by" (MSM-08-005),
-      understates who may send. See ADR-0129.
+      If the full rule were inside the trees, a declaration could state less than the
+      receiver enforces. For example, it could state one kind for a check that has two
+      sides. A declaration that is only a minimum is a second sender predicate in a
+      different form. Anything that comes from it, for example "Sent by" in the occasion
+      table (MSM-08-005), then shows fewer senders than the receiver accepts (ADR-0129).
     verification: >-
       A unit test composes a guard from an any-of declaration and from a two-sided
       declaration and asserts each side admits exactly its kinds. The HP-01-007 ratchet also
@@ -295,9 +313,8 @@ groups:
       in any case, and MUST NOT refuse it on the sender's standing. Only the addressing
       rules apply to it (HP-01-005, HP-09-001).
     rationale: >-
-      A report precedes any case, so the sender has no participant record or role to hold,
-      and anyone who finds a vulnerability must be able to report it. Decided by the
-      maintainer on #4325.
+      A report comes before any case. Thus the sender has no participant record or role.
+      Any person who finds a vulnerability must be able to report it.
     verification: >-
       Tests marked `HP-01-010` drive the report-creation and report-submission handlers
       with a sender that is not a participant of the receiver's case and assert the report
@@ -347,11 +364,11 @@ groups:
       MAY leave the check out only by naming a registered exemption that states why, and
       MUST NOT write its own copy of the check.
     rationale: >-
-      HP-01-005 binds every handler, but the check was opt-in per tree: only the embargo
-      trees asked for it, the others did not check at all, and one use case checked in
-      Python ahead of its tree. A check written once in the factory cannot be
-      forgotten, and a closed, reasoned exemption list makes each tree that differs a
-      visible decision (CS-22-001).
+      HP-01-005 applies to every handler. If each tree must ask for the check, a tree
+      can forget it. That tree then acts on copies addressed to a different party. A
+      check written one time in the factory cannot be forgotten. A closed exemption
+      list, with a reason for each entry, makes each tree that is different a visible
+      decision (CS-22-001).
     verification: >-
       `test/architecture/test_received_tree_addressee_guard.py` builds every received tree,
       fails on one without the guard whose site is not a pinned exemption, holds the
@@ -376,6 +393,10 @@ groups:
     priority: MUST
     kind: architecture
     statement: All handlers MUST have semantic type verification before execution
+    rationale: >-
+      A handler that runs on an activity of a different semantic type reads fields that
+      the activity does not have. It can also apply the wrong state change. A type check
+      before the handler runs makes a routing error a refusal, not a wrong write.
     verification: >-
       `test/test_behavior_dispatcher.py::test_dispatch_refuses_a_semantics_with_no_registered_use_case`
       shows `DispatcherBase._handle()` resolving the handler from `event.semantic_type`
@@ -403,6 +424,10 @@ groups:
     priority: MUST
     kind: architecture
     statement: All handlers MUST be discoverable via a handler registry mechanism
+    rationale: >-
+      The dispatcher finds handlers only by lookup. A handler that is not in the
+      registry never runs. Then a message that it must handle is refused or dropped, and
+      no test fails. A registry makes that gap checkable.
     verification: >-
       `test/test_semantic_registry.py::test_registry_covers_all_semantics` and
       `::test_use_case_map_holds_exactly_the_handled_entries` fail when a
@@ -412,6 +437,10 @@ groups:
     priority: MUST
     kind: architecture
     statement: Registry keys MUST match handler semantic verification types
+    rationale: >-
+      A registry key can name one semantic type while its handler expects a different
+      type. Then each message of that type goes to a handler that reads the wrong event
+      class.
     verification: >-
       `test/test_semantic_registry.py::test_use_case_map_holds_exactly_the_handled_entries`
       asserts each key of `use_case_map()` routes to its own entry's handler, and
@@ -461,6 +490,11 @@ groups:
     priority: MUST
     kind: architecture
     statement: Handlers MUST raise exceptions for unrecoverable errors
+    rationale: >-
+      An unrecoverable error means that the handler cannot know the state it left. A
+      raise stops the work and goes to the fault handling and the logs of the pipeline.
+      If the handler returned normally, it would report the message as handled when it
+      was not handled.
     verification: >-
       `test/test_behavior_dispatcher.py::test_dispatch_rejects_a_use_case_that_returns_no_handler_result`
       shows a contract breach raising `TypeError` rather than returning;
@@ -471,6 +505,10 @@ groups:
     priority: MUST
     kind: architecture
     statement: Handlers MUST log expected errors without raising exceptions
+    rationale: >-
+      On an open network, misaddressed, unknown and malformed messages are normal. If a
+      handler raised for them, routine input would become faults and retries. A log
+      record and a disposition record these messages and let the pipeline continue.
     verification: >-
       `test/core/ports/test_use_case.py::TestUnknownUseCase::test_execute_logs_warning`,
       `test/core/use_cases/received/test_submit_report_received.py::TestOfferAddressingSemantics::test_receiving_actor_in_cc_logs_warning_no_case`,
@@ -498,6 +536,11 @@ groups:
     priority: MUST
     kind: project
     statement: Handlers MUST log state transitions at INFO level with before/after states
+    rationale: >-
+      State transitions are the lifecycle events that an operator monitors, and INFO is
+      the level for them (SL-03). When the log gives the state before and after the
+      transition, a reader sees what changed and from what state. Thus DEBUG is not
+      necessary.
     verification: >-
       `test/core/behaviors/test_narrative_log.py` (`TestLogCsTransition`,
       `TestLogRmTransition`, `TestLogEmTransition`) asserts each `log_*_transition()`
@@ -510,6 +553,10 @@ groups:
     priority: MUST
     kind: project
     statement: Handlers MUST log errors at ERROR level with full context
+    rationale: >-
+      An operator who diagnoses a failed message has only the log. An ERROR record that
+      names the activity, the actor and the traceback lets the operator find the message
+      and the cause. The operator does not need to reproduce the failure.
     verification: >-
       `test/core/behaviors/inbox/test_process_payload.py::TestDispatchNodeFaults::test_dispatch_raise_is_logged_with_its_traceback`
       asserts the one ERROR record for a dispatch that raised carries the activity id,
@@ -524,6 +571,10 @@ groups:
     priority: SHOULD
     kind: architecture
     statement: Handlers SHOULD be idempotent to support retries
+    rationale: >-
+      A message can arrive more than one time, because of sender retries and redelivery.
+      A handler that gives the same result for a repeat prevents a retry from
+      duplicating state, ledger entries or replies.
     relationships:
     - rel_type: refines
       spec_id: ID-04-001
@@ -577,6 +628,10 @@ groups:
       `create`, `update`, `delete`); the write runs inside a BT leaf node reached
       through `BTBridge`, so it sits on the audited ledger-commit path
       (CLP-10-005, BT-15-001).
+    rationale: >-
+      The behavior tree runs the guard, the ledger commit and the effects in order. A
+      write made directly in `execute()` skips the guards and has no ledger entry. Then
+      the case changes, and no audited record shows who changed it.
     verification: >-
       `test/architecture/test_no_dl_mutations_in_execute.py` scans every
       `execute()` under `vultron/core/use_cases/` — and, on the received side,
@@ -590,6 +645,10 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: Pydantic validators MUST NOT overwrite existing field values during deserialization
+    rationale: >-
+      If a validator overwrote a field on load, each read of the object would replace
+      stored or received data with a default. Defaults can fill only empty fields, so a
+      read gives back what was stored.
     verification: >-
       `test/core/models/test_case_participant.py::TestSetNameIfEmpty::test_explicit_name_preserved`
       and `::TestInitParticipantStatusIfEmpty::test_pre_populated_list_preserved` construct
@@ -599,6 +658,10 @@ groups:
     priority: MUST
     kind: project
     statement: The DataLayer and handlers MUST treat object IDs as opaque URI strings
+    rationale: >-
+      Object ids are URIs, and each implementation can mint them in its own form. Code
+      that parsed an id, or expected a structure in it, would break on ids from a
+      different implementation. It would also tie this codebase to one id scheme.
     verification: >-
       `test/adapters/driven/test_sqlite_crud.py::test_create_wire_shaped_storable_record_reads_back_as_core`
       and `::test_update_wire_shaped_storable_record_reads_back_as_core` store and read
@@ -610,6 +673,10 @@ groups:
     kind: project
     statement: Handlers that add status updates MUST append full status objects (not bare ID strings) to the case/participant
       status history lists
+    rationale: >-
+      Readers of a status history need the state and the time of each entry. A bare id
+      carries neither. The history cannot validate a bare id when it appends it, so the
+      history could hold references to objects that do not exist.
     verification: >-
       `test/core/models/test_case.py::TestVulnerabilityCaseAddCaseStatus` and
       `test/core/models/test_case_participant.py::TestAddParticipantStatus` show the only
@@ -633,13 +700,12 @@ groups:
       MUST NOT replace a stored note; a change to one would be an `Update(Note)`,
       which this implementation does not route.
     rationale: >-
-      Notes are persisted and linked to cases, consistent with the case management
-      data model. The refusal keys on the id alone because the inbox's routing
-      rebuild hands the handler the note stored under the id in place of the
-      carried one (IO-03-004), so a rule comparing the two copies could never see
-      a difference on the inbox path; that is how an `Add` naming another case's
-      note attached it and sent its content to the target case's participants
-      (#4831).
+      The handler stores each note and links it to its case, as the case management data
+      model requires. The refusal uses only the id. The inbox routing rebuild gives the
+      handler the stored note, not the carried note (IO-03-004). Thus a rule that
+      compares the two copies could never find a difference on the inbox path. Without
+      the refusal, an `Add` that names a note of a different case would attach it. Its
+      content would then go to the participants of the target case.
     relationships:
     - rel_type: depends_on
       spec_id: IO-03-004
@@ -667,10 +733,10 @@ groups:
       commit. The object checked is the one the handler would attach: the record
       stored under the object's id when one is held, else the carried copy.
     rationale: >-
-      A note or status belongs to one case; attaching another case's object would
-      commit it to the target case's ledger and send it to that case's
-      participants (#4831). Checking the stored record matches what the inbox
-      routes (IO-03-004).
+      A note or status belongs to one case. If a handler attached an object of a
+      different case, it would commit that object to the case ledger of the target case.
+      It would also send the object to the participants of the target case. The check
+      uses the stored record, because the inbox routes the stored record (IO-03-004).
     relationships:
     - rel_type: extends
       spec_id: HP-08-006
@@ -693,11 +759,11 @@ groups:
       record of the target participant, or the record names no case, the `Add`
       has no case and MUST be refused before the commit.
     rationale: >-
-      The status is appended to the participant record the receiver holds, so the
-      case that owns that record is the one changed. Letting the sender's status
-      pick the case ran the sender guard, the commit and the case-status update
-      against one case while the status landed on another case's participant
-      (#4961).
+      The receiver appends the status to the participant record that it holds. Thus the
+      case that owns that record is the case that changes. Suppose that the status of
+      the sender selected the case. Then the sender guard, the commit and the
+      case-status update would run on one case. The status itself would go to a
+      participant of a different case.
     relationships:
     - rel_type: depends_on
       spec_id: IO-03-004
@@ -718,6 +784,11 @@ groups:
     statement: >-
       A receiver processing an inbound `Offer` activity MUST determine case-creation
       eligibility from the `to` field only
+    rationale: >-
+      `to` names the actors that a message asks to act. Only an addressee can make the
+      decision to create a case. If eligibility came from a different field, a courtesy
+      copy could create a case at an actor that the message did not ask. That duplicates
+      cases.
     verification: >-
       `test/core/use_cases/received/test_submit_report_received.py::TestOfferAddressingSemantics`
       drives `SubmitReportReceivedUseCase` with the receiver in `to`, in `cc` only, and in
@@ -736,6 +807,10 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: The `target` field MUST NOT be used to determine case-creation eligibility for `Offer` activities
+    rationale: >-
+      `target` names where an object must go, not who must act, and a sender can set it
+      to any actor. If `target` decided case creation, a sender could create a case at
+      an actor that the message does not address.
     verification: >-
       `test/core/use_cases/received/test_submit_report_received.py::TestOfferAddressingSemantics::test_offer_target_not_consulted_to_wins`
       and `::test_offer_target_set_but_not_in_to_no_case` set `target` to a case-eligible

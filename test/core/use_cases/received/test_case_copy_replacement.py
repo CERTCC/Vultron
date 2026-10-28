@@ -25,7 +25,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.ledger import ledger_entries
-from test.support.received import received_event
+from test.support.received import TEST_SENDER_POSITION, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -144,7 +144,9 @@ def test_a_short_replica_is_replaced_then_backfilled_to_the_tail(
         read_sealed_body_dict(net.stores[BYSTANDER], a.id_)
         for a in net.queued(BYSTANDER, to=MANAGER, type_="Reject")
     ]
-    assert [r["context"] for r in rejects if r] == [replica_tail[1]]
+    assert [r["ledgerPosition"]["entryHash"] for r in rejects if r] == [
+        replica_tail[1]
+    ]
 
     for _type, answered in net.deliver(BYSTANDER, to=MANAGER, type_="Reject"):
         assert answered.disposition is HandlerDisposition.APPLIED
@@ -218,7 +220,7 @@ def test_a_replica_with_no_entry_is_replayed_from_genesis() -> None:
 def _genesis_request(case_id: str, sender: str) -> dict[str, Any]:
     """The objectless genesis-replay Reject *sender* sends the CASE_MANAGER."""
     return genesis_replay_reject_activity(
-        case_id, actor=sender, to=[MANAGER]
+        case_id, TEST_SENDER_POSITION, actor=sender, to=[MANAGER]
     ).model_dump(mode="json", by_alias=True, exclude_none=True)
 
 

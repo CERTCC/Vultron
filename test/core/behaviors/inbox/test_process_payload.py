@@ -27,6 +27,7 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.received import stamped
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.inbox import (
     InboxOutcome,
@@ -71,6 +72,9 @@ class _StubIngressAdapter:
         rehydrated: Any = None,
         fail_parse: bool = False,
     ) -> None:
+        # Stamped as the sender's adapter stamps it (SYNC-18-001).
+        if activity is not None:
+            activity = stamped(activity)
         self._activity = activity
         self._rehydrated = rehydrated or activity
         self._fail_parse = fail_parse
@@ -178,12 +182,14 @@ def case_activity():
 @pytest.fixture()
 def note_activity_unknown_case():
     note = as_Note(id_="https://example.org/notes/n-io-1", content="note")
-    return add_note_to_case_activity(
-        note,
-        target=UNKNOWN_CASE_ID,
-        context=UNKNOWN_CASE_ID,
-        actor=SENDER_ID,
-        to=[RECEIVER_ID],
+    return stamped(
+        add_note_to_case_activity(
+            note,
+            target=UNKNOWN_CASE_ID,
+            context=UNKNOWN_CASE_ID,
+            actor=SENDER_ID,
+            to=[RECEIVER_ID],
+        )
     )
 
 

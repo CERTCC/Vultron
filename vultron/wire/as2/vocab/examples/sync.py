@@ -22,6 +22,7 @@ SYNC-09-002, SYNC-03-001, SYNC-03-002, SYNC-17-001.
 from datetime import UTC, datetime
 
 from vultron.core.models.case_ledger import HashChainLedgerRecord
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.wire.as2.factories.sync import (
     announce_log_entry_activity,
     read_ledger_entry_activity,
@@ -82,16 +83,21 @@ def reject_case_ledger_entry():
 
     Sent by a participant to the CaseActor when the incoming
     ``prev_log_hash`` does not match the local ledger tail (SYNC-03-001).
-    The ``context`` field carries the last applied entry hash so the
-    CaseActor can determine the replay window (SYNC-03-002).
+    Its ``ledgerPosition`` is that tail, the last entry it applied, so the
+    CaseActor can determine the replay window (SYNC-03-002, SYNC-18-001);
+    ``context`` names the case.
 
     The example participant holds only the first entry and missed the
     second, so the third entry's ``prev_log_hash`` does not match its tail,
-    and its ``context`` names the first entry's hash.
+    and its ``ledgerPosition`` names the first entry.
     """
     entry = _ENTRY_2.to_ledger_entry()
     return reject_log_entry_activity(
-        entry, context=_ENTRY_0.entry_hash, actor=_VENDOR.id_
+        entry,
+        ledger_position=LedgerPosition(
+            log_index=_ENTRY_0.log_index, entry_hash=_ENTRY_0.entry_hash
+        ),
+        actor=_VENDOR.id_,
     )
 
 

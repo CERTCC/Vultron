@@ -442,7 +442,7 @@ class RejectLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
         request = self._request
         # The rejected entry's case, or, for the Reject that names no entry
         # because the peer holds none, the case it names as its target; the
-        # parser admits that form only with an empty last-accepted hash, so
+        # parser admits that form only with a position naming no entry, so
         # it asks for a replay from genesis (SYNC-16-007).
         case_id = request.rejected_case_id
         if case_id is None:

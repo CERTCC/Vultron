@@ -99,7 +99,7 @@ For the full invitation sequence, including the routing rule and its rationale, 
 ## Judge the case after joining
 
 Once a participant is seated, the CASE_MANAGER sends it a second invitation, `Invite(Actor)` with the case as its `target`, after the case announcement and the ledger replay.
-This full-case Invite carries the CASE_MANAGER's ledger position in the standard ActivityStreams `content` field, as the JSON of the `LedgerPosition` model (`log_index` and `entry_hash`).
+This full-case Invite carries the CASE_MANAGER's ledger position as its `ledgerPosition`, an object with `logIndex` and `entryHash`, as every case message does.
 The `target` stays the plain case URI.
 That position is the floor: the participant's reply must reach it.
 
@@ -120,7 +120,7 @@ That position is the floor: the participant's reply must reach it.
 
         {% include-markdown "../../../reference/messages/_occasions/embeds/reject-full-case-invite.md" %}
 
-3. The reply carries your own ledger position in `content`.
+3. The reply carries your own ledger position as its `ledgerPosition`.
    The CASE_MANAGER refuses, and writes nothing for, a reply that is behind the Invite's position or names a ledger entry it does not hold.
 
 A later `Join` or `Ignore` moves the participant to `ACCEPTED` or `DEFERRED` as it does for any participant.

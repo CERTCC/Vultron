@@ -25,10 +25,18 @@ A received activity that reaches its use case is stored by intake, as a
 A test that needs the receiver to *hold* a dispatched activity — an invitee
 about to answer its Invite, for instance — seeds that record, so the code
 under test reads it the way production does.
+
+A sender's adapter stamps each case activity with its ledger tail
+(SYNC-18-001), and the parse edge refuses a case activity without one
+(SYNC-18-003).  A test that builds an activity with a wire factory has no
+sender store, so :func:`delivered` stamps :data:`TEST_SENDER_POSITION` on an
+activity that states none, as the sender's adapter would have stamped its
+tail.  An activity whose object states its own position is left alone, and a
+test that delivers an unstamped activity on purpose builds its body itself.
 """
 
 import json
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.inbox_staging import (
@@ -42,42 +50,99 @@ from vultron.core.models.base import CoreObject
 from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.events import AnyReceivedEvent
 from vultron.core.models.events.base import VultronEvent
+from vultron.core.models.ledger_position import (
+    EMPTY_LEDGER_LOG_INDEX,
+    LedgerPosition,
+)
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
 from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.semantic_registry import extract_event
+from vultron.wire.as2.factories import (
+    object_states_its_own_position,
+    stamp_ledger_position,
+)
 from vultron.wire.as2.parser import parse_activity, parse_received_body
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseStub,
 )
 
+#: The ledger position a test's in-process sender states (SYNC-18-001): an
+#: empty ledger.  The receiver records a stamp and judges no act by it, so
+#: any well-formed position stands in for the sender's tail.
+TEST_SENDER_POSITION = LedgerPosition(
+    log_index=EMPTY_LEDGER_LOG_INDEX, entry_hash="0" * 64
+)
+
+
+def peer_position(
+    last_accepted_hash: str, log_index: int = 0
+) -> LedgerPosition | None:
+    """The ``ledgerPosition`` of a peer whose last accepted entry is the hash.
+
+    For a ``Reject(CaseLedgerEntry)`` a test builds (SYNC-03-002,
+    SYNC-18-001).  ``None`` for an empty hash: a peer that holds no case
+    states no position.
+    """
+    if not last_accepted_hash:
+        return None
+    return LedgerPosition(log_index=log_index, entry_hash=last_accepted_hash)
+
+
+def stamped(activity: as_Activity) -> as_Activity:
+    """*activity* stating :data:`TEST_SENDER_POSITION`, if it states none.
+
+    An activity whose object states its own position (a ledger entry's or a
+    case copy's ``Announce``) is returned unchanged, as is one already
+    stamped (SYNC-18-001).
+    """
+    if activity.ledger_position is not None or object_states_its_own_position(
+        activity
+    ):
+        return activity
+    return stamp_ledger_position(activity, TEST_SENDER_POSITION)
+
 
 def delivered_body(activity: as_Activity) -> dict[str, Any]:
     """The JSON body a sender delivers for *activity*.
 
-    Dumped as ``outbox_delivery`` dumps it.  ``serialize_as_any`` matters:
+    Stamped as its sender's adapter stamps it (:func:`stamped`), and dumped
+    as ``outbox_delivery`` dumps it.  ``serialize_as_any`` matters:
     without it a field typed as a parent class dumps only the parent's fields,
     so an inline ``CaseProposal`` loses the ``object``/``target`` a receiver
     requires and the body no longer parses.
     """
-    return activity.model_dump(
+    return stamped(activity).model_dump(
         mode="json", by_alias=True, exclude_none=True, serialize_as_any=True
     )
 
 
-def delivered(activity: as_Activity) -> as_Activity:
+def delivered(activity: as_Activity, *, as_sent: bool = False) -> as_Activity:
     """*activity* as its receiver's parser hands it on.
 
     A copy sealed with the body its sender delivers for it (VM-08-002), so the
     caller's object is left as it was.  An activity that already carries
-    evidence (one ``parse_activity`` returned) is returned unchanged.
+    evidence (one ``parse_activity`` returned) is returned unchanged when it
+    states a ledger position, or *as_sent* is set; otherwise its body is
+    parsed again with :data:`TEST_SENDER_POSITION` added, as a sender's
+    adapter would have stamped it (SYNC-18-001).
     """
-    if activity.received_evidence_json is not None:
-        return activity
-    copy = activity.model_copy()
+    evidence = activity.received_evidence
+    if evidence is not None:
+        if as_sent or stamped(activity) is activity:
+            return activity
+        return parse_activity(
+            {
+                **evidence,
+                "ledgerPosition": TEST_SENDER_POSITION.model_dump(
+                    by_alias=True
+                ),
+            }
+        )
+    copy = stamped(activity).model_copy()
     copy.seal_received_evidence(
         json.dumps(delivered_body(activity), ensure_ascii=False)
     )
@@ -89,8 +154,17 @@ def evidence_for(activity: CoreObject) -> str:
 
     For a test that builds its event from a core ``VultronActivity`` rather
     than a wire activity: the body is the activity's AS2 rendering, so the
-    received entry records what a sender would have sent.
+    received entry records what a sender would have sent, stamped with
+    :data:`TEST_SENDER_POSITION` when it states no position.
     """
+    if getattr(
+        activity, "ledger_position", "absent"
+    ) is None and not object_states_its_own_position(
+        cast(as_Activity, activity)
+    ):
+        activity = activity.model_copy(
+            update={"ledger_position": TEST_SENDER_POSITION}
+        )
     return json.dumps(
         As2WireRenderAdapter().render(activity), ensure_ascii=False
     )
@@ -133,13 +207,25 @@ def _as_delivered(event: VultronEvent) -> CoreObject:
     )
 
 
-def received_event(activity: as_Activity, **update: Any) -> AnyReceivedEvent:
+def extract_stamped(activity: as_Activity, **kwargs: Any) -> AnyReceivedEvent:
+    """``extract_event`` of *activity* as its sender stamps it (:func:`stamped`).
+
+    For a test that extracts a factory-built activity directly, without the
+    received evidence :func:`received_event` gives it.
+    """
+    return extract_event(stamped(activity), **kwargs)
+
+
+def received_event(
+    activity: as_Activity, *, as_sent: bool = False, **update: Any
+) -> AnyReceivedEvent:
     """The event the inbox dispatches for *activity*, as delivered.
 
     *update* overrides event fields, as a test that sets
-    ``receiving_actor_id`` needs.
+    ``receiving_actor_id`` needs.  *as_sent* hands over a parsed activity
+    exactly as it arrived, unstamped (:func:`delivered`).
     """
-    event = extract_event(delivered(activity))
+    event = extract_event(delivered(activity, as_sent=as_sent))
     return event.model_copy(update=update) if update else event
 
 

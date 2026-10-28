@@ -53,7 +53,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, propose
-from test.support.received import received_event
+from test.support.received import TEST_SENDER_POSITION, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -1850,7 +1850,9 @@ class TestAddCaseStatusTreeNoCaseId:
     @pytest.mark.spec("BT-17-008")
     def test_tree_builds_without_case_id(self):
         request = AddCaseStatusToCaseReceivedEvent(
-            activity_id="a1", actor_id="https://example.org/actors/vendor"
+            ledger_position=TEST_SENDER_POSITION,
+            activity_id="a1",
+            actor_id="https://example.org/actors/vendor",
         )
         tree = add_case_status_tree(request, sender_rule=_CASE_STATUS_RULE)
         node_types = {type(n) for n in tree.iterate()}

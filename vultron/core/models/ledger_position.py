@@ -14,9 +14,10 @@
 """A position in one case's ledger: the index and hash of a tail entry.
 
 Each case stores the position its case file is a projection of
-(SYNC-16-005, ADR-0142).  The full-case Invite carries the CASE_MANAGER's
-ledger position as a floor, and each reply to it carries the replier's own
-position (CM-11-010, CM-11-011, ADR-0121).  The position names the last entry
+(SYNC-16-005, ADR-0142), and every case activity states its sender's tail
+(SYNC-18-001, ADR-0156).  The full-case Invite's is the CASE_MANAGER's floor,
+and each reply to it carries the replier's own position (CM-11-010,
+CM-11-011, ADR-0121).  The position names the last entry
 a copy of the ledger holds, so it is a pair: the entry's ``log_index`` and its
 ``entry_hash``.
 
@@ -42,8 +43,9 @@ class LedgerPosition(ValidatedAssignmentMixin, BaseModel):
     On the wire it is an object with ``logIndex`` and ``entryHash`` members.
     It is a value, not a record of its own: every case stores one as
     ``VulnerabilityCase.ledger_position``, the entry its case file reflects
-    (SYNC-16-005), and the full-case Invite carries one as its ``content``
-    (VAM-04-011).
+    (SYNC-16-005), and every case activity carries its sender's as its
+    ``ledgerPosition`` (SYNC-18-001), the full-case Invite's being the floor
+    its reply must reach (VAM-04-011).
     """
 
     model_config = ConfigDict(

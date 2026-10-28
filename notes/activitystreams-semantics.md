@@ -60,7 +60,7 @@ the work.
 ## Responses Reference the Request Twice
 
 A response to an Offer or Invite sets `object` to the full inline Offer/Invite
-**and** `inReplyTo` to its ID (RF-02-003, RF-03-003, RF-04-003, RF-08-001). The
+**and** `inReplyTo` to its ID (RF-02-004, RF-03-003, RF-04-003, RF-08-001). The
 object may travel inline or by reference on the wire (RF-02-004, RF-02-005), but
 this codebase requires the inline typed activity, not a bare ID string
 (RF-02-006, RF-02-007, a prototype shortcut): the internal Accept/Reject classes

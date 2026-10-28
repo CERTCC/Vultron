@@ -18,11 +18,20 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: The system MUST expose trigger endpoints using the path pattern `POST /actors/{actor_id}/trigger/{behavior-name}`
+    rationale: >-
+      The path names the actor and the behavior, so a client does not need to learn a
+      different route for each verb. The server takes the actor only from the path,
+      never from the body. Thus each request names one actor in one place.
   - id: TRIG-01-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Trigger endpoints MUST return HTTP 202 on successful acceptance
+    rationale: >-
+      The behavior runs after the server sends the response (TRIG-01-004). Thus the
+      server can confirm only that it accepted the request, not that the behavior is
+      complete. A 202 response states exactly this, and the inbox uses the same code
+      (IE-05-001).
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-01-003
@@ -32,6 +41,11 @@ groups:
     verification_debt: '#2575'
     statement: Trigger endpoints MUST return a structured error response when the actor, case, or report referenced in the
       request body cannot be resolved
+    rationale: >-
+      A request that names an actor, case or report that the server does not hold cannot
+      succeed. When the server refuses it in the response, the caller knows the problem
+      immediately. A 202 response would hide the failure in a background task that the
+      caller cannot see.
     relationships:
     - rel_type: depends_on
       spec_id: EH-05-001
@@ -41,6 +55,12 @@ groups:
     verification_debt: '#2575'
     statement: Trigger endpoint processing MUST NOT block the HTTP response; long-running behavior execution MUST run as a
       background task
+    rationale: >-
+      A behavior tree run and its outbox delivery can take much longer than an HTTP
+      client waits. If the server held the response, each call would use a server worker
+      for that time. A caller timeout would also look like a failed behavior. Thus the
+      trigger sends the response first and runs the behavior after it, as the inbox does
+      (IE-05-002).
     relationships:
     - rel_type: depends_on
       spec_id: IE-03-001
@@ -55,16 +75,23 @@ groups:
       API: validate-report, invalidate-report, reject-report, submit-report,
       ack-report
     rationale: >-
-      Once a case holds a report, a case refuses `Close(Report)` from every sender
-      (CM-23-019, ADR-0144) and an actor closes by leaving the case (TRIG-13-001), so
-      no report trigger closes a report a case holds. A report no case holds is
-      closed with reject-report (ADR-0145).
+      Each of these steps is a decision that an actor makes about a report. A person or
+      an agentic client must be able to make that decision through the behavior tree of
+      the actor. When a case holds a report, the case refuses `Close(Report)` from all
+      senders (CM-23-019, ADR-0144). An actor closes its part when it leaves the case
+      (TRIG-13-001). Thus no report trigger closes a report that a case holds. To close
+      a report that no case holds, an actor uses reject-report (ADR-0145).
     adr:
     - ADR-0145
   - id: TRIG-02-002
     priority: SHOULD
     kind: project
     statement: 'The following EM behaviors SHOULD be individually triggerable via the trigger API: propose-embargo, accept-embargo, reject-embargo, propose-embargo-revision, terminate-embargo'
+    rationale: >-
+      Each embargo step is a decision that an actor makes. A person or an agentic client
+      must be able to make that decision without building activities by hand. One
+      trigger for each step gives each decision its own entry point and its own request
+      checks.
   - id: TRIG-02-003
     priority: SHOULD
     kind: project
@@ -76,12 +103,15 @@ groups:
       that the actor has become Public Aware (it has learned the vul is public,
       by whatever means); it does not assert that the actor published anything.
     rationale: >-
-      An actor learns each of these facts either because an outside party tells it (a
-      person or tool invokes the trigger) or because its own behavior tree asks an
-      outside source through a call-out point (e.g.
-      `DevelopFixCallOutBundle.create_fix_factory`). Both are legitimate in production,
-      so these are general-purpose triggers (TRIG-08-002). Only three exist today, under
-      `/demo/`; #4159 owns exposing all five.
+      An actor learns each of these facts in one of two ways. An outside party tells it:
+      a person or a tool invokes the trigger. Or the behavior tree of the actor asks an
+      outside source through a call-out point (for example,
+      `DevelopFixCallOutBundle.create_fix_factory`). Both ways are correct in
+      production. Thus these triggers are general-purpose triggers (TRIG-08-002), not
+      demo-only triggers.
+    note: >-
+      Only three of the five exist today, under `/demo/`; #4159 owns exposing all
+      five.
   - id: TRIG-02-004
     priority: SHOULD
     kind: project
@@ -89,12 +119,21 @@ groups:
       The following case management behaviors SHOULD be individually triggerable
       via the trigger API: engage-case, defer-case, leave-case, add-object-to-case,
       create-case, add-report-to-case
+    rationale: >-
+      An actor makes its own decision to engage, defer, leave or add to a case. A client
+      needs one entry point for each decision. Then each decision runs the behavior tree
+      of the actor, not an activity that someone built by hand.
     adr:
     - ADR-0145
   - id: TRIG-02-005
     priority: SHOULD
     kind: project
     statement: 'The following participant management behaviors SHOULD be individually triggerable via the trigger API: suggest-actor-to-case, accept-case-invite, reject-case-invite, invite-actor-to-case, accept-actor-recommendation'
+    rationale: >-
+      Invitations, suggestions and answers to invitations decide who takes part in a
+      case. This is an actor decision. One trigger for each step lets a client make each
+      decision through the behavior tree of the actor. That tree applies the role checks
+      and the addressing checks.
   - id: TRIG-02-006
     priority: MUST_NOT
     kind: project
@@ -107,9 +146,12 @@ groups:
       be mounted in production mode (see TRIG-09-002): add-note-to-case,
       sync-log-entry
     rationale: >-
-      Leaving a case is an actor decision, not a demo puppeteering step, so it is
-      the general-purpose leave-case trigger (TRIG-13-001), not a demo verb
-      (ADR-0145).
+      Production needs neither verb. A correct implementation commits a SYNC entry each
+      time the state changes. Thus sync-log-entry only lets a demo script insert entries
+      by hand (TRIG-10-004). add-note-to-case is a shortcut for add-object-to-case,
+      which already adds a Note (TRIG-10-003). Leaving a case is an actor decision, not
+      a demo step that a script controls. Thus it is the general-purpose leave-case
+      trigger (TRIG-13-001), not a demo verb (ADR-0145).
     adr:
     - ADR-0145
   - id: TRIG-02-007
@@ -120,6 +162,11 @@ groups:
       delegation behaviors via the trigger API: offer-case-manager-role,
       offer-case-participant-role, offer-case-ownership-transfer,
       accept-case-ownership-transfer.
+    rationale: >-
+      Only the Case Owner can delegate its roles or transfer the case. Thus the Case
+      Owner needs an entry point for each delegation step. Without one, the only way to
+      delegate is to build the Offer or the Accept by hand. That skips the behavior tree
+      of the owner.
 - id: TRIG-03
   title: Request Body
   specs:
@@ -131,16 +178,29 @@ groups:
       Each trigger request body MUST include at least one of `case_id` (for
       case-scoped behaviors) or `offer_id` (for offer-response behaviors).
       Full per-behavior field requirements are defined in the API schema.
+    rationale: >-
+      A case-scoped behavior with no case id has nothing to act on. An offer response
+      with no offer id also has nothing to act on. When the request schema requires the
+      id, the server refuses a call that cannot run, before it queues anything.
   - id: TRIG-03-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Unknown fields in the request body MUST be ignored (forward-compatibility)
+    rationale: >-
+      A client built for a newer API can send fields that this server does not know.
+      When the server ignores them, that client continues to work with an older server.
+      The server still validates the fields that it knows.
   - id: TRIG-03-003
     priority: SHOULD
     kind: project
     statement: The trigger endpoint request body SHOULD support an optional `note` field containing free-text content that
       will be embedded in the outgoing ActivityStreams activity (e.g., rationale for embargo proposal, reason for deferral)
+    rationale: >-
+      The recipients of an activity see only what the activity carries. A free-text note
+      lets the acting party tell them why it acted, for example the reason for a
+      deferral. A CVD decision often needs this reason, and no structured field holds
+      it.
   - id: TRIG-03-004
     priority: MUST
     kind: project
@@ -161,11 +221,20 @@ groups:
     kind: project
     statement: 'A successful trigger response SHOULD include the resulting ActivityStreams activity in the response body under
       an `activity` key:'
+    rationale: >-
+      The caller often needs the exact activity that the actor sent. The caller can show
+      the activity, audit it, or name it in a later call, for example the proposal that
+      a withdrawal names (TRIG-11-006). When the response contains the activity, the
+      caller does not need a second lookup, and the response states what the actor sent.
   - id: TRIG-04-002
     priority: MAY
     kind: project
     statement: When a trigger initiates a long-running behavior, the response MAY return a job object per `AR-04-001` instead
       of the activity directly
+    rationale: >-
+      A behavior that runs for a long time cannot return its activity in the response,
+      because the activity does not exist yet. A job object gives the caller an item
+      that it can poll to get the result.
     scope:
     - production
     relationships:
@@ -177,11 +246,11 @@ groups:
     statement: When a triggered behavior terminates because it emitted an authorization request rather than completing the
       requested action, the trigger response MUST identify the request it emitted.
     rationale: >-
-      A trigger returns 202 and runs the behavior in the background, so a caller cannot
-      otherwise distinguish "done" from "waiting on someone else's decision"
-      (CONCERN-2369). Under ASK-01-002 success means the request was emitted, so success
-      alone is ambiguous; naming the request lets the caller resolve the outcome against
-      the outstanding-ask collection (ASK-04-009).
+      A trigger returns 202 and runs the behavior in the background. Without more data,
+      a caller cannot tell "done" from "waiting for the decision of a different party".
+      Under ASK-01-002, success means that the actor sent the request, so success alone
+      has two meanings. When the response names the request, the caller can find the
+      outcome in the outstanding-ask collection (ASK-04-009).
     note: >-
       This closes the CONCERN-2369 gap only for behaviors that stop to ask. Outcomes of
       behaviors that fail for other reasons remain unobservable and are tracked
@@ -200,6 +269,10 @@ groups:
     priority: SHOULD
     kind: project
     statement: Trigger endpoint implementations SHOULD reuse existing BT trees rather than duplicating behavior logic
+    rationale: >-
+      The same behavior can start from a trigger or from a received message. When both
+      entry points use one tree, their checks and effects cannot become different
+      (CS-22-001).
     stories:
     - story_2022_086
   - id: TRIG-05-002
@@ -207,6 +280,11 @@ groups:
     kind: project
     statement: The trigger endpoint SHOULD invoke the BT tree via the bridge layer (`vultron/core/behaviors/bridge.py`) using
       the same pattern as existing BT-using handlers
+    rationale: >-
+      The bridge is the only place that sets up the blackboard and DataLayer of a tree,
+      ticks the tree, and reads its result. When trigger trees run through the bridge,
+      they get the same execution and error handling as received trees. Then there is no
+      second runner to keep the same as the first.
     relationships:
     - rel_type: depends_on
       spec_id: BT-05-001
@@ -237,6 +315,10 @@ groups:
     kind: project
     statement: Trigger endpoint implementations MUST accept the DataLayer instance via dependency injection to allow per-actor
       isolation to be retrofitted without changing endpoint contracts
+    rationale: >-
+      Tests and alternative deployments replace the store through the dependency, not
+      through the endpoint. With injection, the way the server resolves a store can
+      change, and the routes that clients call do not change.
     verification: >-
       Inspection of `vultron/adapters/driving/fastapi/` confirms that the DataLayer
       instance is injected via a FastAPI dependency rather than constructed inside
@@ -251,6 +333,11 @@ groups:
     priority: MUST
     kind: project
     statement: A successfully executed trigger MUST produce an outgoing ActivityStreams activity added to the actor's outbox
+    rationale: >-
+      A trigger exists so that the actor can tell a different party something. The
+      outbox is the only way that an activity leaves the actor (OX-02-001). If a run
+      reports success and the outbox is empty, the caller thinks that the actor sent a
+      message, but the actor did not.
     verification: >-
       Integration tests in `test/demo/` confirm that each successfully executed
       trigger adds a new activity to the actor's outbox.
@@ -268,6 +355,10 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: 'The application MUST define a `RunMode` StrEnum with at least two values: `PROTOTYPE` and `PROD`'
+    rationale: >-
+      The server mode decides whether demo-only routes exist, so the mode must be one
+      named setting. With a closed enum, a misspelled or undefined mode is a validation
+      error, not a silent fallback.
   - id: TRIG-08-002
     priority: MUST
     kind: project
@@ -275,6 +366,11 @@ groups:
       a report) or an intentional actor decision that a human operator or agentic client might initiate (e.g., validating
       a report, proposing an embargo). A trigger is **demo-only** if the only reason it exists is to let a demo script puppeteer
       an actor through a step the actor's own BT would handle autonomously in a real deployment.
+    rationale: >-
+      A demo-only trigger makes an actor do a step that its own behavior tree would do.
+      In production, such a trigger would let a caller override the actor. The
+      definitions give each verb a test that a reviewer can check, and the test decides
+      whether production can expose the verb.
     verification: >-
       Every row of the trigger registry (TRIG-12-004) declares its `exposure`
       (general-purpose or demo-only), so the classification is a data-table fact
@@ -288,6 +384,9 @@ groups:
     kind: project
     statement: General-purpose triggers MUST be exposed under the path prefix `/actors/{actor_id}/trigger/{behavior-name}`
       (TRIG-01-001)
+    rationale: >-
+      One prefix for production triggers gives clients one place to find them. It also
+      makes the production surface equal to all routes under that prefix.
     verification: >-
       Every row of the trigger registry (TRIG-12-004) declares its exposure; the
       route-to-registry test asserts that each general-purpose row is mounted
@@ -297,6 +396,9 @@ groups:
     priority: MUST
     kind: project
     statement: Demo-only triggers MUST be exposed under the path prefix `/actors/{actor_id}/demo/{behavior-name}` (see TRIG-09-001)
+    rationale: >-
+      A separate prefix lets the server mount or omit the demo routes as one group
+      (TRIG-09-002). It also shows a demo call in its URL.
     verification: >-
       Every row of the trigger registry (TRIG-12-004) declares its exposure; the
       route-to-registry test asserts that each demo-only row is mounted under
@@ -306,6 +408,11 @@ groups:
     priority: MUST
     kind: project
     statement: '`RunMode` MUST be stored as `ServerConfig.run_mode` within `AppConfig` (CFG-04-001) with a default of `RunMode.PROTOTYPE`'
+    rationale: >-
+      All run-time settings are in one configuration model (CFG-04-001), so the mode is
+      set in the same place as all other settings. The default is `PROTOTYPE` because
+      this codebase runs as a prototype, and its demos need the demo routes with no
+      extra setup.
     verification: >-
       Inspection of `vultron/core/` confirms that `ServerConfig.run_mode` is typed
       as `RunMode` within `AppConfig` and defaults to `RunMode.PROTOTYPE`.
@@ -319,6 +426,10 @@ groups:
     priority: MUST
     kind: project
     statement: Demo-only trigger endpoints MUST use the URL path pattern `POST /actors/{actor_id}/demo/{behavior-name}`
+    rationale: >-
+      Demo routes and general-purpose routes are different only in one path segment.
+      Thus demo scripts and clients use the same call shape for both, and that segment
+      alone shows the kind of call.
     verification: >-
       Inspection of `vultron/adapters/driving/fastapi/` confirms that the demo
       router registers all demo-only endpoints under the
@@ -329,11 +440,20 @@ groups:
     verification_debt: '#2575'
     statement: 'The demo router MUST be conditionally mounted: it MUST be included in the FastAPI application only when `get_config().server.run_mode
       == RunMode.PROTOTYPE`'
+    rationale: >-
+      Demo-only verbs move an actor through steps that it would do by itself. If a
+      production server mounted them, any caller could make an actor do a step in place
+      of its own behavior tree. A caller cannot call a route that the server does not
+      mount.
   - id: TRIG-09-003
     priority: MUST
     kind: project
     statement: When `run_mode == RunMode.PROD`, any request to a path under `/demo/` MUST return HTTP 404 (the routes are
       not mounted; no custom error message is required)
+    rationale: >-
+      A production server must not show that demo controls exist. When the routes are
+      not mounted, the server returns the same 404 as for any unknown path. No special
+      handler is necessary, so no special handler can be wrong.
     verification: >-
       Integration tests in `test/demo/` confirm that, when `run_mode` is set to
       `RunMode.PROD`, any request to a path under `/demo/` returns HTTP 404.
@@ -345,6 +465,10 @@ groups:
     kind: project
     statement: Demo trigger endpoints MUST share the same per-actor DataLayer injection pattern as general-purpose trigger
       endpoints (TRIG-06-001, TRIG-06-002)
+    rationale: >-
+      A demo trigger acts on the same actor store as the real triggers of that actor. A
+      different injection path could resolve a different store, and the test override
+      that replaces the real store would not replace it.
     verification: >-
       Inspection of `vultron/adapters/driving/fastapi/` confirms that demo trigger
       endpoint handlers receive their DataLayer instance via the same FastAPI
@@ -354,6 +478,10 @@ groups:
     kind: project
     statement: Demo trigger endpoints MUST use an OpenAPI tag that visually distinguishes them from general-purpose triggers
       in the Swagger UI (e.g., `tags=["Demo Triggers"]` vs `tags=["Triggers"]`)
+    rationale: >-
+      A reader of the API documentation must be able to identify the endpoints that are
+      demo controls, which a production server does not have. The reader must know this
+      before writing a client that depends on them.
     verification: >-
       Inspection of the FastAPI application's OpenAPI schema confirms that demo
       trigger endpoints carry a distinct tag (e.g., "Demo Triggers") separate
@@ -392,6 +520,11 @@ groups:
     kind: project
     statement: Type-specific convenience triggers (e.g., `add-report-to-case`) MUST delegate to the corresponding general
       trigger after performing type-specific validation
+    rationale: >-
+      The general trigger holds the routing check and the CASE_MANAGER addressing
+      (TRIG-10-001). A wrapper that sent its own `Add` would skip that refusal. The
+      wrapper could then queue an `Add` that the CASE_MANAGER drops, and still tell the
+      caller 202.
     verification: >-
       Inspection of `vultron/adapters/driving/fastapi/` confirms that type-specific
       trigger handlers call the `add-object-to-case` general trigger after
@@ -404,6 +537,11 @@ groups:
       confirms add-note-to-case is absent from the `/trigger/` path.
     statement: '`add-note-to-case` MUST NOT be exposed as a general `/trigger/` endpoint; it MUST be moved to `/demo/add-note-to-case`
       as a demo-only convenience wrapper around `add-object-to-case`'
+    rationale: >-
+      `add-object-to-case` already adds a Note to a case. A second production path for
+      the same act would need its own checks. These checks must stay the same as the
+      checks of the first path. Only demo scripts use the note shortcut, so the shortcut
+      is in the demo layer.
     relationships:
     - rel_type: refines
       spec_id: TRIG-08-004
@@ -418,7 +556,7 @@ groups:
     rationale: In a correct implementation, SYNC log entries are committed automatically as a cascade effect of every state-changing
       operation. An explicit trigger exists only to let the demo script inject entries manually. A future production "force-sync"
       recovery operation would require a protocol-level mechanism for a peer to advertise its current log tail hash before
-      entries are replayed (SYNC-03-004)
+      entries are replayed (SYNC-17-001, SYNC-18-001)
     relationships:
     - rel_type: refines
       spec_id: TRIG-08-004
@@ -475,6 +613,10 @@ groups:
     kind: project
     statement: The `offer-case-ownership-transfer` trigger request body SHOULD accept an optional `content` field (free-text
       message) to include in the offer activity, consistent with the factory function signature for `offer_case_ownership_transfer_activity`.
+    rationale: >-
+      The Case Owner can tell the transferee why it offers the case. The trigger uses
+      the parameter of the factory function, so it passes the text through and needs no
+      mapping of its own.
     relationships:
     - rel_type: refines
       spec_id: TRIG-11-001
@@ -483,6 +625,10 @@ groups:
     kind: project
     statement: Every ownership-transfer trigger MUST return an `activity` field in its response body containing the emitted
       ActivityStreams object, consistent with the response contract for all other trigger endpoints (TRIG-05-001).
+    rationale: >-
+      A later step names the activity that a transfer trigger sent: a withdrawal names
+      the proposal of the owner (TRIG-11-006). When the response returns the activity in
+      `activity`, as other triggers do, the caller gets that id without a second lookup.
     verification: >-
       Integration tests in `test/demo/` confirm that every ownership-transfer
       trigger response includes an `activity` field containing the emitted
@@ -576,9 +722,8 @@ groups:
       `response_model` naming the `TriggerResult` subtype its verb returns, so
       the OpenAPI document describes the real response body of each verb.
     rationale: >-
-      Trigger routes returned bare `dict` for the whole prototype period, so
-      OpenAPI documented no response body and five distinct body shapes were
-      invisible to clients and to review.
+      Without a declared `response_model`, OpenAPI documents no response body. Then
+      clients and reviewers cannot see the different body shapes that the verbs return.
     verification: >-
       A test iterates the FastAPI app's routes under `/actors/{actor_id}/trigger/`
       and `/actors/{actor_id}/demo/` and fails on any whose `response_model` is
@@ -614,10 +759,11 @@ groups:
       captured before any trigger route is rewritten, so it freezes the shipped
       contract rather than whatever a rewrite happened to emit.
     rationale: >-
-      Adding `response_model` and collapsing the route bodies touches every
-      trigger endpoint at once. A snapshot taken first is the only mechanical
-      evidence the client-visible contract did not move; one taken afterwards
-      proves nothing.
+      Some changes touch all trigger routes at one time, for example a new
+      `response_model` on each route. Such a change needs mechanical evidence that the
+      contract that clients see did not change. Only a snapshot taken before the routes
+      change gives this evidence. A snapshot taken after the change records the change
+      as the baseline.
     verification: >-
       A test compares `app.openapi()` for the trigger and demo paths against
       the committed snapshot and fails on any difference; the snapshot's commit
@@ -636,12 +782,11 @@ groups:
       MUST appear in exactly one row. The registry holds data and a lookup
       only; it MUST NOT contain per-verb behavior.
     rationale: >-
-      The registry exists for enumeration, not routing — a route already knows
-      its verb. Enumeration is what lets TRIG-08-003/004, TRIG-12-001, and
-      TRIG-12-002 be asserted as tests instead of by inspection, and what
-      catches an unrouted use case (`SvcAddOnBehalfStatusUseCase` was reachable
-      only from its own tests). Keeping behavior out of it is what keeps it
-      from becoming the per-verb facade it replaces (ADR-0110).
+      The registry is for enumeration, not for routing, because a route already knows
+      its verb. With enumeration, tests can assert TRIG-08-003/004, TRIG-12-001, and
+      TRIG-12-002, so inspection is not necessary. Enumeration also finds a use case
+      that no route reaches. When the registry holds no behavior, it cannot become a
+      second layer of code for each verb (ADR-0110).
     verification: >-
       Architecture tests assert the route-to-registry bijection and the
       use-case-to-row bijection, both as exact set equalities (ARCH-18-001).
@@ -676,12 +821,12 @@ groups:
       `test/adapters/driving/fastapi/routers/test_trigger_report.py` asserts the
       `close-report` route is gone.
     rationale: >-
-      A participant that has joined a case closes its part in it by leaving the case
-      (CM-23-001), never by `Close(Report)`, which a case refuses from every sender
-      (CM-23-019, ADR-0144). A production deployment needs a trigger for it: the
-      demo verb was not mounted in production mode (TRIG-09-002). The verb is named
-      for the message, because for a participant that is not the owner the case
-      stays open (ADR-0145).
+      A participant that joined a case closes its part in the case when it leaves the
+      case (CM-23-001). It never uses `Close(Report)`, which a case refuses from all
+      senders (CM-23-019, ADR-0144). A production deployment needs a trigger for this
+      step, because production mode does not mount demo verbs (TRIG-09-002). The verb
+      has the name of the message, not 'close'. When a participant that is not the owner
+      leaves, the case stays open (ADR-0145).
     relationships:
     - rel_type: refines
       spec_id: TRIG-02-004

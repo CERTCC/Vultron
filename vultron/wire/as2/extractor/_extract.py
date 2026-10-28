@@ -34,7 +34,6 @@ from vultron.wire.as2.extractor._builders import (
     _build_object_kwargs,
     _get_id,
     _to_domain_obj,
-    ledger_position_from_content,
     proposed_embargo_from,
     termination_of,
 )
@@ -307,30 +306,15 @@ def _content_kwargs(
 ) -> dict[str, object]:
     """The event fields parsed from the activity's ``content`` at the edge.
 
-    Also the ``ledgerPosition`` a ``Read(CaseLedgerEntry)`` states, the one
-    such field the activity carries as a Vultron property (SYNC-17-001).
+    Also the sender's ``ledgerPosition`` (SYNC-18-001), which the activity
+    carries as a Vultron property rather than in ``content``.
 
     Core receives the parsed value (ADR-0032); an absent or malformed one is
     refused with a reason (``VultronParseValidationError``).
     """
     kwargs: dict[str, object] = {}
-    if "ledger_tail" in event_class.model_fields:
-        # The full-case Invite and its replies each carry a ledger position as
-        # the JSON dump of a LedgerPosition in ``content`` (VAM-04-019).
-        kwargs["ledger_tail"] = ledger_position_from_content(activity)
     if "ledger_position" in event_class.model_fields:
-        # A Read(CaseLedgerEntry) states its position as the Vultron
-        # property ``ledgerPosition``, which as_Read already parsed as a
-        # LedgerPosition (SYNC-17-001).  The pattern admits only a Read that
-        # carries one, so its absence here is refused, never defaulted.
-        position = getattr(activity, "ledger_position", None)
-        if not isinstance(position, LedgerPosition):
-            raise VultronParseValidationError(
-                f"activity {activity.id_!r} states no ledgerPosition; a"
-                " Read(CaseLedgerEntry) must carry the position of the entry"
-                " it names (SYNC-17-001)"
-            )
-        kwargs["ledger_position"] = position
+        kwargs["ledger_position"] = _ledger_position(activity, event_class)
     if "termination_reason" in event_class.model_fields:
         # A termination Remove carries its what in ``content``: exactly
         # END_TIME_REACHED or EARLY, refused otherwise (ADR-0122); and its
@@ -347,6 +331,33 @@ def _content_kwargs(
             " a termination Remove(EmbargoEvent) may name one (EMB-13-005)"
         )
     return kwargs
+
+
+def _ledger_position(
+    activity: as_Activity, event_class: type[VultronEvent]
+) -> LedgerPosition | None:
+    """The sender's ledger position the activity states (SYNC-18-001).
+
+    ``as_Activity`` already parsed ``ledgerPosition`` as a
+    ``LedgerPosition``, so a malformed one never reaches here.  An event
+    class that requires the position (a ``LedgerPositionedEvent``) refuses
+    an activity that carries none, naming it, before anything is written
+    (SYNC-18-003); one that admits its absence (``Reject(CaseLedgerEntry)``
+    from a peer that holds no ledger yet) gets ``None``.
+
+    Raises:
+        VultronParseValidationError: when the event class requires the
+            position and the activity states none.
+    """
+    position = getattr(activity, "ledger_position", None)
+    if isinstance(position, LedgerPosition):
+        return position
+    if event_class.model_fields["ledger_position"].is_required():
+        raise VultronParseValidationError(
+            f"activity {activity.id_!r} states no ledgerPosition: a case"
+            " activity must carry its sender's ledger tail (SYNC-18-003)"
+        )
+    return None
 
 
 def _effective_rsvp_deadline(
