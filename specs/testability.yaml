@@ -115,10 +115,11 @@ groups:
     verification_debt: '#2574'
     statement: Test files MUST use descriptive names starting with `test_`
     rationale: >-
-      pytest collects only files whose names match its file pattern, and this
-      repository uses the default, `test_*.py`. A test file with a different name never
-      runs, so its tests can never fail. A descriptive name also tells a reader which
-      area a failure is in.
+      pytest collects only files whose names match its file patterns, and this
+      repository keeps the defaults, `test_*.py` and `*_test.py`. A test file with
+      another name never runs, so its tests can never fail. One prefix for every test
+      file lets a reader find the tests at once, and a descriptive name tells a reader
+      which area a failure is in.
   - id: TB-04-003
     priority: MUST
     kind: project
@@ -529,8 +530,9 @@ groups:
       Without a check, a new architecture test can read or parse files on its own and
       bring back the cost that the shared corpus removes.
       `test/architecture/test_ratchet_hygiene.py` fails on a bare `ast.parse(` or
-      `.rglob(` in any file of the directory except `_corpus.py`. It searches the
-      source text for those strings and parses nothing, so it obeys its own rule.
+      `.rglob(` in any `.py` file directly in that directory, except `_corpus.py` and
+      the hygiene test itself. It searches the source text for those strings and
+      parses nothing, so it obeys its own rule.
     relationships:
     - rel_type: refines
       spec_id: TB-13-001

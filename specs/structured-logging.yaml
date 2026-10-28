@@ -100,9 +100,10 @@ groups:
       field lets a reader collect all entries for one activity, across modules and
       actors, with one filter.
     verification: >-
-      A test enters the processing context for an activity, writes a log record through
-      a handler that carries the SL-02-003 filter, and asserts that the record has an
-      `activity_id` attribute equal to the activity's `id_`.
+      A test posts an activity to an actor's inbox, captures the log records written
+      while the activity is processed, and asserts that each record carries an
+      `activity_id` attribute equal to the activity's `id_`. The test comes with the
+      correlation filter (SL-02-003) in #3992.
     scope:
     - production
   - id: SL-02-002
@@ -114,9 +115,10 @@ groups:
       `actor_id` field lets a reader separate the entries for each actor and follow what
       one actor did.
     verification: >-
-      A test enters the execution context for an actor, writes a log record through a
-      handler that carries the SL-02-003 filter, and asserts that the record has an
-      `actor_id` attribute equal to the actor's canonical URI.
+      A test runs a behavior tree for an actor, captures the log records written during
+      the run, and asserts that each record carries an `actor_id` attribute equal to the
+      actor's canonical URI. The test comes with the correlation filter (SL-02-003) in
+      #3992.
     scope:
     - production
   - id: SL-02-003

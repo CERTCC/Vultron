@@ -17,10 +17,10 @@
 BTTestScenario — deep-module test harness for Behavior Tree tests.
 
 Encapsulates the correct BTBridge path for all BT tests (leaf nodes and
-composite trees alike). Eliminates duplicated ``setup_node_blackboard()``
-boilerplate that bypasses the proper BT lifecycle.
+composite trees alike), so no test builds blackboard state by hand outside
+the proper BT lifecycle.
 
-Per specs/testability.yaml TB-06 requirements and GitHub issue #401.
+Per specs/testability.yaml TB-12-001.
 
 Usage
 -----

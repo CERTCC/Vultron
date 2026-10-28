@@ -211,9 +211,10 @@ groups:
     statement: >-
       `ServerConfig.base_url` MUST default to `"http://localhost:7999/api/v2"`.
     rationale: >-
-      Object IDs and actor IDs start with the base URL, and an actor ID must be the URL
-      that reaches the actor (DL-07-006). The API serves actors under `/api/v2`, so a
-      default without that path creates IDs that reach nothing. This default matches the
+      Object IDs and actor IDs start with the base URL. A hosted actor's ID is
+      `{base_url}/actors/{slug}`, and it must be the URL that reaches the actor. The API
+      serves actors under `/api/v2`, so a default without that path creates IDs that
+      reach nothing. This default matches the
       local port and the URL form that the compose files set.
   - id: CFG-04-004
     priority: MUST
@@ -467,10 +468,6 @@ groups:
       key therefore cannot tell an absent key from a key set to its defaults. It returns
       that instance and skips the sources after the file, such as environment variables.
       A check for the key before validation keeps the order of sources.
-    relationships:
-    - rel_type: refines
-      spec_id: CFG-03-001
-      note: resolution-order guarantee requires key-presence check, not value comparison
   - id: CFG-07-009
     priority: MUST
     kind: project

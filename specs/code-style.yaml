@@ -226,7 +226,9 @@ groups:
   - id: CS-07-001
     priority: MUST_NOT
     kind: project
-    verification_debt: '#2575'
+    verification: >-
+      Inspection of `vultron/` confirms no Pydantic field name (as opposed to class
+      name) begins with `as_`; the `as_` prefix convention applies only to class names.
     statement: >-
       Pydantic **field names** MUST NOT use the `as_` prefix anywhere in the codebase.
       Class names (e.g., `as_Activity`, `as_Object`) keep the `as_` prefix as an
@@ -419,9 +421,9 @@ groups:
       explicit offset; a naive or offset-free value MUST NOT reach the wire.
     rationale: >-
       ActivityStreams 2.0 requires every date-time value to follow the RFC 3339
-      `date-time` form, in which the offset is mandatory. A peer cannot read a value without
-      an offset as one instant, so it cannot compare it with other times. CS-13-005
-      holds Vultron's rules on which offset a timestamp carries.
+      `date-time` form, in which the offset is mandatory. A peer cannot read a value
+      without an offset as one instant, so it cannot compare it with other times.
+      CS-13-005 holds Vultron's rules on which offset a timestamp carries.
     verification: >-
       In `test/wire/as2/test_timestamp_offsets.py`,
       `test_a_naive_time_reaches_the_wire_as_an_rfc3339_date_time` and

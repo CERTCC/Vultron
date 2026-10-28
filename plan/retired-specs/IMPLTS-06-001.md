@@ -9,8 +9,4 @@
     priority: MAY
     kind: project
     statement: The system MAY provide interactive demo interfaces using Streamlit.
-    rationale: >-
-      A MAY tells contributors that a small interactive demo built with Streamlit needs
-      no new approval. No Streamlit code exists, and the interactive demo UI uses React
-      (ADR-0104).
 ```
