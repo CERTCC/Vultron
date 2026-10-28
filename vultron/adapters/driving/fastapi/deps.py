@@ -215,9 +215,11 @@ def get_hosted_actor_dls(
     which is the deployment case.
 
     The stores in ``app.state.actor_dls`` are added to that set, not put in
-    its place, each standing for its own store in place of the listed one.  That registry holds only the actors a path-scoped route has
+    its place.  That registry holds only the actors a path-scoped route has
     addressed, so an actor created through ``POST /actors/`` and never
-    addressed since is in the deployment but not in the registry.  An app with
+    addressed since is in the deployment but not in the registry.  A
+    registered store replaces the listed entry for the same slug, so one
+    store is never listed under two ids.  An app with
     a registry but no declared template returns the registry alone: no
     deployment of its own exists to enumerate, and enumerating the configured
     one would reach stores that are not its own.
