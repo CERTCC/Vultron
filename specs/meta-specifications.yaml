@@ -460,6 +460,30 @@ groups:
     tags:
     - documentation
     - tooling
+  - id: MS-09-008
+    priority: MUST
+    kind: process
+    statement: >-
+      The text that `uv run spec-retire <ID>` archives (MS-09-006) MUST be the item's
+      last published text: its block at the merge base of `HEAD` and the base branch,
+      which is `origin/$GITHUB_BASE_REF`, else `origin/main`, unless `--base` names
+      another. When the item is not declared at that merge base, or the merge base
+      cannot be resolved, the tool changes nothing.
+    rationale: >-
+      A branch that edits a requirement and then retires it would otherwise archive text
+      that was never published (#5400). An ID absent at the base was never published, so
+      no citation outside the branch can name it. It is deleted, not archived, and the
+      tool does not guess which text to keep.
+    verification: >-
+      `test/metadata/specs/test_retire.py` retires an item edited on the branch and
+      checks that the archive holds its text at the base, and checks the refusals for an
+      item absent at the base and for a base that cannot be resolved.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-09-006
+    tags:
+    - documentation
+    - tooling
   - id: MS-09-003
     priority: MUST
     kind: process
