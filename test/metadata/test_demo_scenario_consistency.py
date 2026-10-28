@@ -239,6 +239,7 @@ def test_column_raises_on_an_unknown_header() -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec_corpus
 def test_scenario_groups_name_only_known_scenarios(
     real_registry: SpecRegistry,
 ) -> None:
@@ -257,6 +258,7 @@ def test_scenario_groups_name_only_known_scenarios(
     )
 
 
+@pytest.mark.spec_corpus
 def test_every_planned_scenario_has_a_spec_group(
     real_registry: SpecRegistry,
 ) -> None:
@@ -277,6 +279,7 @@ def test_every_planned_scenario_has_a_spec_group(
     )
 
 
+@pytest.mark.spec_corpus
 def test_every_registered_scenario_is_named_by_a_spec_group(
     real_registry: SpecRegistry,
 ) -> None:
@@ -365,6 +368,7 @@ def test_scenario_spec_groups_rejects_a_duplicated_scenario(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec_corpus
 def test_every_registered_scenario_has_an_semantic_type_requirement(
     real_registry: SpecRegistry,
 ) -> None:
@@ -376,6 +380,7 @@ def test_every_registered_scenario_has_an_semantic_type_requirement(
     )
 
 
+@pytest.mark.spec_corpus
 @pytest.mark.parametrize(
     "spec_id",
     ["DEMOMA-16-001", "DEMOMA-16-008", "DEMOMA-16-012", "DEMOMA-16-013"],
@@ -401,6 +406,7 @@ def test_non_per_scenario_requirements_are_not_selected(
     assert spec_id not in selected
 
 
+@pytest.mark.spec_corpus
 def test_per_scenario_requirements_cover_the_unbuilt_scenarios(
     real_registry: SpecRegistry,
 ) -> None:
@@ -441,6 +447,7 @@ def test_planned_register_requires_its_heading(prose_root: Path) -> None:
         planned_scenarios(prose_root)
 
 
+@pytest.mark.spec_corpus
 def test_partition_holds_on_the_committed_tree(
     real_registry: SpecRegistry,
 ) -> None:
@@ -449,6 +456,7 @@ def test_partition_holds_on_the_committed_tree(
     assert not problems, "\n".join(problems)
 
 
+@pytest.mark.spec_corpus
 def test_partition_reports_a_scenario_in_both_registers(
     real_registry: SpecRegistry,
 ) -> None:
@@ -467,6 +475,7 @@ def test_partition_reports_a_scenario_in_both_registers(
     assert any("in both registers" in problem for problem in problems)
 
 
+@pytest.mark.spec_corpus
 def test_partition_reports_a_scenario_in_neither_register(
     real_registry: SpecRegistry,
 ) -> None:
@@ -481,6 +490,7 @@ def test_partition_reports_a_scenario_in_neither_register(
     )
 
 
+@pytest.mark.spec_corpus
 def test_partition_reports_a_planned_row_with_no_spec_group(
     prose_root: Path, real_registry: SpecRegistry
 ) -> None:
@@ -498,6 +508,7 @@ def test_partition_reports_a_planned_row_with_no_spec_group(
     )
 
 
+@pytest.mark.spec_corpus
 @pytest.mark.parametrize(
     ("cell", "expected"),
     [
@@ -662,6 +673,7 @@ def test_status_claim_check_reports_malformed_frontmatter_by_file(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec_corpus
 def test_notes_scenario_tables_agree_with_the_registry(
     real_registry: SpecRegistry,
 ) -> None:
@@ -670,6 +682,7 @@ def test_notes_scenario_tables_agree_with_the_registry(
     assert not problems, "\n".join(problems)
 
 
+@pytest.mark.spec_corpus
 def test_scenario_table_check_reports_a_missing_row(
     prose_root: Path, real_registry: SpecRegistry
 ) -> None:
@@ -692,6 +705,7 @@ def test_scenario_table_check_reports_a_missing_row(
     assert any(table.heading in problem for problem in problems)
 
 
+@pytest.mark.spec_corpus
 def test_scenario_table_check_reports_a_wrong_spec_id(
     prose_root: Path, real_registry: SpecRegistry
 ) -> None:
@@ -772,6 +786,7 @@ def test_count_check_exempts_a_history_section(
     assert not restated_counts(prose_root)
 
 
+@pytest.mark.spec_corpus
 def test_scenario_table_check_reports_a_wrong_pr_set_mark(
     prose_root: Path, real_registry: SpecRegistry
 ) -> None:
@@ -1117,6 +1132,7 @@ def test_column_raises_key_error_naming_the_columns_it_found() -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec_corpus
 def test_semantic_type_requirement_check_reports_an_unspecified_scenario(
     real_registry: SpecRegistry,
 ) -> None:
@@ -1133,6 +1149,7 @@ def test_semantic_type_requirement_check_reports_an_unspecified_scenario(
     assert missing == [_FAKE.name]
 
 
+@pytest.mark.spec_corpus
 def test_scenario_table_check_reports_a_renamed_heading(
     prose_root: Path, real_registry: SpecRegistry
 ) -> None:
@@ -1396,6 +1413,7 @@ def test_planned_register_rejects_a_renamed_column(prose_root: Path) -> None:
         planned_scenarios(prose_root)
 
 
+@pytest.mark.spec_corpus
 def test_partition_reports_a_scenario_listed_twice_in_the_register(
     prose_root: Path, real_registry: SpecRegistry
 ) -> None:

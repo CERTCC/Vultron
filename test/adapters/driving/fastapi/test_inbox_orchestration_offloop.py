@@ -124,8 +124,13 @@ def test_event_loop_keeps_serving_while_a_payload_is_processed(
         pipeline = asyncio.create_task(
             run_inbox_pipeline({}, quiet_pipeline, _ACTOR_ID, None, None)
         )
-        while not parked.is_set():
+        while not parked.is_set() and not pipeline.done():
             await asyncio.sleep(0.001)
+        if not parked.is_set():
+            # The pipeline finished without reaching process_payload: surface
+            # its own exception rather than spin until the test timeout.
+            await pipeline
+            pytest.fail("run_inbox_pipeline never called process_payload")
         # The loop is running this coroutine while process_payload waits.
         served_while_parked = not pipeline.done()
         release.set()
