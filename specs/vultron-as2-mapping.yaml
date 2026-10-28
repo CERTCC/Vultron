@@ -18,6 +18,12 @@ groups:
     kind: project
     statement: Every `MessageSemantics` enum value except the `UNKNOWN` and `UNKNOWN_UNRESOLVABLE_OBJECT` sentinels MUST have
       exactly one entry in `SEMANTIC_REGISTRY` carrying a non-`None` `pattern` that defines its AS2 wire representation
+    rationale: >-
+      A semantic type with no pattern can never be extracted from a received activity.
+      Its use case never runs, and every activity of that type is classified as unknown.
+      One entry for each type gives the type one wire form, so two entries cannot
+      disagree about it. The two sentinels name the results of a failed match, so they
+      have no wire form.
     verification: A unit test confirms that every `MessageSemantics` value except `UNKNOWN` and
       `UNKNOWN_UNRESOLVABLE_OBJECT` has a non-None `pattern` in `SEMANTIC_REGISTRY`.
   - id: VAM-01-002
@@ -27,6 +33,10 @@ groups:
     statement: >-
       The AS2 activity patterns defined in this document MUST be implemented as
       `ActivityPattern` objects in `vultron/wire/as2/extractor/_instances.py`.
+    rationale: >-
+      The registry modules import their patterns from one module. A reader can then see
+      every wire form in one file, and no registry module builds its own copy of a form
+      that can drift from the form this document defines.
   - id: VAM-01-002b
     priority: MUST_NOT
     kind: project
@@ -34,6 +44,10 @@ groups:
     statement: >-
       AS2 activity pattern objects MUST NOT be defined in any module other than
       `vultron/wire/as2/extractor/_instances.py`.
+    rationale: >-
+      A pattern built in another module is not in the file where a reader looks for the
+      wire forms. It can also match a different shape from the pattern that
+      `_instances.py` defines for the same form, and nothing compares the two.
     relationships:
     - rel_type: refines
       spec_id: VAM-01-002
@@ -42,6 +56,12 @@ groups:
     kind: project
     statement: Pattern entries in `SEMANTIC_REGISTRY` MUST be ordered from most-specific to least-specific so that
       `find_matching_semantics()` returns the correct semantic for overlapping patterns
+    rationale: >-
+      `find_matching_semantics()` returns the first pattern that matches. When a general
+      pattern comes before a specific pattern that it also covers, the specific semantic
+      type never matches, and the wrong use case runs with no error.
+      `_validate_registry_order()` raises `RegistryOrderError` at import for each such
+      order that it can detect.
     verification: Inspection of `vultron/semantic_registry/__init__.py` confirms that `_validate_registry_order()`
       is called at module load time and raises `RegistryOrderError` if a less-specific pattern precedes a
       more-specific one in the same activity-type group.
@@ -53,11 +73,21 @@ groups:
       matching and that no pattern discriminates on an unhydrated string field.
     statement: An AS2 activity MUST be rehydrated (URI string references expanded to full objects via the DataLayer) before
       pattern matching; pattern matching MUST NOT rely on unhydrated string fields for type discrimination
+    rationale: >-
+      A URI string carries no type. A pattern that reads the type of an unhydrated field
+      cannot tell, for example, an `Offer` of a report from an `Offer` of a case.
+      Rehydration gives each field its full object, so the type that the pattern reads
+      is the type of the object.
   - id: VAM-01-005
     priority: MUST
     kind: project
     statement: When a pattern specifies a nested activity as the `object` field, the outer activity's `object` MUST be a fully
       rehydrated AS2 activity object matching the inner `ActivityPattern`
+    rationale: >-
+      Many semantic types differ only in the activity that they wrap, such as
+      `Accept(Invite(Event))` and `Accept(Offer(VulnerabilityReport))`. Only the type
+      and fields of the inner activity tell them apart, so the inner activity must be a
+      full object that the inner pattern can match.
     verification: A unit test confirms that `ActivityPattern.match()` recurses into a nested `ActivityPattern`
       for the `object_` field, requiring the outer activity's rehydrated `object_` to satisfy the inner
       pattern's type and field constraints.
@@ -134,6 +164,10 @@ groups:
       `MessageSemantics.UNKNOWN` MUST be returned when no registered pattern
       matches the incoming activity, except where VAM-01-009 requires
       `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`
+    rationale: >-
+      A received activity needs one defined result even when no pattern describes it.
+      `UNKNOWN` gives the inbox a value that it can refuse and log, in place of an
+      exception or a guess at the nearest semantic type.
     verification: A unit test (`test_find_matching_semantics_returns_unknown_for_unmatched_activity`) in
       `test/wire/as2/test_extractor.py` confirms that `find_matching_semantics()` returns
       `MessageSemantics.UNKNOWN` for an activity matching no registered pattern.
@@ -142,6 +176,12 @@ groups:
     kind: protocol
     statement: Inbound activities represent state-change notifications, not commands; the AS2 activity type used for each
       semantic MUST reflect the completed state transition, not a requested action
+    rationale: >-
+      A receiver applies each activity as a fact about the sender's state. If an
+      activity stated a requested action, the receiver could not know whether the
+      sender's state had changed, and two participants could record different states for
+      the same case. A completed-action type makes each message match the change that it
+      reports.
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that every registered
       `ActivityPattern` uses a completed-action activity type (e.g., `Create`, `Accept`, `Reject`) and that
       no imperative or request-type activity variant appears in any pattern.
@@ -162,14 +202,12 @@ groups:
       Only a `Create` whose object is an `EmbargoEvent` is recognized: a `Create` of
       any other `Event` is refused as an unrecognized activity.
     rationale: >-
-      VAM-01-011 makes the single message the only protocol form and leaves how a
-      receiver handles a stray `Create` to the receiver; this item is this codebase's
-      answer. The removed `Create` routes stored their object with no ledger entry,
-      which CLP-07-013 rules out (#4598), and the removed `Create(Note)` route made a
-      second form for attaching a note (#4707). `Create(EmbargoEvent)` came back as
-      the CASE_MANAGER's ledger record of an embargo its case's creation wrote (#5122),
-      which a replica copies from the ledger and no inbox handles. The inline rule
-      binds what this codebase sends: a received `Invite` may still name its terms by
+      VAM-01-011 leaves to the receiver how to handle a stray `Create`, and this item is
+      the answer of this codebase. A `Create` stored with no ledger entry would change
+      the case file outside the ledger (CLP-07-013), and `Create(Note)` would be a
+      second way to attach a note (ADR-0137). `Create(CaseParticipant)` and
+      `Create(EmbargoEvent)` are ledger records of the CASE_MANAGER that a replica
+      copies from the ledger (ADR-0124). A received `Invite` can still name its terms by
       URI (ADR-0123).
     verification: >-
       In `test/wire/as2/vocab/test_actvitities/test_object_types.py`, the
@@ -212,6 +250,8 @@ groups:
       spec_id: VAM-05-005
     - rel_type: implements
       spec_id: VAM-07-002
+    adr:
+    - ADR-0137
   - id: VAM-01-011
     priority: MUST
     kind: protocol
@@ -267,6 +307,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`CREATE_REPORT` MUST be represented as `Create(VulnerabilityReport)`'
+    rationale: >-
+      A report is a new object, and AS2 records a new object with `Create`. The sender
+      and every receiver must use the same wire form, or a receiver classifies the
+      activity as unknown.
     verification: A unit test in `test/wire/as2/test_extractor.py` confirms that `find_matching_semantics()`
       returns `CREATE_REPORT` for a `Create(VulnerabilityReport)` activity, and inspection of `_instances.py`
       confirms `CreateReportPattern` matches this shape.
@@ -277,6 +321,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`SUBMIT_REPORT` MUST be represented as `Offer(VulnerabilityReport)`'
+    rationale: >-
+      To submit a report is to give it to a receiver for a decision, which is what an
+      AS2 `Offer` means. The receiver answers the same `Offer` with `Read`, `Accept`,
+      `TentativeReject` or `Reject` (VAM-02-003 to VAM-02-006), so each answer wraps the
+      submission that it answers.
     note: >-
       The Offer MAY carry the Reporter's proposed embargo terms as `proposedEmbargo`, an inline
       `EmbargoEvent` whose `context` is the report (EP-04-004, EP-04-009, ADR-0096). The field is
@@ -295,6 +344,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`ACK_REPORT` MUST be represented as `Read(Offer(VulnerabilityReport))`'
+    rationale: >-
+      An acknowledgement says only that the receiver has the report, not that it has
+      judged the report. AS2 `Read` states that an actor has seen an object, so the
+      Reporter gets a receipt that it cannot confuse with a validation.
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `AckReportPattern`
       is registered as `Read(Offer(VulnerabilityReport))`; integration tests in `test/demo/` exercise the
       full acknowledgement flow.
@@ -308,6 +361,11 @@ groups:
       `VALIDATE_REPORT` MUST be represented as `Accept(Offer(VulnerabilityReport))`.
       This is the direct report recipient's RV; a participant that joined through an
       Invite sends RV as the full-case Invite reply of VAM-04-012.
+    rationale: >-
+      Validation is the receiver's answer to the submitted `Offer`, so it wraps that
+      `Offer`. A participant that joined through an Invite never received the `Offer`,
+      so it answers the full-case Invite instead (ADR-0121). The two forms differ in
+      their inner object, so a receiver tells them apart by shape.
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `ValidateReportPattern`
       is registered as `Accept(Offer(VulnerabilityReport))`; integration tests in `test/demo/` exercise the
       full report-validation flow.
@@ -323,6 +381,10 @@ groups:
       `TentativeReject(Offer(VulnerabilityReport))`. This is the direct report
       recipient's RI; a participant that joined through an Invite sends RI as the
       full-case Invite reply of VAM-04-013.
+    rationale: >-
+      `TentativeReject` says that the receiver does not accept the report now but keeps
+      it open. That matches RM Invalid, from which a report can still become Valid. A
+      `Reject` would read as final and is the form of the close in VAM-02-006.
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `InvalidateReportPattern`
       is registered as `TentativeReject(Offer(VulnerabilityReport))`; integration tests in `test/demo/` exercise
       the full report-invalidation flow.
@@ -338,6 +400,10 @@ groups:
       `CLOSE_REPORT` MUST be represented as `Reject(Offer(VulnerabilityReport))`. This
       is the direct report recipient's RC; a participant that joined through an Invite
       sends RC as the full-case Invite reply of VAM-04-014.
+    rationale: >-
+      A close ends the receiver's work on the report, so the answer is a final `Reject`
+      of the submitted `Offer`. Its activity type, `Reject` and not `TentativeReject`,
+      tells it apart from an invalidation (VAM-02-005).
     verification: >-
       Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `CloseReportPattern` is registered as `Reject(Offer(VulnerabilityReport))`;
@@ -355,6 +421,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`CREATE_CASE` MUST be represented as `Create(VulnerabilityCase)`'
+    rationale: >-
+      A case is a new object, and AS2 records a new object with `Create`. One wire form
+      lets every receiver classify the creation of a case by shape.
     verification: A unit test in `test/wire/as2/test_extractor.py` confirms that `extract_event()` correctly
       handles `Create(VulnerabilityCase)`, and inspection of `_instances.py` confirms `CreateCasePattern`
       matches this shape.
@@ -364,6 +433,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`ENGAGE_CASE` MUST be represented as `Join(VulnerabilityCase)`'
+    rationale: >-
+      Engage and defer are the two answers that a participant gives about its own work
+      on a case. AS2 `Join` and `Ignore` (VAM-03-004) state those two answers, and both
+      have the case as their object, so a receiver tells them apart by activity type
+      alone.
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `EngageCasePattern`
       is registered as `Join(VulnerabilityCase)`; integration tests in `test/demo/` exercise the
       engage-case flow.
@@ -374,6 +448,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`DEFER_CASE` MUST be represented as `Ignore(VulnerabilityCase)`'
+    rationale: >-
+      A defer says that the participant sets the case aside but stays in it. AS2
+      `Ignore` states that. It differs from `Leave` (VAM-03-006), which ends the
+      participant's part in the case.
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `DeferCasePattern`
       is registered as `Ignore(VulnerabilityCase)`; integration tests in `test/demo/` exercise the
       defer-case flow.
@@ -384,6 +462,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`ADD_REPORT_TO_CASE` MUST be represented as `Add(VulnerabilityReport)[target=VulnerabilityCase]`'
+    rationale: >-
+      A report is attached to a case that already exists, so the message is an `Add`
+      with the case as its `target`. The `target` tells a receiver which case the report
+      goes into.
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `AddReportToCasePattern`
       uses `TAtype.ADD`, `AOtype.VULNERABILITY_REPORT`, and `target_=VULNERABILITY_CASE`; integration tests
       in `test/demo/` exercise this flow.
@@ -394,9 +476,17 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`CLOSE_CASE` MUST be represented as `Leave(VulnerabilityCase)`'
-    verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `CloseCasePattern`
-      is registered as `Leave(VulnerabilityCase)`; integration tests in `test/demo/test_manage_case_demo.py`
-      exercise the close-case flow.
+    rationale: >-
+      A close ends the participant's part in the case, which is what AS2 `Leave` means.
+      Its object, the case and not an `EmbargoEvent`, tells it apart from a withdrawal
+      from an embargo, which is also a `Leave` (VAM-05-011).
+    verification: >-
+      Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
+      `CloseCasePattern` is registered as `Leave(VulnerabilityCase)`; integration tests
+      in `test/demo/test_manage_case_demo.py` exercise the close-case flow.
+      `test_case_and_participant_wire_forms_map_to_their_semantics` in
+      `test/test_semantic_activity_patterns.py` confirms that the `close_case`
+      vocabulary example maps to `CLOSE_CASE`.
     stories:
     - story_2022_066
     - story_2022_067
@@ -429,13 +519,21 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`OFFER_ACTOR_TO_CASE` MUST be represented as `Offer(Actor)[target=VulnerabilityCase]`'
-    rationale: 'This is the first hop of the two-offer actor-suggestion exchange: a participant suggests an Actor to the
-      CASE_MANAGER. Corrected from an earlier revision that named `SUGGEST_ACTOR_TO_CASE`, which is not and never was a
-      `MessageSemantics` member. Note the crossed spelling in the code — `SuggestActorToCasePattern` is the pattern bound
-      to `OFFER_ACTOR_TO_CASE`, while `OfferActorToCasePattern` is bound to `OFFER_CASE_PARTICIPANT` (VAM-04-010).'
-    verification: Inspection of `vultron/semantic_registry/actor.py` confirms that `MessageSemantics.OFFER_ACTOR_TO_CASE`
-      is keyed to `SuggestActorToCasePattern`, which uses `TAtype.OFFER`, `AOtype.ACTOR`, and
-      `target_=VULNERABILITY_CASE`; integration tests in `test/demo/test_suggest_actor_demo.py` exercise this flow.
+    rationale: >-
+      This is the first message of the actor-suggestion exchange: a participant suggests
+      an Actor to the CASE_MANAGER. A suggestion names only an actor (CM-16-003), so the
+      object is the Actor itself. The pattern names cross: `SuggestActorToCasePattern`
+      is bound to `OFFER_ACTOR_TO_CASE`, and `OfferActorToCasePattern` is bound to
+      `OFFER_CASE_PARTICIPANT` (VAM-04-010).
+    verification: >-
+      Inspection of `vultron/semantic_registry/actor.py` confirms that
+      `MessageSemantics.OFFER_ACTOR_TO_CASE` is keyed to `SuggestActorToCasePattern`,
+      which uses `TAtype.OFFER`, `AOtype.ACTOR`, and `target_=VULNERABILITY_CASE`;
+      integration tests in `test/demo/test_suggest_actor_demo.py` exercise this flow.
+      `test_actor_suggestion_is_two_offers_over_different_objects` in
+      `test/test_message_semantics_mapping.py` confirms that the pattern bound to
+      `OFFER_ACTOR_TO_CASE` is an `Offer` of an `Actor` with a `VulnerabilityCase`
+      target.
     stories:
     - story_2022_053
     - story_2022_013
@@ -444,14 +542,22 @@ groups:
     kind: protocol
     statement: '`ACCEPT_OFFER_CASE_PARTICIPANT` MUST be represented as
       `Accept(Offer(CaseParticipant)[target=VulnerabilityCase])`'
-    rationale: 'The accept wraps the *second* offer of the exchange, not the first: the Case Owner accepts the CASE_MANAGER''s
-      `Offer(CaseParticipant)` (VAM-04-010), not the original `Offer(Actor)`. Corrected from an earlier revision that named
-      a nonexistent `ACCEPT_SUGGEST_ACTOR_TO_CASE` and wrapped `Offer(Actor)` — wrong in both the semantic name and the
-      wire form. See CM-16-003, CM-16-004 and ADR-0026.'
-    verification: Inspection of `vultron/semantic_registry/actor.py` confirms that
-      `MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT` is keyed to `AcceptActorRecommendationPattern`, whose nested
-      sub-pattern has `object_=CASE_PARTICIPANT` rather than `ACTOR`; integration tests in
+    rationale: >-
+      The Case Owner decides on the CASE_MANAGER's `Offer(CaseParticipant)`
+      (VAM-04-010), which carries the proposed roles, so its `Accept` wraps that offer
+      and not the first `Offer(Actor)`. The inner object type tells this `Accept` apart
+      from the CASE_MANAGER's answer to the recommender (VAM-04-016). See CM-16-003,
+      CM-16-004 and ADR-0026.
+    verification: >-
+      Inspection of `vultron/semantic_registry/actor.py` confirms that
+      `MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT` is keyed to
+      `AcceptActorRecommendationPattern`, whose nested sub-pattern has
+      `object_=CASE_PARTICIPANT` rather than `ACTOR`; integration tests in
       `test/demo/test_suggest_actor_demo.py` exercise this flow.
+      `test_actor_suggestion_accept_reject_wrap_the_participant_offer` in
+      `test/test_message_semantics_mapping.py` confirms that the pattern bound to
+      `ACCEPT_OFFER_CASE_PARTICIPANT` is an `Accept` that wraps an `Offer` of a
+      `CaseParticipant`.
     stories:
     - story_2022_054
   - id: VAM-04-003
@@ -459,13 +565,20 @@ groups:
     kind: protocol
     statement: '`REJECT_OFFER_CASE_PARTICIPANT` MUST be represented as
       `Reject(Offer(CaseParticipant)[target=VulnerabilityCase])`'
-    rationale: 'Symmetric with VAM-04-002: the rejection wraps the CASE_MANAGER''s `Offer(CaseParticipant)`, not the
-      originating `Offer(Actor)`. Corrected from an earlier revision that named a nonexistent
-      `REJECT_SUGGEST_ACTOR_TO_CASE` and wrapped the wrong inner object.'
-    verification: Inspection of `vultron/semantic_registry/actor.py` confirms that
-      `MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT` is keyed to `RejectActorRecommendationPattern`, whose nested
-      sub-pattern has `object_=CASE_PARTICIPANT`; integration tests in `test/demo/test_suggest_actor_demo.py`
-      exercise this flow.
+    rationale: >-
+      As in VAM-04-002, the Case Owner's `Reject` wraps the CASE_MANAGER's
+      `Offer(CaseParticipant)` and not the first `Offer(Actor)`. The inner object type
+      tells it apart from the CASE_MANAGER's answer to the recommender (VAM-04-017).
+    verification: >-
+      Inspection of `vultron/semantic_registry/actor.py` confirms that
+      `MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT` is keyed to
+      `RejectActorRecommendationPattern`, whose nested sub-pattern has
+      `object_=CASE_PARTICIPANT`; integration tests in
+      `test/demo/test_suggest_actor_demo.py` exercise this flow.
+      `test_actor_suggestion_accept_reject_wrap_the_participant_offer` in
+      `test/test_message_semantics_mapping.py` confirms that the pattern bound to
+      `REJECT_OFFER_CASE_PARTICIPANT` is a `Reject` that wraps an `Offer` of a
+      `CaseParticipant`.
     stories:
     - story_2022_054
   - id: VAM-04-004
@@ -475,11 +588,20 @@ groups:
       `INVITE_ACTOR_TO_CASE` (the stub Invite) MUST be represented as
       `Invite(Actor)[target=VulnerabilityCaseStub]`, with the stub shaped as CM-11-013
       requires.
+    rationale: >-
+      An invitee has not yet joined the case, so the Invite carries a stub that
+      stands for the case (ADR-0114). The stub has its own type (CM-11-013), so a
+      receiver tells the stub Invite from the full-case Invite (VAM-04-011) by the
+      `type` of the `target`, with no lookup.
     verification: >-
       Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `InviteActorToCasePattern` uses `TAtype.INVITE`, `object_=ACTOR` and a
       `VulnerabilityCaseStub` target; integration tests in
       `test/demo/test_invite_actor_demo.py` exercise this flow.
+      `test_only_a_stub_invite_matches_the_stub_invite_pattern` and
+      `test_invite_actor_to_case_matches_all_actor_subtypes` in
+      `test/test_semantic_activity_patterns.py` confirm that an `Invite` of an actor
+      with a stub target matches the stub Invite pattern.
     adr:
     - ADR-0114
     stories:
@@ -491,9 +613,17 @@ groups:
     statement: >-
       `ACCEPT_INVITE_ACTOR_TO_CASE` MUST be represented as
       `Accept(Invite(Actor)[target=VulnerabilityCaseStub])`
-    verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `AcceptInviteActorToCasePattern`
-      wraps `InviteActorToCasePattern` inside an `Accept` outer pattern; integration tests in
-      `test/demo/test_invite_actor_demo.py` exercise this flow.
+    rationale: >-
+      The invitee answers the Invite that it received, so its `Accept` wraps that
+      Invite. The stub `target` tells this `Accept` apart from the RV reply to the
+      full-case Invite (VAM-04-012).
+    verification: >-
+      Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
+      `AcceptInviteActorToCasePattern` wraps `InviteActorToCasePattern` inside an
+      `Accept` outer pattern; integration tests in `test/demo/test_invite_actor_demo.py`
+      exercise this flow. `test_accept_invite_actor_to_case_matches_all_actor_subtypes`
+      in `test/test_semantic_activity_patterns.py` confirms that an `Accept` of the stub
+      Invite maps to `ACCEPT_INVITE_ACTOR_TO_CASE`.
     adr:
     - ADR-0114
     stories:
@@ -505,9 +635,18 @@ groups:
     statement: >-
       `REJECT_INVITE_ACTOR_TO_CASE` MUST be represented as
       `Reject(Invite(Actor)[target=VulnerabilityCaseStub])`
-    verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `RejectInviteActorToCasePattern`
-      wraps `InviteActorToCasePattern` inside a `Reject` outer pattern; integration tests in
-      `test/demo/test_invite_actor_demo.py` exercise this flow.
+    rationale: >-
+      A `Reject` of the stub Invite is the invitee's refusal to join (CM-11-007). The
+      stub `target` tells it apart from the RC reply to the full-case Invite
+      (VAM-04-014), which a participant that has already joined sends to close the
+      report.
+    verification: >-
+      Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
+      `RejectInviteActorToCasePattern` wraps `InviteActorToCasePattern` inside a
+      `Reject` outer pattern; integration tests in `test/demo/test_invite_actor_demo.py`
+      exercise this flow. `test_reject_of_stub_invite_is_reject_invite_actor_to_case` in
+      `test/wire/as2/test_case_joining_wire.py` confirms that a `Reject` of the stub
+      Invite maps to `REJECT_INVITE_ACTOR_TO_CASE`.
     adr:
     - ADR-0114
     stories:
@@ -519,6 +658,12 @@ groups:
       `OFFER_CASE_OWNERSHIP_TRANSFER` MUST be represented as
       `Offer(VulnerabilityCase)`: the one Offer of a transfer, which the
       CASE_MANAGER makes from the Case Owner's proposal (CM-21-005).
+    rationale: >-
+      The Offer asks the transferee to become the Case Owner, and an AS2 `Offer` gives
+      an object to a receiver for a decision. The CASE_MANAGER makes the Offer, so the
+      transfer goes through the actor that records it in the case ledger (CM-21-005). An
+      `Offer` of the case differs by shape from the Case Owner's proposal, an `Offer` of
+      an `Offer` (VAM-04-018).
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `OfferCaseOwnershipTransferActivityPattern` uses `TAtype.OFFER` and
       `AOtype.VULNERABILITY_CASE`; a test marked `VAM-04-007` in
@@ -530,6 +675,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`ACCEPT_CASE_OWNERSHIP_TRANSFER` MUST be represented as `Accept(Offer(VulnerabilityCase))`'
+    rationale: >-
+      The transferee answers the Offer that it received, so its `Accept` wraps that
+      Offer. The CASE_MANAGER then moves the `CASE_OWNER` role (CM-21-002).
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `AcceptCaseOwnershipTransferActivityPattern` wraps
       `OfferCaseOwnershipTransferActivityPattern` inside an `Accept` outer
@@ -542,6 +690,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`REJECT_CASE_OWNERSHIP_TRANSFER` MUST be represented as `Reject(Offer(VulnerabilityCase))`'
+    rationale: >-
+      A `Reject` of the Offer leaves the current Case Owner in place. It wraps the same
+      Offer as the `Accept` of VAM-04-008, so a receiver tells the two answers apart by
+      activity type.
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `RejectCaseOwnershipTransferActivityPattern` wraps
       `OfferCaseOwnershipTransferActivityPattern` inside a `Reject` outer
@@ -554,15 +706,22 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`OFFER_CASE_PARTICIPANT` MUST be represented as `Offer(CaseParticipant)[target=VulnerabilityCase]`'
-    rationale: 'The second hop of the actor-suggestion exchange, and the one VAM previously omitted entirely: having
-      received `Offer(Actor)` (VAM-04-001), the CASE_MANAGER offers case participation to the Case Owner as a
-      `CaseParticipant` carrying the proposed roles. This hop is what VAM-04-002 and VAM-04-003 accept and reject, so
-      leaving it unspecified made those two entries look like they wrapped `Offer(Actor)`. See CM-16-003, CM-16-004 and
-      ADR-0026.'
-    verification: Inspection of `vultron/semantic_registry/actor.py` confirms that
-      `MessageSemantics.OFFER_CASE_PARTICIPANT` is keyed to `OfferActorToCasePattern` (note the crossed spelling
-      described in VAM-04-001), which uses `TAtype.OFFER`, `object_=CASE_PARTICIPANT`, and
-      `target_=VULNERABILITY_CASE`; integration tests in `test/demo/test_suggest_actor_demo.py` exercise this flow.
+    rationale: >-
+      This is the second message of the actor-suggestion exchange. When it has the
+      `Offer(Actor)` (VAM-04-001), the CASE_MANAGER offers case participation to the
+      Case Owner as a `CaseParticipant` that carries the proposed roles (CM-16-003). The
+      Case Owner answers this offer (VAM-04-002, VAM-04-003), so the roles that it
+      decides on are in the object that it answers. See CM-16-004 and ADR-0026.
+    verification: >-
+      Inspection of `vultron/semantic_registry/actor.py` confirms that
+      `MessageSemantics.OFFER_CASE_PARTICIPANT` is keyed to `OfferActorToCasePattern`
+      (note the crossed spelling described in VAM-04-001), which uses `TAtype.OFFER`,
+      `object_=CASE_PARTICIPANT`, and `target_=VULNERABILITY_CASE`; integration tests in
+      `test/demo/test_suggest_actor_demo.py` exercise this flow.
+      `test_actor_suggestion_is_two_offers_over_different_objects` in
+      `test/test_message_semantics_mapping.py` confirms that the pattern bound to
+      `OFFER_CASE_PARTICIPANT` is an `Offer` of a `CaseParticipant` with a
+      `VulnerabilityCase` target.
     stories:
     - story_2022_053
   - id: VAM-04-011
@@ -612,6 +771,11 @@ groups:
       `Accept(Invite(Actor)[target=VulnerabilityCase])`, carrying the replier's ledger
       position as its `ledgerPosition`, in the form VAM-04-011 defines (CM-11-011,
       SYNC-18-001).
+    rationale: >-
+      The RV reply answers the full-case Invite, so it wraps that Invite. Its ledger
+      position states the replier's ledger tail when it judged the case (ADR-0156). The
+      full-case `target` tells this reply apart from the `Accept` of a stub Invite
+      (VAM-04-005).
     verification: >-
       A unit test confirms that `Accept(Invite(Actor)[target=VulnerabilityCase])`
       matches the full-case Invite's RV pattern and not the stub Invite's `Accept`
@@ -630,6 +794,11 @@ groups:
       `TentativeReject(Invite(Actor)[target=VulnerabilityCase])`, carrying the replier's
       ledger position as its `ledgerPosition`, in the form VAM-04-011 defines
       (CM-11-011, SYNC-18-001).
+    rationale: >-
+      `TentativeReject` records RM Invalid, from which the case can still become Valid,
+      so it is the same tentative answer as for a direct report (VAM-02-005). A stub
+      Invite has no tentative reply (CM-11-007), so this form exists only for the
+      full-case Invite.
     verification: >-
       A unit test confirms that
       `TentativeReject(Invite(Actor)[target=VulnerabilityCase])` matches the full-case
@@ -649,6 +818,10 @@ groups:
       `Reject(Invite(Actor)[target=VulnerabilityCase])`, carrying the replier's ledger
       position as its `ledgerPosition`, in the form VAM-04-011 defines (CM-11-011,
       SYNC-18-001).
+    rationale: >-
+      `Reject` records RM Closed for a participant that has already joined. The
+      full-case `target` tells it apart from a refusal to join, which is the `Reject` of
+      a stub Invite (VAM-04-006).
     verification: >-
       A unit test confirms that `Reject(Invite(Actor)[target=VulnerabilityCase])`
       matches the full-case Invite's RC pattern and not the stub Invite's `Reject`
@@ -667,6 +840,11 @@ groups:
       `Undo(Offer(Offer(VulnerabilityCase)))`: the Case Owner's withdrawal of its
       own proposal, and with it of the open Offer the CASE_MANAGER made from it
       (CM-21-015).
+    rationale: >-
+      An actor undoes only an activity that it performed, so the Case Owner withdraws
+      its own proposal with an `Undo` of that proposal. The withdrawal also ends the
+      Offer that the CASE_MANAGER made from the proposal (CM-21-015), so no transferee
+      can accept an Offer that the Case Owner withdrew.
     verification: >-
       A unit test confirms that `Undo(Offer(Offer(VulnerabilityCase)))` matches
       `UndoCaseOwnershipTransferActivityPattern`, which wraps
@@ -752,6 +930,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`REMOVE_EMBARGO_EVENT_FROM_CASE` MUST be represented as `Remove(Event)`'
+    rationale: >-
+      A removal takes the embargo out of the case, which is what AS2 `Remove` means. The
+      sender and every receiver must use the same wire form, or a receiver classifies
+      the activity as unknown.
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `RemoveEmbargoEventFromCasePattern` uses `TAtype.REMOVE` and `AOtype.EVENT` with no target constraint;
       integration tests in `test/demo/test_manage_embargo_demo.py` exercise this flow.
@@ -764,10 +946,18 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`ANNOUNCE_EMBARGO_EVENT_TO_CASE` MUST be represented as `Announce(Event)[context=VulnerabilityCase]`'
-    verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
+    rationale: >-
+      An announcement tells participants about an embargo event and asks for no answer,
+      which is what AS2 `Announce` means. The case in `context` names the case that the
+      embargo belongs to.
+    verification: >-
+      Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `AnnounceEmbargoEventToCasePattern` uses `TAtype.ANNOUNCE`, `AOtype.EVENT`, and
-      `context_=VULNERABILITY_CASE`; integration tests in `test/demo/test_manage_embargo_demo.py` exercise
-      this flow.
+      `context_=VULNERABILITY_CASE`; integration tests in
+      `test/demo/test_manage_embargo_demo.py` exercise this flow.
+      `test_case_and_participant_wire_forms_map_to_their_semantics` in
+      `test/test_semantic_activity_patterns.py` confirms that the `announce_embargo`
+      vocabulary example maps to `ANNOUNCE_EMBARGO_EVENT_TO_CASE`.
     stories:
     - story_2022_010
     - story_2022_081
@@ -775,6 +965,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`INVITE_TO_EMBARGO_ON_CASE` MUST be represented as `Invite(Event)[context=VulnerabilityCase]`'
+    rationale: >-
+      A proposed embargo needs the answer of each invitee, so it is an `Invite` with the
+      `EmbargoEvent` as its object. The case goes in `context`, so this form stays
+      separate from the Invite of an actor to a case, whose case is in `target`
+      (VAM-04-004).
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `InviteToEmbargoOnCasePattern` uses `TAtype.INVITE`, `AOtype.EVENT`, and `context_=VULNERABILITY_CASE`;
       integration tests in `test/demo/test_establish_embargo_demo.py` exercise this flow.
@@ -787,6 +982,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`ACCEPT_INVITE_TO_EMBARGO_ON_CASE` MUST be represented as `Accept(Invite(Event)[context=VulnerabilityCase])`'
+    rationale: >-
+      An invitee consents to the proposed embargo when it accepts the Invite that it
+      received, so the `Accept` wraps that Invite. Its inner object tells it apart from
+      the Case Owner's activation, which is an `Accept` of the `EmbargoEvent` itself
+      (VAM-05-008).
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `AcceptInviteToEmbargoOnCasePattern` wraps `InviteToEmbargoOnCasePattern` inside an `Accept` outer
       pattern; integration tests in `test/demo/test_establish_embargo_demo.py` exercise this flow.
@@ -798,6 +998,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`REJECT_INVITE_TO_EMBARGO_ON_CASE` MUST be represented as `Reject(Invite(Event)[context=VulnerabilityCase])`'
+    rationale: >-
+      An invitee declines the proposed embargo when it rejects the Invite that it
+      received. Its inner object tells it apart from the Case Owner's rejection of the
+      proposal, which is a `Reject` of the `EmbargoEvent` itself (VAM-05-009).
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `RejectInviteToEmbargoOnCasePattern` wraps `InviteToEmbargoOnCasePattern` inside a `Reject` outer
       pattern; integration tests in `test/demo/test_establish_embargo_demo.py` exercise this flow.
@@ -851,11 +1055,12 @@ groups:
       `Accept(Event)[target=VulnerabilityCase]` of VAM-05-008 and of the
       `Reject(Event)[target=VulnerabilityCase]` of VAM-05-009.
     rationale: >-
-      How this codebase meets VAM-05-008 and VAM-05-009; split from them so they state
-      only what other participants observe (MS-12-010). This codebase matches the
-      semantic on the typed inline object and dereferences only the few references
-      AKM-05-007 lists, so the event travels inline. That is a shortcut of this
-      prototype reference implementation, not a protocol rule.
+      This is how this codebase meets VAM-05-008 and VAM-05-009, kept apart from them so
+      that they state only what other participants observe (MS-12-010). This codebase
+      matches the semantic type on the type of the inline object, and the vocabulary
+      class types the object as `as_EmbargoEvent`, so the event travels inline and the
+      receiver reads its type with no fetch. That is a choice of this prototype
+      reference implementation, not a protocol rule.
     verification: >-
       Inspection of `_ActivateEmbargoActivity` and `_RejectEmbargoProposalActivity` in
       `vultron/wire/as2/vocab/activities/embargo.py` confirms each types `object_` as
@@ -898,10 +1103,11 @@ groups:
       This codebase MUST carry the `EmbargoEvent` in force inline as the object of the
       `Leave(Event)[context=VulnerabilityCase]` of VAM-05-011.
     rationale: >-
-      How this codebase meets VAM-05-011; split from it so it states only what other
-      participants observe (MS-12-010). This codebase matches the semantic on the typed
-      inline object and dereferences only the few references AKM-05-007 lists, so the
-      event travels inline. That is a shortcut of this prototype reference
+      This is how this codebase meets VAM-05-011, kept apart from it so that it states
+      only what other participants observe (MS-12-010). This codebase matches the
+      semantic type on the type of the inline object, and the vocabulary class types the
+      object as `as_EmbargoEvent`, so the event travels inline and the receiver reads
+      its type with no fetch. That is a choice of this prototype reference
       implementation, not a protocol rule.
     verification: >-
       Inspection of `_WithdrawFromEmbargoActivity` in
@@ -1001,10 +1207,10 @@ groups:
       (SE-05-002, ADR-0140): a replica stores the embargo from the entry.
     rationale: >-
       The genesis entry carries only the case's active embargo inline, and a replica
-      copies each record from its own entry (ADR-0124); no other entry carries a
-      creation-time embargo until it is removed, so a replica built from the ledger
-      alone could not read the end time its embargo decisions need (#5122). An
-      entry's semantic type is the registry's label for its payload (ADR-0140).
+      copies each record from its own entry (ADR-0124). No other entry carries a
+      creation-time embargo until the embargo is removed. Without this entry, a replica
+      built from the ledger alone could not read the end time that its embargo decisions
+      need. An entry's semantic type is the registry's label for its payload (ADR-0140).
     verification: >-
       `test_case_manager_acts_map_to_their_semantics` in
       `test/test_semantic_activity_patterns.py` confirms that the
@@ -1033,10 +1239,17 @@ groups:
       The message is the Case Owner's request to reinstate a removed participant into the case's
       `activeParticipants` (CM-31-011, ADR-0116); it does not seat a new member, which joins by
       accepting a stub Invite.
-    verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
-      `AddCaseParticipantToCasePattern` uses `TAtype.ADD`, `AOtype.CASE_PARTICIPANT`, and
-      `target_=VULNERABILITY_CASE`; integration tests in `test/demo/test_manage_participants_demo.py` exercise
-      this flow.
+    verification: >-
+      Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
+      `AddCaseParticipantToCasePattern` uses `TAtype.ADD`, `AOtype.CASE_PARTICIPANT`,
+      and `target_=VULNERABILITY_CASE`; integration tests in
+      `test/demo/test_manage_participants_demo.py` exercise this flow.
+      `test_case_and_participant_wire_forms_map_to_their_semantics` in
+      `test/test_semantic_activity_patterns.py` confirms that the
+      `add_vendor_participant_to_case` vocabulary example maps to
+      `ADD_CASE_PARTICIPANT_TO_CASE`.
+    adr:
+    - ADR-0116
     stories:
     - story_2022_013
     - story_2022_052
@@ -1048,10 +1261,17 @@ groups:
       The message removes a participant from the case's `activeParticipants`, not from
       `caseParticipants`: the record stays and the participant stops receiving case content
       (CM-31-001, CM-31-004, ADR-0116).
-    verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
-      `RemoveCaseParticipantFromCasePattern` uses `TAtype.REMOVE`, `AOtype.CASE_PARTICIPANT`, and
-      `target_=VULNERABILITY_CASE`; integration tests in `test/demo/test_manage_participants_demo.py` exercise
-      this flow.
+    verification: >-
+      Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
+      `RemoveCaseParticipantFromCasePattern` uses `TAtype.REMOVE`,
+      `AOtype.CASE_PARTICIPANT`, and `target_=VULNERABILITY_CASE`; integration tests in
+      `test/demo/test_manage_participants_demo.py` exercise this flow.
+      `test_case_and_participant_wire_forms_map_to_their_semantics` in
+      `test/test_semantic_activity_patterns.py` confirms that the
+      `remove_participant_from_case` vocabulary example maps to
+      `REMOVE_CASE_PARTICIPANT_FROM_CASE`.
+    adr:
+    - ADR-0116
     stories:
     - story_2022_066
     - story_2022_067
@@ -1108,9 +1328,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`ADD_NOTE_TO_CASE` MUST be represented as `Add(Note)[target=VulnerabilityCase]`'
+    rationale: >-
+      A note means nothing apart from its case, so it enters the case only by the `Add`
+      that attaches it, with the case as `target` (VAM-01-011, ADR-0137). One attaching
+      message means that a note has no state in which it exists but is not in a case.
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `AddNoteToCasePattern`
       uses `TAtype.ADD`, `AOtype.NOTE`, and `target_=VULNERABILITY_CASE`; integration tests in `test/demo/`
       exercise the full add-note flow.
+    adr:
+    - ADR-0137
     stories:
     - story_2022_039
     - story_2022_074
@@ -1118,6 +1344,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`REMOVE_NOTE_FROM_CASE` MUST be represented as `Remove(Note)[target=VulnerabilityCase]`'
+    rationale: >-
+      A removal takes the note out of the case named in `target`, which is what AS2
+      `Remove` means. The `Note` object tells it apart from the other `Remove` forms,
+      such as the removal of a participant (VAM-06-003).
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `RemoveNoteFromCasePattern`
       uses `TAtype.REMOVE`, `AOtype.NOTE`, and `target_=VULNERABILITY_CASE`; integration tests in `test/demo/`
       exercise the full remove-note flow.
@@ -1130,12 +1360,18 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`ADD_CASE_STATUS_TO_CASE` MUST be represented as `Add(CaseStatus)[target=VulnerabilityCase]`'
+    rationale: >-
+      A case status means nothing apart from its case, so it enters the case only by the
+      `Add` that attaches it (VAM-01-011, ADR-0137). The case in `target` names the case
+      that the status belongs to.
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `AddCaseStatusToCasePattern` uses `TAtype.ADD`, `AOtype.CASE_STATUS`, and `target_=VULNERABILITY_CASE`;
       integration tests in `test/demo/test_status_updates_demo.py` exercise this flow.
       `test/test_semantic_activity_patterns.py::test_wire_form_examples_map_to_their_semantics`
       asserts that the `add_status_to_case` vocabulary example extracts as this
       semantic type.
+    adr:
+    - ADR-0137
     stories:
     - story_2022_062
     - story_2022_081
@@ -1144,9 +1380,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: '`ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` MUST be represented as `Add(ParticipantStatus)[target=CaseParticipant]`'
+    rationale: >-
+      A participant status belongs to one participant in one case, so its `target` is
+      that `CaseParticipant` and not the case. The `Add` is the only way the status
+      enters the case (VAM-01-011, ADR-0137).
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `AddParticipantStatusToParticipantPattern` uses `TAtype.ADD`, `AOtype.PARTICIPANT_STATUS`, and
       `target_=CASE_PARTICIPANT`; integration tests in `test/demo/` exercise this flow.
+    adr:
+    - ADR-0137
     stories:
     - story_2022_062
     - story_2022_075
@@ -1157,7 +1399,13 @@ groups:
   - id: VAM-09-001
     priority: MUST
     kind: project
-    statement: An inbound AS2 activity that does not match any registered pattern MUST be assigned `MessageSemantics.UNKNOWN`
+    statement: >-
+      An inbound AS2 activity that does not match any registered pattern MUST be
+      assigned `MessageSemantics.UNKNOWN`, except where VAM-01-009 requires
+      `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`
+    rationale: >-
+      A received activity needs one defined result even when no pattern describes it, so
+      that the inbox can refuse and log it in place of failing on an exception.
     verification: A unit test confirms that when the `SEMANTIC_REGISTRY` loop exhausts all entries without a
       match, `find_matching_semantics()` returns `MessageSemantics.UNKNOWN` as the fallback value.
   - id: VAM-09-002
@@ -1167,11 +1415,11 @@ groups:
       `pattern=None`, and the fallback is implemented by `find_matching_semantics()` returning `UNKNOWN` when the pattern
       loop exhausts all entries without a match'
     rationale: >-
-      Stated as "no matchable pattern" rather than "no entry" because `SEMANTIC_REGISTRY`
-      is an ordered list of `SemanticEntry` values, not the `MessageSemantics` →
-      `ActivityPattern` dict it replaced. `UNKNOWN` does have a registry entry — it has
-      to, since `lookup_entry()` resolves the event class and use case for the fallback
-      through it. What it must not have is a pattern the match loop could select.
+      `UNKNOWN` needs a registry entry, because `lookup_entry()` resolves the event
+      class and the use case for the fallback through it. If that entry had a pattern,
+      `UNKNOWN` could come from a match as well as from no match, and a reader of the
+      result could not tell which. The statement says "no matchable pattern" and not "no
+      entry" for that reason.
     verification: >-
       A unit test confirms that the `SEMANTIC_REGISTRY` entry for
       `MessageSemantics.UNKNOWN` has `pattern is None` and is ordered last.

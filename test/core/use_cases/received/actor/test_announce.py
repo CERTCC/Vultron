@@ -177,6 +177,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
             if r.levelno == logging.WARNING
         ), "Expected a WARNING log citing PCR-03-004 or PCR-07-010"
 
+    @pytest.mark.spec("PCR-05-002")
     def test_updates_report_case_link_when_case_contains_report(
         self, dl, event, case, case_actor, make_payload
     ):

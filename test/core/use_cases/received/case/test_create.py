@@ -220,6 +220,7 @@ class TestBootstrapCreateAccepted:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("CBT-01-005")
 @pytest.mark.spec("CBT-05-002")
 class TestBootstrapCreateRejectedBadSender:
     """CBT-05-002 — imposter sender is rejected; case is NOT seeded."""

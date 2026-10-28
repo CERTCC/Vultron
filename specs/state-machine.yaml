@@ -19,14 +19,29 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: All protocol state axes (RM, EM, VFD, PXA) MUST be defined using Python `StrEnum`
+    rationale: >-
+      A `StrEnum` member is equal to its string value and serializes as that string. A
+      state that is stored or sent as a bare label (SM-08-001, SM-08-003) thus reads
+      back as the same member, and code can compare it with a received string without a
+      conversion step.
   - id: SM-01-002
     priority: SHOULD
     kind: project
     statement: State enums SHOULD provide both a full descriptive name and a short single-character alias for each state
+    rationale: >-
+      The protocol documentation names states by single-letter codes, such as `R` for
+      Received and `A` for Accepted. Code is easier to read with full names. When both
+      names are aliases of one member, a code in the documentation and a name in the
+      code always mean the same state.
   - id: SM-01-003
     priority: MUST
     kind: project
     statement: State enum values are the authoritative definition of valid states
+    rationale: >-
+      Guards and transition checks must agree on which states exist. If a guard uses a
+      raw string or an integer, a misspelled or renamed state can pass without an error.
+      When every check refers to the enum, the enum is the one place that defines a
+      valid state.
     verification: Inspection confirms all state validation and transition guards reference enum values (e.g.,
       `RM.RECEIVED`, `EM.ACTIVE`) rather than raw strings or integer literals.
 - id: SM-02
@@ -37,6 +52,10 @@ groups:
     kind: project
     statement: Each state axis SHOULD have a corresponding `create_*_machine()` factory function that produces a `transitions`
       library `Machine` instance for the axis
+    rationale: >-
+      A factory builds the machine for an axis from its transition list in one place.
+      Tests, diagrams and the demo state export can then use the same machine, and they
+      cannot each build a different copy of it.
   - id: SM-02-002
     priority: MUST_NOT
     kind: project
@@ -45,6 +64,12 @@ groups:
       `create_*_machine()` factory for runtime state changes.
     statement: '`create_*_machine()` factory functions MUST NOT be called for runtime state changes in production use-case
       or handler code'
+    rationale: >-
+      A `transitions` `Machine` keeps its own current state in memory. The real state of
+      a case is in the stored status records (SM-05-001, SM-06-002). A machine used for
+      a runtime change would hold a second copy of that state, which can differ from the
+      stored value and is lost when the process stops. Runtime changes are checked
+      against the transition list instead.
     relationships:
     - rel_type: extends
       spec_id: SM-02-001
@@ -53,6 +78,11 @@ groups:
     kind: project
     statement: Trigger names for `transitions` library machines SHOULD be defined as a companion `StrEnum` (e.g., `RM_Trigger`)
       using `auto()` so that trigger strings remain stable and are not inlined as string literals scattered across the codebase
+    rationale: >-
+      A trigger name that is a string literal at each call site is not checked by a type
+      checker, so a misspelled trigger fails only when the code runs. A companion
+      `StrEnum` gives each trigger one definition that tools can check and that does not
+      change when code moves.
 - id: SM-03
   title: Transition Definitions
   specs:
@@ -61,14 +91,26 @@ groups:
     kind: project
     statement: Each state transition SHOULD be expressed as a typed `TransitionBase` subclass with `trigger`, `source`, and
       `dest` fields typed to the appropriate enums
+    rationale: >-
+      A typed transition model checks its trigger, source and destination against the
+      enums when the module loads. A misspelled state or trigger in the transition list
+      thus fails at import, not when a participant first tries that move.
   - id: SM-03-002
     priority: SHOULD
     kind: project
     statement: Transition definitions SHOULD be stored as a module-level list in the same module that defines the state enum
+    rationale: >-
+      When the transition list is next to the state enum, a reader sees the states and
+      their allowed moves in one module. The transition checks and the machine factory
+      then read the same list.
   - id: SM-03-003
     priority: MUST
     kind: project
     statement: 'Every valid (source → dest) pair that the protocol describes MUST have a corresponding transition entry.'
+    rationale: >-
+      The transition checks, such as `is_valid_rm_transition`, admit only the pairs that
+      are in the list. A valid pair that is missing from the list thus causes the
+      implementation to refuse a move that the protocol permits.
     verification: The transition list for each axis (RM, EM, VFD, PXA) is compared against the protocol's valid
       (source, dest) pairs; inspection confirms no valid pair is absent.
 - id: SM-04
@@ -80,22 +122,21 @@ groups:
     verification_debt: '#2569'
     statement: Runtime state changes MUST be guarded by an explicit precondition check before the state value is written
     rationale: >-
-      The precondition check MUST be contextually appropriate — it verifies that
-      the intended transition is valid for the specific domain situation, not merely
-      that it passes a strict adjacency test. For example, when the CASE_MANAGER sets
-      a reporter participant to `RM.ACCEPTED` at bootstrap time, the guard does not
-      check strict RM adjacency (the reporter's intermediate states were never
-      observed and MUST NOT be inserted into the ledger); it checks instead that
-      the transition is a legitimate bootstrap-forward move — which is valid because
-      a report submitter can only be at `RM.ACCEPTED` at the time of submission
-      (see CBT-01-008). Treating `is_valid_rm_transition` as the only acceptable
-      precondition form would block valid bootstrap paths while blocking invalid
-      state bypasses is the actual goal.
+      A state value that is written with no check can skip or reverse a step that the
+      protocol does not permit, and later readers take the stored value as fact. The
+      check must suit the situation. At bootstrap the CASE_MANAGER sets the reporter to
+      `RM.ACCEPTED` (CBT-01-008) with no observed earlier RM states. That listed write
+      skips only the RM adjacency rule, and the other checks still apply.
   - id: SM-04-002
     priority: MUST
     kind: architecture
     verification_debt: '#2569'
     statement: State-changing handlers MUST be idempotent with respect to repeated application of the same transition
+    rationale: >-
+      A message can arrive more than one time, because of sender retries and redelivery.
+      If a handler applies the same transition again, the result must be the same as one
+      application. Otherwise a repeat can add a duplicate status entry or move the state
+      one more step.
     relationships:
     - rel_type: implements
       spec_id: HP-07-001
@@ -108,11 +149,20 @@ groups:
     kind: architecture
     verification_debt: '#2569'
     statement: Persisted state for both case-level and participant-level axes MUST use an append-only history list
+    rationale: >-
+      If a status is changed in place, the earlier states are lost. An append-only list
+      keeps each earlier status, so a reader can see how the case and each participant
+      got to the current state. The current state is then a read of that list
+      (SM-05-002).
   - id: SM-05-002
     priority: MUST
     kind: project
     statement: The `current_status` property (or equivalent) MUST return the single most-recently-timestamped entry from the
       history list
+    rationale: >-
+      A history holds more than one entry, and each reader needs the same current value
+      from it. A fixed rule that picks the latest timestamp gives the same answer for
+      every copy of the history, whatever order the entries arrived in.
     verification: A unit test confirms `current_status` returns the entry with the latest timestamp when the history
       list contains multiple entries; a single-entry history returns that entry.
     relationships:
@@ -128,6 +178,11 @@ groups:
     verification_debt: '#2575'
     statement: Status history entries MUST record a trusted server-side timestamp (`received_at` or `updated`) set via `now_utc()`
       at write time
+    rationale: >-
+      The rule that picks the current status (SM-05-002) is only as good as the
+      timestamps it compares. A time that a sender gives can be wrong, or it can be
+      absent. A time that the writer sets from its own clock gives an order that the
+      writer can trust.
     relationships:
     - rel_type: implements
       spec_id: CM-02-009
@@ -137,6 +192,10 @@ groups:
     kind: architecture
     statement: The case state log SHOULD store references (IDs) to entries in the main case history log rather than duplicating
       full record content
+    rationale: >-
+      When a status record is stored in full in two logs, the two copies can differ
+      after one of them changes. A reference by ID keeps one copy of the record, so the
+      state log and the history log cannot disagree.
 - id: SM-06
   title: In-Memory (Transient) State
   specs:
@@ -145,11 +204,19 @@ groups:
     kind: project
     statement: Transient state used only during a single request (e.g., for tracking report status during validation processing)
       SHOULD be clearly separated from persisted state
+    rationale: >-
+      State that lasts for only one request is lost when the request ends. If it is
+      mixed with persisted state, code can save it by mistake or read it as if it were
+      stored. A clear separation shows which values survive the request.
   - id: SM-06-002
     priority: MUST
     kind: project
     statement: RM state for reports MUST be persisted as participant-level state in `CaseParticipant` records. In-memory transient
       RM state is not permitted.
+    rationale: >-
+      In-memory state is lost when the process stops, and each process has its own copy.
+      RM state in `CaseParticipant` records survives a restart and gives one auditable
+      RM history for each participant, from report receipt to closure (ADR-0013).
     verification: Inspection of all RM state write paths confirms they persist to `ParticipantStatus` records via
       `dl.save()`; no module-level or request-scoped variable carries RM state across request boundaries.
     stories:
@@ -165,12 +232,22 @@ groups:
     kind: project
     statement: Commonly used groups of states that define validity zones for transitions SHOULD be defined as module-level
       constants (tuples or frozensets) in the same module as the state enum
+    rationale: >-
+      Guards often test the same group of states, such as the RM states that can close.
+      When the group has one definition next to the enum, every guard tests the same
+      set. A set that is copied into each guard can change in one place and not in the
+      others.
   - id: SM-07-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: State subset constants MUST be derived from enum values, not raw strings, to prevent silent mismatches when
       enum values change
+    rationale: >-
+      A raw string in a state set matches the enum value only while the two spellings
+      agree. If the enum value changes, the raw string matches no state, and the guard
+      gives a wrong result with no error. A set made from enum members changes with the
+      enum.
 - id: SM-08
   title: Wire and DataLayer Compatibility
   specs:
@@ -181,6 +258,12 @@ groups:
       State values MUST be transmitted on the wire as the state's bare label string
       (for example `RECEIVED`, `ACTIVE`, `Vf`, `D`, `pxa`), never as an integer or as a
       qualified form such as `RM.RECEIVED`.
+    rationale: >-
+      Other implementations must read the state values in a message. A bare label, such
+      as `RECEIVED` or `pxa`, is the name that the protocol documentation uses. An
+      integer depends on the order of an enum in one implementation, and a qualified
+      form such as `RM.RECEIVED` depends on its code names. Neither form is part of the
+      protocol.
     verification: >-
       `test/core/models/test_dimension_bare_serialization.py::test_enclosing_field_alias_carries_the_bare_state_on_the_wire`
       confirms RM, EM and PXA values reach the wire as bare labels, and
@@ -212,6 +295,11 @@ groups:
     verification_debt: '#2575'
     statement: When deserializing state values from the DataLayer or from wire payloads, the receiving Pydantic model MUST
       declare the state field with the `StrEnum` type so that Pydantic coerces the incoming string to the correct enum member
+    rationale: >-
+      A field typed as `str` accepts any string, so a state that is not valid reaches
+      core as an ordinary string. A field typed with the `StrEnum` makes Pydantic
+      convert the value to the enum member and refuse an unknown value during validation
+      (ADR-0032).
 - id: SM-09
   title: CS Forced Transitions and Reachable States
   specs:
@@ -256,6 +344,11 @@ groups:
     kind: protocol
     statement: 'RM and VFD state transitions MUST update the sending actor''s `ParticipantStatus` record for the affected
       `CaseParticipant`. These axes are participant-specific: each participant''s RM and VFD state evolves independently.'
+    rationale: >-
+      RM and VFD state describe the progress of one participant: how that participant
+      handles the report, and its fix readiness or deployment (CM-04-001, CM-04-002). A
+      message reports the state of its sender. A record on the status of a different
+      participant would give that participant progress it did not make.
     verification: Integration tests confirm that processing an RM or VFD state message updates the sending actor's
       `ParticipantStatus` in the CaseActor's DataLayer before the handler exits.
     relationships:
@@ -272,6 +365,11 @@ groups:
     kind: protocol
     statement: 'EM and PXA state transitions MUST update the shared `CaseStatus` record for the associated `VulnerabilityCase`.
       These axes are participant-agnostic: a single shared value covers all participants in the case.'
+    rationale: >-
+      EM and PXA state are facts about the case, not about one participant (CM-04-003,
+      CM-04-004). One shared record gives every participant the same embargo state and
+      the same public state. Separate copies for each participant could disagree on
+      whether an embargo is in force or whether the vul is public.
     verification: Integration tests confirm that processing an EM or PXA message updates `CaseStatus.em.state`
       or `CaseStatus.pxa.state` on the shared `VulnerabilityCase` before the handler exits.
     relationships:
@@ -292,6 +390,11 @@ groups:
       shared `CaseStatus`, and MUST NOT apply a participant-agnostic axis transition
       (EM, PXA) to a participant's `ParticipantStatus`. Mixing axes is a protocol
       correctness violation.
+    rationale: >-
+      A transition that writes across the two kinds of state has two bad results. An RM
+      or VFD move of one participant can change the shared embargo or public state of
+      the case. A shared EM or PXA event can overwrite the progress of one participant
+      (CM-04-006).
     relationships:
     - rel_type: refines
       spec_id: CM-04-006

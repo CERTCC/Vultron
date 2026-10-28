@@ -21,6 +21,12 @@ groups:
       Each Vultron Actor MUST maintain its local case replica as an internal concern — there
       is exactly one externally-addressable Actor identity per participant, regardless of
       how many cases that Actor is involved in.
+    rationale: >-
+      Other actors address an Actor, and decide whether to trust it, by its one id. A
+      separate identity for each case would need its own discovery and its own trust
+      anchor for every case, and a message sent to the Actor's main id would not reach
+      the case. Keeping each replica inside the Actor gives every case the same inbox
+      and the same identity.
     verification: >-
       Inspection of `vultron/core/models/actor.py` confirms that case replicas
       are maintained as an internal data structure of each Actor, with no
@@ -35,11 +41,17 @@ groups:
   - id: PCR-01-002
     priority: MUST
     kind: protocol
-    statement: There is exactly one CASE_MANAGER per case, operated by the case creator/owner.
+    statement: >-
+      There is exactly one CASE_MANAGER per case, acting on the Case Owner's behalf.
+    rationale: >-
+      The CASE_MANAGER is the single writer of the case ledger. Two CASE_MANAGERs
+      could each commit a different entry at the same index, and the replicas would
+      then disagree with no rule to pick one. A participant also needs exactly one
+      sender whose case updates it accepts (PCR-03-001).
     verification: >-
-      Integration tests in `test/demo/test_initialize_case_demo.py` confirm
-      that case creation instantiates exactly one CASE_MANAGER and associates it
-      with the case creator.
+      `test_exactly_one_participant_holds_case_manager` in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` confirms that the
+      case a proposal creates has exactly one participant holding `CASE_MANAGER`.
     relationships:
     - rel_type: refines
       spec_id: CM-02-001
@@ -58,15 +70,13 @@ groups:
       absent from its own knowledge until the CASE_MANAGER's `Create(VulnerabilityCase)` replica has
       been delivered to it, and MUST NOT assume co-location makes the case visible sooner.
     rationale: >-
-      Co-location is a deployment convenience; a back-end cheat that only works when two Actors
-      happen to share a host encodes that convenience into the protocol and stops being a protocol
-      at all. Per-actor stores (ADR-0073) make the cheat impossible for reads and writes, but they
-      do not stop code from *expecting* it. Issue #2548 is the worked example: a co-located
-      CASE_MANAGER created the case in its own store, and the report receiver's behavior tree
-      proceeded as though the case were already its own. It was not — under ADR-0041 the receiver
-      never creates the case — so the case-scoped half of the RM.VALID transition had nothing to
-      act on. Stating the indifference as a MUST makes "wait for the message" the only correct
-      answer, on one host or many.
+      Co-location is a deployment choice. Code that reads another Actor's store, or
+      waits for a side channel, works only while two Actors share a host. Per-actor
+      stores (ADR-0073) prevent direct reads and writes, but not code that expects the
+      case to be visible early. The report receiver does not create the case
+      (ADR-0041), so it holds the case only after the CASE_MANAGER's
+      `Create(VulnerabilityCase)` arrives. A tree that acts on the case sooner has
+      nothing to act on.
     relationships:
     - rel_type: refines
       spec_id: CM-01-001
@@ -87,10 +97,19 @@ groups:
     statement: >-
       `Announce(VulnerabilityCase)` is the unified mechanism for delivering a full case snapshot
       to a participant, at every lifecycle stage.
+    rationale: >-
+      A participant that gets every full case copy in one activity type applies each
+      copy through one path, with one sender check (PCR-03-001) and one
+      ledger-position check (SYNC-16-006). Two delivery types would need two sets of
+      checks, and a gap in either set would let a copy in that the other set refuses.
     verification: >-
-      Integration tests in `test/demo/test_pcr_bootstrap.py` confirm that
-      `Announce(VulnerabilityCase)` is used for both initial delivery and
-      subsequent snapshot updates, covering all case lifecycle stages.
+      `test_late_joiner_receives_case_replica` in `test/demo/test_pcr_late_joiner.py`
+      confirms that a participant that joins later gets its case copy in
+      `Announce(VulnerabilityCase)`. The strict `xfail`
+      `test_the_creation_copy_is_not_delivered_in_the_create` in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` records that at
+      case creation the copy travels in the bootstrap `Create(VulnerabilityCase)`
+      instead (CBT-01-002).
     relationships:
     - rel_type: implements
       spec_id: AKM-03-001
@@ -107,11 +126,20 @@ groups:
       the stub Invite (CM-11-008) — the CASE_MANAGER MUST send
       `Announce(VulnerabilityCase)` to that participant to deliver its initial case
       copy. It MUST NOT send one to an inert participant.
+    rationale: >-
+      A participant cannot act on a case it does not hold, and only the CASE_MANAGER
+      holds the canonical copy. Sending the copy when the participant becomes active
+      gives it the case at the moment it is entitled to it. An inert participant is
+      not entitled to case content (CM-10-004), so it gets no copy.
     verification: >-
-      Integration tests in `test/demo/test_pcr_bootstrap.py` confirm that a
-      participant becoming active triggers `Announce(VulnerabilityCase)` from the
-      CASE_MANAGER to that participant as the first message in the bootstrap
-      sequence, and that an invitee that has not joined receives none.
+      `test_late_joiner_receives_case_replica` in `test/demo/test_pcr_late_joiner.py`
+      confirms that a participant that accepts the stub Invite gets
+      `Announce(VulnerabilityCase)` from the CASE_MANAGER. The strict `xfail`
+      `test_the_creation_copy_is_not_delivered_in_the_create` in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` records that at
+      case creation the copy travels in the bootstrap `Create(VulnerabilityCase)`
+      instead (CBT-01-002). No test checks that an inert participant gets no
+      `Announce(VulnerabilityCase)`.
     relationships:
     - rel_type: implements
       spec_id: CM-06-001
@@ -125,6 +153,10 @@ groups:
     statement: >-
       When a participant actor receives `Announce(VulnerabilityCase)` and has no existing
       local copy for that case ID, it MUST create a local replica from the received case object.
+    rationale: >-
+      The first case copy a participant receives is its only source for the case. If
+      the participant did not store it, every later ledger entry for the case would
+      name a case the participant does not hold.
     verification: >-
       A unit test confirms that receiving `Announce(VulnerabilityCase)` when no
       prior local replica exists causes the participant actor to create and
@@ -146,16 +178,27 @@ groups:
       `test/core/behaviors/sync/test_divergence_recovery.py` confirms that an
       `Announce(VulnerabilityCase)` from the CASE_MANAGER replaces an existing replica's
       case file.
+    adr:
+    - ADR-0142
     stories:
     - story_2022_088
     - story_2022_045
   - id: PCR-02-005
     priority: MUST_NOT
     kind: protocol
-    verification_debt: '#3612'
     statement: >-
       `Create(VulnerabilityCase)` retains its semantic meaning ("a case was created") but
       MUST NOT be used as the mechanism for delivering a full case snapshot to participants.
+    rationale: >-
+      `Create(VulnerabilityCase)` says that a case exists. If it also delivered full
+      copies, a receiver would have two kinds of copy to apply, and each would need
+      the sender check (PCR-03-001) and the ledger-position check (SYNC-16-006). One
+      delivery type for copies (PCR-02-001) keeps those checks in one place.
+    verification: >-
+      `test_the_creation_copy_is_not_delivered_in_the_create` in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` asserts that the
+      creation `Create(VulnerabilityCase)` does not carry the case inline. It is a
+      strict `xfail`: the bootstrap `Create` carries the full case (CBT-01-002).
 - id: PCR-03
   title: Replica Update Authority
   specs:
@@ -165,6 +208,11 @@ groups:
     statement: >-
       A participant actor's local case replica MUST only accept case-state updates that originate
       from the CASE_MANAGER for that case.
+    rationale: >-
+      The CASE_MANAGER is the single writer of the case. A replica that accepted a
+      case-state update from any other sender would let that sender change the
+      participant's view of the case without the CASE_MANAGER's checks and without a
+      ledger entry, and the replicas would then disagree.
     verification: >-
       A unit test confirms that `Announce(VulnerabilityCase)` sent by any
       actor other than the designated CASE_MANAGER is rejected and a WARNING is
@@ -180,6 +228,11 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: The case owner actor MUST NOT write directly to its own local case copy.
+    rationale: >-
+      The Case Owner's copy of the case, like every replica, changes only after the
+      CASE_MANAGER has checked the change and recorded it in the ledger. A direct
+      write skips both steps, so the other replicas never learn of the change and the
+      owner's copy then disagrees with the canonical case.
     relationships:
     - rel_type: refines
       spec_id: CM-02-010
@@ -189,6 +242,11 @@ groups:
     statement: >-
       A participant actor MUST authenticate `Announce(VulnerabilityCase)` activities before
       accepting them as authoritative updates to its local replica.
+    rationale: >-
+      The sender check of PCR-03-001 compares the activity's `actor` id, and a sender
+      writes that id itself. Without authentication, any sender can write the
+      CASE_MANAGER's id there and have its copy applied. Actor signatures are not yet
+      available, so this rule applies to production only.
     verification: >-
       Inspection of `vultron/core/` confirms that the replica update handler
       verifies the sender's identity against the registered CASE_MANAGER ID
@@ -295,6 +353,11 @@ groups:
       The `context` field of an ActivityStreams activity is the canonical mechanism by
       which a participant actor identifies the local case replica a case-scoped message
       belongs to.
+    rationale: >-
+      An Actor holds replicas of many cases behind one inbox (PCR-01-001), so each
+      case-scoped activity must say which case it is about. One standard field for
+      that lets every receiver find the replica the same way, with no guesswork from
+      the activity's object.
     verification: >-
       Inspection of `vultron/core/models/activity.py` confirms the `context`
       field is present on case-scoped activities, and a unit test confirms the
@@ -311,6 +374,10 @@ groups:
     statement: >-
       All case-scoped protocol activities sent by the CASE_MANAGER to participants MUST carry
       `context` set to the case ID.
+    rationale: >-
+      A participant finds the replica an activity belongs to from its `context`
+      (PCR-04-001). An activity from the CASE_MANAGER with no case `context` cannot be
+      matched to a replica, so the participant cannot apply it.
     verification: >-
       A unit test confirms that `Announce(CaseLedgerEntry)` and
       `Announce(VulnerabilityCase)` emitted by the CASE_MANAGER each carry
@@ -325,6 +392,11 @@ groups:
       The participant actor MUST be the only externally-addressable entity for receiving case-scoped
       messages on behalf of all cases it participates in; there MUST NOT be a separate per-case
       inbox.
+    rationale: >-
+      Other actors reach a participant at its one Actor identity (PCR-01-001). A
+      separate inbox for each case would be a second address that senders must
+      discover and trust for every case, and a message sent to the wrong address would
+      not reach the replica.
 - id: PCR-05
   title: Reporter Case Discovery
   specs:
@@ -334,6 +406,11 @@ groups:
     statement: >-
       Each actor MUST keep, for each report it has submitted, a link from the report's
       id to the id of the case created for it.
+    rationale: >-
+      A reporter learns about the case for its report only from the activities it
+      receives later. The link from the report to the case lets it find the case for
+      the report it submitted, and it lets the reporter check that a case it receives
+      is the case for that report (CBT-01-005).
     verification: >-
       Inspection of `vultron/core/models/report_case_link.py` confirms that
       `ReportCaseLink` persists the report-to-case mapping in the DataLayer,
@@ -348,10 +425,15 @@ groups:
       When a participant actor receives `Announce(VulnerabilityCase)` and the case references
       a report in the actor's local report-to-case map, the actor MUST link the local case
       replica to that report record.
+    rationale: >-
+      The report-to-case link is how a reporter finds the case for its report
+      (PCR-05-001). If a received case copy did not update the link, the reporter
+      would hold the case but could not find it from the report.
     verification: >-
-      Integration tests in `test/demo/test_find_case_by_report.py` confirm
-      that receiving `Announce(VulnerabilityCase)` updates the report-to-case
-      index so that a lookup by report ID returns the linked case.
+      `test_updates_report_case_link_when_case_contains_report` in
+      `test/core/use_cases/received/actor/test_announce.py` confirms that an admitted
+      `Announce(VulnerabilityCase)` naming a report sets the case on that report's
+      `VultronReportCaseLink`.
     stories:
     - story_2022_030
     - story_2022_088
@@ -365,12 +447,23 @@ groups:
     statement: >-
       When a participant actor receives an activity whose `context` field does not match any
       known local case replica, the actor MUST NOT silently discard the activity.
+    rationale: >-
+      Activities can arrive before the case they name, because the transport does not
+      keep order (ADR-0161). The receiver has already taken delivery, so the sender
+      has no reason to send the activity again, and a discarded activity is lost.
+      Keeping it, or reporting the drop, keeps the participant from losing a case
+      change without a record.
   - id: PCR-06-002
     priority: SHOULD
     kind: protocol
     statement: >-
       When an activity with an unknown case context arrives, the actor SHOULD queue the activity
       briefly and request a case snapshot from the CASE_MANAGER.
+    rationale: >-
+      An activity for an unknown case usually arrives before the case copy that would
+      let the participant apply it. Holding it for a short time gives that copy time
+      to arrive. Asking the CASE_MANAGER for a copy covers the case where the copy was
+      lost.
   - id: PCR-06-003
     priority: MUST_NOT
     kind: protocol
@@ -378,6 +471,11 @@ groups:
     statement: >-
       Activities with unknown case context MUST NOT update any local state until a valid case
       replica has been established.
+    rationale: >-
+      Until a replica exists, the participant has nothing to check an activity
+      against: not the case, not its CASE_MANAGER, not its roster. A write made then
+      could seed case state from an untrusted sender, which PCR-03-004 forbids for the
+      case itself.
     note: >-
       The stub Invite is the one exception: it precedes its case by design, and PCR-06-005
       bounds what it may write.
@@ -395,11 +493,12 @@ groups:
       is still queued.
     rationale: >-
       An invitee decides whether to join a case before the case is delivered to it
-      (MV-10-005): the case arrives in an `Announce` only after it accepts. Queuing the
-      Invite until the case is known held it back until the very `Announce` its own Accept
-      brings, so it reached no use case, intake never archived it, and the invitee could
-      answer it only from a copy held under the sender's id, which DL-06-006 forbids
-      (#4915).
+      (MV-10-005), and the case arrives only after it accepts. An Invite held until
+      the case arrives would wait for the `Announce` that only its own Accept can
+      bring, so the invitee could never answer it, except from a copy stored under the
+      sender's id, which DL-06-006 forbids. The Invite writes only its intake archive
+      and its trust anchor, so it sets no case state before the replica exists
+      (PCR-06-003).
     relationships:
     - rel_type: refines
       spec_id: PCR-06-002
@@ -427,10 +526,15 @@ groups:
       activities for a given case ID MUST be keyed by both the receiving actor's ID and the
       case ID, so that replaying deferred activities after replica seeding is isolated to the
       correct actor's DataLayer and cannot affect a different co-located actor's case state.
+    rationale: >-
+      Two Actors can run on one host. If they shared one queue for unknown cases, the
+      replay after one Actor's replica is seeded could apply an activity to the other
+      Actor's case state, which PCR-01-003 forbids. A queue held for each Actor keeps
+      each replay inside the Actor that received the activity.
     verification: >-
       Inspection of `vultron/core/models/pending_case_inbox.py` confirms that
-      deferred activities are stored under a composite key of receiving actor
-      ID and case ID.
+      deferred activities are keyed by case ID in the receiving actor's own
+      DataLayer, which ADR-0073 keeps apart from every other actor's.
     relationships:
     - rel_type: refines
       spec_id: PCR-06-002
@@ -449,7 +553,13 @@ groups:
       reporter's original Offer, outside the case, so an addressee of that Offer sends it to
       the reporter directly and never to the CASE_MANAGER (RMB-08-003).
     rationale: >-
-      The RK exception was decided by the maintainer on #4560.
+      A participant sends each case-scoped message to the CASE_MANAGER, so that the
+      CASE_MANAGER can check the sender, record the change in the case ledger and send
+      it on to the other participants (PCR-08-003). A message sent straight to a peer
+      gets none of these steps, so the peer's replica and the canonical case disagree.
+      RK is not a case message: it answers the reporter's Offer, which the reporter
+      sent to that receiver before the case existed, so the answer goes back to the
+      reporter (RMB-08-003).
     verification: >-
       Integration tests in `test/demo/test_pcr_engage_case.py` confirm that
       every outbound participant activity carries `to` set solely to the
@@ -468,19 +578,30 @@ groups:
       messages through any channel other than the CASE_MANAGER's `Announce(CaseLedgerEntry)` broadcast.
       Sending to the whole roster or any multi-recipient list that includes non-CASE_MANAGER actors
       is a violation of this rule.
+    rationale: >-
+      Only the CASE_MANAGER's `Announce(CaseLedgerEntry)` tells a participant what the
+      case ledger holds. A participant that sends its message to other participants as
+      well gives them a change that the CASE_MANAGER has not yet checked or recorded,
+      and they may act on a change that the CASE_MANAGER later refuses.
   - id: PCR-08-003
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST, for every participant message it receives and accepts, commit a
-      `CaseLedgerEntry` recording the outcome and broadcast `Announce(CaseLedgerEntry)` to all case
-      participants as the standard cascade. This cascade is the only mechanism by which participants
-      learn of accepted case-state changes.
+      The CASE_MANAGER MUST, for every participant message it receives and accepts,
+      commit a `CaseLedgerEntry` recording the outcome and broadcast
+      `Announce(CaseLedgerEntry)` to the case's active participants (CM-10-004) as the
+      standard cascade. This cascade is the only mechanism by which participants learn
+      of accepted case-state changes.
+    rationale: >-
+      Participants learn of case changes only from the ledger. If the CASE_MANAGER
+      applied a change without an entry, or recorded an entry without sending it, the
+      other replicas would never learn of the change and would disagree with the
+      canonical case.
     verification: >-
-      Integration tests in `test/demo/test_sync_ledger_replication.py` confirm
-      that each accepted participant message produces exactly one
-      CaseLedgerEntry and one `Announce(CaseLedgerEntry)` broadcast to all
-      case participants.
+      `test_add_note_commits_log_entry_when_sync_port_provided` in
+      `test/core/use_cases/received/test_note.py` asserts that the CASE_MANAGER's
+      processing of an `Add(Note)` commits exactly one `CaseLedgerEntry` and queues
+      `Announce(CaseLedgerEntry)` to both participants.
     stories:
     - story_2022_045
     - story_2022_088
@@ -494,6 +615,10 @@ groups:
     statement: >-
       The `CaseLedgerEntry + broadcast` cascade MUST NOT be manually triggered by demo
       scripts or external clients.
+    rationale: >-
+      The ledger records what the CASE_MANAGER processed. An entry that a script or
+      client creates directly records no processed activity, skips the CASE_MANAGER's
+      checks, and lets a demo pass when the protocol path it shows does not work.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-003
@@ -504,6 +629,11 @@ groups:
       The `CaseLedgerEntry` commit and `Announce(CaseLedgerEntry)` broadcast
       (PCR-08-003) MUST follow automatically from the CASE_MANAGER processing any
       accepted participant message, without any further request or operator action.
+    rationale: >-
+      If the commit and the broadcast needed a separate request, a CASE_MANAGER that
+      did not get the request would apply a change that no replica learns about.
+      Making them part of processing the message means every processed change reaches
+      the ledger and the participants.
     verification: >-
       `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_commits_log_entry_when_sync_port_provided`
       confirms the CASE_MANAGER commits the entry as part of processing a received
@@ -511,6 +641,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-08-003
+    adr:
+    - ADR-0021
     stories:
     - story_2022_045
     - story_2022_088
@@ -522,6 +654,11 @@ groups:
       replica of the case: the participant holding the `CASE_MANAGER` role, as the
       message's sole `to:` recipient. The case's full participant list MUST NOT serve as
       the recipients of such a message.
+    rationale: >-
+      The case's full participant list includes actors that are not entitled to every
+      message (CM-10-004), and it reaches peers that the CASE_MANAGER has not yet
+      checked the message for. Taking the CASE_MANAGER from the participant's own
+      replica gives one recipient that the participant already trusts.
     verification: >-
       `test/core/use_cases/triggers/case/test_add_object.py::TestSvcAddObjectToCaseUseCase::test_add_object_to_case_addresses_case_manager_alone`
       and
@@ -536,6 +673,10 @@ groups:
     statement: >-
       Unit and integration tests MUST verify that a participant's outbound activity is addressed
       only to the CASE_MANAGER, and that no direct peer-to-peer delivery is attempted.
+    rationale: >-
+      Routing every message through the CASE_MANAGER (PCR-08-001) fails without an
+      error when a sender adds one more recipient: the message still arrives, but at a
+      peer as well. Only a test that checks the recipient list finds that.
     verification: >-
       Integration tests in `test/demo/test_pcr_engage_case.py` assert that
       every outbound participant activity has exactly one entry in `to` and
@@ -549,6 +690,12 @@ groups:
       triggers the invite action, but the CASE_MANAGER MUST be the ActivityStreams actor
       performing the send. Optionally, `attributedTo` on the activity MAY carry the case
       owner's ID to record who initiated the invitation.
+    rationale: >-
+      A receiver checks a case Invite against the CASE_MANAGER it knows, and it
+      records the Invite's `actor` as its trust anchor (PCR-03-004). If the Case Owner
+      were the `actor`, the invitee would anchor its trust on the wrong actor and
+      answer the wrong actor. `attributedTo` keeps a record of who asked for the
+      Invite.
     verification: >-
       `test/demo/test_remote_case_actor_invite.py::TestOwnerInviteThroughARemoteCaseActor`
       confirms the case owner's trigger sends its own request and the CASE_MANAGER, on
@@ -566,6 +713,10 @@ groups:
       The invitee's `Accept` of that Invite (PCR-08-007) MUST be addressed to the
       CASE_MANAGER (not the case owner). The CASE_MANAGER is the authoritative recipient
       and processor of all case-management handshake messages after case creation.
+    rationale: >-
+      Only the CASE_MANAGER records the invitee's join in the case and in the ledger.
+      An Accept addressed to the Case Owner reaches an actor that cannot record it, so
+      the join is never recorded.
     verification: >-
       `test/core/use_cases/triggers/test_actor_triggers.py::TestSvcAcceptCaseInviteUseCase::test_accept_addresses_case_manager_not_case_owner`
       confirms that, for a case another actor owns, the invitee's `Accept` is
@@ -584,6 +735,10 @@ groups:
       The CASE_MANAGER MUST process an invitee's replies and record their effect on its
       own copy of the case: a reply to the stub Invite as CM-11-001 and CM-11-007
       require, and a reply to the full-case Invite as CM-11-011 requires.
+    rationale: >-
+      The invitee's replies are the only source of its join and its judgment of the
+      case. If the CASE_MANAGER did not record them, the case would show the invitee
+      as not joined, and the invitee would get no case content.
     verification: >-
       `test/demo/test_invite_actor_demo.py::test_demo` runs the invite demo, whose
       checks confirm that after the invitee's reply the CASE_MANAGER's store records the
@@ -607,6 +762,11 @@ groups:
     statement: >-
       The case owner MUST NOT author or emit any RM state-change activity on behalf of
       the invitee.
+    rationale: >-
+      RM state belongs to each participant, and only that participant can declare it
+      (ADR-0121). An RM change that the Case Owner emits for the invitee records a
+      decision the invitee never made, and the case then shows the invitee engaged
+      when it is not.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-010
@@ -619,6 +779,11 @@ groups:
     statement: >-
       An actor processing a received activity MUST NOT construct or emit an activity whose
       `actor` is a different actor's ID (identity spoofing).
+    rationale: >-
+      Receivers trust the `actor` field to name the actor that made the decision, and
+      the sender checks depend on that. An activity that names another actor forges
+      that actor's decision, and every receiver applies it as if that actor had sent
+      it.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
@@ -631,9 +796,16 @@ groups:
     statement: >-
       A received-side use case MUST NOT execute a Behavior Tree with `actor_id` set to
       any actor other than the one whose DataLayer is active for that use case invocation.
+    rationale: >-
+      A store belongs to one actor (ADR-0073). A tree that runs as a different actor
+      reads and writes the wrong actor's state, and it emits activities that claim to
+      come from an actor that did not send them (PCR-08-010).
     relationships:
     - rel_type: refines
       spec_id: PCR-08-010
+    adr:
+    - ADR-0021
+    - ADR-0073
   - id: PCR-08-011
     priority: MUST
     kind: project
@@ -641,13 +813,10 @@ groups:
       An emit node in a case-scoped trigger BT MUST resolve the CASE_MANAGER
       recipient before enqueueing the activity.
     rationale: >-
-      When case-scoped trigger routing was changed from `case_addressees()` to
-      CASE_MANAGER-only routing, emit nodes that returned without setting `to`
-      caused `VultronOutboxToFieldMissingError` to be raised deep in the outbox
-      handler, far from the originating node. The true defect — missing CASE_MANAGER
-      routing in the trigger path — was masked. Failing fast at the emit node
-      surfaces the routing gap immediately and produces a diagnostic error in the
-      correct layer (issue #927).
+      An emit node that queues an activity with no recipient leaves the outbox to fail
+      later, with `VultronOutboxToFieldMissingError`, far from the cause. Resolving
+      the CASE_MANAGER first makes the failure happen, and name its cause, at the node
+      that builds the message.
     verification: >-
       Inspection of `vultron/core/behaviors/` confirms that case-scoped emit
       nodes invoke a CASE_MANAGER-resolution step before setting `to`, and a
@@ -670,6 +839,10 @@ groups:
     statement: >-
       An emit node in a case-scoped trigger BT MUST fail fast (return FAILURE or raise
       immediately) when no routable CASE_MANAGER can be found.
+    rationale: >-
+      A case-scoped message with no CASE_MANAGER to send it to reaches no one. Failing
+      at once tells the caller that the message was not sent, at the node where the
+      cause is known.
     verification: >-
       A unit test confirms that a case-scoped emit node returns FAILURE or
       raises immediately when the participant list contains no actor with
@@ -686,6 +859,10 @@ groups:
     statement: >-
       An emit node in a case-scoped trigger BT MUST NOT silently enqueue an activity
       with a `None` or empty `to` field.
+    rationale: >-
+      An activity with no recipient is never delivered, but the trigger that queued it
+      still reports success. The participant then waits for an answer to a message
+      that nobody received.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-011
@@ -747,51 +924,79 @@ groups:
     statement: >-
       Unit tests MUST verify that `Announce(VulnerabilityCase)` from the CASE_MANAGER creates
       a local replica when none exists.
+    rationale: >-
+      A participant that cannot create its first replica from the CASE_MANAGER's copy
+      cannot take part in the case at all. A unit test finds that failure before a
+      demo or a deployment does.
     verification: >-
-      Inspection of `test/demo/test_pcr_bootstrap.py` confirms a test case
-      asserts that `Announce(VulnerabilityCase)` from the CASE_MANAGER creates a
-      new local replica when no prior replica exists for that case ID.
+      `test_creates_case_when_absent` in
+      `test/core/use_cases/received/actor/test_announce.py` asserts that an admitted
+      `Announce(VulnerabilityCase)` creates the case in a store that did not hold it.
   - id: PCR-07-002
     priority: MUST
     kind: project
     statement: >-
       Unit tests MUST verify that `Announce(VulnerabilityCase)` from the CASE_MANAGER updates
       the local replica when one exists.
+    rationale: >-
+      A replica that does not apply a later copy from the CASE_MANAGER stays at its
+      old state while the case moves on. A unit test finds that failure before the
+      replicas disagree in use.
     verification: >-
-      Inspection of `test/demo/test_pcr_bootstrap.py` confirms a test case
-      asserts that `Announce(VulnerabilityCase)` from the CASE_MANAGER replaces
-      the existing local replica with the received state.
+      `test_replaces_a_case_already_present` in
+      `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py` and
+      `test_a_copy_at_the_replicas_tail_replaces_its_case` in
+      `test/core/behaviors/sync/test_divergence_recovery.py` assert that an admitted
+      copy replaces the case the replica holds.
   - id: PCR-07-003
     priority: MUST
     kind: project
     statement: >-
       Unit tests MUST verify that `Announce(VulnerabilityCase)` from an actor that is NOT
       the CASE_MANAGER is rejected and logged at WARNING.
+    rationale: >-
+      Refusing a copy from any sender other than the CASE_MANAGER is what keeps a
+      replica from being rewritten by an untrusted actor (PCR-03-001). A test of the
+      refusal, and of its WARNING log, keeps that protection from being lost without
+      notice.
     verification: >-
-      Inspection of `test/demo/test_pcr_bootstrap.py` confirms a test case
-      asserts that `Announce(VulnerabilityCase)` from a non-CASE_MANAGER sender
-      is rejected and produces a WARNING-level log entry.
+      `test_rejects_announce_from_non_case_actor` in
+      `test/core/use_cases/received/actor/test_announce.py` asserts that a copy from a
+      sender other than the expected CASE_MANAGER is not stored. No test asserts the
+      WARNING for that sender; `test_rejects_announce_when_no_trust_anchor_exists`
+      asserts it only for a sender with no trust anchor.
   - id: PCR-07-004
     priority: MUST
     kind: project
     statement: >-
       Unit tests MUST verify that the `context` field is used to route incoming activities
       to the correct case handler.
+    rationale: >-
+      If the `context` field stops selecting the replica, activities apply to the
+      wrong case or to none. A test of the routing finds that failure where it starts.
     verification: >-
-      Inspection of `test/demo/test_pcr_bootstrap.py` confirms a test case
-      asserts that the `context` field of an incoming activity is used to
-      dispatch to the matching case-handler instance.
+      `test_subsequent_case_scoped_activity_routes_without_deferral` in
+      `test/demo/test_pcr_bootstrap.py` asserts that an `Add(Note)` whose `context`
+      names a case the actor holds is processed at once, not deferred.
   - id: PCR-07-005
     priority: MUST
     kind: project
     statement: >-
       Unit tests MUST verify that activities with an unknown case context are queued, a resync
       request is emitted, and the activity is dropped after timeout without updating any state.
+    rationale: >-
+      The handling of unknown case context (PCR-06-001 to PCR-06-003) has three parts:
+      hold the activity, ask for the case, and drop it later without changing state. A
+      failure in any part loses an activity or writes untrusted state, so each part
+      needs a test.
     verification: >-
-      Inspection of `test/demo/test_pcr_bootstrap.py` confirms a test case
-      asserts that an activity with an unknown context ID is queued, triggers
-      a resync request, and is discarded after timeout without modifying any
-      local state.
+      `test/core/behaviors/inbox/nodes/test_defer_check_node.py` asserts that
+      activities for an unknown case are deferred.
+      `test_pending_case_queue_expiry_emits_question` and
+      `test_pending_case_queue_expires_drops_and_warns` in
+      `test/adapters/driving/fastapi/test_inbox_handler.py` assert that an expired
+      queue sends a replay request and is dropped with a WARNING. No test asserts
+      that a dropped activity changed no local state.
   - id: PCR-07-006
     priority: MUST
     kind: project
@@ -799,6 +1004,11 @@ groups:
       Integration tests MUST verify the full bootstrap sequence: case creation → CASE_MANAGER
       sends `Announce(VulnerabilityCase)` → participant creates local replica → subsequent
       case-scoped activities are routed correctly.
+    rationale: >-
+      Each step of the bootstrap can pass its own unit test while the steps together
+      still fail, for example when one step sends an activity that the next step does
+      not accept. Only a test of the whole sequence shows that a new participant ends
+      up with a working replica.
     verification: >-
       Inspection of `test/demo/test_pcr_bootstrap.py` confirms a test case
       walks the complete bootstrap sequence: case creation, CASE_MANAGER sending
@@ -811,6 +1021,10 @@ groups:
       Integration tests MUST verify the late-joiner sequence: `Invite` → `Accept` → CASE_MANAGER
       sends `Announce(VulnerabilityCase)` to new participant → new participant creates local
       replica.
+    rationale: >-
+      A late joiner gets its replica by a different path than the first participants:
+      through the Invite and its Accept. A test of that whole sequence shows that a
+      participant that joins later also ends up with a working replica.
     verification: >-
       Inspection of `test/demo/test_pcr_late_joiner.py` confirms a test case
       walks the complete late-joiner sequence: Invite → Accept → CASE_MANAGER
@@ -823,6 +1037,11 @@ groups:
       Integration tests MUST verify that `RmInviteToCaseActivity` carries `actor` set to
       the CASE_MANAGER's ID, and that the invitee's `RmAcceptInviteToCaseActivity` is
       processed by the CASE_MANAGER (not the case owner).
+    rationale: >-
+      If the Invite named the Case Owner as its `actor`, the invitee would answer the
+      Case Owner, and the CASE_MANAGER would never record the join. A test of both
+      messages keeps the invite exchange routed through the CASE_MANAGER (PCR-08-007,
+      PCR-08-008).
     verification: >-
       Inspection of `test/demo/test_invite_actor_demo.py` confirms a test case
       asserts `RmInviteToCaseActivity` carries `actor` equal to the CASE_MANAGER's
@@ -839,6 +1058,10 @@ groups:
     statement: >-
       Integration tests MUST assert that no RM state-change activity is emitted with
       `actor` set to the invitee's ID from the case owner's context.
+    rationale: >-
+      An RM change that the Case Owner emits under the invitee's id is a forged
+      decision (PCR-08-010). The forgery passes every check that trusts the `actor`
+      field, so only a test that looks for it can find it.
     verification: >-
       Inspection of `test/demo/test_invite_actor_demo.py` confirms a test case
       asserts no actor-spoofed RM state-change activity is emitted for the
@@ -856,6 +1079,10 @@ groups:
       prior local trust record — no matching `VultronReportCaseLink.case_manager_id`
       and no invite trust anchor for the announced case ID — is rejected with a WARNING
       log entry and the case is NOT seeded in the receiver's DataLayer.
+    rationale: >-
+      A first-contact copy from an unknown sender is the attack that PCR-03-004
+      prevents: it lets the sender seed a fake case. A test that the copy is refused,
+      and the case not stored, keeps that protection in place.
     verification: >-
       A unit test in `test/core/use_cases/received/actor/test_announce.py`
       confirms that when the receiver's DataLayer contains no `VultronReportCaseLink`

@@ -24,6 +24,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import delivered_body, received_event
+from test.support.trigger_results import recipient_ids
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -802,6 +803,7 @@ class TestNoteUseCases:
     # ------------------------------------------------------------------
 
     @pytest.mark.spec("PCR-08-013")
+    @pytest.mark.spec("PCR-08-003")
     def test_add_note_commits_log_entry_when_sync_port_provided(
         self, make_payload
     ):
@@ -809,7 +811,7 @@ class TestNoteUseCases:
 
         When a sync_port is injected and receiving_actor_id is set, the use
         case MUST commit one CaseLedgerEntry after accepting a note
-        addition.
+        addition, and announce it to the case's participants.
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -886,6 +888,14 @@ class TestNoteUseCases:
         entry = cast(CaseLedgerEntry, entries[0])
         assert entry.semantic_type == "add_note_to_case"
         assert entry.log_object_id == activity.id_
+
+        # The same processing announces the entry to the participants.
+        announced_to = {
+            recipient
+            for activity_id in dl.outbox_list()
+            for recipient in recipient_ids(dl.read(activity_id))
+        }
+        assert {author_id, participant_id} <= announced_to
 
     @pytest.mark.spec("SYNC-02-002")
     @pytest.mark.spec("BT-14-001")

@@ -1367,6 +1367,43 @@ def test_wire_form_examples_map_to_their_semantics(
     assert _example_semantics(module, example) == semantics
 
 
+# ---------------------------------------------------------------------------
+# VAM-03-006, VAM-05-004, VAM-06-002, VAM-06-003 — case close, embargo
+# announcement and participant add/remove wire forms map to their semantics
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("VAM-03-006")
+@pytest.mark.spec("VAM-05-004")
+@pytest.mark.spec("VAM-06-002")
+@pytest.mark.spec("VAM-06-003")
+@pytest.mark.parametrize(
+    ("module", "example", "semantics"),
+    [
+        ("case", "close_case", MessageSemantics.CLOSE_CASE),
+        (
+            "embargo",
+            "announce_embargo",
+            MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE,
+        ),
+        (
+            "participant",
+            "add_vendor_participant_to_case",
+            MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
+        ),
+        (
+            "participant",
+            "remove_participant_from_case",
+            MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
+        ),
+    ],
+)
+def test_case_and_participant_wire_forms_map_to_their_semantics(
+    module: str, example: str, semantics: MessageSemantics
+) -> None:
+    assert _example_semantics(module, example) == semantics
+
+
 def _object_check_admits_bare_uri(pattern: ActivityPattern) -> bool:
     """True if *pattern*'s ``object_`` type check accepts a bare URI string."""
     if isinstance(pattern, InlineActivityObjectPattern):
