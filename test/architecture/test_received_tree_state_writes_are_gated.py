@@ -37,7 +37,7 @@ The checks:
 2. **Pinned exemption set** :data:`REPLICA_STATE_WRITES` — trees whose
    ungated writes are the design: the ledger replay itself, the bootstrap
    trees that mint a case or seed a replica before any CASE_MANAGER gate could
-   pass, the Engage carried-snapshot seed, and the paused-signatory embargo
+   pass, and the paused-signatory embargo
    teardown the CASE_MANAGER's direct notice carries (CM-31-010).  Every other
    received-side state write is now CASE_MANAGER-gated (#3814): the
    ``KNOWN_UNGATED_STATE_WRITES`` ratchet drove to empty and was deleted with
@@ -84,7 +84,6 @@ _Write = tuple[str, str, str]
 _C = "vultron/core/behaviors/case"
 _E = "vultron/core/behaviors/embargo"
 _N = "vultron/core/behaviors/note"
-_R = "vultron/core/behaviors/report"
 _S = "vultron/core/behaviors/status"
 _Y = "vultron/core/behaviors/sync"
 
@@ -133,13 +132,6 @@ _ENDING_NOTICE = (
     " direct embargo-ending notice, its only channel; the sender guard admits"
     " only the CASE_MANAGER (CM-31-010, PCR-03-001)"
 )
-_CARRIED_SNAPSHOT = (
-    "stores the embargo and inline participants an Engage carried, before the"
-    " sender guard can find a sender whose participant is only in that"
-    " snapshot; idempotent and non-regressing, the same neutral seeding the"
-    " announce-case path uses, not a replica adopting adjudicated state from a"
-    " peer (CBT-05-005, EMB-18-003, BT-22-005)"
-)
 # permanent: RSH-08-003 (replay and bootstrap writes; see each reason)
 REPLICA_STATE_WRITES: dict[_Write, str] = {
     (
@@ -155,14 +147,6 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
         "remove_embargo_from_case_tree",
         "ClearActiveEmbargoNode",
     ): _ENDING_NOTICE,
-    **{
-        (
-            f"{_R}/prioritize_tree.py",
-            "create_engage_case_tree",
-            cls,
-        ): _CARRIED_SNAPSHOT
-        for cls in ("HoldCarriedEmbargoNode",)
-    },
     **{
         (f"{_Y}/announce_tree.py", "create_announce_log_entry_tree", cls): (
             _REPLAY

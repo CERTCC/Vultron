@@ -310,7 +310,11 @@ answer, clock decisions, guards, commit, effects.
    `LedgerActivityContext` instead: its nodes read the case from the entry the
    activity carries (`Announce` and `Reject` of a `CaseLedgerEntry`). Never
    place a sender check after a write: a snapshot an activity carries is
-   stored only once its sender is admitted (the Engage tree, HP-01-006).
+   stored only once its sender is admitted (HP-01-006). Nor store it among the
+   guards: a guard checks what the activity carries and writes nothing, and the
+   store is an effect of the committed act, so a refusal stores nothing. The
+   Engage tree checks its snapshot's embargo (`CheckCarriedEmbargoNode`) and
+   holds it after the commit (CLP-10-006, CLP-10-010).
 
    After the door guards of every tree whose `SenderCheckContext` names a case,
    the factory places the CASE_MANAGER's answer to the sender's stamped

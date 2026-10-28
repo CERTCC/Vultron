@@ -73,19 +73,41 @@ def store_carried_embargo(
             ``EmbargoEvent``, or the inline embargo or the held record
             belongs to another case.
     """
+    if (named := _named_embargo(case_obj)) is not None:
+        hold_embargo_for_case(store, case_obj, named)
+
+
+def check_carried_embargo(
+    case_obj: VulnerabilityCase, store: CasePersistence | DataLayer
+) -> None:
+    """Raise as :func:`store_carried_embargo` would, writing nothing.
+
+    The read-only half of the hold, for a received tree's precondition
+    guard: it refuses the case :func:`store_carried_embargo` would refuse,
+    so the store itself can run as an effect after the act's commit and a
+    refused act writes nothing (CLP-10-006, CLP-10-010, EMB-18-004).
+
+    Raises:
+        VultronNotFoundError: As :func:`store_carried_embargo`.
+        VultronValidationError: As :func:`store_carried_embargo`.
+    """
+    if (named := _named_embargo(case_obj)) is not None:
+        _vet_embargo_for_case(store, case_obj, named)
+
+
+def _named_embargo(case_obj: object) -> EmbargoEvent | str | None:
+    """The embargo *case_obj* names, inline or by id, or ``None``."""
     # A received event's ``case`` property is a cast, so the object handed
     # in may be a bare reference stub with no case fields.
     if not isinstance(case_obj, VulnerabilityCase):
-        return
+        return None
     embargo_ref = case_obj.active_embargo
     if embargo_ref is None:
-        return
-    hold_embargo_for_case(
-        store,
-        case_obj,
+        return None
+    return (
         embargo_ref
         if isinstance(embargo_ref, EmbargoEvent)
-        else str(embargo_ref),
+        else str(embargo_ref)
     )
 
 
@@ -106,15 +128,35 @@ def hold_embargo_for_case(
         VultronValidationError: the inline copy or the held record belongs
             to another case, or the held record is not an ``EmbargoEvent``.
     """
+    record, held = _vet_embargo_for_case(store, case, embargo)
+    if held:
+        return record
+    store.save(record)
+    return _held_embargo(store, _case_subjects(case), case.id_, record.id_)
+
+
+def _vet_embargo_for_case(
+    store: CasePersistence | DataLayer,
+    case: VulnerabilityCase,
+    embargo: EmbargoEvent | str,
+) -> tuple[EmbargoEvent, bool]:
+    """Check *embargo* is *case*'s, writing nothing.
+
+    Returns the record *store* holds under its id and ``True``, or, for an
+    inline copy *store* lacks, that copy and ``False``.
+
+    Raises:
+        As :func:`hold_embargo_for_case`.
+    """
     subjects = _case_subjects(case)
     if isinstance(embargo, EmbargoEvent):
+        _require_this_case(subjects, case.id_, embargo.id_, embargo.context)
+        if store.read(embargo.id_) is None:
+            return embargo, False
         embargo_id = embargo.id_
-        _require_this_case(subjects, case.id_, embargo_id, embargo.context)
-        if store.read(embargo_id) is None:
-            store.save(embargo)
     else:
         embargo_id = embargo
-    return _held_embargo(store, subjects, case.id_, embargo_id)
+    return _held_embargo(store, subjects, case.id_, embargo_id), True
 
 
 def _held_embargo(
@@ -274,6 +316,7 @@ def carried_entry_embargo(
 
 __all__ = [
     "carried_entry_embargo",
+    "check_carried_embargo",
     "entry_embargo",
     "hold_embargo_for_case",
     "store_carried_embargo",

@@ -11,7 +11,10 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""``store_carried_embargo``: a received case's embargo is held first (EMB-18-003)."""
+"""``store_carried_embargo``: a received case's embargo is held first (EMB-18-003).
+
+``check_carried_embargo`` is its read-only half, for a received guard.
+"""
 
 from collections.abc import Generator
 
@@ -29,6 +32,7 @@ from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.services.carried_embargo import (
     carried_entry_embargo,
+    check_carried_embargo,
     entry_embargo,
     store_carried_embargo,
 )
@@ -550,3 +554,61 @@ def test_an_entrys_bad_inline_copy_is_refused_though_the_record_is_held(
         carried_entry_embargo(dl, _CASE, _snapshot(**overrides))
     with pytest.raises(VultronValidationError):
         entry_embargo(dl, _CASE, _snapshot(**overrides))
+
+
+def _case_naming(embargo: EmbargoEvent | str) -> VulnerabilityCase:
+    return VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE,
+        name="c",
+        embargo_register=register(active=embargo),
+    )
+
+
+@pytest.mark.spec("CLP-10-006")
+@pytest.mark.spec("EMB-18-003")
+def test_the_check_admits_an_inline_embargo_and_writes_nothing(
+    dl: SqliteDataLayer,
+) -> None:
+    """The guard half leaves the store to the act's effects (#5395)."""
+    embargo = _embargo()
+
+    check_carried_embargo(_case_naming(embargo), dl)
+
+    assert dl.list_objects("EmbargoEvent") == []
+
+
+@pytest.mark.spec("EMB-18-003")
+@pytest.mark.spec("EMB-18-004")
+@pytest.mark.parametrize(
+    ("named", "error"),
+    [
+        pytest.param(
+            EmbargoEvent(
+                id_="https://example.org/cases/other/embargo_events/e1",
+                context="https://example.org/cases/other",
+                end_time=days_from_now_utc(45),
+            ),
+            VultronValidationError,
+            id="inline-of-another-case",
+        ),
+        pytest.param(
+            f"{_CASE}/embargo_events/missing",
+            VultronNotFoundError,
+            id="bare-reference-the-store-lacks",
+        ),
+    ],
+)
+def test_the_check_refuses_what_the_hold_refuses(
+    dl: SqliteDataLayer,
+    named: EmbargoEvent | str,
+    error: type[Exception],
+) -> None:
+    case = _case_naming(named)
+
+    with pytest.raises(error):
+        check_carried_embargo(case, dl)
+    with pytest.raises(error):
+        store_carried_embargo(case, dl)
+
+    assert dl.list_objects("EmbargoEvent") == []
