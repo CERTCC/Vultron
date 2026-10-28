@@ -2131,8 +2131,8 @@ groups:
     never starts. The CASE_MANAGER cannot see the lag either, because nothing tells it
     how far a participant has got. The participant therefore states its position, when
     it chooses, in a `Read(CaseLedgerEntry)`, and the CASE_MANAGER answers a position
-    behind its tail by replaying. A position stated on every case activity is planned
-    separately (#5109, #5110) and composes the same answer. This is how the
+    behind its tail by replaying. The position stated on every case activity
+    (SYNC-18) composes the same answer. This is how the
     LedgerReconciliation phase detects a gap and retries until convergence
     (SYNC-00-003, SYNC-00-007, SYNC-00-008). Rationale: ADR-0155.
   specs:

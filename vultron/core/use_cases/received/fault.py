@@ -46,6 +46,7 @@ from vultron.core.behaviors.sender_entitlement import (
     any_of,
 )
 from vultron.core.behaviors.sync.divergence_tree import (
+    RESEED_GATE_NAME,
     create_case_diverged_fault_tree,
 )
 from vultron.core.behaviors.sync.hash_mismatch_tree import (
@@ -80,6 +81,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
     case_manager_verdict,
     door_refusal,
+    find_named,
     find_node,
     verdict_from_bt,
 )
@@ -215,7 +217,11 @@ def _reseed_verdict(
     )
     if verdict.disposition is not HandlerDisposition.APPLIED:
         return verdict
-    reseed = find_node(tree, ReseedPeerNode)
+    # The re-seed this fault asks for sits in the tree's own CASE_MANAGER
+    # gate; the factory's answer to a stamped ledger position holds another,
+    # which a fault (no ledgerPosition, SYNC-18-001) never runs.
+    gate = find_named(tree, RESEED_GATE_NAME)
+    reseed = None if gate is None else find_node(gate, ReseedPeerNode)
     if reseed is None:
         raise VultronBTInternalError(f"{label}: tree has no re-seed node")
     if reseed.reseeded:

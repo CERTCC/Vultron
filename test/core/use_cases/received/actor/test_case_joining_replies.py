@@ -158,7 +158,7 @@ def route_received(
     caller keeps working when the implementation adds a new message type.
     Ports a use case does not declare are not passed.
     """
-    event = received_event(activity).model_copy(
+    event = received_event(activity, at=dl).model_copy(
         update={"receiving_actor_id": receiving_actor_id}
     )
     use_case_class = use_case_map()[find_matching_semantics(activity)]

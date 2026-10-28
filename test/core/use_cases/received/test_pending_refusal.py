@@ -114,7 +114,7 @@ def _receive_reject(
     )
     event = cast(
         RejectInviteToEmbargoOnCaseReceivedEvent,
-        received_event(reject).model_copy(
+        received_event(reject, at=dl).model_copy(
             update={"receiving_actor_id": _PROPOSER}
         ),
     )

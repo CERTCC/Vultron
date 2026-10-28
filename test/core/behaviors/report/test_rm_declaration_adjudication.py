@@ -197,7 +197,7 @@ def _deliver(
     dl: SqliteDataLayer, declared: RM, make_payload, sender: str = ACTOR_ID
 ) -> Any:
     handler = _HANDLERS[declared]
-    event = make_payload(handler.build(sender))
+    event = make_payload(handler.build(sender), at=dl)
     return handler.use_case(
         dl,
         event,
@@ -343,7 +343,7 @@ def _run_status_declaration(dl: SqliteDataLayer, rm: RM, make_payload) -> Any:
         to=[CASE_MANAGER_ID],
         context=_case_ref(),
     )
-    event = make_payload(activity)
+    event = make_payload(activity, at=dl)
     bridge = BTBridge(
         datalayer=dl,
         trigger_activity=TriggerActivityAdapter(dl),
@@ -496,7 +496,7 @@ class TestRefusedRegressionIsNoted:
 
         result = AddParticipantStatusToParticipantReceivedUseCase(
             dl,
-            make_payload(activity),
+            make_payload(activity, at=dl),
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
@@ -536,7 +536,7 @@ class TestRefusedRegressionIsNoted:
     ):
         dl = store_for(CASE_MANAGER_ID)
         _seed(dl, RM.ACCEPTED)
-        event = make_payload(_HANDLERS[declared].build(ACTOR_ID))
+        event = make_payload(_HANDLERS[declared].build(ACTOR_ID), at=dl)
 
         def deliver() -> Any:
             return (
@@ -589,7 +589,7 @@ class TestRefusedRegressionIsNoted:
             RM.VALID, sender_id=CASE_MANAGER_ID, to=ACTOR_ID
         )
         dl.create(status)
-        event = make_payload(activity)
+        event = make_payload(activity, at=dl)
         bridge = BTBridge(
             datalayer=dl,
             trigger_activity=TriggerActivityAdapter(dl),

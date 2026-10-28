@@ -190,7 +190,7 @@ def _decide(
     sender: str = _OWNER,
 ):
     activity = factory(embargo, target=_CASE_ID, actor=sender, to=[_MANAGER])
-    event = make_payload(activity, receiving_actor_id=_MANAGER)
+    event = make_payload(activity, receiving_actor_id=_MANAGER, at=dl)
     return use_case(dl, event, **_ports(dl)).execute()
 
 
@@ -489,7 +489,7 @@ class TestOtherEmbargoActivity:
             actor=_OTHER,
             to=[_MANAGER],
         )
-        event = make_payload(answer, receiving_actor_id=_MANAGER)
+        event = make_payload(answer, receiving_actor_id=_MANAGER, at=dl)
         return RejectInviteToEmbargoOnCaseReceivedUseCase(
             dl, event, **_ports(dl, sync)
         ).execute()

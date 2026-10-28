@@ -238,8 +238,9 @@ def test_any_actor_is_declared_only_by_new_report_use_cases():
 _HOME = "vultron/core/behaviors/sender_entitlement.py"
 _COMPOSER = "vultron/core/behaviors/sender_guard.py"
 
-#: The only module that may call the composer's public builders
-#: (:data:`_COMPOSE`): the receive-tree factory.  The pre-flights that ran
+#: The only modules that may call the composer's public builders
+#: (:data:`_COMPOSE`): the receive-tree factory, and its door-guard stage
+#: builders, split out of it by concern (CS-18-001).  The pre-flights that ran
 #: the same guards ahead of a handler's tree as a tree of their own were
 #: retired once each handler composed its door guards into its one tree:
 #: ``rule_refusal`` by #4642, and ``closed_sender_preflight`` by #4773, whose
@@ -248,6 +249,7 @@ _COMPOSER = "vultron/core/behaviors/sender_guard.py"
 COMPOSE_CALLERS = frozenset(
     {
         "vultron/core/behaviors/case/receive_activity_tree.py",
+        "vultron/core/behaviors/case/receive_stages/doors.py",
     }
 )
 

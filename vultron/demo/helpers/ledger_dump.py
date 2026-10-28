@@ -16,8 +16,8 @@
 Every scenario exports each participant's view of the case ledger to
 ``{DEVLOGS_DIR}/{demo_name}/{actor_name}/{case_id_slug}-case-ledger.jsonl``.
 The invariant harness (``test/ci/invariants/``) reads those files from the
-uploaded ``*-case-logs`` artifact, so the dump is the *only* forensic record a
-failed demo leaves behind.
+uploaded ``*-case-logs-attempt-*`` artifact, so the dump is the *only*
+forensic record a failed demo leaves behind.
 
 Two rules follow from that, and this module exists to hold them in one place
 rather than in nine near-identical scenario functions (DEMOMA-17-001):

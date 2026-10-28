@@ -118,10 +118,7 @@ class TestNoteUseCases:
             actor="https://example.org/users/finder",
             to=[dl.actor_id],
         )
-        event = make_payload(
-            activity,
-            receiving_actor_id=case_actor_id,
-        )
+        event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
 
         result = AddNoteToCaseReceivedUseCase(
             dl,
@@ -161,6 +158,7 @@ class TestNoteUseCases:
                 to=[dl.actor_id],
             ),
             receiving_actor_id=case_actor_id,
+            at=dl,
         )
         result = AddNoteToCaseReceivedUseCase(
             dl,
@@ -199,6 +197,7 @@ class TestNoteUseCases:
                 to=[dl.actor_id],
             ),
             receiving_actor_id=case_actor_id,
+            at=dl,
         )
         result = AddNoteToCaseReceivedUseCase(
             dl,
@@ -228,9 +227,9 @@ class TestNoteUseCases:
             to=[dl.actor_id],
         )
         ingress = FastAPIIngressAdapter(dl)
-        parsed = ingress.parse(delivered_body(activity))
+        parsed = ingress.parse(delivered_body(activity, at=dl))
         assert parsed is not None
-        event = received_event(ingress.rehydrate(parsed)).model_copy(
+        event = received_event(ingress.rehydrate(parsed), at=dl).model_copy(
             update={"receiving_actor_id": case_actor_id}
         )
         assert isinstance(event, AddNoteToCaseReceivedEvent)
@@ -331,6 +330,7 @@ class TestNoteUseCases:
                 to=[dl.actor_id],
             ),
             receiving_actor_id=case_actor_id,
+            at=dl,
         )
         result = AddNoteToCaseReceivedUseCase(
             dl,
@@ -371,9 +371,9 @@ class TestNoteUseCases:
             to=[dl.actor_id],
         )
         ingress = FastAPIIngressAdapter(dl)
-        parsed = ingress.parse(delivered_body(activity))
+        parsed = ingress.parse(delivered_body(activity, at=dl))
         assert parsed is not None
-        event = received_event(ingress.rehydrate(parsed)).model_copy(
+        event = received_event(ingress.rehydrate(parsed), at=dl).model_copy(
             update={"receiving_actor_id": case_actor_id}
         )
         assert isinstance(event, AddNoteToCaseReceivedEvent)
@@ -408,6 +408,7 @@ class TestNoteUseCases:
                 to=[dl.actor_id],
             ),
             receiving_actor_id=case_actor_id,
+            at=dl,
         ).model_copy(update={"object_": None})
 
         result = AddNoteToCaseReceivedUseCase(
@@ -443,6 +444,7 @@ class TestNoteUseCases:
                 to=[dl.actor_id],
             ),
             receiving_actor_id=case_actor_id,
+            at=dl,
         )
 
         def run():
@@ -490,6 +492,7 @@ class TestNoteUseCases:
                         to=[dl.actor_id],
                     ),
                     receiving_actor_id=case_actor_id,
+                    at=dl,
                 ),
                 wire_render_port=As2WireRenderAdapter(),
                 sync_port=SyncActivityAdapter(dl),
@@ -546,6 +549,7 @@ class TestNoteUseCases:
         event = make_payload(
             activity,
             receiving_actor_id="https://example.org/actors/non-manager",
+            at=dl,
         )
 
         result = AddNoteToCaseReceivedUseCase(
@@ -584,7 +588,8 @@ class TestNoteUseCases:
         event = make_payload(
             as_Remove(
                 actor=sender, object_=note, target=case.id_, to=[dl.actor_id]
-            )
+            ),
+            at=dl,
         )
         return RemoveNoteFromCaseReceivedUseCase(
             dl,
@@ -736,7 +741,7 @@ class TestNoteUseCases:
             target="https://example.org/cases/no-such-case",
             to=[dl.actor_id],
         )
-        event = make_payload(activity)
+        event = make_payload(activity, at=dl)
 
         result = RemoveNoteFromCaseReceivedUseCase(
             dl,
@@ -787,6 +792,7 @@ class TestNoteUseCases:
         event = make_payload(
             activity,
             receiving_actor_id="https://example.org/actors/non-manager",
+            at=dl,
         )
 
         result = AddNoteToCaseReceivedUseCase(
@@ -867,7 +873,7 @@ class TestNoteUseCases:
         activity = add_note_to_case_activity(
             note, target=case, actor=author_id, to=[dl.actor_id]
         )
-        event = make_payload(activity, receiving_actor_id=case_actor_id)
+        event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
 
         sync_port = SyncActivityAdapter(dl)
         AddNoteToCaseReceivedUseCase(
@@ -973,7 +979,7 @@ class TestNoteUseCases:
         activity = add_note_to_case_activity(
             note, target=case, actor=author_id, to=[dl.actor_id]
         )
-        event = make_payload(activity, receiving_actor_id=case_actor_id)
+        event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
 
         # No sync_port — the commit's fan-out is a wiring fault.
         with pytest.raises(VultronBTInternalError, match="sync_port"):

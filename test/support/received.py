@@ -29,15 +29,22 @@ under test reads it the way production does.
 A sender's adapter stamps each case activity with its ledger tail
 (SYNC-18-001), and the parse edge refuses a case activity without one
 (SYNC-18-003).  A test that builds an activity with a wire factory has no
-sender store, so :func:`delivered` stamps :data:`TEST_SENDER_POSITION` on an
-activity that states none, as the sender's adapter would have stamped its
-tail.  An activity whose object states its own position is left alone, and a
-test that delivers an unstamped activity on purpose builds its body itself.
+sender store, so :func:`delivered` stamps an activity that states none, as
+the sender's adapter would have stamped its tail: in step with the
+receiver's ledger when the test passes the receiver's store (``at=``), else
+:data:`TEST_SENDER_POSITION`.  A CASE_MANAGER answers a position its ledger
+does not hold as a split chain and re-seeds the sender (SYNC-18-005), so a
+test that delivers to one passes ``at=``.  An activity whose object states
+its own position is left alone, and a test that delivers an unstamped
+activity on purpose builds its body itself.
 """
 
 import json
 from typing import Any, TypeVar, cast
 
+from vultron.adapters.driven.ledger_position_stamp import (
+    with_sender_ledger_position,
+)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
@@ -59,6 +66,7 @@ from vultron.core.models.received_activity_record import (
 )
 from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.sync_helpers import ledger_tail_position
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     object_states_its_own_position,
@@ -70,12 +78,24 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseStub,
 )
 
-#: The ledger position a test's in-process sender states (SYNC-18-001): an
-#: empty ledger.  The receiver records a stamp and judges no act by it, so
-#: any well-formed position stands in for the sender's tail.
+#: The ledger position a test's in-process sender states when the test names
+#: no receiver store (SYNC-18-001): an empty ledger with no real genesis
+#: hash.  A receiver that is not the case's CASE_MANAGER judges nothing by
+#: it; a CASE_MANAGER reads it as a split chain (SYNC-18-005), so a test
+#: delivering to one stamps in step with it instead (:func:`stamped`).
 TEST_SENDER_POSITION = LedgerPosition(
     log_index=EMPTY_LEDGER_LOG_INDEX, entry_hash="0" * 64
 )
+
+
+def in_step_position(dl: CasePersistence, case_id: str) -> LedgerPosition:
+    """The ``ledgerPosition`` of a sender in step with *dl*'s ledger.
+
+    For a test that builds a received event by hand: the receiver's own tail
+    for *case_id*, which a CASE_MANAGER holds, so it reads no split
+    (SYNC-18-005) and replays nothing (SYNC-18-007).
+    """
+    return ledger_tail_position(case_id, dl)
 
 
 def peer_position(
@@ -92,21 +112,36 @@ def peer_position(
     return LedgerPosition(log_index=log_index, entry_hash=last_accepted_hash)
 
 
-def stamped(activity: as_Activity) -> as_Activity:
-    """*activity* stating :data:`TEST_SENDER_POSITION`, if it states none.
+def stamped(
+    activity: as_Activity, *, at: CasePersistence | None = None
+) -> as_Activity:
+    """*activity* stating its sender's position, if it states none.
 
-    An activity whose object states its own position (a ledger entry's or a
-    case copy's ``Announce``) is returned unchanged, as is one already
-    stamped (SYNC-18-001).
+    With *at*, the receiver's store, the sender is in step with the
+    receiver: the stamp is the tail of the case the activity names in that
+    store, as ``with_sender_ledger_position`` reads it from a sender's own
+    store (SYNC-18-001).  The CASE_MANAGER answers a position it does not
+    hold as a split chain, re-seeding the sender (SYNC-18-005), so a test
+    that delivers to a CASE_MANAGER passes its store.  Without *at*, or when
+    *at* holds no ledger for any case the activity names, the stamp is
+    :data:`TEST_SENDER_POSITION`.  An activity whose object states its own
+    position (a ledger entry's or a case copy's ``Announce``) is returned
+    unchanged, as is one already stamped.
     """
     if activity.ledger_position is not None or object_states_its_own_position(
         activity
     ):
         return activity
+    if at is not None:
+        in_step = with_sender_ledger_position(at, activity)
+        if in_step.ledger_position is not None:
+            return in_step
     return stamp_ledger_position(activity, TEST_SENDER_POSITION)
 
 
-def delivered_body(activity: as_Activity) -> dict[str, Any]:
+def delivered_body(
+    activity: as_Activity, *, at: CasePersistence | None = None
+) -> dict[str, Any]:
     """The JSON body a sender delivers for *activity*.
 
     Stamped as its sender's adapter stamps it (:func:`stamped`), and dumped
@@ -115,36 +150,44 @@ def delivered_body(activity: as_Activity) -> dict[str, Any]:
     so an inline ``CaseProposal`` loses the ``object``/``target`` a receiver
     requires and the body no longer parses.
     """
-    return stamped(activity).model_dump(
+    return stamped(activity, at=at).model_dump(
         mode="json", by_alias=True, exclude_none=True, serialize_as_any=True
     )
 
 
-def delivered(activity: as_Activity, *, as_sent: bool = False) -> as_Activity:
+def delivered(
+    activity: as_Activity,
+    *,
+    as_sent: bool = False,
+    at: CasePersistence | None = None,
+) -> as_Activity:
     """*activity* as its receiver's parser hands it on.
 
     A copy sealed with the body its sender delivers for it (VM-08-002), so the
     caller's object is left as it was.  An activity that already carries
     evidence (one ``parse_activity`` returned) is returned unchanged when it
     states a ledger position, or *as_sent* is set; otherwise its body is
-    parsed again with :data:`TEST_SENDER_POSITION` added, as a sender's
-    adapter would have stamped it (SYNC-18-001).
+    parsed again with the position :func:`stamped` gives it, as a sender's
+    adapter would have stamped it (SYNC-18-001).  *at* is the receiver's
+    store (:func:`stamped`).
     """
     evidence = activity.received_evidence
     if evidence is not None:
-        if as_sent or stamped(activity) is activity:
+        stamp = stamped(activity, at=at)
+        if as_sent or stamp is activity:
             return activity
+        assert stamp.ledger_position is not None
         return parse_activity(
             {
                 **evidence,
-                "ledgerPosition": TEST_SENDER_POSITION.model_dump(
+                "ledgerPosition": stamp.ledger_position.model_dump(
                     by_alias=True
                 ),
             }
         )
-    copy = stamped(activity).model_copy()
+    copy = stamped(activity, at=at).model_copy()
     copy.seal_received_evidence(
-        json.dumps(delivered_body(activity), ensure_ascii=False)
+        json.dumps(delivered_body(activity, at=at), ensure_ascii=False)
     )
     return copy
 
@@ -207,25 +250,36 @@ def _as_delivered(event: VultronEvent) -> CoreObject:
     )
 
 
-def extract_stamped(activity: as_Activity, **kwargs: Any) -> AnyReceivedEvent:
+def extract_stamped(
+    activity: as_Activity,
+    *,
+    at: CasePersistence | None = None,
+    **kwargs: Any,
+) -> AnyReceivedEvent:
     """``extract_event`` of *activity* as its sender stamps it (:func:`stamped`).
 
     For a test that extracts a factory-built activity directly, without the
-    received evidence :func:`received_event` gives it.
+    received evidence :func:`received_event` gives it.  *at* is the
+    receiver's store (:func:`stamped`).
     """
-    return extract_event(stamped(activity), **kwargs)
+    return extract_event(stamped(activity, at=at), **kwargs)
 
 
 def received_event(
-    activity: as_Activity, *, as_sent: bool = False, **update: Any
+    activity: as_Activity,
+    *,
+    as_sent: bool = False,
+    at: CasePersistence | None = None,
+    **update: Any,
 ) -> AnyReceivedEvent:
     """The event the inbox dispatches for *activity*, as delivered.
 
     *update* overrides event fields, as a test that sets
     ``receiving_actor_id`` needs.  *as_sent* hands over a parsed activity
-    exactly as it arrived, unstamped (:func:`delivered`).
+    exactly as it arrived, unstamped, and *at* is the receiver's store, so
+    the sender is stamped in step with it (:func:`delivered`).
     """
-    event = extract_event(delivered(activity, as_sent=as_sent))
+    event = extract_event(delivered(activity, as_sent=as_sent, at=at))
     return event.model_copy(update=update) if update else event
 
 

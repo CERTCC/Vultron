@@ -390,7 +390,9 @@ def test_a_replica_never_evaluates_the_offers_deadline(make_payload):
     ).execute_with_setup(
         tree=tree,
         actor_id=_COORDINATOR_ID,
-        activity=make_payload(reply, receiving_actor_id=_COORDINATOR_ID),
+        activity=make_payload(
+            reply, receiving_actor_id=_COORDINATOR_ID, at=dl
+        ),
     )
 
     check = find_node(tree, OwnershipOfferOpenNode)

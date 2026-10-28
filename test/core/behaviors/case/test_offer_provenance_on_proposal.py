@@ -227,7 +227,7 @@ def _run_received_bt(
         object_=proposal,
         to=[_CASE_ACTOR_URI],
     )
-    event = received_event(activity).model_copy(
+    event = received_event(activity, at=dl).model_copy(
         update={"receiving_actor_id": _CASE_ACTOR_URI}
     )
     # The registry types its return as the VultronEvent base; narrow it so the

@@ -241,8 +241,8 @@ groups:
           vultron/bt/**), docker/**, integration_tests/**, test/ci/**,
           pyproject.toml, uv.lock,
           .github/workflows/demo-integration.yml,
-          .github/actions/build-demo-images/**, and
-          .github/demo-scenarios.json.
+          .github/actions/build-demo-images/**, .github/scripts/retry.sh,
+          and .github/demo-scenarios.json.
         rationale: >-
           These files can change the behavior of the demo containers, or the invariant
           checks that examine them. The filter skips the workflow when a change is only
@@ -252,8 +252,9 @@ groups:
           demo runner never import. `vultron/bt/**` is the legacy simulator. Only the
           `vultrabot` group in `vultron/demo/cli.py` imports it
           (`test/architecture/test_demo_no_bt_imports.py`), and no CI scenario runs that
-          group. The workflow file and the shared build action are in the filter, so a
-          change to either one runs the workflow. The CI matrix comes from
+          group. The workflow file, the shared build action and the retry helper that
+          the invariant job sources are in the filter, so a change to any of them runs
+          the workflow. The CI matrix comes from
           `.github/demo-scenarios.json` (DEMOCI-06-004). Scenario code is already under
           `vultron/**`. The file is generated from the scenario registry (DEMOCI-11-004,
           DEMOCI-11-005), so a change to which scenarios run also changes the file, and
@@ -460,6 +461,43 @@ groups:
         relationships:
           - rel_type: derives_from
             spec_id: DEMOCI-02-004
+
+      - id: DEMOCI-02-017
+        priority: MUST
+        kind: process
+        statement: >-
+          The step of the demo job that runs the demo MUST have its own
+          `timeout-minutes`, at least 5 minutes shorter than the job timeout
+          (DEMOCI-02-009).
+        rationale: >-
+          A job can reach its 15-minute cap after the demo passed, when the runner hangs
+          in a post step that runs no project code. With a shorter bound on the
+          demo step, a hung demo fails in that step, and a job that reaches the cap
+          with the demo step green has hung after the demo. The difference also leaves
+          time to collect the logs of a hung demo.
+        verification: >-
+          `test/ci/test_demo_integration_flake_guards.py::test_demo_step_has_a_bound_shorter_than_the_job_cap`.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-02-009
+
+      - id: DEMOCI-02-018
+        priority: MUST
+        kind: process
+        statement: >-
+          The demo image build MUST pull its Docker Hub images through a public
+          registry mirror that needs no credential.
+        rationale: >-
+          Anonymous Docker Hub pulls share a quota per runner. When the quota is
+          spent, the build fails with `429 Too Many Requests` before any project code
+          runs, and a pull request goes red for a reason outside its diff. A
+          login would need a secret, which a fork pull request does not get.
+        verification: >-
+          `test/ci/test_demo_integration_flake_guards.py` asserts the BuildKit
+          registry mirror and builder image, and that the build action has no login.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-02-005
 
   - id: DEMOCI-03
     title: Extensibility for Additional Demo Scenarios
@@ -703,6 +741,39 @@ groups:
             spec_id: DEMOCI-04-002
           - rel_type: refines
             spec_id: DEMOCI-02-013
+
+      - id: DEMOCI-04-008
+        priority: MUST
+        kind: process
+        statement: >-
+          Each attempt of the demo job MUST upload its case-log artifact under a
+          name that carries the run attempt number.
+        rationale: >-
+          A re-run of a failed job uploads a second artifact in the same workflow run.
+          With one name for both, the harness of the re-run can download the first
+          attempt's log and fail a demo that passed.
+        verification: >-
+          `test/ci/test_demo_integration_flake_guards.py::test_each_demo_attempt_uploads_its_own_case_log_artifact`.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-04-003
+
+      - id: DEMOCI-04-009
+        priority: MUST
+        kind: process
+        statement: >-
+          The invariant-harness job MUST read the case-log artifact of the
+          highest run attempt that is not later than its own.
+        rationale: >-
+          The highest attempt not later than the harness's own is the demo run the
+          harness follows. When only the harness is re-run, the demo keeps the artifact
+          of its earlier attempt, so the harness cannot require its own attempt number.
+        verification: >-
+          `test/ci/test_demo_integration_flake_guards.py::test_harness_picks_the_latest_demo_attempt_at_or_before_its_own`
+          runs the harness step against a fake `gh`.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-04-008
 
   - id: DEMOCI-05
     title: Post-Merge Validation on the Default Branch
@@ -1540,8 +1611,8 @@ groups:
         verification_debt: '#2573'
         statement: >-
           The CI demo job MUST write a pre-run sentinel `dump-manifest.json`
-          under `devlogs/<demo-name>/` immediately before launching the
-          demo-runner container.
+          under `devlogs/<demo-name>/` before it builds the demo images and
+          launches the demo-runner container.
         rationale: >-
           `scenario_harness()` only runs when the demo-runner container starts
           and the scenario module imports successfully. Docker startup failures,
@@ -1553,7 +1624,9 @@ groups:
           result. The sentinel step closes this gap: the artifact directory is
           non-empty regardless of how early the runner exits, so the download
           succeeds and `load_devlogs()` reports a real failure via the
-          manifest-without-ledgers path (DEMOCI-10-003).
+          manifest-without-ledgers path (DEMOCI-10-003). Writing it before the
+          image build covers a failed build too, so every attempt uploads its own
+          artifact (DEMOCI-04-008).
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-10-002

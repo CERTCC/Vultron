@@ -187,7 +187,8 @@ class TestCloseAndInvalidateReportCommit:
             received_event(
                 rm_invalidate_report_activity(
                     _offer(), actor=FINDER_ID, to=[receiver]
-                )
+                ),
+                at=dl,
             ).model_copy(update={"receiving_actor_id": receiver}),
         )
 
@@ -216,7 +217,8 @@ class TestCloseAndInvalidateReportCommit:
             received_event(
                 rm_close_report_activity(
                     _offer(), actor=FINDER_ID, to=[receiver]
-                )
+                ),
+                at=dl,
             ).model_copy(update={"receiving_actor_id": receiver}),
         )
 
@@ -248,7 +250,7 @@ class TestCloseAndInvalidateReportCommit:
         """A refused activity leaves no canonical entry (CLP-10-009)."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=MANAGER_ID)
         event = received_event(
-            build(_offer(), actor=FINDER_ID, to=[MANAGER_ID])
+            build(_offer(), actor=FINDER_ID, to=[MANAGER_ID]), at=dl
         )
         event = event.model_copy(update={"receiving_actor_id": MANAGER_ID})
 
@@ -311,7 +313,7 @@ class TestCloseAndInvalidateReportCommit:
         """
         dl = _store(MANAGER_ID, sender_rm, finder_known=finder_known)
         event = received_event(
-            build(_offer(), actor=FINDER_ID, to=[MANAGER_ID])
+            build(_offer(), actor=FINDER_ID, to=[MANAGER_ID]), at=dl
         )
         event = event.model_copy(update={"receiving_actor_id": MANAGER_ID})
 
@@ -332,7 +334,8 @@ class TestCloseAndInvalidateReportCommit:
             received_event(
                 rm_invalidate_report_activity(
                     _offer(), actor=FINDER_ID, to=[MANAGER_ID]
-                )
+                ),
+                at=dl,
             ).model_copy(update={"receiving_actor_id": MANAGER_ID}),
         )
 

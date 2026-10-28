@@ -120,7 +120,7 @@ class TestStatusUseCases:
             actor=_CASE_MANAGER_ID,
             to=[dl.actor_id],
         )
-        event = make_payload(activity)
+        event = make_payload(activity, at=dl)
 
         result = AddCaseStatusToCaseReceivedUseCase(
             dl,
@@ -193,7 +193,8 @@ class TestStatusUseCases:
                     target=case,
                     actor=_CASE_MANAGER_ID,
                     to=[dl.actor_id],
-                )
+                ),
+                at=dl,
             ),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
@@ -246,7 +247,7 @@ class TestStatusUseCases:
             actor=_CASE_MANAGER_ID,
             to=[dl.actor_id],
         )
-        event = make_payload(activity)
+        event = make_payload(activity, at=dl)
 
         result = AddCaseStatusToCaseReceivedUseCase(
             dl, event, wire_render_port=As2WireRenderAdapter()
@@ -305,7 +306,7 @@ class TestStatusUseCases:
         activity = add_status_to_case_activity(
             bad_status, target=case, actor=sender_id, to=[receiver_id]
         )
-        event = make_payload(activity)
+        event = make_payload(activity, at=dl)
         event = event.model_copy(update={"receiving_actor_id": receiver_id})
 
         mock_trigger = MagicMock()
@@ -359,7 +360,7 @@ class TestStatusUseCases:
             actor=_CASE_MANAGER_ID,
             to=["https://test.example/api/v2/actors/test-actor"],
         )
-        event = make_payload(activity)
+        event = make_payload(activity, at=dl)
 
         result = AddCaseStatusToCaseReceivedUseCase(
             dl,
@@ -429,7 +430,7 @@ class TestStatusUseCases:
             to=[receiver_id],
             context=case,
         )
-        event = make_payload(activity, receiving_actor_id=receiver_id)
+        event = make_payload(activity, receiving_actor_id=receiver_id, at=dl)
 
         mock_trigger = MagicMock()
         mock_trigger.emit_processing_fault.return_value = "urn:uuid:fault-2"
@@ -504,7 +505,7 @@ class TestStatusUseCases:
             to=[receiver_id],
             context=case,
         )
-        event = make_payload(activity, receiving_actor_id=receiver_id)
+        event = make_payload(activity, receiving_actor_id=receiver_id, at=dl)
 
         result = AddParticipantStatusToParticipantReceivedUseCase(
             dl,
@@ -559,7 +560,7 @@ class TestStatusUseCases:
             actor=_CASE_MANAGER_ID,
             to=["https://test.example/api/v2/actors/test-actor"],
         )
-        event = make_payload(activity)
+        event = make_payload(activity, at=dl)
 
         result = AddCaseStatusToCaseReceivedUseCase(
             dl, event, wire_render_port=As2WireRenderAdapter()
@@ -622,6 +623,7 @@ class TestStatusUseCases:
         event = make_payload(
             activity,
             receiving_actor_id="https://example.org/users/vendor",
+            at=dl,
         )
 
         result = AddParticipantStatusToParticipantReceivedUseCase(
@@ -692,20 +694,24 @@ class TestStatusUseCases:
             context=case_b.id_,
         )
         ingress = FastAPIIngressAdapter(dl)
-        parsed = ingress.parse(delivered_body(activity))
+        parsed = ingress.parse(delivered_body(activity, at=dl))
         assert parsed is not None
-        event = received_event(ingress.rehydrate(parsed)).model_copy(
+        event = received_event(ingress.rehydrate(parsed), at=dl).model_copy(
             update={"receiving_actor_id": dl.actor_id}
         )
         assert isinstance(
             event, AddParticipantStatusToParticipantReceivedEvent
         )
 
+        # The sender stamps its tail of the case its context names, which
+        # the participant's case does not hold: a split, re-seeded, and the
+        # act refused on its own merits all the same (SYNC-18-005).
         result = AddParticipantStatusToParticipantReceivedUseCase(
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -756,6 +762,7 @@ class TestStatusUseCases:
                     context=case.id_,
                 ),
                 receiving_actor_id=dl.actor_id,
+                at=dl,
             ),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
@@ -805,6 +812,7 @@ class TestStatusUseCases:
                     context=case.id_,
                 ),
                 receiving_actor_id=dl.actor_id,
+                at=dl,
             ),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
@@ -864,7 +872,7 @@ class TestStatusUseCases:
             to=[vendor_id],
             context=case,
         )
-        event = make_payload(activity, receiving_actor_id=None)
+        event = make_payload(activity, receiving_actor_id=None, at=dl)
 
         AddParticipantStatusToParticipantReceivedUseCase(
             dl,
@@ -1039,7 +1047,7 @@ class TestParticipantStatusLogEntryCascade:
             to=[case_actor_id],
             context=case,
         )
-        event = make_payload(activity, receiving_actor_id=case_actor_id)
+        event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
         AddParticipantStatusToParticipantReceivedUseCase(
             dl,
@@ -1091,7 +1099,7 @@ class TestParticipantStatusLogEntryCascade:
             to=[case_actor_id],
             context=case,
         )
-        event = make_payload(activity, receiving_actor_id=case_actor_id)
+        event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
         with pytest.raises(VultronBTInternalError, match="sync_port"):
             AddParticipantStatusToParticipantReceivedUseCase(
                 dl,
@@ -1156,7 +1164,7 @@ class TestParticipantStatusLogEntryCascade:
             to=[case_actor_id],
             context=case,
         )
-        event = make_payload(activity, receiving_actor_id=case_actor_id)
+        event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
 
         before_count = len(participant.participant_statuses)
@@ -1217,7 +1225,7 @@ class TestParticipantStatusLogEntryCascade:
             to=[case_actor_id],
             context=case,
         )
-        event = make_payload(activity, receiving_actor_id=case_actor_id)
+        event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
         result = AddParticipantStatusToParticipantReceivedUseCase(
             dl,
             event,
@@ -1261,7 +1269,7 @@ class TestParticipantStatusLogEntryCascade:
             to=[case_actor_id],
             context=case,
         )
-        event = make_payload(activity, receiving_actor_id=case_actor_id)
+        event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
         uc = AddParticipantStatusToParticipantReceivedUseCase(
             dl,
@@ -1321,7 +1329,9 @@ class TestParticipantStatusLogEntryCascade:
             to=[non_case_actor_id],
             context=case,
         )
-        event = make_payload(activity, receiving_actor_id=non_case_actor_id)
+        event = make_payload(
+            activity, receiving_actor_id=non_case_actor_id, at=dl
+        )
         outbox_before = dl.outbox_list()
         result = AddParticipantStatusToParticipantReceivedUseCase(
             dl,
@@ -1379,7 +1389,7 @@ class TestParticipantStatusLogEntryCascade:
             to=[case_actor_id],
             context=case,
         )
-        event = make_payload(activity, receiving_actor_id=case_actor_id)
+        event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
         # Supply a trigger_activity mock so AutoCloseBranchNode can emit
         # close_case if all participants close (BT step 5).
         mock_trigger = MagicMock()
@@ -1466,7 +1476,7 @@ class TestParticipantStatusLogEntryCascade:
             to=[_case_actor_id],
             context=case,
         )
-        event = make_payload(activity, receiving_actor_id=None)
+        event = make_payload(activity, receiving_actor_id=None, at=dl)
         sync_port = SyncActivityAdapter(dl)
         AddParticipantStatusToParticipantReceivedUseCase(
             dl,
@@ -1584,9 +1594,9 @@ class TestParticipantStatusSubjectIsTheSender:
             context=_SUBJ_CASE_ID,
         )
         ingress = FastAPIIngressAdapter(dl)
-        parsed = ingress.parse(delivered_body(activity))
+        parsed = ingress.parse(delivered_body(activity, at=dl))
         assert parsed is not None
-        event = received_event(ingress.rehydrate(parsed)).model_copy(
+        event = received_event(ingress.rehydrate(parsed), at=dl).model_copy(
             update={"receiving_actor_id": dl.actor_id}
         )
         assert isinstance(

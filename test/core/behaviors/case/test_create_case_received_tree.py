@@ -91,7 +91,7 @@ def _case(manager: str = _CREATOR) -> as_VulnerabilityCase:
 
 def _run(dl, make_payload, sender: str, case: as_VulnerabilityCase):
     activity = create_case_activity(case, actor=sender, to=[_RECEIVER])
-    event = make_payload(activity)
+    event = make_payload(activity, at=dl)
     tree = create_create_case_received_tree(
         event.case,
         _CASE_ID,
@@ -491,7 +491,7 @@ def test_reporter_receiving_the_introduction_relays_nothing(dl, make_payload):
     dl.save(_link(creator=_OWNER))
     case = _owned_case(extra=(_participant(_RECEIVER, CVDRole.REPORTER),))
     activity = create_case_activity(case, actor=_OWNER, to=[_RECEIVER])
-    event = make_payload(activity)
+    event = make_payload(activity, at=dl)
     tree = create_create_case_received_tree(
         event.case,
         _CASE_ID,
@@ -627,7 +627,7 @@ def test_reporter_trusts_a_receiver_that_is_its_own_case_manager(
         manager=_OWNER, extra=(_participant(_RECEIVER, CVDRole.REPORTER),)
     )
     activity = create_case_activity(case, actor=_OWNER, to=[_RECEIVER])
-    event = make_payload(activity)
+    event = make_payload(activity, at=dl)
     tree = create_create_case_received_tree(
         event.case,
         _CASE_ID,

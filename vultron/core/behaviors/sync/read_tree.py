@@ -19,6 +19,9 @@ from vultron.core.behaviors.sync.nodes import (
     ReplayMissingEntriesNode,
     UpdateReplicationStateNode,
 )
+from vultron.core.behaviors.sync.nodes.ledger_position import (
+    STATED_POSITION_ANSWERED_BY_TREE,
+)
 
 
 def create_read_log_entry_tree(
@@ -61,6 +64,10 @@ def create_read_log_entry_tree(
         case_id=None,
         precondition_guards=[],
         post_close_exemption=PostCloseExemption.LEDGER_RESYNC,
+        # The Read's whole act is the position statement this tree answers,
+        # so the factory's answer to a stamped position would repeat it
+        # (SYNC-17-005, SYNC-18-007).
+        ledger_position_exemption=STATED_POSITION_ANSWERED_BY_TREE,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=sender_id, case_id=case_id

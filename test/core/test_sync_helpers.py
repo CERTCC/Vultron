@@ -26,10 +26,15 @@ from vultron.core.models.case_ledger import (
     HashChainLedgerRecord,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.ledger_position import (
+    LedgerPosition,
+    accepted_entry_hash,
+)
 from vultron.core.sync_helpers import (
     _find_equivalent_recorded_entry,
     _find_prev_actor_published,
     first_case_with_ledger,
+    holds_ledger_position,
     is_ledger_fresh_for_case,
     reconstruct_tail_hash,
 )
@@ -544,3 +549,60 @@ class TestFirstCaseWithLedger:
 
     def test_no_candidates_is_none(self, dl):
         assert first_case_with_ledger([], dl) is None
+
+
+@pytest.mark.spec("SYNC-18-005")
+@pytest.mark.spec("CM-11-012")
+class TestHoldsLedgerPosition:
+    """Whether a ledger holds a stated position (SYNC-18-005, CM-11-012)."""
+
+    @pytest.fixture
+    def chain(self, dl):
+        case = _make_case()
+        dl.create(case)
+        first = _store(dl, _entry(0, case.genesis_hash))
+        second = _store(dl, _entry(1, first.entry_hash))
+        return case, first, second
+
+    def test_an_entry_it_holds_is_held(self, dl, chain):
+        _case, first, _second = chain
+        position = LedgerPosition(log_index=0, entry_hash=first.entry_hash)
+        assert holds_ledger_position(CASE_ID, dl, position)
+
+    def test_the_genesis_position_is_held(self, dl, chain):
+        case, _first, _second = chain
+        position = LedgerPosition(log_index=-1, entry_hash=case.genesis_hash)
+        assert holds_ledger_position(CASE_ID, dl, position)
+
+    @pytest.mark.parametrize(
+        "position",
+        [
+            LedgerPosition(log_index=0, entry_hash=_ZERO_HASH),
+            LedgerPosition(log_index=-1, entry_hash=_ZERO_HASH),
+            LedgerPosition(log_index=5, entry_hash=_ZERO_HASH),
+        ],
+        ids=["another-hash", "another-genesis", "past-the-tail"],
+    )
+    def test_a_position_it_never_had_is_not_held(self, dl, chain, position):
+        assert not holds_ledger_position(CASE_ID, dl, position)
+
+    def test_another_cases_entry_is_not_held(self, dl, chain):
+        _case, first, _second = chain
+        position = LedgerPosition(log_index=0, entry_hash=first.entry_hash)
+        assert not holds_ledger_position(OTHER_CASE_ID, dl, position)
+
+
+@pytest.mark.spec("SYNC-18-007")
+@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.parametrize(
+    ("position", "expected"),
+    [
+        (None, ""),
+        (LedgerPosition(log_index=-1, entry_hash=_ZERO_HASH), ""),
+        (LedgerPosition(log_index=2, entry_hash="a" * 64), "a" * 64),
+    ],
+    ids=["none", "empty-ledger", "an-entry"],
+)
+def test_the_accepted_hash_of_a_position(position, expected):
+    """An empty ledger accepted no entry, so a replay starts at the first."""
+    assert accepted_entry_hash(position) == expected
