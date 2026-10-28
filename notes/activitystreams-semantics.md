@@ -5,7 +5,8 @@ kind: guidance
 tags: [as2, activitystreams, wire, semantics, extractor, rehydration, accept-reject]
 description: >
   Activities as state-change statements, not commands; inbound/outbound
-  semantics, Accept/Reject object rules, and rehydration.
+  semantics, Accept/Reject object rules, rehydration, and how a bare
+  reference matches a pattern (`object_` strict, `target_` lenient).
 related_specs:
   - specs/semantic-extraction.yaml
   - specs/response-format.yaml
@@ -89,6 +90,25 @@ full-case Invite that follows a stub Accept is described in
 Activity fields may be inline objects or URI strings, so rehydrate before
 semantic matching (SE-01-002). The inbox pipeline does this before dispatch;
 anywhere else, call `rehydrate()` before `find_matching_semantics()`.
+
+## Bare References: `object_` Strict, `target_` Lenient
+
+- **`object_` is strict by default.** A bare id still unresolved after
+  rehydration names an object the receiver lacks, so it matches no object type
+  and the activity is `UNKNOWN_UNRESOLVABLE_OBJECT`, which the inbox fetches for
+  (SE-01-006, AKM-05-007). Otherwise the first pattern of the verb wins: a bare
+  `Announce` of an embargo read as `Announce(VulnerabilityCase)` (#5243).
+- **`accepts_bare_object=True` is the one opt-in**, for a pattern a field other
+  than the object's type tells apart: only `LedgerPositionReadPattern`
+  (`ledgerPosition`). `test_only_read_case_ledger_entry_accepts_a_bare_object`
+  pins the set.
+- **`target_`, `context_` and `to_` are lenient**: a case there travels as its URI
+  (SE-01-007). `strict=True` tightens `target_` alone, on a pattern whose
+  `target_` is its sole discriminator (SE-08-004); a pattern with no `target_`
+  refuses it.
+- **A nested bare object is unresolvable too**: `Accept(Invite(<id>))` matches
+  nothing, so `find_matching_semantics()` follows the `object` chain and returns
+  `UNKNOWN_UNRESOLVABLE_OBJECT`, and the fetch names the inner id (VAM-01-009).
 
 ## Accepting an Embargo Accepts the Invite
 

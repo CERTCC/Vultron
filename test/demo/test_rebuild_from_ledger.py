@@ -94,7 +94,9 @@ def test_a_mislabelled_entry_is_recorded_not_raised(monkeypatch):
             payload_snapshot=snapshot,
         ),
     ]
-    monkeypatch.setattr(helpers, "_hosted_ledger_entries", lambda: entries)
+    monkeypatch.setattr(
+        helpers, "_hosted_ledger_entries", lambda: iter([(None, entries)])
+    )
     monkeypatch.setattr(helpers, "_managed_cases", lambda: iter([]))
     monkeypatch.setattr(helpers, "_multi_party_cases", set)
 

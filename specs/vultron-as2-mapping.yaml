@@ -76,10 +76,10 @@ groups:
     kind: project
     statement: >-
       `find_matching_semantics()` MUST return
-      `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT` when no registered pattern
-      matches an activity whose type has at least one registered pattern and
-      whose `object_`, or the `object_` of an activity nested in it, is still a
-      bare string URI after rehydration.
+      `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT` when no pattern matches an
+      activity of a registered verb whose object chain ends in a bare URI. The
+      chain is the activity's `object_`, followed through each inline activity
+      it holds, as rehydration left it.
     rationale: >-
       `UNKNOWN_UNRESOLVABLE_OBJECT` is the specific signal for a known activity
       type whose object could not be resolved: it separates a data gap, which may
@@ -93,9 +93,8 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      An `ActivityPattern` that constrains `object_` to a scalar object type MUST NOT
-      match an activity whose `object_` is still a bare string URI after rehydration,
-      unless the pattern sets `accepts_bare_object=True`.
+      A scalar `object_` constraint MUST NOT match a bare URI still unresolved after
+      rehydration, unless its `ActivityPattern` sets `accepts_bare_object=True`.
     rationale: >-
       `accepts_bare_object` is how this codebase marks the exception SE-01-006
       allows: a pattern that a field other than the object's type tells apart, as
@@ -112,8 +111,8 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `ActivityPattern.strict` MUST govern only the `target_` constraint: it MUST NOT
-      change how the pattern matches `object_`.
+      `ActivityPattern.strict` MUST govern only the `target_` constraint, leaving how
+      the pattern matches `object_` unchanged.
     rationale: >-
       Once `object_` is strict by default (SE-01-006), `strict` is the tool SE-08-004
       names for a pattern whose `target_` is its sole discriminator. Building a

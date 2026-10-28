@@ -94,22 +94,6 @@ specific than an existing entry in the same `activity_` group, place it
 `test/test_semantic_activity_patterns.py` after any registry edit (belt-and-
 suspenders for edge cases the runtime guard might miss).
 
-### Bare References: `object_` Strict, `target_` Lenient
-
-- **`object_` is strict by default.** A bare id still unresolved after
-  rehydration names an object the receiver lacks, so it matches no object type
-  and the activity is `UNKNOWN_UNRESOLVABLE_OBJECT`, which the inbox fetches for
-  (SE-01-006, AKM-05-007). Otherwise the first pattern of the verb wins: a bare
-  `Announce` of an embargo read as `Announce(VulnerabilityCase)` (#5243).
-- **`accepts_bare_object=True` is the one opt-in**, for a pattern a field other
-  than the object's type tells apart: only `LedgerPositionReadPattern`
-  (`ledgerPosition`). `test_only_read_case_ledger_entry_accepts_a_bare_object`
-  pins the set.
-- **`target_`, `context_` and `to_` are lenient**: a case there travels as its URI
-  (SE-01-007). `strict=True` tightens `target_` alone, on a pattern whose
-  `target_` is its sole discriminator (SE-08-004); a pattern with no `target_`
-  refuses it.
-
 ### File Locations
 
 | File | Role |
@@ -134,10 +118,10 @@ suspenders for edge cases the runtime guard might miss).
 ### A Committed Example Must Be Dispatchable
 
 `ActivityPattern` declares `activity_`, `strict`, `accepts_bare_object`, `to_`,
-`object_`, `target_` and `context_` — and **no `origin_` field**, so `origin` is
-never consulted for dispatch however well it reads (#3438). Set the discriminator
-fields the pattern actually requires. A well-formed example is not necessarily a
-dispatchable one: an example
+`object_`, `target_` and `context_` — and **no `origin_` field**, so `origin` is never
+consulted for dispatch however well it reads (#3438). Set the discriminator fields the
+pattern actually requires. Bare ids: `notes/activitystreams-semantics.md` § "Bare
+References". A well-formed example is not necessarily a dispatchable one: an example
 that matches no pattern is silently dropped by a receiver, and the reference page
 rendering it documents a wire form that does not work.
 
