@@ -556,7 +556,7 @@ groups:
     rationale: In a correct implementation, SYNC log entries are committed automatically as a cascade effect of every state-changing
       operation. An explicit trigger exists only to let the demo script inject entries manually. A future production "force-sync"
       recovery operation would require a protocol-level mechanism for a peer to advertise its current log tail hash before
-      entries are replayed (SYNC-03-004)
+      entries are replayed (SYNC-17-001, SYNC-18-001)
     relationships:
     - rel_type: refines
       spec_id: TRIG-08-004

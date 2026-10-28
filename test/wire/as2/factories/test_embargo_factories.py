@@ -30,6 +30,7 @@ from typing import cast
 import pytest
 from pydantic import ValidationError
 
+from test.support.received import delivered_body
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.states.embargo_register import TerminationReason
@@ -332,7 +333,6 @@ def test_em_propose_embargo_naive_embargo_end_is_read_as_utc():
 
 @pytest.mark.spec("AF-01-002")
 @pytest.mark.spec("VAM-05-006")
-@pytest.mark.spec("MSM-02-002")
 def test_em_accept_embargo_returns_accept(sample_proposal):
     result = em_accept_embargo_activity(
         proposal=sample_proposal, actor=_ACTOR_URI
@@ -370,7 +370,6 @@ def test_em_accept_embargo_plain_invite_raises(sample_embargo):
 
 @pytest.mark.spec("AF-01-002")
 @pytest.mark.spec("VAM-05-007")
-@pytest.mark.spec("MSM-02-006")
 def test_em_reject_embargo_returns_reject(sample_proposal):
     result = em_reject_embargo_activity(
         proposal=sample_proposal, actor=_ACTOR_URI
@@ -612,9 +611,7 @@ def _received(activity: as_Invite, **extra: object) -> as_Invite:
     *extra* adds keys to that body, as a sender that names more than this
     receiver's vocabulary would.
     """
-    body = activity.model_dump(
-        mode="json", by_alias=True, exclude_none=True, serialize_as_any=True
-    )
+    body = delivered_body(activity)
     body.update(extra)
     return cast(as_Invite, parse_activity(body))
 

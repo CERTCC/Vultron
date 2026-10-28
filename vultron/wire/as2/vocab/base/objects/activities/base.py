@@ -26,7 +26,9 @@ from pydantic import (
 )
 
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.wire.as2.enums import as_ObjectType as O_type
+from vultron.wire.as2.vocab.base.base import VULTRON_PROPERTY_EXTRA
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.actors import as_ActorRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object, as_ObjectRef
@@ -75,6 +77,21 @@ class as_Activity(as_Object):
     origin: as_ObjectRef = None
     instrument: as_ObjectRef = None
     result: ActivityStreamRef[as_Object] = None
+
+    # SYNC-18-001 (ADR-0156): an activity about a case whose ledger its
+    # sender holds states the sender's ledger tail as the Vultron property
+    # ``ledgerPosition``, the term a case copy already uses (SYNC-16-005).
+    # Declared on the base so every inbound activity keeps it through the
+    # parse (MV-11-003), and ``LedgerPosition`` refuses a malformed one at the
+    # edge.  Set only by ``vultron.wire.as2.factories`` (SYNC-18-002); which
+    # received activities must carry it is the event model's call
+    # (SYNC-18-003).
+    ledger_position: LedgerPosition | None = Field(
+        default=None,
+        validation_alias="ledgerPosition",
+        serialization_alias="ledgerPosition",
+        json_schema_extra=VULTRON_PROPERTY_EXTRA,
+    )
 
     #: The JSON body as received, decoded and re-serialized to text by
     #: ``parse_activity`` before anything reads or expands it (VM-08-002).

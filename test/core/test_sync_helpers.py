@@ -29,6 +29,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.sync_helpers import (
     _find_equivalent_recorded_entry,
     _find_prev_actor_published,
+    first_case_with_ledger,
     is_ledger_fresh_for_case,
     reconstruct_tail_hash,
 )
@@ -505,3 +506,41 @@ def test_prev_actor_published_ignores_another_actor(dl):
         )
         is None
     )
+
+
+@pytest.mark.spec("SYNC-18-001")
+class TestFirstCaseWithLedger:
+    """Which named case's ledger a sender holds, to state its tail."""
+
+    def test_a_held_case_is_found_past_ids_that_name_no_case(self, dl):
+        dl.create(_make_case())
+        note_id = "https://example.org/notes/1"
+
+        assert first_case_with_ledger([note_id, CASE_ID], dl) == CASE_ID
+
+    def test_a_chain_without_its_case_is_held(self, dl):
+        _store(dl, _entry(0, _ZERO_HASH))
+
+        assert first_case_with_ledger([OTHER_CASE_ID, CASE_ID], dl) == CASE_ID
+
+    def test_a_stored_case_wins_over_an_earlier_chain_only_id(self, dl):
+        dl.create(_make_case())
+        _store(dl, _entry(0, _ZERO_HASH, case_id=OTHER_CASE_ID))
+
+        assert first_case_with_ledger([OTHER_CASE_ID, CASE_ID], dl) == CASE_ID
+
+    def test_the_first_chain_only_id_wins_when_no_case_is_stored(self, dl):
+        _store(dl, _entry(0, _ZERO_HASH))
+        _store(dl, _entry(0, _ZERO_HASH, case_id=OTHER_CASE_ID))
+
+        assert first_case_with_ledger([OTHER_CASE_ID, CASE_ID], dl) == (
+            OTHER_CASE_ID
+        )
+
+    def test_no_case_and_no_chain_is_none(self, dl):
+        _store(dl, _entry(0, _ZERO_HASH, case_id=OTHER_CASE_ID))
+
+        assert first_case_with_ledger([CASE_ID], dl) is None
+
+    def test_no_candidates_is_none(self, dl):
+        assert first_case_with_ledger([], dl) is None

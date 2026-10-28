@@ -22,7 +22,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.received import received_event
+from test.support.received import peer_position, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models._helpers import _as_id
@@ -94,7 +94,7 @@ def _make_reject_event(
     )
     activity = reject_log_entry_activity(
         wire_entry,
-        context=last_accepted_hash,
+        ledger_position=peer_position(last_accepted_hash),
         actor=actor,
         to=to or [CASE_ACTOR_URI],
     )
@@ -110,7 +110,9 @@ class TestRejectLogEntryPattern:
             entry0.model_dump(mode="json")
         )
         activity = reject_log_entry_activity(
-            wire_entry, context="a" * 64, actor=PARTICIPANT_URI
+            wire_entry,
+            ledger_position=peer_position("a" * 64),
+            actor=PARTICIPANT_URI,
         )
         event = received_event(activity)
         assert event.semantic_type == MessageSemantics.REJECT_CASE_LEDGER_ENTRY
@@ -126,9 +128,9 @@ class TestRejectLogEntryPattern:
         assert event.rejected_entry.case_id == CASE_URI
 
     @pytest.mark.spec("SYNC-03-001")
-    @pytest.mark.spec("SYNC-03-004")
-    def test_last_accepted_hash_from_context(self, entry0):
-        """last_accepted_hash is extracted from the context field."""
+    @pytest.mark.spec("SYNC-18-001")
+    def test_last_accepted_hash_from_the_ledger_position(self, entry0):
+        """last_accepted_hash is the entry hash of the sender's position."""
         from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 
         event = _make_reject_event(entry0, entry0.entry_hash, PARTICIPANT_URI)
@@ -137,7 +139,7 @@ class TestRejectLogEntryPattern:
 
     @pytest.mark.spec("CLP-08-005")
     def test_last_accepted_hash_defaults_to_empty_string(self, entry0):
-        """When no context is set, last_accepted_hash falls back to '' (CLP-08-005)."""
+        """A peer with no ledger states no position: '' (CLP-08-005)."""
         from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 
         wire_entry = WireCaseLedgerEntry.model_validate(

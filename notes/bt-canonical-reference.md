@@ -12,6 +12,7 @@ related_specs:
   - specs/behavior-tree-node-design.yaml
   - specs/bt-composability.yaml
   - specs/event-driven-control-flow.yaml
+  - specs/message-semantics-mapping.yaml
   - specs/protocol-asks.yaml
 related_notes:
   - notes/bt-integration.md
@@ -105,10 +106,15 @@ upstream of Vultron, which starts at `Offer(VulnerabilityReport)`.
 | `>_ProcessRMMessagesBt_37` + `>__HandleRs_51` | RS (report submit) | `SubmitReportReceivedUseCase` |
 | `>_ProcessEMMessagesBt_78` + `>__HandleEp_135` | EP (embargo propose) | `InviteToEmbargoOnCaseReceivedUseCase` |
 | `>_ProcessEMMessagesBt_78` + `>__HandleEv_161` | EV (embargo revise) | `InviteToEmbargoOnCaseReceivedUseCase` (revision Invite) |
-| `>_ProcessEMMessagesBt_78` + `>__HandleEa_148` / `>__HandleEc_191` | EA / EC (accept) | `AcceptInviteToEmbargoOnCaseReceivedUseCase` |
-| `>_ProcessEMMessagesBt_78` + `>__HandleEr_113` / `>__HandleEj_183` | ER / EJ (reject) | `RejectInviteToEmbargoOnCaseReceivedUseCase` |
+| `>_ProcessEMMessagesBt_78` + `>__HandleEa_148` / `>__HandleEc_191` | EA / EC (accept) | `ActivateEmbargoOnCaseReceivedUseCase` (the Case Owner's decision, MSM-02-002/005) |
+| `>_ProcessEMMessagesBt_78` + `>__HandleEr_113` / `>__HandleEj_183` | ER / EJ (reject) | `RejectEmbargoProposalOnCaseReceivedUseCase`; ER also the CASE_MANAGER's abandonment via `RejectInviteToEmbargoOnCaseReceivedUseCase` (MSM-02-004/006) |
 | `>_ProcessEMMessagesBt_78` + `>__HandleEt_98` | ET (embargo terminate) | `RemoveEmbargoEventFromCaseReceivedUseCase` |
 | `>_ProcessCSMessagesBt_277` | CV/CF/CD/CP/CX messages | CS-state use cases |
+
+A Participant's `Accept`/`Reject(Invite(Event))` is its own consent (PEC), handled by
+`AcceptInviteToEmbargoOnCaseReceivedUseCase` and
+`RejectInviteToEmbargoOnCaseReceivedUseCase`; it has no canonical subtree, because
+the canonical tree models the case's view of the embargo, not PEC (MSM-02-010).
 
 #### Report Management State Machine: ReportManagementBt (lines 411–1414)
 

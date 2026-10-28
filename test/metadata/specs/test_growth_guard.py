@@ -1,11 +1,13 @@
-"""Tests for vultron.metadata.specs.growth_guard (SR-05-005, MS-12-007, MS-10-014).
+"""Tests for vultron.metadata.specs.growth_guard (SR-05-005, MS-12-007, MS-10-014,
+MS-10-016).
 
 Each test builds a throwaway git repository whose ``origin/main`` ref is the
 base, edits the working tree, and runs a real guard extractor through
 :func:`added_since_base`: the marker-coverage guard over ``protocol`` and
 ``foundation`` specs (:func:`uncovered_implementer_ids`), the
 ``missing_story_reference`` guard (:func:`missing_story_suppression_carriers`),
-and the missing-rationale guard (:func:`missing_rationale_ids`).
+the missing-rationale guard (:func:`missing_rationale_ids`), and the
+``verification_debt`` guard (:func:`verification_debt_items`).
 """
 
 import logging
@@ -40,6 +42,7 @@ from vultron.metadata.specs.kind_classification import (
     missing_story_suppression_carriers,
 )
 from vultron.metadata.specs.rationale import missing_rationale_ids
+from vultron.metadata.specs.verification import verification_debt_items
 
 _SUPPRESS = ["missing_story_reference"]
 
@@ -577,6 +580,136 @@ def test_rationale_without_base_ref_skips_with_logged_reason(
     _write_specs(rationale_repo, _no_rationale("TST-01-001"))
     with caplog.at_level(logging.WARNING):
         check = _rationales(rationale_repo)
+    assert check.skipped is not None
+    assert check.added == frozenset()
+    assert check.skipped in caplog.text
+
+
+# --- verification_debt guard (MS-10-016) ------------------------------------
+
+
+def _marked(spec_id: str, marker: str = "#1", kind: str = "project") -> dict:
+    return _spec(spec_id, kind, verification_debt=marker)
+
+
+def _verified(spec_id: str, kind: str = "project") -> dict:
+    return _spec(spec_id, kind, verification="A test proves it.")
+
+
+def _debt(repo: Path):
+    return added_since_base(
+        verification_debt_items, repo_root=repo, paths=("specs",)
+    )
+
+
+@pytest.fixture
+def debt_repo(tmp_path):
+    """Base: TST-01-001 carries a marker, TST-01-002 is verified."""
+    return _repo(
+        tmp_path, [_marked("TST-01-001"), _verified("TST-01-002")], []
+    )
+
+
+@pytest.mark.spec("MS-10-016")
+def test_debt_unchanged_adds_nothing(debt_repo):
+    check = _debt(debt_repo)
+    assert check.skipped is None
+    assert check.added == frozenset()
+    assert check.head_total == 1
+
+
+@pytest.mark.spec("MS-10-016")
+def test_debt_marker_on_new_requirement_is_added(debt_repo):
+    _write_specs(
+        debt_repo,
+        _marked("TST-01-001"),
+        _verified("TST-01-002"),
+        _marked("TST-01-003"),
+    )
+    assert _debt(debt_repo).added == {"TST-01-003 verification_debt: '#1'"}
+
+
+@pytest.mark.spec("MS-10-016")
+def test_debt_marker_replacing_verification_is_added(debt_repo):
+    _write_specs(debt_repo, _marked("TST-01-001"), _marked("TST-01-002"))
+    assert _debt(debt_repo).added == {"TST-01-002 verification_debt: '#1'"}
+
+
+@pytest.mark.spec("MS-10-016")
+def test_debt_marker_removed_is_not_an_addition(debt_repo):
+    _write_specs(debt_repo, _verified("TST-01-001"), _verified("TST-01-002"))
+    check = _debt(debt_repo)
+    assert check.added == frozenset()
+    assert check.head_total == 0
+
+
+@pytest.mark.spec("MS-10-016")
+def test_debt_marked_requirement_edited_is_not_an_addition(debt_repo):
+    """Rewording a marked requirement keeps the debt the base already had."""
+    edited = _marked("TST-01-001")
+    edited["statement"] = "TST-01-001 MUST do another thing"
+    _write_specs(debt_repo, edited, _verified("TST-01-002"))
+    assert _debt(debt_repo).added == frozenset()
+
+
+@pytest.mark.spec("MS-10-016")
+def test_debt_marker_moved_to_another_file_is_not_an_addition(debt_repo):
+    """A marker that moves with its requirement is the same item."""
+    _write_specs(debt_repo, _verified("TST-01-002"))
+    moved = {
+        "id": "OTH",
+        "title": "Other File",
+        "description": "Other spec file",
+        "scope": ["production"],
+        "groups": [
+            {
+                "id": "OTH-01",
+                "title": "Group",
+                "specs": [_marked("TST-01-001")],
+            }
+        ],
+    }
+    (debt_repo / "specs" / "oth.yaml").write_text(yaml.dump(moved))
+    check = _debt(debt_repo)
+    assert check.added == frozenset()
+    assert check.head_total == 1
+
+
+@pytest.mark.spec("MS-10-016")
+def test_debt_marked_requirement_renamed_is_added(debt_repo):
+    """A new ID is a new requirement, so its marker is new debt."""
+    _write_specs(debt_repo, _marked("TST-01-003"), _verified("TST-01-002"))
+    assert _debt(debt_repo).added == {"TST-01-003 verification_debt: '#1'"}
+
+
+@pytest.mark.spec("MS-10-016")
+def test_debt_relabel_keeping_its_marker_is_not_an_addition(debt_repo):
+    """spec-lint, not this guard, fails a marker its new kind does not own."""
+    _write_specs(
+        debt_repo,
+        _marked("TST-01-001", kind="architecture"),
+        _verified("TST-01-002"),
+    )
+    assert _debt(debt_repo).added == frozenset()
+
+
+@pytest.mark.spec("MS-10-016")
+def test_debt_relabel_repointing_its_marker_is_added(debt_repo):
+    """Swapping in the destination kind's owner adds debt to its backlog."""
+    _write_specs(
+        debt_repo,
+        _marked("TST-01-001", marker="#2", kind="architecture"),
+        _verified("TST-01-002"),
+    )
+    assert _debt(debt_repo).added == {"TST-01-001 verification_debt: '#2'"}
+
+
+@pytest.mark.spec("MS-10-016")
+def test_debt_without_base_ref_skips_with_logged_reason(debt_repo, caplog):
+    _git(debt_repo, "update-ref", "-d", "refs/remotes/origin/main")
+    _write_specs(debt_repo, _marked("TST-01-001"), _marked("TST-01-002"))
+    with caplog.at_level(logging.WARNING):
+        check = _debt(debt_repo)
     assert check.skipped is not None
     assert check.added == frozenset()
     assert check.skipped in caplog.text

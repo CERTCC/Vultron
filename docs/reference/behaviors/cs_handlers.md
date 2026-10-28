@@ -36,11 +36,16 @@ if str(_repo) not in sys.path:
 
 import py_trees
 from vultron.core.models.events.status import AddCaseStatusToCaseReceivedEvent
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.behaviors.status.add_case_status_tree import add_case_status_tree
 from vultron.core.use_cases.received.status import AddCaseStatusToCaseReceivedUseCase
 
 tree = add_case_status_tree(
-    AddCaseStatusToCaseReceivedEvent(activity_id="a1", actor_id="actor1"),
+    AddCaseStatusToCaseReceivedEvent(
+        activity_id="a1",
+        actor_id="actor1",
+        ledger_position=LedgerPosition(log_index=-1, entry_hash="0" * 64),
+    ),
     sender_rule=AddCaseStatusToCaseReceivedUseCase.sender_entitlement,
 )
 print("```")
@@ -65,6 +70,7 @@ if str(_repo) not in sys.path:
 
 import py_trees
 from vultron.core.models.events.status import AddParticipantStatusToParticipantReceivedEvent
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.behaviors.status.add_participant_status_tree import (
     add_participant_status_tree,
 )
@@ -73,7 +79,11 @@ from vultron.core.use_cases.received.status import (
 )
 
 tree = add_participant_status_tree(
-    AddParticipantStatusToParticipantReceivedEvent(activity_id="a1", actor_id="actor1"),
+    AddParticipantStatusToParticipantReceivedEvent(
+        activity_id="a1",
+        actor_id="actor1",
+        ledger_position=LedgerPosition(log_index=-1, entry_hash="0" * 64),
+    ),
     case_id="https://example.org/cases/case1",
     sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
 )

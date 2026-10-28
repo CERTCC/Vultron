@@ -244,20 +244,6 @@ groups:
     stories:
     - story_2022_045
     - story_2022_088
-  - id: SYNC-03-004
-    priority: SHOULD
-    kind: protocol
-    statement: >-
-      When a Participant Actor sends any message to the CASE_MANAGER, it SHOULD include the
-      hash of the last canonical recorded log entry it has applied as a parameter in the activity's
-      context field
-    verification: >-
-      Integration tests in `test/demo/` confirm that messages from Participant Actors
-      to the CASE_MANAGER include the last applied canonical log hash in the
-      activity context field.
-    stories:
-    - story_2022_045
-    - story_2022_088
   - id: SYNC-03-005
     priority: MUST
     kind: protocol
@@ -267,9 +253,10 @@ groups:
       the message, record no replication state for the sender, and replay no entry and
       no case to it.
     rationale: >-
-      A rejection with an empty last-accepted hash makes the CASE_MANAGER replay the whole
-      ledger and announce the case, so an unchecked sender obtains embargoed content just by
-      asking. The replay cooldown limits how often, not who. See #3733.
+      A rejection that states no ledger position, or an empty chain's, makes the
+      CASE_MANAGER replay the whole ledger and announce the case, so an unchecked sender
+      obtains embargoed content just by asking. The replay cooldown limits how often,
+      not who. See #3733.
     verification: >-
       A test marked `SYNC-03-005`
       sends the Reject from a non-participant and asserts `REFUSED` with an empty outbox.
@@ -1739,11 +1726,12 @@ groups:
       move the case's position back for it (SYNC-16-005). It MUST refuse, not store, an
       entry at the position's index whose hash differs from the one the position
       names, and log the conflict at ERROR. When its chain stores no
-      entry, the `Reject` MUST name no rejected entry, MUST carry an empty
-      last-accepted hash and MUST name the case as its `target`, asking for a replay
-      from genesis; a receiver MUST refuse a `Reject` that names no entry yet carries a
-      last-accepted hash, and the CASE_MANAGER MUST answer the empty-hash form as it
-      answers any replay from genesis (SYNC-15-002).
+      entry, the `Reject` MUST name no rejected entry, MUST state the empty chain's
+      `ledgerPosition` (index -1, SYNC-18-001) and MUST name the case as its `target`,
+      asking for a replay from genesis; a receiver MUST refuse a `Reject` that names no
+      entry and states no position, or a position other than the empty chain's, and the
+      CASE_MANAGER MUST answer the empty-chain form as it answers any replay from
+      genesis (SYNC-15-002).
     rationale: >-
       Those entries are already reflected in the copy. The refused entry the replica
       held under SYNC-16-001 drains first, before any replay arrives, so a rule that
@@ -1764,11 +1752,13 @@ groups:
       spec_id: SYNC-03-002
     adr:
     - ADR-0142
+    - ADR-0156
     verification: >-
       `test/core/behaviors/sync/test_divergence_recovery.py` replaces a short replica's
       case and asserts its chain reaches the CASE_MANAGER's tail with matching case
       files, that a replica with no entry sends the `Reject` that names none, that such
-      a `Reject` carrying a hash is refused at parse, and that a first seed ahead of the
+      a `Reject` stating no position, or one past the empty chain, is refused at parse,
+      and that a first seed ahead of the
       chain stores the backfilled entries as no-ops at the copy's position, and that an
       entry at the position's index with another hash is refused at ERROR, unstored;
       `test/core/use_cases/received/test_case_copy_replacement.py` backfills a replaced
@@ -1777,6 +1767,8 @@ groups:
     stories:
     - story_2022_045
     - story_2022_088
+    lint_suppress:
+    - compound_statement  # one empty-chain rule (ADR-0156)
   - id: SYNC-16-008
     priority: SHOULD
     kind: project
@@ -1991,15 +1983,25 @@ groups:
       carry the sender's ledger tail for that case as the activity's `ledgerPosition`: an
       object whose `logIndex` and `entryHash` name the last entry the sender had
       committed, or had stored as a replica, when it built the activity; for an empty
-      ledger, index -1 and the per-case genesis hash. An activity sent before its
-      sender holds the case's ledger, and an activity whose object already states a
-      ledger position (`Announce(CaseLedgerEntry)`, `Announce(VulnerabilityCase)`),
-      MUST NOT carry one.
+      ledger, index -1 and the per-case genesis hash. A `Read(CaseLedgerEntry)` carries
+      it as the position of the entry it names, which is that tail (SYNC-17-001). An
+      activity sent before its sender holds the case's ledger, an activity whose object
+      already states a ledger position (`Announce(CaseLedgerEntry)`,
+      `Announce(VulnerabilityCase)`, `Create(VulnerabilityCase)`,
+      `Update(VulnerabilityCase)`), and a `Create(ProcessingFault)` MUST NOT carry
+      one.
     rationale: >-
       One rule for every sender and message type gives every ledgered act its
       provenance, and a new message type needs no decision about whether it counts. A
       stub-Invite reply or a report `Offer` comes from an actor with no ledger to
-      state; an entry and a case copy already state their own positions. The
+      state; an entry and a case copy already state their own positions, and
+      `Create(VulnerabilityCase)` and `Update(VulnerabilityCase)` are copies too.
+      `Join`, `Ignore`, `Leave` and `Offer` of a case carry it inline but act on it,
+      so they carry the sender's position. A
+      `Create(ProcessingFault)` is about the processing of one activity, not about a
+      case: any receiver sends one, including for an activity it could not parse and
+      so cannot place in any case (ASK-07-001), and it names no case (ASK-07-004); the
+      maintainer decided it is out of scope, the replica faults included (#5109). The
       property is the `ledgerPosition` term a case copy already carries (SYNC-16-005),
       so one fact keeps one wire form.
     relationships:
@@ -2009,12 +2011,16 @@ groups:
     - ADR-0156
     verification: >-
       `test/core/use_cases/received/test_activity_ledger_tail.py` asserts that a
-      participant's `Add(Note)` and a CASE_MANAGER-sent activity built by their
-      factories carry `ledgerPosition`, and that an `Announce(CaseLedgerEntry)` does
-      not.
+      participant's `Add(Note)` and a CASE_MANAGER-sent one, built by each sender's
+      trigger adapter, carry `ledgerPosition`, that one built by an actor that holds no
+      ledger for the case does not, and that an `Announce(CaseLedgerEntry)` does not;
+      `test/wire/as2/factories/test_ledger_position.py` asserts which activities the
+      stamp skips.
     stories:
     - story_2022_045
     - story_2022_088
+    lint_suppress:
+    - compound_statement  # one rule and its exclusions (ADR-0156)
   - id: SYNC-18-002
     priority: MUST
     kind: protocol
@@ -2034,8 +2040,9 @@ groups:
     verification: >-
       `test/core/use_cases/received/test_activity_ledger_tail.py` advances the sender's
       ledger past genesis and asserts the stamped position equals its tail when the
-      activity was built. The resend clause holds through the outbox's sealed-body
-      relay (OX-07-001), which its own tests cover.
+      activity was built, and that rebuilding the activity after the tail moved hands
+      back the body it was first sealed with. The resend clause holds through the
+      outbox's sealed-body relay (OX-07-001), which its own tests cover.
     stories:
     - story_2022_045
   - id: SYNC-18-003
@@ -2045,10 +2052,14 @@ groups:
       A receiver MUST parse `ledgerPosition` as the core `LedgerPosition` at the parse
       edge, and MUST refuse an activity that SYNC-18-001 requires to carry one when
       its `ledgerPosition` is missing or does not parse, naming the activity and writing
-      nothing.
+      nothing. A `Reject(CaseLedgerEntry)` that names an entry and carries no position
+      MUST NOT be refused for it: it comes from a peer that does not hold the case yet,
+      which the CASE_MANAGER seeds and replays from genesis (SYNC-15-002).
     rationale: >-
       Core code then receives a non-optional position (ADR-0032), and every ledgered
-      act carries one.
+      act carries one. A receiver cannot tell from a `Reject(CaseLedgerEntry)` alone
+      whether its sender holds the case, and the peer that does not is the one the
+      replay from genesis exists to repair.
     relationships:
     - rel_type: refines
       spec_id: SYNC-18-001
@@ -2056,10 +2067,15 @@ groups:
     - ADR-0156
     verification: >-
       `test/core/use_cases/received/test_activity_ledger_tail.py` delivers an
-      unstamped `Add(Note)` and asserts it is refused with a reason naming the
-      activity, and that no ledger entry is written.
+      unstamped `Add(Note)` and one whose `ledgerPosition` does not parse, and asserts
+      each is refused with a reason naming the activity, and that no ledger entry is
+      written; `test/wire/as2/test_ledger_position_scope.py` asserts that every
+      received event class either requires the position or is listed out of scope
+      with its reason.
     stories:
     - story_2022_045
+    lint_suppress:
+    - compound_statement  # one parse-edge rule (ADR-0156)
   - id: SYNC-18-004
     priority: MUST_NOT
     kind: protocol

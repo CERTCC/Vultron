@@ -24,7 +24,11 @@ from pydantic import model_validator
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType
-from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.core.models.events.base import (
+    LedgerPositionedEvent,
+    MessageSemantics,
+    VultronEvent,
+)
 
 
 class CreateProcessingFaultReceivedEvent(VultronEvent):
@@ -54,7 +58,7 @@ class CreateProcessingFaultReceivedEvent(VultronEvent):
         return self.object_id
 
 
-class RefusalNoticeReceivedEvent(VultronEvent):
+class RefusalNoticeReceivedEvent(LedgerPositionedEvent):
     """A participant received a ``Reject`` of an activity it sent.
 
     The CASE_MANAGER's refusal notice (CLP-05-001, ADR-0141): the refused

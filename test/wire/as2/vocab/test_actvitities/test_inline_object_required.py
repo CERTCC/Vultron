@@ -197,8 +197,10 @@ _GENERIC_TRANSITIVE_CLASSES = (
 
 
 @pytest.mark.spec("MV-09-001")
-@pytest.mark.spec("RF-02-004")
-@pytest.mark.spec("RF-02-005")
+@pytest.mark.spec("RF-02-006")
+@pytest.mark.spec("RF-02-007")
+@pytest.mark.spec("RF-03-004")
+@pytest.mark.spec("RF-04-004")
 class TestBareStringObjectRejected(unittest.TestCase):
     """Bare string IDs must be rejected at construction time (INLINE-OBJ-B)."""
 
@@ -275,7 +277,7 @@ class TestInlineTypedObjectAccepted(unittest.TestCase):
         )
         assert isinstance(obj.object_, _RecommendActorActivity)
 
-    @pytest.mark.spec("RF-02-003")
+    @pytest.mark.spec("RF-02-004")
     def test_accept_case_ownership_transfer_accepts_typed(self):
         obj = _AcceptCaseOwnershipTransferActivity(
             actor=_ACTOR.id_, object_=_OFFER_TRANSFER
@@ -324,7 +326,7 @@ class TestInlineTypedObjectAccepted(unittest.TestCase):
         obj = _EmUndoEmbargoInviteActivity(actor=_ACTOR.id_, object_=_PROPOSE)
         assert isinstance(obj.object_, _EmProposeEmbargoActivity)
 
-    @pytest.mark.spec("RF-02-003")
+    @pytest.mark.spec("RF-02-004")
     def test_rm_validate_report_accepts_typed(self):
         obj = _RmValidateReportActivity(actor=_ACTOR.id_, object_=_SUBMIT)
         assert isinstance(obj.object_, _RmSubmitReportActivity)
@@ -629,7 +631,6 @@ if __name__ == "__main__":
 
 @pytest.mark.spec("RF-02-004")
 @pytest.mark.spec("RF-02-005")
-@pytest.mark.spec("RF-02-003")
 @pytest.mark.parametrize(
     ("accept_cls", "offered_object"),
     [

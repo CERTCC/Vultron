@@ -20,8 +20,6 @@ mismatches back to the CaseActor, and :class:`_ReadLogEntryActivity` used by
 participants to state their ledger position (SYNC-17-001).
 """
 
-from typing import Any
-
 from pydantic import Field
 
 from vultron.core.models.ledger_position import LedgerPosition
@@ -60,29 +58,23 @@ class _RejectLogEntryActivity(as_Reject):
     ``Announce(as_CaseLedgerEntry)``'s ``prev_log_hash`` does not match the
     participant's local tail hash.
 
-    The ``context`` field (inherited from ``as_Object``) carries the
-    last applied entry hash as a plain string so the CaseActor can
-    determine which entries need to be replayed (SYNC-03-001).
+    The sender's ledger tail, which tells the CaseActor which entries to
+    replay (SYNC-03-002), is the activity's ``ledgerPosition``, as on every
+    case activity (SYNC-18-001); ``context`` names the case.  A sender that
+    does not hold the case yet holds no ledger and states no position.
 
     object_: :class:`~vultron.wire.as2.vocab.objects.case_ledger_entry.as_CaseLedgerEntry`
         the receiver could not apply, or absent when the receiver holds no
-        entry and asks for a replay from genesis.  Then ``context`` is empty
-        and ``target`` names the case (SYNC-16-007).
-    context: Last applied entry hash string.
+        entry and asks for a replay from genesis.  Then ``ledgerPosition``
+        is at index -1 and ``target`` names the case (SYNC-16-007).
 
-    Spec: SYNC-03-001, SYNC-03-002, SYNC-16-007.
+    Spec: SYNC-03-001, SYNC-03-002, SYNC-16-007, SYNC-18-001.
     """
 
     object_: as_CaseLedgerEntry | None = Field(  # type: ignore[assignment]
         default=None,
         validation_alias="object",
         serialization_alias="object",
-    )
-
-    # context carries the last_accepted_hash as a plain string and is
-    # inherited from as_Object as ``context: Any | None = None``.
-    context: Any = Field(  # type: ignore[assignment]
-        default=None,
     )
 
 

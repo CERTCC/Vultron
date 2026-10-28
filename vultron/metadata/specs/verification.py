@@ -33,6 +33,15 @@ The owner table holds issue references only, never counts, so nothing in it
 moves when a requirement is verified. ``spec-lint`` prints one summary line
 per kind computed from the markers (MS-10-005).
 
+The per-item rule cannot by itself stop a new unverified MUST from arriving
+with a marker on it. The PR-only growth guard
+(``test/architecture/test_verification_debt_guard.py``, MS-10-016) does: it
+compares :func:`verification_debt_items` at the merge base with the working
+tree and fails on any marker the branch added. An item is a requirement's ID
+with its marker, so a marker re-pointed at another issue — a relabel that swaps
+in the destination kind's owner (MS-10-008) — is an addition too, while a
+removed marker, or one that moves with its requirement to another file, is not.
+
 An owner is checked against GitHub at two points, both in
 ``.github/workflows/verification-debt-owners.yml`` (MS-10-006):
 
@@ -52,7 +61,7 @@ Runnable locally::
     spec-lint --check-closing-pr 123  # plus the closing-PR check (needs gh)
 
 Requirements: specs/meta-specifications.yaml MS-10-003, MS-10-005 through
-MS-10-008; specs/architecture.yaml ARCH-18-004.
+MS-10-008, MS-10-016; specs/architecture.yaml ARCH-18-004.
 """
 
 from __future__ import annotations
@@ -60,11 +69,12 @@ from __future__ import annotations
 import json
 import subprocess
 from collections import Counter
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 from types import MappingProxyType
 
-from vultron.metadata.specs.registry import SpecRegistry
+from vultron.metadata.specs.registry import SpecRegistry, load_registry
 from vultron.metadata.specs.schema import (
     RFC2119Priority,
     SpecKind,
@@ -76,7 +86,8 @@ from vultron.metadata.specs.schema import (
 #: warns; the PR that closes the owner issue fails until it is removed), and
 #: the kind's entry with its last owner; from then on any marker of that kind is a hard
 #: error (MS-10-007). Never add an owner to admit new debt — the growth guard
-#: (#4200) rejects a PR that adds a marker.
+#: (``test/architecture/test_verification_debt_guard.py``, MS-10-016) rejects
+#: a PR that adds a marker.
 VERIFICATION_DEBT_OWNERS: Mapping[SpecKind, frozenset[str]] = MappingProxyType(
     {
         SpecKind.PROTOCOL: frozenset({"#3612"}),
@@ -129,17 +140,46 @@ class DebtReport:
         return Counter(self.markers.values())
 
 
+def marked_specs(
+    registry: SpecRegistry,
+) -> Iterator[tuple[str, StatementSpec, str]]:
+    """Each ``(spec_id, spec, marker)`` that carries a marker, in ID order."""
+    for spec_id in sorted(registry.all_specs):
+        spec = registry.all_specs[spec_id]
+        if spec.verification_debt:
+            yield spec_id, spec, spec.verification_debt
+
+
 def debt_by_kind(registry: SpecRegistry) -> dict[SpecKind, DebtReport]:
     """Group every ``verification_debt`` marker by its item's kind.
 
     Every kind gets a report, so a caller can tell "zero" from "not counted".
     """
     reports = {kind: DebtReport(kind) for kind in SpecKind}
-    for spec_id in sorted(registry.all_specs):
-        spec = registry.all_specs[spec_id]
-        if spec.verification_debt:
-            reports[spec.kind].markers[spec_id] = spec.verification_debt
+    for spec_id, spec, marker in marked_specs(registry):
+        reports[spec.kind].markers[spec_id] = marker
     return reports
+
+
+def debt_marker_items(registry: SpecRegistry) -> frozenset[str]:
+    """Each marked requirement in *registry* as ``ID verification_debt: '#N'``.
+
+    The marker is part of the item, so changing the issue a marker names
+    reads as a new item, not as the old one kept.
+    """
+    return frozenset(
+        f"{spec_id} verification_debt: '{marker}'"
+        for spec_id, _spec, marker in marked_specs(registry)
+    )
+
+
+def verification_debt_items(repo_root: Path) -> frozenset[str]:
+    """:func:`debt_marker_items` for ``specs/`` under *repo_root*.
+
+    The per-item extractor behind the MS-10-016 growth guard
+    (:func:`vultron.metadata.specs.growth_guard.added_since_base`).
+    """
+    return debt_marker_items(load_registry(repo_root / "specs"))
 
 
 def verification_problems(
@@ -277,11 +317,7 @@ def debt_owner_refs(
 ) -> set[str]:
     """Every issue a marker or an owner-table entry names."""
     refs = {ref for kind_owners in owners.values() for ref in kind_owners}
-    refs.update(
-        spec.verification_debt
-        for spec in registry.all_specs.values()
-        if spec.verification_debt
-    )
+    refs.update(marker for _id, _spec, marker in marked_specs(registry))
     return refs
 
 
@@ -397,11 +433,7 @@ def closing_pr_problems(
     no marker names it and it is gone from the owner table — so the backfill
     PR that finishes an owner's work also removes the entry (MS-10-007).
     """
-    marked = Counter(
-        spec.verification_debt
-        for spec in registry.all_specs.values()
-        if spec.verification_debt
-    )
+    marked = Counter(marker for _id, _spec, marker in marked_specs(registry))
     tabled = {ref for kind_owners in owners.values() for ref in kind_owners}
     errors: list[str] = []
     for ref in sorted(set(closing), key=issue_number):

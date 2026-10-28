@@ -23,7 +23,7 @@ import anyio
 import pytest
 
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
-from test.support.received import delivered, received_event
+from test.support.received import delivered, peer_position, received_event
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi.inbox_handler import (
     handle_inbox_item,
@@ -342,7 +342,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
             received_event(
                 reject_log_entry_activity(
                     entry=wire_entry2,
-                    context=entry0.entry_hash,
+                    ledger_position=peer_position(entry0.entry_hash),
                     actor=peer_actor_id,
                     to=[case_actor_id],
                 )

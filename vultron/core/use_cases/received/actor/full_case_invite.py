@@ -98,7 +98,7 @@ class InviteActorToFullCaseReceivedUseCase:
             case_id=case_id,
             invitee_id=invitee_id,
             inviter_id=request.actor_id,
-            floor=request.ledger_tail,
+            floor=request.ledger_position,
             sender_rule=self.sender_entitlement,
         )
         result = BTBridge(
@@ -154,7 +154,7 @@ class _FullCaseInviteReplyReceivedUseCase:
             case_id=request.case_id,
             invite_id=request.invite_id,
             replier_id=request.actor_id,
-            position=request.ledger_tail,
+            position=request.ledger_position,
             rm_state=self.rm_state,
             sender_rule=self.sender_entitlement,
         )

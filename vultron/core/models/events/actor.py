@@ -11,8 +11,11 @@ from pydantic import field_validator
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_stub import stub_case_id
-from vultron.core.models.events.base import MessageSemantics, VultronEvent
-from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.events.base import (
+    LedgerPositionedEvent,
+    MessageSemantics,
+    VultronEvent,
+)
 from vultron.primitives import normalise_actor_id
 
 if TYPE_CHECKING:
@@ -23,7 +26,7 @@ else:
     VulnerabilityCase = object
 
 
-class OfferActorToCaseReceivedEvent(VultronEvent):
+class OfferActorToCaseReceivedEvent(LedgerPositionedEvent):
     """CaseActor received Offer(Actor, Case) from a recommending participant.
 
     Routed to the CaseActor inbox per ADR-0026/CM-16-001.
@@ -35,7 +38,7 @@ class OfferActorToCaseReceivedEvent(VultronEvent):
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
-class OfferCaseParticipantRoleReceivedEvent(VultronEvent):
+class OfferCaseParticipantRoleReceivedEvent(LedgerPositionedEvent):
     """Actor offered a CVDRole to a target Actor in a VulnerabilityCase context.
 
     Canonical ADR-0039 role-delegation wire format:
@@ -50,7 +53,7 @@ class OfferCaseParticipantRoleReceivedEvent(VultronEvent):
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
-class AcceptCaseParticipantRoleReceivedEvent(VultronEvent):
+class AcceptCaseParticipantRoleReceivedEvent(LedgerPositionedEvent):
     """The CASE_MANAGER received Accept(Offer(CaseParticipantRole, ...)).
 
     The ADR-0039 canonical role-delegation acceptance: the target of the
@@ -71,7 +74,7 @@ class AcceptCaseParticipantRoleReceivedEvent(VultronEvent):
         return cast("VultronActivity | None", self.object_)
 
 
-class RejectCaseParticipantRoleReceivedEvent(VultronEvent):
+class RejectCaseParticipantRoleReceivedEvent(LedgerPositionedEvent):
     """The CASE_MANAGER received Reject(Offer(CaseParticipantRole, ...)).
 
     The ADR-0039 canonical role-delegation rejection: the target of the
@@ -105,7 +108,7 @@ def _deadline_in_utc(v: datetime | None, field: str) -> datetime | None:
     return v.astimezone(UTC)
 
 
-class ProposeCaseOwnershipTransferReceivedEvent(VultronEvent):
+class ProposeCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
     """The Case Owner proposed an ownership transfer to the CASE_MANAGER.
 
     ``Offer(Offer(VulnerabilityCase))`` with the case as its ``context``
@@ -146,7 +149,7 @@ class ProposeCaseOwnershipTransferReceivedEvent(VultronEvent):
         return self.inner_target_id
 
 
-class OfferCaseOwnershipTransferReceivedEvent(VultronEvent):
+class OfferCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
     """The CASE_MANAGER offered ownership of a VulnerabilityCase to an actor.
 
     The one ``Offer(VulnerabilityCase)`` of a transfer, which the
@@ -171,7 +174,7 @@ class OfferCaseOwnershipTransferReceivedEvent(VultronEvent):
         return _deadline_in_utc(v, "answer_deadline")
 
 
-class AcceptCaseOwnershipTransferReceivedEvent(VultronEvent):
+class AcceptCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
     """Actor accepted an offer to take ownership of a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER] = (
@@ -187,7 +190,7 @@ class AcceptCaseOwnershipTransferReceivedEvent(VultronEvent):
         return cast("VulnerabilityCase | None", self.inner_object)
 
 
-class RejectCaseOwnershipTransferReceivedEvent(VultronEvent):
+class RejectCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
     """Actor rejected an offer to take ownership of a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER] = (
@@ -208,7 +211,7 @@ class RejectCaseOwnershipTransferReceivedEvent(VultronEvent):
         return self.inner_object_id
 
 
-class UndoCaseOwnershipTransferReceivedEvent(VultronEvent):
+class UndoCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
     """The Case Owner withdrew its ownership-transfer proposal.
 
     ``Undo(Offer(Offer(VulnerabilityCase)))``, sent by the Case Owner that
@@ -253,7 +256,7 @@ class UndoCaseOwnershipTransferReceivedEvent(VultronEvent):
         return normalise_actor_id(actor_id) if actor_id else self.actor_id
 
 
-class InviteActorToCaseReceivedEvent(VultronEvent):
+class InviteActorToCaseReceivedEvent(LedgerPositionedEvent):
     """Actor invited another actor to join a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.INVITE_ACTOR_TO_CASE] = (
@@ -316,22 +319,20 @@ class RejectInviteActorToCaseReceivedEvent(VultronEvent):
         return stub_case_id(self.inner_target)
 
 
-class InviteActorToFullCaseReceivedEvent(VultronEvent):
+class InviteActorToFullCaseReceivedEvent(LedgerPositionedEvent):
     """The CASE_MANAGER invited a joined participant to judge the case.
 
     ``Invite(Actor)[target=VulnerabilityCase]`` — the full-case Invite
     (CM-11-010, VAM-04-011).  The invitee already holds the case from the
-    Announce, so the Invite names it by ID; ``ledger_tail`` is the
+    Announce, so the Invite names it by ID; ``ledger_position`` is the
     CASE_MANAGER's ledger tail when it issued the Invite, the floor the
-    invitee's reply must reach.  The extractor parsed it from the Invite's
-    ``content`` at the edge (ADR-0032).
+    invitee's reply must reach (SYNC-18-001).
     """
 
     semantic_type: Literal[MessageSemantics.INVITE_ACTOR_TO_FULL_CASE] = (
         MessageSemantics.INVITE_ACTOR_TO_FULL_CASE
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
-    ledger_tail: LedgerPosition
 
     @property
     def case_id(self) -> str | None:
@@ -342,17 +343,15 @@ class InviteActorToFullCaseReceivedEvent(VultronEvent):
         return self.object_id
 
 
-class _FullCaseInviteReplyEvent(VultronEvent):
+class _FullCaseInviteReplyEvent(LedgerPositionedEvent):
     """Shared shape of the three replies to the full-case Invite (CM-11-011).
 
     The reply's ``object`` is the Invite, so the case and the invited actor
-    are the Invite's ``target`` and ``object``.  ``ledger_tail`` is the
-    replier's own ledger position when it decided, parsed from the reply's
-    ``content`` at the edge (ADR-0032).
+    are the Invite's ``target`` and ``object``.  ``ledger_position`` is the
+    replier's own ledger position when it decided (CM-11-011, SYNC-18-001).
     """
 
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
-    ledger_tail: LedgerPosition
 
     @property
     def invite_id(self) -> str | None:
@@ -402,7 +401,7 @@ class AnnounceVulnerabilityCaseReceivedEvent(VultronEvent):
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
-class OfferCaseParticipantReceivedEvent(VultronEvent):
+class OfferCaseParticipantReceivedEvent(LedgerPositionedEvent):
     """Case Owner received Offer(CaseParticipant) from the CaseActor.
 
     Sent by the CaseActor to the Case Owner's inbox after transforming
@@ -416,7 +415,7 @@ class OfferCaseParticipantReceivedEvent(VultronEvent):
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
-class AcceptOfferCaseParticipantReceivedEvent(VultronEvent):
+class AcceptOfferCaseParticipantReceivedEvent(LedgerPositionedEvent):
     """CaseActor received Accept(Offer(CaseParticipant)) from the Case Owner.
 
     The Case Owner's decision on a suggested actor (CM-16-006, ADR-0026).
@@ -430,7 +429,7 @@ class AcceptOfferCaseParticipantReceivedEvent(VultronEvent):
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
-class RejectOfferCaseParticipantReceivedEvent(VultronEvent):
+class RejectOfferCaseParticipantReceivedEvent(LedgerPositionedEvent):
     """CaseActor received Reject(Offer(CaseParticipant)) from the Case Owner.
 
     The Case Owner's decision on a suggested actor (CM-16-007, ADR-0026).
@@ -444,7 +443,7 @@ class RejectOfferCaseParticipantReceivedEvent(VultronEvent):
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
-class AcceptActorRecommendationReceivedEvent(VultronEvent):
+class AcceptActorRecommendationReceivedEvent(LedgerPositionedEvent):
     """A recommender received the CASE_MANAGER's Accept(Offer(Actor, Case)).
 
     The CASE_MANAGER's answer to a suggestion, sent once the Case Owner has
@@ -458,7 +457,7 @@ class AcceptActorRecommendationReceivedEvent(VultronEvent):
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
-class RejectActorRecommendationReceivedEvent(VultronEvent):
+class RejectActorRecommendationReceivedEvent(LedgerPositionedEvent):
     """A recommender received the CASE_MANAGER's Reject(Offer(Actor, Case)).
 
     The CASE_MANAGER's answer to a suggestion the Case Owner declined

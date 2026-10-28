@@ -18,7 +18,11 @@ from typing import Any
 
 import pytest
 
-from test.support.received import archive_delivered, hold_deferred
+from test.support.received import (
+    archive_delivered,
+    delivered_body,
+    hold_deferred,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.received_archive import (
     load_received_view,
@@ -53,9 +57,7 @@ def _add(note_id: str = "https://example.org/notes/n-1"):
 
 
 def _body(activity: Any) -> dict[str, Any]:
-    body: dict[str, Any] = activity.model_dump(
-        mode="json", by_alias=True, exclude_none=True, serialize_as_any=True
-    )
+    body: dict[str, Any] = delivered_body(activity)
     return body
 
 

@@ -27,7 +27,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
-from test.support.received import with_evidence
+from test.support.received import TEST_SENDER_POSITION, with_evidence
 from test.support.transferee import (
     INACTIVE_STANDINGS,
     TransfereeStanding,
@@ -134,7 +134,10 @@ def _proposal_event() -> ProposeCaseOwnershipTransferReceivedEvent:
     )
     return with_evidence(
         ProposeCaseOwnershipTransferReceivedEvent(
-            activity_id=PROPOSAL_ID, actor_id=VENDOR_ID, activity=activity
+            ledger_position=TEST_SENDER_POSITION,
+            activity_id=PROPOSAL_ID,
+            actor_id=VENDOR_ID,
+            activity=activity,
         )
     )
 

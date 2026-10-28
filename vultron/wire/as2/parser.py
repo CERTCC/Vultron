@@ -101,6 +101,14 @@ def _expand_inline_object(body: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _named(body: dict[str, Any]) -> str:
+    """``"activity '<id>': "`` for a body that names its id, else ``""``."""
+    activity_id = body.get("id")
+    if isinstance(activity_id, str) and activity_id.strip():
+        return f"activity {activity_id!r}: "
+    return ""
+
+
 def parse_activity(body: dict[str, Any]) -> as_Activity:
     """Parse a raw dict into a typed as_Activity object.
 
@@ -228,7 +236,9 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         # the nested type that failed; re-wrapping would bury it.
         raise
     except Exception as exc:
-        raise VultronParseValidationError(str(exc)) from exc
+        # Named, so a refusal of a field such as ``ledgerPosition`` says which
+        # activity it refused (SYNC-18-003).
+        raise VultronParseValidationError(f"{_named(body)}{exc}") from exc
 
     # A schema-valid envelope can still be one this receiver cannot act on;
     # the Create(CaseProposal) checks are the CP-01-010 refusals.

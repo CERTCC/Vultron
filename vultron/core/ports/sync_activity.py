@@ -52,13 +52,15 @@ class SyncActivityPort(Protocol):
     ) -> None:
         """Build and queue a ``Reject(CaseLedgerEntry)`` activity.
 
-        Called when a received log entry has a hash-chain mismatch.
-        The reject carries *tail_hash* as context so the CaseActor
-        knows the receiver's last applied hash (SYNC-03-001).
+        Called when a received log entry has a hash-chain mismatch.  The
+        reject states the receiver's ledger tail as its ``ledgerPosition``,
+        so the CaseActor knows the last entry it applied (SYNC-03-002,
+        SYNC-18-001); a receiver that holds no case yet states none.
 
         Args:
             entry: The domain log entry being rejected.
-            tail_hash: The receiver's current chain tail hash.
+            tail_hash: The receiver's current chain tail hash, which keys the
+                reject's derived id (ID-04-004).
             actor_id: URI of the actor sending the rejection.
             to: List of recipient actor URIs (typically the CaseActor).
         """
@@ -75,8 +77,9 @@ class SyncActivityPort(Protocol):
 
         Called by a replica whose case was replaced by a copy ahead of its
         chain while its chain stores no entry: there is no entry to name, so
-        the Reject carries an empty last-accepted hash and names the case as
-        its ``target``, asking for a replay from genesis (SYNC-16-007).
+        the Reject states the empty chain's position (index -1, SYNC-18-001)
+        and names the case as its ``target``, asking for a replay from
+        genesis (SYNC-16-007).
 
         Args:
             case_id: The case to replay.

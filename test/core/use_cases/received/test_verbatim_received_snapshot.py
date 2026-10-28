@@ -21,18 +21,17 @@ replica receiving the entry holds what the sender sent.
 """
 
 import copy
-import json
 from typing import Any, cast
 
 import pytest
 
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import run_use_case
+from test.support.received import delivered_body
 from vultron.adapters.driving.fastapi.inbox_handler import prepare_for_dispatch
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
 )
-from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.wire.as2.factories import (
@@ -60,7 +59,7 @@ def _add_note_body(note_id: str, **extra: Any) -> dict[str, Any]:
         actor=OWNER,
         to=[MANAGER],
     )
-    return {**json.loads(dump_outbound_body(activity)), **extra}
+    return {**delivered_body(activity), **extra}
 
 
 def _deliver(net: LedgerNetwork, body: dict[str, Any]) -> Any:
@@ -215,12 +214,8 @@ def test_a_resend_of_an_archived_activity_adds_no_entry():
     commit finds the activity already recorded as the same semantic.
     """
     net = LedgerNetwork(CASE_ID)
-    body = json.loads(
-        dump_outbound_body(
-            rm_engage_case_activity(
-                net.case(MANAGER), actor=OWNER, to=[MANAGER]
-            )
-        )
+    body = delivered_body(
+        rm_engage_case_activity(net.case(MANAGER), actor=OWNER, to=[MANAGER])
     )
     dl = net.stores[MANAGER]
 
@@ -251,12 +246,8 @@ def test_a_resend_whose_first_delivery_was_never_recorded_is_refused():
     not reported as an internal error.
     """
     net = LedgerNetwork(CASE_ID)
-    body = json.loads(
-        dump_outbound_body(
-            rm_engage_case_activity(
-                net.case(MANAGER), actor=OWNER, to=[MANAGER]
-            )
-        )
+    body = delivered_body(
+        rm_engage_case_activity(net.case(MANAGER), actor=OWNER, to=[MANAGER])
     )
     dl = net.stores[MANAGER]
     before = [e.id_ for e in ledger_entries(dl, CASE_ID)]

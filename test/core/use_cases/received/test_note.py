@@ -23,7 +23,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.received import received_event
+from test.support.received import delivered_body, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -227,9 +227,7 @@ class TestNoteUseCases:
             to=[dl.actor_id],
         )
         ingress = FastAPIIngressAdapter(dl)
-        parsed = ingress.parse(
-            activity.model_dump(by_alias=True, mode="json", exclude_none=True)
-        )
+        parsed = ingress.parse(delivered_body(activity))
         assert parsed is not None
         event = received_event(ingress.rehydrate(parsed)).model_copy(
             update={"receiving_actor_id": case_actor_id}
@@ -372,9 +370,7 @@ class TestNoteUseCases:
             to=[dl.actor_id],
         )
         ingress = FastAPIIngressAdapter(dl)
-        parsed = ingress.parse(
-            activity.model_dump(by_alias=True, mode="json", exclude_none=True)
-        )
+        parsed = ingress.parse(delivered_body(activity))
         assert parsed is not None
         event = received_event(ingress.rehydrate(parsed)).model_copy(
             update={"receiving_actor_id": case_actor_id}

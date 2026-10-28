@@ -6,7 +6,11 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.received import assert_held_only_as_received, with_evidence
+from test.support.received import (
+    assert_held_only_as_received,
+    stamped,
+    with_evidence,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi import inbox_handler as ih
@@ -973,7 +977,7 @@ def test_prepare_for_dispatch_applies_configured_rsvp_window(monkeypatch):
         published=published,
     )
 
-    event = ih.prepare_for_dispatch(invite)
+    event = ih.prepare_for_dispatch(stamped(invite))
 
     assert isinstance(event, InviteToEmbargoOnCaseReceivedEvent)
     assert event.rsvp_deadline == published + timedelta(days=14)

@@ -10,13 +10,12 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The full-case Invite: emission order, position content, and the floor check.
+"""The full-case Invite: emission order, its ledger position, and the floor check.
 
 Builds on the ``joining_case`` fixture (CM-11-006 state) of
 ``test_case_joining_replies``; see ``notes/case-joining.md``.
 """
 
-import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -31,6 +30,7 @@ from test.core.use_cases.received.actor.test_case_joining_replies import (  # no
 )
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.actor import (
     InviteActorToFullCaseReceivedEvent,
 )
@@ -49,11 +49,11 @@ from vultron.errors import VultronWiringError  # noqa: F401
 from vultron.semantic_registry import find_matching_semantics
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import (
-    ledger_position_content,
+    rm_accept_full_case_invite_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_full_case_activity,
 )
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Accept
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -130,10 +130,11 @@ def test_a_resumed_join_does_not_send_a_second_full_case_invite(
 
 
 @pytest.mark.spec("CM-11-011")
-def test_full_case_invite_and_reply_carry_the_position_json_in_content() -> (
+@pytest.mark.spec("SYNC-18-001")
+def test_full_case_invite_carries_the_position_as_its_ledger_position() -> (
     None
 ):
-    """``content`` is the ``LedgerPosition`` model's own wire-alias JSON dump."""
+    """The floor is the Invite's ``ledgerPosition``, not its ``content``."""
     position = LedgerPosition(log_index=3, entry_hash=_HASH)
     invite = rm_invite_to_full_case_activity(
         as_Organization(id_="https://example.org/actors/a"),
@@ -142,15 +143,12 @@ def test_full_case_invite_and_reply_carry_the_position_json_in_content() -> (
         actor="https://example.org/actors/m",
     )
 
-    content = invite.content
-    assert isinstance(content, str)
+    assert invite.content is None
     assert invite.target == "https://example.org/cases/c"
-    assert json.loads(content) == {"logIndex": 3, "entryHash": _HASH}
-    assert content == ledger_position_content(position)
-    assert LedgerPosition.model_validate_json(content) == position
+    assert invite.ledger_position == position
     event = received_event(invite)
     assert isinstance(event, InviteActorToFullCaseReceivedEvent)
-    assert event.ledger_tail == position
+    assert event.ledger_position == position
 
 
 @pytest.mark.spec("CM-11-012")
@@ -296,7 +294,7 @@ def test_a_reply_is_recorded_in_the_ledger_with_its_position(
     ]
     assert len(recorded) == 1
     assert (
-        json.loads(recorded[0].payload_snapshot["content"])["logIndex"]
+        recorded[0].payload_snapshot["ledgerPosition"]["logIndex"]
         == tail.log_index
     )
 
@@ -319,19 +317,23 @@ def test_replies_to_the_full_case_invite_are_distinct_semantics(
 
 
 @pytest.mark.spec("VAM-04-012")
-@pytest.mark.spec("VAM-04-019")
-def test_a_reply_with_unparseable_content_is_refused_at_the_edge(
+@pytest.mark.spec("SYNC-18-003")
+def test_a_reply_with_an_unparseable_position_is_refused_at_the_edge(
     joining_case,  # noqa: F811
 ) -> None:
     tail = _ledger_tail(joining_case)[-1]
     invite = _full_case_invite_at(
         joining_case, log_index=tail.log_index, entry_hash=tail.entry_hash
     )
-    reply = as_Accept(
-        actor=joining_case.invitee_id, object_=invite, content="{}"
+    body = rm_accept_full_case_invite_activity(
+        invite,
+        LedgerPosition(log_index=tail.log_index, entry_hash=tail.entry_hash),
+        actor=joining_case.invitee_id,
+    ).model_dump(
+        mode="json", by_alias=True, exclude_none=True, serialize_as_any=True
     )
-    with pytest.raises(VultronParseValidationError, match="unparseable"):
-        received_event(reply)
+    with pytest.raises(VultronParseValidationError, match="ledgerPosition"):
+        parse_activity({**body, "ledgerPosition": {}})
 
 
 @pytest.mark.spec("RSH-06-006")
@@ -426,18 +428,25 @@ def test_a_regression_reply_is_refused_before_receipt(
 
 
 @pytest.mark.spec("CM-11-010")
-def test_stored_invite_floor_is_none_for_unparseable_content() -> None:
+def test_stored_invite_floor_is_the_invites_ledger_position() -> None:
     from vultron.core.behaviors.case.nodes.full_case_invite import (
         stored_invite_floor,
     )
+    from vultron.core.models.received_activity_view import (
+        ReceivedActivityView,
+    )
 
     good = LedgerPosition(log_index=2, entry_hash=_HASH)
-    assert (
-        stored_invite_floor(MagicMock(content=ledger_position_content(good)))
-        == good
+    held = ReceivedActivityView(
+        VultronActivity(
+            id_="https://example.org/invitations/held",
+            type_="Invite",
+            actor="https://example.org/actors/m",
+            ledger_position=good,
+        )
     )
-    for content in ("{}", "not json", "", "  ", None):
-        assert stored_invite_floor(MagicMock(content=content)) is None
+    assert stored_invite_floor(held) == good
+    assert stored_invite_floor(MagicMock(ledger_position=None)) is None
 
 
 @pytest.mark.spec("CM-11-010")

@@ -27,10 +27,10 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
+from test.support.received import extract_stamped
 from vultron.core.models.actor import CoreActor, VultronOrganization
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.ledger_position import LedgerPosition
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     offer_case_ownership_transfer_activity,
     recommend_actor_activity,
@@ -191,7 +191,7 @@ def test_the_activity_dispatches_to_the_same_semantic(
         mode="json", by_alias=True, exclude_none=True
     )
 
-    event = extract_event(parse_activity(body))
+    event = extract_stamped(parse_activity(body))
 
     assert event.semantic_type is _SEMANTICS[name]
 

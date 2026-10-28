@@ -12,8 +12,8 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Factories for the full-case Invite and its replies (VAM-04-011..014, AF-02-003).
 
-The ledger position travels in ``content`` as the ``LedgerPosition`` model's
-own JSON dump, and only the factories produce that string (VAM-04-019).
+The ledger position travels as the activity's ``ledgerPosition``, the
+property every case activity states (SYNC-18-001), not in ``content``.
 """
 
 import json
@@ -48,8 +48,8 @@ def _invite():
 
 
 @pytest.mark.spec("VAM-04-011")
-@pytest.mark.spec("VAM-04-019")
-def test_invite_targets_the_plain_case_uri_and_carries_the_floor_in_content():
+@pytest.mark.spec("SYNC-18-001")
+def test_invite_targets_the_plain_case_uri_and_carries_the_floor_as_position():
     invite = _invite()
 
     dumped = json.loads(
@@ -57,16 +57,18 @@ def test_invite_targets_the_plain_case_uri_and_carries_the_floor_in_content():
     )
     assert dumped["target"] == _CASE
     assert dumped["context"] == _CASE
-    assert json.loads(dumped["content"]) == {
+    assert dumped["ledgerPosition"] == {
         "logIndex": 2,
         "entryHash": "cd" * 32,
     }
+    assert "content" not in dumped
     assert "ledgerTail" not in dumped
 
 
 @pytest.mark.spec("VAM-04-012")
 @pytest.mark.spec("VAM-04-013")
 @pytest.mark.spec("VAM-04-014")
+@pytest.mark.spec("SYNC-18-001")
 @pytest.mark.parametrize(
     ("build", "kind"),
     [
@@ -75,7 +77,7 @@ def test_invite_targets_the_plain_case_uri_and_carries_the_floor_in_content():
         (rm_reject_full_case_invite_activity, "Reject"),
     ],
 )
-def test_replies_carry_the_repliers_position_in_content(build, kind):
+def test_replies_carry_the_repliers_position_as_position(build, kind):
     invite = _invite()
 
     reply = build(invite, _OWN, actor=_INVITEE)
@@ -85,7 +87,8 @@ def test_replies_carry_the_repliers_position_in_content(build, kind):
     )
     assert dumped["type"] == kind
     assert dumped["inReplyTo"] == invite.id_
-    assert LedgerPosition.model_validate_json(dumped["content"]) == _OWN
+    assert LedgerPosition.model_validate(dumped["ledgerPosition"]) == _OWN
+    assert "content" not in dumped
     assert "ledgerTail" not in dumped
 
 

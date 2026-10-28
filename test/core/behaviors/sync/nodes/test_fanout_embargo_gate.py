@@ -30,7 +30,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     CASE_ID,
     _make_entry,
 )
-from test.support.received import received_event
+from test.support.received import peer_position, received_event
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.nodes import (
     CollectEmbargoInviteRecipientsNode,
@@ -319,7 +319,6 @@ def test_genesis_reject_from_non_signatory_seeds_no_case(datalayer) -> None:
         entry=WireCaseLedgerEntry.model_validate(
             entry.model_dump(mode="json")
         ),
-        context="",
         actor=NON_SIGNATORY_ID,
         to=[MANAGER_ID],
     )
@@ -360,7 +359,6 @@ def test_genesis_pre_seed_itself_withholds_case_from_non_signatory(
         entry=WireCaseLedgerEntry.model_validate(
             entry.model_dump(mode="json")
         ),
-        context="",
         actor=NON_SIGNATORY_ID,
         to=[MANAGER_ID],
     )
@@ -576,7 +574,7 @@ def test_a_closed_peers_reject_is_answered_up_to_its_own_closure(
         entry=WireCaseLedgerEntry.model_validate(
             later.model_dump(mode="json")
         ),
-        context=entries[0].entry_hash,
+        ledger_position=peer_position(entries[0].entry_hash),
         actor=SIGNATORY_ID,
         to=[MANAGER_ID],
     )

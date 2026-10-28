@@ -70,20 +70,6 @@ groups:
     stories:
     - story_2022_048
     - story_2022_054
-  - id: RF-02-003
-    priority: MUST
-    kind: protocol
-    statement: >-
-      Accepting an Offer of an object MUST reference the Offer activity in the `object` field
-      of the Accept response
-    rationale: >-
-      The Offer is the proposal the initiator tracks. Referencing it ties the Accept to
-      that one proposal, even when the same object has been offered more than once.
-    verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
-      `Accept` responses built from an `Offer` carry the full `Offer` activity object in the `object` field.
-    stories:
-    - story_2022_048
-    - story_2022_054
   - id: RF-02-004
     priority: MUST
     kind: protocol
@@ -196,14 +182,19 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Rejecting an Offer of an object MUST reference the Offer activity in the `object` field
-      of the Reject response
+      When rejecting an offered object, the `object` of the `Reject` activity MUST be the
+      Offer activity itself, carried inline or by reference, not the underlying object being
+      offered.
     rationale: >-
       The Offer is the proposal the initiator tracks. Referencing it ties the Reject to
       that one proposal, so the initiator can close it, even when the same object has
-      been offered more than once.
-    verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
-      `Reject` responses built from an `Offer` carry the full `Offer` activity object in the `object` field.
+      been offered more than once. Inline or by reference leaves the form to the
+      implementation (AKM-05-003).
+    verification: >-
+      In `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`,
+      `test_reject_refuses_the_offered_object_in_place_of_the_offer` confirms that a
+      `Reject` given the offered object instead of the Offer raises a validation error, and
+      `TestInlineTypedObjectAccepted` confirms that a `Reject` of the Offer is accepted.
     stories:
     - story_2022_048
     - story_2022_054
@@ -211,16 +202,18 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      When rejecting an offered object, the `object` field of the `Reject` activity MUST reference
-      the Offer activity itself, not the underlying object being offered. The Offer activity
-      MUST be passed as an inline typed object, not as a bare string ID — bare string IDs
-      are rejected at construction time
+      This codebase MUST carry the Offer inline as the `object` of a `Reject`, refusing a
+      bare string ID there at construction time.
     rationale: >-
-      The object is the Offer for the reason given in RF-03-003. Carrying it inline and
-      refusing a bare id at construction lets the receiver read the Offer's type without
-      a dereference, which this codebase does not yet support (AKM-05-003).
+      How this codebase meets RF-03-003; split from it so RF-03-003 states only what
+      other participants observe (MS-12-010). Carrying the Offer inline lets the
+      receiver read the Offer's type without a dereference, a shortcut of this
+      prototype reference implementation rather than a protocol rule (AKM-05-003).
     verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
       passing a bare string ID as the `object` of a `Reject` activity raises a validation error at construction time.
+    relationships:
+    - rel_type: implements
+      spec_id: RF-03-003
 - id: RF-04
   title: TentativeReject Response
   specs:
@@ -253,31 +246,39 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Tentatively Rejecting an Offer of an object MUST reference the Offer activity in the
-      `object` field of the TentativeReject response
+      When tentatively rejecting an offered object, the `object` of the `TentativeReject`
+      activity MUST be the Offer activity itself, carried inline or by reference, not the
+      underlying object being offered.
     rationale: >-
       The Offer is the proposal the initiator tracks. Referencing it ties the
       TentativeReject to that one proposal, even when the same object has been offered
-      more than once.
-    verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
-      `TentativeReject` responses built from an `Offer` carry the full `Offer` activity object in the `object` field.
+      more than once. Inline or by reference leaves the form to the implementation
+      (AKM-05-003).
+    verification: >-
+      In `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`,
+      `test_tentative_reject_refuses_the_offered_object_in_place_of_the_offer` confirms
+      that a `TentativeReject` given the offered object instead of the Offer raises a
+      validation error, and `TestInlineTypedObjectAccepted` confirms that a
+      `TentativeReject` of the Offer is accepted.
     stories:
     - story_2022_014
   - id: RF-04-004
     priority: MUST
     kind: project
     statement: >-
-      When tentatively rejecting an offered object, the `object` field of the `Tentative Reject`
-      activity MUST reference the Offer activity itself, not the underlying object being offered.
-      The Offer activity MUST be passed as an inline typed object, not as a bare string ID
-      — bare string IDs are rejected at construction time
+      This codebase MUST carry the Offer inline as the `object` of a `TentativeReject`,
+      refusing a bare string ID there at construction time.
     rationale: >-
-      The object is the Offer for the reason given in RF-04-003. Carrying it inline and
-      refusing a bare id at construction lets the receiver read the Offer's type without
-      a dereference, which this codebase does not yet support (AKM-05-003).
+      How this codebase meets RF-04-003; split from it so RF-04-003 states only what
+      other participants observe (MS-12-010). Carrying the Offer inline lets the
+      receiver read the Offer's type without a dereference, a shortcut of this
+      prototype reference implementation rather than a protocol rule (AKM-05-003).
     verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
       passing a bare string ID as the `object` of a `TentativeReject` activity raises a validation error at construction
       time.
+    relationships:
+    - rel_type: implements
+      spec_id: RF-04-003
 - id: RF-05
   title: Error Response
   specs:

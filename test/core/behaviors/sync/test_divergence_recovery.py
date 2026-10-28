@@ -66,7 +66,10 @@ from vultron.core.models.events.actor import (
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.fault import CreateProcessingFaultReceivedEvent
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
-from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.ledger_position import (
+    EMPTY_LEDGER_LOG_INDEX,
+    LedgerPosition,
+)
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.replication_state import VultronReplicationState
@@ -104,6 +107,10 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
+#: The position of a chain that stores no entry (SYNC-16-007, CLP-08-004).
+_EMPTY_CHAIN = LedgerPosition(
+    log_index=EMPTY_LEDGER_LOG_INDEX, entry_hash="00" * 32
+)
 _CASE_ID = "https://example.org/cases/case-diverged-001"
 _CASE_ACTOR_ID = "https://example.org/actors/case-actor"
 _REPLICA_ID = "https://example.org/actors/replica"
@@ -495,7 +502,13 @@ def test_a_copy_ahead_of_the_chain_asks_for_the_rest() -> None:
     assert reject is not None
     assert reject["type"] == "Reject"
     assert reject["to"] == [_CASE_ACTOR_ID]
-    assert reject["context"] == entries[-1].entry_hash
+    # The tail the replay starts after travels as the Reject's position
+    # (SYNC-18-001); ``context`` names the case.
+    assert reject["ledgerPosition"] == {
+        "logIndex": entries[-1].log_index,
+        "entryHash": entries[-1].entry_hash,
+    }
+    assert reject["context"] == _CASE_ID
 
 
 @pytest.mark.spec("SYNC-16-007")
@@ -518,7 +531,7 @@ def test_a_backfill_without_a_sync_port_is_a_wiring_fault() -> None:
 @pytest.mark.spec("SYNC-16-007")
 def test_a_replica_with_no_entry_asks_for_a_replay_from_genesis() -> None:
     """With no stored entry there is nothing for a Reject to name, so the
-    replica sends the Reject that names none: an empty last-accepted hash
+    replica sends the Reject that names none: the empty chain's position
     and the case as its target, which parses back to the same request."""
     dl = _replica_holding("empty replica")
 
@@ -538,7 +551,8 @@ def test_a_replica_with_no_entry_asks_for_a_replay_from_genesis() -> None:
     assert body is not None
     assert body["type"] == "Reject"
     assert "object" not in body
-    assert body["context"] == ""
+    assert body["ledgerPosition"]["logIndex"] == EMPTY_LEDGER_LOG_INDEX
+    assert body["context"] == _CASE_ID
     assert body["target"] == _CASE_ID
     assert body["to"] == [_CASE_ACTOR_ID]
     event = cast(
@@ -554,11 +568,15 @@ def test_a_replica_with_no_entry_asks_for_a_replay_from_genesis() -> None:
 def test_a_reject_naming_no_entry_but_a_hash_is_refused_at_parse() -> None:
     """Only a request for a replay from genesis may name no entry."""
     body = genesis_replay_reject_activity(
-        _CASE_ID, actor=_REPLICA_ID, to=[_CASE_ACTOR_ID]
+        _CASE_ID, _EMPTY_CHAIN, actor=_REPLICA_ID, to=[_CASE_ACTOR_ID]
     ).model_dump(mode="json", by_alias=True, exclude_none=True)
 
+    named = {"logIndex": 0, "entryHash": "ab" * 32}
     with pytest.raises(VultronParseValidationError, match="names no object"):
-        parse_activity({**body, "context": "ab" * 32})
+        parse_activity({**body, "ledgerPosition": named})
+    unstated = {k: v for k, v in body.items() if k != "ledgerPosition"}
+    with pytest.raises(VultronParseValidationError, match="names no object"):
+        parse_activity(unstated)
     untargeted = {k: v for k, v in body.items() if k != "target"}
     with pytest.raises(VultronParseValidationError, match="names no object"):
         parse_activity(untargeted)
@@ -917,7 +935,7 @@ def test_the_genesis_request_survives_the_inbox_rebuild() -> None:
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
     dl.create(_owned_case("manager case"))
     body = genesis_replay_reject_activity(
-        _CASE_ID, actor=_STRANGER_ID, to=[_CASE_ACTOR_ID]
+        _CASE_ID, _EMPTY_CHAIN, actor=_STRANGER_ID, to=[_CASE_ACTOR_ID]
     ).model_dump(mode="json", by_alias=True, exclude_none=True)
     staging = InlineObjectStaging(dl)
 
