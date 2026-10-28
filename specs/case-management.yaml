@@ -171,9 +171,9 @@ groups:
     rationale: >-
       `attributed_to` is the case's owner field: ownership checks read it (MSM-07-008)
       and ownership transfer rewrites it alongside the `CASE_OWNER` role (CM-21-002).
-      The case's genesis hash is also computed from it (ADR-0117). Who *created* the
-      case is carried by the `actor` of `Create(VulnerabilityCase)`, not by
-      `attributed_to`, so the CASE_MANAGER creating the case does not make it the owner.
+      Who *created* the case is carried by the `actor` of `Create(VulnerabilityCase)`,
+      not by `attributed_to`, so the CASE_MANAGER creating the case does not make it the
+      owner.
     adr:
     - ADR-0041
     verification: Integration tests in `test/demo/` confirm that the report-receiving actor is recorded as
@@ -991,9 +991,10 @@ groups:
     statement: The system SHOULD maintain a clear separation between the wire representation, domain model, and persistence
       model for CVD objects
     rationale: >-
-      The wire format, the domain model and the storage format change for different
-      reasons. Keeping them separate lets one change, such as a new storage backend or
-      an AS2 rendering detail, without forcing a change in the others (ADR-0099).
+      Wire shape, domain rules and storage change for different reasons. With one object
+      model and AS2 as its serialization (ADR-0099), the separation lives at the edges:
+      the parse edge, the rendering port and the store. A new storage backend or an AS2
+      rendering detail then changes one edge without reaching into the domain rules.
   - id: CM-08-002
     priority: MUST_NOT
     kind: project
@@ -1767,10 +1768,9 @@ groups:
     kind: project
     statement: A `VulnerabilityCase` MUST be created when an `Offer(Report)` activity is received by the vendor actor
     rationale: >-
-      In a single-actor deployment the vendor that receives a report is also the
-      CASE_MANAGER, so it is the only actor that can start tracking the report. Creating
-      the case at receipt gives the report a case, and its participants an RM state,
-      from `RM.RECEIVED` onward.
+      The vendor that receives a report is the only actor that holds it, so only it can
+      start tracking it. Creating the case at receipt gives the report a case, and its
+      participants an RM state, from `RM.RECEIVED` onward.
     verification: Integration tests in `test/demo/` confirm that receiving an `Offer(Report)`
       activity causes a `VulnerabilityCase` to be created.
     note: >-
@@ -4046,7 +4046,7 @@ groups:
       get an Offer recorded chooses the next owner. Without a sender rule any actor that
       knows a case id could propose the case to itself and accept it, even from off the
       roster. The Case Owner is the one actor with the authority to hand the case on
-      (CM-02-004). The redelivery clause keeps a late copy of an answered proposal a
+      (CM-02-005). The redelivery clause keeps a late copy of an answered proposal a
       duplicate rather than a refusal once its sender has handed ownership on.
     verification: >-
       A test marked `CM-21-019` delivers a proposal from an actor off the roster and
@@ -5823,6 +5823,7 @@ groups:
     adr:
     - ADR-0113
     - ADR-0065
+    - ADR-0124
     stories:
     - story_2022_014
     - story_2022_027
@@ -5860,6 +5861,7 @@ groups:
     - ADR-0118
     - ADR-0113
     - ADR-0065
+    - ADR-0124
     stories:
     - story_2022_014
     - story_2022_027
@@ -6927,8 +6929,9 @@ groups:
       checks of CM-33-003. An implementation MAY omit that CASE_MANAGER-originated path.
     rationale: >-
       Handing out a role decides who runs part of the case, which is the Case Owner's
-      decision, as ownership transfer is (CM-02-005). The reference implementation
-      builds the Case Owner path only, so the CASE_MANAGER-originated path is optional.
+      decision, as ownership transfer is (CM-02-005). The Case Owner path alone lets
+      every case grant roles, so a CASE_MANAGER-originated path adds convenience, not
+      capability, and an implementation can omit it.
     verification: >-
       A test marked `CM-33-002` delivers a role Offer from a participant that is not the Case
       Owner and asserts `REFUSED` with no entry committed and nothing queued.

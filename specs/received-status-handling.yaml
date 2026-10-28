@@ -279,11 +279,13 @@ groups:
     - ADR-0108
     verification: >-
       Inspection of `vultron/core/behaviors/status/` confirms only the CASE_MANAGER
-      emits `Add(CaseStatus)` directly; unit tests in
-      `test/core/behaviors/status/test_add_participant_status_bt.py` cover the
-      non-owner path, and `test/core/use_cases/received/test_remaining_sender_rules.py`
-      asserts that a participant's bare `Add(CaseStatus)` is refused at a peer's
-      replica and at the CASE_MANAGER.
+      emits `Add(CaseStatus)` directly.
+      In `test/core/use_cases/triggers/case/test_add_participant_status.py`,
+      `test_notify_published_status_is_its_declared_occasion` asserts that a
+      participant reporting public awareness queues exactly one activity, whose
+      object is a `ParticipantStatus`.
+      `test/core/use_cases/received/test_remaining_sender_rules.py` asserts that a
+      participant's bare `Add(CaseStatus)` is refused at a peer's replica.
     stories:
     - story_2022_045
     - story_2022_046
