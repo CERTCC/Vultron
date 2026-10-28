@@ -834,6 +834,36 @@ groups:
     - persistence
     adr:
     - ADR-0081
+  - id: DL-07-011
+    priority: MUST
+    kind: project
+    statement: >-
+      The actors a node hosts MUST be enumerated from the stores of that node's own storage
+      deployment, the `db_url` template the serving app was built with, and each store's slug MUST
+      be mapped back to an actor id through that node's own base URL. This holds in memory mode as
+      in file mode: an in-memory node MUST NOT list an actor whose store was opened only under
+      another deployment in the same process, and a node-wide operation such as the admin reset
+      MUST open each hosted actor's store under the node's own deployment, never the
+      process-global configured one.
+    rationale: >-
+      File mode scopes enumeration by construction: it lists the files named after the node's
+      template. Memory mode listed every store any app in the process had opened, so nodes sharing
+      a process (the demo harness, the scenario recorder) opened empty stores for each other's
+      actors, flooding runs with store-sharing warnings, and a node-wide reset would clear stores
+      outside its own deployment (#5319).
+    relationships:
+    - rel_type: refines
+      spec_id: DL-07-005
+    verification: >-
+      `test/adapters/driven/test_actor_hosts.py` asserts that two in-memory deployments in one
+      process each enumerate only their own actors and skip scratch stores; a two-node in-process
+      test asserts that `GET /actors/` and `/info` on each node list only that node's actors, that
+      the admin reset on one node leaves the other node's stores intact, and that the run logs no
+      cross-deployment store warning.
+    tags:
+    - persistence
+    adr:
+    - ADR-0073
 - id: DL-08
   title: Storage Fidelity for Inline-Required References
   description: >-
