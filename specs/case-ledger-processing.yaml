@@ -1593,9 +1593,10 @@ groups:
       composed `create_case_manager_gated_tree` directly before #3870), so the tree
       has the intake node as its first child; `test_receive_side_bt_commit_ordering.py`
       asserts the guarded commit comes after every guard and no protocol-effect node
-      ahead of the commit, counting `refusal_effects` as effects, that nothing writes ahead of the commit outside the clock
-      decisions, a diversion, a refusal reply or the ledger-position answer,
-      and that the ledger-position answer commits nothing;
+      ahead of the commit, counting `refusal_effects` as effects, that nothing
+      writes ahead of the commit outside the clock decisions, a diversion, a
+      refusal reply or the ledger-position answer, and that the ledger-position
+      answer commits nothing;
       `test/core/behaviors/case/nodes/test_refusal_stage.py`
       asserts no refusal effect runs on an admitted delivery.'
     adr:
