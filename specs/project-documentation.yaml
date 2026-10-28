@@ -15,6 +15,11 @@ groups:
     priority: SHOULD
     kind: project
     statement: Large modules with multiple responsibilities SHOULD be refactored into smaller cohesive modules
+    rationale: >-
+      A module with many responsibilities is hard to read and hard to load as context,
+      because a reader must go through code that is not related to the task. Many
+      changes touch it, so parallel changes to it conflict more often. Small modules
+      that each have one purpose keep each change small and easy to review.
   - id: PD-01-002
     priority: SHOULD
     kind: project
@@ -44,12 +49,21 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: '`notes/*.md` files MUST be updated when implementation phases they describe are completed'
+    rationale: >-
+      Agents load `notes/` as guidance for work that is not done yet. A note that
+      still shows completed work as open sends an agent to do the work again, or to
+      build against a design that the delivered code replaced.
   - id: PD-03-002
     priority: SHOULD
     kind: project
     statement: 'Stale `notes/*.md` sections (cards) or whole files that are purely historical and contain no durable design
       guidance SHOULD be archived via `append-history note` to `plan/history/YYMM/note/`, rather than deleted. Source ID
       convention: `NOTES-<file-stem>--<section-slug>`. The `learn` skill Phase 5 drives section-level archival.'
+    rationale: >-
+      A historical section in `notes/` uses context on every load and can mislead an
+      agent about current design. A delete removes the text, but the archive keeps it
+      in the project history, where a reader can still find it. The fixed source ID
+      connects each archive entry to the file and section that it came from.
   - id: PD-03-004
     priority: MUST
     kind: project
@@ -57,6 +71,11 @@ groups:
     statement: 'Notes sections (or whole files) that are fully superseded by delivered code, ADRs, or spec entries MUST be
       archived via `append-history note` to `plan/history/YYMM/note/` promptly, rather than left as stale context. When all
       sections of a file are archived, the file MUST be removed from `notes/` and its entry deleted from `notes/README.md`.'
+    rationale: >-
+      A section that delivered code, an ADR or a spec replaced now disagrees with its
+      replacement. An agent that loads both cannot tell which one is current. A file
+      with no sections left, or an index entry for a removed file, sends a reader to
+      nothing.
   - id: PD-03-005
     priority: MUST
     kind: project
@@ -64,17 +83,31 @@ groups:
     statement: 'When archiving a notes section via `append-history note`, the entry body MUST include: archiving reason,
       superseding pointer (code path, spec ID, or docs page), `---` separator, and the original section content verbatim.
       Source ID MUST follow the `NOTES-<file-stem>--<section-slug>` convention.'
+    rationale: >-
+      The reason and the pointer tell a reader why the text left `notes/` and where
+      the current rule is. The verbatim content keeps the old text available without
+      a search of the version history. One source ID convention lets a reader and the
+      tools find the entry for a given section.
   - id: PD-03-003
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Module paths referenced in `notes/` MUST be updated to reflect canonical current locations whenever those paths
       change
+    rationale: >-
+      An agent follows a path in a note to find the code. A path that is not current
+      sends the agent to a file that does not exist, or makes it create a second
+      module at the old location.
   - id: PD-03-006
     priority: SHOULD
     kind: project
     statement: Workflow or tooling PRs SHOULD update maintainer-facing documentation in the same PR; when this is not feasible,
       the PR MUST include a linked follow-up docs issue before merge.
+    rationale: >-
+      Maintainers and agents follow the maintainer documentation to run each workflow
+      and tool. If a change alters a tool and not its documentation, the next user
+      follows steps that do not work now. A linked follow-up issue keeps the gap
+      visible when the update cannot be in the same PR.
   - id: PD-03-007
     priority: MUST
     kind: project
@@ -86,8 +119,11 @@ groups:
       new page, or rewriting a single existing page. A deferred Concern is acceptable only when the
       required update would simultaneously rewrite multiple `docs/` pages.
     rationale: >-
-      Docs drift is invisible until it compounds. Updating docs alongside a change costs less than
-      reconstructing context in a future session. Source: CONCERN-2513.
+      A `docs/` page that does not agree with the code misleads its readers, and
+      nobody sees the difference until it is large. The author of the change has the
+      context now, so an update in the same PR costs less than an update in a later
+      session. A rewrite of several pages can be too large for one PR, so only that
+      case can go to a Concern, which keeps the gap tracked.
   - id: PD-03-008
     priority: MUST
     kind: project
@@ -104,11 +140,11 @@ groups:
       implementation and bug-fix PR body; no merged implementation or bug-fix PR body contains the
       placeholder.
     rationale: >-
-      Running docs-sync after pushing lets CI and docs work proceed in parallel, reducing total
-      wall-clock time. As a SHOULD with no record, the step was skippable without trace, and a
-      feature PR left stale glossary prose that no later gate saw. The placeholder makes an
-      unfinished check visible on the PR itself, where PD-03-009 enforces it. The `check-docs-sync`
-      skill is embedded in `build`, `bugfix`, and `learn`. Source: CONCERN-2513, CONCERN-3919.
+      When the check runs after the push, the docs work and CI run at the same time.
+      A step that leaves no record can be skipped with no trace, and then a page that
+      is not correct merges without notice. The `Docs:` field records the
+      outcome on the PR. A placeholder that stays in the field shows an unfinished
+      check on the PR, where PD-03-009 enforces it.
   - id: PD-03-009
     priority: MUST
     kind: project
@@ -126,10 +162,11 @@ groups:
       placeholder `Docs:` field, IMPROVE for an affected page neither updated nor deferred, and a
       finding for a deferral that names no existing multi-page `type:Concern` issue.
     rationale: >-
-      A docs check that fires only when `docs/` was already modified can never catch a page the
-      author forgot. Only the reviewer-side check reaches hand-authored PRs and `pr-execute` fix
-      rounds, and an independent determination — rather than trusting the author's `Docs:` line —
-      is what catches a "no docs impact" written without looking. Source: CONCERN-3919.
+      A docs check that runs only when the PR already changed `docs/` can never find a
+      page that the author forgot. Only the review check reaches PRs that a person
+      wrote and the fix rounds of `pr-execute`. The reviewer makes its own decision
+      and does not trust the `Docs:` line of the author. Thus it can find a "no docs
+      impact" that the author wrote without a check.
     relationships:
     - rel_type: depends_on
       spec_id: PD-03-007
@@ -144,17 +181,29 @@ groups:
     verification_debt: '#2575'
     statement: '`mkdocs build --strict` MUST pass without warnings before any changes to `docs/` directory files are staged
       for commit'
+    rationale: >-
+      A warning from a docs build often shows a broken link, a page that is not in the
+      navigation, or an include that failed. `--strict` makes each warning fail the
+      build. When the author runs it before staging, the author fixes the problem before
+      the commit, and the problem does not get to the published site.
   - id: PD-04-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Validation MUST occur after markdown linting (via `.claude/skills/format-markdown/SKILL.md`) and before test
       runs, in the build-and-test workflow documented in `.claude/skills/build-docs/SKILL.md`
+    rationale: >-
+      The markdown linter can fix files, and the build must check the final text, so
+      the build runs after the linter. The docs build is fast compared with the test
+      suite, so a docs error stops the workflow before the long test run.
   - id: PD-04-003
     priority: SHOULD
     kind: project
     statement: Agents SHOULD run `uv run mkdocs build --strict` locally when modifying `docs/` files to catch issues before
       staging for commit, reducing CI failures and improving development velocity
+    rationale: >-
+      A local build finds a docs error in a short time. The same error found in CI
+      costs a push and a wait for the CI run.
 - id: PD-05
   title: Append-Only History Write Protocol
   specs:
@@ -164,6 +213,10 @@ groups:
     verification_debt: '#2571'
     statement: Agents MUST append new entries exclusively to the **end** of `plan/*HISTORY.md` files. Inserting content at
       an arbitrary line number, a specific section heading, or anywhere other than the very end of the file is **prohibited**.
+    rationale: >-
+      A history file keeps its entries in time order. An insert at a line number or
+      under a heading breaks that order, and it can put the new text inside another
+      entry. An append at the end cannot change an entry that is already there.
   - id: PD-05-002
     priority: MUST_NOT
     kind: process
@@ -172,12 +225,21 @@ groups:
       Instead, agents MUST unconditionally ensure the file exists using a simple guard (e.g., `touch plan/HISTORY.md`), then
       proceed directly to the append step. The prohibited pattern is the `ls → if not found: create; if found: append` decision
       tree.'
+    rationale: >-
+      A check followed by a create or an append gives two paths, and each path is a
+      place for a mistake, for example a create that writes over a file that exists.
+      `touch` does nothing to a file that exists and creates a file that is missing.
+      Thus one path covers both cases.
   - id: PD-05-003
     priority: MUST_NOT
     kind: process
     verification_debt: '#2571'
     statement: Agents MUST NOT read the full content of an append-only file in order to append a new entry. Only the final
       lines need to be inspected (using `view_range` with the tail of the file) to locate the exact end-of-file position.
+    rationale: >-
+      An append-only file grows with no limit. To read all of it only to add text at
+      the end uses context for no purpose. The tail is sufficient to find the end of
+      the file.
   - id: PD-05-004
     priority: MUST
     kind: process
@@ -188,12 +250,21 @@ groups:
       Do NOT use the `edit` tool for appending, because `edit` requires a unique `old_str` anchor that is not guaranteed in
       files with repeated structural patterns. 3. Verify the entry was written correctly: read the tail with `bash("tail -30
       <file>")` to confirm the content appears as expected.'
+    rationale: >-
+      The `edit` tool needs an anchor that occurs one time only. A history file
+      repeats the same structure, so an anchor can match the wrong location or fail to
+      match. An append with `>>` or mode `'a'` always writes at the end. The read of
+      the tail confirms that the entry is correct.
   - id: PD-05-005
     priority: MUST_NOT
     kind: process
     verification_debt: '#2571'
     statement: Agents MUST NOT edit, reorder, or remove any existing entry from a `plan/*HISTORY.md` file. Once written, a
       history entry is permanent.
+    rationale: >-
+      The history is the record of what the project did. If an agent can change or
+      remove an entry, the record stops being evidence, and later readers cannot
+      trust it.
 - id: PD-06
   title: Plan Section Organization
   specs:
@@ -208,10 +279,10 @@ groups:
       encode priority information as numeric prefixes or rely on ordering to imply
       priority.
     rationale: >-
-      Priority lived in `plan/PRIORITIES.md` until it was archived in favour of the
-      GitHub Project board (#693); the board's `Schedule` field is now the single
-      source of ordering. Encoding priority in issue titles would reintroduce a
-      second, silently-drifting ranking.
+      The `Schedule` field on the board is the one source of priority order. A
+      priority in an issue title is a second ranking, and nothing keeps it in
+      agreement with the board. The two rankings then become different, and a reader
+      cannot tell which one is correct.
   - id: PD-06-005
     priority: SHOULD
     kind: process
@@ -221,9 +292,9 @@ groups:
       group it advances. PAD-01-007 makes this a MUST for every open non-Epic
       issue.
     rationale: >-
-      Replaces the former requirement that `plan/PRIORITIES.md` entries cite issue
-      numbers; with priorities held on the board, the equivalent linkage is the
-      issue-to-Epic relationship rather than a hand-maintained list.
+      Only Epics carry a `Schedule` tier (PD-06-004), so a non-Epic issue gets its
+      priority from its Epic. An issue that is not a sub-issue of an Epic has no
+      priority that a reader can trace, and nobody can tell which theme it advances.
 - id: PD-09
   title: Task Granularity and GitHub Issues Coordination
   specs:
@@ -312,11 +383,12 @@ groups:
       every directory except `docs/` and the archives `plan/history/`,
       `plan/retired-specs/` and `archived_notes/`.
     rationale: >-
-      With `MD013` off for the whole repository because `docs/` has no limit,
-      the 88-character rule was checked only by eye and reached triage as
-      findings. `plan/history/` is append-only (HM-01-005) and
-      `plan/retired-specs/` keeps retired text as it was (MS-09-005), so
-      neither can be rewrapped; nor can the retired notes in `archived_notes/`.
+      A line limit that only people check is applied unevenly, and each miss becomes a
+      review finding. `MD013` checks the limit on each line in the linted directories.
+      `plan/history/` is append-only (HM-01-005) and `plan/retired-specs/` keeps
+      retired text as it was (MS-09-005), so nobody can wrap their lines again. The
+      same is true for the retired notes in `archived_notes/`. `docs/` has its own
+      rule of one sentence for each line (SG-38).
     verification: >-
       `test/metadata/test_line_length.py::TestMarkdownlintConfig` pins `MD013`
       at 88 with tables and code blocks exempt at the root, and off in the
