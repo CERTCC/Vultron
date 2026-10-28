@@ -181,7 +181,10 @@ def test_case_manager_does_not_ledger_a_divergence_fault() -> None:
     )
 
     CreateProcessingFaultReceivedUseCase(
-        dl, cast(CreateProcessingFaultReceivedEvent, received_event(activity))
+        dl,
+        cast(
+            CreateProcessingFaultReceivedEvent, received_event(activity, at=dl)
+        ),
     ).execute()
 
     assert list(dl.list_objects("CaseLedgerEntry")) == []
@@ -207,7 +210,10 @@ def test_case_diverged_fault_from_a_non_participant_is_refused() -> None:
     )
 
     result = CreateProcessingFaultReceivedUseCase(
-        dl, cast(CreateProcessingFaultReceivedEvent, received_event(activity))
+        dl,
+        cast(
+            CreateProcessingFaultReceivedEvent, received_event(activity, at=dl)
+        ),
     ).execute()
 
     assert result.disposition == HandlerDisposition.REFUSED
@@ -314,7 +320,7 @@ def _announce(
         dl,
         cast(
             AnnounceVulnerabilityCaseReceivedEvent,
-            received_event(activity, receiving_actor_id=receiver),
+            received_event(activity, receiving_actor_id=receiver, at=dl),
         ),
         sync_port=SyncActivityAdapter(dl) if with_sync_port else None,
     ).execute()
@@ -362,7 +368,10 @@ def test_a_copy_behind_the_replica_chain_is_skipped() -> None:
 
     result = AnnounceVulnerabilityCaseReceivedUseCase(
         dl,
-        cast(AnnounceVulnerabilityCaseReceivedEvent, received_event(activity)),
+        cast(
+            AnnounceVulnerabilityCaseReceivedEvent,
+            received_event(activity, at=dl),
+        ),
     ).execute()
 
     assert result.disposition == HandlerDisposition.SKIPPED
@@ -556,7 +565,8 @@ def test_a_replica_with_no_entry_asks_for_a_replay_from_genesis() -> None:
     assert body["target"] == _CASE_ID
     assert body["to"] == [_CASE_ACTOR_ID]
     event = cast(
-        RejectLogEntryReceivedEvent, received_event(parse_activity(body))
+        RejectLogEntryReceivedEvent,
+        received_event(parse_activity(body), at=dl),
     )
     assert event.semantic_type is MessageSemantics.REJECT_CASE_LEDGER_ENTRY
     assert event.rejected_entry is None
@@ -956,7 +966,7 @@ def test_the_genesis_request_survives_the_inbox_rebuild() -> None:
     assert outcome.failure_reason is not None
     assert "RejectLogEntryReceivedBT" in outcome.failure_reason
     assert "not an active participant" in outcome.failure_reason
-    assert list(dl.list_objects("VultronReplicationState")) == []
+    assert list(dl.list_objects("ReplicationState")) == []
 
 
 @pytest.mark.spec("PCR-02-004")

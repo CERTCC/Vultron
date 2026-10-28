@@ -150,7 +150,7 @@ def _deliver_offer(
     its ``role`` after extraction to reach the use case's defensive guard,
     and the received body loses its ``role`` with it.
     """
-    request = make_payload(offer, receiving_actor_id=dl.actor_id)
+    request = make_payload(offer, receiving_actor_id=dl.actor_id, at=dl)
     if drop_role:
         role_obj = request.activity.object_
         body = request.received_body()
@@ -196,7 +196,9 @@ def _deliver_answer(
     extra = {} if answer_id is None else {"id_": answer_id}
     answer = build(offer=offer, actor=sender, to=[_CASE_MANAGER_ID], **extra)
     return use_case(
-        dl, make_payload(answer, receiving_actor_id=dl.actor_id), **_ports(dl)
+        dl,
+        make_payload(answer, receiving_actor_id=dl.actor_id, at=dl),
+        **_ports(dl),
     ).execute()
 
 
@@ -396,7 +398,7 @@ def test_a_forward_that_fails_keeps_nothing_and_redelivery_runs_afresh(
     with pytest.raises(VultronBTInternalError):
         OfferCaseParticipantRoleReceivedUseCase(
             dl,
-            make_payload(offer, receiving_actor_id=dl.actor_id),
+            make_payload(offer, receiving_actor_id=dl.actor_id, at=dl),
             **{**_ports(dl), "trigger_activity": broken},
         ).execute()
     assert _semantic_types(dl) == []
@@ -539,7 +541,7 @@ def test_offer_naming_no_case_or_no_target_is_refused(
     refusal notice (CLP-05-001).
     """
     dl = _store(_CASE_MANAGER_ID)
-    request = make_payload(_offer(), receiving_actor_id=dl.actor_id)
+    request = make_payload(_offer(), receiving_actor_id=dl.actor_id, at=dl)
     request = request.model_copy(
         update={
             "activity": request.activity.model_copy(update={dropped: None})
@@ -995,7 +997,9 @@ def test_a_participant_refuses_an_answer_sent_to_it(make_payload, accept):
     )
 
     result = use_case(
-        dl, make_payload(answer, receiving_actor_id=dl.actor_id), **_ports(dl)
+        dl,
+        make_payload(answer, receiving_actor_id=dl.actor_id, at=dl),
+        **_ports(dl),
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
@@ -1013,7 +1017,7 @@ def test_answer_naming_no_case_is_refused(make_payload, accept):
         if accept
         else reject_case_participant_role_activity
     )(offer=_offer(), actor=_TARGET_ID, to=[_CASE_MANAGER_ID])
-    request = make_payload(answer, receiving_actor_id=dl.actor_id)
+    request = make_payload(answer, receiving_actor_id=dl.actor_id, at=dl)
     request = request.model_copy(
         update={
             "activity": request.activity.model_copy(update={"context": None})
@@ -1199,7 +1203,7 @@ def _deliver_altered_answer(
     answer = accept_case_participant_role_activity(
         offer=_offer(), actor=_TARGET_ID, to=[_CASE_MANAGER_ID]
     )
-    request = make_payload(answer, receiving_actor_id=dl.actor_id)
+    request = make_payload(answer, receiving_actor_id=dl.actor_id, at=dl)
     request = request.model_copy(
         update={
             **{
@@ -1259,7 +1263,7 @@ def test_answer_carrying_an_offer_with_no_readable_role_is_refused(
     answer = accept_case_participant_role_activity(
         offer=_offer(), actor=_TARGET_ID, to=[_CASE_MANAGER_ID]
     )
-    request = make_payload(answer, receiving_actor_id=dl.actor_id)
+    request = make_payload(answer, receiving_actor_id=dl.actor_id, at=dl)
     carried = request.activity.object_
     role_obj = carried.object_
     request = request.model_copy(

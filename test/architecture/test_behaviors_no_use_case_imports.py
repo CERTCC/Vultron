@@ -84,8 +84,8 @@ def _collect_violations() -> frozenset[str]:
 # ---------------------------------------------------------------------------
 # Known pre-existing violations awaiting migration (BTND-04-003).
 # Remove entries here one by one as each violation is fixed.
-# Issue #1428 tracks the next batch of fixes.
 # ---------------------------------------------------------------------------
+# owner: #1906
 KNOWN_VIOLATIONS: frozenset[str] = frozenset(
     [
         # Remaining violations import helpers other than _as_id /

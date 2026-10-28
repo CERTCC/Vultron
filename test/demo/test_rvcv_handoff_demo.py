@@ -1076,9 +1076,9 @@ def _otc_ownership_transferred(
                 yield reporter_iso
         finally:
             configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
-            vendor_iso.dl.close()
-            coordinator_iso.dl.close()
-            reporter_iso.dl.close()
+            vendor_iso.close()
+            coordinator_iso.close()
+            reporter_iso.close()
 
 
 @pytest.mark.spec("CM-21-007")

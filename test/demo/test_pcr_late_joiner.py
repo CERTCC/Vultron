@@ -174,9 +174,9 @@ def three_app_setup():
 
         # Restore previous emitter to avoid polluting other tests.
         configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
-        owner_iso.dl.close()
-        reporter_iso.dl.close()
-        late_joiner_iso.dl.close()
+        owner_iso.close()
+        reporter_iso.close()
+        late_joiner_iso.close()
 
 
 # ---------------------------------------------------------------------------

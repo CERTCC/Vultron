@@ -31,7 +31,9 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.sync.nodes.canonical_entry import (
     _validate_canonical_entry,
 )
-from vultron.core.behaviors.sync.nodes.replay import replay_case_id
+from vultron.core.behaviors.sync.nodes.replay_case import (
+    CaseNamedReplayNode,
+)
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     update_replication_state,
 )
@@ -163,7 +165,16 @@ class ReconstructChainTailNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class UpdateReplicationStateNode(DataLayerActionWithPorts):
+class UpdateReplicationStateNode(CaseNamedReplayNode):
+    """Record the sender's stated position as its acknowledged position.
+
+    The position is the activity's ``last_accepted_hash``: the one a
+    ``Reject(CaseLedgerEntry)`` reports (SYNC-04-001), a
+    ``Read(CaseLedgerEntry)`` states (SYNC-17-003), or any case activity
+    stamps (SYNC-18-007).  The case is *case_id* when the tree names it,
+    else the activity's ``replay_case_id``.
+    """
+
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
         "activity": PortInformation(data_type=object, required=True),
@@ -182,7 +193,7 @@ class UpdateReplicationStateNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         activity = self.activity
-        case_id = replay_case_id(activity, self.name)
+        case_id = self.replay_case(activity)
 
         peer_id = activity.actor_id
         if not peer_id:

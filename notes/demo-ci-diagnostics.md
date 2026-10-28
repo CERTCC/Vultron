@@ -5,8 +5,9 @@ kind: guidance
 description: >
   Runbook for a failed Demo Integration CI run: the three log layers, the
   per-invariant diagnostic map (ratcheted against the invariant factory), the
-  local Docker reproduction, CI artifacts, and the causal-versus-temporal wait
-  test for demo timeouts.
+  local Docker reproduction, CI artifacts (one set per run attempt), telling a
+  post-demo hang from a demo timeout, and the causal-versus-temporal wait test
+  for demo timeouts.
 related_specs:
   - specs/demo-ci.yaml
   - specs/case-ledger-processing.yaml
@@ -232,15 +233,17 @@ when `devlogs/` is absent.
 
 ## Interpreting CI Artifacts
 
-Each matrix entry uploads, under the run's **Artifacts**:
+Each matrix entry uploads, under the run's **Artifacts**, one set per run
+attempt (`<N>` is the attempt number, so a re-run never reads a stale log,
+DEMOCI-04-008):
 
-- **`<demo>-case-logs`** (always):
+- **`<demo>-case-logs-attempt-<N>`** (always):
   `devlogs/<demo>/<actor>/<case-slug>-case-ledger.jsonl` plus
   `dump-manifest.json`. Unpack it under the repo root's `devlogs/` and run the
   harness locally against it. Each line is a serialized `CaseLedgerEntry`
   (`vultron/core/models/case_ledger_entry.py`), camelCase on the wire.
-- **`<demo>-container-logs`** (on failure only): `combined.log` and one log per
-  service. Use a failing entry's `caseId` as the grep anchor.
+- **`<demo>-container-logs-attempt-<N>`** (on failure only): `combined.log` and
+  one log per service. Use a failing entry's `caseId` as the grep anchor.
 
 CI runs the containers at `VULTRON_SERVER__LOG_LEVEL=DEBUG`, so the logs include
 the Layer 2 line, tracebacks and state transitions.
@@ -258,6 +261,16 @@ looked like 2 s per entry. The real backfill was about 38 entries in 19 s. The
 idle stretches after it were demo checks timing out once the Invite wait failed,
 and the later entries were ordinary fan-out from later phases. A late joiner's
 backfill on `main` takes about 15 s for 45 entries.
+
+### A job that hit the 15-minute cap
+
+Check whether the demo step is green before you debug the demo. The step has its
+own bound under the job cap (DEMOCI-02-017), so a hung demo fails in that step as
+timed out, and its container logs are collected. A demo step that is green, with
+its "demo passed" notice on the run summary, means the runner hung later, in a
+post step that runs no project code, such as `Post Run actions/checkout`. The
+demo's verdict stands and a re-run is the remedy; do not file it as a demo
+defect (#4573).
 
 ---
 

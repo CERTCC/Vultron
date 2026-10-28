@@ -69,7 +69,7 @@ _COMMIT_BUILDERS = frozenset(
     }
 )
 _CORE_ROOT = _corpus.REPO_ROOT / "vultron" / "core"
-_MAX_DEPTH = 8
+_CALL_DEPTH_LIMIT = 8
 
 
 def _callee_name(call: ast.Call) -> str | None:
@@ -137,7 +137,7 @@ def _named_calls(fn: Callable[..., Any]) -> tuple[ast.Call, ...]:
 
 def _commits(fn: Callable[..., Any], seen: set[Any], depth: int = 0) -> bool:
     """True when *fn*, or a ``vultron.core`` function it calls, commits."""
-    if fn in seen or depth > _MAX_DEPTH:
+    if fn in seen or depth > _CALL_DEPTH_LIMIT:
         return False
     seen.add(fn)
     calls = _named_calls(fn)

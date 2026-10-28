@@ -164,7 +164,7 @@ class TestInviteToEmbargoRoutingGuard:
         )
         dl.create(proposal)
 
-        event = make_payload(proposal, receiving_actor_id=None)
+        event = make_payload(proposal, receiving_actor_id=None, at=dl)
         InviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
@@ -198,7 +198,9 @@ class TestInviteToEmbargoRoutingGuard:
         )
         dl.create(proposal)
 
-        event = make_payload(proposal, receiving_actor_id=self.CASE_ACTOR_ID)
+        event = make_payload(
+            proposal, receiving_actor_id=self.CASE_ACTOR_ID, at=dl
+        )
         InviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
@@ -248,7 +250,9 @@ class TestInviteToEmbargoRoutingGuard:
         dl = replica
         dl.create(proposal)
 
-        event = make_payload(proposal, receiving_actor_id=self.INVITEE_ID)
+        event = make_payload(
+            proposal, receiving_actor_id=self.INVITEE_ID, at=dl
+        )
         result = InviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
@@ -320,7 +324,9 @@ class TestAcceptInviteToEmbargoRoutingGuard:
         """
         dl, _case_actor, _case, accept = self._setup()
 
-        event = make_payload(accept, receiving_actor_id=self.CASE_ACTOR_ID)
+        event = make_payload(
+            accept, receiving_actor_id=self.CASE_ACTOR_ID, at=dl
+        )
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
@@ -346,7 +352,9 @@ class TestAcceptInviteToEmbargoRoutingGuard:
         dl, _case_actor, _case, accept = self._setup()
 
         non_case_actor_id = "https://example.org/actors/other-vendor"
-        event = make_payload(accept, receiving_actor_id=non_case_actor_id)
+        event = make_payload(
+            accept, receiving_actor_id=non_case_actor_id, at=dl
+        )
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
@@ -372,7 +380,7 @@ class TestAcceptInviteToEmbargoRoutingGuard:
         """
         dl, _case_actor, _case, accept = self._setup()
 
-        event = make_payload(accept, receiving_actor_id=None)
+        event = make_payload(accept, receiving_actor_id=None, at=dl)
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
@@ -448,7 +456,7 @@ class TestRemoveEmbargoRoutingGuard:
         )
 
         event = make_payload(
-            remove_activity, receiving_actor_id=self.CASE_ACTOR_ID
+            remove_activity, receiving_actor_id=self.CASE_ACTOR_ID, at=dl
         )
         RemoveEmbargoEventFromCaseReceivedUseCase(
             dl,
@@ -483,7 +491,7 @@ class TestRemoveEmbargoRoutingGuard:
         )
 
         event = make_payload(
-            remove_activity, receiving_actor_id=self.OTHER_ACTOR_ID
+            remove_activity, receiving_actor_id=self.OTHER_ACTOR_ID, at=dl
         )
         RemoveEmbargoEventFromCaseReceivedUseCase(
             dl,
@@ -516,7 +524,7 @@ class TestRemoveEmbargoRoutingGuard:
             reason=TerminationReason.EARLY,
         )
 
-        event = make_payload(remove_activity, receiving_actor_id=None)
+        event = make_payload(remove_activity, receiving_actor_id=None, at=dl)
         RemoveEmbargoEventFromCaseReceivedUseCase(
             dl,
             event,

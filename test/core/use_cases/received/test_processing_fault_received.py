@@ -55,7 +55,7 @@ def test_fault_without_in_reply_to_is_logged_as_unnamed(make_payload, caplog):
         fault=as_ProcessingFault(failure_class=_STATUS_REFUSED),
         to=[_RECEIVER],
     )
-    event = make_payload(activity)
+    event = make_payload(activity, at=dl)
 
     assert event.failed_activity_id is None
 
@@ -104,7 +104,7 @@ def test_case_diverged_fault_naming_no_announce_is_refused(make_payload):
     )
 
     result = CreateProcessingFaultReceivedUseCase(
-        dl, make_payload(activity)
+        dl, make_payload(activity, at=dl)
     ).execute()
 
     assert result.disposition == HandlerDisposition.REFUSED
@@ -131,7 +131,7 @@ def test_received_fault_is_skipped_until_ask_register_exists(make_payload):
         ),
         to=[_RECEIVER],
     )
-    event = make_payload(activity)
+    event = make_payload(activity, at=dl)
 
     result = CreateProcessingFaultReceivedUseCase(dl, event).execute()
 
@@ -163,7 +163,7 @@ def test_received_fault_is_logged_naming_its_sender_and_fault(
         fault=fault,
         to=[_RECEIVER],
     )
-    event = make_payload(activity)
+    event = make_payload(activity, at=dl)
 
     with caplog.at_level(logging.WARNING, logger="vultron"):
         CreateProcessingFaultReceivedUseCase(dl, event).execute()

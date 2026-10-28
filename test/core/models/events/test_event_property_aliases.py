@@ -524,3 +524,26 @@ def test_stub_invite_case_id_is_none_when_the_slot_holds_no_stub(
     """A case in the stub's slot names no stub, so no case is derived from it."""
     event = _mk(cls, semantic, **{**fields, slot: _case})
     assert event.case_id is None
+
+
+@pytest.mark.spec("SYNC-18-007")
+@pytest.mark.parametrize(
+    ("log_index", "expected"),
+    [(-1, ""), (3, "b" * 64)],
+    ids=["empty-ledger", "an-entry"],
+)
+def test_a_stamped_events_accepted_hash(log_index, expected):
+    """Every stamped event names the last entry its sender accepted, ``""``
+    when the sender holds none, as a ``Reject`` does (SYNC-16-007)."""
+    from vultron.core.models.events.note import AddNoteToCaseReceivedEvent
+    from vultron.core.models.ledger_position import LedgerPosition
+
+    event = AddNoteToCaseReceivedEvent(
+        activity_id="https://example.org/activities/add-note",
+        actor_id="https://example.org/actors/sender",
+        ledger_position=LedgerPosition(
+            log_index=log_index, entry_hash="b" * 64
+        ),
+    )
+
+    assert event.last_accepted_hash == expected

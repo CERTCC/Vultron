@@ -2,13 +2,14 @@
 status: proposed
 status_override: >-
   Decided in planning (#5080); SYNC-18-006 holds by construction. The stamp and
-  its parse-edge refusal (SYNC-18-001..003) are built (#5109); the CASE_MANAGER's
-  judgment of a received position (SYNC-18-004/005/007) is not yet (#5110), so
-  the record stays editable until that task lands.
+  its parse-edge refusal (SYNC-18-001..003) are built (#5109), and so is the
+  CASE_MANAGER's judgment of a received position (SYNC-18-004/005/007, #5110).
+  The record stays proposed while the open question on answering a split is
+  undecided.
 date: 2026-10-22
 created: 2026-10-22
 updated: 2026-10-28
-revision: 2
+revision: 3
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0107, ADR-0121, ADR-0142, ADR-0155;
@@ -72,6 +73,7 @@ Chosen option: "Every case activity, from any sender, carries `ledgerPosition`; 
 - **A split is repaired.** A position that names an entry the CASE_MANAGER does not hold means the sender's chain has split from the canonical ledger.
   The act is still judged on its own merits; the split is logged at ERROR and an active participant is re-seeded through the rate-bounded path of SYNC-16-003 and SYNC-16-004.
   This differs from ADR-0155's answer to a `Read(CaseLedgerEntry)` naming such a position, which is logged at WARNING and answered with nothing (SYNC-17-005); the two are reconciled when the open question on answering a split is decided.
+- **Answered before the act is judged.** The answer runs after the door guards and before the guards and commit, so it does not depend on the act's outcome; it is the one write ahead of the commit besides the clock decisions, and it commits no ledger entry (CLP-10-006, CLP-10-010).
 - **Ledgered by construction.** The position is part of the received body, which the entry records verbatim (ADR-0107).
 
 ### Consequences
@@ -88,7 +90,7 @@ Chosen option: "Every case activity, from any sender, carries `ledgerPosition`; 
 ## Validation
 
 The SYNC-18 requirements carry marker tests in `test/core/use_cases/received/test_activity_ledger_tail.py`.
-SYNC-18-001 through SYNC-18-003 are built and their tests pass, and SYNC-18-006 holds by construction; the others are strict `xfail` until the CASE_MANAGER reads the position (#5110).
+Every SYNC-18 requirement is built and its tests pass; SYNC-18-006 holds by construction.
 `test/wire/as2/test_ledger_position_scope.py` lists every received semantic outside the scope, with its reason.
 
 ## Pros and Cons of the Options

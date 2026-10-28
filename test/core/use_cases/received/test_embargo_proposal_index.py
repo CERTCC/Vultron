@@ -150,7 +150,7 @@ class TestInviteToEmbargoRecordsIndex:
             actor=actor_id,
             to=[actor_id],
         )
-        raw_event = received_event(proposal)
+        raw_event = received_event(proposal, at=dl)
         event = cast(
             InviteToEmbargoOnCaseReceivedEvent,
             raw_event.model_copy(update={"receiving_actor_id": actor_id}),
@@ -202,7 +202,7 @@ class TestInviteToEmbargoRecordsIndex:
             actor=actor_id,
             to=[actor_id],
         )
-        raw_event = received_event(proposal)
+        raw_event = received_event(proposal, at=dl)
         event = cast(
             InviteToEmbargoOnCaseReceivedEvent,
             raw_event.model_copy(update={"receiving_actor_id": actor_id}),
@@ -569,7 +569,7 @@ class TestReceivedRejectPrunesOpenProposals:
             )
             return cast(
                 RejectInviteToEmbargoOnCaseReceivedEvent,
-                received_event(reject).model_copy(
+                received_event(reject, at=dl).model_copy(
                     update={"receiving_actor_id": self._REPLICA}
                 ),
             )
@@ -592,7 +592,7 @@ class TestReceivedRejectPrunesOpenProposals:
         )
         event = cast(
             RejectEmbargoProposalOnCaseReceivedEvent,
-            received_event(decision).model_copy(
+            received_event(decision, at=dl).model_copy(
                 update={"receiving_actor_id": self._REPLICA}
             ),
         )
@@ -733,7 +733,7 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
             context=case.id_,
             actor=actor_id,
         )
-        raw_event = received_event(reject_activity)
+        raw_event = received_event(reject_activity, at=dl)
         event = cast(
             RejectInviteToEmbargoOnCaseReceivedEvent,
             raw_event.model_copy(update={"receiving_actor_id": actor_id}),

@@ -179,7 +179,7 @@ def _send_stub_invite(
     already_queued = set(dl.outbox_list())
     stored_offer = dl.read(offer["id"])
     assert isinstance(stored_offer, as_Activity)
-    event = received_event(stored_offer).model_copy(
+    event = received_event(stored_offer, at=dl).model_copy(
         update={"receiving_actor_id": actor_id}
     )
     assert isinstance(event, OfferActorToCaseReceivedEvent)

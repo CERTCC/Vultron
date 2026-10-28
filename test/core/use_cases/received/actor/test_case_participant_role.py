@@ -123,7 +123,9 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         """Intake archives the Offer the CASE_MANAGER receives (CLP-10-017)."""
         dl = self._store(self._CASE_ACTOR_URI)
         offer = self._make_offer()
-        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
+        event = make_payload(
+            offer, receiving_actor_id=self._CASE_ACTOR_URI, at=dl
+        )
 
         self._execute_at_case_manager(dl, event)
 
@@ -136,7 +138,9 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
             "sqlite:///:memory:", actor_id=self._CASE_ACTOR_URI
         )
         offer = self._make_offer()
-        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
+        event = make_payload(
+            offer, receiving_actor_id=self._CASE_ACTOR_URI, at=dl
+        )
 
         result = OfferCaseParticipantRoleReceivedUseCase(
             dl, event, trigger_activity=MagicMock(), sync_port=MagicMock()
@@ -151,7 +155,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         """When receiving_actor_id is absent the store owner processes the offer."""
         dl = self._store(self._CASE_ACTOR_URI)
         offer = self._make_offer()
-        event = make_payload(offer, receiving_actor_id=None)
+        event = make_payload(offer, receiving_actor_id=None, at=dl)
 
         self._execute_at_case_manager(dl, event)
 
@@ -168,7 +172,9 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
 
         dl = self._store(self._TARGET_URI)
         forward = self._make_forward()
-        event = make_payload(forward, receiving_actor_id=self._TARGET_URI)
+        event = make_payload(
+            forward, receiving_actor_id=self._TARGET_URI, at=dl
+        )
         trigger = MagicMock(wraps=TriggerActivityAdapter(dl))
 
         result = OfferCaseParticipantRoleReceivedUseCase(
@@ -199,7 +205,9 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
 
         dl = self._store(self._CASE_ACTOR_URI)
         offer = self._make_offer()
-        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
+        event = make_payload(
+            offer, receiving_actor_id=self._CASE_ACTOR_URI, at=dl
+        )
 
         result = self._execute_at_case_manager(dl, event)
 
@@ -233,7 +241,9 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
             actor=self._VENDOR_URI,
             to=[self._CASE_ACTOR_URI],
         )
-        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
+        event = make_payload(
+            offer, receiving_actor_id=self._CASE_ACTOR_URI, at=dl
+        )
 
         result = self._execute_at_case_manager(dl, event)
 
@@ -257,7 +267,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         """When the target can neither Accept nor Reject, the offer is refused."""
         dl = self._store(self._TARGET_URI)
         event = make_payload(
-            self._make_forward(), receiving_actor_id=self._TARGET_URI
+            self._make_forward(), receiving_actor_id=self._TARGET_URI, at=dl
         )
 
         trigger = MagicMock()

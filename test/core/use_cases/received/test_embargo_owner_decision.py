@@ -124,7 +124,7 @@ def _receive(
     }
     if use_case is RejectEmbargoProposalOnCaseReceivedUseCase:
         ports["trigger_activity"] = TriggerActivityAdapter(dl)
-    event = make_payload(activity, receiving_actor_id=receiver)
+    event = make_payload(activity, receiving_actor_id=receiver, at=dl)
     return use_case(dl, event, **ports).execute()
 
 

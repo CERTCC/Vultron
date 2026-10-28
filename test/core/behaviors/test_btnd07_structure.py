@@ -26,23 +26,15 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BEHAVIORS_ROOT = REPO_ROOT / "vultron" / "core" / "behaviors"
 
-_MAX_LEAF_LINES = 500
+_LEAF_LINE_LIMIT = 500
 
 # ---------------------------------------------------------------------------
-# BTND-07-004 oversize backlog — modules that temporarily exceed the limit
-# during an active migration.  DO NOT add new entries; decompose instead.
-# Remove an entry once the module is split below 500 lines.
-# Tracked in GitHub issue #2483 follow-up for decomposition.
+# BTND-07-004 oversize ratchet — leaf modules allowed over the limit while an
+# owner issue decomposes them.  Its terminal value is empty, and it is empty
+# now: DO NOT add entries; decompose instead.  A non-empty value must carry an
+# ``# owner: #N`` marker (ARCH-18-003).
 # ---------------------------------------------------------------------------
-_OVERSIZE_BACKLOG: frozenset[str] = frozenset(
-    [
-        # (owner.py was deleted in #4353 and participant_add.py in #4367,
-        # each along with its orphaned nodes.)
-        # Pushed over 500 lines by AC-1/AC-3 compound-state enforcement (issue #2479).
-        # Candidate for decomposition into _compound_guards.py.
-        "vultron/core/behaviors/case/nodes/participant/status.py",
-    ]
-)
+_KNOWN_OVERSIZE_LEAVES: frozenset[str] = frozenset()
 
 
 # ---------------------------------------------------------------------------
@@ -212,10 +204,10 @@ def test_leaf_module_line_count(area: Path, module: Path) -> None:
     line_count = len(module.read_text(encoding="utf-8").splitlines())
     rel = module.relative_to(REPO_ROOT)
     rel_str = str(rel).replace("\\", "/")
-    if rel_str in _OVERSIZE_BACKLOG:
+    if rel_str in _KNOWN_OVERSIZE_LEAVES:
         return  # grandfathered — tracked for decomposition
-    assert line_count <= _MAX_LEAF_LINES, (
-        f"{rel}: {line_count} lines exceeds the {_MAX_LEAF_LINES}-line "
+    assert line_count <= _LEAF_LINE_LIMIT, (
+        f"{rel}: {line_count} lines exceeds the {_LEAF_LINE_LIMIT}-line "
         "limit (BTND-07-004). Decompose into smaller submodules grouped "
         "by semantic concern."
     )

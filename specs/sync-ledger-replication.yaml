@@ -2000,9 +2000,10 @@ groups:
       the move commit together, that a case-carrying snapshot names the position
       before its entry, and that a stored or received case without the field is
       refused; `test/core/behaviors/sync/test_divergence_recovery.py` asserts that
-      storing an entry behind the position leaves it;
-      `test/demo/test_rebuild_from_ledger.py` asserts the CASE_MANAGER's and every
-      replica's case names its chain tail after each demo.
+      storing an entry behind the position leaves it; the rebuild check in
+      `test/demo/_helpers.py`, run after every exchange demo test such as
+      `test/demo/test_establish_embargo_demo.py`, asserts the CASE_MANAGER's and
+      every replica's case names its chain tail after each demo.
     stories:
     - story_2022_088
   - id: SYNC-16-006
@@ -2131,8 +2132,8 @@ groups:
     never starts. The CASE_MANAGER cannot see the lag either, because nothing tells it
     how far a participant has got. The participant therefore states its position, when
     it chooses, in a `Read(CaseLedgerEntry)`, and the CASE_MANAGER answers a position
-    behind its tail by replaying. A position stated on every case activity is planned
-    separately (#5109, #5110) and composes the same answer. This is how the
+    behind its tail by replaying. The position stated on every case activity
+    (SYNC-18) composes the same answer. This is how the
     LedgerReconciliation phase detects a gap and retries until convergence
     (SYNC-00-003, SYNC-00-007, SYNC-00-008). Rationale: ADR-0155.
   specs:

@@ -51,6 +51,12 @@ async def replay_hosted_inbox_queues(
     An actor whose replay raises is logged, and the next actor is still
     replayed; its items stay queued for the next replay (IE-06-005).
 
+    Production-only: it runs only in the single-node production lifespan
+    (``configure_globals=True``), where the configured ``db_url`` and base URL
+    are the node's own.  That is why it calls ``hosted_actor_ids()`` and
+    ``get_datalayer`` unscoped; an app built by ``create_app`` never starts it,
+    so no other deployment in the process is read (DL-07-011).
+
     Args:
         emitter: The app's ActivityEmitter, for the outbox drain after each
             actor's replay.

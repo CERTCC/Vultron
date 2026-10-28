@@ -67,6 +67,9 @@ from vultron.core.behaviors.replica_emit_exemptions import (
 _VULTRON_ROOT = _corpus.REPO_ROOT / "vultron"
 _BEHAVIORS_ROOT = _VULTRON_ROOT / "core" / "behaviors"
 _FACTORY_MODULE = "vultron/core/behaviors/case/receive_activity_tree.py"
+#: The factory's stage builders, split out of it by concern (CS-18-001): the
+#: factory itself, so the gate it builds there is the factory's.
+_FACTORY_STAGES = "vultron/core/behaviors/case/receive_stages/"
 _RECEIVE = "create_receive_activity_tree"
 _GATE = "create_case_manager_gated_tree"
 _LEGACY_KEYWORD = "effect_nodes"
@@ -115,7 +118,6 @@ _S = "vultron/core/behaviors/status"
 #    Terminal value reached: #4300, #4301 and #4302 moved every received tree
 #    onto manager_effects.  The empty set stays so a new direct caller fails.
 # ---------------------------------------------------------------------------
-# owner: none (terminal value)
 KNOWN_DIRECT_GATE_CALLERS: frozenset[_Site] = frozenset()
 
 # ---------------------------------------------------------------------------
@@ -143,6 +145,14 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
         (
             f"{_C}/nodes/clock_decision_stage.py",
             "create_clock_decision_gate",
+        ),
+        # The answer to a stamped ledger position (SYNC-18-004/005/007,
+        # ADR-0156): the received-tree factory places it, gated, after the
+        # door guards; it answers the sender's stated position, never the
+        # received activity, and commits nothing.
+        (
+            "vultron/core/behaviors/sync/ledger_position_stage.py",
+            "create_ledger_position_stage",
         ),
         (f"{_E}/nodes/relay_guards.py", "case_manager_admits_proposal_guard"),
         # The repeat guard for an answer to an embargo Invite (CM-13-005).
@@ -349,7 +359,7 @@ def _gate_callers() -> tuple[frozenset[_Site], frozenset[_Site]]:
     other: set[_Site] = set()
     for path, tree in _corpus.files_mentioning(_GATE, under=_VULTRON_ROOT):
         rel = _rel(path)
-        if rel == _FACTORY_MODULE:
+        if rel == _FACTORY_MODULE or rel.startswith(_FACTORY_STAGES):
             continue
         is_received = any(name == _RECEIVE for _, name in _calls(tree))
         for scope in _top_level_scopes(tree):

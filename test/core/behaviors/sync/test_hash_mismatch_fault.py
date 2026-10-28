@@ -282,7 +282,7 @@ def _fault(
         dl,
         cast(
             CreateProcessingFaultReceivedEvent,
-            received_event(activity, receiving_actor_id=_CASE_ACTOR_ID),
+            received_event(activity, receiving_actor_id=_CASE_ACTOR_ID, at=dl),
         ),
     ).execute()
 

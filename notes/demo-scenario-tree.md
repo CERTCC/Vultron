@@ -159,9 +159,9 @@ will report to the harness for the shared-prefix check (#4727, DEMOCI-11-017).
   by default), so a saved point needs a name of its own, copied into each test's
   freshly named store (#5345).
 - **Make one act cheap first.** In #5344's profile one received act reread the
-  case 90 times (743 reads of 73 records), and `_pending_announce_index` rebuilt
-  its outbox index each time a queued `Announce` changed the queue; that per-act
-  cost is paid on every step, starting points or not.
+  case 90 times (743 reads of 73 records); that per-act cost is paid on every
+  step, starting points or not. `_pending_announce_index` already reads only
+  the outbox rows queued since its last snapshot (#4906).
 
 ## Task order
 

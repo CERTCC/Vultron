@@ -149,7 +149,7 @@ def test_an_unaddressed_copy_is_refused_before_any_write(
     before = _snapshot(dl)
 
     result = use_case(
-        dl, make_payload(activity, receiving_actor_id=_BYSTANDER)
+        dl, make_payload(activity, receiving_actor_id=_BYSTANDER, at=dl)
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED

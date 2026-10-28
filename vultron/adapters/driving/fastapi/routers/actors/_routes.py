@@ -109,13 +109,17 @@ def get_actors(http_request: Request):
     holds an address for.  A peer is not hosted here, so peers are no longer
     listed (ADR-0073#hosted-actors-list-only).
 
-    Each store is opened in the serving app's own deployment
-    (:func:`node_db_url_template`), so the records listed are the ones the rest
-    of this app's routes read.
+    The actors are enumerated from, and each store is opened in, the serving
+    app's own deployment (:func:`node_db_url_template`, :func:`node_base_url`),
+    so a node lists only its own actors even when other nodes run in the same
+    process, and the records listed are the ones the rest of this app's routes
+    read (DL-07-007, DL-07-011).
     """
     db_url = node_db_url_template(http_request)
     objects: list[AnyActor] = []
-    for actor_id in actor_hosts.hosted_actor_ids():
+    for actor_id in actor_hosts.hosted_actor_ids(
+        db_url, node_base_url(http_request)
+    ):
         actor_dl = get_datalayer(actor_id, db_url=db_url)
         for t in _ACTOR_RECORD_TYPES:
             rec = actor_dl.get(t, actor_id)

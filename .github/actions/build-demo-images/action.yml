@@ -14,8 +14,24 @@ inputs:
 runs:
   using: composite
   steps:
+    # Pull Docker Hub images through Google's public Docker Hub mirror
+    # (#4450). Anonymous Docker Hub pulls share a per-runner quota, and a
+    # spent quota failed the build with `429 Too Many Requests` before any
+    # project code ran. The mirror needs no credential, so this works on fork
+    # PRs too. The `docker.io` mirror covers every image the build pulls (the
+    # Dockerfile's `# syntax=` frontend and its `python` base), and BuildKit
+    # falls back to Docker Hub for those if the mirror fails. `driver-opts`
+    # pulls the BuildKit image the builder runs in straight from the mirror,
+    # with no fallback, so a mirror outage fails this step. docker/Dockerfile
+    # is left unchanged, so a local or devcontainer build still pulls from
+    # Docker Hub.
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+      with:
+        driver-opts: image=mirror.gcr.io/moby/buildkit:buildx-stable-1
+        buildkitd-config-inline: |
+          [registry."docker.io"]
+            mirrors = ["mirror.gcr.io"]
 
     - name: Build Docker images
       working-directory: docker

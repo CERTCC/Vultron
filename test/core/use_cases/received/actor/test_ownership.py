@@ -96,7 +96,9 @@ class TestOwnershipTransferUseCases:
             actor=_CASE_ACTOR_ID,
             to=[_COORDINATOR_ID],
         )
-        event = make_payload(activity, receiving_actor_id=_COORDINATOR_ID)
+        event = make_payload(
+            activity, receiving_actor_id=_COORDINATOR_ID, at=dl
+        )
 
         result = OfferCaseOwnershipTransferReceivedUseCase(
             dl,
@@ -207,6 +209,7 @@ class TestOwnershipTransferUseCases:
                 offer, actor=coordinator_id
             ),
             receiving_actor_id=coordinator_id,
+            at=dl,
         )
 
         result = AcceptCaseOwnershipTransferReceivedUseCase(
@@ -504,7 +507,9 @@ class TestOwnershipTransferUseCases:
 
             result = OfferCaseOwnershipTransferReceivedUseCase(
                 dl,
-                make_payload(activity, receiving_actor_id=_CASE_ACTOR_ID),
+                make_payload(
+                    activity, receiving_actor_id=_CASE_ACTOR_ID, at=dl
+                ),
                 trigger_activity=trigger_activity,
                 wire_render_port=As2WireRenderAdapter(),
                 sync_port=SyncActivityAdapter(dl),
@@ -678,7 +683,7 @@ class TestOwnershipTransferUseCases:
 
         AcceptCaseOwnershipTransferReceivedUseCase(
             dl,
-            make_payload(accept, receiving_actor_id=None),
+            make_payload(accept, receiving_actor_id=None, at=dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
             trigger_activity=TriggerActivityAdapter(dl),
@@ -715,7 +720,7 @@ class TestOwnershipOfferAtNonRecipient:
             actor="https://example.org/users/vendor",
             to=["https://example.org/actors/case-actor"],
         )
-        event = make_payload(activity, receiving_actor_id=bystander_id)
+        event = make_payload(activity, receiving_actor_id=bystander_id, at=dl)
 
         result = OfferCaseOwnershipTransferReceivedUseCase(
             dl,
@@ -788,7 +793,7 @@ class TestOwnershipOfferNamingNoCase:
             actor="https://example.org/users/vendor",
             to=[receiver],
         )
-        event = make_payload(offer, receiving_actor_id=receiver)
+        event = make_payload(offer, receiving_actor_id=receiver, at=dl)
         # The Offer arrives naming no case.
         event = event.model_copy(
             update={
@@ -823,7 +828,9 @@ class TestOwnershipOfferNamingNoCase:
             _COORDINATOR_ID,
             "https://example.org/activities/proposal_nocase",
         )
-        event = make_payload(proposal, receiving_actor_id=_CASE_ACTOR_ID)
+        event = make_payload(
+            proposal, receiving_actor_id=_CASE_ACTOR_ID, at=dl
+        )
         event = event.model_copy(update={"context": None})
         assert event.case_id is None
 
@@ -888,7 +895,7 @@ def _propose(
     """Deliver *proposal* to *dl* and return the handler's result."""
     return ProposeCaseOwnershipTransferReceivedUseCase(
         dl,
-        make_payload(proposal, receiving_actor_id=receiving_actor_id),
+        make_payload(proposal, receiving_actor_id=receiving_actor_id, at=dl),
         trigger_activity=trigger_activity,
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
@@ -977,7 +984,7 @@ def _accept(
         )
     return AcceptCaseOwnershipTransferReceivedUseCase(
         dl,
-        make_payload(accept, receiving_actor_id=dl.actor_id),
+        make_payload(accept, receiving_actor_id=dl.actor_id, at=dl),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
         trigger_activity=TriggerActivityAdapter(dl),
@@ -1043,7 +1050,7 @@ def _reply_naming_no_case(dl, make_payload, build, sender: str) -> Any:
         to=[_COORDINATOR_ID],
     )
     reply = build(offer, actor=sender, to=[_CASE_ACTOR_ID])
-    event = make_payload(reply, receiving_actor_id=dl.actor_id)
+    event = make_payload(reply, receiving_actor_id=dl.actor_id, at=dl)
     event = event.model_copy(update={"inner_object": None})
     assert event.case_id is None
     return event
@@ -1787,7 +1794,7 @@ def _offer_at_transferee(dl, make_payload, case, sender, offer_id):
     )
     result = OfferCaseOwnershipTransferReceivedUseCase(
         dl,
-        make_payload(offer, receiving_actor_id=_COORDINATOR_ID),
+        make_payload(offer, receiving_actor_id=_COORDINATOR_ID, at=dl),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
     ).execute()
@@ -1946,7 +1953,7 @@ def _reject(
         )
     return RejectCaseOwnershipTransferReceivedUseCase(
         dl,
-        make_payload(reject, receiving_actor_id=dl.actor_id),
+        make_payload(reject, receiving_actor_id=dl.actor_id, at=dl),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
         trigger_activity=TriggerActivityAdapter(dl),
@@ -2237,7 +2244,7 @@ def _undo(dl, make_payload, offer, sender=_VENDOR_ID, undo=None, to=None):
         )
     return UndoCaseOwnershipTransferReceivedUseCase(
         dl,
-        make_payload(undo, receiving_actor_id=dl.actor_id),
+        make_payload(undo, receiving_actor_id=dl.actor_id, at=dl),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
         trigger_activity=TriggerActivityAdapter(dl),
@@ -2617,7 +2624,7 @@ class TestWithdrawalOfOwnershipTransfer:
         undo = undo_case_ownership_transfer_activity(
             proposal, actor=_VENDOR_ID, to=[_CASE_ACTOR_ID]
         )
-        event = make_payload(undo, receiving_actor_id=dl.actor_id)
+        event = make_payload(undo, receiving_actor_id=dl.actor_id, at=dl)
         event = event.model_copy(update={"inner_context": None})
         assert event.case_id is None
 
@@ -2988,7 +2995,7 @@ def test_a_slash_spelled_attribution_is_taken_and_filed_as_received(
 
     result = OfferCaseOwnershipTransferReceivedUseCase(
         dl,
-        make_payload(offer, receiving_actor_id=_COORDINATOR_ID),
+        make_payload(offer, receiving_actor_id=_COORDINATOR_ID, at=dl),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
     ).execute()
