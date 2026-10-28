@@ -443,6 +443,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
 
     @pytest.mark.spec("MSM-08-003")
     @pytest.mark.spec("CSB-15-003")
+    @pytest.mark.spec("RSH-04-001")
     def test_notify_published_status_is_its_declared_occasion(self):
         """The status the notify-published trigger sends (CSB-15-003)
         carries the public-awareness occasion's distinguisher (#4569), and
