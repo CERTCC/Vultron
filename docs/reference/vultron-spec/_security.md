@@ -10,6 +10,7 @@ Actor URI equality is identity equality: two messages with the same `actor` URI 
 **Verification.** An actor signs each activity that it sends with a `proof` inside the activity, in the FEP-8b32 `eddsa-jcs-2022` form (SIG-01-001, SIG-01-002).
 A receiver refuses an activity whose `proof` is missing or does not verify (SIG-03-002).
 The receiver gets the key from the actor profile of the author, and from no other source (SIG-02-001).
+
 The `proof` stays in the activity when the CASE_MANAGER relays it or records it in the case ledger.
 A replica can thus check who wrote each ledger entry that it applies (SIG-04-001, SIG-04-002).
 HTTP Message Signatures on each delivery are not required; a production deployment can add them to authenticate the server that delivers a request.

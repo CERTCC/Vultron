@@ -19,10 +19,12 @@
     `specs/signing.yaml` (SIG-01 through SIG-05) puts a proof inside each activity that an actor sends ([ADR-0164](../../adr/0164-actors-sign-content-with-object-level-proofs-from-seeded-keys.md)).
     The proof uses the FEP-8b32 `eddsa-jcs-2022` form.
     It thus stays in the activity when the CASE_MANAGER relays the activity or records it in the case ledger.
+
     A relayed activity carries two proofs.
     The inner proof comes from the Participant that originated the activity.
     The outer proof comes from the CASE_MANAGER that relayed it.
     A recipient can thus verify the source and the relay position independently.
+
     A receiver gets each key from the actor profile of the author, and it refuses an activity without a valid proof.
     The prototype calculates each key pair from a fixed seed, so its keys make no security claim.
     HTTP Message Signatures, which Request for Comments (RFC) 9421 defines, are work for a production deployment ([#1184](https://github.com/CERTCC/Vultron/issues/1184)).

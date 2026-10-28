@@ -82,6 +82,7 @@ sense the docs actually use.
 
 *[EA]: Embargo Proposal Acceptance (EM message)
 *[EC]: Embargo Revision Acceptance (EM message)
+*[EdDSA]: Edwards-curve Digital Signature Algorithm
 *[EE]: Embargo Error (EM message)
 *[EFF]: Electronic Frontier Foundation
 *[EJ]: Embargo Revision Rejection (EM message)
@@ -106,6 +107,7 @@ sense the docs actually use.
 *[RCV]: Reporter, Coordinator, Vendor (demo scenario)
 *[RCVCV]: Reporter, Coordinator, Vendor, Coordinator, Vendor (demo scenario)
 *[FDA]: U.S. Food and Drug Administration
+*[FEP]: Fediverse Enhancement Proposal
 *[FERPA]: Family Educational Rights and Privacy Act
 *[FI]: Finland
 *[FIRST]: Forum of Incident Response and Security Teams
@@ -144,6 +146,7 @@ sense the docs actually use.
 *[ISPs]: Internet Service Providers
 *[ITSM]: IT Service Management
 
+*[JCS]: JSON Canonicalization Scheme
 *[JPCERT/CC]: Japan Computer Emergency Response Team Coordination Center
 *[JSON]: JavaScript Object Notation
 *[JSON-LD]: JavaScript Object Notation for Linked Data
