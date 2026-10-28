@@ -446,6 +446,9 @@ def every_demo_case_rebuilds_from_its_ledger():
     assert_no_rebuild_failures()
 
 
+# The two autouse stubs below change what the protocol does for every test in
+# this directory. A test that needs the real run, such as the recording drift
+# test, lives outside test/demo/ (test/demo_recordings/, #3901).
 @pytest.fixture(autouse=True)
 def stub_summary_seed():
     """Skip ``stub_summary`` seeding when the case manager's client is a mock.
