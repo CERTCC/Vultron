@@ -2000,9 +2000,10 @@ groups:
       the move commit together, that a case-carrying snapshot names the position
       before its entry, and that a stored or received case without the field is
       refused; `test/core/behaviors/sync/test_divergence_recovery.py` asserts that
-      storing an entry behind the position leaves it;
-      `test/demo/test_rebuild_from_ledger.py` asserts the CASE_MANAGER's and every
-      replica's case names its chain tail after each demo.
+      storing an entry behind the position leaves it; the rebuild check in
+      `test/demo/_helpers.py`, run after every exchange demo test such as
+      `test/demo/test_establish_embargo_demo.py`, asserts the CASE_MANAGER's and
+      every replica's case names its chain tail after each demo.
     stories:
     - story_2022_088
   - id: SYNC-16-006

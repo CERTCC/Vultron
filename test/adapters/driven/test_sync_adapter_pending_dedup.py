@@ -22,10 +22,19 @@ a later request for the same pair queues again — the guard is against
 duplicates *in the queue*, not against ever re-sending.
 """
 
+import json
+
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.sync_activity_adapter import (
+    SyncActivityAdapter,
+    _read_queued_row,
+)
+from vultron.adapters.outbox_sealed_body import (
+    SealedOutboundBody,
+    sealed_body_id,
+)
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -132,3 +141,188 @@ def test_a_different_tail_hash_is_a_new_rejection(dl):
     adapter.send_reject_log_entry(entry, "b" * 64, OWNER, [PEER_A])
 
     assert len(dl.outbox_list()) == 2
+
+
+def _queue_announce(dl: SqliteDataLayer, entry: CaseLedgerEntry, to: str):
+    """Queue an ``Announce`` of *entry* to *to*, as a fresh adapter would."""
+    assert SyncActivityAdapter(dl).send_announce_log_entry(entry, OWNER, [to])
+
+
+@pytest.mark.spec("SYNC-15-012")
+def test_the_pending_index_reads_sealed_bodies_not_activity_records(
+    dl, monkeypatch
+):
+    """A fresh adapter indexes the queue without rehydrating its activities.
+
+    The index is rebuilt by every adapter, and one is composed per received
+    activity, so a hydrating read of every queued ``Announce`` made each
+    fan-out cost O(queue) model validations (#4906).  The sealed body is what
+    the outbox delivers (VM-08-003), so it is what the index reads.
+    """
+    for index in range(3):
+        _queue_announce(dl, _entry(index), PEER_A)
+    queued = set(dl.outbox_list())
+    read_ids: list[str] = []
+    original_read = dl.read
+
+    def _spy(object_id: str, *args, **kwargs):
+        read_ids.append(object_id)
+        return original_read(object_id, *args, **kwargs)
+
+    monkeypatch.setattr(dl, "read", _spy)
+
+    adapter = SyncActivityAdapter(dl)
+    assert adapter.send_announce_log_entry(_entry(1), OWNER, [PEER_A]) is False
+
+    assert queued.isdisjoint(read_ids), sorted(queued & set(read_ids))
+
+
+@pytest.mark.spec("SYNC-15-012")
+def test_a_fresh_adapter_sees_the_rows_another_adapter_queued(dl):
+    """The index is the store's queue, not the adapter's own history."""
+    _queue_announce(dl, _entry(1), PEER_A)
+
+    adapter = SyncActivityAdapter(dl)
+
+    assert adapter.send_announce_log_entry(_entry(1), OWNER, [PEER_A]) is False
+    assert adapter.send_announce_log_entry(_entry(1), OWNER, [PEER_B]) is True
+    assert len(dl.outbox_list()) == 2
+
+
+@pytest.mark.spec("SYNC-15-012")
+def test_a_queued_row_with_no_sealed_body_is_not_pending(dl):
+    """A row the outbox cannot deliver does not stand in for a real one.
+
+    The outbox delivers only the sealed body (OX-07-001); a queued id with
+    none is never delivered, so it must not suppress the Announce that would
+    be (SYNC-15-012).
+    """
+    dl.outbox_append("urn:test:unsealed-announce")
+
+    adapter = SyncActivityAdapter(dl)
+
+    assert adapter.send_announce_log_entry(_entry(1), OWNER, [PEER_A]) is True
+
+
+@pytest.mark.spec("SYNC-15-012")
+def test_each_send_reads_only_the_rows_queued_since_the_last(dl, monkeypatch):
+    """A fan-out does not re-read the whole queue for every Announce.
+
+    Every send queues a row, so the queue changes between any two sends; a
+    rebuild that re-read every row made *n* sends cost O(n × queue) reads
+    (#4906).  A sealed body is write-once, so a row read once stays read.
+    """
+    adapter = SyncActivityAdapter(dl)
+    for index in range(4):
+        assert adapter.send_announce_log_entry(_entry(index), OWNER, [PEER_A])
+    read_ids: list[str] = []
+    original_read = dl.read
+
+    def _spy(object_id: str, *args, **kwargs):
+        read_ids.append(object_id)
+        return original_read(object_id, *args, **kwargs)
+
+    monkeypatch.setattr(dl, "read", _spy)
+    newest = dl.outbox_list()[-1]
+
+    assert adapter.send_announce_log_entry(_entry(9), OWNER, [PEER_A])
+
+    queued_reads = [
+        object_id
+        for object_id in read_ids
+        if any(object_id.startswith(a) for a in dl.outbox_list()[:-1])
+    ]
+    assert all(object_id.startswith(newest) for object_id in queued_reads), (
+        queued_reads
+    )
+    assert len(queued_reads) == 1, queued_reads
+
+
+def _seal_raw(dl: SqliteDataLayer, activity_id: str, body: dict) -> None:
+    """Seal *body* under *activity_id* as written, bypassing any factory."""
+    dl.save(
+        SealedOutboundBody(
+            id_=sealed_body_id(activity_id),
+            activity_id=activity_id,
+            body=json.dumps(body),
+        )
+    )
+
+
+_ENTRY = {"type": "CaseLedgerEntry", "id": "urn:test:entry"}
+
+
+@pytest.mark.spec("SYNC-15-012")
+@pytest.mark.parametrize(
+    ("body", "entry_id", "recipients"),
+    [
+        (
+            {"type": "Announce", "object": _ENTRY, "to": [PEER_A, PEER_B]},
+            "urn:test:entry",
+            {PEER_A, PEER_B},
+        ),
+        (
+            {"type": "Announce", "object": _ENTRY, "to": PEER_A},
+            "urn:test:entry",
+            {PEER_A},
+        ),
+        (
+            {"type": "Announce", "object": _ENTRY, "to": [{"id": PEER_A}]},
+            "urn:test:entry",
+            {PEER_A},
+        ),
+        ({"type": "Reject", "object": _ENTRY, "to": [PEER_A]}, None, set()),
+        ({"type": "Announce", "object": "urn:test:entry"}, None, set()),
+        (
+            {"type": "Announce", "object": {"type": "Note", "id": "urn:n"}},
+            None,
+            set(),
+        ),
+        (
+            {"type": "Announce", "object": {"type": "CaseLedgerEntry"}},
+            None,
+            set(),
+        ),
+    ],
+    ids=[
+        "announce",
+        "bare-recipient",
+        "recipient-object",
+        "not-an-announce",
+        "entry-by-reference",
+        "not-a-ledger-entry",
+        "entry-without-id",
+    ],
+)
+def test_a_queued_row_is_read_from_its_sealed_body(
+    dl, body, entry_id, recipients
+):
+    """Only an ``Announce`` carrying an identified entry is indexed."""
+    _seal_raw(dl, "urn:test:row", body)
+
+    row = _read_queued_row(dl, "urn:test:row")
+
+    assert row is not None
+    assert row.entry_id == entry_id
+    assert row.recipients == recipients
+
+
+@pytest.mark.spec("SYNC-15-012")
+def test_a_row_sealed_after_it_was_read_is_indexed_then(dl):
+    """An unsealed row is not remembered as unsealed by the adapter."""
+    entry = _entry(1)
+    dl.outbox_append("urn:test:late-seal")
+    adapter = SyncActivityAdapter(dl)
+    assert adapter.send_announce_log_entry(_entry(2), OWNER, [PEER_A])
+
+    _seal_raw(
+        dl,
+        "urn:test:late-seal",
+        {
+            "type": "Announce",
+            "object": {"type": "CaseLedgerEntry", "id": entry.id_},
+            "to": [PEER_B],
+        },
+    )
+
+    assert adapter.send_announce_log_entry(entry, OWNER, [PEER_B]) is False
