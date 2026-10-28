@@ -53,3 +53,5 @@ These need a human judgment, not just a rename.
 **Resolved**: 2026-10-28. Implementation is tracked in #5286 (glossary corrections) and #5287 (page and protocol spec wording, blocked by #5286).
 
 Decisions: "default embargo" is an accepted umbrella term for the embargo a case begins with, from an actor default or, failing that, the protocol default. Name the source only where the text is about that split. The three meaning mismatches are glossary defects. Wording-only edits to protocol spec text are allowed when the requirement and its box change together. "newly invited Participant" is recorded as intended.
+
+Docs PR: <https://github.com/CERTCC/Vultron/pull/5288>.
