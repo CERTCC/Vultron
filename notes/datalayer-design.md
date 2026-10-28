@@ -266,7 +266,7 @@ collection with `published=None, updated=None`, while a collection that
 
 - **A round-trip equality test must cross a second boundary on purpose.** Step
   the clock between write and read with `SteppingClock` from
-  `test/support/clock.py`; never `time.sleep()`.
+  `vultron/demo/determinism.py`; never `time.sleep()`.
 - **Ask which side of the boundary owns a default before adding one.** If a
   field defaults on the wire branch and the core branch reduces the object to a
   reference, the default is unstorable and every read disagrees with every write.

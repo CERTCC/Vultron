@@ -206,9 +206,9 @@ General information about architectural decision records is available at <https:
 - [ADR-0102 Organize reader-facing documentation by stakeholder type and invisible prerequisite level](0102-docs-stakeholder-types-and-invisible-prerequisite-levels.md) — partially superseded by 0136-organize-the-site-top-level-by-subject-and-reader-not-diataxis-type.md
 - [ADR-0103 An Object's Time Is Carried, Never Minted by the Receiver](0103-object-time-is-carried-never-minted.md)
 - [ADR-0104 The Interactive Demo UI Is a React/ReactFlow Operator-Side Ledger Watcher, Fed by a Prototype-Only SSE Stream](0104-interactive-demo-ui-live-ledger-watcher.md)
-- [ADR-0105 Two Cases for One Vulnerability Merge by Owner Consent: the Offered Case Freezes and Redirects](0105-case-merge-freeze-and-redirect-by-owner-consent.md) *(provisional)*
+- [ADR-0105 Two Cases for One Vulnerability Merge by Owner Consent: the Offered Case Freezes and Redirects](0105-case-merge-freeze-and-redirect-by-owner-consent.md)
 - [ADR-0106 Version Each Machine-Facing Interface Independently of the Release Tag](0106-versioning-machine-facing-interfaces.md) *(provisional)* — partially supersedes 0069-vultron-namespace-uri.md
-- [ADR-0107 A Case Ledger Entry Is a Postmark on the Received Envelope; References Resolve by Dereference](0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md) *(provisional)* — supersedes 0061-per-dimension-partial-accept.md
+- [ADR-0107 A Case Ledger Entry Is a Postmark on the Received Envelope; References Resolve by Dereference](0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md) — supersedes 0061-per-dimension-partial-accept.md
 - [ADR-0108 One Move, One Mover: Case State Flows Through the Case Manager and the Ledger, Whatever Message Carried It](0108-one-move-one-mover-case-state-flows-through-the-case-manager-and-the-ledger.md)
 - [ADR-0109 A Container Emits Only as Actors It Hosts; a Participant Asks the CaseActor to Act](0109-a-container-emits-only-as-actors-it-hosts.md) — partially supersedes 0021-caseactor-inbox-routing-canonical-ledger.md, 0042-http-only-inter-actor-delivery.md, 0073-per-actor-storage-isolation.md
 - [ADR-0110 The Trigger Driving Port Is One `trigger()` Method over a Verb Registry, Returning a Typed Result Bound to the Request](0110-trigger-dispatcher-port-over-verb-registry.md)
@@ -226,6 +226,8 @@ General information about architectural decision records is available at <https:
 - [ADR-0122 Participant Embargo Consent Is Recorded per (Participant, Embargo), Against an Embargo Register on the Case](0122-per-embargo-participant-consent.md) *(revision 7)* *(provisional)* — supersedes 0056-embargo-adherence-computed-field.md; partially supersedes 0048-pec-no-embargo-is-absence-not-pre-consent.md, 0091-rename-pec-no-embargo-to-unbound.md, 0093-signatory-declined-pec-transition.md, 0118-pec-expired-and-unbound-exited-states.md
 - [ADR-0123 An Embargo Invite May Name Its Terms by URI](0123-embargo-invite-may-name-its-terms-by-uri.md) *(provisional)*
 - [ADR-0124 The Case Is a Projection of Its Ledger: Every Change Is an Entry, and Replicas Copy](0124-case-is-a-projection-of-its-ledger.md) *(revision 2)* *(provisional)*
+- [ADR-0125 A Case Splits by Its Owner Proposing a Child Case: the Child Links Its Parent and Inherits the Embargo Terms Only](0125-case-split-child-case-inherits-the-embargo-only.md) *(provisional)*
+- [ADR-0126 CI Is the Full-Suite Authority After a Pull Request's First Push](0126-ci-is-the-full-suite-authority-after-the-first-push.md) *(revision 2)* *(provisional)* — partially superseded by 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md, 0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md
 - [ADR-0127 Decision Records Leave Routine Agent Context; Specs and Notes Carry the Current State](0127-decision-records-leave-routine-agent-context.md) *(provisional)*
 - [ADR-0128 Message Vocabulary Docs Are Projections of the Semantic Registry](0128-message-vocabulary-docs-are-projections-of-the-semantic-registry.md) *(provisional)*
 - [ADR-0129 A Sender Rule States Every Position on Both Sides, and Is the Source of "Sent By"](0129-a-sender-rule-states-every-position-on-both-sides-and-is-the-source-of-sent-by.md) *(provisional)*
@@ -253,8 +255,6 @@ General information about architectural decision records is available at <https:
 
 ## Proposed ADRs
 
-- [ADR-0125 A Case Splits by Its Owner Proposing a Child Case: the Child Links Its Parent and Inherits the Embargo Terms Only](0125-case-split-child-case-inherits-the-embargo-only.md)
-- [ADR-0126 CI Is the Full-Suite Authority After a Pull Request's First Push](0126-ci-is-the-full-suite-authority-after-the-first-push.md) *(revision 2)* — partially superseded by 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md, 0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md
 - [ADR-0130 EM Is Computed From the Embargo Register Under the EM Transition Table](0130-em-is-computed-from-the-embargo-register-under-the-em-transition-table.md) *(revision 2)*
 - [ADR-0138 A Pushed Pull Request Is Merged Locally Only on Conflict](0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md) — partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md
 - [ADR-0139 A Fresh Agent Reviews the Branch Before Its First Push](0139-a-fresh-agent-reviews-the-branch-before-its-first-push.md)

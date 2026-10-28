@@ -17,6 +17,11 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: The implementation MUST use Python 3.12 or later.
+    rationale: >-
+      A minimum Python version tells users and contributors which interpreters the code
+      supports. `requires-python` in `pyproject.toml`, ruff's `target-version` and
+      pyright's `pythonVersion` all name 3.12. The checks then report code that needs a
+      later version, even though CI and the container images run Python 3.13.
   - id: IMPLTS-01-007
     priority: MUST
     kind: project
@@ -25,6 +30,11 @@ groups:
       Before updating the `requires-python` floor in `pyproject.toml`, the full test suite
       MUST pass on the target Python version in CI, and all static type checks (`mypy`, `pyright`)
       and linters MUST pass under the new runtime
+    rationale: >-
+      A new `requires-python` floor drops every older Python version at once. If the
+      tests, type checks and linters have not run on the new version first, a release
+      can claim a version that it does not work on. A user then finds the fault after
+      the install, not CI before the merge.
     relationships:
     - rel_type: refines
       spec_id: IMPLTS-01-001
@@ -33,27 +43,56 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: The backend API MUST be implemented using FastAPI.
+    rationale: >-
+      One web framework gives every actor endpoint the same request handling, validation
+      and dependency injection. FastAPI uses the Pydantic models the project already has
+      for its data (IMPLTS-01-004), and its `BackgroundTasks` let a route return at once
+      and do the long work after the response.
   - id: IMPLTS-01-003
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: The backend API MUST expose an OpenAPI specification.
+    rationale: >-
+      Other implementations and tools must know the shape of each endpoint to call it
+      correctly. An OpenAPI document gives that description in a machine-readable form.
+      FastAPI generates it from the route definitions, so the document changes when the
+      routes change.
   - id: IMPLTS-01-004
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: The system MUST use Pydantic for data validation and data modeling.
+    rationale: >-
+      One validation library gives every model the same rules for parsing, defaults and
+      errors. Pydantic checks an object when it is constructed, so a bad value fails at
+      once with a clear error and the core receives only valid objects (ARCH-10-001).
   - id: IMPLTS-01-005
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: >-
       The application MUST use Python’s standard logging framework for structured logging.
+    rationale: >-
+      FastAPI, uvicorn and httpx2 write their log output through the standard `logging`
+      module. When Vultron uses the same module, one handler configuration controls all
+      output in the process. The structured-logging rules (SL-01, SL-02) also rely on
+      its record, filter and formatter types.
   - id: IMPLTS-01-006
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: The behavior tree engine MUST be implemented using py_trees.
+    adr:
+    - ADR-0008
+    statement: >-
+      Behavior trees that run protocol behavior (`vultron/core/behaviors/`) MUST be
+      implemented using py_trees.
+    rationale: >-
+      py_trees gives the protocol behavior trees standard Sequence, Selector and
+      condition semantics, a blackboard to pass data between nodes, and tree display for
+      debugging (ADR-0008). The custom engine in `vultron/bt/` serves the simulator.
+      Keeping the two engines apart means that a change to the simulator cannot break
+      protocol handling.
 - id: IMPLTS-02
   title: Persistence and Data
   specs:
@@ -61,23 +100,42 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
+    adr:
+    - ADR-0016
     statement: The prototype MUST use SQLModel/SQLite for lightweight local persistence.
+    rationale: >-
+      The prototype needs persistence that runs with no database server. SQLite keeps
+      the data in a local file, or in memory for tests. SQLModel stores each object as
+      a typed row that holds its JSON body (ADR-0016).
   - id: IMPLTS-02-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: The system MUST support SQLite-based storage for demo and local development
       use.
+    rationale: >-
+      A demo or a local run must start with no extra service to install or run. SQLite
+      is part of the Python standard library, so a contributor needs nothing beyond the
+      project's own dependencies.
   - id: IMPLTS-02-003
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: The system MUST support ISO 8601 date/time parsing and formatting using isodate.
+    rationale: >-
+      Embargo policies give durations in ISO 8601 form, such as `P90D`. The Python
+      standard library parses ISO 8601 dates and times but not durations, so the project
+      uses isodate to parse and write them.
   - id: IMPLTS-02-004
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: The system MUST support graph construction and analysis using networkx.
+    rationale: >-
+      The case state model is a graph of CS states, and the spec tools build a graph of
+      requirement relationships. networkx builds these graphs and finds paths through
+      them. One graph library means that no code has its own graph algorithms to
+      maintain.
 - id: IMPLTS-03
   title: Interfaces and Tooling
   specs:
@@ -86,21 +144,38 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: Command line interfaces MUST be implemented using `click`.
+    rationale: >-
+      One CLI library gives each command the same option parsing, help text and
+      environment-variable options. The `vultron-demo` CLI and the adapter CLI use
+      click, so a user who knows one knows how the other reads its options.
   - id: IMPLTS-03-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: The system MUST use `httpx` for all HTTP client interactions, including outbound inbox delivery and demo HTTP calls. The `requests` library MUST NOT be used.
+    rationale: >-
+      One HTTP client gives one place to set timeouts and retries and one library to
+      mock in tests. Outbound delivery, demo calls and the FastAPI test client then
+      share one transport. A second client library would need its own retry and mock
+      code.
   - id: IMPLTS-03-003
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: The project MUST include automated tests implemented using `pytest`.
+    rationale: >-
+      One test framework lets CI, the Makefile and each contributor run the whole suite
+      with one command. The spec coverage report reads `@pytest.mark.spec` markers, and
+      the suite runs in parallel with pytest-xdist, so both depend on pytest.
   - id: IMPLTS-03-004
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: The project MUST support task automation using `make`.
+    rationale: >-
+      The Makefile gives contributors short, named commands for setup, tests, formatting
+      and linting. A contributor does not need to remember the full `uv` command for
+      each task.
 - id: IMPLTS-04
   title: Documentation and Visualization
   specs:
@@ -108,20 +183,36 @@ groups:
     priority: SHOULD
     kind: project
     statement: The project SHOULD generate static documentation using MkDocs.
+    rationale: >-
+      The project publishes its protocol documentation as a static site. MkDocs builds
+      that site from the Markdown files under `docs/`, which contributors edit in the
+      same repository and pull requests as the code.
   - id: IMPLTS-04-002
     priority: SHOULD
     kind: project
     statement: The documentation SHOULD use `mkdocstrings` for API reference generation.
+    rationale: >-
+      An API reference generated from docstrings changes when the code changes. A
+      reference written by hand goes out of date each time a signature changes and
+      nobody edits the page.
   - id: IMPLTS-04-003
     priority: SHOULD
     kind: project
     statement: The documentation theme SHOULD use Material for MkDocs.
+    rationale: >-
+      Material for MkDocs gives the site its navigation, search and page layout. One
+      theme gives every page the same structure, and the emoji extension uses the
+      theme's icon set.
   - id: IMPLTS-04-004
     priority: SHOULD
     kind: project
     statement: >-
       The documentation SHOULD support Mermaid diagrams for behavior trees, state machines,
       and process diagrams.
+    rationale: >-
+      Behavior trees, state machines and message flows are easier to follow as diagrams.
+      A Mermaid diagram is text in the Markdown page, so a reviewer sees each change to
+      it in the diff, and no separate image file must be kept up to date.
 - id: IMPLTS-05
   title: Containerization and Deployment
   specs:
@@ -129,34 +220,63 @@ groups:
     priority: SHOULD
     kind: project
     statement: The system SHOULD support containerization using Docker.
+    rationale: >-
+      The multi-actor demo runs several actors at the same time. A container gives each
+      actor its own process, data store and network address, as a separate organization
+      would have. A contributor can start the whole set with one command.
   - id: IMPLTS-05-002
     priority: SHOULD
     kind: project
     statement: Multi-container demo environments SHOULD be orchestrated using `docker-compose`.
+    rationale: >-
+      One compose file declares all demo containers, their network names and their start
+      order. The demo uses those names, such as `case-actor`, in actor addresses, so the
+      file is also the record of who is in the demo.
   - id: IMPLTS-05-003
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: The project MUST use GitHub Actions for CI/CD.
+    rationale: >-
+      The source is on GitHub (IMPLTS-05-007). GitHub Actions runs CI next to the pull
+      requests it checks, and other project automation, such as size labels and issue
+      types, runs there too. One platform keeps all checks and their results on the pull
+      request.
   - id: IMPLTS-05-004
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: CI workflows MUST include automated testing.
+    rationale: >-
+      A change that breaks a test must not reach `main`. CI runs the tests in a clean
+      environment, so the result does not depend on what each contributor ran on their
+      own machine.
   - id: IMPLTS-05-005
     priority: SHOULD
     kind: project
     statement: >-
       CI workflows SHOULD support static site generation and deployment to GitHub Pages.
+    rationale: >-
+      A docs build in CI finds a broken page or link before the change merges. A deploy
+      from CI publishes the site from `main`, so the published docs match the merged
+      code and nobody publishes by hand.
   - id: IMPLTS-05-006
     priority: SHOULD
     kind: project
     statement: Static documentation SHOULD be hosted via GitHub Pages.
+    rationale: >-
+      GitHub Pages serves the static site from the same repository, so the project has
+      no separate web server to run. The homepage URL in `pyproject.toml` points to that
+      site.
   - id: IMPLTS-05-007
     priority: MUST
     kind: process
     verification_debt: '#2571'
     statement: Source code MUST be hosted in GitHub using git for version control.
+    rationale: >-
+      Issues, pull requests, the project board and CI are all on GitHub, and the project
+      tools and agent skills call the GitHub API. Hosting the source there keeps the
+      code and the record of work about it in one place.
 - id: IMPLTS-07
   title: Code Quality Tooling
   specs:
@@ -165,6 +285,11 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: The project MUST use pyright for static type checking.
+    rationale: >-
+      pyright is the type checker in common editors, such as VS Code through Pylance.
+      When CI uses it too, a contributor sees the same type errors in the editor as in
+      CI. mypy (IMPLTS-07-003) reads some typing rules differently, so the project runs
+      both.
     relationships:
     - rel_type: implements
       spec_id: CS-11-001
@@ -173,6 +298,10 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: The project MUST use mypy for static type checking.
+    rationale: >-
+      mypy is the reference type checker for the Python typing rules. It reports some
+      errors that pyright does not, and pyright reports some that mypy does not, so the
+      project runs both (IMPLTS-07-002).
     relationships:
     - rel_type: implements
       spec_id: CS-11-001
@@ -188,10 +317,10 @@ groups:
       `[tool.ruff.lint.mccabe]` in `pyproject.toml`, as part of the ruff CI gate and
       pre-commit hook.
     rationale: >-
-      The threshold is unchanged; only its enforcement point moved when ADR-0094 retired
-      `.flake8`. `C901` is the ruff rule that reports it, and it is the project's single
-      complexity gate — the competing `PLR09xx` counters are deliberately excluded so that
-      two differently-calibrated gates cannot disagree.
+      A function with many branches is hard to read and hard to test on every path. A
+      cyclomatic complexity limit of 10 keeps each function small enough to test fully.
+      ruff rule `C901` checks the limit. The pylint size rules (`PLR09xx`) stay off, so
+      only one complexity check, with one limit, can fail a change.
     relationships:
   - id: IMPLTS-07-005
     priority: MUST
@@ -204,10 +333,11 @@ groups:
       `mypy`, and `pyright` as separate parallel jobs. The build job MUST only execute when
       all parallel jobs pass.
     rationale: >-
-      Parallel execution surfaces all failures simultaneously, reducing fix-cycle time and
-      preserving the known-clean codebase baseline. ADR-0094 collapsed the separate Black and
-      flake8 jobs into one ruff job; lint and format remain a single job because ruff performs
-      both in about a second, so splitting them would cost more in runner startup than it saves.
+      Parallel jobs report all failures in one CI run, so a contributor can fix them
+      together and not one per run. The `build` job waits for all of them, so the
+      package is built only from code that passes every check. ruff lint and format
+      share one job: ruff does both in about a second, and a second job would take
+      longer to start than it saves.
   - id: IMPLTS-07-006
     priority: MUST
     kind: project
@@ -215,6 +345,11 @@ groups:
     statement: >-
       The pytest configuration in `[tool.pytest.ini_options]` MUST include
       `filterwarnings = ["error"]` so that test-suite warnings are treated as errors.
+    rationale: >-
+      A warning in the test output is easy to miss, and a deprecation warning now is
+      often a failure after the next dependency upgrade. When pytest treats each warning
+      as an error, the run fails as soon as the warning appears, while the change that
+      caused it is still known.
   - id: IMPLTS-07-009
     priority: MUST
     kind: project
@@ -222,7 +357,10 @@ groups:
     statement: >-
       pyright MUST run in CI on every commit to `main` and on every pull request
       targeting `main`.
-    rationale: Static type checking must be enforced on every change to the main branch.
+    rationale: >-
+      A type check that runs only on a contributor's machine can be skipped or run on a
+      different scope. When CI runs pyright on pull requests and on pushes to `main`, a
+      type error is found before or when it reaches `main`.
     relationships:
     - rel_type: refines
       spec_id: IMPLTS-07-002
@@ -231,7 +369,10 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: pyright MUST pass with zero errors.
-    rationale: A zero-error gate ensures the codebase remains fully type-correct under pyright.
+    rationale: >-
+      When a check allows some errors, a new error hides among the old ones. With zero
+      errors as the limit, each new pyright error fails the check, and the contributor
+      who caused it sees it at once.
     relationships:
     - rel_type: refines
       spec_id: IMPLTS-07-002
@@ -242,7 +383,10 @@ groups:
     statement: >-
       mypy MUST run in CI on every commit to `main` and on every pull request
       targeting `main`.
-    rationale: Static type checking must be enforced on every change to the main branch.
+    rationale: >-
+      A type check that runs only on a contributor's machine can be skipped or run on a
+      different scope. When CI runs mypy on pull requests and on pushes to `main`, a
+      type error is found before or when it reaches `main`.
     relationships:
     - rel_type: refines
       spec_id: IMPLTS-07-003
@@ -251,23 +395,13 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: mypy MUST pass with zero errors.
-    rationale: A zero-error gate ensures the codebase remains fully type-correct under mypy.
+    rationale: >-
+      When a check allows some errors, a new error hides among the old ones. With zero
+      errors as the limit, each new mypy error fails the check, and the contributor who
+      caused it sees it at once.
     relationships:
     - rel_type: refines
       spec_id: IMPLTS-07-003
-  - id: IMPLTS-07-015
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: >-
-      Existing warnings MUST be resolved before the `filterwarnings = ["error"]`
-      setting is activated.
-    rationale: >-
-      Unresolved pre-existing warnings must be cleared to avoid a broken CI state
-      when the filterwarnings gate is enabled.
-    relationships:
-    - rel_type: refines
-      spec_id: IMPLTS-07-006
   - id: IMPLTS-07-016
     priority: MUST_NOT
     kind: project
@@ -276,8 +410,10 @@ groups:
       New warnings MUST NOT be introduced after `filterwarnings = ["error"]` is
       active.
     rationale: >-
-      Preventing new warnings maintains the zero-warning discipline established by
-      the filterwarnings setting.
+      The suite treats each warning as an error (IMPLTS-07-006), so a change that adds a
+      warning fails the run. The contributor who caused it then fixes it while the cause
+      is clear. A warning left in place often becomes an error at the next dependency
+      upgrade, when nobody remembers its cause.
     relationships:
     - rel_type: refines
       spec_id: IMPLTS-07-006
@@ -291,11 +427,12 @@ groups:
       `[tool.ruff]` in `pyproject.toml`, and ruff MUST be enforced via pre-commit hooks AND
       in the CI pipeline. Black, flake8 and isort MUST NOT be reintroduced alongside it.
     rationale: >-
-      One tool covering linting, formatting and import ordering removes the ungated-isort
-      drift trap and reduces the whole-tree gate from tens of seconds to about one, which is
-      the cost paid on every commit that edits a Python file. The prohibition on
-      reintroduction is CS-15-001 applied to tooling: leaving a superseded linter in place as
-      a fallback recreates the duplicate-gate problem ADR-0094 removed.
+      One tool for linting, formatting and import order gives one configuration and one
+      set of rules. Two tools that check the same thing can disagree, and a contributor
+      then cannot satisfy both. ruff checks the whole tree in about a second, so its
+      pre-commit hook costs little on each commit. CS-15-001 forbids keeping a replaced
+      symbol next to its replacement. The ban on Black, flake8 and isort applies the
+      same rule to tooling.
     verification: >-
       `pyproject.toml` contains a `[tool.ruff]` table; `.flake8`, `[tool.black]` and
       `[tool.isort]` are absent; `black`, `flake8` and `isort` are absent from the `dev`
@@ -315,9 +452,10 @@ groups:
       `ruff check` and `ruff format --check` MUST run in CI on every commit to `main` and on
       every pull request targeting `main`, and both MUST pass with zero findings.
     rationale: >-
-      Carries forward the obligations retired with IMPLTS-07-013 and IMPLTS-07-014. A
-      zero-finding gate is only meaningful because the baseline mechanism in IMPLTS-07-020
-      keeps known residue visible rather than silently tolerated.
+      A finding that CI allows is a finding that nobody fixes. When CI requires zero
+      ruff findings and a clean format check, each change keeps the tree clean. A
+      finding that the project keeps for now carries a `# noqa` marker with its tracking
+      issue (IMPLTS-07-020), so the zero count does not hide it.
     verification: >-
       The `lint-ruff` job in `.github/workflows/python-app.yml` runs both commands without an
       exit-code override and without path operands, and the `build` job lists it in `needs`.
@@ -334,11 +472,11 @@ groups:
       reports and why this project does not enforce it. An entry MAY cite a tracking issue in
       place of a standing rationale when the exclusion is provisional.
     rationale: >-
-      An unexplained exclusion is indistinguishable from an oversight, so nobody dares delete
-      it and the list only grows. Requiring a stated reason makes the `ignore` block the
-      authoritative record of what the project has deliberately chosen not to enforce, and
-      makes tightening a legible one-line change rather than an archaeology exercise. This is
-      the same discipline CS-23-001 imposes on a sanctioned broad `except`.
+      An exclusion with no stated reason looks the same as a mistake. Nobody can tell
+      whether it is safe to delete, so the list only grows. A comment on each entry
+      makes the `ignore` list the record of what the project chose not to check and why,
+      and a contributor can delete an entry with confidence. CS-23-001 asks the same of
+      a sanctioned broad `except`.
     verification: >-
       Every line of the `ignore` array in `[tool.ruff.lint]` is preceded by or carries a
       comment; a reviewer can state the reason for each exclusion without consulting history.
@@ -356,12 +494,12 @@ groups:
       naming both the rule and the issue that tracks its removal, and `RUF100` MUST remain
       selected.
     rationale: >-
-      `RUF100` reports a `# noqa` that suppresses nothing, making ruff itself the ratchet: a
-      new violation without a marker fails, and a fixed site whose marker was left behind
-      also fails. That is the property set ADR-0064 required — growth fails, silent progress
-      fails, completion forces removal — with no hand-maintained backlog. Naming the tracking
-      issue separates a scheduled cleanup from an unjustified suppression. ADR-0094 records
-      why file-scoped `per-file-ignores` cannot substitute.
+      `RUF100` reports a `# noqa` marker that suppresses nothing. A new finding with no
+      marker fails the check because its rule is selected. With `RUF100` selected, a
+      marker left after its finding is fixed also fails. Each marker then matches a
+      real finding, and nobody keeps a separate list of them. The issue number on each
+      marker shows that the suppression is planned work, not an unexplained exception.
+      ADR-0094 records why file-wide `per-file-ignores` cannot do the same job.
     verification: >-
       `RUF100` is absent from the `ignore` list, and every `# noqa` added for baselining names
       a rule code and an issue number.
@@ -379,18 +517,19 @@ groups:
       hooks, agent skills, and documented developer commands — MUST invoke the tool with no
       path operands.
     rationale: >-
-      A scope expressed as command-line arguments is duplicated at every call site and drifts
-      silently, because nothing compares the spellings. ADR-0094 records two drifts that were
-      live when it was written — one left code formatted but never linted, the other made some
-      pull requests type-check less than commits did. Declaring scope once makes a scope change
-      one edit to one file, and makes caller disagreement impossible rather than unlikely.
+      When each caller passes its own paths, the same scope is written in many places,
+      and nothing checks that they agree. Two callers can then check different files:
+      for example, CI can pass code that the pre-commit hook never lints. With the scope
+      in the tool's configuration file, all callers check the same files, and a scope
+      change is one edit in one file.
     verification: >-
-      No invocation of `ruff`, `mypy` or `pyright` in `.github/workflows/`, `.agents/skills/`,
-      `.pre-commit-config.yaml`, `Makefile`, `CONTRIBUTING.md`, or `docs/developer/` passes a
-      path operand, and each tool's configuration declares its own scope. `Makefile` and
-      `CONTRIBUTING.md` are named explicitly because they are the two call sites most easily
-      missed: the `Makefile` carries both a `flake8` target and an aggregate `lint` target, and
-      `CONTRIBUTING.md` is the invocation new contributors copy.
+      No invocation of `ruff`, `mypy` or `pyright` in `.github/workflows/`,
+      `.agents/skills/`, `.pre-commit-config.yaml`, `Makefile`, `CONTRIBUTING.md`, or
+      `docs/developer/` passes a path operand, and each tool's configuration declares
+      its own scope. `Makefile` and `CONTRIBUTING.md` are named explicitly because they
+      are the two call sites most easily missed: the `Makefile` carries a target for
+      each tool and an aggregate `lint` target, and `CONTRIBUTING.md` is the invocation
+      new contributors copy.
     relationships:
     - rel_type: refines
       spec_id: IMPLTS-07-017
@@ -407,6 +546,10 @@ groups:
     priority: MAY
     kind: project
     statement: The project MAY use uv for Python environment and dependency management.
+    rationale: >-
+      uv installs the locked dependencies from `uv.lock` quickly and the same way on
+      each machine, and the Makefile and CI use it. A MAY keeps an install with pip from
+      `pyproject.toml` valid for a user who does not have uv.
   - id: IMPLTS-06-003
     priority: MUST_NOT
     kind: project
@@ -416,13 +559,11 @@ groups:
       from the published site, so nothing reads it at runtime or at docs-build
       time.
     rationale: >-
-      Both libraries existed solely for `vultron/scripts/ontology2md.py`, which
-      rendered the ontology into five `docs/reference/ontology/` pages at
-      build time. #3551 withheld those pages, leaving the script with no callers
-      and two RDF libraries in the runtime dependency set — and therefore in
-      every deployed container image — for no runtime purpose. The script and
-      both dependencies were removed in #3570. Reintroducing either means
-      reopening the question of whether the ontology is a maintained artifact.
+      rdflib and owlready2 have no use in the code: nothing reads the ontology files at
+      runtime or when the docs build. Each unused dependency adds install time, image
+      size and security updates to every deployed container image. A change that adds
+      either library back must first decide that the ontology is a maintained product,
+      because only then does code need to read it.
     verification: >-
       `test/architecture/test_no_rdf_dependencies.py` fails if either library
       is declared in any `pyproject.toml` dependency group or imported by any
@@ -431,3 +572,7 @@ groups:
     priority: MAY
     kind: project
     statement: The system MAY use numpy and pandas for data manipulation and analysis.
+    rationale: >-
+      The CS state model code (`vultron/core/case_states/hypercube.py`) uses pandas and
+      numpy for table work over the case state space. A MAY lets other analysis code use
+      them too, but it does not require them where plain Python is enough.

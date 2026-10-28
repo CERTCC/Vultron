@@ -454,7 +454,7 @@ FULL_PATHS = [
     "pyproject.toml",
     "uv.lock",
     "vultron/__init__.py",
-    "test/support/clock.py",
+    "test/support/case_owner.py",
     "test/core/behaviors/case/nodes/revision_relay_fixtures.py",
     "test/adapters/driven/golden/wire_render_core_vocab.json",
 ]

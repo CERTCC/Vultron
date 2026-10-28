@@ -22,7 +22,6 @@ from typing import cast
 import anyio
 import pytest
 
-from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from test.support.received import delivered, peer_position, received_event
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi.inbox_handler import (
@@ -47,6 +46,10 @@ from vultron.core.use_cases.received.sync import (
 )
 from vultron.core.use_cases.triggers.sync import (
     state_ledger_positions_trigger,
+)
+from vultron.demo.in_process import (
+    InProcessRouter,
+    create_isolated_actor_app,
 )
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
@@ -123,8 +126,8 @@ def _make_log_entry(
 
 @pytest.fixture
 def two_app_setup() -> Iterator[tuple]:
-    """Create two isolated actor apps connected by ``_TestClientRouter``."""
-    router = _TestClientRouter()
+    """Create two isolated actor apps connected by ``InProcessRouter``."""
+    router = InProcessRouter()
     case_actor_iso = create_isolated_actor_app(
         base_url=_CASE_ACTOR_BASE, router=router
     )

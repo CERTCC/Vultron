@@ -384,6 +384,7 @@ def _introductions(owner_dl: SqliteDataLayer) -> list[as_Create]:
 
 
 @pytest.mark.spec("CBT-01-001")
+@pytest.mark.spec("CBT-01-002")
 @pytest.mark.spec("CBT-01-007")
 @pytest.mark.spec("CM-12-003")
 def test_report_receiver_introduces_the_case_manager_to_the_reporter():

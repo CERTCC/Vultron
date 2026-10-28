@@ -152,6 +152,23 @@ class TestAddRole:
         assert CVDRole.REPORTER in p.roles
         assert len(p.roles) == 2
 
+    def test_add_role_appends_after_the_held_roles_in_order(self):
+        """The roles serialize into hashed ledger payloads, so their order
+        must not follow set iteration order, which varies by process (#3901)."""
+        held = [CVDRole.VENDOR, CVDRole.REPORTER, CVDRole.DEPLOYER]
+        p = _make_participant(roles=list(held))
+        p.add_role(CVDRole.CASE_OWNER)
+        assert p.roles == [*held, CVDRole.CASE_OWNER]
+
+    def test_add_role_drops_a_duplicate_held_role(self):
+        """The set-based rebuild this replaced de-duplicated the held roles;
+        the ordered rebuild keeps doing so, first occurrence first (#3901)."""
+        p = _make_participant(
+            roles=[CVDRole.VENDOR, CVDRole.REPORTER, CVDRole.VENDOR]
+        )
+        p.add_role(CVDRole.DEPLOYER)
+        assert p.roles == [CVDRole.VENDOR, CVDRole.REPORTER, CVDRole.DEPLOYER]
+
 
 # ---------------------------------------------------------------------------
 # remove_role() (PRM-02-004 through PRM-02-006, PRM-05-002)
@@ -173,6 +190,31 @@ class TestRemoveRole:
         p.remove_role(CVDRole.VENDOR)
         assert len(p.roles) == 1
         assert CVDRole.COORDINATOR in p.roles
+
+    def test_remove_role_keeps_the_other_roles_in_order(self):
+        """See test_add_role_appends_after_the_held_roles_in_order (#3901)."""
+        p = _make_participant(
+            roles=[
+                CVDRole.VENDOR,
+                CVDRole.REPORTER,
+                CVDRole.DEPLOYER,
+                CVDRole.CASE_OWNER,
+            ]
+        )
+        p.remove_role(CVDRole.REPORTER)
+        assert p.roles == [
+            CVDRole.VENDOR,
+            CVDRole.DEPLOYER,
+            CVDRole.CASE_OWNER,
+        ]
+
+    def test_remove_role_drops_a_duplicate_held_role(self):
+        """See test_add_role_drops_a_duplicate_held_role (#3901)."""
+        p = _make_participant(
+            roles=[CVDRole.VENDOR, CVDRole.REPORTER, CVDRole.VENDOR]
+        )
+        p.remove_role(CVDRole.REPORTER)
+        assert p.roles == [CVDRole.VENDOR]
 
     def test_remove_role_idempotent_no_exception(self):
         """remove_role() is idempotent: removing absent role does not raise (PRM-05-002b)."""

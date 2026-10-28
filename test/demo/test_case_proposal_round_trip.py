@@ -28,7 +28,7 @@ Coverage
   wrapped by ``test_case_proposal_demo`` below.
 
 These tests use two isolated FastAPI apps (vendor + reporter) wired via a
-shared ``_TestClientRouter`` so that all outbound deliveries route in-process
+shared ``InProcessRouter`` so that all outbound deliveries route in-process
 without real HTTP.  They are auto-marked as ``@pytest.mark.integration``
 by the conftest hook in ``test/demo/``.
 
@@ -45,7 +45,7 @@ When the vendor's inbox receives ``SubmitReport`` from the reporter,
 3. Queues the activity to the vendor's outbox via ``record_outbox_item``.
 
 ``UpdateActorOutbox`` then flushes the vendor's outbox.  The
-``_TestClientRouter`` routes the delivery to the case-actor's inbox on the
+``InProcessRouter`` routes the delivery to the case-actor's inbox on the
 same app (single-app setup: the case-actor and vendor actor share one
 FastAPI instance backed by the same DataLayer).
 
@@ -82,8 +82,6 @@ from test.demo._helpers import (
     make_testclient_call,
 )
 from test.demo.conftest import (
-    _TestClientRouter,
-    create_isolated_actor_app,
     submit_report_through_reporter,
 )
 from test.support.received import received_event, received_of_type
@@ -98,13 +96,17 @@ from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
+from vultron.demo.in_process import (
+    InProcessRouter,
+    create_isolated_actor_app,
+)
 from vultron.demo.utils import case_actor_id_for_report
 from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
 )
 
 # ---------------------------------------------------------------------------
-# Constants — all IDs use HTTP-routable URIs (required for _TestClientRouter)
+# Constants — all IDs use HTTP-routable URIs (required for InProcessRouter)
 # ---------------------------------------------------------------------------
 
 _VENDOR_BASE = "http://vendor-cp.test"
@@ -190,13 +192,13 @@ def two_app_setup():
     """Vendor app + reporter app wired for end-to-end CaseProposal delivery.
 
     Uses two isolated FastAPI apps each with their own in-memory
-    ``SqliteDataLayer``.  A shared ``_TestClientRouter`` routes outbound
+    ``SqliteDataLayer``.  A shared ``InProcessRouter`` routes outbound
     deliveries in-process so the full outbox → inbox → handler chain is
     exercised without real HTTP.
 
     The ``VULTRON_SERVER__BASE_URL`` is patched to ``{_VENDOR_BASE}/api/v2``
     so that IDs minted from the server base URL are routable — the
-    ``_TestClientRouter`` maps this base URL to the vendor's ASGI app.
+    ``InProcessRouter`` maps this base URL to the vendor's ASGI app.
 
     Yields:
         Tuple of (vendor_iso, reporter_iso, vendor_tc, reporter_tc).
@@ -212,12 +214,12 @@ def two_app_setup():
     # by construction (CFG-06-006).
     with config_override(
         VULTRON_SERVER__BASE_URL=f"{_VENDOR_BASE}/api/v2",
-        # ResolveCaseActorUrlsNode reads case_actor_service_url from ActorConfig
+        # case_actor_identity() reads case_actor_service_url from ActorConfig
         # (CP-08-002); in this single-vendor test setup the vendor IS the
         # case-actor service, so we point it at the same base URL.
         VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=f"{_VENDOR_BASE}/api/v2",
     ) as cfg:
-        router = _TestClientRouter()
+        router = InProcessRouter()
         # `actor_slug` matters: it decides which actor's store `iso.dl` is.  These
         # tests create their actors under the module slugs below, and a store
         # belongs to exactly one actor (ADR-0073), so leaving the default
@@ -419,6 +421,7 @@ class TestCaseProposalRoundTrip:
         )
 
     @pytest.mark.spec("CBT-01-001")
+    @pytest.mark.spec("CBT-01-004")
     @pytest.mark.spec("CBT-01-006")
     @pytest.mark.spec("CBT-05-005")
     def test_report_receiver_sends_the_reporter_the_case(self, two_app_setup):
@@ -464,6 +467,7 @@ class TestCaseProposalRoundTrip:
             CaseParticipant,
         )
 
+    @pytest.mark.spec("CBT-02-001")
     @pytest.mark.spec("CBT-05-001")
     @pytest.mark.spec("CBT-05-005")
     def test_reporter_accepts_the_case_managers_announce_after_the_introduction(

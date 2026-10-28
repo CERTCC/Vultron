@@ -78,6 +78,7 @@ def _participant(
 
 @pytest.mark.spec("CM-10-004")
 @pytest.mark.spec("MV-10-005")
+@pytest.mark.spec("PCR-08-003")
 def test_ledger_fanout_reaches_only_active_participants() -> None:
     """Of three non-manager participants under an active embargo, one is active.
 

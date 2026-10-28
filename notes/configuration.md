@@ -70,7 +70,7 @@ and the common server, database and ledger variables.
   non-zero because participant and CASE_MANAGER clocks are not synchronised
   (ADR-0079).
 - **`actor.case_actor_service_url`** has no default and MUST be supplied for
-  any actor whose BT may run the `engage-case` path; without it
+  any actor that may propose a case for a report it receives; without it
   `EnsureCaseActorHostedNode`, `ProposeReportCaseToActorNode` and
   `WritePendingReportCaseLinkNode` fail (CP-08-001, `notes/case-proposal.md`).
 - **`actor.default_case_roles`** need not list `CASE_OWNER`; it is always
@@ -128,8 +128,8 @@ env vars. Return `None` when the key is absent.
   module's autouse fixture. Fixing a leak removes config downstream tests were
   silently borrowing; a module that passes only in a full-suite run is
   order-dependent, not passing, so verify with a targeted run (#1897).
-- **Unexpected demo drops warn.** `_TestClientRouter.emit` in
-  `test/demo/conftest.py` drops a delivery to an unregistered host at DEBUG only
+- **Unexpected demo drops warn.** `InProcessRouter.emit` in
+  `vultron/demo/in_process.py` drops a delivery to an unregistered host at DEBUG only
   when the host is in `_KNOWN_FICTIONAL_HOSTS` (for example `vultron.example`);
   any other unregistered host logs WARNING, since it is almost always a config
   leak. Add a fictional host to the allowlist rather than silencing the warning.

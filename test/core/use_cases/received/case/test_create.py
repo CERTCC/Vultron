@@ -220,6 +220,7 @@ class TestBootstrapCreateAccepted:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("CBT-01-005")
 @pytest.mark.spec("CBT-05-002")
 class TestBootstrapCreateRejectedBadSender:
     """CBT-05-002 — imposter sender is rejected; case is NOT seeded."""
@@ -422,7 +423,7 @@ def _bootstrap_event(
     strict=True,
     raises=AssertionError,
     reason=(
-        "CBT-06-002: the reporter trusts one case creator per report, so no "
+        "CBT-06-002: the reporter trusts one bootstrap sender per report, so no "
         "link is recorded for the second recipient and its bootstrap is "
         "dropped. Tracked by #3698."
     ),

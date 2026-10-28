@@ -1,5 +1,8 @@
 ---
 status: accepted-provisional
+status_override: >-
+  Held provisional until its carriers #3653 through #3658 are built and
+  tested, as its Validation section states.
 date: 2026-09-25
 created: 2026-09-25
 updated: 2026-09-25
