@@ -1,20 +1,23 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Invite",
-  "id": "urn:uuid:c4e6d807-c745-4cb7-85d0-3018a154cbe8/full-case-invitation/1",
-  "name": "https://vultron.example/case-actors/vendorco-case-actor Invite Coordinator LLC to urn:uuid:c4e6d807-c745-4cb7-85d0-3018a154cbe8",
-  "context": "urn:uuid:c4e6d807-c745-4cb7-85d0-3018a154cbe8",
-  "content": "{\"logIndex\":4,\"entryHash\":\"b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5\"}",
+  "id": "urn:uuid:2210f3f9-b8cd-40f1-a17a-9d84a454e392/full-case-invitation/1",
+  "name": "https://vultron.example/case-actors/vendorco-case-actor Invite Coordinator LLC to urn:uuid:2210f3f9-b8cd-40f1-a17a-9d84a454e392",
+  "context": "urn:uuid:2210f3f9-b8cd-40f1-a17a-9d84a454e392",
   "to": "https://vultron.example/organizations/coordinator",
   "actor": "https://vultron.example/case-actors/vendorco-case-actor",
-  "target": "urn:uuid:c4e6d807-c745-4cb7-85d0-3018a154cbe8",
+  "target": "urn:uuid:2210f3f9-b8cd-40f1-a17a-9d84a454e392",
+  "ledgerPosition": {
+    "logIndex": 4,
+    "entryHash": "b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5"
+  },
   "object": {
     "@context": "https://www.w3.org/ns/activitystreams",
     "type": "Organization",
     "id": "https://vultron.example/organizations/coordinator",
     "name": "Coordinator LLC",
-    "published": "2026-10-12T17:01:42+00:00",
-    "updated": "2026-10-12T17:01:42+00:00",
+    "published": "2026-10-27T17:01:04+00:00",
+    "updated": "2026-10-27T17:01:04+00:00",
     "inbox": {
       "@context": "https://www.w3.org/ns/activitystreams",
       "type": "OrderedCollection",

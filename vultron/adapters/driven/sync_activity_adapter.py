@@ -34,6 +34,9 @@ See also:
 import logging
 from collections.abc import Callable
 
+from vultron.adapters.driven.ledger_position_stamp import (
+    with_sender_ledger_position,
+)
 from vultron.adapters.outbox_sealed_body import (
     requeue_if_sealed,
     seal_outbound_body,
@@ -41,6 +44,7 @@ from vultron.adapters.outbox_sealed_body import (
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.sync_helpers import ledger_tail_position
 from vultron.core.use_cases._helpers import add_activity_to_outbox
 from vultron.wire.as2.factories import (
     announce_log_entry_activity,
@@ -131,7 +135,6 @@ class SyncActivityAdapter:
             f"Reject(CaseLedgerEntry) for entry '{entry.id_}'",
             lambda: reject_log_entry_activity(
                 entry=ledger_entry_to_wire(entry),
-                context=tail_hash,
                 actor=actor_id,
                 to=to,
                 id_=reject_id,
@@ -167,7 +170,11 @@ class SyncActivityAdapter:
             actor_id,
             f"genesis-replay Reject(CaseLedgerEntry) for case '{case_id}'",
             lambda: genesis_replay_reject_activity(
-                case_id, actor=actor_id, to=to, id_=reject_id
+                case_id,
+                ledger_tail_position(case_id, self._dl),
+                actor=actor_id,
+                to=to,
+                id_=reject_id,
             ),
         )
 
@@ -219,7 +226,10 @@ class SyncActivityAdapter:
                 reject_id,
             )
             return
-        reject = build()
+        # The sender's tail, when it holds the case (SYNC-18-001): a peer that
+        # holds no case yet states none, and the CASE_MANAGER replays it from
+        # genesis (SYNC-15-002).
+        reject = with_sender_ledger_position(self._dl, build())
         self._dl.save(reject)
         seal_outbound_body(self._dl, reject)
         # ``self._dl`` selects the queue; *actor_id* is passed for the log label

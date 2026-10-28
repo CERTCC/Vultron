@@ -30,6 +30,8 @@ from py_trees.common import Status
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import (
+    TEST_SENDER_POSITION,
+    extract_stamped,
     hold_deferred,
     received_event,
     with_evidence,
@@ -62,7 +64,6 @@ from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.status import (
     AddParticipantStatusToParticipantReceivedUseCase,
 )
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
     add_status_to_participant_activity,
@@ -94,6 +95,7 @@ def _note_event(note: VultronNote) -> AddNoteToCaseReceivedEvent:
     )
     return with_evidence(
         AddNoteToCaseReceivedEvent(
+            ledger_position=TEST_SENDER_POSITION,
             activity_id=activity.id_,
             actor_id=SENDER,
             object_=note,
@@ -170,7 +172,7 @@ def test_the_archive_is_the_body_the_parser_sealed(scenario):
         ' "content": "caf\u00e9"}, "fooBar": [1, 2] }'
     )
     parsed = parse_activity(json.loads(request_bytes))
-    event = extract_event(parsed)
+    event = extract_stamped(parsed)
 
     scenario.assert_success(
         scenario.run(IntakeReceivedActivityNode(), activity=event)
@@ -218,6 +220,7 @@ def test_inlined_case_does_not_become_a_replica(scenario):
     )
     event = with_evidence(
         AddNoteToCaseReceivedEvent(
+            ledger_position=TEST_SENDER_POSITION,
             activity_id=activity.id_,
             actor_id=SENDER,
             object_=case,
@@ -265,6 +268,7 @@ def test_sender_chosen_id_cannot_squat_a_receiver_derived_record(scenario):
     )
     event = with_evidence(
         AddNoteToCaseReceivedEvent(
+            ledger_position=TEST_SENDER_POSITION,
             activity_id=squatter.id_,
             actor_id=SENDER,
             object_=_rich_note(),
@@ -290,6 +294,7 @@ def test_an_event_with_no_body_and_nothing_held_is_a_wiring_fault(scenario):
     """No received evidence and no archive: there is nothing to archive and
     nothing held, so intake fails and writes nothing (ARCH-15-001)."""
     event = AddNoteToCaseReceivedEvent(
+        ledger_position=TEST_SENDER_POSITION,
         activity_id="urn:vultron:no-body:1",
         actor_id=SENDER,
         object_=_rich_note(),

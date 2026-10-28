@@ -72,8 +72,9 @@ class VultronActivity(CoreObject):
     # carries it as ``terminationCause``, and the ledger entry that records
     # the Remove carries it with it.
     termination_cause: TerminationCause | None = None
-    # A participant's Read(CaseLedgerEntry) states the position of the entry
-    # it names (SYNC-17-001); the wire dump carries it as ``ledgerPosition``.
+    # The sender's ledger tail every case activity states (SYNC-18-001); a
+    # Read(CaseLedgerEntry) states it as the entry it names (SYNC-17-001).
+    # The wire dump carries it as ``ledgerPosition``.
     ledger_position: LedgerPosition | None = None
     # ``Question`` fields (AS2 §4.1); the CBT-03-004 bootstrap-replay Question
     # is delivered through this model.

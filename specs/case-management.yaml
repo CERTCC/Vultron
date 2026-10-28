@@ -1257,13 +1257,16 @@ groups:
       only asks the question and carries no copy of the case. Delivery to each
       recipient is ordered (ADR-0112), so queuing the Invite after the replay
       means it arrives once the participant can answer it; its ledger position
-      is the floor the participant must reach before answering (ADR-0121).
+      is the floor the participant must reach before answering (ADR-0121). It
+      travels as the Invite's `ledgerPosition`, the property every case activity
+      carries (VAM-04-011, SYNC-18-001, ADR-0156).
     verification: A test confirms the full-case Invite is queued after the last
       replayed ledger entry and carries the CASE_MANAGER's ledger tail position.
       Tests confirm a full-case Invite from the CASE_MANAGER is accepted, and
       one from any other actor, or with no known CASE_MANAGER, is refused.
     adr:
     - ADR-0121
+    - ADR-0156
     stories:
     - story_2022_006
   - id: CM-11-011
@@ -1277,10 +1280,18 @@ groups:
       VulnerabilityCase))` (RI) as `RM.RECEIVED → RM.INVALID`, and
       `Reject(Invite(Actor, VulnerabilityCase))` (RC) as
       `RM.RECEIVED → RM.CLOSED`.
+    rationale: >-
+      The position is the reply's `ledgerPosition`, the property every case
+      activity carries (VAM-04-012..014, SYNC-18-001, ADR-0156), so the
+      CASE_MANAGER judges it against the Invite's floor (CM-11-012) from the
+      one field it reads on every case activity.
     verification: Tests drive each of the three replies and check the
-      participant's RM state.
+      participant's RM state; `test/core/use_cases/received/actor/test_full_case_invite.py`
+      confirms the reply's position is its `ledgerPosition` and the ledger entry
+      records it.
     adr:
     - ADR-0121
+    - ADR-0156
     stories:
     - story_2022_006
     - story_2022_062

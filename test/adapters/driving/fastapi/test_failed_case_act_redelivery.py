@@ -20,7 +20,6 @@ through the FastAPI inbox, the activity is routed as the copy intake archived
 once.  The case act counterpart of ``test_failed_act_redelivery.py``.
 """
 
-import json
 import logging
 from typing import Any
 
@@ -42,10 +41,10 @@ from test.core.use_cases.received.actor.test_role_offer_routing import (
     _store,
 )
 from test.support.emitter import RecordingEmitter
+from test.support.received import delivered_body
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
@@ -86,7 +85,7 @@ def test_a_failed_role_offer_forward_commits_when_posted_again(
     """The first post fails and keeps nothing but the archive; the second,
     routed as the archived copy, records the Offer and forwards it once."""
     client, dl, emitter = served_manager
-    body = json.loads(dump_outbound_body(_offer()))
+    body = delivered_body(_offer())
 
     calls: list[str] = []
 

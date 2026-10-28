@@ -37,6 +37,7 @@ from test.architecture._vocab_example_corpus import (
     activity_examples,
     wire_body,
 )
+from test.support.received import extract_stamped
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
@@ -54,7 +55,6 @@ from vultron.core.models.events import resolve_case_context_id
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 _BYSTANDER = canonical_actor_uri("unaddressed-bystander")
@@ -124,7 +124,7 @@ def _seed_named_case(dl: SqliteDataLayer, activity: as_Activity) -> None:
     bystander is no participant of it, so a ``{case}/participants`` address
     would not name it either.
     """
-    event = extract_event(activity)
+    event = extract_stamped(activity)
     # A case-object event (``Add(Note)``, ``Remove(Note)``, ...) names the
     # case as its ``case_id``; any other names it as its context.
     case_id = resolve_case_context_id(event) or getattr(event, "case_id", None)

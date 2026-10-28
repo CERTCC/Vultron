@@ -39,6 +39,9 @@ from pydantic import BaseModel, Field
 from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.db_record import object_to_record
+from vultron.adapters.driven.ledger_position_stamp import (
+    with_sender_ledger_position,
+)
 from vultron.adapters.driving.fastapi.deps import (
     get_actor_dl,
     node_base_url,
@@ -626,6 +629,9 @@ def post_actor_outbox(
 
     # No clone: the injected DataLayer already is this actor's store.
     actor_dl = cast(Any, dl)
+    # A case activity states this actor's ledger tail, as one its own
+    # adapter builds does (SYNC-18-001); one that states a position keeps it.
+    activity = with_sender_ledger_position(actor_dl, activity)
     actor_dl.create(object_to_record(activity))
     # Seal what was posted: the outbox delivers this body, not a re-read of
     # the record (VM-08-003).

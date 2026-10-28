@@ -147,7 +147,9 @@ that bite most often:
   (`vultron/metadata/specs/verification.py`). Quote it: `#12` unquoted is a
   YAML comment. Delete the marker when you add `verification:` (both is a hard
   error); a relabel replaces it with `verification:` (MS-10-008). Never add one
-  to a new item — write the clause. The retired
+  to a new item — write the clause: MS-10-016's PR-only growth guard
+  (`test/architecture/test_verification_debt_guard.py`) fails a PR that adds a
+  marker or points one at a different issue. The retired
   `lint_suppress: [must_without_verification]` no longer loads.
   `uv run spec-lint --list-unverified` names the marked IDs per kind.
 - **`rel_type:`** — one of the enumerated values; `related_to` is not among them.

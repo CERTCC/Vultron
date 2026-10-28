@@ -14,7 +14,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     PARTICIPANT_ACTOR_ID,
     _make_entry,
 )
-from test.support.received import received_event
+from test.support.received import peer_position, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.nodes import (
@@ -356,7 +356,9 @@ def _reject_event(
         entry.model_dump(mode="json")
     )
     activity = reject_log_entry_activity(
-        wire_entry, context=last_accepted_hash, actor=peer_id
+        wire_entry,
+        ledger_position=peer_position(last_accepted_hash),
+        actor=peer_id,
     )
     return cast(RejectLogEntryReceivedEvent, received_event(activity))
 

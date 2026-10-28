@@ -48,7 +48,7 @@ from test.core.use_cases.received._ledger_network import (
 from test.support.emitter import RecordingEmitter
 from test.support.ledger import fail_commits, ledger_entries
 from test.support.ledger_rebuild import case_file_differences
-from vultron.adapters.outbox_sealed_body import dump_outbound_body
+from test.support.received import delivered_body
 from vultron.core.behaviors.sync import commit_tree
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case_participant import CaseParticipant
@@ -97,7 +97,7 @@ def _proposal_body(net: LedgerNetwork) -> tuple[dict[str, Any], str]:
         to=[MANAGER],
         id_=f"{net.case_id}/embargo_proposals/revision",
     )
-    return json.loads(dump_outbound_body(proposal)), revision.id_
+    return delivered_body(proposal), revision.id_
 
 
 def _held_rows(net: LedgerNetwork, actor_id: str, embargo_id: str) -> list:

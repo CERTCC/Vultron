@@ -30,7 +30,7 @@ from typing import Any, cast
 import pytest
 from py_trees.common import Status
 
-from test.support.received import received_activity
+from test.support.received import extract_stamped, received_activity
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.answer_trees import (
@@ -58,7 +58,6 @@ from vultron.core.use_cases.received.embargo.accept import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
 )
 from vultron.errors import VultronWiringError
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     em_accept_embargo_activity,
     em_reject_embargo_activity,
@@ -498,7 +497,7 @@ def test_the_accept_trees_own_repeat_guard_stops_a_repeat():
         expiry_out={},
     )
 
-    event = extract_event(
+    event = extract_stamped(
         parse_activity(
             _answer_body(net, BYSTANDER, invite_id, accept=True, tag="2")
         )

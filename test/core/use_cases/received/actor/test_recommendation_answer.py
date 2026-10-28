@@ -30,6 +30,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.received import extract_stamped
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -53,7 +54,6 @@ from vultron.core.use_cases.received.actor.recommendation_answer import (
     RejectActorRecommendationReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -120,7 +120,7 @@ def _event(
     sender_id: str = CASE_ACTOR_ID,
     to: list[str] | None = None,
 ) -> AnswerEvent:
-    event = extract_event(_answer(verb, sender_id, to))
+    event = extract_stamped(_answer(verb, sender_id, to))
     assert event.semantic_type is _SEMANTICS[verb]
     return cast(AnswerEvent, event)
 

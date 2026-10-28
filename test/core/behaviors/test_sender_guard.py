@@ -35,7 +35,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.received import with_evidence
+from test.support.received import TEST_SENDER_POSITION, with_evidence
 from vultron.core.behaviors import sender_entitlement
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.carried_snapshot import (
@@ -1291,6 +1291,7 @@ def test_sender_guard_refused_names_only_the_sender_guards_refusal(
     tree = _participant_tree(sender, guards)
     event = with_evidence(
         EngageCaseReceivedEvent(
+            ledger_position=TEST_SENDER_POSITION,
             activity_id="https://example.org/activities/engage-guard",
             actor_id=sender,
             object_=as_VulnerabilityCase(

@@ -25,6 +25,7 @@ Spec coverage:
 
 import pytest
 
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
     announce_log_entry_activity,
@@ -108,14 +109,17 @@ def test_reject_log_entry_object_is_entry(sample_log_entry):
     assert result.object_ == sample_log_entry
 
 
-@pytest.mark.spec("SYNC-03-001")
-@pytest.mark.spec("SYNC-03-004")
-def test_reject_log_entry_context_is_set(sample_log_entry):
-    """context carries the last accepted hash string (SYNC-03-001)."""
+@pytest.mark.spec("SYNC-03-002")
+@pytest.mark.spec("SYNC-18-001")
+def test_reject_log_entry_states_the_tail_as_its_position(sample_log_entry):
+    """The last accepted entry is the Reject's ``ledgerPosition``; ``context``
+    names the case (SYNC-18-001)."""
+    tail = LedgerPosition(log_index=0, entry_hash=_LAST_HASH)
     result = reject_log_entry_activity(
-        entry=sample_log_entry, context=_LAST_HASH, actor=_ACTOR_URI
+        entry=sample_log_entry, ledger_position=tail, actor=_ACTOR_URI
     )
-    assert result.context == _LAST_HASH
+    assert result.ledger_position == tail
+    assert result.context == sample_log_entry.case_id
 
 
 @pytest.mark.spec("AF-04-001")

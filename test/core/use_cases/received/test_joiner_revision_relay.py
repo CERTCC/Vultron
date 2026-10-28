@@ -47,7 +47,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models._helpers import _as_id, days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -79,15 +79,15 @@ def _relayed_to(dl: SqliteDataLayer, actor_id: str) -> list[VultronActivity]:
     """The embargo Invites relayed to *actor_id* (not the full-case Invite).
 
     The full-case Invite (CM-11-010) is also an Invite to the joiner; it
-    carries the CASE_MANAGER's ledger position in ``content`` and is not a
-    relayed proposal (EP-09-011).
+    invites the joiner itself, not to an embargo, and is not a relayed
+    proposal (EP-09-011).
     """
     return [
         a
         for a in (cast(VultronActivity, dl.read(i)) for i in dl.outbox_list())
         if a.type_ == "Invite"
         and (a.to or []) == [actor_id]
-        and "logIndex" not in str(a.content or "")
+        and _as_id(a.object_) != actor_id
     ]
 
 
@@ -473,7 +473,7 @@ def _full_case_invite_to_joiner(dl: SqliteDataLayer) -> VultronActivity:
         for a in (cast(VultronActivity, dl.read(i)) for i in dl.outbox_list())
         if a.type_ == "Invite"
         and (a.to or []) == [JOINER]
-        and "logIndex" in str(a.content or "")
+        and _as_id(a.object_) == JOINER
     ]
     return invite
 

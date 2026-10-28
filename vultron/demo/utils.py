@@ -44,10 +44,15 @@ from vultron.core.behaviors.case.case_actor_identity import (
     case_actor_identity,
 )
 from vultron.core.models.base import NonEmptyString
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
 from vultron.errors import DemoFailureError
+from vultron.wire.as2.factories import (
+    ledger_position_case_ids,
+    stamp_ledger_position,
+)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -459,6 +464,51 @@ def init_actor_ios(actors: Sequence[as_Actor]) -> None:
     pass
 
 
+def _receivers_case_position(
+    client: DataLayerClient, actor_id: str, case_id: str
+) -> LedgerPosition | None:
+    """The ledger position of *actor_id*'s copy of *case_id*, if it holds one.
+
+    Every stored case names the position its case file reflects
+    (SYNC-16-005).  ``None`` when the store holds nothing under *case_id*, or
+    something other than a case.
+    """
+    try:
+        stored = client.get(client.dl_path(case_id, actor_id=actor_id))
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            return None
+        raise
+    if (
+        not isinstance(stored, dict)
+        or stored.get("type") != "VulnerabilityCase"
+    ):
+        return None
+    # The DataLayer route renders the stored record by alias.
+    position = stored.get("ledgerPosition")
+    return LedgerPosition.model_validate(position) if position else None
+
+
+def _stamped_as_in_step(
+    client: DataLayerClient, actor_id: str, activity: as_Activity
+) -> as_Activity:
+    """*activity* stating a ledger position, as its sender's adapter stamps it.
+
+    An exchange demo posts a factory-built activity straight to an actor's
+    inbox in place of a peer.  A peer that holds the case states its ledger
+    tail on every case activity, and the receiver refuses one that states
+    none (SYNC-18-001, SYNC-18-003).  The demo stands in for a peer in step
+    with the receiver, so it states the position of the receiver's own copy
+    of the case.  An activity naming no case the receiver holds is posted as
+    it is.
+    """
+    for case_id in ledger_position_case_ids(activity):
+        position = _receivers_case_position(client, actor_id, case_id)
+        if position is not None:
+            return stamp_ledger_position(activity, position)
+    return activity
+
+
 def post_to_inbox_and_wait(
     client: DataLayerClient,
     actor_id: str,
@@ -473,6 +523,7 @@ def post_to_inbox_and_wait(
         activity: ActivityStreams activity to deliver.
         wait_seconds: Seconds to sleep after posting; defaults to ``DEFAULT_WAIT_SECONDS``.
     """
+    activity = _stamped_as_in_step(client, actor_id, activity)
     actor_obj_id = parse_id(actor_id)["object_id"]
     logger.debug(
         "Posting activity to %s's inbox: %s", actor_obj_id, logfmt(activity)

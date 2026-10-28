@@ -177,7 +177,7 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
 
     The ``Reject`` names the last entry the chain stores.  A replica whose
     chain stores none has no entry to name, so it sends the ``Reject`` that
-    names no entry, with an empty last-accepted hash and the case as its
+    names no entry, stating the empty chain's position and the case as its
     target: the CASE_MANAGER answers it by replaying from genesis, and each
     entry up to the copy's position is stored as a no-op (SYNC-16-007).
 
