@@ -22,13 +22,29 @@ from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.metadata.base import NonEmptyStr
 
+#: The parts of the ID grammar (MS-04-001), shared by every ID pattern below.
+#: ``_SUFFIX`` is the optional sub-item letter of an ID such as ``IO-03-003b``.
+_PREFIX = r"[A-Z]{2,8}"
+_GROUP = r"\d{2}"
+_INDEX = r"\d{3}"
+_SUFFIX = r"[a-z]?"
+
 #: A fully-qualified requirement ID as it appears in prose — ``PREFIX-NN-NNN``
 #: (MS-04-001): 2–8 uppercase letters, two-digit group, three-digit index.
 #: ``\b`` on both sides keeps ``ADR-0001``, semantic versions, and a prefix
 #: that merely ends in another topic's letters from matching. Shared by the
 #: spec linter, bundle-fit, and the citation ratchets so the ID grammar is
 #: defined once.
-SPEC_ID_CITATION_RE = re.compile(r"\b[A-Z]{2,8}-\d{2}-\d{3}\b")
+SPEC_ID_CITATION_RE = re.compile(rf"\b{_PREFIX}-{_GROUP}-{_INDEX}\b")
+
+#: A literal ID as :func:`cited_spec_ids` reads it: the citation grammar plus
+#: an optional sub-item letter.
+_CITED_ID_RE = re.compile(rf"\b{_PREFIX}-{_GROUP}-{_INDEX}{_SUFFIX}\b")
+
+#: A whole requirement ID split into the parts a range compares.
+_ID_PARTS_RE = re.compile(
+    rf"(?P<prefix>{_PREFIX})-(?P<group>{_GROUP})-(?P<index>{_INDEX}){_SUFFIX}"
+)
 
 #: A range of requirement IDs: a full start ID, then either a range word and a
 #: full end ID (``CM-10-001 through CM-10-005``) or a dash or ``..`` and an end
@@ -37,41 +53,50 @@ SPEC_ID_CITATION_RE = re.compile(r"\b[A-Z]{2,8}-\d{2}-\d{3}\b")
 #: ``CM-10-001 to 100 actors`` must not expand a whole group. A plain hyphen is
 #: not a range mark either: ``CM-10-001-005`` is too close to an ID typo.
 _SPEC_ID_RANGE_RE = re.compile(
-    r"\b(?P<prefix>[A-Z]{2,8})-(?P<group>\d{2})-(?P<index>\d{3})\s*(?:"
-    r"\b(?:through|thru|to)\s+"
-    r"(?P<word_prefix>[A-Z]{2,8})-(?P<word_group>\d{2})-(?P<word_index>\d{3})"
+    rf"\b(?P<prefix>{_PREFIX})-(?P<group>{_GROUP})-(?P<index>{_INDEX}){_SUFFIX}"
+    r"\s*(?:\b(?:through|thru|to)\s+"
+    rf"(?P<word_prefix>{_PREFIX})-(?P<word_group>{_GROUP})-"
+    rf"(?P<word_index>{_INDEX})"
     r"|(?:–|—|\.\.)\s*"
-    r"(?:(?:(?P<dash_prefix>[A-Z]{2,8})-)?(?P<dash_group>\d{2})-)?"
-    r"(?P<dash_index>\d{3})"
-    r")\b"
+    rf"(?:(?:(?P<dash_prefix>{_PREFIX})-)?(?P<dash_group>{_GROUP})-)?"
+    rf"(?P<dash_index>{_INDEX})"
+    rf"){_SUFFIX}\b"
 )
 
 #: A slash list of IDs in one group: ``CLP-14-006/007/008``.
-_SPEC_ID_SLASH_RE = re.compile(r"\b([A-Z]{2,8}-\d{2}-)\d{3}((?:/\d{3})+)\b")
+_SPEC_ID_SLASH_RE = re.compile(
+    rf"\b({_PREFIX}-{_GROUP}-){_INDEX}{_SUFFIX}"
+    rf"((?:/{_INDEX}{_SUFFIX})+)\b"
+)
 
 
 def _id_key(spec_id: str) -> tuple[str, int, int] | None:
-    parts = spec_id.split("-")
-    if len(parts) != 3 or not (parts[1].isdigit() and parts[2].isdigit()):
+    """Order *spec_id* by prefix, group and index, ignoring a sub-item letter."""
+    match = _ID_PARTS_RE.fullmatch(spec_id)
+    if match is None:
         return None
-    return parts[0], int(parts[1]), int(parts[2])
+    return match["prefix"], int(match["group"]), int(match["index"])
 
 
 def cited_spec_ids(text: str, known_ids: Iterable[str]) -> set[str]:
     """Every requirement ID *text* names, with ranges and slash lists expanded.
 
-    A literal ID (:data:`SPEC_ID_CITATION_RE`) is returned whether or not it is
-    known. A range yields every ID in *known_ids* with the start's prefix that
-    sorts between its ends, inclusive, so it may cross groups but never invents
-    an ID; a range whose ends name different prefixes yields only those ends.
-    A slash list ``PREFIX-NN-AAA/BBB`` yields ``PREFIX-NN-BBB`` beside its
-    literal first ID.
+    A literal ID, with or without a sub-item letter (``IO-03-003b``), is
+    returned whether or not it is known. A range yields every ID in
+    *known_ids* with the start's prefix whose group and index lie between its
+    ends, inclusive, sub-item IDs included, so it may cross groups but never
+    invents an ID; a range whose ends name different prefixes yields only
+    those ends. A slash list ``PREFIX-NN-AAA/BBB`` yields ``PREFIX-NN-BBB``
+    beside its literal first ID.
 
     Args:
         text: Prose to scan, such as a decision record's body.
         known_ids: The requirement IDs a range may expand to.
+
+    Returns:
+        The IDs *text* names, as a set.
     """
-    found = set(SPEC_ID_CITATION_RE.findall(text))
+    found = set(_CITED_ID_RE.findall(text))
     keyed = [(key, i) for i in known_ids if (key := _id_key(i)) is not None]
     for match in _SPEC_ID_RANGE_RE.finditer(text):
         prefix = match["prefix"]

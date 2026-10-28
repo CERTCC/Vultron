@@ -20,6 +20,7 @@ from vultron.metadata.specs.rationale import (
     missing_rationale,
     report_lines,
 )
+from vultron.metadata.specs.schema import cited_spec_ids
 
 
 def _spec(spec_id: str, rationale: str | None = "It prevents a gap.", **extra):
@@ -189,7 +190,10 @@ def test_adr_link_candidates_omit_cited_and_unknown_ids(repo):
 
 @pytest.fixture
 def ranged_specs(tmp_path: Path) -> Path:
-    """CCC-01 with a gap at 003, CCC-02, and DDD-01; nothing cites a record."""
+    """CCC-01 with a gap at 003, CCC-02, and DDD-01 with a sub-item 002b.
+
+    Nothing cites a record.
+    """
     data = {
         "id": "CCC",
         "title": "CCC file",
@@ -209,7 +213,11 @@ def ranged_specs(tmp_path: Path) -> Path:
         ],
     }
     (tmp_path / "ccc.yaml").write_text(yaml.dump(data))
-    _write_file(tmp_path, "DDD", *(_spec(f"DDD-01-00{n}") for n in (1, 2, 3)))
+    _write_file(
+        tmp_path,
+        "DDD",
+        *(_spec(f"DDD-01-00{n}") for n in ("1", "2", "2b", "3")),
+    )
     return tmp_path
 
 
@@ -230,6 +238,7 @@ def _named_ids(spec_dir: Path, body: str) -> list[str]:
         "Covers CCC-01-001 thru CCC-01-004.",
         "Covers CCC-01-001 to CCC-01-004.",
         "Covers CCC-01-001–004.",
+        "Covers CCC-01-001–CCC-01-004.",
         "Covers CCC-01-001 — 01-004.",
         "Covers CCC-01-001..004.",
         "Covers CCC-01-001 through\n  CCC-01-004.",
@@ -245,8 +254,11 @@ def test_adr_link_candidates_expand_id_ranges(ranged_specs, body):
 
 
 @pytest.mark.spec("MS-10-015")
-def test_adr_link_candidates_expand_cross_group_ranges(ranged_specs):
-    assert _named_ids(ranged_specs, "CCC-01-004 through CCC-02-001.") == [
+@pytest.mark.parametrize(
+    "body", ["CCC-01-004 through CCC-02-001.", "CCC-01-004–02-001."]
+)
+def test_adr_link_candidates_expand_cross_group_ranges(ranged_specs, body):
+    assert _named_ids(ranged_specs, body) == [
         "CCC-01-004",
         "CCC-01-005",
         "CCC-02-001",
@@ -263,10 +275,13 @@ def test_adr_link_candidates_expand_slash_lists(ranged_specs):
 
 
 @pytest.mark.spec("MS-10-015")
+@pytest.mark.parametrize(
+    "body", ["CCC-01-001 through DDD-01-003.", "CCC-01-001–DDD-01-003."]
+)
 def test_adr_link_candidates_keep_only_ends_of_a_mixed_prefix_range(
-    ranged_specs,
+    ranged_specs, body
 ):
-    assert _named_ids(ranged_specs, "CCC-01-001 through DDD-01-003.") == [
+    assert _named_ids(ranged_specs, body) == [
         "CCC-01-001",
         "DDD-01-003",
     ]
@@ -286,6 +301,39 @@ def test_adr_link_candidates_do_not_read_a_word_and_number_as_a_range(
 @pytest.mark.spec("MS-10-015")
 def test_adr_link_candidates_ignore_a_backward_range(ranged_specs):
     assert _named_ids(ranged_specs, "CCC-01-005–002.") == ["CCC-01-005"]
+
+
+@pytest.mark.spec("MS-10-015")
+def test_adr_link_candidates_do_not_read_a_plain_hyphen_as_a_range(
+    ranged_specs,
+):
+    assert _named_ids(ranged_specs, "CCC-01-001-004.") == ["CCC-01-001"]
+
+
+@pytest.mark.spec("MS-10-015")
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        ("Covers DDD-01-002b.", ["DDD-01-002b"]),
+        (
+            "DDD-01-001 through DDD-01-002.",
+            ["DDD-01-001", "DDD-01-002", "DDD-01-002b"],
+        ),
+        ("DDD-01-001–002b.", ["DDD-01-001", "DDD-01-002", "DDD-01-002b"]),
+        ("DDD-01-001/002b.", ["DDD-01-001", "DDD-01-002b"]),
+    ],
+)
+def test_adr_link_candidates_name_sub_item_ids(ranged_specs, body, expected):
+    """A sub-item letter is part of the ID, literal or inside a range or list."""
+    assert _named_ids(ranged_specs, body) == expected
+
+
+@pytest.mark.spec("MS-10-015")
+def test_cited_spec_ids_keep_an_unknown_literal_and_expand_only_known_ids():
+    assert cited_spec_ids(
+        "ZZZ-01-001, and CCC-01-001 to CCC-01-009.",
+        ["CCC-01-001", "CCC-01-002", "CCC-02-001"],
+    ) == {"ZZZ-01-001", "CCC-01-001", "CCC-01-002", "CCC-01-009"}
 
 
 # --- per-file reports and the command line ----------------------------------
