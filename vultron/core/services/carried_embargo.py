@@ -16,12 +16,17 @@
 
 A case that names an embargo its store cannot read breaks the invariant the
 EP-05-001 comparison rests on, so every path that saves a received case —
-the announce seed and the create/engage replica stores — calls
+the announce seed and the create replica store — calls
 :func:`store_carried_embargo` *first*, as does the inbox's routing stage for
 the throwaway store it rebuilds the activity in.  It stores the
 ``EmbargoEvent`` the sender carried inline (``_case_for_wire``, AKM-02-004)
 and refuses a bare reference the store lacks, rather than letting the case
 land pointing at nothing.
+
+The ``Engage`` tree writes nothing among its guards, so it runs
+:func:`check_carried_embargo`, the read-only half with the same refusals, as
+a guard, and :func:`store_carried_embargo` only as an effect of the
+committed act (CLP-10-006, CLP-10-010).
 
 Without the stored record a replica held a case pointing at an object it
 could not read: the manager's teardown then failed to announce

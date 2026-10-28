@@ -124,6 +124,7 @@ def test_a_bare_reference_the_store_holds_passes(dl: SqliteDataLayer) -> None:
         embargo_register=register(active=embargo.id_),
     )
 
+    check_carried_embargo(case, dl)
     store_carried_embargo(case, dl)
 
 
@@ -160,6 +161,8 @@ def test_a_reference_to_a_non_embargo_record_is_refused(
         embargo_register=register(active=report.id_),
     )
 
+    with pytest.raises(VultronValidationError):
+        check_carried_embargo(case, dl)
     with pytest.raises(VultronValidationError):
         store_carried_embargo(case, dl)
 
@@ -345,6 +348,8 @@ def test_a_case_naming_a_held_embargo_of_another_case_is_refused_unwritten(
         embargo_register=register(active=active),
     )
 
+    with pytest.raises(VultronValidationError, match=_OTHER_CASE):
+        check_carried_embargo(case, dl)
     with pytest.raises(VultronValidationError, match=_OTHER_CASE):
         store_carried_embargo(case, dl)
 
