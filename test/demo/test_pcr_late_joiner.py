@@ -56,17 +56,21 @@ is present in ``replica.case_participants``.
 """
 
 import asyncio
+from typing import Any
 
 import pytest
 
 from test.demo.conftest import (
-    _TestClientRouter,
-    create_isolated_actor_app,
     submit_report_through_reporter,
 )
 from test.support.received import received_of_type
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.core.models._helpers import _as_id
 from vultron.core.use_cases._helpers import _find_case_actor_id
+from vultron.demo.in_process import (
+    InProcessRouter,
+    create_isolated_actor_app,
+)
 from vultron.demo.utils import case_actor_id_for_report
 
 # ---------------------------------------------------------------------------
@@ -88,7 +92,7 @@ def three_app_setup():
     """Owner app + reporter app + late-joiner app wired for end-to-end delivery.
 
     Uses three isolated FastAPI app instances each with their own in-memory
-    ``SqliteDataLayer``.  A shared ``_TestClientRouter`` routes outbound
+    ``SqliteDataLayer``.  A shared ``InProcessRouter`` routes outbound
     deliveries between the apps in-process so the full
     outbox → inbox → inbox-handler chain is exercised without real HTTP.
 
@@ -128,12 +132,12 @@ def three_app_setup():
         # IDs under http://localhost:7999/actors/... and the owner's app
         # returns 404 for /actors/ paths (it expects /api/v2/actors/).
         VULTRON_SERVER__BASE_URL=f"{_OWNER_BASE}/api/v2",
-        # ResolveCaseActorUrlsNode reads case_actor_service_url from ActorConfig
+        # case_actor_identity() reads case_actor_service_url from ActorConfig
         # (CP-08-002); in this single-owner test setup the owner IS the
         # case-actor service, so we point it at the same base URL.
         VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=f"{_OWNER_BASE}/api/v2",
     ) as cfg:
-        router = _TestClientRouter()
+        router = InProcessRouter()
         owner_iso = create_isolated_actor_app(
             base_url=_OWNER_BASE, router=router
         )
@@ -365,7 +369,7 @@ def _drain_case_actor_outbox(owner_iso, case_actor_id: str) -> None:
     Uses the real ``outbox_handler`` (the same code path as a trigger
     endpoint) so that recipient extraction, ``to:`` field validation
     (OX-08-001), and emitter routing are all exercised end-to-end.  The
-    configured default emitter (the shared ``_TestClientRouter``) routes the
+    configured default emitter (the shared ``InProcessRouter``) routes the
     ``Announce`` to the late-joiner's app via its TestClient inbox.
 
     Args:
@@ -510,7 +514,7 @@ def _run_late_joiner_sequence(
 
     # Step 6: drain CaseActor's outbox via real outbox_handler
     # Announce(VulnerabilityCase) is routed to late-joiner via the
-    # configured default emitter (_TestClientRouter).
+    # configured default emitter (InProcessRouter).
     _drain_case_actor_outbox(owner_iso, case_actor_id)
 
     return case_id, lj_actor_id
@@ -533,6 +537,7 @@ class TestLateJoinerSequence:
       ``actor_participant_index``.
     """
 
+    @pytest.mark.spec("PCR-02-001", "PCR-02-002")
     def test_late_joiner_receives_case_replica(self, three_app_setup):
         """AC-1: Announce(VulnerabilityCase) creates a local replica.
 
@@ -601,6 +606,62 @@ class TestLateJoinerSequence:
             f"DataLayer has no record of it.  The late-joiner bootstrap "
             f"sequence may be broken (PCR-07-007 AC-1)."
         )
+
+    @pytest.mark.spec("CBT-04-001", "CBT-04-002", "CBT-04-003", "CBT-05-004")
+    def test_the_stub_invite_is_the_late_joiners_trust_anchor(
+        self, three_app_setup
+    ):
+        """The joiner trusts the case through the stub Invite, not a Create.
+
+        The Invite names the case and the CASE_MANAGER, the actor whose
+        ``Announce(VulnerabilityCase)`` later seeds the joiner's replica, and
+        the joiner receives no ``Create(VulnerabilityCase)`` on the way.
+        """
+        (
+            owner_iso,
+            reporter_iso,
+            late_joiner_iso,
+            owner_tc,
+            reporter_tc,
+            late_joiner_tc,
+        ) = three_app_setup
+
+        case_id, lj_actor_id = _run_late_joiner_sequence(
+            owner_iso,
+            reporter_iso,
+            late_joiner_iso,
+            owner_tc,
+            reporter_tc,
+            late_joiner_tc,
+            owner_slug="owner-cbt-04",
+            reporter_slug="reporter-cbt-04",
+            lj_slug="late-joiner-cbt-04",
+        )
+        lj_dl = late_joiner_iso.store_for(lj_actor_id)
+        assert lj_dl.read(case_id) is not None
+
+        def _object_type(activity: Any) -> str | None:
+            return getattr(activity.object_, "type_", None)
+
+        [invite] = [
+            invite
+            for invite in received_of_type(lj_dl, "Invite")
+            if getattr(invite.target, "type_", None) == "VulnerabilityCaseStub"
+        ]
+        assert _as_id(invite.context) == case_id
+        # The Invite's actor is the replica's CASE_MANAGER role-holder.
+        assert _as_id(invite.actor) == _find_case_actor_id(lj_dl, case_id)
+        case_announcers = {
+            _as_id(announce.actor)
+            for announce in received_of_type(lj_dl, "Announce")
+            if _object_type(announce) == "VulnerabilityCase"
+        }
+        assert case_announcers == {_as_id(invite.actor)}
+        assert [
+            create
+            for create in received_of_type(lj_dl, "Create")
+            if _object_type(create) == "VulnerabilityCase"
+        ] == []
 
     def test_late_joiner_appears_as_participant(self, three_app_setup):
         """AC-2: Late-joiner appears as participant in their case replica.

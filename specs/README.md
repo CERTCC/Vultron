@@ -229,7 +229,7 @@ related requirements across files.
   (CM-11), case creation timing (CM-12), embargo acceptance ownership (CM-13), case
   initialization sequence (CM-14)
 - **`case-bootstrap-trust.yaml`** - Trust establishment for non-owner
-  participants: creator-signed `Create(VulnerabilityCase)` bootstrap on the
+  participants: the report receiver's `Create(VulnerabilityCase)` bootstrap on the
   original report path, invite-based trust establishment for late joiners,
   pre-bootstrap queue / replay rules, and trusted CaseActor persistence
   (CBT-01 through CBT-05)

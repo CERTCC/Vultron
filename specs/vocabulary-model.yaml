@@ -17,6 +17,12 @@ groups:
     kind: project
     statement: Every concrete wire-layer AS2 class (object, activity, or link) MUST be registered in the shared `VOCABULARY`
       registry automatically at class-definition time
+    rationale: >-
+      The parser can resolve a `type` value only to a class that a registry holds. A
+      class that a developer must register by hand is unknown to the parser when that
+      step is forgotten, and an inbound activity of that type is refused. Registration
+      when the class is defined removes that manual step, so a new class cannot be
+      defined and still be missing from the registry.
     verification: Unit tests in `test/wire/as2/vocab/base/test_registry.py` confirm that a concrete `as_Object` subclass
       with a `Literal` `type_` annotation is present in `VOCABULARY` immediately after class definition, with no explicit
       registration call.
@@ -24,15 +30,31 @@ groups:
     priority: MUST
     kind: project
     statement: The `VOCABULARY` singleton MUST be the sole authoritative source for type lookup during dynamic deserialization
+    rationale: >-
+      If two lookups can answer the same `type` value, the same body can deserialize to
+      different classes on different code paths, and a defect in one path is not seen in
+      the other. One lookup gives every caller the same answer. The registry keys are
+      set by VM-01-004 and VM-01-008, and VM-06-008 sets which callers may also reach
+      the core map.
     verification: Unit tests in `test/wire/as2/vocab/base/test_registry.py` confirm that `find_in_vocabulary()` returns the
       correct registered class for a known type and raises `KeyError` for any unregistered type name.
   - id: VM-01-003
     priority: MUST
     kind: project
     statement: New vocabulary types MUST be importable at startup without explicit registration calls in application code
-    verification: Unit tests in `test/wire/as2/vocab/base/test_registry_completeness.py` confirm that importing
-      `vultron.wire.as2.vocab` populates all expected vocabulary types in `VOCABULARY` without any explicit registration
-      call in application code.
+    rationale: >-
+      Registration happens when a module is imported (VM-01-005). A vocabulary module
+      that no code path imports registers nothing, and the parser then refuses its
+      types. Importing `vultron.wire.as2.vocab.objects` or
+      `vultron.wire.as2.vocab.activities` imports every module in that package, so the
+      set of known types does not depend on which single modules the application
+      imported first.
+    verification: >-
+      Unit tests in `test/wire/as2/vocab/base/test_registry_completeness.py` confirm
+      that importing the `vultron.wire.as2.vocab.objects` and
+      `vultron.wire.as2.vocab.activities` packages imports every module in each package
+      and populates all expected vocabulary types in `VOCABULARY`, with no explicit
+      registration call in application code.
   - id: VM-01-004
     priority: MUST
     kind: project
@@ -67,6 +89,11 @@ groups:
     verification_debt: '#2575'
     statement: Vocabulary type registration MUST occur automatically at package import time; no explicit per-type registration
       call MUST be required at call sites.
+    rationale: >-
+      A registration call that each call site must make is a step that a call site can
+      omit. When it is omitted, the type is unknown only on that path, and the defect
+      shows only for the activities that take it. Registration as an import side effect
+      makes the registry the same for every caller.
     relationships:
     - rel_type: refines
       spec_id: VM-01-001
@@ -76,6 +103,12 @@ groups:
     verification_debt: '#2575'
     statement: 'A `VocabNamespace` enum (values: `AS`, `VULTRON`) MUST be defined in `vultron/wire/as2/vocab/base/enums.py`
       and used to annotate the provenance of each vocabulary class'
+    rationale: >-
+      The namespace tag tells which vocabulary a class belongs to: ActivityStreams or
+      Vultron. VM-10-002 states the default `@context` of a class in terms of the tag,
+      and the generator of the JSON-LD context document reads the tag to choose the
+      classes it lists. One enum in one module gives those readers one value to compare,
+      instead of a string that each reader can spell differently.
   - id: VM-01-007
     priority: MUST
     kind: project
@@ -88,16 +121,16 @@ groups:
       exempts it.  A class's presented `type` is its `type_` field default, or its class
       name with any `as_` prefix removed when that default is `None`.
     rationale: >-
-      The pre-#3242 check asked whether each vocabulary *module* contributed a registration,
-      and skipped any module with no own `type_` annotation as a "semantic alias or abstract
-      module".  `base/objects/collections.py` declares no annotation, so it was skipped — and
-      that skip is the defect being tested for.  A check whose skip predicate is the defect
-      cannot see the defect.  Phrasing the invariant on the presented `type` value closes
-      that; the exemption set follows ARCH-22-003 so it stays auditable rather than folklore.
-      The presented value is read from the field default rather than an instance because
-      classes with required fields cannot be built without arguments.  Abstract roots such
-      as `as_Object`, `as_VultronObject`, and `as_VultronActorMixin` present their own name
-      and are unregistered by design, so they are exemption-set members.
+      A registration check that looks at modules can skip a module for the same reason
+      that the module failed to register. A module with no own `type_` annotation looks
+      like a module of aliases or abstract classes, and that missing annotation is the
+      defect the check looks for. A check on the `type` value that each class presents
+      does not depend on how a module is written, so it finds a class that presents a
+      distinct wire `type` but registered nothing. Each exemption names its reason, so a
+      reviewer can see why a class is exempt. The check reads the field default and not
+      an instance, because a class with required fields cannot be built without
+      arguments. Abstract roots such as `as_Object` and `as_VultronObject` present their
+      own name and are unregistered by design, so they are members of the exemption set.
     verification: >-
       A test enumerates every `as_Base` subclass, computes the `type` each presents, and
       asserts that a class presenting its own class-name-derived value resolves to itself
@@ -124,11 +157,12 @@ groups:
       `Organization`, `Service`, `Application` and `Group`, so an inbound actor keeps its
       Vultron extension fields.
     rationale: >-
-      A key that is no object's `type` value is unreachable from the wire, and it lets a caller
-      holding a *class* name resolve a wire class by name coincidence, which ARCH-23-002 forbids
-      — `as_VultronPerson` formerly registered under `VultronPerson`, which is also a core type's
-      name.  Deriving the key from the emitted value removes both hazards and puts the registry
-      key and the generated JSON-LD term (VM-10-002) on one rule instead of two.
+      A key that is no object's `type` value cannot be reached from the wire. It also
+      lets a caller with a class name resolve a wire class by a coincidence of names,
+      which ARCH-23-002 forbids: a class-name key such as `VultronPerson` is also the
+      name of a core type. A key derived from the emitted value removes both problems.
+      One owner for each `type` value gives the inbound lookup one answer for each
+      value.
     verification: >-
       `test/architecture/test_vocab_registry_keys.py` forces full registration, then asserts every
       `WIRE_TYPE_MAP` key equals `wire_type_value()` of its registered class, that every declared
@@ -156,11 +190,22 @@ groups:
       (or an intermediate class that inherits from `as_Base`), which provides:
       (a) a camelCase alias generator, (b) `populate_by_name=True`, and
       (c) strict-mode validation.
+    rationale: >-
+      One inherited configuration makes every wire class read and write field names in
+      the same forms: camelCase names on the wire (VM-07-002) and Python names in code.
+      A class with its own configuration can send snake_case keys or refuse a field
+      given by its Python name, and only the activities that use that class show the
+      defect.
   - id: VM-02-002
     priority: MUST
     kind: project
     statement: The `@context` field (`as_context`) MUST use explicit `validation_alias="@context"` and `serialization_alias="@context"`
       because `@` is not a valid Python identifier character and cannot be handled by the camelCase alias generator
+    rationale: >-
+      `@` cannot occur in a Python identifier, and the camelCase alias generator cannot
+      produce `@context` from a field name. Without the explicit aliases, the field is
+      sent as `context_`, and a receiver does not find the JSON-LD context that
+      VM-10-001 requires a message to declare.
     verification: Unit test `test_as_base_context_alias_accepted` in `test/wire/as2/vocab/base/test_wire_base_hierarchy.py`
       confirms that `@context` is accepted via the explicit alias, and inspection of `vultron/wire/as2/vocab/base/base.py`
       confirms the `validation_alias` and `serialization_alias` declarations.
@@ -172,6 +217,11 @@ groups:
     kind: project
     statement: Wire-layer models MUST provide `to_json()`, `to_dict()`, and `from_json()` convenience methods that exclude
       `None` values and serialize using aliases by default
+    rationale: >-
+      When each caller chooses its own serialization options, the same object can give
+      different JSON on different code paths, for example with `null` fields on one path
+      and none on the other. Shared methods with the project defaults give one output
+      for one object, and they keep these output rules in one place.
     verification: Unit tests in `test/wire/as2/vocab/test_vocab_case_examples.py` confirm that `to_json()` produces
       alias-keyed JSON with `None` fields excluded and that `from_json()` correctly round-trips the resulting string.
 - id: VM-03
@@ -182,6 +232,12 @@ groups:
     kind: project
     statement: The `as_type` field on every concrete wire-layer class MUST be set automatically at construction time if not
       supplied by the caller
+    rationale: >-
+      A receiver selects the class for an inbound object by its `type` value, and the
+      parser refuses an activity with no recognizable `type` (MV-01-001). If a sender
+      had to set `type` by hand, an object built without it would be sent with no
+      `type`, and the receiver would refuse it. Setting it at construction means that
+      every object that this implementation sends carries a `type`.
     verification: Unit tests `test_as_base_type_set_from_class_name` and `test_as_object_type_set_from_class_name` in
       `test/wire/as2/vocab/base/test_wire_base_hierarchy.py` confirm that `type_` is populated from the stripped class
       name when no explicit value is provided to the constructor.
@@ -197,17 +253,15 @@ groups:
       which presents an ancestor's `type` — MUST NOT declare its own `type_` annotation,
       because any such declaration registers the class under its class name.
     rationale: >-
-      Auto-registration reads an own `type_` annotation as its test for "is this class
-      concrete" and keys the entry on the class name (VM-01-001), while VM-03-001 fills
-      `type_` from the class name whenever a class inherits no default — so a class with
-      neither an annotation nor an inherited default presents a distinct wire `type` and
-      registers nothing.  That is how the AS2 collection types went unregistered until
-      #3242: `OrderedCollection` was in neither wire registry, so the lookup fell through to
-      the core map and answered a wire caller with a core class.  As a MUST, the annotation
-      becomes the single declaration of "distinct wire type", which is what VM-01-007 can
-      then check.  The prohibition is scoped to unaddressable aliases: classes such as
-      `as_VultronPerson` present an ancestor's `type` but narrow `type_` on purpose, so that
-      they register under their own class name.
+      Auto-registration treats an own `type_` annotation as the sign that a class is
+      concrete, and it keys the entry on the class name (VM-01-004). VM-03-001 fills
+      `type_` from the class name when a class inherits no default. So a class with
+      neither an annotation nor an inherited default presents a distinct wire `type` but
+      registers nothing, and the parser cannot resolve that `type` to a wire class. As a
+      MUST, the annotation is the single declaration of a distinct wire type, and
+      VM-01-007 can check it. The prohibition covers only aliases that must not be
+      reachable by class name. A class that shares another class's `type` but must stay
+      reachable by class name declares `_wire_type_alias` instead (VM-01-008).
     verification: >-
       A test asserts that a wire class presenting its own class-name-derived `type` value
       declares that value as a `Literal`, and that an `_XxxActivity` alias declares no own
@@ -225,6 +279,11 @@ groups:
       `test/wire/as2/vocab/base/test_registry.py::TestSetTypeFromClassName` confirms the
       class-name-derived type strips the `as_` prefix.
     statement: '`as_type` values MUST NOT start with `"as_"` in serialized wire output'
+    rationale: >-
+      The `as_` prefix marks a Python wire class name (ARCH-14-001). It is not part of
+      any ActivityStreams or Vultron `type` value. Another implementation that gets
+      `as_Note` finds no such type in either vocabulary and cannot read the object. The
+      registry also keys `WIRE_TYPE_MAP` by the value without the prefix (VM-01-008).
     relationships:
     - rel_type: constrains
       spec_id: VM-03-001
@@ -236,6 +295,13 @@ groups:
     kind: project
     statement: All wire-layer objects MUST have a globally unique `as_id` field set at construction time by `generate_new_id()`
       if not supplied
+    rationale: >-
+      Other objects refer to an object by its `id`, the DataLayer stores it under that
+      `id`, and receivers use it to detect a repeated delivery. An object without an
+      `id` cannot be referenced, stored or checked for a repeat. A value set at
+      construction means that no object exists without one. A random UUID in a
+      `urn:uuid:` URI gives an ID in full URI form (OID-01-001) that needs no server
+      configuration.
     verification: Unit tests `test_as_base_id_uses_wire_default` in
       `test/wire/as2/vocab/base/test_wire_base_hierarchy.py` and
       `test_two_objects_have_different_ids` in `test/wire/as2/vocab/test_base_utils.py`
@@ -281,6 +347,12 @@ groups:
       by: (a) a corresponding domain-layer Pydantic model in `vultron/core/`,
       (b) a handler use case in `vultron/core/use_cases/`, and (c) at least one
       round-trip serialization test.
+    rationale: >-
+      A vocabulary type with no use case gives the receiver nothing to act on. With no
+      pattern, the activity is classified `UNKNOWN` and refused. With a pattern but no
+      use case, the dispatcher reports "no use case found" and refuses it (SE-05-002). A
+      round-trip test detects a field whose wire name or type does not survive
+      serialization and parsing.
 - id: VM-06
   title: Rehydration
   specs:
@@ -289,6 +361,12 @@ groups:
     kind: project
     statement: Before any wire-layer activity is passed to semantic extraction, callers MUST attempt to rehydrate all nested
       URI string references into fully typed objects via `rehydrate(obj, dl)`
+    rationale: >-
+      Semantic extraction matches an activity on the types of its nested objects. A
+      nested object that is still a bare URI does not satisfy a type constraint
+      (SE-01-006), so an activity whose objects the receiver already holds would not
+      match its pattern. Rehydration first replaces the references that the DataLayer
+      can resolve with the stored objects, so the pattern sees their real types.
     verification: Integration tests in `test/adapters/driven/test_sqlite_rehydration.py` confirm that `rehydrate()` is
       called before semantic extraction, expanding nested URI strings into fully typed objects retrieved from the DataLayer.
     relationships:
@@ -299,6 +377,11 @@ groups:
     priority: MUST
     kind: project
     statement: '`rehydrate()` MUST receive the active `DataLayer` instance via the `dl` parameter'
+    rationale: >-
+      Each actor has its own store (DL-07-002, DL-07-003), so a reference resolves only
+      in the store of the actor that received the activity. A `dl` parameter makes the
+      caller name that store. A global or default store could resolve the reference
+      against the wrong actor's data, or against no data.
     verification: Inspection of `vultron/wire/as2/rehydration.py` confirms that `rehydrate()` accepts and uses the `dl`
       parameter to resolve URI strings; tests in `test/adapters/driven/test_sqlite_rehydration.py` verify that resolved
       objects are fetched from the supplied DataLayer.
@@ -307,6 +390,11 @@ groups:
     kind: project
     statement: 'Rehydration MUST be recursive: if a rehydrated object itself contains URI string references in its nested
       fields, those MUST also be rehydrated up to `MAX_REHYDRATION_DEPTH` levels'
+    rationale: >-
+      A pattern can constrain an object inside an object, as in `Accept(Invite(...))`.
+      If rehydration expanded only the top level, the inner reference would stay a bare
+      URI and the pattern would not match. The depth limit stops unbounded recursion on
+      a reference cycle or a very deep structure.
     verification: Inspection of `vultron/wire/as2/rehydration.py` confirms that the rehydration loop is bounded by
       `MAX_REHYDRATION_DEPTH` and recurses into newly materialized objects to expand nested URI strings at each level.
   - id: VM-06-004
@@ -317,6 +405,13 @@ groups:
       rehydration MUST: (a) leave the field as the original URI string value,
       (b) log a WARNING identifying the unresolvable URI, and (c) continue
       rehydrating remaining fields rather than raising an exception.
+    rationale: >-
+      A reference that the local DataLayer cannot resolve is a normal case: the object
+      can be on another server, or not yet received. Raising would refuse an activity
+      that is valid. Keeping the URI lets a later step treat the object as unresolved
+      (SE-01-006). A bare `object` is then classified by VAM-01-009, and a receiver that
+      is not the CASE_MANAGER fetches it (AKM-05-007). The log entry tells an operator
+      which reference stayed unresolved.
     verification: Unit tests `test_hydrate_keeps_unresolvable_string_ids` and `test_hydrate_warns_for_unresolvable_string_ids`
       in `test/adapters/driven/test_sqlite_rehydration.py` confirm that an unresolvable URI is left as a string, a WARNING
       is emitted, and no exception is raised.
@@ -331,6 +426,11 @@ groups:
     kind: project
     statement: If a rehydrated object's `as_type` is not found in the vocabulary registry, rehydration MUST raise `KeyError`
       or `ValueError` rather than returning a partially constructed object
+    rationale: >-
+      A partly built object carries a shape that no registered class defines, and
+      pattern matching and use cases would then act on fields that are missing or wrong.
+      Raising stops the activity at rehydration, where the unknown `type` is the
+      reported fault, and no later step acts on a guess.
     verification: Inspection of `vultron/wire/as2/rehydration.py` confirms that a vocabulary lookup failure for an unknown
       `as_type` propagates as `KeyError` or `ValueError` rather than returning a partially constructed object.
   - id: VM-06-006
@@ -368,12 +468,12 @@ groups:
       not to a reference. Slots that do admit `str` (every `ActivityStreamRef[T]`) are out of
       scope here and keep VM-06-004's defer behaviour.
     rationale: >-
-      ARCH-25-009 requires object slots to hold whole objects, and ADR-0099 as first written
-      named nothing to fill them. Per-class `from_core` did it by fabricating a stub with an
-      invented `actor` — the case owner, or the case's own URI — which misattributes every activity the owner did not
-      perform. `rehydrate()` already holds the `DataLayer` (VM-06-002), so it can resolve the
-      real object and read the real actor off it. Naming it keeps the behaviour alive when the
-      projection methods are deleted.
+      ARCH-25-009 requires an object slot to hold the whole object. A bare IRI in a slot
+      that cannot hold a string must become the real object or be refused. A placeholder
+      built in its place needs values for its required fields, such as an `actor`, and
+      an invented `actor` attributes the activity to an actor that did not perform it.
+      `rehydrate()` already holds the DataLayer (VM-06-002), so it can read the real
+      object and the real actor.
     verification: Unit tests in `test/wire/as2/test_rehydration_materialisation.py` confirm that a bare ID in an
       object-only slot ends up holding the resolved object, that an unresolvable reference raises rather than leaving a
       bare string or a stub, that a reference resolving to a non-AS2 object is refused rather than substituted, that a
@@ -402,12 +502,12 @@ groups:
       branch — the persistence read paths that reconstruct whatever was stored — MUST state
       that in its call rather than inherit it from the function's default.
     rationale: >-
-      A core-map hit from a wire-branch caller is a coincidence of naming, not a wire
-      counterpart (ARCH-23-002).  A filter in one caller (#3232) did not protect the others:
-      the inbox re-parse path persisted a core class for an inbound `OrderedCollection`.  A
-      permissive default hands the unsafe answer to every new caller.  Registry membership,
-      not `as_Base` ancestry, is the test: the canonical `VulnerabilityCase` is a core class
-      registered as its own wire form (ADR-0099).
+      A core-map hit for a wire-branch caller is a coincidence of names, not a wire
+      counterpart (ARCH-23-002). A permissive default gives that answer to every caller
+      that does not filter it, and a filter in one caller does not protect the others. A
+      wire-only default gives a new caller the safe answer with no extra code. Registry
+      membership, not `as_Base` ancestry, is the test: the canonical `VulnerabilityCase`
+      is a core class registered as its own wire form (ADR-0099).
     verification: >-
       A test asserts that the wire-branch lookup raises for a name registered only in
       `CORE_TYPE_MAP`, that the inbox re-parse path does not produce a core class for an
@@ -428,6 +528,11 @@ groups:
     priority: MUST
     kind: project
     statement: Serialized wire-layer objects MUST exclude `None` fields and MUST exclude empty string fields
+    rationale: >-
+      Under the rule "if present, then non-empty" (CS-08-001), a blank value means the
+      same as no value. A sender that emits `null` or `""` gives receivers two more
+      forms of one absence to handle, and a receiver that reads them as values can act
+      on them. Leaving the field out gives one form.
     verification: Unit tests `test_render_excludes_none_fields` in `test/adapters/driven/test_wire_render_adapter.py` and
       `test_exclude_none_true` in `test/adapters/driving/fastapi/test_responses.py` confirm that `None` fields are absent
       from serialized output.
@@ -437,6 +542,11 @@ groups:
     statement: >-
       Serialized messages MUST use the ActivityStreams 2.0 property names, which are
       camelCase, never another spelling such as Python snake_case field names.
+    rationale: >-
+      ActivityStreams 2.0 defines its property names in camelCase, and the Vultron
+      context defines the Vultron properties in the same form. A receiver that reads a
+      message by those names does not find a snake_case key, so the value is lost. Using
+      the defined names is what lets another implementation read the message.
     verification: Unit tests `test_render_returns_camel_case_keys` in `test/adapters/driven/test_wire_render_adapter.py`
       and `test_camelcase_keys` in `test/adapters/driving/fastapi/test_responses.py` confirm that JSON output uses
       camelCase keys rather than Python snake_case names.
@@ -449,6 +559,12 @@ groups:
       Inspection confirms no `object_to_record()` call site passes an object whose
       `as_type` starts with `"as_"`.
     statement: '`object_to_record()` MUST NOT be called on an object whose `as_type` starts with `"as_"`'
+    rationale: >-
+      `object_to_record()` stores an object in the table that its `type` value names,
+      and a later read finds the class by that value. An `as_` value is a Python class
+      name, not a wire `type` value (VM-03-003). A record stored under it would be in a
+      different table from the other objects of its type, so a read or a query by the
+      real `type` value would not find it.
   - id: VM-07-004
     priority: MUST
     kind: project
@@ -456,11 +572,13 @@ groups:
       type is a subtype of the field''s declared type, at **both** the persistence serialization boundary and the wire delivery
       serialization boundary. Omitting `serialize_as_any=True` at either boundary causes the serializer to use the declared
       (base) type''s schema, silently dropping all subtype-specific fields.'
-    rationale: Pydantic v2 uses the declared field type for serialization by default. A field typed as `as_Object`
-      but holding an `as_VulnerabilityCaseStub` at runtime will serialize using `as_Object`'s schema, dropping the stub's
-      own fields (`caseId`, `activeEmbargo`, `caseStatus`) entirely with no error. Root causes of BUG-26042201 and BUG-26051902. Both persistence and delivery boundaries
-      are required because a correct write-path can still produce incorrect wire output if the delivery serializer also lacks
-      this flag.
+    rationale: >-
+      By default, Pydantic v2 serializes a field by its declared type. A field typed as
+      `as_Object` that holds an `as_VulnerabilityCaseStub` is serialized with the
+      `as_Object` schema, so the stub's own fields (`caseId`, `activeEmbargo`,
+      `caseStatus`) are dropped with no error. Both the persistence boundary and the
+      delivery boundary need the flag: a correct stored copy still gives wrong wire
+      output if the delivery serializer drops the fields.
     verification: Unit test `test_handle_outbox_item_preserves_inline_case_ledger_entry_fields` in
       `test/adapters/driving/fastapi/test_outbox_handle_item_delivery.py` confirms that subtype-specific fields are
       preserved in serialized wire output when `serialize_as_any=True` is set at both the persistence and delivery
@@ -476,6 +594,11 @@ groups:
     kind: project
     statement: Objects intended to be static once created (e.g., vocabulary registry entries, canonical example objects) SHOULD
       use immutable (frozen) configuration so that any attempt to modify them at runtime raises an exception
+    rationale: >-
+      Registry entries and canonical example objects are shared by every caller that
+      reads them. If one caller changes such an object in place, every later caller sees
+      the change, and the defect shows far from its cause. A frozen object raises at the
+      change, where the cause is.
   - id: VM-08-002
     priority: MUST
     kind: project
@@ -509,7 +632,7 @@ groups:
       first delivery's sealed body, so carrying it as evidence claims exactly the
       event that arrived first; the repeat guards then decide, so a committed act is
       a repeat and an act that never committed, such as a failed one, runs as a
-      first delivery and records that body (ADR-0151, #4981). A resend of a
+      first delivery and records that body (ADR-0151). A resend of a
       different body under a held id is refused, not routed (IE-10-002), so an id's
       evidence has one answer.
     verification: >-
@@ -528,6 +651,7 @@ groups:
     - ADR-0074
     - ADR-0099
     - ADR-0107
+    - ADR-0149
     relationships:
     - rel_type: refines
       spec_id: VM-08-001
@@ -565,9 +689,11 @@ groups:
       as both the delivery payload and `CaseLedgerEntry.payloadSnapshot`. No port or adapter
       MAY enrich, mutate, or re-derive the blob after it leaves the factory.
     rationale: >-
-      How this codebase meets VM-08-003: the factory is solely responsible for completeness,
-      and ports relay only. Split from VM-08-003 so it states only what participants can
-      observe (MS-12-010).
+      VM-08-003 states what participants can observe: the ledger copy is identical to
+      the delivered activity. This requirement states how this codebase meets it. The
+      factory alone makes the activity complete, and no port or adapter changes it
+      afterward. The delivery payload and the ledger copy are then one blob, so they
+      cannot differ.
     verification: >-
       Inspection of outbound emit nodes confirms that `payload_snapshot` is set to the exact
       blob returned by the factory port, without further transformation. Outbox delivery
@@ -585,6 +711,12 @@ groups:
     kind: protocol
     statement: Messages that cannot be parsed or whose semantics are unknown MAY still be forwarded to the case event log
       to create an entry for human or agent review
+    rationale: >-
+      A receiver can get a message that it cannot parse or interpret, for example from a
+      peer that runs a newer version of the protocol. If the receiver drops it,
+      information that may matter to the case is lost and nobody can see that it
+      arrived. Keeping it for human or agent review lets a person decide what it means.
+      This is a MAY because the protocol does not define a meaning for such a message.
 - id: VM-10
   title: Vocabulary Namespace and JSON-LD Context
   specs:
@@ -629,6 +761,8 @@ groups:
       `_vocab_ns = VocabNamespace.VULTRON`) overrides `context_` to
       `"https://certcc.github.io/Vultron/ns/context.jsonld"`, so every concrete Vultron wire type serializes with the
       correct `@context` without call-site changes.
+    adr:
+    - ADR-0069
     relationships:
     - rel_type: implements
       spec_id: VM-10-001

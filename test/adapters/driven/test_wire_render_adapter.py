@@ -187,8 +187,8 @@ def test_render_same_object_twice_across_clock_tick_is_equal(
     """
     from datetime import datetime
 
-    from test.support.clock import SteppingClock
     from vultron.core.models import _helpers
+    from vultron.demo.determinism import SteppingClock
 
     obj = VulnerabilityCase(
         attributed_to=CASE_OWNER_ID, id_="https://example.org/cases/c1"

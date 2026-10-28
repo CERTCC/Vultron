@@ -21,7 +21,6 @@ from types import ModuleType, SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-import httpx2 as httpx
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
@@ -48,6 +47,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers import invite_chain, runner, workflow
+from vultron.demo.in_process import response_value
 from vultron.demo.utils import DataLayerClient
 from vultron.errors import VultronError
 
@@ -188,14 +188,9 @@ def make_testclient_call(client: TestClient, base: str):
     by the TestClient, stripping the base URL prefix and ensuring the /api/v2
     prefix is present.
 
-    An HTTP error raises :class:`httpx.HTTPStatusError`, as the real client does,
-    **not** a bare ``AssertionError``. Production code distinguishes error codes —
-    ``ledger_dump._fetch_entries`` treats a 404 as "this container does not hold
-    this case", which is a legitimate outcome — and it does so by catching
-    ``HTTPStatusError`` and inspecting ``response.status_code``. A double that
-    raises ``AssertionError`` slips past every such handler, so tolerated
-    conditions became hard failures that exist only under test. The message is
-    preserved in the exception so failures read the same as before.
+    The response becomes a return value through
+    :func:`vultron.demo.in_process.response_value`, so an HTTP error raises
+    :class:`httpx.HTTPStatusError` as the real client does.
     """
 
     def testclient_call(self, method: str, path: Any, **kwargs) -> Any:
@@ -207,17 +202,7 @@ def make_testclient_call(client: TestClient, base: str):
         if not url.startswith("/api/v2"):
             url = "/api/v2" + url
         resp = client.request(method.upper(), url, **kwargs)
-        if resp.status_code >= 400:
-            raise httpx.HTTPStatusError(
-                f"API call failed: {method.upper()} {url} --> "
-                f"{resp.status_code} {resp.text}",
-                request=resp.request,
-                response=resp,
-            )
-        try:
-            return resp.json()
-        except Exception:  # noqa: BLE001  # ruff-baseline #3989
-            return resp.text
+        return response_value(resp, method, url)
 
     return testclient_call
 
@@ -531,7 +516,7 @@ def seed_case_replica_for_actor(
     Note on why that delivery does not happen: *not* because nested delivery is
     blocked.  Several comments in this suite claim loopback delivery is "blocked
     at depth > 0 to prevent deadlocks", but nothing implements such a guard —
-    ``_TestClientRouter`` dispatches each POST via ``anyio.to_thread.run_sync``
+    ``InProcessRouter`` dispatches each POST via ``anyio.to_thread.run_sync``
     precisely so nested sends do not deadlock, and multi-hop deliveries are
     observably completing with 202s.  The seeding here compensates for the
     *sender* never queueing the message, not for the transport dropping it.

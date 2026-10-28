@@ -351,6 +351,21 @@ class TestEmitCreateVulnerabilityCaseNode:
         assert self._run_node(dl) == py_trees.common.Status.FAILURE
         assert dl.outbox_list() == []
 
+    @pytest.mark.spec("PCR-02-001", "PCR-02-002", "PCR-02-005")
+    @pytest.mark.xfail(
+        strict=True,
+        raises=AssertionError,
+        reason=(
+            "#5371: the creation copy travels in the bootstrap Create "
+            "(CBT-01-002, ADR-0157), not in an Announce(VulnerabilityCase)"
+        ),
+    )
+    def test_the_creation_copy_is_not_delivered_in_the_create(self):
+        """PCR-02-005: a ``Create`` does not carry the full case copy."""
+        dl = self._dl()
+        assert self._run_node(dl) == py_trees.common.Status.SUCCESS
+        assert not isinstance(_queued_create(dl)["object"], dict)
+
     @pytest.mark.spec("EMB-18-003")
     def test_the_create_carries_the_active_embargo_inline(self):
         """The Create a recipient seeds from carries the embargo record."""
@@ -3318,6 +3333,7 @@ class TestCaseActorIsOneParticipantDistinctFromTheOwner:
                 managers.append(actor_id)
         return managers
 
+    @pytest.mark.spec("PCR-01-002")
     def test_exactly_one_participant_holds_case_manager(self, make_payload):
         """CM-02-001, read as the role rather than as a ``Service`` record.
 

@@ -109,7 +109,6 @@ export interface CaseLedgerEntry {
   updated: string
   caseId: string
   logIndex: number
-  disposition: string
   logObjectId: string
   semanticType: LedgerSemanticType
   payloadSnapshot: As2Activity

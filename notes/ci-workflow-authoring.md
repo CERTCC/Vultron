@@ -6,7 +6,8 @@ description: >
   Pitfalls when writing or reading GitHub Actions workflows and the YAML that
   drives them: PyYAML's bare `on:` key, matrix booleans coerced to strings,
   `actionlint` and block-scalar indentation, single-quoted apostrophes, the
-  mandatory `notify-failure` wiring and its one-job-per-label rule, why a
+  mandatory `notify-failure` wiring and its one-job-per-label rule, why an
+  automated find-or-file lookup must not go through the search index, why a
   `GITHUB_TOKEN`-raised event never triggers another workflow, and how to read a
   red CI job correctly.
 related_notes:
@@ -50,15 +51,28 @@ The workflow MUST grant `issues: write` (CISEC-02-002). A root-level
 `permissions: contents: read` block MUST become a map that also lists
 `issues: write`, or the action's issue calls fail with 403.
 
+## A Find-or-File Lookup Must Not Use the Search Index
+
+A step that files an issue only when none is open must find the open one through
+the list-issues REST endpoint (`gh api "repos/$REPO/issues?labels=a,b"`), never
+`gh issue list --label` or `gh search`. Both run a search query, and the search
+index lags: it once returned nothing while a tracker was open, and a second one
+was filed (#5105). Read the result through a command substitution, not
+`mapfile < <(...)`, so an API error fails the step under `set -e` instead of
+reading as "none open" (CISEC-05-003).
+
 ## Events Raised With `GITHUB_TOKEN` Never Trigger Other Workflows
 
 GitHub does not dispatch events a workflow raises with its own `GITHUB_TOKEN`
 (filing an issue, adding a label, pushing a commit) to other workflows, to
 prevent recursion. So a bot-filed issue cannot be typed by labelling it and
 waiting for `label-to-issue-type.yml`, and `gh issue create` cannot set a type.
-A workflow that needs a typed issue resolves the type's node ID by name through
-the `issueTypes` GraphQL field and applies it with `updateIssue` itself, failing
-the step if the type does not exist (CISEC-05-007); `notify-failure` does this.
+A workflow that needs a typed issue calls
+`.github/scripts/ensure-issue-type.sh <repo> <issue> <type>` on both its create
+and update arms. The script resolves the type by name, applies it with
+`updateIssue`, leaves a typed issue alone, and fails the step when the type does
+not exist (CISEC-05-007). `notify-failure` and `demo-recordings.yml` use it;
+never copy its body into a workflow.
 
 ## PyYAML Parses a Bare `on:` Key as `True`
 

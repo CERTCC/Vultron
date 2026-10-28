@@ -37,10 +37,9 @@
 - **Wire-layer field names**: Use trailing underscore for fields whose
   plain name collides with a Python builtin or reserved word (e.g.,
   `id_`, `type_`, `object_`, `context_`) with a Pydantic alias for the
-  JSON key (e.g., `id_: str = Field(alias="id")`). See CS-07-002,
-  CS-07-003.
+  JSON key (e.g., `id_: str = Field(alias="id")`). See CS-07-002.
 - **Do NOT use `as_`-prefixed field names** anywhere (the prefix is for
-  class names only, not field or variable names).
+  class names only, not field or variable names). See CS-07-001.
 - **Pattern objects**: Descriptive CamelCase with `Pattern` suffix
   (e.g., `CreateReportPattern`, `AcceptInviteToEmbargoOnCasePattern`)
 

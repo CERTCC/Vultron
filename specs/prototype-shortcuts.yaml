@@ -16,6 +16,12 @@ groups:
     priority: MAY
     kind: project
     statement: Omit cryptographic authentication for agent-to-agent communication.
+    rationale: >-
+      Cryptographic authentication needs key management and signature checks, and these
+      do not change the protocol behavior under test. The prototype runs in local test
+      and demo setups, so it can omit authentication and test the protocol logic first.
+      The shortcut is for the prototype only. A production node must authenticate
+      case update notifications (CM-06-004).
     relationships:
     - rel_type: supersedes
       spec_id: CM-06-004
@@ -26,11 +32,20 @@ groups:
     priority: MAY
     kind: project
     statement: Assume all actors are local to a single ActivityPub server.
+    rationale: >-
+      Many tests and some demos host every actor in one server process. In those setups,
+      the prototype does not need to find or reach actors on other servers, so the work
+      stays on the CVD protocol logic.
   - id: PROTO-02-002
     priority: MAY
     kind: project
     statement: >-
       Post direct messages to an actor's inbox without federation or cross-server routing.
+    rationale: >-
+      ActivityPub federation adds actor discovery, server-to-server delivery rules and
+      remote failure handling. The protocol logic needs only that a message gets to the
+      recipient's inbox. A direct post does that with much less code, and the protocol
+      behavior stays the same.
 - id: PROTO-03
   title: Performance
   specs:
@@ -38,21 +53,36 @@ groups:
     priority: SHOULD_NOT
     kind: project
     statement: Use algorithms with exponential or worse time complexity.
+    rationale: >-
+      Exponential time can make a small case or a test stop with no clear cause. Even in
+      a prototype, that cost blocks tests and demos, so a simple algorithm that does not
+      grow exponentially is the better choice.
   - id: PROTO-03-002
     priority: SHOULD
     kind: project
     statement: >-
       Prefer the simplest algorithm when multiple options exist, even if less efficient.
+    rationale: >-
+      In the prototype, code changes often as the design changes. Simple code is easier
+      to read, review and change. The data sets are small, so a less efficient algorithm
+      costs little.
   - id: PROTO-03-003
     priority: SHOULD
     kind: project
     statement: >-
       Implement straightforward optimizations that do not significantly increase complexity.
+    rationale: >-
+      Some optimizations cost almost nothing to read and keep, for example a set lookup
+      in place of a list scan. They keep tests and demos fast and add no design risk, so
+      there is no reason to wait for production.
   - id: PROTO-03-004
     priority: SHOULD
     kind: project
     statement: >-
       Document known unimplemented optimizations in implementation notes for future reference.
+    rationale: >-
+      An optimization that is known but not done can be forgotten. A note records it, so
+      the work can start when production needs it, with no new investigation.
 - id: PROTO-04
   title: Production Deferral
   specs:
@@ -60,8 +90,14 @@ groups:
     priority: SHOULD
     kind: project
     statement: >-
-      Specification files SHOULD tag production-only requirements with `PROD_ONLY` so they
-      can be systematically identified and deferred during the prototype stage.
+      Specification files SHOULD mark a production-only requirement `PROD_ONLY` by
+      giving it `scope: [production]`, so production-only requirements can be
+      systematically identified and deferred during the prototype stage.
+    rationale: >-
+      The prototype omits some production requirements, such as authentication and
+      federation. Without a mark, a reader cannot tell a deferred requirement from one
+      that the prototype fails to meet. The mark lets a reader list the deferred
+      requirements and leave them out of prototype work.
     lint_suppress:
     - phantom_symbol_ref
   - id: PROTO-04-002
@@ -69,6 +105,10 @@ groups:
     kind: project
     statement: >-
       Review specifications to identify requirements that should carry the `PROD_ONLY` tag.
+    rationale: >-
+      Production-only requirements occur in many spec files, and an author can forget
+      the mark. A review finds the requirements that need it, so prototype work does not
+      go to them and readers do not count them as gaps.
     lint_suppress:
     - phantom_symbol_ref
 - id: PROTO-05
@@ -79,6 +119,11 @@ groups:
     kind: project
     statement: >-
       Use a stub always-engage policy (`AlwaysPrioritizePolicy`) in place of a real prioritization
+      framework.
+    rationale: >-
+      Case prioritization, for example with SSVC, is a policy decision outside the
+      protocol state machines. A stub that always engages lets every case go through the
+      full workflow, so tests and demos reach all protocol states with no real decision
       framework.
 - id: PROTO-08
   title: Backward Compatibility and Change Completeness
@@ -101,6 +146,10 @@ groups:
     statement: >-
       Complete every code change fully — all call sites for a renamed, moved, or removed symbol
       MUST be updated in the same commit as the symbol change.
+    rationale: >-
+      If a rename leaves some call sites unchanged, the code is broken between commits,
+      and a bisect or a revert can stop on a broken commit. When the symbol and all its
+      call sites change in one commit, each commit stays consistent.
   - id: PROTO-08-003
     priority: MUST_NOT
     kind: project
@@ -108,12 +157,20 @@ groups:
     statement: >-
       Preserve an old API, import path, field name, or function signature solely for backward
       compatibility.
+    rationale: >-
+      The prototype has no external consumers of its code API. An old name kept only for
+      compatibility gives two names for one thing, and readers and agents can use the
+      wrong one. When the old name goes, every caller uses the current name.
   - id: PROTO-08-004
     priority: SHOULD
     kind: project
     statement: >-
       Follow a documented deprecation cycle with migration guidance when external consumers
       of the API exist.
+    rationale: >-
+      When external code depends on the API, a sudden removal breaks that code with no
+      warning. A documented deprecation cycle gives those consumers time and
+      instructions to change before the old form goes.
     scope:
     - production
 - id: PROTO-07

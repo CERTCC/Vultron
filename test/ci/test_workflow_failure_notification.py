@@ -17,7 +17,10 @@ and at least one step uses it in ``close`` mode (CISEC-05-002).
 
 from __future__ import annotations
 
+import json
+import os
 import re
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +36,7 @@ NOTIFY_FAILURE_ACTION = (
     REPO_ROOT / ".github" / "actions" / "notify-failure" / "action.yml"
 )
 DEMO_WORKFLOW = WORKFLOWS_DIR / "demo-integration.yml"
+ENSURE_ISSUE_TYPE = REPO_ROOT / ".github" / "scripts" / "ensure-issue-type.sh"
 PUBLICATION_WORKFLOW = WORKFLOWS_DIR / "deploy_site.yml"
 # ``main`` for CISEC-05-001; ``publish`` for the publication workflow, whose
 # failed run leaves the live site stale with no failing pull request to notice
@@ -331,61 +335,274 @@ def _notify_action_create_script() -> str:
     return creating[0]
 
 
+def _type_setting_calls(script: str, type_name: str) -> list[str]:
+    """Return each call of the shared type helper for *type_name* in *script*."""
+    return re.findall(
+        rf'^\s*bash "\$ensure_type" .* {type_name}\s*$',
+        script,
+        flags=re.MULTILINE,
+    )
+
+
 def test_notify_action_sets_bug_issue_type() -> None:
     """CISEC-05-007: a failure issue must carry the Bug type, in both arms.
 
     ``gh issue create`` cannot set an issue type, and a ``bug`` label applied
     with ``GITHUB_TOKEN`` never fires the label-to-issue-type workflow, so the
-    action has to resolve the repository's ``Bug`` type by name and apply it
-    through the ``updateIssue`` mutation itself. The resolution is by *name*:
-    a hardcoded node ID would break silently if the type were re-created. The
-    same helper runs on the comment-on-existing arm so an issue left untyped
-    by a failed assignment is repaired on the next notify run.
+    action sets the type itself through the shared helper
+    (``ensure-issue-type.sh``). The helper runs on the comment-on-existing arm
+    too, so an issue left untyped by a failed assignment is repaired on the
+    next notify run.
     """
     script = _notify_action_create_script()
-    assert "issueTypes" in script and 'select(.name == "Bug")' in script, (
-        "The notify-failure action must resolve the repository's `Bug` issue "
-        "type by name via the `issueTypes` GraphQL field (CISEC-05-007)."
-    )
-    assert "updateIssue" in script and "issueTypeId" in script, (
-        "The notify-failure action must apply the Bug type to the new issue "
-        "via the `updateIssue` mutation's `issueTypeId` (CISEC-05-007)."
+    assert "scripts/ensure-issue-type.sh" in script, (
+        "The notify-failure action must set the issue type through "
+        f"{ENSURE_ISSUE_TYPE.relative_to(REPO_ROOT)} (CISEC-05-007)."
     )
     assert '--label "bug"' not in script and "--label bug" not in script, (
         "The notify-failure action must not rely on a `bug` label for the "
         "label-to-issue-type workflow: GITHUB_TOKEN events never trigger it "
         "(CISEC-05-007)."
     )
-    calls = re.findall(r"^\s*ensure_bug_type \"", script, flags=re.MULTILINE)
+    calls = _type_setting_calls(script, "Bug")
     assert len(calls) == 2, (
-        "ensure_bug_type must run once on the create arm and once on the "
+        "The Bug type must be set once on the create arm and once on the "
         "comment-on-existing arm, so an issue left untyped by a transient "
         f"mutation failure is repaired on the next run; found {len(calls)} "
         "call(s) (CISEC-05-007)."
     )
 
 
-def test_notify_action_fails_visibly_without_bug_type() -> None:
-    """CISEC-05-007: no ``Bug`` type in the repository is a loud step failure.
+def test_recordings_workflow_sets_task_issue_type() -> None:
+    """CISEC-05-007: the refresh Task is typed by the same helper, both arms."""
+    workflow = (WORKFLOWS_DIR / "demo-recordings.yml").read_text()
+    assert "ensure_type=.github/scripts/ensure-issue-type.sh" in workflow
+    assert len(_type_setting_calls(workflow, "Task")) == 2
+
+
+def test_issue_type_helper_resolves_the_type_by_name() -> None:
+    """CISEC-05-007: the type is resolved by name and applied by mutation.
+
+    By *name*: a hardcoded node ID would break silently if the type were
+    re-created.
+    """
+    script = ENSURE_ISSUE_TYPE.read_text()
+    assert "issueTypes" in script, (
+        "The helper must resolve the issue type by name via the `issueTypes` "
+        "GraphQL field (CISEC-05-007)."
+    )
+    assert "updateIssue" in script and "issueTypeId" in script, (
+        "The helper must apply the type via the `updateIssue` mutation's "
+        "`issueTypeId` (CISEC-05-007)."
+    )
+
+
+def test_issue_type_helper_fails_visibly_without_the_type() -> None:
+    """CISEC-05-007: no type of that name in the repository is a loud failure.
 
     The guard has to come *after* a jq expression that tolerates a null
     ``issueTypes`` connection (an owner with no issue types at all); otherwise
     ``set -e`` kills the step before the ``::error::`` line can name the issue.
     """
-    script = _notify_action_create_script()
+    script = ENSURE_ISSUE_TYPE.read_text()
     assert "(.data.repository.issueTypes.nodes // [])" in script, (
-        "The Bug-type lookup must default a null `issueTypes` connection to "
-        "an empty list, or jq aborts the step before the guard runs "
+        "The type lookup must default a null `issueTypes` connection to an "
+        "empty list, or jq aborts the step before the guard runs "
         "(CISEC-05-007)."
     )
-    assert 'if [ -z "$bug_type_id" ]' in script, (
-        "The notify-failure action must guard on an empty Bug type ID "
-        "(CISEC-05-007)."
+    assert 'if [ -z "$type_id" ]' in script, (
+        "The helper must guard on an empty type ID (CISEC-05-007)."
     )
-    guard = script.index('if [ -z "$bug_type_id" ]')
+    guard = script.index('if [ -z "$type_id" ]')
     guard_body = script[guard : script.index("fi", guard)]
     assert "::error::" in guard_body and "exit 1" in guard_body, (
-        "A missing `Bug` issue type must fail the step with an `::error::` "
+        "A missing issue type must fail the step with an `::error::` "
         "annotation, not leave the filed issue silently untyped "
         "(CISEC-05-007)."
+    )
+
+
+# A stand-in for the ``gh`` CLI: it logs every call and answers the direct
+# list-issues REST call with the JSON page ``$FAKE_ISSUES_PAGE``, filtered
+# through the caller's real ``--jq`` expression, while a search-backed
+# ``gh issue list`` answers with nothing, as the lagging search index did when
+# it let the ADR Status Drift workflow file a second tracker (#5105). With
+# ``$FAKE_API_FAIL`` set, the list-issues call fails as an API error would.
+_FAKE_GH = r"""#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FAKE_GH_LOG"
+case "$1 $2" in
+  "api graphql")
+    case "$*" in
+      *issueTypes*) printf 'Bug\tBUG_TYPE_ID\n' ;;
+      *) echo "Set issue type: Bug" ;;
+    esac ;;
+  "api "*)
+    jq_expr="" prev=""
+    for arg in "$@"; do
+      [ "$prev" = "--jq" ] && jq_expr="$arg"
+      prev="$arg"
+    done
+    for arg in "$@"; do
+      case "$arg" in
+        repos/*/issues\?*)
+          if [ -n "${FAKE_API_FAIL:-}" ]; then
+            echo "HTTP 502: Bad Gateway" >&2
+            exit 1
+          fi
+          printf '%s' "$FAKE_ISSUES_PAGE" | jq -r "$jq_expr" ;;
+      esac
+    done ;;
+  "issue view") printf 'ISSUE_NODE_ID\nBug\n' ;;
+  "issue create") echo "https://github.com/OWNER/REPO/issues/999" ;;
+esac
+"""
+
+
+def _notify_action_lookup_script() -> str:
+    """Return the composite-action step that finds, files, and closes issues."""
+    scripts = _notify_action_run_scripts()
+    lookup = [s for s in scripts if "ISSUE_NUMS" in s]
+    assert len(lookup) == 1, (
+        "Expected exactly one step in notify-failure/action.yml to look up "
+        f"the open failure issue; found {len(lookup)} (CISEC-05-003)."
+    )
+    return lookup[0]
+
+
+def _run_notify_action(
+    tmp_path: Path,
+    mode: str,
+    open_issues: list[int],
+    *,
+    open_pull_requests: tuple[int, ...] = (),
+    api_fails: bool = False,
+) -> list[str]:
+    """Run the action's lookup step against a fake ``gh``; return its calls.
+
+    ``open_pull_requests`` are listed on the page as the list-issues endpoint
+    lists a labelled pull request, with a ``pull_request`` key. The step's
+    exit status is checked: a failing run raises ``CalledProcessError``, and
+    its calls stay readable in ``tmp_path / "gh.log"``.
+    """
+    page = [{"number": n} for n in open_issues] + [
+        {"number": n, "pull_request": {"url": f"https://example/pulls/{n}"}}
+        for n in open_pull_requests
+    ]
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_gh = bin_dir / "gh"
+    fake_gh.write_text(_FAKE_GH)
+    fake_gh.chmod(0o755)
+    log = tmp_path / "gh.log"
+    log.touch()
+    env = {
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+        "FAKE_GH_LOG": str(log),
+        "FAKE_ISSUES_PAGE": json.dumps(page),
+        "GH_TOKEN": "fake-token",
+        "REPO": "OWNER/REPO",
+        "MODE": mode,
+        "WORKFLOW_LABEL": "ci:workflow-example",
+        "WORKFLOW_NAME": "Example",
+        "RUN_URL": "https://github.com/OWNER/REPO/actions/runs/1",
+        "REF": "refs/heads/main",
+        # The runner sets this in a composite action; the step finds the
+        # shared ensure-issue-type.sh helper through it.
+        "GITHUB_ACTION_PATH": str(NOTIFY_FAILURE_ACTION.parent),
+    }
+    if api_fails:
+        env["FAKE_API_FAIL"] = "1"
+    subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", _notify_action_lookup_script()],
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return log.read_text().splitlines()
+
+
+def test_notify_action_finds_existing_issue_without_search_index(
+    tmp_path: Path,
+) -> None:
+    """CISEC-05-003: an open tracker is found, not duplicated (#5105).
+
+    ``gh issue list --label`` runs through the search index, which lags: it
+    once returned nothing while the ADR Status Drift tracker was open, so the
+    action filed a second one. The lookup must use the direct list-issues
+    call, which matches both labels against current data.
+    """
+    calls = _run_notify_action(tmp_path, "notify", [5087])
+    assert not any(c.startswith("issue create") for c in calls), (
+        "The notify action filed a new issue although one was open; its "
+        f"lookup must not depend on the search index (#5105). Calls: {calls}"
+    )
+    assert any(c.startswith("issue comment 5087") for c in calls), (
+        f"The notify action must comment on the open issue. Calls: {calls}"
+    )
+
+
+def test_notify_action_closes_duplicate_trackers(tmp_path: Path) -> None:
+    """MS-14-007, CISEC-05-003: notify leaves one tracker, the oldest, open.
+
+    A duplicate filed before this lookup was fixed, or by any future miss,
+    is closed as a duplicate of the oldest open tracker on the next run.
+    """
+    calls = _run_notify_action(tmp_path, "notify", [5087, 5105])
+    assert any(c.startswith("issue comment 5087") for c in calls), (
+        f"The notify action must comment on the oldest tracker. Calls: {calls}"
+    )
+    closes = [c for c in calls if c.startswith("issue close")]
+    assert len(closes) == 1 and closes[0].startswith("issue close 5105"), (
+        f"The notify action must close the newer tracker only. Calls: {calls}"
+    )
+    assert "#5087" in closes[0], (
+        "A closed duplicate must point to the tracker that stays open. "
+        f"Calls: {calls}"
+    )
+    assert not any(c.startswith("issue create") for c in calls), calls
+
+
+def test_close_mode_closes_every_open_tracker(tmp_path: Path) -> None:
+    """CISEC-05-002: recovery closes every open tracker for the workflow."""
+    calls = _run_notify_action(tmp_path, "close", [5087, 5105])
+    closes = sorted(c.split()[2] for c in calls if c.startswith("issue close"))
+    assert closes == ["5087", "5105"], calls
+
+
+def test_notify_action_files_a_tracker_when_none_is_open(
+    tmp_path: Path,
+) -> None:
+    """CISEC-05-001, CISEC-05-007: with no open tracker, notify files one.
+
+    A labelled pull request on the list-issues page is not a tracker: the
+    endpoint lists pull requests too, and the lookup must drop them.
+    """
+    calls = _run_notify_action(
+        tmp_path, "notify", [], open_pull_requests=(4242,)
+    )
+    creates = [c for c in calls if c.startswith("issue create")]
+    assert len(creates) == 1, (
+        f"The notify action must file exactly one tracker. Calls: {calls}"
+    )
+    assert not any(
+        c.startswith(("issue comment", "issue close")) for c in calls
+    ), (
+        "A labelled pull request must not be taken for an open tracker. "
+        f"Calls: {calls}"
+    )
+
+
+def test_notify_action_fails_when_the_lookup_fails(tmp_path: Path) -> None:
+    """CISEC-05-003: an API error fails the step, never files a duplicate.
+
+    Read through ``mapfile < <(...)``, a failed lookup escapes ``set -e``
+    and looks like "no open tracker", so the action would file a second one.
+    """
+    with pytest.raises(subprocess.CalledProcessError):
+        _run_notify_action(tmp_path, "notify", [5087], api_fails=True)
+    calls = (tmp_path / "gh.log").read_text().splitlines()
+    assert not any(c.startswith("issue create") for c in calls), (
+        "A failed lookup must stop the step before it files a tracker. "
+        f"Calls: {calls}"
     )

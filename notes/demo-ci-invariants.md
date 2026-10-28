@@ -295,8 +295,12 @@ against the merged head (CONCERN-1859).
   `uses:` steps, not `run:` steps, so `docker buildx bake --set
   "*.cache-to=type=gha"` in a composite action's `run:` step cannot reach the
   backend (#2248). Every job builds from scratch.
-- **Merge queue is out of scope.** Only a merge queue closes the two-green-PRs
-  interaction gap; that is #1863.
+- **No merge queue; a combined-merge break is caught here, red.** Two PRs green
+  in isolation can still break `main` together. PAD-18-009 re-tests a PR whose
+  files `main` also changed, and PR-only growth guards replaced the racing count
+  ceilings (#4315). The remaining gap is accepted because it fired zero times in
+  about 190 merges after those rules landed (#1863, set aside). Reopen #1863 if
+  semantic-conflict episodes exceed one per 100 merges over a month (#5403).
 
 ---
 

@@ -1,0 +1,126 @@
+# Keep the committed demo recordings close to main without blocking any PR.
+#
+# Pull requests do not regenerate ui/src/recordings/: a recording may lag main
+# for a few days, and a PR that needs current recordings (a UI change, say)
+# regenerates them itself (#3901). This job records every scenario on main:
+#
+# - exit 0: every recording is current; close the refresh Task if one is open.
+# - exit 3: a recording changed; file or update one "Refresh the demo
+#   recordings" Task and attach the fresh recordings as an artifact. A stale
+#   recording is work to schedule, not a red main, so it never fails the job.
+# - any other exit: the recorder broke (a scenario failed, or a replica
+#   disagreed with the canonical ledger); notify-failure files a CI failure
+#   (CISEC-05).
+
+name: Demo Recordings
+
+on:
+  schedule:
+    - cron: "41 6 * * *"  # Daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  recordings:
+    name: Recordings current on main (files a refresh Task, never fails on drift)
+    # A manual run on another branch would act on the main-scoped Task.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      REFRESH_LABEL: demo-recordings-stale
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+      - name: Record every scenario
+        id: record
+        run: |
+          set +e
+          PYTHONPATH='' uv run export-demo-recordings --report-changes > recordings.log 2>&1
+          status=$?
+          set -e
+          cat recordings.log
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          grep '^Changed recordings: ' recordings.log \
+            | sed 's/^Changed recordings: //' > changed.txt || true
+          if [ "$status" -ne 0 ] && [ "$status" -ne 3 ]; then
+            exit "$status"
+          fi
+      - name: Upload the fresh recordings
+        if: steps.record.outputs.status == '3'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: demo-recordings
+          path: ui/src/recordings/
+          retention-days: 30
+      - name: File or update the refresh Task
+        if: steps.record.outputs.status == '3'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          changed=$(cat changed.txt)
+          # The Task type is set by the helper notify-failure also uses
+          # (CISEC-05-007); it leaves a typed issue alone and repairs an
+          # untyped one, so it runs on both arms.
+          ensure_type=.github/scripts/ensure-issue-type.sh
+          gh label create "$REFRESH_LABEL" --repo "$REPO" \
+            --description "Bot-managed: committed demo recordings lag main" \
+            --color "fbca04" 2>/dev/null || true
+          existing=$(gh issue list --repo "$REPO" --label "$REFRESH_LABEL" \
+            --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$REPO" \
+              --body "Still out of date on main: ${changed}. [Run and fresh recordings]($RUN_URL)"
+            bash "$ensure_type" "$REPO" "$existing" Task
+            exit 0
+          fi
+          body=$(printf '%s\n' \
+            "The committed demo recordings in \`ui/src/recordings/\` differ from a fresh run on \`main\` for: ${changed}." \
+            "" \
+            "Refresh them in a PR: run \`uv run export-demo-recordings\` and commit \`ui/src/recordings/\`, or download the \`demo-recordings\` artifact of [this run]($RUN_URL) and commit it." \
+            "" \
+            "No PR is blocked by this: a few days of lag is expected (#3901). The daily \`Demo Recordings\` workflow closes this Task once the recordings on \`main\` are current.")
+          url=$(gh issue create --repo "$REPO" \
+            --title "Refresh the demo recordings" \
+            --body "$body" --label "$REFRESH_LABEL")
+          echo "Filed $url"
+          bash "$ensure_type" "$REPO" "${url##*/}" Task
+      - name: Close the refresh Task
+        if: steps.record.outputs.status == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh issue list --repo "$REPO" --label "$REFRESH_LABEL" --state open \
+            --json number --jq '.[].number' | while read -r num; do
+            gh issue close "$num" --repo "$REPO" \
+              --comment "The recordings on main are current again. [Run]($RUN_URL)"
+          done
+      - name: File or update the CI failure issue
+        # failure() also catches checkout or setup failing first (CISEC-05).
+        if: failure()
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-demo-recordings
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Close the CI failure issue
+        if: success()
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-demo-recordings
+          token: ${{ secrets.GITHUB_TOKEN }}

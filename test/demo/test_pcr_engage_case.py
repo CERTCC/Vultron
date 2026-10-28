@@ -41,13 +41,15 @@ import asyncio
 import pytest
 
 from test.demo.conftest import (
-    _TestClientRouter,
-    create_isolated_actor_app,
     submit_report_through_reporter,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases._helpers import _find_case_actor_id
+from vultron.demo.in_process import (
+    InProcessRouter,
+    create_isolated_actor_app,
+)
 from vultron.demo.utils import case_actor_id_for_report
 
 # ---------------------------------------------------------------------------
@@ -68,7 +70,7 @@ def two_app_setup():
     """Owner app + reporter app wired for end-to-end delivery.
 
     Uses two isolated FastAPI app instances each with their own in-memory
-    ``SqliteDataLayer``.  A shared ``_TestClientRouter`` routes outbound
+    ``SqliteDataLayer``.  A shared ``InProcessRouter`` routes outbound
     deliveries between the apps in-process so the full
     outbox → inbox → inbox-handler chain is exercised without real HTTP.
 
@@ -103,12 +105,12 @@ def two_app_setup():
         # IDs under http://localhost:7999/actors/... and the owner's app
         # returns 404 for /actors/ paths (it expects /api/v2/actors/).
         VULTRON_SERVER__BASE_URL=f"{_OWNER_BASE}/api/v2",
-        # ResolveCaseActorUrlsNode reads case_actor_service_url from ActorConfig
+        # case_actor_identity() reads case_actor_service_url from ActorConfig
         # (CP-08-002); in this single-owner test setup the owner IS the
         # case-actor service, so we point it at the same base URL.
         VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=f"{_OWNER_BASE}/api/v2",
     ) as cfg:
-        router = _TestClientRouter()
+        router = InProcessRouter()
         owner_iso = create_isolated_actor_app(
             base_url=_OWNER_BASE, router=router
         )
