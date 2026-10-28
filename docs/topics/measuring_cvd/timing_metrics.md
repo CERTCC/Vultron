@@ -13,7 +13,9 @@ description: >
 
 This page proposes metrics for the time a Coordinated Vulnerability Disclosure (CVD) case takes between its events, not only the order of those events.
 The measures in this section so far are about ordering: whether one event precedes another.
-The case ledger records when each event was committed, which makes intervals, durations, and margins measurable within a single case.
+
+The case ledger records the time at which the CASE_MANAGER committed each event.
+These times make intervals, durations, and margins measurable within a single case.
 The page is a draft research proposal for people who study the CVD process.
 No part of the page is normative, and no code calculates these metrics today.
 
@@ -31,6 +33,7 @@ The page also uses participant publication ($\evPu$), the public awareness that 
 Each metric on this page is about the case, or about one participant.
 Some events belong to the case and occur at most once in the case.
 These events are public awareness, a public exploit, observed attacks, and the start and end of the embargo.
+
 Other events belong to one participant and can occur once for each participant.
 These events are report handling, fix readiness, deployment, and embargo consent.
 [What a Case Records](./what_a_case_records.md) describes these two kinds of event, the ledger that stamps each event, and the gaps in the ledger.
@@ -192,7 +195,8 @@ These are the margins most directly tied to defender outcomes.
 
 ## Exposure
 
-Some states are bad to be in, and the time spent in them matters more than the order of their entry.
+Some states are bad to be in.
+For these states, the time spent in the state matters more than the order of entry.
 Exposure metrics are dwell times in those states.
 
 | Metric | Definition |
@@ -236,7 +240,7 @@ They help separate a slow case from a case whose messages went missing.
 
 A gap is a forward move that skips a step the CASE_MANAGER never saw.
 Either a message was lost, or the participant took the step locally and reported only its latest state.
-A rising gap rate is therefore a prompt to look for lost messages, not proof of them.
+Thus a rising gap rate is a reason to look for lost messages, but it does not prove that messages were lost.
 A large clock skew for one participant means its claimed times cannot be trusted for intervals.
 
 ---
@@ -255,8 +259,8 @@ A metric that uses an event with a data gap has the same gap.
 Many cases never see $\evX$ or $\evA$, and an open case has not yet closed.
 An interval that ends at an event that has not occurred is **censored**.
 A censored interval is not missing: the interval is at least as long as the case has run.
-Treating censored intervals as missing biases every average toward the cases that finished.
-Across cases, censored intervals call for survival-analysis methods, such as a Kaplan–Meier estimate of time to fix, and medians rather than means.
+A measure that treats censored intervals as missing biases every average toward the cases that finished.
+Across cases, censored intervals need survival-analysis methods, such as a Kaplan–Meier estimate of time to fix, and medians rather than means.
 
 ---
 
@@ -265,8 +269,8 @@ Across cases, censored intervals call for survival-analysis methods, such as a K
 [Open Questions](./open_questions.md#what-timing-should-a-case-meet) and [Policy Formalization](../other_uses/policy_formalization.md) describe Service Level Expectations (SLEs).
 An SLE is a timer that starts and stops on transitions, such as a limit on the time from $\evV$ to $\evF$.
 An SLE is a threshold on one of the intervals above.
-Defining the intervals first lets an SLE be stated as a number against a metric that already has a definition.
-It also lets a program report the distribution of an interval across its cases, rather than only how often it met a threshold.
+When the intervals have definitions first, a program can state an SLE as a number against a metric that already has a definition.
+The program can also report the distribution of an interval across its cases, rather than only how often it met a threshold.
 
 ---
 

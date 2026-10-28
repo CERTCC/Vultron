@@ -15,7 +15,7 @@ stakeholder_type: [project-contributor]
 
 {% include-markdown "./_legacy_diagram_note.md" %}
 
-The Propose Embargo Behavior Tree is shown in the figure below.
+The figure below shows the Propose Embargo Behavior Tree.
 
 ```mermaid
 ---
@@ -60,21 +60,21 @@ flowchart LR
     - [Negotiate Embargoes](../process_models/em/negotiating.md)
     - [Default Embargoes](../process_models/em/defaults.md)
 
-It consists of a sequence that begins with (A,B) a check for embargo viability as outlined in
-[Negotiating Embargoes](../process_models/em/negotiating.md).
+The tree is a sequence.
+It starts with (A,B) a check for embargo viability, as [Negotiating Embargoes](../process_models/em/negotiating.md) describes.
 
-Once the checks succeed, it proceeds to (C) selecting embargo terms to propose.
-Implementations of this task might draw from a default policy, as in
-[Default Embargoes](../process_models/em/defaults.md), or it might be a case-specific decision made by a Participant.
+When the checks succeed, the tree goes to (C), which selects the embargo terms to propose.
+An implementation of this task can use a default policy, as in [Default Embargoes](../process_models/em/defaults.md).
+Or a Participant can make a decision that is specific to the case.
 
-(D) Embargo terms can be proposed from any of the non-*eXited* states ($q^{em} \in \{N,P,A,R\}$).
+(D) A Participant can propose embargo terms from any state that is not *eXited* ($q^{em} \in \{N,P,A,R\}$).
 
-(D1) If a new or revised embargo has already been proposed ($q^{em} \in \{P,R\}$, the tree then checks whether a counterproposal is desired.
-Assuming it is not, no proposal is made, and the behavior succeeds.
+(D1) If someone has already proposed a new or revised embargo ($q^{em} \in \{P,R\}$), the tree checks whether the Participant wants to make a counterproposal.
+If the Participant does not, the tree makes no proposal, and the behavior succeeds.
 
-Otherwise, (D2) proposals from state $q^{em} \in N$ emit $EP$ and transition $q^{em} \xrightarrow{p} P$,
-whereas (D3) those from $q^{em} \in A$ emit $EV$ and move to $q^{em} \xrightarrow{p} R$.
+Otherwise, (D2) a proposal from state $q^{em} \in N$ emits $EP$ and causes the transition $q^{em} \xrightarrow{p} P$.
+(D3) Otherwise, a proposal from $q^{em} \in A$ emits $EV$ and moves to $q^{em} \xrightarrow{p} R$.
 
-Proposals from states $q^{em} \in P$ (D2) or $q^{em} \in R$ (D3) represent counterproposals and, therefore, do not change
-the EM state.
-They do, however, emit $EP$ or $EV$ messages as appropriate.
+A proposal from state $q^{em} \in P$ (D2) or $q^{em} \in R$ (D3) is a counterproposal.
+Thus, it does not change the EM state.
+But it does emit an $EP$ or $EV$ message, as applicable.

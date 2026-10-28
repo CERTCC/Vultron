@@ -52,6 +52,8 @@ PAGE_SOURCES = (
     "pyproject.toml",
     "uv.lock",
     ".github/actions/check-site-publication/**",
+    ".github/actions/build-site/**",
+    ".github/actions/setup-python-uv/**",
     ".github/workflows/docs-build-check.yml",
 )
 

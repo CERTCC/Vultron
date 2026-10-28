@@ -389,7 +389,7 @@ Items moved here are no longer checked manually; the mechanism is noted.
 | Item | Mechanism |
 |------|-----------|
 | Markdown lint (heading format, list style) | `markdownlint-cli2` pre-commit hook |
-| MkDocs build with zero warnings | `mkdocs build --strict` in `docs-build-check.yml` and `deploy_site.yml` (DOCBW-03-009, DOCBW-03-010) |
+| MkDocs build with zero warnings | `mkdocs build --strict` in `.github/actions/build-site`, the one build `docs-build-check.yml` and `deploy_site.yml` both run (DOCBW-03-009, DOCBW-03-010, DOCBW-06-004) |
 | Broken section heading anchors, on every page of the section | `mkdocs.yml` `validation.links.anchors: warn` + strict build |
 | American spelling (SG-37) in every `docs/` file, fragments included | `codespell` pre-commit hook (`--write-changes`, `files: ^docs/.*\.md$`), dictionary and exclusions in `[tool.codespell]` in `pyproject.toml` |
 | Style-guide rules over this document's `_*.md` fragments | `lint-docs` § "Fragments and assembly units": sentence- and block-scoped rules against each fragment with its own line numbers; page-scoped rules (acronym first use, concept order, H1) against each assembling page in `notes/rfc-spec-authoring.md` § "Page Map", `full.md` included (DF-09-007, [ADR-0092](../docs/adr/0092-lint-fragments-as-source-page-rules-on-rendered-page.md)); an empty target set is a failure (DF-09-009) |

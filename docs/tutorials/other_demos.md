@@ -25,8 +25,10 @@ By the end of this tutorial, we will have explored:
 !!! info "What we will learn"
 
     Each demo sub-command exercises a focused slice of the Vultron Protocol.
-    This tutorial introduces all of them except `receive-report`, which is covered in [Run the Receive-Report Demo](receive_report_demo.md).
-    Each exchange is named here by its formal protocol message and its ActivityStreams wire form, the same names the [How-to guides](../howto/activitypub/activities/index.md) use, so you can move between the log output and the guides.
+    This tutorial introduces all of them except `receive-report`.
+    [Run the Receive-Report Demo](receive_report_demo.md) covers that one.
+    We name each exchange by its formal protocol message and its ActivityStreams wire form.
+    The [How-to guides](../howto/activitypub/activities/index.md) use the same names, so you can move between the log output and the guides.
 
 ---
 
@@ -36,9 +38,11 @@ You need the following tools installed before we begin:
 
 {% include-markdown "./_docker_prerequisites.md" %}
 
-You do **not** need Python installed locally; the containers include everything required.
+You do **not** need Python installed locally.
+The containers include everything that is necessary.
 
-This tutorial continues from [Run the Receive-Report Demo](receive_report_demo.md), which clones the repository and opens a shell in the demo container.
+This tutorial continues from [Run the Receive-Report Demo](receive_report_demo.md).
+That tutorial clones the repository and opens a shell in the demo container.
 If you still have that container shell open, skip Step 1.
 
 ---
@@ -57,7 +61,7 @@ After the images are built and the API server is healthy, you should see a conta
 root@<container-id>:/app#
 ```
 
-All commands in the remaining steps are run inside this container shell.
+Run all commands in the remaining steps inside this container shell.
 
 ---
 
@@ -67,7 +71,13 @@ All commands in the remaining steps are run inside this container shell.
 
 {% include-markdown "../howto/activitypub/activities/_demo_initialize_case.md" %}
 
-This demo walks through the steps a vendor takes to open a new case after receiving a report: create the case, which seats the vendor as Case Owner and CASE_MANAGER, link the report to the case, and invite the reporter, which joins when it accepts.
+This demo shows the steps that a vendor takes to open a new case after it receives a report:
+
+1. Create the case.
+   This seats the vendor as Case Owner and CASE_MANAGER.
+2. Link the report to the case.
+3. Invite the reporter.
+   The reporter joins when it accepts.
 
 See [How to Initialize a Case](../howto/activitypub/activities/initialize_case.md) for the full activity-by-activity walkthrough.
 
@@ -77,7 +87,7 @@ See [How to Initialize a Case](../howto/activitypub/activities/initialize_case.m
 
 This demo shows how a participant joins an existing case.
 The vendor asks the CaseActor to invite a coordinator, and the coordinator joins by accepting the Invite.
-Notice how the vendor's own copy of the case gains the coordinator from the ledger entry for the `Accept`, with no other message.
+Notice that the vendor's own copy of the case gets the coordinator from the ledger entry for the `Accept`, with no other message.
 
 See [How to Seat a Participant on an Existing Case](../howto/activitypub/activities/initialize_participant.md) for details.
 
@@ -90,7 +100,8 @@ See [How to Seat a Participant on an Existing Case](../howto/activitypub/activit
 {% include-markdown "../howto/activitypub/activities/_demo_invite_actor.md" %}
 
 This demo shows two invitation outcomes.
-The Case Owner invites a coordinator, who **accepts** and is added to the case; then it invites a second coordinator, who **rejects** and is not added.
+The Case Owner invites a coordinator, who **accepts** and is added to the case.
+Then the Case Owner invites a second coordinator, who **rejects** and is not added.
 Notice the log lines showing the Invite Actor to Case, `Invite(Actor)`, and the answering `Accept(Invite)` or `Reject(Invite)`.
 Both answers are case events, so the case ledger records the `Reject` just as it records the `Accept`.
 
@@ -112,7 +123,7 @@ sequenceDiagram
     Note over O: Reject ledgered<br/>Coordinator 2 not added
 ```
 
-In a multi-actor deployment the invitation is sent by the Case Actor on the owner's behalf, and the answer goes back to the Case Actor.
+In a multi-actor deployment, the Case Actor sends the invitation on behalf of the owner, and the answer goes back to the Case Actor.
 See [How to Invite an Actor to a Case](../howto/activitypub/activities/invite_actor.md) for that exchange.
 
 ### suggest-actor
@@ -121,7 +132,11 @@ See [How to Invite an Actor to a Case](../howto/activitypub/activities/invite_ac
 
 This demo shows a reporter *suggesting* a coordinator for the case.
 The suggestion goes to the Case Actor, which forwards it to the Case Owner as a proposed participant.
-Two paths are demonstrated: the vendor **accepts** the suggestion, and the Case Actor invites the coordinator; or the vendor **rejects** it, and no invitation is sent.
+The demo shows two paths:
+
+- The vendor **accepts** the suggestion, and the Case Actor invites the coordinator.
+- The vendor **rejects** the suggestion, and nobody sends an invitation.
+
 The vendor's `Reject` is ledgered like its `Accept`.
 
 ```mermaid
@@ -152,11 +167,14 @@ See [How to Suggest an Actor for a Case](../howto/activitypub/activities/suggest
 
 {% include-markdown "../howto/activitypub/activities/_demo_manage_participants.md" %}
 
-This demo combines the full participant lifecycle: invite, accept, record a participant status, remove the participant from active participation, and reinstate it.
-The vendor is both Case Owner and CASE_MANAGER here, so the removal and the reinstatement are the owner's requests to itself.
-The participant receives the CASE_MANAGER's direct notice of each, and its record stays on the case throughout.
-A second path shows the participant declining the invitation: its `Reject` is a case event, and the CASE_MANAGER ledgers it just as it ledgers an `Accept`.
-Each step is logged so we can follow the state changes.
+This demo combines the full participant lifecycle.
+The steps are invite, accept, record a participant status, remove the participant from active participation, and reinstate it.
+Here the vendor is both Case Owner and CASE_MANAGER, so the owner sends the removal and the reinstatement requests to itself.
+The participant receives a direct notice of each from the CASE_MANAGER, and its record stays on the case during all of these steps.
+
+A second path shows the participant as it declines the invitation.
+Its `Reject` is a case event, and the CASE_MANAGER ledgers it just as it ledgers an `Accept`.
+The demo logs each step, so we can follow the state changes.
 
 ```mermaid
 ---
@@ -190,11 +208,21 @@ vultron-demo transfer-ownership
 ```
 
 This demo shows case ownership transfer.
-The current owner (the vendor) proposes the transfer to the Case Actor, which offers the case to a coordinator, who either **accepts**, so the case's `attributedTo` moves to the coordinator, or **rejects**, so ownership stays with the vendor.
-A third path has the vendor **withdraw** its proposal, and with it the offer, before the coordinator answers, so ownership again stays with the vendor.
-In the accept path the offer carries a deadline to answer, and the demo checks that the offer the coordinator receives names it; the coordinator answers in time.
+The current owner (the vendor) proposes the transfer to the Case Actor.
+The Case Actor offers the case to a coordinator.
+The demo shows three paths:
 
-Every message goes through the Case Actor, which holds the CASE_MANAGER role, so that the ledger records the transfer or the coordinator's `Reject` and every participant learns of it.
+- The coordinator **accepts**, so the `attributedTo` of the case moves to the coordinator.
+- The coordinator **rejects**, so ownership stays with the vendor.
+- The vendor **withdraws** its proposal, and with it the offer, before the coordinator answers.
+  Ownership again stays with the vendor.
+
+In the accept path, the offer carries a deadline to answer.
+The demo checks that the offer that the coordinator receives names this deadline.
+The coordinator answers in time.
+
+Every message goes through the Case Actor, which holds the CASE_MANAGER role.
+This is so that the ledger records the transfer or the `Reject` of the coordinator, and every participant learns of it.
 
 ```mermaid
 ---
@@ -231,7 +259,13 @@ See [Ownership Transfer](../topics/case_lifecycle/ownership_transfer.md) for why
 
 This demo exercises embargo negotiation.
 A coordinator proposes embargo terms with an Embargo Proposal (EP), `Invite(EmbargoEvent)`.
-The vendor either **accepts** with an Embargo Proposal Acceptance (EA), `Accept(Invite(EmbargoEvent))`, then activates the embargo on the case with `Accept(EmbargoEvent)[target=VulnerabilityCase]` and announces it with `Announce(EmbargoEvent)`, so the Embargo Management (EM) state becomes `ACTIVE`; or **rejects** with an Embargo Proposal Rejection (ER), `Reject(Invite(EmbargoEvent))`, and the EM state does not change.
+The vendor then does one of two things:
+
+- The vendor **accepts** with an Embargo Proposal Acceptance (EA), `Accept(Invite(EmbargoEvent))`.
+  Then it activates the embargo on the case with `Accept(EmbargoEvent)[target=VulnerabilityCase]` and announces it with `Announce(EmbargoEvent)`.
+  The Embargo Management (EM) state becomes `ACTIVE`.
+- The vendor **rejects** with an Embargo Proposal Rejection (ER), `Reject(Invite(EmbargoEvent))`.
+  The EM state does not change.
 
 ```mermaid
 ---
@@ -260,15 +294,28 @@ See [How to Establish an Embargo](../howto/activitypub/activities/establish_emba
 {% include-markdown "../howto/activitypub/activities/_demo_report_with_embargo.md" %}
 
 This demo exercises the negotiated embargo path, which no other demo reaches.
-The Reporter proposes embargo terms *with* the report: the Report Submission (RS), `Offer(VulnerabilityReport)`, carries a proposed `EmbargoEvent` as `proposedEmbargo`, sent through the `submit-report` trigger's `proposed_embargo_end_time`.
+The Reporter proposes embargo terms *with* the report.
+The Report Submission (RS), `Offer(VulnerabilityReport)`, carries a proposed `EmbargoEvent` as `proposedEmbargo`.
+The Reporter sends it through the `proposed_embargo_end_time` of the `submit-report` trigger.
+
 The recipient's default is the `EmbargoPolicy` on its own actor profile, published through `PUT /actors/{actor_id}/embargo-policy` (EP-04-003).
 The recipient sends that profile inline as the `actor` of its case proposal, and the CaseActor reads the default from there (CP-01-010).
-When the case is created, the shorter of the two becomes the active embargo and the longer is left pending as a revision, so the EM state is `REVISE`; when the recipient has published no default, the Reporter's terms apply at their stated length and the EM state is `ACTIVE`.
-No proposal exchange precedes the case: the comparison is settled at case creation.
+
+When the case is created, the shorter of the two becomes the active embargo.
+The longer one stays pending as a revision, so the EM state is `REVISE`.
+When the recipient has published no default, the terms of the Reporter apply at their stated length, and the EM state is `ACTIVE`.
+
+No proposal exchange occurs before the case.
+The comparison is settled when the case is created.
+
 The CaseActor then relays the pending revision to the party whose terms won, on behalf of the party whose terms lost (EP-04-011).
 When the Reporter proposed 60 days, that party is the Vendor, the case owner.
-The protocol requires no automatic answer, so the Vendor's 30-day default stays active and the Reporter's longer terms stay pending until the owner answers; the case stays at `REVISE`.
-When the Reporter proposed 10 days, the Reporter is invited instead, and its acceptance only records consent, so the case also stays at `REVISE`.
+The protocol requires no automatic answer.
+So the 30-day default of the Vendor stays active, and the longer terms of the Reporter stay pending until the owner answers.
+The case stays at `REVISE`.
+
+When the Reporter proposed 10 days, the CaseActor invites the Reporter instead.
+The acceptance of the Reporter only records consent, so the case also stays at `REVISE`.
 
 ```mermaid
 ---
@@ -307,8 +354,11 @@ See [How to Report a Vulnerability](../howto/activitypub/activities/report_vulne
 This demo continues from an active embargo.
 Two paths are shown:
 
-1. **Activate and terminate**: the coordinator proposes, the vendor accepts and activates, and the vendor then ends the embargo with an Embargo Termination (ET), `Remove(EmbargoEvent)`, which moves the EM state to `EXITED`.
-2. **Reject and repropose**: the coordinator proposes 45-day terms, the vendor rejects them, the coordinator proposes 90-day terms as a new proposal, and the vendor accepts and activates.
+1. **Activate and terminate**: the coordinator proposes, and the vendor accepts and activates.
+   Then the vendor ends the embargo with an Embargo Termination (ET), `Remove(EmbargoEvent)`.
+   This moves the EM state to `EXITED`.
+2. **Reject and repropose**: the coordinator proposes 45-day terms, and the vendor rejects them.
+   The coordinator proposes 90-day terms as a new proposal, and the vendor accepts and activates.
 
 ```mermaid
 ---
@@ -337,7 +387,8 @@ sequenceDiagram
     end
 ```
 
-The second proposal in Path 2 is a new Embargo Proposal (EP) rather than an Embargo Revision Proposal (EV), because there is no active embargo to revise when it is sent.
+The second proposal in Path 2 is a new Embargo Proposal (EP), not an Embargo Revision Proposal (EV).
+When the coordinator sends it, no active embargo exists to revise.
 
 See [How to Revise or Terminate an Embargo](../howto/activitypub/activities/manage_embargo.md) for details.
 
@@ -349,10 +400,14 @@ See [How to Revise or Terminate an Embargo](../howto/activitypub/activities/mana
 
 {% include-markdown "../howto/activitypub/activities/_demo_acknowledge.md" %}
 
-This demo shows how a vendor acknowledges receipt of a report without committing to an outcome, using a Report Acknowledgment (RK), `Read(Offer(VulnerabilityReport))`.
-The reporter submits through its `submit-report` trigger, so it holds the Offer and accepts the acknowledgment because the vendor is the Offer's addressee.
-The vendor sends the acknowledgment through its `ack-report` trigger, which addresses the reporter alone and never the CASE_MANAGER, even though a case already exists.
-Three paths are demonstrated:
+This demo shows how a vendor acknowledges receipt of a report without a commitment to an outcome.
+The vendor uses a Report Acknowledgment (RK), `Read(Offer(VulnerabilityReport))`.
+The reporter submits through its `submit-report` trigger, so it holds the Offer.
+It accepts the acknowledgment because the vendor is the addressee of the Offer.
+
+The vendor sends the acknowledgment through its `ack-report` trigger.
+This trigger addresses only the reporter, never the CASE_MANAGER, even though a case already exists.
+The demo shows three paths:
 
 1. **Acknowledge only** — the vendor sends the acknowledgment to the reporter.
 2. **Acknowledge then validate** — the acknowledgment, then a Report Valid (RV), `Accept(Offer(VulnerabilityReport))`, then notify the reporter.
@@ -388,10 +443,15 @@ See [Acknowledge a Report](../howto/activitypub/activities/acknowledge.md) for t
 This demo shows two workflows for updating a case record:
 
 1. **Notes** — the vendor creates a `Note`, adds it to the case with `Add(Note)`, and then removes it again with `Remove(Note)`.
-2. **Status** — the vendor reports public awareness in a new `ParticipantStatus`, added to its own participant record with `Add(ParticipantStatus)`, and the demo checks that the case status adopted it.
+2. **Status** — the vendor reports public awareness in a new `ParticipantStatus`.
+   It adds the status to its own participant record with `Add(ParticipantStatus)`.
+   The demo then checks that the case status adopted it.
 
-A participant status update is how an actor reports its own Case State (CS) progress: Vendor Awareness (CV), Fix Readiness (CF), and Fix Deployed (CD) are all `Add(ParticipantStatus)` activities.
-So are Public Awareness (CP), Exploit Public (CX), and Attacks Observed (CA), carried in the case status the participant status embeds; only the Case Manager sends `Add(CaseStatus)`.
+An actor reports its own Case State (CS) progress with a participant status update.
+Vendor Awareness (CV), Fix Readiness (CF), and Fix Deployed (CD) are all `Add(ParticipantStatus)` activities.
+So are Public Awareness (CP), Exploit Public (CX), and Attacks Observed (CA).
+These three are in the case status that the participant status embeds.
+Only the Case Manager sends `Add(CaseStatus)`.
 
 See [How to Post a Status Update or a Case Note](../howto/activitypub/activities/status_updates.md) for details.
 
@@ -410,7 +470,10 @@ Three paths are shown:
 2. **Defer and re-engage path** — submit, validate, create the case, defer, re-engage, close.
 3. **Invalidate path** — submit, invalidate, close the case opened for the report.
 
-Notice the RM state transitions logged at each step, and notice that every path closes with `Leave(VulnerabilityCase)`: the vendor opened a case for each report on receipt, and once a case holds a report its owner closes the case, never the report.
+Notice the RM state transitions that the demo logs at each step.
+Notice also that every path closes with `Leave(VulnerabilityCase)`.
+The vendor opened a case for each report when it received the report.
+After a case holds a report, its owner closes the case, never the report.
 Only a report that no case holds is closed with a Report Closed (RC), `Reject(Offer(VulnerabilityReport))`.
 
 ```mermaid
@@ -457,18 +520,27 @@ See [Manage a Case](../howto/activitypub/activities/manage_case.md) for the corr
 vultron-demo trigger
 ```
 
-Most activities in the demos so far were posted to an inbox, which is how an actor *reacts* to another actor.
-The reporter's report submission already went through a trigger: its own `submit-report`.
-This demo shows the other direction: an actor *initiates* a protocol behavior from its own state by calling one of its trigger endpoints, and the actor's behavior tree builds the activity and queues it for delivery.
+Most activities in the demos so far went to an inbox.
+An inbox post is how an actor *reacts* to another actor.
+The report submission of the reporter already went through a trigger: its own `submit-report`.
+
+This demo shows the other direction.
+An actor *initiates* a protocol behavior from its own state when it calls one of its trigger endpoints.
+The behavior tree of the actor builds the activity and queues it for delivery.
 Two workflows are shown:
 
-1. **Validate and engage** — the reporter submits a report; the vendor then calls `POST /actors/{actor_id}/trigger/validate-report` and `POST /actors/{actor_id}/trigger/engage-case`.
-2. **Invalidate and close** — the reporter submits a second report; the vendor calls `trigger/invalidate-report`, ends the case's embargo with `trigger/terminate-embargo`, and then closes the case it opened for the report with `trigger/leave-case`, which sends `Leave(VulnerabilityCase)`.
+1. **Validate and engage** — the reporter submits a report.
+   Then the vendor calls `POST /actors/{actor_id}/trigger/validate-report` and `POST /actors/{actor_id}/trigger/engage-case`.
+2. **Invalidate and close** — the reporter submits a second report.
+   The vendor calls `trigger/invalidate-report` and ends the embargo of the case with `trigger/terminate-embargo`.
+   Then it closes the case that it opened for the report with `trigger/leave-case`, which sends `Leave(VulnerabilityCase)`.
    Once a case holds a report, its owner closes the case this way, never with `Close(Report)`.
-   The vendor ends the embargo first because `leave-case` refuses the Case Owner while the case's embargo is active.
+   The vendor ends the embargo first, because `leave-case` refuses the Case Owner while the embargo of the case is active.
 
-Notice that each trigger response carries the ActivityStreams activity the actor produced, and that the activity appears in the vendor's outbox.
-This is the mechanism the multi-actor container demos use to drive every actor; see [Running the Multi-Actor Container Demos](container_demos.md).
+Notice that each trigger response carries the ActivityStreams activity that the actor produced.
+Notice also that the activity appears in the outbox of the vendor.
+The multi-actor container demos use this mechanism to drive every actor.
+See [Running the Multi-Actor Container Demos](container_demos.md).
 
 See the [Trigger API](../reference/trigger-api.md) reference for every trigger endpoint.
 
@@ -523,13 +595,13 @@ We have:
 
 - run every remaining Vultron demo sub-command, covering the major protocol workflows,
 - observed how the Vultron Protocol handles case initialization, actor management, embargo negotiation, the RM state machine, and trigger-driven behavior, and
-- run the complete demo suite in one shot using `vultron-demo all`.
+- run the complete demo suite in one step with `vultron-demo all`.
 
 ---
 
 ## Next steps
 
 - **Understand the protocol** — browse the [Vultron AS Activity Guides](../howto/activitypub/activities/index.md) for task guides covering everything we observed.
-- **See the protocol run across containers** — [Running the Multi-Actor Container Demos](container_demos.md) drives whole cases across isolated actors using the trigger endpoints.
+- **See the protocol run across containers** — [Running the Multi-Actor Container Demos](container_demos.md) uses the trigger endpoints to drive whole cases across isolated actors.
 - **Explore the demo scripts** — the exchange demos are in `vultron/demo/exchange/`; shared utilities are in `vultron/demo/utils.py`.
 - **Read the demo README** — `vultron/demo/README.md` describes the demo architecture and available sub-commands.

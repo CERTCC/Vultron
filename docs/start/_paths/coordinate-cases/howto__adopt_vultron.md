@@ -16,7 +16,7 @@ This page is part of *Prepare your program*.
 </td>
 <td markdown="block">
 
-- [Early Termination](../../../topics/process_models/em/early_termination.md)
+- [How to Decide Who Owns a Case](../../../howto/decide_who_owns_a_case.md)
 
 </td>
 <td markdown="block">

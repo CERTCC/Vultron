@@ -30,27 +30,19 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
+      # Only loads the local actions: build-site re-checks out the repository
+      # with the history and tags the build needs (DOCBW-06-004).
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          fetch-tags: true
 
-      - name: Set up Python and uv
-        uses: ./.github/actions/setup-python-uv
-        with:
-          uv-sync-args: "--no-dev"
+      # The same build docs-build-check.yml reviews: checkout, dependency set
+      # and the strict mkdocs build all live in the action (DOCBW-06-004,
+      # DOCBW-03-009, DOCBW-03-010).
+      - name: Build Site
+        uses: ./.github/actions/build-site
 
       - name: Setup Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
-
-      # --strict makes mkdocs.yml's `validation: warn` settings (dead in-page
-      # anchors, pages missing from the nav) fail the deploy instead of
-      # publishing (DOCBW-03-009). Never add --quiet (DOCBW-03-010): it hides
-      # the warnings --strict counts, so the build passes over them.
-      - name: Build Site
-        run: |
-          uv run mkdocs build --strict --clean --config-file mkdocs.yml
 
       # This is the workflow that actually publishes, so it is the one the
       # publication checks have to gate. It must sit between Build Site and
