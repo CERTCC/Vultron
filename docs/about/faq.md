@@ -49,6 +49,17 @@ See [What Vultron is not](../topics/background/what-is-vultron.md#what-vultron-i
 The protocol is designed to be used alongside [ISO/IEC 29147](../reference/iso_crosswalks/iso_29147_2018.md) (vulnerability disclosure), [ISO/IEC 30111](../reference/iso_crosswalks/iso_30111_2019.md) (vulnerability handling processes), and [ISO/IEC TR 5895](../reference/iso_crosswalks/iso_5895_2022.md) (multi-party coordinated vulnerability disclosure).
 The [ISO crosswalks](../reference/iso_crosswalks/index.md) map each standard's clauses onto the protocol, and the [SSVC crosswalk](../reference/ssvc_crosswalk.md) does the same for Stakeholder-Specific Vulnerability Categorization (SSVC).
 
+## Should I submit a report, or create the case myself?
+
+One question decides it: who should be the [Case Owner](../reference/glossary.md#cvd-roles-and-participants) now, and who later?
+Any actor that receives a report can create a case and own it, and you can report to yourself.
+Submit a report if two conditions are true.
+First, you are content for the receiver, such as a vendor or a coordinator, to decide.
+Second, if the receiver declines, you do not want to own the case.
+Otherwise, report to yourself and create the case.
+You can then invite the other parties, and later transfer the case to one of them.
+See [How to Decide Who Owns a Case](../howto/decide_who_owns_a_case.md).
+
 ## Which messages does the protocol define?
 
 Twenty-eight formal message types, grouped by the state machine they belong to: Report Management, Embargo Management, Case State, and general messages.
