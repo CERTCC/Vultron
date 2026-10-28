@@ -55,7 +55,11 @@ def registry_label(
     activity = parse_activity(dict(payload_snapshot))
     if dl is not None:
         rehydrated = rehydrate(activity, dl)
-        assert isinstance(rehydrated, as_Activity)
+        if not isinstance(rehydrated, as_Activity):
+            raise TypeError(
+                f"payload {activity.id_!r} rehydrated to a"
+                f" {type(rehydrated).__name__}, not an activity"
+            )
         activity = rehydrated
     return find_matching_semantics(activity).value
 

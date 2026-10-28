@@ -152,6 +152,42 @@ class TestReferencesToFetch:
             )
         ]
 
+    @pytest.mark.spec("AKM-05-007")
+    @pytest.mark.spec("VAM-01-009")
+    def test_a_bare_object_inside_an_inline_activity_is_the_one_fetched(
+        self,
+    ):
+        """``Accept(Invite(<id>))``: the Invite's bare object is fetched."""
+        dl = _replica()
+        case = make_case_with_case_manager(dl)
+        missing = "urn:uuid:inner-not-held"
+        activity = parse_activity(
+            {
+                "type": "Accept",
+                "id": "https://example.org/activities/a-nested",
+                "published": "2026-10-26T12:00:00Z",
+                "actor": CASE_MANAGER_ID,
+                "object": {
+                    "type": "Invite",
+                    "id": "https://example.org/activities/invite-1",
+                    "published": "2026-10-26T12:00:00Z",
+                    "actor": _PARTICIPANT,
+                    "object": missing,
+                    "context": case.id_,
+                },
+                "context": case.id_,
+                "to": [_PARTICIPANT],
+            }
+        )
+        event = extract_event(activity)
+        assert (
+            event.semantic_type is MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
+        )
+
+        refs = references_to_fetch(event, dl, _PARTICIPANT, case.id_)
+
+        assert [r.object_id for r in refs] == [missing]
+
     @pytest.mark.spec("AKM-05-011")
     @pytest.mark.spec("AKM-05-007")
     def test_the_case_manager_fetches_nothing_from_itself(self):

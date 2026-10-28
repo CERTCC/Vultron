@@ -1489,6 +1489,35 @@ def test_a_bare_object_is_not_read_as_its_verbs_first_pattern(
     assert result is MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
 
 
+@pytest.mark.spec("SE-01-006")
+@pytest.mark.spec("VAM-01-009")
+@pytest.mark.parametrize(
+    ("verb", "inner_verb", "inner_qualifiers"),
+    [
+        ("Accept", "Invite", {"target": _CASE_URI}),
+        ("Reject", "Invite", {"context": _CASE_URI}),
+        ("Accept", "Offer", {}),
+    ],
+)
+def test_a_bare_object_inside_a_nested_activity_is_unresolvable(
+    verb: str, inner_verb: str, inner_qualifiers: dict[str, str]
+) -> None:
+    """A nested pattern refuses a bare object as the outer one does.
+
+    ``Accept(Invite(<id>))`` matches no pattern, so it is
+    ``UNKNOWN_UNRESOLVABLE_OBJECT``, the outcome the inbox fetches for, not
+    ``UNKNOWN``.
+    """
+    inner = _bare_object_body(inner_verb, **inner_qualifiers)
+    activity = parse_activity(
+        {**_bare_object_body(verb, context=_CASE_URI), "object": inner}
+    )
+    assert (
+        find_matching_semantics(activity)
+        is MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
+    )
+
+
 @pytest.mark.spec("SE-01-007")
 @pytest.mark.parametrize(
     ("example", "expected"),

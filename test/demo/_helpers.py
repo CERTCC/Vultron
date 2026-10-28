@@ -284,12 +284,17 @@ REBUILT_CASES: list[tuple[str, list[str]]] = []
 LABELLED_ENTRIES: list[int] = []
 
 
-def _hosted_ledger_entries() -> Iterator[Any]:
-    """Every ledger entry any hosted store holds, the replicas' included."""
+def _hosted_ledger_entries() -> Iterator[tuple[Any, list[CaseLedgerEntry]]]:
+    """``(store, entries)`` for every hosted store, the replicas' included."""
     for dl in get_all_actor_datalayers().values():
-        for entry in dl.list_objects("CaseLedgerEntry"):
-            if isinstance(entry, CaseLedgerEntry):
-                yield entry
+        yield (
+            dl,
+            [
+                entry
+                for entry in dl.list_objects("CaseLedgerEntry")
+                if isinstance(entry, CaseLedgerEntry)
+            ],
+        )
 
 
 def check_entries_carry_registry_labels() -> None:
@@ -299,10 +304,14 @@ def check_entries_carry_registry_labels() -> None:
     its ``payload_snapshot`` (ADR-0140).  A mismatch is recorded in
     :data:`REBUILD_FAILURES`, alongside the rebuild differences, for the same
     reason they are: a raise would be logged as a failed demo and hidden.
+    Each payload is rehydrated against the store that holds the entry, as its
+    holder read it (SE-01-006).
     """
-    entries = list(_hosted_ledger_entries())
-    LABELLED_ENTRIES.append(len(entries))
-    REBUILD_FAILURES.extend(label_mismatches(entries))
+    count = 0
+    for dl, entries in _hosted_ledger_entries():
+        count += len(entries)
+        REBUILD_FAILURES.extend(label_mismatches(entries, dl))
+    LABELLED_ENTRIES.append(count)
 
 
 def _managed_cases() -> Iterator[tuple[Any, str]]:

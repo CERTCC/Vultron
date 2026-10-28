@@ -78,7 +78,8 @@ groups:
       `find_matching_semantics()` MUST return
       `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT` when no registered pattern
       matches an activity whose type has at least one registered pattern and
-      whose `object_` is still a bare string URI after rehydration.
+      whose `object_`, or the `object_` of an activity nested in it, is still a
+      bare string URI after rehydration.
     rationale: >-
       `UNKNOWN_UNRESOLVABLE_OBJECT` is the specific signal for a known activity
       type whose object could not be resolved: it separates a data gap, which may
@@ -86,7 +87,8 @@ groups:
     verification: >-
       Tests marked `VAM-01-009` confirm that `find_matching_semantics()` returns
       `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT` for an `Accept` whose
-      `object_` is a bare string URI that no pattern matches.
+      `object_` is a bare string URI that no pattern matches, and for an
+      `Accept(Invite)` whose Invite's `object_` is one.
   - id: VAM-01-012
     priority: MUST_NOT
     kind: project

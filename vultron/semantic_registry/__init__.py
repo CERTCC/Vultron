@@ -423,8 +423,9 @@ def find_matching_semantics(activity: as_Activity) -> MessageSemantics:
 
     Iterates ``SEMANTIC_REGISTRY`` in order and returns the first match.
     Returns ``MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`` when no pattern
-    matches, the activity type is registered (has patterns), and ``object_``
-    is still a bare string URI (rehydration did not resolve it).
+    matches, the activity type is registered (has patterns), and ``object_``,
+    or the object of an activity nested in it, is still a bare string URI
+    (rehydration did not resolve it).
     Returns ``MessageSemantics.UNKNOWN`` when the activity type is not
     registered at all.
 
@@ -440,11 +441,27 @@ def find_matching_semantics(activity: as_Activity) -> MessageSemantics:
     for entry in SEMANTIC_REGISTRY:
         if entry.pattern is not None and entry.pattern.match(activity):
             return entry.semantics
-    obj = getattr(activity, "object_", None)
     activity_type = str(activity.type_) if activity.type_ else ""
-    if isinstance(obj, str) and activity_type in _ACTIVITY_TYPES_WITH_PATTERNS:
+    if (
+        _ends_in_bare_object(activity)
+        and activity_type in _ACTIVITY_TYPES_WITH_PATTERNS
+    ):
         return MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
     return MessageSemantics.UNKNOWN
+
+
+def _ends_in_bare_object(activity: as_Activity) -> bool:
+    """True if *activity*'s ``object`` chain ends in a bare id.
+
+    The chain follows ``object`` through each inline activity it holds, so
+    ``Accept(Invite(<id>))`` ends in the Invite's bare object: a nested
+    pattern's ``object_`` refuses a bare id as the outer one does
+    (SE-01-006), so it is unresolvable at either depth (VAM-01-009).
+    """
+    obj: object = getattr(activity, "object_", None)
+    while isinstance(obj, as_Activity):
+        obj = getattr(obj, "object_", None)
+    return isinstance(obj, str)
 
 
 def matches_semantics(

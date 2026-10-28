@@ -122,10 +122,12 @@ def _unresolvable_object_references(
 
     The activity's type has patterns, but its ``object`` stayed a bare id
     because the receiver does not hold it (``UNKNOWN_UNRESOLVABLE_OBJECT``).
+    When the ``object`` is an inline activity, the bare id is that
+    activity's own object, the event's ``inner_object`` (VAM-01-009).
     A replication ``Announce`` of a ledger entry is never fetched: it carries
     its entry inline (SYNC-02-005), and replay needs no fetch (AKM-05-007).
     """
-    object_id = event.object_id
+    object_id = event.inner_object_id or event.object_id
     if object_id is None or dl.read(object_id) is not None:
         return []
     host = _case_host_of(dl, context_id, receiving_actor_id)
