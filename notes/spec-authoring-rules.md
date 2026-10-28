@@ -296,9 +296,9 @@ The MS-10 verification rule is built so it can only end at zero:
    names it fails; an owner closed by hand is reported by the
    `verification-debt-owners` workflow and never fails the build (ARCH-18-004).
 3. **Zero is terminal.** When a kind has no markers, delete its owner entry;
-   a marker of that kind is then a hard error (MS-10-007). Nothing yet stops a
-   new marker while an entry exists; #4200 adds that guard on the shared
-   `added_since_base` helper.
+   a marker of that kind is then a hard error (MS-10-007). While an entry
+   exists, a PR-only growth guard fails any marker a branch adds or re-points
+   (MS-10-016).
 4. **A relabel carries its verification with it** (MS-10-008).
 
 A new backlog-style ratchet follows the same four rules unless it states why it

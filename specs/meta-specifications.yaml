@@ -600,13 +600,16 @@ groups:
       An owner no marker names is reported rather than failed, because two PRs that each
       verify some of its last requirements are green alone and would turn `main` red
       merged (#3984); the PR that closes the owner issue fails until the entry is
-      removed, which forces the removal. The growth guard (#4200) keeps markers from being added
-      while an owner remains. The `protocol` tier is expected to finish first (#3612).
+      removed, which forces the removal. The growth guard (MS-10-016) keeps markers from
+      being added while an owner remains. The `protocol` tier is expected to finish
+      first (#3612).
     verification: >-
       Unit tests in `test/metadata/specs/test_lint.py` and
       `test/metadata/specs/test_verification.py` assert that, for a kind with no owner
       entry, a marked MUST and a marked MUST_NOT each make lint exit 1, that verified
       items of that kind pass, and that an owner no marker names is reported.
+      While an owner remains, `test/architecture/test_verification_debt_guard.py`
+      (MS-10-016) fails a pull request that adds a marker.
     tracking_issue: '#3612'
     relationships:
     - rel_type: depends_on
@@ -632,7 +635,8 @@ groups:
       kind, so a relabel that keeps its old marker fails; a fixture test in
       `test/metadata/specs/test_verification.py` proves it. A relabel that re-points the
       marker at the destination kind's owner is a new marker for that owner, which the
-      growth guard (#4200) rejects.
+      growth guard (MS-10-016, `test/architecture/test_verification_debt_guard.py`)
+      rejects.
     relationships:
     - rel_type: refines
       spec_id: MS-10-006
@@ -832,6 +836,36 @@ groups:
       spec_id: MS-10-013
     - rel_type: derives_from
       spec_id: MS-11-004
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-016
+    priority: MUST
+    kind: process
+    statement: >-
+      A PR-only growth guard MUST fail a pull request that gives a requirement a
+      `verification_debt:` marker its merge-base version lacked. A marker naming a
+      different issue there counts as a new marker. A marker removed, or moved with its
+      requirement to another file, does not. The guard lists each such requirement and
+      compares against no committed count.
+    rationale: >-
+      spec-lint judges each marker alone, so it passes a new unverified requirement that
+      arrives with a marker. It also passes a relabel that re-points its marker at the
+      destination kind's owner, which MS-10-008 forbids. Either adds debt to a backlog
+      that may only shrink. Comparing per-item sets with the merge base leaves no
+      committed number for concurrent pull requests to race on (#3984).
+    verification: >-
+      `test/architecture/test_verification_debt_guard.py::test_no_pr_adds_a_verification_debt_marker`
+      runs the guard on the live corpus, and the `test_debt_*` tests in
+      `test/metadata/specs/test_growth_guard.py` cover a marker added to a new or a
+      verified requirement, a removed marker, an edited marked requirement, a marker
+      moved to another file, a relabel that keeps or re-points its marker, and a
+      skipped run with no base ref that logs its reason.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-10-007
+    - rel_type: refines
+      spec_id: MS-10-008
     tags:
     - documentation
     - tooling
