@@ -336,12 +336,12 @@ groups:
       typically an inert invitee that has not yet replied — and the write MUST
       NOT change its RM state (ADR-0121).
     rationale: >-
-      Without this path, the case cannot record that an invited vendor is aware when the
-      vendor does not answer. But the acknowledgement of the invite by the vendor is
-      evidence that the vendor is aware. The stub Invite creates the participant record
-      (ADR-0114), so the assertion has a target, and no new participant is necessary. RM
-      stays the same, so the assertion does not speak for the report decisions of the
-      vendor.
+      Without this path, the case cannot record that an invited vendor is aware until
+      the vendor replies to the Invite. A vendor acknowledgement, such as
+      `Read(Invite(stub))`, already shows that the vendor is aware. The stub Invite
+      creates the participant record (ADR-0114), so the assertion has a target, and no
+      new participant is necessary. RM stays the same, so the assertion does not speak
+      for the report decisions of the vendor.
     verification: >-
       ``SvcAddOnBehalfStatusUseCase`` implements this path; the asserting
       actor's CASE_MANAGER or CASE_OWNER role is verified by

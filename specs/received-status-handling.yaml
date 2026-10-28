@@ -706,8 +706,8 @@ groups:
     rationale: >-
       `STATUS_AUTHORIZATION_PERMISSIVE` is for deployments with trusted participants and
       for demos (RSH-07-003). If a deployment uses it to avoid a gate that cannot pass,
-      a protocol guarantee becomes a configuration setting. Every deployment that copies
-      this setting then loses the check by the Case Owner, but did not choose to.
+      a protocol guarantee becomes a configuration setting. A deployment that copies
+      this setting then loses the check by the Case Owner without a decision to drop it.
     verification: >
       The production default bundle is the conservative one, and permissive
       injection sites are enumerated and documented.

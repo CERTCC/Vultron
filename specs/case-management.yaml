@@ -101,7 +101,7 @@ groups:
     statement: CASE_MANAGER MUST know the case owner
     rationale: >-
       Only the Case Owner can do some case actions (CM-02-005). The CASE_MANAGER can
-      enforce this only if it knows the owner. The case records the owner in
+      enforce this only if it knows the Case Owner. The case records the Case Owner in
       `attributed_to`.
     verification: Inspection of `vultron/core/models/case.py` confirms that
       `VulnerabilityCase.attributed_to` records the case owner and is readable by the CASE_MANAGER.
@@ -121,9 +121,9 @@ groups:
       mechanism).
     rationale: >-
       These actions decide who learns about the vulnerability, under what embargo, and
-      who is responsible for the case. In CVD, the owner makes these decisions. If any
-      participant can start them through the CASE_MANAGER, a participant can close the
-      case, change the embargo, admit a party that nobody checked, or take the case.
+      who is responsible for the case. In CVD, the Case Owner makes these decisions. If
+      any participant can start them through the CASE_MANAGER, a participant can close
+      the case, change the embargo, admit a party that nobody checked, or take the case.
     verification: Integration tests in `test/demo/` confirm that case closure, embargo approval,
       participant invitation approval, and ownership transfer are only executed when triggered
       by the case owner.
@@ -251,10 +251,10 @@ groups:
       entries as authoritative from replica-seed onward, including during the bootstrap window
       before any co-located `Service` object carries the case `context`.
     rationale: >-
-      The replica gets the role membership when it is seeded, and that membership stays
-      the same after that. A check that needs a co-located `Service` object with the
-      case `context` fails before that object exists. During that time, the CASE_MANAGER
-      thinks that its own ledger entry is the entry of a participant.
+      The replica holds the role membership from the moment it is seeded. A check that
+      needs a co-located `Service` object with the case `context` fails before that
+      object exists. Until that object exists, such a check makes the CASE_MANAGER treat
+      its own ledger entry as the entry of a participant.
     verification: >-
       `test/core/behaviors/sync/test_announce_tree.py::test_case_manager_role_takes_authority_arm_without_service_object`
       confirms the actor enacting `CVDRole.CASE_MANAGER` takes the authority arm on its own ledger
@@ -375,8 +375,8 @@ groups:
     rationale: >-
       Report handling, embargo negotiation, and the public and fix state of a case
       change for different reasons and at different times. Three interacting machines
-      let you validate each one on its own. The interactions between them stay explicit
-      and do not hide in one combined state.
+      let an implementation validate each one on its own. The interactions between them
+      stay explicit and do not hide in one combined state.
     verification: Integration tests in `test/demo/` confirm that RM, EM, and CS state machines
       are each instantiated and advance independently.
     relationships:
@@ -697,7 +697,7 @@ groups:
       CM-05-001 states only what other participants observe (MS-12-010). This
       requirement records how this codebase satisfies CM-05-001. Separate types let the
       type checker find an object that the code passes in place of a different object.
-      They also keep the validation rules of each object in one place. The case actor is
+      They also keep the validation rules of each object in one place. The Case Actor is
       not in this list. It is an ordinary `VultronService` that holds the CASE_MANAGER
       role, not a different type (ADR-0088).
     verification: >-
@@ -1160,7 +1160,7 @@ groups:
       announcements (ADR-0114).
     rationale: >-
       Many cases have no active embargo: the embargo is not yet established, or it has
-      already exited. Thus, "has accepted the active embargo" cannot be the only
+      already ended. Thus, "has accepted the active embargo" cannot be the only
       entitlement test. The stub Invite creates the participant record (ADR-0114), and a
       removed participant keeps its record (ADR-0116). Thus, the roster holds actors
       that have no entitlement. A sender must check entitlement, because membership does
@@ -1656,9 +1656,9 @@ groups:
       If the CASE_MANAGER trusts an Accept by itself, any actor can admit itself or a
       third party with the roles that the embedded copy of the Invite claims. That actor
       then receives the case and its full ledger. The recorded stub Invite is the
-      evidence of the CASE_MANAGER about whom it invited and with which roles
-      (CM-11-006). Thus, it is the only source against which the CASE_MANAGER can check
-      a reply (HP-01-006, ADR-0115).
+      CASE_MANAGER's own record of whom it invited and with which roles (CM-11-006).
+      Thus, it is the only source against which the CASE_MANAGER can check a reply
+      (HP-01-006, ADR-0115).
     verification: >-
       A test marked `CM-11-017`
       sends an Accept of a stub Invite the CASE_MANAGER never sent and asserts `REFUSED`
@@ -1784,10 +1784,9 @@ groups:
     kind: project
     statement: A `VulnerabilityCase` MUST be created when an `Offer(Report)` activity is received by the vendor actor
     rationale: >-
-      The vendor that receives a report is the only actor that holds it. Thus only that
-      vendor can start to track the report. When the vendor creates the case at receipt,
-      the report has a case, and its participants have an RM state, from `RM.RECEIVED`
-      onward.
+      The vendor that receives a report is the first party that must act on it. When the
+      vendor creates the case at receipt, the report has a case, and its participants
+      have an RM state, from `RM.RECEIVED` onward.
     verification: Integration tests in `test/demo/` confirm that receiving an `Offer(Report)`
       activity causes a `VulnerabilityCase` to be created.
     note: >-
@@ -1803,7 +1802,7 @@ groups:
     kind: protocol
     statement: At case creation, the system MUST create two initial `CaseParticipant` records in the order defined by CM-14-001
     rationale: >-
-      At receipt, the case knows two parties: the case owner and the reporter. Each
+      At receipt, the case knows two parties: the Case Owner and the reporter. Each
       party needs its own RM state (CM-01-002). Thus each party needs a record before
       the case records anything else about it. The CM-14-001 order makes sure that an
       existing participant creates the embargo, and that the reporter has the case
@@ -2094,7 +2093,7 @@ groups:
     rationale: >-
       An agreement to an embargo of N days is also an agreement to every shorter
       embargo. Thus the shorter of the two terms is the term that both the reporter and
-      the case owner accepted (EP-04-003). The longer term would bind a party to terms
+      the Case Owner accepted (EP-04-003). The longer term would bind a party to terms
       that it did not offer.
     note: >-
       EP-04-004 now specifies the mechanism: the reporter embeds a proposed `EmbargoEvent` in the
@@ -2511,11 +2510,10 @@ groups:
       still outstanding (no Accept or Reject yet received from the Case Owner), the CASE_MANAGER
       MUST record the duplicate recommendation in the ledger.
     rationale: >-
-      The ledger records every case event that the CASE_MANAGER receives. Thus the
-      ledger also records a second suggestion for the same actor. The Case Owner can use
-      it as evidence for the pending decision (CM-16-016). The CASE_MANAGER records it
-      but does not forward a second Offer. This keeps one pending decision for each
-      actor (CM-16-017).
+      A second suggestion for the same actor is a case event, so the ledger records it.
+      The Case Owner can use it as evidence for the pending decision (CM-16-016). The
+      CASE_MANAGER records it but does not forward a second Offer. This keeps one
+      pending decision for each actor (CM-16-017).
     verification: Integration tests in `test/demo/` confirm that a duplicate `Offer(Actor X,
       Case)` arriving while a prior decision is pending is recorded in the case ledger.
     stories:
@@ -2723,11 +2721,11 @@ groups:
       invitation. Thus the invitation must supply the terms: inline in the stub, or from
       the inviter by the ID that the stub names. ActivityStreams allows the two forms.
       CM-17-011 says which form this prototype sends. In EM `REVISE`, the prior embargo
-      stays in force until the owner decides about the revision (EP-05-002). An Accept
-      of the stub binds the invitee to that embargo (CM-11-001, CM-11-006). Thus the
-      invitee must get the terms in `REVISE`, as in `ACTIVE`. The revision itself is not
-      in the stub. It is not yet binding, and CM-17-010 keeps other case content out of
-      the stub. When the joiner holds the case, EP-09-011 relays to it each open
+      stays in force until the Case Owner decides about the revision (EP-05-002). An
+      Accept of the stub binds the invitee to that embargo (CM-11-001, CM-11-006). Thus
+      the invitee must get the terms in `REVISE`, as in `ACTIVE`. The revision itself is
+      not in the stub. It is not yet binding, and CM-17-010 keeps other case content out
+      of the stub. When the joiner holds the case, EP-09-011 relays to it each open
       proposal that it has not answered.
     verification: >-
       Integration tests in `test/demo/` confirm that when an embargo is in force at
@@ -3323,9 +3321,10 @@ groups:
       initialization participant gets its consent in one transition. The record written
       at initialization can then carry its true rows, and no placeholder is necessary. A
       placeholder entry and then a corrective entry would move every downstream
-      `log_index`, and break replication timing that uses it. One entry for each
-      participant at initialization keeps `log_index` order stable. It also keeps the
-      ADR-0079 property that `log_index` order is causal order (CLP-14-001).
+      `log_index`. Replicas that wait for an entry by its `log_index` would then apply
+      later changes at the wrong time. One entry for each participant at initialization
+      keeps `log_index` order stable. It also keeps the ADR-0079 property that
+      `log_index` order is causal order (CLP-14-001).
     verification: Integration tests in `test/demo/` confirm that the default embargo is
       established before each participant's consent row is written during case initialization, so
       each initial participant record carries the correct rows.
@@ -3359,11 +3358,12 @@ groups:
       `add_participant_status_to_participant` ledger entry per participant, and MUST NOT commit a
       placeholder entry for a participant followed by a corrective entry for the same participant.
     rationale: >-
-      Two entries for each participant would move every downstream `log_index`, and
-      break replication timing that uses it. One entry for each participant keeps
-      `log_index` order stable. `AGREE` is valid directly from `UNINVITED` (CM-18-003,
-      ADR-0048). Thus an initialization participant gets its consent in one transition,
-      and a placeholder is not necessary.
+      Two entries for each participant would move every downstream `log_index`. Replicas
+      that wait for an entry by its `log_index` would then apply later changes at the
+      wrong time. One entry for each participant keeps `log_index` order stable. `AGREE`
+      is valid directly from `UNINVITED` (CM-18-003, ADR-0048). Thus an initialization
+      participant gets its consent in one transition, and a placeholder is not
+      necessary.
     verification: Integration tests in `test/demo/` confirm that case initialization commits
       exactly one `add_participant_status_to_participant` ledger entry per participant.
     relationships:
@@ -5028,10 +5028,10 @@ groups:
     rationale: >-
       A `Close(Report)` moves its sender to `RM.CLOSED` without the Leave round trip.
       Thus a Case Owner that sends one can close itself while its case stays open. It
-      can then continue to act as owner, and the case is never fully closed. If the
-      owner's `Close(Report)` became a full close, the case would have two closing
-      messages. If only the later acts of a closed owner were refused, the wrong message
-      would stay admitted (ADR-0144).
+      can then continue to act as Case Owner, and the case is never fully closed. If the
+      Case Owner's `Close(Report)` became a full close, the case would have two closing
+      messages. If only the later acts of a closed Case Owner were refused, the wrong
+      message would stay admitted (ADR-0144).
     verification: >-
       `test/core/use_cases/received/test_close_report_on_case.py` drives a
       `Close(Report)` on an open case from the Case Owner and from a participant that
@@ -5131,7 +5131,7 @@ groups:
       mailed to the CASE_MANAGER. Also, such a container cannot sign the activity
       (OX-10). The authority is a role in the case, and any Actor type can hold it. Thus
       a comparison of `actor_id` with a computed `case_actor_id` checks the wrong thing.
-      When a role gate controls the emit, the executing actor is the Case Manager. Thus
+      When a role gate controls the emit, the executing actor is the CASE_MANAGER. Thus
       the activity and its outbox entry are always in one store (BT-05-006, ADR-0073).
       Without the gate, the helper allows identity spoofing. Any actor that reaches it
       can emit an `Announce` with the CASE_MANAGER as author to every participant.
@@ -5950,12 +5950,12 @@ groups:
       (EP-09-008), and to every other embargo trigger that actor runs.
     rationale: >-
       Without a sweep, the CASE_MANAGER checks expiry only on a late `Accept` and when
-      the owner closes (CM-23-014). An invitee that never answers is then never recorded
-      as timed out. The Case Owner then decides without knowledge of the timeout
-      (EP-09-006, MSM-07-007). Embargo activities read the consent rows (CM-28-007), so
-      a sweep at that point keeps expiry lazy (CM-28-008). An overdue row is a fact from
-      the clock of the CASE_MANAGER, not evidence from the activity. Thus the
-      CASE_MANAGER records it whatever happens to the activity (ADR-0135).
+      the Case Owner closes (CM-23-014). An invitee that never answers is then never
+      recorded as timed out. The Case Owner then decides without knowledge of the
+      timeout (EP-09-006, MSM-07-007). Embargo activities read the consent rows
+      (CM-28-007), so a sweep at that point keeps expiry lazy (CM-28-008). An overdue
+      row is a fact from the clock of the CASE_MANAGER, not evidence from the activity.
+      Thus the CASE_MANAGER records it whatever happens to the activity (ADR-0135).
     verification: >-
       `test/core/use_cases/received/test_embargo_overdue_invite_sweep.py` lets an
       invitation pass its deadline unanswered, then delivers to the CASE_MANAGER, in
@@ -7001,12 +7001,12 @@ groups:
     rationale: >-
       A grant only adds a role. Thus an accepted CASE_OWNER or CASE_MANAGER offer would
       give the case two holders of a role that it has exactly one of (CM-21-001,
-      CM-02-001). Ownership moves by ownership transfer (CM-21). A CASE_MANAGER handoff
-      would move ledger authority, and the protocol defines no such handoff. The
-      CASE_MANAGER takes no other role by Offer. The forward of CM-33-001 would go to
-      itself (BT-17-008), and the answer of CM-33-004 would also go to itself. If a
-      missing role were read as a default, the case would grant a role that nobody
-      offered.
+      CM-02-001). Ownership moves by ownership transfer (CM-21). The CASE_MANAGER role
+      moves only by delegation (CM-24-006), never by a role Offer, because it carries
+      ledger authority. The CASE_MANAGER takes no other role by Offer. The forward of
+      CM-33-001 would go to itself (BT-17-008), and the answer of CM-33-004 would also
+      go to itself. If a missing role were read as a default, the case would grant a
+      role that nobody offered.
     verification: >-
       A test marked `CM-33-003` delivers a role Offer for each refused shape, including one
       whose `CaseParticipantRole` carries no role and one whose target is the CASE_MANAGER,

@@ -1394,10 +1394,10 @@ groups:
       CASE_MANAGER's kill switch once the case is fully closed by CM-23-013.
     rationale: >-
       Closed is a terminal state. A response to more R* messages creates work for a
-      report that is complete. The limit for the CASE_MANAGER is wider: after the owner
-      closes the case, it records no message of any class (CM-23-013, ADR-0085). Thus
-      this rule controls only what a closed participant does with the R* messages that
-      it continues to receive.
+      report that is complete. The limit for the CASE_MANAGER is wider: after the Case
+      Owner closes the case, it records no message of any class (CM-23-013, ADR-0085).
+      Thus this rule controls only what a closed participant does with the R* messages
+      that it continues to receive.
     adr:
     - ADR-0085
     testable: false
