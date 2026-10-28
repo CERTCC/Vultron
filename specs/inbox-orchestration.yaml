@@ -270,10 +270,10 @@ groups:
       is the receiver's replica, so if the receiver stores a case at receipt, a sender's
       snapshot can name the sender as CASE_MANAGER and pass the trust check that must
       refuse it (PCR-03-004, CBT-01-011). Routing still needs the inline object, because
-      the rebuilt activity names it by id, and a bare id matches the wrong pattern. The
-      deferred record holds the activity too, because no copy under its sender's id is
-      there to replay (DL-06-006). The receiver's record wins over the carried copy, so
-      a carried case cannot replace the replica that the receiver rebuilds from the
+      the rebuilt activity names it by id, and a bare id matches no pattern (SE-01-006).
+      The deferred record holds the activity too, because no copy under its sender's id
+      is there to replay (DL-06-006). The receiver's record wins over the carried copy,
+      so a carried case cannot replace the replica that the receiver rebuilds from the
       ledger.
     verification: >-
       `test/adapters/driving/fastapi/test_inbox_staging.py` asserts that the routed

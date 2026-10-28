@@ -22,6 +22,7 @@ from vultron.adapters.driven.db_record import (
     _KEEP_INLINE_NESTED_TYPES,
     Record,
     _dehydrate_data,
+    _inline_required_refs,
     _rekey_wire_identity,
     object_to_record,
     record_to_object,
@@ -1122,3 +1123,24 @@ def test_computed_active_participants_is_not_in_the_stored_row() -> None:
 
     assert "active_participants" not in data
     assert "activeParticipants" not in data
+
+
+@pytest.mark.spec("SE-01-006")
+def test_a_bare_object_activity_takes_no_inline_contract_from_a_guessed_class():
+    """An activity whose object is a bare id keeps only its own contract.
+
+    A bare ``object`` satisfies no pattern's object type (SE-01-006), so it
+    names no semantic class whose ``inline_required_refs`` storage could
+    borrow: an ``Announce`` of an object the store lacks is not taken for
+    the ``Announce(VulnerabilityCase)`` that requires its case inline.
+    """
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Announce,
+    )
+
+    announce = as_Announce(
+        actor="https://example.org/actors/owner",
+        object_="https://example.org/cases/c1/embargo_events/unheld",
+    )
+
+    assert _inline_required_refs(announce) == frozenset()

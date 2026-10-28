@@ -1076,6 +1076,11 @@ def check_semantic_type_is_registry_label(
     3, #4724).  Every replica is checked, since a replica copies the entry it
     receives.  An entry whose snapshot does not parse is reported as such.
 
+    The snapshots come over HTTP with no store to rehydrate them against, so
+    a nested object the sender named bare is classified as bare and matches
+    no pattern (SE-01-006).  This codebase's senders inline nested objects
+    (AKM-03-003), so such a mismatch flags a sender that did not.
+
     Returns one violation string per mismatched entry per replica.
     """
     return [

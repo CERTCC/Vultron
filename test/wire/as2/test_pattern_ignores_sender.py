@@ -32,6 +32,7 @@ _BASE_FIELDS = {
     "description",
     "activity_",
     "strict",
+    "accepts_bare_object",
     "to_",
     "object_",
     "target_",

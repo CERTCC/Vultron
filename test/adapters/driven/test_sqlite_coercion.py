@@ -340,6 +340,28 @@ class TestCoerceToSemanticClass:
         )
         assert inner_entry.semantic_type == "log_entry_committed"
 
+    def test_bare_object_activity_is_kept_as_its_base_class(self, dl):
+        """A stored activity whose object cannot be rehydrated is not coerced.
+
+        Its type is unknown (SE-01-006), so an ``Invite`` naming an object
+        the store does not hold, in a case's context, is read back as an
+        ``Invite``, not as the embargo proposal its verb's first pattern
+        with a case context names.
+        """
+        invite = as_Invite(
+            actor="https://alice.example.org",
+            object_="https://example.org/cases/c1/embargo_events/unheld",
+            context="https://example.org/cases/c1",
+        )
+        dl.save(invite)
+
+        result = dl.read(invite.id_)
+
+        assert type(result) is as_Invite
+        assert result.object_ == (  # type: ignore[union-attr]
+            "https://example.org/cases/c1/embargo_events/unheld"
+        )
+
     def test_non_activity_object_not_coerced(self, dl):
         """Non-activity objects (e.g. as_VulnerabilityReport) are returned as-is."""
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
