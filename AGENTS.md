@@ -395,6 +395,6 @@ Issues live in GitHub Issues. Full rules and CLI patterns:
 
 ### Domain docs
 
-Single-context repo: one `CONTEXT.md` + `docs/adr/` at root; absent files are
-expected — proceed silently. Use glossary vocabulary (a missing term is a gap,
-not a licence to invent); flag ADR contradictions explicitly.
+Single-context repo: one `CONTEXT.md` + `docs/adr/` at root; if absent, proceed
+silently, never propose creating them (`domain-modeling` does, lazily). Use glossary
+terms (a missing one is a gap, not a licence to invent); flag ADR contradictions.

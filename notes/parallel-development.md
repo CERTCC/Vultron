@@ -296,26 +296,27 @@ Issues (`Status` columns grouped by type), PRs (by `Ship stage`), and Needs you
 
 ## GitHub Issue Tracker
 
-All issue operations use `gh` or the GraphQL API; never use `gh issue create`.
+Read and edit issues with `gh` (it infers the repo from `git remote -v` inside a
+clone); create them only as the first bullet says.
 
 - **Create an issue**: use
   `.agents/skills/manage-github-issue/manage_github_issue.sh` (or the
-  `createIssue` GraphQL mutation). `gh issue create` cannot set issue type,
-  parent/child sub-issue links, or blocker/blocked-by links. Use `create-epic`
-  for Epics.
+  `createIssue` GraphQL mutation); never `gh issue create`, which cannot set
+  issue type, parent/child sub-issue links, or blocker/blocked-by links. Use
+  `create-epic` for Epics.
 - **`--opened-as` flag**: every create must include
   `--opened-as excursion|separate-defect|debt|deferred` (applies an `opened:`
   label) or `--planned` for planned or user-requested work. `--opened-as debt`
   also requires `--where`. The labels let a run's net issue count be read
-  afterwards; see the completeness doctrine § "Net Issues: Close More Than You
-  Open".
-- **Read an issue**: `gh issue view <number> --comments`, filtering comments by
-  `jq` and also fetching labels.
-- **List issues**: `gh issue list --state open --json number,title,body,labels`
-  with `--label` and `--state` filters; use `--jq` to trim the output.
+  afterwards; see `.agents/skills/shared/completeness-doctrine.md` § "Net
+  Issues: Close More Than You Open".
+- **Read an issue** ("fetch the relevant ticket"):
+  `gh issue view <number> --comments`, filtering comments by `jq` and also
+  fetching labels.
+- **List issues**: the command below, with `--label` and `--state` filters.
 - **Comment / label / close**: `gh issue comment <N> --body "..."`,
   `gh issue edit <N> --add-label "..." / --remove-label "..."`,
-  `gh issue close <N>`.
+  `gh issue close <N> --comment "..."`.
 - **Backtick-safe bodies**: never pass backtick-containing markdown in a
   double-quoted `--body`; use a single-quoted heredoc instead. The same
   rule applies to `gh issue edit --body`, `gh pr create --body`, etc.
@@ -323,15 +324,15 @@ All issue operations use `gh` or the GraphQL API; never use `gh issue create`.
   no `epic` label — detect and find Epic members through the `issueType` field
   and the sub-issue relationship. Type IDs and relationship mutations are in
   `.agents/skills/manage-github-issue/REFERENCE.md`.
-- **List issues** (full form):
-  `gh issue list --state open --json number,title,body,labels,comments \
-  --jq '[.[] | {number, title, body, labels: [.labels[].name]}]'`
-  with `--label` and `--state` filters.
-- **Close with a comment**: `gh issue close <N> --comment "..."`.
 - **PRs as a triage surface**: no — PRs are tracked separately by `Ship stage`
   on Project #24; do not apply the triage label flow to PRs.
 - **"Publish to the issue tracker"** means create a GitHub issue.
-- **"Fetch the relevant ticket"** means `gh issue view <number> --comments`.
+
+```bash
+gh issue list --state open --json number,title,body,labels,comments \
+  --jq '[.[] | {number, title, body, labels: [.labels[].name],
+         comments: [.comments[].body]}]'
+```
 
 PRs share the same number space as issues; resolve a bare `#N` with
 `gh pr view N` first and fall back to `gh issue view N`.

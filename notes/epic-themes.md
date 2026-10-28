@@ -314,8 +314,11 @@ Two triage labels exist alongside `theme:` and the workflow labels in
 
 - **`needs-info`** — the only hold; keeps an Issue out of `Ready` while waiting
   on a person or a decision (PAD-16-004/005).
-- **`ready-for-human`** — marks an Issue `Ready` that an agent must skip;
-  a human implements it (PAD-16-007).
+- **`ready-for-human`** — reserves an Issue for a human: an agent MUST NOT
+  auto-select or claim it. The label does not change the Issue's `Status`
+  (PAD-16-007).
 
-The labels `needs-triage`, `ready-for-agent`, and `wontfix` are not used;
-their retirement is tracked in #3717.
+The labels `needs-triage`, `ready-for-agent`, and `wontfix` are not used, because
+each duplicates a fact the tracker already holds: untriaged means "no Epic
+ancestor", `Ready` is computed, and "will not be actioned" is GitHub's "not
+planned" close reason (PAD-16-010). Their retirement is tracked in #3717.
