@@ -366,6 +366,27 @@ def test_the_ledger_position_gate_does_not_turn_the_act_away():
 
 
 @pytest.mark.spec("HP-01-005")
+@pytest.mark.spec("SYNC-18-007")
+def test_the_acts_own_gate_still_refuses_beside_the_ledger_position_gate():
+    """Only the answer's gate is ignored: when the act's own CASE_MANAGER
+    check fails in the same tree, the actor is still turned away."""
+    from vultron.core.behaviors.sync.ledger_position_stage import (
+        create_ledger_position_stage,
+    )
+
+    stage = create_ledger_position_stage(_CASE_ID, _OTHER_MANAGER)
+    for node in stage.iterate():
+        if type(node).__name__ == "CheckIsCaseManagerNode":
+            node.status = Status.FAILURE
+    root = py_trees.composites.Sequence(name="Root", memory=False)
+    root.add_children([stage, _gated_run(Status.FAILURE)])
+
+    verdict = not_case_manager_refusal(root, _store(), _CASE_ID)
+    assert verdict is not None
+    assert verdict.disposition == HandlerDisposition.REFUSED
+
+
+@pytest.mark.spec("HP-01-005")
 def test_not_case_manager_refusal_is_none_without_a_gate():
     tree = _ran(_Fixed("Ok", Status.SUCCESS))
     assert not_case_manager_refusal(tree, _store(), _CASE_ID) is None

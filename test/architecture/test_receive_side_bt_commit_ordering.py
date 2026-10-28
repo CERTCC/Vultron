@@ -677,28 +677,43 @@ class TestEarlyCommitDetector:
 def _writer_types() -> tuple[type, ...]:
     """Node classes that write the store or the outbox.
 
-    The marker classes cover emits and state writes; the two replication
-    writers carry no marker (they send through the ledger-replication seam).
+    The marker classes cover emits and state writes.  The unmarked writers
+    are the classes ``WRITES_NO_CASE_STATE`` pins as reaching a write seam
+    without a marker (archive, ledger, replication, local bookkeeping), less
+    intake (stage 1, CLP-10-017) and the decisions it records as writing
+    nothing.
     """
+    import importlib
+
+    from test.architecture.test_received_tree_state_writes_are_gated import (
+        WRITES_NO_CASE_STATE,
+    )
+    from vultron.core.behaviors.case.nodes.intake import (
+        IntakeReceivedActivityNode,
+    )
     from vultron.core.behaviors.emit_capable import EmitCapable
     from vultron.core.behaviors.state_write_capable import StateWriteCapable
-    from vultron.core.behaviors.sync.nodes.chain import (
-        UpdateReplicationStateNode,
-    )
-    from vultron.core.behaviors.sync.nodes.replay import (
-        SendMissingEntriesNode,
-    )
 
-    return (
-        EmitCapable,
-        StateWriteCapable,
-        UpdateReplicationStateNode,
-        SendMissingEntriesNode,
+    unmarked = tuple(
+        cls
+        for (module, name), reason in sorted(WRITES_NO_CASE_STATE.items())
+        if "writes nothing" not in reason
+        and (cls := getattr(importlib.import_module(module), name))
+        is not IntakeReceivedActivityNode
     )
+    return (EmitCapable, StateWriteCapable, *unmarked)
 
 
 def _permitted_pre_commit_stage(node: py_trees.behaviour.Behaviour) -> bool:
-    """A stage CLP-10-010 lets write ahead of the act's commit."""
+    """A stage CLP-10-010 lets write ahead of the act's commit.
+
+    The clock decisions; any diversion, which answers its delivery in place
+    of the commit and the effects (CLP-10-026) — a replica's diversion
+    writes and replies too, and only a CASE_MANAGER one may *commit*
+    (:func:`_commits_own_entry`); a refusal reply, which runs only when a
+    guard refuses; and the ledger-position answer, whose writes
+    :func:`test_the_ledger_position_answer_commits_nothing` pins.
+    """
     from vultron.core.behaviors.case.nodes.clock_decision_stage import (
         ClockDecisionStage,
     )
@@ -748,6 +763,36 @@ def _early_writers(root: py_trees.behaviour.Behaviour) -> list[str]:
     for child in stages[: names.index(GUARDED_COMMIT_NAME)]:
         walk(child)
     return found
+
+
+#: Trees whose guarded commit sits below a top-level stage, so neither the
+#: early-commit nor the early-writer walk reads them.  Held to equality, so a
+#: new tree that nests its commit is seen, not skipped.
+NESTED_COMMIT_TREES: frozenset[str] = frozenset(
+    {
+        # The close arm is a received tree nested in the close tree; the
+        # factory gives the nested arm no stage of its own (one answer per
+        # delivery), and its commit is the arm's.
+        "vultron/core/behaviors/case/receive_close_case_tree.py:"
+        "create_close_case_received_tree",
+    }
+)
+
+
+def test_trees_with_a_nested_commit_are_known() -> None:
+    from test.architecture._received_tree_builds import built_received_trees
+    from vultron.core.behaviors.case.receive_activity_tree import (
+        received_stages,
+    )
+
+    nested = {
+        f"{path}:{factory}"
+        for (path, factory), tree in built_received_trees().items()
+        if GUARDED_COMMIT_NAME
+        not in [child.name for child in received_stages(tree)]
+        and any(node.name == GUARDED_COMMIT_NAME for node in tree.iterate())
+    }
+    assert nested == NESTED_COMMIT_TREES
 
 
 #: Known writers ahead of the commit, each with the issue that retires it.
@@ -809,9 +854,10 @@ def test_the_ledger_position_answer_commits_nothing() -> None:
         for n in answer.iterate()
         if isinstance(n, _writer_types())
     }
-    # The walk sees the writes it permits.
-    assert {
+    # The early-writer walk skips the answer, so its writes are pinned here:
+    # record replication state, replay a lag, re-seed a split (CLP-10-010).
+    assert writers == {
         "UpdateReplicationStateNode",
         "SendMissingEntriesNode",
         "ReseedPeerNode",
-    } <= writers
+    }

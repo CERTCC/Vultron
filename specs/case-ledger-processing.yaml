@@ -1594,9 +1594,13 @@ groups:
       has the intake node as its first child; `test_receive_side_bt_commit_ordering.py`
       asserts the guarded commit comes after every guard and no protocol-effect node
       ahead of the commit, counting `refusal_effects` as effects, that nothing
-      writes ahead of the commit outside the clock decisions, a diversion, a
-      refusal reply or the ledger-position answer, and that the ledger-position
-      answer commits nothing;
+      writes ahead of the commit outside intake, the clock decisions, a
+      diversion, a refusal reply or the ledger-position answer (a writer being
+      a marked emit or state-write node or an unmarked writer
+      `test_received_tree_state_writes_are_gated.py` pins; one known exception
+      is pinned with its issue, #5395), that trees whose commit is nested are
+      a pinned set, and that the ledger-position answer commits nothing and
+      writes only replication state, a replay and a re-seed;
       `test/core/behaviors/case/nodes/test_refusal_stage.py`
       asserts no refusal effect runs on an admitted delivery.'
     adr:
@@ -1614,9 +1618,10 @@ groups:
       (CLP-10-025), (4) precondition guards, (5) commit, (6) all protocol effects.
       Clock decisions are the only commits before stage (5), other than a
       diversion (CLP-10-026), which answers its delivery in place of stages (5)
-      and (6). The ledger-position answer is the only other write before stage
-      (5): it records replication state and may queue a replay or re-seed, commits
-      nothing and leaves the disposition of the act to the later stages. Refusal
+      and (6). On a delivery the guards admit, the ledger-position answer is the
+      only write before stage (5) besides intake, the clock decisions and a
+      diversion: it records replication state and may queue a replay or re-seed,
+      commits nothing and leaves the disposition of the act to the later stages. Refusal
       effects (CLP-10-022) belong to stage (4): they run only
       after a precondition guard refuses, and the tree then ends without
       reaching (5) or (6).'
