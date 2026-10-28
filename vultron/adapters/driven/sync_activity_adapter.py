@@ -228,7 +228,7 @@ class SyncActivityAdapter:
             return
         # The sender's tail, when it holds the case (SYNC-18-001): a peer that
         # holds no case yet states none, and the CASE_MANAGER replays it from
-        # genesis (SYNC-15-002).
+        # genesis (SYNC-15-015).
         reject = with_sender_ledger_position(self._dl, build())
         self._dl.save(reject)
         seal_outbound_body(self._dl, reject)
