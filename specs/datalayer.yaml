@@ -838,28 +838,88 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The actors a node hosts MUST be enumerated from the stores of that node's own storage
-      deployment, the `db_url` template the serving app was built with, and each store's slug MUST
-      be mapped back to an actor id through that node's own base URL. This holds in memory mode as
-      in file mode: an in-memory node MUST NOT list an actor whose store was opened only under
-      another deployment in the same process, and a node-wide operation such as the admin reset
-      MUST open each hosted actor's store under the node's own deployment, never the
-      process-global configured one.
+      A node MUST enumerate the actors it hosts from the stores of its own storage
+      deployment: the `db_url` template its app declares, or the configured `db_url`
+      only when the app declares none. This holds in memory mode as in file mode.
     rationale: >-
-      File mode scopes enumeration by construction: it lists the files named after the node's
-      template. Memory mode listed every store any app in the process had opened, so nodes sharing
-      a process (the demo harness, the scenario recorder) opened empty stores for each other's
-      actors, flooding runs with store-sharing warnings, and a node-wide reset would clear stores
-      outside its own deployment (#5319).
+      File mode scopes enumeration by construction: it lists the files named after the
+      node's template. Memory mode listed every store any app in the process had opened,
+      so nodes sharing a process (the demo harness, the scenario recorder) opened empty
+      stores for each other's actors and flooded runs with store-sharing warnings
+      (#5319). In production one process is one node, so the configured `db_url` is the
+      node's own deployment.
     relationships:
     - rel_type: refines
       spec_id: DL-07-005
     verification: >-
-      `test/adapters/driven/test_actor_hosts.py` asserts that two in-memory deployments in one
-      process each enumerate only their own actors and skip scratch stores; a two-node in-process
-      test asserts that `GET /actors/` and `/info` on each node list only that node's actors, that
-      the admin reset on one node leaves the other node's stores intact, and that the run logs no
-      cross-deployment store warning.
+      `test/adapters/driven/test_actor_hosts.py` asserts that two in-memory deployments
+      in one process each enumerate only their own actors, and that a deployment given
+      no template enumerates the configured one.
+    tags:
+    - persistence
+    adr:
+    - ADR-0073
+  - id: DL-07-012
+    priority: MUST
+    kind: project
+    statement: >-
+      A node MUST map each enumerated store's slug back to an actor id through its own
+      base URL: the one its app declares, or the configured one only when it declares
+      none.
+    rationale: >-
+      A slug names a store, not an actor (DL-07-004). Two in-process nodes that share
+      a slug, such as each node's `primary`, are different actors, and only the node's
+      own base URL says which one this node hosts.
+    relationships:
+    - rel_type: refines
+      spec_id: DL-07-011
+    verification: >-
+      `test/adapters/driven/test_actor_hosts.py` asserts that two in-memory deployments
+      with different base URLs and the same slug each return the actor id under their
+      own base URL.
+    tags:
+    - persistence
+    adr:
+    - ADR-0073
+  - id: DL-07-013
+    priority: MUST
+    kind: project
+    statement: >-
+      An in-memory node MUST NOT list as hosted an actor whose store was opened only
+      under another deployment in the same process, or a scratch store.
+    rationale: >-
+      The process-wide store cache holds every deployment's stores and the `~` scratch
+      stores. Listing them made `GET /actors/` and `/info` open an empty store on this
+      node for each foreign actor (#5319).
+    relationships:
+    - rel_type: refines
+      spec_id: DL-07-011
+    verification: >-
+      `test/adapters/driven/test_actor_hosts.py` asserts that scratch stores are not
+      enumerated; `test/adapters/driving/fastapi/test_app_isolation.py` asserts that
+      `GET /actors/` and `/info` on each of two in-process nodes list only that node's
+      actors.
+    tags:
+    - persistence
+    adr:
+    - ADR-0073
+  - id: DL-07-014
+    priority: MUST
+    kind: project
+    statement: >-
+      A node-wide operation over hosted actors, such as the admin reset, MUST open each
+      actor's store under the same deployment it enumerated the actor from.
+    rationale: >-
+      The reset fallback opened stores under the configured `db_url`, so on a node that
+      declares its own template it cleared another deployment's stores, left its own
+      untouched, and still reported success (#5319).
+    relationships:
+    - rel_type: refines
+      spec_id: DL-07-011
+    verification: >-
+      `test/adapters/driving/fastapi/test_app_isolation.py` asserts that the admin reset
+      on one of two in-process nodes clears that node's stores and leaves the other
+      node's stores intact.
     tags:
     - persistence
     adr:
