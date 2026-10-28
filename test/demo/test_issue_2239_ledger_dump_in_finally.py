@@ -156,8 +156,8 @@ class TestDumpRunsAfterMidPhaseFailure:
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/issue-2239",
         )
-        # rvv phase 1 returns
-        # (reporter, vendor, vendor_in_vendor, vendor2, report, offer, case).
+        # rvv phase 1 returns (reporter, vendor, vendor_in_vendor, vendor2,
+        # report, offer, case, reply_note).
         phase_one_result = (
             MagicMock(),
             MagicMock(),
@@ -166,6 +166,7 @@ class TestDumpRunsAfterMidPhaseFailure:
             MagicMock(),
             MagicMock(),
             case,
+            MagicMock(),
         )
 
         with (
@@ -211,6 +212,7 @@ class TestDumpRunsAfterMidPhaseFailure:
             MagicMock(),
             MagicMock(),
             case,
+            MagicMock(),
         )
 
         with (

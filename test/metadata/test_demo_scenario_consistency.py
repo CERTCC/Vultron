@@ -90,6 +90,7 @@ _FAKE = ScenarioSpec(
     participants="Reporter + Vendor",
     feature="Fixture scenario; never registered",
     in_pr_set=True,
+    path=(("reporter-whom-to-tell", "vendor"),),
 )
 
 #: Registered scenarios allowed to have no spec group of their own.  Empty since
@@ -469,6 +470,7 @@ def test_partition_reports_a_scenario_in_both_registers(
             participants="Reporter + Coordinator + Vendor + Deployer",
             feature="Fixture: pretend rcvd is built",
             in_pr_set=False,
+            path=(("reporter-whom-to-tell", "vendor"),),
         ),
     )
     problems = partition_problems(registry=real_registry, specs=both)

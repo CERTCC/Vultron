@@ -121,67 +121,87 @@ entries appear in the ledger.
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 4. C1 invites V1 and C2
+### 4. C1 invites V1
 
-C1 sends `invite_actor_to_case` entries to both V1 and C2.
+C1 sends V1 an `invite_actor_to_case` entry.
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 5. V1 and C2 accept their invitations
+### 5. V1 accepts its invitation
 
-Each invitee accepts.  Two `accept_invite_actor_to_case` entries appear.
+V1 accepts, and an `accept_invite_actor_to_case` entry appears.
 
-*Antecedent:* Their respective `invite_actor_to_case` entries are in the ledger.
+*Antecedent:* V1's `invite_actor_to_case` entry is in the ledger.
 
-### 6. C2 suggests V2 via the actor-suggestion flow
+### 6. The Reporter asks; C1 and V1 answer
+
+The Reporter asks a question in a case note, C1 answers it, and V1 adds its status.
+{% include-markdown "./_case_notes.md" trailing-newlines=false %}
+C1 decides to invite a second Coordinator only after these notes.
+
+*Antecedent:* V1's `accept_invite_actor_to_case` entry is in the ledger.
+
+### 7. C1 invites C2
+
+C1 sends C2 an `invite_actor_to_case` entry.
+
+*Antecedent:* `engage_case` is in the ledger.
+
+### 8. C2 accepts its invitation
+
+C2 accepts, and an `accept_invite_actor_to_case` entry appears.
+
+*Antecedent:* C2's `invite_actor_to_case` entry is in the ledger.
+
+### 9. C2 suggests V2 via the actor-suggestion flow
 
 C2 is aware that V2 is also affected.  C2 submits an `offer_case_participant`
 entry proposing V2 for case membership (ADR-0026).
 
 *Antecedent:* C2's `accept_invite_actor_to_case` entry is in the ledger.
 
-### 7. C1 approves C2's recommendation
+### 10. C1 approves C2's recommendation
 
 C1, as case owner, reviews the suggestion and approves it.  An
 `accept_actor_recommendation` entry is recorded.
 
 *Antecedent:* `offer_case_participant` is in the ledger.
 
-### 8. Case Actor sends V2 a formal invitation
+### 11. Case Actor sends V2 a formal invitation
 
 The Case Actor, acting on C1's approval, sends V2 an `invite_actor_to_case`
 entry.  This follows the ADR-0026 suggest-actor path.
 
 *Antecedent:* `accept_actor_recommendation` is in the ledger.
 
-### 9. V2 accepts the Case Actor invitation
+### 12. V2 accepts the Case Actor invitation
 
 V2 reviews and accepts the invitation.  An `accept_invite_actor_to_case` entry
 is recorded for V2.
 
 *Antecedent:* The Case Actor's `invite_actor_to_case` entry is in the ledger.
 
-### 10. Participants exchange notes
+### 13. C2 and V2 add notes
 
-All participants communicate through case notes.
-{% include-markdown "./_case_notes.md" trailing-newlines=false %}
+C2 and V2, now participants, reply in the same thread.
+Each note is recorded as one more `add_note_to_case` entry.
 
-*Antecedent:* `engage_case` is in the ledger.
+*Antecedent:* V2's `accept_invite_actor_to_case` entry is in the ledger.
 
-### 11. V1 reaches fix-ready; V2 reaches fix-deployed
+### 14. V1 reaches fix-ready; V2 reaches fix-deployed
 
 V1 advances to VFd (fix-ready) but stops there.  V2 advances all the way to
 VFD (fix-deployed).  Participant status updates reflect each state change.
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 12. Participants publish; embargo terminates
+### 15. Participants publish; embargo terminates
 
 All participants publish.  The embargo exits ACTIVE.
 
 *Antecedent:* At least one vendor has reached fix-ready.
 
-### 13. All participants close the case
+### 16. All participants close the case
 
 All five participants close the case.
 `close_case` entries appear for each.

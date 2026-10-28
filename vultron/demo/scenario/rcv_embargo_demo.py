@@ -269,7 +269,6 @@ def _phase_report_submission(
         ).with_case(case),
         case_manager=case_actor_client,
     )
-    _notes_exchange(cast, case)
     assert_canonical_em_state(
         cast.coordinator,
         case,
@@ -468,6 +467,10 @@ def run_rcv_embargo_demo(
             vendor_id=vendor_id,
         )
         revised_embargo_id = _phase_embargo_proposal(cast, case)
+        # The Reporter proposed rather than asked first (its branch point on
+        # the scenario tree), so the shared notes exchange follows the
+        # proposal and comes before the Vendor's own next decision.
+        _notes_exchange(cast, case)
         _phase_fix_lifecycle(cast, case)
         # Termination, publication and closure all presuppose the revised
         # embargo of phase 2, so they run only while it is in force.
@@ -499,6 +502,13 @@ def run_rcv_embargo_demo(
     participants="Reporter + Coordinator + Vendor",
     feature="Embargo revision after submission and deliberate termination",
     in_pr_set=True,
+    path=(
+        ("reporter-whom-to-tell", "coordinator"),
+        ("coordinator-invite-whom", "vendor"),
+        ("vendor-join", "accept"),
+        ("reporter-after-join", "propose-embargo"),
+        ("vendor-after-embargo", "report-fix-ready"),
+    ),
 )
 def main(
     skip_health_check: bool = False,
