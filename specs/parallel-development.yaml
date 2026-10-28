@@ -235,6 +235,119 @@ groups:
         relationships:
         - rel_type: implements
           spec_id: PAD-02-009
+      - id: PAD-02-014
+        priority: MUST
+        kind: process
+        statement: >-
+          Every open leaf Issue MUST carry exactly one `theme:` label, chosen
+          from the active themes in the theme catalog in
+          `notes/epic-themes.md`.
+        rationale: >-
+          A theme names the outcome an Issue delivers. With no theme, nobody can
+          check that the Issue belongs in its Epic. With two, the Issue serves two
+          outcomes, and it cannot be ranked with either one.
+        verification: >-
+          Checked by review: issue creation, relabeling and PR review apply the rule in `notes/epic-themes.md`.
+      - id: PAD-02-015
+        priority: MUST
+        kind: process
+        statement: >-
+          An Epic Issue MUST carry one catalog `theme:` label, and a second one
+          only when its body names the split between the two themes.
+        rationale: >-
+          An Epic is one design idea, and one design idea serves one outcome. An
+          unexplained second theme shows that the Epic holds two ideas. A named
+          split shows that a person decided that the two themes share one idea.
+        verification: >-
+          Checked by review: issue creation, relabeling and PR review apply the rule in `notes/epic-themes.md`.
+      - id: PAD-02-016
+        priority: MUST
+        kind: process
+        statement: >-
+          An Issue's `theme:` label MUST name the outcome that the Issue's own
+          content delivers. The label is not copied from the parent Epic or
+          from the work that found the Issue.
+        rationale: >-
+          A copied theme hides the case that this rule exists to find: an Issue
+          in the wrong Epic. A bug that a test Epic finds is still a protocol
+          bug, and an Issue that has its parent's label looks as if it fits.
+        verification: >-
+          Checked by review: issue creation, relabeling and PR review apply the rule in `notes/epic-themes.md`.
+      - id: PAD-02-017
+        priority: MUST
+        kind: process
+        statement: >-
+          Every sub-issue of an Epic MUST carry a `theme:` label that the Epic
+          also carries.
+        rationale: >-
+          Epics are cut by design idea, and each design idea sits inside one
+          theme. When the children of an Epic serve different outcomes, the Epic
+          has no single priority. The child must move, its label must change, or
+          the Epic must split.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-02-008
+        verification: >-
+          Checked by review: issue creation, relabeling and PR review apply the rule in `notes/epic-themes.md`.
+      - id: PAD-02-018
+        priority: MUST
+        kind: process
+        statement: >-
+          An Issue body with a `theme:` label MUST include a line of the form
+          `Theme: <label> — <outcome>`. The `<outcome>` is what this Issue
+          delivers toward that theme.
+        rationale: >-
+          A label alone gives a reviewer nothing to check. The reason line states
+          why the theme fits, so that a reviewer can compare it with the body and
+          a wrong classification is visible.
+        verification: >-
+          Checked by review: issue creation, relabeling and PR review apply the rule in `notes/epic-themes.md`.
+      - id: PAD-02-019
+        priority: MUST
+        kind: process
+        statement: >-
+          The `theme:` labels on GitHub MUST be created and updated from the
+          theme catalog block in `notes/epic-themes.md` with the `theme-labels`
+          command, not edited by hand.
+        rationale: >-
+          A label made by hand has no in-bounds or out-of-bounds text, so the
+          next person who classifies an Issue has only the label name. One
+          source also stops the GitHub description and the note from becoming
+          different.
+        verification: >-
+          `test/metadata/test_theme_catalog.py` loads the committed catalog and
+          checks that `theme-labels --apply` creates the missing labels and
+          edits the changed labels from it.
+      - id: PAD-02-020
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          The `theme-labels` command MUST NOT delete a label.
+        rationale: >-
+          When a label is deleted, GitHub removes it from every Issue that has
+          it, and the Issues do not keep a record of it. Only a person can decide
+          that a theme is no longer used.
+        verification: >-
+          `test/metadata/test_theme_catalog.py::TestMain::test_apply_creates_and_edits_never_deletes`
+          checks that an apply run with an unlisted label makes only create and
+          edit calls.
+      - id: PAD-02-021
+        priority: MUST
+        kind: process
+        statement: >-
+          The `theme-labels` command MUST report each `theme:` label on GitHub
+          that the theme catalog does not list.
+        rationale: >-
+          The command does not delete labels (PAD-02-020), so an unlisted label
+          stays on GitHub. Without a report, it stays there unseen, and agents
+          can still apply a theme that the catalog does not define.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-02-020
+        verification: >-
+          `test/metadata/test_theme_catalog.py::TestDrift::test_missing_changed_unlisted`
+          checks that a `theme:` label absent from the catalog is reported as
+          unlisted.
 
   - id: PAD-03
     title: Priority Ordering Authority

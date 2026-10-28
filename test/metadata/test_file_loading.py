@@ -169,6 +169,15 @@ class TestYamlAttribution:
     def test_text_form_parses_valid_text(self):
         assert loads_yaml("a: 1\n", Path("HEAD:x.yaml")) == {"a": 1}
 
+    def test_text_form_line_offset_places_block_fault_in_file(self):
+        """A block cut from line 11 of a note reports its file line."""
+        with pytest.raises(MetadataLoadError) as info:
+            loads_yaml(
+                "a: 1\n" + _UNQUOTED_COLON, Path("note.md"), line_offset=10
+            )
+
+        assert info.value.line == 12
+
 
 @pytest.mark.spec("MS-17-001")
 class TestFrontmatterAttribution:
