@@ -81,10 +81,10 @@ from vultron.metadata.planning.bundle_fit.model import (
     schedule_rank,
 )
 from vultron.metadata.planning.bundle_fit.parse import (
-    _schedule_of,
     epic_assignees,
     graphql_errors,
     parse_graphql,
+    schedule_of,
 )
 from vultron.metadata.planning.bundle_fit.render import _render
 from vultron.metadata.planning.bundle_fit.select import (
@@ -115,7 +115,7 @@ __all__ = [
     "UNSIZED_WEIGHT",
     "WORKFLOW_BY_TYPE",
     "_render",
-    "_schedule_of",
+    "schedule_of",
     "coherence_hints",
     "effective_schedule",
     "eligibility",

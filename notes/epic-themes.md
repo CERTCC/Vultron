@@ -8,7 +8,8 @@ description: >
   `theme-labels` script syncs GitHub from it. The rules for applying a theme:
   classify by outcome, one theme per leaf, an Epic's second theme only when its
   body names the split, the theme contains the grain, the `Theme:` reason line;
-  borderline examples; and how to act on a theme-fit finding.
+  borderline examples; the `theme-fit` structural check, the split line and
+  the auto-calved marker it reads; and how to act on a theme-fit finding.
 related_specs:
   - specs/parallel-development.yaml
 related_notes:
@@ -256,6 +257,10 @@ themes:
 - **An Epic has one theme**, plus a second only when its body names the split
   between them (PAD-02-015). An unexplained second theme is a sign the Epic
   holds two design ideas.
+- **Name the split on one line that names both labels**, for example
+  `Theme split: theme:a covers the parser; theme:b covers the CLI.` The
+  structural check accepts any body line that names both, so keep both on one
+  line.
 
 ## The Theme Contains the Grain
 
@@ -291,6 +296,31 @@ Theme: theme:dev-workflow — gives every skill one shared definition of the the
 | Lint rules and exception-hygiene sweeps | `theme:dev-workflow` | They change how contributors work, not whether a green run is trustworthy |
 | A flaky test or a CI gate that passes when it should fail | `theme:test-and-ci` | The outcome is a green run that means the code works |
 | A conformance report an outside implementer runs | `theme:verifiable-conformance` | Its user is outside the project |
+
+## The Structural Check
+
+`uv run theme-fit` reads every open Issue with one GraphQL query and prints a
+Markdown report: coherence per `Schedule` tier, then each finding grouped by
+kind. It changes nothing on GitHub. It exits 0 with no findings, 1 with any,
+and 2 when the catalog or `gh` fails.
+
+- **Coherence** is the share of children that match their Epic: a child is an
+  open non-Epic Issue in its nearest Epic's tier (PAD-02-001), and it matches
+  when it carries exactly one theme and its Epic carries that theme. Use
+  `--coherence` for the table alone, `--json` for the whole report, and
+  `--max-chars 65536` to cut the finding lists so the report fits an Issue
+  body.
+- **Finding kinds**: a leaf without exactly one theme, an Epic without one
+  theme or a named split, a missing `Theme:` line, a child theme its Epic does
+  not carry, a non-Epic with no Epic ancestor, an Epic nested under an Epic, an
+  auto-calved Epic still single-child, and a label the catalog does not list
+  or lists as retiring.
+- **Auto-calved Epics carry `<!-- auto-calved -->`** as a line of their body.
+  `create-issue` writes it when it calves an Epic with no user present; the
+  check reports a marked Epic with fewer than two open sub-issues. Remove the
+  marker once a person has reviewed the Epic. Reason: an unattended calve
+  cannot judge whether the theme gathers more work, so a person must decide
+  whether a lone child stays or moves.
 
 ## Acting on a Theme-Fit Finding
 

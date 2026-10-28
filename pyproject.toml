@@ -107,6 +107,7 @@ notes-tracks="vultron.metadata.notes.tracks:main"
 append-history="vultron.metadata.history.cli:main"
 show-history="vultron.metadata.history.show_history_cli:main"
 backfill-implementation-history="vultron.metadata.history.backfill_implementation:main"
+theme-fit="vultron.metadata.planning.theme_fit:main"
 theme-labels="vultron.metadata.planning.theme_labels:main"
 
 
