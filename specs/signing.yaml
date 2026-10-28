@@ -1,0 +1,287 @@
+id: SIG
+title: Signing
+description: >-
+  Requirements for signing the activities an actor sends and verifying the activities
+  it receives, using object-level proofs carried inside the activity (FEP-8b32) so that a
+  proof stays checkable after a relay or a ledger commit. HTTP Signatures and production
+  key handling are out of scope here (ENC-01, OX-10).
+scope:
+- prototype
+- production
+tags:
+- security
+- authentication
+groups:
+- id: SIG-01
+  title: Proofs on Sent Activities
+  specs:
+  - id: SIG-01-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Every activity an actor sends MUST carry a `proof` made with its author's key.
+    rationale: >-
+      A receiver cannot otherwise tell who wrote an activity, so any client could post an
+      activity in another actor's name (#509). The proof sits inside the activity, so it
+      still shows who wrote the content after the CASE_MANAGER relays it or commits it to
+      the ledger, which a signature on one HTTP delivery cannot show.
+    verification: >-
+      `test/core/use_cases/received/test_signed_ledger_entries.py::test_a_sent_activity_carries_its_authors_proof`
+      and
+      `test/core/use_cases/received/test_signed_ledger_entries.py::test_a_ledger_announce_carries_the_case_managers_proof`
+      check the sealed bodies a participant and the CASE_MANAGER send.
+    tracking_issue: '#5382'
+    adr:
+    - ADR-0164
+    stories:
+    - story_2022_089
+    - story_2022_035
+  - id: SIG-01-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A `proof` MUST be a `DataIntegrityProof` using the `eddsa-jcs-2022` cryptosuite, with
+      `proofPurpose` `assertionMethod` and a `verificationMethod` naming a key in its
+      author's actor profile.
+    rationale: >-
+      Signer and verifier must agree on one proof form, or a correct proof is refused.
+      FEP-8b32 with `eddsa-jcs-2022` (Ed25519 over the RFC 8785 canonical form) is the
+      form ActivityPub implementations use for object integrity, and naming the key by
+      the author's profile tells the receiver where to get it (SIG-02-001).
+    verification: >-
+      `test/core/use_cases/received/test_signed_ledger_entries.py::test_a_sent_proof_names_the_cryptosuite_and_the_authors_key`
+      checks the proof on a participant's sealed body.
+    tracking_issue: '#5380 (proof form); #5382 (outbox signs)'
+    relationships:
+    - rel_type: extends
+      spec_id: SIG-01-001
+    adr:
+    - ADR-0164
+    stories:
+    - story_2022_089
+  - id: SIG-01-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A `proof` MUST cover the whole activity as sent, every nested object included,
+      except the `proof` itself.
+    rationale: >-
+      A proof that covers only part of an activity lets anyone change the rest without
+      detection. The objects nested in an activity carry most of what a receiver acts
+      on, such as a report's content or a ledger entry's snapshot.
+    verification: >-
+      `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_a_body_changed_after_signing_is_refused`
+      posts a signed body whose nested object was changed afterwards.
+    tracking_issue: '#5380 (proof form); #5386 (refusal)'
+    adr:
+    - ADR-0164
+    stories:
+    - story_2022_089
+- id: SIG-02
+  title: Key Discovery
+  specs:
+  - id: SIG-02-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST take the key that verifies a `proof` only from the author's actor
+      profile, held as a copy or fetched.
+    rationale: >-
+      A key the receiver got anywhere else, such as from the activity itself or from a
+      third actor, proves nothing about the author: anyone can sign with a key they made
+      and name it. The author's profile is where the author's identity is already
+      published, so it is the one source the receiver can trust as far as it trusts the
+      author's id.
+    verification: >-
+      `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_a_proof_naming_a_key_outside_the_authors_profile_is_refused`
+      posts an activity whose proof names another actor's key.
+    tracking_issue: '#5383 (key resolution); #5386 (refusal)'
+    adr:
+    - ADR-0164
+    stories:
+    - story_2022_035
+    - story_2022_089
+  - id: SIG-02-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An actor MUST serve its actor profile, its key included, to a request that carries
+      no proof or signature.
+    rationale: >-
+      A receiver fetches the author's profile to get the key that verifies the author's
+      proof. Demanding a proof on that fetch would need a key the requester may not have
+      yet, so key discovery could never start.
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_actor_profile_key.py::test_an_unsigned_get_returns_the_profile_with_its_key`
+      fetches a profile with a plain GET.
+    tracking_issue: '#5381'
+    adr:
+    - ADR-0164
+    stories:
+    - story_2022_035
+- id: SIG-03
+  title: Verification and Refusal
+  specs:
+  - id: SIG-03-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST verify an activity's `proof` before it acts on any of the activity's
+      content.
+    rationale: >-
+      Content acted on before verification has already been trusted: a forged activity
+      could change state, be stored or be relayed before its refusal. Verifying first
+      means a refused activity leaves nothing behind.
+    verification: >-
+      `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_an_activity_without_a_valid_proof_is_refused_and_stores_nothing`
+      checks that a refused activity leaves nothing in the receiver's store.
+    tracking_issue: '#5386'
+    adr:
+    - ADR-0164
+    stories:
+    - story_2022_089
+  - id: SIG-03-002
+    priority: MUST
+    kind: protocol
+    statement: A receiver MUST refuse an activity whose `proof` is missing or does not verify.
+    rationale: >-
+      Verification that admits an unsigned activity protects nothing, since a forger
+      simply leaves the proof out. The refusal holds in every deployment, test and demo:
+      a switch that turns it off becomes the way a test passes and a deployment is left
+      open.
+    verification: >-
+      `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_an_activity_without_a_valid_proof_is_refused_and_stores_nothing`
+      posts an activity with no proof and one with a proof that does not verify.
+    tracking_issue: '#5386'
+    relationships:
+    - rel_type: depends_on
+      spec_id: SIG-03-001
+    adr:
+    - ADR-0164
+    stories:
+    - story_2022_089
+    - story_2022_090
+  - id: SIG-03-003
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST verify a `proof` as its own ingress stage, after the body-size,
+      media-type and JSON-shape checks and before `parse_activity`.
+    rationale: >-
+      Verifying before the parser keeps a forged body away from expansion, validation and
+      hydration, and keeps semantic extraction a mapping from verified AS2 to semantics
+      that tests can exercise without keys. The cheap transport checks run first, so an
+      oversized or malformed body is refused without a key fetch.
+    verification: >-
+      `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_a_bad_proof_is_refused_before_the_schema_is_checked`
+      posts a body with an invalid proof and a schema fault.
+    tracking_issue: '#5386'
+    relationships:
+    - rel_type: implements
+      spec_id: SIG-03-001
+    adr:
+    - ADR-0164
+- id: SIG-04
+  title: Proofs in the Case Ledger
+  specs:
+  - id: SIG-04-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST keep the sender's `proof`, unchanged, in the `payloadSnapshot`
+      of the ledger entry that records a received activity.
+    rationale: >-
+      A replica acts on a participant's words that the CASE_MANAGER delivers. Only the
+      participant's own proof, kept in the snapshot, lets the replica check that the
+      participant wrote them; a snapshot without it asks the replica to trust the
+      CASE_MANAGER for what another actor said. The snapshot is the activity as received
+      (VM-08-003), so dropping the proof would also change it.
+    verification: >-
+      `test/core/use_cases/received/test_signed_ledger_entries.py::test_a_ledger_snapshot_keeps_the_senders_proof`
+      commits a participant's signed activity and reads the relayed snapshot.
+    tracking_issue: '#5382'
+    adr:
+    - ADR-0164
+    stories:
+    - story_2022_089
+  - id: SIG-04-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A replica MUST refuse the whole `Announce(CaseLedgerEntry)` when a `proof` it carries
+      fails to verify. These are the CASE_MANAGER's `proof` on the `Announce` and, when the
+      `payloadSnapshot`'s `actor` is not the CASE_MANAGER, the author's `proof` on it.
+    rationale: >-
+      The CASE_MANAGER's proof shows the entry came from the case's authority; the
+      author's proof shows the participant wrote the act the entry records. Applying the
+      entry on either alone would let a forged act enter the case through a genuine
+      relay, or a genuine act be replayed by a forger. Refusing the whole entry keeps the
+      replica's ledger a prefix of the CASE_MANAGER's.
+    verification: >-
+      `test/core/use_cases/received/test_signed_ledger_entries.py::test_a_replica_refuses_an_entry_whose_author_proof_is_missing`
+      delivers an entry whose snapshot lost its author's proof.
+    tracking_issue: '#5386'
+    adr:
+    - ADR-0164
+    stories:
+    - story_2022_089
+    - story_2022_035
+- id: SIG-05
+  title: Prototype Keys and the Signing Module
+  scope:
+  - prototype
+  specs:
+  - id: SIG-05-001
+    priority: MUST
+    kind: project
+    statement: >-
+      In the prototype, each actor's key pair MUST be computed from a fixed seed tied to
+      its actor id.
+    rationale: >-
+      Tests, demos and documentation examples compare and show exact wire bodies, so
+      their proofs must be the same on every run. A seeded key makes no security claim:
+      anyone who knows the scheme can compute the private key, so a seeded key must
+      never be deployed. Production key generation is ENC-01-001.
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_actor_profile_key.py::test_an_actors_key_is_the_same_in_every_store`
+      compares the key two independent stores publish for one actor id.
+    tracking_issue: '#5380 (seeded keys); #5381 (profile)'
+    adr:
+    - ADR-0164
+  - id: SIG-05-002
+    priority: MUST_NOT
+    kind: project
+    statement: Verification MUST NOT derive a key from a seed.
+    rationale: >-
+      A verifier that derives the author's key from the seed scheme verifies against a
+      key the author never published, so it would admit a body from an actor whose
+      profile it cannot read. Only a key's owner computes its key pair from its seed;
+      every other actor gets the key from the owner's profile (SIG-02-001).
+    verification: >-
+      `test/adapters/driving/fastapi/test_signed_delivery_refusal.py::test_an_author_whose_profile_cannot_be_read_is_refused`
+      posts an activity from an author whose profile the receiver holds no copy of and
+      cannot fetch.
+    tracking_issue: '#5383 (key resolution); #5386 (refusal)'
+    relationships:
+    - rel_type: refines
+      spec_id: SIG-02-001
+    adr:
+    - ADR-0164
+  - id: SIG-05-003
+    priority: MUST
+    kind: project
+    statement: >-
+      Every proof this codebase creates or verifies, in tests too, MUST go through one
+      shared signing module.
+    rationale: >-
+      Canonicalization, key encoding and proof options must match exactly between signer
+      and verifier, and each hand-rolled copy is a place for them to drift apart. One
+      module, as the activity factories are for outbound construction, keeps one copy to
+      test against published test vectors.
+    verification: >-
+      `test/architecture/test_signing_helper_module.py::test_one_module_calls_the_signing_primitives`
+      lists the modules under `vultron/` and `test/` that import the Ed25519 or JCS
+      primitives.
+    tracking_issue: '#5380'
+    adr:
+    - ADR-0164

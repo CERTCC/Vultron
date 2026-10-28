@@ -94,7 +94,7 @@ Load additional files only when the task touches the relevant area. See the
 | Demo scenario report tool | `demo-report.yaml` |
 | Event-driven control flow / cascade model | `event-driven-control-flow.yaml`, `notes/event-driven-control-flow.md` |
 | Observability | `observability.yaml` |
-| Security / CI | `ci-security.yaml`, `encryption.yaml` |
+| Security / CI | `ci-security.yaml`, `signing.yaml`, `encryption.yaml` |
 | Demo CI / GitHub Actions demo workflow | `demo-ci.yaml` |
 | Docs build and link-check CI workflow | `docs-build-workflow.yaml`, `notes/docs-build-workflow.md` |
 | Agentic API | `agentic-readiness.yaml` |
@@ -335,6 +335,9 @@ related requirements across files.
 - **`docs-build-workflow.yaml`** - Docs Build and Link Check workflow:
   trigger conditions, job structure, docs-changed filter, link-check
   conditionality, and security compliance (DOCBW-01 through DOCBW-05)
+- **`signing.yaml`** - Object-level proofs on sent activities, key discovery from
+  actor profiles, strict verification, proofs in the case ledger, prototype seeded
+  keys (SIG-01 through SIG-05)
 - **`encryption.yaml`** - ActivityPub encryption and key management (`PROD_ONLY`)
 
 ### Code Standards

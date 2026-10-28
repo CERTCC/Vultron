@@ -7,11 +7,13 @@ actor URI is the identity anchor for all messages sent by that actor, and for
 the canonical case ledger if the actor holds the CASE_MANAGER role.
 Actor URI equality is identity equality: two messages with the same `actor` URI are from the same actor.
 
-**Verification.** The protocol does not currently mandate a specific identity
-verification mechanism. The reference implementation anticipates HTTP Signatures
-(as used in ActivityPub) as the authentication layer for inbound messages. A
-future version of this specification is expected to normatively require HTTP
-Signatures at the transport layer.
+**Verification.** An actor signs each activity that it sends with a `proof` inside the activity, in the FEP-8b32 `eddsa-jcs-2022` form (SIG-01-001, SIG-01-002).
+A receiver refuses an activity whose `proof` is missing or does not verify (SIG-03-002).
+The receiver gets the key from the actor profile of the author, and from no other source (SIG-02-001).
+The `proof` stays in the activity when the CASE_MANAGER relays it or records it in the case ledger.
+A replica can thus check who wrote each ledger entry that it applies (SIG-04-001, SIG-04-002).
+HTTP Message Signatures on each delivery are not required; a production deployment can add them to authenticate the server that delivers a request.
+The reference implementation does not sign or verify yet ([#1156](https://github.com/CERTCC/Vultron/issues/1156)).
 
 **Case bootstrap as the trust establishment mechanism.**
 The `Create(VulnerabilityCase)` message that the report receiver sends to the reporter as itself is the trust root for a case ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)).

@@ -43,9 +43,11 @@ implement against `proposed` ADRs (the human touch is the epoch-2 ask, ADR-0120)
 
 Agents MUST NOT: introduce breaking API changes, modify auth/crypto logic,
 change persistence schemas without explicit instruction, touch CI/deployment/secrets.
+**Crypto carve-out (ADR-0164):** agents MAY build the prototype's seeded-key signing
+and verification (epic #1156); production key handling (#1184) stays excluded, and
+a crypto PR waits for human review before merge.
 
-Small tweaks don't require an ADR; architectural/protocol changes SHOULD have one
-before merging. See `docs/adr/_adr-template.md`.
+Small tweaks need no ADR; architectural/protocol changes SHOULD have one before merging.
 
 ---
 
@@ -139,8 +141,8 @@ when available. See `specs/structured-logging.yaml`.
 
 ---
 
-> **Specification-Driven Development** has moved to `specs/AGENTS.md`.
-> **Testing Expectations** has moved to `test/AGENTS.md`.
+> **Specification-Driven Development** and **Specification Usage Guidance** have
+> moved to `specs/AGENTS.md`; **Testing Expectations** to `test/AGENTS.md`.
 
 ## Quick Reference
 
@@ -183,8 +185,8 @@ For non-trivial changes: state assumptions → load governing specs (`deepen-con
 review `notes/` → describe intent → apply minimal diff → update/add tests →
 call out risks.
 
-For architectural changes, draft an ADR first (it may be `proposed`; implement
-against it, ADR-0120). Use the decision-tree in
+For architectural changes, draft an ADR first from `docs/adr/_adr-template.md` (it
+may be `proposed`; implement against it, ADR-0120). Use the decision-tree in
 `notes/specs-vs-adrs.md` (MS-11-001 through MS-11-006) to decide ADR vs. spec
 entry vs. both.
 
@@ -228,8 +230,6 @@ Multiple agents use named git worktree **slots**. See
 
 ---
 
-> **Specification Usage Guidance** has moved to `specs/AGENTS.md`.
->
 ## Safety & Guardrails
 
 - Treat anything under `/security`, `/auth`, or equivalent paths as sensitive

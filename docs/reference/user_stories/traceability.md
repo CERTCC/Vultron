@@ -1049,7 +1049,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[ENC-01-002](../specs/protocol.md#enc-01-002)</td>
-<td markdown="span">The CaseActor MUST publish its public key in its actor profile (`PROD_ONLY`) — verifiable identity.</td>
+<td markdown="span">Each actor MUST publish its public key in its actor profile as a `Multikey` under `assertionMethod` — verifiable identity.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-15-002](../specs/architecture.md#vp-15-002)</td>
@@ -1094,8 +1094,8 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Each CaseActor MUST generate an asymmetric key (`PROD_ONLY`) — participant authentication.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[ENC-01-003](../specs/protocol.md#enc-01-003)</td>
-<td markdown="span">CaseActor MUST share its public key with Participants (`PROD_ONLY`) — key exchange for auth.</td>
+<td markdown="span">[SIG-03-002](../specs/protocol.md#sig-03-002)</td>
+<td markdown="span">A receiver MUST refuse an activity whose proof is missing or does not verify — participant authentication.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-15-002](../specs/architecture.md#vp-15-002)</td>
