@@ -846,6 +846,7 @@ groups:
       carries the marker or is pinned as writing no case state.
     adr:
     - ADR-0108
+    - ADR-0116
   - id: RSH-08-004
     priority: MUST
     kind: project
