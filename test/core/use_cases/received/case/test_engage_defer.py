@@ -18,7 +18,11 @@ import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
-from test.support.received import TEST_SENDER_POSITION, with_evidence
+from test.support.received import (
+    TEST_SENDER_POSITION,
+    in_step_position,
+    with_evidence,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -477,13 +481,13 @@ class TestEngageCaseLedgerCommit:
         dl.create(case)
         return dl
 
-    def _engage_event(self) -> EngageCaseReceivedEvent:
+    def _engage_event(self, dl: SqliteDataLayer) -> EngageCaseReceivedEvent:
         # object_ must be a VulnerabilityCase so the canonical-entry validator
         # sees type="VulnerabilityCase" and recognises the ("Join","VulnerabilityCase")
         # pair as canonical (CLP-canonical-pairs / _CANONICAL_PAIRS check).
         return with_evidence(
             EngageCaseReceivedEvent(
-                ledger_position=TEST_SENDER_POSITION,
+                ledger_position=in_step_position(dl, self._CASE_ID),
                 activity_id=f"{self._CASE_ID}/activities/engage-2300",
                 actor_id=self._SENDER_ID,
                 receiving_actor_id=self._CASE_MANAGER_ID,
@@ -516,7 +520,7 @@ class TestEngageCaseLedgerCommit:
 
         EngageCaseReceivedUseCase(
             seeded_dl,
-            self._engage_event(),
+            self._engage_event(seeded_dl),
             trigger_activity=TriggerActivityAdapter(seeded_dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(seeded_dl),
@@ -558,7 +562,7 @@ class TestEngageCaseLedgerCommit:
         """
         EngageCaseReceivedUseCase(
             seeded_dl,
-            self._engage_event(),
+            self._engage_event(seeded_dl),
             trigger_activity=TriggerActivityAdapter(seeded_dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(seeded_dl),
@@ -598,7 +602,7 @@ class TestEngageCaseLedgerCommit:
         ):
             EngageCaseReceivedUseCase(
                 seeded_dl,
-                self._engage_event(),
+                self._engage_event(seeded_dl),
                 trigger_activity=TriggerActivityAdapter(seeded_dl),
                 wire_render_port=As2WireRenderAdapter(),
                 sync_port=SyncActivityAdapter(seeded_dl),
@@ -632,7 +636,7 @@ class TestEngageCaseLedgerCommit:
         dl = self._seed(
             SqliteDataLayer("sqlite:///:memory:", actor_id=finder_id)
         )
-        event = self._engage_event()
+        event = self._engage_event(dl)
         assert event.activity is not None
         # Addressed to the finder too, so the run reaches the role gate this
         # test exercises rather than stopping at the door (HP-01-005).
@@ -667,7 +671,7 @@ class TestEngageCaseLedgerCommit:
         The fallback used to be ``request.actor_id``, so the CASE_MANAGER's own
         replica ran the tree as the vendor and skipped its commit (BT-17-006).
         """
-        event = self._engage_event().model_copy(
+        event = self._engage_event(seeded_dl).model_copy(
             update={"receiving_actor_id": None}
         )
 
@@ -692,7 +696,7 @@ class TestEngageCaseLedgerCommit:
         """
         result = EngageCaseReceivedUseCase(
             seeded_dl,
-            self._engage_event(),
+            self._engage_event(seeded_dl),
             trigger_activity=TriggerActivityAdapter(seeded_dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(seeded_dl),

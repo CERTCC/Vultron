@@ -24,6 +24,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import delivered_body, received_event
+from test.support.trigger_results import recipient_ids
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -117,10 +118,7 @@ class TestNoteUseCases:
             actor="https://example.org/users/finder",
             to=[dl.actor_id],
         )
-        event = make_payload(
-            activity,
-            receiving_actor_id=case_actor_id,
-        )
+        event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
 
         result = AddNoteToCaseReceivedUseCase(
             dl,
@@ -160,6 +158,7 @@ class TestNoteUseCases:
                 to=[dl.actor_id],
             ),
             receiving_actor_id=case_actor_id,
+            at=dl,
         )
         result = AddNoteToCaseReceivedUseCase(
             dl,
@@ -198,6 +197,7 @@ class TestNoteUseCases:
                 to=[dl.actor_id],
             ),
             receiving_actor_id=case_actor_id,
+            at=dl,
         )
         result = AddNoteToCaseReceivedUseCase(
             dl,
@@ -227,9 +227,9 @@ class TestNoteUseCases:
             to=[dl.actor_id],
         )
         ingress = FastAPIIngressAdapter(dl)
-        parsed = ingress.parse(delivered_body(activity))
+        parsed = ingress.parse(delivered_body(activity, at=dl))
         assert parsed is not None
-        event = received_event(ingress.rehydrate(parsed)).model_copy(
+        event = received_event(ingress.rehydrate(parsed), at=dl).model_copy(
             update={"receiving_actor_id": case_actor_id}
         )
         assert isinstance(event, AddNoteToCaseReceivedEvent)
@@ -330,6 +330,7 @@ class TestNoteUseCases:
                 to=[dl.actor_id],
             ),
             receiving_actor_id=case_actor_id,
+            at=dl,
         )
         result = AddNoteToCaseReceivedUseCase(
             dl,
@@ -370,9 +371,9 @@ class TestNoteUseCases:
             to=[dl.actor_id],
         )
         ingress = FastAPIIngressAdapter(dl)
-        parsed = ingress.parse(delivered_body(activity))
+        parsed = ingress.parse(delivered_body(activity, at=dl))
         assert parsed is not None
-        event = received_event(ingress.rehydrate(parsed)).model_copy(
+        event = received_event(ingress.rehydrate(parsed), at=dl).model_copy(
             update={"receiving_actor_id": case_actor_id}
         )
         assert isinstance(event, AddNoteToCaseReceivedEvent)
@@ -407,6 +408,7 @@ class TestNoteUseCases:
                 to=[dl.actor_id],
             ),
             receiving_actor_id=case_actor_id,
+            at=dl,
         ).model_copy(update={"object_": None})
 
         result = AddNoteToCaseReceivedUseCase(
@@ -442,6 +444,7 @@ class TestNoteUseCases:
                 to=[dl.actor_id],
             ),
             receiving_actor_id=case_actor_id,
+            at=dl,
         )
 
         def run():
@@ -489,6 +492,7 @@ class TestNoteUseCases:
                         to=[dl.actor_id],
                     ),
                     receiving_actor_id=case_actor_id,
+                    at=dl,
                 ),
                 wire_render_port=As2WireRenderAdapter(),
                 sync_port=SyncActivityAdapter(dl),
@@ -545,6 +549,7 @@ class TestNoteUseCases:
         event = make_payload(
             activity,
             receiving_actor_id="https://example.org/actors/non-manager",
+            at=dl,
         )
 
         result = AddNoteToCaseReceivedUseCase(
@@ -583,7 +588,8 @@ class TestNoteUseCases:
         event = make_payload(
             as_Remove(
                 actor=sender, object_=note, target=case.id_, to=[dl.actor_id]
-            )
+            ),
+            at=dl,
         )
         return RemoveNoteFromCaseReceivedUseCase(
             dl,
@@ -735,7 +741,7 @@ class TestNoteUseCases:
             target="https://example.org/cases/no-such-case",
             to=[dl.actor_id],
         )
-        event = make_payload(activity)
+        event = make_payload(activity, at=dl)
 
         result = RemoveNoteFromCaseReceivedUseCase(
             dl,
@@ -786,6 +792,7 @@ class TestNoteUseCases:
         event = make_payload(
             activity,
             receiving_actor_id="https://example.org/actors/non-manager",
+            at=dl,
         )
 
         result = AddNoteToCaseReceivedUseCase(
@@ -802,6 +809,7 @@ class TestNoteUseCases:
     # ------------------------------------------------------------------
 
     @pytest.mark.spec("PCR-08-013")
+    @pytest.mark.spec("PCR-08-003")
     def test_add_note_commits_log_entry_when_sync_port_provided(
         self, make_payload
     ):
@@ -809,7 +817,7 @@ class TestNoteUseCases:
 
         When a sync_port is injected and receiving_actor_id is set, the use
         case MUST commit one CaseLedgerEntry after accepting a note
-        addition.
+        addition, and announce it to the case's participants.
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -865,7 +873,7 @@ class TestNoteUseCases:
         activity = add_note_to_case_activity(
             note, target=case, actor=author_id, to=[dl.actor_id]
         )
-        event = make_payload(activity, receiving_actor_id=case_actor_id)
+        event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
 
         sync_port = SyncActivityAdapter(dl)
         AddNoteToCaseReceivedUseCase(
@@ -886,6 +894,23 @@ class TestNoteUseCases:
         entry = cast(CaseLedgerEntry, entries[0])
         assert entry.semantic_type == "add_note_to_case"
         assert entry.log_object_id == activity.id_
+
+        # The same processing announces that entry to both participants.
+        announces = [
+            queued
+            for queued in (
+                dl.read(activity_id) for activity_id in dl.outbox_list()
+            )
+            if getattr(queued, "type_", None) == "Announce"
+            and _as_id(getattr(queued, "object_", None)) == entry.id_
+        ]
+        assert announces
+        announced_to = {
+            recipient
+            for announce in announces
+            for recipient in recipient_ids(announce)
+        }
+        assert announced_to == {author_id, participant_id}
 
     @pytest.mark.spec("SYNC-02-002")
     @pytest.mark.spec("BT-14-001")
@@ -954,7 +979,7 @@ class TestNoteUseCases:
         activity = add_note_to_case_activity(
             note, target=case, actor=author_id, to=[dl.actor_id]
         )
-        event = make_payload(activity, receiving_actor_id=case_actor_id)
+        event = make_payload(activity, receiving_actor_id=case_actor_id, at=dl)
 
         # No sync_port — the commit's fan-out is a wiring fault.
         with pytest.raises(VultronBTInternalError, match="sync_port"):

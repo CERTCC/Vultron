@@ -132,7 +132,7 @@ class TestAddNoteToCaseLedgerRouting:
             actor=VENDOR_ID,
             to=[CASE_ACTOR_ID],
         )
-        event = make_payload(activity, receiving_actor_id=CASE_ACTOR_ID)
+        event = make_payload(activity, receiving_actor_id=CASE_ACTOR_ID, at=dl)
 
         result = AddNoteToCaseReceivedUseCase(
             dl=dl,
@@ -167,7 +167,7 @@ class TestAddNoteToCaseLedgerRouting:
             actor=VENDOR_ID,
             to=[CASE_ACTOR_ID],
         )
-        event = make_payload(activity, receiving_actor_id=VENDOR_ID)
+        event = make_payload(activity, receiving_actor_id=VENDOR_ID, at=dl)
 
         result = AddNoteToCaseReceivedUseCase(
             dl=dl,
@@ -207,7 +207,7 @@ class TestAddNoteToCaseLedgerRouting:
             actor=VENDOR_ID,
             to=[CASE_ACTOR_ID],
         )
-        event = make_payload(activity)
+        event = make_payload(activity, at=dl)
         # Explicitly clear receiving_actor_id to exercise the fallback path.
         event = event.model_copy(update={"receiving_actor_id": None})
 

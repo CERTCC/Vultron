@@ -417,7 +417,7 @@ def test_in_reply_to_on_a_stub_invite_survives_parse_and_extraction(
     second = _send_stub_invite(dl, manager.id_, case.id_, invitee.id_)
 
     parsed = parse_activity(second)
-    event = received_event(parsed)
+    event = received_event(parsed, at=dl)
 
     assert parsed.in_reply_to == first["id"]
     assert event.semantic_type is MessageSemantics.INVITE_ACTOR_TO_CASE
@@ -475,7 +475,7 @@ def test_manager_refuses_a_reinvite_of_a_closed_participant(
         ).execute()
     )
     stored = dl.read(offer["id"])
-    event = received_event(stored).model_copy(
+    event = received_event(stored, at=dl).model_copy(
         update={"receiving_actor_id": manager.id_}
     )
     assert isinstance(event, OfferActorToCaseReceivedEvent)

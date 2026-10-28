@@ -1854,7 +1854,9 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
 
         result = ProposeCaseOwnershipTransferReceivedUseCase(
             manager_dl,
-            make_payload(proposal, receiving_actor_id=case_actor.id_),
+            make_payload(
+                proposal, receiving_actor_id=case_actor.id_, at=manager_dl
+            ),
             trigger_activity=TriggerActivityAdapter(manager_dl),
             sync_port=SyncActivityAdapter(manager_dl),
             wire_render_port=As2WireRenderAdapter(),

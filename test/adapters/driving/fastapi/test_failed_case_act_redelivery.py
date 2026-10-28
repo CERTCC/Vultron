@@ -85,7 +85,7 @@ def test_a_failed_role_offer_forward_commits_when_posted_again(
     """The first post fails and keeps nothing but the archive; the second,
     routed as the archived copy, records the Offer and forwards it once."""
     client, dl, emitter = served_manager
-    body = delivered_body(_offer())
+    body = delivered_body(_offer(), at=dl)
 
     calls: list[str] = []
 

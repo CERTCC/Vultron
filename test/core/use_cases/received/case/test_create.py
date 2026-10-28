@@ -220,6 +220,7 @@ class TestBootstrapCreateAccepted:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("CBT-01-005")
 @pytest.mark.spec("CBT-05-002")
 class TestBootstrapCreateRejectedBadSender:
     """CBT-05-002 — imposter sender is rejected; case is NOT seeded."""
@@ -331,7 +332,7 @@ class TestAnnounceValidatedByTrustedCaseActorId:
         link = _build_link(case_id=_CASE_ID, case_manager_id=_CASE_ACTOR_ID)
         dl.save(link)
 
-        event = make_payload(announce_from_trusted)
+        event = make_payload(announce_from_trusted, at=dl)
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.read(_CASE_ID)
@@ -346,7 +347,7 @@ class TestAnnounceValidatedByTrustedCaseActorId:
         link = _build_link(case_id=_CASE_ID, case_manager_id=_CASE_ACTOR_ID)
         dl.save(link)
 
-        event = make_payload(announce_from_imposter)
+        event = make_payload(announce_from_imposter, at=dl)
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.read(_CASE_ID)
@@ -422,7 +423,7 @@ def _bootstrap_event(
     strict=True,
     raises=AssertionError,
     reason=(
-        "CBT-06-002: the reporter trusts one case creator per report, so no "
+        "CBT-06-002: the reporter trusts one bootstrap sender per report, so no "
         "link is recorded for the second recipient and its bootstrap is "
         "dropped. Tracked by #3698."
     ),
@@ -495,7 +496,8 @@ class TestCreateRefusesAnUnheldEmbargo:
                 _case_naming_unheld_embargo(),
                 actor=_CREATOR_ID,
                 to=[_REPORTER_ID],
-            )
+            ),
+            at=dl,
         )
 
         result = CreateCaseReceivedUseCase(dl, event).execute()

@@ -466,7 +466,7 @@ def test_refused_participant_status_leaves_the_archive_readable():
     )
     event = cast(
         AddParticipantStatusToParticipantReceivedEvent,
-        received_event(activity),
+        received_event(activity, at=dl),
     ).model_copy(update={"receiving_actor_id": receiver})
 
     result = AddParticipantStatusToParticipantReceivedUseCase(

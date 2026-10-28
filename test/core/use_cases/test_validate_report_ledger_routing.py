@@ -228,7 +228,7 @@ _CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
 
 @pytest.fixture(autouse=True)
 def _configure_case_actor_url(monkeypatch):
-    """Set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL for ResolveCaseActorUrlsNode."""
+    """Set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL for case_actor_identity()."""
     monkeypatch.setenv(
         "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", _CASE_ACTOR_SERVICE_URL
     )

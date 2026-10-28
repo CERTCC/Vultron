@@ -177,6 +177,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
             if r.levelno == logging.WARNING
         ), "Expected a WARNING log citing PCR-03-004 or PCR-07-010"
 
+    @pytest.mark.spec("PCR-05-002")
     def test_updates_report_case_link_when_case_contains_report(
         self, dl, event, case, case_actor, make_payload
     ):
@@ -191,7 +192,8 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
                 actor=case_actor.id_,
                 to=[_RECEIVER_ID],
                 context=case.id_,
-            )
+            ),
+            at=dl,
         )
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, linked_event).execute()
@@ -228,7 +230,8 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
                 actor=_CASE_ACTOR_ID,
                 to=[_RECEIVER_ID],
                 context=_CASE_ID,
-            )
+            ),
+            at=dl,
         )
 
         first_result = AnnounceVulnerabilityCaseReceivedUseCase(
@@ -278,7 +281,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         announce = announce_vulnerability_case_activity(
             good_case, actor=_OWNER_ID, to=[_RECEIVER_ID]
         )
-        event = make_payload(announce)
+        event = make_payload(announce, at=dl)
 
         # Replace the object_ on the event's activity with a non-case
         report = as_VulnerabilityReport(name="Not a case")
@@ -295,9 +298,12 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
     def test_rejects_announce_from_non_case_actor(
-        self, dl, case, make_payload
+        self, dl, case, make_payload, caplog
     ):
-        """PCR-07-003: a sender that is not the expected authority cannot seed."""
+        """PCR-07-003: a sender that is not the expected authority cannot
+        seed, and the refusal is logged at WARNING."""
+        import logging
+
         _anchor_expected_authority(dl)
         announce = announce_vulnerability_case_activity(
             case,
@@ -305,11 +311,16 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
             to=[_RECEIVER_ID],
             context=case.id_,
         )
-        event = make_payload(announce)
+        event = make_payload(announce, at=dl)
 
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        with caplog.at_level(logging.WARNING):
+            AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         assert dl.read(_CASE_ID) is None
+        assert any(
+            r.levelno == logging.WARNING and _IMPOSTER_ID in r.getMessage()
+            for r in caplog.records
+        ), "Expected a WARNING naming the refused sender (PCR-07-003)"
 
 
 # ---------------------------------------------------------------------------
@@ -448,7 +459,7 @@ class TestAnnounceFirstContactTrustGap:
         imposter_announce = announce_vulnerability_case_activity(
             case, actor=_IMPOSTER_ID, to=[_RECEIVER_ID], context=case.id_
         )
-        event = make_payload(imposter_announce)
+        event = make_payload(imposter_announce, at=dl)
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
@@ -522,7 +533,7 @@ class TestAnnounceDrainsPreGenesisBuffer:
             to=[_RECEIVER_ID],
             context=_CASE_ID,
         )
-        event = make_payload(activity)
+        event = make_payload(activity, at=dl)
         return event, AnnounceVulnerabilityCaseReceivedUseCase(
             dl, event, sync_port=SyncActivityAdapter(dl), **ports
         ).execute()
@@ -709,7 +720,7 @@ class TestAnnounceStoresEmbeddedParticipants:
         activity = announce_vulnerability_case_activity(
             case, actor=_CASE_ACTOR_ID, to=[_RECEIVER_ID], context=_CASE_ID
         )
-        event = make_payload(activity)
+        event = make_payload(activity, at=dl)
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
@@ -743,7 +754,8 @@ class TestAnnounceStoresEmbeddedParticipants:
                 actor=_CASE_ACTOR_ID,
                 to=[_RECEIVER_ID],
                 context=_CASE_ID,
-            )
+            ),
+            at=dl,
         )
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, announce).execute()

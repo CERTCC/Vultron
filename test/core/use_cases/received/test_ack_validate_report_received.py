@@ -260,7 +260,9 @@ class TestFullReportFlow:
             case, actor=self.CASE_ACTOR_ID, to=[self.VENDOR_ID]
         )
         CreateCaseReceivedUseCase(
-            dl, make_payload(activity), wire_render_port=As2WireRenderAdapter()
+            dl,
+            make_payload(activity, at=dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
     def _make_submit_event(self):

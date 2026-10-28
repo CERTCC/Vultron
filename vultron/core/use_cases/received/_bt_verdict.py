@@ -99,6 +99,9 @@ from vultron.core.behaviors.report.nodes.conditions import (
     CheckParticipantRMState,
 )
 from vultron.core.behaviors.sender_guard import closed_sender_turned_away
+from vultron.core.behaviors.sync.ledger_position_stage import (
+    LEDGER_POSITION_GATE_NAME,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -226,8 +229,25 @@ def not_case_manager(tree: py_trees.behaviour.Behaviour | _HasRoot) -> bool:
     non-manager skips the gated work and the tree still succeeds. The handler
     then has to say what that success was: see
     :func:`not_case_manager_refusal`.
+
+    The gate around the factory's answer to a stamped ledger position is not
+    counted: it runs ahead of the act's own guards in every case tree and
+    answers the position, not the act, so its skip at a replica says nothing
+    about whom the act was addressed to (SYNC-18-007).
     """
-    return node_failed(tree, CheckIsCaseManagerNode)
+    root = _root(tree)
+    position_answer = {
+        id(node)
+        for gate in root.iterate()
+        if gate.name == LEDGER_POSITION_GATE_NAME
+        for node in gate.iterate()
+    }
+    return any(
+        isinstance(node, CheckIsCaseManagerNode)
+        and node.status == Status.FAILURE
+        and id(node) not in position_answer
+        for node in root.iterate()
+    )
 
 
 def not_case_manager_refusal(
