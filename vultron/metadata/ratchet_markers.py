@@ -27,8 +27,9 @@ first line:
 
 This module is the one parser of those markers. The offline architecture test
 (``test/architecture/test_ratchet_baselines_name_an_owner.py``) feeds it the
-shared corpus's cached trees; the scheduled closed-owner report (ARCH-18-004)
-reads :attr:`Baseline.owners` through :func:`scan_paths`. Neither makes a
+shared corpus's cached trees; the scheduled closed-owner report
+(:mod:`vultron.metadata.ratchet_owners`, ARCH-18-004) reads
+:attr:`Baseline.owners` through :func:`baselines_in_source`. Neither makes a
 network call here: whether a cited owner is still open is the caller's
 question.
 """

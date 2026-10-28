@@ -130,11 +130,22 @@ the one marker parser `vultron/metadata/ratchet_markers.py`:
   `ADR-NNNN` or spec ID; both markers on one constant (ARCH-18-005).
 
 Read the markers through `ratchet_markers` (`baselines_in` for a cached parse,
-`scan_paths` for a script); `Baseline.owners` is what the closed-owner report
-needs. The marker check runs offline in the unit suite, so it gives the same
-answer every run. Whether a cited owner is still open is checked by a scheduled CI job
-that files or updates a tracking issue and never fails the build (ARCH-18-004): a
-hard failure would turn `main` red whenever an unrelated issue closes.
+`baselines_in_source` or `scan_paths` without one). The marker check runs offline
+in the unit suite, so it gives the same answer every run.
+
+Whether a cited owner is still open is checked by `ratchet-owners`
+(`vultron/metadata/ratchet_owners.py`), run daily and on demand by
+`.github/workflows/ratchet-baseline-owners.yml` (ARCH-18-004). Rules it keeps:
+
+- **Never fail the build.** The step runs with `continue-on-error`: a hard failure
+  would turn `main` red whenever an unrelated issue closes.
+- **Fail closed on a lookup.** A missing issue, a merged pull request's number, or
+  an unreadable one is listed with the closed ones: a check that cannot see an
+  issue has not shown it open.
+- **One tracker, through `notify-failure`.** The script writes its list with
+  `--report`, and the action's `details-file` input puts it in the issue body or
+  update comment; the issue lookup is the shared `gh_issue_state` in
+  `vultron/metadata/base.py`, not a second client.
 
 ## Ratchets and Pinned Exemption Sets Are Different Things
 

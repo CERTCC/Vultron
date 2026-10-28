@@ -1,0 +1,55 @@
+# Every ratchet baseline's `# owner: #N` issue is open (ARCH-18-004).
+#
+# The offline unit test checks that each non-empty baseline under test/ names
+# an owner (ARCH-18-003); whether that owner is still open needs the GitHub
+# API. An owner closed by hand is caused by no PR, so this never fails the
+# build: failing would turn every PR in flight red. It runs on a schedule and
+# on demand, never on pull requests, and files or updates one tracking issue
+# listing the affected baselines while any owner is not open, closing it again
+# once all are.
+
+name: Ratchet Baseline Owners
+
+on:
+  schedule:
+    - cron: "41 6 * * *"  # Daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  open-owners:
+    name: Owner Issues Open (reports, never fails)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+      - name: Check every owner issue is open
+        id: owners
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: PYTHONPATH='' uv run ratchet-owners --report "$RUNNER_TEMP/ratchet-owners.md"
+      - name: File or update the tracking issue
+        # failure() also catches checkout or setup failing first (CISEC-05).
+        if: failure() || steps.owners.outcome == 'failure'
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-ratchet-baseline-owners
+          token: ${{ secrets.GITHUB_TOKEN }}
+          details-file: ${{ runner.temp }}/ratchet-owners.md
+      - name: Close the tracking issue
+        if: steps.owners.outcome == 'success'
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-ratchet-baseline-owners
+          token: ${{ secrets.GITHUB_TOKEN }}

@@ -476,8 +476,11 @@ def _run_notify_action(
     *,
     open_pull_requests: tuple[int, ...] = (),
     api_fails: bool = False,
+    details: str | None = None,
 ) -> list[str]:
     """Run the action's lookup step against a fake ``gh``; return its calls.
+
+    ``details`` is written to a file passed as the ``details-file`` input.
 
     ``open_pull_requests`` are listed on the page as the list-issues endpoint
     lists a labelled pull request, with a ``pull_request`` key. The step's
@@ -512,6 +515,10 @@ def _run_notify_action(
     }
     if api_fails:
         env["FAKE_API_FAIL"] = "1"
+    if details is not None:
+        details_file = tmp_path / "details.md"
+        details_file.write_text(details)
+        env["DETAILS_FILE"] = str(details_file)
     subprocess.run(
         ["bash", "-e", "-o", "pipefail", "-c", _notify_action_lookup_script()],
         env=env,
@@ -605,4 +612,35 @@ def test_notify_action_fails_when_the_lookup_fails(tmp_path: Path) -> None:
     assert not any(c.startswith("issue create") for c in calls), (
         "A failed lookup must stop the step before it files a tracker. "
         f"Calls: {calls}"
+    )
+
+
+_DETAILS = "- #12 is CLOSED:\n  - `test/x.py:3` `KNOWN_A`"
+
+
+@pytest.mark.parametrize("open_issues", [[], [5087]])
+def test_notify_action_includes_the_details_file(
+    tmp_path: Path, open_issues: list[int]
+) -> None:
+    """ARCH-18-004: a tracker can say what failed, filed or updated.
+
+    The new issue's body and the update comment both carry the caller's
+    ``details-file`` text after the run link.
+    """
+    calls = _run_notify_action(
+        tmp_path, "notify", open_issues, details=_DETAILS
+    )
+    log = "\n".join(calls)
+    verb = "issue comment 5087" if open_issues else "issue create"
+    assert verb in log, calls
+    assert "actions/runs/1)\n\n" + _DETAILS in log, calls
+
+
+def test_notify_action_adds_nothing_for_an_empty_details_file(
+    tmp_path: Path,
+) -> None:
+    calls = _run_notify_action(tmp_path, "notify", [5087], details="")
+    (comment,) = [c for c in calls if c.startswith("issue comment")]
+    assert comment.endswith(
+        "[run](https://github.com/OWNER/REPO/actions/runs/1)"
     )

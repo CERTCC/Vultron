@@ -74,6 +74,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 
+from vultron.metadata.base import (
+    GH_LOOKUP_ERRORS,
+    gh_issue_state,
+    gh_lookup_failure as _lookup_failure,
+    issue_number,
+)
 from vultron.metadata.specs.registry import SpecRegistry, load_registry
 from vultron.metadata.specs.schema import (
     RFC2119Priority,
@@ -96,11 +102,6 @@ VERIFICATION_DEBT_OWNERS: Mapping[SpecKind, frozenset[str]] = MappingProxyType(
         SpecKind.PROJECT: frozenset({"#2573", "#2574", "#2575"}),
     }
 )
-
-
-def issue_number(ref: str) -> int:
-    """The number in an ``#N`` issue reference."""
-    return int(ref.removeprefix("#"))
 
 
 def owes_verification(
@@ -321,35 +322,6 @@ def debt_owner_refs(
     return refs
 
 
-def gh_issue_state(ref: str) -> str:
-    """The GitHub state (``OPEN``/``CLOSED``) of issue *ref* (``#N``).
-
-    Uses the ``gh`` CLI against the current repository, so it needs ``gh`` on
-    ``PATH`` and a token (``GH_TOKEN`` in CI). Raises
-    :class:`subprocess.CalledProcessError` or :class:`FileNotFoundError` when
-    the lookup cannot be made.
-    """
-    result = subprocess.run(
-        ["gh", "issue", "view", str(issue_number(ref)), "--json", "state"],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return str(json.loads(result.stdout)["state"])
-
-
-def _lookup_failure(exc: Exception) -> str:
-    """*exc* as text, with ``gh``'s stderr when it is the reason.
-
-    ``str(CalledProcessError)`` names only the exit status; the cause (a
-    missing token scope, an unresolvable repository) is in its stderr.
-    """
-    stderr = getattr(exc, "stderr", None)
-    if isinstance(stderr, str) and stderr.strip():
-        return f"{exc}: {stderr.strip()}"
-    return str(exc)
-
-
 def closed_debt_owners(
     refs: Iterable[str],
     issue_state: Callable[[str], str] | None = None,
@@ -366,12 +338,7 @@ def closed_debt_owners(
     for ref in sorted(refs, key=issue_number):
         try:
             state = issue_state(ref)
-        except (
-            OSError,
-            subprocess.CalledProcessError,
-            KeyError,
-            ValueError,
-        ) as exc:
+        except GH_LOOKUP_ERRORS as exc:
             errors.append(
                 f"verification_debt owner {ref}: could not read its state "
                 f"({_lookup_failure(exc)}); the open-owner check needs gh and "
