@@ -33,21 +33,41 @@ groups:
     statement: >-
       Ensure each documentation page maps to exactly one of the four user needs (Learning,
       Goals, Information, or Understanding).
+    rationale: >-
+      A reader comes to a page with one need: to learn, to do a task, to look up a fact,
+      or to understand. A page that serves one need can give that reader what they came
+      for. A page that tries to serve two needs gives each reader text they did not ask
+      for, and the author cannot tell which rules for voice and content apply.
   - id: DF-01-003
     priority: SHOULD_NOT
     kind: process
     statement: 'Documentation pages SHOULD NOT combine multiple Diataxis content types within a single page or section; where a combined view is temporarily unavoidable, the parts MUST be clearly separated and each part MUST link to the canonical full page of the appropriate type.'
+    rationale: >-
+      Each content type has its own rules for voice and content (DF-03 to DF-06). When
+      one page mixes two types, the reader cannot tell which part to follow and which
+      part to study, and a reviewer cannot apply one set of rules to the page. Where a
+      combined view is necessary, separated parts and a link to the full page keep each
+      part true to its type.
   - id: DF-01-004
     priority: SHOULD
     kind: process
     statement: >-
       Use hyperlinks to connect related but distinct content types instead of embedding cross-type
       content.
+    rationale: >-
+      A link keeps each page to its own content type and lets the reader choose to go
+      deeper. Text copied from a page of a different type mixes the types (DF-01-003)
+      and makes a second copy that can become different from its source.
   - id: DF-01-005
     priority: SHOULD
     kind: process
     statement: >-
       Write documentation in Markdown and prepare it for the MkDocs site defined by `mkdocs.yml`.
+    rationale: >-
+      One source format and one site build let every page go through the same lint
+      checks and the same strict build. A page in a different format, or outside the
+      site that `mkdocs.yml` defines, gets neither check and does not appear in the
+      published site.
 - id: DF-02
   title: Documentation maintenance
   specs:
@@ -57,11 +77,20 @@ groups:
     statement: >-
       Build the documentation architecture iteratively from the inside-out by improving pages
       until their Diátaxis category is clear.
+    rationale: >-
+      A complete structure that is planned before the pages exist is usually wrong,
+      because the content shows where it belongs only when it is written well. When
+      authors improve one page at a time until its type is clear, the structure follows
+      the content, and each change is small enough to review.
   - id: DF-02-002
     priority: SHOULD
     kind: process
     statement: >-
       Maintain navigation structure to avoid link breakage when moving or renaming files.
+    rationale: >-
+      Readers and other pages link to a page by its path. When a file moves or changes
+      its name and nothing points the old path to the new one, those links break, and a
+      reader who follows them finds nothing.
 - id: DF-03
   title: Tutorials
   specs:
@@ -72,17 +101,30 @@ groups:
     statement: >-
       Author tutorials as practical lessons that help learners acquire new skills through
       guided, hands-on experience.
+    rationale: >-
+      A tutorial is for a reader who does not yet have the skill. That reader learns
+      from doing the work with guidance, not from a description of the work. A tutorial
+      that only describes gives the learner nothing to practice.
   - id: DF-03-002
     priority: MUST
     kind: process
     verification_debt: '#2571'
     statement: Require that each tutorial is an activity where the learner learns by doing.
+    rationale: >-
+      A learner gets a skill from doing the steps, not from reading about them. When
+      each part of the tutorial is an action, the learner practices the skill as they
+      read.
   - id: DF-03-003
     priority: MUST
     kind: process
     verification_debt: '#2571'
     statement: >-
       Ensure tutorials produce visible results early and often to maintain learner confidence.
+    rationale: >-
+      A learner does not yet know if they are on the correct track. A visible result
+      after each short part tells them that they are, and keeps them working. A long run
+      of steps with no result lets one early error stop the learner with no way to find
+      it.
   - id: DF-03-004
     priority: MUST
     kind: process
@@ -90,6 +132,10 @@ groups:
     statement: >-
       Use first-person plural ("we") in the tutorial narrative to establish tutor/learner
       rapport.
+    rationale: >-
+      "We" tells the learner that the tutor goes through the steps with them. This makes
+      the tutorial a shared activity, not a list of commands, and keeps the learner
+      confident through the steps (DF-03-011 gives the scope of each pronoun).
   - id: DF-03-005
     priority: MUST_NOT
     kind: process
@@ -97,6 +143,10 @@ groups:
     statement: >-
       Forbid alternative learning paths within a single tutorial's primary flow; present a
       single prescribed learning path.
+    rationale: >-
+      A learner cannot yet judge which of two paths is better for them. Each choice adds
+      a decision they cannot make well and a path the author must test. One prescribed
+      path lets the learner finish, and lets the author make sure that every step works.
   - id: DF-03-006
     priority: MUST_NOT
     kind: process
@@ -104,6 +154,10 @@ groups:
     statement: >-
       Exclude in-depth explanations and theoretical discussions from the body of tutorials;
       link to explanatory pages for background.
+    rationale: >-
+      Explanation in a tutorial stops the activity and gives the learner theory before
+      they have the experience to use it. A link to the explanation page keeps the steps
+      short and lets the learner read the background when they are ready.
   - id: DF-03-007
     priority: MUST
     kind: process
@@ -111,24 +165,40 @@ groups:
     statement: >-
       Require every tutorial step to produce a comprehensible result that gives immediate
       feedback.
+    rationale: >-
+      Each step must show the learner that it worked. Without a result they can see and
+      understand, the learner cannot tell an error from success, and an error stays
+      hidden until a later step fails.
   - id: DF-03-008
     priority: MUST
     kind: process
     verification_debt: '#2571'
     statement: >-
       State at the start of each tutorial exactly what the learner will have accomplished.
+    rationale: >-
+      A learner who knows the goal at the start can decide if the tutorial is the
+      correct one for them. They can also see their progress toward the goal while they
+      do the steps.
   - id: DF-03-009
     priority: MUST
     kind: process
     verification_debt: '#2571'
     statement: >-
       Point out specific signs or changes the learner should notice during the tutorial.
+    rationale: >-
+      A new learner does not know which outputs are important. When the tutorial names
+      the signs to look for, the learner can confirm each step and starts to learn what
+      correct operation looks like.
   - id: DF-03-010
     priority: SHOULD
     kind: process
     statement: >-
       provide explicit links to the related Reference and Explanation pages (prerequisites,
       background, deeper rationale). Keep these resources out of the tutorial body.
+    rationale: >-
+      A learner who finishes a tutorial often wants the facts or the reasons behind it.
+      Explicit links let them find those pages, and keeping the pages out of the
+      tutorial body keeps the steps short (DF-03-006).
   - id: DF-03-011
     priority: MUST
     kind: process
@@ -152,6 +222,10 @@ groups:
     statement: >-
       Present how-to guides as goal-oriented directions that resolve a specific real-world
       task or problem.
+    rationale: >-
+      A reader of a how-to guide has a task to do now. A guide that starts from that
+      task, and stops when the task is done, gives that reader the steps and nothing
+      more. A guide organized around a feature makes the reader find their task in it.
   - id: DF-04-002
     priority: MUST
     kind: process
@@ -159,6 +233,10 @@ groups:
     statement: >-
       Assume the reader is a competent user with required basic skills; surface prerequisites
       explicitly rather than embedding lessons.
+    rationale: >-
+      A how-to reader already has the basic skills and wants to finish a task. A lesson
+      in the guide slows that reader down. A stated list of prerequisites lets a reader
+      without the skills see the gap and go to the tutorial first.
   - id: DF-04-003
     priority: MUST
     kind: process
@@ -166,27 +244,46 @@ groups:
     statement: >-
       Require how-to titles to state exactly what the guide shows the user how to do (e.g.,
       start with "How to ...").
+    rationale: >-
+      A reader looks for a how-to guide by the task they must do. A title that names the
+      task lets the reader find the correct guide in a list or a search result before
+      they open it.
   - id: DF-04-004
     priority: MUST
     kind: process
     verification_debt: '#2571'
     statement: Use conditional imperatives (e.g., "If you want X, do Y") when the step applies only under a specific condition.
+    rationale: >-
+      Real tasks have conditions. A conditional imperative puts the condition before the
+      command, so a reader to whom the condition does not apply can skip the step
+      without doing it first.
   - id: DF-04-005
     priority: MUST_NOT
     kind: process
     verification_debt: '#2571'
     statement: >-
       Exclude pedagogical teaching, background history, and extended lessons from how-to bodies.
+    rationale: >-
+      A how-to reader wants to finish a task, not to learn the subject. Teaching and
+      history in the guide hide the steps the reader needs. Those parts belong in a
+      tutorial or an explanation page that the guide can link to.
   - id: DF-04-006
     priority: SHOULD
     kind: process
     statement: >-
       Prefer concise branching ("if this, then that") to prepare users for real-world complexity.
+    rationale: >-
+      Real tasks start from different states and can go differently. Short branches show
+      the reader what to do in each case without a separate guide for each case.
   - id: DF-04-007
     priority: MUST
     kind: process
     verification_debt: '#2571'
     statement: Omit unnecessary steps that do not contribute directly to the specified goal.
+    rationale: >-
+      Each extra step costs the reader time and is one more place where the task can
+      fail. A step that does not move the reader toward the goal gives no value for that
+      cost.
   - id: DF-04-008
     priority: SHOULD
     kind: process
@@ -194,6 +291,10 @@ groups:
       provide a short "Prerequisites" or "Starting points" section (or link to one) that handles
       different starting states and messy real-world setups instead of embedding multiple
       alternative flows.
+    rationale: >-
+      Readers start a task from different setups. One section that handles those setups
+      lets the main steps stay one path. Alternative flows inside the steps make each
+      reader find the part of the guide that applies to them.
   - id: DF-04-009
     priority: SHOULD
     kind: process
@@ -240,6 +341,10 @@ groups:
     kind: process
     verification_debt: '#2571'
     statement: Produce reference material that is neutral, objective, and technical in tone.
+    rationale: >-
+      A reader uses reference material to get facts that they can trust. A neutral,
+      technical tone shows that the text describes the system as it is, not as the
+      author would like it to be.
   - id: DF-05-002
     priority: MUST
     kind: process
@@ -247,16 +352,29 @@ groups:
     statement: >-
       Structure reference content to mirror the physical or logical architecture of the system
       or code being described.
+    rationale: >-
+      A reader who knows the system looks up a fact by where it is in the system. When
+      the reference uses the same structure as the system, the reader can find the fact
+      without a search. It is also easy to see when a part of the system has no
+      reference entry.
   - id: DF-05-003
     priority: MUST
     kind: process
     verification_debt: '#2571'
     statement: Keep reference content dry and free from instruction, discussion, or opinion.
+    rationale: >-
+      A reader goes to reference material to look up a fact, often more than one time.
+      Instructions, discussion or opinion make each fact harder to find, and they belong
+      in a how-to guide or an explanation page.
   - id: DF-05-004
     priority: MUST
     kind: process
     verification_debt: '#2571'
     statement: State facts about behaviors, commands, parameters, versions, and limitations.
+    rationale: >-
+      Reference material is where a reader goes to confirm what the system does. If it
+      does not state the behaviors, parameters, versions and limits, the reader must
+      read the code or guess.
   - id: DF-05-005
     priority: MUST
     kind: process
@@ -264,12 +382,20 @@ groups:
     statement: >-
       Use consistent, standard patterns and formatting in reference documents to make information
       easy to find.
+    rationale: >-
+      When every reference entry has the same structure, a reader learns the structure
+      one time and then finds each fact in the same location on every entry. Different
+      formats make the reader read each entry from the start.
   - id: DF-05-006
     priority: MAY
     kind: process
     statement: >-
       Allow brief code examples in reference material only to illustrate usage, not to provide
       step-by-step instruction.
+    rationale: >-
+      A short example often shows the use of a command or field more clearly than a
+      description. A step-by-step procedure makes the page a how-to guide, which mixes
+      content types (DF-01-003).
   - id: DF-05-007
     priority: MUST
     kind: process
@@ -292,17 +418,29 @@ groups:
     verification_debt: '#2571'
     statement: >-
       Provide explanatory material that focuses on understanding and context for a topic.
+    rationale: >-
+      Explanation is the content type for a reader who wants to understand a subject,
+      not do a task. The other types do not give context or reasons. Without explanation
+      pages, a reader can follow the steps but cannot apply them to a new case.
   - id: DF-06-002
     priority: MUST
     kind: process
     verification_debt: '#2571'
     statement: >-
       Address "Why?" questions by discussing history, design decisions, or technical constraints.
+    rationale: >-
+      The reason for a design is what lets a reader apply it to a case that the
+      documentation does not cover. Design decisions, constraints and their history are
+      the content that the other types leave out.
   - id: DF-06-003
     priority: MAY
     kind: process
     statement: >-
       Permit opinion, perspective, and weighing of approaches in explanatory documents.
+    rationale: >-
+      To understand a design, a reader must see the alternatives and why one was chosen.
+      Opinion and the comparison of approaches are how an explanation page shows that
+      choice.
   - id: DF-06-004
     priority: MUST_NOT
     kind: process
@@ -310,15 +448,28 @@ groups:
     statement: >-
       Exclude practical instructions and dry technical descriptions that belong in Tutorials,
       How-to, or Reference.
+    rationale: >-
+      Instructions and dry technical descriptions have their own content types. In an
+      explanation page, they make the text longer and mix content types (DF-01-003), and
+      they become a second copy of a how-to guide or a reference page that can become
+      different from it.
   - id: DF-06-005
     priority: SHOULD
     kind: process
     statement: Prefer titles that can be read as "About X" for explanatory topics.
+    rationale: >-
+      A title that reads as "About X" tells the reader that the page explains a subject,
+      not a task or a list of facts. The reader can then choose the page by what they
+      want to understand.
   - id: DF-06-006
     priority: MUST
     kind: process
     verification_debt: '#2571'
     statement: Weave connections to related topics to build a web of understanding.
+    rationale: >-
+      Understanding comes from how concepts relate to each other. Links from an
+      explanation page to related subjects let the reader see those relations and move
+      to the next subject that they need.
   - id: DF-06-007
     priority: MAY
     kind: process
@@ -326,11 +477,10 @@ groups:
       Explanation MAY use first-person plural ("we") for the author's reasoning and second person
       ("you") to invite the reader to consider a point.
     rationale: >-
-      DF was silent on Explanation voice, which left the most-used voice in the corpus formally
-      unaddressed. Explanation is discursive and DF-06-003 already permits opinion and
-      perspective, so both pronouns are legitimate here — "we chose a state-machine model
-      because…" and "you might expect this to behave like a queue; it does not" each do work that
-      impersonal prose cannot.
+      Explanation is discussion, and DF-06-003 lets it give opinion. "We" lets the
+      author show their reasons, as in "we chose a state-machine model because…". "You"
+      lets the author ask the reader to think about a point, as in "you might expect
+      this to behave like a queue". Impersonal text cannot do these two jobs as well.
 - id: DF-08
   title: File metadata
   specs:
@@ -339,12 +489,19 @@ groups:
     kind: process
     statement: >-
       Name Diátaxis specification files using snake_case and concise topic descriptors.
+    rationale: >-
+      A consistent file-name style lets a contributor predict the path of a page and its
+      URL. Short topic names keep the URLs short.
   - id: DF-08-002
     priority: SHOULD
     kind: process
     statement: >-
       Place cross-reference sources only in the header metadata and use inline links for cross-spec
       references.
+    rationale: >-
+      When the list of sources is only in the header metadata, a reader finds every
+      source of a page in one location. An inline link puts each cross-reference at the
+      point where the reader needs it.
 - id: DF-09
   title: Prose style
   description: >-
@@ -449,12 +606,13 @@ groups:
       contains them, including source files that are `{% include-markdown %}` fragments rather
       than pages in their own right.
     rationale: >-
-      A fragment is prose, so exempting it leaves it unchecked: roughly 2,800 lines of the Protocol
-      Specification went uncovered because its filenames carried a nav-exclusion prefix. But a
-      fragment is not a page, so page-scoped rules applied to one yield artifacts of the split
-      rather than prose defects — acronym first use (DF-09-003), concept order (DF-09-005), and
-      any rule naming the H1 or nav label. `.markdownlint-cli2.yaml` set the precedent by
-      disabling MD041 for this reason.
+      A fragment is prose, so it must be checked. If the check skips fragments, a large
+      part of a page that is assembled from fragments, such as the Protocol
+      Specification, gets no check. But a fragment is not a page. A rule about a page,
+      such as the first use of an acronym (DF-09-003) or the order of concepts
+      (DF-09-005), gives false findings when it is applied to one part of a page. For
+      the same reason, `.markdownlint-cli2.yaml` turns off MD041, which wants a top-
+      level heading as the first line.
     verification: >-
       Resolving the lint target set over a directory of `{% include-markdown %}` fragments yields
       a non-empty list, and findings cite the fragment's own line numbers.
@@ -486,11 +644,10 @@ groups:
       A documentation check that acts as a blocking gate MUST report an empty target set as a
       distinct failure, and MUST NOT report success when it has resolved no targets.
     rationale: >-
-      A gate that checks nothing and reports success is worse than no gate, because it produces a
-      false clean signal that suppresses the review the gate replaced. This is not hypothetical:
-      the `lint-docs` gate in `check-docs-sync` resolved to zero targets for every fragment of
-      the Protocol Specification and passed, and an American-spelling regression reached `main`
-      through it.
+      A gate that checks nothing and reports success is worse than no gate. It gives a
+      false clean signal, and reviewers then skip the review that the gate replaced. A
+      target set that is empty because of a wrong path or a wrong pattern looks the same
+      as a clean result unless the gate reports it as a failure.
     verification: >-
       Invoking the gate on a path with no lintable targets reports the empty target set and does
       not report success.
@@ -498,6 +655,8 @@ groups:
   - id: DF-09-010
     priority: MUST
     kind: process
+    adr:
+      - ADR-0083
     statement: >-
       Reader-facing `docs/` MUST name a protocol activity by its formal protocol message name and
       code paired with its AS2 wire form — "Report Valid (RV) is implemented in ActivityStreams as
@@ -507,16 +666,17 @@ groups:
       formal name. The prototype class name MAY survive only as a non-rendered identifier, such as a
       mermaid node id.
     rationale: >-
-      Three layers name every activity — the formal protocol message, the prototype class, and the
-      AS2 wire form — and only the first and last are reader-facing. The protocol semantics are not
-      recoverable from the wire form: `Accept(Offer(VulnerabilityReport))`,
-      `TentativeReject(Offer(VulnerabilityReport))` and `Reject(Offer(VulnerabilityReport))` are
-      valid, invalid and closed, and nothing in the wire form says which. So substituting the wire
-      form for the protocol name deletes a layer rather than translating one — the premise #3456 was
-      originally filed on, and rejected. The prototype class name is dropped instead, because an
-      implementer building a conformant peer in another language has no `RmValidateReport`. Naming
-      the pairing here gives the ratchet in `test/architecture/test_docs_activity_verbs.py` a spec ID
-      to cite, the same anchoring DF-09-001 provides for the style guide.
+      Three names identify each activity: the formal protocol message, the prototype
+      class and the AS2 wire form. Only the first and the last are for readers. The wire
+      form does not give the protocol meaning: `Accept(Offer(VulnerabilityReport))`,
+      `TentativeReject(Offer(VulnerabilityReport))` and
+      `Reject(Offer(VulnerabilityReport))` mean valid, invalid and closed, and nothing
+      in the wire form tells which. Thus, a page that uses only the wire form loses the
+      protocol layer. The prototype class name is not used, because an implementer who
+      builds a peer in a different language has no `RmValidateReport` class (ADR-0083).
+      A spec ID for the pairing lets the check in
+      `test/architecture/test_docs_activity_verbs.py` cite the rule, as DF-09-001 does
+      for the style guide.
     verification: >-
       `test/architecture/test_docs_activity_verbs.py` derives each activity's wire form from the
       registered `ActivityPattern` and fails when a guide's mermaid label or prose states a form no
@@ -540,11 +700,11 @@ groups:
       verified against its authority (source code, `specs/*.yaml` entry, or `docs/reference/`
       page) before the change is committed. Faithful copying is not verification.
     rationale: >-
-      A sweep's success criterion is usually "all content accounted for," which a faithful copy
-      satisfies perfectly while propagating a false statement to a second location with more
-      authority than it had in the first. Such a defect is invisible in the source context and
-      becomes falsifiable only once it is read as a first-class assertion in the destination. Two
-      sessions confirmed the mechanism (#3002 under `docs/`, #3342 over `specs/`).
+      A sweep usually counts as done when all content is accounted for. A faithful copy
+      meets that test, even when it moves a false statement to a new location where it
+      has more authority than before. The error is often not visible in the source
+      context and shows only when the claim is read as a statement on its own in the new
+      location. Only a check against the authority finds it.
     verification: >-
       For any diff that adds a block to a `docs/` page which appears verbatim or near-verbatim
       elsewhere under `docs/` (or removes it from another page in the same change), each claim in
@@ -609,12 +769,13 @@ groups:
       own, where depending means using a concept the higher-level page introduces without
       introducing, defining, or linking out for it.
     rationale: >-
-      This is the rule levels exist to support, and the reviewable ordering rationale that
-      was previously absent: before it, no ordering decision could be shown to be wrong,
-      so none could be reviewed and drift was undetectable. A violation means the page is
-      misplaced, its prerequisites are unstated, or it is doing two jobs. It extends
-      DF-09-005 from within a page to between pages, and SG-11's rule that a cross-page
-      concept edge is a hyperlink supplies the escape: linking out satisfies the rule.
+      This is the rule that levels exist to support. It makes each ordering decision one
+      that a reviewer can show to be wrong, so a page that goes out of order can be
+      found. A violation means that the page is in the wrong location, that its
+      prerequisites are not stated, or that it does two jobs. It extends DF-09-005 from
+      the inside of a page to the relation between pages. A link to the page that
+      introduces the concept satisfies the rule, because SG-11 makes a link the
+      connection between concepts on different pages.
     verification: >-
       A check compares each page's declared `level` against the levels of the pages it
       depends on and fails on any dependency whose level is higher. `docs-level-order`
@@ -636,14 +797,16 @@ groups:
       `docs/reference/codebase/` — MUST be excluded from the reader-facing navigation while
       remaining published and reachable.
     rationale: >-
-      The working record is a different kind of content, not a greater depth of the same
-      content. It is also the bulk of the navigated site, which is what makes the tree read as
-      accretion. Research pages are *not* working record — they
-      are reader-facing material for `process-researcher` and do carry a level (ADR-0102) — so
-      they are outside this requirement. User stories are working record because each one
-      records a requirement the implementation was traced against, read when a question
-      about that requirement arises rather than in sequence; the reader-facing index that
-      introduces them stays leveled (#3526). Exclusion is demotion, not retirement (#3281).
+      The working record is a different kind of content, not a deeper level of the same
+      content. It is also a large part of the site, so if it stays in the reader-facing
+      navigation, readers must go through it to find the pages for them. Research pages
+      are not working record. They are reader-facing material for `process-researcher`
+      and declare a level (ADR-0102), so this requirement does not apply to them. User
+      stories are working record because each story records a requirement that the
+      implementation was traced against. A contributor reads a story when a question
+      about that requirement comes up, not in sequence. The reader-facing index that
+      introduces the stories keeps its level. The pages stay published and reachable,
+      because contributors and auditors still need them.
     verification: >-
       `uv run docs-frontmatter` fails when a page matched by `WORKING_RECORD_PATTERNS`
       (`vultron/metadata/docs/page_schema.py`) is listed in the `mkdocs.yml` nav or matched
@@ -659,12 +822,13 @@ groups:
       A project working-record page (DF-11-003) MUST declare
       `stakeholder_type: [project-contributor]` and MUST NOT be assigned a `level`.
     rationale: >-
-      Split from DF-11-003 because that item is verified against `mkdocs.yml`
-      while this one is verified against page frontmatter, and bundling them let a
-      tree satisfy the navigation half with every declaration still missing. A
-      level on the working record is a category error, but it is addressed to
-      somebody, so it declares a type. The absent level is then a property of one
-      audience's material, not an exemption.
+      A level on the working record has no meaning, because the working record is not
+      part of the reader path that levels order. But the working record is for a
+      specific audience, contributors, so it declares a type. The absent level is then a
+      property of the material for one audience, not an exemption. This rule is separate
+      from DF-11-003 because it is checked against page frontmatter, and DF-11-003 is
+      checked against `mkdocs.yml`. One combined rule could pass on the navigation while
+      every declaration is missing.
     verification: >-
       The frontmatter validator confirms each working-record page declares
       `[project-contributor]` and enforces the absence of `level` rather than defaulting one.
@@ -704,18 +868,18 @@ groups:
       every member of its section; or `rendered`, an enumeration produced at build time from
       a registry (DEMOCI-11-009), which is exempt because nothing is committed to drift.
     rationale: >-
-      Every section landing page was a hand-written duplicate of the navigation and every
-      one had drifted from it — children missing, order disagreeing, and one describing a
-      retired taxonomy to readers. The defect class is the duplication, so correcting
-      individual omissions does not prevent recurrence. Two existing tools supply the
-      pattern: `vultron/metadata/adr/index_gen.py` and `demo-scenarios-sync` (ADR-0098).
-      The two exempt shapes exist because generation fixes an index that under-routes and
-      cannot express an argument or a theme; what a routing page owes instead is
-      completeness, which is derivable and therefore checked — the split DEMOCI-11-007
-      already makes between what is generated and what is checked. The declaration is
-      required rather than defaulted so a sub-section cannot be left undecided by omission.
-      Each index's decision is its `contents:` frontmatter, pinned by
-      `test/metadata/docs/test_site_sync.py`.
+      A hand-written landing page is a second copy of the navigation, and it becomes
+      different from the navigation when a page is added, moved or removed. A fix to
+      each missing entry does not stop the next one, because the copy is the cause. A
+      page generated from frontmatter cannot drift, as
+      `vultron/metadata/adr/index_gen.py` and `demo-scenarios-sync` (ADR-0098) already
+      show. The two exempt shapes exist because generation can only list pages, and it
+      cannot give an argument or a theme. A routing page must still link every member of
+      its section. That completeness can be derived, so it is checked, the same split
+      that DEMOCI-11-007 makes between what is generated and what is checked. The shape
+      is a required declaration, so that no section can be left without a decision. Each
+      index records its decision in its `contents:` frontmatter, and
+      `test/metadata/docs/test_site_sync.py` pins that set.
     verification: >-
       The generator's `--check` mode (`uv run docs-site --check`) runs as a pre-commit hook
       and in CI, failing when a generated landing page differs from what frontmatter
@@ -737,12 +901,11 @@ groups:
       routing page that links each member, with the navigation carrying the group rather
       than enumerating the members.
     rationale: >-
-      The pattern is already proven here and applied inconsistently:
-      `docs/reference/user_stories/` keeps its whole story set out of the
-      navigation and reaches it through `traceability.md`. The same navigation
-      meanwhile enumerates the decision records, the case states and the generated
-      code pages inline. Same shape of content, opposite treatment; the routing-
-      page treatment is the one to generalize.
+      A navigation that lists a large set of sibling pages one by one is too long to
+      scan, and the pages around the set become hard to find. A routing page keeps the
+      navigation short and still links each member, so no page becomes unreachable. The
+      `docs/reference/user_stories/` set uses this shape: the navigation carries one
+      entry, and `traceability.md` reaches each story.
     verification: >-
       Inspection of `mkdocs.yml` confirms large sibling leaf sets appear as a single group
       entry, and that a routing page links every member so no page becomes unreachable.
@@ -844,12 +1007,12 @@ groups:
       The shared fragment defining the `stakeholder_type` members MUST be generated from the
       frontmatter schema and gated by a check mode, and MUST NOT be hand-maintained.
     rationale: >-
-      Split from DF-11-005 because it is a different artifact with a different source: a
-      landing page is generated from the frontmatter of many pages, while this fragment is
-      generated from the schema that defines the vocabulary. Bundling them let an
-      implementation satisfy one and leave the other neither met nor unmet. Generating it is
-      what keeps DF-11-001's normative enumeration and the list published to readers from
-      disagreeing, which hand-maintenance cannot guarantee.
+      The fragment has a different source from a landing page. A landing page comes from
+      the frontmatter of many pages, but this fragment comes from the schema that
+      defines the vocabulary. Thus, it needs its own requirement and its own check. A
+      generated fragment keeps the list that readers see the same as the normative list
+      in DF-11-001. A fragment that is maintained by hand can become different from the
+      schema with no failure.
     verification: >-
       The generator's `--check` mode runs as a pre-commit hook and in CI, failing when the
       committed fragment differs from what the schema implies. Per DF-09-009 the check fails
@@ -1085,11 +1248,11 @@ groups:
       gated by a check mode that also fails when a reference page has no such entry
       or when the home page or a start page does not link the lookup page.
     rationale: >-
-      Once Reference is no longer a top-level tab (ADR-0136), a returning reader
-      loses the view by type. One generated page gives it back without a type-based
-      top level. Listing a subgroup through its index keeps the page short enough
-      to scan (DF-11-006), and deriving it from the nav and frontmatter keeps it
-      from drifting (DF-11-005).
+      Reference is not a top-level tab (ADR-0136), so a returning reader has no view of
+      the site by content type. One generated page gives that view without a top level
+      organized by type. A subgroup listed through its index keeps the page short enough
+      to scan (DF-11-006). A page derived from the navigation and the frontmatter cannot
+      drift from them (DF-11-005).
     verification: >-
       `uv run docs-site --check` (the `docs-site-sync` pre-commit hook, and
       `test/metadata/docs/test_site_sync.py::TestSiteSync::test_committed_site_artifacts_are_in_sync`
@@ -1145,13 +1308,13 @@ groups:
       when a section member's box (DF-11-022) does not sit after the element carrying
       its anchor and before the next heading of the same or a higher level.
     rationale: >-
-      The author knows where on a page directions onward belong; an automatic insert
-      can only guess, and the guess was the page end. A committed fragment shows the
-      box in a diff and keeps its content generated, so hand placement cannot make it
-      drift from the thread; the message-vocabulary fragments follow the same
-      pattern (ADR-0128). Checking the built site rather than the source catches a
-      box that is missing however the page is assembled, without requiring its
-      placement to be mechanical.
+      The author knows where on a page the directions to the next page belong. An
+      automatic insert can only guess, and the only safe guess is the end of the page,
+      which is wrong for a long page. A committed fragment shows the box in a diff. Its
+      content stays generated, so a box that the author places by hand cannot drift from
+      the thread. The message-vocabulary fragments use the same pattern (ADR-0128). A
+      check over the built site finds a missing box however the page is assembled, and
+      the placement does not need to be mechanical.
     verification: >-
       The generator's check mode fails when a committed fragment differs from what its
       thread implies, or when a fragment exists for a page no longer on its thread.
@@ -1339,10 +1502,12 @@ groups:
       check that enforces this, and the check MUST fail when a declared page does
       not exist.
     rationale: >-
-      A banner a reader trusts must be true. Hand-placed banners drifted: 19 pages
-      outside the normative set still called themselves normative after ADR-0136
-      and ADR-0147 fixed what the set is. Failing on a missing declared page keeps
-      the list current when the Requirements Catalog replaces the per-tier pages.
+      A reader trusts the normative banner only if it is true. Banners that authors
+      place by hand can stay on pages after those pages leave the normative set, so a
+      page outside the set can call itself normative. A check against one declared list
+      of normative pages finds each wrong banner and each missing banner. A failure on a
+      declared page that does not exist keeps the list current when pages move, for
+      example when the Requirements Catalog replaces the per-tier pages.
     verification: >-
       A check over the `include-markdown` directives in `docs/` fails, naming
       `path:line`, when a declared page does not include the banner, when any other

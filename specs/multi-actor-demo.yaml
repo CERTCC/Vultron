@@ -21,6 +21,11 @@ groups:
     statement: >-
       Cross-actor communication MUST occur exclusively via HTTP using the ActivityStreams
       inbox endpoint
+    rationale: >-
+      A demo exists to show that the protocol works between separate actors. If actors
+      exchange data by any path other than the HTTP inbox, the demo can pass while the
+      delivery path that real deployments use is broken. HTTP delivery to the
+      ActivityStreams inbox is the only path that a real peer has.
 - id: DEMOMA-01
   title: Actor Isolation
   specs:
@@ -31,6 +36,11 @@ groups:
     statement: >-
       Each actor in a multi-actor demo MUST run in a separate container with its own DataLayer
       instance
+    rationale: >-
+      Separate containers with separate DataLayers give each actor only the state that
+      the protocol delivers to it. If two actors share a process or a store, one actor
+      can read the state of another actor directly. Then the demo can pass although
+      the messages between them are missing or wrong.
   - id: DEMOMA-01-002
     priority: MUST
     kind: project
@@ -38,6 +48,11 @@ groups:
     statement: >-
       Each actor container MUST expose the actor's identity via its `/actors/{actor_id}` profile
       endpoint so that other containers can discover it at startup
+    rationale: >-
+      Other containers must find an actor before they can send to it. The profile
+      endpoint is the standard way that an ActivityStreams peer learns the inbox and
+      identity of an actor. Without it, each container must hard-code its peers, and a
+      wrong address shows only as a failed delivery later in the run.
   - id: DEMOMA-01-003
     priority: MUST
     kind: project
@@ -45,6 +60,12 @@ groups:
     statement: >-
       Demo startup MUST automatically reset all actor state to a known clean baseline before
       the scenario executes, without requiring manual user intervention
+    rationale: >-
+      State left from an earlier run can satisfy a check that the current run did not
+      earn, or it can cause a failure that the current code did not cause. An
+      automatic reset to a known baseline makes each run start from the same state, so
+      that a result tells you about the current code. A manual step is easy to forget,
+      and CI cannot do it.
   - id: DEMOMA-01-004
     priority: MUST
     kind: project
@@ -89,6 +110,11 @@ groups:
     statement: >-
       Docker Compose configurations for multi-actor demos MUST include a `healthcheck` for
       each actor service that probes the `/health/ready` endpoint
+    rationale: >-
+      A container can be running before its API can accept requests. A healthcheck on
+      `/health/ready` lets Docker Compose know when each actor can receive messages.
+      Without it, the first triggers of a scenario can fail for reasons that have
+      nothing to do with the protocol.
     relationships:
     - rel_type: refines
       spec_id: IMPLTS-05-002
@@ -103,6 +129,11 @@ groups:
     statement: >-
       Dependent services (e.g., a demo orchestration container) MUST use `condition: service_healthy`
       for all actor service dependencies
+    rationale: >-
+      A `depends_on` entry without `condition: service_healthy` waits only for the
+      container to start, not for the actor to be ready. The demo runner can then send
+      its first request to an actor that cannot answer it. The condition uses the
+      healthcheck (DEMOMA-02-001) to hold the runner until every actor is ready.
   - id: DEMOMA-02-003
     priority: MUST
     kind: project
@@ -110,6 +141,12 @@ groups:
     statement: >-
       Port mappings, network names, and required environment variables MUST be documented
       in the `docker-compose.yml` file or an accompanying `README.md`
+    rationale: >-
+      A developer who runs or debugs a demo must know which port reaches which actor
+      and which variables configure it. If this information is only in the code, each
+      person must find it again, and a wrong value gives a failure that is hard to
+      diagnose. A record next to the Compose configuration keeps it in one known
+      place.
 - id: DEMOMA-03
   title: Acceptance Tests
   specs:
@@ -120,6 +157,11 @@ groups:
     statement: >-
       Each multi-actor demo scenario MUST include an acceptance test that validates the end-to-end
       workflow deterministically
+    rationale: >-
+      A scenario script can run to the end without proof that the protocol did what
+      the scenario claims. An acceptance test checks the result of the complete
+      workflow. A deterministic test gives the same verdict for the same code, so a
+      failure points to a defect and not to chance.
   - id: DEMOMA-03-002
     priority: MUST
     kind: project
@@ -127,6 +169,11 @@ groups:
     statement: >-
       Acceptance tests MUST assert final state for each actor (e.g., correct RM/EM/CS state,
       expected case ledger entries)
+    rationale: >-
+      A run that ends without an error can still leave an actor in the wrong RM, EM or
+      CS state, or with a ledger that is missing an entry. Checks on the final state
+      of each actor find these defects. Checks on one actor only cannot find a replica
+      that did not receive an update.
   - id: DEMOMA-03-003
     priority: MUST
     kind: project
@@ -134,6 +181,10 @@ groups:
     statement: >-
       Acceptance tests MUST be reproducible: the same test on the same codebase MUST produce
       the same result on successive runs
+    rationale: >-
+      A test that passes on one run and fails on the next gives no information about
+      the code. Developers then learn to ignore its failures, and a real defect can
+      hide among them. A reproducible test lets a failure count as evidence.
 - id: DEMOMA-04
   title: Scenario Coverage
   specs:
@@ -143,6 +194,11 @@ groups:
     statement: >-
       Each scenario SHOULD include a summary of the expected CVD workflow steps and the expected
       final RM/EM/CS state for each actor
+    rationale: >-
+      A reader must know what the scenario is expected to do before the reader can
+      judge whether a run is correct. A summary of the expected workflow steps and
+      final states gives that reference. Without it, the script itself becomes the
+      only description of the expected result, and a wrong script then looks correct.
 - id: DEMOMA-05
   title: Demo Trigger Protocol
   specs:
@@ -170,6 +226,11 @@ groups:
     statement: >-
       Scenario demo scripts MUST NOT construct and POST raw ActivityStreams JSON directly
       to an actor's inbox as a substitute for calling that actor's trigger endpoint
+    rationale: >-
+      A demo script that posts raw ActivityStreams JSON to an inbox creates a message
+      that the sending actor did not decide to send. Its behavior tree does not run,
+      so the demo cannot find a defect in that logic. The trigger endpoint is the path
+      on which the sending actor makes the decision itself (DEMOMA-05-001).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-00-001
@@ -228,6 +289,11 @@ groups:
       The rv (Reporter + Vendor) demo scenario MUST execute a complete CVD lifecycle
       ending in final case state VFDPxa (Vendor aware, Fix ready, Fix Deployed, Public aware,
       no exploit public, no active attacks)
+    rationale: >-
+      The rv scenario is the smallest scenario that runs the complete CVD lifecycle
+      between two parties. VFDPxa is the state in which the fix is ready and deployed
+      and the public is aware. A run that ends in any other state has not completed
+      the lifecycle that this scenario exists to show.
   - id: DEMOMA-06-002
     priority: MUST
     kind: project
@@ -238,6 +304,12 @@ groups:
       received (RM.RECEIVED), (2) report validated (RM.VALID), (3) case engaged
       (RM.ACCEPTED), (4) embargo active (EM.ACTIVE), (5) fix ready (CS.VFd), (6) fix
       deployed (CS.VFD), (7) publicly disclosed (CS.VFDPxa).
+    rationale: >-
+      Each checkpoint is a protocol event on which the next events depend. A check on
+      the final state alone cannot show which step failed. A check on one DataLayer
+      alone cannot show whether the update reached the other actor. Ordered checks on
+      both DataLayers find the first step that went wrong and the actor that did not
+      get the update.
     preconditions:
     - description: Two-actor scenario executing; Vendor, Reporter, and CaseActor containers
         running and reachable; report submitted by Reporter to Vendor
@@ -300,6 +372,11 @@ groups:
       Milestone verification MUST read both the Vendor DataLayer and the Reporter DataLayer
       directly; direct DataLayer reads are acceptable in demo scripts for verification
       (read-only assertions), but MUST NOT be used to write or manipulate actor state
+    rationale: >-
+      A demo must observe the state of an actor to verify it, and a direct read does
+      not change what the protocol did. A write is different. It puts state into an
+      actor that the protocol did not put there, and the demo can then pass although
+      the protocol failed (DEMOMA-05-004).
   - id: DEMOMA-06-004
     priority: MUST
     kind: project
@@ -332,6 +409,11 @@ groups:
       canonical case ledger after the demo completes; the demo script MUST dump the
       case-actor's ledger from the dedicated case-actor container, not from the vendor
       container's co-located sub-actor
+    rationale: >-
+      The dedicated case-actor container holds the canonical case and ledger
+      (DEMOMA-06-004). A ledger read from another container can be a replica or an old
+      local copy. A check on that ledger can pass although the canonical ledger is
+      wrong or empty.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-06-004
@@ -359,6 +441,8 @@ groups:
       holds `CVDRole.VENDOR` in the case (see DEMOMA-15-001); passing a
       Coordinator or other non-Vendor actor whose VFD path never advances
       will always fail the VFD check.
+    adr:
+    - ADR-0058
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-06-002
@@ -379,11 +463,15 @@ groups:
       reached via the Leave(VulnerabilityCase) round-trip (CM-23-001), not via
       Add(ParticipantStatus, rmState=CLOSED).
     rationale: >-
-      PR #1909 (issue #1858) changed RM case closure to flow through
-      Leave(VulnerabilityCase) → Case Actor ledger commit → broadcast, rather than
-      Add(ParticipantStatus, rmState=CLOSED).  This makes the Case Actor the
-      authority for closure and prevents ghost-departures from lost messages.
-      See ADR-0050.
+      CS transitions are participant facts, so they travel as `Add(ParticipantStatus)`
+      to the CASE_MANAGER, which commits them to the case ledger. A dedicated
+      state-machine endpoint would change state with no message and no ledger entry.
+      RM closure is different: the participant leaves the case. The
+      Leave(VulnerabilityCase) round-trip makes the CASE_MANAGER the authority for
+      that departure, so a lost message cannot mark a participant as departed
+      (ADR-0050).
+    adr:
+    - ADR-0050
     relationships:
     - rel_type: implements
       spec_id: CM-23-001
@@ -395,6 +483,11 @@ groups:
       Demo trigger endpoints for participant status transitions MUST use the "notify" naming
       convention (e.g., notify-fix-ready, notify-fix-deployed, notify-published)
       to avoid semantic collision with the ActivityStreams Announce verb
+    rationale: >-
+      `Announce` is an ActivityStreams verb that the protocol uses for case
+      replication. A trigger named `announce-fix-ready` would suggest that the trigger
+      sends an `Announce` activity, but it sends `Add(ParticipantStatus)`. The
+      `notify` names describe what the actor does without that confusion.
   - id: DEMOMA-07-003
     priority: MUST
     kind: project
@@ -410,6 +503,12 @@ groups:
       (5) if all participants are RM.CLOSED, close the case automatically.
       Each step MUST be implemented as a distinct BT node or subtree so that the protocol
       logic is visible in the tree structure and not hidden inside node update() methods.
+    rationale: >-
+      The CASE_MANAGER must check the sender before it changes a record, and it must
+      commit the change before it tells other participants about it. A BT Sequence
+      makes this order part of the tree structure. A step hidden inside one node's
+      `update()` method cannot be seen or tested on its own, and it can be skipped or
+      reordered without notice.
     verification: >-
       Unit tests on the received tree confirm the status entry is committed and fanned
       out as Announce(CaseLedgerEntry) with no raw Add(ParticipantStatus)
@@ -500,6 +599,12 @@ groups:
       therefore could never observe all participants at RM.CLOSED.
       The equivalent closure logic belongs in the Leave(VulnerabilityCase) receive
       path, implemented by #1901 (CM-23-002, CM-23-003, ADR-0051).
+    rationale: >-
+      These nodes check whether all participants are at RM.CLOSED when an
+      `Add(ParticipantStatus)` arrives. On that path the check cannot be true, because
+      the status update always arrives before any Leave. Nodes that can never fire
+      make the tree look as if it closes cases when it does not. Case closure belongs
+      to the Leave(VulnerabilityCase) receive path (CM-23-002).
     testable: true
     relationships:
     - rel_type: refines
@@ -513,6 +618,11 @@ groups:
       The participant status trigger implementation SHOULD be layered: SvcAddObjectToCaseUseCase
       (generic Add(object, target=Case)) as the base, SvcAddParticipantStatusUseCase (new core
       use case) above it, and demo-specific endpoints in demo_triggers.py at the top
+    rationale: >-
+      Each layer adds one thing: the generic case use case adds an object to a case,
+      the status use case adds the participant status rules, and the demo endpoint
+      adds only the demo binding. Code in one layer can then be reused by the layer
+      above it, and the demo endpoints do not repeat the protocol logic.
   - id: DEMOMA-07-005
     priority: MUST_NOT
     kind: project
@@ -526,6 +636,11 @@ groups:
       update twice — once as a raw Add(ParticipantStatus) and once wrapped in
       Announce(CaseLedgerEntry) — producing duplicate state transitions and non-canonical
       messages in peer inboxes. This artefact is superseded by ADR-0019.
+    rationale: >-
+      Each status update must reach a peer once, through the case ledger. A second raw
+      `Add(ParticipantStatus)` gives the peer the same update twice, by two paths, and
+      only one of them is a canonical ledger entry. The peer can then apply the change
+      twice or hold a message that does not match its ledger.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-07-003
@@ -544,6 +659,12 @@ groups:
       The vendor MUST send Create(VulnerabilityCase) (not Announce) to the Reporter as the
       trust bootstrap after case initialization; only the Case Actor uses Announce for
       subsequent case updates.
+    rationale: >-
+      The Reporter does not yet know the Case Actor, but it trusts the vendor to which
+      it sent the report. A `Create(VulnerabilityCase)` from the vendor carries that
+      trust to the case and to its CASE_MANAGER (CBT-01-001). After that, the Reporter
+      can accept `Announce` messages from the Case Actor, which it would otherwise
+      reject as messages from an unknown sender.
     relationships:
     - rel_type: refines
       spec_id: CBT-01-001
@@ -557,6 +678,11 @@ groups:
       OFFER_CASE_OWNERSHIP_TRANSFER, ACCEPT_CASE_OWNERSHIP_TRANSFER, or
       REJECT_CASE_OWNERSHIP_TRANSFER message semantics; these are distinct protocol operations
       with different semantics and different effects on case ownership
+    rationale: >-
+      An ownership transfer changes who is the Case Owner. A CASE_MANAGER delegation
+      does not change the Case Owner. If delegation used the ownership-transfer
+      messages, a receiver could not tell which change was meant, and it could apply
+      an ownership change that nobody asked for.
   - id: DEMOMA-08-004
     priority: MUST
     kind: project
@@ -566,6 +692,12 @@ groups:
       initialization BT: establish the default embargo with both Vendor and Reporter
       immediately as signatories (no invite/accept round-trip), and set EM state to
       ACTIVE before the trust bootstrap is sent to the Reporter
+    rationale: >-
+      The Reporter consented to an embargo when it submitted the report, and the
+      Vendor sets the default embargo when it accepts the report. An invite and accept
+      exchange for these two parties would record an invitation that did not occur. EM
+      must be ACTIVE before the trust bootstrap, so that the Reporter receives a case
+      that already has its embargo.
   - id: DEMOMA-08-005
     priority: MUST
     kind: project
@@ -608,6 +740,10 @@ groups:
       The RVV scenario MUST seed three independent actor containers — Reporter, Vendor1,
       and Vendor2 — with no Coordinator; each container MUST have its own isolated
       DataLayer.
+    rationale: >-
+      RVV is the scenario in which two vendors work on one case without a Coordinator.
+      Each actor in its own container with its own DataLayer makes sure that the
+      vendors exchange data only through the protocol (DEMOMA-01-001).
   - id: DEMOMA-09-002
     priority: MUST
     kind: project
@@ -616,6 +752,11 @@ groups:
       Vendor1 MUST invite Vendor2 to the case after accepting the report (RM→ACCEPTED),
       and Vendor2 MUST accept and become a full signatory participant before the
       scenario advances to fix tracking.
+    rationale: >-
+      Fix tracking for Vendor2 needs Vendor2 to be a participant that is bound by the
+      embargo. If the scenario advances before Vendor2 accepts, the later status
+      updates from Vendor2 are refused, or they come from a party that never agreed to
+      the embargo.
     preconditions:
     - description: Vendor1 RM state = ACCEPTED; VulnerabilityCase created by the CaseActor
         on the dedicated case-actor container; Vendor2 container running
@@ -648,6 +789,12 @@ groups:
       (Reporter, Vendor1, Vendor2), with EM.EXITED and RM.CLOSED for all participants;
       both Vendor1 and Vendor2 MUST each have their own Vendor Fix Path tracked
       independently
+    rationale: >-
+      Each vendor has its own fix path, so the case is complete only when each vendor
+      has reached it on its own. If the scenario tracked one fix path for both
+      vendors, a defect in the path of one vendor would be hidden by the progress of
+      the other. The final state on all three replicas shows that each update reached
+      every party.
   - id: DEMOMA-09-004
     priority: MUST
     kind: project
@@ -657,6 +804,11 @@ groups:
       `docker compose` command using the existing multi-actor Compose stack; the
       scenario script MUST verify LedgerFanout replica convergence (both Reporter and Vendor2
       replicas match the authoritative Vendor1 state) after each major protocol event
+    rationale: >-
+      A single command makes the scenario easy to run in CI and on a developer
+      machine. A convergence check after each major event finds the first event that
+      did not reach a replica. A check only at the end can show that the replicas
+      differ, but not when they became different.
   - id: DEMOMA-09-005
     priority: MUST
     kind: project
@@ -667,6 +819,10 @@ groups:
       `.github/demo-scenarios.json` entry (DEMOCI-11-004) runs it as its own CI
       matrix job; that job MUST run concurrently with (not after) the rv
       job so that total CI wall-clock time does not grow linearly with scenario count
+    rationale: >-
+      A scenario that is not registered does not run in CI, so it can break without
+      notice. A separate concurrent CI job keeps each scenario failure visible on its
+      own. It also keeps the total CI time from growing with each new scenario.
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-03-004
@@ -679,13 +835,11 @@ groups:
       scenario, as in every multi-container scenario; Vendor1 proposes the case
       to it.
     rationale: >-
-      RVV has no Coordinator, but the Case Actor is not a Coordinator: it is the
+      RVV has no Coordinator, but the Case Actor is not a Coordinator. It is the
       CASE_MANAGER participant, and every actor container names the dedicated
-      case-actor container as its `case_actor_service_url` (CP-08-003,
-      CP-08-008, DEMOMA-06-004). The scenarios share one Compose stack, so RVV
-      cannot keep the Case Actor in Vendor1's container without every other
-      scenario doing the same. Running it there was the co-located stepping stone
-      #1876 retired.
+      case-actor container as its `case_actor_service_url` (CP-08-003, CP-08-008,
+      DEMOMA-06-004). The scenarios share one Compose stack, so RVV cannot keep the
+      Case Actor in the Vendor1 container unless every other scenario does the same.
     relationships:
     - rel_type: refines
       spec_id: CP-08-008
@@ -705,6 +859,11 @@ groups:
       Coordinator, and Vendor2 — each with its own isolated DataLayer; the CaseActor
       MUST run as a separate actor identity with its own container and DataLayer, not
       co-located in the Vendor1 container.
+    rationale: >-
+      The RVCV-extension scenario needs four separate parties, and each must see only
+      what the protocol delivers to it. A CaseActor in the Vendor1 container could
+      share state with Vendor1 by a path that the protocol does not have. Then the
+      demo could pass although the messages between them are missing.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001
@@ -729,6 +888,11 @@ groups:
     statement: >-
       Vendor1 MUST invite the Coordinator to the case and the Coordinator MUST accept
       and become a participant holding CVDRole.COORDINATOR and NOT CVDRole.CASE_MANAGER.
+    rationale: >-
+      The Coordinator helps with the case but does not run it. CASE_MANAGER is the
+      role that commits canonical case state, and the CaseActor holds it. If the
+      Coordinator also held CASE_MANAGER, two actors could commit case changes, and
+      the scenario would then not show a Coordinator that helps without control.
     preconditions:
     - description: Vendor1 RM state = ACCEPTED; VulnerabilityCase created with CaseActor;
         Coordinator container running
@@ -763,6 +927,12 @@ groups:
     statement: >-
       The Coordinator MUST suggest Vendor2 to the case and the CaseActor MUST
       transform the offer and forward it to Vendor1 for approval.
+    rationale: >-
+      A participant that is not the Case Owner cannot add a party to the case. It can
+      only suggest one. The CASE_MANAGER changes the suggestion into an
+      `Offer(CaseParticipant)` and sends it to the Case Owner, who decides. This step
+      shows that a suggestion goes to the Case Owner and does not admit Vendor2 by
+      itself.
     preconditions:
     - description: >-
         Coordinator is an accepted participant (DEMOMA-10-003 complete); Vendor2
@@ -796,6 +966,11 @@ groups:
     statement: >-
       Vendor1 MUST approve the Coordinator's suggestion and the CaseActor MUST then
       send Invite(CaseStub+embargo) to Vendor2 on Vendor1's behalf.
+    rationale: >-
+      The Case Owner decides who joins the case, and the CASE_MANAGER sends the
+      invitation. This step shows that an approved suggestion becomes an invitation
+      only after the Case Owner approves it. The invitation carries the embargo, so
+      Vendor2 learns the terms before it joins.
     preconditions:
     - description: >-
         Vendor1 DataLayer holds pending Offer(CaseParticipant) for Vendor2
@@ -826,6 +1001,10 @@ groups:
       The RVCV-extension scenario MUST reach a final state with four participants —
       Reporter, Vendor1, Coordinator, and Vendor2 (plus the CaseActor) — and MUST
       advance to VFDPxa CS with EM.EXITED and RM.CLOSED for all participants.
+    rationale: >-
+      The final state shows that the complete lifecycle ran for every participant,
+      including Vendor2, which joined late. A run that ends with a participant that is
+      not RM.CLOSED, or with the embargo still active, has not finished the scenario.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-03-002
@@ -838,6 +1017,11 @@ groups:
       script MUST verify LedgerFanout replica convergence for Reporter, Coordinator, and
       Vendor2 replicas against the authoritative Vendor1 state after each major protocol
       event.
+    rationale: >-
+      Reporter, Coordinator and Vendor2 each hold a replica that must follow the
+      canonical state. A check after each major event finds the first update that did
+      not reach a replica. A run that is not deterministic gives a verdict that does
+      not depend only on the code.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-09-004
@@ -849,6 +1033,11 @@ groups:
       The implementation of the RVCV-extension scenario MUST add a dedicated parallel
       CI job that runs the scenario concurrently with existing demo CI jobs; the scenario
       MUST be runnable end-to-end via a single orchestration command (e.g., `docker compose`).
+    rationale: >-
+      A scenario that does not run in CI can break without notice. A separate
+      concurrent job keeps its failures visible on their own and keeps CI time from
+      growing with each scenario. A single command lets a developer run the same
+      scenario in the same way.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-09-005
@@ -862,6 +1051,11 @@ groups:
       base URL (e.g., `http://case-actor:7999/api/v2`). `ResolveCaseActorUrlsNode`
       MUST derive `case_actor_id` from this configured URL, not from
       `server_base_url` (per CP-08-001 through CP-08-003).
+    rationale: >-
+      In a multi-container scenario the CaseActor runs on its own container, so its
+      URL is not the URL of Vendor1. An identity derived from `server_base_url` names
+      an actor in the Vendor1 container that does not exist. Messages to it then fail
+      or go to the wrong place (CP-08-003).
     relationships:
     - rel_type: refines
       spec_id: CP-08-003
@@ -881,6 +1075,10 @@ groups:
     statement: >-
       The RVCV-handoff scenario MUST involve four actor identities with isolated
       DataLayers and a separate CaseActor container, as required by DEMOMA-10-001.
+    rationale: >-
+      The RVCV-handoff scenario must keep the same separation as RVCV-extension. Then
+      the only difference between the two scenarios is the ownership transfer, and a
+      difference in their results points to that transfer.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-10-001
@@ -982,6 +1180,11 @@ groups:
       The `VulnerabilityCase.attributed_to` field MUST be updated to the Coordinator's actor
       ID after the ownership transfer completes. All participants MUST observe the
       updated `attributed_to` in their case replicas.
+    rationale: >-
+      `attributed_to` names the Case Owner, and ownership checks read it. If a replica
+      keeps the old value after the transfer, that participant sends Case Owner
+      requests to the wrong actor. It also judges the authority of other participants
+      wrongly.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-10-002
@@ -993,6 +1196,11 @@ groups:
       An active embargo initiated before an ownership transfer MUST remain ACTIVE
       through and after the transfer; the EM state machine MUST transition correctly
       through the ownership change.
+    rationale: >-
+      An ownership transfer changes who runs the case. It does not change the terms
+      that the participants agreed to. If the transfer ended or reset the embargo, a
+      change of the Case Owner could release information early. Each party relies on
+      the embargo staying in force.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-10-006
@@ -1005,6 +1213,10 @@ groups:
       Reporter, Vendor1, Coordinator, and Vendor2 (plus CaseActor) — and MUST advance
       to VFDPxa CS with EM.EXITED and RM.CLOSED for all participants, as required by
       DEMOMA-10-006.
+    rationale: >-
+      The final state shows that the lifecycle completes after the ownership transfer.
+      A transfer that left a participant unable to close the case, or left the embargo
+      active, would show in this check.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-10-006
@@ -1016,6 +1228,10 @@ groups:
       The RVCV-handoff scenario MUST run deterministically and MUST verify LedgerFanout
       replica convergence for all non-owning participants after each major protocol
       event, as required by DEMOMA-10-007.
+    rationale: >-
+      After the transfer, every participant that is not the Case Owner must still
+      receive canonical updates. A check after each major event finds the first update
+      that a replica did not receive, before or after the ownership changes.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-10-007
@@ -1026,6 +1242,10 @@ groups:
     statement: >-
       The implementation of the RVCV-handoff scenario MUST add a dedicated parallel
       CI job and a CLI entry point, as required by DEMOMA-10-008.
+    rationale: >-
+      A scenario that does not run in CI can break without notice, and a scenario that
+      cannot be started from the CLI is hard to run and debug locally. A separate CI
+      job keeps its failures visible on their own.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-10-008
@@ -1037,12 +1257,14 @@ groups:
       The RVCV-handoff scenario script MUST include polling wait steps at each
       asynchronous protocol boundary before driving the next trigger.
     rationale: >-
-      Each of these polling steps was required in RVCV-extension (see ISSUE-1535
-      post-review fixes). Omitting any wait step causes the scenario to proceed on
-      state that has not yet been committed to the target actor's DataLayer,
-      producing consistent CI failures rather than intermittent flakes.
-      This requirement is the RVCV-handoff instance of the general rule
-      DEMOMA-22-001 (see relationships).
+      Each trigger returns before its effect is committed, and the effect commits
+      later on another container. If the script drives the next trigger before the
+      effect is visible to the target actor, that trigger runs on state that does not
+      exist yet. The run then fails, or it passes only when the timing is fortunate.
+      This requirement is the RVCV-handoff instance of the general rule DEMOMA-22-001
+      (ADR-0058).
+    adr:
+    - ADR-0058
     preconditions:
     - description: >-
         RVCV-handoff scenario executing; Vendor1 has just emitted the ownership-transfer
@@ -1098,6 +1320,11 @@ groups:
       base URL (e.g., `http://case-actor:7999/api/v2`). `ResolveCaseActorUrlsNode`
       MUST derive `case_actor_id` from this configured URL, not from `server_base_url`
       (per CP-08-001 through CP-08-003).
+    rationale: >-
+      In a multi-container scenario the CaseActor runs on its own container. An
+      identity derived from `server_base_url` names an actor in the Vendor1 container
+      that does not exist, so messages to it fail or go to the wrong place
+      (CP-08-003).
     relationships:
     - rel_type: refines
       spec_id: CP-08-003
@@ -1323,6 +1550,11 @@ groups:
       Coordinator, and Vendor (plus the CaseActor) — advancing to VFDPxa CS with
       EM.EXITED and RM.CLOSED for all participants; only Vendor's fix path (VFD)
       is tracked.
+    rationale: >-
+      RCV has one Vendor, so only that Vendor has a fix path. The final state shows
+      that the complete lifecycle ran for all three parties. The Coordinator and
+      Reporter have no fix path, so a check on their fix path state would test
+      nothing.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-03-002
@@ -1336,6 +1568,10 @@ groups:
       The RCV scenario MUST run deterministically end-to-end and MUST verify LedgerFanout
       replica convergence for Reporter and Vendor replicas against the authoritative
       Coordinator/CaseActor state after each major protocol event.
+    rationale: >-
+      The Reporter and Vendor replicas must follow the canonical state. A check after
+      each major event finds the first update that did not reach a replica. A
+      deterministic run gives a verdict that depends only on the code.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-09-004
@@ -1348,6 +1584,11 @@ groups:
       registry (DEMOCI-11-001) in the same PR, so that its generated
       `.github/demo-scenarios.json` entry (DEMOCI-11-004) runs it as its own CI
       matrix job and CI failures are independently reported per DEMOCI-03-003.
+    rationale: >-
+      A scenario that is not registered does not run in CI, so it can break without
+      notice. Registration in the same pull request makes sure that the scenario is
+      never in the repository without CI coverage. Its own CI job keeps its failures
+      separate from those of other scenarios.
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-03-002
@@ -1404,6 +1645,11 @@ groups:
       base URL (e.g., `http://case-actor:7999/api/v2`). `ResolveCaseActorUrlsNode`
       MUST derive `case_actor_id` from this configured URL, not from `server_base_url`
       (per CP-08-001 through CP-08-003).
+    rationale: >-
+      In a multi-container scenario the CaseActor runs on its own container, not on
+      the Coordinator container. An identity derived from `server_base_url` names an
+      actor in the Coordinator container that does not exist, so messages to it fail
+      or go to the wrong place (CP-08-003).
     relationships:
     - rel_type: refines
       spec_id: CP-08-003
@@ -1459,8 +1705,10 @@ groups:
       universal chain/hash/RM-closed checks MUST be imported from the shared library,
       not re-implemented inline.
     rationale: >-
-      Copying invariant logic violates the DRY constraint enforced by the shared
-      library architecture introduced by issue #1592.
+      Universal invariants are the same for every scenario, so the shared library
+      keeps them in one place. A copy in the RCV test file can drift from the library.
+      Then a defect fixed in the library stays in RCV, or RCV checks a weaker rule
+      than every other scenario does.
   - id: DEMOMA-12-016
     priority: MUST
     kind: project
@@ -1563,6 +1811,11 @@ groups:
     statement: >-
       C1 MUST invite C2 to the case and C2 MUST accept, becoming a participant
       holding CVDRole.COORDINATOR and NOT CVDRole.CASE_MANAGER.
+    rationale: >-
+      C2 must be a participant before it can suggest a vendor. CASE_MANAGER is the
+      role that commits canonical case state, and the CaseActor holds it. If C2 also
+      held CASE_MANAGER, two actors could commit case changes, and the scenario would
+      not show a coordinator that participates without control.
     preconditions:
     - description: >-
         DEMOMA-13-002 postconditions satisfied: C1 RM=ACCEPTED, CVDRole=CASE_OWNER;
@@ -1600,6 +1853,12 @@ groups:
     statement: >-
       C2 MUST suggest Vendor to the case and the CaseActor MUST transform the
       offer and forward it to C1 for approval.
+    rationale: >-
+      C2 is not the Case Owner, so it cannot add a party to the case. It can only
+      suggest one. The CASE_MANAGER changes the suggestion into an
+      `Offer(CaseParticipant)` and sends it to C1, who decides. This step shows that a
+      suggestion from a coordinator goes to the Case Owner and does not admit the
+      Vendor by itself.
     preconditions:
     - description: >-
         C2 is an accepted participant (DEMOMA-13-003 complete); Vendor
@@ -1637,6 +1896,11 @@ groups:
     statement: >-
       C1 MUST approve C2's suggestion and the CaseActor MUST then send
       Invite(CaseStub+embargo) to Vendor on C1's behalf.
+    rationale: >-
+      The Case Owner decides who joins the case, and the CASE_MANAGER sends the
+      invitation. This step shows that a suggestion becomes an invitation only after
+      C1 approves it. The invitation carries the embargo, so the Vendor learns the
+      terms before it joins.
     preconditions:
     - description: >-
         C1 DataLayer holds pending Offer(CaseParticipant) for Vendor
@@ -1695,6 +1959,10 @@ groups:
       The RCCV-extension scenario MUST run deterministically end-to-end and MUST
       verify LedgerFanout replica convergence for Reporter, C2, and Vendor replicas against
       the authoritative C1/CaseActor state after each major protocol event.
+    rationale: >-
+      Each replica that is not the authority must follow the canonical state. A check
+      after each major event finds the first update that did not reach a replica. A
+      deterministic run gives a verdict that depends only on the code.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-09-004
@@ -1709,6 +1977,10 @@ groups:
       scenario registry (DEMOCI-11-001), so that its generated
       `.github/demo-scenarios.json` entry (DEMOCI-11-004) runs it as its own CI
       matrix job and CI failures are independently reported per DEMOCI-03-003.
+    rationale: >-
+      A scenario that is not registered does not run in CI, so it can break without
+      notice. Its own CI job keeps its failures separate from those of other scenarios
+      (DEMOCI-03-003).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-09-005
@@ -1741,6 +2013,11 @@ groups:
       base URL (e.g., `http://case-actor:7999/api/v2`). `ResolveCaseActorUrlsNode`
       MUST derive `case_actor_id` from this configured URL, not from `server_base_url`
       (per CP-08-001 through CP-08-003).
+    rationale: >-
+      In a multi-container scenario the CaseActor runs on its own container, not on
+      the C1 container. An identity derived from `server_base_url` names an actor in
+      the C1 container that does not exist, so messages to it fail or go to the wrong
+      place (CP-08-003).
     relationships:
     - rel_type: refines
       spec_id: CP-08-003
@@ -1800,10 +2077,9 @@ groups:
       (RM→VALID), and engage the case (RM→ACCEPTED), holding
       CVDRole.CASE_OWNER until it completes the ownership transfer to C2.
     rationale: >-
-      C1 acts as the initial entry point for Reporter's report and establishes
-      the case before delegating ownership.  This mirrors the RVCV-handoff
-      pattern (DEMOMA-10) except the initial owner is a Coordinator, not a
-      Vendor.
+      C1 receives the report and creates the case before it gives ownership to C2.
+      This follows the RVCV-handoff pattern (DEMOMA-11), except that the first Case
+      Owner is a Coordinator, not a Vendor.
     preconditions:
     - description: >-
         All five containers running (Reporter, C1, C2, Vendor, CaseActor);
@@ -1855,9 +2131,11 @@ groups:
       C1 MUST offer case ownership transfer to C2 (TRIG-11-001) and C2 MUST
       accept (TRIG-11-002).
     rationale: >-
-      This is the core RCCV-handoff invariant.  The ownership-transfer
-      trigger pair (TRIG-11-001/002) is the same mechanism as RVCV-handoff
-      (DEMOMA-10-006/007) and must be validated end-to-end.
+      The ownership transfer is the step that makes this scenario different from
+      RCCV-extension. The trigger pair (TRIG-11-001, TRIG-11-002) is the same
+      mechanism that RVCV-handoff uses (DEMOMA-11-002). Two scenarios with different
+      first owners show that the transfer does not depend on the role of the actor
+      that gives up ownership.
     preconditions:
     - description: C2 is a participant; case attributed_to=C1.
     steps:
@@ -2056,15 +2334,11 @@ groups:
       actor IDs holding `CVDRole.VENDOR` in the case's participant index; the f→F
       (fix-ready) transition is gated on VENDOR by `CheckVendorRoleNode`.
     rationale: >-
-      The f→F (fix-ready) transition requires CVDRole.VENDOR; coordinators have no
-      vendor fix path. The d→D (fix-deployed) transition requires CVDRole.DEPLOYER;
-      a vendor who is not a deployer stops at VFd and cannot advance to VFD
-      (CSB-15-002). An actor may hold both VENDOR and DEPLOYER roles and passes
-      both checks. `verify_fix_deployed` previously accepted VENDOR-or-DEPLOYER,
-      which was misleading: a VENDOR-only actor can never reach VFD regardless of
-      the role guard, so accepting VENDOR in the guard gave a confusing error
-      (VFD state check failure) instead of a clear one (DEPLOYER role check
-      failure). Requiring DEPLOYER-only makes the failure mode unambiguous.
+      The f→F (fix-ready) transition requires CVDRole.VENDOR, and a Coordinator has no
+      vendor fix path. If `verify_fix_ready` accepted any actor, a call with a
+      Coordinator would fail only later, as a VFD state that never changed. That
+      failure does not show its cause. The role check names the wrong actor at once.
+      An actor that holds both VENDOR and DEPLOYER passes the check.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-06-002
@@ -2116,15 +2390,12 @@ groups:
       `add_note_to_case`, and `engage_case` — MUST appear at least once in the
       authoritative case-actor log for every multi-actor demo scenario.
     rationale: >-
-      These five types are the minimal coverage shared by all scenarios:
-      report validation, RM engagement (VALID → ACCEPTED), participant state
-      tracking, case closure, and at least one note (the add-note trigger
-      posts a note as one inline `Add(Note)`, committed as
-      `add_note_to_case`). A scenario missing any of the five has not
-      completed the basic CVD lifecycle. `engage_case` is as universal as
-      `validate_report`: emission lives in the shared demo helper
-      layer, not at scenario call sites, so no scenario file names the trigger
-      itself (CONCERN-2243). Paths: see `notes/demo-ci-invariants.md`.
+      These five types are the minimum for every scenario: report validation, RM
+      engagement (VALID to ACCEPTED), participant status, case closure, and at least
+      one note (the add-note trigger posts one inline `Add(Note)`). A scenario without
+      one of the five has not completed the basic CVD lifecycle. The shared demo
+      helpers emit `engage_case`, so no scenario file names it, but every scenario
+      produces it. Paths: see `notes/demo-ci-invariants.md`.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-03-002
@@ -2139,6 +2410,12 @@ groups:
       the rv scenario actually produces. rv does not include an
       `invite_actor_to_case` phase; the Reporter joins by submitting a report,
       not via an invitation.
+    rationale: >-
+      An expected type that rv never produces makes the check fail on every correct
+      run, and a developer then learns to ignore it. rv has no invitation phase,
+      because the Reporter joins when it submits the report. The list must contain
+      only the types that a correct rv run produces, so that a missing type always
+      means a defect.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -2155,6 +2432,11 @@ groups:
       to the universal types (DEMOMA-16-001), because Vendor1 invites
       Vendor2 into the case and Vendor2 explicitly accepts via the
       `accept-case-invite` trigger.
+    rationale: >-
+      Without these two types in the list, a run in which Vendor2 never joined can
+      still pass the type check. The invitation and its acceptance are the steps that
+      make Vendor2 a participant, so their ledger entries are the evidence that RVV
+      ran as specified.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -2175,6 +2457,11 @@ groups:
       recommendation (`accept_actor_recommendation`), CaseActor converts the
       approval into an invitation, and Vendor2 explicitly accepts via the
       `accept-case-invite` trigger.
+    rationale: >-
+      Each listed type is the ledger evidence of one step in the suggest and approve
+      flow. If one is missing from the list, a run that skipped that step can still
+      pass. With all four, the check fails when the Coordinator suggestion, the
+      approval by Vendor1 or the acceptance by Vendor2 did not happen.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -2194,15 +2481,10 @@ groups:
       ownership transfer to become the new CASE_OWNER (TRIG-11-002, CM-21-007),
       and Coordinator then invites Vendor2 who also accepts.
     rationale: >-
-      In addition to the semantic-type coverage, RVCV-handoff is the scenario
-      planned to exercise the non-linear RM path R → I → V (tentative
-      rejection then acceptance, implementation tracked in #2050): Vendor1
-      will initially invalidate the report (RI), then re-validate after the
-      Reporter provides clarifying information via a case note. This RM
-      state-transition path will be verified by `demo_check` assertions in
-      the scenario script, not by `semantic_type` presence in the invariant
-      harness, because R → I → V produces the same `validate_report` ledger
-      event as the linear R → V path.
+      The ownership transfer is the step that makes this scenario different from
+      RVCV-extension. Without `accept_case_ownership_transfer` in the list, a run in
+      which the Coordinator never became the Case Owner can still pass the type check.
+      The invitation types show that the Coordinator and Vendor2 joined.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -2221,6 +2503,11 @@ groups:
       C2 accepts the invitation and then accepts the ownership transfer to
       become the new CASE_OWNER (TRIG-11-002, CM-21-007), and C2 then invites
       the Vendor who also accepts.
+    rationale: >-
+      The ownership transfer is the step that makes this scenario different from
+      RCCV-extension. Without `accept_case_ownership_transfer` in the list, a run in
+      which C2 never became the Case Owner can still pass the type check. The
+      invitation types show that C2 and the Vendor joined.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -2238,6 +2525,10 @@ groups:
       invites the Vendor into the case and the Vendor explicitly accepts via
       the `accept-case-invite` trigger. The Reporter is seated at
       case creation and is not invited (DEMOMA-12-003).
+    rationale: >-
+      Without these two types, a run in which the Vendor never joined can still pass
+      the type check. The Reporter is seated at case creation, so the invitation types
+      in RCV are evidence about the Vendor only.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -2255,9 +2546,10 @@ groups:
       new scenario phase is added or removed, both the spec and the test
       list MUST be updated in the same PR.
     rationale: >-
-      The test list is the code-level implementation of the spec requirement.
-      Allowing them to drift reintroduces the silent-failure risk that
-      motivated issue #1649.
+      The test list is the code form of the requirement. If the two drift, the test
+      can check for a type that the scenario does not produce, or it can stop
+      checking for a step that the scenario still needs. A step can then be lost
+      without a failure. One change that updates both keeps them the same.
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-04-004
@@ -2272,23 +2564,13 @@ groups:
       `accept_invite_actor_to_case`, and `accept_actor_recommendation` in
       addition to the universal types (DEMOMA-16-001).
     rationale: >-
-      RCVCV is the first scenario with two independent coordinators and two
-      independent vendor actors. C1 directly invites V1 and C2; C2 suggests
-      V2 via ADR-0026 (offer_case_participant → C1 approves via
-      accept_actor_recommendation → CaseActor invite → V2 accept); all three
-      vendor/coordinator invitees issue explicit accepts. Verifying these
-      semantic types confirms the full ADR-0026 suggest-actor path and the
-      multi-vendor invitation chain are exercised end-to-end.
-
-      In addition to semantic-type coverage, RCVCV is the scenario planned to
-      exercise the non-linear RM path A → D → A (accepted, then deferred,
-      then re-accepted, implementation tracked in #2050): V1 will accept the
-      case, defer due to competing priorities (RD message), then resume and
-      engage again (RV message). This RM state-transition path will be
-      verified by `demo_check` assertions in the scenario script. The
-      `defer-case` and `engage-case` trigger endpoints both support this path
-      without new BT nodes, since the RM state machine already declares
-      `ACCEPT: DEFERRED → ACCEPTED` as a valid transition.
+      RCVCV has two coordinators and two vendors. C1 invites V1 and C2 directly. C2
+      suggests V2 through the suggest and approve flow (ADR-0026): C1 approves the
+      recommendation, the CaseActor invites V2, and V2 accepts. Each listed type is
+      the ledger evidence of one of these steps, so a run that skipped a step fails
+      the check.
+    adr:
+    - ADR-0026
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -2309,6 +2591,11 @@ groups:
       Coordinator1 approves the recommendation (`accept_actor_recommendation`),
       CaseActor converts the approval into an invitation, and the Vendor
       explicitly accepts via the `accept-case-invite` trigger.
+    rationale: >-
+      Each listed type is the ledger evidence of one step in the suggest and approve
+      flow. If one is missing from the list, a run that skipped that step can still
+      pass. With all four, the check fails when the C2 suggestion, the approval by C1
+      or the acceptance by the Vendor did not happen.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -2329,6 +2616,11 @@ groups:
       `reject_invite_actor_to_case` ledger entry. The Vendor never sends
       `Accept(Invite(Actor, VulnerabilityCaseStub))`, so `accept_invite_actor_to_case`
       does NOT appear in this scenario.
+    rationale: >-
+      The rejection is the step that this scenario exists to show, so its ledger entry
+      must be in the list. The list must not contain `accept_invite_actor_to_case`,
+      because a correct run never produces it. If it were in the list, every correct
+      run would fail.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -2467,10 +2759,10 @@ groups:
       HTTP servers, containers, or network I/O required; each actor MUST
       have its own isolated in-memory DataLayer.
     rationale: >-
-      The scenario is a simulation tool for exploring the protocol state
-      space probabilistically. Container setup would make it unsuitable
-      for local development and CI smoke-testing. Derived from issue #1178
-      planning decisions.
+      The scenario explores the protocol state space by chance, so it must run quickly
+      and many times. Containers and network setup would make it too slow for local
+      development and CI smoke tests. Separate in-memory DataLayers keep each actor
+      separate, as in the container demos (DEMOMA-01-001).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001
@@ -2513,9 +2805,10 @@ groups:
       dispatcher with the emitted activity; no HTTP, ASGIEmitter, or
       real network transport is permitted.
     rationale: >-
-      Direct DataLayer injection allows the simulation to run without
-      network infrastructure while still exercising the full
-      trigger-endpoint→BT→outbox→peer-inbox cascade.
+      A direct call to the dispatcher of the receiving actor delivers each emitted
+      activity without network setup. The receiver still runs its own inbox processing
+      and behavior tree, so the simulation tests the protocol logic of both actors and
+      not only that of the sender.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-18-001
@@ -2589,11 +2882,10 @@ groups:
       function bodies, polling loops, verification blocks, or any other
       logical unit from an existing scenario file.
     rationale: >-
-      Every scenario written by copying the previous one propagates latent bugs
-      alongside valid patterns. Issue #1632 documented residual duplication
-      remaining after PR #1629 reactively extracted five helper modules from
-      five already-written scenarios. The rule enforces extraction-first to
-      prevent recurrence.
+      A scenario written by copying an earlier scenario copies its defects together
+      with its correct patterns. A fix then lands in one copy and not in the others. A
+      helper that every scenario calls gives each pattern one place, so one fix
+      reaches every scenario.
     relationships:
     - rel_type: refines
       spec_id: CS-22-001
@@ -2611,9 +2903,11 @@ groups:
       passes or fails on. A verdict changed by a consolidation PR MUST instead be
       made in its own change, with its own issue.
     rationale: >-
-      Consolidation is behaviour-preserving. A PR that also loosens or tightens a check
-      hides the verdict change inside a refactor, where nobody is looking for it (#3905
-      changed what a demo passes on inside a consolidation and had no issue).
+      A consolidation should change only where the code is, not what it checks. If it
+      also makes a check weaker or stronger, the change in the verdict is hidden
+      inside a refactor, where reviewers do not look for it. Its own change, with its
+      own issue, makes the verdict change visible and lets reviewers judge it on its
+      own.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
@@ -2689,11 +2983,12 @@ groups:
       The RCVCV scenario file MUST be implemented at
       `vultron/demo/scenario/rcvcv_demo.py`.
     rationale: >-
-      The phased structure mirrors the RCCV-extension scenario (the closest
-      prior template) while adding V1's vendor-only VFd path and V2's full
-      VFD path. Having V1 publish first exercises the
-      ThreatTerminationBranchNode on a non-CASE_OWNER vendor participant, a
-      path not covered by any prior scenario (DEMOMA-07-003 correction).
+      The scenario registry derives the script path, the test harness path and the
+      narrative path from the scenario name (ADR-0098, DEMOCI-11-003). A script at any
+      other path is not found by these tools. The fixed path keeps the registered
+      `rcvcv` scenario and its files together.
+    adr:
+    - ADR-0098
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001
@@ -2733,12 +3028,11 @@ groups:
       CaseActor to process that update and emit the embargo teardown
       (EM.EXITED) before V2 publishes.
     rationale: >-
-      Having V1 publish first exercises the ThreatTerminationBranchNode code
-      path where a VENDOR participant (not the CASE_OWNER) triggers embargo
-      teardown — the scenario path corrected in DEMOMA-07-003. Waiting for
-      EM.EXITED before V2 publishes avoids a timing race where the
-      teardown-triggered publication arrives concurrently with V2's
-      publication and produces a non-deterministic ledger order.
+      When V1 publishes first, a VENDOR participant that is not the Case Owner starts
+      the embargo teardown through ThreatTerminationBranchNode (DEMOMA-07-003). This
+      shows that teardown does not depend on the role of the sender. If V2 publishes
+      before the teardown commits, the two publications race, and the ledger order
+      changes from run to run.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-07-003
@@ -2793,12 +3087,10 @@ groups:
       a `_CHAIN_ACTORS` list of scenario-role actor names (reporter, c1, v1, c2,
       v2, case-actor), and `_RCVCV_EXPECTED_SEMANTIC_TYPES` per DEMOMA-16-009.
     rationale: >-
-      The invariant harness is the CI-level acceptance test for the scenario.
-      The three scenario-specific count checks verify that the multi-party
-      invitation and suggest-actor flows were exercised end-to-end. The
-      per-actor chain checks confirm ledger contiguity for all five actor
-      devlogs. Derived from the RCCV-extension invariant harness as the
-      closest prior template.
+      The invariant harness is the CI acceptance test for the scenario. The
+      scenario-specific count checks show that the invitation and suggest flows ran
+      for each party. The chain checks for each actor show that each of the five
+      devlogs holds a ledger with no gaps.
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-04-001
@@ -2817,14 +3109,13 @@ groups:
       `Offer(CaseParticipant)` to C1, C1 posts `accept-actor-recommendation`,
       CaseActor sends `Invite` to V2, and V2 posts `accept-case-invite`.
     rationale: >-
-      The ADR-0026 flow is the accepted pattern for coordinator-to-case actor
-      suggestion (ADR-0026). The RCVCV scenario is the first to exercise C2
-      (a non-CASE_OWNER coordinator) suggesting a vendor; prior scenarios
-      (RCCV-extension) exercised C2 suggesting an existing vendor, but RCVCV
-      adds V2 as a new participant. The no-mail-carrying rule (DEMOMA-03-003)
-      requires that the demo orchestrator never post directly to another
-      actor's inbox; the invite must arrive via the normal routing path and
-      be detected by polling.
+      This flow adds a new participant through a suggestion from a coordinator that is
+      not the Case Owner (ADR-0026). It is the path that admits V2. The invitation
+      must arrive through normal delivery and be found by polling. A demo that posts
+      the invitation into the inbox of V2 would skip the delivery path that the
+      scenario exists to test.
+    adr:
+    - ADR-0026
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-03-003
@@ -2884,9 +3175,10 @@ groups:
       report_submission, c2_suggests_v2, sync_verification, notes_exchange,
       fix_lifecycle, publication, case_closure, and dump_case_ledgers.
     rationale: >-
-      The phased structure mirrors the RCCV-extension scenario (the closest prior
-      template) while adding V1's vendor-only VFd path and V2's full VFD path.
-      Phase ordering reflects temporal protocol constraints.
+      Each phase depends on the state that the phases before it create. Invitations
+      come before suggestions, the fix lifecycle comes before publication, and
+      publication comes before closure. The ledger dump comes last so that it holds
+      the complete run. The fixed order makes a failure point to one phase.
     preconditions:
     - description: >-
         All six containers running (Reporter, C1, V1, C2, V2, CaseActor); all
@@ -3076,13 +3368,12 @@ groups:
       The rcv-embargo scenario file MUST be implemented at
       `vultron/demo/scenario/rcv_embargo_demo.py`.
     rationale: >-
-      The phased structure mirrors prior RCV/RVCV scenarios while inserting
-      embargo lifecycle phases between report setup and fix-lifecycle. Asserting
-      EM state at phase boundaries catches regressions where an embargo trigger
-      silently fails and the scenario continues in an unexpected state.
-      Variation (b) places the EP message after report submission, consistent
-      with the protocol definition: R already has an established case before
-      proposing embargo terms.
+      The scenario registry derives the script path, the test harness path and the
+      narrative path from the scenario name (ADR-0098, DEMOCI-11-003). A script at any
+      other path is not found by these tools. The fixed path keeps the registered
+      `rcv-embargo` scenario and its files together.
+    adr:
+    - ADR-0098
     lint_suppress:
     - phantom_path_ref
     relationships:
@@ -3115,6 +3406,8 @@ groups:
       propose→accept→active flow is a composable unit that both rcv-embargo
       and rcvv-embargo scenarios require; a single helper prevents duplication
       and ensures both scenarios exercise identical protocol steps.
+    adr:
+    - ADR-0113
     note: >-
       The sequence was first written in the peer voice ("coordinator polls for
       the EP message"); under ADR-0113 the proposal reaches the other
@@ -3158,10 +3451,10 @@ groups:
       sub-command in `vultron/demo/cli.py`, consistent with the naming
       convention of existing scenario commands.
     rationale: >-
-      The CLI is the single entry point for all demo scenarios (DC-01-001).
-      The `rcv-embargo` name makes the embargo-lifecycle focus explicit and
-      distinguishes this scenario from the base `rcv` scenario if one is
-      ever added.
+      Each scenario has one CLI sub-command, so a developer can run it by name
+      (DC-01-001). The `rcv-embargo` name tells the reader that this scenario is about
+      the embargo lifecycle. It also keeps the name different from the base `rcv`
+      scenario (DEMOMA-12).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001
@@ -3178,11 +3471,10 @@ groups:
       The CI devlogs directory for the run MUST use the scenario-role naming
       convention: `reporter`, `coordinator`, `vendor`, `case-actor`.
     rationale: >-
-      CI coverage of the embargo lifecycle from day one avoids the deferred-add
-      pattern that required a later DEMOCI-06 amendment for earlier scenarios.
-      `full_suite_only: false` places the scenario in the minimum PR set,
-      consistent with the decision recorded in issue #1222 planning: default to
-      add-now/remove-later rather than deferred adds.
+      The embargo lifecycle is a core part of the protocol, so a defect in it must be
+      found on the pull request that causes it. A scenario that runs only in the full
+      suite finds that defect later, after the pull request merges. A scenario in the
+      PR set runs on each pull request.
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-04-001
@@ -3198,13 +3490,11 @@ groups:
       check MUST be the ones the CASE_MANAGER's commit path emits, read from the code rather
       than hand-listed here.
     rationale: >-
-      The scenario-specific invariants confirm that all three embargo protocol
-      messages (EP, EA, ET) were recorded in the ledger — not just that the
-      scenario ran without crashing. The PEC consent-state check verifies that
-      participant embargo consent transitions were emitted and recorded, which
-      is the minimal proof that the PEC consent rows were exercised. Requiring
-      semantic-type confirmation from a first live run prevents the harness from
-      silently passing with wrong or missing semantic type strings.
+      The invariants confirm that the ledger records the proposal, the acceptance by
+      the Case Owner and the termination, and in that order. A run that only did not
+      crash shows none of this. If the test listed the type strings by hand, a rename
+      in the code would leave it checking for strings that do not occur. Strings
+      read from the code change with the code.
     lint_suppress:
     - phantom_path_ref
     relationships:
@@ -3329,11 +3619,11 @@ groups:
       MUST poll the CASE_MANAGER's canonical case for `em_state == EM.EXITED`
       and assert it using `demo_check`.
     rationale: >-
-      The termination is adjudicated and committed by the CASE_MANAGER; the
-      terminating actor's own replica moves only when that commit is announced
-      (EP-09-008), so it is not the place to read the result immediately after
-      delivery. Polling the canonical case confirms the teardown was committed
-      before the helper returns (#3918).
+      The CASE_MANAGER decides and commits the termination. The replica of the
+      terminating actor changes only when the CASE_MANAGER announces that commit
+      (EP-09-008). A read of that replica just after delivery can show the old state.
+      A poll of the canonical case shows that the teardown was committed before the
+      helper returns.
   - id: DEMOMA-20-012
     priority: MUST
     kind: project
@@ -3378,13 +3668,12 @@ groups:
       The rcvv-embargo scenario file MUST be implemented at
       `vultron/demo/scenario/rcvv_embargo_demo.py`.
     rationale: >-
-      The phased ordering reflects the temporal constraints of the embargo
-      protocol: revision requires an ACTIVE embargo (phase 3 must follow
-      phase 2); V2 late-invite after revision simulates a short-deadline vendor
-      pattern (variation f); accidental collapse via CS.P must come after both
-      vendors have progressed through the fix lifecycle so the ledger contains
-      a complete picture of fix-ready states before collapse. Phase-boundary
-      assertions catch silent failures.
+      The scenario registry derives the script path, the test harness path and the
+      narrative path from the scenario name (ADR-0098, DEMOCI-11-003). A script at any
+      other path is not found by these tools. The fixed path keeps the registered
+      `rcvv-embargo` scenario and its files together.
+    adr:
+    - ADR-0098
     lint_suppress:
     - phantom_path_ref
     relationships:
@@ -3417,6 +3706,8 @@ groups:
       can be reused if future scenarios add multiple revision cycles. Accepting
       from REVISE state uses the same `trigger_accept_embargo` endpoint as
       accepting from PROPOSED; no new endpoint is needed.
+    adr:
+    - ADR-0113
     note: >-
       The sequence was first written in the peer voice, with a non-owner's
       acceptance moving `REVISE → ACTIVE`; under ADR-0113 only the owner's
@@ -3484,7 +3775,9 @@ groups:
       sub-command in `vultron/demo/cli.py`, consistent with the naming
       convention of existing scenario commands.
     rationale: >-
-      The CLI is the single entry point for all demo scenarios (DC-01-001).
+      Each scenario has one CLI sub-command, so a developer can run it by name
+      (DC-01-001). Without it, the scenario can run only through its module, and the
+      CLI does not show that the scenario exists.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001
@@ -3501,9 +3794,10 @@ groups:
       The CI devlogs directory for the run MUST use the scenario-role naming
       convention: `reporter`, `coordinator`, `vendor`, `vendor2`, `case-actor`.
     rationale: >-
-      CI coverage from day one, consistent with the decision recorded in issue
-      #1222 planning: default to add-now/remove-later rather than deferred adds.
-      `full_suite_only: false` places the scenario in the minimum PR set.
+      The revision and the collapse of an embargo are core parts of the protocol, so a
+      defect in them must be found on the pull request that causes it. A scenario that
+      runs only in the full suite finds that defect later, after the pull request
+      merges. A scenario in the PR set runs on each pull request.
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-04-001
@@ -3641,10 +3935,10 @@ groups:
       the CASE_MANAGER's canonical case and the accepting client's replica for
       `em_state == EM.ACTIVE` and assert both using `demo_check`.
     rationale: >-
-      Confirming ACTIVE after the revision ensures the owner's decision
-      completed and the embargo did not stall in REVISE state. The canonical
-      case shows the decision was committed; the accepting client's replica
-      shows the ledger fan-out reached a non-owner (#3918).
+      A check for ACTIVE after the revision shows that the Case Owner decided and that
+      the embargo did not stay in REVISE. The canonical case shows that the
+      CASE_MANAGER committed the decision. The replica of the accepting client shows
+      that the ledger update reached a participant that is not the Case Owner.
   - id: DEMOMA-21-011
     priority: MUST
     kind: project
@@ -3703,11 +3997,11 @@ groups:
       asynchronous protocol boundary on a causal precondition satisfying
       EDF-06-001 through EDF-06-003 before driving the next trigger.
     rationale: >-
-      This generalizes DEMOMA-11-009, which stated the rule for RVCV-handoff
-      alone. Seven of the nineteen sub-issues of Epic #2136 were the same
-      defect — a step proceeding before its enabling event had propagated —
-      reproduced in a different scenario each time. A per-scenario requirement
-      cannot prevent the next scenario from rediscovering it. See ADR-0058.
+      Each trigger returns before its effect is committed, and the effect commits
+      later on another container. A step that runs before its cause is visible
+      operates on state that does not exist yet. A rule for one scenario does not stop
+      the next scenario from making the same mistake, so the rule applies to every
+      scenario (ADR-0058).
     adr:
     - ADR-0058
     relationships:
@@ -3728,12 +4022,11 @@ groups:
       context manager itself, which DEMOCI-01-007 places in
       `vultron/demo/utils.py` alongside `demo_step` and `demo_check`.
     rationale: >-
-      A MUST-level application of DEMOMA-17-001 (extract before reuse) to the
-      gating vocabulary specifically. Hand-rolled loops in scenario modules are
-      how the #2178 defect survived in `rccv_handoff_demo.py` after being fixed
-      in `rvcv_handoff_demo.py` — the fix had nowhere shared to land. The split
-      is deliberate: the control-flow primitive lives with the other context
-      managers, and the observables it gates on live in the helper vocabulary.
+      This applies DEMOMA-17-001 (extract before reuse) to gate predicates. A polling
+      loop written in a scenario module is a copy that the next fix does not reach, so
+      a defect fixed in one scenario stays in another. The split has a reason: the
+      control-flow primitive stays with the other context managers, and the
+      observables that it waits on stay in the helper vocabulary.
     adr:
     - ADR-0058
     relationships:
@@ -3830,9 +4123,10 @@ groups:
       A change to a scenario's protocol flow MUST update that scenario's
       narrative and its declared causal edges in the same pull request.
     rationale: >-
-      Without this, the conformance check decays into a ratchet that is
-      weakened whenever it fails. Updating both together makes a deliberate
-      protocol change visible as a narrative change, which is the point.
+      If the flow changes and the narrative does not, the causal-edge check fails.
+      The easy fix is then to make the check weaker, and the narrative then checks
+      nothing. A change to both in one pull request makes a protocol change visible
+      as a narrative change, where a reviewer can judge it.
     adr:
     - ADR-0058
     tags:
@@ -3888,11 +4182,12 @@ groups:
       dumps the case ledgers, and only then asserts demo success. The scenario's
       `main()` MUST NOT wrap the run in `try: ... finally: assert_demo_success()`.
     rationale: >-
-      Each scenario previously repeated the same three responsibilities in a
-      slightly different order, and the `finally: assert_demo_success()` shape in
-      `main()` substituted a generic `DemoFailureError` for whatever actually went
-      wrong. One harness fixes the order once for all scenarios: run phases,
-      always dump, then assert.
+      Every scenario must reset the failure record, dump the ledgers, and then assert
+      success, in that order. When each scenario does this itself, the order can
+      differ. A `finally: assert_demo_success()` in `main()` also replaces the real
+      exception with a generic `DemoFailureError`. One shared harness does the three
+      steps in the same order for every scenario and keeps the real cause of a
+      failure.
     relationships:
     - rel_type: implements
       spec_id: DEMOCI-10-001
@@ -3912,10 +4207,10 @@ groups:
       Per-actor fetching, 404 handling, JSONL writing, and manifest writing MUST
       live in the shared helper, not in the scenario module.
     rationale: >-
-      Nine copies of the same export loop is exactly the copy-paste that
-      DEMOMA-17-001 forbids, and it is why a defect in the dump had to be fixed
-      nine times. Keeping the scenario-specific participant map in the scenario
-      and the mechanics in the helper puts each fact in one place.
+      The export loop is the same for every scenario. A copy of it in each scenario
+      module is the duplication that DEMOMA-17-001 forbids, and a defect in it must
+      then be fixed in each copy. The scenario keeps only its own participant map, and
+      the helper keeps the mechanics, so each fact is in one place.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
@@ -3973,14 +4268,12 @@ groups:
       for a departed participant's replica to end at its own closure MUST also
       be performed through a helper in `vultron/demo/helpers/sync.py`.
     rationale: >-
-      The same read-tail-then-poll-replicas block was repeated in every scenario
-      module, once before the notes phase and once after closure (the
-      post-closure copy is now the shared own-closure check, #4212). Its timeouts
-      were literals that drifted independently — by module, by replica label,
-      and in some modules by being omitted so the primitive's default applied —
-      and the gate-versus-check choice had to be fixed module by module in one
-      pull request (#2756). One helper puts the loop, the named constants, and
-      the demo-context wrap in one place.
+      Every scenario must wait for its replicas to catch up with the authority, before
+      the notes phase and after closure. A copy of this wait in each scenario lets its
+      timeouts drift by module and by replica, and some copies then use the short
+      default of the primitive. A choice between gate and check must also be made in
+      each copy. One helper keeps the loop, the named timeouts and the demo context in
+      one place.
     verification: >-
       Unit tests for the shared helper assert that the per-replica wait is
       skipped when the authority-tail read yields nothing, that a late joiner
@@ -4013,15 +4306,11 @@ groups:
       `_get_log_entries_for_case` directly. Defining the primitive and
       re-exporting either name from a package `__init__` are exempt.
     rationale: >-
-      The race guard that the concern behind this requirement (#3042) feared was
-      missing was in fact present in every scenario module; what was missing was
-      the single place to fix it. Forbidding the direct call is what stops the
-      coverage loop from being copied back into the next scenario written from a
-      neighbour, which is how the copies arose. The ban covers helper modules
-      too: when it named scenario modules only, a third copy of the loop
-      (`drain_phase1_ledger` in `vultron/demo/helpers/polling.py`) survived the
-      consolidation, because a copy moved into a helper module was invisible to
-      the check (#3906).
+      The shared helper (DEMOMA-23-005) is useful only if nothing calls around it. A
+      direct call to the primitive is how a copy of the coverage loop gets back into a
+      new scenario, which is often written from an earlier one. The ban also covers
+      helper modules, because a copy moved into a helper module is still a copy, and a
+      check of scenario modules only cannot see it.
     verification: >-
       An architecture test under `test/architecture/` parses every module under
       `vultron/demo/` except `vultron/demo/helpers/sync.py` and fails if one
@@ -4081,9 +4370,10 @@ groups:
       fail: an authority with an empty ledger is a demo failure, not a vacuous pass of
       the ledger checks.
     rationale: >-
-      Checks that iterate over the authority's entries pass with nothing to check. An
-      authority with no entries means the case never reached it, or its ledger was
-      never read. #3905 made that state pass without an issue recording the change.
+      Checks that iterate over the entries of the authority pass when there are no
+      entries. An authority with no entries means that the case never reached it, or
+      that its ledger was never read. Either way the run proved nothing, so it must
+      fail and not pass with nothing checked.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-23-002
@@ -4299,6 +4589,11 @@ groups:
       generated `.github/demo-scenarios.json` entry (DEMOCI-11-004) runs it as its
       own CI matrix job and CI failures are independently reported per
       DEMOCI-03-003.
+    rationale: >-
+      A scenario that is not registered does not run in CI, so it can break without
+      notice. Registration in the same pull request as the script makes sure that the
+      scenario is never in the repository without CI coverage. Its own CI job keeps
+      its failures separate from those of other scenarios.
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-03-002
@@ -4348,6 +4643,11 @@ groups:
       container MUST be polled for the arriving case invitation before the
       `accept-case-invite` trigger is driven, following the polling pattern
       established by DEMOMA-12-013.
+    rationale: >-
+      The invitation reaches the Deployer container some time after the Coordinator
+      sends it. If the demo drives the accept trigger before the invitation is there,
+      the accept fails or answers nothing. Then the run fails for a reason that is not
+      a protocol defect, or it passes only when the timing is fortunate.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-09-004
@@ -4502,6 +4802,11 @@ groups:
       (Observer-only state; no VFD suffix). The scenario verifies LedgerFanout
       replica convergence for the Coordinator replica against the authoritative
       Vendor/CaseActor state after each major protocol event.
+    rationale: >-
+      The Coordinator is an Observer with no fix path, so its correct final CS state
+      has no VFD part. A check that expected VFDPxa for the Coordinator would fail on
+      every correct run. A convergence check after each major event finds the first
+      update that did not reach the Coordinator replica.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-03-002
@@ -4521,6 +4826,11 @@ groups:
       file (`test/ci/invariants/test_vc_invariants.py`) built on the shared
       invariant library. The test MUST assert the semantic-type list from
       DEMOMA-16-015 and the pxa-only final state for Coordinator.
+    rationale: >-
+      A scenario that is not registered does not run in CI, so it can break without
+      notice. The invariant test checks the ledger types and the Observer final state
+      that make VC different from the other scenarios. Without those checks, a run
+      that admitted the Coordinator with the wrong role could still pass.
     lint_suppress:
     - phantom_path_ref
     relationships:
@@ -4592,13 +4902,11 @@ groups:
       Case-scoped trigger methods MUST raise if `self.case_id` is `None` at
       call time.
     rationale: >-
-      Cases do not exist at session construction time; the actor must exist
-      before the case does. The immutable-copy pattern (`with_case`) matches the
-      frozen dataclass semantics and avoids a mutable binding that could drift
-      between steps. A trigger names its case by ID, so the session keeps only
-      the ID: a caller holding just the ID binds it directly rather than
-      building a placeholder case, which could not name the case's owner
-      (#5092).
+      A case does not exist when the session is constructed, because the actor must
+      exist before the case does. A `with_case` copy keeps the session frozen and
+      stops a binding from changing between steps. A trigger names its case by ID, so
+      the session keeps only the ID. A caller that holds only the ID binds it directly
+      and does not build a placeholder case, which could not name the Case Owner.
     verification: >-
       `session.with_case(case)` returns a new object; `session.case_id` is
       still `None` on the original. `with_case` accepts a bare case ID. A
@@ -4619,11 +4927,11 @@ groups:
       MUST verify that each method's keyword parameter set is a subset of the
       corresponding trigger request model's fields minus `actor_id`.
     rationale: >-
-      A `**kwargs` shim or `behavior: str` pass-through discards the static
-      checking that is the entire point of `ActorSession`. The drift test closes
-      the `extra="ignore"` silent-drop class at the call site: if the method
-      accepts a kwarg the request model does not have, a misspelled key would
-      pass through silently. Discovered via #3356.
+      A `**kwargs` shim or a `behavior: str` pass-through removes the static check
+      that is the reason `ActorSession` exists. A request model with `extra="ignore"`
+      drops an unknown key without an error. If a method accepts a keyword that its
+      request model does not have, a misspelled key gets through without notice. The
+      drift test stops this at the call site.
     verification: >-
       Architecture ratchet test in `test/architecture/` confirms each
       `ActorSession` method's kwargs are a subset of its request model's fields
@@ -4677,11 +4985,10 @@ groups:
       from `vultron/demo/`. It MUST NOT be deleted before that point; until
       then it serves as the migration's own safety net against regressions.
     rationale: >-
-      The ratchet hunts the `(client, actor_id)` mismatch that `ActorSession`
-      makes structurally unrepresentable. Once no `post_to_trigger` call sites
-      remain, the class of bug it hunts cannot be written, so the ratchet is
-      redundant. Keeping it past that point is maintenance burden with no safety
-      value.
+      The test finds the `(client, actor_id)` mismatch that `ActorSession` makes
+      impossible to write. When no `post_to_trigger` call site remains, that mismatch
+      cannot occur, so the test checks nothing. Until then it protects the migration
+      from new mismatches.
     verification: >-
       After the PR merges, `test/architecture/test_demo_trigger_client_matches_actor.py`
       does not exist and `grep -rn "post_to_trigger" vultron/demo/scenario/

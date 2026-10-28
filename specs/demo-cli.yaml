@@ -19,16 +19,26 @@ groups:
     verification_debt: '#2573'
     statement: >-
       The unified demo MUST be implemented as a `click`-based CLI script at `vultron/demo/cli.py`
+    rationale: >-
+      One entry point in one known file gives every user and every CI job the same way
+      to start a demo. `click` gives sub-commands, options and help text without custom
+      argument code.
   - id: DC-01-002
     priority: MUST
     kind: project
     verification_debt: '#2573'
     statement: The CLI MUST provide a sub-command for each individual demo
+    rationale: >-
+      A sub-command for each demo lets a user run one demo by name. Without it, a user
+      must know the module path of each demo script.
   - id: DC-01-003
     priority: MUST
     kind: project
     verification_debt: '#2573'
     statement: The CLI MUST provide an `all` sub-command that runs every demo in sequence
+    rationale: >-
+      The `all` sub-command runs every demo with one command. This lets a user or a CI
+      job check all demos at once and find a demo that no longer works.
   - id: DC-01-004
     priority: MUST
     kind: project
@@ -36,6 +46,10 @@ groups:
     statement: >-
       The CLI MUST print a human-readable summary on completion of the `all` sub-command indicating
       which demos passed and which failed
+    rationale: >-
+      When many demos run in sequence, the output of one demo is hard to find in the
+      log. A summary at the end tells the user which demos failed, so the user knows
+      where to look.
   - id: DC-01-005
     priority: MUST
     kind: project
@@ -43,6 +57,9 @@ groups:
     statement: >-
       Individual demo scripts MUST retain their existing `if __name__ == "__main__"` entry
       points so they remain directly invokable
+    rationale: >-
+      A developer who works on one demo can run that script directly, without the CLI.
+      This keeps the debug loop for one demo short.
 - id: DC-02
   title: Demo Utilities
   specs:
@@ -53,12 +70,20 @@ groups:
     statement: >-
       Shared demo utilities (`demo_step`, `demo_check` context managers and HTTP client helpers)
       MUST be extracted to `vultron/demo/utils.py`
+    rationale: >-
+      All demos use the same step, check and HTTP helpers. One shared module keeps
+      their behavior and their log output the same in every demo, and a fix to a helper
+      applies to every demo.
   - id: DC-02-002
     priority: MUST
     kind: project
     verification_debt: '#2573'
     statement: >-
       Demo scripts MUST be relocated to `vultron/demo/` and MUST be importable as `vultron.demo.<script_name>`
+    rationale: >-
+      The CLI imports each demo as a module. When the demos are in the `vultron`
+      package, the CLI, the tests and the Docker image can import them the same way,
+      without changes to the import path.
   - id: DC-02-003
     priority: MUST
     kind: project
@@ -87,6 +112,9 @@ groups:
     statement: >-
       Each demo MUST include setup and teardown logic that leaves the DataLayer in a clean
       state after the demo completes
+    rationale: >-
+      A demo that leaves records in the DataLayer can change the result of the next
+      demo or the next run. A clean state after each demo makes each run repeatable.
   - id: DC-03-002
     priority: MUST_NOT
     kind: project
@@ -94,6 +122,10 @@ groups:
     statement: >-
       Demos run in sequence (via the `all` sub-command) MUST NOT share mutable state; each
       demo MUST operate on a freshly initialized DataLayer context
+    rationale: >-
+      When demos share mutable state, the result of one demo depends on the demos that
+      ran before it. Then a demo can pass in `all` and fail alone, or the reverse. A
+      fresh DataLayer context for each demo makes each result independent of the order.
   - id: DC-03-003
     priority: MUST_NOT
     kind: project
@@ -101,6 +133,10 @@ groups:
     statement: >-
       The CLI MUST NOT assume a globally pre-initialized DataLayer; each demo invocation MUST
       create and clean up its own context
+    rationale: >-
+      A demo that depends on a DataLayer it did not create works only when something
+      else prepared that DataLayer first. When each demo creates and cleans up its own
+      context, the demo works the same from the CLI, from a test and from Docker.
 - id: DC-04
   title: Docker Packaging
   specs:
@@ -110,6 +146,9 @@ groups:
     verification_debt: '#2573'
     statement: >-
       The unified demo MUST be packaged as a Docker service (`demo` service in `docker/docker-compose.yml`)
+    rationale: >-
+      A Docker service lets a user run the demos against the containerized API without
+      a local Python environment. It also gives CI the same setup that a user runs.
   - id: DC-04-002
     priority: MUST
     kind: project
@@ -117,6 +156,9 @@ groups:
     statement: >-
       The Docker entry point MUST launch the unified CLI so that the container runs interactively
       and prompts the user to select a demo
+    rationale: >-
+      A user who starts the demo container gets a menu of the demos. The user does not
+      need to know the sub-command names before they start.
   - id: DC-04-003
     priority: MUST
     kind: project
@@ -124,6 +166,10 @@ groups:
     statement: >-
       Individual per-demo Docker services (one service per demo script) MUST be removed from
       `docker-compose.yml` once the unified demo service is operational
+    rationale: >-
+      One Docker service for each demo repeats the same configuration many times, and
+      the copies can become different. With one unified service, there is only one
+      configuration to keep correct.
 - id: DC-05
   title: Unit Testing
   specs:
@@ -132,6 +178,9 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: The unified CLI MUST have unit tests in `test/demo/test_cli.py`
+    rationale: >-
+      The CLI is the entry point for every demo. Unit tests in a known location find
+      errors in the sub-command wiring before a user or a CI job runs the demos.
   - id: DC-05-002
     priority: MUST
     kind: project
@@ -139,6 +188,10 @@ groups:
     statement: >-
       Unit tests for the `all` sub-command MUST mock or stub the individual demo functions
       and verify that every registered demo is invoked exactly once in the expected order
+    rationale: >-
+      A real demo needs a running API, so a unit test that runs real demos is slow and
+      can fail for reasons outside the CLI. Stubs let the test check only the CLI
+      behavior: `all` calls each registered demo one time, in order.
   - id: DC-05-003
     priority: MUST
     kind: project
@@ -146,6 +199,9 @@ groups:
     statement: >-
       Unit tests MUST verify that the CLI exits with a non-zero status code when any demo
       sub-command raises an exception
+    rationale: >-
+      CI and scripts use the exit status to decide if the demos passed. If the CLI
+      exits with zero after a demo fails, the failure is not seen.
   - id: DC-05-004
     priority: MUST
     kind: project
@@ -153,6 +209,10 @@ groups:
     statement: >-
       Unit tests for each sub-command MUST verify the sub-command invokes the correct underlying
       demo function
+    rationale: >-
+      If a sub-command calls the wrong demo function, the user runs a different demo
+      than the one they selected, and the output can still look correct. A unit test
+      for each sub-command finds this error.
 - id: DC-06
   title: Integration Testing
   specs:
@@ -164,6 +224,10 @@ groups:
       (or equivalent Python script) that: 1. Starts the `api-dev` service and waits for it
       to be healthy 2. Runs the unified demo `all` sub-command inside the `demo` container
       3. Verifies all demos complete without errors
+    rationale: >-
+      Unit tests stub the demos, so they do not show that the demos work against a real
+      API. An integration test that starts the API and runs all demos in the container
+      checks the full setup that a user runs.
   - id: DC-06-002
     priority: MUST
     kind: project
@@ -171,8 +235,14 @@ groups:
     statement: >-
       A `integration_tests/README.md` MUST document how to run the integration tests and what
       success looks like
+    rationale: >-
+      The integration tests need Docker and a specific sequence of steps. Without
+      written instructions, a developer cannot run them or tell a pass from a failure.
   - id: DC-06-003
     priority: SHOULD
     kind: project
     statement: >-
       The integration test SHOULD be runnable via a `Makefile` target (e.g., `make integration-test`)
+    rationale: >-
+      A `Makefile` target gives one short command that is easy to remember, and it
+      hides the script path and its arguments.
