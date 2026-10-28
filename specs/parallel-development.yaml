@@ -254,16 +254,18 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          An Epic Issue MUST carry one catalog `theme:` label, and a second one
-          only when its body names the split between the two themes.
+          An Epic Issue MUST carry one `theme:` label, chosen from the active
+          themes in the theme catalog, and a second one only when its body
+          names the split between the two themes.
         rationale: >-
           An Epic is one design idea, and one design idea serves one outcome. An
           unexplained second theme shows that the Epic holds two ideas. A named
           split shows that a person decided that the two themes share one idea.
         verification: >-
-          A query for open Epics returns none with no `theme:` label or more
-          than two, and none with two whose body has no line that names the
-          split.
+          A query for open Epics returns none with no `theme:` label, more
+          than two, or one that is not active in the catalog that
+          `load_theme_catalog()` reads, and none with two whose body has no
+          line that names the split.
       - id: PAD-02-016
         priority: MUST
         kind: process

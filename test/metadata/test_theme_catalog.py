@@ -414,6 +414,10 @@ class TestMain:
         create = next(c for c in gh.calls if c[1] == "create")
         assert create[create.index("--color") + 1] == "5319E7"
         assert create[create.index("--description") + 1] == "Beta works"
+        edit = next(c for c in gh.calls if c[1] == "edit")
+        assert edit[edit.index("--color") + 1] == "1D76DB"
+        assert edit[edit.index("--description") + 1] == "Alpha works"
+        assert "--name" not in edit
         assert all("delete" not in c for c in gh.calls)
         assert "applied 2 label change(s)." in capsys.readouterr().out
 
@@ -443,15 +447,33 @@ class TestMain:
     def test_apply_failure_exits_two(
         self, note: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
+        # The create lands, then the edit fails: a partway failure.
         listing = _FakeGh(_DRIFTED)
 
         def gh(args: Sequence[str]) -> str:
-            if args[1] == "create":
+            out = listing(args)
+            if args[1] == "edit":
                 raise subprocess.CalledProcessError(1, ["gh"], stderr="denied")
-            return listing(args)
+            return out
 
         assert main(["--catalog", str(note), "--apply"], run=gh) == 2
-        assert "denied" in capsys.readouterr().err
+        assert listing.verbs() == [
+            ("create", "theme:beta"),
+            ("edit", "theme:alpha"),
+        ]
+        captured = capsys.readouterr()
+        assert "denied" in captured.err
+        assert "applied" not in captured.out + captured.err
+
+    def test_gh_failure_without_stderr_names_the_error(
+        self, note: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        def gh(args: Sequence[str]) -> str:
+            raise subprocess.CalledProcessError(4, ["gh", *args], stderr="")
+
+        assert main(["--catalog", str(note)], run=gh) == 2
+        err = capsys.readouterr().err
+        assert "exit status 4" in err
 
     def test_apply_renames_a_case_mismatched_label(self, note: Path) -> None:
         gh = _FakeGh(

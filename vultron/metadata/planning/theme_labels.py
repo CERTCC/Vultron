@@ -293,9 +293,9 @@ def _report_gh_failure(
     exc: LabelSyncError | subprocess.CalledProcessError,
 ) -> int:
     """Print a ``gh`` failure and return the setup-error exit code."""
-    detail = (
-        exc.stderr if isinstance(exc, subprocess.CalledProcessError) else exc
-    )
+    detail: object = exc
+    if isinstance(exc, subprocess.CalledProcessError) and exc.stderr:
+        detail = str(exc.stderr).strip()
     print(f"theme-labels: gh failed: {detail}", file=sys.stderr)
     return 2
 
