@@ -203,23 +203,39 @@ def get_hosted_actor_dls(
     ADR-0073, so they need the whole set.  Resolving it through a dependency
     rather than calling ``get_datalayer`` in a loop is what makes it
     *overridable*: an app whose stores were supplied by
-    ``_auto_inject_isolated_datalayer`` or a test fixture keeps them in
-    ``app.state.actor_dls``, and a loop over the process-global factory would
-    reset the on-disk stores while reporting success and leaving the app's real
-    stores untouched.
+    ``_auto_inject_isolated_datalayer`` keeps them in ``app.state.actor_dls``,
+    and a test can override the dependency outright.
 
-    Falls back to ``hosted_actor_ids()`` + ``get_datalayer`` when the app
-    registers nothing, which is the deployment case.
+    The set is enumerated from the serving app's own deployment
+    (:func:`node_db_url_template`, :func:`node_base_url`), and each store is
+    opened under that same template, so on a node that declares one the reset
+    clears that node's stores and no other node's in the same process
+    (DL-07-011, DL-07-014).  An app that declares neither is on configuration,
+    which is the deployment case.
+
+    The stores in ``app.state.actor_dls`` are added to that set, not put in
+    its place.  That registry holds only the actors a path-scoped route has
+    addressed, so an actor created through ``POST /actors/`` and never
+    addressed since is in the deployment but not in the registry.  An app with
+    a registry but no declared template returns the registry alone: no
+    deployment of its own exists to enumerate, and enumerating the configured
+    one would reach stores that are not its own.
     """
-    registry = getattr(getattr(request, "app", None), "state", None)
-    actor_dls = getattr(registry, "actor_dls", None) if registry else None
-    if actor_dls:
+    state = getattr(getattr(request, "app", None), "state", None)
+    actor_dls = getattr(state, "actor_dls", None) if state else None
+    db_url = node_db_url_template(request)
+    if actor_dls and db_url is None:
         return dict(actor_dls)
 
-    return {
-        actor_id: cast(DataLayer, get_datalayer(actor_id))
-        for actor_id in actor_hosts.hosted_actor_ids()
+    hosted: dict[str, DataLayer] = {
+        actor_id: cast(DataLayer, get_datalayer(actor_id, db_url=db_url))
+        for actor_id in actor_hosts.hosted_actor_ids(
+            db_url, node_base_url(request)
+        )
     }
+    if actor_dls:
+        hosted.update(actor_dls)
+    return hosted
 
 
 def outbox_store(dl: DataLayer) -> CaseOutboxPersistence:

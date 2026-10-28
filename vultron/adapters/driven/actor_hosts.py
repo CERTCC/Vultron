@@ -38,12 +38,10 @@ import os
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from vultron.adapters.driven.datalayer_sqlite import (
-    get_all_actor_datalayers,
-)
 from vultron.adapters.driven.datalayer_sqlite.engine import (
     _is_memory_url,
     actor_slug,
+    open_memory_store_slugs,
 )
 from vultron.config import get_config
 from vultron.core.predicates.addressing import normalise_actor_id
@@ -144,9 +142,11 @@ def hosted_actor_ids(
     at runtime (notably the CaseActors a vendor self-hosts under CP-08-003) that
     appear in no configuration file.
 
-    For an in-memory ``db_url`` there are no files to enumerate, so the
-    in-process instance registry is used instead. That is the correct source in
-    that mode: an in-memory store exists only while some instance holds it open.
+    Both arguments name *this node's* deployment.  A route passes its serving
+    app's own template and base URL (``deps.node_db_url_template`` and
+    ``deps.node_base_url``), because several apps in one process each have
+    their own (DL-07-011, DL-07-012).  The configured values are the right
+    default only where one process is one node.
 
     Args:
         db_url: SQLAlchemy URL template. Defaults to ``DatabaseConfig.db_url``.
@@ -159,26 +159,30 @@ def hosted_actor_ids(
     url = db_url if db_url is not None else cfg.database.db_url
     base = base_url if base_url is not None else cfg.server.base_url
 
-    if _is_memory_url(url):
-        return sorted(get_all_actor_datalayers())
-
     return sorted(
         canonical_actor_uri(slug, base) for slug in hosted_actor_slugs(url)
     )
 
 
 def hosted_actor_slugs(db_url: str | None = None) -> set[str]:
-    """Return the slugs of every per-actor store present on disk.
+    """Return the slugs of every per-actor store in one storage deployment.
+
+    For a file deployment these are the ``{stem}-{slug}{suffix}`` files beside
+    the template.  For an in-memory deployment there are no files: a store
+    exists only while its engine is open, so the open stores named under the
+    template's base name are listed instead (``open_memory_store_slugs``).
+    Either way only *db_url*'s own deployment is read, never another one in
+    the same process, and scratch stores are not actor stores (DL-07-013).
 
     Args:
         db_url: SQLAlchemy URL template. Defaults to ``DatabaseConfig.db_url``.
 
     Returns:
-        The set of actor slugs with a store, empty if the directory is absent.
+        The set of actor slugs with a store, empty if there are none.
     """
     url = db_url if db_url is not None else get_config().database.db_url
     if _is_memory_url(url):
-        return set()
+        return open_memory_store_slugs(url)
 
     _, _, location = url.partition("///")
     if not location:
@@ -247,7 +251,7 @@ def local_actor_id(base_url: str | None = None) -> str | None:
 
     A node's *primary* actor is configured via ``VULTRON_ACTOR_ID`` and is
     therefore known before any store exists, unlike the runtime-created
-    CaseActors that :func:`hosted_actor_ids` discovers from stores on disk.
+    CaseActors that :func:`hosted_actor_ids` discovers from the stores that exist.
 
     The env var is read directly rather than through ``vultron.demo.seed_config``
     (which also reads it): production adapters MUST NOT import demo config

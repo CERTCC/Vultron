@@ -228,7 +228,6 @@ class IsolatedActorApp:
         app: The FastAPI application instance for this actor.
         client: A ``TestClient`` wrapping ``app`` with a deterministic
             ``base_url`` (e.g. ``http://actor-name.test``).
-        dl: The isolated in-memory ``SqliteDataLayer`` for this actor.
         base_url: The base URL used to construct actor IDs.
         actor_id: Canonical URI of this app's own actor — the one ``dl`` belongs
             to. Exposed so a test can address it without rebuilding the URL.
@@ -238,10 +237,24 @@ class IsolatedActorApp:
 
     app: FastAPI
     client: TestClient
-    dl: SqliteDataLayer
     base_url: str
-    actor_id: str = ""
+    actor_id: str
     db_url: str = "sqlite:///:memory:"
+
+    @property
+    def dl(self) -> SqliteDataLayer:
+        """The isolated in-memory ``SqliteDataLayer`` of this app's own actor.
+
+        Opened on first access, not when the app is built.  An in-memory store
+        exists while it is open, and an open store is what makes a node list
+        its actor as hosted (DL-07-011).  Opening it eagerly made every node
+        host an actor named by ``actor_slug`` — ``primary`` by default — even
+        when the test never created that actor there, so ``GET /actors/``,
+        ``/info`` and the admin reset all saw a phantom.  A test that seeds or
+        asserts through ``dl`` opens it, and gets the same instance the
+        routes are handed (:meth:`store_for`).
+        """
+        return self.store_for(self.actor_id)
 
     def store_for(self, actor_id: str) -> SqliteDataLayer:
         """Return the store of *actor_id* as hosted by this app.
@@ -341,11 +354,10 @@ def create_isolated_actor_app(
     # node's, so an actor would 404 immediately after being created.
     app.state.db_url = db_url
 
-    # `dl` is this app's own actor's store, for tests that seed or assert
-    # directly. Built through `get_datalayer` so it is the *same instance* the
-    # override hands the routes, and so the actor registers as hosted here.
+    # This app's own actor.  Its store is opened only when a test reads
+    # `IsolatedActorApp.dl` (or the actor is created through the routes), so a
+    # node never lists as hosted an actor that was never created on it.
     own_actor_id = f"{base_url.rstrip('/')}/api/v2/actors/{actor_slug}"
-    isolated_dl = get_datalayer(own_actor_id, db_url=db_url)
 
     # TestClient is not yet entered; the caller drives the lifecycle.
     client = TestClient(app, base_url=base_url)
@@ -353,7 +365,6 @@ def create_isolated_actor_app(
     return IsolatedActorApp(
         app=app,
         client=client,
-        dl=isolated_dl,
         base_url=base_url,
         actor_id=own_actor_id,
         db_url=db_url,

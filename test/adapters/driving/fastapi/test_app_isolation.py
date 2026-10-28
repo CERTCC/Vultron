@@ -126,3 +126,113 @@ def test_create_app_lifespan_cleanup(app1):
     assert app1.state.dispatcher is None
     assert getattr(app1.state, "shared_dl", None) is None
     assert get_actor_dl not in app1.dependency_overrides
+
+
+# ---------------------------------------------------------------------------
+# Two nodes in one process: each enumerates only its own deployment
+# (DL-07-011 to DL-07-014, #5338).
+# ---------------------------------------------------------------------------
+
+_NODE_A = "http://node-a.test/api/v2"
+_NODE_B = "http://node-b.test/api/v2"
+
+
+def _create_actor(client: TestClient, slug: str) -> str:
+    resp = client.post(
+        "/api/v2/actors/", json={"name": slug.title(), "id": slug}
+    )
+    assert resp.status_code == 201, resp.text
+    return str(resp.json()["id"])
+
+
+def _store_count(app, actor_id: str) -> int:
+    """How many rows *actor_id*'s store holds in *app*'s own deployment."""
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+    store = get_datalayer(actor_id, db_url=app.state.db_url)
+    return sum(store.count_all().values())
+
+
+@pytest.fixture
+def two_nodes():
+    """Two ``create_app`` nodes in one process, each with its own base URL.
+
+    Both host a ``case-actor``: the slug alone does not separate the nodes,
+    so a listing that is not read from the node's own deployment shows up
+    as a foreign id or a duplicate.
+    """
+    app_a = create_app(docs_url=None, openapi_url=None, node_base_url=_NODE_A)
+    app_b = create_app(docs_url=None, openapi_url=None, node_base_url=_NODE_B)
+    with TestClient(app_a) as client_a, TestClient(app_b) as client_b:
+        ids_a = sorted(
+            _create_actor(client_a, slug) for slug in ("vendor", "case-actor")
+        )
+        ids_b = sorted(
+            _create_actor(client_b, slug) for slug in ("finder", "case-actor")
+        )
+        yield app_a, client_a, ids_a, app_b, client_b, ids_b
+
+
+def test_each_node_lists_only_its_own_actors(two_nodes, caplog):
+    """``GET /actors/`` reads the serving node's deployment (DL-07-007).
+
+    The listing alone would not show the defect: a foreign actor's store
+    opened in this node's deployment is empty, so it holds no actor record
+    to list.  What shows it is the store itself, so the test also checks
+    that listing opened no store for a foreign actor (DL-07-013).
+    """
+    from vultron.adapters.driven.datalayer_sqlite.engine import (
+        open_memory_store_slugs,
+    )
+
+    app_a, client_a, ids_a, app_b, client_b, ids_b = two_nodes
+    caplog.set_level("WARNING")
+
+    listed_a = sorted(a["id"] for a in client_a.get("/api/v2/actors/").json())
+    listed_b = sorted(a["id"] for a in client_b.get("/api/v2/actors/").json())
+
+    assert listed_a == ids_a
+    assert listed_b == ids_b
+    assert open_memory_store_slugs(app_a.state.db_url) == {
+        "vendor",
+        "case-actor",
+    }
+    assert open_memory_store_slugs(app_b.state.db_url) == {
+        "finder",
+        "case-actor",
+    }
+    assert "shared by two distinct actor ids" not in caplog.text
+
+
+def test_each_nodes_info_reports_itself(two_nodes):
+    """``/info`` names the node's own base URL and actors (DL-07-012)."""
+    _app_a, client_a, ids_a, _app_b, client_b, ids_b = two_nodes
+
+    info_a = client_a.get("/api/v2/info").json()
+    info_b = client_b.get("/api/v2/info").json()
+
+    assert info_a == {"base_url": _NODE_A, "actors": ids_a}
+    assert info_b == {"base_url": _NODE_B, "actors": ids_b}
+
+
+def test_reset_clears_only_the_serving_nodes_stores(two_nodes):
+    """The reset opens each store under the deployment it listed (DL-07-014).
+
+    One of node A's actors is addressed through a path-scoped route first, so
+    node A's per-app registry holds it and not the other: the reset must clear
+    both, and must leave node B's same-slug ``case-actor`` untouched.
+    """
+    app_a, client_a, ids_a, app_b, _client_b, ids_b = two_nodes
+    vendor_a = next(i for i in ids_a if i.endswith("/vendor"))
+    assert client_a.get("/api/v2/actors/vendor").status_code == 200
+    assert all(_store_count(app_a, i) for i in ids_a)
+    counts_b = {i: _store_count(app_b, i) for i in ids_b}
+    assert all(counts_b.values())
+
+    resp = client_a.delete("/api/v2/admin/datalayer/reset/")
+
+    assert resp.status_code == 200
+    assert sorted(resp.json()["n_items"]) == ids_a
+    assert vendor_a in resp.json()["n_items"]
+    assert [_store_count(app_a, i) for i in ids_a] == [0, 0]
+    assert {i: _store_count(app_b, i) for i in ids_b} == counts_b

@@ -50,6 +50,7 @@ from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.deps import (
     get_actor_dl,
+    get_hosted_actor_dls,
     get_trigger_dl,
     node_base_url,
 )
@@ -375,3 +376,57 @@ def test_trigger_dispatcher_is_given_a_wire_render_port():
     assert isinstance(
         getattr(dispatcher, "_wire_render_port", None), As2WireRenderAdapter
     )
+
+
+# ---------------------------------------------------------------------------
+# get_hosted_actor_dls: the node-wide set the admin reset clears (#5338).
+# ---------------------------------------------------------------------------
+
+
+class TestGetHostedActorDls:
+    _BASE = "https://hosted-node.test/api/v2"
+    _TEMPLATE = (
+        "sqlite:///file:hosted-dls-node?mode=memory&cache=shared&uri=true"
+    )
+
+    def _open(self, slug: str) -> tuple[str, SqliteDataLayer]:
+        from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+        actor_id = canonical_actor_uri(slug, base_url=self._BASE)
+        return actor_id, get_datalayer(actor_id, db_url=self._TEMPLATE)
+
+    def test_enumerates_and_opens_the_apps_own_deployment(self):
+        """DL-07-011, DL-07-014: listed and opened under one template."""
+        vendor_id, vendor_dl = self._open("vendor")
+        request = _fake_request(
+            db_url=self._TEMPLATE, node_base_url=self._BASE
+        )
+
+        assert get_hosted_actor_dls(request) == {vendor_id: vendor_dl}
+
+    def test_adds_the_registry_to_the_deployment_not_in_its_place(self):
+        """An actor the registry never saw is still in the node's set."""
+        created_id, created_dl = self._open("created-only")
+        addressed_id = canonical_actor_uri("addressed", base_url=self._BASE)
+        addressed_dl = SqliteDataLayer(
+            db_url=self._TEMPLATE, actor_id=addressed_id
+        )
+        request = _fake_request(
+            db_url=self._TEMPLATE,
+            node_base_url=self._BASE,
+            actor_dls={addressed_id: addressed_dl},
+        )
+
+        hosted = get_hosted_actor_dls(request)
+
+        assert hosted[created_id] is created_dl
+        assert hosted[addressed_id] is addressed_dl
+        addressed_dl.close()
+
+    def test_a_registry_without_a_template_is_returned_alone(self):
+        """No deployment of its own, so the configured one is not read."""
+        only_id = canonical_actor_uri("registered", base_url=self._BASE)
+        only_dl = cast(DataLayer, object())
+        request = _fake_request(actor_dls={only_id: only_dl})
+
+        assert get_hosted_actor_dls(request) == {only_id: only_dl}
