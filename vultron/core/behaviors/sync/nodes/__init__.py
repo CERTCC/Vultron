@@ -27,6 +27,9 @@ Submodules:
 - ``chain``: Chain reconstruction and log entry creation action nodes
 - ``canonical_entry``: Canonical ``payloadSnapshot`` validation (CLP-07)
 - ``replay``: Reject- and Read-driven replay action nodes for replication
+- ``replay_case``: the case a replay or position statement is about
+- ``ledger_position``: the CASE_MANAGER's answer to the ``ledgerPosition``
+  every case activity stamps: lag, split, inert sender (SYNC-18)
 - ``position_statement``: the ``Read(CaseLedgerEntry)`` position check and
   the participant's position statements (SYNC-17)
 - ``genesis_announce``: the genesis-Reject case pre-seed (SYNC-15-002)

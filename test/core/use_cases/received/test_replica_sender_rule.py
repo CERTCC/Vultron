@@ -96,7 +96,7 @@ def _deliver_offer_actor(
         actor=sender_id,
         to=[REPLICA_ID],
     )
-    event = make_payload(activity, receiving_actor_id=REPLICA_ID)
+    event = make_payload(activity, receiving_actor_id=REPLICA_ID, at=dl)
     return OfferActorToCaseReceivedUseCase(
         dl,
         event,  # type: ignore[arg-type]
@@ -124,7 +124,7 @@ def _deliver_participant_status(
         ),
         to=[REPLICA_ID],
     )
-    event = make_payload(activity, receiving_actor_id=REPLICA_ID)
+    event = make_payload(activity, receiving_actor_id=REPLICA_ID, at=dl)
     return AddParticipantStatusToParticipantReceivedUseCase(
         dl,
         event,  # type: ignore[arg-type]

@@ -986,7 +986,7 @@ class TestCLP08002GenesisHashAnchoredToTheOwner:
         # The empty ledger's position names the genesis hash (CLP-08-004).
         inline_case["ledgerPosition"] = {"logIndex": -1, "entryHash": sent}
 
-        event = received_event(parse_activity(body))
+        event = received_event(parse_activity(body), at=dl)
         replica = getattr(event, "object_", None)
 
         assert isinstance(replica, VulnerabilityCase)
@@ -1592,7 +1592,7 @@ class TestADR0041EmbargoInit:
                 ),
                 to=[_CASE_ACTOR_URI],
             )
-            event = make_payload(activity).model_copy(
+            event = make_payload(activity, at=dl).model_copy(
                 update={"receiving_actor_id": _CASE_ACTOR_URI}
             )
             CreateCaseProposalReceivedUseCase(

@@ -254,7 +254,7 @@ def _deliver_invite_to_invitee(
     )
     InviteActorToCaseReceivedUseCase(
         dl,
-        make_payload(invite),
+        make_payload(invite, at=dl),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
     ).execute()
@@ -295,7 +295,7 @@ class TestInviteActorUseCases:
             id_="https://example.org/cases/case1/invitations/1",
         )
 
-        event = make_payload(invite)
+        event = make_payload(invite, at=dl)
 
         result = InviteActorToCaseReceivedUseCase(
             dl,
@@ -336,7 +336,7 @@ class TestInviteActorUseCases:
             actor=sender_id,
             id_=f"{case_id}/invitations/narrative-1",
         )
-        event = make_payload(invite)
+        event = make_payload(invite, at=dl)
 
         with caplog.at_level(logging.INFO):
             InviteActorToCaseReceivedUseCase(
@@ -378,7 +378,7 @@ class TestInviteActorUseCases:
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/case1/invitations/narrative-2",
         )
-        event = make_payload(invite)
+        event = make_payload(invite, at=dl)
 
         with caplog.at_level(logging.DEBUG):
             InviteActorToCaseReceivedUseCase(
@@ -500,7 +500,7 @@ class TestInviteActorUseCases:
 
         first_result = InviteActorToCaseReceivedUseCase(
             dl,
-            make_payload(invite1),
+            make_payload(invite1, at=dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
@@ -517,7 +517,7 @@ class TestInviteActorUseCases:
         assert accepted.activity is not None
         second_result = InviteActorToCaseReceivedUseCase(
             dl,
-            make_payload(invite2),
+            make_payload(invite2, at=dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
@@ -561,7 +561,7 @@ class TestInviteActorUseCases:
             actor="https://example.org/users/owner",
             id_=f"{case_id}/invitations/2",
         )
-        event = make_payload(invite)
+        event = make_payload(invite, at=dl)
 
         first = InviteActorToCaseReceivedUseCase(
             dl,
@@ -614,7 +614,7 @@ class TestInviteActorUseCases:
         )
         result = InviteActorToCaseReceivedUseCase(
             dl,
-            make_payload(invite),
+            make_payload(invite, at=dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
@@ -645,7 +645,7 @@ class TestInviteActorUseCases:
             id_="https://example.org/cases/case1/invitations/missing",
         )
         field = "target" if missing == "target" else "object_"
-        event = make_payload(invite).model_copy(update={field: None})
+        event = make_payload(invite, at=dl).model_copy(update={field: None})
 
         result = InviteActorToCaseReceivedUseCase(
             dl,
@@ -686,7 +686,7 @@ class TestInviteActorUseCases:
 
         InviteActorToCaseReceivedUseCase(
             dl,
-            make_payload(invite),
+            make_payload(invite, at=dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
@@ -743,7 +743,7 @@ class TestInviteActorUseCases:
             actor=case_actor_id,
             id_=f"{case_id}/invitations/1",
         )
-        event = make_payload(invite).model_copy(
+        event = make_payload(invite, at=dl).model_copy(
             update={"receiving_actor_id": case_actor_id}
         )
 
@@ -860,7 +860,7 @@ class TestInviteActorUseCases:
             invite,
             actor=invitee_id,
         )
-        event = make_payload(reject)
+        event = make_payload(reject, at=dl)
 
         assert event.target_id is None, (
             "Precondition: Reject(Invite) has no top-level target"
@@ -930,7 +930,7 @@ class TestInviteActorUseCases:
             actor=invitee_id,
         )
 
-        event = make_payload(accept)
+        event = make_payload(accept, at=dl)
 
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -996,7 +996,7 @@ class TestInviteActorUseCases:
             actor=invitee_id,
         )
 
-        event = make_payload(accept)
+        event = make_payload(accept, at=dl)
 
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -1062,7 +1062,7 @@ class TestInviteActorUseCases:
             invite,
             actor=invitee_id,
         )
-        event = make_payload(accept)
+        event = make_payload(accept, at=dl)
 
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -1145,7 +1145,7 @@ class TestInviteActorUseCases:
             invite,
             actor=invitee_id,
         )
-        event = make_payload(accept)
+        event = make_payload(accept, at=dl)
 
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -1256,7 +1256,7 @@ class TestInviteActorUseCases:
             actor=invitee_id,
         )
 
-        event = make_payload(accept)
+        event = make_payload(accept, at=dl)
 
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -1291,7 +1291,7 @@ class TestInviteActorUseCases:
         sync_port = MagicMock()
 
         accept = _accept_invite(invite, actor=invitee_id)
-        event = make_payload(accept)
+        event = make_payload(accept, at=dl)
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
             event,
@@ -1358,7 +1358,7 @@ class TestInviteActorUseCases:
         accept = _accept_invite(invite, actor=invitee_id)
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
-            make_payload(accept),
+            make_payload(accept, at=dl),
             sync_port=MagicMock(),
             trigger_activity=lj["trigger_activity"],
             wire_render_port=As2WireRenderAdapter(),
@@ -1424,7 +1424,7 @@ class TestInviteActorUseCases:
             # The Invite is queued, so the failed commit escapes rather than
             # failing the tree (BT-14-001).
             with pytest.raises(VultronBTInternalError, match="commit failed"):
-                _accept(make_payload(accept))
+                _accept(make_payload(accept, at=dl))
         (invite_id,) = failed
         assert invite_id not in dl.outbox_list()
         assert {
@@ -1465,7 +1465,7 @@ class TestInviteActorUseCases:
         manager.attach_mock(sync_port, "sync")
 
         accept = _accept_invite(invite, actor=invitee_id)
-        event = make_payload(accept)
+        event = make_payload(accept, at=dl)
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
             event,
@@ -1518,7 +1518,7 @@ class TestInviteActorUseCases:
         with pytest.raises(VultronBTInternalError):
             AcceptInviteActorToCaseReceivedUseCase(
                 dl,
-                make_payload(accept),
+                make_payload(accept, at=dl),
                 sync_port=sync_port,
                 trigger_activity=lj["trigger_activity"],
                 wire_render_port=As2WireRenderAdapter(),
@@ -1541,7 +1541,7 @@ class TestInviteActorUseCases:
         sync_port.reset_mock(side_effect=True)
         result = AcceptInviteActorToCaseReceivedUseCase(
             dl,
-            make_payload(accept),
+            make_payload(accept, at=dl),
             sync_port=sync_port,
             trigger_activity=lj["trigger_activity"],
             wire_render_port=As2WireRenderAdapter(),
@@ -1581,7 +1581,7 @@ class TestInviteActorUseCases:
         accept = _accept_invite(lj["invite"], actor=invitee_id)
         result = AcceptInviteActorToCaseReceivedUseCase(
             dl,
-            make_payload(accept),
+            make_payload(accept, at=dl),
             sync_port=sync_port,
             trigger_activity=lj["trigger_activity"],
             wire_render_port=As2WireRenderAdapter(),
@@ -1698,7 +1698,7 @@ class TestInviteActorUseCases:
             TriggerActivityAdapter(dl).invite_actor_to_full_case
         )
         accept = _accept_invite(invite, actor=invitee_id)
-        event = make_payload(accept)
+        event = make_payload(accept, at=dl)
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
             event,
@@ -1790,7 +1790,9 @@ class TestJoinedOrRemovedStubAcceptIsADuplicate:
 
         result = AcceptInviteActorToCaseReceivedUseCase(
             dl,
-            make_payload(_accept_invite(lj["invite"], actor=invitee_id)),
+            make_payload(
+                _accept_invite(lj["invite"], actor=invitee_id), at=dl
+            ),
             sync_port=sync_port,
             trigger_activity=trigger,
             wire_render_port=As2WireRenderAdapter(),
@@ -1921,7 +1923,7 @@ class TestJoinedOrRemovedStubAcceptIsADuplicate:
         sync_port = MagicMock()
         result = AcceptInviteActorToCaseReceivedUseCase(
             dl,
-            make_payload(_accept_invite(invite, actor=invitee_id)),
+            make_payload(_accept_invite(invite, actor=invitee_id), at=dl),
             sync_port=sync_port,
             trigger_activity=trigger,
             wire_render_port=As2WireRenderAdapter(),
@@ -1976,7 +1978,7 @@ class TestAcceptInviteRolesAC4:
         dl.create(invite)
 
         accept = _accept_invite(invite, actor=invitee_id)
-        event = make_payload(accept)
+        event = make_payload(accept, at=dl)
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
             event,
@@ -2035,7 +2037,7 @@ class TestAcceptInviteRolesAC4:
         dl.create(invite)
 
         accept = _accept_invite(invite, actor=invitee_id)
-        event = make_payload(accept)
+        event = make_payload(accept, at=dl)
         result = AcceptInviteActorToCaseReceivedUseCase(
             dl,
             event,
@@ -2115,7 +2117,9 @@ class TestInviteDispositions:
     def test_invitee_path_redelivery_is_skipped(self, make_payload):
         # dl owner must match the invitee so the AC-1 trust-anchor check passes.
         dl = self._dl(actor_id=self._INVITEE)
-        event = make_payload(self._invite("https://example.org/cases/d-inv1"))
+        event = make_payload(
+            self._invite("https://example.org/cases/d-inv1"), at=dl
+        )
 
         first = InviteActorToCaseReceivedUseCase(
             dl,
@@ -2158,7 +2162,8 @@ class TestInviteDispositions:
         event = make_payload(
             _reject_invite(
                 self._recorded_invite(dl, case_id), actor=self._INVITEE
-            )
+            ),
+            at=dl,
         )
 
         result = RejectInviteActorToCaseReceivedUseCase(
@@ -2189,7 +2194,10 @@ class TestInviteDispositions:
         # The copy names this store too, so the CASE_MANAGER gate, not the
         # addressee door (HP-01-005), is what refuses it.
         event = make_payload(
-            _accept_invite(invite, actor=self._INVITEE, also_to=(dl.actor_id,))
+            _accept_invite(
+                invite, actor=self._INVITEE, also_to=(dl.actor_id,)
+            ),
+            at=dl,
         )
 
         result = AcceptInviteActorToCaseReceivedUseCase(
@@ -2215,7 +2223,8 @@ class TestInviteDispositions:
                     dl, "https://example.org/cases/d-rj-missing"
                 ),
                 actor=self._INVITEE,
-            )
+            ),
+            at=dl,
         )
 
         result = RejectInviteActorToCaseReceivedUseCase(
@@ -2247,6 +2256,7 @@ class TestInviteDispositions:
                 self._recorded_invite(dl, case_id), actor=self._INVITEE
             ),
             receiving_actor_id=self._OWNER,
+            at=dl,
         )
 
         result = RejectInviteActorToCaseReceivedUseCase(
@@ -2312,6 +2322,7 @@ class TestInviteDispositions:
                 self._recorded_invite(dl, case_id), actor=self._INVITEE
             ),
             receiving_actor_id=self._OWNER,
+            at=dl,
         )
 
         result = RejectInviteActorToCaseReceivedUseCase(
@@ -2352,7 +2363,8 @@ class TestInviteDispositions:
                     dl, "https://example.org/cases/d-ac-missing"
                 ),
                 actor=self._INVITEE,
-            )
+            ),
+            at=dl,
         )
 
         result = AcceptInviteActorToCaseReceivedUseCase(
@@ -2381,7 +2393,9 @@ class TestInviteDispositions:
         self._seed_case(dl, case_id, manager_id=dl.actor_id)
         invite = self._invite(case_id, issuer=dl.actor_id)
         dl.create(invite)
-        event = make_payload(_accept_invite(invite, actor=self._INVITEE))
+        event = make_payload(
+            _accept_invite(invite, actor=self._INVITEE), at=dl
+        )
         sync_port = MagicMock()
 
         result = AcceptInviteActorToCaseReceivedUseCase(
@@ -2423,7 +2437,9 @@ class TestInviteDispositions:
         assert isinstance(seeded, VulnerabilityCase)
         seed_inert_invitee(dl, seeded, self._INVITEE)
         dl.save(seeded)
-        event = make_payload(_accept_invite(invite, actor=self._INVITEE))
+        event = make_payload(
+            _accept_invite(invite, actor=self._INVITEE), at=dl
+        )
 
         first = AcceptInviteActorToCaseReceivedUseCase(
             dl,

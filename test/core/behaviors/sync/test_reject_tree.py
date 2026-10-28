@@ -694,7 +694,8 @@ def test_reject_from_stranger_halts_before_any_write(
                 entry=wire_entry,
                 actor=stranger,
                 to=[OWNER_ACTOR_ID],
-            )
+            ),
+            at=datalayer,
         ),
     )
 

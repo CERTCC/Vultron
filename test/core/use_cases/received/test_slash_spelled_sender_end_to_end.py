@@ -68,9 +68,9 @@ def _ports(dl: SqliteDataLayer) -> dict:
     }
 
 
-def _event(activity: Any) -> Any:
+def _event(activity: Any, dl: SqliteDataLayer) -> Any:
     """The received event, as the inbox hands it to the use case."""
-    return received_event(activity).model_copy(
+    return received_event(activity, at=dl).model_copy(
         update={"receiving_actor_id": _CASE_ACTOR}
     )
 
@@ -96,7 +96,7 @@ def _propose_case(dl: SqliteDataLayer) -> VulnerabilityCase:
         to=[_CASE_ACTOR],
     )
     result = CreateCaseProposalReceivedUseCase(
-        dl, _event(activity), **_ports(dl)
+        dl, _event(activity, dl), **_ports(dl)
     ).execute()
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     return _case(dl)
@@ -149,7 +149,7 @@ def test_a_slash_spelled_owner_reaches_its_case_owner_records():
         to=[_CASE_ACTOR],
     )
     result = RejectEmbargoProposalOnCaseReceivedUseCase(
-        dl, _event(reject), **_ports(dl)
+        dl, _event(reject, dl), **_ports(dl)
     ).execute()
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
@@ -172,7 +172,7 @@ def test_a_slash_spelled_owner_reaches_its_case_owner_records():
         to=[_CASE_ACTOR],
     )
     result = WithdrawFromEmbargoOnCaseReceivedUseCase(
-        dl, _event(leave), **_ports(dl)
+        dl, _event(leave, dl), **_ports(dl)
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED

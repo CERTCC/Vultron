@@ -93,7 +93,7 @@ class TestEmbargoLogEntryCascade:
             attributed_to=CASE_OWNER_ID, id_=case_id
         )
         activity = factory(embargo, target=case_ref, actor=author_id)
-        event = make_payload(activity, receiving_actor_id=author_id)
+        event = make_payload(activity, receiving_actor_id=author_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
         use_case(
             dl,
@@ -133,7 +133,7 @@ class TestEmbargoLogEntryCascade:
             actor=author_id,
             reason=TerminationReason.EARLY,
         )
-        event = make_payload(activity, receiving_actor_id=author_id)
+        event = make_payload(activity, receiving_actor_id=author_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
         RemoveEmbargoEventFromCaseReceivedUseCase(
             dl,
@@ -182,7 +182,7 @@ class TestEmbargoLogEntryCascade:
             actor=author_id,
             reason=TerminationReason.EARLY,
         )
-        event = make_payload(activity, receiving_actor_id=author_id)
+        event = make_payload(activity, receiving_actor_id=author_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
         RemoveEmbargoEventFromCaseReceivedUseCase(
             dl,
@@ -231,7 +231,7 @@ class TestEmbargoLogEntryCascade:
         dl.create(proposal)
 
         # receiving_actor_id is the invitee — not the CaseActor/Case Manager.
-        event = make_payload(proposal, receiving_actor_id=invitee_id)
+        event = make_payload(proposal, receiving_actor_id=invitee_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
         InviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -292,7 +292,7 @@ class TestEmbargoLogEntryCascade:
         # Per ADR-0022 / CLP-10-005: the guarded commit fires when
         # receiving_actor_id holds CVDRole.CASE_MANAGER.  coordinator_id is
         # the CASE_MANAGER in this fixture (case_manager_actor_id=coordinator_id).
-        event = make_payload(accept, receiving_actor_id=coordinator_id)
+        event = make_payload(accept, receiving_actor_id=coordinator_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -350,7 +350,7 @@ class TestEmbargoLogEntryCascade:
         )
         # coordinator_id holds CASE_MANAGER in this fixture, and the ledger
         # commit is gated on that role, so it is the receiving actor.
-        event = make_payload(reject, receiving_actor_id=coordinator_id)
+        event = make_payload(reject, receiving_actor_id=coordinator_id, at=dl)
         sync_port = SyncActivityAdapter(dl)
         RejectInviteToEmbargoOnCaseReceivedUseCase(
             dl,

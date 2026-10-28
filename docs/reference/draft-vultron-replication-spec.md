@@ -494,6 +494,11 @@ An activity sent before its sender holds the case's ledger, an activity whose ob
 A receiver MUST refuse an activity in that scope whose `ledgerPosition` is missing or does not parse. (SYNC-18-003)
 The stamp lets the CASE_MANAGER see that a participant is behind without waiting for an explicit sync request.
 
+The CASE_MANAGER MUST NOT refuse, hold or defer an activity because its `ledgerPosition` is behind its own ledger tail, and MUST log such a lag at DEBUG; a reply to the full-case Invite is the one exception, judged against its Invite's floor. (SYNC-18-004)
+A `ledgerPosition` that names an entry the CASE_MANAGER's ledger holds is answered as a position stated in `Read(CaseLedgerEntry)` is: for an active participant, the CASE_MANAGER MUST record it as the sender's acknowledged position and replay the entries after it, rate-bounded; from any other sender it MUST record and send nothing. (SYNC-18-007)
+A `ledgerPosition` that names an index the CASE_MANAGER's ledger holds with another hash, or an index past its tail, means the sender's chain has split: the activity MUST be judged as it would be without the position, the split MUST be logged at ERROR, and an active participant MUST be sent `Announce(VulnerabilityCase)` under the re-seed rate bound. (SYNC-18-005)
+Neither the record, the replay nor the re-seed changes the activity's own outcome.
+
 ---
 
 ## 10. Retry and Backoff [N]
@@ -643,6 +648,9 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-18-001 | §9 | Every case activity MUST state its sender's ledger tail as `ledgerPosition` |
 | SYNC-18-002 | §9 | The position MUST be the tail when the activity is built, kept on a resend |
 | SYNC-18-003 | §9 | A receiver MUST refuse a case activity whose `ledgerPosition` is missing or malformed |
+| SYNC-18-004 | §9 | CASE_MANAGER MUST NOT refuse an activity whose `ledgerPosition` lags, and MUST log the lag |
+| SYNC-18-005 | §9 | A split `ledgerPosition` MUST be logged at ERROR and an active participant re-seeded |
+| SYNC-18-007 | §9 | A held `ledgerPosition` MUST be recorded and a lag replayed, for an active participant |
 | SYNC-19-001 | §6.7 | A coordination decision MUST NOT depend on an arrival order the ledger does not define |
 | SYNC-19-002 | §6.7 | Eventual consistency is the guarantee; every replica reaches the CASE_MANAGER's case file |
 | SYNC-19-003 | §6.7 | Per-recipient delivery order MUST NOT be a protocol guarantee |

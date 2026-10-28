@@ -26,7 +26,7 @@ pre-seed ``AnnounceCaseOnGenesisRejectNode`` sits in ``genesis_announce.py``
 from __future__ import annotations
 
 import logging
-from typing import Any, cast
+from typing import cast
 
 import py_trees
 from py_trees.common import Status
@@ -45,6 +45,9 @@ from vultron.core.behaviors.sync.nodes.embargo_pause import (
     record_embargo_pause,
     send_ledger_suffix,
     sorted_case_ledger_entries,
+)
+from vultron.core.behaviors.sync.nodes.replay_case import (
+    CaseNamedReplayNode,
 )
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     record_replay,
@@ -65,67 +68,23 @@ from vultron.errors import (
 logger = logging.getLogger(__name__)
 
 
-def replay_case_id(activity: Any, node_name: str) -> str:
-    """Return the case whose ledger a peer's activity asks to have replayed.
-
-    The activity's ``replay_case_id``: for a ``Reject(CaseLedgerEntry)`` the
-    rejected entry's case, or the ``target`` of the Reject that names no
-    entry because its sender holds none (SYNC-16-007); for a
-    ``Read(CaseLedgerEntry)`` the case its ``context`` names (SYNC-17-001).
-    Raises ``VultronError`` when the activity names none (BT-HELPER-01).
-    """
-    case_id = getattr(activity, "replay_case_id", None)
-    if isinstance(case_id, str) and case_id:
-        return case_id
-    return require_rejected_entry(activity, node_name).case_id
-
-
-def require_rejected_entry(activity: Any, node_name: str) -> CaseLedgerEntry:
-    """Return the ``CaseLedgerEntry`` a ``Reject(CaseLedgerEntry)`` carries.
-
-    Shared by the replay nodes here and ``AnnounceCaseOnGenesisRejectNode``
-    (``genesis_announce.py``). Raises ``VultronError`` when the activity
-    carries no entry (BT-HELPER-01: helpers raise, ``update()`` catches).
-    """
-    entry = getattr(activity, "rejected_entry", None)
-    if entry is None:
-        entry = getattr(activity, "object_", None)
-    if isinstance(entry, CaseLedgerEntry):
-        return entry
-    raise VultronError(
-        f"{node_name}: activity did not carry a rejected CaseLedgerEntry"
-    )
-
-
-class FindCaseActorNode(DataLayerActionWithPorts):
+class FindCaseActorNode(CaseNamedReplayNode):
     """Resolve the authority's address, and publish the case id for later gates.
 
     The address is the ``CVDRole.CASE_MANAGER`` role-holder's, resolved through
-    the single neutral resolver (ADR-0088, ARCH-24-001). It used to come from a
-    module-local ``_find_case_actor`` that scanned for a ``Service`` whose
-    ``context`` was the case id — a hosting-location signal ARCH-24-004 forbids,
-    and one that answered ``None`` during the bootstrap window before any
-    ``Service`` carries ``context`` (CM-02-012). Worse, that helper fell back to
-    *the first arbitrary* ``Service`` in the store when nothing matched, so a
-    miss produced a plausible-looking wrong address rather than a failure.
+    the single neutral resolver (ADR-0088, ARCH-24-001), never a ``Service``
+    whose ``context`` is the case (ARCH-24-004).  This node resolves an
+    *address*; it does not decide authority, which is the CASE_MANAGER gate
+    the factory wraps around the effects (ARCH-24-005).  The case is
+    *case_id* when the tree names it, else the activity's ``replay_case_id``.
 
-    This node resolves an *address*; it does not decide authority. The
-    reject tree's authority gate is the CASE_MANAGER gate the factory wraps
-    around its effects (``create_reject_log_entry_tree``, ARCH-24-005).
+    ``case_id`` is an output so a later node can read the case from the
+    blackboard (CLP-09); ``CheckIsCaseManagerNode`` falls back to it when it
+    is built without a case id.
 
-    ``case_id`` is an output so a later node can read the case the unapplied
-    entry names from the blackboard (CLP-09); ``CheckIsCaseManagerNode`` falls
-    back to it when it is built without a case id.  The reject tree's gate is
-    built with one, but the output stays part of the node's contract.
-
-    Failing is deliberate, and is not the regression it resembles. A FAILURE here
-    stops the sequence, so neither the pre-seed nor the replay runs. The retired
-    fallback did let both proceed — but as *the wrong actor*, since it answered
-    with an arbitrary ``Service``, and a replay emitted under a foreign identity
-    is worse than one that did not happen. Both remaining failure modes mean the
-    executing actor cannot legitimately answer for this log: it does not hold the
-    case, or the case names no CASE_MANAGER. Neither is routine for an actor
-    fielding a ``Reject`` about a log it owns.
+    Failing is deliberate: a FAILURE stops the sequence, so no replay runs
+    under a guessed identity.  It means the executing actor cannot answer for
+    this log: it does not hold the case, or the case names no CASE_MANAGER.
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -155,7 +114,7 @@ class FindCaseActorNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        case_id = replay_case_id(self.activity, self.name)
+        case_id = self.replay_case(self.activity)
         self._set_output("case_id", case_id)
 
         # Regime 1 (ADR-0087): a peer is asking us to replay this case's log,
@@ -177,7 +136,12 @@ class FindCaseActorNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class CollectAndSortCaseLedgerEntriesNode(DataLayerActionWithPorts):
+class CollectAndSortCaseLedgerEntriesNode(CaseNamedReplayNode):
+    """Publish the case's sorted ledger and the peer (the activity's sender).
+
+    The case is *case_id* when given, else the activity's ``replay_case_id``.
+    """
+
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
         "activity": PortInformation(data_type=object, required=True),
@@ -209,7 +173,7 @@ class CollectAndSortCaseLedgerEntriesNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         activity = self.activity
-        case_id = replay_case_id(activity, self.name)
+        case_id = self.replay_case(activity)
         peer_id = activity.actor_id
         if not peer_id:
             raise VultronError(
@@ -483,13 +447,20 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
 
 
 class ReplayMissingEntriesNode(py_trees.composites.Sequence):
-    def __init__(self, name: str | None = None) -> None:
+    """Replay the entries after the sender's stated position (SYNC-03-002).
+
+    The case is *case_id* when given, else the activity's ``replay_case_id``.
+    """
+
+    def __init__(
+        self, name: str | None = None, *, case_id: str | None = None
+    ) -> None:
         super().__init__(
             name=name or self.__class__.__name__,
             memory=False,
             children=[
                 CollectAndSortCaseLedgerEntriesNode(
-                    name="CollectAndSortCaseLedgerEntries"
+                    name="CollectAndSortCaseLedgerEntries", case_id=case_id
                 ),
                 FindDivergenceIndexNode(name="FindDivergenceIndex"),
                 SendMissingEntriesNode(name="SendMissingEntries"),

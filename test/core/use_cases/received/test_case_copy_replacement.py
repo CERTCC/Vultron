@@ -240,9 +240,11 @@ def test_a_genesis_request_for_a_case_the_manager_lacks_is_refused() -> None:
 
     assert verdict.disposition is HandlerDisposition.REFUSED, verdict.reason
     assert len(net.queued(MANAGER, to=BYSTANDER)) == queued
-    assert (
-        list(net.stores[MANAGER].list_objects("VultronReplicationState")) == []
-    )
+    assert [
+        state
+        for state in net.stores[MANAGER].list_objects("ReplicationState")
+        if getattr(state, "peer_id", None) == BYSTANDER
+    ] == []
 
 
 @pytest.mark.spec("SYNC-16-007")

@@ -39,7 +39,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
-from vultron.core.behaviors.sync.nodes.replay import replay_case_id
+from vultron.core.behaviors.sync.nodes.replay_case import replay_case_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_position import LedgerPosition

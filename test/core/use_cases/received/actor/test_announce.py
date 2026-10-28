@@ -191,7 +191,8 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
                 actor=case_actor.id_,
                 to=[_RECEIVER_ID],
                 context=case.id_,
-            )
+            ),
+            at=dl,
         )
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, linked_event).execute()
@@ -228,7 +229,8 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
                 actor=_CASE_ACTOR_ID,
                 to=[_RECEIVER_ID],
                 context=_CASE_ID,
-            )
+            ),
+            at=dl,
         )
 
         first_result = AnnounceVulnerabilityCaseReceivedUseCase(
@@ -278,7 +280,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         announce = announce_vulnerability_case_activity(
             good_case, actor=_OWNER_ID, to=[_RECEIVER_ID]
         )
-        event = make_payload(announce)
+        event = make_payload(announce, at=dl)
 
         # Replace the object_ on the event's activity with a non-case
         report = as_VulnerabilityReport(name="Not a case")
@@ -305,7 +307,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
             to=[_RECEIVER_ID],
             context=case.id_,
         )
-        event = make_payload(announce)
+        event = make_payload(announce, at=dl)
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
@@ -448,7 +450,7 @@ class TestAnnounceFirstContactTrustGap:
         imposter_announce = announce_vulnerability_case_activity(
             case, actor=_IMPOSTER_ID, to=[_RECEIVER_ID], context=case.id_
         )
-        event = make_payload(imposter_announce)
+        event = make_payload(imposter_announce, at=dl)
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
@@ -522,7 +524,7 @@ class TestAnnounceDrainsPreGenesisBuffer:
             to=[_RECEIVER_ID],
             context=_CASE_ID,
         )
-        event = make_payload(activity)
+        event = make_payload(activity, at=dl)
         return event, AnnounceVulnerabilityCaseReceivedUseCase(
             dl, event, sync_port=SyncActivityAdapter(dl), **ports
         ).execute()
@@ -709,7 +711,7 @@ class TestAnnounceStoresEmbeddedParticipants:
         activity = announce_vulnerability_case_activity(
             case, actor=_CASE_ACTOR_ID, to=[_RECEIVER_ID], context=_CASE_ID
         )
-        event = make_payload(activity)
+        event = make_payload(activity, at=dl)
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
@@ -743,7 +745,8 @@ class TestAnnounceStoresEmbeddedParticipants:
                 actor=_CASE_ACTOR_ID,
                 to=[_RECEIVER_ID],
                 context=_CASE_ID,
-            )
+            ),
+            at=dl,
         )
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, announce).execute()

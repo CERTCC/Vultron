@@ -76,7 +76,7 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
             actor="https://example.org/users/vendor",
             to=["https://example.org/users/finder"],
         )
-        event = make_payload(activity)
+        event = make_payload(activity, at=dl)
 
         result = AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
         assert result.disposition is HandlerDisposition.SKIPPED
@@ -121,7 +121,7 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
             actor="https://example.org/users/vendor",
             to=["https://example.org/users/finder"],
         )
-        event = make_payload(activity)
+        event = make_payload(activity, at=dl)
 
         with caplog.at_level(logging.INFO):
             AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
@@ -169,7 +169,8 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
                 context=case.id_,
                 actor="https://example.org/users/impostor",
                 to=["https://example.org/users/finder"],
-            )
+            ),
+            at=dl,
         )
 
         result = AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
@@ -263,7 +264,9 @@ class TestResetEmbargoConsentWithInlineParticipants:
             to=[actor_id],
             reason=TerminationReason.EARLY,
         )
-        event = make_payload(activity, receiving_actor_id=case_manager_id)
+        event = make_payload(
+            activity, receiving_actor_id=case_manager_id, at=dl
+        )
 
         # Must not raise TypeError
         RemoveEmbargoEventFromCaseReceivedUseCase(

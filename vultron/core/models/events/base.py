@@ -17,7 +17,10 @@ from vultron.core.models.base import (
     NonEmptyString,
     ValidatedAssignmentMixin,
 )
-from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.ledger_position import (
+    EMPTY_LEDGER_LOG_INDEX,
+    LedgerPosition,
+)
 from vultron.core.models.received_body import require_json_object_text
 from vultron.errors import VultronWiringError
 from vultron.primitives import NormalisedActorId
@@ -299,3 +302,17 @@ class LedgerPositionedEvent(VultronEvent):
     """
 
     ledger_position: LedgerPosition
+
+    @property
+    def last_accepted_hash(self) -> str:
+        """The ``entry_hash`` of the last entry the sender states it applied.
+
+        The name the replay nodes read for the position a replay starts
+        after, as they read it on a ``Reject(CaseLedgerEntry)``: ``""`` for
+        a position at index -1, an empty ledger, so a replay starts from the
+        beginning (CLP-08-005, SYNC-18-007).
+        """
+        position = self.ledger_position
+        if position.log_index == EMPTY_LEDGER_LOG_INDEX:
+            return ""
+        return position.entry_hash

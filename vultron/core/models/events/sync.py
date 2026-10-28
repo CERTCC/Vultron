@@ -140,12 +140,3 @@ class ReadLogEntryReceivedEvent(LedgerPositionedEvent):
     def replay_case_id(self) -> str | None:
         """The case the stated position is in, from the ``context``."""
         return self.context_id
-
-    @property
-    def last_accepted_hash(self) -> str:
-        """The ``entry_hash`` of the entry the sender states it applied last.
-
-        The name the replay nodes read for the position a replay starts
-        after, as they read it on a ``Reject(CaseLedgerEntry)``.
-        """
-        return self.ledger_position.entry_hash

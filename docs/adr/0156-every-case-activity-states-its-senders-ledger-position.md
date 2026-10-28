@@ -2,13 +2,14 @@
 status: proposed
 status_override: >-
   Decided in planning (#5080); SYNC-18-006 holds by construction. The stamp and
-  its parse-edge refusal (SYNC-18-001..003) are built (#5109); the CASE_MANAGER's
-  judgment of a received position (SYNC-18-004/005/007) is not yet (#5110), so
-  the record stays editable until that task lands.
+  its parse-edge refusal (SYNC-18-001..003) are built (#5109), and so is the
+  CASE_MANAGER's judgment of a received position (SYNC-18-004/005/007, #5110).
+  The record stays proposed while the open question on answering a split is
+  undecided.
 date: 2026-10-22
 created: 2026-10-22
 updated: 2026-10-28
-revision: 2
+revision: 3
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0107, ADR-0121, ADR-0142, ADR-0155;
@@ -88,7 +89,7 @@ Chosen option: "Every case activity, from any sender, carries `ledgerPosition`; 
 ## Validation
 
 The SYNC-18 requirements carry marker tests in `test/core/use_cases/received/test_activity_ledger_tail.py`.
-SYNC-18-001 through SYNC-18-003 are built and their tests pass, and SYNC-18-006 holds by construction; the others are strict `xfail` until the CASE_MANAGER reads the position (#5110).
+Every SYNC-18 requirement is built and its tests pass; SYNC-18-006 holds by construction.
 `test/wire/as2/test_ledger_position_scope.py` lists every received semantic outside the scope, with its reason.
 
 ## Pros and Cons of the Options

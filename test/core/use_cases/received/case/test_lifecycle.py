@@ -74,7 +74,8 @@ def _add(dl, report, *, sender=_OWNER_ID):
     event = received_event(
         add_report_to_case_activity(
             report, target=_CASE_ID, actor=sender, to=[_MANAGER_ID]
-        )
+        ),
+        at=dl,
     )
     return AddReportToCaseReceivedUseCase(
         dl,
