@@ -463,7 +463,13 @@ groups:
       Two holders must compute the same hash for the same history. If each holder first
       had to filter entries, a different filter rule would give a different hash for
       the same case. A ledger with only admitted entries removes that step.
-    verification_debt: '#3612'
+    verification: >-
+      The case-ledger invariant harness (`test/ci/invariants/universal_harness.py`)
+      checks, for every replica of every scenario, that each entry's `prevLogHash` is
+      the `entryHash` of the entry before it
+      (`test_invariant_1_local_hash_chain_consistent`), and that all replicas agree on
+      the `entryHash` at each shared `logIndex`
+      (`test_invariant_2_cross_actor_hash_agreement`).
     stories:
     - story_2022_045
     - story_2022_089
@@ -1463,10 +1469,10 @@ groups:
       The `announce_case_ledger_entry` semantic type MUST NOT appear in `EXPECTED_SEMANTIC_TYPES`
       for the case-actor canonical log.
     rationale: >-
-      The invariant suite checks that the canonical log holds each expected semantic type.
-      If that list named the ledger announcement, the suite would demand an entry whose
-      snapshot is an `Announce(CaseLedgerEntry)`. CLP-10-004 forbids that entry, so the
-      suite would then reward a broken ledger and fail a correct one.
+      The invariant suite checks that the canonical log holds each expected semantic
+      type. If that list named the ledger announcement, the suite would demand an entry
+      whose snapshot is an `Announce(CaseLedgerEntry)`. CLP-10-004 forbids that entry,
+      so the suite would then reward a broken ledger and fail a correct one.
     verification: >-
       `test_invariant_5_expected_semantic_types_present` (after parameterization) does not
       include `announce_case_ledger_entry` as a required semantic type for the case-actor

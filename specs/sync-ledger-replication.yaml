@@ -134,7 +134,7 @@ groups:
       The content hash lets a receiver check that an entry has the content the
       CASE_MANAGER committed, in transit and in storage. The link to the predecessor's
       hash fixes the entry's place in the chain. A receiver can then detect an entry
-      with other content, an entry in the wrong place and an entry from another author.
+      with other content and an entry in the wrong place.
     verification: >-
       Unit tests confirm that each log entry's entry_hash and prev_log_hash fields are
       correctly populated and form a valid forward-linked hash chain.
@@ -252,12 +252,11 @@ groups:
       This codebase MUST embed the full inline `CaseLedgerEntry` in the `object` of each
       `Announce(CaseLedgerEntry)` and MUST NOT use a URI-only reference there.
     rationale: >-
-      This is how this codebase meets SYNC-02-004, which states only what other
-      participants observe (MS-12-010). An inline entry lets the recipient check the
-      hash chain without a request back to the sender, and this codebase never
-      dereferences a ledger entry (AKM-05-007). An entry fetched by reference passes
-      the same checks, so the inline form is a shortcut of this prototype reference
-      implementation, not a protocol rule.
+      An inline entry lets the recipient check the hash chain without a request back to
+      the sender. This codebase never dereferences a ledger entry (AKM-05-007), so
+      without the inline entry a recipient in this codebase could not apply the Announce
+      at all. An entry fetched by reference passes the same checks, so another
+      implementation may send a reference (SYNC-02-004).
     verification: >-
       `test/adapters/driving/fastapi/test_outbox_handle_item_delivery.py::test_handle_outbox_item_preserves_inline_case_ledger_entry_fields`
       confirms the delivered Announce(CaseLedgerEntry) carries the full inline entry,
@@ -1234,10 +1233,11 @@ groups:
       semantic (ANNOUNCE_CASE_LEDGER_ENTRY) on first delivery using the typed inline object
       obtained during parsing, without a DataLayer round-trip.
     rationale: >-
-      This is how this codebase meets SYNC-13-004, which states only what other
-      participants observe (MS-12-010). Classification from the inline object works
-      because this codebase sends the entry inline (SYNC-02-005). That is a shortcut of
-      this prototype reference implementation, not a protocol rule.
+      This codebase never dereferences a ledger entry (AKM-05-007), so the inline object
+      is the only input the classifier has. Classification from it works because this
+      codebase sends the entry inline (SYNC-02-005). A classifier that needed a stored
+      entry would fail on the first delivery of each entry, which the receiver has not
+      stored yet.
     verification: >-
       `test/core/use_cases/received/test_sync.py::TestAnnounceLedgerEntryReceivedUseCase::test_semantic_type_is_correct` confirms an inbound
       Announce(CaseLedgerEntry) carrying the typed inline entry is classified as
@@ -1699,10 +1699,11 @@ groups:
       (SYNC-14-004), and cascade in hash-chain order (SYNC-14-003) until no held
       Announce extends the current tail.
     rationale: >-
-      The genesis hash is derivable from the case object alone (deterministic from case_id,
-      created_at, and the CASE_MANAGER id per CLP-08), so seeding the case is sufficient to anchor
-      the chain — the participant need not wait for the genesis ledger entry to be re-delivered.
-      Draining on seed is what turns the pre-genesis hold (SYNC-15-004) into convergence.
+      A participant can compute the genesis hash from the case object alone: it comes
+      from the case id, the creation time and the case owner's actor id (CLP-08-002).
+      Seeding the case therefore anchors the chain, and the participant need not wait
+      for a second delivery of the genesis entry. Draining on seed turns the pre-genesis
+      hold (SYNC-15-004) into convergence.
     adr:
     - ADR-0059
     verification: >-

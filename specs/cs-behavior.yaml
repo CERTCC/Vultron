@@ -1741,10 +1741,10 @@ groups:
       of a whole status (RSH-09-003), which judge the actor by its recorded roles rather
       than the roles a status claims.
     rationale: >-
-      CSB-15-001 states only what other participants observe (MS-12-010), so this item
-      holds how this codebase enforces it. A raise when the status is built would judge
-      a sender by the roles its status claims. The trigger guard and the receive path
-      judge it by the roles the case records.
+      The status a sender builds only claims roles; the case records which roles the
+      sender holds. A raise when the status is built would judge a sender by the roles
+      its status claims. The trigger guard and the receive path judge it by the roles
+      the case records, which is the authority for roles.
     verification: >-
       `test/core/behaviors/case/nodes/test_vfd_role_guards.py`
       (`test_vendor_guard_failure_for_deployer_only_actor`,
@@ -1801,10 +1801,10 @@ groups:
       roles lack DEPLOYER. The participant status model MUST NOT itself reject a stray
       `d` dimension, for the reason CSB-15-005 gives for `vf`.
     rationale: >-
-      CSB-15-002 states only what other participants observe (MS-12-010), so this item
-      holds how this codebase enforces it. The gate covers `d` as well as `D`: a
-      non-Deployer that asserts the not-deployed state still claims a dimension it does
-      not have.
+      A non-Deployer that asserts the not-deployed state `d` still claims a dimension it
+      does not have. If the gate covered only `D`, such a participant could still write
+      the deployer dimension, and readers would treat it as a deployer. The gate
+      therefore covers `d` as well as `D`.
     verification: >-
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
       (`test_deploy_requires_deployer_role_at_write_node`,
@@ -1986,10 +1986,9 @@ groups:
       `Status.FAILURE`, or the helper raise, without writing to the DataLayer. The
       received path's weaker forward-only check is out of scope.
     rationale: >-
-      CSB-16-001 states only what other participants observe (MS-12-010), so this item
-      holds how this codebase enforces it. A guard can be too weak, missing or bypassed,
-      and then an invalid jump reaches the write node. A check at the write boundary
-      fails closed whatever the guards cover.
+      A guard can be too weak, missing or bypassed, and then an invalid jump reaches the
+      write node. A check at the write boundary fails closed whatever the guards cover,
+      so no invalid vf or d state reaches the store.
     verification: >-
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
       (`test_invalid_vf_jump_blocked_at_write_node`,
@@ -2051,9 +2050,10 @@ groups:
       MUST make the node return `Status.FAILURE`, or the helper raise, without writing
       to the DataLayer.
     rationale: >-
-      CSB-16-002 states only what other participants observe (MS-12-010), so this item
-      holds how this codebase enforces it. The fail-closed write boundary that protects
-      the vf and d writes (CSB-16-003) applies to PXA writes for the same reason.
+      A backward PXA move would say that public information, a public exploit or an
+      attack is no longer true, which cannot happen. The guards can miss such a move, as
+      they can miss a vf or d jump (CSB-16-003). The write boundary refuses it and
+      persists nothing, so the store never holds a backward PXA state.
     verification: >-
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
       (`test_ac3_backward_pxa_raises_and_persists_nothing`) confirms the helper raises
@@ -2521,8 +2521,11 @@ groups:
       REVISE}). Public exploit availability while an embargo is active is
       causally impossible — the X event entails embargo termination.
     rationale: >-
-      The X event (exploit public) makes the embargo end, for the reason CSB-18-002
-      gives for P. EM therefore cannot stay ACTIVE or REVISE after X is recorded.
+      A public exploit lets attackers use the vulnerability, so secrecy no longer
+      protects users. An embargo that stays ACTIVE or REVISE after X tells participants
+      to keep a secret that attackers already have. It also holds back the fix
+      information that defenders need now, and it misstates the case to every
+      participant that reads it.
     testable: true
     preconditions:
     - description: A PXA state and an EM state are both available for the same case
@@ -2541,8 +2544,10 @@ groups:
       REVISE}). Observed attacks while an embargo is active is causally
       impossible — the A event entails embargo termination.
     rationale: >-
-      The A event (attacks observed) makes the embargo end, for the reason CSB-18-002
-      gives for P. EM therefore cannot stay ACTIVE or REVISE after A is recorded.
+      Observed attacks show that the vulnerability is in use. An embargo that stays
+      ACTIVE or REVISE after A holds back the information that defenders need to protect
+      themselves while the attacks go on. It also misstates the case to every
+      participant that reads it.
     testable: true
     preconditions:
     - description: A PXA state and an EM state are both available for the same case

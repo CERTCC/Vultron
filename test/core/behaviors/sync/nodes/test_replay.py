@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Unit tests for sync replay and fan-out nodes."""
 
+from datetime import UTC, datetime
 from typing import cast
 from unittest.mock import MagicMock
 
@@ -28,6 +29,7 @@ from vultron.core.behaviors.sync.nodes import (
 )
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -500,18 +502,29 @@ def test_replay_that_is_wholly_pending_queues_nothing_and_records_no_position(
     )
 
 
+_GENESIS_HASH: str = compute_genesis_hash(
+    CASE_ID, datetime(2024, 1, 1, tzinfo=UTC), OWNER_ACTOR_ID
+)
+
+
 @pytest.mark.spec("CLP-08-005")
 @pytest.mark.parametrize(
     "from_hash",
-    [_ZERO_HASH, "f" * 64],
+    [_GENESIS_HASH, "f" * 64],
     ids=["genesis-hash", "unrecognized-hash"],
 )
 def test_a_position_that_names_no_entry_replays_from_the_start(
     bridge, from_hash
 ):
-    """The genesis hash and an unknown hash both replay the whole ledger."""
-    first_entry = _make_entry(0)
+    """The case's genesis hash and an unknown hash both replay the whole ledger.
+
+    The genesis hash anchors the chain as the first entry's ``prevLogHash``
+    and is no entry's own hash, so it names the position before the first
+    entry.
+    """
+    first_entry = _make_entry(0, _GENESIS_HASH)
     second_entry = _make_entry(1, first_entry.entry_hash)
+    assert from_hash not in {first_entry.entry_hash, second_entry.entry_hash}
     event = _make_reject_event(tail_hash=from_hash)
 
     result = bridge.execute_with_setup(

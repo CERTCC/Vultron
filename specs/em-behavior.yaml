@@ -92,7 +92,6 @@ groups:
       state.
     adr:
     - ADR-0118
-    - ADR-0123
     testable: true
     preconditions:
     - cs_pattern: "...P.."
@@ -225,10 +224,9 @@ groups:
       again, under its own id, an ER its sealed record shows as sent but the outbox no
       longer holds, so that a failed queue write does not lose it (ID-04-005).
     rationale: >-
-      EMB-01-002 states only the answer other participants observe (MS-12-010), so this
-      item holds how this codebase keeps that ER from being lost. A redelivery reads the
-      sealed record as "already answered". Without the requeue, a failed queue write
-      would therefore leave the proposal unanswered for good.
+      A redelivery reads the sealed record as "already answered". Without the requeue, a
+      failed queue write would leave the proposal unanswered for good, and the proposer
+      would wait for an ER that never comes.
     verification: >-
       `test/core/use_cases/received/test_embargo_relay_replay.py`
       (`test_a_refusal_whose_queue_write_failed_is_queued_on_redelivery`) fails the
@@ -254,9 +252,12 @@ groups:
       to Revise (q^em P → R) while another proposal stays open (EMB-18-005),
       and MUST emit EK to acknowledge receipt.
     rationale: >-
-      EA is the message that moves a negotiated embargo from Proposed to Active.
-      The receiver records that the embargo is now in effect. Any other open
-      proposal stays open as a revision of it (ADR-0130).
+      Every participant must agree on whether an embargo is in force. If the receiver
+      kept EM at Proposed after the EA, it would act as if no embargo binds the case,
+      and it could disclose while the other participants keep the vulnerability private.
+      While another proposal stays open, Revise keeps that proposal visible, so its
+      later answer still has a state to move from (ADR-0130). The EK tells the sender
+      that the receiver applied the change.
     adr:
     - ADR-0130
     verification: >-
@@ -404,9 +405,12 @@ groups:
       received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK message
       is emitted (EP-09-009, MSM-02-009).
     rationale: >-
-      EV signals a proposal to revise an active embargo's terms. The receiver
-      enters Revise state to indicate a pending revision. The original embargo
-      remains in force during revision per VP-04-005.
+      A participant must know that a change to the embargo is open while the current
+      terms still bind it. Revise records both facts: an embargo is in force, and a
+      revision of it waits for an answer. If the receiver stayed in Active, it could not
+      tell that a later EA or EJ answers a revision. The revision does not change any
+      participant's consent to the embargo in force until the case owner activates it
+      (EP-05-002).
     adr:
     - ADR-0113
     verification: >-
@@ -581,12 +585,13 @@ groups:
       received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK message
       is emitted (EP-09-009, MSM-02-009).
     rationale: >-
-      EJ says that a revision proposal is rejected. A rejected revision does not change
-      the embargo in force (VP-04-005), so when no other proposal is open, EM returns to
-      Active under the terms it had. While another proposal stays open, EM stays in
-      Revise, because the register still holds an open proposal (ADR-0130). The
-      CASE_MANAGER's commit and fan-out of the received activity tell every participant
-      of the change, so no separate EK message is necessary (ADR-0113).
+      EJ says that a revision proposal is rejected. A rejected revision leaves the
+      embargo in force and the consent to it unchanged (EP-05-002), so when no other
+      proposal is open, EM returns to Active under the terms it had. While another
+      proposal stays open, EM stays in Revise, because the register still holds an open
+      proposal (ADR-0130). The CASE_MANAGER's commit and fan-out of the received
+      activity tell every participant of the change, so no separate EK message is
+      necessary (ADR-0113).
     adr:
     - ADR-0113
     - ADR-0130
@@ -807,10 +812,12 @@ groups:
       one open, MUST remain in Proposed (q^em P → P) while another proposal is
       open (EMB-18-005), and MUST emit EK to acknowledge receipt.
     rationale: >-
-      ER signals that a proposed embargo has been rejected. When it was the last
-      open proposal, the case returns to None (no embargo in effect); another
-      open proposal keeps it in Proposed (ADR-0130). The EK acknowledges the
-      rejection.
+      If the receiver stayed in Proposed after the last open proposal is rejected, it
+      would wait for an answer that does not come, and it would show an embargo
+      negotiation that has ended. None tells every participant that no embargo binds the
+      case. While another proposal stays open, Proposed keeps that proposal visible, so
+      its later answer still has a state to move from (ADR-0130). The EK tells the
+      sender that the receiver applied the change.
     adr:
     - ADR-0130
     verification: >-
@@ -1630,10 +1637,10 @@ groups:
       followed by EmbargoExitPolicyGuard or EmbargoExitOverride (EMB-14-002, EMB-14-003)
       and the OnEmbargoExit actuator.
     rationale: >-
-      EMB-14-001 states only the cause other participants observe (MS-12-010), so this
-      item holds how this codebase asks for the reason. A Selector of Evaluator call-out
-      points gives actors a clear interface (three buttons), and it lets a deployment
-      inject a policy-rule backend (ADR-0025).
+      A Selector of Evaluator call-out points gives actors a clear interface with three
+      choices, and it lets a deployment inject a policy-rule backend (ADR-0025). The
+      reason for the termination then comes from one place, so each deployment can
+      supply it in its own way with no change to the tree.
     adr:
     - ADR-0025
     verification: >-
@@ -2023,10 +2030,11 @@ groups:
       prototype the owner's auto-answer to a Flow B Invite is its decision for the case,
       not a Reject of the Invite.
     rationale: >-
-      EMB-15-004 states only the answer other participants observe (MS-12-010), so this
-      item holds how this codebase's decision layer reaches that rejection. The
-      rejection paths already carry the EM and consent semantics, so the decision layer
-      selects among them and must not re-implement the transition.
+      The rejection paths already carry the EM and consent semantics. If the decision
+      layer re-implemented the transition, the two copies could drift apart, and a
+      rejection could then change EM or consent in a way the rejection trigger does not.
+      When the decision layer selects among the existing paths, one implementation
+      decides each rejection.
     verification: >-
       `test/core/behaviors/embargo/test_response_decision_tree.py`
       (`test_reject_arm_is_last_child_without_counter`,
