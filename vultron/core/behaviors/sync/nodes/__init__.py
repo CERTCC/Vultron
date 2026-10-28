@@ -32,7 +32,7 @@ Submodules:
   every case activity stamps: lag, split, inert sender (SYNC-18)
 - ``position_statement``: the ``Read(CaseLedgerEntry)`` position check and
   the participant's position statements (SYNC-17)
-- ``genesis_announce``: the genesis-Reject case pre-seed (SYNC-15-002)
+- ``genesis_announce``: the genesis-Reject case pre-seed (SYNC-15-015)
 - ``reseed``: the rate-bounded re-seed of a diverged peer with a fresh case
   copy, and the log of a divergence a re-seed already covered: ERROR once the
   peer acknowledged that re-seed's position, WARNING before (SYNC-16)

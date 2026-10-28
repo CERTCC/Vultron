@@ -52,12 +52,12 @@ mistakes.
 
 ## Assertions and Admitted Entries
 
-Inbound case- or proto-case-scoped activities from participants are
-**assertions** by default: `Offer(Report)` asserts a report was submitted,
-`Add(Note)` that a note was added, `Invite`/`Accept`/`Reject` that the sender did
-those things. No `mode = asserted` marker is needed; the sender role and path
-already say it. A report is a proto-case (ADR-0015), so logging starts at report
-receipt.
+Inbound case-scoped activities from participants are **assertions** by
+default: `Add(Note)` asserts that a note was added, `Invite`/`Accept`/`Reject`
+that the sender did those things. No `mode = asserted` marker is needed; the
+sender role and path already say it. Logging starts when the CASE_MANAGER creates
+the case: report receipt and case proposal come before the case, so they write
+no entry (CLP-02-013, ADR-0041).
 
 A **canonical `CaseLedgerEntry`** is the CASE_MANAGER's record that an assertion
 was **admitted** (CLP-04-007). The vocabulary is *asserted* / *admitted* /

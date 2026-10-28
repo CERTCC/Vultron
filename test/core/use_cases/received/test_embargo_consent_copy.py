@@ -421,6 +421,7 @@ class TestReplicaCopies:
 
     @pytest.mark.spec("SYNC-16-002")
     @pytest.mark.spec("CLP-04-007")
+    @pytest.mark.spec("CLP-04-001")
     def test_no_case_ledger_gains_an_entry_for_a_divergence_fault(self):
         """Neither the replica sending the fault nor the CASE_MANAGER
         receiving it commits it to a case ledger, though the CASE_MANAGER

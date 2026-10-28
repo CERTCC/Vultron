@@ -64,7 +64,7 @@ REPLAY_COOLDOWN_SECONDS: float = 30.0
 
 #: Cooldown applied when the peer reports genesis (no entries at all).  Much
 #: shorter than :data:`REPLAY_COOLDOWN_SECONDS` because a genesis peer is
-#: mid-bootstrap (SYNC-15-002) and needs its history promptly, but still
+#: mid-bootstrap (SYNC-15-015) and needs its history promptly, but still
 #: non-zero so a peer that never anchors cannot drive an unbounded storm.
 GENESIS_REPLAY_COOLDOWN_SECONDS: float = 2.0
 
@@ -200,7 +200,7 @@ def should_replay(
     Genesis (``from_hash == ""``) gets a much shorter cooldown
     (:data:`GENESIS_REPLAY_COOLDOWN_SECONDS`) rather than the full one.  A peer
     at genesis holds no entries at all, and convergence there is owned by
-    ``AnnounceCaseOnGenesisRejectNode`` (SYNC-15-002), which seeds the
+    ``AnnounceCaseOnGenesisRejectNode`` (SYNC-15-015), which seeds the
     VulnerabilityCase and then relies on the replay that follows to deliver the
     history.  Rate-limiting that replay as aggressively as a mid-chain stall
     would starve the bootstrap it exists to complete, leaving the peer with an

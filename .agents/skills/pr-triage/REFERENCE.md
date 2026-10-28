@@ -170,8 +170,8 @@ Runs for every implementation or bug-fix PR (scope defined in
    | `updated <pages>` | a listed page is not changed in the diff | **IMPROVE** — the line claims an update the diff lacks |
    | `no docs impact — <reason>` | no affected page | none |
    | `no docs impact — <reason>` | an affected page | **IMPROVE** |
-   | `deferred to #N` | `#N` exists (open, or closed as planned), is a `type:Concern` listing the pages, and the update rewrites several pages (PD-03-007) | none |
-   | `deferred to #N` | `#N` does not exist, is not a Concern, does not list the pages, or the update is a single-page edit | **IMPROVE** |
+   | `deferred to #N` | `#N` exists (open, or closed as planned), is a `type:Task` or `type:Concern` listing the pages, and the update rewrites several pages (PD-03-007) | none |
+   | `deferred to #N` | `#N` does not exist, is neither a Task nor a Concern, does not list the pages, or the update is a single-page edit | **IMPROVE** |
    | `updated <pages>; deferred to #N` | judge each half by the rows above | the worse of the two |
 
 3. Verify a deferral with

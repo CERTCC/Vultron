@@ -29,12 +29,20 @@ groups:
         statement: >-
           The workflow file MUST be named
           `.github/workflows/docs-build-check.yml`.
+        rationale: >-
+          Another workflow calls this workflow by its file path, and specs, tests
+          and documentation refer to it by that path. A fixed file name keeps those
+          calls and references correct.
       - id: DOCBW-01-002
         priority: MUST
         kind: project
         verification_debt: '#2574'
         statement: >-
           The workflow `name:` field MUST be `Docs Build and Link Check`.
+        rationale: >-
+          GitHub shows the `name:` field in the Actions tab and in the checks list
+          of a pull request. A fixed name lets maintainers find the docs check in
+          those lists.
 
   - id: DOCBW-02
     title: Trigger Conditions
@@ -51,13 +59,14 @@ groups:
           (`.github/actions/build-site/**`, `.github/actions/setup-python-uv/**`),
           or the workflow file itself (`.github/workflows/docs-build-check.yml`).
         rationale: >-
-          A page renders from more than its `docs/` file: mkdocstrings reads
-          `vultron/`, exec blocks print `vultron/` examples and generators, and
-          the spec reference pages render `specs/*.yaml`. Omitting those let
-          #2904 break 101 example blocks, and #3574 ship a dead link, with this
-          workflow never running (#3070). Changes limited to `plan/`, `notes/`,
-          or other non-site markdown do not affect the built site and MUST NOT
-          trigger it, except on a pull request to `publish` (DOCBW-03-012).
+          A page renders from more than its `docs/` file. mkdocstrings reads
+          `vultron/`, exec blocks print `vultron/` examples and the output of
+          generators, and the spec reference pages render `specs/*.yaml`. If the
+          trigger leaves out one of these paths, a change there can break the
+          site while this workflow does not run. Changes only to `plan/`,
+          `notes/` or other markdown outside the site do not change the built
+          site, so they do not trigger the workflow (DOCBW-02-003), except on a
+          pull request to `publish` (DOCBW-03-012).
         verification: >-
           `test/ci/test_docs_build_trigger_paths.py` asserts the
           `pull_request` paths include every path this statement lists.
@@ -68,6 +77,10 @@ groups:
         statement: >-
           The workflow MUST trigger on `workflow_dispatch` events to allow
           manual runs at any time.
+        rationale: >-
+          The workflow has no `push` trigger, so it runs only on a pull request that
+          changes a watched path. A maintainer sometimes needs the docs check when there
+          is no such pull request, for example to check a branch or `main` directly.
       - id: DOCBW-02-003
         priority: MUST_NOT
         kind: project
@@ -76,6 +89,10 @@ groups:
           pattern, as this would cause the workflow to run on changes to
           `plan/`, `notes/`, and other non-site markdown files that have no
           effect on the published documentation.
+        rationale: >-
+          Most markdown in the repository is not part of the site. A run for
+          each change to `plan/` or `notes/` uses CI time and adds a check that
+          tells the reader nothing about the site.
         verification: >-
           `test/ci/test_docs_build_trigger_paths.py` asserts `**/*.md` is not
           among the `pull_request` paths.
@@ -91,6 +108,11 @@ groups:
           The workflow MUST contain a single job that runs both the
           build-site and link-check phases sequentially, sharing the same
           runner filesystem to avoid artifact upload/download overhead.
+        rationale: >-
+          The link check reads the `site/` tree that the build makes. In one job,
+          both phases use the same file system, so the workflow does not upload
+          and download the site as an artifact. This makes the run shorter and
+          removes a step that can fail.
       - id: DOCBW-03-002
         priority: MUST
         kind: project
@@ -100,6 +122,11 @@ groups:
           of which paths changed, so that Python-macro and plugin failures
           introduced by `pyproject.toml` or `mkdocs.yml` changes are always
           caught.
+        rationale: >-
+          A change to `pyproject.toml` or `mkdocs.yml` can break a macro or a
+          plugin on any page, whatever docs paths changed. If the build step ran
+          only for some paths, the workflow could pass while the site does not
+          build.
       - id: DOCBW-03-004
         priority: SHOULD
         kind: project
@@ -109,10 +136,9 @@ groups:
           in `mkdocs.yml` and are served by `mkdocs serve` but excluded from
           production builds; CI validates the production build only.
         rationale: >-
-          The former `mkdocs.dev.yml` overlay build was removed when
-          `docs/developer/` was moved from `exclude_docs` to `draft_docs`.
-          Draft pages are excluded from `mkdocs build` regardless of config
-          file, so a separate dev-overlay CI step no longer provides value.
+          Maintainers read the pages under `docs/developer/` with `mkdocs serve`,
+          so a broken page there misleads them. `mkdocs build` leaves out draft
+          pages, so the production build in CI does not check them.
       - id: DOCBW-03-005
         priority: MUST
         kind: project
@@ -122,13 +148,14 @@ groups:
           in `site/`. It MUST also fail when `site/` is absent or empty, and
           when a withheld declaration matches no file in the source tree.
         rationale: >-
-          A decision not to publish is a claim, and nothing compared it to the
-          build output. `docs/ns/index.md` carried `draft: true` — a Material
-          blog-plugin key, not an MkDocs one — so it read as a suppression while
-          the build published `site/ns/`. Checking the outcome rather than the
-          `mkdocs.yml` mechanism also catches a mis-anchored pattern. The
-          empty-`site/` and stale-declaration failures exist because a gate that
-          resolves no targets and passes is worse than no gate (DF-09-009).
+          A decision not to publish an artifact is a claim, and only the build
+          output shows if the claim is true. A key that looks like a suppression
+          can have no effect on the build. For example, `draft: true` is a key of
+          the Material blog plugin, not of MkDocs, so a page with it still gets
+          to `site/`. A check of the output, not of the `mkdocs.yml` mechanism,
+          also finds a pattern that matches the wrong path. The empty-`site/` and
+          stale-declaration failures exist because a gate that finds no targets
+          and passes is worse than no gate (DF-09-009).
         verification: >-
           `uv run docs-withheld` (`vultron/metadata/docs/withheld.py`) exits
           non-zero, invoked by the `Check withheld artifacts are unpublished`
@@ -168,13 +195,14 @@ groups:
           `site/` is absent or empty, and MUST run in every workflow that builds
           the site, on the same terms as DOCBW-03-006.
         rationale: >-
-          The reference axis went unchecked: `docs/ns/` moving to `draft_docs`
-          (#3549) left What's New advertising `../../ns/`, a well-formed path
-          with no target (#3574). `--strict` cannot see it: markdown-exec renders
-          on a child `Markdown` instance with no relative-link treeprocessor.
-          Checking *resolution* subsumes form signatures like a `.md` suffix; a
-          crawl misses every page nothing links to. Other clauses:
-          `notes/documentation-strategy.md`.
+          An internal reference can have a correct form and still point to a
+          path that the build did not make, for example after its target moves
+          to `draft_docs`. `--strict` cannot see every such reference, because
+          markdown-exec renders on a child `Markdown` instance that has no
+          relative-link treeprocessor. A check of *resolution* also covers form
+          checks such as a `.md` suffix. A crawl from an entry page misses every
+          page that no page links to, so the step reads every built file. Other
+          clauses: `notes/documentation-strategy.md`.
         verification: >-
           `uv run docs-links` (`vultron/metadata/docs/links.py`) exits non-zero,
           invoked by the `Check internal references resolve` step of
@@ -201,13 +229,13 @@ groups:
           and MUST run in every workflow that builds the site on the same terms
           as DOCBW-03-006.
         rationale: >-
-          Between `publish` and `main`, over a hundred pages moved or were
-          withdrawn, and a publish would have 404ed each URL (#3556). `--strict`
-          checks links within one build, not URLs an earlier build served. The
-          record is committed because its evidence, the `publish` branch, is
-          gone once `publish` advances. A withdrawn page is excluded, not
-          redirected, so a retirement is not disguised as a move. Other clauses:
-          `notes/documentation-strategy.md`.
+          Readers and other sites keep links to the URLs that an earlier publish
+          served. When a page moves or is withdrawn with no redirect, each of
+          those links gets a 404. `--strict` checks links in one build, not URLs
+          that an earlier build served. The record is committed because its
+          evidence, the `publish` branch, is gone when `publish` advances. A
+          withdrawn page is excluded, not redirected, so a retirement does not
+          look like a move. Other clauses: `notes/documentation-strategy.md`.
         verification: >-
           `uv run docs-legacy-urls` (`vultron/metadata/docs/legacy_urls.py`)
           exits non-zero, reading the record in
@@ -226,11 +254,12 @@ groups:
           Every workflow that builds the site MUST run `mkdocs build --strict`,
           so that any warning the build emits fails the workflow.
         rationale: >-
-          `mkdocs.yml` raises dead in-page anchors and un-navved pages to `warn`
-          so they would fail a strict build (#1304, #3027), and no workflow ran
-          one: the warnings printed and the job stayed green (#3051). Strictness
-          is not link coverage — `--strict` sees only links MkDocs parsed, which
-          is why DOCBW-03-007 checks the built output.
+          `mkdocs.yml` raises dead in-page anchors, and pages that are in neither the
+          nav nor `not_in_nav`, to `warn`, so that a strict build fails on them
+          (DOCBW-03-011). If a workflow builds without `--strict`, the warnings print
+          and the job stays green. Strict mode does not cover every link. `--strict`
+          sees only the links that MkDocs parsed, so DOCBW-03-007 checks the built
+          output.
         verification: >-
           `test/ci/test_docs_build_strict.py` asserts every workflow running
           `mkdocs build` passes `--strict`.
@@ -275,16 +304,16 @@ groups:
           step MUST fail when the merge result builds no pages, and MUST NOT run
           on pull requests to any other base branch.
         rationale: >-
-          The record stays complete only if each publish is recorded before it
-          ships, and nothing enforced that (#3728); recording every incoming
-          publish covers all earlier ones. The merge result is checked because
-          it is what `publish` will serve once the pull request merges. A path
-          filter would skip a release that changes no docs while pages from an
-          earlier unchecked publish are still unrecorded. On a pull request to
-          `main` a new page is not yet due, so the step would fail every page
-          addition. `publish` has no required status checks, so the gate holds
-          through the rule that a pull request never merges on a red check; a
-          direct push or manual deploy goes unchecked, an accepted gap. See
+          The record stays complete only if each publish is recorded before it ships.
+          Each pull request to `publish` checks every page that its merge result builds,
+          so it also finds a page that an earlier publish shipped unrecorded. The merge
+          result is checked because it is what `publish` will serve once the pull
+          request merges. A path filter would skip a release that changes no docs while
+          pages from an earlier unchecked publish are still unrecorded. On a pull
+          request to `main` a new page is not yet due, so the step would fail every page
+          addition. `publish` has no required status checks, so the gate holds through
+          the rule that a pull request never merges on a red check; a direct push or
+          manual deploy goes unchecked, an accepted gap. See
           `notes/documentation-strategy.md`.
         verification: >-
           A `docs-legacy-urls` mode (`vultron/metadata/docs/legacy_urls.py`)
@@ -306,10 +335,11 @@ groups:
           `pull_request` trigger fires on that file.
         rationale: >-
           No workflow runs pre-commit, so a hook enforces nothing on a pull
-          request whose author did not run it. A gate's committed-tree test is
-          no backstop when its workflow's path filter misses the file: a pull
-          request that changes only `docs/` and breaks a page's frontmatter or
-          the normative banner merged green (#5084).
+          request whose author did not run it. A test of the committed tree does
+          not replace the hook when the path filter of its workflow misses the
+          file. Then a pull request that changes only `docs/`, and breaks the
+          frontmatter of a page or the normative banner, can merge with green
+          checks.
         verification: >-
           `test/ci/test_docs_source_gates_in_workflows.py` derives the hooks
           from `.pre-commit-config.yaml` and asserts that, for every `docs/`
@@ -372,6 +402,10 @@ groups:
           All `uses:` references in `docs-build-check.yml` MUST be pinned
           to a specific commit SHA with an inline human-readable version
           comment, per CISEC-01-001 and CISEC-01-002.
+        rationale: >-
+          This workflow runs actions from outside the repository. A pin keeps that
+          code fixed to a reviewed commit, as in every other workflow
+          (CISEC-01-001).
       - id: DOCBW-05-002
         priority: MUST
         kind: project
@@ -379,6 +413,10 @@ groups:
         statement: >-
           The workflow MUST declare `permissions: contents: read` at the
           workflow level and no additional permissions, per CISEC-02-002.
+        rationale: >-
+          The workflow reads the repository, builds the site and checks it. It writes
+          nothing, so it needs no write access. A read-only token limits what a
+          compromised step or action can change (CISEC-02-002).
 
   - id: DOCBW-06
     title: Site Publication
@@ -451,9 +489,10 @@ groups:
           after the shared build, and MUST NOT run a `mkdocs build` of its own.
         rationale: >-
           A review build is evidence about the published site only when it builds
-          the same thing. The review and publication workflows have diverged on
-          the installed dependency group, on whether git tags are fetched, and on
-          the build flags, so a green review did not prove the published site.
+          the same thing. Two workflows that each set up their own build can
+          differ in the dependency group, in whether they fetch git tags, and in
+          the build flags. Then a green review does not show that the published
+          site builds.
         verification: >-
           `test/ci/test_site_build_shared_action.py` fails when any workflow or
           any other local action runs `mkdocs build` outside

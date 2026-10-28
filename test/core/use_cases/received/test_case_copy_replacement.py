@@ -181,7 +181,7 @@ def test_a_late_copy_from_before_the_replicas_tail_changes_nothing() -> None:
 
 
 @pytest.mark.spec("SYNC-16-007")
-@pytest.mark.spec("SYNC-15-002")
+@pytest.mark.spec("SYNC-15-015")
 def test_a_replica_with_no_entry_is_replayed_from_genesis() -> None:
     """A replica holding the case but no entry is replaced by a copy ahead
     of it, asks for a replay from genesis with the Reject that names no

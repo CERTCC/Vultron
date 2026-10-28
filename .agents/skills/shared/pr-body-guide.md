@@ -164,8 +164,9 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
   - `Docs: no docs impact — <reason>` — no `docs/` page describes the changed
     behavior. The reason names why (for example "internal refactor, no
     described interface changed" or "spec pages regenerate from YAML").
-  - `Docs: deferred to #N` — a multi-page rewrite deferred to a `type:Concern`
-    issue that lists the affected pages (PD-03-007). The issue may be open or
+  - `Docs: deferred to #N` — a multi-page rewrite deferred to a `type:Task`
+    issue that lists the affected pages (PD-03-007). An older deferral filed as a
+    `type:Concern` still validates (PD-03-009). The issue may be open or
     already closed as planned; it must exist. An updated-and-deferred PR
     carries both: `Docs: updated <page>; deferred to #N`.
 

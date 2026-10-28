@@ -39,7 +39,7 @@ def create_reject_log_entry_tree(
     Inside the gate the genesis pre-seed precedes the replay: when the peer
     has no ``VulnerabilityCase`` yet (``last_accepted_hash=""``) it is sent
     ``Announce(VulnerabilityCase)`` first, so it can anchor its hash chain
-    before the entries arrive (SYNC-15-002).  A pre-seed that fails at the
+    before the entries arrive (SYNC-15-015).  A pre-seed that fails at the
     CASE_MANAGER — its embargo gate undecidable — fails the tree before the
     replay, instead of reading as "not the CASE_MANAGER" (BTND-07-005).
 

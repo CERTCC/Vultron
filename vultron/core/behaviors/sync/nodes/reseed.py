@@ -128,7 +128,7 @@ def announce_case_to_peer(
     """Build and store *actor_id*'s ``Announce(VulnerabilityCase)`` of
     *case_id* to *peer_id* alone; return its id.
 
-    The one case-copy send the genesis pre-seed (SYNC-15-002) and the
+    The one case-copy send the genesis pre-seed (SYNC-15-015) and the
     re-seed (SYNC-16-003) share.  The copy names the case's ledger position
     (SYNC-16-005).  Queueing it is the caller's.
     """

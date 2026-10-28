@@ -581,3 +581,118 @@ groups:
       starts with `GATE_CEILING`. `test/metadata/test_gate_ceiling.py` checks every
       redirected pytest gate in agent-facing files for the ceiling, and the CI test
       job for `timeout-minutes`.
+- id: TB-15
+  title: Test Starting Points on the Scenario Tree
+  specs:
+  - id: TB-15-001
+    priority: MUST
+    kind: project
+    statement: >-
+      A multi-actor integration test MUST start from a named starting point, a
+      declared step on a demo scenario path.
+    rationale: >-
+      Sibling tests that replay the same steps to reach their starting state pay
+      for those steps again and test them again. A run per commit on hundreds of
+      pull requests a week makes that cost real. One tree for demos and tests
+      means each case state is defined once.
+    verification: >-
+      A guard test collects every test that uses a multi-actor network and fails
+      on any test that obtains its network other than by loading a named
+      starting point.
+    relationships:
+    - rel_type: depends_on
+      spec_id: DEMOCI-11-014
+    - rel_type: depends_on
+      spec_id: DEMOCI-11-017
+  - id: TB-15-002
+    priority: MUST
+    kind: project
+    statement: >-
+      The test harness MUST run the steps that reach a named starting point once
+      per test session, when it builds that point. Under parallel test workers, a
+      session is one worker's run.
+    rationale: >-
+      A test then pays only for its own acts. The test that takes a step from one
+      starting point to the next is the one test that exercises that step.
+    verification: >-
+      A harness test counts the tree runs while two tests load one starting point,
+      and checks the point's steps ran once.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-15-001
+  - id: TB-15-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The test harness MUST build each named starting point with the seeded id
+      source and clock that the scenario recordings use.
+    rationale: >-
+      Every copy is then identical on every run. A copy whose ids or timestamps
+      vary between runs makes the tests that load it nondeterministic
+      (TB-06-006). Sharing the recordings' seeding keeps a starting point and the
+      recording of the same step comparable.
+    verification: >-
+      A harness test builds one starting point twice and checks that the two copies
+      hold the same records, ids and timestamps included.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-15-001
+  - id: TB-15-004
+    priority: MUST
+    kind: project
+    statement: >-
+      The ledger rebuild check MUST prove a named starting point rebuilds from
+      its ledger once, when the point is built.
+    rationale: >-
+      Replaying the starting point's whole ledger after every test that loads it
+      re-checks steps already checked.
+    verification: >-
+      A harness test counts the rebuild replays of a starting point loaded by two
+      tests, and checks it was replayed once.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-15-002
+  - id: TB-15-005
+    priority: MUST
+    kind: project
+    statement: >-
+      For a test that loads a named starting point, the ledger rebuild check MUST
+      replay only the test's own entries. It replays them onto the point's rebuilt
+      store.
+    rationale: >-
+      The point's own entries were proven once (TB-15-004), so replaying only the
+      test's entries on top of the rebuilt point still covers the whole chain.
+    verification: >-
+      A harness test commits one entry after a loaded starting point and checks the
+      rebuild check replays one entry, not the point's whole ledger.
+    relationships:
+    - rel_type: depends_on
+      spec_id: TB-15-004
+  - id: TB-15-006
+    priority: SHOULD
+    kind: project
+    statement: >-
+      A test of a state no scenario path reaches SHOULD load the nearest named
+      starting point and then apply its own change.
+    rationale: >-
+      A diverged replica or a forced commit failure is not a story, so no
+      declared step reaches it. Building a whole case outside the ledger for it
+      repeats setup the tree already provides.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-15-001
+  - id: TB-15-007
+    priority: MUST
+    kind: project
+    statement: >-
+      A test that loads a named starting point MUST get its own copy of each
+      actor's store at that point.
+    rationale: >-
+      A shared store would let one test's writes change what another test starts
+      from. Copies keep each test independent (TB-06-001, TB-06-003).
+    verification: >-
+      A harness test loads one starting point into two tests and checks that a write
+      in one is absent from the other.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-15-001

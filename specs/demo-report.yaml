@@ -37,17 +37,24 @@ groups:
       unset) and MUST discover input files by recursively globbing
       `**/*-case-ledger.jsonl` beneath it.
     rationale: >-
-      This mirrors the layout written by `rv_demo._phase_dump_case_ledgers`
-      (`{DEVLOGS_DIR}/{demo_name}/{actor_name}/{case_id_slug}-case-ledger.jsonl`)
-      and read by the invariant harnesses in `test/ci/invariants/`.
+      The demo run writes each replica to
+      `{DEVLOGS_DIR}/{demo_name}/{actor_name}/{case_id_slug}-case-ledger.jsonl`, and
+      the invariant checks in `test/ci/invariants/` read the same layout. When the tool
+      uses the same default directory and the same file pattern, it reads the output of
+      a demo run with no extra arguments, and it does not read other files in the
+      directory.
   - id: DRPT-01-003
     priority: MUST
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The tool MUST derive each entry's actor name from the name of the
-      directory that contains its JSONL file (e.g. `finder`, `vendor`,
-      `case-actor`).
+      The tool MUST derive each entry's actor name from the name of the directory that
+      contains its JSONL file (e.g. `reporter`, `vendor`, `case-actor`).
+    rationale: >-
+      A ledger entry is the same in every replica, so it does not show which actor's
+      replica holds it. The demo run writes the replica of each actor into a directory
+      with the name of that actor. Thus the directory name is a reliable source for the
+      actor name.
   - id: DRPT-01-004
     priority: MUST
     kind: project
@@ -56,6 +63,10 @@ groups:
       The tool MUST exit with status code 0 on success and a non-zero status
       code when the input directory is missing, contains no matching JSONL
       files, or a file cannot be parsed.
+    rationale: >-
+      Scripts and CI jobs use the exit status to decide if the report was made. If the
+      tool exits with zero when it has no input or cannot parse a file, a missing or
+      damaged report is not seen.
   - id: DRPT-01-005
     priority: SHOULD
     kind: project
@@ -66,11 +77,11 @@ groups:
       arguments (defaulting to `sys.argv`) so the console-script wrapper works,
       and MUST return the process exit code.
     rationale: >-
-      A console script matches the convention of the other demo entry points
-      (`vultron-demo`, `vultrabot_*`) and makes the tool directly runnable after
-      install without the `python -m` prefix. Requiring a zero-argument `main`
-      guards against the latent console-script breakage seen for other demo
-      entry points whose `main` required a parsed-args positional.
+      A console script matches the other demo entry points (`vultron-demo`,
+      `vultrabot_*`), and a user can run the tool after install without `python -m`.
+      The console-script wrapper calls `main()` with no arguments and uses its return
+      value as the exit status. A `main` that needs an argument fails when the console
+      script starts, and a `main` that returns no code cannot report a failure.
     relationships:
     - rel_type: extends
       spec_id: DRPT-01-001
@@ -87,8 +98,9 @@ groups:
       timeline event in friendly-readable form. Both the markdown and HTML
       renderers MUST consume this model rather than raw JSONL dicts.
     rationale: >-
-      A typed intermediate model is the reusable, testable "friendly data" layer
-      described in IDEA-1286; it isolates JSONL parsing quirks from rendering.
+      One typed model between the parser and the renderers keeps the JSONL parsing
+      details in one place. Both renderers then show the same fields with the same
+      meaning, and a test can check the parsed events without a renderer.
   - id: DRPT-02-002
     priority: MUST
     kind: project
@@ -99,6 +111,10 @@ groups:
       target object reference, the timestamp (`receivedAt`), the resulting
       RM/EM/CS state transition(s) from the payload snapshot, the `log_index`,
       and a short (truncated) `entry_hash` for chain traceability.
+    rationale: >-
+      A reader of the report must see who did what, to which object, when, and what
+      case state changed as a result. The `log_index` and a short `entry_hash` let a
+      reader find the matching entry in the ledger files.
   - id: DRPT-02-003
     priority: MUST
     kind: project
@@ -108,6 +124,10 @@ groups:
       source entries (e.g. `logIndex`/`log_index`, `entryHash`/`entry_hash`,
       `payloadSnapshot`/`payload_snapshot`), consistent with the tolerance
       already present in `test/ci/invariants/common.py`.
+    rationale: >-
+      Ledger files can spell the same field in camelCase or in snake_case. If the parser
+      reads only one spelling, it drops data, with no error, from files that use the
+      other one, and the report shows an incomplete case.
   - id: DRPT-02-004
     priority: MUST
     kind: project
@@ -128,6 +148,10 @@ groups:
       replica-presence indicator recording which discovered actors' replicas
       contain that entry (by `entry_hash`), so replica convergence and
       divergence are visible at a glance.
+    rationale: >-
+      Each actor holds a replica of the case ledger. If a replica does not contain an
+      entry, that actor has not received that case event. The presence indicator for
+      each actor shows these gaps without a manual comparison of the files.
   - id: DRPT-02-006
     priority: MUST
     kind: project
@@ -157,9 +181,10 @@ groups:
       in the report produces `—` actor labels and empty target columns that
       violate the CLP spec and mislead readers.
     rationale: >-
-      The AGENTS.md pitfall "disposition=rejected for Local-Only Correlation
-      Markers" documents that rejected entries must not appear in output
-      intended for human consumption.
+      An entry that the ledger did not record is not a case event. It has no actor and
+      no target in its snapshot. If the report shows it, the report shows `—` labels
+      and empty columns, and a reader can think that the case history contains an event
+      that it does not contain.
     relationships:
     - rel_type: refines
       spec_id: DRPT-02-004
@@ -238,8 +263,9 @@ groups:
       MAY be retained as secondary detail (e.g. a tooltip, title attribute, or
       trailing reference column).
     rationale: >-
-      Per IDEA-1286: prefer "Finder submitted report" over
-      "https://…/actors/finder submitted urn:uuid:…".
+      A reader can follow "Reporter submitted report" at a glance. A reader cannot
+      follow a long URI or a UUID in the same position. The full identifier stays
+      available as secondary detail, so a reader can still find the exact object.
   - id: DRPT-03-003
     priority: MUST
     kind: project
@@ -268,9 +294,9 @@ groups:
       (subject verb object) by looking up the matching `SemanticEntry` in
       `SEMANTIC_REGISTRY` and rendering `entry.phrase` via `str.format_map()`.
     rationale: >-
-      Replaces the tool-local `_EVENT_PHRASES` dict (Concern #1675). Deriving
-      phrases directly from `SemanticEntry.phrase` (SE-07-001) guarantees that
-      new semantics are automatically covered and eliminates the drift risk.
+      `SEMANTIC_REGISTRY` already holds a phrase for each message semantic (SE-07-001).
+      When the tool uses that phrase, every semantic in the registry has a summary, and
+      the summary cannot become different from the registry.
     relationships:
     - rel_type: refines
       spec_id: DRPT-03-001
@@ -355,6 +381,10 @@ groups:
       The tool MUST render a markdown table report (one row per canonical
       timeline event) covering the distilled fields, including a per-actor
       replica-presence matrix column group.
+    rationale: >-
+      A markdown table is easy to read in a terminal, on GitHub and in a CI log. One
+      row for each event, with the presence of each actor in columns, shows the case
+      history and the replica gaps together.
   - id: DRPT-04-002
     priority: MUST
     kind: project
@@ -365,9 +395,9 @@ groups:
       artifact renders identically offline and can be archived or shared as a
       single file.
     rationale: >-
-      Client-side-JS parsing was considered and rejected to keep parsing logic
-      in one place (Python), keep output deterministic and testable, and avoid a
-      JS toolchain.
+      A report with no external assets shows the same content offline, in a CI artifact
+      or in an archive. The tool writes the HTML in Python, so the report needs no
+      JavaScript build step, its output is deterministic, and tests can check it.
   - id: DRPT-04-003
     priority: MUST
     kind: project
@@ -377,6 +407,9 @@ groups:
       as a per-actor checkbox/emoji cell per event, showing a present/absent
       indicator for each actor column (e.g. an event present in three of four
       actors' replicas shows three checks across four columns).
+    rationale: >-
+      A check mark or an empty cell for each actor shows at a glance which replicas
+      contain an event. A count alone does not show which actor is missing it.
   - id: DRPT-04-004
     priority: MUST
     kind: project
@@ -384,6 +417,10 @@ groups:
     statement: >-
       The output format MUST be selectable (e.g. `--format markdown|html`), and
       the tool MUST write the report to a file (path configurable).
+    rationale: >-
+      Different readers need different formats: markdown for a terminal or for GitHub,
+      and HTML for a browser. A report written to a file can be kept as a CI artifact
+      or shared after the run.
   - id: DRPT-04-005
     priority: SHOULD
     kind: project
@@ -392,6 +429,10 @@ groups:
       browser via `webbrowser.open()`, and MUST provide a flag (e.g.
       `--no-open`) that suppresses the browser launch (required for
       non-interactive and CI use).
+    rationale: >-
+      A user who runs the tool on a desktop wants to see the report at once. In CI and
+      in other non-interactive runs, there is no browser, so the flag must stop the
+      launch.
   - id: DRPT-04-006
     priority: SHOULD
     kind: project
@@ -553,6 +594,10 @@ groups:
       that include both camelCase and snake_case field spellings, and MUST
       assert field extraction, merge/de-duplication by `entry_hash`, and the
       per-actor replica-presence computation.
+    rationale: >-
+      The parser is the part of the tool that is most likely to lose data without an
+      error. Fixtures with both field spellings, and checks of merge and presence, find
+      the data loss that a renderer test cannot see.
   - id: DRPT-05-002
     priority: MUST
     kind: project
@@ -561,6 +606,10 @@ groups:
       Unit tests MUST cover both renderers: given a fixed list of distilled
       events, assert the markdown table structure and assert that the HTML
       output is well-formed and self-contained (references no external assets).
+    rationale: >-
+      The renderers produce the output that a reader sees. Fixed input events let a
+      test check the table structure and the self-contained HTML (DRPT-04-002) without
+      a demo run.
   - id: DRPT-05-003
     priority: MUST
     kind: project
@@ -569,6 +618,10 @@ groups:
       A CLI smoke test MUST invoke the entry point against a tiny fixture
       directory, assert exit code 0, assert an output file is written, and
       assert that `--no-open` suppresses any browser launch.
+    rationale: >-
+      The unit tests call functions directly. A smoke test of the entry point checks
+      the parts that a user runs: argument parsing, the exit status, the output file,
+      and the flag that stops the browser launch.
   - id: DRPT-05-004
     priority: MUST
     kind: project
@@ -580,6 +633,11 @@ groups:
       `actor_display_name` on events whose actor URI is in the map, and that
       `actor_label` returns the display name rather than a hex-fragment label
       for UUID-based actor URIs.
+    rationale: >-
+      Name resolution has three steps: collect the names, set them on the events, and
+      use them in the label. If one step fails, the label falls back to a hex fragment
+      of the UUID, and the report still renders. A test of each step finds the step
+      that failed.
     relationships:
     - rel_type: verifies
       spec_id: DRPT-03-003
@@ -593,6 +651,10 @@ groups:
       anchor), assert `—` when `received_at` is `None`, assert `—` when both
       are `None`, and assert correct adaptive formatting for sub-minute
       (`+Ns`), sub-hour (`+Nm Ns`), and multi-hour (`+Nh Nm Ns`) deltas.
+    rationale: >-
+      The delta format has several cases: the first row, missing timestamps, and three
+      ranges of duration. A direct test of `_format_delta` checks each case, including
+      the cases that a fixture with real events does not reach.
     relationships:
     - rel_type: verifies
       spec_id: DRPT-04-007

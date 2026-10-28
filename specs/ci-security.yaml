@@ -20,18 +20,39 @@ groups:
       specific commit SHA rather than a version tag or branch name. Local path references to actions within this repository
       (e.g. `./.github/actions/<name>`) are exempt — they are already pinned to the commit being checked out and have no
       separate tag/release lifecycle to pin against
+    rationale: >-
+      The owner of an upstream action can move a tag or a branch to new code. Then
+      changed code runs in CI with no change in this repository, and it can read
+      secrets or change what CI builds. A commit SHA cannot move, so CI runs the same
+      code until a change in this repository updates the pin. A local action is
+      already fixed to the commit that CI checks out.
+    adr:
+    - ADR-0014
   - id: CISEC-01-002
     priority: MUST
     kind: process
     verification_debt: '#2571'
     statement: Each SHA-pinned `uses:` reference MUST carry an inline comment identifying the corresponding human-readable
       version tag (e.g., `# v4.1.0`) to aid maintainability
+    rationale: >-
+      A reviewer cannot tell from a SHA alone which release it pins. The version
+      comment shows the release. Then a reviewer can see when a pin is old, or when a
+      security advisory applies to the pinned action.
+    adr:
+    - ADR-0014
   - id: CISEC-01-003
     priority: SHOULD
     kind: process
     statement: A CI verification test SHOULD confirm that all `uses:` lines in `.github/workflows/*.yml` reference a SHA hash
       rather than a mutable version tag or branch name, and that each SHA line carries the human-readable version comment
       required by CISEC-01-002
+    rationale: >-
+      A person can add an unpinned `uses:` line or drop a version comment by mistake,
+      and review does not always see it. A test that reads every workflow file finds
+      the mistake in CI. Then the pinning rules (CISEC-01-001, CISEC-01-002) do not
+      depend on the memory of each author and reviewer.
+    adr:
+    - ADR-0014
 - id: CISEC-02
   title: Secrets Management
   specs:
@@ -40,12 +61,22 @@ groups:
     kind: process
     verification_debt: '#2571'
     statement: Workflow secrets and tokens MUST be stored in GitHub Secrets and MUST NOT appear in repository files
+    rationale: >-
+      Every person who can read the repository can read a secret in a repository
+      file. The secret also stays in the version history after someone deletes the
+      file. GitHub Secrets keeps the value out of the files and hides it in the job
+      logs.
   - id: CISEC-02-002
     priority: MUST
     kind: process
     verification_debt: '#2571'
     statement: The minimal set of permissions required MUST be declared explicitly via `permissions:` at the job or workflow
       level
+    rationale: >-
+      If a workflow does not limit its token, the token gets the default permissions,
+      which can be broad. A compromised step or action can then do everything the
+      token allows. An explicit, minimal `permissions:` block limits that damage, and
+      it shows a reviewer what each workflow can change.
 - id: CISEC-03
   title: Artifact Integrity
   specs:
@@ -64,12 +95,25 @@ groups:
     kind: process
     statement: SHA pins SHOULD be reviewed and updated on a documented periodic cadence, at minimum when a security advisory
       is issued for the pinned action or when a new minor version is released
+    rationale: >-
+      A pin that nobody updates keeps the known vulnerabilities of the pinned release,
+      and the distance to the current release grows. A review on a fixed cadence, a
+      review when an advisory is published, and a review for each new minor version keep
+      the pins current. Each update is still a change that a person reviews.
+    adr:
+    - ADR-0014
   - id: CISEC-04-002
     priority: MUST
     kind: process
     verification_debt: '#2571'
     statement: When adding a new workflow step or action, the SHA pin and version annotation MUST be included before the step
       is merged to `main`
+    rationale: >-
+      A step that merges without its pin runs unpinned code on `main` from the first
+      run after the merge. A later fix does not undo what that run did. Thus the pin
+      and its version comment must be in the change that adds the step.
+    adr:
+    - ADR-0014
 - id: CISEC-05
   title: CI Failure Notification
   specs:
@@ -84,11 +128,13 @@ groups:
       action. The step MUST fire only on a genuine job `failure` and MUST NOT
       fire on cancellation alone (see CISEC-05-006).
     rationale: >-
-      Without structured failure notification, a broken `main` or a failed
-      scheduled job goes undetected until a developer manually audits the Actions
-      tab. Structured alerting ensures failures are visible in the issue tracker
-      where the team already triages work. Derived from ADR-0055
-      (docs/adr/0055-ci-failure-alerting-via-github-issues.md).
+      Without a failure alert, nobody sees a broken `main` or a failed scheduled job
+      until a developer looks at the Actions tab. An issue puts the failure in the
+      issue tracker, where the team already triages work. One shared action makes the
+      alert the same in every workflow. A cancelled run is not a failure, so it must
+      not cause an alert (CISEC-05-006).
+    adr:
+    - ADR-0055
   - id: CISEC-05-002
     priority: MUST
     kind: process
@@ -130,15 +176,23 @@ groups:
       final job that `needs:` every other job that can run in it and keys on
       the `needs.*.result` aggregate (CISEC-05-002, CISEC-05-006).
     rationale: >-
-      The close step closes every open issue carrying both labels. When several
-      jobs each run a notify/close pair under the same label, a job that passes
-      closes the issue a sibling job just filed, and whichever job finishes last
-      decides whether a red `main` stays reported (#4229).
+      The close step closes every open issue that has both labels. If several jobs
+      each run a notify step and a close step under the same label, a job that passes
+      closes the issue that another job filed. Then the job that finishes last decides
+      if a failed `main` stays reported. One final job that reads the result of every
+      other job makes one decision for each run.
   - id: CISEC-05-004
     priority: SHOULD
     kind: process
     statement: A CI verification test SHOULD confirm that every qualifying workflow (push to `main` or `schedule` trigger)
       includes the `.github/actions/notify-failure` composite action step.
+    rationale: >-
+      The author of each new workflow on `main` or on a schedule must remember to add
+      the notify step. If the author forgets, the failures of that workflow cause no
+      alert, and nobody sees that the alert is missing. A test that finds every
+      qualifying workflow finds the missing step in CI.
+    adr:
+    - ADR-0055
   - id: CISEC-05-005
     priority: SHOULD
     kind: process
@@ -171,24 +225,19 @@ groups:
       cancelled (DEMOCI-04-007), so that a `failure` in the aggregate is always
       genuine.
     rationale: >-
-      A push-to-`main` run cancelled by the concurrency group (superseded by a
-      newer merge) is not an actual CI failure — a newer run is authoritative and
-      will file or close as appropriate. Two ways a cancelled run otherwise
-      registers as a failure: (1) a guard that files on cancellation directly
-      (e.g. `|| contains(needs.*.result, 'cancelled')`), and (2) a cancelled
-      upstream job that leaves a downstream job to hard-fail on a missing
-      artifact (#3249), laundering the cancellation into a `failure` result in
-      the `needs.*.result` aggregate. The `failure()` status function is immune
-      to both. The aggregate is not, but the remedy for (2) is to close the
-      laundering path at its source — skip the consumer when the producer was
-      cancelled — not to exclude every run that contains a `cancelled` result.
-      A blanket `!contains(needs.*.result, 'cancelled')` cannot tell a laundered
-      failure from a genuine one, so it suppresses the notification whenever a
-      newer push cancels a sibling job after a real failure has already been
-      observed: lint jobs cancelled alongside failing tests (#3293), or the
-      invariant harness cancelled after a demo leg failed (#3294). The
-      close-step guard (CISEC-05-002) keeps its cancellation exclusion because a
-      superseded run must not declare recovery either.
+      When a newer merge makes the concurrency group cancel a push run on `main`, the
+      cancelled run is not a CI failure. The newer run gives the current result, and
+      it files or closes the issue. A cancelled run can look like a failure in two
+      ways. A guard can file on cancellation directly. Or a cancelled job can make a
+      job that needs its artifact fail, and that failure then shows in the
+      `needs.*.result` aggregate. The `failure()` status function is not affected by
+      either. For the aggregate, the fix for the missing artifact is to skip the
+      consumer when its producer was cancelled. A guard that ignores every run with a
+      `cancelled` result cannot tell a real failure from a false one. It then hides
+      the alert when a newer push cancels a job after another job really failed, for
+      example lint jobs cancelled beside failing tests. The close step keeps its
+      cancellation exclusion, because a cancelled run must not report recovery either
+      (CISEC-05-002).
     verification: >-
       In `test/ci/test_workflow_failure_notification.py`,
       `test_notify_step_does_not_file_on_cancellation` asserts no qualifying
@@ -213,13 +262,13 @@ groups:
       label-to-issue-type workflow to convert, and it MUST fail visibly if no
       `Bug` issue type exists.
     rationale: >-
-      `gh issue create` cannot set an issue type, so a failure issue filed by
-      the action was untyped and invisible to every issue-type query (#4038).
-      The label-to-issue-type workflow cannot repair this: events raised with
-      the workflow's own `GITHUB_TOKEN` never trigger other workflows, so a
-      `bug` label applied by the action is never converted. Resolving by name
-      survives a re-created type; re-typing on a later run repairs a transient
-      mutation failure; a missing type is surfaced, not swallowed.
+      `gh issue create` cannot set an issue type. Without a separate mutation, a failure
+      issue has no type, and no issue-type query finds it. The label-to-issue-type
+      workflow cannot fix this. An event that a workflow causes with its own
+      `GITHUB_TOKEN` does not start other workflows, so nothing converts a `bug` label
+      that the action applies. A lookup by name still works when someone creates the
+      type again. A later run sets the type when one mutation failed. If no `Bug` type
+      exists, the action fails with an error, so the problem shows in the run.
     verification: >-
       In `test/ci/test_workflow_failure_notification.py`,
       `test_notify_action_sets_bug_issue_type` asserts the action resolves the

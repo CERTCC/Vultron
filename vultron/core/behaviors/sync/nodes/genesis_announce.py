@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Pre-seed the case for a peer that Rejected from genesis (SYNC-15-002).
+"""Pre-seed the case for a peer that Rejected from genesis (SYNC-15-015).
 
 Split from ``replay.py`` to keep that module under the submodule line cap
 (CS-18-001); the node runs ahead of the replay in ``create_reject_log_entry_tree``.
@@ -47,7 +47,7 @@ class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):
     When a peer sends ``Reject(last_accepted_hash="")`` it has no copy of
     VulnerabilityCase yet.  Replaying ledger entries without first seeding the
     case object causes ReconstructChainTailNode to fail again on every entry,
-    producing an exponential reject-replay loop (SYNC-15-002).  This node
+    producing an exponential reject-replay loop (SYNC-15-015).  This node
     fires first so the VulnerabilityCase arrives before the entry replay.
 
     Returns SUCCESS when it queues the announce or has nothing to seed (a
@@ -96,7 +96,7 @@ class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):
         if factory is None:
             self.logger.warning(
                 "%s: trigger_activity_factory not available;"
-                " cannot pre-seed VulnerabilityCase for peer '%s' (SYNC-15-002)",
+                " cannot pre-seed VulnerabilityCase for peer '%s' (SYNC-15-015)",
                 self.name,
                 activity.actor_id,
             )
@@ -163,7 +163,7 @@ class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):
             self._emit_through_seam(activity_id, "")
             self.logger.info(
                 "%s: queued AnnounceVulnerabilityCase '%s' to peer '%s'"
-                " before entry replay (SYNC-15-002)",
+                " before entry replay (SYNC-15-015)",
                 self.name,
                 activity_id,
                 peer_id,

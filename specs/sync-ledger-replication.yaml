@@ -19,6 +19,10 @@ groups:
     kind: architecture
     verification_debt: '#2569'
     statement: The AppendOnlyLedger phase MUST establish the local append-only case ledger with hash-chain indexing.
+    rationale: >-
+      Every later phase sends, checks or repairs this ledger. Without a local
+      append-only ledger with a hash chain, a replica has nothing to compare and
+      nothing to repair against.
   - id: SYNC-00-005
     priority: MUST
     kind: architecture
@@ -43,12 +47,23 @@ groups:
       CASE_MANAGER role to all Participant Actors via `Announce(CaseLedgerEntry)` messages.
       A participant replica MUST be treated as synchronized when and only when its log tail
       hash matches the CASE_MANAGER's authoritative tail hash.
+    rationale: >-
+      Participants need their own copy of the case ledger to know the case state.
+      One-way replication from the CASE_MANAGER keeps one source of truth, so replicas
+      cannot disagree about which entry is canonical. The tail hash covers the whole
+      chain, so equal tail hashes prove equal ledgers. A count or an index alone cannot
+      prove this.
   - id: SYNC-00-003
     priority: MUST
     kind: architecture
     verification_debt: '#2569'
     statement: The LedgerReconciliation phase MUST extend LedgerFanout with a full synchronisation loop, retry, and
       backoff.
+    rationale: >-
+      Fan-out alone sends each entry once. The transport can lose a message, so a
+      replica can fall behind with no way to catch up. The reconciliation loop finds
+      and fills that gap. Backoff keeps the retries from overloading a peer that is
+      slow or offline.
   - id: SYNC-00-007
     priority: MUST
     kind: architecture
@@ -72,6 +87,11 @@ groups:
       with equal standing. Where LedgerFanout assumes one actor holds CASE_MANAGER
       authority, PeerLedgerSync SHOULD allow two or more actors to reconcile their
       ledgers with each other to support federated and ownership-transfer scenarios.
+    rationale: >-
+      A case can move to a new owner, and a federated deployment can have more than one
+      actor with authority. Fan-out from one CASE_MANAGER cannot reconcile two ledgers
+      that each hold entries. A peer-to-peer phase gives those deployments a way to
+      converge.
 - id: SYNC-01
   title: Append-Only Log
   specs:
@@ -79,15 +99,31 @@ groups:
     priority: MUST
     kind: protocol
     statement: The canonical recorded case ledger MUST be append-only; log entries MUST be immutable once appended
+    rationale: >-
+      The ledger is the record of what happened in the case. If an entry can change or
+      go away, the hash chain breaks, replicas disagree, and nobody can audit the case
+      history. Append-only entries let every replica apply the same history and reach
+      the same case state.
     verification: >-
       Unit tests confirm that appended log entries are immutable and that any
       modification attempt is rejected.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-00-005
+      note: Restates the immutability of SYNC-00-005 for the canonical case ledger
     stories:
     - story_2022_074
   - id: SYNC-01-002
     priority: MUST
     kind: protocol
     statement: Each log entry MUST carry a monotonically increasing, gapless index scoped to its case
+    rationale: >-
+      The index gives every entry one position in the case's causal order (ADR-0079).
+      Because the index has no gaps, a receiver knows that an entry is missing when the
+      next index it gets is too high (SYNC-14-001). A duplicate or skipped index would
+      hide a lost entry or let two entries claim one position.
+    adr:
+    - ADR-0079
     verification: >-
       Unit tests confirm that each appended log entry carries a monotonically
       increasing index scoped to its case with no gaps or duplicates.
@@ -98,6 +134,11 @@ groups:
     kind: protocol
     statement: Each log entry MUST include a cryptographic hash of its own content and MUST reference the hash of its immediate
       predecessor, forming a forward-linked hash chain (Merkle chain style)
+    rationale: >-
+      The content hash lets a receiver check that an entry's content matches the hash
+      the entry states. The link to the predecessor's hash fixes the entry's place in
+      the chain. A receiver can then detect an entry whose content does not match its
+      hash and an entry in the wrong place.
     verification: >-
       Unit tests confirm that each log entry's entry_hash and prev_log_hash fields are
       correctly populated and form a valid forward-linked hash chain.
@@ -109,6 +150,10 @@ groups:
     kind: protocol
     statement: >-
       Canonical recorded log entries MUST be written only by the CASE_MANAGER.
+    rationale: >-
+      One writer gives one canonical order of entries. If two actors could write
+      canonical entries, their ledgers could fork, and no rule could say which fork is
+      the case history.
     verification: >-
       Integration tests in `test/demo/` confirm that all canonical log entry writes
       pass through the CASE_MANAGER's single authoritative write path.
@@ -119,6 +164,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: The hash-chain log entry format MUST be designed to be forward-compatible with a future Merkle Tree implementation
+    rationale: >-
+      A Merkle tree would let a peer prove that one entry is in the ledger without
+      sending the whole chain. If the entry format blocks that change, a migration
+      would have to rewrite every stored ledger, which an append-only ledger forbids.
     verification: >-
       Inspection of the log entry schema confirms that hash-chain fields
       (entry_hash, prev_log_hash, log_index) are present and structured for
@@ -133,6 +182,11 @@ groups:
     kind: protocol
     statement: Log replication between the CASE_MANAGER and Participant Actors MUST use ActivityStreams `Announce` activities
       as the transport envelope for canonical recorded log content
+    rationale: >-
+      Vultron actors talk through ActivityStreams messages, so ledger replication uses
+      the same inbox, outbox and parsing path as other case messages. `Announce` tells
+      the recipient about an object that already exists, which is what passing on a
+      committed entry does.
     verification: >-
       Integration tests in `test/demo/` confirm that log replication messages are
       wrapped in ActivityStreams Announce activities delivered to Participant Actors.
@@ -144,6 +198,12 @@ groups:
     kind: protocol
     statement: Each replication message MUST identify the sender, target recipient, the log entry hash, and the predecessor
       hash
+    rationale: >-
+      The receiver needs the sender to check that the message comes from the
+      CASE_MANAGER. It needs the two hashes to find the entry's place in its chain
+      before it applies anything (SYNC-03-001). Naming the recipient makes each message
+      belong to one peer, so the CASE_MANAGER can track each peer's replication state
+      (SYNC-04-001).
     verification: >-
       Integration tests in `test/demo/` confirm that each Announce(CaseLedgerEntry)
       identifies the sender, recipient, entry hash, and predecessor hash.
@@ -157,6 +217,12 @@ groups:
       Replication MUST originate from the replication leader (the actor holding the
       CASE_MANAGER role) and be sent individually to every active participant
       (CM-10-004).
+    rationale: >-
+      Only the CASE_MANAGER holds the canonical ledger, so only it can send entries that
+      a replica can trust. A separate message to each active participant lets the
+      CASE_MANAGER track and repair each peer on its own (SYNC-04-001). Case content
+      goes only to active participants, so an inert participant receives no ledger
+      entries (CM-10-004, ADR-0114).
     verification: >-
       Integration tests in `test/demo/` confirm that replication originates from the
       actor holding the CASE_MANAGER role, is addressed to each active participant
@@ -174,6 +240,11 @@ groups:
       The `object` of each `Announce(CaseLedgerEntry)` activity MUST be the `CaseLedgerEntry`
       itself, carried inline or by reference, with every field the recipient needs to
       validate the hash chain (including the entry hash and its predecessor's hash).
+    rationale: >-
+      The recipient checks the hash chain before it applies the entry (SYNC-03-001,
+      SYNC-03-006). It can do that check only when it has every field the hashes cover.
+      The inline form and the by-reference form give the recipient the same entry, so
+      the protocol allows either.
     verification: >-
       Integration tests in `test/demo/` confirm that Announce(CaseLedgerEntry) carries
       the CaseLedgerEntry with entry_hash and prev_log_hash.
@@ -186,12 +257,11 @@ groups:
       This codebase MUST embed the full inline `CaseLedgerEntry` in the `object` of each
       `Announce(CaseLedgerEntry)` and MUST NOT use a URI-only reference there.
     rationale: >-
-      How this codebase meets SYNC-02-004; split from it so SYNC-02-004 states only what
-      other participants observe (MS-12-010). Inlining lets the recipient validate the
-      hash chain without a round-trip to the sender, and this codebase never
-      dereferences a ledger entry (AKM-05-007). An entry fetched by reference validates
-      the same way, so carrying it inline is a shortcut of this prototype reference
-      implementation, not a protocol rule.
+      An inline entry lets the recipient check the hash chain without a request back to
+      the sender. This codebase never fetches a ledger entry that a message names by
+      reference, so without the inline entry a recipient in this codebase could not
+      apply the Announce at all. An entry fetched by reference passes the same checks,
+      so another implementation may send a reference (SYNC-02-004).
     verification: >-
       `test/adapters/driving/fastapi/test_outbox_handle_item_delivery.py::test_handle_outbox_item_preserves_inline_case_ledger_entry_fields`
       confirms the delivered Announce(CaseLedgerEntry) carries the full inline entry,
@@ -209,6 +279,11 @@ groups:
     kind: protocol
     statement: A receiver MUST reject a replication message whose predecessor hash does not match the receiver's current log
       tail hash
+    rationale: >-
+      An entry that does not extend the receiver's tail is in the wrong place for this
+      replica. If the receiver applies it, the replica holds a chain that the
+      CASE_MANAGER never wrote. The rejection tells the CASE_MANAGER where the
+      replica's chain ends, so it can send the missing entries.
     verification: >-
       Integration tests in `test/demo/` confirm that a receiver rejects any
       replication message whose predecessor hash does not match its current log
@@ -221,6 +296,10 @@ groups:
     kind: protocol
     statement: On receiving a rejection, the sender MUST retry replication starting from the entry following the last accepted
       hash reported by the receiver
+    rationale: >-
+      The rejection names the last entry that the replica holds. Sending from the entry
+      after it fills the gap with the fewest messages. Sending from any other point
+      either skips entries the replica needs or sends entries it already has.
     verification: >-
       Integration tests in `test/demo/` confirm that after a rejection the sender
       retries replication starting from the entry following the receiver's last
@@ -233,6 +312,10 @@ groups:
     kind: protocol
     statement: 'Replication MUST be idempotent: repeated delivery of the same log entry MUST NOT produce duplicate entries
       in the receiver''s log'
+    rationale: >-
+      The outbox retries and replays send entries again, so a receiver often gets one
+      entry more than once. A duplicate in the log would break the gapless index and
+      the hash chain, and its effects would apply twice (ID-02-001).
     verification: >-
       Integration tests in `test/demo/` confirm that delivering the same log entry
       multiple times produces exactly one entry in the receiver's log with no
@@ -253,10 +336,10 @@ groups:
       the message, record no replication state for the sender, and replay no entry and
       no case to it.
     rationale: >-
-      A rejection that states no ledger position, or an empty chain's, makes the
-      CASE_MANAGER replay the whole ledger and announce the case, so an unchecked sender
-      obtains embargoed content just by asking. The replay cooldown limits how often,
-      not who. See #3733.
+      A rejection that states no ledger position, or the position of an empty chain,
+      makes the CASE_MANAGER replay the whole ledger and send the case. Without this
+      check, any sender could get embargoed case content just by asking. The replay
+      cooldown limits how often a replay occurs, not who gets it.
     verification: >-
       A test marked `SYNC-03-005`
       sends the Reject from a non-participant and asserts `REFUSED` with an empty outbox.
@@ -279,11 +362,12 @@ groups:
       applying or storing the entry. An entry that states no hash, or whose content does
       not reproduce it, MUST be refused, and MUST NOT be buffered, applied or stored.
     rationale: >-
-      The predecessor check (SYNC-03-001) proves an entry claims the right place in the
-      chain, not that its content is what was hashed. A refused entry is not answered
-      with `Reject(CaseLedgerEntry)`: a replay resends the same entry, and the receiver's
-      unmoved tail already makes the next entry trigger one. The receiver reports the
-      refusal with a processing fault instead (SYNC-03-007). See #3744.
+      The predecessor check (SYNC-03-001) proves only that an entry claims the right
+      place in the chain. It does not prove that the content matches the entry's hash. A
+      refused entry gets no `Reject(CaseLedgerEntry)`, because a replay would send the
+      same entry again. The receiver's tail does not move, so the next entry does not
+      extend it and causes a Reject in the usual way. The receiver reports the refusal
+      with a processing fault instead (SYNC-03-007).
     verification: >-
       Tests marked `SYNC-03-006` deliver an entry whose content no longer matches its
       hash and assert it is not stored and not buffered.
@@ -424,6 +508,10 @@ groups:
     kind: protocol
     statement: The replication leader MUST track per-peer state including at minimum the last acknowledged log entry hash
       for each peer
+    rationale: >-
+      The leader must know how far each peer has got. Without that record, it cannot
+      tell a peer that is behind from one that is current. It also cannot decide where
+      a replay starts or whether the replay cooldown applies (SYNC-15-008).
     verification: >-
       Integration tests in `test/demo/` confirm that the replication leader maintains
       a per-peer state record containing at minimum the last acknowledged log
@@ -435,6 +523,10 @@ groups:
     priority: MUST
     kind: project
     statement: Per-peer replication state MUST be persisted via the DataLayer so that it survives a leader restart
+    rationale: >-
+      If a restart loses the per-peer state, the leader forgets which peers are behind
+      and how recently it replayed to them. The replay cooldown then starts again from
+      zero, and a stuck peer can again cause replays without limit (SYNC-15-003).
     verification: >-
       Integration tests in `test/demo/` confirm that per-peer replication state
       survives a leader restart by verifying the acknowledged hash is restored
@@ -449,6 +541,10 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: The replication sender SHOULD implement retry with exponential backoff on delivery failure
+    rationale: >-
+      A peer can be offline or overloaded for some time. Retries at a fixed interval
+      add load to that peer when it can least take it. Exponential backoff keeps
+      retries frequent for a short fault and rare for a long one.
     verification: >-
       Integration tests in `test/demo/` confirm that the replication sender retries
       failed deliveries with exponential backoff between attempts.
@@ -458,6 +554,10 @@ groups:
     priority: SHOULD
     kind: project
     statement: Retry and backoff parameters SHOULD be configurable
+    rationale: >-
+      Network latency and peer load differ between deployments, tests and production.
+      One fixed set of values is too slow for some deployments and too aggressive for
+      others.
     verification: >-
       Inspection of the replication adapter confirms that retry count and backoff
       interval are exposed as configurable parameters.
@@ -465,6 +565,9 @@ groups:
     priority: MUST
     kind: project
     statement: Default values for retry and backoff parameters MUST be documented
+    rationale: >-
+      An operator must know the default values to decide whether to change them. A test
+      author also needs them to know how long a recovery can take.
     verification: >-
       Inspection of the replication adapter documentation or configuration schema
       confirms that default retry and backoff parameter values are documented.
@@ -478,12 +581,12 @@ groups:
       (e.g. draining its own outbox); a value of 5 seconds or less is insufficient
       under CI-representative multi-actor load.
     rationale: >-
-      The original 5s hardcoded timeout was already rejected as too aggressive by the
-      demo DataLayerClient (timeout=30s, with comment explaining exactly this scenario).
-      A hardcoded timeout that is known to be wrong is a configurable parameter waiting
-      to be written. See CONCERN-2302 §2 and SYNC-05-002.
-      The timeout is an operating limit of this codebase's delivery adapter, which
-      other implementations may set differently, so it is `project` (ADR-0134).
+      A busy recipient, for example one that sends its own outbox, can take several
+      seconds to answer. A short timeout marks a working delivery as a failure, and the
+      retries add more load to that recipient. A value of 5 seconds or less fails this
+      way under multi-actor load such as CI. A configurable timeout lets each
+      deployment fit its load (SYNC-05-002). Other implementations can set this adapter
+      limit differently, so it is `project` (ADR-0134).
     verification: >-
       Inspection of the delivery adapter confirms that the per-recipient HTTP POST
       timeout is exposed as a configurable parameter with a documented default value
@@ -502,6 +605,12 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: Replication leadership SHOULD be treated as distinct from case ownership
+    rationale: >-
+      The Case Owner decides about the case, and the replication leader writes and sends
+      the ledger. The Case Owner can hold the CASE_MANAGER role or give it to another
+      actor, and a multi-node CASE_MANAGER can change its leader with no change of
+      owner. If the two concepts are one, a change of either one forces a change of the
+      other.
     verification: >-
       Inspection of the protocol design confirms that replication leadership is
       modelled as a distinct concept from case ownership.
@@ -509,6 +618,10 @@ groups:
     priority: SHOULD
     kind: process
     statement: The conditions under which replication leadership changes SHOULD be documented in `notes/sync-ledger-replication.md`
+    rationale: >-
+      A change of leadership changes who may write the ledger. Contributors who change
+      replication code must know when that can occur, so the conditions are written in
+      one place.
     verification: >-
       Inspection of `notes/sync-ledger-replication.md` confirms that the conditions
       under which replication leadership changes are documented.
@@ -541,6 +654,12 @@ groups:
       `Announce(CaseLedgerEntry)`, whereas the multi-node CASE_MANAGER cluster uses Raft
       consensus to elect a single write authority among CASE_MANAGER nodes. The two tiers
       operate independently and SHOULD NOT be conflated.
+    rationale: >-
+      Participant replication and a highly available CASE_MANAGER solve different
+      problems. Participant replication sends committed entries to other actors. A Raft
+      cluster decides which CASE_MANAGER node may commit. If the two tiers are mixed, a
+      participant could seem to take part in the choice of the case's writer, which the
+      single-writer rule forbids (SYNC-01-004).
     verification: >-
       Inspection of design documentation confirms that the multi-node Phase 3 Raft
       cluster and participant LedgerFanout replication are described as two
@@ -556,6 +675,10 @@ groups:
       durably written to the authoritative log and its content hash has been recorded;
       an entry that has not met these conditions MUST NOT be applied to the case state
       machine.
+    rationale: >-
+      If an actor applies an entry that is not yet durable, a crash can leave state
+      changes with no entry that records them. The replica then holds state that its
+      ledger cannot explain, and a replay cannot rebuild it.
     verification: >-
       Integration tests in `test/demo/` confirm that log entries are not applied to
       case state until after the entry has been durably written with its content hash
@@ -573,15 +696,13 @@ groups:
       sent after its commit: it delivers a committed entry, and is not an act the
       ledger records.
     rationale: >-
-      A ledger entry records a completed act, and a send is complete once the
-      message is in the sender's outbox, whose delivery and retries are the
-      outbox's job. An entry committed before the send records an intention that
-      may never become true, and committing first put fan-out ahead of the
-      `Create(VulnerabilityCase)` it referred to (#3033, #2898). A retry after a
-      send whose commit failed rebuilds the activity under its first id: the
-      outbox does not queue it again while it is pending (OX-06-002), and one
-      delivery already took is sent again under the same id, which the
-      receiver drops (ID-02-001).
+      A ledger entry records a complete act, and a send is complete when the message is
+      in the sender's outbox, which owns delivery and retries. An entry committed
+      before the send records an intention that may never become true, and its fan-out
+      can reach a replica before the message it records. A retry after a failed commit
+      rebuilds the activity under its first id. The outbox does not queue it again
+      while it is pending (OX-06-002), and the receiver drops a copy it already has
+      (ID-02-001).
     verification: >-
       `test/core/use_cases/triggers/test_actor_triggers.py::TestStubInviteIsRecordedAfterItIsSent`,
       `test/core/use_cases/received/actor/test_invite.py::TestInviteActorUseCases::test_the_full_case_invite_is_recorded_after_the_accepts_entries`,
@@ -630,6 +751,10 @@ groups:
     kind: project
     statement: 'Unit tests MUST cover append-only semantics: entries are immutable, hashes are unique, and predecessor hash
       references are set correctly'
+    rationale: >-
+      Immutable entries, unique hashes and correct predecessor links are what every
+      other replication rule depends on. A fault in them breaks every replica, so unit
+      tests must find it before integration tests do.
     verification: >-
       Unit tests confirm append-only semantics: entries are immutable once committed,
       content hashes are unique, and each entry's prev_log_hash correctly
@@ -639,6 +764,10 @@ groups:
     kind: project
     statement: 'Integration tests MUST cover the full single-peer replication cycle: leader appends an entry, sends an `Announce`
       activity, and the receiver validates the predecessor hash and appends the entry'
+    rationale: >-
+      Each step can pass its own unit test while the steps fail together, for example
+      when the sender and the receiver disagree on the wire form. Only a test of the
+      full cycle shows that an entry gets from the leader into a replica.
     verification: >-
       Integration tests in `test/demo/` confirm the full single-peer replication
       cycle: leader appends an entry, sends an Announce, and the receiver
@@ -648,6 +777,11 @@ groups:
     kind: project
     statement: 'Tests MUST cover conflict and idempotency scenarios: mismatched predecessor hash, duplicate delivery, and
       leader retry after rejection'
+    rationale: >-
+      A mismatched hash, a duplicate delivery and a retry after a rejection are the
+      normal results of an unordered transport that can lose messages. These paths run
+      less often than the normal path, so a fault in them can stay hidden without a
+      test.
     verification: >-
       Integration tests in `test/demo/` confirm conflict and idempotency scenarios:
       mismatched predecessor hash is rejected, duplicate delivery produces no
@@ -663,6 +797,11 @@ groups:
       Unit tests MUST cover pending-assertion suppression semantics: add,
       is_suppressed, clear, timeout expiry, zero-timeout disable, and the
       expire_timed_out sweep helper.
+    rationale: >-
+      The pending-assertion store decides whether a participant sends an assertion
+      again. A fault in it either sends duplicates to the CASE_MANAGER or stops a
+      resend that the case needs. Each operation has its own edge case, such as a zero
+      timeout that turns suppression off, so each needs its own test.
   - id: SYNC-07-005
     priority: MUST
     kind: project
@@ -674,6 +813,11 @@ groups:
       Unit tests MUST cover per-actor pending-assertion store isolation via
       the module-level registry: distinct store instances per actor, configurable
       timeout applied on first creation, and _reset_stores cleanup.
+    rationale: >-
+      Several actors can run in one process, for example in tests and in the demo. If
+      two actors share one store, a pending assertion of one actor suppresses a send of
+      the other. A store that a test leaves behind can also change the result of a
+      later test.
 - id: SYNC-08
   title: System Invariants
   specs:
@@ -682,9 +826,17 @@ groups:
     kind: protocol
     statement: 'Append-only integrity: log entries MUST be immutable once committed and MUST be uniquely identified by their
       content hash'
+    rationale: >-
+      Replays and the drain find an entry by its hash. If two different entries could
+      have the same hash, or an entry could change after commit, a replica could apply
+      the wrong entry and still pass the chain check.
     verification: >-
       Unit tests confirm that log entries are immutable once committed and that each
       entry is uniquely identified by its content hash.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-00-005
+      note: Restates the immutability of SYNC-00-005 as a system invariant
     stories:
     - story_2022_045
     - story_2022_089
@@ -693,6 +845,11 @@ groups:
     kind: protocol
     statement: 'Deterministic projection: given an identical canonical recorded log prefix, all compliant implementations
       MUST derive identical state'
+    rationale: >-
+      Each replica gets its case state from the ledger. The ledger keeps replicas in
+      step only if the same entries always give the same state, on every
+      implementation. Any other input, such as the local clock or the arrival order,
+      would let two replicas with the same ledger disagree.
     verification: >-
       Unit tests confirm that two compliant implementations processing an identical
       canonical log prefix derive identical case state after replay.
@@ -705,6 +862,9 @@ groups:
     kind: protocol
     statement: 'Idempotent replay: reprocessing any canonical recorded log prefix (including duplicates) MUST NOT change the
       resulting state'
+    rationale: >-
+      Replays, retries and restarts make an actor process some entries more than once.
+      If a second pass changed the state, recovery itself would corrupt the case.
     verification: >-
       Unit tests confirm that reprocessing any canonical log prefix, including with
       duplicate entries, produces the same resulting state as a single-pass replay.
@@ -712,6 +872,11 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: 'Monotonic visibility: participants MUST NOT regress their acknowledged log position'
+    rationale: >-
+      The CASE_MANAGER uses each peer's acknowledged position to decide what to send
+      and when to replay. A position that moves back would make it send again entries
+      the peer already holds, and could reset the replay cooldown. An acknowledged
+      entry stays in the peer's append-only ledger, so a lower position is never true.
     verification: >-
       Integration tests in `test/demo/` confirm that participants never acknowledge a
       log position lower than one previously acknowledged.
@@ -748,6 +913,11 @@ groups:
     statement: >-
       After actor process restart or recovery, an actor with case state in scope MUST re-establish
       case-ledger freshness with the CASE_MANAGER before taking new protocol-significant case actions
+    rationale: >-
+      After a restart, an actor can have missed entries while it was down. If it acts
+      on that old view, it can propose or answer from a case state that the missed
+      entries have changed. Catching up first makes its next action rest on the current
+      case history (ADR-0018).
     verification: >-
       `test/core/behaviors/sync/test_commit_tree.py::test_commit_tree_blocked_when_ledger_has_gap`
       confirms that the gate blocks when the committed prefix has a gap (simulating
@@ -765,6 +935,11 @@ groups:
       While catch-up freshness is not established, the actor MUST block or defer new
       protocol-significant case actions and surface an explicit stale-or-catching-up
       condition
+    rationale: >-
+      An action taken from a stale view can conflict with entries the actor has not
+      seen, and blocking the action prevents this. A visible stale condition tells an
+      operator or a test why the action did not run, so a stuck catch-up does not look
+      like a silent failure.
     verification: >-
       `test/core/behaviors/sync/test_commit_tree.py::test_commit_tree_blocked_when_ledger_has_gap`
       confirms that `CheckLedgerFreshnessNode` returns FAILURE (blocking the mint
@@ -782,6 +957,11 @@ groups:
       Catch-up freshness checks SHOULD use the actor's last acknowledged canonical hash and
       replay mechanisms so that action gating is based on canonical log position, not local
       wall-clock assumptions
+    rationale: >-
+      Clocks on different actors do not agree, and the time since the last message does
+      not show whether an entry is missing. The hash of the last canonical entry is the
+      same on every replica that holds the same prefix, so it is a reliable test of
+      freshness.
     adr:
     - ADR-0018
   - id: SYNC-10-004
@@ -791,6 +971,11 @@ groups:
       The catch-up gate MUST require a contiguous canonical log prefix from genesis through
       the actor's currently acknowledged tip; any gap in that prefix MUST block
       protocol-significant case actions
+    rationale: >-
+      A gap means that a committed effect is missing from the replica's case state. An
+      action based on that state can contradict the missing entry. The hash chain shows
+      a gap directly, so the gate can test for it without a request to the
+      CASE_MANAGER.
     verification: >-
       Integration tests in `test/demo/` confirm that the catch-up gate blocks protocol
       actions when any gap exists in the canonical log prefix between genesis and the
@@ -806,6 +991,11 @@ groups:
       The catch-up gate MUST NOT require the actor's acknowledged tip to equal the CASE_MANAGER's
       current ledger tip; lagging behind the leader tip is allowed if the actor's own
       acknowledged prefix is contiguous from genesis
+    rationale: >-
+      Fan-out is asynchronous, so a participant is often a few entries behind the
+      CASE_MANAGER. If the gate required the latest tip, an active case would block
+      almost every action. A contiguous prefix is enough to make the actor's own view
+      consistent, and the later entries reach it in time.
 - id: SYNC-11
   title: Participant-Local Pending Assertion Suppression
   specs:
@@ -817,6 +1007,12 @@ groups:
       that records outbound assertion activities (e.g., Add(Note)) emitted toward the
       CASE_MANAGER but not yet confirmed by a canonical Announce(CaseLedgerEntry) round-trip;
       the suppression window is configurable and zero disables suppression
+    rationale: >-
+      A participant's assertion takes some time to come back as a committed entry. In
+      that time, the participant's own logic can decide again to send the same
+      assertion. Without a record of what is pending, the CASE_MANAGER receives
+      duplicates. A configurable window lets a deployment match it to its round-trip
+      time, and zero turns the feature off.
   - id: SYNC-11-002
     priority: SHOULD
     kind: project
@@ -825,6 +1021,10 @@ groups:
       the participant SHOULD record the (case_id, semantic_type, activity_id) triple in its
       pending-assertion store so that duplicate near-term re-emits of the same assertion are
       suppressed while the round-trip is pending
+    rationale: >-
+      The triple identifies the pending assertion exactly enough to match a later send
+      of the same assertion. Recording it only after the enqueue succeeds means that a
+      failed send is never suppressed.
   - id: SYNC-11-003
     priority: SHOULD
     kind: project
@@ -833,6 +1033,10 @@ groups:
       equals a pending assertion's object_id, the participant's pending-assertion store
       SHOULD clear the matching entry so that future re-emits of the same triple are no
       longer suppressed
+    rationale: >-
+      The matching entry proves that the CASE_MANAGER committed the assertion. After
+      that, a later send of the same triple is a new decision, not a duplicate, so the
+      store must not suppress it.
   - id: SYNC-11-004
     priority: MUST_NOT
     kind: project
@@ -845,6 +1049,10 @@ groups:
       The CASE_MANAGER MUST NOT use the pending-assertion store for its own ledger commits;
       the CASE_MANAGER's DataLayer idempotency check already guards against duplicate commits
       by the single authoritative writer
+    rationale: >-
+      The CASE_MANAGER commits its own entries, so it has no round trip to wait for.
+      Its DataLayer idempotency check already stops duplicate commits. A second
+      mechanism on that path could suppress a commit that the case needs.
   - id: SYNC-11-005
     priority: SHOULD
     kind: project
@@ -852,6 +1060,10 @@ groups:
       A pending assertion that exceeds its configured timeout window SHOULD be marked
       timed-out and SHOULD no longer suppress future re-emits, allowing operator retry or
       the catch-up gate to resubmit the assertion
+    rationale: >-
+      An assertion can be lost in transit or refused, and then no matching entry comes
+      back. Without a timeout, the store would suppress every later send of it, and the
+      participant could never make the assertion again.
 - id: SYNC-12
   title: Effects-Before-Persist Invariant
   specs:
@@ -862,6 +1074,11 @@ groups:
       A participant MUST apply all domain effects derived from a CaseLedgerEntry (embargo
       teardown, participant-status update, note attachment, invite-accept) BEFORE persisting
       the entry to its local ledger; if any effect fails, the entry MUST NOT be persisted
+    rationale: >-
+      A stored entry is the replica's proof that the entry's effects were applied
+      (SYNC-12-002). If the replica stored the entry first and an effect then failed,
+      the already-stored check (SYNC-12-003) would skip that effect on every later
+      delivery. The replica would keep a case state that its ledger does not explain.
     verification: >-
       Integration tests in `test/demo/` confirm that domain effects (embargo teardown,
       participant-status update, note attachment, invite-accept) are applied before a
@@ -876,6 +1093,10 @@ groups:
       The presence of a CaseLedgerEntry in a participant's local ledger MUST imply that all
       domain effects for that entry were successfully applied; a persisted entry with
       unapplied effects is a protocol violation
+    rationale: >-
+      The already-stored check (SYNC-12-003) and the drain both rely on this meaning.
+      If a stored entry could have missing effects, nothing would ever apply them, and
+      the replica would differ from the CASE_MANAGER permanently.
     verification: >-
       Integration tests in `test/demo/` confirm that any CaseLedgerEntry found in the
       local ledger corresponds to one whose domain effects were all successfully applied
@@ -891,6 +1112,10 @@ groups:
       ledger, the participant MUST skip both effects and persist (treat as already-done);
       re-applying effects to a stored entry is not permitted because the entry's effects
       were applied exactly once before the initial persist
+    rationale: >-
+      Duplicate delivery is normal under retries and replays. The effects of a stored
+      entry were applied once, before the entry was stored (SYNC-12-001). Applying them
+      again would repeat state changes such as a status update or an embargo teardown.
     verification: >-
       Integration tests in `test/demo/` confirm that a duplicate Announce(CaseLedgerEntry)
       for an already-stored entry triggers neither effect application nor a second persist.
@@ -917,6 +1142,11 @@ groups:
       case, or a participant's PersistReceivedLogEntry step (SYNC-12-001) for a replica.
       Presence of a CaseLedgerEntry in the DataLayer is defined to mean "this actor's core
       has committed the entry and applied its effects."
+    rationale: >-
+      The already-stored check (SYNC-12-003) reads a stored entry as proof that its
+      effects were applied. That proof holds only when the code that stores the entry
+      is the code that applies its effects. If another path stores an entry, the check
+      succeeds on first delivery and the effects never run.
     verification: >-
       Integration tests in `test/demo/` confirm that no code path other than the
       CASE_MANAGER's authoritative append or the participant's PersistReceivedLogEntry step
@@ -952,6 +1182,10 @@ groups:
       Integration tests in `test/demo/` confirm that CaseLedgerEntry creation for the
       primary case is confined to the CASE_MANAGER's authoritative write path and no other
       component creates such records.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-01-004
+      note: Restates the single-writer rule of SYNC-01-004 for `CaseLedgerEntry` records
     stories:
     - story_2022_045
     - story_2022_046
@@ -982,6 +1216,11 @@ groups:
       Announce(CaseLedgerEntry). The inline CaseLedgerEntry parsed from the wire envelope
       MUST be carried forward in-memory (or via a dedicated, non-ledger holding area)
       so that semantic routing and effect application do not depend on pre-storing the entry.
+    rationale: >-
+      If ingress stores an inbound entry to classify or rehydrate it, the entry is in
+      the DataLayer before its effects run. The already-stored check (SYNC-12-003) then
+      skips the effects on first delivery (SYNC-13-001). An in-memory entry lets
+      routing work without that write.
   - id: SYNC-13-004
     priority: MUST
     kind: protocol
@@ -990,6 +1229,11 @@ groups:
       a ledger entry on first delivery, without needing any stored record of the entry;
       whether the entry is already stored (SYNC-12-003) MUST be the only test that
       distinguishes first delivery from repeat delivery.
+    rationale: >-
+      On first delivery the receiver has no stored record of the entry, so routing
+      cannot depend on one. One test for repeat delivery keeps all implementations in
+      agreement about when effects run. A second test could disagree with it and skip
+      or repeat effects.
     verification: >-
       Integration tests in `test/demo/` confirm that an inbound Announce(CaseLedgerEntry)
       is routed to ANNOUNCE_CASE_LEDGER_ENTRY on first delivery, without a DataLayer
@@ -1004,10 +1248,11 @@ groups:
       semantic (ANNOUNCE_CASE_LEDGER_ENTRY) on first delivery using the typed inline object
       obtained during parsing, without a DataLayer round-trip.
     rationale: >-
-      How this codebase meets SYNC-13-004; split from it so SYNC-13-004 states only what
-      other participants observe (MS-12-010). Classifying from the inline object relies on
-      this codebase carrying the entry inline (SYNC-02-005), a shortcut of this prototype
-      reference implementation, not a protocol rule.
+      This codebase never fetches a ledger entry that a message names by reference, so
+      the inline object is the only input the classifier has. Classification from it
+      works because this codebase sends the entry inline (SYNC-02-005). A classifier
+      that needed a stored entry would fail on the first delivery of each entry, which
+      the receiver has not stored yet.
     verification: >-
       `test/core/use_cases/received/test_sync.py::TestAnnounceLedgerEntryReceivedUseCase::test_semantic_type_is_correct` confirms an inbound
       Announce(CaseLedgerEntry) carrying the typed inline entry is classified as
@@ -1041,12 +1286,16 @@ groups:
       (VM-08-002), in a holding area pending arrival of its predecessor. It MUST NOT retain
       the entry apart from that Announce.
     rationale: >-
-      The hash chain makes indefinite retention safe: a held entry is applied only when an
-      entry whose entry_hash equals the held entry's prev_log_hash is committed, so a
-      fork/rewrite cannot masquerade as the predecessor. Holding the Announce rather than
-      the entry is what lets the drain apply what was received: an entry held alone can only
-      reach the inbox again inside an Announce the replica makes up, attributed to a sender
-      that never sent it (ISSUE-5012).
+      The hash chain makes it safe to hold an entry for any length of time. The replica
+      applies a held entry only after it commits an entry whose `entry_hash` equals the
+      held entry's `prev_log_hash`, so a fork or a rewrite cannot act as the
+      predecessor. The replica holds the Announce and not the entry alone, so the drain
+      applies what the replica received. An entry held alone can only reach the inbox
+      again inside an Announce that the replica makes up, which names a sender that
+      never sent it.
+    adr:
+    - ADR-0037
+    - ADR-0135
     verification: >-
       `test/core/use_cases/received/test_sync.py` asserts that a forward-gap
       Announce(CaseLedgerEntry) is held as the body intake archived, with no ledger entry
@@ -1063,6 +1312,13 @@ groups:
       — the participant MUST send Reject(CaseLedgerEntry) carrying its last accepted hash so
       the CASE_MANAGER replays entries that are genuinely lost (never delivered) rather than
       merely reordered.
+    rationale: >-
+      Holding an entry covers an entry that arrives out of order. It does not cover an
+      entry that was lost. The Reject tells the CASE_MANAGER where the replica's chain
+      ends, so the lost entry is sent again. Without it, a replica with a lost entry
+      would hold its later entries permanently.
+    adr:
+    - ADR-0037
     verification: >-
       Integration tests in `test/demo/` confirm that holding a forward-gap entry causes a
       Reject(CaseLedgerEntry) carrying the last accepted hash to be sent to the CASE_MANAGER.
@@ -1077,6 +1333,13 @@ groups:
       newly committed tail, it MUST locate the held Announce (if any) whose entry's
       prev_log_hash equals the new tail's entry_hash, apply that entry, and repeat, cascading
       until no held Announce extends the current tail.
+    rationale: >-
+      A held entry can apply only after its predecessor. Each commit can make one held
+      entry appliable, and that entry can make the next one appliable. If the drain
+      stopped after one step, entries that arrived early would stay held until some
+      other delivery came.
+    adr:
+    - ADR-0037
     verification: >-
       Integration tests in `test/demo/` confirm that committing a CaseLedgerEntry triggers a
       cascading drain of held entries whose prev_log_hash chains from the new tail.
@@ -1089,6 +1352,12 @@ groups:
     statement: >-
       Draining a held entry MUST apply the entry's domain effects before
       persisting it (SYNC-12-001).
+    rationale: >-
+      A drained entry becomes a stored entry like any other. The already-stored check
+      relies on every stored entry having its effects applied, so the drain must keep
+      the same order (SYNC-12-001).
+    adr:
+    - ADR-0037
     verification: >-
       Integration tests in `test/demo/` confirm that the drain path applies domain effects
       before persisting each drained entry, satisfying the effects-before-persist invariant.
@@ -1116,8 +1385,11 @@ groups:
       Applying a drained entry MUST follow the same apply-then-persist rules as in-order
       delivery, starting from the held Announce as in-order delivery starts from the
       received one.
-    rationale: Using a separate drain path risks diverging from the in-order path over time, reintroducing the
-      ordering bugs that SYNC-12 was designed to prevent.
+    rationale: >-
+      A separate drain path can drift away from the in-order path. A drained entry
+      could then apply its effects after it is stored, or skip a check that in-order
+      delivery makes. One shared path keeps the effects-before-persist rule true for
+      every entry (SYNC-12).
     verification: >-
       Inspection of the drain implementation confirms that it calls the same
       apply-then-persist function as the in-order delivery path rather than a separate
@@ -1141,16 +1413,13 @@ groups:
       sender that did not send it. The replayed Announce's own tree replays the
       next one, so the cascade (SYNC-14-003) needs no loop in the use case.
     rationale: >-
-      Running the successor inline made one delivery run several trees, chosen
-      by Python (CLP-10-005), and attributed each drained entry to a sender it
-      synthesized (the CASE_MANAGER when known, else the case id). Folding the
-      drain into the tree would nest one bridge run inside another, which hides
-      an internal error in the inner run. A delivery of its own makes the drain
-      the same path as in-order delivery by construction (SYNC-14-008)
-      (ISSUE-4585, ADR-0135). An Announce the replica built and attributed to
-      the CASE_MANAGER was never sent by anyone, yet intake archived it as
-      received evidence: a receiver that did not receive an Announce cannot
-      make one up (ISSUE-5012).
+      One delivery runs one tree (CLP-10-005), so a drain that ran its successor inline
+      would run several trees in one delivery. A drain inside the tree would run one
+      tree inside another, and an internal error in the inner tree would then not be
+      reported. A delivery of its own goes through the same path as in-order delivery
+      (SYNC-14-008, ADR-0135). The replay must be the Announce that arrived, because
+      intake archives what it receives as received evidence. A receiver that did not
+      receive an Announce cannot make one up.
     verification: >-
       `test/core/use_cases/received/test_sync.py` asserts that committing an
       entry whose successor's Announce is held replays that Announce, by its
@@ -1187,6 +1456,13 @@ groups:
       a CaseLedgerEntry until it is drained (i.e. until its predecessor is
       present), so that presence of a CaseLedgerEntry in the DataLayer continues
       to mean "committed and effects applied" (SYNC-13-001).
+    rationale: >-
+      A stored `CaseLedgerEntry` means that the entry is committed and its effects are
+      applied (SYNC-13-001). A held entry has neither. If the holding area stored a
+      held entry as a ledger entry, the already-stored check would skip its effects
+      when it drains.
+    adr:
+    - ADR-0037
     relationships:
     - rel_type: depends_on
       spec_id: SYNC-13-001
@@ -1202,6 +1478,13 @@ groups:
       body and all, and log a warning, or decline to hold the new one when its entry is
       itself the farthest ahead. Eviction is recoverable because SYNC-14-002 already
       sent a Reject, so eviction MUST NOT be relied upon to trigger recovery by itself.
+    rationale: >-
+      A peer that sends many entries, or a long gap, could fill the receiver's store
+      without limit. The entry farthest ahead is the last one the drain needs, so
+      evicting it loses the least. Eviction is safe because the Reject (SYNC-14-002)
+      already asked for a replay, and the replay sends the entry again.
+    adr:
+    - ADR-0037
     verification: >-
       `test/core/use_cases/received/test_sync.py` (`TestHeldAnnounceBound`)
       asserts that a full holding area drops the farthest-ahead Announce with
@@ -1237,10 +1520,11 @@ groups:
       Reject(CaseLedgerEntry) with last_accepted_hash="" to the CASE_MANAGER so that the
       CASE_MANAGER replays all entries from the beginning once the case is delivered.
     rationale: >-
-      last_accepted_hash="" is the conventional signal for "I have no entries; replay from
-      genesis."  The CASE_MANAGER's replay path (SYNC-03-002) replays all entries after the
-      supplied hash; an empty string matches no recorded entry, so it replays the full log.
-      Without the Reject the participant is permanently stuck (issue #1873).
+      An empty `last_accepted_hash` means "I hold no entries; replay from genesis." The
+      CASE_MANAGER's replay path (SYNC-03-002) replays every entry after the hash it
+      receives. An empty string matches no entry, so it replays the full ledger.
+      Without the Reject, the CASE_MANAGER never learns that the delivery failed, and
+      the replica stays without the entry permanently.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving a ledger entry before the
       VulnerabilityCase is present triggers a Reject(CaseLedgerEntry) with
@@ -1260,6 +1544,11 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: A participant MUST NOT persist a `CaseLedgerEntry` when the per-case genesis hash is unavailable.
+    rationale: >-
+      Without the genesis hash, the replica cannot check that the entry belongs to this
+      case's chain. A stored entry also means that its effects were applied
+      (SYNC-13-001). Storing an unchecked entry would put an entry in the ledger that
+      may not be canonical, and its effects would never apply.
     relationships:
     - rel_type: depends_on
       spec_id: SYNC-12-001
@@ -1286,6 +1575,40 @@ groups:
     kind: protocol
     statement: The CASE_MANAGER MUST bound the rate at which it replays entries to a peer whose acknowledged
       replication position has not advanced.
+    rationale: >-
+      A peer that cannot anchor its hash chain rejects every entry replayed to it. Each
+      Reject causes a replay, and each replayed entry causes another Reject. Without a
+      bound, this loop grows without limit and can starve the CASE_MANAGER's other
+      work. The bound is a rate limit and not a stop, because a later Reject must still
+      get a replay when a replayed entry is lost.
+    note: >-
+      The bound must be a rate limit rather than permanent suppression: if a replayed
+      entry is lost in transit, a later Reject at the same position must still
+      eventually trigger a fresh replay, or the peer would never converge.  The
+      zero-entry carve-out (SYNC-15-011) follows from the same requirement — recording
+      a position at which nothing was delivered would start a cooldown that suppresses
+      the first replay genuinely owed to that peer once the ledger grows.
+      Genesis (`last_accepted_hash == ""`) SHOULD use a shorter cooldown than a
+      mid-chain stall: a peer at genesis holds no entries at all and its convergence is
+      owned by SYNC-15-001 and SYNC-15-015, which seed the VulnerabilityCase and then
+      rely on the following replay to deliver the history, so rate-limiting that replay
+      as aggressively as a mid-chain stall starves the bootstrap it exists to complete.
+      Genesis cannot be exempted outright, however, because a peer that cannot anchor
+      its chain reports genesis on every Reject.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SYNC-08-005
+      note: >-
+        Bounds the replay that the SYNC-08-005 resynchronization triggers; the
+        reject-on-divergence contract itself is unchanged
+    - rel_type: depends_on
+      spec_id: SYNC-03-002
+      note: The replay-from-hash path whose rate this rule limits
+    - rel_type: refines
+      spec_id: SYNC-15-001
+      note: >-
+        The genesis Reject that SYNC-15-001 mandates is the highest-volume source of
+        no-progress replays
     verification: >-
       Integration tests in `test/demo/` confirm that the CASE_MANAGER applies a cooldown
       to replays for a peer whose acknowledged position has not advanced, preventing
@@ -1315,9 +1638,10 @@ groups:
     statement: A Reject reporting an unchanged replication position within the cooldown MUST NOT trigger another
       replay.
     rationale: >-
-      A peer that cannot anchor its hash chain Rejects every entry replayed to it, producing a self-sustaining
-      amplification loop. Suppressing replays within the cooldown window for an unchanged position prevents the
-      ~185x amplification observed in issue #1989.
+      A peer that cannot anchor its hash chain rejects every entry replayed to it,
+      which makes a loop that sustains itself. A Reject at the same position inside the
+      cooldown carries no new information, so suppressing its replay breaks the loop. A
+      Reject after the cooldown still gets a replay, so a lost replay is repaired.
   - id: SYNC-15-010
     priority: MUST
     kind: protocol
@@ -1337,37 +1661,10 @@ groups:
     verification_debt: '#3612'
     statement: A replay in which zero entries were sent MUST NOT update the recorded position, because no delivery
       was attempted at that position.
-    rationale: Recording a position at which nothing was delivered would start a cooldown that suppresses the first
-      replay genuinely owed to that peer once the ledger grows.
     rationale: >-
-      Reject-triggered replay (SYNC-08-005, SYNC-14-002) is unconditional by default, and a peer
-      that cannot anchor its hash chain Rejects every entry replayed to it.  Each Reject replays
-      the full missing suffix and each replayed entry produces another Reject — a self-sustaining
-      amplification loop, observed in CI as 4825 `Announce(CaseLedgerEntry)` activities for a
-      26-entry ledger (~185x), starving the actor until unrelated DataLayer reads timed out
-      (issue #1989).
-    note: >-
-      The bound must be a rate limit rather than permanent suppression: if a replayed entry is
-      lost in transit, a later Reject at the same position must still eventually trigger a fresh
-      replay, or the peer would never converge.  The zero-entry carve-out follows from the same
-      requirement — recording a position at which nothing was delivered would start a cooldown
-      that suppresses the first replay genuinely owed to that peer once the ledger grows.
-      Genesis (`last_accepted_hash == ""`) SHOULD use a shorter cooldown than a mid-chain stall:
-      a peer at genesis holds no entries at all and its convergence is owned by
-      SYNC-15-001/SYNC-15-002, which seed the VulnerabilityCase and then rely on the following
-      replay to deliver the history, so rate-limiting that replay as aggressively as a mid-chain
-      stall starves the bootstrap it exists to complete.  Genesis cannot be exempted outright,
-      however, because a peer that cannot anchor its chain reports genesis on every Reject.
-    relationships:
-    - rel_type: depends_on
-      spec_id: SYNC-08-005
-      note: Bounds the replay this rule triggers; the reject-on-divergence contract itself is unchanged
-    - rel_type: depends_on
-      spec_id: SYNC-03-002
-      note: The replay-from-hash path whose rate this rule limits
-    - rel_type: refines
-      spec_id: SYNC-15-001
-      note: The genesis Reject that SYNC-15-001 mandates is the highest-volume source of no-progress replays
+      A replay that sent nothing gave the peer nothing to act on. Recording its
+      position would start a cooldown, and that cooldown would suppress the first
+      replay the peer actually needs when the ledger grows.
   - id: SYNC-15-004
     priority: MUST
     kind: protocol
@@ -1383,12 +1680,13 @@ groups:
       is held, including the genesis entry (log_index 0) whose prev_log_hash equals the
       per-case genesis hash.
     rationale: >-
-      The reject/replay backstop (SYNC-15-001) does not converge under adversarial reordering
-      for the same reason forward gaps are held (SYNC-14): replay re-announces entries
-      individually over the same unordered transport and each pre-genesis entry Rejects again,
-      amplifying churn (issue #2169) and, for the rvcv-handoff demo, dropping the
-      add_report_to_case entry so no VultronOfferRecord is ever created (issue #2180). Holding
-      the entry lets it drain deterministically once the case is seeded.
+      The reject and replay recovery (SYNC-15-001) does not converge when deliveries
+      arrive out of order, for the same reason that forward gaps are held (SYNC-14). The
+      replay sends entries one by one over the same unordered transport, so each early
+      entry is rejected again. This adds load, and each round can lose an entry. Holding
+      the entry lets it drain in order once the case is seeded.
+    adr:
+    - ADR-0059
     verification: >-
       Integration tests in `test/demo/` confirm that a ledger entry received before the
       VulnerabilityCase is seeded is held in the non-ledger holding area and
@@ -1422,10 +1720,13 @@ groups:
       (SYNC-14-004), and cascade in hash-chain order (SYNC-14-003) until no held
       Announce extends the current tail.
     rationale: >-
-      The genesis hash is derivable from the case object alone (deterministic from case_id,
-      created_at, and the CASE_MANAGER id per CLP-08), so seeding the case is sufficient to anchor
-      the chain — the participant need not wait for the genesis ledger entry to be re-delivered.
-      Draining on seed is what turns the pre-genesis hold (SYNC-15-004) into convergence.
+      A participant can compute the genesis hash from the case object alone: it comes
+      from the case id, the creation time and the Case Owner's actor id (CLP-08-002).
+      Seeding the case therefore anchors the chain, and the participant need not wait
+      for a second delivery of the genesis entry. Draining on seed turns the pre-genesis
+      hold (SYNC-15-004) into convergence.
+    adr:
+    - ADR-0059
     verification: >-
       Integration tests in `test/demo/` confirm that seeding the VulnerabilityCase triggers a
       cascading drain of pre-genesis held entries in hash-chain order via the
@@ -1452,11 +1753,11 @@ groups:
       (entry, peer) pair while an earlier `Announce` of that same entry to that same peer
       is still pending in its outbox.
     rationale: >-
-      A `Reject` that arrives after the peer's gap has already drained still reports an
-      advanced position, so SYNC-15-010 replays — and that suffix is usually still in the
-      outbox from the previous replay. Ten such Rejects queued 116 duplicate Announces ahead
-      of the next entry's fan-out to every other peer (#3602). SYNC-15-010 stands; this only
-      stops the same row being queued twice. See ADR-0112.
+      A `Reject` that arrives after the peer's gap has drained still reports an
+      advanced position, so SYNC-15-010 replays. The replayed entries are often still
+      in the outbox from the last replay. Queuing them again puts duplicate Announces
+      in front of the next entry's fan-out to every other peer. This rule stops only a
+      second copy of the same row, and the replay itself still occurs (ADR-0112).
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-003
@@ -1480,11 +1781,12 @@ groups:
       to a fixed ceiling), and a replay from a different position MUST reset the cooldown
       to its base value.
     rationale: >-
-      A fixed cooldown ends the Reject/replay loop only when one round trip finishes inside
-      it. A loaded host, or a peer that can never anchor its chain, kept the loop running
-      for as long as the peer kept rejecting (#4882). A growing cooldown bounds a stuck peer
-      to a logarithmic number of replays over any period, whatever the round-trip time.
-      The ceiling keeps it a rate limit rather than suppression (SYNC-15-011 note).
+      A fixed cooldown ends the Reject and replay loop only when one round trip
+      completes inside it. On a loaded host, or with a peer that can never anchor its
+      chain, the loop runs for as long as the peer rejects. A cooldown that doubles soon
+      makes replays to a stuck peer rare, whatever the round-trip time. The ceiling
+      makes sure that a stuck peer still gets a replay at a fixed interval, so the
+      cooldown is a rate limit and not a stop (SYNC-15-003 note).
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-003
@@ -1505,12 +1807,12 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST NOT send the genesis `Announce(VulnerabilityCase)` pre-seed
-      (SYNC-15-002) in answer to a genesis Reject whose replay the cooldown suppresses.
+      (SYNC-15-015) in answer to a genesis Reject whose replay the cooldown suppresses.
     rationale: >-
-      The pre-seed exists to anchor the replay that follows it; while that replay is
-      rate-limited the peer already holds the case sent with the last one. Sending the
-      case once per Reject anyway kept one message per Reject flowing in the loop
-      SYNC-15-003 bounds (#4882).
+      The pre-seed exists to anchor the replay that follows it. While the cooldown
+      suppresses that replay, the peer already holds the case sent with the last one. A
+      pre-seed for each Reject would keep one message moving for each Reject in the
+      loop that SYNC-15-003 limits.
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-003
@@ -1518,6 +1820,29 @@ groups:
       `test/core/behaviors/sync/test_reject_tree.py`
       (`test_genesis_announce_skipped_when_replay_rate_limited`) confirms five genesis
       Rejects in one cooldown send the case once.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-15-015
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER answers a `Reject(CaseLedgerEntry)` with
+      `last_accepted_hash=""` with a replay, it MUST first send
+      `Announce(VulnerabilityCase)` to the rejecting peer.
+    rationale: >-
+      A peer that rejects from genesis does not hold the case, so it cannot compute
+      the per-case genesis hash (CLP-08-005). Without the case, the peer fails the
+      chain check on each replayed entry and rejects it again. The case lets the peer
+      anchor its chain and drain the entries it holds (SYNC-15-005), so the replay
+      that follows can apply.
+    verification: >-
+      `test/core/behaviors/sync/test_reject_tree.py`
+      (`test_genesis_reject_queues_announce_vulnerability_case`) confirms a genesis
+      Reject sends `Announce(VulnerabilityCase)` to the rejecting peer;
+      `test_create_reject_log_entry_tree_returns_sequence` confirms the pre-seed runs
+      before the replay; `test_non_genesis_reject_skips_announce_vulnerability_case`
+      confirms a Reject from a later position sends no case.
     stories:
     - story_2022_045
     - story_2022_088
@@ -1731,7 +2056,7 @@ groups:
       asking for a replay from genesis; a receiver MUST refuse a `Reject` that names no
       entry and states no position, or a position other than the empty chain's, and the
       CASE_MANAGER MUST answer the empty-chain form as it answers any replay from
-      genesis (SYNC-15-002).
+      genesis (SYNC-15-015).
     rationale: >-
       Those entries are already reflected in the copy. The refused entry the replica
       held under SYNC-16-001 drains first, before any replay arrives, so a rule that
@@ -1866,6 +2191,11 @@ groups:
       When the CASE_MANAGER acts on a stated position (SYNC-17-002) that names an entry
       in its ledger, it MUST record that entry's hash as the sender's acknowledged
       position in its per-peer replication state (SYNC-04-001).
+    rationale: >-
+      The CASE_MANAGER has no other record of how far a quiet participant has got
+      (SYNC-04-001). The stated entry is a fact the participant reports about itself,
+      so recording it gives the replay a correct start and the cooldown a correct
+      position.
     relationships:
     - rel_type: refines
       spec_id: SYNC-04-001
@@ -1994,16 +2324,15 @@ groups:
       One rule for every sender and message type gives every ledgered act its
       provenance, and a new message type needs no decision about whether it counts. A
       stub-Invite reply or a report `Offer` comes from an actor with no ledger to
-      state; an entry and a case copy already state their own positions, and
+      state. An entry and a case copy already state their own positions, and
       `Create(VulnerabilityCase)` and `Update(VulnerabilityCase)` are copies too.
-      `Join`, `Ignore`, `Leave` and `Offer` of a case carry it inline but act on it,
-      so they carry the sender's position. A
-      `Create(ProcessingFault)` is about the processing of one activity, not about a
-      case: any receiver sends one, including for an activity it could not parse and
-      so cannot place in any case (ASK-07-001), and it names no case (ASK-07-004); the
-      maintainer decided it is out of scope, the replica faults included (#5109). The
-      property is the `ledgerPosition` term a case copy already carries (SYNC-16-005),
-      so one fact keeps one wire form.
+      `Join`, `Ignore`, `Leave` and `Offer` of a case carry the case inline but act on
+      it, so they carry the sender's position. A `Create(ProcessingFault)` is about the
+      processing of one activity, not about a case. Any receiver sends one, including
+      for an activity it could not parse and so cannot place in any case (ASK-07-001),
+      and it names no case (ASK-07-004). This applies to the replica's faults too. The
+      property is the `ledgerPosition` term that a case copy already carries
+      (SYNC-16-005), so one fact keeps one wire form.
     relationships:
     - rel_type: refines
       spec_id: SYNC-16-005
@@ -2054,7 +2383,7 @@ groups:
       its `ledgerPosition` is missing or does not parse, naming the activity and writing
       nothing. A `Reject(CaseLedgerEntry)` that names an entry and carries no position
       MUST NOT be refused for it: it comes from a peer that does not hold the case yet,
-      which the CASE_MANAGER seeds and replays from genesis (SYNC-15-002).
+      which the CASE_MANAGER seeds and replays from genesis (SYNC-15-015).
     rationale: >-
       Core code then receives a non-optional position (ADR-0032), and every ledgered
       act carries one. A receiver cannot tell from a `Reject(CaseLedgerEntry)` alone

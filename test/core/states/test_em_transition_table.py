@@ -182,6 +182,7 @@ def test_a_rejection_returns_em_to_none_only_with_the_last_proposal() -> None:
 
 
 @pytest.mark.spec("EMB-18-005")
+@pytest.mark.spec("EMB-02-001")
 def test_activating_one_proposal_leaves_the_others_open_as_revisions() -> None:
     register = _register_after("propose:a", "propose:b", "accept:a")
     assert _em(register) is EM.REVISE
