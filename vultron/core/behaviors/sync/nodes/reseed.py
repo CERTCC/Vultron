@@ -318,7 +318,8 @@ class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
         case_id: str,
         peer_id: str,
         refused_entry: CaseLedgerEntry,
-        fault_published: datetime | None = None,
+        *,
+        fault_published: datetime | None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)

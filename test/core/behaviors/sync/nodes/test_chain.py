@@ -489,6 +489,26 @@ def test_update_replication_state_node_keeps_the_first_claimed_published(
     assert _stored().last_acknowledged_published is None
 
 
+@pytest.mark.spec("SYNC-16-008")
+def test_update_replication_state_node_reads_a_naive_held_claim_as_utc(
+    owner_bridge, owner_store
+):
+    """A held claim stored without an offset compares as UTC, not a TypeError."""
+    entry0 = _make_entry(0)
+    first = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
+    _acknowledge_via_node(owner_bridge, entry0, first)
+    state = owner_store.read(_replication_state_id(PARTICIPANT_ACTOR_ID))
+    assert isinstance(state, VultronReplicationState)
+    state.last_acknowledged_published = first.replace(tzinfo=None)
+    owner_store.save(state)
+
+    _acknowledge_via_node(owner_bridge, entry0, first + timedelta(minutes=5))
+
+    stored = owner_store.read(_replication_state_id(PARTICIPANT_ACTOR_ID))
+    assert isinstance(stored, VultronReplicationState)
+    assert stored.last_acknowledged_published == first
+
+
 @pytest.mark.spec("SYNC-01-003")
 @pytest.mark.spec("CLP-14-002")
 def test_create_log_entry_node_entry_carries_hashed_received_at(

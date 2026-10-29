@@ -49,7 +49,7 @@ def create_case_diverged_fault_tree(
     *,
     sender_id: str,
     sender_rule: SenderRule,
-    fault_published: datetime | None = None,
+    fault_published: datetime | None,
 ) -> py_trees.composites.Sequence:
     """Create the BT that re-seeds a replica reporting its case diverged.
 

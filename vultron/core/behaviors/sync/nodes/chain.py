@@ -177,7 +177,7 @@ def _acknowledged_published(
     restatement of the held position keeps the earliest claim, so the time
     reads as when the peer first stated it (SYNC-16-008).
     """
-    held = state.last_acknowledged_published
+    held = as_utc(state.last_acknowledged_published)
     if acknowledged != state.last_acknowledged_hash or held is None:
         return claimed
     if claimed is None:
