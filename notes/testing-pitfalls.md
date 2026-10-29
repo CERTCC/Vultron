@@ -42,6 +42,7 @@ related_notes:
   - notes/architecture-ratchet-corpus.md
   - notes/outbox-delivery-reliability.md
   - notes/sync-ledger-replication.md
+  - notes/devcontainer-tooling.md
 relevant_packages:
   - pytest
   - pytest-xdist
@@ -303,7 +304,9 @@ A test that runs `sys.executable` on code importing `vultron` MUST pass
 root first only on its own `sys.path`; a child inherits just `PYTHONPATH`, and
 in a worktree that can name another checkout. A script child's `sys.path[0]` is
 the script's directory, so the other checkout's `vultron` wins and a module it
-lacks fails to import (#5456).
+lacks fails to import (#5456). The devcontainer's `PYTHONPATH=/app` is the usual
+source ([devcontainer-tooling](devcontainer-tooling.md) § "Clear `PYTHONPATH`
+Before Every `uv run` and Worktree Commit").
 
 ### Store Scoping
 
