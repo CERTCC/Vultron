@@ -49,9 +49,10 @@ When several jobs can run in the same run, the pair moves to a final `notify` jo
 that `needs:` all of them and keys on `needs.*.result`, as `python-app.yml` does
 (CISEC-05-003).
 
-The workflow MUST grant `issues: write` (CISEC-02-002). A root-level
-`permissions: contents: read` block MUST become a map that also lists
-`issues: write`, or the action's issue calls fail with 403.
+The job that runs the pair MUST hold `issues: write` (CISEC-02-002), or the
+action's issue calls fail with 403. Grant it on the aggregate `notify` job and
+keep the root at `contents: read`, as `python-app.yml` does; a single-job
+workflow may grant it at the root instead.
 
 ## A Find-or-File Lookup Must Not Use the Search Index
 

@@ -213,37 +213,6 @@ def test_notify_step_passes_the_ci_failure_epic(wf: Path) -> None:
         )
 
 
-@pytest.mark.spec("CISEC-05-003")
-@pytest.mark.parametrize(
-    "wf", _qualifying_workflow_files(), ids=lambda p: p.name
-)
-def test_one_notify_and_one_close_step_per_workflow_label(wf: Path) -> None:
-    """CISEC-05-003 (#4874): one job reports each workflow-label, once.
-
-    The close step closes every open issue carrying the label. When several
-    jobs each run a notify step and a close step under one label, a job that
-    passes closes the issue a failing sibling just filed, and the job that
-    finishes last decides whether a red ``main`` stays reported. Counted
-    across all jobs, each label may have at most one notify step and one
-    close step; when several jobs can run, they belong in a final aggregate
-    job that ``needs:`` the others.
-    """
-    counts: Counter[tuple[str, str]] = Counter(
-        (
-            str(step.get("with", {}).get("workflow-label", "")),
-            str(step.get("with", {}).get("mode", "")),
-        )
-        for step in _notify_failure_steps(_load_workflow(wf))
-    )
-    repeated = {key: n for key, n in counts.items() if n > 1}
-    assert not repeated, (
-        f"{wf.name}: more than one notify-failure step per (workflow-label, "
-        f"mode): {repeated}. A passing job's close step would close the "
-        "issue a failing sibling filed; report once, from a final aggregate "
-        "job that `needs:` every other job (CISEC-05-003, #4874)."
-    )
-
-
 AGGREGATE_FAILURE = "contains(needs.*.result, 'failure')"
 AGGREGATE_CANCELLED_EXCLUSION = "!contains(needs.*.result, 'cancelled')"
 AGGREGATE_CANCELLED_INCLUSION = "|| contains(needs.*.result, 'cancelled')"
@@ -258,6 +227,258 @@ def _step_guards(wf: Path, mode: str) -> list[str]:
         for step in _notify_failure_steps(data)
         if step.get("with", {}).get("mode") == mode
     ]
+
+
+NOTIFY_MODES = ("notify", "close")
+_EVENT_GUARD = re.compile(r"github\.event_name\s*(==|!=)\s*'([a-z_]+)'")
+
+
+def _job_needs(job: dict[str, Any]) -> set[str]:
+    needs = job.get("needs", [])
+    return {needs} if isinstance(needs, str) else set(needs)
+
+
+def _event_exclusive(guard_a: str, guard_b: str) -> bool:
+    """Return True when two job ``if:`` guards admit disjoint events.
+
+    Recognizes only the plain ``github.event_name == 'X'`` /
+    ``github.event_name != 'X'`` pair, as in a job that runs only on
+    ``pull_request`` beside one that never does. Anything subtler counts as
+    able to share a run, so the check errs toward requiring ``needs:``.
+    """
+    a = set(_EVENT_GUARD.findall(guard_a))
+    b = set(_EVENT_GUARD.findall(guard_b))
+    return any(
+        (op == "==" and ("!=", ev) in b) or (op == "!=" and ("==", ev) in b)
+        for op, ev in a
+    )
+
+
+def _step_mode_violations(
+    label: str, steps: list[dict[str, Any]]
+) -> list[str]:
+    """One notify and one close step per label, each with a known mode."""
+    modes = Counter(str(s.get("with", {}).get("mode", "")) for s in steps)
+    problems: list[str] = []
+    unknown = set(modes) - set(NOTIFY_MODES)
+    if unknown:
+        problems.append(
+            f"{label}: step mode(s) {sorted(unknown)} are not "
+            f"one of {NOTIFY_MODES}"
+        )
+    repeated = {m: n for m, n in modes.items() if n > 1}
+    if repeated:
+        problems.append(f"{label}: more than one step per mode {repeated}")
+    return problems
+
+
+def _aggregate_job_violations(
+    label: str,
+    owner: str,
+    jobs: dict[str, dict[str, Any]],
+    steps: list[dict[str, Any]],
+) -> list[str]:
+    """The reporting job has no matrix and aggregates every concurrent job."""
+    job = jobs[owner]
+    problems: list[str] = []
+    if "matrix" in job.get("strategy", {}):
+        problems.append(
+            f"{label}: reporting job {owner!r} has a matrix, "
+            "so it reports once per leg"
+        )
+    guard = _normalize_expr(str(job.get("if", "")))
+    concurrent = {
+        other
+        for other, other_job in jobs.items()
+        if other != owner
+        and not _event_exclusive(
+            guard, _normalize_expr(str(other_job.get("if", "")))
+        )
+    }
+    if not concurrent:
+        return problems
+    missing = sorted(concurrent - _job_needs(job))
+    if missing:
+        problems.append(
+            f"{label}: reporting job {owner!r} does not `needs:` {missing}"
+        )
+    if "always()" not in guard:
+        problems.append(
+            f"{label}: reporting job {owner!r} must run "
+            "`always()`, or a failed job skips the report"
+        )
+    problems += [
+        f"{label}: notify step in {owner!r} must key on `{AGGREGATE_FAILURE}`"
+        for step in steps
+        if step.get("with", {}).get("mode") == "notify"
+        and AGGREGATE_FAILURE not in _normalize_expr(str(step.get("if", "")))
+    ]
+    return problems
+
+
+def _reporting_violations(wf_data: dict[str, Any]) -> list[str]:
+    """Return every CISEC-05-003 violation in one workflow's report wiring.
+
+    For each ``workflow-label``: exactly one notify step and one close step,
+    both in one job that has no matrix; when another job can run in the same
+    run, that job ``needs:`` it, runs ``always()`` and keys its notify step
+    on the ``needs.*.result`` aggregate.
+    """
+    jobs: dict[str, dict[str, Any]] = wf_data.get("jobs", {})
+    by_label: dict[str, list[tuple[str, dict[str, Any]]]] = {}
+    for name, job in jobs.items():
+        for step in _notify_failure_steps({"jobs": {name: job}}):
+            label = str(step.get("with", {}).get("workflow-label", ""))
+            by_label.setdefault(label, []).append((name, step))
+    problems: list[str] = []
+    for label, owned in by_label.items():
+        steps = [step for _, step in owned]
+        problems += _step_mode_violations(label, steps)
+        owners = sorted({name for name, _ in owned})
+        if len(owners) > 1:
+            problems.append(f"{label}: steps are split across jobs {owners}")
+            continue
+        problems += _aggregate_job_violations(label, owners[0], jobs, steps)
+    return problems
+
+
+@pytest.mark.spec("CISEC-05-003")
+@pytest.mark.parametrize(
+    "wf", _qualifying_workflow_files(), ids=lambda p: p.name
+)
+def test_one_job_reports_each_workflow_label(wf: Path) -> None:
+    """CISEC-05-003 (#4874): one job reports each workflow-label, once.
+
+    The close step closes every open issue carrying the label. When several
+    jobs each run a notify step and a close step under one label, a job that
+    passes closes the issue a failing sibling just filed, and the job that
+    finishes last decides whether a red ``main`` stays reported. Counted
+    across all jobs, each label has at most one notify step and one close
+    step, in one job; when other jobs can run in the same run, that job is a
+    final aggregate job that ``needs:`` all of them.
+    """
+    problems = _reporting_violations(_load_workflow(wf))
+    assert not problems, (
+        f"{wf.name}: report once per workflow-label, from a final aggregate "
+        "job that `needs:` every other job (CISEC-05-003, #4874): "
+        + "; ".join(problems)
+    )
+
+
+def _notify_pair(label: str) -> list[dict[str, Any]]:
+    return [
+        {
+            "if": guard,
+            "uses": NOTIFY_FAILURE_USES,
+            "with": {"mode": mode, "workflow-label": label},
+        }
+        for mode, guard in (
+            ("notify", AGGREGATE_FAILURE),
+            (
+                "close",
+                f"!{AGGREGATE_FAILURE} && {AGGREGATE_CANCELLED_EXCLUSION}",
+            ),
+        )
+    ]
+
+
+def _aggregate_workflow(**notify_job: Any) -> dict[str, Any]:
+    job: dict[str, Any] = {
+        "needs": ["a", "b"],
+        "if": "always()",
+        "steps": _notify_pair("ci:x"),
+    }
+    job.update(notify_job)
+    return {"jobs": {"a": {"steps": []}, "b": {"steps": []}, "notify": job}}
+
+
+def test_reporting_check_accepts_an_aggregate_job() -> None:
+    assert _reporting_violations(_aggregate_workflow()) == []
+
+
+def test_reporting_check_accepts_a_single_job_workflow() -> None:
+    wf = {"jobs": {"only": {"steps": _notify_pair("ci:x")}}}
+    assert _reporting_violations(wf) == []
+
+
+def test_reporting_check_exempts_an_event_exclusive_job() -> None:
+    """A job that runs only on ``pull_request`` never shares a push run."""
+    wf = {
+        "jobs": {
+            "pr-only": {"if": "github.event_name == 'pull_request'"},
+            "report": {
+                "if": "github.event_name != 'pull_request'",
+                "steps": _notify_pair("ci:x"),
+            },
+        }
+    }
+    assert _reporting_violations(wf) == []
+
+
+@pytest.mark.parametrize(
+    ("workflow", "expected"),
+    [
+        (_aggregate_workflow(needs=["a"]), "does not `needs:` ['b']"),
+        (_aggregate_workflow(**{"if": "github.ref == 'x'"}), "`always()`"),
+        (
+            _aggregate_workflow(strategy={"matrix": {"py": ["3.12"]}}),
+            "has a matrix",
+        ),
+        (
+            _aggregate_workflow(steps=_notify_pair("ci:x") * 2),
+            "more than one step per mode",
+        ),
+        (
+            _aggregate_workflow(
+                steps=[
+                    {**s, "if": "failure()"}
+                    if s["with"]["mode"] == "notify"
+                    else s
+                    for s in _notify_pair("ci:x")
+                ]
+            ),
+            "must key on",
+        ),
+        (
+            {
+                "jobs": {
+                    "a": {"steps": _notify_pair("ci:x")[:1]},
+                    "b": {"steps": _notify_pair("ci:x")[1:]},
+                }
+            },
+            "split across jobs",
+        ),
+        (
+            {
+                "jobs": {
+                    "only": {
+                        "steps": [
+                            {
+                                "uses": NOTIFY_FAILURE_USES,
+                                "with": {"workflow-label": "ci:x"},
+                            }
+                        ]
+                    }
+                }
+            },
+            "are not one of",
+        ),
+    ],
+    ids=[
+        "missing-needs",
+        "no-always",
+        "matrix",
+        "repeated-step",
+        "notify-not-aggregate",
+        "split-jobs",
+        "no-mode",
+    ],
+)
+def test_reporting_check_flags_each_violation(
+    workflow: dict[str, Any], expected: str
+) -> None:
+    problems = _reporting_violations(workflow)
+    assert any(expected in p for p in problems), problems
 
 
 @pytest.mark.parametrize(
