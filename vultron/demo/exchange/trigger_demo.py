@@ -41,6 +41,7 @@ Each demo verifies that the resulting ActivityStreams activity is returned in
 the response body and that the vendor's outbox is updated accordingly.
 """
 
+import json
 import logging
 from collections.abc import Callable, Sequence
 
@@ -55,6 +56,8 @@ from vultron.demo.helpers.polling import wait_for_participant_rm_state
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
     find_case_for_offer,
+    receiver_invalidates_report,
+    receiver_validates_report,
     reporter_submits_report,
     verify_reporter_trusts_introduction,
     wait_for_case_for_offer,
@@ -112,13 +115,15 @@ def demo_validate_and_engage(
     stored_offer = response = None
     with demo_step("Step 2: Vendor triggers validate-report"):
         stored_offer = get_offer_from_datalayer(client, vendor.id_, offer.id_)
-        response = vendor_session.validate_report(offer_id=stored_offer.id_)
+        # Gated on the case replica reaching the vendor's store: the trigger
+        # addresses that case's CASE_MANAGER (#5464).
+        validated = receiver_validates_report(client, vendor, stored_offer.id_)
         logger.info(
             "validate-report response: %s",
-            response.model_dump_json(indent=2),
+            json.dumps(validated, indent=2, default=str),
         )
         with demo_check("Response contains activity"):
-            activity = response.activity
+            activity = validated.get("activity")
             assert activity is not None, (
                 "Expected 'activity' key in trigger response"
             )
@@ -205,16 +210,21 @@ def demo_invalidate_and_close(
     stored_offer = response = None
     with demo_step("Step 2: Vendor triggers invalidate-report"):
         stored_offer = get_offer_from_datalayer(client, vendor.id_, offer.id_)
-        response = vendor_session.invalidate_report(
-            offer_id=stored_offer.id_,
+        # Gated on the case replica reaching the vendor's store: before it
+        # lands the trigger addresses the reporter, whose inbox refuses it
+        # (#5464).
+        invalidated = receiver_invalidates_report(
+            client,
+            vendor,
+            stored_offer.id_,
             note="Report lacks reproduction steps; marked invalid.",
         )
         logger.info(
             "invalidate-report response: %s",
-            response.model_dump_json(indent=2),
+            json.dumps(invalidated, indent=2, default=str),
         )
         with demo_check("Response contains activity"):
-            activity = response.activity
+            activity = invalidated.get("activity")
             assert activity is not None, (
                 "Expected 'activity' key in invalidate-report response"
             )

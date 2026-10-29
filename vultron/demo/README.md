@@ -94,8 +94,16 @@ First install the package and start the API server:
 
 ```bash
 uv pip install -e .
-uv run uvicorn vultron.adapters.driving.fastapi.main:app --host localhost --port 7999 --reload
+VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://localhost:7999/api/v2 \
+  uv run uvicorn vultron.adapters.driving.fastapi.main:app \
+  --host localhost --port 7999 --reload
 ```
+
+`VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` is required. A vendor proposes the
+case for each report it receives to the CaseActor service at that URL, which
+on a single server is the server itself. Without it the proposal fails with
+`case_actor_service_url is not configured`, no case is opened, and every
+exchange demo fails (CP-08-001, CP-08-005).
 
 `vultron.adapters.driving.fastapi.main:app` is the canonical deployment
 entrypoint. `app_v2` in

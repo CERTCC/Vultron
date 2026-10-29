@@ -75,6 +75,22 @@ Notice that both the `api-dev` and `demo` containers are now running.
 The `api-dev` container exposes the Vultron API at
 `http://localhost:7999/api/v2`.
 
+The `api-dev` container also acts as its own CaseActor service.
+When the vendor receives a report, it proposes a case for it to the CaseActor service that `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` names.
+The Compose file sets this variable to `http://localhost:7999/api/v2` for us.
+
+!!! tip "Running the server without Docker"
+
+    To run the API server directly instead, set the same variable when you start it:
+
+    ```bash
+    VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://localhost:7999/api/v2 \
+      uv run uvicorn vultron.adapters.driving.fastapi.main:app --host localhost --port 7999
+    ```
+
+    If the variable is not set, the server cannot propose a case for a report.
+    No case is opened, and every demo fails.
+
 ---
 
 ## Step 3 — Run the receive-report demo
