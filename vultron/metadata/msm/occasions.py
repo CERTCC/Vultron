@@ -812,14 +812,18 @@ def main(argv: list[str] | None = None) -> None:
             print(f"Wrote {path}")
         return
 
-    problems: list[str] = []
-    try:
-        load_occasion_table(root / YAML_PATH, root=root)
-    except FileNotFoundError:
-        pass  # reported as stale below
-    except MetadataLoadError as exc:
-        problems.append(str(exc))
     found = drift(root)
+    problems: list[str] = []
+    # A committed table that is not stale is byte-for-byte the text
+    # desired_contents just generated and validated, so loading it again
+    # could only repeat that verdict at the cost of two more YAML parses.
+    if YAML_PATH in found.stale:
+        try:
+            load_occasion_table(root / YAML_PATH, root=root)
+        except FileNotFoundError:
+            pass  # reported as stale below
+        except MetadataLoadError as exc:
+            problems.append(str(exc))
     problems.extend(
         f"{path} is stale — run '{WRITE_COMMAND}' (MSM-06-001)."
         for path in found.stale
