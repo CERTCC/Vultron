@@ -211,6 +211,7 @@ def _status_set(calls: list[str]) -> bool:
     "PAD-04-001", "PAD-04-002", "PAD-15-009", "PAD-19-002", "PAD-19-003"
 )
 class TestClaimIssue:
+    @pytest.mark.spec("PAD-04-005", "PAD-04-006")
     def test_github_creates_the_branch_and_the_issue_is_announced(
         self, box: Sandbox
     ):
@@ -292,6 +293,7 @@ class TestClaimIssue:
         )
         assert result.returncode == 3
 
+    @pytest.mark.spec("PAD-04-006", "PAD-04-007")
     def test_planning_an_epic_does_not_assign_it(self, box: Sandbox):
         """An Epic's assignee means an epic run (PAD-19-001), so a planning
         claim locks with the branch and comments, but never assigns."""
@@ -316,6 +318,7 @@ class TestClaimIssue:
         assert "Could not check" in result.stderr
         assert box.remote_branches() == []
 
+    @pytest.mark.spec("PAD-19-006", "PAD-19-009")
     def test_a_bug_under_a_claimed_epic_is_not_held(self, box: Sandbox):
         box.issue(BUG, "Bug", epic_assignees=["me"])
         result = box.run("claim-issue.sh", str(BUG), "bug", "slug")
@@ -339,6 +342,7 @@ class TestEpicClaim:
             },
         )
 
+    @pytest.mark.spec("PAD-19-007")
     def test_claim_assigns_and_comments_without_a_status(self, box: Sandbox):
         self._epic(box, [])
         result = box.run("claim-epic.sh", str(EPIC))
@@ -349,6 +353,7 @@ class TestEpicClaim:
         assert not _status_set(calls), "PAD-16-012: an Epic has no Status"
         assert box.remote_branches() == []
 
+    @pytest.mark.spec("PAD-19-008")
     def test_an_assigned_epic_is_refused(self, box: Sandbox):
         self._epic(box, ["someone"])
         result = box.run("claim-epic.sh", str(EPIC))
@@ -419,7 +424,7 @@ class TestWorkEpicTasksSkill:
         assert "before any build starts" in steps["3"]
         assert "claim-epic.sh" not in steps["4"]
 
-    @pytest.mark.spec("PAD-19-003")
+    @pytest.mark.spec("PAD-19-010")
     def test_every_build_names_the_epic_run(self):
         assert "build <N> --epic-run <EPIC>" in _skill_steps()["4"]
 
@@ -430,7 +435,7 @@ class TestWorkEpicTasksSkill:
         assert "**every** stop" in report
         assert report.index("release-epic.sh") < report.index("List completed")
 
-    @pytest.mark.spec("PAD-19-006")
+    @pytest.mark.spec("PAD-19-011")
     def test_a_planned_bug_taken_elsewhere_is_dropped_and_reported(self):
         steps = _skill_steps()
         assert "taken elsewhere" in steps["4"]
