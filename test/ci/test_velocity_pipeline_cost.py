@@ -713,6 +713,13 @@ def test_main_red_spans_orders_runs_by_creation_time(
     assert ep["opened_after_green"] is True
 
 
+def test_workflow_key_falls_back_from_path(velocity: ModuleType) -> None:
+    assert velocity._workflow_key({"path": "p.yml", "name": "N"}) == "p.yml"
+    assert velocity._workflow_key({"workflow_id": 7, "name": "N"}) == "7"
+    assert velocity._workflow_key({"path": "", "name": "N"}) == "N"
+    assert velocity._workflow_key({}) == ""
+
+
 def test_main_red_spans_empty(velocity: ModuleType) -> None:
     assert velocity._main_red_spans([]) == []
 
