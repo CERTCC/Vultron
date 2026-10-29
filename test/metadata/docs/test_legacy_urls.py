@@ -22,6 +22,7 @@ from pathlib import Path
 import pytest
 
 from vultron.metadata.docs.legacy_urls import (
+    RECORD_HINT,
     EmptyBaselineError,
     NoBuiltPagesError,
     load_baseline,
@@ -241,9 +242,7 @@ def test_every_page_this_checkout_builds_is_recorded():
     missing = unrecorded_pages(load_baseline(), "HEAD")
     assert not missing, (
         f"{len(missing)} built page(s) are not in the legacy-URL baseline: "
-        f"{', '.join(missing)}. Commit the page, run 'uv run docs-legacy-urls "
-        "--snapshot HEAD', and commit the updated baseline in the same pull "
-        "request (DOCBW-03-012)."
+        f"{', '.join(missing)}. {RECORD_HINT}"
     )
 
 

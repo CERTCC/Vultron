@@ -103,7 +103,7 @@ _MAX_HOPS = 10
 
 
 # How to fix every --require-recorded failure, so each message names it.
-_RECORD_HINT = (
+RECORD_HINT = (
     "Commit the page, run 'uv run docs-legacy-urls --snapshot HEAD', and "
     "commit the updated baseline in the same pull request: main deploys on "
     "every merge, so a page's URL is live once it merges."
@@ -352,7 +352,7 @@ def _require_recorded(root: Path | None, baseline: Path) -> None:
     try:
         missing = unrecorded_pages(load_baseline(baseline), "HEAD", root)
     except (NoBuiltPagesError, EmptyBaselineError) as exc:
-        print(f"[ERROR] {exc} {_RECORD_HINT}", file=sys.stderr)
+        print(f"[ERROR] {exc} {RECORD_HINT}", file=sys.stderr)
         sys.exit(1)
     except subprocess.CalledProcessError as exc:
         print(
@@ -370,7 +370,7 @@ def _require_recorded(root: Path | None, baseline: Path) -> None:
         print(
             f"\n✗ {len(missing)} built page(s) are not recorded, so publishing "
             f"them would leave URLs the continuity check does not know about. "
-            f"{_RECORD_HINT}",
+            f"{RECORD_HINT}",
             file=sys.stderr,
         )
         sys.exit(1)

@@ -25,6 +25,7 @@ step found inside an action inherits its caller's ``if:`` and
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,7 @@ from test.ci._workflows import (
     RUN_EVEN_AFTER_FAILURE,
     WORKFLOWS_DIR,
     expanded_steps,
+    live_text,
     load_workflow,
     local_action_steps,
     neutering,
@@ -44,7 +46,7 @@ from test.ci._workflows import (
 )
 
 # Each built-site gate's command, and the requirement it implements. Two share
-# a tool, so a step runs a gate only when a line of its ``run:`` ends with the
+# a tool, so a step runs a gate only when a live line of its ``run:`` is the
 # whole command (:func:`_runs_gate`): matching a substring would let the
 # ``--require-recorded`` step stand in for a missing continuity step.
 GATES = {
@@ -97,12 +99,23 @@ def _index_of(steps: list[Step], needle: str, key: str) -> int | None:
     return None
 
 
+# A line that runs a gate: optional environment assignments, then the command.
+# Anything else on the line (``echo``, ``true ||``) means the gate may not run.
+_GATE_LINE = re.compile(
+    r"(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*uv run (?P<command>.+)"
+)
+
+
 def _runs_gate(step: Step, command: str) -> bool:
-    """Return whether a line of *step*'s ``run:`` invokes exactly *command*."""
-    return any(
-        line.strip().endswith(f"uv run {command}")
-        for line in str(step.body.get("run", "")).splitlines()
-    )
+    """Return whether a live line of *step*'s ``run:`` is exactly *command*.
+
+    Shell comments are dropped first, so a commented-out gate runs nothing.
+    """
+    for line in live_text(step.body).splitlines():
+        match = _GATE_LINE.fullmatch(line.strip())
+        if match and match["command"].strip() == command:
+            return True
+    return False
 
 
 def _gate_index(steps: list[Step], command: str) -> int | None:
@@ -123,6 +136,26 @@ def test_gate_lookup_tells_the_two_legacy_url_gates_apart():
     assert _gate_index(steps, "docs-legacy-urls --require-recorded") == 0
     steps.append(Step(continuity, continuity))
     assert _gate_index(steps, "docs-legacy-urls") == 1
+
+
+@pytest.mark.parametrize(
+    "run",
+    [
+        "# PYTHONPATH='' uv run docs-links",
+        "echo PYTHONPATH='' uv run docs-links",
+        "true || uv run docs-links",
+        "uv run docs-links-other",
+    ],
+    ids=["commented-out", "echoed", "short-circuited", "other-command"],
+)
+def test_gate_lookup_rejects_a_line_that_does_not_run_the_gate(run: str):
+    step = {"run": run}
+    assert not _runs_gate(Step(step, step), "docs-links")
+
+
+def test_gate_lookup_accepts_a_trailing_comment():
+    step = {"run": "PYTHONPATH='' uv run docs-links  # DOCBW-03-007"}
+    assert _runs_gate(Step(step, step), "docs-links")
 
 
 def test_some_workflow_builds_the_site():
@@ -306,8 +339,9 @@ def test_the_publication_workflow_never_cancels_a_running_deploy():
     assert isinstance(concurrency, dict), (
         f"{DEPLOY.name} sets no concurrency group, so two deploys can race."
     )
-    assert concurrency.get("group"), (
-        f"{DEPLOY.name} names no concurrency group."
+    assert concurrency.get("group") == "pages", (
+        f"{DEPLOY.name} must use the fixed 'pages' concurrency group; a group "
+        "keyed on the ref or run would let two deploys race (DOCBW-06-005)."
     )
     assert concurrency.get("cancel-in-progress") is False, (
         f"{DEPLOY.name} must set cancel-in-progress: false, so a merge never "

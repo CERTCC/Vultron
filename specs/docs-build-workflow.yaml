@@ -65,8 +65,8 @@ groups:
           trigger leaves out one of these paths, a change there can break the
           site while this workflow does not run. Changes only to `plan/`,
           `notes/` or other markdown outside the site do not change the built
-          site, so they do not trigger the workflow (DOCBW-02-003), except on a
-          pull request to `publish` (DOCBW-03-012).
+          site, so they do not trigger the workflow (DOCBW-02-003). A change the
+          filter misses is still checked by the deploy (DOCBW-03-012).
         verification: >-
           `test/ci/test_docs_build_trigger_paths.py` asserts the
           `pull_request` paths include every path this statement lists.
@@ -172,10 +172,10 @@ groups:
           between the build step and the Pages artifact upload.
         rationale: >-
           `deploy_site.yml` is the workflow that actually publishes: it builds
-          `site/` on a push to `publish` and uploads it to Pages. A gate present
+          `site/` on a push to `main` and uploads it to Pages. A gate present
           only in the pull-request workflow does not bind the publishing path, so
-          a withheld artifact reintroduced by a direct push to `publish`, or by a
-          plugin or dependency change that alters the build, would ship. Placing
+          a withheld artifact reintroduced by a merge the review's path filter
+          skipped, or by a manual run, would ship. Placing
           the step before the upload means the deploy fails rather than
           publishing an artifact the project declared withheld.
         verification: >-
@@ -233,7 +233,7 @@ groups:
           served. When a page moves or is withdrawn with no redirect, each of
           those links gets a 404. `--strict` checks links in one build, not URLs
           that an earlier build served. The record is committed because its
-          evidence, the `publish` branch, is gone when `publish` advances. A
+          evidence, the deployed site, is gone when the next deploy replaces it. A
           withdrawn page is excluded, not redirected, so a retirement does not
           look like a move. Other clauses: `notes/documentation-strategy.md`.
         verification: >-
@@ -445,7 +445,7 @@ groups:
         kind: project
         statement: >-
           In the publication workflow, the publication gates (DOCBW-03-005,
-          DOCBW-03-007 and DOCBW-03-008, run through the
+          DOCBW-03-007, DOCBW-03-008 and DOCBW-03-012, run through the
           `.github/actions/check-site-publication` composite action) MUST run after
           the site build and before the Pages artifact upload.
         rationale: >-
