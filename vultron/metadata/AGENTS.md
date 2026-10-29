@@ -30,7 +30,7 @@ are the product**.
 | `adr/` | `docs/adr/*.md` frontmatter | `AdrFrontmatter` |
 | `history/` | `plan/history/**/*.md`, `plan/incoming/learnings/*.md` | `HistoryEntryFrontmatter` |
 | `msm/` | the `occasions` and `page` on each `SEMANTIC_REGISTRY` entry, and the include directives of every `docs/` page; derives mapping status, "Sent by", section headings and "Seen in"; generates `msm/occasions.yaml` and `docs/reference/messages/_occasions/` (tables, sections, how-to embeds) (`occasions.py`) | `OccasionTable` (`_mapping.py`) |
-| `demo_scenarios/` | the `@scenario` registry in `vultron/demo/scenario/` | — |
+| `demo_scenarios/` | the `@scenario` registry and the branch-point table in `vultron/demo/scenario/`; the committed recordings' case ids (`export_tree.py`) | — |
 | `docs/` | `git log` over `docs/`, for the what's-new page; `docs/reference/glossary.md` (`glossary_index.py`); the built `site/` tree (`withheld.py`, `links.py`, `legacy_urls.py`, `path_boxes.py` — the `docs-path-boxes` check that every page renders its reading-path boxes, DF-11-023 — via `built_site.py`); each page's rendered HTML at build time (`anchor_ids.py`, an `on_page_content` hook under `hooks:` in `mkdocs.yml` — registers exec-emitted ids as anchor targets for `--strict`, #3735); the assembled `full.md` Markdown at build time (`full_page_links.py`, an `on_page_markdown` hook under `hooks:` — rewrites the Protocol Specification's same-section `page.md#fragment` links to in-page `#fragment` links on its single-page edition only, #4092); every `docs/**/*.md` page's `stakeholder_type`/`level`/`page_type`/`subject` (`page_frontmatter.py`, DF-11); each nav section's pages' `subject`, so no section mixes protocol and implementation pages (`nav_subjects.py`, `docs-nav-subjects`, DF-11-020/025); each `docs/start/` page's `thread:` (`threads.py` — the `docs-threads` check, the start-page listing `docs-site` splices and the reading-path box fragments it writes under `docs/start/_paths/`, which pages place by hand with `include-markdown`, DF-11-013–016, DF-11-022/023; `thread_order.py` — the `docs-thread-order` check that no member uses a term a later member introduces, reusing `level_order.py`'s scan, DF-11-024); the include directives naming the normative and specification-governs banners, against the normative set and protocol-design pages it declares (`normative_banner.py`, DF-12-006/007); the paragraphs of every target page, for the advisory cross-page copy report `lint-docs` reads (`duplicates.py`, `docs-duplicates`, SG-43, DF-10-002); the requirement registry, for the Requirements Catalog placement table, row lookup and link targets (`requirement_catalog.py`, DF-12-001/002/005) and the page an exec block prints on (`exec_page.py`, an `on_pre_page` hook under `hooks:`); the listed specification fragments, for RFC 2119 keywords in prose (`rfc2119_keywords.py`, DF-12-004); built-site URLs for links a renderer prints come from `site_urls.py`; `notes/nav-usability/suite.yaml`, a nav's labels and a built `site/`, for the agent usability test that gates a nav change (`nav_usability/`, ADR-0136) | `PageFrontmatter`, `WorkingRecordFrontmatter`, `ThreadDeclaration` (`page_schema.py`); publication axis: DOCBW-03-005; reference axis: DOCBW-03-007; continuity axis: DOCBW-03-008 |
 | `planning/` | an Epic's sub-issue GraphQL payload on stdin; a branch diff (`size_bands.py`, `targeted_tests.py`); a PR body file or `gh pr view` payload (`pr_body_lint.py`); the theme catalog block in `notes/epic-themes.md` (`themes.py`) and `gh label list` (`theme_labels.py`, the `theme-labels` sync); every open Issue's labels, type, parents and Schedule (`theme_fit/`, the `theme-fit` check) | `ThemeCatalog` (selection rules: PAD-15; local test gate: PAD-18; PR body rules: PAD-20; themes: PAD-02-014–021) |
 
@@ -47,7 +47,7 @@ Shared helpers live in three places — `base.py`, `markdown_tables.py`, and
 | `mkdocs_config()` | the parsed `mkdocs.yml` |
 | `nav_paths()` | every document path reachable from the nav, flattened. The ADR nav check, the docs-frontmatter check and the scenario-narrative nav check read it; it was `adr/index_gen._iter_nav_paths` until #3451 |
 | `not_in_nav_spec()` | the `not_in_nav` patterns, matched as MkDocs matches them (gitignore lines via `pathspec`); a hand-rolled glob here would disagree with the build |
-| `iter_tree_texts()` | `(path, text)` for each file matching a pattern under some directories, unreadable files skipped. The PD-10 spec YAML line guard (`line_length.py`, also at the package root; its Python doc-line guard runs ruff's `W505` instead) and the MS-10-010 test index read through it |
+| `iter_tree_texts()`, `markdown_files()` | `(path, text)` for each file matching a pattern under some directories, unreadable files skipped. The PD-10 spec YAML line guard (`line_length.py`, also at the package root; its Python doc-line guard runs ruff's `W505` instead) and the MS-10-010 test index read through it. `markdown_files()` is every sorted `*.md` under one directory, not descending what its predicate prunes: use it, not `sorted(rglob("*.md"))` plus a filter, since a repository-wide `rglob` walks all of `.git` and `.venv` first |
 | `gh_issue_state()`, `gh_issue_missing()`, `gh_lookup_failure()`, `GH_LOOKUP_ERRORS`, `issue_number()` | one issue's state through `gh issue view`, whether a failed lookup means "no such issue", the failure as text with `gh`'s stderr, and what a lookup can raise. The `verification_debt` owner check (`specs/verification.py`) and the ratchet-baseline owner report (`ratchet_owners.py`, ARCH-18-004) both read owners through them; a lookup that raises is reported, never passed |
 | `nav_exclusion_fault()` | why a page that must stay out of the nav is misplaced (navved, or matched by no `not_in_nav` pattern), or `None`. The ADR check and the docs-frontmatter check share it (#3528) |
 
@@ -75,11 +75,11 @@ the private spelling will not find a public duplicate** — search for the behav
 Three subpackages own committed generated artifacts, and all split the same way:
 **generate what is derivable, check what is prose.** `adr/index_gen.py`
 regenerates `docs/adr/index.md` but only checks the hand-labelled nav;
-`demo_scenarios/` regenerates the CI matrix and two scenario tables but leaves
-spec enumerations and nav to completeness checks; `msm/occasions.py` regenerates
-the occasion YAML and its fragments, not the page prose. Each is a `--check`
-hook (`adr-index-sync`, `demo-scenarios-sync`, `msm-occasions-sync`) comparing
-byte for byte via `generated_files.py`; an ungated one is hand-edited.
+`demo_scenarios/` regenerates the CI matrix, two scenario tables and the tree
+index, leaving spec enumerations and nav to checks; `msm/occasions.py` regenerates
+the occasion YAML and fragments, not page prose. Each is a `--check` hook
+(`adr-index-sync`, `demo-scenarios-sync`, `demo-tree-sync`, `msm-occasions-sync`)
+comparing byte for byte via `generated_files.py`; an ungated one is hand-edited.
 `docs/landing_pages.py` (`docs-site-sync`) splits per page: a nav group's
 `index.md` declares `contents: generated | routing | rendered`, and a routing
 index is *checked* to link every member of its section, not written (#3617).
@@ -106,7 +106,7 @@ as a path-prefixed `ValueError` — the shape every hand-written copy took.
 
 | Helper | Use it for |
 |---|---|
-| `load_yaml(path, root=, loader=)` | a whole YAML file (`specs/*.yaml`) |
+| `load_yaml(path, root=, loader=)` | a whole YAML file (`specs/*.yaml`); no `loader` parses with `SAFE_LOADER` (libyaml when present, about 10x faster) and re-parses a fault in Python so its error reads unchanged; pass one only for its own errors |
 | `load_frontmatter(path, root=)` | a markdown file's frontmatter block |
 | `loads_frontmatter(text)` | the no-path form, for content not yet on disk |
 | `validate(Model, data, path=, root=, prefix=, key_lines=, positions=)` | the Pydantic half; `key_lines` locates the failure at its key's line, `positions` (from `yaml_node_positions(text)`) at the failing node's line and column |

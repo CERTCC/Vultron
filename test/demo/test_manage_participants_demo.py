@@ -14,6 +14,8 @@
 import pytest
 
 from test.demo._helpers import (
+    expect_no_inbox_refusals,
+    expect_no_sender_refusals,
     expect_trusted_introductions,
     route_exchange_demo_at_testclient,
 )
@@ -53,9 +55,9 @@ def test_demo(demo_env, demo_fn, caplog):
 
     For the reject path, verifies:
     - Case initialized with vendor as sole participant
-    - Invite sent to coordinator inbox
-    - Coordinator rejection sent to vendor inbox
-    - Participant list unchanged (coordinator not added)
+    - The CASE_MANAGER's stub Invite reaches the coordinator
+    - The coordinator declines through its ``reject-case-invite`` trigger
+    - The coordinator's inert record closes (CM-11-006, CM-11-007)
     - No errors logged
     """
     import logging
@@ -65,6 +67,8 @@ def test_demo(demo_env, demo_fn, caplog):
     with (
         caplog.at_level(logging.WARNING),
         expect_trusted_introductions(caplog),
+        expect_no_inbox_refusals(caplog),
+        expect_no_sender_refusals(caplog),
     ):
         demo.main(skip_health_check=True, demos=[demo_fn])
 

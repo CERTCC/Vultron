@@ -996,8 +996,8 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
 
         Only a stub Invite anchors trust (PCR-03-004 path b).  The
         pre-bootstrap queue shares the record and records the sender of the
-        first deferred activity as its replay target (CBT-03-004), which is
-        no anchor until an Invite confirms it (``invite_anchored``).
+        first deferred activity, which is no anchor until an Invite confirms
+        it (``invite_anchored``).
         """
         assert self.datalayer is not None
         pending = self.datalayer.read(

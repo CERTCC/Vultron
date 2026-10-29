@@ -1242,3 +1242,33 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: RSH-09-002
+  - id: RSH-09-009
+    priority: MUST_NOT
+    kind: protocol
+    statement: >
+      A received `ParticipantStatus` MUST NOT be refused for the sender's
+      case roles over the public-state (P/X/A) values that its embedded
+      `CaseStatus` states. A participant holding any role, OBSERVER alone
+      included, can report that the vulnerability is public, that an exploit
+      is public or that attacks are observed. Adoption decides whether a
+      reported value becomes canonical case state (RSH-01-003), not the
+      acceptance rules.
+    rationale: >
+      P, X and A record the state of the world, not anything a participant
+      did, so no role owns them. A Vendor cannot be the only party able to
+      say that an exploit is public: an Observer or a monitoring service is
+      often the first to see it. The adoption gate, not a role check, protects
+      canonical case state from a wrong report.
+    verification: >
+      Tests in `test/core/behaviors/status/test_participant_status_acceptance.py`
+      confirm that the acceptance rules accept a forward P/X/A move from a
+      sender holding only OBSERVER, one holding only COORDINATOR and one
+      holding no role, and that the received status tree records a P/X/A
+      report from a sender holding only OBSERVER.
+    relationships:
+    - rel_type: extends
+      spec_id: RSH-09-003
+    stories:
+    - story_2022_018
+    - story_2022_019
+    - story_2022_081

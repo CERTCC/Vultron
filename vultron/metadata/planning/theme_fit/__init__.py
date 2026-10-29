@@ -13,7 +13,7 @@
 """Structural theme-fit check over open Issues (``theme-fit``).
 
 Requirements: PAD-01-002, PAD-01-007, PAD-02-008, PAD-02-014, PAD-02-015, PAD-02-017,
-PAD-02-018.
+PAD-02-018, PAD-02-028.
 
 The package splits along its seams: :mod:`.fetch` owns the GraphQL query and
 response shape, :mod:`.analyze` applies the rules as a pure function,
@@ -45,6 +45,7 @@ from vultron.metadata.planning.theme_fit.model import (
     OpenIssue,
     ThemeFitReport,
     TierCoherence,
+    UntriagedIssue,
 )
 from vultron.metadata.planning.theme_fit.render import (
     GITHUB_BODY_LIMIT,
@@ -64,6 +65,7 @@ __all__ = [
     "ThemeFitReport",
     "TierCoherence",
     "UNSCHEDULED",
+    "UntriagedIssue",
     "WORD_JOINER",
     "analyze",
     "fetch_open_issues",

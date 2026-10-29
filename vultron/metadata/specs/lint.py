@@ -24,6 +24,7 @@ from vultron.metadata.adr.lifecycle import (
 )
 from vultron.metadata.adr.loader import load_adr_registry
 from vultron.metadata.adr.schema import AdrFrontmatter
+from vultron.metadata.base import relative_posix
 from vultron.metadata.specs.branch_checks import check_branch
 from vultron.metadata.specs.growth_guard import BaseUnavailableError
 from vultron.metadata.specs.kind_classification import (
@@ -257,7 +258,12 @@ _SPEC_SYMBOL_RE = re.compile(r"`([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)`")
 #: textual scan rather than an AST walk on purpose: a spec may legitimately
 #: name a symbol that appears only in a docstring, a comment, or a string
 #: literal, and none of those are bindings an AST pass would report.
-SOURCE_SYMBOL_RE = re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b")
+#:
+#: Means ``\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b``. The leading ``\b`` is written
+#: as a lookbehind after the first letter so the pattern opens on a character
+#: class, which the regex engine can skip ahead to; the scan of every Python
+#: file, run on each ``spec-lint``, takes about half as long.
+SOURCE_SYMBOL_RE = re.compile(r"[A-Z](?<!\w[A-Z])[A-Z0-9]*(?:_[A-Z0-9]+)+\b")
 
 #: Directories (relative to repo root) whose Python files legitimately cite
 #: synthetic fixture IDs and are therefore excluded from the phantom-ID scan.
@@ -507,8 +513,8 @@ def _collect_tree_paths(repo_root: Path) -> set[str]:
     paths: set[str] = set()
     for dirpath, dirnames, filenames in os.walk(repo_root):
         dirnames[:] = [d for d in dirnames if d not in _IGNORED_TREE_DIRS]
-        rel_dir = Path(dirpath).relative_to(repo_root)
-        prefix = "" if rel_dir == Path(".") else rel_dir.as_posix() + "/"
+        rel_dir = relative_posix(Path(dirpath), repo_root)
+        prefix = "" if rel_dir == "." else rel_dir + "/"
         for name in filenames:
             paths.add(prefix + name)
     return paths
@@ -525,9 +531,9 @@ def _collect_tree_dirs(repo_root: Path) -> set[str]:
     dirs: set[str] = set()
     for dirpath, dirnames, _ in os.walk(repo_root):
         dirnames[:] = [d for d in dirnames if d not in _IGNORED_TREE_DIRS]
-        rel_dir = Path(dirpath).relative_to(repo_root)
-        if rel_dir != Path("."):
-            dirs.add(rel_dir.as_posix())
+        rel_dir = relative_posix(Path(dirpath), repo_root)
+        if rel_dir != ".":
+            dirs.add(rel_dir)
     return dirs
 
 
@@ -597,13 +603,18 @@ def _check_retirement_rules(
     return errors
 
 
-def _adr_exists(adr_dir: Path, adr_number: str) -> bool:
-    """Return True if an ADR file for ``adr_number`` exists in ``adr_dir``.
+def _adr_numbers(adr_dir: Path) -> frozenset[str]:
+    """Return the number of every ADR file in ``adr_dir`` or its ``archived/``.
 
     ADR files follow the naming convention ``NNNN-<slug>.md``, so
-    ``ADR-0009`` resolves to any file matching ``0009-*.md``.
+    ``ADR-0009`` resolves to any file matching ``0009-*.md``. Listed once per
+    run: a glob per reference cost a second on the real corpus.
     """
-    return any(adr_dir.glob(f"{adr_number}-*.md"))
+    return frozenset(
+        path.name.split("-", 1)[0]
+        for directory in (adr_dir, adr_dir / "archived")
+        for path in directory.glob("*-*.md")
+    )
 
 
 def _check_adr_references(
@@ -628,6 +639,7 @@ def _check_adr_references(
 
     warnings: list[str] = []
     errors: list[str] = []
+    known = _adr_numbers(adr_dir)
     for spec_id, spec in registry.all_specs.items():
         # Structured adr: references are validated as HARD errors — the field is
         # part of the traceability graph, so a dangling target breaks
@@ -636,9 +648,7 @@ def _check_adr_references(
         # still valid.
         for adr_id in spec.adr or []:
             adr_number = adr_id.split("-", 1)[1]
-            if not _adr_exists(adr_dir, adr_number) and not _adr_exists(
-                adr_dir / "archived", adr_number
-            ):
+            if adr_number not in known:
                 errors.append(
                     f"{spec_id}: adr reference '{adr_id}' has no matching "
                     f"ADR file in '{adr_dir}' or '{adr_dir / 'archived'}'"
@@ -650,9 +660,7 @@ def _check_adr_references(
             continue
         seen = set(_ADR_REF_RE.findall(spec.rationale))
         for adr_number in seen:
-            if not _adr_exists(adr_dir, adr_number) and not _adr_exists(
-                adr_dir / "archived", adr_number
-            ):
+            if adr_number not in known:
                 warnings.append(
                     f"[WARN] {spec_id}: rationale references "
                     f"ADR-{adr_number} but no matching file found in "
@@ -863,7 +871,7 @@ def iter_python_sources(repo_root: Path) -> Iterator[tuple[str, str]]:
         if not scan_root.is_dir():
             continue
         for py_file in sorted(scan_root.rglob("*.py")):
-            rel = py_file.relative_to(repo_root).as_posix()
+            rel = relative_posix(py_file, repo_root)
             yield rel, py_file.read_text(encoding="utf-8", errors="replace")
 
 

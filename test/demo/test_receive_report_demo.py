@@ -14,6 +14,8 @@
 import pytest
 
 from test.demo._helpers import (
+    expect_no_inbox_refusals,
+    expect_no_sender_refusals,
     expect_trusted_introductions,
     route_exchange_demo_at_testclient,
 )
@@ -47,9 +49,8 @@ def test_demo(demo_env, demo_name, caplog):
     """
     Tests that each demo workflow completes successfully with no errors.
 
-    Covers the complete inbox-to-inbox communication flow and indirectly
-    verifies helper functions: get_offer_from_datalayer, post_to_inbox_and_wait,
-    get_actor_by_id, verify_activity_in_inbox, find_case_by_report.
+    Each answer to the report goes through the vendor's trigger to the
+    CASE_MANAGER, and the run asserts no inbox refuses an activity (#5438).
 
     Regression test for bug: setup_clean_environment does not clear ACTOR_IO_STORE,
     causing demos 2 and 3 to fail with KeyError when re-initializing actor IOs.
@@ -64,6 +65,8 @@ def test_demo(demo_env, demo_name, caplog):
     with (
         caplog.at_level(logging.WARNING),
         expect_trusted_introductions(caplog),
+        expect_no_inbox_refusals(caplog),
+        expect_no_sender_refusals(caplog),
     ):
         demo.main(skip_health_check=True, demos=[getattr(demo, demo_name)])
 

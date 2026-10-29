@@ -375,17 +375,50 @@ class TestMismatch:
         }
 
 
+@pytest.mark.spec("PAD-01-007", "PAD-02-028")
+class TestUntriaged:
+    """A non-Epic with no parent is untriaged: listed, not a finding."""
+
+    def test_themed_parentless_issue_is_listed_for_routing(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        """AC-3 (#5450): what a workflow files keeps the report clean."""
+        report = analyze([_issue(2, "theme:alpha", kind="Bug")], catalog)
+        assert report.clean
+        assert [
+            (u.number, u.issue_type, u.themes) for u in report.untriaged
+        ] == [(2, "Bug", ("theme:alpha",))]
+
+    def test_untyped_issue_is_untriaged(self, catalog: ThemeCatalog) -> None:
+        report = analyze([_issue(2, "theme:alpha", kind=None)], catalog)
+        assert report.clean
+        assert [u.number for u in report.untriaged] == [2]
+
+    def test_unthemed_parentless_issue_is_still_a_label_finding(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        """Untriaged excuses only the missing parent, not a missing theme."""
+        report = analyze([_issue(2, kind="Bug")], catalog)
+        assert _kinds(report) == [(FindingKind.LEAF_THEME_COUNT, 2)]
+        assert [(u.number, u.themes) for u in report.untriaged] == [(2, ())]
+
+    def test_epics_and_parented_issues_are_not_untriaged(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        report = analyze(
+            [
+                _epic_issue(1, "theme:alpha"),
+                _issue(2, "theme:alpha", parents=[_EPIC]),
+                _issue(3, "theme:alpha", parents=[(9, "Epic")]),
+            ],
+            catalog,
+        )
+        assert report.untriaged == ()
+        assert _kinds(report) == [(FindingKind.UNPARENTED, 3)]
+
+
 @pytest.mark.spec("PAD-01-007")
 class TestHierarchy:
-    def test_unparented_non_epic(self, catalog: ThemeCatalog) -> None:
-        report = analyze([_issue(2, "theme:alpha", kind="Bug")], catalog)
-        assert _kinds(report) == [(FindingKind.UNPARENTED, 2)]
-        assert report.findings[0].detail == "no parent"
-
-    def test_untyped_issue_needs_an_epic(self, catalog: ThemeCatalog) -> None:
-        report = analyze([_issue(2, "theme:alpha", kind=None)], catalog)
-        assert _kinds(report) == [(FindingKind.UNPARENTED, 2)]
-
     def test_parent_without_epic_ancestor(self, catalog: ThemeCatalog) -> None:
         report = analyze(
             [
@@ -394,8 +427,9 @@ class TestHierarchy:
             ],
             catalog,
         )
-        assert (FindingKind.UNPARENTED, 3) in _kinds(report)
-        assert "parent #2" in report.of_kind(FindingKind.UNPARENTED)[1].detail
+        assert _kinds(report) == [(FindingKind.UNPARENTED, 3)]
+        assert report.findings[0].detail == "parent #2 has no Epic ancestor"
+        assert [u.number for u in report.untriaged] == [2]
 
     def test_child_of_a_closed_epic(self, catalog: ThemeCatalog) -> None:
         report = analyze(
@@ -611,7 +645,7 @@ class TestRender:
         )
         text = render_markdown(report)
         assert text.startswith("# Theme fit report\n")
-        assert "3 open Issues checked; 1 finding(s)." in text
+        assert "3 open Issues checked; 1 finding(s); 0 untriaged." in text
         assert "| Now | 1 | 2 | 1 | 50% |" in text
         assert "| All tiers | 1 | 2 | 1 | 50% |" in text
         for kind in FindingKind:
@@ -619,6 +653,21 @@ class TestRender:
         assert "### Child theme differs from its Epic's (1)" in text
         assert "- #2 Issue 2 — carries `theme:beta`" in text
         assert "### Leaf without" not in text
+        assert "## Untriaged" not in text
+
+    def test_markdown_lists_untriaged_issues_apart_from_findings(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        report = analyze(
+            [_issue(2, "theme:alpha", kind="Bug"), _issue(3, kind="Bug")],
+            catalog,
+        )
+        text = render_markdown(report)
+        assert "2 open Issues checked; 1 finding(s); 2 untriaged." in text
+        untriaged = text.split("## Untriaged: no parent, needs routing (2)")[1]
+        assert "- #2 Issue 2 — `theme:alpha`" in untriaged
+        assert "- #3 Issue 3 — no theme label" in untriaged
+        assert "### Leaf without exactly one theme (1)" in text
 
     def test_titles_cannot_mention_anyone(self, catalog: ThemeCatalog) -> None:
         issue = OpenIssue(
@@ -656,16 +705,39 @@ class TestRender:
     def test_limit_cuts_each_list_and_keeps_the_tables(
         self, catalog: ThemeCatalog
     ) -> None:
-        issues = [_issue(n, "theme:alpha", kind="Bug") for n in range(1, 41)]
+        closed_epic = [(99, "Epic")]
+        issues = [
+            _issue(n, "theme:alpha", kind="Bug", parents=closed_epic)
+            for n in range(1, 41)
+        ] + [_issue(n, "theme:alpha", kind="Bug") for n in range(41, 81)]
         report = analyze(issues, catalog)
         full = render_markdown(report)
-        limit = len(full) - 300
+        limit = len(full) - 600
         cut = render_markdown(report, limit)
         assert len(cut) <= limit
         assert cut.startswith(full[: full.index("### ")])
-        listed = cut.count("— no parent")
+        listed = cut.count("— its nearest Epic")
         assert 0 < listed < 40
         assert f"- … and {40 - listed} more; run `uv run theme-fit`" in cut
+        untriaged = cut.split("## Untriaged")[1]
+        assert untriaged.count("— `theme:alpha`") == listed
+        assert f"- … and {40 - listed} more; run" in untriaged
+
+    def test_limit_cuts_an_untriaged_list_longer_than_any_finding_list(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        # No findings at all, so the cut is sized by the untriaged list
+        # alone; a ceiling that left it out would cut the list to nothing.
+        report = analyze(
+            [_issue(n, "theme:alpha", kind="Bug") for n in range(1, 41)],
+            catalog,
+        )
+        assert report.findings == ()
+        full = render_markdown(report)
+        cut = render_markdown(report, len(full) - 300)
+        listed = cut.split("## Untriaged")[1].count("— `theme:alpha`")
+        assert 0 < listed < 40
+        assert f"- … and {40 - listed} more; run" in cut
 
     def test_limit_the_full_report_fits_changes_nothing(
         self, catalog: ThemeCatalog
@@ -679,11 +751,17 @@ class TestRender:
         self, catalog: ThemeCatalog
     ) -> None:
         report = analyze([_issue(2, "theme:alpha")], catalog)
-        with pytest.raises(ValueError, match="summary alone"):
+        with pytest.raises(ValueError, match="fixed parts alone"):
             render_markdown(report, 10)
 
     def test_json_counts_every_kind(self, catalog: ThemeCatalog) -> None:
-        report = analyze([_issue(2, "theme:alpha")], catalog)
+        report = analyze(
+            [
+                _issue(2, "theme:alpha", parents=[(9, "Epic")]),
+                _issue(3, "theme:alpha", kind="Bug"),
+            ],
+            catalog,
+        )
         data = report.to_json()
         assert data["clean"] is False
         assert data["counts"] == {
@@ -695,7 +773,15 @@ class TestRender:
                 "rule": "PAD-01-007",
                 "number": 2,
                 "title": "Issue 2",
-                "detail": "no parent",
+                "detail": "its nearest Epic, #9, is closed",
+            }
+        ]
+        assert data["untriaged"] == [
+            {
+                "number": 3,
+                "title": "Issue 3",
+                "type": "Bug",
+                "themes": ["theme:alpha"],
             }
         ]
 
@@ -901,6 +987,21 @@ class TestMain:
         fake = _FakeGh([_page(_node(2))])
         assert main(["--catalog", str(note)], run=fake) == 1
 
+    @pytest.mark.spec("PAD-02-028")
+    def test_only_untriaged_issues_exit_zero(
+        self, note: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A themed Issue a workflow filed with no parent is not a finding."""
+        node = _node(
+            2,
+            kind="Bug",
+            labels=["theme:alpha", "ci:main-failure"],
+            body="Theme: theme:alpha — gets CI green again.",
+        )
+        fake = _FakeGh([_page(node)])
+        assert main(["--catalog", str(note)], run=fake) == 0
+        assert "- #2 Issue 2 — `theme:alpha`" in capsys.readouterr().out
+
     def test_json(
         self, note: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -937,7 +1038,7 @@ class TestMain:
     ) -> None:
         args = ["--catalog", str(note), "--max-chars", "10"]
         assert main(args, run=_FakeGh(_CLEAN_PAGES)) == 2
-        assert "summary alone" in capsys.readouterr().err
+        assert "fixed parts alone" in capsys.readouterr().err
 
     def test_max_chars_must_be_positive(self, note: Path) -> None:
         with pytest.raises(SystemExit) as exc:

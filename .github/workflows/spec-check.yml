@@ -26,7 +26,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -45,21 +44,6 @@ jobs:
         # PYTHONPATH='' (quoted) is identical in effect to PYTHONPATH= but
         # distinguishable by shellcheck, which flags the bare form as SC1007.
         run: PYTHONPATH='' uv run spec-lint specs/
-      - name: Notify CI failure
-        if: failure() && (github.event_name == 'push' || github.event_name == 'schedule')
-        uses: ./.github/actions/notify-failure
-        with:
-          mode: notify
-          workflow-label: ci:workflow-spec-check
-          token: ${{ secrets.GITHUB_TOKEN }}
-          epic: ${{ vars.CI_FAILURE_EPIC }}
-      - name: Close CI failure issue
-        if: success() && (github.event_name == 'push' || github.event_name == 'schedule')
-        uses: ./.github/actions/notify-failure
-        with:
-          mode: close
-          workflow-label: ci:workflow-spec-check
-          token: ${{ secrets.GITHUB_TOKEN }}
 
   # Run pytest tests that read the actual specs/ corpus.  Triggered alongside
   # spec-lint so a PR touching only specs/** goes red when it breaks the
@@ -78,21 +62,6 @@ jobs:
         uses: ./.github/actions/setup-python-uv
       - name: Run spec_corpus pytest suite
         run: uv run pytest -m spec_corpus --tb=short
-      - name: Notify CI failure
-        if: failure() && (github.event_name == 'push' || github.event_name == 'schedule')
-        uses: ./.github/actions/notify-failure
-        with:
-          mode: notify
-          workflow-label: ci:workflow-spec-check
-          token: ${{ secrets.GITHUB_TOKEN }}
-          epic: ${{ vars.CI_FAILURE_EPIC }}
-      - name: Close CI failure issue
-        if: success() && (github.event_name == 'push' || github.event_name == 'schedule')
-        uses: ./.github/actions/notify-failure
-        with:
-          mode: close
-          workflow-label: ci:workflow-spec-check
-          token: ${{ secrets.GITHUB_TOKEN }}
 
   # Run the docs/reference/codebase/ path-existence ratchet.  Triggered
   # alongside spec-check so a PR touching only docs/reference/codebase/**
@@ -107,16 +76,35 @@ jobs:
         uses: ./.github/actions/setup-python-uv
       - name: Run codebase docs path ratchet
         run: uv run pytest test/architecture/test_codebase_docs_paths.py --tb=short
+
+  # CISEC-05-003 (#4874): one final job reports the run, so a passing job's
+  # close step cannot close the issue a failing sibling just filed.
+  notify:
+    name: Notify CI failure
+    runs-on: ubuntu-latest
+    needs: [spec-lint, spec-tests, docs-path-ratchet]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # CISEC-05-006: file only on a genuine failure, never on cancellation
+      # alone. No job here consumes another job's artifact, so every
+      # `failure` in the aggregate is genuine. Do NOT add
+      # `!contains(needs.*.result, 'cancelled')`: a newer push that cancels
+      # one job after another has failed would then suppress the notification.
       - name: Notify CI failure
-        if: failure() && (github.event_name == 'push' || github.event_name == 'schedule')
+        if: contains(needs.*.result, 'failure')
         uses: ./.github/actions/notify-failure
         with:
           mode: notify
           workflow-label: ci:workflow-spec-check
           token: ${{ secrets.GITHUB_TOKEN }}
-          epic: ${{ vars.CI_FAILURE_EPIC }}
+      # CISEC-05-002: a superseded run must not declare recovery, so the close
+      # step keeps `!contains(needs.*.result, 'cancelled')`.
       - name: Close CI failure issue
-        if: success() && (github.event_name == 'push' || github.event_name == 'schedule')
+        if: "!contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')"
         uses: ./.github/actions/notify-failure
         with:
           mode: close

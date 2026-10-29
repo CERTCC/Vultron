@@ -2,7 +2,9 @@
 """Pre-bootstrap pending case inbox queue management.
 
 Handles queuing, expiry, and replay of inbox activities that arrive
-before the local case replica exists (CBT-03-003, CBT-03-004).
+before the local case replica exists (CBT-03-001, CBT-03-003, CBT-03-006).
+A dropped activity is not asked for again here: the CASE_MANAGER recovers an
+Invite its addressee never answered (ADR-0163).
 """
 
 #  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
@@ -24,7 +26,6 @@ before the local case replica exists (CBT-03-003, CBT-03-004).
 import logging
 from datetime import UTC
 
-from vultron.adapters.outbox_sealed_body import seal_outbound_body
 from vultron.config import get_config
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
@@ -32,7 +33,6 @@ from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.events import VultronEvent, resolve_case_context_id
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.ports.datalayer import DataLayer
-from vultron.wire.as2.factories.case import bootstrap_replay_question_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger(__name__)
@@ -59,8 +59,9 @@ def _queue_pending_case_activity(
 ) -> None:
     """Persist *activity_id* in the deferred queue for *case_id*.
 
-    Records *case_actor_id* on the first write so that the expiry
-    handler knows where to send a replay ``Question`` (CBT-03-004).
+    Records *case_actor_id*, the sender of the first activity queued, on the
+    first write.  It admits no sender: only a stub Invite anchors trust in
+    the same record (``invite_anchored``, PCR-03-004).
 
     The expiry window opens with the first activity queued (CBT-03-001).  A
     record that holds no activity yet — a stub Invite's trust anchor, written
@@ -95,12 +96,10 @@ def _queue_pending_case_activity(
 
 def _expire_pending_case_activities(
     case_id: str,
-    actor_id: str,
-    dl: DataLayer,
     queue_dl: DataLayer,
     timeout_seconds: int | None = None,
 ) -> bool:
-    """Drop an expired pre-bootstrap queue and emit a replay ``Question``.
+    """Drop an expired pre-bootstrap queue (CBT-03-003).
 
     Checks whether the ``VultronPendingCaseInbox`` for *case_id* has
     held queued activities for longer than *timeout_seconds* (defaults to
@@ -113,16 +112,14 @@ def _expire_pending_case_activities(
        queue record — unless a stub Invite anchored it (``invite_anchored``,
        PCR-03-004 path b), in which case only its queue is emptied: the
        anchor is what admits the case's later ``Announce``.
-    3. Emits a ``Question`` to the recorded ``case_actor_id`` asking
-       for the bootstrap ``Create(VulnerabilityCase)`` to be resent
-       (CBT-03-004, SHOULD).
+
+    It sends nothing.  A dropped Invite is the CASE_MANAGER's to resend, once
+    the receiver states its ledger position after its replica is seeded
+    (ADR-0163).
 
     Args:
         case_id: URI of the case whose pending queue should be checked.
-        actor_id: Canonical URI of the receiving actor (Question sender).
-        dl: Shared DataLayer used to save the outbound Question.
-        queue_dl: Actor-scoped DataLayer used to read/delete the queue
-            and enqueue the outbound Question.
+        queue_dl: Actor-scoped DataLayer used to read and delete the queue.
         timeout_seconds: Expiry window in seconds.  ``None`` reads from
             ``get_config().pre_bootstrap_queue_timeout_seconds``.
 
@@ -131,7 +128,7 @@ def _expire_pending_case_activities(
         queue is still within the window or does not exist.
 
     Trigger: this check is called on inbox receipt so that any inbound
-    activity for a pending case triggers expiry cleanup (AC-4).  Cold
+    activity for a pending case triggers expiry cleanup.  Cold
     queues (no subsequent traffic) are reclaimed when bootstrap or a
     new activity arrives.
     """
@@ -185,38 +182,6 @@ def _expire_pending_case_activities(
         len(pending.activity_ids),
     )
 
-    if pending.case_actor_id:
-        try:
-            question = bootstrap_replay_question_activity(
-                actor=actor_id,
-                to=[pending.case_actor_id],
-                case_id=case_id,
-            )
-            dl.save(question)
-            # Sealed in the store whose outbox carries it: that is where the
-            # handler looks for the body it delivers (VM-08-003).
-            seal_outbound_body(queue_dl, question)
-            queue_dl.outbox_append(question.id_)
-            logger.info(
-                "Sent bootstrap replay Question '%s' to '%s' for case '%s'",
-                question.id_,
-                pending.case_actor_id,
-                case_id,
-            )
-        except Exception:
-            logger.warning(
-                "Could not construct replay Question for case '%s'; "
-                "manual intervention required (CBT-03-004)",
-                case_id,
-                exc_info=True,
-            )
-    else:
-        logger.warning(
-            "No case_actor_id recorded for case '%s'; "
-            "cannot send replay Question (CBT-03-004)",
-            case_id,
-        )
-
     return True
 
 
@@ -224,7 +189,6 @@ def _replay_pending_case_activities(
     case_id: str,
     dl: DataLayer,
     queue_dl: DataLayer,
-    actor_id: str | None = None,
 ) -> None:
     """Move deferred activities for *case_id* back onto the live inbox queue.
 
@@ -237,13 +201,8 @@ def _replay_pending_case_activities(
 
     Args:
         case_id: URI of the case whose pending queue should be drained.
-        dl: Shared DataLayer used for case lookup and Question
-            persistence.
+        dl: Shared DataLayer used for case lookup.
         queue_dl: Actor-scoped DataLayer for queue management.
-        actor_id: Canonical URI of the receiving actor, used when
-            building a replay Question on expiry.  Defaults to ``""``
-            when not provided (best-effort; expiry Warning is still
-            logged).
     """
     if not isinstance(dl.read(case_id), VulnerabilityCase):
         return
@@ -253,12 +212,7 @@ def _replay_pending_case_activities(
     if not isinstance(pending, VultronPendingCaseInbox):
         return
 
-    if _expire_pending_case_activities(
-        case_id=case_id,
-        actor_id=actor_id or "",
-        dl=dl,
-        queue_dl=queue_dl,
-    ):
+    if _expire_pending_case_activities(case_id=case_id, queue_dl=queue_dl):
         logger.warning(
             "Bootstrap arrived for case '%s' but pre-bootstrap queue had "
             "already expired; dropped %d activity ID(s) — a fresh "

@@ -34,7 +34,7 @@ import re
 from bisect import bisect_right
 from pathlib import Path
 
-from vultron.metadata.base import repo_root
+from vultron.metadata.base import markdown_files, repo_root
 from vultron.metadata.markdown_tables import iter_sections
 
 #: Files that consume a scenario table and so must not restate its row count
@@ -245,11 +245,10 @@ def stray_scenario_includes(root: Path | None = None) -> list[str]:
     base = root or repo_root()
     findings: list[str] = []
     docs = base / "docs"
-    for path in sorted(base.rglob("*.md")):
-        if any(part in _SKIP_DIRS for part in path.parts):
-            continue
-        if path.is_relative_to(docs):
-            continue
+    for path in markdown_files(
+        base,
+        lambda directory: directory.name in _SKIP_DIRS or directory == docs,
+    ):
         text = path.read_text(encoding="utf-8")
         for match in _INCLUDE_RE.finditer(text):
             target = match.group(1)

@@ -39,7 +39,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, cast
 
 from pydantic import Field, model_validator
 
@@ -50,6 +50,16 @@ from vultron.core.models.retired_stored_fields import (
     RetiredStoredField,
 )
 from vultron.core.models.wire_keys import wire_key
+
+
+def ledger_entry_id(case_id: str, log_index: int) -> str:
+    """The id of *case_id*'s ledger entry at *log_index*.
+
+    Every entry is addressed by its ledger coordinates,
+    ``{case_id}/log/{log_index}``, so an actor that knows a position in a
+    case's ledger can name the entry there without holding it.
+    """
+    return f"{case_id}/log/{log_index}"
 
 
 class CaseLedgerEntry(RetiredFieldsRecord, CoreObject):
@@ -161,10 +171,12 @@ class CaseLedgerEntry(RetiredFieldsRecord, CoreObject):
             return data
         log_index = data.get("log_index", data.get(wire_key("log_index"), -1))
         data = dict(data)
-        data["id"] = f"{case_id}/log/{log_index}"
+        # Formats the raw values; field validation checks them after.
+        data["id"] = ledger_entry_id(case_id, cast(int, log_index))
         return data
 
 
 __all__ = [
     "CaseLedgerEntry",
+    "ledger_entry_id",
 ]

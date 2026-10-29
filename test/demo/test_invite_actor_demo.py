@@ -14,6 +14,7 @@
 import pytest
 
 from test.demo._helpers import (
+    expect_no_inbox_refusals,
     expect_no_sender_refusals,
     expect_trusted_introductions,
     route_exchange_demo_at_testclient,
@@ -62,6 +63,7 @@ def test_demo(demo_env, demo_fn, caplog):
     with (
         caplog.at_level(logging.WARNING),
         expect_trusted_introductions(caplog),
+        expect_no_inbox_refusals(caplog),
         expect_no_sender_refusals(caplog),
     ):
         demo.main(skip_health_check=True, demos=[demo_fn])

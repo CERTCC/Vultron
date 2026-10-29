@@ -126,9 +126,7 @@ def test_rehydrate_routes_the_receivers_own_copy_over_the_inline_one(dl):
 @pytest.mark.spec("IO-03-004", "CBT-03-001", "DL-06-006", "VM-08-002")
 def test_deferred_activity_replays_with_its_inline_object(dl):
     staging = InlineObjectStaging(dl)
-    queue = FastAPIQueuePort(
-        dl=dl, actor_dl=dl, actor_id=_RECEIVER_ID, staging=staging
-    )
+    queue = FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging)
     body = _add_note_body()
     routed = _routed(dl, body, staging=staging)
     queue.queue(activity_id=routed.id_, case_id=_CASE_ID)
@@ -162,9 +160,7 @@ def test_deferred_activity_replays_with_its_inline_object(dl):
 @pytest.mark.spec("IO-03-004", "CBT-03-003")
 def test_expired_queue_drops_the_inline_objects_held_for_replay(dl):
     staging = InlineObjectStaging(dl)
-    queue = FastAPIQueuePort(
-        dl=dl, actor_dl=dl, actor_id=_RECEIVER_ID, staging=staging
-    )
+    queue = FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging)
     routed = _routed(dl, _add_note_body(), staging=staging)
     queue.queue(activity_id=routed.id_, case_id=_CASE_ID)
     pending = dl.read(VultronPendingCaseInbox.build_id(_CASE_ID))
@@ -177,8 +173,6 @@ def test_expired_queue_drops_the_inline_objects_held_for_replay(dl):
 
     expired = _expire_pending_case_activities(
         case_id=_CASE_ID,
-        actor_id=_RECEIVER_ID,
-        dl=dl,
         queue_dl=dl,
         timeout_seconds=1,
     )
@@ -232,9 +226,7 @@ def test_held_rows_are_released_when_the_replay_rebuild_raises(
 ):
     """The replay already left the queue, so its held record goes regardless."""
     staging = InlineObjectStaging(dl)
-    queue = FastAPIQueuePort(
-        dl=dl, actor_dl=dl, actor_id=_RECEIVER_ID, staging=staging
-    )
+    queue = FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging)
     routed = _routed(dl, _add_note_body(), staging=staging)
     queue.queue(activity_id=routed.id_, case_id=_CASE_ID)
     held_id = DeferredInboxActivity.build_id(routed.id_)
@@ -599,9 +591,7 @@ def test_stage_inline_object_duplicate_stays_at_debug(datalayer, caplog):
 @pytest.mark.spec("IO-03-004", "DL-06-006")
 def test_deferring_an_activity_with_no_inline_object_holds_it_alone(dl):
     staging = InlineObjectStaging(dl)
-    queue = FastAPIQueuePort(
-        dl=dl, actor_dl=dl, actor_id=_RECEIVER_ID, staging=staging
-    )
+    queue = FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging)
     note = as_Note(id_=_NOTE_ID, content="by reference", context=_CASE_ID)
     activity = add_note_to_case_activity(
         note,
@@ -762,7 +752,6 @@ def test_a_failed_hold_queues_nothing(dl):
     queue = FastAPIQueuePort(
         dl=dl,
         actor_dl=dl,
-        actor_id=_RECEIVER_ID,
         staging=InlineObjectStaging(dl),
     )
 

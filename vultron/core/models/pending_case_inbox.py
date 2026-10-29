@@ -58,18 +58,18 @@ class VultronPendingCaseInbox(CoreRecord):
     case_actor_id: UriString | None = Field(
         default=None,
         description=(
-            "URI of the actor that sent the first pre-bootstrap activity. "
-            "Used as the replay-request target when bootstrap times out "
-            "(CBT-03-004)."
+            "URI of the CASE_MANAGER a stub Invite named, once "
+            "``invite_anchored`` is set (PCR-03-004 path b).  Before that, "
+            "the sender of the first pre-bootstrap activity, which admits "
+            "no sender."
         ),
     )
     invite_anchored: bool = Field(
         default=False,
         description=(
             "True once a stub Invite recorded ``case_actor_id`` as its trust "
-            "anchor (PCR-03-004 path b).  Until then ``case_actor_id`` is "
-            "only a replay target and admits no sender; queue expiry keeps "
-            "an anchored record."
+            "anchor (PCR-03-004 path b).  Until then ``case_actor_id`` "
+            "admits no sender; queue expiry keeps an anchored record."
         ),
     )
     anchor_invite_id: UriString | None = Field(

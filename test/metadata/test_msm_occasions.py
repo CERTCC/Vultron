@@ -197,6 +197,25 @@ def test_write_then_check_round_trips(tmp_path, monkeypatch, capsys):
     assert (root / gen.YAML_PATH).is_file()
 
 
+def test_check_does_not_reload_a_table_equal_to_the_fresh_one(
+    tmp_path, monkeypatch, capsys
+):
+    """A table equal to the generated text was validated as it was generated;
+    loading it again is two more YAML parses for the same verdict."""
+    root = _scratch_root(tmp_path)
+    monkeypatch.setattr(gen, "repo_root", lambda *_a: root)
+    gen.write_artifacts(root)
+    loads: list[Path] = []
+    monkeypatch.setattr(
+        gen, "load_occasion_table", lambda path, **_kw: loads.append(path)
+    )
+
+    gen.main(["--check"])
+
+    assert loads == []
+    assert "in sync" in capsys.readouterr().out
+
+
 def test_check_fails_on_a_hand_edited_fragment(tmp_path, monkeypatch, capsys):
     root = _scratch_root(tmp_path)
     monkeypatch.setattr(gen, "repo_root", lambda *_a: root)

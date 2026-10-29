@@ -131,16 +131,22 @@ The check runs before any write, so a stranger cannot obtain case content by sen
 - **Context:** the case.
 - **`ledgerPosition`:** the named entry's `logIndex` and `entryHash`, so the CASE_MANAGER can tell a lag from a position its ledger does not hold (SYNC-17-001).
   The entry it names is the participant's tail, so this is the same `ledgerPosition` every case activity carries (SYNC-18-001).
-- **Triggering transition:** the participant's own policy, not a protocol shorthand. The reference participant sends one for each case it holds after every restart, and on `ledger.position_statement_interval_seconds` when that is set, which is off by default (SYNC-17-007).
-- **Spec:** SYNC-17-001 through SYNC-17-007.
+- **Triggering transition:** a case copy seeding the participant's replica (SYNC-17-008), and otherwise the participant's own policy, not a protocol shorthand. The reference participant also sends one for each case it holds after every restart, and on `ledger.position_statement_interval_seconds` when that is set, which is off by default (SYNC-17-007).
+- **Spec:** SYNC-17-001 through SYNC-17-008.
 - **Pattern:** `ReadLogEntryPattern` in `vultron/wire/as2/extractor/_instances.py`.
-- **Factory:** `read_ledger_entry_activity` in `vultron/wire/as2/factories/sync.py`.
+- **Factory:** `read_ledger_entry_activity`, or `read_ledger_position_activity` for a position whose entry the sender does not store, in `vultron/wire/as2/factories/sync.py`.
 - **Example artifact:** [read_case_ledger_entry.json](../examples/read_case_ledger_entry.json).
 
 `Read(CaseLedgerEntry)` is the participant's position statement.
 `Read` states a fact and asks for nothing, so it claims no refusal, where a `Reject` would.
 It covers the case the `Reject` loop cannot: when the last `Announce(CaseLedgerEntry)` before a quiet period is lost, no later entry arrives with a gap, and no `Reject` is ever sent ([ADR-0155](../../adr/0155-a-participant-states-its-ledger-position-and-the-case-manager-answers-a-lag.md)).
-A participant that has applied no entry for the case has none to name and sends no `Read`.
+A participant whose case is still at the empty ledger's position has applied no entry, so it has none to name and sends no `Read`.
+
+A participant also states its position once `Announce(VulnerabilityCase)` seeds its replica of a case (SYNC-17-008).
+Its chain stores no entry yet, but the seeded case reflects every entry up to the copy's position, so the `Read` names the entry at that position.
+The statement tells the CASE_MANAGER that the replica is ready, so the CASE_MANAGER can resend an Invite the participant dropped before the copy arrived ([ADR-0163](../../adr/0163-the-case-manager-resends-an-unanswered-invite-when-its-addressee-states-a-ledger-position.md)).
+A copy that replaces a case the participant already holds sends no `Read`.
+If that send fails after the seed, the reference participant's next restart statement names the same position while its chain still stores no entry, because such a replica states its case's position (SYNC-17-007).
 
 The CASE_MANAGER's answer is the one it gives a `Reject`.
 It records the named entry's hash as the sender's acknowledged position (SYNC-17-003).
@@ -160,6 +166,7 @@ A participant whose replica starts for the first time receives `Announce(Vulnera
 This happens after it accepts an `Invite`, or after a `Create(CaseProposal)` is accepted.
 The participant holds any `Announce(CaseLedgerEntry)` that arrives before the seed as a `HeldLedgerAnnounce`, keyed by `prev_log_hash`.
 It replays that `Announce` when it can compute the genesis hash from the seeded case (ADR-0059).
+It then states its position in the seeded case with `Read(CaseLedgerEntry)` ([Read case ledger entry](#read-case-ledger-entry), SYNC-17-008).
 
 - **Pattern:** `AnnounceVulnerabilityCasePattern` in
   `vultron/wire/as2/extractor/_instances.py`.

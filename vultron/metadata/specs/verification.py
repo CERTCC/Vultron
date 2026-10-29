@@ -145,8 +145,9 @@ def marked_specs(
     registry: SpecRegistry,
 ) -> Iterator[tuple[str, StatementSpec, str]]:
     """Each ``(spec_id, spec, marker)`` that carries a marker, in ID order."""
-    for spec_id in sorted(registry.all_specs):
-        spec = registry.all_specs[spec_id]
+    specs = registry.all_specs
+    for spec_id in sorted(specs):
+        spec = specs[spec_id]
         if spec.verification_debt:
             yield spec_id, spec, spec.verification_debt
 
@@ -193,8 +194,9 @@ def verification_problems(
     other requirements are verified.
     """
     problems: list[str] = []
-    for spec_id in sorted(registry.all_specs):
-        spec = registry.all_specs[spec_id]
+    specs = registry.all_specs
+    for spec_id in sorted(specs):
+        spec = specs[spec_id]
         marker = spec.verification_debt
         kind = spec.kind.value
         owes = owes_verification(spec.priority, spec.verification)

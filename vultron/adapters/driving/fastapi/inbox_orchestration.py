@@ -432,10 +432,8 @@ class FastAPIQueuePort:
     """Pending-case queue port wrapping the adapter-layer helpers.
 
     Args:
-        dl: Shared DataLayer (for case reads and Question persistence).
+        dl: Shared DataLayer, for case reads.
         actor_dl: Actor-scoped DataLayer for queue management.
-        actor_id: Canonical URI of the receiving actor; used when
-            building a replay Question on expiry.
         staging: The inbox run's inline-object staging; a deferred activity's
             staged inline objects are held through it for the replay.
     """
@@ -444,12 +442,10 @@ class FastAPIQueuePort:
         self,
         dl: DataLayer,
         actor_dl: DataLayer,
-        actor_id: str,
         staging: InlineObjectStaging | None = None,
     ) -> None:
         self._dl = dl
         self._actor_dl = cast(DataLayer, actor_dl)
-        self._actor_id = actor_id
         self._staging = staging or InlineObjectStaging(actor_dl)
 
     def is_case_known(self, case_id: str) -> bool:
@@ -480,10 +476,7 @@ class FastAPIQueuePort:
     def check_and_expire(self, case_id: str) -> bool:
         """Check expiry; drop queue and return ``True`` when expired."""
         return _expire_pending_case_activities(
-            case_id=case_id,
-            actor_id=self._actor_id,
-            dl=self._dl,
-            queue_dl=self._actor_dl,
+            case_id=case_id, queue_dl=self._actor_dl
         )
 
     def replay(self, case_id: str) -> None:
@@ -492,7 +485,6 @@ class FastAPIQueuePort:
             case_id=case_id,
             dl=self._dl,
             queue_dl=self._actor_dl,
-            actor_id=self._actor_id,
         )
 
 
@@ -519,7 +511,6 @@ class _InboxRun:
         self.queue = FastAPIQueuePort(
             dl=actor_dl,
             actor_dl=cast(DataLayer, actor_dl),
-            actor_id=actor_id,
             staging=self.staging,
         )
         # Shares the staging too: an activity waiting on a fetch is held

@@ -286,8 +286,9 @@ only part other sessions need to see.
 Triage has two inputs: Epics at `Someday` (or with no Schedule), which need a
 tier, and non-Epic issues with no Epic ancestor, which need a parent (PAD-12).
 `manage_github_issue.sh` refuses to create an issue without a `--parent` that
-carries the issue's theme, so new issues never need triage; `create-issue`
-picks the parent.
+carries the issue's theme, so an issue an agent files never needs triage;
+`create-issue` picks the parent. An issue a workflow files has a theme but no
+parent (PAD-02-027), and the `theme-fit` report lists it as untriaged.
 
 ### Views
 

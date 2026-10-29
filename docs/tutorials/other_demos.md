@@ -410,8 +410,12 @@ This trigger addresses only the reporter, never the CASE_MANAGER, even though a 
 The demo shows three paths:
 
 1. **Acknowledge only** — the vendor sends the acknowledgment to the reporter.
-2. **Acknowledge then validate** — the acknowledgment, then a Report Valid (RV), `Accept(Offer(VulnerabilityReport))`, then notify the reporter.
-3. **Acknowledge then invalidate** — the acknowledgment, then a Report Invalid (RI), `TentativeReject(Offer(VulnerabilityReport))`, then notify the reporter.
+2. **Acknowledge then validate** — the acknowledgment, then a Report Valid (RV), `Accept(Offer(VulnerabilityReport))`.
+3. **Acknowledge then invalidate** — the acknowledgment, then a Report Invalid (RI), `TentativeReject(Offer(VulnerabilityReport))`.
+
+The vendor sends the Report Valid or the Report Invalid through its `validate-report` or `invalidate-report` trigger.
+These triggers address the Case Actor that manages the case opened on receipt.
+The Case Actor records the vendor's answer, and the reporter learns it from its copy of the case.
 
 ```mermaid
 ---
@@ -420,17 +424,18 @@ title: acknowledge — three paths
 sequenceDiagram
     participant R as Reporter
     participant V as Vendor
+    participant CA as Case Actor
 
     R->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
     V->>R: Report Acknowledgment (RK)<br/>Read(Offer(VulnerabilityReport))
     alt Path 1 — Acknowledge only
         Note over R,V: done
     else Path 2 — Acknowledge then validate
-        V->>V: Report Valid (RV)<br/>Accept(Offer(VulnerabilityReport))
-        V-->>R: Notify reporter (validated)
+        V->>CA: Report Valid (RV)<br/>Accept(Offer(VulnerabilityReport))
+        CA-->>R: Case ledger entry (vendor at RM.VALID)
     else Path 3 — Acknowledge then invalidate
-        V->>V: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
-        V-->>R: Notify reporter (invalidated)
+        V->>CA: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
+        CA-->>R: Case ledger entry (vendor at RM.INVALID)
     end
 ```
 
@@ -468,7 +473,8 @@ Three paths are shown:
 
 1. **Engage path** — submit, validate, create the case, engage, close.
 2. **Defer and re-engage path** — submit, validate, create the case, defer, re-engage, close.
-3. **Invalidate path** — submit, invalidate, close the case opened for the report.
+3. **Invalidate path** — submit, invalidate, end the embargo, close the case opened for the report.
+   The reporter leaves first, and the vendor, the Case Owner, leaves last.
 
 Notice the RM state transitions that the demo logs at each step.
 Notice also that every path closes with `Leave(VulnerabilityCase)`.
@@ -483,17 +489,18 @@ title: manage-case — three paths through the RM state machine
 sequenceDiagram
     participant R as Reporter
     participant V as Vendor
+    participant CA as Case Actor
 
     R->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
     alt Path 1 — Engage
-        V->>V: Report Valid (RV)<br/>Accept(Offer(VulnerabilityReport))
+        V->>CA: Report Valid (RV)<br/>Accept(Offer(VulnerabilityReport))
         Note over V: Create Case<br/>Create(VulnerabilityCase)
         V->>V: Report/Case Accepted (RA)<br/>Join(VulnerabilityCase)
         Note over V: RM state = ACCEPTED
         V->>V: Close Case<br/>Leave(VulnerabilityCase)
         Note over V: RM state = CLOSED
     else Path 2 — Defer then re-engage
-        V->>V: Report Valid (RV)<br/>Accept(Offer(VulnerabilityReport))
+        V->>CA: Report Valid (RV)<br/>Accept(Offer(VulnerabilityReport))
         Note over V: Create Case<br/>Create(VulnerabilityCase)
         V->>V: Report/Case Deferred (RD)<br/>Ignore(VulnerabilityCase)
         Note over V: RM state = DEFERRED
@@ -502,9 +509,11 @@ sequenceDiagram
         V->>V: Close Case<br/>Leave(VulnerabilityCase)
         Note over V: RM state = CLOSED
     else Path 3 — Invalidate
-        V->>V: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
-        V->>V: Close Case<br/>Leave(VulnerabilityCase)
-        Note over V: Case never engaged<br/>RM state = CLOSED
+        V->>CA: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
+        V->>CA: Embargo ended
+        R->>CA: Leave(VulnerabilityCase)
+        V->>CA: Close Case<br/>Leave(VulnerabilityCase)
+        Note over CA: Case never engaged<br/>RM state = CLOSED
     end
 ```
 
@@ -569,7 +578,8 @@ Demo Summary
 ==================================================
 ```
 
-A demo that raised an exception is listed as `❌ FAIL` with the error.
+A demo with a failed step or check is listed as `❌ FAIL` with its errors, the run stops there, and `vultron-demo all` exits with a non-zero status.
+A single demo command, such as `vultron-demo receive-report`, also exits with a non-zero status when any of its steps or checks fails.
 
 ---
 

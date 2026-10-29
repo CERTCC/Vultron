@@ -92,7 +92,12 @@ from pathlib import Path
 import yaml
 
 from vultron.enums.object_types import VultronObjectType as VOtype
-from vultron.metadata.base import mkdocs_config, repo_root, unbuilt_docs_spec
+from vultron.metadata.base import (
+    markdown_files,
+    mkdocs_config,
+    repo_root,
+    unbuilt_docs_spec,
+)
 from vultron.metadata.docs.page_frontmatter import include_directives
 from vultron.metadata.file_loading import (
     MetadataLoadError,
@@ -290,10 +295,9 @@ def _page_includes(
     """
     directives: dict[str, list[str]] = {}
     included: set[str] = set()
-    for host in sorted(docs.rglob("*.md")):
+    skipped = docs / fragments
+    for host in markdown_files(docs, lambda directory: directory == skipped):
         page = host.relative_to(docs)
-        if page.is_relative_to(fragments):
-            continue
         found = list(include_directives(host, docs, existing=False))
         included.update(target for _, target, whole in found if whole)
         directives[page.as_posix()] = [target for _, target, _ in found]
@@ -808,14 +812,18 @@ def main(argv: list[str] | None = None) -> None:
             print(f"Wrote {path}")
         return
 
-    problems: list[str] = []
-    try:
-        load_occasion_table(root / YAML_PATH, root=root)
-    except FileNotFoundError:
-        pass  # reported as stale below
-    except MetadataLoadError as exc:
-        problems.append(str(exc))
     found = drift(root)
+    problems: list[str] = []
+    # A committed table that is not stale is byte-for-byte the text
+    # desired_contents just generated and validated, so loading it again
+    # could only repeat that verdict at the cost of two more YAML parses.
+    if YAML_PATH in found.stale:
+        try:
+            load_occasion_table(root / YAML_PATH, root=root)
+        except FileNotFoundError:
+            pass  # reported as stale below
+        except MetadataLoadError as exc:
+            problems.append(str(exc))
     problems.extend(
         f"{path} is stale — run '{WRITE_COMMAND}' (MSM-06-001)."
         for path in found.stale

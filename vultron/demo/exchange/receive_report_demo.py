@@ -24,10 +24,10 @@ This demo script showcases three different outcomes when processing vulnerabilit
 
 The reporter submits each report through its own ``submit-report`` trigger, so the
 reporter holds the anchor it checks the vendor's case introduction against
-(CBT-01-005).  The vendor's responses are posted directly to inboxes rather than
-relying on outbox processing. For the inbox pipeline those posts enter, see the
-"From HTTP delivery to behavior tree: the inbox pipeline" section of
-docs/topics/reference_architecture.md.
+(CBT-01-005).  The vendor answers through its own ``validate-report``,
+``invalidate-report``, ``terminate-embargo`` and ``leave-case`` triggers, whose
+outbox sends each answer to the CASE_MANAGER of the case opened on receipt; the
+demo posts nothing into an inbox by hand (#5438).
 
 When run as a script, this module will:
 1. Check if the API server is available
@@ -35,10 +35,10 @@ When run as a script, this module will:
 3. Discover actors (reporter, vendor, coordinator) via the API
 4. Run three separate demo workflows, each with a unique report:
    - demo_validate_report: Submit → Validate → Case introduced to the reporter
-   - demo_invalidate_report: Submit → Invalidate → Notify reporter via inbox
-   - demo_invalidate_and_close_report: Submit → Invalidate → Close the case →
-     Notify reporter via inbox
-5. Verify side effects in the data layer and reporter's inbox for each workflow
+   - demo_invalidate_report: Submit → Invalidate → Reporter's replica records it
+   - demo_invalidate_and_close_report: Submit → Invalidate → End the embargo →
+     Reporter leaves, then the vendor (Case Owner) closes the case
+5. Verify side effects in the data layer and the reporter's replica of the case
 
 Note on Behavior Tree Execution:
 The validate_report handler uses py_trees behavior tree execution to orchestrate the validation
@@ -57,15 +57,16 @@ import logging
 from collections.abc import Callable, Sequence
 
 # Vultron imports
+from vultron.core.states.rm import RM
+from vultron.demo.helpers.report_closure import receiver_invalidates_and_closes
 from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.demo.helpers.verification import (
-    verify_activity_in_inbox,
-)
 from vultron.demo.helpers.workflow import (
+    check_report_answer_recorded,
     find_case_by_report_id,
+    receiver_invalidates_report,
+    receiver_validates_report,
     reporter_submits_report,
     verify_reporter_trusts_introduction,
-    wait_for_case_for_offer,
 )
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
@@ -73,17 +74,10 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     case_actor_id_for_report,
     check_server_availability,  # imported by test_health_check_retry
     demo_check,
+    demo_gate,
     demo_step,
-    get_offer_from_datalayer,
     logfmt,
-    post_to_inbox_and_wait,
     setup_demo_logging,
-    verify_received_activity_stored,
-)
-from vultron.wire.as2.factories import (
-    rm_close_case_activity,
-    rm_invalidate_report_activity,
-    rm_validate_report_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -152,34 +146,34 @@ def demo_validate_report(
         logger.info("Submitted report: %s", logfmt(report))
 
     with demo_step("Step 2: Vendor validates report"):
-        offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-        validate_activity = rm_validate_report_activity(
-            offer,
-            actor=vendor.id_,
-            content="Validating the report as legitimate. Creating case.",
+        # Through the vendor's validate-report trigger, which sends the Report
+        # Valid to the CASE_MANAGER of the case opened on receipt (#5438).
+        receiver_validates_report(
+            client,
+            vendor,
+            report_offer.id_,
+            note="Validating the report as legitimate.",
         )
-        post_to_inbox_and_wait(client, vendor.id_, validate_activity)
-        with demo_check("ValidateReport activity stored"):
-            verify_received_activity_stored(client, validate_activity.id_)
+        check_report_answer_recorded(
+            client, reporter, vendor, report_offer.id_, {RM.VALID}
+        )
 
     with demo_step(
         "Step 3: Vendor creates case and introduces it to reporter"
     ):
-        case_data = None
-        with demo_check("Case created for report"):
+        # A causal precondition (DEMOCI-01-007): without the case there is
+        # no introduction to check, so a missing case is one recorded
+        # failure and the dependent check is skipped (#3852).
+        with demo_gate("Case created for report"):
             case_data = find_case_by_report(client, report.id_)
             if not case_data:
-                logger.error("Could not find case related to this report.")
                 raise ValueError("Could not find case related to this report.")
-        # The vendor's own Create(VulnerabilityCase) introduces the case to
-        # the reporter (CBT-01-001); the demo builds and posts none (#4675).
-        verify_reporter_trusts_introduction(
-            client,
-            reporter,
-            vendor,
-            report,
-            case_id=case_data.id_ if case_data else None,
-        )
+            # The vendor's own Create(VulnerabilityCase) introduces the case
+            # to the reporter (CBT-01-001); the demo builds and posts none
+            # (#4675).
+            verify_reporter_trusts_introduction(
+                client, reporter, vendor, report, case_id=case_data.id_
+            )
 
     logger.info(
         "✅ DEMO 1 COMPLETE: Report validated, case created, and introduced to the reporter."
@@ -195,21 +189,18 @@ def demo_invalidate_report(
     """
     Demonstrates the workflow where a vendor invalidates a report.
 
-    Uses VultronActivity (TentativeReject) activity, followed by vendor posting
-    the response directly to the reporter's inbox.
+    The vendor's ``invalidate-report`` trigger sends the TentativeReject to
+    the CASE_MANAGER of the case opened on receipt, and the reporter learns
+    of it from its replica of that case.
 
     This follows the "Receiver Invalidates and Holds Offered Report" sequence diagram from
     docs/howto/activitypub/activities/report_vulnerability.md.
-
-    Note: This demo uses direct inbox-to-inbox communication. The vendor posts
-    the invalidation response directly to the reporter's inbox (see the inbox
-    pipeline section of docs/topics/reference_architecture.md).
     """
     logger.info("=" * 80)
     logger.info("DEMO 2: Invalidate Report (Hold for Reconsideration)")
     logger.info("=" * 80)
 
-    report = report_offer = offer = None
+    report = report_offer = None
     with demo_step("Step 1: Reporter submits vulnerability report to vendor"):
         # Through the reporter's own submit-report trigger, which writes the
         # anchor the vendor's case introduction is checked against
@@ -227,43 +218,29 @@ def demo_invalidate_report(
     with demo_step(
         "Step 2: Vendor invalidates report (holds for reconsideration)"
     ):
-        offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-        invalidate_activity = rm_invalidate_report_activity(
-            offer,
-            actor=vendor.id_,
-            content="Invalidating the report - needs more investigation before accepting.",
+        # Through the vendor's invalidate-report trigger, which sends the
+        # Report Invalid to the CASE_MANAGER of the case opened on receipt
+        # (#5438).
+        receiver_invalidates_report(
+            client,
+            vendor,
+            report_offer.id_,
+            note="Needs more investigation before accepting.",
         )
-        post_to_inbox_and_wait(client, vendor.id_, invalidate_activity)
-        with demo_check("InvalidateReport activity stored"):
-            verify_received_activity_stored(client, invalidate_activity.id_)
 
-    with demo_step("Step 3: Vendor notifies reporter of invalidation"):
-        invalidate_response_to_reporter = rm_invalidate_report_activity(
-            offer,
-            actor=vendor.id_,
-            to=[reporter.id_],
-            content="We are holding this report for further investigation.",
+    with demo_step("Step 3: Reporter learns of the invalidation"):
+        # The CASE_MANAGER records the Report Invalid and the ledger carries
+        # it to the reporter's replica; nothing is posted to its inbox.
+        check_report_answer_recorded(
+            client, reporter, vendor, report_offer.id_, {RM.INVALID}
         )
-        post_to_inbox_and_wait(
-            client, reporter.id_, invalidate_response_to_reporter
-        )
-        with demo_check("InvalidateReport response in reporter's inbox"):
-            if not verify_activity_in_inbox(
-                client, reporter.id_, invalidate_response_to_reporter.id_
-            ):
-                logger.error(
-                    "TentativeReject activity not found in reporter's inbox."
-                )
-                raise ValueError(
-                    "TentativeReject activity not found in reporter's inbox."
-                )
 
     # The vendor created the case on receipt (auto_create_case), so its
     # introduction reaches the reporter whatever the RM outcome (CBT-01-001).
     verify_reporter_trusts_introduction(client, reporter, vendor, report)
 
     logger.info(
-        "✅ DEMO 2 COMPLETE: Report invalidated and reporter notified via inbox."
+        "✅ DEMO 2 COMPLETE: Report invalidated and the reporter's replica records it."
     )
 
 
@@ -279,21 +256,18 @@ def demo_invalidate_and_close_report(
     Uses VultronActivity (TentativeReject) followed by a Leave(VulnerabilityCase):
     the vendor opened a case for the report on receipt, and once a case holds
     the report its owner closes the case by Leave, never by ``Close(Report)``
-    (CM-23-019).  The invalidation notice is posted directly to the reporter's
-    inbox; the reporter learns of the closure from the case.
+    (CM-23-019).  The Case Owner first ends the case's embargo, which blocks
+    its Leave (TRIG-13-003), and leaves after the reporter (CM-23-015).  Each
+    act goes through the actor's own trigger to the case's CASE_MANAGER.
 
     This follows the "Receiver Invalidates and Closes Offered Report" sequence diagram from
     docs/howto/activitypub/activities/report_vulnerability.md.
-
-    Note: This demo uses direct inbox-to-inbox communication. The vendor posts
-    response activities directly to the reporter's inbox (see the inbox pipeline
-    section of docs/topics/reference_architecture.md).
     """
     logger.info("=" * 80)
     logger.info("DEMO 3: Invalidate and Close Report")
     logger.info("=" * 80)
 
-    report = report_offer = offer = None
+    report = report_offer = None
     with demo_step("Step 1: Reporter submits vulnerability report to vendor"):
         # Through the reporter's own submit-report trigger, which writes the
         # anchor the vendor's case introduction is checked against
@@ -311,49 +285,20 @@ def demo_invalidate_and_close_report(
     with demo_step(
         "Step 2: Vendor invalidates the report and closes the case"
     ):
-        offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-        invalidate_activity = rm_invalidate_report_activity(
-            offer,
-            actor=vendor.id_,
-            content="Invalidating the report - this is a false positive.",
-        )
-        post_to_inbox_and_wait(client, vendor.id_, invalidate_activity)
-        case = wait_for_case_for_offer(client, offer.id_)
-        close_activity = rm_close_case_activity(case.id_, actor=vendor.id_)
-        post_to_inbox_and_wait(client, vendor.id_, close_activity)
-        with demo_check("InvalidateReport and CloseCase activities stored"):
-            verify_received_activity_stored(client, invalidate_activity.id_)
-            verify_received_activity_stored(client, close_activity.id_)
-
-    with demo_step("Step 3: Vendor notifies reporter of invalidation"):
-        invalidate_response_to_reporter = rm_invalidate_report_activity(
-            offer,
-            actor=vendor.id_,
-            to=[reporter.id_],
-            content="This report has been invalidated as a false positive.",
-        )
-        post_to_inbox_and_wait(
+        receiver_invalidates_and_closes(
             client,
-            reporter.id_,
-            invalidate_response_to_reporter,
+            reporter,
+            vendor,
+            report_offer.id_,
+            note="This is a false positive.",
         )
-        with demo_check("InvalidateReport response in reporter's inbox"):
-            if not verify_activity_in_inbox(
-                client, reporter.id_, invalidate_response_to_reporter.id_
-            ):
-                logger.error(
-                    "TentativeReject activity not found in reporter's inbox."
-                )
-                raise ValueError(
-                    "TentativeReject activity not found in reporter's inbox."
-                )
 
     # The vendor created the case on receipt (auto_create_case), so its
     # introduction reaches the reporter whatever the RM outcome (CBT-01-001).
     verify_reporter_trusts_introduction(client, reporter, vendor, report)
 
     logger.info(
-        "✅ DEMO 3 COMPLETE: Report invalidated, case closed, and reporter notified via inbox."
+        "✅ DEMO 3 COMPLETE: Report invalidated, case left, and the reporter's replica records it."
     )
 
 

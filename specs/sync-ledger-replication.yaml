@@ -2311,6 +2311,29 @@ groups:
     verification: >-
       A test marked `SYNC-17-007` restarts a participant holding a case and asserts one
       `Read(CaseLedgerEntry)` naming its tail is queued to the CASE_MANAGER.
+  - id: SYNC-17-008
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      Once an `Announce(VulnerabilityCase)` has seeded a participant's replica of a case
+      it did not hold (PCR-02-003), the participant SHOULD send the case's CASE_MANAGER
+      one `Read(CaseLedgerEntry)` (SYNC-17-001) naming the entry at the ledger position
+      the seeded case is at (SYNC-16-005).
+    rationale: >-
+      A joiner that dropped an Invite before its case copy arrived (CBT-03-003) may have
+      nothing else to send, so the CASE_MANAGER never learns that its replica is ready.
+      The statement tells it, and the CASE_MANAGER can then resend each Invite the
+      participant has not answered (ADR-0163). The seeded case reflects every entry up
+      to the copy's position, and the replica stores none of them yet (SYNC-16-007), so
+      that position is the replica's tail. A copy that updates a held replica tells the
+      CASE_MANAGER nothing new, and SYNC-16-007 already asks for what it lacks.
+    adr:
+    - ADR-0163
+    verification: >-
+      Tests marked `SYNC-17-008` deliver `Announce(VulnerabilityCase)` to a participant
+      that holds no replica and assert one `Read(CaseLedgerEntry)` naming the copy's
+      position is queued to the CASE_MANAGER, and deliver it to a participant that
+      already holds the case and assert none is queued.
 - id: SYNC-18
   title: Sender Ledger Position on Case Activities
   description: >-

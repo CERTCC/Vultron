@@ -167,9 +167,8 @@ class AppConfig(BaseSettings):
         mode: Operational mode (``prototype`` or ``prod``).
         pre_bootstrap_queue_timeout_seconds: How long (in seconds) a
             pre-bootstrap inbox queue is held before it expires.  When the
-            window lapses, queued activity IDs are dropped and a replay
-            ``Question`` is sent to the case creator (CBT-03-003,
-            CBT-03-004).  Override via
+            window lapses, queued activity IDs are dropped and a warning
+            is logged (CBT-03-003, CBT-03-006).  Override via
             ``VULTRON_PRE_BOOTSTRAP_QUEUE_TIMEOUT_SECONDS``.  Defaults to
             300 (5 minutes) (CBT-03-005).
         max_inbox_retry_attempts: Maximum cumulative processing attempts for

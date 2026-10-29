@@ -23,6 +23,7 @@ from vultron.metadata.planning.theme_fit.model import (
     FindingKind,
     ThemeFitReport,
     TierCoherence,
+    UntriagedIssue,
 )
 
 TITLE = "Theme fit report"
@@ -76,13 +77,53 @@ def render_coherence(report: ThemeFitReport) -> list[str]:
     return lines
 
 
+UNTRIAGED_HEADING = "Untriaged: no parent, needs routing"
+"""The heading of the list of Issues waiting to be routed to an Epic."""
+
+
+def _cut(shown: int, found: int) -> list[str]:
+    """The line saying how many of *found* items a list left out."""
+    if shown >= found:
+        return []
+    return [
+        f"- … and {found - shown} more; run "
+        "`uv run theme-fit` for the full list"
+    ]
+
+
+def _untriaged_line(issue: UntriagedIssue) -> str:
+    themes = ", ".join(f"`{t}`" for t in issue.themes) or "no theme label"
+    return f"- #{issue.number} {_no_mentions(issue.title)} — {themes}"
+
+
+def _render_untriaged(
+    untriaged: tuple[UntriagedIssue, ...], per_kind: int | None
+) -> list[str]:
+    """The untriaged list, at most *per_kind* entries long; none if empty."""
+    if not untriaged:
+        return []
+    shown = untriaged if per_kind is None else untriaged[:per_kind]
+    lines = [
+        "",
+        f"## {UNTRIAGED_HEADING} ({len(untriaged)})",
+        "",
+        "Open non-Epic Issues with no parent (PAD-01-007). They are not",
+        "findings: a workflow files its Issues this way (PAD-02-027). Route",
+        "each to an open Epic that carries its theme.",
+        "",
+    ]
+    lines += [_untriaged_line(u) for u in shown]
+    return lines + _cut(len(shown), len(untriaged))
+
+
 def _render(report: ThemeFitReport, per_kind: int | None) -> str:
-    """The report, listing at most *per_kind* findings under each kind."""
+    """The report, listing at most *per_kind* entries under each heading."""
     total = len(report.findings)
     lines = [
         f"# {TITLE}",
         "",
-        f"{report.issues} open Issues checked; {total} finding(s).",
+        f"{report.issues} open Issues checked; {total} finding(s); "
+        f"{len(report.untriaged)} untriaged.",
         "",
         "## Coherence per Schedule tier",
         "",
@@ -110,32 +151,34 @@ def _render(report: ThemeFitReport, per_kind: int | None) -> str:
             f"- #{f.number} {_no_mentions(f.title)} — {f.detail}"
             for f in shown
         ]
-        if len(shown) < len(found):
-            lines.append(
-                f"- … and {len(found) - len(shown)} more; run "
-                "`uv run theme-fit` for the full list"
-            )
+        lines += _cut(len(shown), len(found))
+    lines += _render_untriaged(report.untriaged, per_kind)
     return "\n".join(lines) + "\n"
 
 
 def render_markdown(report: ThemeFitReport, limit: int | None = None) -> str:
-    """The whole report: summary, coherence per tier, then each finding.
+    """The whole report: summary, coherence, each finding, untriaged Issues.
 
     Args:
         report: The report to render.
         limit: The most characters the text may have, such as
             :data:`GITHUB_BODY_LIMIT` for an Issue body. When the full list
-            is longer, each kind lists only its first findings, the same
-            number for every kind, and says how many it left out. The
-            summary and coherence tables always appear in full.
+            is longer, each kind and the untriaged list show only their
+            first entries, the same number for every list, and say how many
+            they left out. The summary and coherence tables always appear
+            in full.
 
     Raises:
-        ValueError: If even the summary alone is longer than *limit*.
+        ValueError: If even the report's fixed parts alone (the summary,
+            the coherence tables and each list's heading) are longer than
+            *limit*.
     """
     full = _render(report, None)
     if limit is None or len(full) <= limit:
         return full
-    most = max((len(report.of_kind(k)) for k in FindingKind), default=0)
+    most = max(
+        len(report.untriaged), *(len(report.of_kind(k)) for k in FindingKind)
+    )
     low, high = 0, most
     while low < high:
         mid = (low + high + 1) // 2
@@ -146,7 +189,7 @@ def render_markdown(report: ThemeFitReport, limit: int | None = None) -> str:
     text = _render(report, low)
     if len(text) > limit:
         raise ValueError(
-            f"the report summary alone is {len(text)} characters; "
+            f"the report's fixed parts alone are {len(text)} characters; "
             f"the limit is {limit}"
         )
     return text

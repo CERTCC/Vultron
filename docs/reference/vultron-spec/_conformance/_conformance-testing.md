@@ -1,21 +1,17 @@
 ### 13.5 Conformance Testing Approach
 
-Conformance is judged from outside the implementation. A test supplies a sequence
-of messages and an input state, and checks the messages the implementation emits
-and the state it reaches. It does not inspect internal structure.
+Conformance is judged from outside the implementation.
+A test supplies a sequence of messages and an input state, and checks the messages the implementation emits and the state it reaches.
+It does not inspect internal structure.
 
-Each test case is therefore a message-sequence scenario paired with the state
-outcome it expects.
+Each test case is therefore a message-sequence scenario paired with the state outcome it expects.
 
 Some capabilities that define a role are not protocol-observable at all.
-Developing a fix, deploying a fix and publishing an advisory happen outside the
-protocol. Conformance verifies the protocol messages that this work produces, not
-the work itself.
+Developing a fix, deploying a fix and publishing an advisory happen outside the protocol.
+Conformance verifies the protocol messages that this work produces, not the work itself.
 
-Conformance testing is organized in four **layers**, which describe what a test
-verifies. Layers are orthogonal to the capability sets of
-[§13.2 Capability Sets](../conformance.md#132-capability-sets), which describe what an implementation
-provides (see the warning in [§13.1 Conformance Model Overview](../conformance.md#131-conformance-model-overview)):
+Conformance testing is organized in four **layers**, which describe what a test verifies.
+Layers are orthogonal to the capability sets of [§13.2 Capability Sets](../conformance.md#132-capability-sets), which describe what an implementation provides (see the warning in [§13.1 Conformance Model Overview](../conformance.md#131-conformance-model-overview)):
 
 | Layer | Verifies |
 |---|---|
@@ -24,22 +20,17 @@ provides (see the warning in [§13.1 Conformance Model Overview](../conformance.
 | L3 — Behavior | Correct observable outputs: right messages emitted and states reached, given input state plus received message |
 | L4 — Process | Correct internal decision structure (e.g. precondition before state write before side-effect) |
 
-L4 is only enforceable against a reference implementation and is therefore
-outside the scope of independent conformance claims. Some process ordering
-surfaces at L3 where the output sequence is itself observable — the
-canonical-write-before-side-effects rule of [§11.3 Status Adoption: The Two-Seam Model](../interactions.md#113-status-adoption-the-two-seam-model) being the clearest case.
+L4 is only enforceable against a reference implementation and is therefore outside the scope of independent conformance claims.
+Some process ordering surfaces at L3 where the output sequence is itself observable — the canonical-write-before-side-effects rule of [§11.3 Status Adoption: The Two-Seam Model](../interactions.md#113-status-adoption-the-two-seam-model) being the clearest case.
 
 !!! info "See also"
-    - [Process Models](../../../topics/process_models/index.md) — the behavioral
-      material the L2 and L3 layers test against
+    - [Process Models](../../../topics/process_models/index.md) — the behavioral material the L2 and L3 layers test against
 
 ### 13.6 Capability Shapes
 
-Capability shapes describe optional, pluggable capabilities an implementation may
-connect to its own decision points. They are not part of the Case Observer, Case Decision
-or Case Hosting capability sets, and a conformance claim does not state which shapes an
-implementation provides.
+Capability shapes describe optional, pluggable capabilities that an implementation can connect to its own decision points.
+They are not part of the Case Observer, Case Decision or Case Hosting capability sets, and a conformance claim does not state which shapes an implementation provides.
 
-Where an implementation does provide a capability shape, it MUST satisfy that
-shape's contract. The shapes and their contracts are described in
-[Annex G Capability Shapes](../annex-g-capability-shapes.md#annex-g-capability-shapes-i).
+A capability shape is a contract between an implementation and the capability it connects, not a protocol rule: other participants cannot observe which shapes an implementation uses.
+An implementation that provides a shape keeps to that shape's contract.
+The shapes and their contracts are described in [Annex G Capability Shapes](../annex-g-capability-shapes.md#annex-g-capability-shapes-i).

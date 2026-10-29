@@ -155,10 +155,12 @@ def test_connect_replay_commit_receive_disconnect(base_url: str, caplog):
             _wait_until(lambda: "client disconnected" in caplog.text)
 
 
-# The waits below can add up to ~85s (30s readiness, 10s per stream read, 15s
+# The waits below can add up to ~115s (60s readiness, 10s per stream read, 15s
 # exit), past the 60s integration ceiling; this ceiling stays above them so an
 # overrun fails this test by name instead of killing the session (#4868).
-@pytest.mark.timeout(120)
+# Readiness gets 60s because the child's start-up passes 30s on a machine
+# saturated by a full xdist run (#5468).
+@pytest.mark.timeout(180)
 def test_sigterm_sends_close_and_lets_the_server_exit(tmp_path: Path):
     """A real SIGTERM ends an open stream with ``event: close``.
 
@@ -207,7 +209,7 @@ def test_sigterm_sends_close_and_lets_the_server_exit(tmp_path: Path):
                 return False
             return True
 
-        _wait_until(up, timeout=30)
+        _wait_until(up, timeout=60)
         with httpx.Client(base_url=url, timeout=10) as client:
             with client.stream("GET", STREAM_PATH) as response:
                 assert response.status_code == 200

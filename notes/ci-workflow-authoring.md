@@ -8,8 +8,8 @@ description: >
   `actionlint` and block-scalar indentation, single-quoted apostrophes, the
   mandatory `notify-failure` wiring and its one-job-per-label rule, why an
   automated find-or-file lookup must not go through the search index, why a
-  `GITHUB_TOKEN`-raised event never triggers another workflow, how a bot-filed
-  issue gets its theme and Epic parent, why an artifact name needs the run
+  `GITHUB_TOKEN`-raised event never triggers another workflow, why a bot-filed
+  issue gets a theme but no Epic parent, why an artifact name needs the run
   attempt, why a GitHub write is retried and a label swap is
   split, and how to read a red CI job correctly.
 related_notes:
@@ -21,6 +21,7 @@ related_notes:
 related_specs:
   - specs/ci-security.yaml
   - specs/demo-ci.yaml
+  - specs/parallel-development.yaml
 ---
 
 # CI and GitHub Actions Workflow Authoring Pitfalls
@@ -49,9 +50,10 @@ When several jobs can run in the same run, the pair moves to a final `notify` jo
 that `needs:` all of them and keys on `needs.*.result`, as `python-app.yml` does
 (CISEC-05-003).
 
-The workflow MUST grant `issues: write` (CISEC-02-002). A root-level
-`permissions: contents: read` block MUST become a map that also lists
-`issues: write`, or the action's issue calls fail with 403.
+The job that runs the pair MUST hold `issues: write` (CISEC-02-002), or the
+action's issue calls fail with 403. Grant it on the aggregate `notify` job and
+keep the root at `contents: read`, as `python-app.yml` does; a single-job
+workflow may grant it at the root instead.
 
 ## A Find-or-File Lookup Must Not Use the Search Index
 
@@ -76,20 +78,17 @@ and update arms. The script resolves the type by name, applies it with
 not exist (CISEC-05-007). `notify-failure` and `demo-recordings.yml` use it;
 never copy its body into a workflow.
 
-## A Bot-Filed Issue Gets Its Theme and Epic Parent From the Filer
+## A Bot-Filed Issue Gets a Theme From the Filer, and No Parent
 
-A workflow that files an issue MUST also give it one `theme:` label, a
-`Theme: <label> — <outcome>` line and an Epic parent, or `theme-fit` reports it
-the moment it opens (PAD-01-007, PAD-02-014, PAD-02-018). Call
-`.github/scripts/ensure-issue-triage.sh` on both arms, after
-`ensure-issue-type.sh`. Name the Epic with a repository variable
-(`CI_FAILURE_EPIC`, `DEMO_RECORDINGS_EPIC`), never a literal: Epics get fused and
-split, and a variable re-homes the issues without a PR. A composite action
-takes the variable as an input that each caller sets from `vars.<NAME>` in its
-`with:`: GitHub documents `vars` for workflow keys, not inside a composite
-action's own steps. The script fails the step, after it sets the theme, when
-the variable is unset or names no open Epic that carries the theme and has room
-under GitHub's 100-sub-issue cap (#5435).
+A workflow that files an issue MUST give it one `theme:` label and a
+`Theme: <label> — <outcome>` line, and MUST NOT give it a parent (PAD-02-026,
+PAD-02-027). Call `.github/scripts/ensure-issue-triage.sh` on both arms, after
+`ensure-issue-type.sh`; it never overrides a theme a person set (PAD-02-029).
+Reason: a workflow cannot calve an Epic, and a fixed Epic number (a literal or a
+repository variable) breaks the step whenever that Epic closes, is rethemed or
+split, or reaches GitHub's 100-sub-issue cap. The issue starts untriaged
+(PAD-01-007), and `theme-fit` lists it for routing without counting it as a
+finding (#5450).
 
 ## An Artifact a Later Job Downloads Needs the Run Attempt in Its Name
 

@@ -13,7 +13,7 @@
 """The structural theme rules, as one pure function over open Issues.
 
 Requirements: PAD-01-002, PAD-01-007, PAD-02-001, PAD-02-008, PAD-02-014, PAD-02-015,
-PAD-02-017, PAD-02-018.
+PAD-02-017, PAD-02-018, PAD-02-028.
 """
 
 from __future__ import annotations
@@ -30,6 +30,7 @@ from vultron.metadata.planning.theme_fit.model import (
     OpenIssue,
     ThemeFitReport,
     TierCoherence,
+    UntriagedIssue,
 )
 from vultron.metadata.planning.themes import ThemeCatalog, ThemeStatus
 
@@ -144,11 +145,19 @@ def _open_epic(
     return None if epic_number is None else by_number.get(epic_number)
 
 
+def _is_untriaged(issue: OpenIssue) -> bool:
+    """True for a non-Epic with no parent: it waits to be routed.
+
+    PAD-01-007: triage is routing it to an Epic. One whose parent chain
+    exists but reaches no open Epic was routed wrongly instead, and is an
+    ``unparented`` finding.
+    """
+    return not issue.is_epic and issue.parent is None
+
+
 def _unparented_detail(issue: OpenIssue, epic_number: int | None) -> str:
     if epic_number is not None:
         return f"its nearest Epic, #{epic_number}, is closed"
-    if issue.parent is None:
-        return "no parent"
     foreign = next((a for a in issue.ancestors if a.repo is not None), None)
     if foreign is not None:
         return f"ancestor {foreign.repo}#{foreign.number} is in another repository"
@@ -178,6 +187,9 @@ def _hierarchy_findings(
     """Ancestry, calving and parent-theme findings for one Issue."""
     if issue.is_epic:
         yield from _epic_findings(issue, epic_number, open_children)
+        return
+    if _is_untriaged(issue):
+        # Listed in the report's untriaged section instead (PAD-01-007).
         return
     epic = _open_epic(epic_number, by_number)
     if epic is None:
@@ -254,8 +266,14 @@ def analyze(
             for kind, detail in found
         )
     findings.sort(key=lambda f: (list(FindingKind).index(f.kind), f.number))
+    untriaged = tuple(
+        UntriagedIssue(i.number, i.title, i.issue_type, i.themes)
+        for i in ordered
+        if _is_untriaged(i)
+    )
     return ThemeFitReport(
         issues=len(ordered),
         findings=tuple(findings),
         coherence=_coherence(ordered, epic_of, by_number),
+        untriaged=untriaged,
     )

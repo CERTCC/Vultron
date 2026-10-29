@@ -2,7 +2,8 @@
 
 Covers ``parse_suite_runs_line`` (present, absent, malformed), merge-from-main
 detection, CI-run counting and matching, ``build_pr_pipeline_record``,
-``_pr_weekly_aggregates``, ``_weekly_main_failures``, and the fetchers.  The
+``_pr_weekly_aggregates``, ``_weekly_main_failures``, the red episodes on
+main, and the fetchers.  The
 fetchers run against recorded API responses in ``fixtures/velocity/`` through
 ``httpx.MockTransport``; nothing calls the live API.
 """
@@ -12,7 +13,7 @@ from __future__ import annotations
 import importlib.util
 import json
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from types import ModuleType
 
@@ -178,6 +179,7 @@ def _make_pr(
     branch: str = "task/100-feature",
     merge_commit_count: int = 1,
     suite_line: str | None = "Suite runs: 2 full, 1 targeted",
+    base: str = "main",
 ) -> dict:
     """Build a minimal PR dict for fixture-based testing.
 
@@ -200,6 +202,7 @@ def _make_pr(
         "createdAt": created_at,
         "mergedAt": merged_at,
         "headRefName": branch,
+        "baseRefName": base,
         "commits": {"nodes": commits},
         "comments": {"nodes": []},
         "reviews": {"nodes": reviews},
@@ -383,7 +386,6 @@ def test_run_index_branch_fallback_limited_to_open_window(
 def test_pr_runs_window_start_reaches_back_to_earliest_open(
     velocity: ModuleType,
 ) -> None:
-    from datetime import date
 
     prs = [
         _make_pr(created_at="2026-08-20T10:00:00Z"),
@@ -598,6 +600,494 @@ def test_weekly_main_failures_out_of_window_excluded(
     assert rows[0]["failed_ci_runs_on_main"] == 0
 
 
+# ── red episodes on main ──────────────────────────────────────────────────
+
+
+_SINCE = date(2026, 9, 7)
+
+
+def _wf_run(
+    sha: str,
+    conclusion: str,
+    created_at: str,
+    workflow: str = "Python App",
+) -> dict:
+    run = _main_run(sha, conclusion, created_at)
+    run["name"] = workflow
+    run["path"] = f".github/workflows/{workflow.lower().replace(' ', '-')}.yml"
+    return run
+
+
+def _merged_pr(
+    number: int, merged_at: str, merge_sha: str, base: str = "main"
+) -> dict:
+    pr = _make_pr(
+        number=number, merged_at=merged_at, branch=f"task/{number}", base=base
+    )
+    pr["mergeCommit"] = {"oid": merge_sha}
+    return pr
+
+
+def test_main_red_spans_groups_consecutive_failures_into_one_episode(
+    velocity: ModuleType,
+) -> None:
+    """One break that stays red across three merges is one episode."""
+    runs = [
+        _wf_run("g0", "success", "2026-09-07T09:00:00Z"),
+        _wf_run("a", "failure", "2026-09-07T10:00:00Z"),
+        _wf_run("b", "failure", "2026-09-07T11:00:00Z"),
+        _wf_run("c", "timed_out", "2026-09-07T12:00:00Z"),
+        _wf_run("g1", "success", "2026-09-07T13:00:00Z"),
+    ]
+    (ep,) = velocity._main_red_spans(runs)
+    assert ep["workflow"] == "Python App"
+    assert ep["workflow_path"] == ".github/workflows/python-app.yml"
+    assert ep["opened_after_green"] is True
+    assert ep["prior_green_sha"] == "g0"
+    assert ep["prior_green_at"] == "2026-09-07T09:00:00Z"
+    assert (ep["first_red_sha"], ep["last_red_sha"]) == ("a", "c")
+    assert ep["red_runs"] == 3
+    assert ep["first_red_at"] == "2026-09-07T10:00:00Z"
+    assert ep["ended_at"] == "2026-09-07T13:00:00Z"
+
+
+def test_main_red_spans_green_run_splits_episodes(
+    velocity: ModuleType,
+) -> None:
+    runs = [
+        _wf_run("g0", "success", "2026-09-07T09:00:00Z"),
+        _wf_run("a", "failure", "2026-09-07T10:00:00Z"),
+        _wf_run("g1", "success", "2026-09-07T11:00:00Z"),
+        _wf_run("b", "failure", "2026-09-07T12:00:00Z"),
+    ]
+    eps = velocity._main_red_spans(runs)
+    assert [e["first_red_sha"] for e in eps] == ["a", "b"]
+    assert eps[1]["ended_at"] is None
+
+
+def test_main_red_spans_cancelled_run_neither_opens_nor_closes(
+    velocity: ModuleType,
+) -> None:
+    runs = [
+        _wf_run("g0", "success", "2026-09-07T09:00:00Z"),
+        _wf_run("a", "failure", "2026-09-07T10:00:00Z"),
+        _wf_run("x", "cancelled", "2026-09-07T11:00:00Z"),
+        _wf_run("b", "failure", "2026-09-07T12:00:00Z"),
+        _wf_run("y", "skipped", "2026-09-07T13:00:00Z"),
+    ]
+    (ep,) = velocity._main_red_spans(runs)
+    assert ep["red_runs"] == 2
+    assert ep["ended_at"] is None
+
+
+def test_main_red_spans_other_conclusion_neither_opens_nor_closes(
+    velocity: ModuleType,
+) -> None:
+    """A conclusion that is neither failed nor green is passed over."""
+    runs = [
+        _wf_run("g0", "success", "2026-09-07T09:00:00Z"),
+        _wf_run("n0", "neutral", "2026-09-07T09:30:00Z"),
+        _wf_run("a", "failure", "2026-09-07T10:00:00Z"),
+        _wf_run("n1", "action_required", "2026-09-07T11:00:00Z"),
+        _wf_run("b", "failure", "2026-09-07T12:00:00Z"),
+    ]
+    (ep,) = velocity._main_red_spans(runs)
+    assert ep["prior_green_sha"] == "g0"
+    assert ep["red_runs"] == 2
+    assert ep["ended_at"] is None
+
+
+def test_main_red_spans_groups_per_workflow(velocity: ModuleType) -> None:
+    """A green run of one workflow does not close another's episode."""
+    runs = [
+        _wf_run("g0", "success", "2026-09-07T09:00:00Z", "Python App"),
+        _wf_run("g0", "success", "2026-09-07T09:00:00Z", "Docs"),
+        _wf_run("a", "failure", "2026-09-07T10:00:00Z", "Python App"),
+        _wf_run("a", "failure", "2026-09-07T10:00:00Z", "Docs"),
+        _wf_run("b", "success", "2026-09-07T11:00:00Z", "Docs"),
+        _wf_run("b", "failure", "2026-09-07T11:00:00Z", "Python App"),
+    ]
+    eps = {e["workflow"]: e for e in velocity._main_red_spans(runs)}
+    assert eps["Docs"]["red_runs"] == 1
+    assert eps["Docs"]["ended_at"] == "2026-09-07T11:00:00Z"
+    assert eps["Python App"]["red_runs"] == 2
+    assert eps["Python App"]["ended_at"] is None
+
+
+def test_main_red_spans_red_at_window_start_has_unknown_start(
+    velocity: ModuleType,
+) -> None:
+    """A streak with no green run before it did not open in the window."""
+    runs = [
+        _wf_run("a", "failure", "2026-09-07T10:00:00Z"),
+        _wf_run("g", "success", "2026-09-07T11:00:00Z"),
+    ]
+    (ep,) = velocity._main_red_spans(runs)
+    assert ep["opened_after_green"] is False
+    assert ep["prior_green_sha"] is None
+    assert ep["prior_green_at"] is None
+
+
+def test_main_red_spans_ties_broken_by_numeric_run_id(
+    velocity: ModuleType,
+) -> None:
+    """Run 9 precedes run 10 in the same second, not as strings."""
+    green = _wf_run("g", "success", "2026-09-07T10:00:00Z")
+    green["id"] = 9
+    red = _wf_run("a", "failure", "2026-09-07T10:00:00Z")
+    red["id"] = 10
+    (ep,) = velocity._main_red_spans([red, green])
+    assert ep["opened_after_green"] is True
+    assert ep["ended_at"] is None
+
+
+def test_main_red_spans_skips_run_without_created_at(
+    velocity: ModuleType,
+) -> None:
+    undated = _wf_run("a", "failure", "2026-09-07T10:00:00Z")
+    del undated["created_at"]
+    runs = [_wf_run("g", "success", "2026-09-07T09:00:00Z"), undated]
+    assert velocity._main_red_spans(runs) == []
+
+
+def test_main_red_spans_labels_unnamed_workflow_by_key(
+    velocity: ModuleType,
+) -> None:
+    unnamed = _wf_run("a", "failure", "2026-09-07T10:00:00Z")
+    del unnamed["name"]
+    (ep,) = velocity._main_red_spans([unnamed])
+    assert ep["workflow"] == ep["workflow_path"] == unnamed["path"]
+
+
+def test_main_red_spans_orders_runs_by_creation_time(
+    velocity: ModuleType,
+) -> None:
+    """API order is not creation order; the walk sorts first."""
+    runs = [
+        _wf_run("g1", "success", "2026-09-07T13:00:00Z"),
+        _wf_run("b", "failure", "2026-09-07T11:00:00Z"),
+        _wf_run("a", "failure", "2026-09-07T10:00:00Z"),
+        _wf_run("g0", "success", "2026-09-07T09:00:00Z"),
+    ]
+    (ep,) = velocity._main_red_spans(runs)
+    assert (ep["first_red_sha"], ep["last_red_sha"]) == ("a", "b")
+    assert ep["opened_after_green"] is True
+
+
+def test_workflow_key_falls_back_from_path(velocity: ModuleType) -> None:
+    assert velocity._workflow_key({"path": "p.yml", "name": "N"}) == "p.yml"
+    assert velocity._workflow_key({"workflow_id": 7, "name": "N"}) == "7"
+    assert velocity._workflow_key({"path": "", "name": "N"}) == "N"
+    assert velocity._workflow_key({}) == ""
+
+
+def test_main_red_spans_empty(velocity: ModuleType) -> None:
+    assert velocity._main_red_spans([]) == []
+
+
+def test_last_green_ci_at_takes_latest_all_green_commit(
+    velocity: ModuleType,
+) -> None:
+    runs = [
+        _run("s1", "success", created_at="2026-09-07T10:00:00Z"),
+        _run("s2", "success", created_at="2026-09-07T12:00:00Z"),
+        _run("s2", "success", created_at="2026-09-07T12:00:05Z"),
+        # Latest commit is red: one failed workflow fails the CI run.
+        _run("s3", "success", created_at="2026-09-07T14:00:00Z"),
+        _run("s3", "failure", created_at="2026-09-07T14:00:00Z"),
+        # All cancelled: not a CI run at all.
+        _run("s4", "cancelled", created_at="2026-09-07T15:00:00Z"),
+    ]
+    assert velocity._last_green_ci_at(runs) == "2026-09-07T12:00:00Z"
+
+
+def test_last_green_ci_at_skips_runs_without_sha_or_time(
+    velocity: ModuleType,
+) -> None:
+    no_time = _run("s2", "success")
+    del no_time["created_at"]
+    runs = [
+        _run("s1", "success", created_at="2026-09-07T10:00:00Z"),
+        _run("", "success", created_at="2026-09-07T12:00:00Z"),
+        no_time,
+    ]
+    assert velocity._last_green_ci_at(runs) == "2026-09-07T10:00:00Z"
+
+
+def test_last_green_ci_at_none_without_green_run(velocity: ModuleType) -> None:
+    runs = [_run("s1", "failure", created_at="2026-09-07T10:00:00Z")]
+    assert velocity._last_green_ci_at(runs) is None
+    assert velocity._last_green_ci_at([]) is None
+
+
+def test_main_red_episodes_lists_candidate_partners(
+    velocity: ModuleType,
+) -> None:
+    """Partners are the merges after the breaking PR's last green CI run."""
+    breaker = _make_pr(
+        number=10,
+        created_at="2026-09-07T08:00:00Z",
+        merged_at="2026-09-07T12:00:00Z",
+        branch="task/10-breaker",
+    )
+    breaker["mergeCommit"] = {"oid": "m10"}
+    prs = [
+        _merged_pr(7, "2026-09-07T08:30:00Z", "m7"),  # before green runs
+        _merged_pr(6, "2026-09-07T09:30:00Z", "m6"),  # between green runs
+        _merged_pr(8, "2026-09-07T10:30:00Z", "m8"),
+        _merged_pr(12, "2026-09-07T10:45:00Z", "m12", base="publish"),
+        _merged_pr(9, "2026-09-07T11:00:00Z", "m9"),
+        breaker,
+        _merged_pr(11, "2026-09-07T12:30:00Z", "m11"),  # after the merge
+    ]
+    pr_runs = [
+        _run("h1", "success", "2026-09-07T09:00:00Z", "task/10-breaker"),
+        _run("h2", "success", "2026-09-07T10:00:00Z", "task/10-breaker"),
+    ]
+    main_runs = [
+        _wf_run("m9", "success", "2026-09-07T11:00:00Z"),
+        _wf_run("m10", "failure", "2026-09-07T12:00:00Z"),
+        _wf_run("m11", "failure", "2026-09-07T12:30:00Z"),
+    ]
+    (ep,) = velocity._main_red_episodes(
+        main_runs, prs, velocity._RunIndex(pr_runs), _SINCE
+    )
+    assert ep["pr_number"] == 10
+    assert ep["last_green_ci_at"] == "2026-09-07T10:00:00Z"
+    # #12 merged to publish, not main: not a partner.
+    assert ep["candidate_partners"] == [8, 9]
+    assert ep["red_runs"] == 2
+    # #9's run is the prior green run, so nothing landed untested.
+    assert ep["unverified_merges"] == []
+
+
+def test_main_red_episodes_partners_unknown_before_window(
+    velocity: ModuleType,
+) -> None:
+    """A last green run before the fetched window can't list partners."""
+    breaker = _make_pr(
+        number=10,
+        created_at="2026-09-05T08:00:00Z",
+        merged_at="2026-09-07T12:00:00Z",
+        branch="task/10-breaker",
+    )
+    breaker["mergeCommit"] = {"oid": "m10"}
+    pr_runs = [
+        _run("h1", "success", "2026-09-06T09:00:00Z", "task/10-breaker")
+    ]
+    main_runs = [_wf_run("m10", "failure", "2026-09-07T12:00:00Z")]
+    (ep,) = velocity._main_red_episodes(
+        main_runs, [breaker], velocity._RunIndex(pr_runs), _SINCE
+    )
+    assert ep["last_green_ci_at"] == "2026-09-06T09:00:00Z"
+    assert ep["candidate_partners"] is None
+
+
+def test_main_red_episodes_lists_merges_whose_runs_were_cancelled(
+    velocity: ModuleType,
+) -> None:
+    """A cancelled run hides a merge that may be the real breaker."""
+    prs = [
+        _merged_pr(1, "2026-09-07T09:00:00Z", "m1"),
+        _merged_pr(2, "2026-09-07T10:00:00Z", "m2"),
+        _merged_pr(4, "2026-09-07T10:30:00Z", "m4", base="publish"),
+        _merged_pr(3, "2026-09-07T11:00:00Z", "m3"),
+    ]
+    main_runs = [
+        _wf_run("m1", "success", "2026-09-07T09:00:05Z"),
+        _wf_run("m2", "cancelled", "2026-09-07T10:00:05Z"),
+        _wf_run("m3", "failure", "2026-09-07T11:00:05Z"),
+    ]
+    (ep,) = velocity._main_red_episodes(
+        main_runs, prs, velocity._RunIndex([]), _SINCE
+    )
+    assert ep["pr_number"] == 3
+    assert ep["unverified_merges"] == [2]
+
+
+def test_main_red_episodes_unverified_bounds_are_merge_times(
+    velocity: ModuleType,
+) -> None:
+    """Merge times, not run start times, bound the unverified merges.
+
+    #4 merged after the green commit #3 but before #3's run started, so a
+    run-time bound would miss it.  #6 merged after the breaker #5 but before
+    #5's run started, so a run-time bound would wrongly list it.
+    """
+    prs = [
+        _merged_pr(3, "2026-09-07T08:59:50Z", "m3"),
+        _merged_pr(4, "2026-09-07T08:59:55Z", "m4"),
+        _merged_pr(5, "2026-09-07T11:00:00Z", "m5"),
+        _merged_pr(6, "2026-09-07T11:00:02Z", "m6"),
+    ]
+    main_runs = [
+        _wf_run("m3", "success", "2026-09-07T09:00:00Z"),
+        _wf_run("m4", "cancelled", "2026-09-07T09:00:05Z"),
+        _wf_run("m5", "failure", "2026-09-07T11:00:05Z"),
+        _wf_run("m6", "failure", "2026-09-07T11:00:07Z"),
+    ]
+    (ep,) = velocity._main_red_episodes(
+        main_runs, prs, velocity._RunIndex([]), _SINCE
+    )
+    assert ep["pr_number"] == 5
+    assert ep["unverified_merges"] == [4]
+
+
+def test_main_red_episodes_direct_push_bounds_by_run_times(
+    velocity: ModuleType,
+) -> None:
+    """With no PR behind the green or red commit, run times bound the list.
+
+    #7 has no run in this workflow at all (a ``paths`` filter), yet it
+    landed between the green and red commits, so it may be the breaker.
+    """
+    prs = [_merged_pr(7, "2026-09-07T09:30:00Z", "m7")]
+    main_runs = [
+        _wf_run("g", "success", "2026-09-07T09:00:00Z"),
+        _wf_run("direct", "failure", "2026-09-07T10:00:00Z"),
+    ]
+    (ep,) = velocity._main_red_episodes(
+        main_runs, prs, velocity._RunIndex([]), _SINCE
+    )
+    assert ep["pr_number"] is None
+    assert ep["unverified_merges"] == [7]
+
+
+def test_merged_between_orders_by_merge_time(velocity: ModuleType) -> None:
+    prs = [
+        _merged_pr(2, "2026-09-07T11:00:00Z", "m2"),
+        _merged_pr(1, "2026-09-07T10:00:00Z", "m1"),
+        _merged_pr(3, "2026-09-07T13:00:00Z", "m3"),
+    ]
+    assert velocity._merged_between(
+        prs, "2026-09-07T09:00:00Z", "2026-09-07T12:00:00Z"
+    ) == [1, 2]
+
+
+def test_main_red_episodes_unknown_pr_or_green_run_is_none(
+    velocity: ModuleType,
+) -> None:
+    """Unknown is ``None``, distinct from a PR with no partners (``[]``)."""
+    no_green = _merged_pr(20, "2026-09-07T12:00:00Z", "m20")
+    lonely = _make_pr(
+        number=21,
+        created_at="2026-09-07T13:00:00Z",
+        merged_at="2026-09-07T15:00:00Z",
+        branch="task/21",
+    )
+    lonely["mergeCommit"] = {"oid": "m21"}
+    pr_runs = [_run("h21", "success", "2026-09-07T14:00:00Z", "task/21")]
+    main_runs = [
+        _wf_run("g", "success", "2026-09-07T09:00:00Z"),
+        _wf_run("direct", "failure", "2026-09-07T10:00:00Z"),
+        _wf_run("g", "success", "2026-09-07T11:00:00Z"),
+        _wf_run("m20", "failure", "2026-09-07T12:00:00Z"),
+        _wf_run("g", "success", "2026-09-07T12:10:00Z"),
+        _wf_run("m21", "failure", "2026-09-07T15:00:00Z"),
+    ]
+    eps = velocity._main_red_episodes(
+        main_runs, [no_green, lonely], velocity._RunIndex(pr_runs), _SINCE
+    )
+    direct, red20, red21 = eps
+    assert direct["pr_number"] is None
+    assert direct["candidate_partners"] is None
+    assert direct["unverified_merges"] == []
+    assert red20["pr_number"] == 20
+    assert red20["last_green_ci_at"] is None
+    assert red20["candidate_partners"] is None
+    assert red21["pr_number"] == 21
+    assert red21["candidate_partners"] == []
+
+
+def test_weekly_main_episodes_counts_episodes_and_merges(
+    velocity: ModuleType,
+) -> None:
+    episodes = [
+        {
+            "first_red_at": "2026-09-07T10:00:00Z",
+            "first_red_sha": "a",
+            "opened_after_green": True,
+        },
+        {
+            "first_red_at": "2026-09-08T10:00:00Z",
+            "first_red_sha": "b",
+            "opened_after_green": True,
+        },
+        # Already red at the window start: not opened this week.
+        {
+            "first_red_at": "2026-09-07T01:00:00Z",
+            "first_red_sha": "c",
+            "opened_after_green": False,
+        },
+    ]
+    prs = [
+        _merged_pr(n, f"2026-09-{d:02d}T10:00:00Z", f"m{n}")
+        for n, d in [(1, 7), (2, 8), (3, 9), (4, 10), (5, 14)]
+    ]
+    rows = velocity._weekly_main_episodes(episodes, prs, [_W37, _W38])
+    assert rows[0] == {
+        "week": _W37,
+        "red_episodes_opened_on_main": 2,
+        "merges_to_main": 4,
+        "red_episodes_per_100_merges": 50.0,
+    }
+    assert rows[1]["red_episodes_opened_on_main"] == 0
+    assert rows[1]["merges_to_main"] == 1
+    assert rows[1]["red_episodes_per_100_merges"] == 0.0
+
+
+def test_weekly_main_episodes_counts_a_multi_workflow_break_once(
+    velocity: ModuleType,
+) -> None:
+    """One commit that breaks two workflows is one break in the rate."""
+    episodes = [
+        {
+            "first_red_at": "2026-09-07T10:00:00Z",
+            "first_red_sha": "a",
+            "opened_after_green": True,
+        },
+        {
+            "first_red_at": "2026-09-07T10:00:01Z",
+            "first_red_sha": "a",
+            "opened_after_green": True,
+        },
+    ]
+    prs = [_merged_pr(1, "2026-09-07T09:00:00Z", "a")]
+    rows = velocity._weekly_main_episodes(episodes, prs, [_W37])
+    assert rows[0]["red_episodes_opened_on_main"] == 1
+
+
+def test_weekly_main_episodes_ignores_merges_to_other_bases(
+    velocity: ModuleType,
+) -> None:
+    prs = [
+        _merged_pr(1, "2026-09-07T09:00:00Z", "m1"),
+        _merged_pr(2, "2026-09-07T10:00:00Z", "m2", base="publish"),
+    ]
+    rows = velocity._weekly_main_episodes([], prs, [_W37])
+    assert rows[0]["merges_to_main"] == 1
+
+
+def test_weekly_main_episodes_rate_none_without_merges(
+    velocity: ModuleType,
+) -> None:
+    rows = velocity._weekly_main_episodes([], [], [_W37])
+    assert rows[0]["merges_to_main"] == 0
+    assert rows[0]["red_episodes_per_100_merges"] is None
+
+
+def test_weekly_main_episodes_out_of_window_excluded(
+    velocity: ModuleType,
+) -> None:
+    episodes = [
+        {"first_red_at": "2026-08-31T10:00:00Z", "opened_after_green": True}
+    ]
+    prs = [_merged_pr(1, "2026-08-31T10:00:00Z", "m1")]
+    rows = velocity._weekly_main_episodes(episodes, prs, [_W37])
+    assert rows[0]["red_episodes_opened_on_main"] == 0
+    assert rows[0]["merges_to_main"] == 0
+
+
 # ── build_pr_pipeline_metrics (end-to-end) ────────────────────────────────
 
 
@@ -605,7 +1095,6 @@ def test_build_pr_pipeline_metrics_integrates_runs_and_prs(
     velocity: ModuleType,
 ) -> None:
     """End-to-end: correlates workflow runs with merged PRs."""
-    from datetime import date
 
     pr = _make_pr(
         number=42,
@@ -648,6 +1137,15 @@ def test_build_pr_pipeline_metrics_integrates_runs_and_prs(
 
     w37 = next(r for r in result["weekly_main_failures"] if r["week"] == _W37)
     assert w37["failed_ci_runs_on_main"] == 1
+    # The episode count sits beside the failed-commit count.  The one red
+    # run has no green run before it, so no episode opened in the window.
+    assert w37["red_episodes_opened_on_main"] == 0
+    assert w37["merges_to_main"] == 1
+    assert w37["red_episodes_per_100_merges"] == 0.0
+    (episode,) = result["main_red_episodes"]
+    assert episode["first_red_sha"] == "m1"
+    assert episode["opened_after_green"] is False
+    assert episode["pr_number"] is None
 
     # PR with no matching runs → ci_runs = 0
     pr_no_runs = _make_pr(number=43, branch="task/43-orphan")

@@ -281,6 +281,11 @@ INTRODUCES_NOTHING: dict[str, NoIntroduction] = {
     # Names, by reference, the entry it states it applied last: one the
     # CASE_MANAGER holds (SYNC-17-001).
     "read_ledger_entry_activity": _held("entry"),
+    # Names, by reference, the entry at the position it states, one the
+    # CASE_MANAGER holds; it takes only the case id and the position.
+    "read_ledger_position_activity": NoIntroduction(
+        "names, by its ledger coordinates, an entry the receiver holds"
+    ),
     # Names no entry at all, only the case the CASE_MANAGER holds, as the
     # target of a request for a replay from genesis (SYNC-16-007).
     "genesis_replay_reject_activity": NoIntroduction(
@@ -305,9 +310,6 @@ INTRODUCES_NOTHING: dict[str, NoIntroduction] = {
     "recommend_actor_activity": _ACTOR_REF,
     # The invitee already holds the case from the Announce (AKM-02-003).
     "rm_invite_to_full_case_activity": _ACTOR_REF,
-    "bootstrap_replay_question_activity": NoIntroduction(
-        "a Question, which carries no object"
-    ),
 }
 
 
