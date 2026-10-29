@@ -25,9 +25,9 @@ This demo script showcases three different outcomes when processing vulnerabilit
 The reporter submits each report through its own ``submit-report`` trigger, so the
 reporter holds the anchor it checks the vendor's case introduction against
 (CBT-01-005).  The vendor answers through its own ``validate-report``,
-``invalidate-report``, ``terminate-embargo`` and ``leave-case`` triggers, whose outbox sends each answer
-to the CASE_MANAGER of the case opened on receipt; the demo posts nothing into an
-inbox by hand (#5438).
+``invalidate-report``, ``terminate-embargo`` and ``leave-case`` triggers, whose
+outbox sends each answer to the CASE_MANAGER of the case opened on receipt; the
+demo posts nothing into an inbox by hand (#5438).
 
 When run as a script, this module will:
 1. Check if the API server is available
@@ -58,11 +58,11 @@ from collections.abc import Callable, Sequence
 
 # Vultron imports
 from vultron.core.states.rm import RM
+from vultron.demo.helpers.report_closure import receiver_invalidates_and_closes
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
     check_report_answer_recorded,
     find_case_by_report_id,
-    receiver_invalidates_and_closes,
     receiver_invalidates_report,
     receiver_validates_report,
     reporter_submits_report,

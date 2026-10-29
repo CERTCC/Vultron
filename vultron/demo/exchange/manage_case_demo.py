@@ -56,9 +56,9 @@ When run as a script, this module will:
 import logging
 from collections.abc import Callable, Sequence
 
+from vultron.demo.helpers.report_closure import receiver_invalidates_and_closes
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
-    receiver_invalidates_and_closes,
     reporter_submits_report,
     submit_validate_and_create_case,
     verify_reporter_trusts_introduction,
