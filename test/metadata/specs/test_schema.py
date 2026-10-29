@@ -94,14 +94,14 @@ def test_spec_id_str_invalid(spec_id):
 
 
 def test_statement_spec_absent_fields():
-    """Optional fields default to None when not provided; kind is required."""
+    """Optional fields default to None when not provided."""
     spec = StatementSpec(
         id="AB-01-001",
         priority=RFC2119Priority.MUST,
         statement="AB-01-001 MUST satisfy this",
+        rationale="Because testing",
         kind=SpecKind.PROTOCOL,
     )
-    assert spec.rationale is None
     assert spec.testable is True
     assert spec.scope is None
     assert spec.tags is None
@@ -143,6 +143,7 @@ def test_statement_spec_extra_field_rejected():
             id="AB-01-001",
             priority=RFC2119Priority.MUST,
             statement="AB-01-001 MUST do something",
+            rationale="Because testing.",
             kind=SpecKind.PROTOCOL,
             unknown_field="should raise",  # type: ignore[call-arg]
         )
@@ -170,25 +171,39 @@ def test_statement_spec_empty_rationale_rejected():
         )
 
 
-def test_statement_spec_rationale_none_allowed():
-    spec = StatementSpec(
-        id="AB-01-001",
-        priority=RFC2119Priority.MUST,
-        statement="AB-01-001 MUST satisfy this",
-        kind=SpecKind.PROTOCOL,
-    )
-    assert spec.rationale is None
+def test_statement_spec_kind_omitted_rejected():
+    """``kind`` is required on every requirement (SR-02-009)."""
+    with pytest.raises(ValidationError, match="kind"):
+        StatementSpec(  # type: ignore[call-arg]
+            id="AB-01-001",
+            priority=RFC2119Priority.MUST,
+            statement="AB-01-001 MUST satisfy this",
+            rationale="Because testing.",
+        )
 
 
-def test_statement_spec_rationale_omitted_allowed():
-    spec = StatementSpec(
-        id="AB-01-001",
-        priority=RFC2119Priority.MUST,
-        statement="AB-01-001 MUST satisfy this",
-        rationale=None,
-        kind=SpecKind.PROTOCOL,
-    )
-    assert spec.rationale is None
+@pytest.mark.spec("MS-10-012")
+def test_statement_spec_rationale_omitted_rejected():
+    """A requirement with no rationale fails validation (SR-02-009)."""
+    with pytest.raises(ValidationError, match="rationale"):
+        StatementSpec(  # type: ignore[call-arg]
+            id="AB-01-001",
+            priority=RFC2119Priority.MUST,
+            statement="AB-01-001 MUST satisfy this",
+            kind=SpecKind.PROTOCOL,
+        )
+
+
+@pytest.mark.spec("MS-10-012")
+def test_statement_spec_rationale_none_rejected():
+    with pytest.raises(ValidationError, match="rationale"):
+        StatementSpec(
+            id="AB-01-001",
+            priority=RFC2119Priority.MUST,
+            statement="AB-01-001 MUST satisfy this",
+            rationale=None,  # type: ignore[arg-type]
+            kind=SpecKind.PROTOCOL,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -214,6 +229,7 @@ def test_empty_list_rejected(field: str) -> None:
         "id": "AB-01-001",
         "priority": RFC2119Priority.MUST,
         "statement": "AB-01-001 MUST pass",
+        "rationale": "Because testing.",
         "kind": SpecKind.PROTOCOL,
         field: [],
     }
@@ -267,6 +283,7 @@ def test_behavioral_spec_empty_list_rejected(field: str) -> None:
         "id": "AB-01-001",
         "priority": RFC2119Priority.MUST,
         "statement": "AB-01-001 MUST pass",
+        "rationale": "Because testing.",
         "kind": SpecKind.PROTOCOL,
         field: [],
     }
@@ -307,6 +324,7 @@ def test_spec_group_empty_title_rejected():
                     id="AB-01-001",
                     priority=RFC2119Priority.MUST,
                     statement="AB-01-001 MUST exist",
+                    rationale="Because testing.",
                     kind=SpecKind.PROTOCOL,
                 )
             ],
@@ -329,6 +347,7 @@ def test_spec_group_description_nonempty_if_present():
                     id="AB-01-001",
                     priority=RFC2119Priority.MUST,
                     statement="AB-01-001 MUST exist",
+                    rationale="Because testing.",
                     kind=SpecKind.PROTOCOL,
                 )
             ],
@@ -344,6 +363,7 @@ def test_spec_group_description_none_allowed():
                 id="AB-01-001",
                 priority=RFC2119Priority.MUST,
                 statement="AB-01-001 MUST exist",
+                rationale="Because testing.",
                 kind=SpecKind.PROTOCOL,
             )
         ],
@@ -362,6 +382,7 @@ def test_spec_group_empty_scope_rejected():
                     id="AB-01-001",
                     priority=RFC2119Priority.MUST,
                     statement="AB-01-001 MUST exist",
+                    rationale="Because testing.",
                     kind=SpecKind.PROTOCOL,
                 )
             ],
@@ -416,6 +437,7 @@ def test_spec_file_no_file_level_kind():
                         id="AB-01-001",
                         priority=RFC2119Priority.MUST,
                         statement="AB-01-001 MUST work",
+                        rationale="Because testing.",
                         kind=SpecKind.PROTOCOL,
                     )
                 ],
@@ -445,6 +467,7 @@ def test_spec_file_rejects_version_field():
                                 "id": "AB-01-001",
                                 "priority": "MUST",
                                 "statement": "AB-01-001 MUST work",
+                                "rationale": "Because testing.",
                                 "kind": "protocol",
                             }
                         ],
@@ -469,6 +492,7 @@ def test_spec_file_requires_scope():
                             id="AB-01-001",
                             priority=RFC2119Priority.MUST,
                             statement="AB-01-001 MUST work",
+                            rationale="Because testing.",
                             kind=SpecKind.PROTOCOL,
                         )
                     ],
@@ -493,6 +517,7 @@ def test_spec_file_empty_scope_rejected():
                             id="AB-01-001",
                             priority=RFC2119Priority.MUST,
                             statement="AB-01-001 MUST work",
+                            rationale="Because testing.",
                             kind=SpecKind.PROTOCOL,
                         )
                     ],
@@ -611,6 +636,7 @@ def test_effective_tags_file_level_inherited(tmp_path):
                         "priority": "MUST",
                         "kind": "protocol",
                         "statement": "TST-01-001 MUST pass",
+                        "rationale": "Because testing.",
                     }
                 ],
             }
@@ -638,6 +664,7 @@ def test_effective_tags_spec_overrides_file(tmp_path):
                         "priority": "MUST",
                         "kind": "protocol",
                         "statement": "TST-01-001 MUST pass",
+                        "rationale": "Because testing.",
                         "tags": ["testing"],
                     }
                 ],
@@ -665,6 +692,7 @@ def test_effective_tags_empty_when_neither_spec_nor_file(tmp_path):
                         "priority": "MUST",
                         "kind": "protocol",
                         "statement": "TST-01-001 MUST pass",
+                        "rationale": "Because testing.",
                     }
                 ],
             }
@@ -692,6 +720,7 @@ def test_effective_tags_graph_node_populated(tmp_path):
                         "priority": "MUST",
                         "kind": "protocol",
                         "statement": "TST-01-001 MUST pass",
+                        "rationale": "Because testing.",
                     }
                 ],
             }
@@ -718,6 +747,7 @@ def test_effective_kind_spec_override(tmp_path):
                         "id": "TST-01-001",
                         "priority": "MUST",
                         "statement": "TST-01-001 MUST pass",
+                        "rationale": "Because testing.",
                         "kind": "project",
                     }
                 ],
@@ -898,6 +928,7 @@ def test_spec_group_with_trigger():
                 id="AB-01-001",
                 priority=RFC2119Priority.MUST,
                 statement="AB-01-001 MUST transition EM to Proposed",
+                rationale="Because testing.",
                 kind=SpecKind.PROTOCOL,
             )
         ],
@@ -916,6 +947,7 @@ def test_spec_group_without_trigger():
                 id="AB-01-001",
                 priority=RFC2119Priority.MUST,
                 statement="AB-01-001 MUST exist",
+                rationale="Because testing.",
                 kind=SpecKind.PROTOCOL,
             )
         ],
@@ -933,6 +965,7 @@ def test_behavioral_spec_full_new_fields():
         id="AB-01-001",
         priority=RFC2119Priority.MUST,
         statement="On receiving EP while EM is NONE, MUST transition EM to PROPOSED",
+        rationale="Because testing.",
         kind=SpecKind.PROTOCOL,
         preconditions=[
             Precondition(
@@ -994,6 +1027,7 @@ def test_behavioral_spec_round_trips_through_yaml(tmp_path):
                         "priority": "MUST",
                         "kind": "protocol",
                         "statement": "MUST transition EM to PROPOSED on EP",
+                        "rationale": "Because testing.",
                         "preconditions": [
                             {
                                 "em_state": ["NONE"],
@@ -1069,6 +1103,7 @@ def test_spec_kind_contains_exactly_five_tiers():
                 "id": "DP-01-001",
                 "priority": RFC2119Priority.MUST,
                 "statement": "DP-01-001 MUST document the dev process",
+                "rationale": "Because testing.",
                 "kind": SpecKind.PROCESS,
             },
         ),
@@ -1138,6 +1173,7 @@ def test_load_registry_foundation_kind_with_standard_tag(tmp_path):
                         "priority": "MUST",
                         "kind": "foundation",
                         "statement": "Object IDs MUST be treated as opaque URIs.",
+                        "rationale": "Because testing.",
                         "tags": ["as2"],
                     }
                 ],
@@ -1201,6 +1237,7 @@ def test_statement_spec_adr_field_valid(adr_id):
         priority=RFC2119Priority.MUST,
         kind=SpecKind.PROCESS,
         statement="TST-01-001 MUST do the thing",
+        rationale="Because testing.",
         adr=[adr_id],
     )
     assert spec.adr == [adr_id]
@@ -1214,6 +1251,7 @@ def test_statement_spec_adr_field_invalid_pattern(adr_id):
             priority=RFC2119Priority.MUST,
             kind=SpecKind.PROCESS,
             statement="TST-01-001 MUST do the thing",
+            rationale="Because testing.",
             adr=[adr_id],
         )
 
@@ -1225,6 +1263,7 @@ def test_statement_spec_adr_field_empty_list_rejected():
             priority=RFC2119Priority.MUST,
             kind=SpecKind.PROCESS,
             statement="TST-01-001 MUST do the thing",
+            rationale="Because testing.",
             adr=[],
         )
 
@@ -1244,6 +1283,7 @@ def test_story_id_str_valid(story_id):
         priority=RFC2119Priority.MUST,
         kind=SpecKind.PROTOCOL,
         statement="TST-01-001 MUST do the thing",
+        rationale="Because testing.",
         stories=[story_id],
     )
     assert spec.stories == [story_id]
@@ -1268,6 +1308,7 @@ def test_story_id_str_invalid(story_id):
             priority=RFC2119Priority.MUST,
             kind=SpecKind.PROTOCOL,
             statement="TST-01-001 MUST do the thing",
+            rationale="Because testing.",
             stories=[story_id],
         )
 
@@ -1283,6 +1324,7 @@ def test_statement_spec_stories_defaults_to_none():
         priority=RFC2119Priority.MUST,
         kind=SpecKind.PROTOCOL,
         statement="TST-01-001 MUST do the thing",
+        rationale="Because testing.",
     )
     assert spec.stories is None
 
@@ -1293,6 +1335,7 @@ def test_statement_spec_stories_round_trip():
         priority=RFC2119Priority.MUST,
         kind=SpecKind.PROTOCOL,
         statement="TST-01-001 MUST do the thing",
+        rationale="Because testing.",
         stories=["story_2022_001", "story_2022_042"],
     )
     assert spec.stories == ["story_2022_001", "story_2022_042"]
@@ -1305,6 +1348,7 @@ def test_statement_spec_stories_empty_list_rejected():
             priority=RFC2119Priority.MUST,
             kind=SpecKind.PROTOCOL,
             statement="TST-01-001 MUST do the thing",
+            rationale="Because testing.",
             stories=[],
         )
 
@@ -1315,6 +1359,7 @@ def test_statement_spec_stories_none_allowed():
         priority=RFC2119Priority.MUST,
         kind=SpecKind.PROTOCOL,
         statement="TST-01-001 MUST do the thing",
+        rationale="Because testing.",
         stories=None,
     )
     assert spec.stories is None
@@ -1337,6 +1382,7 @@ def test_statement_spec_stories_yaml_round_trip(tmp_path):
                         "priority": "MUST",
                         "kind": "protocol",
                         "statement": "TST-01-001 MUST do the thing",
+                        "rationale": "Because testing.",
                         "stories": ["story_2022_001", "story_2022_042"],
                     }
                 ],

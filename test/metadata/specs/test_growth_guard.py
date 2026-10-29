@@ -1,13 +1,11 @@
-"""Tests for vultron.metadata.specs.growth_guard (SR-05-005, MS-12-007, MS-10-014,
-MS-10-016).
+"""Tests for vultron.metadata.specs.growth_guard (SR-05-005, MS-12-007, MS-10-016).
 
 Each test builds a throwaway git repository whose ``origin/main`` ref is the
 base, edits the working tree, and runs a real guard extractor through
 :func:`added_since_base`: the marker-coverage guard over ``protocol`` and
 ``foundation`` specs (:func:`uncovered_implementer_ids`), the
 ``missing_story_reference`` guard (:func:`missing_story_suppression_carriers`),
-the missing-rationale guard (:func:`missing_rationale_ids`), and the
-``verification_debt`` guard (:func:`verification_debt_items`).
+and the ``verification_debt`` guard (:func:`verification_debt_items`).
 """
 
 import logging
@@ -41,7 +39,6 @@ from vultron.metadata.specs.growth_guard import (
 from vultron.metadata.specs.kind_classification import (
     missing_story_suppression_carriers,
 )
-from vultron.metadata.specs.rationale import missing_rationale_ids
 from vultron.metadata.specs.verification import verification_debt_items
 
 _SUPPRESS = ["missing_story_reference"]
@@ -488,98 +485,6 @@ def test_suppression_without_base_ref_skips_with_logged_reason(
     )
     with caplog.at_level(logging.WARNING):
         check = _suppressions(suppression_repo)
-    assert check.skipped is not None
-    assert check.added == frozenset()
-    assert check.skipped in caplog.text
-
-
-# --- missing-rationale guard (MS-10-014) ------------------------------------
-
-
-def _no_rationale(spec_id: str, kind: str = "project") -> dict:
-    spec = _spec(spec_id, kind)
-    del spec["rationale"]
-    return spec
-
-
-def _rationales(repo: Path):
-    return added_since_base(
-        missing_rationale_ids, repo_root=repo, paths=("specs",)
-    )
-
-
-@pytest.fixture
-def rationale_repo(tmp_path):
-    """Base: TST-01-001 has a rationale, TST-01-002 already lacks one."""
-    return _repo(
-        tmp_path, [_spec("TST-01-001"), _no_rationale("TST-01-002")], []
-    )
-
-
-@pytest.mark.spec("MS-10-014")
-def test_rationale_unchanged_adds_nothing(rationale_repo):
-    check = _rationales(rationale_repo)
-    assert check.skipped is None
-    assert check.added == frozenset()
-    assert check.head_total == 1
-
-
-@pytest.mark.spec("MS-10-014")
-def test_rationale_new_requirement_without_one_is_added(rationale_repo):
-    _write_specs(
-        rationale_repo,
-        _spec("TST-01-001"),
-        _no_rationale("TST-01-002"),
-        _no_rationale("TST-01-003"),
-    )
-    assert _rationales(rationale_repo).added == {"TST-01-003"}
-
-
-@pytest.mark.spec("MS-10-014")
-def test_rationale_dropped_from_existing_requirement_is_added(rationale_repo):
-    _write_specs(
-        rationale_repo,
-        _no_rationale("TST-01-001"),
-        _no_rationale("TST-01-002"),
-    )
-    assert _rationales(rationale_repo).added == {"TST-01-001"}
-
-
-@pytest.mark.spec("MS-10-014")
-def test_rationale_existing_gap_is_not_flagged(rationale_repo):
-    """A requirement missing one at the base stays the backfill's, even edited."""
-    edited = _no_rationale("TST-01-002")
-    edited["statement"] = "TST-01-002 MUST do another thing"
-    _write_specs(rationale_repo, _spec("TST-01-001"), edited)
-    check = _rationales(rationale_repo)
-    assert check.added == frozenset()
-    assert check.head_total == 1
-
-
-@pytest.mark.spec("MS-10-014")
-def test_rationale_backfilled_is_not_an_addition(rationale_repo):
-    _write_specs(rationale_repo, _spec("TST-01-001"), _spec("TST-01-002"))
-    check = _rationales(rationale_repo)
-    assert check.added == frozenset()
-    assert check.head_total == 0
-
-
-@pytest.mark.spec("MS-10-014")
-def test_rationale_retired_is_not_an_addition(rationale_repo):
-    _write_specs(rationale_repo, _spec("TST-01-001"))
-    check = _rationales(rationale_repo)
-    assert check.added == frozenset()
-    assert check.head_total == 0
-
-
-@pytest.mark.spec("MS-10-014")
-def test_rationale_without_base_ref_skips_with_logged_reason(
-    rationale_repo, caplog
-):
-    _git(rationale_repo, "update-ref", "-d", "refs/remotes/origin/main")
-    _write_specs(rationale_repo, _no_rationale("TST-01-001"))
-    with caplog.at_level(logging.WARNING):
-        check = _rationales(rationale_repo)
     assert check.skipped is not None
     assert check.added == frozenset()
     assert check.skipped in caplog.text

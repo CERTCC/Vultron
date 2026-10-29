@@ -134,17 +134,19 @@ groups:
     kind: protocol
     statement: >-
       A Participant already in EM Proposed (q^em ∈ P) with CS not yet
-      public/exploit/attack (q^cs ∈ ···pxa) receiving a second or counter EP
-      MUST emit EK to acknowledge and MAY evaluate the counter-proposal terms
-      without an additional state transition.
+      public/exploit/attack (q^cs ∈ ···pxa) receiving a second or counter EP MUST stay
+      in Proposed with no additional state transition. "Emit EK" is discharged by the
+      CASE_MANAGER's commit of the received activity, fanned out as
+      `Announce(CaseLedgerEntry)`; no EK message is emitted (EP-09-009, MSM-02-009).
     rationale: >-
       Multiple EP messages can arrive during negotiation. When already in
       Proposed, no additional state transition is needed. The receiver evaluates
       the counter-proposal and may accept, counter, or reject via EA, EV, or ER.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving a counter EP while
-      already in EM PROPOSED keeps the state at PROPOSED and emits EK without
-      triggering an additional N→P transition.
+      already in EM PROPOSED keeps the state at PROPOSED without triggering an
+      additional N→P transition, and that the CASE_MANAGER's ledger commit and
+      announcement of the counter EP discharge EK with no EK message queued.
     testable: true
     preconditions:
     - em_state:
@@ -154,12 +156,16 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: Emit EK to acknowledge receipt of counter-proposal EP
-      expected: EK queued for sender; EM state remains PROPOSED
+      action: >-
+        CASE_MANAGER commits the counter EP and announces the ledger
+        entry (discharges EK)
+      expected: >-
+        Ledger entry committed and fanned out; no EK message exists; EM
+        state remains PROPOSED
     postconditions:
     - description: >-
-        EK emitted; EM state remains PROPOSED; counter-proposal terms available
-        for evaluation
+        EM state remains PROPOSED; counter-proposal terms available for
+        evaluation; EK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
@@ -254,23 +260,26 @@ groups:
     kind: protocol
     statement: >-
       A Participant in EM Proposed (q^em ∈ P) with CS not yet public/exploit/attack
-      (q^cs ∈ ···pxa) receiving EA MUST transition their EM state to Active
-      (q^em P → A) when the accepted proposal was the last one open, MUST move
-      to Revise (q^em P → R) while another proposal stays open (EMB-18-005),
-      and MUST emit EK to acknowledge receipt.
+      (q^cs ∈ ···pxa) receiving EA MUST move their EM state along the accept
+      transition of EMB-18-005: to Active (q^em P → A) when the accepted
+      proposal was the last one open, and to Revise (q^em P → R) while another
+      proposal stays open.
+      "Emit EK" is discharged by the CASE_MANAGER's commit of the
+      received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK message
+      is emitted (EP-09-009, MSM-02-009).
     rationale: >-
       Every participant must agree on whether an embargo is in force. If the receiver
       kept EM at Proposed after the EA, it would act as if no embargo binds the case,
       and it could disclose while the other participants keep the vulnerability private.
       Another open proposal stays open as a revision of the embargo now in force,
       because the consent already given to its terms stays valid (ADR-0130). Revise
-      records both facts. The EK tells the sender that the receiver got the EA.
+      records both facts. The ledger commit of the EA acknowledges it.
     adr:
     - ADR-0130
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EA in EM PROPOSED
       with CS matching ...pxa and no other open proposal transitions EM to ACTIVE
-      and queues EK to the sender; the multi-proposal move is covered by
+      with no EK message queued; the multi-proposal move is covered by
       `test/core/states/test_em_transition_table.py` (EMB-18-005).
     testable: true
     preconditions:
@@ -285,12 +294,14 @@ groups:
       expected: Receiver EM state is ACTIVE
     - order: 2
       actor: receiver
-      action: Emit EK to acknowledge receipt of EA
-      expected: EK queued for sender
+      action: >-
+        CASE_MANAGER commits the received EA and announces the ledger
+        entry (discharges EK)
+      expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
     - description: >-
         Receiver EM state is ACTIVE, or REVISE while another proposal is open;
-        EK emitted to sender
+        EK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-05-003
@@ -464,16 +475,18 @@ groups:
     statement: >-
       A Participant already in EM Revise (q^em ∈ R) with CS not yet
       public/exploit/attack (q^cs ∈ ···pxa) receiving a counter EV
-      (counter-revision) MUST emit EK to acknowledge without an additional
-      state transition.
+      (counter-revision) MUST stay in Revise with no additional state
+      transition. "Emit EK" is discharged by the CASE_MANAGER's commit of the
+      received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK message
+      is emitted (EP-09-009, MSM-02-009).
     rationale: >-
       Multiple revision proposals can arrive. When already in Revise, no further
       state transition is needed; the receiver evaluates the counter-revision
       and responds with EJ or EC.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving a counter EV while
-      already in EM REVISE keeps the state at REVISE and emits EK without
-      triggering an additional state transition.
+      already in EM REVISE keeps the state at REVISE without triggering an
+      additional state transition, with no EK message queued.
     testable: true
     preconditions:
     - em_state:
@@ -483,10 +496,14 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: Emit EK to acknowledge counter-revision EV
-      expected: EK queued for sender; EM state remains REVISE
+      action: >-
+        CASE_MANAGER commits the counter EV and announces the ledger
+        entry (discharges EK)
+      expected: >-
+        Ledger entry committed and fanned out; no EK message exists; EM
+        state remains REVISE
     postconditions:
-    - description: EK emitted; EM state remains REVISE
+    - description: EM state remains REVISE; EK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
@@ -833,23 +850,24 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant in EM Proposed (q^em ∈ P) receiving ER MUST transition their
-      EM state back to None (q^em P → N) when the rejected proposal was the last
-      one open, MUST remain in Proposed (q^em P → P) while another proposal is
-      open (EMB-18-005), and MUST emit EK to acknowledge receipt.
+      A Participant in EM Proposed (q^em ∈ P) receiving ER MUST move their EM state
+      along the reject transition of EMB-18-005: back to None (q^em P → N) when the
+      rejected proposal was the last one open, and staying in Proposed (q^em P → P)
+      while another proposal is open. "Emit EK" is discharged by the CASE_MANAGER's
+      commit of the received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK
+      message is emitted (EP-09-009, MSM-02-009).
     rationale: >-
       If the receiver stayed in Proposed after the last open proposal is rejected, it
       would wait for an answer that does not come, and it would show an embargo
       negotiation that has ended. None tells every participant that no embargo binds the
       case. While another proposal is open, EM stays in Proposed, because that proposal
-      still waits for an answer (ADR-0130). The EK tells the sender that the receiver
-      got the ER.
+      still waits for an answer (ADR-0130). The ledger commit of the ER acknowledges it.
     adr:
     - ADR-0130
     verification: >-
       Integration tests in `test/demo/` confirm that receiving ER in EM PROPOSED
-      with no other open proposal transitions EM to NONE and queues EK to the
-      sender; `test_a_rejection_returns_em_to_none_only_with_the_last_proposal`
+      with no other open proposal transitions EM to NONE with no EK message
+      queued; `test_a_rejection_returns_em_to_none_only_with_the_last_proposal`
       in `test/core/states/test_em_transition_table.py` covers the
       multi-proposal case.
     testable: true
@@ -864,12 +882,14 @@ groups:
       expected: Receiver EM state is NONE
     - order: 2
       actor: receiver
-      action: Emit EK to acknowledge receipt of ER
-      expected: EK queued for sender
+      action: >-
+        CASE_MANAGER commits the received ER and announces the ledger
+        entry (discharges EK)
+      expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
     - description: >-
         Receiver EM state is NONE (proposal rejected), or PROPOSED while another
-        proposal is open; EK emitted
+        proposal is open; EK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
@@ -895,14 +915,17 @@ groups:
     kind: protocol
     statement: >-
       A Participant in EM Active (q^em ∈ A) receiving ET MUST transition their
-      EM state to Exited (q^em A → X) and emit EK to acknowledge receipt.
+      EM state to Exited (q^em A → X). "Emit EK" is discharged by the
+      CASE_MANAGER's commit of the received activity, fanned out as
+      `Announce(CaseLedgerEntry)`; no EK message is emitted (EP-09-009,
+      MSM-02-009).
     rationale: >-
       ET is the message that terminates an active embargo. The receiver records
       that the embargo has ended. ET has immediate effect regardless of other
       pending messages.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving ET in EM ACTIVE
-      transitions EM to EXITED and queues EK to the sender.
+      transitions EM to EXITED with no EK message queued.
     testable: true
     preconditions:
     - em_state:
@@ -935,14 +958,17 @@ groups:
     kind: protocol
     statement: >-
       A Participant in EM Revise (q^em ∈ R) receiving ET MUST transition their
-      EM state to Exited (q^em R → X) and emit EK to acknowledge receipt.
+      EM state to Exited (q^em R → X). "Emit EK" is discharged by the
+      CASE_MANAGER's commit of the received activity, fanned out as
+      `Announce(CaseLedgerEntry)`; no EK message is emitted (EP-09-009,
+      MSM-02-009).
     rationale: >-
       ET terminates the embargo regardless of whether a revision is pending.
       The revision proposal is abandoned upon termination.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving ET in EM REVISE
-      transitions EM to EXITED, abandons any pending revision, and queues EK to
-      the sender.
+      transitions EM to EXITED and abandons any pending revision, with no EK
+      message queued.
     testable: true
     preconditions:
     - em_state:
@@ -975,14 +1001,16 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant already in EM Exited (q^em ∈ X) receiving ET MUST emit EK
-      without any state transition.
+      A Participant already in EM Exited (q^em ∈ X) receiving ET MUST remain in Exited
+      with no state transition. "Emit EK" is discharged by the CASE_MANAGER's commit of
+      the received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK message is
+      emitted (EP-09-009, MSM-02-009).
     rationale: >-
-      Exited is already the terminal state. The EK acknowledges the duplicate
-      termination message; no additional transition is needed.
+      Exited is already the terminal state, so a duplicate termination message
+      needs no additional transition and no acknowledgment of its own.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving ET while already in
-      EM EXITED emits EK to the sender without changing EM state.
+      EM EXITED leaves EM state unchanged, with no EK message queued.
     testable: true
     preconditions:
     - em_state:
@@ -991,10 +1019,10 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: Emit EK to acknowledge receipt of ET (no state change)
-      expected: EK queued for sender; EM state remains EXITED
+      action: Make no state change for the duplicate ET
+      expected: EM state remains EXITED; no EK message exists
     postconditions:
-    - description: EK emitted; EM state remains EXITED
+    - description: EM state remains EXITED; no EK message emitted
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
@@ -1016,24 +1044,24 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      A Participant receiving EE SHOULD emit EK to acknowledge receipt and SHOULD
-      emit GI to inquire about the nature of the error.
+      A Participant that receives `Create(ProcessingFault)` about an embargo
+      activity it sent SHOULD inquire about the nature of the error (GI) when the
+      fault does not say what went wrong. EE has no wire activity of its own
+      (MSM-02-008, MSM-05-001). The receiver emits no EK for the fault
+      (EP-09-009).
     rationale: >-
-      EE signals a protocol error in the EM process. Acknowledging with EK and
-      following up with GI allows the sender to explain the error and enables
-      recovery. EE does not trigger an EM state transition.
+      A fault report says that an embargo activity failed, but it does not always say
+      why. An inquiry lets the sender explain the error and enables recovery. A fault
+      report does not trigger an EM state transition, and the error is grouped by
+      failure mode, not by state machine, so no EE or EK message exists.
     testable: true
     steps:
     - order: 1
       actor: receiver
-      action: Emit EK to acknowledge receipt of EE
-      expected: EK queued for sender
-    - order: 2
-      actor: receiver
       action: Emit GI to inquire about the nature of the error
-      expected: GI queued for sender
+      expected: GI queued for sender; no EK message exists
     postconditions:
-    - description: EK and GI emitted; EM state unchanged
+    - description: GI emitted; EM state unchanged
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-005

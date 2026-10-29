@@ -743,10 +743,9 @@ def test_lint_adr_ref_suppress(tmp_path, capsys):
     assert "ADR-0099" not in captured.out
 
 
-def test_lint_adr_ref_no_rationale_no_warn(tmp_path, capsys):
-    """A spec without a rationale field produces no ADR warning."""
+def test_lint_adr_ref_rationale_without_adr_no_warn(tmp_path, capsys):
+    """A rationale that names no ADR produces no ADR warning."""
     data = _minimal_spec()
-    del data["groups"][0]["specs"][0]["rationale"]
     write_yaml(tmp_path, data)
     adr_dir = _make_adr_dir(tmp_path)
     result = lint(tmp_path, adr_dir=adr_dir)

@@ -157,9 +157,12 @@ question renders on its point-of-use page, on `open-questions.md`, and twice on
 `full.md`. A question with no point of use yet is included by
 `_open-questions.md` alone. A question the model has since answered is closed
 by deleting its fragment and stating the answer where the model is specified,
-as the `UNINVITED`/`DECLINED` question was in §9.1 (#4296). Every one of them is
-also included by `docs/topics/future_work/open_questions.md`, an Explanation
-page, so each must satisfy that host's quadrant as well (DF-09-008).
+as the `UNINVITED`/`DECLINED` question was in §9.1 (#4296). A fragment the site
+has published keeps its URL, so the closure also adds a `redirect_maps` entry to
+the answering section; without one `docs-legacy-urls` fails (#4898). Every
+open-question fragment is also included by
+`docs/topics/future_work/open_questions.md`, an Explanation page, so each must
+satisfy that host's quadrant as well (DF-09-008).
 
 **`includes/`** holds shared fragments reused across sections — the state
 tables and the four-dimensions note. It is covered by

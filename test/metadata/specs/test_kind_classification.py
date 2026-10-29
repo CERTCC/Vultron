@@ -25,6 +25,7 @@ def _spec(**fields) -> StatementSpec:
         "priority": "MUST",
         "kind": "protocol",
         "statement": "TST-01-001 MUST do the thing",
+        "rationale": "Because testing.",
     }
     base.update(fields)
     return StatementSpec.model_validate(base)

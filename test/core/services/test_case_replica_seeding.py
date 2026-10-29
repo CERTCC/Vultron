@@ -285,3 +285,90 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
 
         assert result is None
         assert "cannot be projected" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# A seeded case never moves a link bound to another case (issue #4970)
+# ---------------------------------------------------------------------------
+
+
+class TestLinkReportCaseLinksBindsOnlyPendingLinks:
+    """``link_report_case_links`` points a pending link, never a bound one.
+
+    Regression for #4970: a reporter whose link was bound to the case opened
+    on receipt, trusting that case's CASE_MANAGER (CBT-01-006), had the link
+    moved onto a second case holding the same report when that case's replica
+    was seeded.  The moved link carried the first case's CASE_MANAGER, so the
+    anchored sender check refused the second case's real CASE_MANAGER
+    (HP-01-006), and the first case lost its trust anchor (CBT-02-003).
+    """
+
+    _REPORTER_ID = "https://reporter.example.org/actors/reporter-4970"
+    _REPORT_ID = "https://reporter.example.org/reports/report-4970"
+    _FIRST_CASE_ID = "https://example.org/cases/case-4970-first"
+    _SECOND_CASE_ID = "https://example.org/cases/case-4970-second"
+    _FIRST_MANAGER_ID = "https://example.org/actors/case-actor-4970"
+    _RECEIVER_ID = "https://vendor.example.org/actors/vendor-4970"
+
+    @pytest.fixture()
+    def dl(self):
+        return SqliteDataLayer(
+            "sqlite:///:memory:", actor_id=self._REPORTER_ID
+        )
+
+    def _case_holding_the_report(self, case_id: str) -> as_VulnerabilityCase:
+        return as_VulnerabilityCase.model_construct(
+            **CONSTRUCTED_CASE_OWNERSHIP,
+            id_=case_id,
+            name="Bug #4970 case",
+            vulnerability_reports=[self._REPORT_ID],
+        )
+
+    def _stored_link(self, dl):
+        from vultron.core.models.report_case_link import VultronReportCaseLink
+
+        link = dl.read(VultronReportCaseLink.build_id(self._REPORT_ID))
+        assert isinstance(link, VultronReportCaseLink)
+        return link
+
+    def test_link_bound_to_another_case_is_left_unchanged(self, dl):
+        from vultron.core.models.report_case_link import VultronReportCaseLink
+        from vultron.core.services.case_replica_seeding import (
+            link_report_case_links,
+        )
+
+        dl.save(
+            VultronReportCaseLink(
+                report_id=self._REPORT_ID,
+                case_id=self._FIRST_CASE_ID,
+                case_creator_id=self._RECEIVER_ID,
+                case_manager_id=self._FIRST_MANAGER_ID,
+            )
+        )
+
+        link_report_case_links(
+            dl, self._case_holding_the_report(self._SECOND_CASE_ID)
+        )
+
+        link = self._stored_link(dl)
+        assert link.case_id == self._FIRST_CASE_ID
+        assert link.case_manager_id == self._FIRST_MANAGER_ID
+
+    def test_pending_link_is_bound_to_the_seeded_case(self, dl):
+        from vultron.core.models.report_case_link import VultronReportCaseLink
+        from vultron.core.services.case_replica_seeding import (
+            link_report_case_links,
+        )
+
+        dl.save(
+            VultronReportCaseLink(
+                report_id=self._REPORT_ID,
+                case_creator_id=self._RECEIVER_ID,
+            )
+        )
+
+        link_report_case_links(
+            dl, self._case_holding_the_report(self._SECOND_CASE_ID)
+        )
+
+        assert self._stored_link(dl).case_id == self._SECOND_CASE_ID

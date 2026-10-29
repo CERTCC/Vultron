@@ -62,7 +62,7 @@ the case), ADR-0116 (removal and reinstatement). The participant-facing flow is 
 |---|---|---|---|---|---|
 | 1 | CASE_MANAGER sends `Invite(Actor, VulnerabilityCaseStub)`; record created | `RECEIVED` | `v` | `INVITED` if an embargo is active | yes |
 | — | optional on-behalf `v→V` by the Case Manager or Case Owner | — | `V` | — | yes |
-| 2a | `Accept(Invite(stub))` — join, and consent to the active embargo | `RECEIVED` | `V` | `AGREED` if an embargo is active | **no** |
+| 2a | `Accept(Invite(stub))` — join, and consent to the active embargo | `RECEIVED` | `V` | `AGREED` if an embargo is active, unless `DECLINED` | **no** |
 | 2b | `Reject(Invite(stub))` — hard no | `CLOSED` | `V` | `DECLINED` if an embargo is active | yes, permanently |
 | 3 | CASE_MANAGER sends `Announce(VulnerabilityCase)` and replays the ledger | — | — | — | no |
 | 4 | CASE_MANAGER sends `Invite(Actor, VulnerabilityCase)` with its ledger position | — | — | — | no |

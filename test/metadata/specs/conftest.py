@@ -87,6 +87,7 @@ def spec_file_data(items, file_id="TST", group_id="TST-01"):
             "priority": priority,
             "kind": kind,
             "statement": f"{spec_id} states the thing",
+            "rationale": "Because testing.",
         }
         spec.update(extra)
         specs.append(spec)

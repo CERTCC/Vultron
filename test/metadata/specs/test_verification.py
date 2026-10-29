@@ -200,6 +200,7 @@ def _statement(**extra) -> StatementSpec:
             "priority": "MUST",
             "kind": "protocol",
             "statement": "TST-01-001 MUST do it",
+            "rationale": "Because testing.",
             **extra,
         }
     )

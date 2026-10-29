@@ -89,8 +89,7 @@ def _append_relationship_markdown(lines: list[str], spec: Spec) -> None:
 
 def _append_spec_markdown(lines: list[str], spec: Spec) -> None:
     lines.append(_priority_line(spec))
-    if spec.rationale:
-        lines.append(f"  - *Rationale*: {spec.rationale}")
+    lines.append(f"  - *Rationale*: {spec.rationale}")
     if isinstance(spec, BehavioralSpec):
         _append_behavioral_markdown(lines, spec)
     _append_relationship_markdown(lines, spec)

@@ -53,6 +53,7 @@ def _spec(spec_id: str, kind: str) -> dict:
         "priority": "MUST",
         "kind": kind,
         "statement": f"{spec_id} statement",
+        "rationale": "Because testing.",
     }
 
 

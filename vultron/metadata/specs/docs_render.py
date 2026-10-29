@@ -190,9 +190,7 @@ def _render_requirement_cell(
     spec: Spec,
 ) -> str:
     """Return the Requirement cell content for a spec table row."""
-    cell = spec.statement
-    if spec.rationale:
-        cell += f"<br><br>*{spec.rationale}*"
+    cell = f"{spec.statement}<br><br>*{spec.rationale}*"
     if isinstance(spec, BehavioralSpec):
         eca = _render_behavioral_cell(spec)
         if eca:

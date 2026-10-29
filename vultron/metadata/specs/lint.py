@@ -648,7 +648,7 @@ def _check_adr_references(
         suppressed = set(spec.lint_suppress or [])
         if LintWarningCode.DANGLING_ADR_REF in suppressed:
             continue
-        seen = set(_ADR_REF_RE.findall(spec.rationale or ""))
+        seen = set(_ADR_REF_RE.findall(spec.rationale))
         for adr_number in seen:
             if not _adr_exists(adr_dir, adr_number) and not _adr_exists(
                 adr_dir / "archived", adr_number
@@ -780,8 +780,7 @@ def _check_per_spec_advisory_warnings(registry: SpecRegistry) -> list[str]:
             )
 
         if (
-            spec.rationale
-            and len(spec.rationale) > _RATIONALE_WARN_CHARS
+            len(spec.rationale) > _RATIONALE_WARN_CHARS
             and LintWarningCode.RATIONALE_TOO_LONG not in suppressed
         ):
             warnings.append(

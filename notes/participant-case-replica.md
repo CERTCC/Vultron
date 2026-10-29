@@ -23,6 +23,7 @@ related_notes:
 relevant_packages:
   - vultron/core/behaviors/case
   - vultron/core/models
+  - vultron/core/services
   - vultron/core/use_cases
 ---
 
@@ -95,8 +96,12 @@ is BT subtree work in `vultron/core/behaviors/case/`, not a procedural call in
 
 A reporter records a `VultronReportCaseLink` (`vultron/core/models/`, no wire
 types) when it submits `Offer(VulnerabilityReport)`. When a later case snapshot
-lists that report in `vulnerability_reports`, the link gains the case ID, so the
-reporter recognizes the case as the outcome of its own submission.
+lists that report in `vulnerability_reports`, a pending link (no case ID yet)
+gains the case ID, so the reporter recognizes the case as the outcome of its own
+submission. Never move a link already bound to a case: it holds that case's
+trusted CASE_MANAGER, and moving it lets the anchored sender check refuse the new
+case's real CASE_MANAGER (CBT-02-003, PCR-05-002;
+`link_report_case_links` in `vultron/core/services/case_replica_seeding.py`).
 
 ## Unknown Case Context: Queue, Never Apply (PCR-06)
 
