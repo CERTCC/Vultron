@@ -20,5 +20,6 @@ Neither VP statement says so, so a reader can take them as licensing a
 roster send.
 
 **Evidence.** PR #5473 renders VP-03-012 next to PCR-08-001 in §13.2 Case
-Observer capability set and words the prose as "sends the message for the
-transition" to avoid the conflict.
+Observer capability set. The prose names no recipient ("the protocol
+recommends that it send the message for the transition") to avoid the
+conflict.
