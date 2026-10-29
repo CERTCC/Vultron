@@ -49,9 +49,9 @@ pytest_plugins = ["pytester"]
 #: (``test_rvcv_extension_demo.py``, 30.05 s; #5188).
 _SLOWEST_QUIET_INTEGRATION_SECONDS = 30
 
-#: How far host contention stretched the CPU-bound demos (#5188).  At host
-#: load ~30 on 16 cores they ran 2-3x their quiet time at ``-n 0``, and past
-#: 4x under ``-n auto``, where the 60 s tier tripped.
+#: How far host contention stretched the CPU-bound demos over their quiet
+#: time (#5188): 2-3x at ``-n 0`` under host load ~30 on 16 cores, and about
+#: 4x under a loaded ``-n auto`` run, where the 60 s tier tripped.
 _MEASURED_LOAD_INFLATION = 4
 
 
@@ -229,14 +229,6 @@ class TestResolvedTimeoutsUnderRealPytest:
 
 
 class TestIntegrationTimeoutValue:
-    def test_is_comfortably_above_the_slowest_honest_integration_test(self):
-        """The slowest honest integration test measured ~4.3s (issue #2270).
-
-        A ceiling that is merely a little above that is what caused the
-        original spurious aborts, so require real headroom.
-        """
-        assert INTEGRATION_TIMEOUT_SECONDS >= 30
-
     @pytest.mark.spec("TB-14-003")
     def test_clears_the_slowest_quiet_demo_under_measured_load(self):
         """The tier covers the slowest demo at the load the suite meets.
@@ -244,9 +236,12 @@ class TestIntegrationTimeoutValue:
         The exchange demos are CPU-bound, so load stretches them in
         proportion. The slowest integration test measured
         :data:`_SLOWEST_QUIET_INTEGRATION_SECONDS` under ``-n auto`` on a
-        quiet host, and contention inflated demos by more than
-        :data:`_MEASURED_LOAD_INFLATION` at 60 s, where the embargo demos
-        tripped (#5188).
+        quiet host, and contention stretched the demos about
+        :data:`_MEASURED_LOAD_INFLATION` times, which tripped the embargo
+        demos at a 60 s tier (#5188).
+
+        The inputs are measured constants, so this pins a floor against a
+        revert; it does not re-measure the suite.
         """
         assert INTEGRATION_TIMEOUT_SECONDS >= (
             _SLOWEST_QUIET_INTEGRATION_SECONDS * _MEASURED_LOAD_INFLATION

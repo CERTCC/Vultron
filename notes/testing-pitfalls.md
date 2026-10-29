@@ -7,7 +7,8 @@ description: >
   xdist worker hanging the run, the two-tier timeout guardrail and why the
   timeout *method* matters more than the ceiling, profiling a near-ceiling test
   before re-tiering it, sizing the integration tier from measured load, the
-  ledger-rebuild teardown error a timeout trip leaves behind, proving off-loop work without a wall-clock window,
+  ledger-rebuild teardown error a timeout trip leaves behind, proving off-loop
+  work without a wall-clock window,
   measuring effective markers rather than declarations,
   `filterwarnings` precedence, `nproc` in a worktree slot, `xdist_group` for
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
@@ -132,11 +133,9 @@ only to inspect what the first test's run already recorded (#5227).
 
 Size the integration tier from the slowest test's quiet cost times the load
 stretch it meets, not from the typical test. The exchange demos are CPU-bound
-(wall time equals CPU time), so host load stretches them in proportion: the
-slowest ran ~30s under `-n auto` on a quiet host, and contention stretched the
-demos past 4x under `-n auto`, so a 60s tier tripped the embargo demos on honest
-work spread across tree builds and store reads (#5188).
-`test/test_integration_timeout_tier.py` pins that product as the tier's floor.
+(wall time equals CPU time), so host load stretches them in proportion (#5188).
+`test/test_integration_timeout_tier.py` records the measured inputs and pins
+their product as the tier's floor.
 
 A demo test that trips its timeout also fails at teardown with a ledger-rebuild
 error (`… rebuilt from its ledger differs …`, or a case naming a `log_index`

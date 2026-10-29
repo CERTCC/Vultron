@@ -76,10 +76,11 @@ TEST_ACTOR_ID = "https://test.example/api/v2/actors/test-actor"
 #:
 #: 120s, sized from measurement (#5188): the exchange demos are CPU-bound
 #: (wall time equals CPU time), so host load stretches them in proportion.
-#: The slowest integration test ran ~30s under ``-n auto`` on a quiet host and
-#: the embargo demos 12-16s; contention stretched the demos 2-3x at ``-n 0``
-#: and past 4x under ``-n auto``, where a 60s tier tripped them on honest work
-#: (TB-14-003).  It is still a bounded hang detector (4x the unit ceiling).
+#: On a quiet host under ``-n auto`` the slowest integration test ran ~30s
+#: and the embargo demos 16-19s.  Contention stretched the demos 2-3x over
+#: their quiet time at ``-n 0`` and about 4x under a loaded ``-n auto`` run,
+#: where a 60s tier tripped them on honest work (TB-14-003).  It is still a
+#: bounded hang detector (4x the unit ceiling).
 #: Tests needing more keep their own explicit ``@pytest.mark.timeout(N)``,
 #: which wins over this.
 INTEGRATION_TIMEOUT_SECONDS = 120
