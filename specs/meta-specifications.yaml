@@ -460,6 +460,40 @@ groups:
     tags:
     - documentation
     - tooling
+  - id: MS-09-008
+    priority: MUST
+    kind: process
+    statement: >-
+      The text that `uv run spec-retire <ID>` archives (MS-09-006) MUST be the item's
+      last published text: its block at the merge base of `HEAD` and the base branch,
+      which is `origin/$GITHUB_BASE_REF`, else `origin/main`, unless `--base` names
+      another. When the item is not declared at that merge base, or the merge base
+      cannot be resolved, the tool changes nothing.
+    rationale: >-
+      A branch can change a requirement and then retire it. The archive must then keep
+      the text that was published, not the change that nobody approved. The merge base
+      holds the last published text. An item that is not at the merge base was never
+      published, so you delete it; you do not retire it. If the tool cannot find the
+      merge base, it cannot find the published text, so it stops and does not guess.
+    verification: >-
+      `test/metadata/specs/test_retire.py`, in the tests marked
+      `@pytest.mark.spec("MS-09-008")`:
+      `test_retire_archives_base_text_when_block_edited_on_branch` and
+      `test_retire_finds_base_text_in_another_spec_file` check that the archive holds
+      the merge-base text of an item edited or moved on the branch;
+      `test_retire_defaults_base_to_github_base_ref` and
+      `test_retire_uses_explicit_base` check the choice of base branch;
+      `test_retire_refuses_id_absent_on_base_and_changes_nothing`,
+      `test_retire_refuses_unresolvable_base_and_changes_nothing`,
+      `test_retire_refuses_unreadable_base_tree_and_changes_nothing` and
+      `test_cli_passes_base_and_reports_refusal` check that each refusal leaves the
+      spec file, the archive and the history unchanged.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-09-006
+    tags:
+    - documentation
+    - tooling
   - id: MS-09-003
     priority: MUST
     kind: process
