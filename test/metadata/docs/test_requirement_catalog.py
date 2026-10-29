@@ -100,7 +100,7 @@ PAGES = (
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("DF-12-005", "DF-12-001")
+@pytest.mark.spec("DF-12-015", "DF-12-001")
 def test_real_placement_table_is_sound() -> None:
     faults = placement_faults(load_registry())
     assert not faults, "\n".join(faults)
@@ -246,7 +246,7 @@ def test_catalog_location_of_foundation_requirement(
     assert location.page.key == "foundation"
 
 
-@pytest.mark.spec("DF-12-003")
+@pytest.mark.spec("DF-12-012")
 def test_catalog_location_refuses_another_kind(registry: SpecRegistry) -> None:
     with pytest.raises(NotInCatalogError, match="architecture requirement"):
         catalog_location(_rid("CCC", 1), registry, PAGES)
@@ -301,7 +301,7 @@ def test_unpublished_catalog_links_the_per_kind_row(
     assert href(_rid("BBB", 2)) == "../../specs/foundation/#bbb-01-002"
 
 
-@pytest.mark.spec("DF-12-002")
+@pytest.mark.spec("DF-12-010")
 def test_published_catalog_links_the_catalog_row(
     registry: SpecRegistry,
 ) -> None:
@@ -321,7 +321,7 @@ def test_published_catalog_row_on_its_own_page_is_in_page(
     assert href(_rid("AAA", 1)) == "#aaa-01-001"
 
 
-@pytest.mark.spec("DF-12-002")
+@pytest.mark.spec("DF-12-011")
 def test_full_page_links_the_in_page_catalog_copy(
     registry: SpecRegistry,
 ) -> None:

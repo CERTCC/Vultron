@@ -78,6 +78,7 @@ class TestPageSchema:
         assert page.stakeholder_type == [StakeholderType.CVD_PRACTITIONER]
         assert page.level == 200
 
+    @pytest.mark.spec("DF-11-027")
     def test_bare_all(self):
         page = validate(
             PageFrontmatter,
@@ -123,6 +124,7 @@ class TestPageSchema:
                 PageFrontmatter, {"stakeholder_type": ["vendor"], "level": 100}
             )
 
+    @pytest.mark.spec("DF-11-027")
     def test_list_naming_every_type_is_rejected(self):
         """``ALL`` is the only spelling of every type (AC-1a)."""
         with pytest.raises(MetadataLoadError, match="bare scalar ALL instead"):
@@ -131,6 +133,7 @@ class TestPageSchema:
                 {"stakeholder_type": _EVERY_TYPE, "level": 100},
             )
 
+    @pytest.mark.spec("DF-11-027")
     def test_bracketed_all_is_rejected(self):
         with pytest.raises(MetadataLoadError, match="not a list containing"):
             validate(
@@ -250,6 +253,7 @@ class TestWorkingRecordSchema:
         )
         assert record.level is None
 
+    @pytest.mark.spec("DF-11-033")
     @pytest.mark.parametrize("level", [100, None], ids=["value", "null"])
     def test_any_declared_level_is_rejected(self, level):
         with pytest.raises(
@@ -267,7 +271,7 @@ class TestWorkingRecordSchema:
         with pytest.raises(MetadataLoadError, match="must declare"):
             validate(WorkingRecordFrontmatter, {"stakeholder_type": value})
 
-    @pytest.mark.spec("DF-11-018")
+    @pytest.mark.spec("DF-11-036")
     @pytest.mark.parametrize(
         "page_type", ["reference", None], ids=["value", "null"]
     )
@@ -496,7 +500,7 @@ class TestCheck:
             "docs/b.md",
         ]
 
-    @pytest.mark.spec("DF-11-012")
+    @pytest.mark.spec("DF-11-033")
     def test_working_record_page_with_a_level_fails(self, tmp_path):
         root = _repo(
             tmp_path, {"adr/0001-x.md": _page("[project-contributor]", "100")}
@@ -557,7 +561,7 @@ class TestCheck:
         assert failure.location == "docs/adr/0001-x.md:4"
         assert "must not declare a subject" in failure.detail
 
-    @pytest.mark.spec("DF-11-018")
+    @pytest.mark.spec("DF-11-036")
     def test_working_record_page_with_a_page_type_fails(self, tmp_path):
         root = _repo(
             tmp_path,
@@ -714,7 +718,7 @@ class TestFragments:
         assert "must not declare level" in failure.detail
         assert "index.md" in failure.detail
 
-    @pytest.mark.spec("DF-11-018")
+    @pytest.mark.spec("DF-11-036")
     def test_fragment_declaring_a_page_type_is_reported(self, tmp_path):
         root = _repo(
             tmp_path,
