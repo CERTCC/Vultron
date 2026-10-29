@@ -119,7 +119,7 @@ The authoritative rule is the MS-12 tree. Split a mixed spec first (MS-12-010),
 then ask in MS-12-005's order and stop at the first match:
 
 1. How the project is run? → `process` (MS-12-001)
-2. Only this codebase must obey it? → `project` (MS-12-002)
+2. Only this codebase must obey it? → `project` (MS-12-012)
 3. Inherited from AS2, ActivityPub or HTTP? → `foundation`, tagged (MS-12-009)
 4. Every Vultron implementation must obey it? → `protocol` (MS-12-003)
 5. Otherwise, recommended structure → `architecture` (MS-12-004)

@@ -2245,7 +2245,7 @@ groups:
           - rel_type: depends_on
             spec_id: PAD-20-001
           - rel_type: depends_on
-            spec_id: SR-12-006
+            spec_id: SR-12-019
         tags:
           - tooling
       - id: PAD-20-003
@@ -2267,7 +2267,7 @@ groups:
           what the flag reports.
         relationships:
           - rel_type: depends_on
-            spec_id: MS-10-011
+            spec_id: MS-10-027
           - rel_type: depends_on
             spec_id: PD-10-003
         tags:

@@ -110,7 +110,7 @@ def _check_adr_status(
     adr_dir: Path | None,
     registry: SpecRegistry | None = None,
 ) -> tuple[list[str], list[str]]:
-    """Validate ADR frontmatter (MS-14-001 hard, MS-14-002 advisory).
+    """Validate ADR frontmatter (MS-14-001 hard, MS-14-013 advisory).
 
     Returns ``(hard_errors, warnings)``:
 
@@ -119,7 +119,7 @@ def _check_adr_status(
       ``AdrStatus`` value, and a ``superseded_by`` link when retired. This
       delegates to :func:`~vultron.metadata.adr.loader.load_adr_registry`, so
       the schema is the single source of truth (no duplicated parsing).
-    - **Advisory (MS-14-002)**: an ADR whose prose carries a provisional marker
+    - **Advisory (MS-14-013)**: an ADR whose prose carries a provisional marker
       SHOULD NOT be ``status: accepted``. This is a heuristic body scan and can
       false-positive (e.g. an ADR that *discusses* provisional-ness), so it
       surfaces ``decision-audit`` candidates rather than blocking CI; an ADR may
@@ -168,7 +168,7 @@ def _check_adr_status(
         if hit is not None:
             warnings.append(
                 f"[WARN] {name}: status is 'accepted' but prose contains "
-                f"provisional marker '{hit}' (MS-14-002); if the design is "
+                f"provisional marker '{hit}' (MS-14-013); if the design is "
                 f"genuinely unvalidated use 'accepted-provisional' — else "
                 f"this is a decision-audit candidate (see ADR-0043). "
                 f"Suppress on an ADR that legitimately discusses "

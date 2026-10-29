@@ -2146,11 +2146,10 @@ groups:
       note: extends ADR/spec cross-referencing with a status-confidence rule
     adr:
     - ADR-0043
+    - ADR-0024
     tags:
     - documentation
     - tooling
-    adr:
-    - ADR-0024
   - id: MS-14-002
     priority: SHOULD
     kind: process
@@ -2303,11 +2302,10 @@ groups:
       ADR-0043 and MS-14-003.
     adr:
     - ADR-0043
+    - ADR-0027
     tags:
     - documentation
     - tooling
-    adr:
-    - ADR-0027
   - id: MS-14-017
     priority: MUST_NOT
     kind: project

@@ -158,7 +158,7 @@ def test_marker_on_a_kind_with_no_owner_entry_fails(priority):
     problems = verification_problems(_registry(items), _OWNERS)
     assert len(problems) == 1
     assert "kind=architecture has no verification backlog left" in problems[0]
-    assert "MS-10-007" in problems[0]
+    assert "MS-10-026" in problems[0]
 
 
 @pytest.mark.spec("MS-10-026")

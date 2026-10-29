@@ -56,6 +56,9 @@ groups:
       The title names the topic in the docs and in `spec-dump` output. The description
       tells a reader what the topic covers. Without them, a reader cannot tell what a
       topic file is for.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-01-002
   - id: SR-01-004
     priority: MUST
     kind: project
@@ -329,6 +332,9 @@ groups:
       Kind decides which checks apply to a requirement, so each item declares it where a
       reader can see it (SR-02-027). A kind on the group could give one item a wrong
       tier, and nobody would see the mismatch.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-02-012
   - id: SR-02-013
     priority: MUST
     kind: project
@@ -348,6 +354,9 @@ groups:
     rationale: >-
       Kind belongs on each item (SR-02-027). A kind on the file could give an item a
       wrong tier, and a reader of the item would not see it.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-02-013
   - id: SR-02-025
     priority: MUST_NOT
     kind: project
@@ -392,6 +401,9 @@ groups:
     rationale: >-
       A reader cannot see an inherited tier at the item. Such a tier can put a
       requirement under the wrong checks.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-02-014
   - id: SR-02-015
     priority: SHOULD
     kind: project

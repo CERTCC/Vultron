@@ -441,7 +441,7 @@ def test_lint_marker_on_a_kind_with_no_owner_entry_is_hard_error(
     captured = capsys.readouterr()
     assert result == 1
     assert "TST-01-001" in captured.err
-    assert "MS-10-007" in captured.err
+    assert "MS-10-026" in captured.err
 
 
 @pytest.mark.spec("MS-10-026")
@@ -940,7 +940,7 @@ def test_lint_adr_superseded_without_target_is_hard_error(tmp_path, capsys):
 
 
 def test_lint_adr_accepted_with_provisional_prose_warns(tmp_path, capsys):
-    """status: accepted + provisional prose is an advisory warning (MS-14-002)."""
+    """status: accepted + provisional prose is an advisory warning (MS-14-013)."""
     write_yaml(tmp_path, _minimal_spec())
     adr_dir = _make_adr_dir(tmp_path)
     _write_adr(
@@ -952,7 +952,7 @@ def test_lint_adr_accepted_with_provisional_prose_warns(tmp_path, capsys):
     result = lint(tmp_path, adr_dir=adr_dir)
     captured = capsys.readouterr()
     assert result == 0  # advisory, not a hard error
-    assert "MS-14-002" in captured.out
+    assert "MS-14-013" in captured.out
     assert "[WARN]" in captured.out
 
 
@@ -969,7 +969,7 @@ def test_lint_adr_accepted_provisional_status_no_warn(tmp_path, capsys):
     result = lint(tmp_path, adr_dir=adr_dir)
     captured = capsys.readouterr()
     assert result == 0
-    assert "MS-14-002" not in captured.out
+    assert "MS-14-013" not in captured.out
 
 
 # ---------------------------------------------------------------------------
@@ -1024,7 +1024,7 @@ def test_lint_adr_status_prose_suppress(tmp_path, capsys):
     result = lint(tmp_path, adr_dir=adr_dir)
     captured = capsys.readouterr()
     assert result == 0
-    assert "MS-14-002" not in captured.out
+    assert "MS-14-013" not in captured.out
 
 
 # ---------------------------------------------------------------------------
