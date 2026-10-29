@@ -569,7 +569,8 @@ Demo Summary
 ==================================================
 ```
 
-A demo that raised an exception is listed as `❌ FAIL` with the error.
+A demo with a failed step or check is listed as `❌ FAIL` with its errors, the run stops there, and `vultron-demo all` exits with a non-zero status.
+A single demo command, such as `vultron-demo receive-report`, also exits with a non-zero status when any of its steps or checks fails.
 
 ---
 

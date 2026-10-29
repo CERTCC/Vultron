@@ -73,6 +73,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     case_actor_id_for_report,
     check_server_availability,  # imported by test_health_check_retry
     demo_check,
+    demo_gate,
     demo_step,
     get_offer_from_datalayer,
     logfmt,
@@ -165,21 +166,19 @@ def demo_validate_report(
     with demo_step(
         "Step 3: Vendor creates case and introduces it to reporter"
     ):
-        case_data = None
-        with demo_check("Case created for report"):
+        # A causal precondition (DEMOCI-01-007): without the case there is
+        # no introduction to check, so a missing case is one recorded
+        # failure and the dependent check is skipped (#3852).
+        with demo_gate("Case created for report"):
             case_data = find_case_by_report(client, report.id_)
             if not case_data:
-                logger.error("Could not find case related to this report.")
                 raise ValueError("Could not find case related to this report.")
-        # The vendor's own Create(VulnerabilityCase) introduces the case to
-        # the reporter (CBT-01-001); the demo builds and posts none (#4675).
-        verify_reporter_trusts_introduction(
-            client,
-            reporter,
-            vendor,
-            report,
-            case_id=case_data.id_ if case_data else None,
-        )
+            # The vendor's own Create(VulnerabilityCase) introduces the case
+            # to the reporter (CBT-01-001); the demo builds and posts none
+            # (#4675).
+            verify_reporter_trusts_introduction(
+                client, reporter, vendor, report, case_id=case_data.id_
+            )
 
     logger.info(
         "✅ DEMO 1 COMPLETE: Report validated, case created, and introduced to the reporter."

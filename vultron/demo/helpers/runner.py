@@ -30,6 +30,7 @@ from vultron.demo.utils import (
     demo_environment,
     reset_demo_failures,
 )
+from vultron.errors import DemoFailureError
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,12 @@ def run_exchange_demos(
     demo functions inside a fresh :func:`~vultron.demo.utils.demo_environment`
     context for each demo, accumulates errors, and logs a summary.
 
+    A failed demo does not stop the run: every selected demo runs, and only
+    then is one :class:`~vultron.errors.DemoFailureError` raised naming each
+    demo that failed, so the module's ``main()`` — and the ``vultron-demo``
+    sub-command or ``all`` run calling it — exits non-zero (DEMOCI-01-001,
+    DEMOCI-01-003).
+
     Each demo callable must accept
     ``(client, reporter, vendor, coordinator)`` as positional arguments.
 
@@ -61,6 +68,11 @@ def run_exchange_demos(
             When ``None``, all entries in *all_demos* are run.
         client: The client the demos run through; a default
             :class:`~vultron.demo.utils.DataLayerClient` when omitted.
+
+    Raises:
+        DemoFailureError: When any selected demo recorded a ``demo_step``,
+            ``demo_check`` or ``demo_gate`` failure or raised; its
+            ``failures`` hold one ``"<demo name>: <error>"`` line per demo.
     """
     if client is None:
         client = DataLayerClient()
@@ -114,11 +126,16 @@ def run_exchange_demos(
             logger.error("%s:", demo_name)
             logger.error("  %s", error)
             logger.error("")
+        logger.error("❌ FAIL: %d of %d demos failed", len(errors), total)
         logger.error("=" * 80)
-    else:
-        logger.info("")
-        logger.info("✓ All %d demos completed successfully!", total)
-        logger.info("")
+        raise DemoFailureError(
+            f"{len(errors)} of {total} demos failed",
+            failures=[f"{name}: {error}" for name, error in errors],
+        )
+
+    logger.info("")
+    logger.info("✓ All %d demos completed successfully!", total)
+    logger.info("")
 
 
 def check_all_containers(

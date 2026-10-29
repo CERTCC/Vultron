@@ -73,7 +73,7 @@ from vultron.demo.helpers.actor_roles import (
 from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
 from vultron.demo.seed_config import SeedConfig
 from vultron.demo.utils import BASE_URL, DataLayerClient, seed_actor, seed_peer
-from vultron.errors import DemoScenarioRegistryError
+from vultron.errors import DemoFailureError, DemoScenarioRegistryError
 from vultron.logging_setup import suppress_third_party_info_noise
 
 # Ordered list of (sub-command name, demo module) pairs.
@@ -138,8 +138,17 @@ def _make_sub_command(name: str, module) -> click.Command:
         help="Skip server availability check.",
     )
     def _cmd(skip_health_check: bool) -> None:
-        """Invoke ``module.main()`` with the given options."""
-        module.main(skip_health_check=skip_health_check)
+        """Invoke ``module.main()``, reporting FAIL and exiting 1 on failure.
+
+        A ``DemoFailureError`` is the demo's recorded verdict, already logged
+        step by step, so it is reported as one FAIL line rather than a
+        traceback (DEMOCI-01-001).  Any other exception propagates unchanged.
+        """
+        try:
+            module.main(skip_health_check=skip_health_check)
+        except DemoFailureError as exc:
+            click.echo(f"\n❌  Demo '{name}' FAILED: {exc}", err=True)
+            sys.exit(1)
 
     return _cmd
 
