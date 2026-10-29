@@ -679,16 +679,22 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Every job in `.github/workflows/python-app.yml` MUST declare
-      `timeout-minutes`, set well above the job's observed run time.
+      Every job in every workflow under `.github/workflows/` MUST declare
+      `timeout-minutes`, set well above the job's observed run time. A job that
+      calls a reusable workflow is exempt; the called workflow's jobs carry the
+      cap.
     rationale: >-
       A job with no cap runs until GitHub's default limit, so a hung linter or
       build step holds a runner for hours and shows as cancelled rather than
       failed. A cap well above the observed run time ends a hang within minutes
-      without tripping on honest work under load.
+      without tripping on honest work under load. Scheduled and issue-triggered
+      jobs hang the same way and nobody watches them, so the rule covers every
+      workflow, not only the PR gates. GitHub rejects `timeout-minutes` on a job
+      that calls a reusable workflow, hence the exemption.
     verification: >-
-      `test/metadata/test_gate_ceiling.py` checks that every job in
-      `python-app.yml` has a positive integer `timeout-minutes`.
+      `test/metadata/test_gate_ceiling.py` checks that every job in every
+      `.github/workflows/*.yml` file, except a job with `uses:`, has a positive
+      integer `timeout-minutes`.
     relationships:
     - rel_type: refines
       spec_id: TB-14-005
