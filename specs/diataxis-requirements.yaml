@@ -759,13 +759,10 @@ groups:
     rationale: >-
       Three names identify each activity: the formal protocol message, the prototype
       class and the AS2 wire form. Only the first and the last are for readers. The wire
-      form does not give the protocol meaning: `Accept(Offer(VulnerabilityReport))`,
-      `TentativeReject(Offer(VulnerabilityReport))` and
-      `Reject(Offer(VulnerabilityReport))` mean valid, invalid and closed, and nothing
-      in the wire form tells which. Thus, a page that uses only the wire form loses the
-      protocol layer. A spec ID for the pairing lets the check in
-      `test/architecture/test_docs_activity_verbs.py` cite the rule, as DF-09-001 does
-      for the style guide.
+      form alone does not give the protocol meaning: `Accept(Offer(...))`,
+      `TentativeReject(Offer(...))` and `Reject(Offer(...))` mean valid, invalid and
+      closed, and nothing in the wire form tells which. A page that uses only the wire
+      form loses the protocol layer.
     verification: >-
       `test/architecture/test_docs_activity_verbs.py` derives each activity's wire form from the
       registered `ActivityPattern` and fails when a guide's mermaid label or prose states a form no
