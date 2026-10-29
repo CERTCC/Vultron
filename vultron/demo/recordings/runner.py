@@ -45,7 +45,12 @@ from vultron.demo.in_process import (
     create_isolated_actor_app,
     response_value,
 )
-from vultron.demo.recordings.ledgers import canonical_ledger, read_dump
+from vultron.demo.recordings.layout import Recording
+from vultron.demo.recordings.ledgers import (
+    canonical_ledger,
+    read_dump,
+    read_step_marks,
+)
 from vultron.demo.recordings.topology import ContainerTopology, load_topology
 from vultron.demo.scenario.registry import ScenarioSpec
 from vultron.demo.utils import DataLayerClient
@@ -162,7 +167,7 @@ def _one_row_at_a_time(
 
 def record_scenario(
     spec: ScenarioSpec, topology: ContainerTopology | None = None
-) -> str:
+) -> Recording:
     """Run *spec* in this process and return its recording.
 
     Args:
@@ -172,12 +177,14 @@ def record_scenario(
 
     Returns:
         The canonical ledger, as JSONL, once every replica the scenario's
-        ledger dump names has been checked against it.
+        ledger dump names has been checked against it, and the ledger tail at
+        each declared step of its path.
 
     Raises:
         DemoRecordingError: When the scenario's ROLES name an unknown container
-            slot, an actor's ledger is not captured, or a replica disagrees
-            with the canonical ledger.
+            slot, an actor's ledger is not captured, a replica disagrees
+            with the canonical ledger, or the run did not mark every declared
+            step of its path, in order and within the ledger.
         DemoFailureError: When the scenario itself fails.
     """
     topology = topology or load_topology()
@@ -220,4 +227,8 @@ def record_scenario(
                     f"{role.param_stem}_url": url for role, url in urls.items()
                 },
             )
-        return canonical_ledger(spec.name, read_dump(Path(devlogs), spec.name))
+        ledger = canonical_ledger(
+            spec.name, read_dump(Path(devlogs), spec.name)
+        )
+        steps = read_step_marks(Path(devlogs), spec.name, spec.path)
+    return Recording(spec.name, ledger=ledger, steps=steps)

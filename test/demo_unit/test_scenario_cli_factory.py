@@ -82,13 +82,14 @@ _NON_SCENARIO_COMMANDS = frozenset(
 )
 
 #: A role whose ``url_env`` does not name its own role — the asymmetry that makes
-#: the bindings undeclarable from the registry. ``rccv-handoff`` puts C1 in the
-#: Vendor container slot and the Vendor in the Vendor2 slot, because compose
-#: service names are routing labels (DEMOMA, ISSUE-1786).
+#: the bindings undeclarable from the registry. The ``rccv`` scenarios put C1 in
+#: the Coordinator container slot and C2 in the Vendor2 slot, because compose
+#: service names are routing labels (DEMOMA, ISSUE-1786).  Both use the same
+#: slots: the proposer's container sets its case roles, so their ledgers match
+#: up to the owner's decision only that way (DEMOCI-11-017, #4727).
 _SLOT_NOT_ROLE_BINDINGS = {
-    ("rccv-handoff", "c1"): "VULTRON_VENDOR_BASE_URL",
-    ("rccv-handoff", "c2"): "VULTRON_COORDINATOR_BASE_URL",
-    ("rccv-handoff", "vendor"): "VULTRON_VENDOR2_BASE_URL",
+    ("rccv-handoff", "c1"): "VULTRON_COORDINATOR_BASE_URL",
+    ("rccv-handoff", "c2"): "VULTRON_VENDOR2_BASE_URL",
     ("rccv-extension", "c1"): "VULTRON_COORDINATOR_BASE_URL",
     ("rccv-extension", "c2"): "VULTRON_VENDOR2_BASE_URL",
     ("rcvcv", "c1"): "VULTRON_COORDINATOR_BASE_URL",

@@ -3159,11 +3159,14 @@ groups:
     verification_debt: '#2573'
     statement: >-
       The `seed_containers_rcvcv` function MUST create five local actors: Reporter
-      (Person), Coordinator1 (Organization), Vendor1 (Organization), Coordinator2
-      (Organization), and VendorDeployer (Organization).
+      (Person), Coordinator1 (Organization), V1 named Vendor (Organization),
+      Coordinator2 (Organization), and VendorDeployer (Organization).
     rationale: >-
       Each of the five scenario participants requires a typed local actor record
-      in its container's DataLayer before cross-registration.
+      in its container's DataLayer before cross-registration. V1 is named Vendor,
+      as the one Vendor of rcv is, because rcvcv shares rcv's path up to C1's
+      decision and their ledgers must match there, the name included
+      (DEMOCI-11-017).
   - id: DEMOMA-19-013
     priority: MUST
     kind: project

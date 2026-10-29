@@ -37,7 +37,11 @@ Each scenario runs in this process, through its own ``main()``:
   name, and each outbox batch delivers its rows one at a time, so two runs
   give byte-identical recordings.
 
-Output goes to ``ui/src/recordings/<scenario>/case-actor.jsonl``.
+Output goes to ``ui/src/recordings/<scenario>/case-actor.jsonl``, with the
+run's step marks in ``steps.json`` beside it: the ledger tail at each declared
+step of the scenario's path, reported by the scenario to its harness.  The
+shared-prefix check (:mod:`.prefix`) reads them to find where each branch
+point falls in each ledger (DEMOCI-11-017).
 
 Pull requests do not regenerate the recordings, so a recording may lag
 ``main`` for a few days.  The scheduled ``demo-recordings`` workflow runs
@@ -48,8 +52,9 @@ them itself.
 
 The package is grouped by concern: :mod:`.topology` reads the container
 layout, :mod:`.runner` hosts the nodes and runs a scenario, :mod:`.ledgers`
-reads the run's ledger dump and checks the replicas, :mod:`.layout` owns the
-committed files, and :mod:`.cli` is the ``export-demo-recordings`` command.
+reads the run's ledger dump and step marks and checks the replicas,
+:mod:`.layout` owns the committed files, :mod:`.prefix` is the shared-prefix
+check, and :mod:`.cli` is the ``export-demo-recordings`` command.
 
 Usage::
 

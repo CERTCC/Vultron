@@ -48,7 +48,12 @@ from vultron.demo.helpers.actor_roles import (
     role_map,
 )
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
-from vultron.demo.helpers.harness import scenario_harness
+from vultron.demo.helpers.harness import (
+    follow_ledger,
+    reach_step,
+    scenario_harness,
+    step_reporter,
+)
 from vultron.demo.helpers.invite_chain import (
     CaseInviter,
     run_case_invite_chain,
@@ -66,11 +71,10 @@ from vultron.demo.helpers.milestones import (
     verify_publicly_disclosed,
 )
 from vultron.demo.helpers.notes import (
-    WORKAROUND_QUESTION,
     NotePost,
     add_note_thread,
     gated_note_thread,
-    reporter_asks,
+    reporter_asks_vendor_timeline,
 )
 from vultron.demo.helpers.polling import (
     LATE_JOINER_TIMEOUT,
@@ -356,6 +360,9 @@ def _phase_report_submission(
                 case_id=case.id_,
             )
 
+        follow_ledger(case_actor_client, case.id_)
+        reach_step("coordinator-invite-whom", "vendor")
+
         # C1 invites V1 with CVDRole.VENDOR.  Everything that depends on the
         # invite — the delivery gate, V1's accept, the replica waits and V1's
         # RM triage — is nested inside the block that produces what it needs,
@@ -396,11 +403,13 @@ def _phase_report_submission(
                 role=CVDRole.VENDOR,
             ),
             then=_v1_rm_triage,
+            before_answer=step_reporter("vendor-join", "accept"),
         )
 
-        # The Reporter asks, C1 answers and V1 adds its status before C1
-        # decides to invite a second Coordinator: on the scenario tree that
-        # invite is C1's choice after the notes exchange.
+        # The Reporter asks and V1 answers before C1 decides to invite a
+        # second Coordinator: on the scenario tree that invite is C1's choice
+        # after V1's answer.
+        reach_step("reporter-after-join", "ask-vendor")
         v1_note = _phase_notes_exchange(
             reporter_client=reporter_client,
             c1_client=c1_client,
@@ -668,52 +677,38 @@ def _phase_notes_exchange(
     v1_in_v1: as_Actor,
     case: as_VulnerabilityCase,
 ) -> as_Note | None:
-    """The Reporter asks a question, C1 answers and V1 adds its status.
+    """The Reporter asks V1 for its timeline; V1 and C1 answer.
 
-    Runs before C1 invites C2, so C1's branch point (invite a second
-    Coordinator) follows it on the scenario tree.  Each poster acts from its
-    own replica, so the Reporter's question waits on the Reporter's replica
-    and V1's note on V1's, which holds the case only once V1 has joined
-    (DEMOMA-22-001).
+    The thread every scenario taking ``reporter-after-join:ask-vendor`` posts
+    (``rcv`` too), so the two share their ledger up to C1's decision, which
+    follows C1's own note: invite a second Coordinator (DEMOCI-11-017).  Each
+    poster acts from its own replica, and V1's holds the case only once V1
+    has joined, so the thread waits on it; the Reporter's replica holds the
+    case before V1 triages (DEMOMA-22-001).
 
     Returns:
-        V1's note, or ``None`` when it or its gate failed (the failure is
+        C1's note, or ``None`` when it or the gate failed (the failure is
         recorded); the joiners' notes answer it.
     """
     logger.info("─" * 80)
-    logger.info("Notes exchange: Reporter asks, C1 and V1 answer")
+    logger.info("Notes exchange: Reporter asks, V1 and C1 answer")
     logger.info("─" * 80)
 
     reporter_in_reporter = get_actor_by_id(reporter_client, reporter.id_)
-    c1_reply = reporter_asks(
-        ActorSession(client=reporter_client, actor=reporter_in_reporter),
-        c1_client,
-        case,
-        WORKAROUND_QUESTION,
-        [
-            NotePost(
-                ActorSession(client=c1_client, actor=c1_in_c1),
-                "C1 Response",
-                "Yes, disabling the affected module is an effective interim "
-                "workaround.",
-            ),
-        ],
-    )
-    return gated_note_thread(
-        gate="V1's replica holds the case before it adds its status",
+    c1_note = gated_note_thread(
+        gate="V1's replica holds the case before the Reporter asks it",
         replica_client=v1_client,
         watching_client=c1_client,
         case=case,
-        posts=[
-            NotePost(
-                ActorSession(client=v1_client, actor=v1_in_v1),
-                "V1 Status Update",
-                "V1 has reproduced the issue. We will have a fix ready "
-                "within 14 days.",
-            )
-        ],
-        in_reply_to=c1_reply,
+        posts=reporter_asks_vendor_timeline(
+            ActorSession(client=reporter_client, actor=reporter_in_reporter),
+            ActorSession(client=v1_client, actor=v1_in_v1),
+            ActorSession(client=c1_client, actor=c1_in_c1),
+        ),
     )
+    # C1 decides once the thread is answered.
+    reach_step("coordinator-after-answer", "invite-coordinator")
+    return c1_note
 
 
 def _phase_joiner_notes(
@@ -1143,6 +1138,7 @@ def run_rcvcv_demo(
     logger.info("CaseActor container: %s", case_actor_client.base_url)
 
     with scenario_harness("rcvcv") as harness:
+        harness.reach_step("reporter-whom-to-tell", "coordinator")
         (
             reporter,
             c1,

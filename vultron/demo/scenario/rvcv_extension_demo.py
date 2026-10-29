@@ -35,7 +35,11 @@ from vultron.demo.helpers.actor_roles import (
     role_map,
 )
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
-from vultron.demo.helpers.harness import scenario_harness
+from vultron.demo.helpers.harness import (
+    follow_ledger,
+    reach_step,
+    scenario_harness,
+)
 from vultron.demo.helpers.invite_chain import (
     CaseInviter,
     run_case_invite_chain,
@@ -56,6 +60,7 @@ from vultron.demo.helpers.notes import (
     NotePost,
     add_note_thread,
     reporter_asks,
+    vendor_answers_workaround,
 )
 from vultron.demo.helpers.polling import (
     LATE_JOINER_TIMEOUT,
@@ -329,6 +334,8 @@ def _phase_report_submission(
             vendor_in_vendor=vendor_in_vendor,
             case=case,
         )
+        follow_ledger(case_actor_client, case.id_)
+        reach_step("vendor-after-answer", "invite-coordinator")
 
         # Vendor1 invites Coordinator (COORDINATOR role only, not CASE_MANAGER).
         # The chain nests the delivery gate, the accept and the replica wait
@@ -621,11 +628,8 @@ def _phase_notes_exchange(
         case,
         WORKAROUND_QUESTION,
         [
-            NotePost(
-                ActorSession(client=vendor_client, actor=vendor_in_vendor),
-                "Vendor1 Response",
-                "Yes, disabling the affected module is an effective interim "
-                "workaround.",
+            vendor_answers_workaround(
+                ActorSession(client=vendor_client, actor=vendor_in_vendor)
             ),
         ],
     )
@@ -990,6 +994,7 @@ def run_rvcv_extension_demo(
     logger.info("CaseActor container:   %s", case_actor_client.base_url)
 
     with scenario_harness("rvcv-extension") as harness:
+        harness.reach_step("reporter-whom-to-tell", "vendor")
         (
             reporter,
             vendor,
@@ -1036,6 +1041,9 @@ def run_rvcv_extension_demo(
 
         vendor2_in_vendor2 = get_actor_by_id(vendor2_client, vendor2.id_)
 
+        # Vendor1, the case owner, decides before the Coordinator's suggestion
+        # it then accepts (another role's step between decision and trigger).
+        harness.reach_step("owner-keep-case", "keep")
         _phase_coordinator_suggests_vendor2(
             reporter_client=reporter_client,
             vendor_client=vendor_client,

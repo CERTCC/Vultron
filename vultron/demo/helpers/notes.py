@@ -191,10 +191,68 @@ def gated_note_thread(
     return last
 
 
-#: The Reporter's opening question in the rvcv, rccv and rcvcv scenarios.
+#: The Reporter's opening question in the rv, rvv, rvcv, rccv and rcvcv
+#: scenarios.
 WORKAROUND_QUESTION = (
     "Is there a workaround available while the patch is being developed?"
 )
+
+#: The subject of the Vendor's answer to :data:`WORKAROUND_QUESTION`.
+WORKAROUND_ANSWER_NAME = "Vendor Response"
+
+#: The Vendor's answer to :data:`WORKAROUND_QUESTION`.  The rv family asks and
+#: answers before the Vendor's branch point, so its scenarios must post the
+#: same exchange for their shared prefix to match (DEMOCI-11-017).
+WORKAROUND_ANSWER = (
+    "Yes, disabling the affected module is an effective interim workaround."
+)
+
+
+def reporter_asks_vendor_timeline(
+    reporter: ActorSession, vendor: ActorSession, coordinator: ActorSession
+) -> list[NotePost]:
+    """The Reporter asks the Vendor's timeline; the Vendor and Coordinator answer.
+
+    The thread of the ``ask-vendor`` choice at the ``reporter-after-join``
+    branch point.  Every scenario taking that choice posts it before the
+    Coordinator's next decision (``coordinator-after-answer``), which follows
+    the Coordinator's own note, so their shared prefix matches
+    (DEMOCI-11-017).
+
+    Args:
+        reporter: Session in the Reporter's container; posts the question.
+        vendor: Session in the Vendor's container; posts the answer.
+        coordinator: Session in the Coordinator's container, the case owner;
+            posts the summary.
+
+    Returns:
+        The three posts, for :func:`add_note_thread` or
+        :func:`gated_note_thread`.
+    """
+    return [
+        NotePost(
+            reporter,
+            "Question from Reporter",
+            "Could you share the timeline for patch availability with Vendor?",
+        ),
+        NotePost(
+            vendor,
+            "Vendor Status Update",
+            "We have confirmed the issue and are developing a fix. "
+            "Estimated patch availability: 14 days.",
+        ),
+        NotePost(
+            coordinator,
+            "Coordinator Summary",
+            "All three parties engaged. Vendor fix expected in 14 days. "
+            "Embargo holds until patch is deployed.",
+        ),
+    ]
+
+
+def vendor_answers_workaround(vendor: ActorSession) -> NotePost:
+    """The Vendor's answer to :data:`WORKAROUND_QUESTION`, as a thread post."""
+    return NotePost(vendor, WORKAROUND_ANSWER_NAME, WORKAROUND_ANSWER)
 
 
 def reporter_asks(

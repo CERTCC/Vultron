@@ -59,6 +59,10 @@ logger = logging.getLogger(__name__)
 DUMP_MANIFEST_FILENAME = "dump-manifest.json"
 """Name of the per-scenario manifest written on every dump attempt."""
 
+STEP_MARKS_FILENAME = "step-marks.json"
+"""Name of the per-scenario file recording where each declared step fell in
+the canonical ledger (written by the scenario harness, DEMOCI-11-017)."""
+
 #: Repo root, used to resolve the default ``devlogs/`` directory. This module
 #: lives at ``vultron/demo/helpers/ledger_dump.py`` → ``parents[3]`` is the
 #: repository root.
@@ -367,6 +371,34 @@ def _fetch_entries(
             actor_name,
         )
         return []
+
+
+def case_ledger_length(
+    case_actor_client: DataLayerClient, case_id: str
+) -> int:
+    """Return how many entries the canonical ledger of *case_id* holds now.
+
+    Reads the CaseActor's own ledger, the canonical one (DEMOMA-06-005),
+    through the same route :func:`dump_case_ledgers` exports it from.  Unlike
+    the dump, a 404 is not read as an empty ledger: the case exists when a
+    scenario follows its ledger, so a 404 means the client or the case is
+    wrong, and a tail of 0 would mark the step at the wrong place.
+
+    Args:
+        case_actor_client: Client for the dedicated case-actor container,
+            bound to its CaseActor.
+        case_id: The case whose ledger is read.
+
+    Raises:
+        httpx.HTTPStatusError: When the container answers with an error,
+            a 404 included.
+    """
+    route_key = replica_route_key(case_actor_client, CASE_ACTOR_SLUG)
+    return len(
+        case_actor_client.get_list(
+            f"/actors/{route_key}/demo/cases/{strip_id_prefix(case_id)}/log"
+        )
+    )
 
 
 def _write_ledger_file(

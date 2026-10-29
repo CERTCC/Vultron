@@ -39,20 +39,52 @@ from vultron.adapters.driving.fastapi.outbox_lanes import (
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.demo.helpers.actor_roles import ActorRole
+from vultron.demo.helpers.harness import StepMark
 from vultron.demo.in_process import InProcessRouter
-from vultron.demo.recordings import cli, layout, ledgers as ledger_dump, runner
-from vultron.demo.recordings.layout import RECORDINGS_DIR, write_recording
+from vultron.demo.recordings import (
+    cli,
+    layout,
+    ledgers as ledger_dump,
+    prefix,
+    runner,
+)
+from vultron.demo.recordings.layout import (
+    RECORDINGS_DIR,
+    Recording,
+    write_recording,
+)
 from vultron.demo.recordings.topology import (
     REPO_ROOT,
     ContainerTopology,
     load_topology,
 )
-from vultron.demo.scenario.registry import discover_scenarios
+from vultron.demo.scenario.registry import (
+    ScenarioSpec,
+    discover_scenarios,
+    scenario_tree,
+)
 from vultron.demo.utils import DataLayerClient
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoRecordingError
 
 SYNTHETIC_DIR = REPO_ROOT / "ui" / "src" / "synthetic-ledgers"
+
+
+def _spec(name: str) -> ScenarioSpec:
+    return next(spec for spec in discover_scenarios() if spec.name == name)
+
+
+def _marks(spec: ScenarioSpec, *tails: int) -> tuple[StepMark, ...]:
+    """Marks for *spec*'s declared steps, at *tails* in order."""
+    return tuple(
+        StepMark(branch_point, choice, tail)
+        for (branch_point, choice), tail in zip(spec.path, tails, strict=True)
+    )
+
+
+def _stub_recording(name: str) -> Recording:
+    """The recording a stubbed run of *name* returns: one line, no marks."""
+    return Recording(name, f"{name}\n", ())
 
 
 def _ledger_files() -> list[Path]:
@@ -196,16 +228,22 @@ class TestLayoutProblems:
         for name in ("rv", "retired"):
             (tmp_path / name).mkdir()
             (tmp_path / name / "case-actor.jsonl").write_text("{}\n")
+            (tmp_path / name / "steps.json").write_text('{"steps": []}\n')
         (tmp_path / "rvv").mkdir()
         (tmp_path / "rvv" / "vendor.jsonl").write_text("{}\n")
+        (tmp_path / "rcv").mkdir()
+        (tmp_path / "rcv" / "case-actor.jsonl").write_text("{}\n")
         return tmp_path
 
     def test_each_disagreement_is_named(self, recorded):
-        assert layout.layout_problems(("rv", "rvv", "rcv")) == [
-            "rcv: registered but not recorded",
+        assert layout.layout_problems(("rv", "rvv", "rcv", "rcvcv")) == [
+            "rcvcv: registered but not recorded",
             "retired: recorded but not a registered scenario",
+            "rcv: has no steps.json",
             "rvv: has no case-actor.jsonl",
-            "rvv: holds files other than case-actor.jsonl: ['vendor.jsonl']",
+            "rvv: has no steps.json",
+            "rvv: holds files other than case-actor.jsonl and steps.json: "
+            "['vendor.jsonl']",
         ]
 
     def test_the_check_option_fails_on_a_disagreement(self, recorded):
@@ -279,16 +317,47 @@ class TestReadDump:
 
 
 class TestWriteRecording:
-    def test_only_the_canonical_ledger_is_left(self, tmp_path, monkeypatch):
+    def test_only_the_ledger_and_its_steps_are_left(
+        self, tmp_path, monkeypatch
+    ):
         monkeypatch.setattr(layout, "RECORDINGS_DIR", tmp_path)
         (tmp_path / "rv").mkdir()
         (tmp_path / "rv" / "vendor.jsonl").write_text("old\n")
-        path = write_recording("rv", "c\n")
+        path = write_recording(
+            Recording(
+                "rv", "c\n", (StepMark("reporter-whom-to-tell", "vendor", 0),)
+            )
+        )
         assert path == tmp_path / "rv" / "case-actor.jsonl"
         assert sorted(p.name for p in (tmp_path / "rv").iterdir()) == [
-            "case-actor.jsonl"
+            "case-actor.jsonl",
+            "steps.json",
         ]
         assert path.read_text() == "c\n"
+        assert json.loads((tmp_path / "rv" / "steps.json").read_text()) == {
+            "steps": [
+                {
+                    "branchPoint": "reporter-whom-to-tell",
+                    "choice": "vendor",
+                    "ledgerTail": 0,
+                }
+            ]
+        }
+
+    def test_a_written_recording_reads_back(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(layout, "RECORDINGS_DIR", tmp_path)
+        spec = _spec("rv")
+        recording = Recording("rv", "a\nb\n", _marks(spec, 0, 2))
+        write_recording(recording)
+        assert layout.read_recording("rv", spec.path) == recording
+        assert layout.is_current(recording)
+        assert not layout.is_current(
+            Recording("rv", "a\nb\n", _marks(spec, 0, 1))
+        )
+
+    def test_a_step_past_the_ledger_is_refused(self):
+        with pytest.raises(DemoRecordingError, match="past the 1 entries"):
+            Recording("rv", "a\n", _marks(_spec("rv"), 0, 2))
 
 
 def _line(index: int, tag: str = "") -> str:
@@ -444,7 +513,7 @@ class TestCli:
         monkeypatch.setattr(
             cli,
             "record_scenario",
-            lambda spec, _topology: f"{spec.name}\n",
+            lambda spec, _topology: _stub_recording(spec.name),
         )
         result = CliRunner().invoke(cli.main, ["--scenario", "rv"])
         assert result.exit_code == 0, result.output
@@ -467,10 +536,10 @@ class TestCli:
         monkeypatch.setattr(
             cli,
             "record_scenario",
-            lambda spec, _topology: f"{spec.name}\n",
+            lambda spec, _topology: _stub_recording(spec.name),
         )
         for name in ("rv", "rvv"):
-            write_recording(name, f"{name}\n")
+            write_recording(_stub_recording(name))
         return tmp_path
 
     def test_report_changes_passes_when_nothing_changed(self, stubbed):
@@ -478,7 +547,7 @@ class TestCli:
         assert result.exit_code == 0, result.output
 
     def test_report_changes_names_a_changed_recording(self, stubbed):
-        write_recording("rvv", "an older run\n")
+        write_recording(Recording("rvv", "an older run\n", ()))
         result = CliRunner().invoke(cli.main, ["--report-changes"])
         assert result.exit_code == cli.CHANGED_EXIT_CODE
         assert "Changed recordings: rvv" in result.output
@@ -486,13 +555,13 @@ class TestCli:
         assert layout.recording_path("rvv").read_text() == "rvv\n"
 
     def test_report_changes_counts_a_removed_scenario(self, stubbed):
-        write_recording("retired", "x\n")
+        write_recording(Recording("retired", "x\n", ()))
         result = CliRunner().invoke(cli.main, ["--report-changes"])
         assert result.exit_code == cli.CHANGED_EXIT_CODE
         assert "Changed recordings: retired" in result.output
 
     def test_without_report_changes_a_change_still_exits_zero(self, stubbed):
-        write_recording("rv", "an older run\n")
+        write_recording(Recording("rv", "an older run\n", ()))
         result = CliRunner().invoke(cli.main, [])
         assert result.exit_code == 0, result.output
 
@@ -510,9 +579,336 @@ class TestCli:
         monkeypatch.setattr(
             cli,
             "record_scenario",
-            lambda spec, _topology: f"{spec.name}\n",
+            lambda spec, _topology: _stub_recording(spec.name),
         )
         result = CliRunner().invoke(cli.main, [])
         assert result.exit_code == 0, result.output
         assert sorted(p.name for p in tmp_path.iterdir()) == ["rv", "rvv"]
         assert (tmp_path / "rvv" / "case-actor.jsonl").read_text() == "rvv\n"
+
+
+class TestParseStepMarks:
+    PATH = (("reporter-whom-to-tell", "vendor"), ("vendor-after-answer", "x"))
+
+    @staticmethod
+    def _text(*steps: tuple[str, str, object]) -> str:
+        return json.dumps(
+            {
+                "steps": [
+                    {"branchPoint": bp, "choice": choice, "ledgerTail": tail}
+                    for bp, choice, tail in steps
+                ]
+            }
+        )
+
+    def test_marks_that_cover_the_path_are_returned(self):
+        marks = ledger_dump.parse_step_marks(
+            self._text(
+                ("reporter-whom-to-tell", "vendor", 0),
+                ("vendor-after-answer", "x", 4),
+            ),
+            "rv",
+            self.PATH,
+        )
+        assert marks == (
+            StepMark("reporter-whom-to-tell", "vendor", 0),
+            StepMark("vendor-after-answer", "x", 4),
+        )
+
+    def test_a_missing_step_is_refused(self):
+        with pytest.raises(DemoRecordingError, match="reach_step"):
+            ledger_dump.parse_step_marks(
+                self._text(("reporter-whom-to-tell", "vendor", 0)),
+                "rv",
+                self.PATH,
+            )
+
+    def test_steps_out_of_order_are_refused(self):
+        with pytest.raises(DemoRecordingError, match="declared path"):
+            ledger_dump.parse_step_marks(
+                self._text(
+                    ("vendor-after-answer", "x", 0),
+                    ("reporter-whom-to-tell", "vendor", 4),
+                ),
+                "rv",
+                self.PATH,
+            )
+
+    @pytest.mark.parametrize("tails", [(4, 2), (0, -1), (0, "4"), (0, True)])
+    def test_a_tail_that_is_not_a_rising_count_is_refused(self, tails):
+        with pytest.raises(DemoRecordingError, match="ledger tails"):
+            ledger_dump.parse_step_marks(
+                self._text(
+                    ("reporter-whom-to-tell", "vendor", tails[0]),
+                    ("vendor-after-answer", "x", tails[1]),
+                ),
+                "rv",
+                self.PATH,
+            )
+
+    @pytest.mark.parametrize("text", ["not json", "{}", '{"steps": [{}]}'])
+    def test_malformed_marks_are_refused(self, text):
+        with pytest.raises(DemoRecordingError, match="not readable"):
+            ledger_dump.parse_step_marks(text, "rv", self.PATH)
+
+    def test_a_mark_round_trips_through_its_json_shape(self):
+        mark = StepMark("vendor-after-answer", "x", 4)
+        assert StepMark.from_json(mark.as_json()) == mark
+
+    def test_a_run_without_marks_is_refused(self, tmp_path):
+        with pytest.raises(DemoRecordingError, match="left no step marks"):
+            ledger_dump.read_step_marks(tmp_path, "rv", self.PATH)
+
+
+def _entry(index: int, actor: str, obj: str, kind: str = "Add") -> dict:
+    """A ledger-entry-shaped fixture: *actor* does *kind* to *obj*."""
+    return {
+        "id": f"urn:uuid:00000000-0000-4000-8000-{index:012d}",
+        "logIndex": index,
+        "published": f"2026-01-01T00:00:0{index}+00:00",
+        "payloadSnapshot": {
+            "type": kind,
+            "actor": actor,
+            "object": obj,
+            "name": f"{actor} {kind} {obj}",
+        },
+    }
+
+
+#: Two sets of addresses for the same three objects, as two sibling scenarios
+#: seeded with different slots and ids would give them.
+_FIRST = (
+    "http://vendor:7999/api/v2/actors/a",
+    "urn:uuid:" + "1" * 8 + "-1111-4111-8111-" + "1" * 12,
+)
+_SECOND = (
+    "http://actor5:7999/api/v2/actors/b",
+    "urn:uuid:" + "2" * 8 + "-2222-4222-8222-" + "2" * 12,
+)
+
+
+class TestIsomorphism:
+    """The shared-prefix check's comparison (DEMOCI-11-017)."""
+
+    def test_the_same_story_at_other_addresses_is_isomorphic(self):
+        actor, case = _FIRST
+        other_actor, other_case = _SECOND
+        first = [_entry(0, actor, case), _entry(1, actor, case, "Join")]
+        second = [
+            _entry(0, other_actor, other_case),
+            _entry(1, other_actor, other_case, "Join"),
+        ]
+        # Shift the second ledger's own ids and clock, too.
+        for entry in second:
+            entry["id"] = entry["id"].replace("8000", "9000")
+            entry["published"] = "2026-03-04T05:06:07.890000+00:00"
+        assert prefix.isomorphism_mismatch(first, second) is None
+
+    def test_a_reordered_step_is_not_isomorphic(self):
+        actor, case = _FIRST
+        first = [
+            _entry(0, actor, case, "Offer"),
+            _entry(1, actor, case, "Join"),
+        ]
+        second = [
+            _entry(0, actor, case, "Join"),
+            _entry(1, actor, case, "Offer"),
+        ]
+        mismatch = prefix.isomorphism_mismatch(first, second)
+        assert mismatch is not None and mismatch.startswith("entry 0 differs")
+
+    def test_references_that_map_inconsistently_are_not_isomorphic(self):
+        actor, case = _FIRST
+        other_actor, other_case = _SECOND
+        # The first ledger acts on one case twice; the second on two cases.
+        first = [_entry(0, actor, case), _entry(1, actor, case)]
+        second = [
+            _entry(0, other_actor, other_case),
+            _entry(1, other_actor, actor),
+        ]
+        mismatch = prefix.isomorphism_mismatch(first, second)
+        assert mismatch is not None and mismatch.startswith("entry 1 differs")
+
+    def test_an_id_inside_a_string_and_a_key_maps_with_the_rest(self):
+        actor, case = _FIRST
+        other_actor, other_case = _SECOND
+        first = [{"index": {actor: case}, "name": f"{actor} owns {case}"}]
+        second = [
+            {
+                "index": {other_actor: other_case},
+                "name": f"{other_actor} owns {other_case}",
+            }
+        ]
+        swapped = [
+            {
+                "index": {other_actor: other_case},
+                "name": f"{other_case} owns {other_actor}",
+            }
+        ]
+        assert prefix.isomorphism_mismatch(first, second) is None
+        assert prefix.isomorphism_mismatch(first, swapped) is not None
+
+    def test_a_named_participant_id_maps_like_a_uuid_one(self):
+        _, case = _FIRST
+        uuid = "3" * 8 + "-3333-4333-8333-" + "3" * 12
+        named = [{"participant": f"{case}/participants/vendor"}]
+        unnamed = [{"participant": f"{case}/participants/{uuid}"}]
+        assert prefix.isomorphism_mismatch(named, unnamed) is None
+
+    def test_different_literal_text_is_not_isomorphic(self):
+        actor, case = _FIRST
+        first = [_entry(0, actor, case)]
+        second = [_entry(0, actor, case)]
+        second[0]["payloadSnapshot"]["content"] = "a different note"
+        mismatch = prefix.isomorphism_mismatch(first, second)
+        assert mismatch is not None and "content" in mismatch
+
+    def test_a_longer_prefix_is_not_isomorphic(self):
+        actor, case = _FIRST
+        first = [_entry(0, actor, case)]
+        second = [_entry(0, actor, case), _entry(1, actor, case)]
+        mismatch = prefix.isomorphism_mismatch(first, second)
+        assert mismatch is not None and "1 and 2 entries" in mismatch
+
+
+class TestByteIdentity:
+    """The composed families' comparison (DEMOCI-11-018)."""
+
+    def test_identical_prefixes_pass(self):
+        assert prefix.byte_mismatch(["a", "b"], ["a", "b"]) is None
+
+    def test_one_byte_before_the_branch_point_fails(self):
+        mismatch = prefix.byte_mismatch(['{"x": 1}', "b"], ['{"x": 2}', "b"])
+        assert mismatch == "entry 0 differs from byte 6 on."
+
+    def test_an_isomorphic_pair_is_not_byte_identical(self):
+        actor, case = _FIRST
+        other_actor, other_case = _SECOND
+        first = [json.dumps(_entry(0, actor, case))]
+        second = [json.dumps(_entry(0, other_actor, other_case))]
+        assert prefix.byte_mismatch(first, second) is not None
+
+    def test_a_longer_prefix_fails(self):
+        assert prefix.byte_mismatch(["a"], ["a", "b"]) == (
+            "the prefixes hold 1 and 2 entries."
+        )
+
+
+def _committed(name: str) -> Recording:
+    return layout.read_recording(name, _spec(name).path)
+
+
+class TestSharedPrefixes:
+    """Every two scenarios agree up to where their paths part (DEMOCI-11-017)."""
+
+    def test_every_pair_of_scenarios_is_checked(self):
+        names = {spec.name for spec in discover_scenarios()}
+        pairs = prefix.shared_prefixes(scenario_tree())
+        assert len(pairs) == len(names) * (len(names) - 1) // 2
+        assert {p.first for p in pairs} | {p.second for p in pairs} == names
+
+    def test_the_depth_is_where_the_paths_part(self):
+        by_id = {p.id: p for p in prefix.shared_prefixes(scenario_tree())}
+        assert "rv~rvv@1" in by_id
+        assert "rcv~rv@0" in by_id
+        assert "rvcv-extension~rvcv-handoff@2" in by_id
+
+    @pytest.mark.parametrize(
+        "name", sorted(spec.name for spec in discover_scenarios())
+    )
+    def test_each_recording_marks_its_declared_steps(self, name):
+        recording = _committed(name)
+        assert [(m.branch_point, m.choice) for m in recording.steps] == list(
+            _spec(name).path
+        )
+
+    @pytest.mark.parametrize(
+        "pair",
+        prefix.shared_prefixes(scenario_tree()),
+        ids=lambda pair: pair.id,
+    )
+    def test_the_ledgers_are_isomorphic_up_to_the_branch_point(self, pair):
+        mismatch = prefix.pair_isomorphism_mismatch(
+            pair, _committed(pair.first), _committed(pair.second)
+        )
+        assert mismatch is None, (
+            f"{pair.first} and {pair.second} share their path for "
+            f"{pair.depth} steps, but their ledgers differ before "
+            f"{_spec(pair.first).path[pair.depth][0]}: {mismatch} "
+            f"Regenerate with {cli.REGENERATE_COMMAND} after fixing the order."
+        )
+
+    def test_a_missing_committed_recording_names_the_command(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(layout, "RECORDINGS_DIR", tmp_path)
+        with pytest.raises(DemoRecordingError, match="export-demo-recordings"):
+            layout.read_recording("rv", _spec("rv").path)
+
+
+#: Two fixture recordings of rv's path: the root at 0, the Vendor's decision
+#: after two entries, then one entry each that differs.
+_RV_MARKS = (
+    StepMark("reporter-whom-to-tell", "vendor", 0),
+    StepMark("vendor-after-answer", "report-fix-ready", 2),
+)
+
+
+def _fixture(name: str, lines: list[str]) -> Recording:
+    return Recording(name, "".join(f"{line}\n" for line in lines), _RV_MARKS)
+
+
+class TestComposedFamilies:
+    """A composed family is byte-identical up to the branch point (DEMOCI-11-018)."""
+
+    # Parametrizes over no pair until the first family is written as
+    # composition (#4733) and named in COMPOSED_FAMILIES: until then every
+    # sibling seeds its own actor ids, slots and ports, so only the
+    # isomorphism above can hold.  pytest reports the empty set as one skip.
+    @pytest.mark.parametrize(
+        "pair",
+        prefix.composed_pairs(prefix.shared_prefixes(scenario_tree())),
+        ids=lambda pair: pair.id,
+    )
+    def test_the_ledgers_are_byte_identical_up_to_the_branch_point(self, pair):
+        mismatch = prefix.pair_byte_mismatch(
+            pair, _committed(pair.first), _committed(pair.second)
+        )
+        assert mismatch is None, (
+            f"{pair.first} and {pair.second} are one composed family, but "
+            f"their ledgers differ before the branch point: {mismatch}"
+        )
+
+    def test_every_composed_family_names_registered_scenarios(self):
+        names = {spec.name for spec in discover_scenarios()}
+        for family in prefix.COMPOSED_FAMILIES:
+            assert len(family) >= 2 and family <= names, family
+
+    def test_only_pairs_inside_one_family_are_selected(self):
+        pairs = prefix.shared_prefixes(scenario_tree())
+        selected = prefix.composed_pairs(
+            pairs, [frozenset({"rv", "rvv"}), frozenset({"rcv", "rcv-reject"})]
+        )
+        assert [pair.id for pair in selected] == [
+            "rcv~rcv-reject@2",
+            "rv~rvv@1",
+        ]
+
+    def test_a_marked_family_pair_one_byte_apart_fails(self):
+        (pair,) = prefix.composed_pairs(
+            prefix.shared_prefixes(scenario_tree()), [frozenset({"rv", "rvv"})]
+        )
+        first = _fixture("rv", ['{"a": 1}', '{"b": 2}', '{"rv": 3}'])
+        second = _fixture("rvv", ['{"a": 1}', '{"b": 3}', '{"rvv": 3}'])
+        assert prefix.pair_byte_mismatch(pair, first, second) == (
+            "entry 1 differs from byte 6 on."
+        )
+
+    def test_a_marked_family_pair_that_differs_after_the_branch_passes(self):
+        (pair,) = prefix.composed_pairs(
+            prefix.shared_prefixes(scenario_tree()), [frozenset({"rv", "rvv"})]
+        )
+        first = _fixture("rv", ['{"a": 1}', '{"b": 2}', '{"rv": 3}'])
+        second = _fixture("rvv", ['{"a": 1}', '{"b": 2}', '{"rvv": 3}'])
+        assert prefix.pair_byte_mismatch(pair, first, second) is None
+        assert prefix.pair_isomorphism_mismatch(pair, first, second) is None

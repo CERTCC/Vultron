@@ -1092,27 +1092,28 @@ class TestNotesExchangePrecedesC2Invite(_Helpers):
 
 
 class TestNotesExchangeGatesEachPosterOnItsReplica(_Helpers):
-    """#4759: V1's note waits on V1's replica, not only the Reporter's.
+    """#4759: the notes thread waits on V1's replica, not only the Reporter's.
 
-    The exchange now runs inside phase 1, right after V1's invite chain, so a
-    failed chain must skip V1's note instead of posting from a replica that
-    does not hold the case (DEMOMA-22-001).
+    The exchange runs inside phase 1, right after V1's invite chain, so a
+    failed chain must skip V1's answer instead of posting from a replica that
+    does not hold the case (DEMOMA-22-001).  The thread is the one ``rcv``
+    posts at the same point of the tree: the Reporter asks, V1 answers, C1
+    sums up, then C1 decides (DEMOCI-11-017, #4727).
     """
 
     @pytest.mark.spec("DEMOMA-22-001")
-    def test_reporter_thread_then_v1_note_each_gated(self) -> None:
+    def test_one_thread_gated_on_v1s_replica(self) -> None:
         reporter_client, c1_client, v1_client = (
             self._client(),
             self._client(),
             self._client(),
         )
-        c1_reply, v1_note = MagicMock(), MagicMock()
+        c1_note = MagicMock()
 
         with (
             patch.object(demo, "get_actor_by_id"),
-            patch.object(demo, "reporter_asks", return_value=c1_reply) as asks,
             patch.object(
-                demo, "gated_note_thread", return_value=v1_note
+                demo, "gated_note_thread", return_value=c1_note
             ) as gated,
         ):
             result = demo._phase_notes_exchange(
@@ -1125,13 +1126,14 @@ class TestNotesExchangeGatesEachPosterOnItsReplica(_Helpers):
                 case=self._case(),
             )
 
-        (reporter_session, *_), _ = asks.call_args
-        assert reporter_session.client is reporter_client
-        (second,) = gated.call_args_list
-        assert second.kwargs["replica_client"] is v1_client
-        assert [p.poster.client for p in second.kwargs["posts"]] == [v1_client]
-        assert second.kwargs["in_reply_to"] is c1_reply
-        assert result is v1_note
+        (thread,) = gated.call_args_list
+        assert thread.kwargs["replica_client"] is v1_client
+        assert [p.poster.client for p in thread.kwargs["posts"]] == [
+            reporter_client,
+            v1_client,
+            c1_client,
+        ]
+        assert result is c1_note
 
 
 # ---------------------------------------------------------------------------
