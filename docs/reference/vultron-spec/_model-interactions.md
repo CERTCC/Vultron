@@ -166,8 +166,7 @@ whether to adopt it as canonical.
 
 **Who authorizes adoption.**
 The CASE_MANAGER adopts a Case Owner's report without seeking approval.
-Asking the Case Owner to approve its own report would be circular
-([§13.4.4 Case Owner Authority](conformance.md#1344-case-owner-authority)).
+The Case Owner is the party whose authorization the other reports need, so asking it to approve its own report would be circular.
 For every other sender, the CASE_MANAGER obtains Case Owner authorization before it adopts the report as canonical case state.
 This is the default posture, and it is deliberate: without it, any admitted participant could force a change to canonical case state.
 
