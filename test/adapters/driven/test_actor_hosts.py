@@ -37,8 +37,18 @@ from vultron.adapters.driven.actor_hosts import (
     local_actor_id,
     storage_ready,
 )
+from vultron.adapters.driven.datalayer_sqlite import (
+    dispose_actor_engines,
+    get_datalayer,
+)
+from vultron.adapters.driven.datalayer_sqlite.engine import scratch_memory_url
 
 _BASE = "https://example.org/api/v2"
+
+
+def _memory_template(name: str) -> str:
+    """A named in-memory deployment template, as ``create_app`` builds one."""
+    return f"sqlite:///file:{name}?mode=memory&cache=shared&uri=true"
 
 
 class TestCanonicalActorUri:
@@ -184,8 +194,8 @@ class TestHostedActorSlugs:
             set()
         )
 
-    def test_an_in_memory_url_has_no_files_to_enumerate(self):
-        assert hosted_actor_slugs("sqlite:///:memory:") == set()
+    def test_an_in_memory_deployment_with_no_open_store_hosts_nothing(self):
+        assert hosted_actor_slugs(_memory_template("never-opened")) == set()
 
     def test_a_url_with_no_location_yields_nothing(self):
         assert hosted_actor_slugs("sqlite://") == set()
@@ -202,16 +212,59 @@ class TestHostedActorIds:
             f"{_BASE}/{ACTORS_SEGMENT}/vendor",
         ]
 
-    def test_uses_the_instance_registry_in_memory_mode(self):
-        """An in-memory store exists only while an instance holds it open."""
-        with patch(
-            "vultron.adapters.driven.actor_hosts.get_all_actor_datalayers",
-            return_value={"b-actor": object(), "a-actor": object()},
-        ):
-            assert hosted_actor_ids("sqlite:///:memory:", _BASE) == [
-                "a-actor",
-                "b-actor",
-            ]
+    def test_lists_the_open_stores_of_an_in_memory_deployment(self):
+        """An in-memory store exists only while it is open (DL-07-011)."""
+        template = _memory_template("hosts-solo")
+        for slug in ("vendor", "finder"):
+            get_datalayer(canonical_actor_uri(slug, _BASE), db_url=template)
+        assert hosted_actor_ids(template, _BASE) == [
+            f"{_BASE}/{ACTORS_SEGMENT}/finder",
+            f"{_BASE}/{ACTORS_SEGMENT}/vendor",
+        ]
+
+    def test_two_in_memory_deployments_each_list_only_their_own(self):
+        """Two nodes in one process do not see each other's actors (DL-07-013).
+
+        Both host a ``case-actor``, so the slug alone is not what separates
+        them: each node's list is read from its own deployment and mapped
+        through its own base URL (DL-07-012).
+        """
+        base_a, base_b = (
+            "http://node-a.test/api/v2",
+            "http://node-b.test/api/v2",
+        )
+        template_a = _memory_template("hosts-node-a")
+        template_b = _memory_template("hosts-node-b")
+        for slug in ("vendor", "case-actor"):
+            get_datalayer(canonical_actor_uri(slug, base_a), db_url=template_a)
+        for slug in ("finder", "case-actor"):
+            get_datalayer(canonical_actor_uri(slug, base_b), db_url=template_b)
+
+        assert hosted_actor_ids(template_a, base_a) == [
+            f"{base_a}/{ACTORS_SEGMENT}/case-actor",
+            f"{base_a}/{ACTORS_SEGMENT}/vendor",
+        ]
+        assert hosted_actor_ids(template_b, base_b) == [
+            f"{base_b}/{ACTORS_SEGMENT}/case-actor",
+            f"{base_b}/{ACTORS_SEGMENT}/finder",
+        ]
+
+    def test_excludes_scratch_stores(self):
+        """A scratch store is not an actor's store, though it is open here."""
+        template = _memory_template("hosts-scratch")
+        vendor_id = canonical_actor_uri("vendor", _BASE)
+        get_datalayer(vendor_id, db_url=template)
+        get_datalayer(
+            vendor_id, db_url=scratch_memory_url(template, "rebuild")
+        )
+        assert hosted_actor_ids(template, _BASE) == [vendor_id]
+
+    def test_a_closed_in_memory_store_is_no_longer_hosted(self):
+        """Disposing a deployment drops its stores, so it hosts nothing."""
+        template = _memory_template("hosts-closed")
+        get_datalayer(canonical_actor_uri("vendor", _BASE), db_url=template)
+        dispose_actor_engines(template)
+        assert hosted_actor_ids(template, _BASE) == []
 
     def test_output_is_sorted(self, tmp_path):
         for name in ("mydb-c.sqlite", "mydb-a.sqlite", "mydb-b.sqlite"):

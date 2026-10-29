@@ -43,9 +43,11 @@ implement against `proposed` ADRs (the human touch is the epoch-2 ask, ADR-0120)
 
 Agents MUST NOT: introduce breaking API changes, modify auth/crypto logic,
 change persistence schemas without explicit instruction, touch CI/deployment/secrets.
+**Crypto carve-out (ADR-0164):** agents MAY build the prototype's seeded-key signing
+and verification (epic #1156); production key handling (#1184) stays excluded, and
+a crypto PR waits for human review before merge.
 
-Small tweaks don't require an ADR; architectural/protocol changes SHOULD have one
-before merging. See `docs/adr/_adr-template.md`.
+Small tweaks need no ADR; architectural/protocol changes SHOULD have one before merging.
 
 ---
 
@@ -139,8 +141,8 @@ when available. See `specs/structured-logging.yaml`.
 
 ---
 
-> **Specification-Driven Development** has moved to `specs/AGENTS.md`.
-> **Testing Expectations** has moved to `test/AGENTS.md`.
+> **Specification-Driven Development** and **Specification Usage Guidance** have
+> moved to `specs/AGENTS.md`; **Testing Expectations** to `test/AGENTS.md`.
 
 ## Quick Reference
 
@@ -183,8 +185,8 @@ For non-trivial changes: state assumptions → load governing specs (`deepen-con
 review `notes/` → describe intent → apply minimal diff → update/add tests →
 call out risks.
 
-For architectural changes, draft an ADR first (it may be `proposed`; implement
-against it, ADR-0120). Use the decision-tree in
+For architectural changes, draft an ADR first from `docs/adr/_adr-template.md` (it
+may be `proposed`; implement against it, ADR-0120). Use the decision-tree in
 `notes/specs-vs-adrs.md` (MS-11-001 through MS-11-006) to decide ADR vs. spec
 entry vs. both.
 
@@ -228,8 +230,6 @@ Multiple agents use named git worktree **slots**. See
 
 ---
 
-> **Specification Usage Guidance** has moved to `specs/AGENTS.md`.
->
 ## Safety & Guardrails
 
 - Treat anything under `/security`, `/auth`, or equivalent paths as sensitive
@@ -296,7 +296,7 @@ linked file before touching that area. New pitfalls MUST be routed per
 | Spec/notes/ADR/history tooling | [`vultron/metadata/AGENTS.md`](vultron/metadata/AGENTS.md), [agentic-workflow](notes/agentic-workflow.md) | learning filename slug ≠ `source` (BW-01-003, #1857); loaders name failing files `path:line:col` via `file_loading.py` (MS-17) — YAML errors aren't `ValueError`; pre-code spec needs `lint_suppress: [phantom_path_ref]` |
 | git / branches / PRs | [git-workflow-pitfalls](notes/git-workflow-pitfalls.md) | false-positive rebase "local changes"; conflict-free ≠ working merge; integration branches for related fixes; re-check ADR numbers; verify ACs on `origin/main`, always `Closes #N`, prose ACs skip the pre-claim gate (#1907) |
 | Issue themes / epic scope | [epic-themes](notes/epic-themes.md) | one `theme:` per leaf, judged from its own outcome, never copied from the parent; an Epic's children share its theme; `Theme: <label> — <outcome>` body line; labels come only from the catalog block via `theme-labels`, which never deletes; `theme-fit` reports every breach, read-only (PAD-02-014–021) |
-| GH Actions / CI YAML | [ci-workflow-authoring](notes/ci-workflow-authoring.md) | red job ≠ assertions ran, all-skipped = green; `notify-failure` mandatory (CISEC-05); bare `on:` → `True`; matrix booleans job vs. step; `python3 -c` breaks `actionlint`; YAML apostrophes |
+| GH Actions / CI YAML | [ci-workflow-authoring](notes/ci-workflow-authoring.md) | red job ≠ assertions ran, all-skipped = green; `notify-failure` mandatory (CISEC-05); bare `on:` → `True`; matrix booleans job vs. step; `python3 -c` breaks `actionlint`; YAML apostrophes; artifact names carry `run_attempt`; GitHub writes via `retry.sh`, label swaps split (#4577, #4524) |
 | Spec authoring | [spec-authoring-rules](notes/spec-authoring-rules.md) | strict `kind`/`priority`/`rel_type` enums, a link recorded at one end only (SR-13); `adr:` not `references:`; `kind: protocol` needs marker test or strict `xfail`; CASE_MANAGER not "CaseActor" (ADR-0088); item format = field presence, not `isinstance` (ADR-0101); advisories need an owner and a terminal state |
 | Specs vs. ADRs, doc drift | [specs-vs-adrs](notes/specs-vs-adrs.md), [documentation-sweeps](notes/documentation-sweeps.md) | an ADR is a historical record — a refactor never obliges an ADR edit, an aged code reference in a body is not a defect and no scrub is owed, live constraints go to a spec or note citing it as provenance, and neither may dereference an ADR body (ADR-0127); ADR "what is removed" is scoped to one use; no counts in long-lived docs (MS-16-001); moving a claim ≠ verifying it, share by `include-markdown` fragment (DF-10-001/002) |
 | Tests | [testing-pitfalls](notes/testing-pitfalls.md), [`test/AGENTS.md`](test/AGENTS.md) | killed run reads exit 0 under `tail -5`; vacuous assertions; "falls back to" on malformed input asserts a bug; process-global blackboard/registries; `caplog` catches fixture setup; a timeout trip fails one test, the method not the ceiling (#3603); a dead xdist worker fails the run and gate exit 124 is a hang (#4809); directory-hook markers checked over real collection (#3604); a two-sided count pin races concurrent PRs, keep a per-item record (#3984) |

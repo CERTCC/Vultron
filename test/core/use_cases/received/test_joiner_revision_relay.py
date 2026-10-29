@@ -124,7 +124,8 @@ def _invited_joiner(dl: SqliteDataLayer, case_id: str, make_payload):
     seed_inert_invitee(dl, case, JOINER)
     dl.save(case)
     return make_payload(
-        rm_accept_invite_to_case_activity(invite, actor=JOINER, to=[MANAGER])
+        rm_accept_invite_to_case_activity(invite, actor=JOINER, to=[MANAGER]),
+        at=dl,
     )
 
 
@@ -237,7 +238,7 @@ def test_joiner_that_accepts_the_relayed_revision_holds_its_consent(
     )
     AcceptInviteToEmbargoOnCaseReceivedUseCase(
         dl,
-        make_payload(accept, receiving_actor_id=MANAGER),
+        make_payload(accept, receiving_actor_id=MANAGER, at=dl),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
         trigger_activity=TriggerActivityAdapter(dl),
@@ -513,7 +514,7 @@ def test_one_row_per_register_entry_after_the_joiner_accepts_the_full_case_invit
         actor=JOINER,
         to=[MANAGER],
     )
-    event = received_event(reply).model_copy(
+    event = received_event(reply, at=dl).model_copy(
         update={"receiving_actor_id": MANAGER}
     )
     assert isinstance(event, AcceptInviteActorToFullCaseReceivedEvent)

@@ -94,7 +94,7 @@ Load additional files only when the task touches the relevant area. See the
 | Demo scenario report tool | `demo-report.yaml` |
 | Event-driven control flow / cascade model | `event-driven-control-flow.yaml`, `notes/event-driven-control-flow.md` |
 | Observability | `observability.yaml` |
-| Security / CI | `ci-security.yaml`, `encryption.yaml` |
+| Security / CI | `ci-security.yaml`, `signing.yaml`, `encryption.yaml` |
 | Demo CI / GitHub Actions demo workflow | `demo-ci.yaml` |
 | Docs build and link-check CI workflow | `docs-build-workflow.yaml`, `notes/docs-build-workflow.md` |
 | Agentic API | `agentic-readiness.yaml` |
@@ -229,7 +229,7 @@ related requirements across files.
   (CM-11), case creation timing (CM-12), embargo acceptance ownership (CM-13), case
   initialization sequence (CM-14)
 - **`case-bootstrap-trust.yaml`** - Trust establishment for non-owner
-  participants: creator-signed `Create(VulnerabilityCase)` bootstrap on the
+  participants: the report receiver's `Create(VulnerabilityCase)` bootstrap on the
   original report path, invite-based trust establishment for late joiners,
   pre-bootstrap queue / replay rules, and trusted CaseActor persistence
   (CBT-01 through CBT-05)
@@ -335,6 +335,9 @@ related requirements across files.
 - **`docs-build-workflow.yaml`** - Docs Build and Link Check workflow:
   trigger conditions, job structure, docs-changed filter, link-check
   conditionality, and security compliance (DOCBW-01 through DOCBW-05)
+- **`signing.yaml`** - Object-level proofs on sent activities, key discovery from
+  actor profiles, strict verification, proofs in the case ledger, prototype seeded
+  keys (SIG-01 through SIG-05)
 - **`encryption.yaml`** - ActivityPub encryption and key management (`PROD_ONLY`)
 
 ### Code Standards

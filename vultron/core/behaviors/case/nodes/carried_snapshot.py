@@ -18,7 +18,10 @@ remote point-in-time view that carries the participants and the embargo it
 names inline.  Two steps make it usable on the receiver:
 
 - hold the embargo the case names, and refuse a case naming one this store
-  cannot read (:class:`HoldCarriedEmbargoNode`), on both paths;
+  cannot read (:class:`HoldCarriedEmbargoNode`), on both paths.  The
+  ``Engage`` tree checks it among its guards
+  (:class:`CheckCarriedEmbargoNode`, which writes nothing) and holds it only
+  as an effect of the committed act (CLP-10-006, CLP-10-010);
 - store each inline participant as its own record so later nodes can find it by
   id (:class:`StoreEmbeddedParticipantsNode`), on the ``Create`` path only.
   An ``Engage`` goes to the CASE_MANAGER, which already holds every record it
@@ -35,19 +38,24 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.services.carried_embargo import store_carried_embargo
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.carried_embargo import (
+    check_carried_embargo,
+    store_carried_embargo,
+)
 from vultron.core.services.case_replica_seeding import (
     store_embedded_participants,
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 
-class HoldCarriedEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
-    """Hold the ``EmbargoEvent`` the received case names, before it is saved.
+class _CarriedEmbargoNode(DataLayerActionWithPorts):
+    """Refuse a received case naming an embargo this store cannot read.
 
-    ``FAILURE`` when the case names an embargo this store cannot read, with
-    nothing saved (EMB-18-003); a tree places it ahead of any node that saves
-    the case.
+    A subclass names the helper it runs on the case: a read-only check or
+    the hold itself.  Either raises on a case naming an embargo this store
+    cannot read, or one of another case (EMB-18-003, EMB-18-004), which the
+    node turns into ``FAILURE`` with nothing saved.
     """
 
     def __init__(
@@ -57,12 +65,15 @@ class HoldCarriedEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
         self.case_obj = case_obj
         self.case_id = case_id
 
+    def _apply(self, datalayer: CasePersistence) -> None:
+        raise NotImplementedError
+
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
         try:
-            store_carried_embargo(self.case_obj, self.datalayer)
+            self._apply(self.datalayer)
         except (VultronNotFoundError, VultronValidationError) as exc:
             self.feedback_message = (
                 f"case '{self.case_id}' names an active embargo this store"
@@ -75,6 +86,30 @@ class HoldCarriedEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
             )
             return Status.FAILURE
         return Status.SUCCESS
+
+
+class CheckCarriedEmbargoNode(_CarriedEmbargoNode):
+    """Refuse a received case whose embargo the hold would refuse.
+
+    The read-only guard for a tree that holds the embargo as an effect of
+    the committed act: it writes nothing, so a refused act leaves no stored
+    embargo behind (CLP-10-006, CLP-10-010).
+    """
+
+    def _apply(self, datalayer: CasePersistence) -> None:
+        check_carried_embargo(self.case_obj, datalayer)
+
+
+class HoldCarriedEmbargoNode(_CarriedEmbargoNode, StateWriteCapable):
+    """Hold the ``EmbargoEvent`` the received case names, before it is saved.
+
+    ``FAILURE`` when the case names an embargo this store cannot read, with
+    nothing saved (EMB-18-003); a tree places it ahead of any node that saves
+    the case.
+    """
+
+    def _apply(self, datalayer: CasePersistence) -> None:
+        store_carried_embargo(self.case_obj, datalayer)
 
 
 class StoreEmbeddedParticipantsNode(

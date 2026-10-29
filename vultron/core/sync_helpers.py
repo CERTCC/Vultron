@@ -348,6 +348,33 @@ def at_stored_position(
     return case.model_copy(update={"ledger_position": stored.ledger_position})
 
 
+def holds_ledger_position(
+    case_id: str, dl: CasePersistence, position: LedgerPosition
+) -> bool:
+    """Whether *dl*'s ledger for *case_id* holds *position*.
+
+    True when the entry *dl* holds at the position's index has the
+    position's hash; at index -1 (an empty ledger) the hash to match is the
+    case's genesis hash (CLP-08-004).  An index past the tail names no entry,
+    so it is not held.  The CASE_MANAGER is the single writer, so a position
+    it does not hold is one its ledger never had (CM-11-012, SYNC-18-005).
+    """
+    if position.log_index == EMPTY_LEDGER_LOG_INDEX:
+        held_hash = _get_case_genesis_hash(case_id, dl)
+    else:
+        held_hash = next(
+            (
+                obj.entry_hash
+                for obj in dl.list_objects("CaseLedgerEntry")
+                if isinstance(obj, CaseLedgerEntry)
+                and obj.case_id == case_id
+                and obj.log_index == position.log_index
+            ),
+            "",
+        )
+    return bool(held_hash) and held_hash == position.entry_hash
+
+
 def ledger_position_refusal(
     case_id: str,
     dl: CasePersistence,
@@ -373,19 +400,7 @@ def ledger_position_refusal(
             f"ledger position {position.log_index} is behind the Invite's"
             f" floor {floor.log_index} (CM-11-012)"
         )
-    if position.log_index == EMPTY_LEDGER_LOG_INDEX:
-        held_hash = _get_case_genesis_hash(case_id, dl)
-    else:
-        held_hash = ""
-        for obj in dl.list_objects("CaseLedgerEntry"):
-            if (
-                isinstance(obj, CaseLedgerEntry)
-                and obj.case_id == case_id
-                and obj.log_index == position.log_index
-            ):
-                held_hash = obj.entry_hash
-                break
-    if not held_hash or held_hash != position.entry_hash:
+    if not holds_ledger_position(case_id, dl, position):
         return (
             f"ledger position {position.log_index} names an entry the"
             " ledger does not hold (CM-11-012)"

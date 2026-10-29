@@ -87,9 +87,9 @@ class _RecommendationAnswerReceivedUseCase:
         trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
-        # The received baseline supplies the trigger port to every use case;
-        # this one runs no tree that builds an activity, so it is unused.
-        del trigger_activity
+        # The tree's answer to the sender's stamped ledger position may
+        # re-seed it with a case copy, which this port builds (SYNC-18-005).
+        self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
         self._request = request
@@ -107,6 +107,7 @@ class _RecommendationAnswerReceivedUseCase:
             datalayer=self._dl,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
+            trigger_activity=self._trigger_activity,
         ).execute_with_setup(
             tree=tree,
             actor_id=resolve_receiving_actor_id(

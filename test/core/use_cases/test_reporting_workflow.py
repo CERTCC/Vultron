@@ -100,7 +100,7 @@ def _call_use_case(
 ):
     from test.support.received import received_event
 
-    event = received_event(activity)
+    event = received_event(activity, at=dl)
 
     assert event.semantic_type != MessageSemantics.UNKNOWN
     assert event.semantic_type in MessageSemantics

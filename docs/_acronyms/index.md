@@ -82,6 +82,7 @@ sense the docs actually use.
 
 *[EA]: Embargo Proposal Acceptance (EM message)
 *[EC]: Embargo Revision Acceptance (EM message)
+*[EdDSA]: Edwards-curve Digital Signature Algorithm
 *[EE]: Embargo Error (EM message)
 *[EFF]: Electronic Frontier Foundation
 *[EJ]: Embargo Revision Rejection (EM message)
@@ -102,17 +103,13 @@ sense the docs actually use.
 *[FAQ]: Frequently Asked Questions
 *[FBI]: U.S. Federal Bureau of Investigation
 *[FCC]: U.S. Federal Communications Commission
-*[RCCV]: Reporter, Coordinator, Coordinator, Vendor (demo scenario)
-*[RCV]: Reporter, Coordinator, Vendor (demo scenario)
-*[RCVCV]: Reporter, Coordinator, Vendor, Coordinator, Vendor (demo scenario)
 *[FDA]: U.S. Food and Drug Administration
+*[FEP]: Fediverse Enhancement Proposal
 *[FERPA]: Family Educational Rights and Privacy Act
 *[FI]: Finland
 *[FIRST]: Forum of Incident Response and Security Teams
 *[FTC]: U.S. Federal Trade Commission
 *[FTP]: File Transfer Protocol
-*[RVCV]: Reporter, Vendor, Coordinator, Vendor (demo scenario)
-*[RVV]: Reporter, Vendor, Vendor (demo scenario)
 
 *[GE]: General Error (general message)
 *[GI]: General Inquiry (general message)
@@ -144,6 +141,7 @@ sense the docs actually use.
 *[ISPs]: Internet Service Providers
 *[ITSM]: IT Service Management
 
+*[JCS]: JSON Canonicalization Scheme
 *[JPCERT/CC]: Japan Computer Emergency Response Team Coordination Center
 *[JSON]: JavaScript Object Notation
 *[JSON-LD]: JavaScript Object Notation for Linked Data
@@ -193,6 +191,9 @@ sense the docs actually use.
 
 *[RA]: Report/Case Accepted (RM message)
 *[RC]: Report Closed (RM message)
+*[RCCV]: Reporter, Coordinator, Coordinator, Vendor (demo scenario)
+*[RCV]: Reporter, Coordinator, Vendor (demo scenario)
+*[RCVCV]: Reporter, Coordinator, Vendor, Coordinator, Vendor (demo scenario)
 *[RD]: Report/Case Deferred (RM message)
 *[RE]: Report Error (RM message)
 *[REST]: Representational State Transfer
@@ -208,6 +209,8 @@ sense the docs actually use.
 *[RSS]: Really Simple Syndication
 *[RSVP]: Répondez s'il vous plaît (please respond; used for an invitation's respond-by deadline)
 *[RV]: Report Valid (RM message)
+*[RVCV]: Reporter, Vendor, Coordinator, Vendor (demo scenario)
+*[RVV]: Reporter, Vendor, Vendor (demo scenario)
 
 *[SAAS]: Software as a Service
 *[SaaS]: Software as a Service

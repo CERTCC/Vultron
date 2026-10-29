@@ -56,6 +56,7 @@ is present in ``replica.case_participants``.
 """
 
 import asyncio
+from typing import Any
 
 import pytest
 
@@ -64,6 +65,7 @@ from test.demo.conftest import (
 )
 from test.support.received import received_of_type
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.core.models._helpers import _as_id
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.demo.in_process import (
     InProcessRouter,
@@ -130,7 +132,7 @@ def three_app_setup():
         # IDs under http://localhost:7999/actors/... and the owner's app
         # returns 404 for /actors/ paths (it expects /api/v2/actors/).
         VULTRON_SERVER__BASE_URL=f"{_OWNER_BASE}/api/v2",
-        # ResolveCaseActorUrlsNode reads case_actor_service_url from ActorConfig
+        # case_actor_identity() reads case_actor_service_url from ActorConfig
         # (CP-08-002); in this single-owner test setup the owner IS the
         # case-actor service, so we point it at the same base URL.
         VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=f"{_OWNER_BASE}/api/v2",
@@ -172,9 +174,9 @@ def three_app_setup():
 
         # Restore previous emitter to avoid polluting other tests.
         configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
-        owner_iso.dl.close()
-        reporter_iso.dl.close()
-        late_joiner_iso.dl.close()
+        owner_iso.close()
+        reporter_iso.close()
+        late_joiner_iso.close()
 
 
 # ---------------------------------------------------------------------------
@@ -535,6 +537,7 @@ class TestLateJoinerSequence:
       ``actor_participant_index``.
     """
 
+    @pytest.mark.spec("PCR-02-001", "PCR-02-002")
     def test_late_joiner_receives_case_replica(self, three_app_setup):
         """AC-1: Announce(VulnerabilityCase) creates a local replica.
 
@@ -603,6 +606,62 @@ class TestLateJoinerSequence:
             f"DataLayer has no record of it.  The late-joiner bootstrap "
             f"sequence may be broken (PCR-07-007 AC-1)."
         )
+
+    @pytest.mark.spec("CBT-04-001", "CBT-04-002", "CBT-04-003", "CBT-05-004")
+    def test_the_stub_invite_is_the_late_joiners_trust_anchor(
+        self, three_app_setup
+    ):
+        """The joiner trusts the case through the stub Invite, not a Create.
+
+        The Invite names the case and the CASE_MANAGER, the actor whose
+        ``Announce(VulnerabilityCase)`` later seeds the joiner's replica, and
+        the joiner receives no ``Create(VulnerabilityCase)`` on the way.
+        """
+        (
+            owner_iso,
+            reporter_iso,
+            late_joiner_iso,
+            owner_tc,
+            reporter_tc,
+            late_joiner_tc,
+        ) = three_app_setup
+
+        case_id, lj_actor_id = _run_late_joiner_sequence(
+            owner_iso,
+            reporter_iso,
+            late_joiner_iso,
+            owner_tc,
+            reporter_tc,
+            late_joiner_tc,
+            owner_slug="owner-cbt-04",
+            reporter_slug="reporter-cbt-04",
+            lj_slug="late-joiner-cbt-04",
+        )
+        lj_dl = late_joiner_iso.store_for(lj_actor_id)
+        assert lj_dl.read(case_id) is not None
+
+        def _object_type(activity: Any) -> str | None:
+            return getattr(activity.object_, "type_", None)
+
+        [invite] = [
+            invite
+            for invite in received_of_type(lj_dl, "Invite")
+            if getattr(invite.target, "type_", None) == "VulnerabilityCaseStub"
+        ]
+        assert _as_id(invite.context) == case_id
+        # The Invite's actor is the replica's CASE_MANAGER role-holder.
+        assert _as_id(invite.actor) == _find_case_actor_id(lj_dl, case_id)
+        case_announcers = {
+            _as_id(announce.actor)
+            for announce in received_of_type(lj_dl, "Announce")
+            if _object_type(announce) == "VulnerabilityCase"
+        }
+        assert case_announcers == {_as_id(invite.actor)}
+        assert [
+            create
+            for create in received_of_type(lj_dl, "Create")
+            if _object_type(create) == "VulnerabilityCase"
+        ] == []
 
     def test_late_joiner_appears_as_participant(self, three_app_setup):
         """AC-2: Late-joiner appears as participant in their case replica.

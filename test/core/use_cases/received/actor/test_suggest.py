@@ -125,7 +125,7 @@ class TestOfferActorToCaseReceivedUseCase:
             to=[TEST_ACTOR_ID],
             suggested_roles=["vendor"],
         )
-        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
+        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
         assert isinstance(event, OfferActorToCaseReceivedEvent), (
             f"Expected OfferActorToCaseReceivedEvent, got {type(event)}"
         )
@@ -183,7 +183,7 @@ class TestOfferActorToCaseReceivedUseCase:
             to=[TEST_ACTOR_ID],
             suggested_roles=["vendor"],
         )
-        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
+        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
 
         result = OfferActorToCaseReceivedUseCase(
             dl,
@@ -229,7 +229,7 @@ class TestOfferActorToCaseReceivedUseCase:
             id_="https://example.org/activities/offer-actor-002",
         )
         # Deliberately no receiving_actor_id — exercise the fallback.
-        event = make_payload(activity)
+        event = make_payload(activity, at=dl)
 
         with caplog.at_level(logging.WARNING):
             result = OfferActorToCaseReceivedUseCase(
@@ -302,7 +302,7 @@ class TestOfferActorToCaseReceivedUseCase:
             actor=recommender_id,
             to=[TEST_ACTOR_ID],
         )
-        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
+        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
         activity_id = activity.id_
 
         OfferActorToCaseReceivedUseCase(
@@ -358,7 +358,9 @@ class TestOfferActorToCaseReceivedUseCase:
         for _ in range(2):
             OfferActorToCaseReceivedUseCase(
                 dl,
-                make_payload(activity, receiving_actor_id=TEST_ACTOR_ID),
+                make_payload(
+                    activity, receiving_actor_id=TEST_ACTOR_ID, at=dl
+                ),
                 trigger_activity=TriggerActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
                 sync_port=SyncActivityAdapter(dl),
@@ -527,7 +529,7 @@ class TestOwnerDirectInviteAtCaseManager:
             to=[TEST_ACTOR_ID],
             suggested_roles=roles,
         )
-        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
+        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
         return OfferActorToCaseReceivedUseCase(
             dl,
             event,
@@ -654,7 +656,7 @@ class TestOwnerDirectInviteAtCaseManager:
             to=[TEST_ACTOR_ID],
             suggested_roles=["vendor"],
         )
-        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
+        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
 
         result = OfferActorToCaseReceivedUseCase(
             dl,
@@ -708,7 +710,7 @@ class TestSuggestionFromNonParticipant:
             actor=sender_id,
             to=[TEST_ACTOR_ID],
         )
-        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
+        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
         return OfferActorToCaseReceivedUseCase(
             dl,
             event,

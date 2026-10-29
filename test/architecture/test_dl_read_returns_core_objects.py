@@ -72,12 +72,14 @@ _WIRE_MODULE_PREFIX = "vultron.wire.as2"
 # They have no registered core counterpart in ``CORE_VOCABULARY``, so
 # ``dl.read()`` legitimately returns a wire-layer object for them.  Core code
 # that reads stored Activities is itself a boundary violation tracked in
-# issue #1506 / ADR-0035; that migration is out of scope here.
+# ADR-0035; #3928 decides, per type, between a core counterpart and a
+# permanent envelope-only exemption.
 #
 # Enumerate every exempted type_ string explicitly.  Remove an entry when the
 # corresponding Activity gains a core counterpart (its ``type_`` key will
 # then appear in ``CORE_VOCABULARY`` and the exemption becomes stale).
 # ---------------------------------------------------------------------------
+# owner: #3928
 ACTIVITY_TYPE_EXEMPTIONS: frozenset[str] = frozenset(
     {
         "Accept",

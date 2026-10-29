@@ -52,7 +52,11 @@ from vultron.demo.helpers.milestones import (
     verify_fix_ready,
     verify_publicly_disclosed,
 )
-from vultron.demo.helpers.notes import participant_adds_note_to_case
+from vultron.demo.helpers.notes import (
+    NotePost,
+    add_note_thread,
+    reporter_asks,
+)
 from vultron.demo.helpers.polling import (
     wait_for_case_em_terminated,
     wait_for_case_on_container,
@@ -219,8 +223,19 @@ def _phase_report_submission(
     as_VulnerabilityReport,
     as_Offer,
     as_VulnerabilityCase,
+    as_Note | None,
 ]:
-    """Reset, seed, submit report, validate, engage, invite Vendor2, M1 check."""
+    """Reset, seed, submit, validate, engage, exchange notes, invite Vendor2, M1.
+
+    The Reporter's question and Vendor1's answer run before Vendor2 is
+    invited, so Vendor1's branch point (invite another Vendor) follows them on
+    the scenario tree (``notes/demo-scenario-tree.md``).
+
+    Returns:
+        The cast, the report and offer, the refreshed case, and Vendor1's
+        reply note (``None`` when the exchange failed), which Vendor2's note
+        answers later.
+    """
     logger.info("─" * 80)
     logger.info("Phase 1: Report submission and case activation")
     logger.info("─" * 80)
@@ -233,6 +248,7 @@ def _phase_report_submission(
     )
 
     reporter = vendor = vendor2 = None
+    reply_note: as_Note | None = None
     with demo_step("Seeding all three containers with actor records"):
         reporter, vendor, vendor2 = seed_containers_rvv(
             reporter_client=reporter_client,
@@ -281,6 +297,16 @@ def _phase_report_submission(
                 reporter_client=reporter_client,
                 case_id=case.id_,
             )
+
+        # The Reporter asks and Vendor1 answers before Vendor1 decides to
+        # invite another Vendor, its branch point on the scenario tree.
+        reply_note = _phase_notes_exchange(
+            reporter_client=reporter_client,
+            vendor_client=vendor_client,
+            reporter=reporter,
+            vendor_in_vendor=vendor_in_vendor,
+            case=case,
+        )
 
         # Vendor1 invites Vendor2 to the case; the chain nests the delivery
         # gate, the accept and the replica wait (ADR-0058, EDF-06-005, #3038).
@@ -352,7 +378,16 @@ def _phase_report_submission(
     case = as_VulnerabilityCase.model_validate(
         vendor_client.get(vendor_client.dl_path(case.id_))
     )
-    return reporter, vendor, vendor_in_vendor, vendor2, report, offer, case
+    return (
+        reporter,
+        vendor,
+        vendor_in_vendor,
+        vendor2,
+        report,
+        offer,
+        case,
+        reply_note,
+    )
 
 
 def _phase_sync_verification(
@@ -394,59 +429,71 @@ def _phase_sync_verification(
 def _phase_notes_exchange(
     reporter_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
-    reporter_in_reporter: as_Actor,
+    reporter: as_Actor,
     vendor_in_vendor: as_Actor,
+    case: as_VulnerabilityCase,
+) -> as_Note | None:
+    """The Reporter asks a question and Vendor1 answers it.
+
+    Gated on the Reporter's replica holding the case, since the Reporter posts
+    from it (DEMOMA-22-001).
+
+    Returns:
+        Vendor1's reply note, or ``None`` when the exchange or its gate failed
+        (the failure is recorded).
+    """
+    logger.info("─" * 80)
+    logger.info("Notes exchange: Reporter asks, Vendor1 answers")
+    logger.info("─" * 80)
+
+    reporter_in_reporter = get_actor_by_id(reporter_client, reporter.id_)
+    return reporter_asks(
+        ActorSession(client=reporter_client, actor=reporter_in_reporter),
+        vendor_client,
+        case,
+        "Is there a workaround available while waiting for the patch? "
+        "Our security team needs to provide interim guidance to users.",
+        [
+            NotePost(
+                ActorSession(client=vendor_client, actor=vendor_in_vendor),
+                "Vendor1 Response",
+                "Yes, disabling the affected component is an effective "
+                "workaround. A patched version is expected within 30 days.",
+            ),
+        ],
+    )
+
+
+def _phase_vendor2_note(
+    vendor_client: DataLayerClient,
+    vendor2_client: DataLayerClient,
     vendor2_in_vendor2: as_Actor,
     case: as_VulnerabilityCase,
-) -> tuple[as_Note | None, as_Note | None, as_Note | None]:
-    """Run a three-way note exchange among Reporter, Vendor1, and Vendor2."""
+    reply_note: as_Note | None,
+) -> as_Note | None:
+    """Vendor2, once joined, adds its status to the Reporter–Vendor1 thread."""
     logger.info("─" * 80)
-    logger.info("Phase 3: Notes exchange")
+    logger.info("Phase 3: Vendor2 status note")
     logger.info("─" * 80)
 
-    question_note = participant_adds_note_to_case(
-        posting_client=reporter_client,
-        watching_client=vendor_client,
-        poster=reporter_in_reporter,
-        case=case,
-        note_name="Question from Reporter",
-        note_content=(
-            "Is there a workaround available while waiting for the patch? "
-            "Our security team needs to provide interim guidance to users."
-        ),
-    )
-
-    reply_note = participant_adds_note_to_case(
-        posting_client=vendor_client,
-        watching_client=vendor_client,
-        poster=vendor_in_vendor,
-        case=case,
-        note_name="Vendor1 Response",
-        note_content=(
-            "Yes, disabling the affected component is an effective workaround. "
-            "A patched version is expected within 30 days."
-        ),
-        in_reply_to=question_note.id_ if question_note is not None else None,
-    )
-
-    vendor2_note = participant_adds_note_to_case(
-        posting_client=vendor2_client,
-        watching_client=vendor_client,
-        poster=vendor2_in_vendor2,
-        case=case,
-        note_name="Vendor2 Status Update",
-        note_content=(
-            "Vendor2 can confirm the issue affects our component. "
-            "We will coordinate our fix timeline with Vendor1."
-        ),
-        in_reply_to=reply_note.id_ if reply_note is not None else None,
+    vendor2_note = add_note_thread(
+        vendor_client,
+        case,
+        [
+            NotePost(
+                ActorSession(client=vendor2_client, actor=vendor2_in_vendor2),
+                "Vendor2 Status Update",
+                "Vendor2 can confirm the issue affects our component. "
+                "We will coordinate our fix timeline with Vendor1.",
+            )
+        ],
+        in_reply_to=reply_note,
     )
 
     logger.info(
         "✓ Notes exchange complete (question + two replies committed to case ledger)"
     )
-    return question_note, reply_note, vendor2_note
+    return vendor2_note
 
 
 def _phase_fix_lifecycle(
@@ -729,16 +776,23 @@ def run_rvv_demo(
     logger.info("CaseActor container: %s", case_actor_client.base_url)
 
     with scenario_harness("rvv") as harness:
-        reporter, vendor, vendor_in_vendor, vendor2, _report, _offer, case = (
-            _phase_report_submission(
-                reporter_client,
-                vendor_client,
-                vendor2_client,
-                case_actor_client,
-                reporter_id,
-                vendor_id,
-                vendor2_id,
-            )
+        (
+            reporter,
+            vendor,
+            vendor_in_vendor,
+            vendor2,
+            _report,
+            _offer,
+            case,
+            reply_note,
+        ) = _phase_report_submission(
+            reporter_client,
+            vendor_client,
+            vendor2_client,
+            case_actor_client,
+            reporter_id,
+            vendor_id,
+            vendor2_id,
         )
 
         # Register the dump as soon as there is a case to dump, so every phase
@@ -769,14 +823,12 @@ def run_rvv_demo(
             vendor2,
             case,
         )
-        _phase_notes_exchange(
-            reporter_client=reporter_client,
+        _phase_vendor2_note(
             vendor_client=vendor_client,
             vendor2_client=vendor2_client,
-            reporter_in_reporter=reporter_in_reporter,
-            vendor_in_vendor=vendor_in_vendor,
             vendor2_in_vendor2=vendor2_in_vendor2,
             case=case,
+            reply_note=reply_note,
         )
         _phase_fix_lifecycle(
             reporter_client,
@@ -830,6 +882,10 @@ def run_rvv_demo(
     participants="Reporter + Vendor1 + Vendor2",
     feature="Direct invitation of a second vendor",
     in_pr_set=False,
+    path=(
+        ("reporter-whom-to-tell", "vendor"),
+        ("vendor-after-answer", "invite-vendor"),
+    ),
 )
 def main(
     skip_health_check: bool = False,

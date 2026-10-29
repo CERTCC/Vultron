@@ -139,7 +139,9 @@ def test_case_manager_records_an_early_remove_as_early(make_payload) -> None:
         embargo, origin=case.id_, actor=OWNER, reason=TerminationReason.EARLY
     )
 
-    result = _receive(dl, make_payload(activity, receiving_actor_id=OWNER))
+    result = _receive(
+        dl, make_payload(activity, receiving_actor_id=OWNER, at=dl)
+    )
 
     assert result.disposition is HandlerDisposition.APPLIED
     ended = cast(VulnerabilityCase, dl.read(case.id_))
@@ -161,7 +163,9 @@ def test_case_manager_records_an_end_time_remove_after_the_end_time(
         reason=TerminationReason.END_TIME_REACHED,
     )
 
-    result = _receive(dl, make_payload(activity, receiving_actor_id=OWNER))
+    result = _receive(
+        dl, make_payload(activity, receiving_actor_id=OWNER, at=dl)
+    )
 
     assert result.disposition is HandlerDisposition.APPLIED
     ended = cast(VulnerabilityCase, dl.read(case.id_))
@@ -182,7 +186,9 @@ def test_case_manager_refuses_an_end_time_remove_before_the_end_time(
         reason=TerminationReason.END_TIME_REACHED,
     )
 
-    result = _receive(dl, make_payload(activity, receiving_actor_id=OWNER))
+    result = _receive(
+        dl, make_payload(activity, receiving_actor_id=OWNER, at=dl)
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     kept = cast(VulnerabilityCase, dl.read(case.id_))
@@ -343,7 +349,9 @@ def test_an_owner_remove_after_the_end_time_termination_changes_nothing(
         embargo, origin=case.id_, actor=OWNER, reason=TerminationReason.EARLY
     )
 
-    result = _receive(dl, make_payload(activity, receiving_actor_id=OWNER))
+    result = _receive(
+        dl, make_payload(activity, receiving_actor_id=OWNER, at=dl)
+    )
 
     assert result.disposition is HandlerDisposition.APPLIED
     ended = cast(VulnerabilityCase, dl.read(case.id_))

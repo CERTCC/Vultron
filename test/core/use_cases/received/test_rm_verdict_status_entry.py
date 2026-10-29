@@ -60,7 +60,8 @@ def _invalidate(dl):
         received_event(
             rm_invalidate_report_activity(
                 _offer(), actor=FINDER_ID, to=[MANAGER_ID]
-            )
+            ),
+            at=dl,
         ).model_copy(update={"receiving_actor_id": MANAGER_ID}),
     )
     return InvalidateReportReceivedUseCase(dl, event, **_ports(dl)).execute()
@@ -140,7 +141,8 @@ def test_a_redelivered_verdict_records_the_withdrawn_status(monkeypatch):
         received_event(
             rm_invalidate_report_activity(
                 _offer(), actor=FINDER_ID, to=[MANAGER_ID]
-            )
+            ),
+            at=dl,
         ).model_copy(update={"receiving_actor_id": MANAGER_ID}),
     )
     with monkeypatch.context() as patched:

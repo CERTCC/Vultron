@@ -322,7 +322,9 @@ def test_genesis_reject_from_non_signatory_seeds_no_case(datalayer) -> None:
         actor=NON_SIGNATORY_ID,
         to=[MANAGER_ID],
     )
-    event = cast(RejectLogEntryReceivedEvent, received_event(activity))
+    event = cast(
+        RejectLogEntryReceivedEvent, received_event(activity, at=datalayer)
+    )
     sync_port = MagicMock(spec=SyncActivityPort)
     trigger_activity = MagicMock(spec=TriggerActivityPort)
 
@@ -362,7 +364,9 @@ def test_genesis_pre_seed_itself_withholds_case_from_non_signatory(
         actor=NON_SIGNATORY_ID,
         to=[MANAGER_ID],
     )
-    event = cast(RejectLogEntryReceivedEvent, received_event(activity))
+    event = cast(
+        RejectLogEntryReceivedEvent, received_event(activity, at=datalayer)
+    )
     sync_port = MagicMock(spec=SyncActivityPort)
     trigger_activity = MagicMock(spec=TriggerActivityPort)
     tree = py_trees.composites.Sequence(
@@ -578,7 +582,9 @@ def test_a_closed_peers_reject_is_answered_up_to_its_own_closure(
         actor=SIGNATORY_ID,
         to=[MANAGER_ID],
     )
-    event = cast(RejectLogEntryReceivedEvent, received_event(activity))
+    event = cast(
+        RejectLogEntryReceivedEvent, received_event(activity, at=datalayer)
+    )
     sync_port = MagicMock(spec=SyncActivityPort)
 
     result = BTBridge(

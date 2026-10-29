@@ -49,10 +49,10 @@ Actor's Replica Updates via the CASE_MANAGER's Announce". (CONCERN-1635, ISSUE-2
 
 A scenario module declares itself, and nothing else anywhere does:
 
-- `@scenario(name, label, participants, feature, in_pr_set)` on its `main()`, from
-  `scenario/registry.py`. Every scenario table and `.github/demo-scenarios.json`
-  are generated from it (`uv run demo-scenarios --write`, gated by the
-  `demo-scenarios-sync` hook): never hand-edit one, change the decorator. Script,
+- `@scenario(name, label, participants, feature, in_pr_set, path)` on `main()`, from
+  `scenario/registry.py` (`path`: `scenario/branch_points.py` entries). Every table
+  and `.github/demo-scenarios.json` are generated from it (`demo-scenarios --write`,
+  gated by `demo-scenarios-sync`): never hand-edit one, change the decorator. Script,
   harness and narrative paths are **derived** from `name` (`<name_>_demo.py`,
   `test_<name_>_invariants.py`, `<name>.md`; `<name_>` swaps hyphens for
   underscores) — rename the file to match, never add an override (DEMOCI-11-003).

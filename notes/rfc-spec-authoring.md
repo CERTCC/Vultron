@@ -341,6 +341,9 @@ Rules for the narrative around them:
   upper-case keywords, so a reconcile also checks by hand the rules written
   without one ("only", "never", "cannot", "require", "every") against the
   YAML, since a keyword-free rule can contradict it unseen (CM-10-004, #4896).
+  The check reads only `docs/reference/vultron-spec/`, so a page that includes
+  the generated occasion tables from `docs/reference/messages/` carries their
+  text unchecked; the reconcile reads those tables by hand too (#4897).
 - **A message rule is stated on its occasion**: a situation in a case that a
   sender conveys with a particular wire activity. A two-letter protocol
   shorthand is a cross-reference tag and the vocabulary of the state machine

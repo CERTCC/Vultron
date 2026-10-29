@@ -33,11 +33,13 @@ See also:
 
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from vultron.adapters.driven.ledger_position_stamp import (
     with_sender_ledger_position,
 )
 from vultron.adapters.outbox_sealed_body import (
+    read_sealed_body_dict,
     requeue_if_sealed,
     seal_outbound_body,
 )
@@ -62,12 +64,62 @@ from vultron.wire.as2.vocab.objects.case_ledger_entry import (
 logger = logging.getLogger(__name__)
 
 
-def _ref_id(value: object) -> str | None:
-    """The id of a stored reference: a bare string, or an object with ``id_``."""
+def _body_ref_id(value: object) -> str | None:
+    """The id of a reference in a sealed body: a bare string, or an object
+    with ``id``."""
     if isinstance(value, str):
         return value or None
-    ref = getattr(value, "id_", None)
+    ref = value.get("id") if isinstance(value, dict) else None
     return ref if isinstance(ref, str) and ref else None
+
+
+@dataclass(frozen=True, slots=True)
+class _QueuedRow:
+    """What a queued row's sealed body says, as the pending index needs it.
+
+    ``entry_id`` is ``None`` for every row that is not an
+    ``Announce(CaseLedgerEntry)``.
+    """
+
+    entry_id: str | None
+    recipients: frozenset[str]
+
+
+_NOT_AN_ANNOUNCE = _QueuedRow(entry_id=None, recipients=frozenset())
+
+
+def _read_queued_row(
+    dl: CaseOutboxPersistence, activity_id: str
+) -> _QueuedRow | None:
+    """Read *activity_id*'s sealed body; ``None`` when it has none.
+
+    The sealed body, not the activity record: it is what the outbox delivers
+    (OX-07-001), so a row without one is never sent and is not pending.
+    Reading the record instead rehydrated every queued activity, entry and
+    payload included (#4906).  A row with no body is not remembered, so one
+    sealed later is read then.
+    """
+    body = read_sealed_body_dict(dl, activity_id)
+    if body is None:
+        return None
+    entry = body.get("object")
+    if (
+        body.get("type") != "Announce"
+        or not isinstance(entry, dict)
+        or entry.get("type") != "CaseLedgerEntry"
+    ):
+        return _NOT_AN_ANNOUNCE
+    entry_id = _body_ref_id(entry)
+    if not entry_id:
+        return _NOT_AN_ANNOUNCE
+    to = body.get("to") or []
+    recipients = (
+        _body_ref_id(r) for r in (to if isinstance(to, list) else [to])
+    )
+    return _QueuedRow(
+        entry_id=entry_id,
+        recipients=frozenset(r for r in recipients if r),
+    )
 
 
 def ledger_entry_to_wire(entry: CaseLedgerEntry) -> WireCaseLedgerEntry:
@@ -86,6 +138,9 @@ class SyncActivityAdapter:
         self._dl = dl
         self._pending_snapshot: tuple[str, ...] | None = None
         self._pending_index: dict[str, set[str]] = {}
+        #: What each queued row's sealed body says, by activity id, for the
+        #: rows read so far (``_pending_announce_index``).
+        self._queued_rows: dict[str, _QueuedRow] = {}
 
     def for_store(self, dl: CaseOutboxPersistence) -> "SyncActivityAdapter":
         """Return an equivalent adapter that reads and writes *dl* (DL-07-009).
@@ -250,32 +305,34 @@ class SyncActivityAdapter:
         outbox already held for that peer — ten late Rejects put 116 duplicate
         rows ahead of the next entry's fan-out to every other peer (#3602).
         The outbox is this adapter's own store (ADR-0073), and reading a queued
-        activity's envelope back is the adapter's to do (DL-06-004), not core's
-        (DL-06-001).
+        activity's sealed body back is the adapter's to do (DL-06-004), not
+        core's (DL-06-001).
 
         The index is rebuilt only when the queue's id list changes: a replay
         asks once per entry, and reading every row per entry would be
-        O(queue × suffix) reads under the store's session guard.
+        O(queue × suffix) reads under the store's session guard.  A rebuild
+        reads only the rows this adapter has not read yet: every send queues a
+        row, so re-reading the whole queue on each one made a fan-out of *n*
+        Announces cost O(n × queue) reads (#4906).  A row's sealed body is
+        write-once (``seal_outbound_body``), so what was read for it stands.
         """
         snapshot = tuple(self._dl.outbox_list())
         if snapshot == self._pending_snapshot:
             return self._pending_index
-        index: dict[str, set[str]] = {}
+        rows: dict[str, _QueuedRow] = {}
         for activity_id in snapshot:
-            activity = self._dl.read(activity_id)
-            if getattr(activity, "type_", None) != "Announce":
-                continue
-            entry = getattr(activity, "object_", None)
-            if getattr(entry, "type_", None) != "CaseLedgerEntry":
-                continue
-            entry_id = _ref_id(entry)
-            if not entry_id:
-                continue
-            recipients = index.setdefault(entry_id, set())
-            for recipient in getattr(activity, "to", None) or []:
-                recipient_id = _ref_id(recipient)
-                if recipient_id:
-                    recipients.add(recipient_id)
+            row = self._queued_rows.get(activity_id)
+            if row is None:
+                row = _read_queued_row(self._dl, activity_id)
+            if row is not None:
+                rows[activity_id] = row
+        index: dict[str, set[str]] = {}
+        for row in rows.values():
+            if row.entry_id is not None:
+                index.setdefault(row.entry_id, set()).update(row.recipients)
+        # Only the rows still queued are kept, so the memo is bounded by the
+        # queue rather than by the adapter's lifetime.
+        self._queued_rows = rows
         self._pending_snapshot = snapshot
         self._pending_index = index
         return index

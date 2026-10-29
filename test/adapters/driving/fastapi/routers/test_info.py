@@ -13,8 +13,10 @@
 
 """Tests for the /info endpoint (D5-1-G1).
 
-Verifies that GET /info returns the configured VULTRON_SERVER__BASE_URL and the
-list of actor IDs registered in the shared DataLayer.
+Verifies that GET /info returns the node's base URL (the configured
+VULTRON_SERVER__BASE_URL when the app declares none) and the actors the node
+hosts.  The per-node case, several apps in one process, is covered in
+``test/adapters/driving/fastapi/test_app_isolation.py``.
 """
 
 import pytest
@@ -102,3 +104,13 @@ def test_info_actors_lists_hosted_actors_only(client_info):
     data = resp.json()
     assert finder_id in data["actors"]
     assert vendor_id in data["actors"]
+
+
+def test_info_reports_the_configured_base_url_when_the_app_declares_none(
+    client_info,
+):
+    """D5-1-G1: an app with no ``node_base_url`` is on configuration."""
+    from vultron.config import get_config
+
+    resp = client_info.get("/info")
+    assert resp.json()["base_url"] == get_config().server.base_url

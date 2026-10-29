@@ -1868,12 +1868,16 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      Participants SHOULD send $EK$ in acknowledgment of any other $E*$ message except $EK$
-      itself
+      Recipients SHOULD acknowledge the $E*$ messages they receive. The acknowledgment
+      ($EK$) is the CASE_MANAGER's ledger entry for the message, fanned out to the
+      participants as `Announce(CaseLedgerEntry)`; no $EK$ message is sent (EP-09-009).
     rationale: >-
       An embargo message changes what participants may disclose. Acknowledging it tells
       the sender it arrived, so silence is not mistaken for agreement or for a lost
-      message; acknowledging an $EK$ would only start a loop.
+      message. Every $E*$ message goes to the CASE_MANAGER (EP-09), and the ledger entry
+      it commits already tells every participant the message was received; a separate
+      $EK$ message would only add traffic and a second acknowledgment that could
+      disagree with the ledger.
   - id: VP-11-005
     priority: SHOULD
     kind: protocol

@@ -1609,8 +1609,8 @@ class TestDeliveryIsolation:
                 )
 
         configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
-        reporter_isolated.dl.close()
-        vendor_isolated.dl.close()
+        reporter_isolated.close()
+        vendor_isolated.close()
         mp.undo()
         reload_config()
 

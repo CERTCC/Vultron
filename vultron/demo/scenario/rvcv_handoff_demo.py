@@ -53,7 +53,10 @@ from vultron.demo.helpers.milestones import (
     verify_publicly_disclosed,
 )
 from vultron.demo.helpers.notes import (
-    participant_adds_note_to_case,
+    WORKAROUND_QUESTION,
+    NotePost,
+    add_note_thread,
+    reporter_asks,
 )
 from vultron.demo.helpers.polling import (
     LATE_JOINER_TIMEOUT,
@@ -677,79 +680,85 @@ def _phase_sync_verification(
 def _phase_notes_exchange(
     reporter_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    coordinator_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
     reporter_in_reporter: as_Actor,
     vendor_in_vendor: as_Actor,
+    case: as_VulnerabilityCase,
+) -> as_Note | None:
+    """The Reporter asks a question and Vendor1 answers it.
+
+    Runs before Vendor1 invites the Coordinator, so Vendor1's branch point
+    (invite a Coordinator) follows it on the scenario tree.  Gated on the
+    Reporter's replica holding the case, since the Reporter posts from it
+    (DEMOMA-22-001).
+
+    Returns:
+        Vendor1's reply note, or ``None`` when the exchange or its gate failed
+        (the failure is recorded).
+    """
+    logger.info("─" * 80)
+    logger.info("Notes exchange: Reporter asks, Vendor1 answers")
+    logger.info("─" * 80)
+
+    return reporter_asks(
+        ActorSession(client=reporter_client, actor=reporter_in_reporter),
+        vendor_client,
+        case,
+        WORKAROUND_QUESTION,
+        [
+            NotePost(
+                ActorSession(client=vendor_client, actor=vendor_in_vendor),
+                "Vendor1 Response",
+                "Yes, disabling the affected module is an effective interim "
+                "workaround.",
+            ),
+        ],
+    )
+
+
+def _phase_joiner_notes(
+    vendor_client: DataLayerClient,
+    coordinator_client: DataLayerClient,
+    vendor2_client: DataLayerClient,
     coordinator_in_coordinator: as_Actor,
     vendor2_in_vendor2: as_Actor,
     case: as_VulnerabilityCase,
-) -> tuple[as_Note | None, as_Note | None, as_Note | None, as_Note | None]:
-    """Run a four-way note exchange among all participants.
+    reply_note: as_Note | None,
+) -> as_Note | None:
+    """The Coordinator and Vendor2, once joined, add to the notes thread.
 
-    Emits ``add_note_to_case`` events into the canonical case ledger,
-    exercising the note-threading path and satisfying the universal
-    ``add_note_to_case`` invariant asserted by the case-ledger harness.
+    Returns:
+        Vendor2's note, or ``None`` when it failed.
     """
     logger.info("─" * 80)
-    logger.info("Phase 4b: Notes exchange")
+    logger.info("Phase 4b: Coordinator and Vendor2 notes")
     logger.info("─" * 80)
 
-    question_note = participant_adds_note_to_case(
-        posting_client=reporter_client,
-        watching_client=vendor_client,
-        poster=reporter_in_reporter,
-        case=case,
-        note_name="Question from Reporter",
-        note_content=(
-            "Is there a workaround available while the patch is being developed?"
-        ),
-    )
-
-    vendor_reply = participant_adds_note_to_case(
-        posting_client=vendor_client,
-        watching_client=vendor_client,
-        poster=vendor_in_vendor,
-        case=case,
-        note_name="Vendor1 Response",
-        note_content=(
-            "Yes, disabling the affected module is an effective interim workaround."
-        ),
-        in_reply_to=question_note.id_ if question_note is not None else None,
-    )
-
-    coordinator_note = participant_adds_note_to_case(
-        posting_client=coordinator_client,
-        watching_client=vendor_client,
-        poster=coordinator_in_coordinator,
-        case=case,
-        note_name="Coordinator Update",
-        note_content=(
-            "As the new case owner, I confirm both Vendor1 and Vendor2 are "
-            "engaged. Target disclosure in 30 days."
-        ),
-        in_reply_to=vendor_reply.id_ if vendor_reply is not None else None,
-    )
-
-    vendor2_note = participant_adds_note_to_case(
-        posting_client=vendor2_client,
-        watching_client=vendor_client,
-        poster=vendor2_in_vendor2,
-        case=case,
-        note_name="Vendor2 Status Update",
-        note_content=(
-            "Vendor2 confirms the issue affects our component as well. "
-            "We will align our fix timeline with Vendor1."
-        ),
-        in_reply_to=(
-            coordinator_note.id_ if coordinator_note is not None else None
-        ),
+    vendor2_note = add_note_thread(
+        vendor_client,
+        case,
+        [
+            NotePost(
+                ActorSession(
+                    client=coordinator_client, actor=coordinator_in_coordinator
+                ),
+                "Coordinator Update",
+                "As the new case owner, I confirm both Vendor1 and Vendor2 are "
+                "engaged. Target disclosure in 30 days.",
+            ),
+            NotePost(
+                ActorSession(client=vendor2_client, actor=vendor2_in_vendor2),
+                "Vendor2 Status Update",
+                "Vendor2 confirms the issue affects our component as well. "
+                "We will align our fix timeline with Vendor1.",
+            ),
+        ],
+        in_reply_to=reply_note,
     )
 
     logger.info(
-        "✓ Notes exchange complete (four notes committed to case ledger)"
+        "✓ Notes exchange complete (Coordinator and Vendor2 notes added to the thread)"
     )
-    return question_note, vendor_reply, coordinator_note, vendor2_note
+    return vendor2_note
 
 
 def _phase_fix_lifecycle(
@@ -1121,6 +1130,16 @@ def run_rvcv_handoff_demo(
         vendor2_in_vendor2 = get_actor_by_id(vendor2_client, vendor2.id_)
         reporter_in_reporter = get_actor_by_id(reporter_client, reporter.id_)
 
+        # The Reporter asks and Vendor1 answers before Vendor1 decides to
+        # invite a Coordinator, its branch point on the scenario tree.
+        reply_note = _phase_notes_exchange(
+            reporter_client,
+            vendor_client,
+            reporter_in_reporter,
+            vendor_in_vendor,
+            case,
+        )
+
         case = _phase_ownership_handoff(
             reporter_client=reporter_client,
             vendor_client=vendor_client,
@@ -1175,16 +1194,14 @@ def run_rvcv_handoff_demo(
             vendor2,
             case,
         )
-        _phase_notes_exchange(
-            reporter_client,
+        _phase_joiner_notes(
             vendor_client,
             coordinator_client,
             vendor2_client,
-            reporter_in_reporter,
-            vendor_in_vendor,
             coordinator_in_coordinator,
             vendor2_in_vendor2,
             case,
+            reply_note,
         )
         _phase_fix_lifecycle(
             reporter_client,
@@ -1246,6 +1263,11 @@ def run_rvcv_handoff_demo(
     participants="Reporter + Vendor1 → Coordinator + Vendor2",
     feature="Case-ownership transfer to coordinator",
     in_pr_set=True,
+    path=(
+        ("reporter-whom-to-tell", "vendor"),
+        ("vendor-after-answer", "invite-coordinator"),
+        ("owner-keep-case", "offer-ownership"),
+    ),
 )
 def main(
     skip_health_check: bool = False,

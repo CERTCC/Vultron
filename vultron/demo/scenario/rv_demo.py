@@ -935,6 +935,10 @@ def run_rv_demo(
     participants="Reporter + Vendor",
     feature="Baseline two-actor CVD",
     in_pr_set=True,
+    path=(
+        ("reporter-whom-to-tell", "vendor"),
+        ("vendor-after-answer", "report-fix-ready"),
+    ),
 )
 def main(
     skip_health_check: bool = False,

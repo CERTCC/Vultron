@@ -108,11 +108,17 @@ def get_all_actor_datalayers() -> dict[str, SqliteDataLayer]:
         An ``actor_id → SqliteDataLayer`` mapping for every actor that has
         called :func:`get_datalayer` with an ``actor_id``.
 
-    The cache is keyed by ``(actor_id, db_url)``, so an actor could in
-    principle appear under two URLs.  That does not happen in a running node —
-    every call resolves the same configured URL — and it would mean two stores
-    for one actor, which ADR-0073 forbids.  The last one registered wins and
-    the collision is logged rather than passed over.
+    The cache is keyed by ``(actor_id, db_url)``, so an actor can appear
+    under two URLs.  In a single-node production process it does not: every
+    call resolves the one configured URL, and two stores for one actor would
+    contradict ADR-0073.  It can happen when several nodes run in
+    one process, each under its own in-memory deployment (``create_app``
+    apps, the multi-node demo test harness), and any of them opens a store for
+    the same actor id.  This snapshot is process-wide, so it is not a view of
+    one node: node-scoped enumeration goes through
+    :func:`~vultron.adapters.driven.actor_hosts.hosted_actor_ids` with the
+    node's own template (DL-07-011).  The last one registered wins and the
+    collision is logged rather than passed over.
     """
     collapsed: dict[str, SqliteDataLayer] = {}
     for (actor_id, url), instance in _actor_instances.items():

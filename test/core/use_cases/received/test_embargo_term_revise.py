@@ -95,7 +95,7 @@ class TestEmbargoTermRevise:
             actor=_OWNER,
             to=[_COORD],
         )
-        event = make_payload(activity, receiving_actor_id=_COORD)
+        event = make_payload(activity, receiving_actor_id=_COORD, at=dl)
 
         result = ActivateEmbargoOnCaseReceivedUseCase(
             dl,
@@ -129,7 +129,7 @@ class TestEmbargoTermRevise:
             actor=_OWNER,
             to=[_COORD],
         )
-        event = make_payload(activity, receiving_actor_id=_COORD)
+        event = make_payload(activity, receiving_actor_id=_COORD, at=dl)
 
         result = ActivateEmbargoOnCaseReceivedUseCase(
             dl,
@@ -185,7 +185,7 @@ class TestEmbargoTermRevise:
             to=["https://example.org/users/coord"],
             reason=TerminationReason.EARLY,
         )
-        event = make_payload(activity, receiving_actor_id=_CASE_MANAGER)
+        event = make_payload(activity, receiving_actor_id=_CASE_MANAGER, at=dl)
 
         result = RemoveEmbargoEventFromCaseReceivedUseCase(
             dl,
@@ -244,7 +244,7 @@ class TestEmbargoTermRevise:
             to=["https://example.org/users/coord"],
             reason=TerminationReason.EARLY,
         )
-        event = make_payload(activity, receiving_actor_id=_CASE_MANAGER)
+        event = make_payload(activity, receiving_actor_id=_CASE_MANAGER, at=dl)
 
         result = RemoveEmbargoEventFromCaseReceivedUseCase(
             dl,
@@ -309,7 +309,7 @@ class TestEmbargoTermRevise:
             to=["https://example.org/users/coord"],
             reason=TerminationReason.EARLY,
         )
-        event = make_payload(activity, receiving_actor_id=_CASE_MANAGER)
+        event = make_payload(activity, receiving_actor_id=_CASE_MANAGER, at=dl)
 
         result = RemoveEmbargoEventFromCaseReceivedUseCase(
             dl,

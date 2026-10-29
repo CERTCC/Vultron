@@ -2,27 +2,39 @@
 
 A requirement is removed from ``specs/`` rather than marked deprecated
 (MS-09-001).
-Its final text is kept, one file per ID, in ``plan/retired-specs/`` (MS-09-005)
-so a citation of the ID still resolves to something, while the retired text
-stays out of every spec loader and out of agent context.
+Its last published text is kept, one file per ID, in
+``plan/retired-specs/`` (MS-09-005) so a citation of the ID still resolves to
+something, while the retired text stays out of every spec loader and out of
+agent context.
 An ID in the archive is never reused (MS-09-004).
 
 Usage::
 
-    uv run spec-retire <ID> --why "..." --by "#N" --replacement <NEW-ID>
+    uv run spec-retire <ID> --why "..." --by "#N" \
+        [--replacement <NEW-ID>] [--base REF]
 
-The helper moves the item's text from its spec file to the archive, records the
-removal in the implementation history (MS-09-002), and lists every remaining
-cross-reference that MS-09-003 requires repointing.
+The helper removes the item from its spec file, archives its last published
+text, records the removal in the implementation history (MS-09-002), and lists
+every remaining cross-reference that MS-09-003 requires repointing.
+
+The archived text is the item's block at the merge base of the base branch and
+``HEAD`` (MS-09-008), not the working tree: a branch that edits a requirement
+and then retires it must not archive text that was never published. The base
+branch is the growth guards' (``origin/$GITHUB_BASE_REF``, else
+``origin/main``) unless ``--base`` names another. An item absent at that base,
+or a base that cannot be resolved, is refused with nothing changed.
 """
 
 from __future__ import annotations
 
 import argparse
 import datetime
+import logging
 import re
 import subprocess
 import sys
+import tarfile
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,7 +43,15 @@ from pydantic import ValidationError
 from vultron.metadata.base import repo_root as _repo_root
 from vultron.metadata.history.cli import _build_content, append_history_entry
 from vultron.metadata.history.types import HistoryEntryType
+from vultron.metadata.specs.growth_guard import (
+    BaseUnavailableError,
+    base_ref_name,
+    materialize_tree,
+    resolve_merge_base,
+)
 from vultron.metadata.specs.registry import load_registry
+
+logger = logging.getLogger(__name__)
 
 #: Archive location relative to the repository root (MS-09-005).
 RETIRED_SPECS_RELPATH = Path("plan") / "retired-specs"
@@ -98,13 +118,78 @@ def _find_block(lines: list[str], spec_id: str) -> _Block | None:
     return None
 
 
-def _locate(spec_dir: Path, spec_id: str) -> tuple[Path, list[str], _Block]:
+def _find_in_dir(
+    spec_dir: Path, spec_id: str
+) -> tuple[Path, list[str], _Block] | None:
+    """The spec file under *spec_dir* declaring *spec_id*, if any."""
     for path in sorted(spec_dir.glob("*.yaml")):
         lines = path.read_text(encoding="utf-8").splitlines()
         block = _find_block(lines, spec_id)
         if block is not None:
             return path, lines, block
-    raise RetireError(f"{spec_id} is not declared in any {spec_dir}/*.yaml")
+    return None
+
+
+def _locate(spec_dir: Path, spec_id: str) -> tuple[Path, list[str], _Block]:
+    found = _find_in_dir(spec_dir, spec_id)
+    if found is None:
+        raise RetireError(
+            f"{spec_id} is not declared in any {spec_dir}/*.yaml"
+        )
+    return found
+
+
+@dataclass(frozen=True)
+class PublishedText:
+    """An item's block as the base branch has it.
+
+    Attributes:
+        base: The merge-base commit the block was read at.
+        text: The block, one string, without a trailing newline.
+    """
+
+    base: str
+    text: str
+
+
+def published_text(
+    root: Path, spec_id: str, base_ref: str | None = None
+) -> PublishedText:
+    """Return *spec_id*'s block at the merge base of *base_ref* and ``HEAD``.
+
+    *base_ref* defaults to the growth guards' base branch
+    (:func:`~vultron.metadata.specs.growth_guard.base_ref_name`).
+
+    Raises:
+        RetireError: The base cannot be resolved or read, or *spec_id* is not
+            declared in ``specs/`` there (it was added on this branch, so it
+            was never published).
+    """
+    ref = base_ref or base_ref_name()
+    try:
+        base = resolve_merge_base(root, ref)
+        with tempfile.TemporaryDirectory(prefix="spec-retire-") as tmp:
+            materialize_tree(root, base, ["specs"], Path(tmp))
+            found = _find_in_dir(Path(tmp) / "specs", spec_id)
+    except (
+        BaseUnavailableError,
+        OSError,
+        tarfile.TarError,
+        UnicodeDecodeError,
+    ) as exc:
+        raise RetireError(
+            f"cannot read the published text of {spec_id}: {exc}; "
+            f"pass --base to name the branch it was published on"
+        ) from exc
+    if found is None:
+        raise RetireError(
+            f"{spec_id} is not declared at the merge base {base[:12]} of "
+            f"{ref}, so it was never published there: delete it from "
+            f"specs/ instead of retiring it, or pass --base to name the "
+            f"branch it was published on"
+        )
+    _, lines, block = found
+    return PublishedText(base, "\n".join(block.slice(lines)))
 
 
 def render_archive_entry(
@@ -196,13 +281,18 @@ def retire_spec(
     repo_root: Path | None = None,
     today: datetime.date | None = None,
     record_history: bool = True,
+    base_ref: str | None = None,
 ) -> list[tuple[str, int, str]]:
     """Move *spec_id* from its spec file to the archive (MS-09-001/002/005).
+
+    The working-tree block is removed; the block at the merge base of
+    *base_ref* and ``HEAD`` is archived (:func:`published_text`, MS-09-008).
 
     Returns the cross-references still to repoint (MS-09-003).
 
     Raises:
-        RetireError: The ID is malformed, already archived, undeclared, or the
+        RetireError: The ID is malformed, already archived, undeclared in the
+            working tree or at the base, the base cannot be resolved, or the
             remaining spec files no longer load once it is removed.
             Nothing is changed in that case.
     """
@@ -211,6 +301,14 @@ def retire_spec(
     _validate_request(root, spec_id, why, replacement)
 
     path, lines, block = _locate(spec_dir, spec_id)
+    published = published_text(root, spec_id, base_ref)
+    if published.text != "\n".join(block.slice(lines)):
+        logger.warning(
+            "%s was edited since the merge base %s; the archive keeps the "
+            "published text and the edit is dropped",
+            spec_id,
+            published.base[:12],
+        )
     original = path.read_text(encoding="utf-8")
     remaining = lines[: block.start] + lines[block.end :]
     today = today or datetime.datetime.now(datetime.UTC).date()
@@ -220,7 +318,7 @@ def retire_spec(
         retired_by=retired_by,
         why=why,
         replacement=replacement,
-        last_text="\n".join(block.slice(lines)),
+        last_text=published.text,
     )
 
     archive = retired_specs_dir(root)
@@ -310,6 +408,14 @@ def main(argv: list[str] | None = None) -> None:
         "--replacement",
         help="ID of the requirement that replaces it, if any",
     )
+    parser.add_argument(
+        "--base",
+        dest="base_ref",
+        help=(
+            "branch whose text is archived, read at its merge base with "
+            "HEAD (default: origin/$GITHUB_BASE_REF, else origin/main)"
+        ),
+    )
     args = parser.parse_args(argv)
     try:
         refs = retire_spec(
@@ -317,6 +423,7 @@ def main(argv: list[str] | None = None) -> None:
             why=args.why,
             retired_by=args.retired_by,
             replacement=args.replacement,
+            base_ref=args.base_ref,
         )
     except RetireError as exc:
         print(f"Error: {exc}", file=sys.stderr)

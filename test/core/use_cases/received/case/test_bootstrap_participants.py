@@ -312,7 +312,7 @@ class TestM4AddParticipantStatusAfterBootstrap:
         activity = create_case_activity(
             case, actor=_CREATOR_ID, to=[_CASE_ACTOR_ID]
         )
-        bootstrap_event = make_payload(activity)
+        bootstrap_event = make_payload(activity, at=dl)
 
         link = _build_link()
         dl.save(link)
@@ -353,7 +353,9 @@ class TestM4AddParticipantStatusAfterBootstrap:
             actor=_VENDOR_ID,
             to=[_CASE_ACTOR_ID],
         )
-        event = make_payload(activity, receiving_actor_id=_CASE_ACTOR_ID)
+        event = make_payload(
+            activity, receiving_actor_id=_CASE_ACTOR_ID, at=dl
+        )
 
         AddParticipantStatusToParticipantReceivedUseCase(
             dl,

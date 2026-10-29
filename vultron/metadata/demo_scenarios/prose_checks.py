@@ -180,9 +180,15 @@ def consistency_problems(
     alongside the generated ones. Generation and checking are the two halves of
     one split (ADR-0098); a developer who has to run a different command for
     each half will run only the one the hook names.
+
+    The spec corpus is loaded once, from ``root/specs`` unless *registry* is
+    given, and every spec-side check reads that one copy.
     """
     base = root or repo_root()
     resolved = discover_scenarios() if specs is None else specs
+    # Loaded once and handed to every spec-side check: each loading its own
+    # copy parsed the whole corpus four times per run (#5341).
+    loaded = load_registry(base / "specs") if registry is None else registry
     problems: list[str] = []
     problems.extend(
         f"scenario narrative page is missing from the mkdocs nav — {entry} "
@@ -192,7 +198,7 @@ def consistency_problems(
     problems.extend(
         f"registered scenario {name!r} has no per-scenario DEMOMA-16 "
         "requirement stating its expected semantic types (DEMOCI-11-007)."
-        for name in missing_semantic_type_requirements(resolved, registry)
+        for name in missing_semantic_type_requirements(resolved, loaded)
     )
     # A structural failure — a renamed table heading or column, a missing
     # register heading, a malformed marker, a consumer path that moved — is
@@ -207,12 +213,12 @@ def consistency_problems(
     # a declared consumer that moved, and MetadataLoadError (a ValueError) a
     # narrative page whose frontmatter will not parse.
     for check in (
-        lambda: scenario_set_statement_problems(base, resolved, registry),
+        lambda: scenario_set_statement_problems(base, resolved, loaded),
         lambda: undeclared_scenario_tables(base, resolved),
-        lambda: scenario_table_problems(base, resolved, registry),
+        lambda: scenario_table_problems(base, resolved, loaded),
         lambda: restated_counts(base),
         lambda: stray_scenario_includes(base),
-        lambda: partition_problems(base, registry, resolved),
+        lambda: partition_problems(base, loaded, resolved),
         lambda: [
             f"scenario narrative page {page} names no registered scenario, so "
             "no CI run exercises what it describes (DEMOCI-11-012)."

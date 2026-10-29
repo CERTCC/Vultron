@@ -21,6 +21,10 @@ decorating its own ``main()``::
         participants="Reporter + Vendor",
         feature="Baseline two-actor CVD",
         in_pr_set=True,
+        path=(
+            ("reporter-whom-to-tell", "vendor"),
+            ("vendor-after-answer", "report-fix-ready"),
+        ),
     )
     def main(skip_health_check: bool = False, ...) -> None:
 
@@ -45,6 +49,12 @@ Two design rules are load-bearing and easy to undo by accident:
   and raises when a discovered module did not register, so a generated table
   can never come out quietly short.
 
+**The path places the scenario on the tree.** ``path`` names entries of the
+branch-point table (:mod:`vultron.demo.scenario.branch_points`) and is checked
+against it when the spec is built; :func:`discover_scenarios` then merges every
+path into one tree (:mod:`vultron.demo.scenario.tree`) and fails unless each
+scenario is exactly one ending (DEMOCI-11-014).
+
 **Registration means built.** A scenario that has a spec group but no module
 is declared by the planned-scenario register in ``notes/demo-future-ideas.md``
 instead, never here (DEMOCI-11-010).
@@ -58,10 +68,12 @@ from __future__ import annotations
 import importlib
 import pkgutil
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TypeVar
 
+from vultron.demo.scenario.branch_points import validate_path
+from vultron.demo.scenario.tree import PathStep, TreeNode, build_scenario_tree
 from vultron.errors import DemoScenarioRegistryError
 
 #: Dotted path of the package holding the scenario demo modules.
@@ -118,6 +130,12 @@ class ScenarioSpec:
     #: Whether the scenario runs on ``pull_request`` events. The coverage
     #: rationale for the PR set lives in DEMOCI-06-002, not here.
     in_pr_set: bool
+    #: The scenario's full path from the root of the scenario tree: ordered
+    #: ``(branch point id, choice id)`` pairs naming entries of
+    #: :data:`~vultron.demo.scenario.branch_points.BRANCH_POINTS`
+    #: (DEMOCI-11-014). The prompts and choice labels are read from that table,
+    #: never declared here (DEMOCI-11-013).
+    path: tuple[PathStep, ...]
 
     def __post_init__(self) -> None:
         if not _NAME_RE.match(self.name):
@@ -183,6 +201,18 @@ class ScenarioSpec:
                 "'full_suite_only == false' exactly, so a truthy non-boolean "
                 "would drop the scenario from the matrix instead of erroring."
             )
+        try:
+            normalized = validate_path(self.path)
+        except DemoScenarioRegistryError as exc:
+            raise DemoScenarioRegistryError(
+                f"scenario {self.name!r} declares an invalid path: {exc}"
+            ) from exc
+        if normalized != self.path:
+            raise DemoScenarioRegistryError(
+                f"scenario {self.name!r} has a path that is not a tuple of "
+                f"(branch point, choice) tuples ({self.path!r}); a frozen "
+                "spec holds an immutable path."
+            )
 
     @property
     def module_stem(self) -> str:
@@ -240,10 +270,11 @@ def scenario(
     participants: str,
     feature: str,
     in_pr_set: bool,
+    path: Sequence[PathStep],
 ) -> Callable[[F], F]:
     """Register the decorated ``main()`` as a demo scenario.
 
-    Keyword-only by design: five same-typed prose arguments are trivially
+    Keyword-only by design: four same-typed prose arguments are trivially
     swappable positionally, and a swapped ``label``/``participants`` pair would
     render as a plausible-looking wrong table rather than failing.
 
@@ -253,6 +284,10 @@ def scenario(
         participants: Prose participant list.
         feature: One-line notable protocol feature.
         in_pr_set: Whether the scenario runs on ``pull_request`` events.
+        path: The scenario's full path from the root of the scenario tree, as
+            ordered ``(branch point id, choice id)`` pairs (DEMOCI-11-014).
+            Prompts and choice labels come from the branch-point table, so
+            this decorator takes neither (DEMOCI-11-013).
 
     Returns:
         A decorator that registers the spec and returns the function unchanged.
@@ -270,6 +305,7 @@ def scenario(
             participants=participants,
             feature=feature,
             in_pr_set=in_pr_set,
+            path=tuple(path),
         )
         _register(spec, func.__module__)
         return func
@@ -363,8 +399,10 @@ def discover_scenarios() -> tuple[ScenarioSpec, ...]:
     artifacts order-dependent.
 
     Raises:
-        DemoScenarioRegistryError: If a discovered module registered nothing.
-            Failing here rather than returning a short tuple is the point: a
+        DemoScenarioRegistryError: If a discovered module registered nothing,
+            or if the declared paths do not make one tree in which every
+            scenario is exactly one ending (:func:`scenario_tree`). Failing
+            here rather than returning a short tuple is the point: a
             generator that silently omits a scenario produces a table that
             looks complete and is wrong, which is the defect ADR-0098 exists
             to remove.
@@ -388,7 +426,17 @@ def discover_scenarios() -> tuple[ScenarioSpec, ...]:
             + ". Decorate the module's main() with @scenario(...) from "
             f"{__name__} (DEMOCI-11-001)."
         )
+    build_scenario_tree(specs)
     return specs
+
+
+def scenario_tree() -> TreeNode:
+    """Discover every scenario and return the tree their paths make.
+
+    Raises:
+        DemoScenarioRegistryError: As :func:`discover_scenarios`.
+    """
+    return build_scenario_tree(discover_scenarios())
 
 
 __all__ = [
@@ -401,4 +449,5 @@ __all__ = [
     "registered_scenarios",
     "scenario",
     "scenario_module_stems",
+    "scenario_tree",
 ]

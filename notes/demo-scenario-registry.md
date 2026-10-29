@@ -9,7 +9,9 @@ description: >
   groups that specify a scenario, why discovery must walk the package, why
   `.github/demo-scenarios.json` stays committed, which consumers are generated
   versus checked in place, how the CLI builds its sub-commands from
-  `ActorRole` declarations, and the registry's pitfalls.
+  `ActorRole` declarations, how a scenario declares its path through the
+  branch-point table and what discovery checks of the tree, and the registry's
+  pitfalls.
 related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
@@ -42,7 +44,7 @@ ADR alone does not make obvious.
 ## What the decorator carries, and what it must not
 
 The decorator carries only facts the demo module is the authority for: `name`,
-`label`, `participants`, `feature` and `in_pr_set`.
+`label`, `participants`, `feature`, `in_pr_set` and `path`.
 
 **Do not add path fields.** The demo module, the invariant harness and the
 narrative page all derive from `name` (hyphens become underscores in file names;
@@ -51,9 +53,41 @@ either resolves or fails a check (DEMOCI-11-003). If a scenario cannot satisfy a
 convention, change the convention or rename the file: an override field re-opens
 the drift channel for every scenario.
 
-A scenario's place in the scenario tree, its full path, is the one further
-self-known fact the decorator will carry (DEMOCI-11-014). The design is planned
-in [demo-scenario-tree.md](demo-scenario-tree.md) and is not built yet.
+## The path and the branch-point table
+
+Each scenario declares its full path from the root of the scenario tree as
+`path=` ordered `(branch point, choice)` pairs (DEMOCI-11-014). The pairs name
+entries of `BRANCH_POINTS` (`vultron/demo/scenario/branch_points.py`), which
+defines each decision once: the deciding `CVDRole`, the prompt, and the choices,
+each a label and one trigger verb (DEMOCI-11-013). The rest of the tree's design
+is in [demo-scenario-tree.md](demo-scenario-tree.md).
+
+- **Prompts and choice labels live only in the table.** `@scenario` takes no
+  prompt or choice label (its `label` is the scenario's display casing), and
+  `ui/` reads them from the generated index (#4727), so offline and live mode
+  cannot disagree. A test pins the decorator's parameters.
+- **A choice is the deciding role's next trigger on that path.** Other roles'
+  steps may run between the decision and that trigger, but the role's own
+  earlier triggers may not: if the Vendor answers a note first, the decision
+  comes after the answer. So when a reorder puts a role's step before its
+  choice, move the decision with it.
+- **"Carry on" is a trigger, never a skip.** Write the label as what happens
+  ("Report the fix ready", not "invite nobody"); a silent party shows as what
+  the other party does next.
+- **A branch point is a decision, not a node.** A node is its path prefix, so
+  one entry labels every node where that decision is made: a decision may
+  recur on one path, and `owner-keep-case` serves both the `rvcv` and `rccv`
+  families. Add a branch point only for a new decision.
+- **Discovery fails closed on a malformed tree.** `ScenarioSpec` refuses an
+  unknown branch point or choice; `discover_scenarios()` merges the paths with
+  `build_scenario_tree()` (`vultron/demo/scenario/tree.py`) and refuses a path
+  another scenario already declares, a path that is a strict prefix of another,
+  and paths that decide different branch points at one node. Each has a test on a
+  mutated registry in `test/demo_unit/test_scenario_tree.py`.
+- **Every choice is a mounted trigger and is taken.** The same file checks each
+  choice's verb against the routes the prototype app mounts, and that some
+  registered scenario takes every choice; an untaken choice is a dead end in
+  the UI.
 
 ## Registration means built; planned scenarios live in the other register
 

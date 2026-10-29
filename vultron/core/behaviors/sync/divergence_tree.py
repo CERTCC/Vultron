@@ -36,7 +36,10 @@ from vultron.core.behaviors.sync.nodes.reseed import (
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
-__all__ = ["create_case_diverged_fault_tree"]
+__all__ = ["RESEED_GATE_NAME", "create_case_diverged_fault_tree"]
+
+#: Name of the CASE_MANAGER gate around the tree's re-seed.
+RESEED_GATE_NAME = "ReseedIfCaseManager"
 
 
 def create_case_diverged_fault_tree(
@@ -94,5 +97,5 @@ def create_case_diverged_fault_tree(
             ReseedPeerNode(case_id=case_id, peer_id=sender_id),
         ],
         manager_case_id=case_id,
-        manager_gate_name="ReseedIfCaseManager",
+        manager_gate_name=RESEED_GATE_NAME,
     )

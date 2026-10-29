@@ -175,7 +175,9 @@ def _deliver(dl: SqliteDataLayer, activity, make_payload, receiving_actor_id):
     port, so both are wired exactly as ``inbox_handler`` wires them.
     """
     dl.create(activity)
-    event = make_payload(activity, receiving_actor_id=receiving_actor_id)
+    event = make_payload(
+        activity, receiving_actor_id=receiving_actor_id, at=dl
+    )
     return InviteToEmbargoOnCaseReceivedUseCase(
         dl,
         event,
@@ -188,7 +190,11 @@ def _deliver(dl: SqliteDataLayer, activity, make_payload, receiving_actor_id):
 @pytest.mark.spec("EP-09-001")
 @pytest.mark.spec("EMB-03-001")
 def test_case_manager_moves_canonical_case_to_revise(make_payload):
-    """The Participant receiving EV is the CASE_MANAGER: ACTIVE → REVISE."""
+    """The Participant receiving EV is the CASE_MANAGER: ACTIVE → REVISE.
+
+    "Emit EK" is discharged by the commit of the received EV and its
+    ``Announce(CaseLedgerEntry)``; no acknowledgement message is queued.
+    """
     case_id = "https://example.org/cases/relay-revise"
     dl, revision = _active_case_with_revision(
         case_id, store_actor=MANAGER, participants=[PROPOSER]
@@ -205,6 +211,7 @@ def test_case_manager_moves_canonical_case_to_revise(make_payload):
 
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.current_status.em.state == EM.REVISE
+    _assert_ek_discharged_by_commit(dl, case_id, proposal.id_)
 
 
 @pytest.mark.spec("EP-09-002")
@@ -362,10 +369,41 @@ def _relayed_invites(dl: SqliteDataLayer) -> list[VultronActivity]:
     return _outbox_of_type(dl, "Invite")
 
 
+def _assert_ek_discharged_by_commit(
+    dl: SqliteDataLayer, case_id: str, proposal_id: str
+) -> None:
+    """The proposal is committed and announced, and no ack is queued.
+
+    "Emit EK" is discharged by the CASE_MANAGER's commit of the received
+    proposal and its ``Announce(CaseLedgerEntry)`` (EP-09-009). Call it on a
+    case whose only other participant is the proposer, so no Invite is relayed.
+    """
+    committed = [
+        e
+        for e in _ledger_entries(dl, case_id)
+        if e.log_object_id == proposal_id
+    ]
+    assert len(committed) == 1, "the received proposal is committed once"
+    announced = [
+        a.object_ if isinstance(a.object_, str) else a.object_.id_
+        for a in _outbox_of_type(dl, "Announce")
+        if a.object_ is not None
+    ]
+    assert committed[0].id_ in announced, "the proposal's entry is announced"
+    queued = {
+        cast(VultronActivity, dl.read(i)).type_ for i in dl.outbox_list()
+    }
+    assert queued == {"Announce"}, "no acknowledgement message is queued"
+
+
 @pytest.mark.spec("EP-09-001")
 @pytest.mark.spec("EMB-01-001")
 def test_case_manager_moves_first_proposal_to_proposed(make_payload):
-    """The Participant receiving EP is the CASE_MANAGER: NONE → PROPOSED."""
+    """The Participant receiving EP is the CASE_MANAGER: NONE → PROPOSED.
+
+    "Emit EK" is discharged by the commit of the received EP and its
+    ``Announce(CaseLedgerEntry)``; no acknowledgement message is queued.
+    """
     case_id = "https://example.org/cases/relay-first"
     dl, first = _unbound_case(
         case_id, store_actor=MANAGER, participants=[PROPOSER]
@@ -382,6 +420,7 @@ def test_case_manager_moves_first_proposal_to_proposed(make_payload):
 
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.current_status.em.state == EM.PROPOSED
+    _assert_ek_discharged_by_commit(dl, case_id, proposal.id_)
 
 
 @pytest.mark.spec("CM-28-012")
@@ -1000,7 +1039,7 @@ def test_a_missing_trigger_port_is_a_wiring_fault_that_moves_no_state(
     )
     proposal = _proposal(revision, case_id)
     dl.create(proposal)
-    event = make_payload(proposal, receiving_actor_id=MANAGER)
+    event = make_payload(proposal, receiving_actor_id=MANAGER, at=dl)
 
     with pytest.raises(
         VultronBTInternalError, match="trigger_activity_factory"
@@ -1029,9 +1068,9 @@ def test_an_invite_naming_no_embargo_is_refused(make_payload):
     )
     proposal = _proposal(revision, case_id)
     dl.create(proposal)
-    event = make_payload(proposal, receiving_actor_id=MANAGER).model_copy(
-        update={"object_": None}
-    )
+    event = make_payload(
+        proposal, receiving_actor_id=MANAGER, at=dl
+    ).model_copy(update={"object_": None})
 
     verdict = InviteToEmbargoOnCaseReceivedUseCase(
         dl,
@@ -1100,7 +1139,7 @@ def test_a_redelivered_proposal_is_skipped_and_relays_nothing_twice(
     entries_after_first = len(_ledger_entries(dl, case_id))
     invites_after_first = len(_relayed_invites(dl))
 
-    event = make_payload(proposal, receiving_actor_id=MANAGER)
+    event = make_payload(proposal, receiving_actor_id=MANAGER, at=dl)
     second = InviteToEmbargoOnCaseReceivedUseCase(
         dl,
         event,
@@ -1179,7 +1218,7 @@ def test_a_received_proposal_whose_relay_faults_keeps_no_consequence(
     )
     proposal = _proposal(revision, case_id)
     dl.create(proposal)
-    event = make_payload(proposal, receiving_actor_id=MANAGER)
+    event = make_payload(proposal, receiving_actor_id=MANAGER, at=dl)
     entries_before = [e.id_ for e in _ledger_entries(dl, case_id)]
     outbox_before = list(dl.outbox_list())
     adapter = _AdapterFailingOnSecondInvite(dl)
@@ -1244,7 +1283,7 @@ def test_a_received_proposal_whose_relay_commit_fails_keeps_no_consequence(
     )
     proposal = _proposal(revision, case_id)
     dl.create(proposal)
-    event = make_payload(proposal, receiving_actor_id=MANAGER)
+    event = make_payload(proposal, receiving_actor_id=MANAGER, at=dl)
     entries_before = [e.id_ for e in _ledger_entries(dl, case_id)]
     outbox_before = list(dl.outbox_list())
 
@@ -1288,7 +1327,7 @@ def test_attribution_without_a_local_case_falls_back_to_the_sender(
     invite = _proposal(
         revision, case_id, actor=MANAGER, attributed_to=PROPOSER
     )
-    event = make_payload(invite, receiving_actor_id=OTHER_A)
+    event = make_payload(invite, receiving_actor_id=OTHER_A, at=dl)
 
     caplog.set_level("WARNING")
     assert resolve_proposer_id(event, dl) == MANAGER
@@ -1315,7 +1354,7 @@ def test_a_slash_spelled_relay_attribution_names_the_stored_proposer(
 
     assert (
         resolve_proposer_id(
-            make_payload(invite, receiving_actor_id=MANAGER), dl
+            make_payload(invite, receiving_actor_id=MANAGER, at=dl), dl
         )
         == PROPOSER
     )

@@ -138,7 +138,7 @@ def _deliver(
     activity = builders[declared](
         invite, tail, actor=sender, to=[CASE_MANAGER_ID]
     )
-    event = received_event(activity)
+    event = received_event(activity, at=dl)
     return use_cases[declared](
         dl,
         event,

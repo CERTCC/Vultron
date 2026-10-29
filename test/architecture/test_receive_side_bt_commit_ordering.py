@@ -21,8 +21,9 @@ Structural ratchets for receive-side BT composition (CLP-10-006, CLP-10-010).
    receive-side BT composes through ``create_receive_activity_tree``, which
    fixes the stage order intake → door guards → clock decisions → guards →
    commit → effects.  Only
-   ``vultron/core/behaviors/case/receive_activity_tree.py`` — which *defines*
-   both factories — is exempt.
+   ``vultron/core/behaviors/case/receive_activity_tree.py`` — the factory
+   that composes the commit stage ``case/receive_stages/tree.py`` defines —
+   is exempt.
 2. No rejection validator sits in an effect stage (``replica_effects``,
    ``manager_effects`` or ``refusal_effects``; CLP-10-009).
 3. No node that any factory uses as a protocol effect appears as a
@@ -38,6 +39,10 @@ Structural ratchets for receive-side BT composition (CLP-10-006, CLP-10-010).
    diversion needs — never the received activity's, and no other
    protocol-effect node runs inside the clock-decision stage (CLP-10-025,
    CLP-10-026).
+5. Ahead of its guarded commit, a built received tree writes or sends only
+   inside a permitted pre-commit stage: the clock decisions, a diversion,
+   a refusal or post-close reply, or the ledger-position answer, which itself
+   commits nothing (CLP-10-006, CLP-10-010 stage 2a, SYNC-18-007).
 
 The intake-first ratchet — every receive-side factory returns the shared
 factory's result, with the bypassing and nesting factories as exact sets
@@ -661,3 +666,188 @@ class TestEarlyCommitDetector:
         tree.add_child(self._decision_commit())
 
         assert _early_commits(tree) == []
+
+
+# ---------------------------------------------------------------------------
+# CLP-10-006 / CLP-10-010 stage 2a ratchet: the ledger-position answer is the
+# one pre-commit writer besides the clock decisions, and it commits nothing.
+# ---------------------------------------------------------------------------
+
+
+def _writer_types() -> tuple[type, ...]:
+    """Node classes that write the store or the outbox.
+
+    The marker classes cover emits and state writes.  The unmarked writers
+    are the classes ``WRITES_NO_CASE_STATE`` pins as reaching a write seam
+    without a marker (archive, ledger, replication, local bookkeeping), less
+    intake (stage 1, CLP-10-017) and the decisions it records as writing
+    nothing.
+    """
+    import importlib
+
+    from test.architecture.test_received_tree_state_writes_are_gated import (
+        WRITES_NO_CASE_STATE,
+    )
+    from vultron.core.behaviors.case.nodes.intake import (
+        IntakeReceivedActivityNode,
+    )
+    from vultron.core.behaviors.emit_capable import EmitCapable
+    from vultron.core.behaviors.state_write_capable import StateWriteCapable
+
+    unmarked = tuple(
+        cls
+        for (module, name), reason in sorted(WRITES_NO_CASE_STATE.items())
+        if "writes nothing" not in reason
+        and (cls := getattr(importlib.import_module(module), name))
+        is not IntakeReceivedActivityNode
+    )
+    return (EmitCapable, StateWriteCapable, *unmarked)
+
+
+def _permitted_pre_commit_stage(node: py_trees.behaviour.Behaviour) -> bool:
+    """A stage CLP-10-010 lets write ahead of the act's commit.
+
+    The clock decisions; any diversion, which answers its delivery in place
+    of the commit and the effects (CLP-10-026) — a replica's diversion
+    writes and replies too, and only a CASE_MANAGER one may *commit*
+    (:func:`_commits_own_entry`); a refusal reply, which runs only when a
+    guard refuses; and the ledger-position answer, whose writes
+    :func:`test_the_ledger_position_answer_commits_nothing` pins.
+    """
+    from vultron.core.behaviors.case.nodes.clock_decision_stage import (
+        ClockDecisionStage,
+    )
+    from vultron.core.behaviors.case.nodes.diversion_stage import (
+        DiversionStage,
+    )
+    from vultron.core.behaviors.case.nodes.refusal_stage import (
+        RefusalEffectsBestEffort,
+    )
+    from vultron.core.behaviors.sync.nodes.ledger_position import (
+        LedgerPositionAnswer,
+    )
+
+    return isinstance(
+        node,
+        (
+            ClockDecisionStage,
+            DiversionStage,
+            RefusalEffectsBestEffort,
+            LedgerPositionAnswer,
+        ),
+    )
+
+
+def _early_writers(root: py_trees.behaviour.Behaviour) -> list[str]:
+    """Writers *root* runs ahead of its guarded commit outside a permitted
+    stage."""
+    from vultron.core.behaviors.case.receive_activity_tree import (
+        received_stages,
+    )
+
+    stages = received_stages(root)
+    names = [child.name for child in stages]
+    if GUARDED_COMMIT_NAME not in names:
+        return []
+    writers = _writer_types()
+    found: list[str] = []
+
+    def walk(node: py_trees.behaviour.Behaviour) -> None:
+        if _permitted_pre_commit_stage(node):
+            return
+        if isinstance(node, writers):
+            found.append(type(node).__name__)
+        for child in node.children:
+            walk(child)
+
+    for child in stages[: names.index(GUARDED_COMMIT_NAME)]:
+        walk(child)
+    return found
+
+
+#: Trees whose guarded commit sits below a top-level stage, so neither the
+#: early-commit nor the early-writer walk reads them.  Held to equality, so a
+#: new tree that nests its commit is seen, not skipped.
+NESTED_COMMIT_TREES: frozenset[str] = frozenset(
+    {
+        # The close arm is a received tree nested in the close tree; the
+        # factory gives the nested arm no stage of its own (one answer per
+        # delivery), and its commit is the arm's.
+        "vultron/core/behaviors/case/receive_close_case_tree.py:"
+        "create_close_case_received_tree",
+    }
+)
+
+
+def test_trees_with_a_nested_commit_are_known() -> None:
+    from test.architecture._received_tree_builds import built_received_trees
+    from vultron.core.behaviors.case.receive_activity_tree import (
+        received_stages,
+    )
+
+    nested = {
+        f"{path}:{factory}"
+        for (path, factory), tree in built_received_trees().items()
+        if GUARDED_COMMIT_NAME
+        not in [child.name for child in received_stages(tree)]
+        and any(node.name == GUARDED_COMMIT_NAME for node in tree.iterate())
+    }
+    assert nested == NESTED_COMMIT_TREES
+
+
+@pytest.mark.spec("CLP-10-006")
+@pytest.mark.spec("CLP-10-010")
+def test_only_permitted_stages_write_ahead_of_the_commit() -> None:
+    from test.architecture._received_tree_builds import built_received_trees
+
+    offenders = {
+        f"{path}:{factory}": found
+        for (path, factory), tree in built_received_trees().items()
+        if (found := _early_writers(tree))
+    }
+    assert offenders == {}, (
+        "Writes ahead of the guarded commit outside the clock decisions, a"
+        " diversion, a refusal reply or the ledger-position answer"
+        f" (CLP-10-006, CLP-10-010): {offenders}"
+    )
+
+
+@pytest.mark.spec("CLP-10-010")
+@pytest.mark.spec("SYNC-18-007")
+def test_the_ledger_position_answer_commits_nothing() -> None:
+    """It records replication state and may queue a replay or re-seed, but
+    no ledger entry: a position statement changes nothing in the case file
+    (SYNC-17-006)."""
+    from test.architecture._received_tree_builds import built_received_trees
+    from vultron.core.behaviors.sync.nodes.ledger_position import (
+        LedgerPositionAnswer,
+    )
+
+    trees = built_received_trees()
+    answers = [
+        answer
+        for tree in trees.values()
+        for answer in tree.iterate()
+        if isinstance(answer, LedgerPositionAnswer)
+    ]
+    assert answers, "no received tree answers a stamped ledger position"
+    commits = {
+        type(n).__name__
+        for answer in answers
+        for n in answer.iterate()
+        if isinstance(n, _commit_node_types())
+    }
+    assert commits == set()
+    writers = {
+        type(n).__name__
+        for answer in answers
+        for n in answer.iterate()
+        if isinstance(n, _writer_types())
+    }
+    # The early-writer walk skips the answer, so its writes are pinned here:
+    # record replication state, replay a lag, re-seed a split (CLP-10-010).
+    assert writers == {
+        "UpdateReplicationStateNode",
+        "SendMissingEntriesNode",
+        "ReseedPeerNode",
+    }

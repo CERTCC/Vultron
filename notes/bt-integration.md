@@ -243,8 +243,8 @@ Two shapes look like a second tree and are not:
 
 A received-side tree composed via `create_receive_activity_tree`
 (`vultron/core/behaviors/case/receive_activity_tree.py`) runs its stages in a
-fixed order (CLP-10-006, CLP-10-010): intake, door guards, clock decisions,
-guards, commit, effects.
+fixed order (CLP-10-006, CLP-10-010): intake, door guards, the ledger-position
+answer, clock decisions, guards, commit, effects.
 
 1. **Intake** — `IntakeReceivedActivityNode` (`case/nodes/intake.py`) archives
    the received activity exactly as received, idempotently, as a
@@ -310,7 +310,22 @@ guards, commit, effects.
    `LedgerActivityContext` instead: its nodes read the case from the entry the
    activity carries (`Announce` and `Reject` of a `CaseLedgerEntry`). Never
    place a sender check after a write: a snapshot an activity carries is
-   stored only once its sender is admitted (the Engage tree, HP-01-006).
+   stored only once its sender is admitted (HP-01-006). Nor store it among the
+   guards: a guard checks what the activity carries and writes nothing, and the
+   store is an effect of the committed act, so a refusal stores nothing. The
+   Engage tree checks its snapshot's embargo (`CheckCarriedEmbargoNode`) and
+   holds it after the commit (CLP-10-006, CLP-10-010).
+
+   After the door guards of every tree whose `SenderCheckContext` names a case,
+   the factory places the CASE_MANAGER's answer to the sender's stamped
+   `ledgerPosition` (`create_ledger_position_stage`, SYNC-18-004/005/007): it
+   records a held position, replays a lag and re-seeds a split, and never
+   decides the act. It is the one write ahead of the commit besides the clock
+   decisions (CLP-10-006, CLP-10-010 stage 2a): it records replication state and
+   may queue a replay or re-seed, but commits no entry. Reason: it answers the
+   sender's position whatever the act's outcome (SYNC-18-007). See
+   `notes/sync-ledger-replication.md` § "Every Case Activity States Its Sender's
+   Ledger Position (SYNC-18)".
 3. **Clock decisions** — a decision the CASE_MANAGER takes from its own clock or policy
    before judging the activity: an expiry, or the embargo end-time check (CLP-10-025).
    It runs after the door guards, so an unentitled sender never makes it write, and

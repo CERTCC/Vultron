@@ -144,6 +144,11 @@ class TestPhaseOrder:
             ),
             patch.object(
                 demo,
+                "reporter_asks_vendor_answers",
+                side_effect=phase("notes_exchange"),
+            ),
+            patch.object(
+                demo,
                 "_phase_embargo_revision",
                 side_effect=phase("embargo_revision", revised),
             ),
@@ -184,6 +189,7 @@ class TestPhaseOrder:
         assert order == [
             "report_submission",
             "embargo_proposal",
+            "notes_exchange",
             "embargo_revision",
             "v2_late_invite",
             "fix_lifecycle",
@@ -194,7 +200,11 @@ class TestPhaseOrder:
     @pytest.mark.spec("DEMOMA-21-008")
     def test_a_failed_proposal_skips_every_later_phase(self, cast, case):
         order = self._run(cast, case, None, None)
-        assert order == ["report_submission", "embargo_proposal"]
+        assert order == [
+            "report_submission",
+            "embargo_proposal",
+            "notes_exchange",
+        ]
         assert _demo_failures
 
     @pytest.mark.spec("DEMOMA-21-012")
@@ -212,6 +222,7 @@ class TestPhaseOrder:
         assert order == [
             "report_submission",
             "embargo_proposal",
+            "notes_exchange",
             "embargo_revision",
             "v2_late_invite",
         ]
@@ -223,6 +234,7 @@ class TestPhaseOrder:
         assert order == [
             "report_submission",
             "embargo_proposal",
+            "notes_exchange",
             "embargo_revision",
         ]
         assert _demo_failures

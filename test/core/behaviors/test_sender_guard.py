@@ -989,8 +989,9 @@ def test_a_tree_that_commits_nothing_judges_the_context_case() -> None:
         sender_context=SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
     )
 
-    # intake, post-close, addressee door, sender guard
-    assert len(tree.children) == 4
+    # intake, post-close, addressee door, sender guard, and the answer to
+    # the sender's ledger position in that case (SYNC-18-007)
+    assert len(tree.children) == 5
 
 
 def test_factory_rejects_a_context_without_a_rule() -> None:

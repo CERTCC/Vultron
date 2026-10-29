@@ -100,6 +100,7 @@ _EXTRA_SPEC = ScenarioSpec(
     participants="Reporter + Vendor",
     feature="Fixture scenario; never registered",
     in_pr_set=True,
+    path=(("reporter-whom-to-tell", "vendor"),),
 )
 
 

@@ -144,8 +144,9 @@ def _collect_violations() -> dict[str, list[str]]:
 # ``DataLayer.create()``.  HP-08-001's rationale names them as the one
 # retained compatibility use in core.  The value is the exact number of
 # record-level sites in the file; lower it as sites are migrated and remove
-# the entry at zero.
+# the entry at zero.  Neither node has a production caller.
 # ---------------------------------------------------------------------------
+# owner: #5394
 KNOWN_VIOLATIONS: Mapping[str, int] = MappingProxyType(
     {"vultron/core/behaviors/helpers.py": 5}
 )

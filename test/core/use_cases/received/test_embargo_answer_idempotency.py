@@ -500,7 +500,8 @@ def test_the_accept_trees_own_repeat_guard_stops_a_repeat():
     event = extract_stamped(
         parse_activity(
             _answer_body(net, BYSTANDER, invite_id, accept=True, tag="2")
-        )
+        ),
+        at=net.stores[MANAGER],
     ).model_copy(update={"receiving_actor_id": MANAGER})
 
     result = BTBridge(datalayer=net.stores[MANAGER]).execute_with_setup(

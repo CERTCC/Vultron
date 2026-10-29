@@ -95,7 +95,6 @@ No participant terminates it.
 ### 1. Report submission
 
 The Reporter submits the report, the Coordinator validates it and engages the case, and Vendor1 joins by invitation.
-The Reporter then asks about the embargo in a case note, and Vendor1 answers.
 The default embargo is active from case creation, so the case is at Embargo Management (EM) state `ACTIVE`.
 
 *Antecedent:* Reporter has knowledge of the vulnerability.
@@ -112,6 +111,9 @@ It activates the revision, and the case returns to EM `ACTIVE`.
 
 Each participant waits for the relayed invitation on its own replica.
 No participant waits for a message from another participant.
+
+With the revised embargo in force, the Reporter asks about it in a case note, and Vendor1 answers.
+In this scenario the Reporter proposes terms before it asks anything, and Vendor1's next decision comes after its answer.
 
 *Antecedent:* the case is engaged and EM is `ACTIVE`.
 

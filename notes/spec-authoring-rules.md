@@ -493,7 +493,11 @@ citation pointed at a rule it never meant. Retire with
 `uv run spec-retire <ID> --why ... --by '#N' [--replacement <ID>]` (MS-09-006):
 it parks the text in `plan/retired-specs/<ID>.md`, outside agent context
 (MS-09-005), writes the history entry, and lists the citations to repoint
-(MS-09-003). `spec-lint` fails `deprecated:`/`superseded_by:` and a re-declared
+(MS-09-003). The archive takes the block at the merge base with
+`origin/$GITHUB_BASE_REF`, else `origin/main` (or `--base`), not the working
+tree, so editing a requirement and retiring it in one branch archives its
+published text; an ID absent at the base is refused — delete it instead
+(MS-09-008). `spec-lint` fails `deprecated:`/`superseded_by:` and a re-declared
 archived ID (MS-09-007). A spec-versus-code conflict found in an implementation
 PR follows [notes/agentic-workflow.md](agentic-workflow.md) § "Spec Text
 Conflicts With Code", and the PR body carries `## Spec amended`.

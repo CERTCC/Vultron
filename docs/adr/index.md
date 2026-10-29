@@ -252,6 +252,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0159 An Actor Known Only by URI Travels as an Id-and-Type Reference, and No One Invents a Value They Do Not Know](0159-an-actor-known-only-by-uri-travels-as-an-id-and-type-reference.md) *(provisional)*
 - [ADR-0160 A Requirement That Uses a Term Another Requirement Defines Records `uses_definition`, and a Link No Type Fits Is Not Recorded](0160-a-requirement-that-uses-a-term-another-defines-records-uses-definition.md) *(provisional)*
 - [ADR-0161 Eventual Consistency Is the Protocol's Ordering Guarantee](0161-eventual-consistency-is-the-protocols-ordering-guarantee.md) *(provisional)*
+- [ADR-0164 Actors Sign Content with Object-Level Proofs from Seeded Keys](0164-actors-sign-content-with-object-level-proofs-from-seeded-keys.md) *(provisional)*
 
 ## Proposed ADRs
 
@@ -264,7 +265,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0153 One Role Check per Message Picks the Received Path](0153-one-role-check-per-message-picks-the-received-path.md) — partially supersedes 0088-consolidate-case-authority-determination.md
 - [ADR-0154 A Received Message Is One Staged Record, Archived Only When Applied](0154-a-received-message-is-one-staged-record-archived-only-when-applied.md) — partially supersedes 0111-intake-is-the-first-received-side-stage.md, 0135-compose-received-trees-never-chain-them.md, 0151-a-received-act-commits-its-own-entry-with-its-consequences.md
 - [ADR-0155 A Participant States Its Ledger Position, and the Case Manager Answers a Lag](0155-a-participant-states-its-ledger-position-and-the-case-manager-answers-a-lag.md)
-- [ADR-0156 Every Case Activity States Its Sender's Ledger Position](0156-every-case-activity-states-its-senders-ledger-position.md) *(revision 2)*
+- [ADR-0156 Every Case Activity States Its Sender's Ledger Position](0156-every-case-activity-states-its-senders-ledger-position.md) *(revision 3)*
 - [ADR-0158 The Occasion Is the Specification's Message Unit, and Case Coordination Is Its Own Normative Section](0158-the-occasion-is-the-specifications-message-unit-and-case-coordination-is-its-own-section.md)
 - [ADR-0162 Protocol Statecharts Are Projections of the Core Transition Tables, and Occasions Name Their Transitions](0162-protocol-statecharts-are-projections-of-the-core-transition-tables-and-occasions-name-their-transitions.md)
 - [ADR-0163 The Case Manager Resends an Unanswered Invite When Its Addressee States a Ledger Position](0163-the-case-manager-resends-an-unanswered-invite-when-its-addressee-states-a-ledger-position.md)

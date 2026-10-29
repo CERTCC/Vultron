@@ -3197,10 +3197,11 @@ groups:
       actor: reporter
       action: >-
         report_submission phase — POST submit-report trigger to C1, which then
-        invites V1 and C2
+        invites V1; the Reporter asks, C1 answers and V1 adds its status with
+        add-note-to-case; C1 then invites C2
       expected: >-
         C1 creates the VulnerabilityCase and holds CVDRole.CASE_OWNER; V1 and C2
-        accept their invitations
+        accept their invitations, and C2's invitation follows the three notes
     - order: 2
       actor: c2
       action: >-
@@ -3215,7 +3216,9 @@ groups:
       expected: all five participants are present on every replica
     - order: 4
       actor: demo-script
-      action: notes_exchange phase — drive add-note-to-case
+      action: >-
+        joiner notes phase — once joined, C2 and V2 add their notes with
+        add-note-to-case
       expected: add_note_to_case is recorded in the case-actor log
     - order: 5
       actor: demo-script

@@ -55,7 +55,7 @@ from vultron.demo.helpers.milestones import (
     verify_case_active,
     verify_publicly_disclosed,
 )
-from vultron.demo.helpers.notes import participant_adds_note_to_case
+from vultron.demo.helpers.notes import NotePost, add_note_thread
 from vultron.demo.helpers.polling import (
     wait_for_case_em_terminated,
     wait_for_case_participants,
@@ -447,30 +447,28 @@ def _phase_notes_exchange(
     logger.info("Phase 3: Notes exchange (Reporter + Coordinator)")
     logger.info("─" * 80)
 
-    question_note = participant_adds_note_to_case(
-        posting_client=reporter_client,
-        watching_client=coordinator_client,
-        poster=reporter_in_reporter,
-        case=case,
-        note_name="Question from Reporter",
-        note_content=(
-            "Vendor rejected the invitation. "
-            "What is the plan for coordinated disclosure?"
-        ),
-    )
-
-    participant_adds_note_to_case(
-        posting_client=coordinator_client,
-        watching_client=coordinator_client,
-        poster=coordinator_in_coordinator,
-        case=case,
-        note_name="Coordinator Response",
-        note_content=(
-            "Vendor declined to participate. "
-            "We will proceed with Reporter-only disclosure. "
-            "Embargo will be terminated and we will publish."
-        ),
-        in_reply_to=question_note.id_ if question_note is not None else None,
+    add_note_thread(
+        coordinator_client,
+        case,
+        [
+            NotePost(
+                ActorSession(
+                    client=reporter_client, actor=reporter_in_reporter
+                ),
+                "Question from Reporter",
+                "Vendor rejected the invitation. "
+                "What is the plan for coordinated disclosure?",
+            ),
+            NotePost(
+                ActorSession(
+                    client=coordinator_client, actor=coordinator_in_coordinator
+                ),
+                "Coordinator Response",
+                "Vendor declined to participate. "
+                "We will proceed with Reporter-only disclosure. "
+                "Embargo will be terminated and we will publish.",
+            ),
+        ],
     )
 
     logger.info(
@@ -726,6 +724,11 @@ def run_rcv_reject_demo(
     participants="Reporter + Coordinator + Vendor (Vendor rejects)",
     feature="Invite rejection path",
     in_pr_set=True,
+    path=(
+        ("reporter-whom-to-tell", "coordinator"),
+        ("coordinator-invite-whom", "vendor"),
+        ("vendor-join", "reject"),
+    ),
 )
 def main(
     skip_health_check: bool = False,

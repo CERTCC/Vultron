@@ -133,6 +133,11 @@ class TestPhaseOrder:
             ),
             patch.object(
                 demo,
+                "_notes_exchange",
+                side_effect=phase("notes_exchange"),
+            ),
+            patch.object(
+                demo,
                 "_phase_fix_lifecycle",
                 side_effect=phase("fix_lifecycle"),
             ),
@@ -164,9 +169,12 @@ class TestPhaseOrder:
     @pytest.mark.spec("DEMOMA-20-007")
     def test_phases_run_in_the_specified_order(self, cast, case):
         order = self._run(cast, case, "urn:test:embargo:revised")
+        # #4759: the notes exchange follows the proposal, so the Reporter's
+        # branch point is between proposing and asking.
         assert order == [
             "report_submission",
             "embargo_proposal",
+            "notes_exchange",
             "fix_lifecycle",
             "embargo_termination",
             "publication",
@@ -182,6 +190,7 @@ class TestPhaseOrder:
         assert order == [
             "report_submission",
             "embargo_proposal",
+            "notes_exchange",
             "fix_lifecycle",
         ]
         assert _demo_failures

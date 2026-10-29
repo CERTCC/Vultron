@@ -47,6 +47,7 @@ def test_content_type_is_as2():
     assert AS2_CONTENT_TYPE in response.headers["content-type"]
 
 
+@pytest.mark.spec("VM-07-002")
 def test_camelcase_keys():
     """AS2JSONResponse must serialize with by_alias=True (camelCase keys)."""
     case = as_VulnerabilityCase(

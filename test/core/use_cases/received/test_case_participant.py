@@ -43,7 +43,7 @@ class TestCaseParticipantUseCases:
         Removal withdraws entitlement, not membership (ADR-0116).
         """
         dl, case_id, participant = _removal_store()
-        event = make_payload(_owner_removes(participant, case_id))
+        event = make_payload(_owner_removes(participant, case_id), at=dl)
 
         result = _remove(dl, event)
 
@@ -71,7 +71,7 @@ class TestCaseParticipantUseCases:
             context=case_id,
         )
         dl.create(stranger)
-        event = make_payload(_owner_removes(stranger, case_id))
+        event = make_payload(_owner_removes(stranger, case_id), at=dl)
 
         result = _remove(dl, event)
 
@@ -101,7 +101,7 @@ class TestCaseParticipantUseCases:
         result = _move(
             AddCaseParticipantToCaseReceivedUseCase,
             dl,
-            make_payload(_owner_adds(newcomer, case_id)),
+            make_payload(_owner_adds(newcomer, case_id), at=dl),
         )
 
         assert result.disposition == HandlerDisposition.REFUSED
@@ -123,7 +123,7 @@ class TestCaseParticipantUseCases:
             attributed_to="https://example.org/users/unknown",
             context=case_id,
         )  # deliberately not stored
-        event = make_payload(_owner_adds(unknown, case_id))
+        event = make_payload(_owner_adds(unknown, case_id), at=dl)
 
         result = _move(AddCaseParticipantToCaseReceivedUseCase, dl, event)
 
@@ -160,7 +160,8 @@ class TestCaseParticipantUseCases:
                 object_=participant,
                 target=case_id,
                 to=[_MANAGER],
-            )
+            ),
+            at=dl,
         )
 
         result = RemoveCaseParticipantFromCaseReceivedUseCase(
@@ -199,7 +200,8 @@ class TestCaseParticipantUseCases:
                     context="https://example.org/cases/c",
                 ),
                 target="https://example.org/cases/c",
-            )
+            ),
+            at=dl,
         ).model_copy(update={"object_": None, "object_id": None})
         assert event.participant_id is None
 
@@ -214,7 +216,7 @@ class TestCaseParticipantUseCases:
     def test_remove_case_participant_keeps_index(self, make_payload):
         """Inverted from the index-clearing pin: the index entry stays."""
         dl, case_id, participant = _removal_store()
-        event = make_payload(_owner_removes(participant, case_id))
+        event = make_payload(_owner_removes(participant, case_id), at=dl)
 
         _remove(dl, event)
 
