@@ -691,6 +691,17 @@ def _reporter_links(
     ]
 
 
+def _logged_refusals(
+    caplog: pytest.LogCaptureFixture, marker: str
+) -> list[str]:
+    """Every captured log message carrying the refusal *marker*."""
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if marker in record.getMessage()
+    ]
+
+
 @contextlib.contextmanager
 def expect_trusted_introductions(
     caplog: pytest.LogCaptureFixture,
@@ -744,11 +755,7 @@ def expect_trusted_introductions(
     ):
         yield
 
-    refusals = [
-        record.getMessage()
-        for record in caplog.records
-        if "(CBT-01-011)" in record.getMessage()
-    ]
+    refusals = _logged_refusals(caplog, "(CBT-01-011)")
     assert not refusals, (
         "a reporter refused its receiver's case introduction:\n"
         + "\n".join(refusals)
@@ -763,3 +770,22 @@ def expect_trusted_introductions(
             f"the reporter's ReportCaseLink should name {receiver_id!r} and be"
             f" bound to {case_id!r}; it holds {links!r}"
         )
+
+
+def assert_no_sender_refusals(caplog: pytest.LogCaptureFixture) -> None:
+    """Assert no receiver refused a sender as unentitled (HP-01-006).
+
+    A demo that means no refusal must log none, and the refusal is logged at
+    WARNING, so the caller's ``caplog`` must let WARNING records through.  A
+    receiver refusing the full-case Invite from its real CASE_MANAGER logged
+    only this warning while the demo passed (#4970).
+    """
+    assert caplog.handler.level <= logging.WARNING, (
+        "assert_no_sender_refusals needs caplog at WARNING or lower, or an"
+        " HP-01-006 refusal could not be seen"
+    )
+    refusals = _logged_refusals(caplog, "REFUSED (HP-01-006)")
+    assert not refusals, (
+        "a receiver refused a sender as unentitled (HP-01-006):\n"
+        + "\n".join(refusals)
+    )
