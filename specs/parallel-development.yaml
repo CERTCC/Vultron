@@ -378,10 +378,11 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          Agents MUST create Issues only through the `create-issue` skill,
-          which picks the Issue's one theme by its own outcome, writes its
-          `Theme:` line, and makes it a sub-issue of an open Epic with the same
-          theme.
+          Agents MUST create every Issue except an Epic only through the
+          `create-issue` skill, which picks the Issue's one theme by its own
+          outcome, writes its `Theme:` line, and makes it a sub-issue of an
+          open Epic with the same theme. Epics are created through
+          `create-epic` (PAD-02-013).
         rationale: >-
           When each skill files Issues its own way, each one drops a different
           rule. Bugs then land under the Epic of the work that found them, and
@@ -413,10 +414,12 @@ groups:
         - rel_type: implements
           spec_id: PAD-02-018
         verification: >-
-          `TestManageScriptGate` in `test/metadata/test_theme_gate.py` runs the
+          In `test/metadata/test_theme_gate.py`, `TestManageScriptGate` runs the
           script against a stand-in `gh` and checks that a missing theme, two
           themes, a missing `Theme:` line, and a parent with another theme
-          each exit 1 with no `createIssue` call.
+          each exit 1 with no `createIssue` call. `TestLeaf` checks the rules
+          the script calls: an unknown or retiring theme, a closed parent, a
+          parent with no theme, and that every broken rule is reported.
       - id: PAD-02-024
         priority: MUST
         kind: process

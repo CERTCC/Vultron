@@ -28,9 +28,9 @@ to keep open Issues aligned with the codebase.
    and context); walk the remaining topics with targeted `spec-dump` loads.
 2. Run a gap analysis: compare `specs/` + `notes/` against `vultron/` and
    `test/`.
-3. For each gap, **choose the epic it belongs to** (via the `calve-epics`
-   skill's routing), then create the GitHub Issue as a sub-issue of that epic.
-   An issue is never created at root (PAD-13-002).
+3. For each gap, create the GitHub Issue through `create-issue`, which picks
+   its theme and the same-theme epic it belongs to (via the `calve-epics`
+   skill's routing). An issue is never created at root (PAD-13-002).
 4. Surface any accumulated-mass observations as **calving candidates** for the
    user; do not re-shape epics on your own.
 5. Write any significant observations or open questions directly to the

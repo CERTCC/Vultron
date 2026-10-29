@@ -33,7 +33,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ADD_TO_PROJECT="${SCRIPT_DIR}/../shared/add-to-project.sh"
 BOARD_ID="${SCRIPT_DIR}/../shared/board-id.sh"
 
-PROJECT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+# The checkout whose `theme-gate` and catalog are used; VULTRON_PROJECT_DIR
+# overrides it (tests run a copy of this script outside the checkout).
+PROJECT_DIR="${VULTRON_PROJECT_DIR:-$(cd "${SCRIPT_DIR}/../../.." && pwd)}"
 
 # Theme gate: refuse before creating anything.
 GATE_ARGS=(--epic --catalog "${PROJECT_DIR}/notes/epic-themes.md" --body-file -)
@@ -45,6 +47,18 @@ if [[ "${GATE_RC}" -ne 0 ]]; then
   echo "ERROR: the theme gate refused the Epic (exit ${GATE_RC}); nothing was created" >&2
   exit 1
 fi
+
+# Resolve the theme label(s) before creating, so they go into createIssue
+# itself and the Epic never exists without the theme the gate checked.
+LABEL_IDS=()
+for T in "${THEMES[@]}"; do
+  LID=$(bash "${SCRIPT_DIR}/../shared/label-id.sh" CERTCC/Vultron "${T}") || {
+    echo "ERROR: cannot resolve label '${T}'; nothing was created" >&2
+    exit 1
+  }
+  LABEL_IDS+=("\"${LID}\"")
+done
+LABEL_FIELD="labelIds: [$(IFS=,; echo "${LABEL_IDS[*]}")]"
 
 # Board IDs are resolved live-and-cached via board-id.sh — never hardcoded.
 REPO_NODE_ID=$(bash "$BOARD_ID" repo)
@@ -66,6 +80,7 @@ mutation {
     title: ${TITLE_JSON}
     body: ${BODY_JSON}
     issueTypeId: \"${EPIC_TYPE_ID}\"
+    ${LABEL_FIELD}
   }) {
     issue { number id url }
   }
@@ -78,12 +93,7 @@ EPIC_URL=$(echo "${RESULT}" | python3 -c \
 
 echo "  Created Epic #${EPIC_NUMBER}: ${EPIC_URL}" >&2
 
-# Step 2: Apply the theme label(s) the gate checked.
-THEME_STR=$(IFS=,; echo "${THEMES[*]}")
-gh issue edit "${EPIC_NUMBER}" --repo CERTCC/Vultron --add-label "${THEME_STR}" >&2
-echo "  Applied labels: ${THEME_STR}" >&2
-
-# Step 3: Add to Project #24 and set Schedule via the shared helper, which is
+# Step 2: Add to Project #24 and set Schedule via the shared helper, which is
 # the single source of truth for the project/field/option IDs.
 bash "${ADD_TO_PROJECT}" "${EPIC_NUMBER}" "${SCHEDULE}"
 

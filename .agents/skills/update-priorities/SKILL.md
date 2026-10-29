@@ -24,7 +24,8 @@ The skill will:
 2. Present options:
    - **Move item(s) to a different tier** (Now / Next / Later / Someday)
    - **Promote Triage items** (Someday items to a schedule tier)
-   - **Add an issue to the board** (assign Schedule=Someday)
+   - **Add an issue to the board** (an Epic gets a Schedule; a non-Epic gets
+     none, PAD-02-001)
    - **Sync Epic children to their Epic's tier** (raise Someday/off-board
      descendants of scheduled Epics)
    - **Archive a completed Epic** (close issue + history entry)
@@ -89,12 +90,19 @@ SCHEDULE_OPTION_ID=$(bash .agents/skills/shared/board-id.sh schedule "${TIER}")
 
 ### Add Issue to Board
 
-Add the issue to Project #24 and set its Schedule in one call via the shared
+Add an **Epic** to Project #24 and set its Schedule in one call via the shared
 helper (single source of truth for board/field/option IDs; accepts
 `Focus | Now | Next | Later | Someday`):
 
 ```bash
 bash .agents/skills/shared/add-to-project.sh "${ISSUE_NUMBER}" "${SCHEDULE:-Someday}"
+```
+
+Add a **non-Epic** with no Schedule: its tier is its Epic's (PAD-02-001).
+
+```bash
+gh project item-add 24 --owner CERTCC \
+  --url "https://github.com/CERTCC/Vultron/issues/${ISSUE_NUMBER}"
 ```
 
 To **re-tier an item already on the board**, resolve its existing project item

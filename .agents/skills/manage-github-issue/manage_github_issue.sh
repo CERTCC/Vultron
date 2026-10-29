@@ -141,7 +141,9 @@ elif [[ -n "${OPENED_AS}" || -n "${WHERE}" || "${PLANNED}" -eq 1 ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+# The checkout whose `theme-gate` and catalog are used; VULTRON_PROJECT_DIR
+# overrides it (tests run a copy of this script outside the checkout).
+PROJECT_DIR="${VULTRON_PROJECT_DIR:-$(cd "${SCRIPT_DIR}/../../.." && pwd)}"
 
 REPO_OWNER="${REPO%%/*}"
 REPO_NAME="${REPO##*/}"
@@ -194,6 +196,22 @@ if [[ -z "${ISSUE_NUMBER}" ]]; then
     exit 1
   fi
 
+  # Resolve every label first, so the labels go into createIssue itself and a
+  # missing label stops the run before anything is created.
+  LABEL_IDS=()
+  for L in ${LABELS[@]+"${LABELS[@]}"}; do
+    IFS=',' read -r -a PARTS <<< "${L}"
+    for P in "${PARTS[@]}"; do
+      P="${P#"${P%%[![:space:]]*}"}"; P="${P%"${P##*[![:space:]]}"}"
+      [[ -z "${P}" ]] && continue
+      LID=$(bash "${SCRIPT_DIR}/../shared/label-id.sh" "${REPO}" "${P}") || {
+        echo "ERROR: cannot resolve label '${P}'; nothing was created" >&2
+        exit 1
+      }
+      LABEL_IDS+=("\"${LID}\"")
+    done
+  done
+
   REPO_NODE_ID=$(resolve_repo_id)
 
   TITLE_JSON=$(printf '%s' "${TITLE}" | json_encode)
@@ -202,6 +220,11 @@ if [[ -z "${ISSUE_NUMBER}" ]]; then
   # Build optional fields
   TYPE_FIELD=""
   [[ -n "${ISSUE_TYPE_ID}" ]] && TYPE_FIELD="issueTypeId: \"${ISSUE_TYPE_ID}\""
+
+  LABEL_FIELD=""
+  if [[ ${#LABEL_IDS[@]} -gt 0 ]]; then
+    LABEL_FIELD="labelIds: [$(IFS=,; echo "${LABEL_IDS[*]}")]"
+  fi
 
   PARENT_FIELD=""
   PARENT_NODE_ID=""
@@ -220,6 +243,7 @@ if [[ -z "${ISSUE_NUMBER}" ]]; then
       body: ${BODY_JSON}
       ${TYPE_FIELD}
       ${PARENT_FIELD}
+      ${LABEL_FIELD}
     }) {
       issue { number id url }
     }
@@ -236,15 +260,7 @@ if [[ -z "${ISSUE_NUMBER}" ]]; then
     <<< "${RESULT}")
 
   echo "  Created #${ISSUE_NUMBER}: ${ISSUE_URL}" >&2
-
-  # Apply labels (REST accepts label names directly)
-  if [[ ${#LABELS[@]} -gt 0 ]]; then
-    LABEL_STR=$(IFS=,; echo "${LABELS[*]}")
-    gh issue edit "${ISSUE_NUMBER}" \
-      --repo "${REPO}" \
-      --add-label "${LABEL_STR}" >&2
-    echo "  Applied labels: ${LABEL_STR}" >&2
-  fi
+  [[ ${#LABELS[@]} -gt 0 ]] && echo "  With labels: $(IFS=,; echo "${LABELS[*]}")" >&2
 
   # Apply milestone (optional)
   if [[ -n "${MILESTONE}" ]]; then

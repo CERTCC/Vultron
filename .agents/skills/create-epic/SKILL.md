@@ -59,9 +59,9 @@ If a matching Epic already exists, skip Step 2 and proceed to Step 3.
 
 Use the bash helper script in this skill's directory. It runs the theme gate
 first and creates nothing if the theme or the `Theme:` line is wrong. It then
-creates the Epic (with the correct Epic issue type), applies the theme label,
-and adds it to Project #24 with its Schedule via the shared `add-to-project.sh`
-helper — so board IDs live in exactly one place:
+creates the Epic with the correct Epic issue type and its theme label in one
+call, and adds it to Project #24 with its Schedule via the shared
+`add-to-project.sh` helper — so board IDs live in exactly one place:
 
 ```bash
 EPIC_NUMBER=$(.agents/skills/create-epic/create_epic.sh \

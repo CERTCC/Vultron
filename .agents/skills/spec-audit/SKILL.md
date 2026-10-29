@@ -228,8 +228,9 @@ offers a distinct action the user may want.
 Ask the user: "Create a GitHub issue tracking the Deficient findings (N
 found)?" If yes:
 
-- Create a GH issue titled `spec-audit: IEEE 29148 quality findings
-  YYYY-MM-DD` with a body summarising the Deficient findings by topic,
+- Create the issue through `create-issue` (type `Task`, reason `planned`,
+  user present), titled `spec-audit: IEEE 29148 quality findings
+  YYYY-MM-DD`, with a body summarising the Deficient findings by topic and
   linking to the report file.
 - Record the issue URL.
 

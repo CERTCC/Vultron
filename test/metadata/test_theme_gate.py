@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
@@ -390,8 +391,18 @@ def _parent_rule(*labels: str) -> dict[str, object]:
     return {"match": ["issue view 42"], "stdout": _view("OPEN", *labels)}
 
 
+def _label_rule(name: str, label_id: str | None) -> dict[str, object]:
+    label = {"id": label_id} if label_id else None
+    return {
+        "match": [f'label(name: "{name}")'],
+        "stdout": json.dumps({"data": {"repository": {"label": label}}}),
+    }
+
+
 def _create_rules() -> list[dict[str, object]]:
     return [
+        _label_rule("size:M", "L_size"),
+        _label_rule(_THEME, "L_theme"),
         {
             "match": ["createIssue"],
             "stdout": json.dumps(
@@ -414,7 +425,6 @@ def _create_rules() -> list[dict[str, object]]:
             "match": ["{ id } }"],
             "stdout": json.dumps({"data": {"repository": {"id": "R_1"}}}),
         },
-        {"match": ["issue edit 99"], "stdout": ""},
     ]
 
 
@@ -463,14 +473,31 @@ class TestManageScriptGate:
         assert "PAD-02-017" in result.stderr
         assert not gh.created()
 
-    def test_creates_when_the_gate_passes(self, tmp_path: Path) -> None:
+    def test_creates_with_its_labels_when_the_gate_passes(
+        self, tmp_path: Path
+    ) -> None:
         gh = _Gh(tmp_path, [_parent_rule(_THEME), *_create_rules()])
         result = _manage(gh, "size:M", _THEME)
         assert result.returncode == 0, result.stderr
         assert result.stdout.strip() == "99"
-        assert gh.created()
-        edit = next(c for c in gh.calls() if c[:3] == ["issue", "edit", "99"])
-        assert edit[-1] == f"size:M,{_THEME}"
+        create = next(c for c in gh.calls() if "createIssue" in " ".join(c))
+        assert 'labelIds: ["L_size","L_theme"]' in " ".join(create)
+        # The labels ride on createIssue: no separate edit can fail after it.
+        assert not any(c[:2] == ["issue", "edit"] for c in gh.calls())
+
+    def test_missing_label_stops_before_create(self, tmp_path: Path) -> None:
+        gh = _Gh(
+            tmp_path,
+            [
+                _parent_rule(_THEME),
+                _label_rule("size:Q", None),
+                *_create_rules(),
+            ],
+        )
+        result = _manage(gh, "size:Q", _THEME)
+        assert result.returncode == 1
+        assert "does not exist" in result.stderr
+        assert not gh.created()
 
     def test_update_mode_skips_the_gate(self, tmp_path: Path) -> None:
         gh = _Gh(
@@ -522,12 +549,65 @@ class TestCreateEpicScriptGate:
         assert "PAD-02-015" in result.stderr
         assert gh.calls() == []
 
+    def test_creates_labelled_and_scheduled_when_the_gate_passes(
+        self, tmp_path: Path
+    ) -> None:
+        # A copy of the skill tree with stub board helpers, so the run touches
+        # neither the real board-id cache nor the board.
+        skills = tmp_path / "tree/.agents/skills"
+        (skills / "create-epic").mkdir(parents=True)
+        (skills / "shared").mkdir()
+        script = skills / "create-epic/create_epic.sh"
+        script.write_text(_CREATE_EPIC.read_text())
+        script.chmod(0o755)
+        label_id = skills / "shared/label-id.sh"
+        label_id.write_text(
+            (_ROOT / ".agents/skills/shared/label-id.sh").read_text()
+        )
+        (skills / "shared/board-id.sh").write_text('echo "ID_$1_${2:-}"\n')
+        board_log = tmp_path / "board.log"
+        (skills / "shared/add-to-project.sh").write_text(
+            f'echo "$@" >> "{board_log}"\n'
+        )
+        gh = _Gh(
+            tmp_path,
+            [
+                _label_rule(_THEME, "L_theme"),
+                {
+                    "match": ["createIssue"],
+                    "stdout": json.dumps(
+                        {
+                            "data": {
+                                "createIssue": {
+                                    "issue": {"number": 77, "url": "u"}
+                                }
+                            }
+                        }
+                    ),
+                },
+            ],
+        )
+        gh.env["VULTRON_PROJECT_DIR"] = str(_ROOT)
+        result = gh.run(str(script), "T", _BODY, "Later", _THEME)
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == "77"
+        create = next(c for c in gh.calls() if "createIssue" in " ".join(c))
+        joined = " ".join(create)
+        assert 'labelIds: ["L_theme"]' in joined
+        assert "ID_issue-type_Epic" in joined
+        assert board_log.read_text().split() == ["77", "Later"]
+
 
 # --- the one creation path ---------------------------------------------------
 
 _SKILLS = _ROOT / ".agents/skills"
 _CREATORS = {"create-issue", "manage-github-issue", "create-epic"}
 _DIRECT_CALLS = ("gh issue create", "createIssue", "create_epic.sh")
+_FILING_PROSE = re.compile(
+    r"\b(?:create|file|open)s?\s+an?\s+(?:new\s+)?(?:gh\s+|github\s+)?"
+    r"`?(?:type:)?(?:bug|task|feature|idea|concern)?`?\s*issue\b",
+    re.IGNORECASE,
+)
 
 
 def _skill_files() -> list[Path]:
@@ -580,6 +660,18 @@ class TestCreationPath:
                 path.read_text(encoding="utf-8"), "manage_github_issue.sh"
             )
             if "--title" in command and "--issue-number" not in command
+        ]
+        assert offenders == []
+
+    def test_a_skill_that_files_issues_names_create_issue(self) -> None:
+        # Prose such as "file a Bug issue" must say how: a skill that tells
+        # the agent to create an issue and never names `create-issue` leaves
+        # it to improvise the type, theme, and parent.
+        offenders = [
+            str(path.relative_to(_ROOT))
+            for path in _skill_files()
+            if _FILING_PROSE.search(text := path.read_text(encoding="utf-8"))
+            and "create-issue" not in text
         ]
         assert offenders == []
 
