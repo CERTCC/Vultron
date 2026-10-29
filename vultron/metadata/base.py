@@ -2,7 +2,7 @@
 
 import json
 import subprocess
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 from typing import Annotated
 
@@ -122,6 +122,27 @@ def iter_tree_texts(
             except (OSError, UnicodeDecodeError):
                 continue
             yield path.relative_to(root).as_posix(), text
+
+
+def markdown_files(top: Path, prune: Callable[[Path], bool]) -> list[Path]:
+    """Return every ``*.md`` file under *top*, sorted, outside pruned directories.
+
+    *prune* is asked of each directory below *top*; one it answers true for is
+    not descended. Pruning during the walk, rather than filtering an ``rglob``
+    afterwards, is the point: a repository-wide ``rglob`` reads all of
+    ``.git`` and ``.venv`` before a filter discards them, which made that walk
+    most of a pre-commit hook's run time. Symlinked directories are not
+    followed, as ``rglob`` does not follow them.
+    """
+    found: list[Path] = []
+    for directory, dirnames, filenames in top.walk():
+        dirnames[:] = [
+            name for name in dirnames if not prune(directory / name)
+        ]
+        found.extend(
+            directory / name for name in filenames if name.endswith(".md")
+        )
+    return sorted(found)
 
 
 class MkDocsYamlLoader(yaml.SafeLoader):

@@ -92,7 +92,12 @@ from pathlib import Path
 import yaml
 
 from vultron.enums.object_types import VultronObjectType as VOtype
-from vultron.metadata.base import mkdocs_config, repo_root, unbuilt_docs_spec
+from vultron.metadata.base import (
+    markdown_files,
+    mkdocs_config,
+    repo_root,
+    unbuilt_docs_spec,
+)
 from vultron.metadata.docs.page_frontmatter import include_directives
 from vultron.metadata.file_loading import (
     MetadataLoadError,
@@ -290,10 +295,9 @@ def _page_includes(
     """
     directives: dict[str, list[str]] = {}
     included: set[str] = set()
-    for host in sorted(docs.rglob("*.md")):
+    skipped = docs / fragments
+    for host in markdown_files(docs, lambda directory: directory == skipped):
         page = host.relative_to(docs)
-        if page.is_relative_to(fragments):
-            continue
         found = list(include_directives(host, docs, existing=False))
         included.update(target for _, target, whole in found if whole)
         directives[page.as_posix()] = [target for _, target, _ in found]
