@@ -5,7 +5,7 @@ The report Issue is found by its ``theme-fit-report`` label through the
 list-issues endpoint, not the search index, whose lag once let a workflow
 file a second tracker (#5105).
 The oldest open one is rewritten; with none open, the oldest closed one is
-reopened and rewritten; only with none at all is one created (PAD-14-004).
+reopened and rewritten; only with none at all is one created (PAD-14-005).
 The run applies no labels to any other Issue and fixes nothing: it publishes
 what ``theme-fit`` found (``notes/epic-themes.md`` § "The Structural Check").
 

@@ -1,7 +1,7 @@
 """CI verification test — the daily Theme Fit Report workflow (#5331).
 
 The workflow rewrites one standing "Theme fit report" Issue from a fresh
-``theme-fit`` run (PAD-14-004). The decisions live as pure functions in
+``theme-fit`` run (PAD-14-004 to PAD-14-007). The decisions live as pure functions in
 ``.github/scripts/publish_theme_fit_report.py`` and are pinned here, with the
 ``gh`` plumbing run against a recording fake; the workflow is pinned so it
 keeps its triggers, its least-privilege token and its failure notification.
@@ -57,6 +57,7 @@ _script = _load_script()
     ("returncode", "usable"),
     [(0, True), (1, True), (2, False), (3, False), (-9, False)],
 )
+@pytest.mark.spec("PAD-14-006")
 def test_a_finding_publishes_and_a_failed_run_does_not(
     returncode: int, usable: bool
 ) -> None:
@@ -86,7 +87,7 @@ def _item(number: int, state: str, **extra: object) -> dict[str, object]:
         ),
     ],
 )
-@pytest.mark.spec("PAD-14-004")
+@pytest.mark.spec("PAD-14-005")
 def test_pick_report_issue(
     items: list[dict[str, object]], expected: tuple[int, str] | None
 ) -> None:
@@ -218,7 +219,7 @@ def test_an_open_report_is_rewritten_in_place(run_publish: Any) -> None:
     assert max_chars + len(gh.written) - len(_REPORT) == GITHUB_BODY_LIMIT
 
 
-@pytest.mark.spec("PAD-14-004")
+@pytest.mark.spec("PAD-14-005")
 def test_a_closed_report_is_reopened_not_replaced(run_publish: Any) -> None:
     gh = _Gh([_item(5, "closed")])
     _, triaged = run_publish(gh)
@@ -227,7 +228,7 @@ def test_a_closed_report_is_reopened_not_replaced(run_publish: Any) -> None:
     assert triaged == [5]
 
 
-@pytest.mark.spec("PAD-14-004")
+@pytest.mark.spec("PAD-14-005")
 def test_the_report_is_created_only_when_none_exists(
     run_publish: Any,
 ) -> None:
@@ -244,6 +245,7 @@ def test_the_report_is_created_only_when_none_exists(
     assert triaged == [77]
 
 
+@pytest.mark.spec("PAD-14-005")
 def test_the_lookup_uses_the_list_endpoint_any_state(run_publish: Any) -> None:
     """Not the lagging search index, which once let a duplicate in (#5105)."""
     gh = _Gh([_item(12, "open")])
@@ -268,6 +270,7 @@ def test_dry_run_writes_nothing(
     assert "Would write" in capsys.readouterr().out
 
 
+@pytest.mark.spec("PAD-14-006")
 def test_a_failed_theme_fit_run_fails_the_script(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -303,7 +306,7 @@ _WRITES = {("issue", "edit"), ("issue", "reopen"), ("issue", "close")}
         ([], 77),
     ],
 )
-@pytest.mark.spec("PAD-14-004")
+@pytest.mark.spec("PAD-14-007")
 def test_it_writes_to_no_issue_but_the_report(
     run_publish: Any, candidates: list[dict[str, object]], report: int
 ) -> None:
@@ -412,6 +415,7 @@ def test_main_needs_a_repo(monkeypatch: pytest.MonkeyPatch) -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("PAD-14-004")
 def test_workflow_runs_daily_and_on_dispatch() -> None:
     on = triggers(load_workflow(_WORKFLOW))
     assert set(on) == {"schedule", "workflow_dispatch"}

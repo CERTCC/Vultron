@@ -339,7 +339,7 @@ findings, 1 with any, and 2 when the catalog or `gh` fails.
 - **The standing report Issue** is the open Issue labelled `theme-fit-report`,
   titled "Theme fit report". The daily Theme Fit Report workflow
   (`.github/workflows/theme-fit-report.yml`) rewrites it in place, reopens it
-  if closed, and creates it only when none exists (PAD-14-004). It runs
+  if closed, and creates it only when none exists (PAD-14-004, PAD-14-005). It runs
   `theme-fit --no-schedule`, because a workflow's `GITHUB_TOKEN` cannot read
   Project #24, so its coherence table shows all tiers together. Exit 1
   (findings) still publishes; only exit 2 fails the run. Reason: a finding is

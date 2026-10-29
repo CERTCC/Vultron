@@ -1,5 +1,6 @@
 # Rewrites the standing "Theme fit report" Issue from a fresh `theme-fit` run
-# (PAD-14-004). The maintainer authorized this workflow on 2026-10-28 (#5331).
+# (PAD-14-004 to PAD-14-007). The maintainer authorized this workflow on
+# 2026-10-28 (#5331).
 #
 # - The report Issue is the one labelled `theme-fit-report`, found through the
 #   list-issues endpoint, not the lagging search index (#5105). The oldest open
