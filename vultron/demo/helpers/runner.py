@@ -72,7 +72,8 @@ def run_exchange_demos(
     Raises:
         DemoFailureError: When any selected demo recorded a ``demo_step``,
             ``demo_check`` or ``demo_gate`` failure or raised; its
-            ``failures`` hold one ``"<demo name>: <error>"`` line per demo.
+            ``failures`` hold one ``"<demo name>: <error>"`` line per
+            recorded failure of each failed demo.
     """
     if client is None:
         client = DataLayerClient()
@@ -96,7 +97,7 @@ def run_exchange_demos(
         else [(name, fn) for name, fn in all_demos if fn in demos]
     )
     total = len(selected)
-    errors = []
+    errors: list[tuple[str, list[str]]] = []
 
     for demo_name, demo_fn in selected:
         reset_demo_failures()
@@ -107,7 +108,14 @@ def run_exchange_demos(
         except Exception as e:
             _note_accumulated_failures(e)
             logger.exception("%s failed", demo_name)
-            errors.append((demo_name, str(e)))
+            # A recorded verdict carries its own failure lines; keep them flat
+            # rather than nesting its multi-line ``str()`` (#3852).
+            details = (
+                list(e.failures)
+                if isinstance(e, DemoFailureError) and e.failures
+                else [str(e)]
+            )
+            errors.append((demo_name, details))
 
     logger.info("=" * 80)
     logger.info("ALL DEMOS COMPLETE")
@@ -122,15 +130,20 @@ def run_exchange_demos(
         logger.error("Failed demos: %d", len(errors))
         logger.error("Successful demos: %d", total - len(errors))
         logger.error("")
-        for demo_name, error in errors:
+        for demo_name, details in errors:
             logger.error("%s:", demo_name)
-            logger.error("  %s", error)
+            for detail in details:
+                logger.error("  %s", detail)
             logger.error("")
         logger.error("❌ FAIL: %d of %d demos failed", len(errors), total)
         logger.error("=" * 80)
         raise DemoFailureError(
             f"{len(errors)} of {total} demos failed",
-            failures=[f"{name}: {error}" for name, error in errors],
+            failures=[
+                f"{name}: {detail}"
+                for name, details in errors
+                for detail in details
+            ],
         )
 
     logger.info("")

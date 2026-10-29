@@ -130,6 +130,25 @@ class TestRunnerRaisesOnFailure:
         assert failures[1].startswith("third")
 
     @pytest.mark.usefixtures("fake_environment")
+    def test_run_exchange_demos_flattens_each_recorded_failure(self) -> None:
+        def _two_failures(client, reporter, vendor, coordinator):
+            with demo_step("first step"):
+                raise ValueError("first problem")
+            with demo_step("second step"):
+                raise ValueError("second problem")
+
+        with pytest.raises(DemoFailureError) as exc_info:
+            run_exchange_demos(
+                [("double", _two_failures)], skip_health_check=True
+            )
+        failures = exc_info.value.failures
+        assert len(failures) == 2, failures
+        assert all(f.startswith("double: ") for f in failures)
+        assert "first problem" in failures[0]
+        assert "second problem" in failures[1]
+        assert not any("demo failure(s)" in f for f in failures)
+
+    @pytest.mark.usefixtures("fake_environment")
     def test_run_exchange_demos_returns_when_all_demos_pass(self) -> None:
         run_exchange_demos(
             [("one", _passing), ("two", _passing)], skip_health_check=True

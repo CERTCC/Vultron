@@ -43,7 +43,8 @@ class TestCliLogging:
         """The root logger must have at least one handler after CLI invocation."""
         runner = CliRunner()
 
-        name, module = DEMOS[0]
+        name = "receive-report"
+        module = dict(DEMOS)[name]
         mock_fn = MagicMock()
 
         with patch.object(module, "main", mock_fn):
@@ -59,7 +60,8 @@ class TestCliLogging:
         """Root logger effective level must be INFO (or lower) after CLI invocation."""
         runner = CliRunner()
 
-        name, module = DEMOS[0]
+        name = "receive-report"
+        module = dict(DEMOS)[name]
         mock_fn = MagicMock()
 
         with patch.object(module, "main", mock_fn):
@@ -75,7 +77,8 @@ class TestCliLogging:
         """--debug flag must configure root logger at DEBUG level."""
         runner = CliRunner()
 
-        name, module = DEMOS[0]
+        name = "receive-report"
+        module = dict(DEMOS)[name]
         mock_fn = MagicMock()
 
         with patch.object(module, "main", mock_fn):
@@ -273,7 +276,8 @@ class TestCliReportsFailWhenAStepFails:
     def test_subcommand_exits_nonzero_and_reports_fail_when_a_step_fails(
         self,
     ):
-        name, module = DEMOS[0]
+        name = "receive-report"
+        module = dict(DEMOS)[name]
         with (
             patch(
                 "vultron.demo.helpers.runner.demo_environment",
