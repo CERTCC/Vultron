@@ -172,8 +172,8 @@ Exited means that the embargo has ended at the case level.
 A participant does not put the case into Exited by deciding to stop observing the embargo.
 A participant can instead withdraw its own consent, report that it intends to exit, propose a shorter embargo, or propose an earlier end date.
 The CASE_MANAGER then terminates the embargo and records the termination ([§11.2 Embargo Revision and Termination Cascades](interactions.md#112-embargo-revision-and-termination-cascades)).
-Terminating an embargo takes Case Owner authorization by default, on the same terms as any other change to canonical case state ([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)).
-The CASE_MANAGER itself terminates an embargo whose end time has passed, with the reason `END_TIME_REACHED`.
+An early termination takes Case Owner authorization by default, on the same terms as any other change to canonical case state ([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)).
+The one exception is an embargo whose end time has passed: the CASE_MANAGER itself terminates it, with the reason `END_TIME_REACHED`.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-02-005", "EMB-13-003", "EMB-14-001"))
@@ -214,7 +214,7 @@ A party that proposes a shorter duration gets the duration it proposed.
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-04-005", "EP-04-006", "EP-04-007", "EP-04-008"))
 ```
 
-Outside these two default paths, participants answer embargo proposals explicitly.
+Outside these two default paths, the protocol recommends that participants accept or reject embargo proposals explicitly, within the period their disclosure policy defines or 14 days, whichever is shorter.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VP-06-004"))

@@ -145,7 +145,7 @@ expected response message.
 |                       $RS$                        | $S,*,*$ | $\xrightarrow{r} R,-,-$ |                $RK$ (non-vendor)                 |
 |                       $RS$                        | $\{ R, I, V,D,A\},*,*$ | $-,-,-$ |                $RK$ (non-vendor)                 |
 |               $\{RI,RV,RD,RA,RC\}$                | $\{R,I,V,D,A\},*,*$ | $-,-,-$ |                       $RK$                       |
-|               $\{RI,RV,RD,RA,RC\}$                | $S,*,*$ | $-,-,-$ |                    $RE + GI$                     |
+|               $\{RI,RV,RD,RA,RC\}$                | $S,*,*$ | $-,-,-$ |           `Create(ProcessingFault)`            |
 |                       $RE$                        | $*,*,*$ | $-,-,-$ |                    $RK + GI$                    |
 |                       $RK$                        | $*,*,*$ | $-,-,-$ |                       $-$                        |
 

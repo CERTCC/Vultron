@@ -386,12 +386,13 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
     If delivery required `ACCEPTED`, a participant could never obtain the case that it needs to reach the state that gates delivery.
 
     **Joining and embargo consent — not RM progress — are the gate on case content.**
-    The ordering is: the invitee accepts the stub Invite, which joins the case and agrees to any active embargo, and then the CASE_MANAGER delivers the full case.
+    The ordering is: the invitee accepts the stub Invite, which joins the case and agrees to any active embargo it has not declined, and then the CASE_MANAGER delivers the full case.
 
 This gate matters to the cascade ordering of [§11 Model Interactions and Cascade Rules](interactions.md#11-model-interactions-and-cascade-rules-n).
-`Accept(Invite)` agrees to any active embargo on the joiner's row for that embargo.
+`Accept(Invite)` agrees to any active embargo on the joiner's row for that embargo, unless that row is `DECLINED`.
 This agreement lets delivery proceed immediately, with no wait for a separate consent round-trip.
-A joiner whose row for the active embargo is `DECLINED` stays declined, because joining is not an answer to the embargo.
+A joiner whose row for the active embargo is `DECLINED` stays declined, because an explicit refusal outranks the consent that joining implies.
+That joiner is in the case but inert until it changes its answer.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-001"))

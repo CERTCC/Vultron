@@ -161,7 +161,8 @@ AcceptInviteActorToCaseReceivedUseCase, at every receiver of a copy:
   2. CASE_MANAGER gate (create_case_manager_gated_tree, BT-17-001):
      a non-manager stops here and the handler reports REFUSED (HP-01-005)
   3. Activates the existing record: RM stays RECEIVED, VF V for a vendor,
-     consent row `AGREED` if an embargo is active (CM-11-001)
+     consent row `AGREED` if an embargo is active, unless it is `DECLINED`
+     (CM-11-001)
   4. Emits Announce(VulnerabilityCase) to the participant and replays the
      prior ledger to it (CM-11-008)
   5. Queues the full-case Invite(Actor, VulnerabilityCase) after the last

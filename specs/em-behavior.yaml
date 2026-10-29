@@ -998,10 +998,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant already in EM Exited (q^em ∈ X) receiving ET MUST NOT make
-      any state transition. "Emit EK" is discharged by the CASE_MANAGER's commit of the
-      received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK message
-      is emitted (EP-09-009, MSM-02-009).
+      A Participant already in EM Exited (q^em ∈ X) receiving ET MUST remain in Exited
+      with no state transition. "Emit EK" is discharged by the CASE_MANAGER's commit of
+      the received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK message is
+      emitted (EP-09-009, MSM-02-009).
     rationale: >-
       Exited is already the terminal state, so a duplicate termination message
       needs no additional transition and no acknowledgment of its own.
@@ -1041,11 +1041,11 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      A Participant that receives a fault report about an embargo activity it sent
-      SHOULD inquire about the nature of the error (GI) when the report does not
-      say what went wrong. EE has no wire activity of its own: the fault arrives
-      as `Create(ProcessingFault)` or as a `Reject` of the activity (MSM-02-008,
-      MSM-05-001), and the receiver emits no EK for it (EP-09-009).
+      A Participant that receives `Create(ProcessingFault)` about an embargo
+      activity it sent SHOULD inquire about the nature of the error (GI) when the
+      fault does not say what went wrong. EE has no wire activity of its own
+      (MSM-02-008, MSM-05-001). The receiver emits no EK for the fault
+      (EP-09-009).
     rationale: >-
       A fault report says that an embargo activity failed, but it does not always say
       why. An inquiry lets the sender explain the error and enables recovery. A fault

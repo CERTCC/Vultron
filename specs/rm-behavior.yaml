@@ -758,9 +758,9 @@ groups:
     kind: protocol
     statement: >-
       A Participant in RM Start (q^rm ∈ S) receiving RK SHOULD answer it with
-      `Create(ProcessingFault)` (ASK-07-001) to signal the unexpected message and
-      tell the sender that it holds no report the RK could be about. RE has no
-      wire activity of its own (MSM-05-001).
+      `Create(ProcessingFault)` (ASK-07-001). The fault tells the sender that the
+      receiver holds no report the RK could be about. RE has no wire activity of
+      its own (MSM-05-001).
     rationale: >-
       RK arriving in START means the sender believes the receiver has already
       acknowledged a message the receiver has never seen. A processing fault is

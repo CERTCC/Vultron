@@ -27,16 +27,17 @@ groups:
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) receiving CV MUST
       update their model of the sending Participant's CS state to Vendor Aware
-      (q^cs ∈ Vfd···). "Emit CK" is discharged by the
-      CASE_MANAGER's commit of the received activity, fanned out as
-      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
+      (q^cs ∈ Vfd···). No CK message is emitted (MSM-03-008). The CASE_MANAGER's
+      commit of the received activity, fanned out as `Announce(CaseLedgerEntry)`,
+      records it. Each replica acknowledges that entry by its unbroken hash chain
+      (MSM-05-002).
     rationale: >-
       CV announces a Vendor-specific CS transition. The receiver does not change
       their own CS state; they update their awareness model for the sender.
     verification: >-
-      Integration tests in `test/demo/` confirm that receiving CV in an active RM
-      state updates the sender's CS model to Vfd··· without changing the
-      receiver's own CS state, with no CK message queued.
+      A receive test confirms that CV in an active RM state updates the sender's CS
+      model to Vfd··· without changing the receiver's own CS state, with no CK message
+      queued.
     testable: true
     preconditions:
     - rm_state:
@@ -84,16 +85,17 @@ groups:
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) receiving CF MUST
       update their model of the sending Participant's CS state to Fix Ready
-      (q^cs ∈ VFd···). "Emit CK" is discharged by the
-      CASE_MANAGER's commit of the received activity, fanned out as
-      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
+      (q^cs ∈ VFd···). No CK message is emitted (MSM-03-008). The CASE_MANAGER's
+      commit of the received activity, fanned out as `Announce(CaseLedgerEntry)`,
+      records it. Each replica acknowledges that entry by its unbroken hash chain
+      (MSM-05-002).
     rationale: >-
       CF announces a Vendor-specific CS transition. The receiver does not change
       their own CS state; they update their awareness model for the sender.
     verification: >-
-      Integration tests in `test/demo/` confirm that receiving CF in an active RM
-      state updates the sender's CS model to VFd··· without changing the
-      receiver's own CS state, with no CK message queued.
+      A receive test confirms that CF in an active RM state updates the sender's CS
+      model to VFd··· without changing the receiver's own CS state, with no CK message
+      queued.
     testable: true
     preconditions:
     - rm_state:
@@ -141,16 +143,17 @@ groups:
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) receiving CD MUST
       update their model of the sending Participant's CS state to Fix Deployed
-      (q^cs ∈ VFD···). "Emit CK" is discharged by the
-      CASE_MANAGER's commit of the received activity, fanned out as
-      `Announce(CaseLedgerEntry)`; no CK message is emitted (MSM-03-008, MSM-05-002).
+      (q^cs ∈ VFD···). No CK message is emitted (MSM-03-008). The CASE_MANAGER's
+      commit of the received activity, fanned out as `Announce(CaseLedgerEntry)`,
+      records it. Each replica acknowledges that entry by its unbroken hash chain
+      (MSM-05-002).
     rationale: >-
       CD announces a Vendor-specific CS transition. The receiver does not change
       their own CS state; they update their awareness model for the sender.
     verification: >-
-      Integration tests in `test/demo/` confirm that receiving CD in an active RM
-      state updates the sender's CS model to VFD··· without changing the
-      receiver's own CS state, with no CK message queued.
+      A receive test confirms that CD in an active RM state updates the sender's CS
+      model to VFD··· without changing the receiver's own CS state, with no CK message
+      queued.
     testable: true
     preconditions:
     - rm_state:

@@ -104,7 +104,7 @@ A participant reaches it by several paths:
 - **Case proposal recipient** — on receiving a `CaseProposal`.
 
 An invited participant answers the stub `Invite` before it has seen more than a case stub.
-`Accept(Invite)` activates the inert record, recording willingness to join and, where an embargo is active, consent to it.
+`Accept(Invite)` activates the inert record, recording willingness to join and, where an embargo is active, consent to it, unless the participant has already declined that embargo.
 RM stays at Received.
 `Reject(Invite)` closes the record (RM Received → Closed) and retains it as history.
 Neither answer is a validation of the report.
