@@ -579,8 +579,10 @@ class DemoFailureError(VultronError):
 
     Accumulates all failures from ``demo_step`` and ``demo_check`` context
     managers in ``vultron.demo.utils``.  Raised by ``assert_demo_success()``
-    at the end of a scenario run so that ``docker compose --exit-code-from``
-    can detect failure.  See ``specs/demo-ci.yaml`` DEMOCI-01-001,
+    at the end of a scenario run, and by
+    ``vultron.demo.helpers.runner.run_exchange_demos`` once every selected
+    exchange demo has run, so that ``docker compose --exit-code-from`` and the
+    ``vultron-demo`` CLI can detect failure.  See ``specs/demo-ci.yaml`` DEMOCI-01-001,
     DEMOCI-01-005.
     """
 
