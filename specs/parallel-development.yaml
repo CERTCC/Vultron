@@ -103,10 +103,11 @@ groups:
           that belongs to no thematic group goes under a long-lived catch-all
           Epic, whose tier is set like any other Epic's.
         verification: >-
-          A query for open non-Epic Issues with no Epic ancestor returns none.
-          `theme-fit` is that query: it reports each such Issue as an
-          `unparented` finding, which `TestHierarchy` in
-          `test/metadata/test_theme_fit.py` checks.
+          `theme-fit` reads every open Issue's ancestry. It lists each non-Epic
+          Issue with no parent as untriaged, for someone to route, and reports
+          one whose parent chain reaches no open Epic as an `unparented`
+          finding. `TestUntriaged` and `TestHierarchy` in
+          `test/metadata/test_theme_fit.py` check both.
         relationships:
         - rel_type: refines
           spec_id: PAD-01-005
@@ -382,7 +383,8 @@ groups:
           `create-issue` skill, which picks the Issue's one theme by its own
           outcome, writes its `Theme:` line, and makes it a sub-issue of an
           open Epic with the same theme. Epics are created through
-          `create-epic` (PAD-02-013).
+          `create-epic` (PAD-02-013). This rule covers agents only; an Issue
+          that a GitHub Actions workflow files follows PAD-02-026.
         rationale: >-
           When each skill files Issues its own way, each one drops a different
           rule. Bugs then land under the Epic of the work that found them, and
@@ -463,6 +465,39 @@ groups:
           `TestCreateEpicScriptGate` in `test/metadata/test_theme_gate.py`
           checks that a missing theme argument, a missing `Theme:` line, and
           two themes with no named split each fail before any `gh` call.
+      - id: PAD-02-026
+        priority: MUST
+        kind: process
+        statement: >-
+          An Issue that a GitHub Actions workflow files MUST carry exactly one
+          `theme:` label and a `Theme:` line naming it, which the workflow sets
+          itself, and the workflow MUST NOT make the Issue a sub-issue. The
+          Issue starts untriaged (PAD-01-007), and `theme-fit` MUST list it
+          for routing, apart from its findings, so that it does not make the
+          report unclean. A workflow MUST NOT change a `theme:` label that a
+          person set.
+        rationale: >-
+          A workflow cannot ask anyone and cannot calve an Epic, so it can only
+          use an Epic that someone names in advance. A fixed Epic number needs
+          upkeep each time that Epic closes, is rethemed or split, or fills
+          up, and the workflow fails until someone edits it. The theme and the
+          `Theme:` line show which Epics are candidates, so routing the Issue
+          later is quick.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-01-007
+        - rel_type: implements
+          spec_id: PAD-02-014
+        - rel_type: implements
+          spec_id: PAD-02-018
+        verification: >-
+          In `test/ci/test_bot_issue_triage.py`, the `notify-failure` action and
+          the Demo Recordings workflow run against a stand-in `gh`. The tests
+          check that each issue gets one theme and a `Theme:` line, that no
+          call sets a parent, that `theme-fit` lists the issue as untriaged
+          with no finding, and that no file under `.github/` reads an Epic
+          number from a repository variable. `TestUntriaged` in
+          `test/metadata/test_theme_fit.py` checks the untriaged listing.
 
   - id: PAD-03
     title: Priority Ordering Authority

@@ -1,10 +1,11 @@
-"""Bot-filed issues get a theme label, a ``Theme:`` line and an Epic parent.
+"""Bot-filed issues get a theme label and a ``Theme:`` line, and no parent.
 
 Two workflows file issues: the ``notify-failure`` composite action (a
-``ci:main-failure`` Bug) and the Demo Recordings workflow (a refresh Task). An
-issue either files breaks PAD-01-007, PAD-02-014 and PAD-02-018 unless the
-filer sets all three itself (#5435), which both do through
-``.github/scripts/ensure-issue-triage.sh``.
+``ci:main-failure`` Bug) and the Demo Recordings workflow (a refresh Task).
+Each gives its issue one ``theme:`` label (PAD-02-014) and a ``Theme:`` line
+(PAD-02-018) through ``.github/scripts/ensure-issue-triage.sh``, and sets no
+parent: the issue starts untriaged (PAD-01-007), and ``theme-fit`` lists it
+for routing instead of reporting a finding (PAD-02-026, #5450).
 
 The helper is run here against a fake ``gh`` (``test/ci/_fake_gh.py``), and the
 issue each filer leaves is checked with the ``theme-fit`` analysis itself, so
@@ -20,30 +21,23 @@ from typing import Any
 import pytest
 import yaml
 
-from test.ci._fake_gh import (
-    UNTRIAGED_ISSUE,
-    FakeGh,
-    install_fake_gh,
-    open_epic,
-)
+from test.ci._fake_gh import UNTHEMED_ISSUE, FakeGh, install_fake_gh
 from vultron.metadata.planning.theme_fit.analyze import analyze
-from vultron.metadata.planning.theme_fit.model import Ancestor, OpenIssue
+from vultron.metadata.planning.theme_fit.model import OpenIssue
 from vultron.metadata.planning.themes import load_theme_catalog
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRIPTS_DIR = REPO_ROOT / ".github" / "scripts"
+GITHUB_DIR = REPO_ROOT / ".github"
+SCRIPTS_DIR = GITHUB_DIR / "scripts"
 TRIAGE_HELPER = SCRIPTS_DIR / "ensure-issue-triage.sh"
-NOTIFY_ACTION = (
-    REPO_ROOT / ".github" / "actions" / "notify-failure" / "action.yml"
-)
-RECORDINGS_WORKFLOW = (
-    REPO_ROOT / ".github" / "workflows" / "demo-recordings.yml"
-)
+NOTIFY_ACTION = GITHUB_DIR / "actions" / "notify-failure" / "action.yml"
+RECORDINGS_WORKFLOW = GITHUB_DIR / "workflows" / "demo-recordings.yml"
 
-EPIC = 3791
 THEME = "theme:test-and-ci"
 OUTCOME = "gets the Example workflow passing on main again."
-CALL = ("OWNER/REPO", "999", THEME, OUTCOME, str(EPIC), "CI_FAILURE_EPIC")
+CALL = ("OWNER/REPO", "999", THEME, OUTCOME)
+# The repository variables #5435 used to name each filer's Epic (#5450).
+RETIRED_EPIC_VARIABLES = ("CI_FAILURE_EPIC", "DEMO_RECORDINGS_EPIC")
 
 
 def _run_helper(gh: FakeGh, *args: str) -> subprocess.CompletedProcess[str]:
@@ -56,39 +50,37 @@ def _run_helper(gh: FakeGh, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _theme_fit_findings(
-    gh: FakeGh, labels: set[str], theme: str, epic: int
-) -> list[str]:
-    """``theme-fit``'s findings on the issue as the fake ``gh`` left it.
+def _assert_no_parent_set(gh: FakeGh) -> None:
+    """No ``gh`` call the fake saw could give the issue a parent."""
+    log = gh.log.read_text()
+    for marker in ("addSubIssue", "parent", "--add-sub-issue", "sub_issues"):
+        assert marker not in log, f"{marker!r} in gh calls:\n{log}"
+
+
+def _assert_untriaged_and_clean(gh: FakeGh, labels: set[str]) -> None:
+    """``theme-fit`` lists the issue as the fake left it as untriaged only.
 
     Its labels are *labels* plus any the helper added, its body the one the
-    helper wrote, and its parent *epic* when the helper called
-    ``addSubIssue``. The Epic is open and carries *theme*.
+    helper wrote, and it has no parent. AC-1 and AC-3 (#5450): exactly one
+    theme, a ``Theme:`` line, no finding, and listed for routing.
     """
-    calls = gh.calls()
     added = {
         c.split("--add-label ", 1)[1]
-        for c in calls
+        for c in gh.calls()
         if c.startswith("issue edit") and "--add-label" in c
     }
-    parented = any("addSubIssue" in c for c in calls)
     filed = OpenIssue(
         number=999,
         title="Filed by a workflow",
         issue_type="Bug",
         labels=frozenset(labels | added),
         body=gh.written_body() or "",
-        ancestors=(Ancestor(epic, "Epic"),) if parented else (),
     )
-    parent = OpenIssue(
-        number=epic,
-        title="The Epic",
-        issue_type="Epic",
-        labels=frozenset({theme}),
-        body=f"Theme: {theme} — the Epic's outcome.",
-    )
-    report = analyze([filed, parent], load_theme_catalog())
-    return [f"{f.kind.value}: {f.detail}" for f in report.findings]
+    assert len(filed.themes) == 1, filed.themes
+    report = analyze([filed], load_theme_catalog())
+    findings = [f"{f.kind.value}: {f.detail}" for f in report.findings]
+    assert findings == []
+    assert [u.number for u in report.untriaged] == [999]
 
 
 # ---------------------------------------------------------------------------
@@ -96,66 +88,43 @@ def _theme_fit_findings(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("PAD-01-007", "PAD-02-014", "PAD-02-018")
-def test_helper_triages_an_untriaged_issue(tmp_path: Path) -> None:
-    """An issue with none of the three gets all three, and theme-fit passes."""
+@pytest.mark.spec("PAD-02-014", "PAD-02-018", "PAD-02-026")
+def test_helper_themes_an_unthemed_issue_and_sets_no_parent(
+    tmp_path: Path,
+) -> None:
+    """An issue with neither gets both, and no parent."""
     gh = install_fake_gh(tmp_path)
     result = _run_helper(gh, *CALL)
     assert result.returncode == 0, result.stderr
-    calls = gh.calls()
-    assert f"issue edit 999 --repo OWNER/REPO --add-label {THEME}" in calls
+    assert (
+        f"issue edit 999 --repo OWNER/REPO --add-label {THEME}" in gh.calls()
+    )
     body = gh.written_body()
     assert body is not None
     assert body.splitlines()[0] == f"Theme: {THEME} — {OUTCOME}"
     assert "Original body." in body, "The filed body must be kept."
-    # A GraphQL query spans several log lines, so read the raw log.
-    log = gh.log.read_text()
-    assert f"-F number={EPIC} " in log, "The Epic the variable names is read."
-    assert log.count("addSubIssue(input") == 1, log
-    assert "-f parentId=EPIC_NODE_ID -f childId=ISSUE_NODE_ID" in log, log
-    assert _theme_fit_findings(gh, {"ci:main-failure"}, THEME, EPIC) == []
+    _assert_no_parent_set(gh)
+    _assert_untriaged_and_clean(gh, {"ci:main-failure"})
 
 
-def test_helper_leaves_a_themed_and_parented_issue_alone(
+def test_helper_leaves_an_issue_a_person_re_themed_alone(
     tmp_path: Path,
 ) -> None:
-    """A person's theme and parent win: the helper changes nothing."""
-    issue = UNTRIAGED_ISSUE | {
-        "parent": {"number": 1234},
-        "labels": {"nodes": [{"name": "theme:dev-workflow"}]},
-    }
-    gh = install_fake_gh(tmp_path, issue=issue)
-    result = _run_helper(gh, *CALL)
-    assert result.returncode == 0, result.stderr
-    calls = gh.calls()
-    assert not any(c.startswith("issue edit") for c in calls), calls
-    log = gh.log.read_text()
-    assert "subIssues" not in log and "addSubIssue" not in log, log
-
-
-def test_helper_leaves_an_issue_a_person_re_themed_unparented(
-    tmp_path: Path,
-) -> None:
-    """Another theme with no parent gets no parent from the bot either.
-
-    The bot's Epic carries the bot's theme, so wiring the issue under it
-    would break PAD-02-017; the person who chose the theme picks the parent.
-    """
-    issue = UNTRIAGED_ISSUE | {
+    """A person's theme wins: the helper changes nothing."""
+    issue = UNTHEMED_ISSUE | {
         "labels": {"nodes": [{"name": "theme:dev-workflow"}]},
     }
     gh = install_fake_gh(tmp_path, issue=issue)
     result = _run_helper(gh, *CALL)
     assert result.returncode == 0, result.stderr
     assert not any(c.startswith("issue edit") for c in gh.calls())
-    log = gh.log.read_text()
-    assert "subIssues" not in log and "addSubIssue" not in log, log
+    _assert_no_parent_set(gh)
 
 
 def test_helper_keeps_an_existing_theme_line(tmp_path: Path) -> None:
     """A repair run adds the label without writing the line a second time."""
     line = f"Theme: {THEME} — {OUTCOME}"
-    issue = UNTRIAGED_ISSUE | {"body": f"{line}\n\nOriginal body."}
+    issue = UNTHEMED_ISSUE | {"body": f"{line}\n\nOriginal body."}
     gh = install_fake_gh(tmp_path, issue=issue)
     result = _run_helper(gh, *CALL)
     assert result.returncode == 0, result.stderr
@@ -173,7 +142,7 @@ def test_helper_finishes_a_theme_a_failed_run_left_half_set(
     A run that set the label and then failed must not leave the issue
     breaking PAD-02-018 for good.
     """
-    issue = UNTRIAGED_ISSUE | {
+    issue = UNTHEMED_ISSUE | {
         "labels": {"nodes": [{"name": "ci:main-failure"}, {"name": THEME}]},
     }
     gh = install_fake_gh(tmp_path, issue=issue)
@@ -182,7 +151,7 @@ def test_helper_finishes_a_theme_a_failed_run_left_half_set(
     body = gh.written_body()
     assert body is not None and body.startswith(f"Theme: {THEME} — ")
     assert not any("--add-label" in c for c in gh.calls())
-    assert _theme_fit_findings(gh, {THEME}, THEME, EPIC) == []
+    _assert_untriaged_and_clean(gh, {THEME})
 
 
 def test_helper_does_not_take_a_longer_label_for_its_theme(
@@ -190,7 +159,7 @@ def test_helper_does_not_take_a_longer_label_for_its_theme(
 ) -> None:
     """A ``Theme:`` line for a label that merely starts with the theme is
     not the theme's line, so the line is still written."""
-    issue = UNTRIAGED_ISSUE | {
+    issue = UNTHEMED_ISSUE | {
         "body": f"Theme: {THEME}-extra — something else.\n\nOriginal body.",
     }
     gh = install_fake_gh(tmp_path, issue=issue)
@@ -201,74 +170,42 @@ def test_helper_does_not_take_a_longer_label_for_its_theme(
     assert body.splitlines()[0] == f"Theme: {THEME} — {OUTCOME}"
 
 
-@pytest.mark.parametrize("epic", ["", "not-a-number", "0", "-5"])
-def test_helper_fails_loudly_without_an_epic_number(
-    tmp_path: Path, epic: str
-) -> None:
-    """An unset or malformed variable is an error naming the variable.
-
-    The theme is still set first, so the issue is only one fix away.
-    """
-    gh = install_fake_gh(tmp_path)
-    result = _run_helper(gh, *CALL[:4], epic, "CI_FAILURE_EPIC")
-    assert result.returncode == 1
-    assert "::error::" in result.stderr
-    assert "CI_FAILURE_EPIC" in result.stderr
-    calls = gh.calls()
-    assert any("--add-label" in c for c in calls), calls
-    assert "addSubIssue" not in gh.log.read_text()
-
-
 @pytest.mark.parametrize(
-    ("epic", "error"),
+    "args",
     [
-        (
-            open_epic(THEME) | {"issueType": {"name": "Task"}},
-            "not an open Epic",
-        ),
-        (open_epic(THEME) | {"state": "CLOSED"}, "not an open Epic"),
-        (open_epic(THEME) | {"issueType": None}, "not an open Epic"),
-        (open_epic("theme:dev-workflow"), f"does not carry {THEME}"),
-        (open_epic(THEME, sub_issues=100), "GitHub's cap"),
+        ("OWNER/REPO", "999", "test-and-ci", OUTCOME),
+        ("OWNER/REPO", "999", THEME, ""),
+        ("OWNER/REPO", "999", THEME),
+        # The old six-argument call, with an Epic and its variable (#5450).
+        (*CALL, "3791", "CI_FAILURE_EPIC"),
     ],
-    ids=["not-an-epic", "closed-epic", "untyped", "other-theme", "full"],
+    ids=["not-a-theme-label", "empty-outcome", "too-few", "old-epic-args"],
 )
-def test_helper_refuses_a_parent_that_cannot_take_the_issue(
-    tmp_path: Path, epic: dict[str, object], error: str
+def test_helper_rejects_a_bad_call(
+    tmp_path: Path, args: tuple[str, ...]
 ) -> None:
-    """A variable naming anything but an open Epic with room for an issue of
-    this theme (PAD-02-017) fails, naming the variable and wiring nothing."""
-    gh = install_fake_gh(tmp_path, epic=epic)
-    result = _run_helper(gh, *CALL)
-    assert result.returncode == 1
-    assert error in result.stderr
-    assert "CI_FAILURE_EPIC" in result.stderr
-    assert "addSubIssue" not in gh.log.read_text()
-
-
-def test_helper_fails_when_the_epic_lookup_fails(tmp_path: Path) -> None:
-    """An API error reading the Epic fails the step, wiring nothing."""
-    gh = install_fake_gh(tmp_path, epic_lookup_fails=True)
-    result = _run_helper(gh, *CALL)
-    assert result.returncode == 1
-    assert "::error::Could not read Epic" in result.stderr, result.stderr
-    assert "CI_FAILURE_EPIC" in result.stderr
-    assert "addSubIssue" not in gh.log.read_text()
-
-
-@pytest.mark.parametrize(
-    ("theme", "outcome"),
-    [("test-and-ci", OUTCOME), (THEME, "")],
-    ids=["not-a-theme-label", "empty-outcome"],
-)
-def test_helper_rejects_a_bad_theme_argument(
-    tmp_path: Path, theme: str, outcome: str
-) -> None:
-    """A caller bug fails before any write."""
+    """A caller bug fails before any ``gh`` call."""
     gh = install_fake_gh(tmp_path)
-    result = _run_helper(gh, "OWNER/REPO", "999", theme, outcome, "1", "V")
+    result = _run_helper(gh, *args)
     assert result.returncode == 2
     assert gh.calls() == []
+
+
+@pytest.mark.spec("PAD-02-026")
+def test_no_workflow_action_or_script_reads_an_epic_variable() -> None:
+    """AC-2 (#5450): no filer is wired to a fixed Epic any more.
+
+    A fixed Epic number needs upkeep each time that Epic closes, is
+    rethemed or split, or fills up, so a workflow-filed issue gets no parent.
+    """
+    readers = sorted(
+        f"{path.relative_to(REPO_ROOT)}: {name}"
+        for path in GITHUB_DIR.rglob("*")
+        if path.is_file()
+        for name in RETIRED_EPIC_VARIABLES
+        if name in path.read_text(errors="replace")
+    )
+    assert readers == []
 
 
 # ---------------------------------------------------------------------------
@@ -292,8 +229,8 @@ def _recordings_step(name: str) -> dict[str, Any]:
     return step
 
 
-def _run_notify(gh: FakeGh, epic: str) -> subprocess.CompletedProcess[str]:
-    """Run the notify arm's real script, with *epic* as the ``epic`` input."""
+def _run_notify(gh: FakeGh) -> subprocess.CompletedProcess[str]:
+    """Run the notify arm's real script against the fake ``gh``."""
     env = gh.env | {
         "REPO": "OWNER/REPO",
         "MODE": "notify",
@@ -301,7 +238,6 @@ def _run_notify(gh: FakeGh, epic: str) -> subprocess.CompletedProcess[str]:
         "WORKFLOW_NAME": "Example",
         "RUN_URL": "https://github.com/OWNER/REPO/actions/runs/1",
         "REF": "refs/heads/main",
-        "CI_FAILURE_EPIC": epic,
         "GITHUB_ACTION_PATH": str(NOTIFY_ACTION.parent),
     }
     return subprocess.run(
@@ -313,37 +249,31 @@ def _run_notify(gh: FakeGh, epic: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_notify_failure_takes_the_epic_from_an_input() -> None:
-    """The Epic comes in through the ``epic`` input, not ``vars``.
-
-    GitHub documents the ``vars`` context for a workflow step's ``with:``,
-    but not inside a composite action's own steps, so each caller passes
-    ``vars.CI_FAILURE_EPIC`` in (checked per caller in
-    ``test_workflow_failure_notification.py``).
-    """
+def test_notify_failure_takes_no_epic_input() -> None:
+    """The action has no ``epic`` input and reads no ``vars`` (#5450)."""
     action: dict[str, Any] = yaml.safe_load(NOTIFY_ACTION.read_text())
-    assert "epic" in action["inputs"]
-    assert _notify_step()["env"]["CI_FAILURE_EPIC"] == "${{ inputs.epic }}"
-    assert "vars." not in NOTIFY_ACTION.read_text().split("runs:", 1)[1]
+    assert "epic" not in action["inputs"]
+    assert "vars." not in NOTIFY_ACTION.read_text()
 
 
-def test_notify_failure_closes_duplicates_before_an_epic_error(
+def test_notify_failure_closes_duplicates_and_themes_the_oldest(
     tmp_path: Path,
 ) -> None:
-    """An unset Epic still fails the step, but only after the duplicate
-    trackers are closed (CISEC-05-003), so one tracker remains."""
+    """Duplicate trackers are closed (CISEC-05-003) and the one that
+    remains is themed."""
     gh = install_fake_gh(
         tmp_path, issues_page=[{"number": 5087}, {"number": 5105}]
     )
-    result = _run_notify(gh, "")
-    assert result.returncode == 1
-    assert "CI_FAILURE_EPIC" in result.stderr
+    result = _run_notify(gh)
+    assert result.returncode == 0, result.stderr
     calls = gh.calls()
     assert any(c.startswith("issue close 5105") for c in calls), calls
     assert f"issue edit 5087 --repo OWNER/REPO --add-label {THEME}" in calls
+    assert not any(c.startswith("issue edit 5105") for c in calls), calls
+    _assert_no_parent_set(gh)
 
 
-@pytest.mark.spec("PAD-01-007", "PAD-02-014", "PAD-02-018")
+@pytest.mark.spec("PAD-02-014", "PAD-02-018", "PAD-02-026")
 @pytest.mark.parametrize(
     ("open_issues", "number"),
     [([], "999"), ([5087], "5087")],
@@ -352,24 +282,24 @@ def test_notify_failure_closes_duplicates_before_an_epic_error(
 def test_notify_failure_triages_the_issue_it_files(
     tmp_path: Path, open_issues: list[int], number: str
 ) -> None:
-    """AC-1: a ``ci:main-failure`` issue gets theme, line and parent.
+    """AC-1: a ``ci:main-failure`` issue gets a theme and line, no parent.
 
-    The comment arm repairs an open issue a run before this fix filed bare.
+    The comment arm repairs an open issue an earlier run filed bare.
     """
     gh = install_fake_gh(
         tmp_path, issues_page=[{"number": n} for n in open_issues]
     )
-    result = _run_notify(gh, str(EPIC))
+    result = _run_notify(gh)
     assert result.returncode == 0, result.stderr
     calls = gh.calls()
     assert (
         f"issue edit {number} --repo OWNER/REPO --add-label {THEME}" in calls
     )
-    labels = {"ci:main-failure", "ci:workflow-example"}
-    assert _theme_fit_findings(gh, labels, THEME, EPIC) == []
+    _assert_no_parent_set(gh)
+    _assert_untriaged_and_clean(gh, {"ci:main-failure", "ci:workflow-example"})
 
 
-@pytest.mark.spec("PAD-01-007", "PAD-02-014", "PAD-02-018")
+@pytest.mark.spec("PAD-02-014", "PAD-02-018", "PAD-02-026")
 @pytest.mark.parametrize(
     ("existing", "number"),
     [([], "999"), ([5434], "5434"), ([5434, 5500], "5434")],
@@ -378,22 +308,13 @@ def test_notify_failure_triages_the_issue_it_files(
 def test_recordings_workflow_triages_the_task_it_files(
     tmp_path: Path, existing: list[int], number: str
 ) -> None:
-    """AC-2: the refresh Task gets theme, line and parent, on both arms.
+    """AC-1: the refresh Task gets a theme and line, no parent, on both arms.
 
     With more than one open, only the oldest is updated.
     """
     step = _recordings_step("File or update the refresh Task")
-    env_map = step["env"]
-    assert (
-        env_map["DEMO_RECORDINGS_EPIC"] == "${{ vars.DEMO_RECORDINGS_EPIC }}"
-    ), (
-        "The parent Epic must come from the DEMO_RECORDINGS_EPIC repository "
-        "variable, not a hard-coded number (#5435)."
-    )
     gh = install_fake_gh(
-        tmp_path,
-        issues_page=[{"number": n} for n in existing],
-        epic=open_epic("theme:full-cvd-scenario-coverage"),
+        tmp_path, issues_page=[{"number": n} for n in existing]
     )
     work = tmp_path / "work"
     (work / ".github").mkdir(parents=True)
@@ -403,7 +324,6 @@ def test_recordings_workflow_triages_the_task_it_files(
         "REPO": "OWNER/REPO",
         "RUN_URL": "https://github.com/OWNER/REPO/actions/runs/1",
         "REFRESH_LABEL": "demo-recordings-stale",
-        "DEMO_RECORDINGS_EPIC": "4747",
     }
     subprocess.run(
         ["bash", "-e", "-o", "pipefail", "-c", str(step["run"])],
@@ -424,8 +344,8 @@ def test_recordings_workflow_triages_the_task_it_files(
         if c.startswith(("issue comment", "issue edit"))
     }
     assert touched == {number}, calls
-    labels = {"demo-recordings-stale"}
-    assert _theme_fit_findings(gh, labels, theme, 4747) == []
+    _assert_no_parent_set(gh)
+    _assert_untriaged_and_clean(gh, {"demo-recordings-stale"})
 
 
 def _run_recordings_close(gh: FakeGh) -> subprocess.CompletedProcess[str]:

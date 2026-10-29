@@ -67,10 +67,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          # The Epic the refresh Task is filed under (PAD-01-007). A repository
-          # variable, so re-homing it after the Epics are reshaped needs no
-          # code change.
-          DEMO_RECORDINGS_EPIC: ${{ vars.DEMO_RECORDINGS_EPIC }}
         run: |
           set -euo pipefail
           changed=$(cat changed.txt)
@@ -78,12 +74,12 @@ jobs:
           # (CISEC-05-007); it leaves a typed issue alone and repairs an
           # untyped one, so it runs on both arms.
           ensure_type=.github/scripts/ensure-issue-type.sh
-          # Its theme label, Theme: line and Epic parent (PAD-01-007,
-          # PAD-02-014, PAD-02-018) are set the same way, on both arms.
+          # Its theme label and Theme: line (PAD-02-014, PAD-02-018) are set
+          # the same way, on both arms. No parent: the Task starts untriaged
+          # and `theme-fit` lists it for routing (PAD-02-026).
           ensure_triage=.github/scripts/ensure-issue-triage.sh
           triage_args=(theme:full-cvd-scenario-coverage
-            "brings the committed demo recordings back in line with main."
-            "${DEMO_RECORDINGS_EPIC:-}" DEMO_RECORDINGS_EPIC)
+            "brings the committed demo recordings back in line with main.")
           gh label create "$REFRESH_LABEL" --repo "$REPO" \
             --description "Bot-managed: committed demo recordings lag main" \
             --color "fbca04" 2>/dev/null || true
@@ -139,7 +135,6 @@ jobs:
           mode: notify
           workflow-label: ci:workflow-demo-recordings
           token: ${{ secrets.GITHUB_TOKEN }}
-          epic: ${{ vars.CI_FAILURE_EPIC }}
       - name: Close the CI failure issue
         if: success()
         uses: ./.github/actions/notify-failure

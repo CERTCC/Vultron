@@ -29,17 +29,6 @@ inputs:
       adds nothing.
     required: false
     default: ""
-  epic:
-    description: >-
-      Number of the Epic a failure issue is filed under (PAD-01-007). Pass
-      the CI_FAILURE_EPIC repository variable (`vars.CI_FAILURE_EPIC`) on
-      every "notify" step. The caller passes it because GitHub documents the
-      `vars` context for a workflow step's `with:`, but not inside a
-      composite action's own steps. Empty or malformed, the issue is still
-      filed and themed, and the step fails with an error naming
-      CI_FAILURE_EPIC. Unused in "close" mode.
-    required: false
-    default: ""
 
 runs:
   using: composite
@@ -73,10 +62,6 @@ runs:
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         REF: ${{ github.ref }}
         DETAILS_FILE: ${{ inputs.details-file }}
-        # The Epic a failure issue is filed under (PAD-01-007), from the
-        # CI_FAILURE_EPIC repository variable through the `epic` input (see
-        # its description), so re-homing the issues needs no code change.
-        CI_FAILURE_EPIC: ${{ inputs.epic }}
       run: |
         set -euo pipefail
 
@@ -104,13 +89,14 @@ runs:
         # helper shared with other bot-filed issues. It also repairs an
         # issue a failed assignment left untyped.
         ensure_type="$GITHUB_ACTION_PATH/../../scripts/ensure-issue-type.sh"
-        # The theme label, Theme: line and Epic parent every open leaf issue
-        # needs (PAD-01-007, PAD-02-014, PAD-02-018), set the same way on
-        # both arms, so an issue an earlier run left without them is repaired.
+        # The theme label and Theme: line every open leaf issue needs
+        # (PAD-02-014, PAD-02-018), set the same way on both arms, so an
+        # issue an earlier run left without them is repaired. No parent: the
+        # issue starts untriaged and `theme-fit` lists it for routing
+        # (PAD-02-026).
         ensure_triage="$GITHUB_ACTION_PATH/../../scripts/ensure-issue-triage.sh"
         triage_args=(theme:test-and-ci
-          "gets the $WORKFLOW_NAME workflow passing on main again."
-          "${CI_FAILURE_EPIC:-}" CI_FAILURE_EPIC)
+          "gets the $WORKFLOW_NAME workflow passing on main again.")
 
         if [ "$MODE" = "notify" ]; then
           if [ "${#ISSUE_NUMS[@]}" -gt 0 ]; then
@@ -126,7 +112,6 @@ runs:
                 --duplicate-of "${ISSUE_NUMS[0]}" \
                 --comment "Duplicate of #${ISSUE_NUMS[0]}, which tracks this failure."
             done
-            # Last, so an unset CI_FAILURE_EPIC cannot stop the duplicates closing.
             bash "$ensure_triage" "$REPO" "${ISSUE_NUMS[0]}" "${triage_args[@]}"
           else
             # Create a new failure issue.

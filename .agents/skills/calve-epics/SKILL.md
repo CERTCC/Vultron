@@ -85,7 +85,10 @@ that breaks a theme rule; a scheduled run keeps its output in the standing
 standing report issue, or run `theme-fit` when it is missing or stale, and act
 on its findings before looking for other work.
 
-- An **unparented** or **theme-mismatch** child → Mode 1 routing.
+- An issue in the report's **untriaged** list, or an **unparented** or
+  **theme-mismatch** child → Mode 1 routing. An untriaged issue is not a
+  finding: workflows file their issues with a theme and no parent
+  (PAD-02-026).
 - An **auto-calved Epic still single-child** → Mode 2: decide whether its
   theme gathers more work, or move the lone child and close the Epic.
 - An **Epic with two themes and no named split**, or many children of one

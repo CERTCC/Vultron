@@ -8,9 +8,9 @@ description: >
   `theme-labels` script syncs GitHub from it. The rules for applying a theme:
   classify by outcome, one theme per leaf, an Epic's second theme only when its
   body names the split, the theme contains the grain, the `Theme:` reason line;
-  borderline examples; the `theme-fit` structural check, the split line and
-  the auto-calved marker it reads; the `theme-gate` check that refuses a new
-  Issue breaking these rules; how to act on a theme-fit finding; and
+  borderline examples; the `theme-fit` structural check, its untriaged list,
+  the split line and the auto-calved marker it reads; the `theme-gate` check
+  that refuses a new Issue breaking these rules; how to act on a theme-fit finding; and
   triage-label rules (`needs-info`, `ready-for-human`, and retired labels).
 related_specs:
   - specs/parallel-development.yaml
@@ -316,9 +316,16 @@ Theme: theme:dev-workflow — gives every skill one shared definition of the the
 ## The Structural Check
 
 `uv run theme-fit` reads every open Issue with one GraphQL query and prints a
-Markdown report: coherence per `Schedule` tier, then each finding grouped by
-kind. It changes nothing on GitHub. It exits 0 with no findings, 1 with any,
-and 2 when the catalog or `gh` fails.
+Markdown report: coherence per `Schedule` tier, each finding grouped by kind,
+then the untriaged Issues. It changes nothing on GitHub. It exits 0 with no
+findings, 1 with any, and 2 when the catalog or `gh` fails.
+
+- **Untriaged is listed, not a finding.** A non-Epic Issue with no parent is
+  untriaged (PAD-01-007) and appears under "Untriaged: no parent, needs
+  routing" with its themes, so the report can still come back clean. Reason:
+  workflows file their issues with a theme and no parent (PAD-02-026), and
+  routing them is triage, not a repair. An untriaged Issue with no theme still
+  gets a leaf-theme-count finding.
 
 - **Coherence** is the share of children that match their Epic: a child is an
   open non-Epic Issue in its nearest Epic's tier (PAD-02-001), and it matches
@@ -328,8 +335,8 @@ and 2 when the catalog or `gh` fails.
   body.
 - **Finding kinds**: a leaf without exactly one theme, an Epic without one
   theme or a named split, a missing `Theme:` line, a child theme its Epic does
-  not carry, a non-Epic with no open Epic ancestor (a parent in another
-  repository ends the walk, since its number means nothing here), an Epic
+  not carry, a non-Epic whose parent chain reaches no open Epic (a parent in
+  another repository ends the walk, since its number means nothing here), an Epic
   nested under an Epic, an auto-calved Epic still single-child, and a label
   the catalog does not list or lists as retiring.
 - **A `Theme:` line counts** only when a dash with a space on each side
