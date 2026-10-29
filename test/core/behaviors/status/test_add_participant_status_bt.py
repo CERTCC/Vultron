@@ -2469,12 +2469,34 @@ class TestAdoptedThreatTeardown:
     """EmbargoTeardownAuthorizationGate (RSH-02-001) and the post-cascade
     CSB-18 check (#4829) on an adopted P report under an active embargo."""
 
-    @pytest.mark.spec("RSH-02-001")
-    def test_side_effects_guard_always_fail_blocks_threat_termination(
-        self, make_payload
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
+    @pytest.mark.parametrize(
+        "call_out",
+        [
+            pytest.param(
+                StatusAuthorizationCallOutBundle(
+                    embargo_teardown_authorization_gate_factory=AlwaysFail  # type: ignore[arg-type]
+                ),
+                id="always-fail-teardown-gate",
+                marks=pytest.mark.spec("RSH-02-001"),
+            ),
+            pytest.param(
+                None,
+                id="default-bundle",
+                marks=pytest.mark.spec("RSH-07-002"),
+            ),
+        ],
+    )
+    def test_a_refusing_teardown_gate_holds_the_embargo(
+        self, make_payload, call_out
     ):
-        """Teardown gate AlwaysFail → ThreatTerminationBranch never runs.
+        """A teardown gate that refuses leaves the embargo ACTIVE.
 
+        The Case Owner's own P report passes adoption without approval
+        (RSH-07-006), so the case's P is set. The teardown it calls for
+        runs only past the teardown gate: an ``AlwaysFail`` gate
+        (RSH-02-001), or the default bundle's gate, which refuses without
+        the Case Owner's authorization, none being recorded (RSH-07-002).
         ``FailureIsSuccess`` wraps the teardown Sequence, so the tree still
         succeeds; the EM state is untouched.
         """
@@ -2484,31 +2506,7 @@ class TestAdoptedThreatTeardown:
         result = _run_at_case_manager(
             populated_dl,
             make_payload(_pxa_report(CS_pxa.Pxa)),
-            call_out=StatusAuthorizationCallOutBundle(
-                embargo_teardown_authorization_gate_factory=AlwaysFail  # type: ignore[arg-type]
-            ),
-        )
-
-        assert result.status == Status.SUCCESS, result.feedback_message
-        case = populated_dl.read(CASE_ID)
-        assert isinstance(case, VulnerabilityCase)
-        assert case.current_status.em.state == EM.ACTIVE
-
-    @pytest.mark.spec("RSH-07-002")
-    @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_default_bundle_adopts_but_holds_the_teardown(self, make_payload):
-        """With the default bundle, an adopted P does not end the embargo.
-
-        The Case Owner's own P report passes adoption without approval
-        (RSH-07-006), so the case's P is set; the teardown it calls for
-        still waits for the Case Owner's recorded authorization, which no
-        ledger entry holds, so EM stays ACTIVE (RSH-07-002).
-        """
-
-        populated_dl = _cm_store_with_active_embargo()
-
-        result = _run_at_case_manager(
-            populated_dl, make_payload(_pxa_report(CS_pxa.Pxa))
+            call_out=call_out,
         )
 
         assert result.status == Status.SUCCESS, result.feedback_message

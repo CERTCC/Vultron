@@ -115,7 +115,9 @@ If it cannot accept one value, it records nothing in the update.
 Its refusal notice names every value it refused and why.
 
 The CASE_MANAGER records the status on your participant record.
-It chooses whether to adopt the reported `pxaState` for the case, by default only with the Case Owner's authorization (RSH-07-001).
+It chooses whether to adopt the reported `pxaState` for the case.
+It adopts the Case Owner's own report without asking for approval (RSH-07-006).
+By default, it adopts any other participant's report only with the Case Owner's authorization (RSH-07-001).
 If it adopts the change, the CASE_MANAGER commits it as an `Add(CaseStatus)` entry to the case ledger.
 While an embargo is active or proposed, it then ends or abandons the embargo (RSH-03-001).
 The Reporter + Vendor (`rv`) demo and the `status-updates` demo report public awareness this way.
