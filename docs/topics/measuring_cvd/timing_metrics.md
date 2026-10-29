@@ -22,7 +22,7 @@ No part of the page is normative, and no code calculates these metrics today.
 A desideratum is an order of two events that a case should achieve.
 For example, the fix should be ready before the vul is public.
 [Desirable Histories](./desirable_histories.md) gives the twelve original desiderata.
-[Desiderata from the Process Models](./process_model_desiderata.md) adds desiderata about report, embargo, consent, and joining events.
+[Desiderata from the Process Models](./process_model_desiderata.md) adds desiderata about report, embargo, and consent events.
 
 The page uses the events and symbols of [What a Case Records](./what_a_case_records.md):
 

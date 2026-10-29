@@ -139,7 +139,7 @@ A case that achieves $\evF \prec \evP$ without an embargo is not a worse case.
 |---|---|---|
 | $\evE \prec \evP$, $\evE \prec \evX$, $\evE \prec \evA$ | An embargo is active before the vul is public, exploited, or attacked | A case starts in EM Active at creation, under a published default or the protocol default ([Default Embargoes](../process_models/em/defaults.md)) |
 | $\evExOwn \prec \evP$, $\evExOwn \prec \evX$, $\evExOwn \prec \evA$ | The embargo ends on its own terms, not because a threat signal ended it | An embargo ends early at $\evP$, $\evX$, or $\evA$ ([CVD Case State Interactions with the RM and EM Process Models](../process_models/model_interactions/rm_em_cs.md)) |
-| $\evF_i \prec \evExOwn$ for every vendor $i$ | Every vendor's fix is ready before the embargo ends | VP-14-009 asks participants to extend for trailing vendors; VP-09-007 permits ending at a quorum |
+| $\evF_i \prec \evExOwn$ for every vendor $i$ | Every vendor's fix is ready before the embargo ends on its own terms | VP-14-009 asks participants to extend for trailing vendors; VP-09-007 permits ending at a quorum |
 
 ### An embargo before public awareness
 
@@ -147,7 +147,7 @@ The prototype assumes that every case starts with an embargo.
 The embargo is a default that the participants publish, or the protocol default.
 Under this assumption, a new case starts in EM Active, unless $\evP$, $\evX$, or $\evA$ already occurred.
 In that condition, the case stays in EM None (EP-04-005, EP-04-008).
-Thus $\evE \prec \evP$ fails only when the report arrives, or the case is created, after the vul is already public.
+Thus $\evE \prec \evP$ fails only when the report arrives, or the case is created, after $\evP$, $\evX$, or $\evA$ already occurred.
 
 An implementation that does not start every case with an embargo can fail this desideratum in more ways.
 For example, the participants can be slow to agree to an embargo, and the vul can become public before they agree.
@@ -173,7 +173,7 @@ The case cannot tell who made the vul public or who published the exploit.
 But a participant that publishes during the embargo sets $\evP$ or $\evX$, and the embargo ends on a threat signal.
 Thus the case fails $\evExOwn \prec \evP$ or $\evExOwn \prec \evX$.
 
-### Every vendor's fix before the embargo ends
+### Every vendor's fix before the embargo ends on its own terms
 
 The desideratum $\evF_i \prec \evExOwn$ for every vendor is stronger than the protocol requires.
 VP-09-007 lets an embargo end when a quorum of vendors has a fix ready, even if some vendors do not.
@@ -203,7 +203,7 @@ A vendor that closes its report without a fix fails $\evF_i \prec \evExOwn$.
 Also, a closed participant that agreed to the embargo is still bound by the embargo.
 
 The case owner cannot close the case while an embargo is active, because the CASE_MANAGER refuses the close (CM-23-011).
-Thus, for the case owner, the order is a conformance ordering.
+Thus the rule that the case owner does not close the case while an embargo is active is a conformance ordering, not a desideratum.
 
 ---
 
@@ -255,7 +255,7 @@ Thus a history of one vendor cannot express these desiderata.
 
 | Ordering preference | Meaning | Source |
 |---|---|---|
-| $\evV_i \prec \evF_j$ for all vendors $i, j$ whose reports reach Valid | Every affected vendor learns of the vul before any vendor's fix is ready | Keeps the trailing vendor's time to fix from starting late |
+| $\evV_i \prec \evF_j$ for every vendor $i$ whose report reaches Valid and every vendor $j$ | Every vendor whose report reaches Valid learns of the vul before any vendor's fix is ready | Keeps the trailing vendor's time to fix from starting late |
 | $\evF_i \prec \evP$ for every vendor $i$ | Every vendor's fix is ready before the vul is public | $\evF \prec \evP$ from $\mathbb{D}$, quantified over vendors |
 
 The desideratum $\evF_i \prec \evP$ for every vendor states one choice for how to combine the results of the vendors.
@@ -283,7 +283,7 @@ In past cases, this action has protected critical infrastructure before the fix 
 
 The protocol does not require a case to invite a deployer, and the case does not record which fix a deployer deployed.
 Thus a measure sees only the deployers that join, and a case that invites no deployers cannot fail an order about deployers.
-How to measure deployers in a multi-party case is a question for the measurement of multi-party cases as a whole.
+How to measure deployers in a multi-party case is a question for the measurement of multi-party cases as a whole, which Idea [#5143](https://github.com/CERTCC/Vultron/issues/5143){:target="_blank"} records.
 
 ---
 
@@ -368,7 +368,7 @@ A stronger desideratum holds less often by chance than a weaker desideratum that
 Thus the stronger desideratum adds more to the score, and the weaker desideratum adds less.
 The score handles the dependence of the twelve original desiderata in this way, and the same method can apply to the new desiderata.
 
-Whether the method is sufficient for the new desiderata depends on their baselines.
+Whether the method is sufficient for the new desiderata depends on their baselines, which Idea [#5072](https://github.com/CERTCC/Vultron/issues/5072){:target="_blank"} records.
 If a new desideratum and a desideratum that it implies have nearly the same baseline, the score counts nearly the same skill two times.
 
 ### The new events are easier to observe than the original events
@@ -408,7 +408,7 @@ The table below shows how each group of desiderata changes in a two-party case.
 |---|---|
 | Embargo | $\evE \prec \evP, \evX, \evA$; $\evExOwn \prec \evP, \evX, \evA$; $\evF_i \prec \evExOwn$ for every vendor |
 | Report handling | For vendors whose reports reach Valid: $\evAc_i \prec \evP, \evX, \evA$; $\evVa_i \prec \evP$. For every vendor: $\evAc_i \prec \evF_i$ |
-| Multi-party | $\evV_i \prec \evF_j$; $\evF_i \prec \evP$ for every vendor |
+| Multi-party | $\evV_i \prec \evF_j$ for vendors $i$ whose reports reach Valid; $\evF_i \prec \evP$ for every vendor |
 | Path shape | Answered invitations, few revisions, short embargoes, accurate validation |
 
 ## Further reading

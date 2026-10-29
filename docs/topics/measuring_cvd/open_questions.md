@@ -88,7 +88,7 @@ Each statement shows which data a CVD practice must collect to answer the questi
 
 The same question applies to the extended desiderata on [Desiderata from the Process Models](process_model_desiderata.md).
 The baselines for the extended desiderata need a random walk over the combined report, embargo, consent, and case state space.
-Task [#5072](https://github.com/CERTCC/Vultron/issues/5072){:target="_blank"} records this calculation.
+Idea [#5072](https://github.com/CERTCC/Vultron/issues/5072){:target="_blank"} records this calculation.
 
 ---
 
