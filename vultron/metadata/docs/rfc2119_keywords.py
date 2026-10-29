@@ -49,6 +49,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from vultron.metadata.docs.requirement_catalog import (
+    CATALOG_INTRO,
+    CATALOG_PAGES,
+)
 from vultron.metadata.markdown_tables import fenced_lines
 from vultron.metadata.rfc2119 import keywords_in
 
@@ -88,15 +92,8 @@ RECONCILED_FRAGMENTS: tuple[str, ...] = (
     "reference/vultron-spec/_conformance/_role-requirements.md",
     "reference/vultron-spec/_conformance/_conformance-testing.md",
     "reference/vultron-spec/_conformance/_capability-shapes.md",
-    "reference/vultron-spec/_catalog/_intro.md",
-    "reference/vultron-spec/_catalog/_vultron-protocol.md",
-    "reference/vultron-spec/_catalog/_messages.md",
-    "reference/vultron-spec/_catalog/_state-behavior.md",
-    "reference/vultron-spec/_catalog/_case-management.md",
-    "reference/vultron-spec/_catalog/_ledger-replication.md",
-    "reference/vultron-spec/_catalog/_message-processing.md",
-    "reference/vultron-spec/_catalog/_transport-security.md",
-    "reference/vultron-spec/_catalog/_foundation.md",
+    CATALOG_INTRO,
+    *(page.fragment for page in CATALOG_PAGES),
     "reference/vultron-spec/_open-questions.md",
     "reference/vultron-spec/_oq-embargo-termination-authority.md",
     "reference/vultron-spec/_oq-negative-ack.md",

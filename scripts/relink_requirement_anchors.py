@@ -56,8 +56,10 @@ def main(argv: list[str]) -> int:
         f"anchor; {stats.moved} link(s) moved to the page their anchor "
         f"renders on; {changed_files} file(s) changed"
     )
-    for name, count in sorted(stats.unknown.items()):
-        print(f"unknown anchor left as-is: {name} ({count})")
+    for spec_id, count in sorted(stats.unknown_ids.items()):
+        print(f"unknown requirement left as-is: {spec_id} ({count})")
+    for anchor, count in sorted(stats.unknown_anchors.items()):
+        print(f"unknown anchor left as-is: {anchor} ({count})")
     if check and changed_files:
         return 1
     return 0

@@ -66,7 +66,7 @@ def test_no_link_names_a_retired_tier_page() -> None:
 
 @pytest.mark.spec("DF-12-002")
 def test_only_the_catalog_defines_catalog_anchors() -> None:
-    faults = anchor_definition_faults(_DOCS, load_registry())
+    faults = anchor_definition_faults(_DOCS.parent, load_registry())
     assert not faults, "\n".join(faults)
 
 
@@ -248,14 +248,16 @@ def test_unknown_ids_are_reported_and_left(linker) -> None:
     assert out == (
         f"[{T}-01-001, {T}-01-008, {T}-01-009]({_ONE}#protocol-tst-01)"
     )
-    assert stats.unknown == {f"{T}-01-008": 1, f"{T}-01-009": 1}
+    assert stats.unknown_ids == {f"{T}-01-008": 1, f"{T}-01-009": 1}
+    assert not stats.unknown_anchors
 
 
 def test_unknown_anchor_is_reported_and_left(linker) -> None:
     text = "[Overview](../reference/specs/project.md#overview)"
     out, stats = linker.relink(text, _PAGE)
     assert out == text
-    assert stats.unknown == {"#overview": 1}
+    assert stats.unknown_anchors == {"#overview": 1}
+    assert not stats.unknown_ids
 
 
 def test_links_resolve_against_the_file_holding_them(linker) -> None:
@@ -299,12 +301,15 @@ _EXEC = '```python exec="true"\n{code}\n```\n'
 
 
 def _tree(tmp_path: Path, files: dict[str, str]) -> Path:
+    """Write *files* under ``docs/`` beside a minimal ``mkdocs.yml``; return
+    the root."""
+    (tmp_path / "mkdocs.yml").write_text("site_name: t\n", encoding="utf-8")
     docs = tmp_path / "docs"
     for rel, text in files.items():
         path = docs / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
-    return docs
+    return tmp_path
 
 
 def _sound_catalog() -> dict[str, str]:
@@ -323,8 +328,8 @@ def _sound_catalog() -> dict[str, str]:
 
 
 def test_sound_catalog_has_no_anchor_faults(tmp_path, registry) -> None:
-    docs = _tree(tmp_path, _sound_catalog())
-    assert anchor_definition_faults(docs, registry, _PAGES) == []
+    root = _tree(tmp_path, _sound_catalog())
+    assert anchor_definition_faults(root, registry, _PAGES) == []
 
 
 @pytest.mark.spec("DF-12-002")
@@ -338,6 +343,29 @@ def test_catalog_render_outside_its_fragment_fails(tmp_path, registry) -> None:
         "docs/topics/x.md:2: render_catalog_page('one') belongs only in "
         "reference/vultron-spec/_catalog/_one.md"
     ]
+
+
+def test_catalog_render_of_an_unknown_key_fails(tmp_path, registry) -> None:
+    files = _sound_catalog()
+    files["topics/x.md"] = _EXEC.format(
+        code='print(render_catalog_page("nope"))'
+    )
+    faults = anchor_definition_faults(_tree(tmp_path, files), registry, _PAGES)
+    assert faults == [
+        "docs/topics/x.md:2: render_catalog_page('nope') belongs only in "
+        "no fragment: no such key"
+    ]
+
+
+def test_per_kind_render_of_another_kind_is_allowed(
+    tmp_path, registry
+) -> None:
+    files = _sound_catalog()
+    files["reference/specs/project.md"] = _EXEC.format(
+        code='print(render_for_kind("project", registry))'
+    )
+    root = _tree(tmp_path, files)
+    assert anchor_definition_faults(root, registry, _PAGES) == []
 
 
 @pytest.mark.spec("SR-09-001")
@@ -357,6 +385,9 @@ def test_per_kind_render_of_a_catalog_tier_fails(tmp_path, registry) -> None:
         '<a id="tst-01-003"></a>',
         '<a name="tst-01-003"></a>',
         "## Heading {#protocol-tst-01}",
+        "## Heading { #protocol-tst-01 }",
+        "## Heading {: #protocol-tst-01 }",
+        "## Heading {.cls #protocol-tst-01}",
     ],
 )
 def test_hand_written_catalog_anchor_fails(
@@ -374,8 +405,8 @@ def test_hand_written_anchor_of_another_kind_is_allowed(
 ) -> None:
     files = _sound_catalog()
     files["topics/x.md"] = '<a id="tst-01-001"></a>\n'
-    docs = _tree(tmp_path, files)
-    assert anchor_definition_faults(docs, registry, _PAGES) == []
+    root = _tree(tmp_path, files)
+    assert anchor_definition_faults(root, registry, _PAGES) == []
 
 
 def test_catalog_fragment_on_another_page_fails(tmp_path, registry) -> None:

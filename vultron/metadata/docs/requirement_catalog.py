@@ -50,8 +50,9 @@ from __future__ import annotations
 
 import os
 from collections import Counter
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 
 from vultron.metadata.docs.exec_page import EXEC_PAGE_ENV
 from vultron.metadata.docs.site_urls import relative_url
@@ -72,8 +73,18 @@ CATALOG_DIR = "reference/vultron-spec/requirements"
 CATALOG_LANDING = f"{CATALOG_DIR}/index.md"
 """The catalog's routing landing page, which holds the §14 heading."""
 
+CATALOG_INTRO = "reference/vultron-spec/_catalog/_intro.md"
+"""The fragment holding the §14 heading and the catalog's framing."""
+
 _CATALOG_PAGE = CATALOG_DIR + "/{key}.md"
 _CATALOG_FRAGMENT = "reference/vultron-spec/_catalog/_{key}.md"
+_KIND_PAGE = "reference/specs/{kind}.md"
+
+RETIRED_KIND_PAGES: Mapping[str, SpecKind] = MappingProxyType(
+    {_KIND_PAGE.format(kind=kind.value): kind for kind in CATALOG_KINDS}
+)
+"""The per-kind pages of the two catalog tiers, retired into the catalog
+(#4901), each mapped to its tier. They redirect to :data:`CATALOG_LANDING`."""
 
 
 def kind_page(kind: SpecKind) -> str:
@@ -88,7 +99,7 @@ def kind_page(kind: SpecKind) -> str:
             f"{kind.value} requirements have no per-kind page; they are in "
             "the Requirements Catalog (SR-09-001, DF-12-001)"
         )
-    return f"reference/specs/{kind.value}.md"
+    return _KIND_PAGE.format(kind=kind.value)
 
 
 @dataclass(frozen=True)
@@ -480,6 +491,7 @@ def anchor_homes(
 
 __all__ = [
     "CATALOG_DIR",
+    "CATALOG_INTRO",
     "CATALOG_KINDS",
     "CATALOG_LANDING",
     "CATALOG_PAGES",
@@ -487,6 +499,7 @@ __all__ = [
     "AnchorHome",
     "CatalogLocation",
     "CatalogPage",
+    "RETIRED_KIND_PAGES",
     "NotInCatalogError",
     "anchor_homes",
     "catalog_location",

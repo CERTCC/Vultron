@@ -1496,8 +1496,9 @@ groups:
     statement: >-
       Every page of the normative set — the Protocol Specification's body section
       pages, including the Requirements Catalog pages that render the `protocol`
-      and `foundation` requirement tiers, but not the specification's landing page, its single-page full view, its annexes or its
-      open-questions page — MUST include the shared normative banner
+      and `foundation` requirement tiers, but not the specification's landing
+      page, its single-page full view, its annexes or its open-questions page —
+      MUST include the shared normative banner
       (`docs/includes/normative.md`) in the page itself, not through a shared
       fragment, and every other page MUST NOT include it except the page that
       documents the banners. The normative-set pages MUST be declared once, in the
@@ -1508,8 +1509,8 @@ groups:
       place by hand can stay on pages after those pages leave the normative set, so a
       page outside the set can call itself normative. A check against one declared list
       of normative pages finds each wrong banner and each missing banner. A failure on a
-      declared page that does not exist keeps the list current when pages move, for
-      example when the Requirements Catalog replaces the per-tier pages.
+      declared page that does not exist keeps the list current when pages move, as
+      they did when the Requirements Catalog replaced the per-tier pages.
     verification: >-
       A check over the `include-markdown` directives in `docs/` fails, naming
       `path:line`, when a declared page does not include the banner, when any other

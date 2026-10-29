@@ -66,12 +66,14 @@ _DOC = """\
 Moved: [VP-01-001](../reference/specs/protocol.md#vp-01-001).
 Split: [VP-01-001, VP-01-002](../reference/specs/protocol.md#vp-01).
 Unknown: [Overview](../reference/specs/project.md#overview).
+Unknown ID: [VP-01-001, VP-01-009](../reference/specs/protocol.md#vp-01).
 """
 
 _EXPECTED = """\
 Moved: [VP-01-001](../reference/vultron-spec/requirements/vultron-protocol.md#vp-01-001).
 Split: [VP-01-001](../reference/vultron-spec/requirements/vultron-protocol.md#vp-01-001), [VP-01-002](../reference/specs/project.md#vp-01-002).
 Unknown: [Overview](../reference/specs/project.md#overview).
+Unknown ID: [VP-01-001, VP-01-009](../reference/vultron-spec/requirements/vultron-protocol.md#protocol-vp-01).
 """
 
 
@@ -100,8 +102,9 @@ def test_rewrites_and_reports(tree, capsys):
     assert _page(tree) == _EXPECTED
     out = capsys.readouterr().out
     assert "unknown anchor left as-is: #overview (1)" in out
+    assert "unknown requirement left as-is: VP-01-009 (1)" in out
     assert (
-        "2 requirement link(s) repointed at their own anchor; 1 link(s) "
+        "2 requirement link(s) repointed at their own anchor; 2 link(s) "
         "moved to the page their anchor renders on; 1 file(s) changed"
     ) in out
 

@@ -135,7 +135,8 @@ changed classes, functions, messages, and CLI commands.
 | `demo/` | `demo-scenario-authoring.md` | `docs/tutorials/` demo pages, `docs/howto/demos/`, `docs/reference/rv-demo-protocol.md` |
 | Dev tooling, `metadata/`, `.agents/skills/` | — | `docs/developer/` (draft docs) |
 
-Spec pages under `docs/reference/specs/`, the mkdocstrings `:::` API pages,
+Spec pages under `docs/reference/specs/`, the Requirements Catalog rows under
+`docs/reference/vultron-spec/requirements/`, the mkdocstrings `:::` API pages,
 and `docs/reference/examples/*.json` regenerate at build time. A change whose
 only described surface is one of these has no docs impact.
 

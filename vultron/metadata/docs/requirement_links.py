@@ -57,14 +57,17 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from vultron.metadata.docs.page_frontmatter import include_directives
+from vultron.metadata.docs.level_order import fragment_hosts
+from vultron.metadata.docs.page_frontmatter import classify_docs_tree
 from vultron.metadata.docs.requirement_catalog import (
     CATALOG_KINDS,
     CATALOG_PAGES,
     FULL_PAGE,
+    RETIRED_KIND_PAGES,
     AnchorHome,
     CatalogPage,
     anchor_homes,
+    kind_page,
 )
 from vultron.metadata.markdown_tables import fenced_lines
 from vultron.metadata.specs.registry import SpecRegistry
@@ -78,11 +81,6 @@ _LINK_RE = re.compile(
     r"\((?P<page>[^)#\s]+)#(?P<fragment>[^)\s]+)\)"
 )
 
-RETIRED_KIND_PAGES: frozenset[str] = frozenset(
-    f"reference/specs/{kind.value}.md" for kind in CATALOG_KINDS
-)
-"""The per-kind pages of the two catalog tiers, retired into the catalog."""
-
 
 def requirement_pages(
     pages: tuple[CatalogPage, ...] = CATALOG_PAGES,
@@ -92,7 +90,10 @@ def requirement_pages(
     The per-kind pages of every kind (the retired two included, so links to
     them are found and moved) and the Requirements Catalog pages.
     """
-    named = {f"reference/specs/{kind.value}.md": kind for kind in SpecKind}
+    named = {
+        kind_page(kind): kind for kind in SpecKind if kind not in CATALOG_KINDS
+    }
+    named.update(RETIRED_KIND_PAGES)
     named.update({page.path: page.tier for page in pages})
     return named
 
@@ -104,18 +105,22 @@ class RelinkStats:
     Attributes:
         repointed: Links split or repointed from a group to a requirement.
         moved: Links moved to another page or fragment.
-        unknown: Anchors or IDs the registry does not know, with counts.
+        unknown_ids: Requirement IDs in link text the registry does not know.
+        unknown_anchors: Fragments, with their ``#``, the registry does not
+            know.
     """
 
     repointed: int = 0
     moved: int = 0
-    unknown: Counter[str] = field(default_factory=Counter)
+    unknown_ids: Counter[str] = field(default_factory=Counter)
+    unknown_anchors: Counter[str] = field(default_factory=Counter)
 
     def add(self, other: RelinkStats) -> None:
         """Fold *other*'s tallies into this one."""
         self.repointed += other.repointed
         self.moved += other.moved
-        self.unknown.update(other.unknown)
+        self.unknown_ids.update(other.unknown_ids)
+        self.unknown_anchors.update(other.unknown_anchors)
 
 
 def _href(home: AnchorHome, path: str) -> str:
@@ -166,7 +171,9 @@ class RequirementLinker:
             return None  # names another group's ID: not these requirements
         unknown = [i for i in spec_ids if i.lower() not in self._homes]
         if unknown:
-            stats.unknown.update(unknown)  # report every one, not the first
+            stats.unknown_ids.update(
+                unknown
+            )  # report every one, not the first
             return None
         stats.repointed += len(spec_ids)
         return ", ".join(
@@ -195,7 +202,7 @@ class RequirementLinker:
             bare, prefixed_tier = _bare(match["fragment"])
             homes = self._homes.get(bare)
             if homes is None:
-                stats.unknown[f"#{match['fragment']}"] += 1
+                stats.unknown_anchors[f"#{match['fragment']}"] += 1
                 return match[0]
             split = self._split(match["text"], bare, path, stats)
             if split is not None:
@@ -238,39 +245,17 @@ def retired_page_links(text: str, path: str) -> list[str]:
 _EXEC_CALL_RE = re.compile(
     r"\b(?P<fn>render_catalog_page|render_for_kind)\(\s*[\"'](?P<arg>[^\"']+)[\"']"
 )
+# An ``id=`` attribute, an ``<a name=>``, or an attribute-list id in any of
+# its forms: ``{#id}``, ``{: #id }``, ``{.cls #id}``.
 _ANCHOR_DEF_RE = re.compile(
     r"""\bid=["'](?P<id>[^"']+)["']"""
     r"""|<a\s[^>]*\bname=["'](?P<name>[^"']+)["']"""
-    r"|\{\s*#(?P<attr>[^}\s]+)[^}]*\}"
+    r"|\{:?(?:[^}#]*\s)?#(?P<attr>[\w-]+)[^}]*\}"
 )
 
 
-def _hosts(docs_dir: Path) -> dict[str, set[str]]:
-    """Map each ``docs/`` file to the pages that render it, through includes."""
-    includes: dict[str, set[str]] = {}
-    for source in sorted(docs_dir.rglob("*.md")):
-        rel = source.relative_to(docs_dir).as_posix()
-        includes[rel] = {
-            target for _, target, _ in include_directives(source, docs_dir)
-        }
-    hosts: dict[str, set[str]] = {}
-    for page in includes:
-        if posixpath.basename(page).startswith("_"):
-            continue
-        seen: set[str] = set()
-        todo = [page]
-        while todo:
-            current = todo.pop()
-            if current not in seen:
-                seen.add(current)
-                todo.extend(includes.get(current, ()))
-        for rendered in seen:
-            hosts.setdefault(rendered, set()).add(page)
-    return hosts
-
-
 def anchor_definition_faults(
-    docs_dir: Path,
+    root: Path,
     registry: SpecRegistry,
     pages: tuple[CatalogPage, ...] = CATALOG_PAGES,
 ) -> list[str]:
@@ -291,10 +276,12 @@ def anchor_definition_faults(
       anchor, in any file.
 
     Args:
-        docs_dir: The ``docs/`` directory.
+        root: The repository root, holding ``docs/`` and ``mkdocs.yml``,
+            which decide what is a page and what is an include fragment.
         registry: The loaded requirement registry.
         pages: The placement table.
     """
+    docs_dir = root / "docs"
     catalog_paths = {page.path for page in pages}
     anchors = frozenset(
         home.fragment
@@ -309,7 +296,7 @@ def anchor_definition_faults(
         faults += _file_faults(
             rel, source.read_text(encoding="utf-8"), anchors, fragment_of
         )
-    return faults + _fragment_host_faults(docs_dir, pages)
+    return faults + _fragment_host_faults(root, pages)
 
 
 def _exec_call_fault(
@@ -359,16 +346,19 @@ def _file_faults(
 
 
 def _fragment_host_faults(
-    docs_dir: Path, pages: tuple[CatalogPage, ...]
+    root: Path, pages: tuple[CatalogPage, ...]
 ) -> list[str]:
     """Each catalog fragment that is missing or renders on the wrong pages."""
-    hosts = _hosts(docs_dir)
+    tree = classify_docs_tree(root)
+    built = frozenset(tree.pages)
     faults: list[str] = []
     for page in pages:
-        if not (docs_dir / page.fragment).is_file():
+        if not (root / "docs" / page.fragment).is_file():
             faults.append(f"docs/{page.fragment}: missing catalog fragment")
             continue
-        rendered_on = hosts.get(page.fragment, set())
+        rendered_on = set(
+            fragment_hosts(page.fragment, tree, built, frozenset())
+        )
         expected = {page.path, FULL_PAGE}
         if rendered_on != expected:
             faults.append(
@@ -380,7 +370,6 @@ def _fragment_host_faults(
 
 
 __all__ = [
-    "RETIRED_KIND_PAGES",
     "RelinkStats",
     "anchor_definition_faults",
     "RequirementLinker",
