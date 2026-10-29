@@ -27,11 +27,11 @@ here instead.
 """
 
 import ast
-import importlib
 from collections import Counter
 
 import pytest
 
+from test.architecture import _corpus
 from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
 
 #: The calls that report a step: the harness method, the module-level function
@@ -41,11 +41,9 @@ _REPORTERS = frozenset({"reach_step", "step_reporter"})
 
 def _reported_steps(module_name: str) -> Counter[tuple[str, str]]:
     """Every literal ``(branch point, choice)`` the module reports."""
-    module = importlib.import_module(module_name)
-    source = module.__file__
-    assert source is not None
-    with open(source, encoding="utf-8") as fh:
-        tree = ast.parse(fh.read())
+    tree = _corpus.tree_of(
+        _corpus.REPO_ROOT / (module_name.replace(".", "/") + ".py")
+    )
     steps: Counter[tuple[str, str]] = Counter()
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
