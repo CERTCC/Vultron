@@ -67,6 +67,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          # The Epic the refresh Task is filed under (PAD-01-007). A repository
+          # variable, so re-homing it after the Epics are reshaped needs no
+          # code change.
+          DEMO_RECORDINGS_EPIC: ${{ vars.DEMO_RECORDINGS_EPIC }}
         run: |
           set -euo pipefail
           changed=$(cat changed.txt)
@@ -74,15 +78,27 @@ jobs:
           # (CISEC-05-007); it leaves a typed issue alone and repairs an
           # untyped one, so it runs on both arms.
           ensure_type=.github/scripts/ensure-issue-type.sh
+          # Its theme label, Theme: line and Epic parent (PAD-01-007,
+          # PAD-02-014, PAD-02-018) are set the same way, on both arms.
+          ensure_triage=.github/scripts/ensure-issue-triage.sh
+          triage_args=(theme:full-cvd-scenario-coverage
+            "brings the committed demo recordings back in line with main."
+            "${DEMO_RECORDINGS_EPIC:-}" DEMO_RECORDINGS_EPIC)
           gh label create "$REFRESH_LABEL" --repo "$REPO" \
             --description "Bot-managed: committed demo recordings lag main" \
             --color "fbca04" 2>/dev/null || true
-          existing=$(gh issue list --repo "$REPO" --label "$REFRESH_LABEL" \
-            --state open --json number --jq '.[0].number // empty')
+          # The list-issues endpoint, not the lagging search index behind
+          # `gh issue list --label`, which once missed an open tracker and
+          # let a duplicate be filed (#5105).
+          existing=$(gh api --paginate \
+            "repos/$REPO/issues?labels=$REFRESH_LABEL&state=open&sort=created&direction=asc&per_page=100" \
+            --jq '.[] | select(.pull_request == null) | .number')
+          existing=${existing%%$'\n'*}  # the oldest
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --repo "$REPO" \
               --body "Still out of date on main: ${changed}. [Run and fresh recordings]($RUN_URL)"
             bash "$ensure_type" "$REPO" "$existing" Task
+            bash "$ensure_triage" "$REPO" "$existing" "${triage_args[@]}"
             exit 0
           fi
           body=$(printf '%s\n' \
@@ -96,6 +112,7 @@ jobs:
             --body "$body" --label "$REFRESH_LABEL")
           echo "Filed $url"
           bash "$ensure_type" "$REPO" "${url##*/}" Task
+          bash "$ensure_triage" "$REPO" "${url##*/}" "${triage_args[@]}"
       - name: Close the refresh Task
         if: steps.record.outputs.status == '0'
         env:
@@ -104,8 +121,13 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
-          gh issue list --repo "$REPO" --label "$REFRESH_LABEL" --state open \
-            --json number --jq '.[].number' | while read -r num; do
+          # A command substitution, not a pipe into `while read`, so a failed
+          # lookup fails the step instead of reading as "none open"; and the
+          # list-issues endpoint, not the lagging search index (#5105).
+          open_tasks=$(gh api --paginate \
+            "repos/$REPO/issues?labels=$REFRESH_LABEL&state=open&per_page=100" \
+            --jq '.[] | select(.pull_request == null) | .number')
+          for num in $open_tasks; do
             gh issue close "$num" --repo "$REPO" \
               --comment "The recordings on main are current again. [Run]($RUN_URL)"
           done
@@ -117,6 +139,7 @@ jobs:
           mode: notify
           workflow-label: ci:workflow-demo-recordings
           token: ${{ secrets.GITHUB_TOKEN }}
+          epic: ${{ vars.CI_FAILURE_EPIC }}
       - name: Close the CI failure issue
         if: success()
         uses: ./.github/actions/notify-failure

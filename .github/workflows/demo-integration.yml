@@ -386,6 +386,7 @@ jobs:
           mode: notify
           workflow-label: ci:workflow-demo-integration
           token: ${{ secrets.GITHUB_TOKEN }}
+          epic: ${{ vars.CI_FAILURE_EPIC }}
       # CISEC-05-002: a superseded run must not declare recovery, so the close
       # step keeps `!contains(needs.*.result, 'cancelled')` — a cancelled leg
       # might have failed had it run to completion.

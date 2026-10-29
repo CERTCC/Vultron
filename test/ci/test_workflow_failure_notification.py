@@ -17,8 +17,6 @@ and at least one step uses it in ``close`` mode (CISEC-05-002).
 
 from __future__ import annotations
 
-import json
-import os
 import re
 import subprocess
 from pathlib import Path
@@ -27,6 +25,7 @@ from typing import Any
 import pytest
 import yaml
 
+from test.ci._fake_gh import FakeGh, install_fake_gh
 from test.ci._workflows import triggers
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -37,6 +36,8 @@ NOTIFY_FAILURE_ACTION = (
 )
 DEMO_WORKFLOW = WORKFLOWS_DIR / "demo-integration.yml"
 ENSURE_ISSUE_TYPE = REPO_ROOT / ".github" / "scripts" / "ensure-issue-type.sh"
+# A stand-in for the CI_FAILURE_EPIC repository variable.
+CI_EPIC = 3791
 PUBLICATION_WORKFLOW = WORKFLOWS_DIR / "deploy_site.yml"
 # ``main`` for CISEC-05-001; ``publish`` for the publication workflow, whose
 # failed run leaves the live site stale with no failing pull request to notice
@@ -176,6 +177,38 @@ def test_qualifying_workflow_notify_step_has_workflow_label(wf: Path) -> None:
         assert label, (
             f"{wf.name}: a ./.github/actions/notify-failure step is missing "
             f"the workflow-label input (CISEC-05-003)."
+        )
+
+
+def _workflows_using_notify_failure() -> list[Path]:
+    return [
+        wf
+        for wf in sorted(WORKFLOWS_DIR.glob("*.yml"))
+        if NOTIFY_FAILURE_USES in wf.read_text()
+    ]
+
+
+@pytest.mark.spec("PAD-01-007")
+@pytest.mark.parametrize(
+    "wf", _workflows_using_notify_failure(), ids=lambda p: p.name
+)
+def test_notify_step_passes_the_ci_failure_epic(wf: Path) -> None:
+    """Each notify step passes ``vars.CI_FAILURE_EPIC`` as the ``epic`` input.
+
+    The composite action cannot read ``vars`` itself (GitHub documents the
+    context only for workflow keys), so a caller that omits it files every
+    failure issue without an Epic parent (#5435).
+    """
+    notify_steps = [
+        s
+        for s in _notify_failure_steps(_load_workflow(wf))
+        if s.get("with", {}).get("mode") == "notify"
+    ]
+    assert notify_steps, f"{wf.name} uses notify-failure but never notifies"
+    for step in notify_steps:
+        assert step["with"].get("epic") == "${{ vars.CI_FAILURE_EPIC }}", (
+            f"{wf.name}: a notify-failure notify step must pass "
+            "`epic: ${{ vars.CI_FAILURE_EPIC }}` (PAD-01-007)."
         )
 
 
@@ -422,42 +455,6 @@ def test_issue_type_helper_fails_visibly_without_the_type() -> None:
     )
 
 
-# A stand-in for the ``gh`` CLI: it logs every call and answers the direct
-# list-issues REST call with the JSON page ``$FAKE_ISSUES_PAGE``, filtered
-# through the caller's real ``--jq`` expression, while a search-backed
-# ``gh issue list`` answers with nothing, as the lagging search index did when
-# it let the ADR Status Drift workflow file a second tracker (#5105). With
-# ``$FAKE_API_FAIL`` set, the list-issues call fails as an API error would.
-_FAKE_GH = r"""#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$FAKE_GH_LOG"
-case "$1 $2" in
-  "api graphql")
-    case "$*" in
-      *issueTypes*) printf 'Bug\tBUG_TYPE_ID\n' ;;
-      *) echo "Set issue type: Bug" ;;
-    esac ;;
-  "api "*)
-    jq_expr="" prev=""
-    for arg in "$@"; do
-      [ "$prev" = "--jq" ] && jq_expr="$arg"
-      prev="$arg"
-    done
-    for arg in "$@"; do
-      case "$arg" in
-        repos/*/issues\?*)
-          if [ -n "${FAKE_API_FAIL:-}" ]; then
-            echo "HTTP 502: Bad Gateway" >&2
-            exit 1
-          fi
-          printf '%s' "$FAKE_ISSUES_PAGE" | jq -r "$jq_expr" ;;
-      esac
-    done ;;
-  "issue view") printf 'ISSUE_NODE_ID\nBug\n' ;;
-  "issue create") echo "https://github.com/OWNER/REPO/issues/999" ;;
-esac
-"""
-
-
 def _notify_action_lookup_script() -> str:
     """Return the composite-action step that finds, files, and closes issues."""
     scripts = _notify_action_run_scripts()
@@ -478,8 +475,8 @@ def _run_notify_action(
     api_fails: bool = False,
     details: str | None = None,
     details_file_missing: bool = False,
-) -> list[str]:
-    """Run the action's lookup step against a fake ``gh``; return its calls.
+) -> FakeGh:
+    """Run the action's lookup step against a fake ``gh``; return its record.
 
     ``details`` is written to a file passed as the ``details-file`` input;
     ``details_file_missing`` passes a path no step wrote, as when setup or
@@ -490,34 +487,24 @@ def _run_notify_action(
     exit status is checked: a failing run raises ``CalledProcessError``, and
     its calls stay readable in ``tmp_path / "gh.log"``.
     """
-    page = [{"number": n} for n in open_issues] + [
+    page: list[dict[str, object]] = [{"number": n} for n in open_issues]
+    page += [
         {"number": n, "pull_request": {"url": f"https://example/pulls/{n}"}}
         for n in open_pull_requests
     ]
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    fake_gh = bin_dir / "gh"
-    fake_gh.write_text(_FAKE_GH)
-    fake_gh.chmod(0o755)
-    log = tmp_path / "gh.log"
-    log.touch()
-    env = {
-        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
-        "FAKE_GH_LOG": str(log),
-        "FAKE_ISSUES_PAGE": json.dumps(page),
-        "GH_TOKEN": "fake-token",
+    gh = install_fake_gh(tmp_path, issues_page=page, api_fails=api_fails)
+    env = gh.env | {
         "REPO": "OWNER/REPO",
         "MODE": mode,
         "WORKFLOW_LABEL": "ci:workflow-example",
         "WORKFLOW_NAME": "Example",
         "RUN_URL": "https://github.com/OWNER/REPO/actions/runs/1",
         "REF": "refs/heads/main",
+        "CI_FAILURE_EPIC": str(CI_EPIC),
         # The runner sets this in a composite action; the step finds the
-        # shared ensure-issue-type.sh helper through it.
+        # shared helper scripts through it.
         "GITHUB_ACTION_PATH": str(NOTIFY_FAILURE_ACTION.parent),
     }
-    if api_fails:
-        env["FAKE_API_FAIL"] = "1"
     if details is not None:
         details_file = tmp_path / "details.md"
         details_file.write_text(details)
@@ -531,7 +518,7 @@ def _run_notify_action(
         capture_output=True,
         text=True,
     )
-    return log.read_text().splitlines()
+    return gh
 
 
 def test_notify_action_finds_existing_issue_without_search_index(
@@ -544,7 +531,7 @@ def test_notify_action_finds_existing_issue_without_search_index(
     action filed a second one. The lookup must use the direct list-issues
     call, which matches both labels against current data.
     """
-    calls = _run_notify_action(tmp_path, "notify", [5087])
+    calls = _run_notify_action(tmp_path, "notify", [5087]).calls()
     assert not any(c.startswith("issue create") for c in calls), (
         "The notify action filed a new issue although one was open; its "
         f"lookup must not depend on the search index (#5105). Calls: {calls}"
@@ -560,7 +547,7 @@ def test_notify_action_closes_duplicate_trackers(tmp_path: Path) -> None:
     A duplicate filed before this lookup was fixed, or by any future miss,
     is closed as a duplicate of the oldest open tracker on the next run.
     """
-    calls = _run_notify_action(tmp_path, "notify", [5087, 5105])
+    calls = _run_notify_action(tmp_path, "notify", [5087, 5105]).calls()
     assert any(c.startswith("issue comment 5087") for c in calls), (
         f"The notify action must comment on the oldest tracker. Calls: {calls}"
     )
@@ -577,7 +564,7 @@ def test_notify_action_closes_duplicate_trackers(tmp_path: Path) -> None:
 
 def test_close_mode_closes_every_open_tracker(tmp_path: Path) -> None:
     """CISEC-05-002: recovery closes every open tracker for the workflow."""
-    calls = _run_notify_action(tmp_path, "close", [5087, 5105])
+    calls = _run_notify_action(tmp_path, "close", [5087, 5105]).calls()
     closes = sorted(c.split()[2] for c in calls if c.startswith("issue close"))
     assert closes == ["5087", "5105"], calls
 
@@ -592,7 +579,7 @@ def test_notify_action_files_a_tracker_when_none_is_open(
     """
     calls = _run_notify_action(
         tmp_path, "notify", [], open_pull_requests=(4242,)
-    )
+    ).calls()
     creates = [c for c in calls if c.startswith("issue create")]
     assert len(creates) == 1, (
         f"The notify action must file exactly one tracker. Calls: {calls}"
@@ -634,7 +621,7 @@ def test_notify_action_includes_the_details_file(
     """
     calls = _run_notify_action(
         tmp_path, "notify", open_issues, details=_DETAILS
-    )
+    ).calls()
     log = "\n".join(calls)
     verb = "issue comment 5087" if open_issues else "issue create"
     assert verb in log, calls
@@ -644,7 +631,7 @@ def test_notify_action_includes_the_details_file(
 def test_notify_action_adds_nothing_for_an_empty_details_file(
     tmp_path: Path,
 ) -> None:
-    calls = _run_notify_action(tmp_path, "notify", [5087], details="")
+    calls = _run_notify_action(tmp_path, "notify", [5087], details="").calls()
     (comment,) = [c for c in calls if c.startswith("issue comment")]
     assert comment.endswith(
         "[run](https://github.com/OWNER/REPO/actions/runs/1)"
@@ -657,7 +644,7 @@ def test_notify_action_files_without_a_details_file_that_was_never_written(
     """A failed setup step leaves no details file; the tracker still files."""
     calls = _run_notify_action(
         tmp_path, "notify", [], details_file_missing=True
-    )
+    ).calls()
     assert sum(c.startswith("issue create") for c in calls) == 1, calls
     assert (
         "actions/runs/1)\n\nThis issue is closed automatically"

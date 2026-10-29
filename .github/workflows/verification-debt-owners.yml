@@ -76,6 +76,7 @@ jobs:
           mode: notify
           workflow-label: ci:workflow-verification-debt-owners
           token: ${{ secrets.GITHUB_TOKEN }}
+          epic: ${{ vars.CI_FAILURE_EPIC }}
       - name: Close the tracking issue
         if: steps.owners.outcome == 'success'
         uses: ./.github/actions/notify-failure
