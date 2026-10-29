@@ -4,8 +4,9 @@ status: active
 kind: guidance
 description: >
   How a CASE_MANAGER turns an inbound status claim into case state: the
-  one-move-one-mover pipeline (ADR-0108), the two independent gates for
-  adoption and embargo teardown (ADR-0046), whole accept or reject of a
+  one-move-one-mover pipeline (ADR-0108), the adoption gate whose
+  authorization also covers the embargo teardown (ADR-0046, ADR-0166), whole
+  accept or reject of a
   received status (ADR-0107), and CaseStatus emission authority.
 related_specs:
   - specs/behavior-tree-node-design.yaml
@@ -87,6 +88,14 @@ questions, each behind its own seam:
    run? It runs after the canonical write, inside a `FailureIsSuccess` wrapper so
    a blocked teardown still leaves the tree `SUCCESS`.
 
+**Adoption authorizes the teardown (ADR-0166).** The teardown gate is being
+removed: it asks the Case Owner again about a value the owner already
+authorized, or reported itself, and its refusal leaves P, X or A beside an
+active embargo, which CSB-18-002 to CSB-18-004 forbid. Do not add an
+authorization step between adoption and teardown, and do not give the
+teardown gate a refusing backend. A policy that must delay a teardown decides
+at adoption, by not adopting yet.
+
 On the adoption path the gates run in one tree, in order, with no inbox
 round-trip (RSH-01-003, RSH-01-004). `add_case_status_tree` runs neither: it
 is admitted only at a participant replica, from the CASE_MANAGER, and writes
@@ -165,6 +174,10 @@ sender check: authorization happened at the gates.
   teardown from the committed entries and never asks for one (RSH-03-004). Do not
   add a teardown to a tree a replica runs, or the out-of-order ask of #4149
   returns.
+- **Judge the PXA↔EM entailment per act, not per entry** (CSB-18-002 to
+  CSB-18-004, ADR-0166). The adopting act writes its case status snapshot
+  before the teardown (RSH-01-004), so that one entry carries the value beside
+  the active embargo; the act's last entry must not.
 - **A blocked teardown leaves the PXA↔EM entailment violated** (CSB-18-002 to
   CSB-18-004). `PxaEmInvariantDiagnosticNode` detects it after the cascade in
   `add_participant_status_tree`, at the CASE_MANAGER only, and commits a note as

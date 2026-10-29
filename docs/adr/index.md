@@ -153,7 +153,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0043 Use the ADR `status` Field as the Confidence Signal (Extend Its Vocabulary Rather Than Add a New Field)](0043-adr-status-as-confidence-signal.md)
 - [ADR-0044 Adopt py_trees Typed Ports for BT Node Blackboard Contracts](0044-py-trees-typed-ports-adoption.md)
 - [ADR-0045 Correct Field Assignment on `Create(VulnerabilityCase)` — `context` to Case URI, `inReplyTo` to Accept URI](0045-create-vulnerability-case-field-assignment.md)
-- [ADR-0046 Two-Gate Authorization Model for Received-Side CaseStatus Canonicalization](0046-received-status-authorization.md)
+- [ADR-0046 Two-Gate Authorization Model for Received-Side CaseStatus Canonicalization](0046-received-status-authorization.md) — partially superseded by 0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md
 - [ADR-0047 Report-to-Others Party Discovery: Sentinel Over Inline BT Loop](0047-report-to-others-sentinel-over-inline-bt.md)
 - [ADR-0048 PEC `NO_EMBARGO` Means Absence of Embargo, Not Pre-Consent](0048-pec-no-embargo-is-absence-not-pre-consent.md) — partially superseded by docs/adr/0122-per-embargo-participant-consent.md
 - [ADR-0049 Core Does Not Model Inbound Protocol Error Message Types; No `create_inbound_error_followup_tree`](0049-core-does-not-model-error-message-types.md)
@@ -270,6 +270,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0158 The Occasion Is the Specification's Message Unit, and Case Coordination Is Its Own Normative Section](0158-the-occasion-is-the-specifications-message-unit-and-case-coordination-is-its-own-section.md)
 - [ADR-0162 Protocol Statecharts Are Projections of the Core Transition Tables, and Occasions Name Their Transitions](0162-protocol-statecharts-are-projections-of-the-core-transition-tables-and-occasions-name-their-transitions.md)
 - [ADR-0163 The Case Manager Resends an Unanswered Invite When Its Addressee States a Ledger Position](0163-the-case-manager-resends-an-unanswered-invite-when-its-addressee-states-a-ledger-position.md)
+- [ADR-0166 Adopting P, X or A and Ending the Embargo Are One Authorized Step](0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md) — partially supersedes 0046-received-status-authorization.md
 
 ## Rejected ADRs
 
