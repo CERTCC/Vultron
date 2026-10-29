@@ -364,8 +364,8 @@ def gh_pr_closing_issues(pr_number: int) -> set[str]:
     keyword in a commit message is not in that list, so a PR that closes an
     owner only that way passes; the scheduled ``--check-debt-owners`` run
     reports the closed owner after merge. Needs ``gh`` and a token; raises
-    :class:`subprocess.CalledProcessError` or :class:`FileNotFoundError` when
-    the lookup cannot be made.
+    one of :data:`~vultron.metadata.base.GH_LOOKUP_ERRORS` when the lookup
+    cannot be made.
     """
     result = subprocess.run(
         [

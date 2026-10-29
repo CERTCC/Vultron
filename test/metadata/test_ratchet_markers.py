@@ -18,6 +18,7 @@ from textwrap import dedent
 
 import pytest
 
+from vultron.metadata.file_loading import MetadataLoadError
 from vultron.metadata.ratchet_markers import (
     Baseline,
     baselines_in,
@@ -368,8 +369,8 @@ def test_scan_paths_raises_on_a_file_that_does_not_parse(
 ) -> None:
     broken = tmp_path / "broken.py"
     broken.write_text("KNOWN_X = (\n", encoding="utf-8")
-    with pytest.raises(SyntaxError):
-        scan_paths([broken])
+    with pytest.raises(MetadataLoadError, match=r"broken\.py:1"):
+        scan_paths([broken], tmp_path)
 
 
 def test_a_tree_that_is_not_a_module_holds_no_baselines() -> None:

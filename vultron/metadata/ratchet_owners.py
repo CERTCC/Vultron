@@ -47,8 +47,8 @@ from vultron.metadata.base import (
     gh_lookup_failure,
     repo_root,
 )
-from vultron.metadata.file_loading import MetadataLoadError, read_utf8
-from vultron.metadata.ratchet_markers import Baseline, baselines_in_source
+from vultron.metadata.file_loading import MetadataLoadError
+from vultron.metadata.ratchet_markers import Baseline, scan_paths
 
 #: Looks up the state of one ``#N`` issue (``OPEN``, ``CLOSED``, ...).
 IssueStateLookup = Callable[[str], str]
@@ -73,20 +73,7 @@ def baselines_under_test(root: Path) -> list[Baseline]:
             Python, naming it ``path:line:col`` (MS-17-001): a file skipped
             silently would leave its owners unchecked.
     """
-    found: list[Baseline] = []
-    for path in sorted((root / "test").rglob("*.py")):
-        rel = path.relative_to(root)
-        text = read_utf8(path, str(rel))
-        try:
-            found += baselines_in_source(text, rel)
-        except SyntaxError as exc:
-            raise MetadataLoadError(
-                f"not valid Python: {exc.msg}",
-                path=str(rel),
-                line=exc.lineno,
-                column=exc.offset,
-            ) from exc
-    return found
+    return scan_paths(sorted((root / "test").rglob("*.py")), root)
 
 
 def _not_open_reason(ref: str, issue_state: IssueStateLookup) -> str | None:

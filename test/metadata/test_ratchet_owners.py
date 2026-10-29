@@ -112,6 +112,7 @@ def test_missing_owner_is_reported_as_not_existing() -> None:
         FileNotFoundError("gh"),
         KeyError("state"),
         ValueError("json"),
+        TypeError("list indices must be integers"),
     ],
 )
 def test_unreadable_owner_is_reported_not_passed(exc: Exception) -> None:
