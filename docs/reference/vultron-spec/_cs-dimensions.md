@@ -81,10 +81,10 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 The orderings also constrain the embargo.
 Public awareness, a public exploit and observed attacks each end an active embargo.
 When the CASE_MANAGER adopts a status that sets one of them while an embargo is active, it terminates the embargo, and it records the CS change before the termination ([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)).
-The embargo therefore ends after public awareness is recorded, not before.
+The embargo therefore ends after the CS change that ends it is recorded, not before.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CSB-18-002", "CSB-18-003", "CSB-18-004", "CSB-04-007", "CSB-05-008", "CSB-06-008", "CSB-05-010"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CSB-18-002", "CSB-18-003", "CSB-18-004", "CSB-04-007", "CSB-05-008", "CSB-06-008", "CSB-12-004", "CSB-13-004", "CSB-14-005", "CSB-05-010", "CSB-06-010"))
 ```
 
 ### 8.4 Receiving CS Messages: Own State vs. Model of Others
