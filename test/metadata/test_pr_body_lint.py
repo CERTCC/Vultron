@@ -15,7 +15,7 @@
 One class per rule, a check that ``pr-body-guide.md`` lists exactly the tool's
 rules, the CLI's fact gathering, and the skills that run it.
 
-Specs: PAD-20-001 through PAD-20-005, PD-03-008.
+Specs: PAD-20-001 through PAD-20-005, PD-03-013.
 """
 
 from __future__ import annotations
@@ -249,7 +249,7 @@ class TestVerificationSection:
 
 
 @pytest.mark.spec("PAD-20-005")
-@pytest.mark.spec("PD-03-008")
+@pytest.mark.spec("PD-03-013")
 class TestDocsLine:
     def test_a_missing_line_is_found(self):
         assert _ids(_body(docs=None)) == ["PRB-08"]

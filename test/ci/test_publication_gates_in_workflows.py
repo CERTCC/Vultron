@@ -109,8 +109,8 @@ _CASES = [
 
 
 @pytest.mark.spec("DOCBW-03-006")
-@pytest.mark.spec("DOCBW-03-007")
-@pytest.mark.spec("DOCBW-03-008")
+@pytest.mark.spec("DOCBW-03-020")
+@pytest.mark.spec("DOCBW-03-026")
 @pytest.mark.parametrize("workflow,command", _CASES)
 def test_site_building_workflow_runs_the_gate(workflow: Path, command: str):
     """Every workflow that builds the site runs every built-site gate."""
@@ -122,9 +122,10 @@ def test_site_building_workflow_runs_the_gate(workflow: Path, command: str):
     )
 
 
-@pytest.mark.spec("DOCBW-03-006")
-@pytest.mark.spec("DOCBW-03-007")
-@pytest.mark.spec("DOCBW-03-008")
+@pytest.mark.spec("DOCBW-03-005")
+@pytest.mark.spec("DOCBW-03-017")
+@pytest.mark.spec("DOCBW-03-021")
+@pytest.mark.spec("DOCBW-06-002")
 @pytest.mark.parametrize("workflow,command", _CASES)
 def test_gate_runs_after_the_build(workflow: Path, command: str):
     """The checks read ``site/``, so they are meaningless before the build."""
@@ -142,6 +143,7 @@ def test_gate_runs_after_the_build(workflow: Path, command: str):
 @pytest.mark.spec("DOCBW-03-005")
 @pytest.mark.spec("DOCBW-03-007")
 @pytest.mark.spec("DOCBW-03-008")
+@pytest.mark.spec("DOCBW-03-017")
 @pytest.mark.parametrize("workflow,command", _CASES)
 def test_gate_is_not_neutered(workflow: Path, command: str):
     """The step must run on every trigger and be able to fail the workflow.
@@ -160,8 +162,9 @@ def test_gate_is_not_neutered(workflow: Path, command: str):
 
 
 @pytest.mark.spec("DOCBW-03-006")
-@pytest.mark.spec("DOCBW-03-007")
-@pytest.mark.spec("DOCBW-03-008")
+@pytest.mark.spec("DOCBW-03-020")
+@pytest.mark.spec("DOCBW-03-026")
+@pytest.mark.spec("DOCBW-06-002")
 @pytest.mark.parametrize("command", GATE_COMMANDS)
 def test_gate_precedes_the_pages_upload(command: str):
     """In the publishing workflow each gate blocks the upload.
@@ -299,13 +302,13 @@ def _unfiltered_publish_pull_request(wf_data: dict[str, Any]) -> bool:
     return "paths" not in event and "paths-ignore" not in event
 
 
-@pytest.mark.spec("DOCBW-03-012")
+@pytest.mark.spec("DOCBW-03-028")
 def test_require_recorded_runs_only_on_pull_requests_to_publish():
     step = _require_recorded_step()
     condition = " ".join(str(step.body.get("if", "")).split())
     assert condition in PUBLISH_ONLY_CONDITIONS, (
         f"The '{REQUIRE_RECORDED}' step must be conditioned on {PUBLISH_BASE}: "
-        "on a pull request to main a new page is not yet due (DOCBW-03-012)."
+        "on a pull request to main a new page is not yet due (DOCBW-03-028)."
     )
     assert step.caller is step.body, (
         "The step must be a workflow step, not one inside a local action."
@@ -321,13 +324,13 @@ def test_require_recorded_can_fail_the_workflow():
     )
 
 
-@pytest.mark.spec("DOCBW-03-012")
+@pytest.mark.spec("DOCBW-03-028")
 def test_require_recorded_is_not_in_the_shared_publication_action():
     """deploy_site.yml and pull requests to main run that action."""
     for step in local_action_steps(PUBLICATION_ACTION):
         assert REQUIRE_RECORDED not in str(step.get("run", "")), (
             f"{PUBLICATION_ACTION} runs '{REQUIRE_RECORDED}', so every pull "
-            "request to main would fail on its new pages (DOCBW-03-012)."
+            "request to main would fail on its new pages (DOCBW-03-028)."
         )
 
 

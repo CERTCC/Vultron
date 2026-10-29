@@ -1,7 +1,7 @@
 """CI verification test — every site build is the same build; one workflow publishes.
 
-Implements DOCBW-06-004 and DOCBW-06-001 from ``specs/docs-build-workflow.yaml``
-(#4167).
+Implements DOCBW-06-004 to DOCBW-06-006 and DOCBW-06-001 from
+``specs/docs-build-workflow.yaml`` (#4167).
 
 The review workflow (``docs-build-check.yml``) and the publication workflow
 (``deploy_site.yml``) once built the site differently: different dependency
@@ -157,7 +157,7 @@ def test_site_building_workflows_found():
     )
 
 
-@pytest.mark.spec("DOCBW-06-004")
+@pytest.mark.spec("DOCBW-06-006")
 @pytest.mark.parametrize(
     "workflow", sorted(WORKFLOWS_DIR.glob("*.yml")), ids=lambda p: p.name
 )
@@ -166,11 +166,12 @@ def test_no_workflow_runs_its_own_mkdocs_build(workflow: Path):
     assert not builds, (
         f"{workflow.name} runs 'mkdocs build' itself in {builds}. Build "
         f"through '{BUILD_SITE_ACTION}' instead, so review and publication "
-        "build the same site (DOCBW-06-004)."
+        "build the same site (DOCBW-06-006)."
     )
 
 
 @pytest.mark.spec("DOCBW-06-004")
+@pytest.mark.spec("DOCBW-06-006")
 @pytest.mark.parametrize(
     "action", _other_local_actions(), ids=lambda p: p.name
 )
@@ -196,6 +197,7 @@ def test_site_building_workflow_uses_the_shared_build(workflow: Path):
 
 
 @pytest.mark.spec("DOCBW-06-004")
+@pytest.mark.spec("DOCBW-06-005")
 @pytest.mark.parametrize(
     "workflow", site_building_workflows(), ids=lambda p: p.name
 )
@@ -225,7 +227,7 @@ def test_workflow_steps_follow_the_shared_build(workflow: Path):
         assert not before, (
             f"{workflow.name} runs {before} before '{BUILD_SITE_ACTION}'; a "
             "workflow MAY add steps only after the shared build "
-            "(DOCBW-06-004)."
+            "(DOCBW-06-005)."
         )
 
 
