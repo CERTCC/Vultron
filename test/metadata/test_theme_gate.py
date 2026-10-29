@@ -428,6 +428,7 @@ def _manage(
     return gh.run(*args)
 
 
+@pytest.mark.spec("PAD-02-023")
 class TestManageScriptGate:
     @pytest.mark.spec("PAD-02-014")
     @pytest.mark.parametrize(
@@ -489,6 +490,7 @@ class TestManageScriptGate:
         assert not any(c[:2] == ["issue", "view"] for c in gh.calls())
 
 
+@pytest.mark.spec("PAD-02-025")
 class TestCreateEpicScriptGate:
     def test_requires_a_theme_argument(self, tmp_path: Path) -> None:
         gh = _Gh(tmp_path, [])

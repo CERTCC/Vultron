@@ -134,7 +134,8 @@ its title.
      with the Phase 4 theme. Its body starts with a `Theme:` line, states the
      one-sentence design idea the issue advances, and carries the line
      `<!-- auto-calved -->` (`notes/epic-themes.md` § "The Structural
-     Check"). Report the new Epic in Phase 8 so a person reviews it.
+     Check"). Report the new Epic in Phase 8 so a person reviews it
+     (PAD-02-024).
 
 Never create the issue without a parent, and never under an Epic whose theme
 differs: the script refuses both.

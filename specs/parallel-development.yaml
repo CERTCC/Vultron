@@ -381,20 +381,14 @@ groups:
           Agents MUST create Issues only through the `create-issue` skill,
           which picks the Issue's one theme by its own outcome, writes its
           `Theme:` line, and makes it a sub-issue of an open Epic with the same
-          theme. When no such Epic fits and no user is present, the skill MUST
-          create a `Someday` Epic in that theme, marked as auto-calved, rather
-          than leave the Issue without a parent.
+          theme.
         rationale: >-
           When each skill files Issues its own way, each one drops a different
           rule. Bugs then land under the Epic of the work that found them, and
-          Issues get no theme. One path applies every rule the same way. An
-          Issue without a parent has no tier, so an Epic that a person reviews
-          later is better than an orphan.
+          Issues get no theme. One path applies every rule the same way.
         relationships:
         - rel_type: implements
           spec_id: PAD-02-017
-        - rel_type: implements
-          spec_id: PAD-01-007
         verification: >-
           `TestCreationPath` in `test/metadata/test_theme_gate.py` checks that
           no skill under `.agents/skills/` except `create-issue`,
@@ -408,9 +402,7 @@ groups:
           `manage_github_issue.sh` MUST refuse to create an Issue that does not
           carry exactly one active catalog `theme:` label, has no `Theme:` line
           naming it, or has a parent that is closed or does not carry that
-          theme. `create_epic.sh` MUST refuse an Epic without one active theme
-          (or two with a named split) and a `Theme:` line. Each refusal MUST
-          name every rule broken and create nothing.
+          theme. The refusal names every rule broken and creates nothing.
         rationale: >-
           A skill is text that an agent can misread. A check in the script that
           creates the Issue stops an Issue that breaks a theme rule before it
@@ -421,11 +413,48 @@ groups:
         - rel_type: implements
           spec_id: PAD-02-018
         verification: >-
-          `TestManageScriptGate` and `TestCreateEpicScriptGate` in
-          `test/metadata/test_theme_gate.py` run each script against a stand-in
-          `gh` and check that a missing theme, two themes, a missing `Theme:`
-          line, and a parent with another theme each exit 1 with no
-          `createIssue` call.
+          `TestManageScriptGate` in `test/metadata/test_theme_gate.py` runs the
+          script against a stand-in `gh` and checks that a missing theme, two
+          themes, a missing `Theme:` line, and a parent with another theme
+          each exit 1 with no `createIssue` call.
+      - id: PAD-02-024
+        priority: MUST
+        kind: process
+        statement: >-
+          When no open Epic with the new Issue's theme fits it and no user is
+          present, the `create-issue` skill MUST create a `Someday` Epic in that
+          theme, marked as auto-calved, and make the Issue its sub-issue.
+        rationale: >-
+          An Issue without a parent has no tier and is invisible to planning
+          (PAD-01-007). An unattended run cannot ask, so an Epic that a person
+          reviews later is better than an orphan; the auto-calved marker lets
+          `theme-fit` show it until someone does.
+        relationships:
+        - rel_type: implements
+          spec_id: PAD-01-007
+        verification: >-
+          A `theme-fit` run reports no `unparented` Issue created after this
+          rule, and reports each auto-calved Epic with fewer than two open
+          sub-issues as a `single-child-calved-epic` finding, which
+          `test/metadata/test_theme_fit.py` checks.
+      - id: PAD-02-025
+        priority: MUST
+        kind: process
+        statement: >-
+          `create_epic.sh` MUST refuse to create an Epic that does not carry one
+          active catalog theme, or two with a body line naming both, and a
+          `Theme:` line naming it.
+        rationale: >-
+          An Epic is the parent every new Issue's theme is checked against
+          (PAD-02-023). An Epic created without a theme would refuse every
+          child, and one with an unnamed second theme holds two design ideas.
+        relationships:
+        - rel_type: implements
+          spec_id: PAD-02-015
+        verification: >-
+          `TestCreateEpicScriptGate` in `test/metadata/test_theme_gate.py`
+          checks that a missing theme argument, a missing `Theme:` line, and
+          two themes with no named split each fail before any `gh` call.
 
   - id: PAD-03
     title: Priority Ordering Authority
