@@ -441,7 +441,7 @@ def test_participant_states_its_tail_to_the_case_manager() -> None:
 
 
 @pytest.mark.spec("SYNC-17-001")
-def test_participant_that_has_applied_no_entry_states_nothing() -> None:
+def test_participant_at_the_empty_ledger_position_states_nothing() -> None:
     store = SqliteDataLayer("sqlite:///:memory:", actor_id=SIGNATORY_ID)
     seed_case(store, embargo_active=False)
     port = MagicMock(spec=SyncActivityPort)

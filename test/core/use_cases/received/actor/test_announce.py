@@ -973,15 +973,48 @@ class TestFirstSeedStatesLedgerPosition:
         assert read.to == [_CASE_ACTOR_ID]
         assert read.ledger_position == _COPY_POSITION
 
+    @pytest.mark.spec("SYNC-17-008", "SYNC-14-009")
+    def test_a_failed_statement_still_replays_the_held_entry(
+        self, dl, make_payload
+    ):
+        """The statement is the tree's last effect, so its failure undoes
+        no other: the held pre-genesis entry is still replayed."""
+        _anchor_expected_authority(dl)
+        case = _joined_case()
+        entry = _genesis_entry_for(_CASE_ID, case.genesis_hash)
+        held = ledger_announce_event(
+            entry, actor=_CASE_ACTOR_ID, to=_RECEIVER_ID
+        )
+        hold_received(dl, held)
+        replay = RecordingInboxReplay()
+        failing = MagicMock(spec=SyncActivityPort)
+        failing.send_read_ledger_entry.side_effect = RuntimeError("store down")
+
+        with pytest.raises(VultronBTInternalError):
+            self._announce(
+                dl,
+                make_payload,
+                case,
+                sync_port=failing,
+                inbox_replay=replay,
+            ).execute()
+
+        failing.send_read_ledger_entry.assert_called_once()
+        assert replay.replayed == [held.activity_id]
+        assert held_depth(dl, _CASE_ID) == 0
+
     @pytest.mark.spec("SYNC-17-008")
     def test_the_node_raises_when_the_seeded_case_is_not_stored(self):
         """It runs after the seed, so a missing case is a fault, not a skip."""
         scenario = BTTestScenario(actor_id=_RECEIVER_ID)
+        port = MagicMock(spec=SyncActivityPort)
 
         result = scenario.run(
             StateSeededLedgerPositionNode(case_id=_CASE_ID),
             case_copy_replaces=False,
+            sync_port=port,
         )
 
         assert result.status is Status.FAILURE
-        assert _queued_reads(scenario.dl) == []
+        assert "VultronNotFoundError" in result.feedback_message
+        port.send_read_ledger_entry.assert_not_called()
