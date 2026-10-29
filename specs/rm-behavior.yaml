@@ -757,14 +757,15 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      A Participant in RM Start (q^rm ∈ S) receiving RK SHOULD respond with
-      RE and GI to signal the unexpected message and inquire what the sender
-      expected.
+      A Participant in RM Start (q^rm ∈ S) receiving RK SHOULD answer it with
+      `Create(ProcessingFault)` (ASK-07-001). The fault tells the sender that the
+      receiver holds no report the RK could be about. RE has no wire activity of
+      its own (MSM-05-001).
     rationale: >-
       RK arriving in START means the sender believes the receiver has already
-      acknowledged a message the receiver has never seen. RE+GI is the
-      protocol-specified error response for any R* message received while in
-      RM Start per VP-03-010.
+      acknowledged a message the receiver has never seen. A processing fault is
+      the protocol's error response for any R* message received while in RM
+      Start per VP-03-010.
     testable: true
     preconditions:
     - rm_state:
@@ -773,18 +774,16 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: Emit RE to signal the unexpected message error
-      expected: RE queued for sender
-    - order: 2
-      actor: receiver
-      action: Emit GI to inquire what the sender expected
-      expected: GI queued for sender
+      action: Emit Create(ProcessingFault) to signal the unexpected message
+      expected: ProcessingFault queued for sender; no RE message exists
     postconditions:
-    - description: RE and GI emitted; no RK in reply to RK (RMB-08-001); receiver RM state unchanged (START)
+    - description: >-
+        ProcessingFault emitted; no RK in reply to RK (RMB-08-001); receiver RM
+        state unchanged (START)
     relationships:
     - rel_type: satisfies
       spec_id: VP-03-010
-      note: RE+GI when R* received while in RM Start
+      note: Processing fault when R* received while in RM Start
     - rel_type: satisfies
       spec_id: MSM-01-008
       note: 'RK shorthand wire-type mapping'

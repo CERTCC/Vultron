@@ -1278,15 +1278,20 @@ groups:
       When a participant accepts the stub Invite
       (`Accept(Invite(Actor, VulnerabilityCaseStub))`), the CASE_MANAGER MUST
       leave the participant's RM state at `RM.RECEIVED`, set its VF state to
-      `V` when it holds the VENDOR role, and, when an embargo is active, mark its consent row for that embargo `AGREED`, making it a signatory. Accepting the stub is joining the case
-      and consenting to the active embargo; it is not a judgement of the case.
+      `V` when it holds the VENDOR role, and, when an embargo is active, mark
+      its consent row for that embargo `AGREED`, making it a signatory. A
+      `DECLINED` row is the exception, and the CASE_MANAGER leaves it unchanged:
+      an explicit refusal outranks the consent that joining implies. Accepting
+      the stub is joining the case and, unless the row is `DECLINED`, consenting
+      to the active embargo. It is not a judgement of the case.
     rationale: >-
       The invitee has seen only the stub. Its judgement of the case comes after
       it has received the case and its history, as its reply to the full-case
       Invite (CM-11-010).
     verification: Tests confirm that `Accept(Invite(Actor, VulnerabilityCaseStub))`
       leaves the participant at `RM.RECEIVED`, sets VF `V` for a vendor, and
-      marks its consent row for the active embargo `AGREED` when an embargo is active.
+      marks its consent row for the active embargo `AGREED` when an embargo is active,
+      and that it leaves a `DECLINED` row for that embargo unchanged.
     relationships:
     - rel_type: implements
       spec_id: VP-03-012
@@ -3174,7 +3179,7 @@ groups:
     - story_2022_014
   - id: CM-18-003
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >-
       The consent row machine MUST implement exactly the following valid triggers, each applied to
       the row for one embargo: INVITE (from `UNINVITED`, `DECLINED` or `TIMED_OUT`, to `INVITED`),
@@ -3228,6 +3233,8 @@ groups:
     - ADR-0093
     - ADR-0118
     - ADR-0122
+    stories:
+    - story_2022_014
   - id: CM-18-004
     priority: MUST_NOT
     kind: protocol
