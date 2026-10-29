@@ -37,13 +37,14 @@ The [User Story Traceability Matrix](traceability.md) maps each story to the for
 
 ## Support Levels
 
-Each story page carries a support level, assigned when the story was written against the protocol as it stood at the time:
+Each story page from the 2022 catalog carries a support level, assigned when the story was written against the protocol as it stood at the time:
 
 - *Provided* - The protocol directly supports the story.
 - *Allowed* - The protocol indirectly supports the story.
 - *Unsupported* - The protocol does not support the story.
 - *Out-of-scope* - The story is outside the protocol's scope.
 
+Story pages added from 2026 on carry no support level, and their Status cell in the table is blank.
 A support level is a dated judgment, not a live conformance result.
 The [User Story Traceability Matrix](traceability.md) is the current record of which requirements satisfy a story, and a story with mapped requirements may be better supported than its original level says.
 
