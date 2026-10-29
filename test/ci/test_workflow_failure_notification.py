@@ -718,6 +718,21 @@ def test_recordings_workflow_regenerates_scenario_tree_index() -> None:
         "so the scenario-tree index is regenerated against the fresh recordings "
         "(DEMOCI-11-016, #5462)."
     )
+    tree_at = run_script.index("export-demo-tree")
+    assert tree_at > run_script.index("export-demo-recordings"), (
+        "export-demo-tree must run after export-demo-recordings: the index "
+        "lists the case ids of the fresh recordings (#5462)."
+    )
+    assert tree_at > run_script.index('exit "$status"'), (
+        "export-demo-tree must run after the recorder's error-exit guard, so a "
+        "broken recorder still fails with its own status (#5462)."
+    )
+    assert tree_at > run_script.index(
+        '"status=$status" >> "$GITHUB_OUTPUT"'
+    ), (
+        "The recorder's status must reach $GITHUB_OUTPUT before export-demo-tree "
+        "runs, so the 0/3 routing of later steps is unchanged (#5462)."
+    )
 
 
 def test_recordings_artifact_includes_scenario_tree_json() -> None:
@@ -742,6 +757,33 @@ def test_recordings_artifact_includes_scenario_tree_json() -> None:
         "alongside ui/src/recordings/ so a download-and-commit refresh keeps "
         "the tree index current (DEMOCI-11-016, #5462)."
     )
+
+
+def test_recordings_refresh_task_names_the_tree_index() -> None:
+    """DEMOCI-11-016: the refresh Task names both commands and the unpack root.
+
+    The artifact has two paths, so upload-artifact roots it at their common
+    parent, ``ui/src/``. The Task must say to unpack it there; unpacked at the
+    repository root it would write ``recordings/`` and ``data/`` (#5462).
+    """
+    workflow = yaml.safe_load(
+        (WORKFLOWS_DIR / "demo-recordings.yml").read_text()
+    )
+    task_step = next(
+        s
+        for s in workflow["jobs"]["recordings"]["steps"]
+        if s.get("name") == "File or update the refresh Task"
+    )
+    run_script: str = task_step.get("run", "")
+    for needle in (
+        "uv run export-demo-tree",
+        "ui/src/data/scenario_tree.json",
+        "unpack it into \\`ui/src/\\`",
+    ):
+        assert needle in run_script, (
+            f"The refresh Task body must contain {needle!r} so a refresh PR "
+            "keeps the scenario-tree index current (DEMOCI-11-016, #5462)."
+        )
 
 
 def test_issue_type_helper_resolves_the_type_by_name() -> None:
