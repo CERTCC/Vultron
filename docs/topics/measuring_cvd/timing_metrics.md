@@ -22,13 +22,11 @@ No part of the page is normative, and no code calculates these metrics today.
 A desideratum is an order of two events that a case should achieve.
 For example, the fix should be ready before the vul is public.
 [Desirable Histories](./desirable_histories.md) gives the twelve original desiderata.
-[Desiderata from the Process Models](./process_model_desiderata.md) adds desiderata about report, embargo, consent, and joining events.
+[Desiderata from the Process Models](./process_model_desiderata.md) adds desiderata about report, embargo, and consent events.
 
 The page uses the events and symbols of [What a Case Records](./what_a_case_records.md):
 
 {% include-markdown "./_case_events.md" %}
-
-The page also uses participant publication ($\evPu$), the public awareness that comes from a coordinated publication by a participant ([Desiderata from the Process Models](./process_model_desiderata.md#splitting-events-by-cause)).
 
 Each metric on this page is about the case, or about one participant.
 Some events belong to the case and occur at most once in the case.
@@ -187,7 +185,6 @@ These are the margins most directly tied to defender outcomes.
 |---|---|
 | $m(\evF \prec \evP)$ | Lead time between a fix being ready and the vul being public |
 | $m(\evD \prec \evP)$ | Lead time between deployment and the vul being public |
-| $m(\evEx \prec \evPu)$ | Time a participant waited after the embargo before publishing |
 | $m(\evP \prec \evX)$ | Time between the vul being public and an exploit being public |
 | $m(\evX \prec \evA)$ | Time between a public exploit and observed attacks |
 

@@ -193,7 +193,7 @@ A high median with a wide spread means a few Vendors are being left behind, whic
 !!! tip "Going further"
 
     The score in this guide uses the six events and twelve preferences of the original research.
-    [Desiderata from the Process Models](../topics/measuring_cvd/process_model_desiderata.md) proposes more preferences, about report handling, embargoes, and joining.
+    [Desiderata from the Process Models](../topics/measuring_cvd/process_model_desiderata.md) proposes more preferences, about report handling, embargoes, and multi-party cases.
     [Timing Metrics Within a Case](../topics/measuring_cvd/timing_metrics.md) proposes measures of the intervals between events.
     Both pages are draft research, and neither page has a published baseline yet.
 
