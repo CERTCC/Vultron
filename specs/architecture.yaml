@@ -31,6 +31,8 @@ groups:
       takes or returns a wire type, core depends on the AS2 format, and a change to that
       format then changes core code. Domain types also arrive already validated
       (ARCH-08-002), so core does not need to check them again.
+    adr:
+    - ADR-0009
   - id: ARCH-01-003
     priority: MUST_NOT
     kind: architecture
@@ -46,6 +48,7 @@ groups:
       (ADR-0099). The rule thus limits what wire code does, not what it imports.
     adr:
     - ADR-0099
+    - ADR-0009
   - id: ARCH-01-004
     priority: MUST
     kind: project
@@ -60,6 +63,8 @@ groups:
       spec_id: ARCH-01-001
       note: ARCH-01-001 is the general constraint; ARCH-01-004 requires that all violations be systematically remediated via
         driven ports.
+    adr:
+    - ADR-0009
   - id: ARCH-01-005
     priority: MUST_NOT
     kind: project
@@ -99,6 +104,8 @@ groups:
       the wire layer may import core models (ARCH-22-001).
     verification: Inspection of `vultron/core/` confirms `MessageSemantics` (or `SemanticIntent`) is defined there,
       and no definition of this enum exists under `vultron/wire/`.
+    adr:
+    - ADR-0009
 - id: ARCH-03
   title: Semantic Extractor
   specs:

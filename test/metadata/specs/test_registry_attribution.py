@@ -39,6 +39,7 @@ groups:
     priority: MUST
     kind: project
     statement: Something MUST happen.
+    rationale: Because testing.
 """
 
 

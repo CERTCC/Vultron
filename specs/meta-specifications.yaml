@@ -801,11 +801,10 @@ groups:
       reason only where they exist (SR-11), so for most project and process
       requirements the rationale is the only place the reason can live.
     verification: >-
-      `test/architecture/test_spec_rationale_guard.py::test_no_pr_adds_a_requirement_without_a_rationale`
-      fails a pull request that adds a requirement with no rationale (MS-10-014), and
-      `test/metadata/specs/test_rationale.py::test_missing_rationale_lists_each_requirement_without_one`
-      covers the detector behind it and behind `spec-rationale missing`, which lists
-      the remainder the backfill clears.
+      `test/metadata/specs/test_schema.py::test_statement_spec_rationale_omitted_rejected`
+      and `test_statement_spec_rationale_none_rejected` check that the schema
+      refuses a requirement with no rationale (SR-02-009), so a spec file that
+      holds one fails to load.
     relationships:
     - rel_type: refines
       spec_id: SR-02-009
@@ -832,35 +831,6 @@ groups:
       spec_id: MS-10-012
     tags:
     - documentation
-  - id: MS-10-014
-    priority: MUST
-    kind: process
-    statement: >-
-      Until the schema requires a `rationale:` on every requirement, a PR-only growth
-      guard MUST fail when a requirement has no rationale at the PR head but had one
-      at the merge base with the base branch, or did not exist there, and MUST list
-      each such requirement. A requirement already missing one at the merge base
-      MUST NOT fail the guard, and the guard MUST NOT compare against a committed
-      count or an exemption list.
-    rationale: >-
-      The corpus holds a backlog of requirements with no rationale, so a corpus-wide
-      check would fail every pull request until the backfill finishes. Checking only
-      what a branch adds keeps the backlog from growing while it is worked down, and
-      a per-item set has no shared number for concurrent pull requests to race on.
-    verification: >-
-      `test/architecture/test_spec_rationale_guard.py::test_no_pr_adds_a_requirement_without_a_rationale`
-      runs the guard on the live corpus, and the `test_rationale_*` tests in
-      `test/metadata/specs/test_growth_guard.py` cover a new requirement without a
-      rationale, a dropped rationale, an existing gap, a backfill, and a skipped run
-      with no base ref that logs its reason.
-    relationships:
-    - rel_type: implements
-      spec_id: MS-10-012
-    - rel_type: refines
-      spec_id: SR-05-005
-    tags:
-    - documentation
-    - tooling
   - id: MS-10-015
     priority: SHOULD
     kind: process
@@ -874,7 +844,7 @@ groups:
       missing `adr:` link is a likely gap in the trace from rule to reason. History
       narration is easy to recognize but has false positives, such as an issue cited
       as evidence, so both lists are worklists for a person to judge rather than
-      gates. A per-file filter lets each backfill take its own share.
+      gates. A per-file filter lets one task work through its own spec files.
     verification: >-
       `test/metadata/specs/test_rationale.py` covers both reports, the per-file
       filter, and the `spec-rationale` command line exiting 0.
@@ -918,6 +888,26 @@ groups:
     tags:
     - documentation
     - tooling
+  - id: MS-10-017
+    priority: SHOULD
+    kind: process
+    statement: >-
+      A `rationale:` SHOULD read as Simplified Technical English in spirit: short
+      sentences, a constrained vocabulary, the active voice and no jargon. Its
+      domain terms are the ones `CONTEXT.md` and `docs/reference/glossary.md`
+      define, even where an STE-approved word could replace one.
+    rationale: >-
+      For most project and process requirements, the rationale is the only
+      written reason. A reader who is new to the project must understand it.
+      Short, plain sentences are easy to read and to translate. One term for
+      each concept lets a reader find the same idea in specs, docs and code. An
+      STE swap gives a second word for the concept and breaks that link, so the
+      glossary term or spec term stays: "create a case", not "make a case".
+    relationships:
+    - rel_type: refines
+      spec_id: MS-10-012
+    tags:
+    - documentation
 - id: MS-11
   title: Spec vs. ADR Delineation
   specs:

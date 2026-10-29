@@ -517,8 +517,8 @@ def _check_nonempty_list(v: list | None, field_name: str) -> list | None:
 class StatementSpec(BaseModel):
     """A single normative statement requirement (SR-02-009).
 
-    ``kind`` is required on every spec item.  ``scope`` is optional and
-    inherits from the containing file when absent.
+    ``kind`` and ``rationale`` are required on every spec item (MS-10-012).
+    ``scope`` is optional and inherits from the containing file when absent.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -527,7 +527,7 @@ class StatementSpec(BaseModel):
     priority: RFC2119Priority
     kind: SpecKind
     statement: NonEmptyStr
-    rationale: NonEmptyStr | None = None
+    rationale: NonEmptyStr
     testable: bool = True
     deprecated: bool = False
     superseded_by: SpecIdStr | None = None

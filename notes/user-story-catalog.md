@@ -153,10 +153,10 @@ For each requirement in the worklist:
 4. **Remove the suppression** when a story is added; `scripts/apply_story_mappings.py`
    does the formatting-preserving edit. Never add one (MS-12-007).
 
-Order relative to the rationale backfill: each drafting Task is blocked by the
-rationale-backfill Task for the same files (#4483–#4486). Both edit the same
-YAML items, so running them together guarantees conflicts, and a written
-rationale tells the story author which need the requirement serves.
+Order relative to the rationale backfill: the rationale backfill for every
+area (#4483–#4486) is complete, so no drafting Task waits on it. Every
+requirement now carries a rationale (SR-02-009), and it tells the story author
+which need the requirement serves.
 
 ### Areas and their binding worklists
 
@@ -281,10 +281,10 @@ ones it reads from.
 
 ## Relation to other work under the Epic
 
-- **#4483–#4486** (rationale backfill by area) run first per area; see above.
+- **#4483–#4486** (rationale backfill by area) are complete; see above.
   Where a contributor or maintainer seed story fits a project or process
   requirement they touch, they may cite it; the rationale is still the reason.
-- **#4482** (rationale rule and growth guard) and **#4315** (PR-only growth
+- **#4482** (rationale rule) and **#4315** (PR-only growth
   guards replacing the count ceilings) build the helper the project/process
   story advisory and the closing step should reuse, so a guard is written once.
 - **#3601** (adjudicating suppressed protocol specs) was to hand the five Ideas

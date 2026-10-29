@@ -10,19 +10,15 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Rationale coverage: the growth guard's extractor and two backfill worklists.
+"""Rationale worklists: candidate ``adr:`` links and history narration.
 
-Requirements: specs/meta-specifications.yaml MS-10-012 through MS-10-015.
+Requirements: specs/meta-specifications.yaml MS-10-013 and MS-10-015.
 
 Every requirement carries a ``rationale:`` that gives its reason (MS-10-012),
-not its history (MS-10-013). Until the backfill brings the corpus to zero, the
-schema still admits a missing rationale, so three pieces hold the line:
+not its history (MS-10-013). The schema requires the field (SR-02-009), so a
+spec file with a requirement that has none fails to load. Two advisory
+worklists help a person judge the rationales and links that remain:
 
-- :func:`missing_rationale_ids` — the per-item extractor behind the PR-only
-  growth guard (MS-10-014) in
-  ``test/architecture/test_spec_rationale_guard.py``. It runs through
-  :func:`vultron.metadata.specs.growth_guard.added_since_base`, so no count is
-  committed.
 - :func:`adr_link_candidates` — requirements a live decision record names in
   its body that do not cite that record in ``adr:`` (MS-10-015). Reading
   record bodies here is tooling, not agent context (ADR-0127): a person or
@@ -32,10 +28,10 @@ schema still admits a missing rationale, so three pieces hold the line:
   :data:`HISTORY_PATTERNS` (MS-10-015). The patterns have false positives, so
   this is a worklist and never a gate.
 
-CLI: ``uv run spec-rationale {missing,adr-links,history} [--file PATH ...]``
+CLI: ``uv run spec-rationale {adr-links,history} [--file PATH ...]``
 prints one line per item and exits 0 whatever it finds (2 on a usage error,
 such as a ``--file`` that names no spec file); ``--file`` narrows the report to
-the spec files a backfill task owns.
+the spec files one task owns.
 """
 
 from __future__ import annotations
@@ -51,7 +47,6 @@ from vultron.metadata.adr.loader import load_adr_post, load_adr_registry
 from vultron.metadata.base import repo_root as _find_repo_root
 from vultron.metadata.specs.registry import (
     SpecRegistry,
-    load_registry,
     load_spec_files,
 )
 from vultron.metadata.specs.schema import cited_spec_ids
@@ -123,24 +118,6 @@ class AdrLinkCandidate:
     adr_id: str
 
 
-def missing_rationale(registry: SpecRegistry) -> frozenset[str]:
-    """IDs of the requirements in *registry* with no ``rationale:``."""
-    return frozenset(
-        spec_id
-        for spec_id, spec in registry.all_specs.items()
-        if spec.rationale is None
-    )
-
-
-def missing_rationale_ids(repo_root: Path) -> frozenset[str]:
-    """Requirements with no ``rationale:`` in ``specs/`` under *repo_root*.
-
-    The per-item extractor behind the MS-10-014 growth guard
-    (:func:`vultron.metadata.specs.growth_guard.added_since_base`).
-    """
-    return missing_rationale(load_registry(repo_root / "specs"))
-
-
 def load_with_files(spec_dir: Path) -> tuple[SpecRegistry, dict[str, str]]:
     """The registry under *spec_dir*, and each requirement's file.
 
@@ -180,7 +157,7 @@ def history_narration_hits(
     """
     hits: list[HistoryHit] = []
     for spec_id, spec in sorted(registry.all_specs.items()):
-        labels = history_labels(spec.rationale or "")
+        labels = history_labels(spec.rationale)
         if labels:
             hits.append(HistoryHit(spec_id, spec_file[spec_id], labels))
     return hits
@@ -246,12 +223,12 @@ def report_lines(
     """The lines ``spec-rationale <report>`` prints for the repo at *root*.
 
     Args:
-        report: ``missing``, ``adr-links`` or ``history``.
+        report: ``adr-links`` or ``history``.
         root: Repository root.
         files: Spec files to keep (``specs/<name>.yaml``); empty keeps all.
 
     Raises:
-        ValueError: *report* is not one of the three names, or a name in
+        ValueError: *report* is not one of the two names, or a name in
             *files* is not a spec file.
     """
     spec_dir = root / "specs"
@@ -259,12 +236,6 @@ def report_lines(
     unknown = sorted(set(files) - set(owner.values()))
     if unknown:
         raise ValueError(f"not a spec file under {spec_dir}: {unknown}")
-    if report == "missing":
-        return [
-            f"{owner[spec_id]}: {spec_id}: no rationale"
-            for spec_id in sorted(missing_rationale(registry))
-            if _in_files(owner[spec_id], files)
-        ]
     if report == "history":
         return [
             f"{hit.spec_file}: {hit.spec_id}: rationale may narrate history "
@@ -289,15 +260,14 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="spec-rationale",
         description=(
-            "Rationale backfill worklists (MS-10-012, MS-10-013, MS-10-015): "
-            "requirements with no rationale, rationales that may narrate "
-            "history, and candidate adr: links. Advisory: exits 0 whatever it "
-            "finds, 2 on a usage error."
+            "Rationale worklists (MS-10-013, MS-10-015): rationales that may "
+            "narrate history, and candidate adr: links. Advisory: exits 0 "
+            "whatever it finds, 2 on a usage error."
         ),
     )
     parser.add_argument(
         "report",
-        choices=("missing", "adr-links", "history"),
+        choices=("adr-links", "history"),
         help="which worklist to print",
     )
     parser.add_argument(
@@ -335,7 +305,5 @@ __all__ = [
     "live_adr_bodies",
     "load_with_files",
     "main",
-    "missing_rationale",
-    "missing_rationale_ids",
     "report_lines",
 ]

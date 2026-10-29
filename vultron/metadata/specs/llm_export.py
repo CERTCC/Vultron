@@ -89,8 +89,7 @@ def _spec_record(
     if tags:
         rec["tags"] = [t.value for t in tags]
 
-    if spec.rationale is not None:
-        rec["rationale"] = spec.rationale
+    rec["rationale"] = spec.rationale
 
     # ``note`` carries the caveats that keep a requirement from being read the
     # wrong way — which side an obligation binds, what a receiver must *not* do

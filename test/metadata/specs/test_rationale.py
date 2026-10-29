@@ -1,8 +1,8 @@
-"""Tests for vultron.metadata.specs.rationale (MS-10-012, MS-10-013, MS-10-015).
+"""Tests for vultron.metadata.specs.rationale (MS-10-013, MS-10-015).
 
-The growth guard's extractor is exercised through ``added_since_base`` in
-``test_growth_guard.py``; this module covers the two advisory worklists, the
-per-file filter, and the ``spec-rationale`` command line.
+This module covers the two advisory worklists, the per-file filter, and the
+``spec-rationale`` command line. The schema test that a requirement with no
+rationale fails to load (MS-10-012) is in ``test_schema.py``.
 """
 
 from pathlib import Path
@@ -17,23 +17,20 @@ from vultron.metadata.specs.rationale import (
     live_adr_bodies,
     load_with_files,
     main,
-    missing_rationale,
     report_lines,
 )
 from vultron.metadata.specs.schema import cited_spec_ids
 
 
-def _spec(spec_id: str, rationale: str | None = "It prevents a gap.", **extra):
-    spec = {
+def _spec(spec_id: str, rationale: str = "It prevents a gap.", **extra):
+    return {
         "id": spec_id,
         "priority": "SHOULD",
         "kind": "project",
         "statement": f"{spec_id} SHOULD do the thing",
+        "rationale": rationale,
         **extra,
     }
-    if rationale is not None:
-        spec["rationale"] = rationale
-    return spec
 
 
 def _write_file(spec_dir: Path, prefix: str, *specs: dict) -> None:
@@ -70,14 +67,14 @@ def repo(tmp_path: Path) -> Path:
         spec_dir,
         "AAA",
         _spec("AAA-01-001"),
-        _spec("AAA-01-002", rationale=None),
+        _spec("AAA-01-002"),
         _spec("AAA-01-003", rationale="Added in #123 after review."),
         _spec("AAA-01-004", adr=["ADR-0001"]),
     )
     _write_file(
         spec_dir,
         "BBB",
-        _spec("BBB-01-001", rationale=None),
+        _spec("BBB-01-001"),
         _spec("BBB-01-002", rationale="It was previously optional."),
     )
     adr_dir = tmp_path / "docs" / "adr"
@@ -93,15 +90,6 @@ def repo(tmp_path: Path) -> Path:
         adr_dir / "archived", "0003-old.md", "accepted", "Names AAA-01-003."
     )
     return tmp_path
-
-
-# --- the rule's subject: requirements with no rationale ---------------------
-
-
-@pytest.mark.spec("MS-10-012")
-def test_missing_rationale_lists_each_requirement_without_one(repo):
-    registry = load_with_files(repo / "specs")[0]
-    assert missing_rationale(registry) == {"AAA-01-002", "BBB-01-001"}
 
 
 def test_load_with_files_names_each_requirement_file(repo):
@@ -343,7 +331,6 @@ def test_cited_spec_ids_keep_an_unknown_literal_and_expand_only_known_ids():
 @pytest.mark.parametrize(
     ("report", "expected"),
     [
-        ("missing", ["specs/bbb.yaml: BBB-01-001: no rationale"]),
         (
             "history",
             [
@@ -365,15 +352,17 @@ def test_report_lines_filter_by_spec_file(repo, report, expected):
 
 
 def test_report_lines_without_filter_keep_every_file(repo):
-    assert report_lines("missing", repo) == [
-        "specs/aaa.yaml: AAA-01-002: no rationale",
-        "specs/bbb.yaml: BBB-01-001: no rationale",
+    assert report_lines("history", repo) == [
+        "specs/aaa.yaml: AAA-01-003: rationale may narrate history "
+        "(issue reference)",
+        "specs/bbb.yaml: BBB-01-002: rationale may narrate history "
+        "(prior state)",
     ]
 
 
 def test_report_lines_refuse_an_unknown_spec_file(repo):
     with pytest.raises(ValueError, match="not a spec file"):
-        report_lines("missing", repo, ["specs/nope.yaml"])
+        report_lines("history", repo, ["specs/nope.yaml"])
 
 
 def test_report_lines_refuse_an_unknown_report(repo):
@@ -384,11 +373,12 @@ def test_report_lines_refuse_an_unknown_report(repo):
 def test_cli_prints_the_report_and_exits_zero(repo, monkeypatch, capsys):
     (repo / "pyproject.toml").write_text("")
     monkeypatch.chdir(repo)
-    main(["missing", "--file", "aaa.yaml"])
+    main(["history", "--file", "aaa.yaml"])
     out = capsys.readouterr().out.splitlines()
     assert out == [
-        "specs/aaa.yaml: AAA-01-002: no rationale",
-        "[INFO] 1 item(s) in the missing report",
+        "specs/aaa.yaml: AAA-01-003: rationale may narrate history "
+        "(issue reference)",
+        "[INFO] 1 item(s) in the history report",
     ]
 
 
@@ -396,11 +386,11 @@ def test_cli_prints_the_report_and_exits_zero(repo, monkeypatch, capsys):
 def test_cli_file_narrows_to_one_spec_file(repo, monkeypatch, capsys, name):
     (repo / "pyproject.toml").write_text("")
     monkeypatch.chdir(repo)
-    main(["missing", "--file", name])
+    main(["history", "--file", name])
     lines = capsys.readouterr().out.splitlines()
-    assert lines[-1] == "[INFO] 1 item(s) in the missing report"
-    assert any("BBB-01-001" in line for line in lines)
-    assert not any("AAA-01-002" in line for line in lines)
+    assert lines[-1] == "[INFO] 1 item(s) in the history report"
+    assert any("BBB-01-002" in line for line in lines)
+    assert not any("AAA-01-003" in line for line in lines)
 
 
 def test_cli_rejects_an_unknown_spec_file(repo, monkeypatch, capsys):
