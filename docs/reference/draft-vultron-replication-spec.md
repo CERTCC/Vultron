@@ -321,6 +321,7 @@ A participant closes that gap by stating its position.
 - When that position is behind its ledger tail, it MUST send the sender every entry after it, in log order, as `Announce(CaseLedgerEntry)`, under the replay rate bound of §5.4 and the outbox de-duplication; at the tail it MUST send nothing. (SYNC-17-004)
 - A position naming an entry its ledger does not hold, or an index at which its entry has a different hash, MUST be logged at WARNING, with no replication state recorded and nothing sent. (SYNC-17-005)
 - The CASE_MANAGER MUST NOT commit a ledger entry for a `Read(CaseLedgerEntry)` or its answer. (SYNC-17-006)
+- Once an `Announce(VulnerabilityCase)` has seeded a participant's replica of a case it did not hold, the participant SHOULD send the case's CASE_MANAGER one `Read(CaseLedgerEntry)` naming the entry at the position the seeded case is at. The replica stores no entry yet, but the seeded case reflects every entry up to that position, and the statement tells the CASE_MANAGER the replica is ready. (SYNC-17-008)
 
 [I] In this implementation, the `Read` names the case as its `context` and carries the named entry's position as its `ledgerPosition`, with `logIndex` and `entryHash` members.
 The reference participant sends one for each case it holds after every restart, and on a configurable interval that is off by default (§10). (SYNC-17-007)
@@ -645,6 +646,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-17-005 | §5.6 | A position the ledger does not hold MUST be logged and answered with nothing |
 | SYNC-17-006 | §5.6 | A `Read(CaseLedgerEntry)` and its answer MUST NOT be ledgered |
 | SYNC-17-007 | §5.6, §10 | Reference participant SHOULD state positions after restart and on an optional interval |
+| SYNC-17-008 | §5.6 | Participant SHOULD state its position once a case copy seeds its replica |
 | SYNC-18-001 | §9 | Every case activity MUST state its sender's ledger tail as `ledgerPosition` |
 | SYNC-18-002 | §9 | The position MUST be the tail when the activity is built, kept on a resend |
 | SYNC-18-003 | §9 | A receiver MUST refuse a case activity whose `ledgerPosition` is missing or malformed |

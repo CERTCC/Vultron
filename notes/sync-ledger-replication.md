@@ -534,6 +534,10 @@ before a quiet period leaves the replica behind with no signal on either side.
 - **A fresh id per statement**, unlike a rebuildable send (SYNC-09-002): a repeat
   is a new observation the CASE_MANAGER must answer, and a derived id would be
   skipped as a redelivery (`SyncActivityAdapter.send_read_ledger_entry`).
+- **A first seed states the copy's position** (SYNC-17-008): the chain stores no
+  entry yet, so the `Read` names the entry at the seeded case's position
+  (`read_ledger_position_activity`), not a chain tail. A replacing copy sends none;
+  its gap goes by the SYNC-16-007 `Reject`.
 - **The restart round waits for the startup inbox replay** (IE-06-006), so the
   stated tail includes every entry the queue held; a shutdown during that wait
   states nothing (`ledger_position_statements.py`).

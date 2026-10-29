@@ -141,10 +141,11 @@ groups:
       `vultron/core/ports/sync_activity.py` with fire-and-forget methods, one
       per sync activity it builds: `send_reject_log_entry(entry, tail_hash,
       actor_id, to)`, `send_genesis_replay_reject(case_id, copy_tail_hash,
-      actor_id, to)`, `send_read_ledger_entry(entry, actor_id, to)` and
+      actor_id, to)`, `send_read_ledger_entry(case_id, ledger_position,
+      actor_id, to)` and
       `send_announce_log_entry(entry, actor_id, to)`. `send_announce_log_entry`
       reports whether a row was queued (`bool`; `False` when an identical row was
-      already pending, SYNC-15-012); callers MAY ignore the result, and no other
+      already pending, SYNC-15-012); callers need not use the result, and no other
       value crosses the port back into core.
     rationale: >-
       Sync use cases must send ledger activities, but core must not import wire types
