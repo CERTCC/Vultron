@@ -45,7 +45,7 @@ be demonstrated in isolation.
 import logging
 from collections.abc import Callable, Sequence
 
-from vultron.demo.actor_session import ActorSession
+from vultron.demo.actor_session import ActorSession, WireTriggerResult
 from vultron.demo.helpers.polling import (
     find_case_invite_for_actor,
     find_cp_offer_for_case,
@@ -97,6 +97,43 @@ def _suggest_coordinator(
         )
 
 
+def _owner_answers_forwarded_offer(
+    client: DataLayerClient,
+    vendor: as_Actor,
+    case: as_VulnerabilityCase,
+    *,
+    verb: str,
+    answer: Callable[..., WireTriggerResult],
+    then: Callable[[], None],
+) -> None:
+    """Steps 3 and 4: the Case Owner answers the forwarded Offer.
+
+    Gated on the CASE_MANAGER having forwarded ``Offer(CaseParticipant)``
+    (CM-16-004).  The Case Owner then answers it through *answer*, an
+    ``ActorSession`` trigger method (``accept_actor_recommendation`` or
+    ``reject_actor_recommendation``), and *then* runs the path's own check
+    inside the same gate (EDF-06).  The vendor holds both CASE_OWNER and
+    CASE_MANAGER, so the answer is addressed to the vendor.
+    """
+    with demo_gate(
+        "Step 3: CASE_MANAGER forwarded Offer(CaseParticipant) to the Case Owner"
+    ):
+        cp_offer_id = find_cp_offer_for_case(client, case.id_)
+        logger.info("Forwarded Offer(CaseParticipant): %s", cp_offer_id)
+
+        with demo_step(
+            f"Step 4: Case Owner {verb}s the recommendation"
+            f" ({verb}-actor-recommendation)"
+        ):
+            answer(
+                ActorSession(client=client, actor=vendor).quiet(),
+                cp_offer_id=cp_offer_id,
+                case_actor_id=vendor.id_,
+            )
+
+        then()
+
+
 def demo_suggest_actor_accept(
     client: DataLayerClient,
     reporter: as_Actor,
@@ -122,23 +159,7 @@ def demo_suggest_actor_accept(
     case = setup_initialized_case(client, reporter, vendor)
     _suggest_coordinator(client, reporter, case, coordinator)
 
-    cp_offer_id = None
-    with demo_gate(
-        "Step 3: CASE_MANAGER forwarded Offer(CaseParticipant) to the Case Owner"
-    ):
-        cp_offer_id = find_cp_offer_for_case(client, case.id_)
-        logger.info("Forwarded Offer(CaseParticipant): %s", cp_offer_id)
-
-        with demo_step(
-            "Step 4: Case Owner accepts the recommendation"
-            " (accept-actor-recommendation)"
-        ):
-            ActorSession(
-                client=client, actor=vendor
-            ).quiet().accept_actor_recommendation(
-                cp_offer_id=cp_offer_id, case_actor_id=vendor.id_
-            )
-
+    def _coordinator_invited() -> None:
         with demo_check("Step 5: CASE_MANAGER invited the coordinator"):
             # Read through a client bound to the coordinator's own store; the
             # shared client is bound to the vendor.
@@ -148,6 +169,15 @@ def demo_suggest_actor_accept(
                 coordinator.id_,
             )
             logger.info("Coordinator received Invite %s", invite_id)
+
+    _owner_answers_forwarded_offer(
+        client,
+        vendor,
+        case,
+        verb="accept",
+        answer=ActorSession.accept_actor_recommendation,
+        then=_coordinator_invited,
+    )
 
     logger.info(
         "✅ DEMO COMPLETE (accept path): the CASE_MANAGER invited the"
@@ -185,27 +215,20 @@ def demo_suggest_actor_reject(
 
     _suggest_coordinator(client, reporter, case, coordinator)
 
-    cp_offer_id = None
-    with demo_gate(
-        "Step 3: CASE_MANAGER forwarded Offer(CaseParticipant) to the Case Owner"
-    ):
-        cp_offer_id = find_cp_offer_for_case(client, case.id_)
-        logger.info("Forwarded Offer(CaseParticipant): %s", cp_offer_id)
-
-        with demo_step(
-            "Step 4: Case Owner rejects the recommendation"
-            " (reject-actor-recommendation)"
-        ):
-            ActorSession(
-                client=client, actor=vendor
-            ).quiet().reject_actor_recommendation(
-                cp_offer_id=cp_offer_id, case_actor_id=vendor.id_
-            )
-
+    def _reject_ledgered() -> None:
         with demo_check("Step 5: CASE_MANAGER ledgered the Reject"):
             wait_for_semantic_type_in_ledger(
                 client, case.id_, "reject_offer_case_participant"
             )
+
+    _owner_answers_forwarded_offer(
+        client,
+        vendor,
+        case,
+        verb="reject",
+        answer=ActorSession.reject_actor_recommendation,
+        then=_reject_ledgered,
+    )
 
     with demo_step("Step 6: Verify coordinator not added as participant"):
         with demo_check("Participant count unchanged after reject"):

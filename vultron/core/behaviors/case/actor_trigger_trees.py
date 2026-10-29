@@ -56,7 +56,6 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
 from vultron.core.behaviors.case.nodes.suggest_actor.accept_offer import (
     EmitAcceptCaseParticipantOfferNode,
     EmitRejectCaseParticipantOfferNode,
-    _EmitCaseParticipantOfferAnswerNode,
 )
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.models.ledger_position import LedgerPosition
@@ -188,12 +187,11 @@ def full_case_invite_reply_trigger_bt(
 
 def _actor_recommendation_answer_trigger_bt(
     name: str,
-    emit_node: type[_EmitCaseParticipantOfferAnswerNode],
+    emit_node: py_trees.behaviour.Behaviour,
     cp_offer_id: str,
     case_actor_id: str,
-    captured: dict | None,
 ) -> py_trees.behaviour.Behaviour:
-    """Return a Sequence *name* holding one *emit_node* answering *cp_offer_id*.
+    """Return a Sequence *name* holding *emit_node*, which answers *cp_offer_id*.
 
     Shared by the Case Owner's Accept (CM-16-006) and Reject (CM-16-007) of
     the ``Offer(CaseParticipant)`` the CaseActor forwarded (ADR-0026).
@@ -201,13 +199,7 @@ def _actor_recommendation_answer_trigger_bt(
     root = py_trees.composites.Sequence(
         name=name,
         memory=False,
-        children=[
-            emit_node(
-                cp_offer_id=cp_offer_id,
-                case_actor_id=case_actor_id,
-                captured=captured,
-            ),
-        ],
+        children=[emit_node],
     )
     logger.debug(
         "Created %s for offer=%s case_actor=%s",
@@ -238,10 +230,13 @@ def accept_actor_recommendation_trigger_bt(
     """
     return _actor_recommendation_answer_trigger_bt(
         "AcceptActorRecommendationTriggerBT",
-        EmitAcceptCaseParticipantOfferNode,
+        EmitAcceptCaseParticipantOfferNode(
+            cp_offer_id=cp_offer_id,
+            case_actor_id=case_actor_id,
+            captured=captured,
+        ),
         cp_offer_id,
         case_actor_id,
-        captured,
     )
 
 
@@ -266,10 +261,13 @@ def reject_actor_recommendation_trigger_bt(
     """
     return _actor_recommendation_answer_trigger_bt(
         "RejectActorRecommendationTriggerBT",
-        EmitRejectCaseParticipantOfferNode,
+        EmitRejectCaseParticipantOfferNode(
+            cp_offer_id=cp_offer_id,
+            case_actor_id=case_actor_id,
+            captured=captured,
+        ),
         cp_offer_id,
         case_actor_id,
-        captured,
     )
 
 
