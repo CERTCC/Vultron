@@ -1,7 +1,7 @@
 """Tests for vultron.metadata.notes schema and loader.
 
 Validation test requirement: specs/notes-frontmatter.yaml NF-04-001;
-kind/tracks: NF-01-009 to NF-01-011; report: NF-09.
+kind/tracks: NF-01-009 to NF-01-015; report: NF-09.
 """
 
 import subprocess
@@ -91,6 +91,30 @@ class TestNotesFrontmatterSchema:
                         field: [],
                     }
                 )
+
+    def test_empty_superseded_by_rejected(self):
+        """``superseded_by`` names a file, so an empty string fails (NF-01-012)."""
+        with pytest.raises(ValidationError, match="superseded_by"):
+            NotesFrontmatter.model_validate(
+                {
+                    "title": "Old Note",
+                    "status": "superseded",
+                    "kind": "guidance",
+                    "superseded_by": "",
+                }
+            )
+
+    def test_empty_package_name_rejected(self):
+        """Each ``relevant_packages`` entry is a non-empty string (NF-01-013)."""
+        with pytest.raises(ValidationError, match="relevant_packages"):
+            NotesFrontmatter.model_validate(
+                {
+                    "title": "A Note",
+                    "status": "active",
+                    "kind": "guidance",
+                    "relevant_packages": ["vultron.core", ""],
+                }
+            )
 
     def test_absent_optional_list_fields_ok(self):
         nf = NotesFrontmatter.model_validate(

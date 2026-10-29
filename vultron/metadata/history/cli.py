@@ -296,8 +296,8 @@ def append_history_entry(
             ``<entry-id>`` alone is not unique. When the plain
             ``<entry-id>.md`` path is taken and a discriminator is supplied,
             the entry is written to ``<entry-id>-<discriminator>.md``
-            (HM-01-002). Write-once is preserved: an existing file is never
-            overwritten.
+            (HM-01-009). Write-once is preserved: an existing file is never
+            overwritten (HM-01-010).
 
     Returns:
         Path to the written history entry.

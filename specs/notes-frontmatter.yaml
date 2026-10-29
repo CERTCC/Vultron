@@ -51,13 +51,28 @@ groups:
     kind: process
     verification_debt: '#2571'
     statement: >-
-      When `status` is `superseded`, a `superseded_by` field MUST be present and MUST contain
-      a non-empty string identifying the replacement file path (e.g., `notes/new-topic.md`
-      or `specs/new-spec.md`).
+      When `status` is `superseded`, the frontmatter MUST include a `superseded_by`
+      field.
     rationale: >-
       A superseded note is useful only if it points to the file that replaced it.
       Without that pointer, a reader who opens the note cannot find the current
       guidance.
+
+  - id: NF-01-012
+    priority: MUST
+    kind: process
+    statement: >-
+      A `superseded_by` value MUST be a non-empty string that names the replacement file
+      path, such as `notes/new-topic.md` or `specs/new-spec.md`.
+    rationale: >-
+      The pointer is useful only if it names a file. An empty value passes a presence
+      check, but it still gives the reader no way to find the current guidance.
+    verification: >-
+      `test_empty_superseded_by_rejected` in `test/metadata/test_notes_frontmatter.py`
+      confirms that an empty `superseded_by` value fails validation.
+    relationships:
+    - rel_type: extends
+      spec_id: NF-01-004
   - id: NF-01-005
     priority: MUST
     kind: process
@@ -94,11 +109,30 @@ groups:
     priority: MUST
     kind: process
     verification_debt: '#2571'
-    statement: 'The optional `relevant_packages` field, when present, MUST be a non-empty list of non-empty strings naming packages relevant to the note''s topic. Each entry MUST be either a dot-separated Python package name (e.g., `vultron.core`) or a top-level package directory name (e.g., `vultron`).'
+    statement: >-
+      Each `relevant_packages` entry MUST be either a dot-separated Python package name,
+      such as `vultron.core`, or a top-level package directory name, such as `vultron`.
+    rationale: >-
+      Entries are package names only, so a tool can compare them with import paths
+      mechanically.
+
+  - id: NF-01-013
+    priority: MUST
+    kind: process
+    statement: >-
+      The optional `relevant_packages` field, when present, MUST be a non-empty list of
+      non-empty strings that name packages relevant to the topic of the note.
     rationale: >-
       Package lists connect a note to the code that it governs. Thus an agent that edits
-      a package can find the notes for that package. Entries are package names only, so
-      a tool can compare them with import paths mechanically.
+      a package can find the notes for that package. An empty list or an empty entry
+      connects the note to no code.
+    verification: >-
+      `test_empty_list_fields_rejected` and `test_empty_package_name_rejected` in
+      `test/metadata/test_notes_frontmatter.py` confirm that an empty list and an empty
+      entry each fail validation.
+    relationships:
+    - rel_type: extends
+      spec_id: NF-01-008
   - id: NF-01-009
     priority: MUST
     kind: process
@@ -119,35 +153,70 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      A note whose `kind` is `plan` MUST include a `tracks` field: a non-empty list of GitHub
-      issue references in `#N` form naming the issues the plan informs and their parent
-      epic. A note of any other `kind` MUST NOT include `tracks`.
+      A note whose `kind` is `plan` MUST include a `tracks` field. Its value is a
+      non-empty list of GitHub issue references in `#N` form, naming the issues the plan
+      informs and their parent epic.
     rationale: >-
       Tooling uses the tracked issues to find when the work of a plan is done
       (NF-09-001). The note also tracks the parent epic, not only the leaf issues. Thus
       the note stays active while related work continues. For example, a Concern closed
       by a split into Tasks, or a leaf moved to a different epic, does not close all
-      tracked issues. Only plans have work to track, so `tracks` on a different kind
-      gives a false signal.
+      tracked issues.
     verification: >-
-      Unit tests assert that a `plan` note without `tracks`, a non-`plan` note with `tracks`,
-      an empty list, and a malformed reference are each rejected.
+      `test_plan_requires_tracks`, `test_empty_tracks_rejected` and
+      `test_malformed_issue_ref_rejected` in `test/metadata/test_notes_frontmatter.py`
+      confirm that a `plan` note without `tracks`, an empty list, and a malformed
+      reference are each rejected.
+
+  - id: NF-01-014
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      A note whose `kind` is not `plan` MUST NOT include a `tracks` field.
+    rationale: >-
+      Only plans have work to track. A `tracks` field on a different kind gives tooling
+      a false signal of open work.
+    verification: >-
+      `test_tracks_forbidden_off_plan` and `test_bare_tracks_key_forbidden_off_plan` in
+      `test/metadata/test_notes_frontmatter.py` confirm that a non-`plan` note with
+      `tracks`, or with a bare `tracks:` key, is rejected.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: NF-01-010
   - id: NF-01-011
     priority: MUST
     kind: process
     statement: >-
-      A note whose `kind` is `generated` MUST begin its body, immediately after the
-      frontmatter, with an HTML comment whose text starts with the word `GENERATED` and
-      names the command which writes the file. The loader MUST reject a `generated` note without it, naming
-      the file per NF-03-006.
+      A note whose `kind` is `generated` MUST begin its body, right after the
+      frontmatter, with an HTML comment. The comment text starts with the word
+      `GENERATED` and names the command that writes the file.
     rationale: >-
       The tool of a generated note writes over the file, so the next run removes a hand
       edit. The marker tells an editor not to edit the file by hand, and it names the
-      command to run. The loader check prevents a generated note from being processed as
-      a hand-written note.
+      command to run.
     verification: >-
-      Unit tests load a `generated` note with and without the marker; the coverage-matrix
-      generator's rendered output validates as a `generated` note.
+      `test_generated_with_marker_loads` and
+      `test_marker_must_be_the_word_then_a_generator` in
+      `test/metadata/test_notes_frontmatter.py` confirm which markers the loader
+      accepts. `test_coverage_matrix_render_is_a_valid_generated_note` in the same file
+      confirms that the coverage-matrix generator's output carries the marker.
+
+  - id: NF-01-015
+    priority: MUST
+    kind: project
+    statement: >-
+      The notes loader MUST reject a `generated` note that lacks the NF-01-011 marker,
+      with an error that names the file per NF-03-006.
+    rationale: >-
+      The check stops the loader from treating a generated note as a hand-written note.
+      An error that names the file tells the editor which note to fix.
+    verification: >-
+      `test_generated_without_marker_names_the_file` in
+      `test/metadata/test_notes_frontmatter.py` confirms that a `generated` note without
+      the marker raises an error that names the file.
+    relationships:
+    - rel_type: implements
+      spec_id: NF-01-011
 - id: NF-02
   title: Pydantic Schema Module
   specs:
@@ -253,27 +322,57 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The `ValueError` required by NF-03-003 MUST name the offending notes file per MS-17-001,
-      and the loader MUST obtain that attribution from the shared helper named by MS-17-003.
-      This applies to the frontmatter parse as well as the `NotesFrontmatter` validation — a
-      malformed frontmatter block MUST NOT surface as a raw parser traceback.
+      The `ValueError` that NF-03-003 requires MUST name the notes file at fault, per
+      MS-17-001. This applies to a frontmatter parse failure and to a
+      `NotesFrontmatter` validation failure.
     rationale: >-
       The loader reads all files in `notes/`, so an error that names only a field path
-      does not identify the incorrect file. A frontmatter block that the parser cannot
-      read causes a YAML error, which is not a `ValueError`. Without this rule, that
-      error does not obey the contract of NF-03-003, and the pre-commit hook shows a
-      traceback.
+      does not identify the incorrect file.
     verification: >-
       Unit tests assert that a notes file with an unparseable frontmatter block and one with an
       invalid `status` value each raise a `ValueError` naming that file.
     relationships:
     - rel_type: implements
       spec_id: MS-17-001
-    - rel_type: implements
-      spec_id: MS-17-003
     - rel_type: refines
       spec_id: NF-03-003
       note: constrains the error NF-03-003 requires to name its file
+
+  - id: NF-03-007
+    priority: MUST
+    kind: project
+    statement: >-
+      The notes loader MUST obtain the file attribution of its errors from the shared
+      helper that MS-17-003 names.
+    rationale: >-
+      One helper formats the errors of every metadata loader in the same way. A private
+      copy in the notes loader could drift from that format.
+    verification: >-
+      `test_no_private_attribution_wrapper_outside_the_helper` in
+      `test/architecture/test_metadata_loader_attribution.py` confirms that no metadata
+      module outside the helper, the notes loader included, re-raises a caught error as
+      a path-prefixed `ValueError`.
+    relationships:
+    - rel_type: implements
+      spec_id: MS-17-003
+
+  - id: NF-03-008
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The notes loader MUST NOT let a malformed frontmatter block surface as a raw
+      parser traceback.
+    rationale: >-
+      A frontmatter block that the parser cannot read causes a YAML error, which is not
+      a `ValueError`. Without this rule, that error does not obey the contract of
+      NF-03-003, and the pre-commit hook shows a traceback.
+    verification: >-
+      `test_parse_fault_names_the_file` in `test/metadata/test_file_loading.py` confirms
+      that an unparseable frontmatter block in a notes file raises a `ValueError` that
+      names the file.
+    relationships:
+    - rel_type: refines
+      spec_id: NF-03-003
 - id: NF-04
   title: Validation Enforcement
   specs:
@@ -377,16 +476,26 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      A note MUST exist only to inform work that has not been done yet. Once that work lands,
-      the note's content MUST either be archived (PD-03-004) or, if it remains useful beyond
-      that stage, be moved to `docs/` (reference material) or into a `guidance` note
-      (lasting rules). `notes/` MUST NOT be used as a narrative history of the project; git
-      and `plan/history/` hold the history.
+      A note MUST exist only to inform work that has not been done yet.
     rationale: >-
-      A note that records history does not tell the reader what to do next. It also
-      becomes longer with each change that it records. A note stays only until its work
-      lands, so `notes/` stays small enough to read. Git and `plan/history/` already
-      keep the history.
+      A note that records history does not tell the reader what to do next. A note stays
+      only until its work lands, so `notes/` stays small enough to read.
+    verification: >-
+      Checked by review: the `learn` skill's notes staleness review and each notes sweep
+      apply it to every note, and PR review applies it to changed notes against the
+      writing guide.
+
+  - id: NF-08-005
+    priority: MUST
+    kind: process
+    statement: >-
+      Once the work that a note informs lands, a contributor MUST archive the note's
+      content (PD-03-004) or, if it stays useful, move it. Reference material moves to
+      `docs/`, and lasting rules move into a `guidance` note.
+    rationale: >-
+      Content whose work has landed no longer informs work to do. Archiving it, or
+      moving it to its lasting place, keeps `notes/` to the notes that still inform
+      work.
     verification: >-
       Checked by review: the `learn` skill's notes staleness review and each notes sweep
       apply it to every note, and PR review applies it to changed notes against the
@@ -394,38 +503,64 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PD-03-004
-  - id: NF-08-002
-    priority: MUST
+
+  - id: NF-08-006
+    priority: MUST_NOT
     kind: process
     statement: >-
-      The `kind` values MUST be applied as follows. `guidance`: a rule for changing the
-      project without repeating a known mistake, or a procedure for a recurring task, that
-      would still be true and still change how someone works if every open issue were closed.
-      `plan`: a design or decision for work the code does not do yet, too large or too
-      cross-cutting for one issue body. `generated`: a file a tool writes. Material that is
-      none of these — reference material, or rationale for delivered work — MUST NOT be kept
-      in `notes/`; it belongs in `docs/` or the archive.
+      A contributor MUST NOT use `notes/` as a narrative history of the project. Git and
+      `plan/history/` hold the history.
     rationale: >-
-      Each kind has a different lifecycle. Thus a writer must be able to apply a test to
-      find the kind of a note. Reference material and the rationale for delivered work
-      have a permanent location in `docs/` or the archive. If they stay in `notes/`,
-      each note takes longer to read.
+      A history note becomes longer with each change that it records, and it does not
+      tell the reader what to do next. Git and `plan/history/` already keep the history.
     verification: >-
       Checked by review: the `learn` skill's notes staleness review and each notes sweep
       apply it to every note, and PR review applies it to changed notes against the
       writing guide.
+  - id: NF-08-002
+    priority: MUST
+    kind: process
+    statement: >-
+      A contributor MUST apply the `kind` values by these tests. A `guidance` note holds
+      a rule for changing the project without repeating a known mistake, or a procedure
+      for a recurring task. That rule or procedure would still be true, and still change
+      how someone works, if every open issue were closed. A `plan` note holds a design
+      or decision for work the code does not do yet. That design is too large or too
+      cross-cutting for one issue body. A `generated` note is a file that a tool writes.
+    rationale: >-
+      Each kind has a different lifecycle. Thus a writer must be able to apply a test to
+      find the kind of a note.
+    verification: >-
+      Checked by review: the `learn` skill's notes staleness review and each notes sweep
+      apply it to every note, and PR review applies it to changed notes against the
+      writing guide.
+
+  - id: NF-08-007
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      A contributor MUST NOT keep material that fits none of the NF-08-002 kinds in
+      `notes/`, such as reference material or the rationale for delivered work. That
+      material belongs in `docs/` or the archive.
+    rationale: >-
+      Reference material and the rationale for delivered work have a permanent location
+      in `docs/` or the archive. If they stay in `notes/`, each note takes longer to
+      read.
+    verification: >-
+      Checked by review: the `learn` skill's notes staleness review and each notes sweep
+      apply it to every note, and PR review applies it to changed notes against the
+      writing guide.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: NF-08-002
   - id: NF-08-003
     priority: MUST
     kind: process
     statement: >-
-      Each note MUST have exactly one `kind`. A plan item MUST NOT be added to a `guidance`
-      note; it goes in a `plan` note (a new one if needed) or in the issue itself. When a plan
-      is delivered, its lasting lessons MUST be promoted into the matching `guidance` note,
-      or `docs/`, before the plan note is archived.
+      Each note MUST have exactly one `kind`.
     rationale: >-
-      A plan item in a guidance note gives a permanent note a part that expires. Nothing
-      removes that part when the plan lands. If the lasting lessons are promoted before
-      the plan note is archived, the project keeps them.
+      Each kind has a different lifecycle (NF-08-002). A note with two kinds has parts
+      that expire at different times, and nothing removes the part that expires first.
     verification: >-
       Checked by review: the `learn` skill's notes staleness review and each notes sweep
       apply it to every note, and PR review applies it to changed notes against the
@@ -433,26 +568,76 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: NF-08-002
+
+  - id: NF-08-008
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      A contributor MUST NOT add a plan item to a `guidance` note. The item goes in a
+      `plan` note, a new one if needed, or in the issue itself.
+    rationale: >-
+      A plan item in a guidance note gives a permanent note a part that expires. Nothing
+      removes that part when the plan lands.
+    verification: >-
+      Checked by review: the `learn` skill's notes staleness review and each notes sweep
+      apply it to every note, and PR review applies it to changed notes against the
+      writing guide.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: NF-08-002
+
+  - id: NF-08-009
+    priority: MUST
+    kind: process
+    statement: >-
+      When a plan is delivered, a contributor MUST promote its lasting lessons before
+      the plan note is archived. The lessons go into the matching `guidance` note or
+      into `docs/`.
+    rationale: >-
+      Archiving a plan note removes it from `notes/`. If the lasting lessons are
+      promoted first, the project keeps them.
+    verification: >-
+      Checked by review: the `learn` skill's notes staleness review and each notes sweep
+      apply it to every note, and PR review applies it to changed notes against the
+      writing guide.
+    relationships:
+    - rel_type: refines
+      spec_id: NF-08-005
   - id: NF-08-004
     priority: MUST
     kind: process
     statement: >-
-      Each item in a `guidance` note MUST be stated as the rule, the reason for it, and at
-      most one citation (issue, ADR, or spec ID). It MUST NOT carry provenance chains,
-      HTML `Source:` comments, accounts of how a defect hid or was found, change-history
-      lists, migration-complete notices, reconstructions of removed features, copies of live
-      code, `file.py:line` tables, or inventories a test already enforces. The writing guide
-      at `.agents/skills/shared/notes-writing-guide.md` holds the full pattern list.
+      A contributor MUST state each item in a `guidance` note as the rule and its
+      reason, with at most one citation. A citation is an issue, ADR or spec ID.
     rationale: >-
       A reader of a guidance note needs the rule and the reason. The reader does not
       need the story of how somebody found the rule, and git already keeps that story.
-      The listed patterns make the note longer, but they do not tell the reader what to
+    verification: >-
+      Checked by review: the `learn` skill's notes staleness review and each notes sweep
+      apply it to every note, and PR review applies it to changed notes against the
+      writing guide.
+
+  - id: NF-08-010
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      An item in a `guidance` note MUST NOT carry any of the patterns that follow. They
+      are provenance chains, HTML `Source:` comments, accounts of how a defect hid or
+      was found, change-history lists and migration-complete notices. They are also
+      reconstructions of removed features, copies of live code, `file.py:line` tables
+      and inventories that a test already enforces. The writing guide at
+      `.agents/skills/shared/notes-writing-guide.md` holds the full pattern list.
+    rationale: >-
+      The listed patterns make a note longer, but they do not tell the reader what to
       do. Copies of code or test-enforced inventories become incorrect when the source
       changes.
     verification: >-
       Checked by review: the `learn` skill's notes staleness review and each notes sweep
       apply it to every note, and PR review applies it to changed notes against the
       writing guide.
+    relationships:
+    - rel_type: extends
+      spec_id: NF-08-004
 - id: NF-09
   title: Plan Retirement Report
   specs:

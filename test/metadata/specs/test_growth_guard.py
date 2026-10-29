@@ -163,6 +163,7 @@ def test_coverage_unchanged_adds_nothing(coverage_repo):
     assert check.head_total == 1
 
 
+@pytest.mark.spec("SR-05-009")
 @pytest.mark.spec("SR-05-005")
 def test_coverage_new_protocol_spec_without_marker_is_added(coverage_repo):
     _write_specs(
@@ -175,6 +176,7 @@ def test_coverage_new_protocol_spec_without_marker_is_added(coverage_repo):
     assert _coverage(coverage_repo).added == {"TST-01-004"}
 
 
+@pytest.mark.spec("SR-05-009")
 @pytest.mark.spec("SR-05-005")
 def test_coverage_removing_last_marker_is_added(coverage_repo):
     _write_markers(coverage_repo)
@@ -266,6 +268,7 @@ def test_coverage_retired_spec_is_not_an_addition(coverage_repo):
     assert _coverage(coverage_repo).added == frozenset()
 
 
+@pytest.mark.spec("SR-05-010")
 @pytest.mark.spec("SR-05-005")
 def test_coverage_committed_change_is_compared_from_merge_base(coverage_repo):
     """A committed branch change is caught, not only an uncommitted one."""
@@ -398,7 +401,7 @@ def test_suppression_on_new_spec_is_added(suppression_repo):
     assert _suppressions(suppression_repo).added == {"TST-01-004"}
 
 
-@pytest.mark.spec("MS-12-007")
+@pytest.mark.spec("MS-12-016")
 def test_suppression_removed_is_not_an_addition(suppression_repo):
     _write_specs(
         suppression_repo,
@@ -422,7 +425,7 @@ def test_suppression_relabel_in_with_suppression_is_added(suppression_repo):
     assert _suppressions(suppression_repo).added == {"TST-01-003"}
 
 
-@pytest.mark.spec("MS-12-007")
+@pytest.mark.spec("MS-12-016")
 def test_suppression_relabel_out_is_not_an_addition(suppression_repo):
     """``relabel_spec_kinds.py`` strips the suppression with the old kind."""
     _write_specs(

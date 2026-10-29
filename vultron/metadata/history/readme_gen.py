@@ -129,7 +129,7 @@ def format_month_index(month_dir: Path) -> str:
     """
     entries = _collect_entries(month_dir)
 
-    # Sort by timestamp descending (HM-06-006).
+    # Sort by timestamp descending (HM-06-011).
     entries.sort(key=lambda e: e.timestamp, reverse=True)
 
     label = _month_label(month_dir.name)

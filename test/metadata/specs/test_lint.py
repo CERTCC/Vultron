@@ -320,6 +320,7 @@ def _summary_lines(out):
 
 
 @pytest.mark.spec("MS-10-005")
+@pytest.mark.spec("MS-10-019")
 def test_lint_one_summary_line_per_kind_computed_from_markers(
     tmp_path, capsys
 ):
@@ -338,7 +339,7 @@ def test_lint_one_summary_line_per_kind_computed_from_markers(
     assert "(#2: 1)" in process
 
 
-@pytest.mark.spec("MS-10-005")
+@pytest.mark.spec("MS-10-020")
 def test_lint_default_output_has_no_per_item_unverified_lines(
     tmp_path, capsys
 ):
@@ -351,7 +352,7 @@ def test_lint_default_output_has_no_per_item_unverified_lines(
     assert "TST-01-004" not in out
 
 
-@pytest.mark.spec("MS-10-005")
+@pytest.mark.spec("MS-10-020")
 def test_lint_list_unverified_prints_ids_under_their_kind(tmp_path, capsys):
     """The opt-in flag lists marked IDs; verified and SHOULD-tier ones stay out."""
     write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
@@ -405,6 +406,7 @@ def test_lint_should_tier_without_verification_is_clean(
 
 
 @pytest.mark.spec("MS-10-006")
+@pytest.mark.spec("MS-10-022")
 @pytest.mark.parametrize("priority", ["MUST", "MUST_NOT"])
 def test_lint_unmarked_unverified_must_tier_is_hard_error(
     tmp_path, capsys, priority
@@ -422,7 +424,7 @@ def test_lint_unmarked_unverified_must_tier_is_hard_error(
     assert "MS-10-003" in captured.err
 
 
-@pytest.mark.spec("MS-10-007")
+@pytest.mark.spec("MS-10-026")
 @pytest.mark.parametrize("priority", ["MUST", "MUST_NOT"])
 def test_lint_marker_on_a_kind_with_no_owner_entry_is_hard_error(
     tmp_path, capsys, priority
@@ -442,7 +444,7 @@ def test_lint_marker_on_a_kind_with_no_owner_entry_is_hard_error(
     assert "MS-10-007" in captured.err
 
 
-@pytest.mark.spec("MS-10-007")
+@pytest.mark.spec("MS-10-026")
 def test_lint_verified_must_tier_passes_without_owner_entry(tmp_path, capsys):
     """Once a kind is finished, verified MUST-tier items are simply clean."""
     write_yaml(
@@ -497,7 +499,7 @@ def test_lint_retired_must_without_verification_suppression_fails_to_load(
     assert "lint_suppress" in err
 
 
-@pytest.mark.spec("MS-10-006")
+@pytest.mark.spec("MS-10-024")
 def test_lint_check_debt_owners_fails_on_a_closed_owner(
     tmp_path, capsys, monkeypatch
 ):
@@ -516,7 +518,7 @@ def test_lint_check_debt_owners_fails_on_a_closed_owner(
     assert "#1" not in err
 
 
-@pytest.mark.spec("MS-10-006")
+@pytest.mark.spec("MS-10-024")
 @pytest.mark.spec("ARCH-18-004")
 def test_lint_check_debt_owners_ignores_unrelated_lint_errors(
     tmp_path, capsys, monkeypatch
@@ -541,7 +543,7 @@ def test_lint_check_debt_owners_ignores_unrelated_lint_errors(
     assert "MS-14-001" not in capsys.readouterr().err
 
 
-@pytest.mark.spec("MS-10-005")
+@pytest.mark.spec("MS-10-020")
 def test_main_list_unverified_flag(tmp_path, capsys, monkeypatch):
     """`spec-lint <dir> --list-unverified` reaches lint() as the opt-in."""
     write_yaml(tmp_path, _verification_corpus(_MIXED_ITEMS))
@@ -557,7 +559,7 @@ def test_main_list_unverified_flag(tmp_path, capsys, monkeypatch):
     assert "TST-01-004" in out
 
 
-@pytest.mark.spec("MS-10-005")
+@pytest.mark.spec("MS-10-020")
 def test_main_default_does_not_list_ids(tmp_path, capsys, monkeypatch):
     """Without the flag, `spec-lint <dir>` prints the summary only (SR-06-002
     runs it this way from the pre-commit hook)."""
@@ -572,7 +574,7 @@ def test_main_default_does_not_list_ids(tmp_path, capsys, monkeypatch):
     assert "TST-01-001" not in out
 
 
-@pytest.mark.spec("MS-10-006")
+@pytest.mark.spec("MS-10-023")
 def test_lint_check_closing_pr_fails_a_pr_closing_an_owner_in_use(
     tmp_path, capsys, monkeypatch
 ):
@@ -1893,6 +1895,7 @@ def test_protocol_must_with_stories_passes(tmp_path, capsys):
     assert "SR-11-003" not in captured.err
 
 
+@pytest.mark.spec("SR-11-007")
 def test_protocol_must_suppress_missing_story_reference(tmp_path, capsys):
     """lint_suppress: [missing_story_reference] silences the SR-11-003 hard error."""
     data = _minimal_spec_no_stories(priority="MUST")
@@ -1991,6 +1994,7 @@ def test_protocol_should_with_stories_no_story_warn(tmp_path, capsys):
     )
 
 
+@pytest.mark.spec("SR-11-008")
 def test_protocol_should_suppress_advisory_story_warn(tmp_path, capsys):
     """lint_suppress: [missing_story_reference] silences the SHOULD advisory."""
     data = _minimal_spec_no_stories(priority="SHOULD")
@@ -2055,7 +2059,7 @@ def test_protocol_no_stories_code_reference_is_hard_error(tmp_path, capsys):
     assert "protocol_kind_with_code_reference" in lines[0]
 
 
-@pytest.mark.spec("MS-12-006")
+@pytest.mark.spec("MS-12-015")
 def test_protocol_code_reference_message_advises_reword_or_split(
     tmp_path, capsys
 ):
@@ -2115,6 +2119,7 @@ def test_protocol_with_stories_and_code_reference_passes(tmp_path, capsys):
     assert "MS-12-006" not in captured.err
 
 
+@pytest.mark.spec("MS-12-014")
 def test_protocol_code_reference_suppressed(tmp_path, capsys):
     """lint_suppress: [protocol_kind_with_code_reference] silences MS-12-006."""
     spec_dir, data = _protocol_spec_naming_code(tmp_path)
@@ -2198,7 +2203,7 @@ def _foundation_lines(captured_err: str) -> list[str]:
     return [line for line in captured_err.splitlines() if "MS-12-009" in line]
 
 
-@pytest.mark.spec("MS-12-009")
+@pytest.mark.spec("MS-12-019")
 def test_foundation_without_standard_tag_is_hard_error(tmp_path, capsys):
     """kind=foundation whose tags name no standard → exit 1, naming the tags."""
     write_yaml(tmp_path, _minimal_spec_no_stories(kind="foundation"))
@@ -2209,7 +2214,7 @@ def test_foundation_without_standard_tag_is_hard_error(tmp_path, capsys):
     assert "activitypub, as2, http" in line
 
 
-@pytest.mark.spec("MS-12-009")
+@pytest.mark.spec("MS-12-018")
 @pytest.mark.parametrize("tag", ["as2", "activitypub", "http"])
 def test_foundation_with_standard_tag_passes(tmp_path, capsys, tag):
     """Any one source-standard tag satisfies MS-12-009; no story is needed."""
@@ -2222,7 +2227,7 @@ def test_foundation_with_standard_tag_passes(tmp_path, capsys, tag):
     assert not _foundation_lines(captured.err)
 
 
-@pytest.mark.spec("MS-12-009")
+@pytest.mark.spec("MS-12-018")
 def test_foundation_standard_tag_inherited_from_file_passes(tmp_path, capsys):
     """A file-level standard tag counts: the check reads effective tags."""
     data = _minimal_spec_no_stories(kind="foundation")
@@ -2233,7 +2238,7 @@ def test_foundation_standard_tag_inherited_from_file_passes(tmp_path, capsys):
     assert not _foundation_lines(capsys.readouterr().err)
 
 
-@pytest.mark.spec("MS-12-009")
+@pytest.mark.spec("MS-12-018")
 def test_foundation_spec_tags_replace_file_standard_tag(tmp_path, capsys):
     """Spec-level tags replace file-level ones, so a file's standard tag does
     not rescue a foundation spec whose own tags name no standard."""
@@ -2264,7 +2269,7 @@ def _write_dated_adr(adr_dir, num, status, updated, override=""):
     )
 
 
-@pytest.mark.spec("MS-14-007")
+@pytest.mark.spec("MS-14-021")
 def test_lint_adr_status_disagreeing_with_epoch_is_not_a_lint_failure(
     tmp_path, capsys
 ):

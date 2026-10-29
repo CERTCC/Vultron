@@ -131,6 +131,7 @@ class TestGenerateIndex:
         )
 
     @pytest.mark.spec("MS-14-011")
+    @pytest.mark.spec("MS-14-027")
     def test_list_valued_forward_pointers_are_joined(self, tmp_path):
         adr_dir = _scaffold(tmp_path)
         _write_adr(
@@ -212,6 +213,8 @@ _UNNAVVED = "not_in_nav: |\n  adr/*.md\n  adr/archived/*.md\n"
 
 
 @pytest.mark.spec("MS-14-006")
+@pytest.mark.spec("MS-14-017")
+@pytest.mark.spec("MS-14-018")
 @pytest.mark.spec("DF-11-003")
 class TestNavPlacementFaults:
     """ADRs are working record: out of the nav, matched by ``not_in_nav``."""

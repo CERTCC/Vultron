@@ -72,7 +72,7 @@ class NotesFrontmatter(BaseModel):
     )
     @classmethod
     def non_empty_list_if_present(cls, v: object) -> object:
-        """Reject present-and-empty list fields (NF-01-006 to -008, NF-01-010)."""
+        """Reject present-and-empty list fields (NF-01-006, -007, -010, -013)."""
         if v is not None and isinstance(v, list) and len(v) == 0:
             raise ValueError("list field must be non-empty if present")
         return v
@@ -88,7 +88,7 @@ class NotesFrontmatter(BaseModel):
 
     @model_validator(mode="after")
     def tracks_iff_plan(self) -> NotesFrontmatter:
-        """Require ``tracks`` on ``plan`` notes, forbid it elsewhere (NF-01-010)."""
+        """Require ``tracks`` on ``plan`` notes, forbid it elsewhere (NF-01-010, NF-01-014)."""
         if self.kind == NoteKind.PLAN and not self.tracks:
             raise ValueError("'tracks' is required when kind is 'plan'")
         # A bare ``tracks:`` key parses to None but is still present.
