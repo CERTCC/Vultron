@@ -239,6 +239,12 @@ def _held(object_parameter: str) -> NoIntroduction:
     return NoIntroduction(_HELD, object_parameter)
 
 
+_NAMES_CASE = NoIntroduction(
+    "names the case its receiver holds by typed reference (AKM-03-004,"
+    " ADR-0165)",
+    "case",
+)
+
 _ACTOR_REF = NoIntroduction(
     "names an actor, which exists apart from the case and is addressed by"
     " its URI (AKM-05-001)"
@@ -289,12 +295,12 @@ INTRODUCES_NOTHING: dict[str, NoIntroduction] = {
     "update_case_activity": _held("case"),
     "update_participant_activity": _held("participant"),
     "update_embargo_consent_activity": _held("row"),
-    "rm_engage_case_activity": _held("case"),
-    "rm_defer_case_activity": _held("case"),
-    "rm_close_case_activity": _held("case"),
-    "offer_case_ownership_transfer_activity": _held("case"),
-    # The inner Offer it nests names the held case (ADR-0148).
-    "propose_case_ownership_transfer_activity": _held("case"),
+    "rm_engage_case_activity": _NAMES_CASE,
+    "rm_defer_case_activity": _NAMES_CASE,
+    "rm_close_case_activity": _NAMES_CASE,
+    "offer_case_ownership_transfer_activity": _NAMES_CASE,
+    # The inner Offer it nests names the held case (ADR-0148, ADR-0165).
+    "propose_case_ownership_transfer_activity": _NAMES_CASE,
     "remove_participant_from_case_activity": _held("participant"),
     "remove_embargo_from_case_activity": _held("embargo"),
     "withdraw_from_embargo_activity": _held("embargo"),
@@ -491,6 +497,53 @@ def test_an_answering_or_acting_factory_takes_its_object_typed(factory):
         f"{factory} takes {parameter!r} as {annotation!r}, which admits a"
         " bare string id"
     )
+
+
+#: The acts that name their case by typed reference, and the path from the
+#: activity body to the slot the reference travels in (AKM-03-004).
+_CASE_NAMING_SLOTS: dict[str, tuple[str, ...]] = {
+    "rm_engage_case_activity": ("object",),
+    "rm_defer_case_activity": ("object",),
+    "rm_close_case_activity": ("object",),
+    "offer_case_ownership_transfer_activity": ("object",),
+    "propose_case_ownership_transfer_activity": ("object", "object"),
+}
+
+
+def test_every_case_naming_factory_has_a_slot():
+    """The classification and the slot table name the same factories."""
+    assert set(_CASE_NAMING_SLOTS) == {
+        name for name, why in INTRODUCES_NOTHING.items() if why is _NAMES_CASE
+    }
+
+
+@pytest.mark.spec("AKM-03-004")
+@pytest.mark.parametrize("held", [False, True], ids=["by-id", "held-case"])
+@pytest.mark.parametrize("factory", sorted(_CASE_NAMING_SLOTS))
+def test_a_case_naming_factory_carries_only_the_case_reference(factory, held):
+    """The case travels as exactly its ``id`` and ``type``, never a copy.
+
+    Given the case the sender holds or only its URI, the factory carries the
+    same typed reference (ADR-0165).
+    """
+    from test.support.case_owner import CASE_OWNER_ID
+    from vultron.core.models.case import VulnerabilityCase
+
+    case: Any = (
+        VulnerabilityCase(
+            id_=_CASE, attributed_to=CASE_OWNER_ID, name="held copy"
+        )
+        if held
+        else _CASE
+    )
+    kwargs: dict[str, Any] = {"actor": _ACTOR, "to": [_PEER]}
+    if "ownership" in factory:
+        kwargs["target"] = _PEER
+    body: Any = wire_body(_factory(factory)(case, **kwargs))
+    for key in _CASE_NAMING_SLOTS[factory]:
+        body = body[key]
+    named = {k: v for k, v in body.items() if k != "@context"}
+    assert named == {"id": _CASE, "type": "VulnerabilityCase"}
 
 
 #: Activity types whose example introduces its ``object``.

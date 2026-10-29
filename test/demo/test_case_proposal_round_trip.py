@@ -101,6 +101,7 @@ from vultron.demo.in_process import (
     create_isolated_actor_app,
 )
 from vultron.demo.utils import case_actor_id_for_report
+from vultron.errors import DemoFailureError
 from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
 )
@@ -715,7 +716,8 @@ class TestCaseProposalDemo:
         With no Accept of a CaseProposal received — none at all, or only an
         Accept of something else — the Accept check fails; the run must
         report it in the error summary, which is what the success test above
-        asserts is absent.
+        asserts is absent, and raise ``DemoFailureError`` so the command
+        exits non-zero (#3852).
         """
         import logging
 
@@ -726,7 +728,10 @@ class TestCaseProposalDemo:
             "read_received_activities",
             lambda *_a, **_kw: received_accepts,
         )
-        with caplog.at_level(logging.WARNING):
+        with (
+            caplog.at_level(logging.WARNING),
+            pytest.raises(DemoFailureError, match="Accept"),
+        ):
             demo.main(
                 skip_health_check=True,
                 demos=[demo.demo_case_proposal_round_trip],

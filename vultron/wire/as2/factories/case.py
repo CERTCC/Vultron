@@ -105,13 +105,33 @@ from vultron.wire.as2.vocab.objects.embargo_event import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
     as_VulnerabilityCaseRef,
+    as_VulnerabilityCaseReference,
     as_VulnerabilityCaseStub,
+    case_reference,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _named_case(
+    case: as_VulnerabilityCase | str,
+) -> as_VulnerabilityCaseReference:
+    """The typed reference a participant's act on *case* names it by.
+
+    ``Join``, ``Ignore`` and ``Leave`` of a case and the ownership-transfer
+    ``Offer`` name the case rather than carry a copy of it (AKM-03-003,
+    ADR-0165): every receiver holds the case, so only its id travels, with
+    the ``type`` a receiver routes by.  *case* may be the case the sender
+    holds or its URI; nothing but the id is read from it.
+
+    Raises:
+        ValidationError: When *case* names no case id, which each factory
+            reports as :exc:`VultronActivityConstructionError`.
+    """
+    return case_reference(case_uri_of(case) or "")
 
 
 def _project_case_to_stub(
@@ -391,7 +411,7 @@ def update_case_activity(
 
 
 def rm_engage_case_activity(
-    case: as_VulnerabilityCase,
+    case: as_VulnerabilityCase | str,
     **kwargs,
 ) -> as_Join:
     """Build a Join(as_VulnerabilityCase) — the RA message.
@@ -400,18 +420,19 @@ def rm_engage_case_activity(
     (``RM.ACCEPTED`` state).
 
     Args:
-        case: The ``as_VulnerabilityCase`` being engaged.
+        case: The case being engaged, as the sender holds it or by its
+            URI.  Only its id travels, as a typed reference (ADR-0165).
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).
 
     Returns:
-        An ``as_Join`` whose ``object_`` is the case.
+        An ``as_Join`` whose ``object_`` is the case's typed reference.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return _RmEngageCaseActivity(object_=case, **kwargs)
+        return _RmEngageCaseActivity(object_=_named_case(case), **kwargs)
     except ValidationError as exc:
         logger.warning("rm_engage_case_activity: invalid arguments: %s", exc)
         raise VultronActivityConstructionError(
@@ -420,7 +441,7 @@ def rm_engage_case_activity(
 
 
 def rm_defer_case_activity(
-    case: as_VulnerabilityCase,
+    case: as_VulnerabilityCase | str,
     **kwargs,
 ) -> as_Ignore:
     """Build an Ignore(as_VulnerabilityCase) — the RD message.
@@ -429,18 +450,19 @@ def rm_defer_case_activity(
     (``RM.DEFERRED`` state).
 
     Args:
-        case: The ``as_VulnerabilityCase`` being deferred.
+        case: The case being deferred, as the sender holds it or by its
+            URI.  Only its id travels, as a typed reference (ADR-0165).
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).
 
     Returns:
-        An ``as_Ignore`` whose ``object_`` is the case.
+        An ``as_Ignore`` whose ``object_`` is the case's typed reference.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return _RmDeferCaseActivity(object_=case, **kwargs)
+        return _RmDeferCaseActivity(object_=_named_case(case), **kwargs)
     except ValidationError as exc:
         logger.warning("rm_defer_case_activity: invalid arguments: %s", exc)
         raise VultronActivityConstructionError(
@@ -449,7 +471,7 @@ def rm_defer_case_activity(
 
 
 def rm_close_case_activity(
-    case: as_VulnerabilityCase,
+    case: as_VulnerabilityCase | str,
     **kwargs,
 ) -> as_Leave:
     """Build a Leave(as_VulnerabilityCase) — the RC message.
@@ -457,18 +479,19 @@ def rm_close_case_activity(
     Signals permanent closure / departure from the case.
 
     Args:
-        case: The ``as_VulnerabilityCase`` being closed.
+        case: The case being closed, as the sender holds it or by its
+            URI.  Only its id travels, as a typed reference (ADR-0165).
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).
 
     Returns:
-        An ``as_Leave`` whose ``object_`` is the case.
+        An ``as_Leave`` whose ``object_`` is the case's typed reference.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return _RmCloseCaseActivity(object_=case, **kwargs)
+        return _RmCloseCaseActivity(object_=_named_case(case), **kwargs)
     except ValidationError as exc:
         logger.warning("rm_close_case_activity: invalid arguments: %s", exc)
         raise VultronActivityConstructionError(
@@ -610,15 +633,17 @@ def _carried_target(
 
 
 def offer_case_ownership_transfer_activity(
-    case: as_VulnerabilityCase,
+    case: as_VulnerabilityCase | str,
     target: as_ActorRef | CoreActor | None = None,
     **kwargs,
 ) -> as_Offer:
     """Build an Offer(as_VulnerabilityCase, target=Actor) — ownership transfer.
 
-    The case MUST be passed as an inline ``as_VulnerabilityCase`` object, not
-    a bare string ID, so the recipient can distinguish this activity from
-    a ``SUBMIT_REPORT`` Offer during semantic pattern matching.
+    The case travels as its typed reference, never a copy (ADR-0165): the
+    CASE_MANAGER this Offer's proposal goes to and the active participant
+    it is made to both hold the case (CM-21-021).  Its ``type`` is what
+    tells this activity from a ``SUBMIT_REPORT`` Offer during semantic
+    pattern matching, so it is never a bare string ID.
 
     The transferee travels and is stored inline (DL-08-003): the CASE_MANAGER
     need not hold the transferee's profile, and its ledger snapshot must
@@ -626,20 +651,21 @@ def offer_case_ownership_transfer_activity(
     a bare actor URI travels as an actor reference (AKM-05-005).
 
     Args:
-        case: The ``as_VulnerabilityCase`` whose ownership is being offered.
+        case: The case whose ownership is being offered, as the sender
+            holds it or by its URI.  Only its id travels.
         target: The actor (or actor URI) to whom ownership is offered.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
 
     Returns:
-        An ``as_Offer`` whose ``object_`` is the case.
+        An ``as_Offer`` whose ``object_`` is the case's typed reference.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
         return _OfferCaseOwnershipTransferActivity(
-            object_=case,
+            object_=_named_case(case),
             target=_carried_target(target),
             **kwargs,
         )
@@ -654,7 +680,7 @@ def offer_case_ownership_transfer_activity(
 
 
 def propose_case_ownership_transfer_activity(
-    case: as_VulnerabilityCase,
+    case: as_VulnerabilityCase | str,
     target: as_ActorRef | CoreActor,
     end_time: datetime | None = None,
     **kwargs,
@@ -663,15 +689,17 @@ def propose_case_ownership_transfer_activity(
 
     The Case Owner sends it to the CASE_MANAGER, which makes the one
     ``Offer(VulnerabilityCase)`` the transferee answers (ADR-0148,
-    CM-21-005).  The inner Offer carries what the owner decides: the case as
-    its object, the transferee as its ``target`` and, when given, the
-    deadline to answer as its ``end_time`` (CM-21-016).  It is built with
+    CM-21-005).  The inner Offer carries what the owner decides: the case,
+    by typed reference, as its object (ADR-0165), the transferee as its
+    ``target`` and, when given, the deadline to answer as its ``end_time``
+    (CM-21-016).  It is built with
     :func:`offer_case_ownership_transfer_activity`, so it has the shape of
     the Offer the CASE_MANAGER will make; the proposal's ``context`` names
     the case by its URI.
 
     Args:
-        case: The ``as_VulnerabilityCase`` whose ownership is proposed.
+        case: The case whose ownership is proposed, as the owner holds it
+            or by its URI.  Only its id travels.
         target: The actor (or actor URI) the owner proposes as the new owner.
         end_time: Optional deadline to answer the Offer, carried on the
             inner Offer.
@@ -696,7 +724,7 @@ def propose_case_ownership_transfer_activity(
     try:
         return _ProposeCaseOwnershipTransferActivity(
             object_=cast(_OfferCaseOwnershipTransferActivity, inner),
-            context=case_uri_of(case) or case.id_,
+            context=_named_case(case).id_,
             **kwargs,
         )
     except ValidationError as exc:

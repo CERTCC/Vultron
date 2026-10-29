@@ -21,14 +21,26 @@ raises.
 """
 
 import json
+from collections.abc import Iterator
 from unittest.mock import MagicMock
 
 import pytest
 
-from vultron.demo.helpers.harness import scenario_harness
-from vultron.demo.helpers.ledger_dump import DUMP_MANIFEST_FILENAME
+import vultron.demo.helpers.harness as harness_module
+from vultron.demo.helpers.harness import (
+    StepMark,
+    follow_ledger,
+    reach_step,
+    scenario_harness,
+    step_reporter,
+)
+from vultron.demo.helpers.ledger_dump import (
+    DUMP_MANIFEST_FILENAME,
+    STEP_MARKS_FILENAME,
+)
+from vultron.demo.scenario.registry import discover_scenarios
 from vultron.demo.utils import demo_check, reset_demo_failures
-from vultron.errors import DemoFailureError
+from vultron.errors import DemoFailureError, DemoScenarioStepError
 
 
 @pytest.fixture(autouse=True)
@@ -218,3 +230,134 @@ class TestFailureAccumulatorReset:
 
         with scenario_harness("unit") as harness:
             harness.dump_with(MagicMock())
+
+
+class TestStepMarks:
+    """A scenario reports each declared step; the harness marks the ledger tail.
+
+    The marks tell the shared-prefix check where each branch point falls in
+    the ledger (DEMOCI-11-017).  ``rv``'s path is the root, then
+    ``vendor-after-answer``.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _registered(self):
+        # The harness reads the declared path from the registry.
+        discover_scenarios()
+
+    @pytest.fixture
+    def tails(self, monkeypatch):
+        """The canonical ledger's length on each read, in order."""
+        reads: Iterator[int] = iter([7, 9])
+        calls: list[tuple[object, str]] = []
+
+        def length(client: object, case_id: str) -> int:
+            calls.append((client, case_id))
+            return next(reads)
+
+        monkeypatch.setattr(harness_module, "case_ledger_length", length)
+        return calls
+
+    @staticmethod
+    def _marks(devlogs, demo_name="rv"):
+        return json.loads(
+            (devlogs / demo_name / STEP_MARKS_FILENAME).read_text(
+                encoding="utf-8"
+            )
+        )["steps"]
+
+    def test_each_step_marks_the_ledger_tail_there(
+        self, _devlogs, tails
+    ) -> None:
+        client = MagicMock()
+        with scenario_harness("rv") as harness:
+            harness.reach_step("reporter-whom-to-tell", "vendor")
+            harness.follow_ledger(client, "urn:case")
+            harness.reach_step("vendor-after-answer", "report-fix-ready")
+        assert harness.marks == [
+            StepMark("reporter-whom-to-tell", "vendor", 0),
+            StepMark("vendor-after-answer", "report-fix-ready", 7),
+        ]
+        assert tails == [(client, "urn:case")]
+        assert self._marks(_devlogs) == [
+            {
+                "branchPoint": "reporter-whom-to-tell",
+                "choice": "vendor",
+                "ledgerTail": 0,
+            },
+            {
+                "branchPoint": "vendor-after-answer",
+                "choice": "report-fix-ready",
+                "ledgerTail": 7,
+            },
+        ]
+
+    def test_the_marks_are_written_when_the_body_raises(
+        self, _devlogs
+    ) -> None:
+        with pytest.raises(RuntimeError, match="later phase"):
+            with scenario_harness("rv") as harness:
+                harness.reach_step("reporter-whom-to-tell", "vendor")
+                raise RuntimeError("later phase")
+        assert [step["branchPoint"] for step in self._marks(_devlogs)] == [
+            "reporter-whom-to-tell"
+        ]
+
+    @pytest.mark.parametrize(
+        "step",
+        [
+            ("vendor-after-answer", "report-fix-ready"),
+            ("reporter-whom-to-tell", "coordinator"),
+        ],
+    )
+    def test_a_step_that_is_not_the_next_declared_one_is_refused(
+        self, _devlogs, step
+    ) -> None:
+        with pytest.raises(DemoScenarioStepError, match="declared path"):
+            with scenario_harness("rv") as harness:
+                harness.reach_step(*step)
+
+    def test_a_step_past_the_end_of_the_path_is_refused(
+        self, _devlogs, tails
+    ) -> None:
+        with pytest.raises(DemoScenarioStepError, match="already reached"):
+            with scenario_harness("rv") as harness:
+                harness.reach_step("reporter-whom-to-tell", "vendor")
+                harness.follow_ledger(MagicMock(), "urn:case")
+                harness.reach_step("vendor-after-answer", "report-fix-ready")
+                harness.reach_step("vendor-after-answer", "report-fix-ready")
+
+    def test_a_later_step_needs_a_followed_ledger(self, _devlogs) -> None:
+        with pytest.raises(DemoScenarioStepError, match="follow_ledger"):
+            with scenario_harness("rv") as harness:
+                harness.reach_step("reporter-whom-to-tell", "vendor")
+                harness.reach_step("vendor-after-answer", "report-fix-ready")
+
+    def test_an_unregistered_scenario_has_no_path(self, _devlogs) -> None:
+        with pytest.raises(DemoScenarioStepError, match="no registered"):
+            with scenario_harness("unit") as harness:
+                harness.reach_step("reporter-whom-to-tell", "vendor")
+
+    def test_module_functions_report_to_the_running_harness(
+        self, _devlogs, tails
+    ) -> None:
+        with scenario_harness("rv") as harness:
+            step_reporter("reporter-whom-to-tell", "vendor")()
+            follow_ledger(MagicMock(), "urn:case")
+            reach_step("vendor-after-answer", "report-fix-ready")
+        assert [mark.ledger_tail for mark in harness.marks] == [0, 7]
+
+    def test_module_functions_do_nothing_outside_a_harness(
+        self, tails
+    ) -> None:
+        follow_ledger(MagicMock(), "urn:case")
+        reach_step("vendor-after-answer", "report-fix-ready")
+        step_reporter("reporter-whom-to-tell", "vendor")()
+        assert tails == []
+
+    def test_the_running_harness_is_cleared_on_exit(self, _devlogs) -> None:
+        with pytest.raises(RuntimeError):
+            with scenario_harness("rv"):
+                raise RuntimeError("boom")
+        # A step after the run is not recorded anywhere, nor refused.
+        reach_step("vendor-after-answer", "report-fix-ready")

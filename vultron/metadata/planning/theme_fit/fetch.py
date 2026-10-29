@@ -16,6 +16,10 @@ This is the only module that knows the shape of GitHub's response. Each Issue
 brings its labels, issue type, body, three levels of parent, and its Project
 #24 items, so an Epic's ``Schedule`` value arrives with it; querying the
 project's own item list instead would page through every item on the board.
+
+A token that cannot read Project #24, such as a workflow's ``GITHUB_TOKEN``,
+makes ``projectItems`` a GraphQL error, so :data:`QUERY_NO_SCHEDULE` leaves
+that field out and every Issue arrives with no ``Schedule``.
 """
 
 from __future__ import annotations
@@ -31,7 +35,18 @@ from vultron.metadata.planning.bundle_fit.parse import (
 from vultron.metadata.planning.gh import GhError, Runner, run_gh
 from vultron.metadata.planning.theme_fit.model import Ancestor, OpenIssue
 
-QUERY = """
+_SCHEDULE_FIELD = """
+        projectItems(first: 10) {
+          nodes {
+            project { number }
+            fieldValueByName(name: "Schedule") {
+              ... on ProjectV2ItemFieldSingleSelectValue { name }
+            }
+          }
+        }"""
+
+QUERY = (
+    """
 query($owner: String!, $name: String!, $endCursor: String) {
   repository(owner: $owner, name: $name) {
     nameWithOwner
@@ -49,21 +64,19 @@ query($owner: String!, $name: String!, $endCursor: String) {
               number issueType { name } repository { nameWithOwner }
             }
           }
-        }
-        projectItems(first: 10) {
-          nodes {
-            project { number }
-            fieldValueByName(name: "Schedule") {
-              ... on ProjectV2ItemFieldSingleSelectValue { name }
-            }
-          }
-        }
+        }"""
+    + _SCHEDULE_FIELD
+    + """
       }
     }
   }
 }
 """
+)
 """The GraphQL query ``gh api graphql --paginate`` runs."""
+
+QUERY_NO_SCHEDULE = QUERY.replace(_SCHEDULE_FIELD, "")
+""":data:`QUERY` without ``projectItems``, for a token that cannot read it."""
 
 
 def _foreign_repo(parent: dict[str, Any], home: str | None) -> str | None:
@@ -155,8 +168,12 @@ def fetch_open_issues(
     repo: str,
     run: Runner = run_gh,
     project_number: int = PLANNING_PROJECT_NUMBER,
+    read_schedule: bool = True,
 ) -> tuple[OpenIssue, ...]:
     """Every open Issue on *repo* (``OWNER/NAME``).
+
+    With *read_schedule* false the query skips Project #24
+    (:data:`QUERY_NO_SCHEDULE`) and every Issue's ``schedule`` is ``None``.
 
     Raises:
         GhError: If *repo* is malformed or the response cannot be read.
@@ -172,7 +189,7 @@ def fetch_open_issues(
             "--paginate",
             "--slurp",
             "-f",
-            f"query={QUERY}",
+            f"query={QUERY if read_schedule else QUERY_NO_SCHEDULE}",
             "-f",
             f"owner={owner}",
             "-f",

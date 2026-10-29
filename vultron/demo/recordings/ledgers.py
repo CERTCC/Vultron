@@ -14,8 +14,12 @@
 """Read a run's ledger dump and check every replica against the canonical one."""
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
 
+from vultron.demo.helpers.harness import StepMark
+from vultron.demo.helpers.ledger_dump import STEP_MARKS_FILENAME
+from vultron.demo.scenario.tree import PathStep
 from vultron.errors import DemoRecordingError
 
 #: The dump target whose ledger is the canonical one, and the only one committed.
@@ -91,3 +95,75 @@ def canonical_ledger(scenario: str, ledgers: dict[str, str]) -> str:
                     )
                 )
     return ledgers[CANONICAL_ACTOR]
+
+
+def parse_step_marks(
+    text: str, scenario: str, path: Sequence[PathStep]
+) -> tuple[StepMark, ...]:
+    """Parse step marks, after checking they cover *path*.
+
+    The harness records one mark per declared step the scenario reports
+    reaching (:meth:`~vultron.demo.helpers.harness.ScenarioHarness.reach_step`).
+    A recording is kept only with a mark for every step, in order, so the
+    shared-prefix check never reads a guessed branch point (DEMOCI-11-017).
+
+    Args:
+        text: The marks, as the harness writes them.
+        scenario: The scenario name, for messages.
+        path: The scenario's declared path.
+
+    Raises:
+        DemoRecordingError: When the marks are malformed, do not name exactly
+            the declared steps in order, or put a later step before an
+            earlier one in the ledger.
+    """
+    try:
+        marks = tuple(
+            StepMark.from_json(step) for step in json.loads(text)["steps"]
+        )
+    except (ValueError, KeyError, TypeError) as exc:
+        raise DemoRecordingError(
+            f"scenario {scenario!r}: the step marks are not readable: {exc}"
+        ) from exc
+    reached = [(mark.branch_point, mark.choice) for mark in marks]
+    if reached != list(path):
+        raise DemoRecordingError(
+            f"scenario {scenario!r} reported reaching {reached}, but its "
+            f"declared path is {list(path)}; every step needs a "
+            "harness.reach_step() call."
+        )
+    tails = [mark.ledger_tail for mark in marks]
+    if (
+        any(
+            isinstance(tail, bool) or not isinstance(tail, int)
+            for tail in tails
+        )
+        or any(tail < 0 for tail in tails)
+        or tails != sorted(tails)
+    ):
+        raise DemoRecordingError(
+            f"scenario {scenario!r} recorded ledger tails {tails}; each must "
+            "be a count of entries, and a later step cannot come before an "
+            "earlier one in the ledger."
+        )
+    return marks
+
+
+def read_step_marks(
+    devlogs: Path, scenario: str, path: Sequence[PathStep]
+) -> tuple[StepMark, ...]:
+    """Return the step marks of a run, checked by :func:`parse_step_marks`.
+
+    Raises:
+        DemoRecordingError: When the run left no marks, or as
+            :func:`parse_step_marks`.
+    """
+    marks_file = devlogs / scenario / STEP_MARKS_FILENAME
+    try:
+        text = marks_file.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise DemoRecordingError(
+            f"scenario {scenario!r} left no step marks ({marks_file.name}): "
+            f"{exc}"
+        ) from exc
+    return parse_step_marks(text, scenario, path)

@@ -277,6 +277,12 @@ class ThemeFitReport:
     findings: tuple[Finding, ...]
     coherence: tuple[TierCoherence, ...]
     untriaged: tuple[UntriagedIssue, ...] = ()
+    schedule_read: bool = True
+    """False when the run did not read Project #24 (``--no-schedule``).
+
+    Every Epic then sits in :data:`UNSCHEDULED`, so only the all-tiers
+    coherence total means anything.
+    """
 
     @property
     def clean(self) -> bool:
@@ -296,6 +302,7 @@ class ThemeFitReport:
         return {
             "issues": self.issues,
             "clean": self.clean,
+            "schedule_read": self.schedule_read,
             "counts": {k.value: len(self.of_kind(k)) for k in FindingKind},
             "findings": [f.to_json() for f in self.findings],
             "untriaged": [u.to_json() for u in self.untriaged],

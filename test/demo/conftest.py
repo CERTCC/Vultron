@@ -291,6 +291,20 @@ def _no_outbox_row_is_dead_lettered(caplog):
 
 
 @pytest.fixture(autouse=True)
+def _devlogs_in_a_temp_dir(monkeypatch, tmp_path_factory):
+    """Point ``DEVLOGS_DIR`` at a fresh temp directory for every demo test.
+
+    A test that runs a scenario under its harness with a mocked dump still
+    gets the harness's step marks written (``step-marks.json``,
+    DEMOCI-11-017). Written to the checkout's ``devlogs/<scenario>/``, they
+    leave a scenario directory with no ledger, and the
+    ``test/ci/invariants/`` suites then fail on it instead of skipping. A
+    test that sets ``DEVLOGS_DIR`` itself overrides this.
+    """
+    monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path_factory.mktemp("devlogs")))
+
+
+@pytest.fixture(autouse=True)
 def restore_case_actor_url_after_each_test():
     """Restore the session's CaseActor/server config after every demo test.
 
@@ -447,9 +461,10 @@ def every_demo_case_rebuilds_from_its_ledger():
     assert_no_rebuild_failures()
 
 
-# The two autouse stubs below change what the protocol does for every test in
-# this directory. A test that needs the real run, such as the recorder smoke
-# test, lives outside test/demo/ (test/demo_recordings/, #3901).
+# The two autouse stubs below skip protocol steps when the client is a mock;
+# a test that drives a real in-process app runs both steps for real (#5444).
+# The recorder smoke test still lives outside test/demo/
+# (test/demo_recordings/, #3901), so no fixture here can touch its recording.
 @pytest.fixture(autouse=True)
 def stub_summary_seed():
     """Skip ``stub_summary`` seeding when the case manager's client is a mock.
@@ -472,17 +487,22 @@ def stub_summary_seed():
 
 @pytest.fixture(autouse=True)
 def stub_full_case_reply():
-    """Skip the chain's full-case Invite wait and reply in mock-driven tests.
+    """Skip the chain's full-case Invite wait and reply when the client is a mock.
 
     After the join the invite chain waits for the full-case Invite and answers
     it (CM-11-010, CM-11-011).  Mock-driven scenario tests have no container
-    to poll and no trigger to post, so the step is a no-op there.  A test
-    that drives a real app overrides this fixture to run the real step:
-    ``test_invite_chain``, and the invite-actor, suggest-actor and
-    status-updates demo tests, whose shared setup seats the reporter through
-    the chain and which import ``_helpers.run_real_full_case_reply`` (#4970).
+    to poll and no trigger to post, so the step is a no-op there.  A real
+    client (in-process app) runs the real step, so a refused full-case Invite
+    fails the run instead of passing silently (#4970, #5444).
+    ``test_invite_chain`` overrides this fixture to test the step with mocks.
     """
     from vultron.demo.helpers import invite_chain
 
-    with patch.object(invite_chain, "reply_to_full_case_invite"):
+    real = invite_chain.reply_to_full_case_invite
+
+    def reply(**kwargs):
+        if not isinstance(kwargs["invitee_client"], Mock):
+            real(**kwargs)
+
+    with patch.object(invite_chain, "reply_to_full_case_invite", reply):
         yield

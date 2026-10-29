@@ -675,6 +675,23 @@ groups:
       starts with `GATE_CEILING`. `test/metadata/test_gate_ceiling.py` checks every
       redirected pytest gate in agent-facing files for the ceiling, and the CI test
       job for `timeout-minutes`.
+  - id: TB-14-006
+    priority: MUST
+    kind: project
+    statement: >-
+      Every job in `.github/workflows/python-app.yml` MUST declare
+      `timeout-minutes`, set well above the job's observed run time.
+    rationale: >-
+      A job with no cap runs until GitHub's default limit, so a hung linter or
+      build step holds a runner for hours and shows as cancelled rather than
+      failed. A cap well above the observed run time ends a hang within minutes
+      without tripping on honest work under load.
+    verification: >-
+      `test/metadata/test_gate_ceiling.py` checks that every job in
+      `python-app.yml` has a positive integer `timeout-minutes`.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-14-005
 - id: TB-15
   title: Test Starting Points on the Scenario Tree
   specs:

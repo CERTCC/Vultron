@@ -17,7 +17,7 @@ import logging
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.embargo_register import activate, register
+from test.support.embargo_register import register
 from test.support.received import (
     TEST_SENDER_POSITION,
     in_step_position,
@@ -81,19 +81,22 @@ class TestEngageDeferCaseBTFailureReason:
     _CASE_MANAGER_ID = "https://example.org/actors/coordinator-failreason"
 
     @pytest.fixture
-    def dl(self):
-        return SqliteDataLayer(
+    def case_id(self):
+        return "urn:uuid:338a1bc3-0000-0000-0000-000000000001"
+
+    @pytest.fixture
+    def dl(self, case_id):
+        """The receiver's store, holding the case but no sender record."""
+        dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=self._CASE_MANAGER_ID,
         )
+        dl.create(VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=case_id))
+        return dl
 
     @pytest.fixture
     def actor_id(self):
         return "https://example.org/actors/vendor"
-
-    @pytest.fixture
-    def case_id(self):
-        return "urn:uuid:338a1bc3-0000-0000-0000-000000000001"
 
     def _engage_event(
         self, actor_id: str, case_id: str
@@ -365,42 +368,6 @@ class TestEngageCaseStoresNoEmbeddedParticipants:
             "refs — no CaseParticipant record should be created for a bare "
             "string"
         )
-
-    @pytest.mark.spec("EMB-18-003")
-    def test_case_naming_an_unheld_embargo_is_refused(
-        self, dl_holding_the_sender, case_with_inline_participant
-    ):
-        """A case naming an embargo this store cannot read stores nothing."""
-        dl = dl_holding_the_sender
-        unheld_id = f"{self._CASE_ID}/embargo_events/unheld"
-        # The sender's inline participants carry a row for every register
-        # entry (ADR-0122), so they hold it before the entry is added.
-        for participant in case_with_inline_participant.case_participants:
-            if isinstance(participant, CaseParticipant):
-                participant.write_uninvited_rows([unheld_id])
-        activate(case_with_inline_participant, unheld_id)
-        event = with_evidence(
-            EngageCaseReceivedEvent(
-                ledger_position=TEST_SENDER_POSITION,
-                activity_id="https://example.org/activities/engage-4032",
-                actor_id=self._ACTOR_ID,
-                object_=case_with_inline_participant,
-                semantic_type=MessageSemantics.ENGAGE_CASE,
-                activity=_addressed_activity(
-                    "Join",
-                    self._ACTOR_ID,
-                    self._CASE_MANAGER_ID,
-                    self._CASE_ID,
-                ),
-            )
-        )
-
-        result = self._execute(dl, event)
-
-        assert result.disposition == HandlerDisposition.REFUSED
-        assert "EMB-18-003" in (result.reason or "")
-        assert dl.read(self._OTHER_PARTICIPANT_ID) is None
-        assert dl.list_objects("EmbargoEvent") == []
 
 
 class TestEngageCaseLedgerCommit:
@@ -768,9 +735,10 @@ class TestEngageCaseLedgerCommit:
         assert dl.list_objects("CaseLedgerEntry") == []
         assert dl.read(embargo.id_) is None
 
-    @pytest.mark.spec("EMB-18-003")
-    def test_an_admitted_engage_stores_its_carried_embargo(self, seeded_dl):
-        """The admitted act's effects hold the embargo its snapshot names."""
+    @pytest.mark.spec("AKM-03-005")
+    def test_an_admitted_engage_stores_no_carried_embargo(self, seeded_dl):
+        """A Join names its case, so the admitted act stores nothing of a
+        case another sender still carries in it (ADR-0165)."""
         embargo = self._carried_embargo()
 
         result = self._execute(
@@ -778,7 +746,7 @@ class TestEngageCaseLedgerCommit:
         )
 
         assert result.disposition is HandlerDisposition.APPLIED
-        assert isinstance(seeded_dl.read(embargo.id_), EmbargoEvent)
+        assert seeded_dl.read(embargo.id_) is None
 
 
 class TestDeferCaseLedgerCommit:

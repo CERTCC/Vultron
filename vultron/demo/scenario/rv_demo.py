@@ -48,7 +48,12 @@ from vultron.demo.helpers.milestones import (
     verify_fix_ready,
     verify_publicly_disclosed,
 )
-from vultron.demo.helpers.notes import participant_adds_note_to_case
+from vultron.demo.helpers.notes import (
+    WORKAROUND_ANSWER,
+    WORKAROUND_ANSWER_NAME,
+    WORKAROUND_QUESTION,
+    participant_adds_note_to_case,
+)
 from vultron.demo.helpers.polling import (  # noqa: F401
     _poll_until,
     wait_for_all_participants_rm_closed,
@@ -270,10 +275,7 @@ def reporter_asks_question(
         poster=reporter,
         case=case,
         note_name="Question from Reporter",
-        note_content=(
-            "Is there a workaround available while waiting for the patch? "
-            "Our security team needs to provide interim guidance to users."
-        ),
+        note_content=WORKAROUND_QUESTION,
     )
 
 
@@ -296,12 +298,8 @@ def vendor_replies_to_question(
         watching_client=vendor_client,
         poster=vendor,
         case=case,
-        note_name="Vendor Response",
-        note_content=(
-            "Yes, disabling the affected network stack component is an effective "
-            "workaround. A patched version is expected within 30 days. "
-            "We will notify all case participants when it is available."
-        ),
+        note_name=WORKAROUND_ANSWER_NAME,
+        note_content=WORKAROUND_ANSWER,
         in_reply_to=question_note.id_ if question_note is not None else None,
     )
 
@@ -851,6 +849,7 @@ def run_rv_demo(
     logger.info("CaseActor container: %s", case_actor_client.base_url)
 
     with scenario_harness("rv") as harness:
+        harness.reach_step("reporter-whom-to-tell", "vendor")
         reporter, vendor, vendor_in_vendor, report, _offer, case = (
             _phase_report_submission(
                 reporter_client,
@@ -874,6 +873,7 @@ def run_rv_demo(
                 demo_name=harness.demo_name,
             )
         )
+        harness.follow_ledger(case_actor_client, case.id_)
 
         _phase_sync_verification(
             reporter_client,
@@ -892,6 +892,8 @@ def run_rv_demo(
             case,
             report,
         )
+        # The Vendor decides once it has answered the Reporter's question.
+        harness.reach_step("vendor-after-answer", "report-fix-ready")
         _phase_fix_lifecycle(
             reporter_client,
             vendor_client,

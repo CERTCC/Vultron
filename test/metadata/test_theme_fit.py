@@ -19,6 +19,9 @@ from vultron.metadata.planning.gh import GhError
 from vultron.metadata.planning.theme_fit import (
     AUTO_CALVED_MARKER,
     GITHUB_BODY_LIMIT,
+    NO_SCHEDULE_NOTE,
+    QUERY,
+    QUERY_NO_SCHEDULE,
     UNSCHEDULED,
     WORD_JOINER,
     Ancestor,
@@ -923,6 +926,26 @@ class TestFetch:
         assert "states: OPEN" in query
         assert "repository { nameWithOwner }" in query
 
+    def test_query_reads_the_schedule_by_default(self) -> None:
+        fake = _FakeGh([_page(_node(1, kind="Epic", schedule="Now"))])
+        (issue,) = fetch_open_issues("o/r", run=fake)
+        query = next(a for a in fake.calls[0] if a.startswith("query="))
+        assert "projectItems" in query
+        assert issue.schedule == "Now"
+
+    def test_no_schedule_query_skips_project_items(self) -> None:
+        """A ``GITHUB_TOKEN`` cannot read Project #24 (#5331)."""
+        fake = _FakeGh([_page(_node(1, kind="Epic"))])
+        (issue,) = fetch_open_issues("o/r", run=fake, read_schedule=False)
+        query = next(a for a in fake.calls[0] if a.startswith("query="))
+        assert "projectItems" not in query
+        assert "Schedule" not in query
+        # Only the project field is dropped; the analysis reads the rest.
+        assert query == f"query={QUERY_NO_SCHEDULE}"
+        assert set(QUERY_NO_SCHEDULE.splitlines()) < set(QUERY.splitlines())
+        assert "repository { nameWithOwner }" in query
+        assert issue.schedule is None
+
     @pytest.mark.parametrize("repo", ["noslash", "/r", "o/", "o/r/x"])
     def test_malformed_repo_raises(self, repo: str) -> None:
         with pytest.raises(GhError, match="OWNER/NAME"):
@@ -1009,6 +1032,34 @@ class TestMain:
         data = json.loads(capsys.readouterr().out)
         assert data["clean"] is True
         assert data["coherence"][0]["tier"] == "Now"
+
+    def test_no_schedule_shows_only_the_all_tiers_total(
+        self, note: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Without Project #24 every Epic is unscheduled; say so (#5331)."""
+        pages = json.loads(json.dumps(_CLEAN_PAGES))
+        for node in pages[0]["data"]["repository"]["issues"]["nodes"]:
+            del node["projectItems"]
+        fake = _FakeGh(pages)
+        args = ["--catalog", str(note), "--no-schedule"]
+        assert main(args, run=fake) == 0
+        query = next(a for a in fake.calls[0] if a.startswith("query="))
+        assert "projectItems" not in query
+        out = capsys.readouterr().out
+        assert NO_SCHEDULE_NOTE in out
+        assert "## Coherence (all tiers; Schedule not read)" in out
+        assert "per Schedule tier" not in out
+        assert "| All tiers | 1 | 1 | 1 | 100% |" in out
+        assert "| (unscheduled) |" not in out
+
+    def test_no_schedule_json_says_so(
+        self, note: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        args = ["--catalog", str(note), "--json", "--no-schedule"]
+        main(args, run=_FakeGh(_CLEAN_PAGES))
+        assert json.loads(capsys.readouterr().out)["schedule_read"] is False
+        main(["--catalog", str(note), "--json"], run=_FakeGh(_CLEAN_PAGES))
+        assert json.loads(capsys.readouterr().out)["schedule_read"] is True
 
     def test_coherence_only(
         self, note: Path, capsys: pytest.CaptureFixture[str]

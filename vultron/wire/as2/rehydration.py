@@ -40,7 +40,10 @@ from vultron.errors import VultronReferenceResolutionError
 from vultron.wire.as2.ledger_reject_envelope import is_genesis_replay_reject
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.collections import as_Collection
-from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.base.registry import (
+    find_in_vocabulary,
+    is_wire_type_alias,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.datalayer import DataLayer
@@ -425,7 +428,9 @@ def _cast_to_vocabulary_type(obj: as_Object, dl: DataLayer) -> as_Object:
     except KeyError:
         logger.error("Unknown object type: %s.", obj.type_)  # noqa: TRY400  # ruff-baseline #3353
         raise
-    if isinstance(obj, cls):
+    if isinstance(obj, cls) or is_wire_type_alias(type(obj)):
+        # A wire-type alias (the case reference, ADR-0165) shares its
+        # ``type`` with a class it is not, so it is already its own class.
         logger.debug(
             "Object already rehydrated as '%s', skipping.",
             obj.__class__.__name__,

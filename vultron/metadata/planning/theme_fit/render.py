@@ -63,13 +63,30 @@ def _total(rows: tuple[TierCoherence, ...]) -> TierCoherence:
     )
 
 
+NO_SCHEDULE_NOTE = (
+    "Schedule not read (`--no-schedule`): this run's token cannot read "
+    "Project #24, so only the all-tiers total is shown. Run `uv run "
+    "theme-fit` for the per-tier split."
+)
+"""The line that replaces the per-tier rows when Project #24 was not read."""
+
+
 def render_coherence(report: ThemeFitReport) -> list[str]:
-    """The coherence-per-tier table, one Markdown line per element."""
+    """The coherence-per-tier table, one Markdown line per element.
+
+    Without the ``Schedule`` (:attr:`ThemeFitReport.schedule_read` false)
+    every Epic would sit in one "unscheduled" row, so the table keeps only
+    the all-tiers total, after :data:`NO_SCHEDULE_NOTE`.
+    """
+    total = _total(report.coherence)
+    rows = (*report.coherence, total) if report.schedule_read else (total,)
+    note = [] if report.schedule_read else [NO_SCHEDULE_NOTE, ""]
     lines = [
+        *note,
         "| Tier | Epics | Children | Matching | Coherence |",
         "|---|---:|---:|---:|---:|",
     ]
-    for row in (*report.coherence, _total(report.coherence)):
+    for row in rows:
         lines.append(
             f"| {row.tier} | {row.epics} | {row.children} | {row.matching} "
             f"| {_share(row)} |"
@@ -125,7 +142,9 @@ def _render(report: ThemeFitReport, per_kind: int | None) -> str:
         f"{report.issues} open Issues checked; {total} finding(s); "
         f"{len(report.untriaged)} untriaged.",
         "",
-        "## Coherence per Schedule tier",
+        "## Coherence per Schedule tier"
+        if report.schedule_read
+        else "## Coherence (all tiers; Schedule not read)",
         "",
         "A child is an open non-Epic Issue, in its nearest Epic's tier. It",
         "matches when it carries exactly one theme and its Epic carries it.",

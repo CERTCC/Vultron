@@ -22,7 +22,9 @@ activity.  For each, the adapter must:
   the id it returns), so the outbox has something to relay;
 - put a fully inline ``object`` on every initiating activity (AKM-03-003) —
   the outbox no longer expands a bare reference at delivery time, so a factory
-  that emitted one would now be refused rather than repaired;
+  that emitted one would now be refused rather than repaired — except that a
+  ``Join``, ``Ignore``, ``Leave`` or ``Offer`` of a case names the case by
+  its typed reference and carries no copy of it, at any depth (AKM-03-004);
 - address the recipients it was given;
 - carry a case in ``target`` only as its URI or the selective-disclosure stub
   (MV-10-001), since nothing downstream collapses it any more.
@@ -53,6 +55,7 @@ from vultron.adapters.outbox_sealed_body import (
 )
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronCreateCaseActivity
+from vultron.core.models.case_naming import CASE_NAMING_ACTIVITY_TYPES
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
@@ -72,6 +75,7 @@ from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
+    is_case_reference_shape,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -227,11 +231,12 @@ class _World:
 
     def ownership_offer_id(self) -> str:
         """The CASE_MANAGER's Offer as the transferee holds it (archived)."""
-        offer_id, _ = self.adapter.offer_case_ownership_transfer(
+        offer_id, blob = self.adapter.offer_case_ownership_transfer(
             case_id=self.case_id, transferee_id=_PEER, actor=_ACTOR, to=[_PEER]
         )
-        # The transferee answers the Offer it received (DL-06-006, ADR-0148).
-        archive_received(self.dl, self.dl.read(offer_id))
+        # The transferee answers the Offer it received, as delivered
+        # (DL-06-006, ADR-0148).
+        archive_delivered(self.dl, blob)
         return offer_id
 
     def ownership_proposal_id(self) -> str:
@@ -726,6 +731,36 @@ def test_the_activity_is_sealed_complete(world, method):
         f" {leaks}; address the case by URI or send the stub"
         " (MV-10-001, AKM-02-003)"
     )
+    copies = _carried_case_copies(body)
+    assert not copies, (
+        f"{method} carried a copy of the case where an act names it:"
+        f" {copies}; send its typed reference (AKM-03-004, ADR-0165)"
+    )
+
+
+def _carried_case_copies(value: Any, path: str = "body") -> list[str]:
+    """Paths of every case an act that names its case carries in full.
+
+    A ``Join``, ``Ignore``, ``Leave`` or ``Offer`` whose ``object`` is a
+    case carries only its ``id`` and ``type`` (AKM-03-004); checked at every
+    depth, since an ``Accept`` or ``Reject`` embeds the act it answers.
+    """
+    found: list[str] = []
+    if isinstance(value, dict):
+        obj = value.get("object")
+        if (
+            value.get("type") in CASE_NAMING_ACTIVITY_TYPES
+            and isinstance(obj, dict)
+            and obj.get("type") == "VulnerabilityCase"
+            and not is_case_reference_shape(obj)
+        ):
+            found.append(f"{path}.object")
+        for key, child in value.items():
+            found.extend(_carried_case_copies(child, f"{path}.{key}"))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            found.extend(_carried_case_copies(item, f"{path}[{index}]"))
+    return found
 
 
 def _full_case_paths(value: Any, path: str = "body") -> list[str]:

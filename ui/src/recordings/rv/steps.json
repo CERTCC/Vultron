@@ -1,0 +1,14 @@
+{
+  "steps": [
+    {
+      "branchPoint": "reporter-whom-to-tell",
+      "choice": "vendor",
+      "ledgerTail": 0
+    },
+    {
+      "branchPoint": "vendor-after-answer",
+      "choice": "report-fix-ready",
+      "ledgerTail": 15
+    }
+  ]
+}

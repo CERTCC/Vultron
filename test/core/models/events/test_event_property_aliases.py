@@ -196,13 +196,15 @@ _CASES = [
         EngageCaseReceivedEvent,
         MessageSemantics.ENGAGE_CASE,
         {"object_": _case},
-        [("case_id", "object_id"), ("case", "object_")],
+        # Named by reference, so no case property (ADR-0165).
+        [("case_id", "object_id")],
     ),
     (
         DeferCaseReceivedEvent,
         MessageSemantics.DEFER_CASE,
         {"object_": _case},
-        [("case_id", "object_id"), ("case", "object_")],
+        # Named by reference, so no case property (ADR-0165).
+        [("case_id", "object_id")],
     ),
     (
         AddReportToCaseReceivedEvent,
@@ -219,14 +221,15 @@ _CASES = [
         CloseCaseReceivedEvent,
         MessageSemantics.CLOSE_CASE,
         {"object_": _case},
-        [("case_id", "object_id"), ("case", "object_")],
+        # Named by reference, so no case property (ADR-0165).
+        [("case_id", "object_id")],
     ),
     # ── actor.py ──────────────────────────────────────────────────────────────
     (
         AcceptCaseOwnershipTransferReceivedEvent,
         MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
         {"inner_object": _case},
-        [("case_id", "inner_object_id"), ("case", "inner_object")],
+        [("case_id", "inner_object_id")],
     ),
     (
         RejectCaseOwnershipTransferReceivedEvent,

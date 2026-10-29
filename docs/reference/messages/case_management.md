@@ -123,7 +123,7 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
   The CASE_MANAGER admits it only from the Case Owner, and only while no offer for the case is open ([CM-21-019](../specs/protocol.md#cm-21-019), [CM-21-014](../specs/protocol.md#cm-21-014)).
   It refuses a proposal whose inner offer names another case, or no actor it can address, and ignores any `id`, `actor` or `to` inside the inner offer.
 - **Context:** the case the proposal is about.
-  The inner offer's object must be that case.
+  The inner offer's object must be that case, as a typed reference: an inline object with only its `id` and `type` ([AKM-03-004](../specs/project.md#akm-03-004), [ADR-0165](../../adr/0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md)).
 - **Trigger:** the Case Owner sends it with `POST /actors/{actor_id}/trigger/offer-case-ownership-transfer`, which returns the proposal ([TRIG-11-001](../specs/project.md#trig-11-001), [Trigger API Reference](../trigger-api.md#actor-participation)).
 - **Effect:** the CASE_MANAGER records the proposal in the ledger and makes the offer below itself ([ADR-0148](../../adr/0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md)).
 - **Triggering transition:** none — ownership transfer is a roster operation.
@@ -135,6 +135,8 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
   It is the one offer of the transfer: its `id` is one the CASE_MANAGER derives from the proposal, and the proposed new owner answers it by that `id`.
   A participant takes it only from the CASE_MANAGER ([CM-21-019](../specs/protocol.md#cm-21-019)).
 - **Target:** the proposed new owner, as a full actor object.
+- **Object:** the case, as a typed reference: an inline object with only its `id` and `type` ([AKM-03-004](../specs/project.md#akm-03-004), [ADR-0165](../../adr/0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md)).
+  The proposed new owner is an active participant, so it already holds the case ([CM-21-021](../specs/protocol.md#cm-21-021)).
 - **Triggering transition:** none — ownership transfer is a roster operation.
 - **Example artifact:** [offer_case_ownership_transfer.json](../examples/offer_case_ownership_transfer.json).
 
@@ -253,6 +255,9 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 {% include-markdown "./_occasions/sections/close-case.md" %}
 
 - **Triggering transition:** RM: A → C.
+- **Object:** the case, as a typed reference: an inline object with only its `id` and `type` ([AKM-03-004](../specs/project.md#akm-03-004), [ADR-0165](../../adr/0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md)).
+  The CASE_MANAGER reads the case from its own store and refuses a case it does not hold ([AKM-03-006](../specs/project.md#akm-03-006)).
+  A full case that another sender still carries is not refused, but the CASE_MANAGER reads only its `id` and stores nothing from it ([AKM-03-005](../specs/project.md#akm-03-005)).
 - **Decline:** while the case holds an active embargo, the CASE_MANAGER declines the Case Owner's close with a `Reject` of the `Leave` and records nothing ([CM-23-011](../specs/protocol.md#cm-23-011)).
   That decline is the answer to the refusal, so the CASE_MANAGER sends no refusal notice as well.
 - **Example artifact:** [close_case.json](../examples/close_case.json).

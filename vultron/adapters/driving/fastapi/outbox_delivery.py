@@ -53,7 +53,11 @@ logger = logging.getLogger(__name__)
 #: initiating types of AKM-03-001, held to this codebase's inline rule
 #: (AKM-03-003) by the delivery-time guard (AKM-03-002).  ``Accept`` is held
 #: to the same standard because every Vultron ``Accept`` embeds the activity
-#: it answers (#2194).
+#: it answers (#2194).  A typed reference, an inline object with an ``id``
+#: and a ``type``, is a typed object: ``Join``, ``Ignore`` and ``Leave`` of a
+#: case and the ownership-transfer ``Offer`` name their case by one
+#: (AKM-03-003, ADR-0165), and an actor known only by URI travels as one
+#: (ADR-0159).
 _INLINE_OBJECT_ACTIVITY_TYPES: frozenset[str] = frozenset(
     {
         "Create",
@@ -164,7 +168,9 @@ def _validate_inline_object(
     This is the last-resort guard.  Nothing is expanded here: an ``object``
     the factory left as a bare URI or a ``Link`` is a factory defect, and the
     recipient — which has no access to this actor's store — could not resolve
-    it either.
+    it either.  A typed reference names its ``type``, so a receiver routes by
+    it, and passes: the case a participant's act names travels as one
+    (AKM-03-003, ADR-0165).
     """
     if activity_type not in _INLINE_OBJECT_ACTIVITY_TYPES:
         return
@@ -174,7 +180,8 @@ def _validate_inline_object(
             f"Outbound {activity_type} activity '{activity_id}' has an"
             f" inline object that is a bare string or Link"
             f" ({activity_object!r}). Outbound initiating activities must"
-            " carry fully inline typed objects (AKM-03-003).",
+            " carry a typed object, inline or as a typed reference"
+            " (AKM-03-003).",
             activity_id=activity_id,
             activity_type=activity_type,
         )

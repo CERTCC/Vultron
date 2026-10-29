@@ -2366,8 +2366,8 @@ groups:
       stub-Invite reply or a report `Offer` comes from an actor with no ledger to
       state. An entry and a case copy already state their own positions, and
       `Create(VulnerabilityCase)` and `Update(VulnerabilityCase)` are copies too.
-      `Join`, `Ignore`, `Leave` and `Offer` of a case carry the case inline but act on
-      it, so they carry the sender's position. A `Create(ProcessingFault)` is about the
+      `Join`, `Ignore`, `Leave` and `Offer` of a case name the case and act on it, so
+      they carry the sender's position. A `Create(ProcessingFault)` is about the
       processing of one activity, not about a case. Any receiver sends one, including
       for an activity it could not parse and so cannot place in any case (ASK-07-001),
       and it names no case (ASK-07-004). This applies to the replica's faults too. The

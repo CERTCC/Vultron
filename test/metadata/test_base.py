@@ -10,13 +10,15 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for :func:`vultron.metadata.base.iter_tree_texts` and the
-``mkdocs.yml`` readers."""
+"""Tests for :func:`vultron.metadata.base.iter_tree_texts`,
+:func:`~vultron.metadata.base.markdown_files`,
+:func:`~vultron.metadata.base.relative_posix` and the ``mkdocs.yml`` readers."""
 
 from __future__ import annotations
 
 import json
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -28,8 +30,10 @@ from vultron.metadata.base import (
     gh_lookup_failure,
     issue_number,
     iter_tree_texts,
+    markdown_files,
     mkdocs_config,
     parse_mkdocs_config,
+    relative_posix,
 )
 from vultron.metadata.file_loading import MetadataLoadError
 
@@ -55,6 +59,50 @@ def test_skips_pycache_unreadable_files_and_missing_directories(tmp_path):
     (tmp_path / "a" / "ok.py").write_text("ok")
     found = list(iter_tree_texts(tmp_path, ("a", "missing"), "*.py"))
     assert found == [("a/ok.py", "ok")]
+
+
+def test_markdown_files_are_sorted_and_skip_pruned_directories(tmp_path):
+    for rel in ("b.md", "a/z.md", "a/y.txt", "skip/x.md", "a/skip/w.md"):
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text(rel)
+    asked: list[str] = []
+
+    def prune(directory):
+        asked.append(directory.relative_to(tmp_path).as_posix())
+        return directory.name == "skip"
+
+    found = markdown_files(tmp_path, prune)
+
+    assert found == sorted([tmp_path / "a" / "z.md", tmp_path / "b.md"])
+    # A pruned directory is not descended, so nothing below it is asked about.
+    assert sorted(asked) == ["a", "a/skip", "skip"]
+
+
+def test_markdown_files_of_a_missing_directory_is_empty(tmp_path):
+    assert markdown_files(tmp_path / "missing", lambda _d: False) == []
+
+
+@pytest.mark.parametrize(
+    ("path", "root"),
+    [
+        ("/r/a/b.py", "/r"),
+        ("a/b.py", "."),
+        ("a/b.py", "a"),
+        ("/r", "/r"),
+        (".", "."),
+        ("specs/../a/b.py", "specs/.."),
+    ],
+)
+def test_relative_posix_agrees_with_relative_to(path, root):
+    expected = Path(path).relative_to(Path(root)).as_posix()
+
+    assert relative_posix(Path(path), Path(root)) == expected
+
+
+@pytest.mark.parametrize(("path", "root"), [("/s/a.py", "/r"), ("ab/c", "a")])
+def test_relative_posix_refuses_a_path_outside_root(path, root):
+    with pytest.raises(ValueError, match="is not in the subpath of"):
+        relative_posix(Path(path), Path(root))
 
 
 @pytest.mark.spec("MS-17-001")

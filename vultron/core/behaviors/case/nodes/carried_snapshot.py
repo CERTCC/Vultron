@@ -13,20 +13,17 @@
 
 """Nodes that keep what a received case snapshot carries (EMB-18-003, CBT-05-005).
 
-A ``VulnerabilityCase`` that arrives on a ``Create`` or an ``Engage`` is a
-remote point-in-time view that carries the participants and the embargo it
-names inline.  Two steps make it usable on the receiver:
+A ``VulnerabilityCase`` that arrives on a ``Create`` is a remote
+point-in-time view that carries the participants and the embargo it names
+inline.  Two steps make it usable on the receiver:
 
 - hold the embargo the case names, and refuse a case naming one this store
-  cannot read (:class:`HoldCarriedEmbargoNode`), on both paths.  The
-  ``Engage`` tree checks it among its guards
-  (:class:`CheckCarriedEmbargoNode`, which writes nothing) and holds it only
-  as an effect of the committed act (CLP-10-006, CLP-10-010);
+  cannot read (:class:`HoldCarriedEmbargoNode`);
 - store each inline participant as its own record so later nodes can find it by
-  id (:class:`StoreEmbeddedParticipantsNode`), on the ``Create`` path only.
-  An ``Engage`` goes to the CASE_MANAGER, which already holds every record it
-  names, and a participant's view of them is no ledger entry a replica can
-  copy (CLP-07-013, CM-23-016).
+  id (:class:`StoreEmbeddedParticipantsNode`).
+
+A participant's ``Join``, ``Ignore`` or ``Leave`` names its case and carries
+no snapshot (ADR-0165), so no tree of theirs runs either step.
 
 Both delegate to the neutral helpers in ``vultron/core/services/``, which the
 announce seed shares (BT-22-005), so there is one implementation of each.
@@ -39,10 +36,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.services.carried_embargo import (
-    check_carried_embargo,
-    store_carried_embargo,
-)
+from vultron.core.services.carried_embargo import store_carried_embargo
 from vultron.core.services.case_replica_seeding import (
     store_embedded_participants,
 )
@@ -52,10 +46,10 @@ from vultron.errors import VultronNotFoundError, VultronValidationError
 class _CarriedEmbargoNode(DataLayerActionWithPorts):
     """Refuse a received case naming an embargo this store cannot read.
 
-    A subclass names the helper it runs on the case: a read-only check or
-    the hold itself.  Either raises on a case naming an embargo this store
-    cannot read, or one of another case (EMB-18-003, EMB-18-004), which the
-    node turns into ``FAILURE`` with nothing saved.
+    A subclass names the helper it runs on the case, which raises on a case
+    naming an embargo this store cannot read, or one of another case
+    (EMB-18-003, EMB-18-004); the node turns that into ``FAILURE`` with
+    nothing saved.
     """
 
     def __init__(
@@ -86,18 +80,6 @@ class _CarriedEmbargoNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
         return Status.SUCCESS
-
-
-class CheckCarriedEmbargoNode(_CarriedEmbargoNode):
-    """Refuse a received case whose embargo the hold would refuse.
-
-    The read-only guard for a tree that holds the embargo as an effect of
-    the committed act: it writes nothing, so a refused act leaves no stored
-    embargo behind (CLP-10-006, CLP-10-010).
-    """
-
-    def _apply(self, datalayer: CasePersistence) -> None:
-        check_carried_embargo(self.case_obj, datalayer)
 
 
 class HoldCarriedEmbargoNode(_CarriedEmbargoNode, StateWriteCapable):

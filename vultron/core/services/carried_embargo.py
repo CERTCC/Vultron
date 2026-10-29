@@ -23,11 +23,6 @@ the throwaway store it rebuilds the activity in.  It stores the
 and refuses a bare reference the store lacks, rather than letting the case
 land pointing at nothing.
 
-The ``Engage`` tree writes nothing among its guards, so it runs
-:func:`check_carried_embargo`, the read-only half with the same refusals, as
-a guard, and :func:`store_carried_embargo` only as an effect of the
-committed act (CLP-10-006, CLP-10-010).
-
 Without the stored record a replica held a case pointing at an object it
 could not read: the manager's teardown then failed to announce
 (``terminate_embargo`` reads the ``EmbargoEvent`` first and raised), and every
@@ -80,24 +75,6 @@ def store_carried_embargo(
     """
     if (named := _named_embargo(case_obj)) is not None:
         hold_embargo_for_case(store, case_obj, named)
-
-
-def check_carried_embargo(
-    case_obj: VulnerabilityCase, store: CasePersistence | DataLayer
-) -> None:
-    """Raise as :func:`store_carried_embargo` would, writing nothing.
-
-    The read-only half of the hold, for a received tree's precondition
-    guard: it refuses the case :func:`store_carried_embargo` would refuse,
-    so the store itself can run as an effect after the act's commit and a
-    refused act writes nothing (CLP-10-006, CLP-10-010, EMB-18-004).
-
-    Raises:
-        VultronNotFoundError: As :func:`store_carried_embargo`.
-        VultronValidationError: As :func:`store_carried_embargo`.
-    """
-    if (named := _named_embargo(case_obj)) is not None:
-        _vet_embargo_for_case(store, case_obj, named)
 
 
 def _named_embargo(case_obj: object) -> EmbargoEvent | str | None:
@@ -321,7 +298,6 @@ def carried_entry_embargo(
 
 __all__ = [
     "carried_entry_embargo",
-    "check_carried_embargo",
     "entry_embargo",
     "hold_embargo_for_case",
     "store_carried_embargo",

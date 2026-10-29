@@ -826,16 +826,3 @@ def expect_no_inbox_refusals(
     assert not refusals, "an actor's inbox refused an activity:\n" + (
         "\n".join(refusals)
     )
-
-
-@pytest.fixture(name="stub_full_case_reply", autouse=True)
-def run_real_full_case_reply() -> Iterator[None]:
-    """Override the conftest stub: the reporter answers the full-case Invite.
-
-    Import this into a real-app demo test module whose setup seats the
-    reporter through the invite chain.  The chain's last step waits for the
-    full-case Invite and accepts it (CM-11-010, CM-11-011); with the stub
-    lifted it runs for real, so a refused Invite fails the run instead of
-    passing silently (#4970).
-    """
-    yield
