@@ -538,10 +538,6 @@ groups:
 - id: IMPLTS-06
   title: Optional and Prototype Extensions
   specs:
-  - id: IMPLTS-06-001
-    priority: MAY
-    kind: project
-    statement: The system MAY provide interactive demo interfaces using Streamlit.
   - id: IMPLTS-06-002
     priority: MAY
     kind: project
