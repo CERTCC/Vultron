@@ -14,7 +14,8 @@
 
 ``Join``, ``Ignore`` and ``Leave`` of a case and the owner's ownership-transfer
 proposal go to the CASE_MANAGER as the sealed body the sender's outbox would
-deliver, parsed and routed as the inbox routes it.  Each carries the case as a
+deliver, through the inbox's own parse and routing edge
+(``FastAPIIngressAdapter``: parse, staging and rehydration).  Each carries the case as a
 typed reference, ``{"id", "type"}``; the CASE_MANAGER reads every detail from
 its own case, ledgers the reference, and a replica applying the entry gains no
 record from it.  A full case another sender still carries is not refused, but
@@ -29,7 +30,12 @@ from typing import Any
 import pytest
 
 from test.support.ledger import ledger_entries
+from test.support.ledger_rebuild import run_use_case
 from test.support.received import delivered_body
+from vultron.adapters.driving.fastapi.inbox_handler import prepare_for_dispatch
+from vultron.adapters.driving.fastapi.inbox_orchestration import (
+    FastAPIIngressAdapter,
+)
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.wire.as2.factories import (
@@ -122,6 +128,23 @@ def _carrying_a_full_case(
     return carried
 
 
+def _deliver(net: LedgerNetwork, body: dict[str, Any]) -> Any:
+    """Route *body* to the CASE_MANAGER through the inbox's ingress edge.
+
+    The body is parsed, staged and rehydrated as the inbox does it, so the
+    case reference meets the store and rebuild a real delivery meets.
+    """
+    dl = net.stores[MANAGER]
+    ingress = FastAPIIngressAdapter(dl)
+    artifact = ingress.parse(copy.deepcopy(body))
+    assert artifact is not None
+    routed = ingress.rehydrate(artifact)
+    event = prepare_for_dispatch(routed).model_copy(
+        update={"receiving_actor_id": MANAGER}
+    )
+    return run_use_case(dl, event)
+
+
 def _participant_ids(dl: Any) -> set[str]:
     return {o.id_ for o in dl.list_objects("CaseParticipant")}
 
@@ -151,7 +174,7 @@ def test_the_ledgered_act_carries_only_the_case_reference(act):
     body = delivered_body(build(CASE_ID))
     assert _without_context(_slot(body, path)) == _REFERENCE
 
-    verdict = net.receive(MANAGER, body)
+    verdict = _deliver(net, body)
 
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
     snapshot = _entry_snapshot(net, MANAGER, semantic_type)
@@ -176,7 +199,7 @@ def test_a_carried_full_case_is_read_for_its_id_alone(act):
     name_before = net.case(MANAGER).name
     body = _carrying_a_full_case(net, delivered_body(build(CASE_ID)), path)
 
-    verdict = net.receive(MANAGER, body)
+    verdict = _deliver(net, body)
 
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
     assert net.case(MANAGER).name == name_before
@@ -196,10 +219,11 @@ def test_an_act_naming_a_case_the_manager_lacks_is_refused(act):
     body = delivered_body(build(UNHELD_CASE_ID))
     entries_before = ledger_entries(net.stores[MANAGER], CASE_ID)
 
-    verdict = net.receive(MANAGER, body, as_sent=True)
+    verdict = _deliver(net, body)
 
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert UNHELD_CASE_ID in (verdict.reason or "")
     assert body["id"] in (verdict.reason or "")
     assert net.stores[MANAGER].read(UNHELD_CASE_ID) is None
     assert ledger_entries(net.stores[MANAGER], CASE_ID) == entries_before
+    assert net.stores[MANAGER].list_objects("DeadLetterRecord") == []

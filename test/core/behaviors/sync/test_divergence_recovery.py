@@ -1024,6 +1024,9 @@ def test_a_current_copy_replaces_a_participant_the_replica_holds_ahead() -> (
             lambda case: {"type": "Leave", "object": case}, id="Leave"
         ),
         pytest.param(
+            lambda case: {"type": "Offer", "object": case}, id="Offer"
+        ),
+        pytest.param(
             lambda case: {
                 "type": "Offer",
                 "object": {"type": "Offer", "id": "urn:x", "object": case},

@@ -1151,3 +1151,36 @@ def test_a_bare_object_activity_takes_no_inline_contract_from_a_guessed_class():
     )
 
     assert _inline_required_refs(announce) == frozenset()
+
+
+@pytest.mark.spec("AKM-03-004")
+def test_a_case_reference_round_trips_as_a_reference():
+    """A Join's case reference is stored inline and read back as one.
+
+    A reference has no record of its own: collapsed to its id it would read
+    back as a bare id in a store that does not hold the case, which no
+    pattern routes (ADR-0165).
+    """
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.wire.as2.factories import rm_engage_case_activity
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCaseReference,
+    )
+
+    case_id = "urn:uuid:case-reference-roundtrip"
+    join = rm_engage_case_activity(
+        case_id, actor=_CASE_ACTOR_ID, to=[_PEER_ACTOR_ID]
+    )
+    stored = object_to_record(cast(Any, join)).data_.get("object_")
+    assert isinstance(stored, dict) and stored.get("id") == case_id
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
+    try:
+        dl.create(cast(Any, join))
+        back = dl.read(join.id_)
+        assert dl.read(case_id) is None
+    finally:
+        dl.close()
+    assert isinstance(
+        getattr(back, "object_", None), as_VulnerabilityCaseReference
+    )

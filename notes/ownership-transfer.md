@@ -11,6 +11,7 @@ description: >
   the transferee answers only the Offer it received and must be an active
   participant (ADR-0148 revision 2); and the demo preconditions.
 related_specs:
+  - specs/actor-knowledge-model.yaml
   - specs/case-management.yaml
   - specs/case-ledger-processing.yaml
   - specs/event-driven-control-flow.yaml

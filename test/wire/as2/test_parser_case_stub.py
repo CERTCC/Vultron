@@ -23,6 +23,7 @@ a stub had the same shape.  The stub now names itself
 """
 
 import json
+from typing import Any, cast
 
 import pytest
 from pydantic import ValidationError
@@ -30,6 +31,7 @@ from pydantic import ValidationError
 from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
+from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.unknown_keys import (
     resolve_inline_class as _inline_vocab_class,
@@ -91,6 +93,62 @@ def test_an_id_and_type_case_is_a_case_reference_not_a_stub():
         {"type": "VulnerabilityCase", "id": _CASE_ID}
     )
     assert resolved is as_VulnerabilityCaseReference
+
+
+def _body(type_: str, obj: dict) -> dict:
+    return {
+        "type": type_,
+        "id": "urn:uuid:act-case-reference",
+        "actor": "https://example.org/actors/a",
+        "published": "2026-01-01T00:00:00Z",
+        "object": obj,
+    }
+
+
+_REFERENCE = {"type": "VulnerabilityCase", "id": _CASE_ID}
+
+
+@pytest.mark.spec("AKM-03-004")
+@pytest.mark.parametrize("type_", ["Join", "Ignore", "Leave", "Offer"])
+def test_an_act_naming_its_case_parses_the_reference(type_):
+    named = cast(Any, parse_activity(_body(type_, dict(_REFERENCE)))).object_
+    assert isinstance(named, as_VulnerabilityCaseReference)
+    assert named.id_ == _CASE_ID
+
+
+@pytest.mark.spec("AKM-03-004")
+def test_an_answer_embedding_an_act_keeps_its_reference():
+    """An Accept embeds the Offer it answers, reference and all."""
+    offer = {
+        "type": "Offer",
+        "id": "urn:uuid:offer",
+        "actor": "https://example.org/actors/m",
+        "object": dict(_REFERENCE),
+        "target": {"type": "Actor", "id": "https://example.org/actors/t"},
+    }
+    inner = cast(Any, parse_activity(_body("Accept", offer))).object_
+    assert isinstance(
+        getattr(inner, "object_", None), as_VulnerabilityCaseReference
+    )
+
+
+@pytest.mark.spec("AKM-03-004")
+@pytest.mark.parametrize("type_", ["Create", "Announce", "Update"])
+def test_a_case_reference_elsewhere_is_refused_at_parse(type_):
+    """Anywhere but an act that names its case, a case is carried whole, so
+    a reference there is a malformed case, refused naming the activity."""
+    with pytest.raises(
+        VultronParseValidationError, match="act-case-reference"
+    ):
+        parse_activity(_body(type_, dict(_REFERENCE)))
+
+
+@pytest.mark.spec("AKM-03-004")
+def test_a_case_reference_as_a_target_is_refused_at_parse():
+    body = _body("Join", dict(_REFERENCE))
+    body["target"] = dict(_REFERENCE)
+    with pytest.raises(VultronParseValidationError, match="target"):
+        parse_activity(body)
 
 
 @pytest.mark.spec("CM-11-013")

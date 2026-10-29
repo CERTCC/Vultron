@@ -42,6 +42,10 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCaseReference,
+    is_case_reference_shape,
+)
 
 STORED_ROW_CONTEXT: dict[str, bool] = {STORED_CONTEXT_KEY: True}
 """Validation context for reading a stored row back (``STORED_CONTEXT_KEY``)."""
@@ -268,12 +272,16 @@ def _dehydrate_data(
     reference to the nested object instead of an inline copy, eliminating
     redundant storage.
 
-    Two things are never collapsed:
+    Three things are never collapsed:
 
     - a nested value whose ``type_`` is in ``_KEEP_INLINE_NESTED_TYPES``;
     - a field named in *obj*'s ``inline_required_refs`` (or its semantic
       class's, see :func:`_inline_required_refs`), for models whose protocol
-      contract is to carry the object rather than reference it.
+      contract is to carry the object rather than reference it;
+    - a typed case reference (:class:`as_VulnerabilityCaseReference`), which
+      names a case and has no record of its own: collapsed to its id, it
+      would be read back as a bare id, and routing could no longer tell its
+      type when the store does not hold the case (ADR-0165).
 
     Both exist for the same reason: dehydration is only reversible when the
     nested object has a record of its own to be read back from.  It often does
@@ -313,6 +321,11 @@ def _dehydrate_data(
             # it would store a URI that nothing can resolve.
             result[key] = value
             continue
+        if isinstance(getattr(obj, key, None), as_VulnerabilityCaseReference):
+            # A reference is already the smallest form, and the case it names
+            # need not be held here (ADR-0165).
+            result[key] = value
+            continue
         if key in ref_fields and isinstance(value, dict):
             # Keep Activity-type and CaseLedgerEntry nested objects inline.
             # These may not have independent DataLayer records (e.g. a
@@ -345,6 +358,19 @@ def _retype_inline_ref(obj: "BaseModel", field_name: str, raw: object) -> Any:
     type_str = raw.get("type_") or raw.get("type")
     if not isinstance(type_str, str) or type_str.startswith("as_"):
         return None
+    reference: dict[str, Any] = {
+        _PYTHON_TO_WIRE_IDENTITY_KEYS.get(str(k), str(k)): v
+        for k, v in raw.items()
+        if v is not None
+    }
+    if is_case_reference_shape(reference):
+        # A stored case reference reads back as one, never as a sparse case
+        # that fails the case's validation (ADR-0165).
+        if isinstance(
+            getattr(obj, field_name, None), as_VulnerabilityCaseReference
+        ):
+            return None
+        return as_VulnerabilityCaseReference.model_validate(reference)
     try:
         # Both-branch: a stored inline ref may be any persisted type, core
         # records included, so this read path opts into the core fallback

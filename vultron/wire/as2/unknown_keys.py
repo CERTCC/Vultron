@@ -300,8 +300,11 @@ def resolve_inline_class(value: dict[str, Any]) -> type[BaseModel] | None:
     itself ``VulnerabilityCaseStub`` (CM-11-013).  The one exception is a
     ``VulnerabilityCase`` that carries only its ``id`` and ``type``: that is
     the typed reference a participant's act on a case names it by
-    (:class:`as_VulnerabilityCaseReference`, AKM-03-003), and a dict with any
-    other key is a case.
+    (:class:`as_VulnerabilityCaseReference`, AKM-03-004), and a dict with any
+    other key is a case.  The partition, on the raw dict, therefore decides a
+    foreign key against the case's fields and sets it aside; the expansion,
+    on the partitioned dict, then sees the reference that remains.  A key the
+    case declares keeps the dict a case in both calls.
     """
     obj_type = value.get("type")
     if not isinstance(obj_type, str):

@@ -79,17 +79,17 @@ The CASE_MANAGER sends no notice when the sender is not a participant of the cas
 - **Triggering transition:** Valid or Deferred → Accepted ({V,D} → A).
 - **Re-engagement:** re-engaging a deferred case emits the same activity.
   There is no separate re-engagement wire form, because `DEFERRED` → `ACCEPTED` is a forward transition rather than a retraction of the earlier deferral.
-- **Object:** the case, as a typed reference: an inline object with only its `id` and `type` ([AKM-03-003](../specs/project.md#akm-03-003), [ADR-0165](../../adr/0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md)).
-  The CASE_MANAGER reads the case from its own store and refuses a case it does not hold.
-  A full case that another sender still carries is not refused, but the CASE_MANAGER reads only its `id` and stores nothing from it.
+- **Object:** the case, as a typed reference: an inline object with only its `id` and `type` ([AKM-03-004](../specs/project.md#akm-03-004), [ADR-0165](../../adr/0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md)).
+  The CASE_MANAGER reads the case from its own store and refuses a case it does not hold ([AKM-03-006](../specs/project.md#akm-03-006)).
+  A full case that another sender still carries is not refused, but the CASE_MANAGER reads only its `id` and stores nothing from it ([AKM-03-005](../specs/project.md#akm-03-005)).
 
 {% include-markdown "./_occasions/sections/report-deferred.md" %}
 
 - **Triggering transition:** Valid or Accepted → Deferred ({V,A} → D).
 - **Why a case verb:** deferring is a case-participation decision, not a report-validity judgment (MSM-01-004).
-- **Object:** the case, as a typed reference: an inline object with only its `id` and `type` ([AKM-03-003](../specs/project.md#akm-03-003), [ADR-0165](../../adr/0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md)).
-  The CASE_MANAGER reads the case from its own store and refuses a case it does not hold.
-  A full case that another sender still carries is not refused, but the CASE_MANAGER reads only its `id` and stores nothing from it.
+- **Object:** the case, as a typed reference: an inline object with only its `id` and `type` ([AKM-03-004](../specs/project.md#akm-03-004), [ADR-0165](../../adr/0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md)).
+  The CASE_MANAGER reads the case from its own store and refuses a case it does not hold ([AKM-03-006](../specs/project.md#akm-03-006)).
+  A full case that another sender still carries is not refused, but the CASE_MANAGER reads only its `id` and stores nothing from it ([AKM-03-005](../specs/project.md#akm-03-005)).
 
 ## Formal messages with no dedicated wire activity
 

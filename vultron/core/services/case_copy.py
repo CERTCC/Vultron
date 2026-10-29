@@ -50,6 +50,7 @@ from vultron.core.models._helpers import _as_id, project_wire_snapshot_to_core
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_naming import CASE_NAMING_ACTIVITY_TYPES
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.ledger_position import (
@@ -224,14 +225,6 @@ def _named_by(case: VulnerabilityCase) -> set[str]:
     return named
 
 
-#: The activity types whose ``object`` names a case without carrying a copy
-#: of it: a participant's ``Join``, ``Ignore`` and ``Leave`` of a case and the
-#: ownership-transfer ``Offer`` (ADR-0165).
-_CASE_NAMING_ACTIVITY_TYPES: frozenset[str] = frozenset(
-    {"Join", "Ignore", "Leave", "Offer"}
-)
-
-
 def _names_its_case(value: dict[str, Any], key: str, child: Any) -> bool:
     """Whether *child*, *value*'s ``object``, is a case the act only names.
 
@@ -241,7 +234,7 @@ def _names_its_case(value: dict[str, Any], key: str, child: Any) -> bool:
     """
     return (
         key in ("object", "object_")
-        and value.get("type") in _CASE_NAMING_ACTIVITY_TYPES
+        and value.get("type") in CASE_NAMING_ACTIVITY_TYPES
         and isinstance(child, dict)
         and child.get("type") == "VulnerabilityCase"
     )
