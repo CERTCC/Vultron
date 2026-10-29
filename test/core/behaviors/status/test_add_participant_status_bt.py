@@ -84,11 +84,12 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
+    DDimension,
     PxaDimension,
     RmDimension,
     VfDimension,
 )
-from vultron.core.states.cs import CS_pxa
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.status import (
@@ -2646,3 +2647,117 @@ class TestReceivedAttacksLeaveThePublicBit:
 
         assert result.status == Status.SUCCESS, result.feedback_message
         assert _case_pxa(populated_dl) == CS_pxa.pxA
+
+
+# ---------------------------------------------------------------------------
+# CSB-01-001 to CSB-03-001: receiving CV, CF and CD
+# ---------------------------------------------------------------------------
+
+
+def _vendor_store() -> SqliteDataLayer:
+    """The CASE_MANAGER's store: a vendor and deployer (Case Owner) at RM
+    Accepted, and the CASE_MANAGER, seated on one case."""
+    from vultron.core.models.participant_status import ParticipantStatus
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
+    vendor = as_CaseParticipant(
+        id_=PARTICIPANT_ID,
+        context=CASE_ID,
+        attributed_to=ACTOR_ID,
+        case_roles=[CVDRole.CASE_OWNER, CVDRole.VENDOR, CVDRole.DEPLOYER],
+    )
+    manager = as_CaseParticipant(
+        id_=CM_PARTICIPANT_ID,
+        context=CASE_ID,
+        attributed_to=CASE_MANAGER_ID,
+        case_roles=[CVDRole.CASE_MANAGER],
+        participant_statuses=[
+            ParticipantStatus(
+                context=CASE_ID,
+                attributed_to=CASE_MANAGER_ID,
+                rm=RmDimension(state=RM.ACCEPTED),
+            )
+        ],
+    )
+    case = VulnerabilityCase(
+        id_=CASE_ID, name="Test Case", attributed_to=CASE_MANAGER_ID
+    )
+    case.add_participant(vendor)
+    case.add_participant(manager)
+    dl.create(case)
+    dl.create(vendor)
+    dl.create(manager)
+    return dl
+
+
+def _statuses(dl: SqliteDataLayer, participant_id: str) -> list:
+    participant = dl.read(participant_id)
+    assert isinstance(participant, CaseParticipant)
+    return participant.participant_statuses
+
+
+class TestReceiveVendorPathNotices:
+    """CV, CF and CD arrive as ``Add(ParticipantStatus)`` (MSM-03-001).
+
+    The receiver records the sender's new state, its own state is unchanged,
+    and no CK message is queued: the only outbound activities are the
+    ``Announce`` fan-out of the committed entries.
+    """
+
+    @pytest.mark.spec("CSB-01-001")
+    @pytest.mark.spec("CSB-02-001")
+    @pytest.mark.spec("CSB-03-001")
+    @pytest.mark.parametrize(
+        ("dimensions", "expected"),
+        [
+            pytest.param(
+                {"vf": VfDimension(state=CS_vf.Vf)},
+                ("vf", CS_vf.Vf),
+                id="CV",
+            ),
+            pytest.param(
+                {"vf": VfDimension(state=CS_vf.VF)},
+                ("vf", CS_vf.VF),
+                id="CF",
+            ),
+            pytest.param(
+                {"d": DDimension(state=CS_d.D)},
+                ("d", CS_d.D),
+                id="CD",
+            ),
+        ],
+    )
+    def test_updates_sender_model_without_ck(
+        self, make_payload, dimensions, expected
+    ):
+        dl = _vendor_store()
+        manager_before = _statuses(dl, CM_PARTICIPANT_ID)
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(
+                id_=f"{PARTICIPANT_ID}/statuses/vfd",
+                context=CASE_ID,
+                rm=RmDimension(state=RM.ACCEPTED),
+                **dimensions,
+            ),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            to=[CASE_MANAGER_ID],
+            context=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            ),
+        )
+
+        result = _run_at_case_manager(dl, make_payload(activity))
+
+        assert result.status == Status.SUCCESS, result.feedback_message
+        field, state = expected
+        latest = _statuses(dl, PARTICIPANT_ID)[-1]
+        assert getattr(latest, field).state == state
+        assert _statuses(dl, CM_PARTICIPANT_ID) == manager_before
+        outbound = [
+            getattr(dl.read(a), "type_", None) for a in dl.outbox_list()
+        ]
+        assert outbound
+        assert all(t == "Announce" for t in outbound), outbound

@@ -14,8 +14,10 @@
 import pytest
 
 from test.demo._helpers import (
+    expect_no_sender_refusals,
     expect_trusted_introductions,
     route_exchange_demo_at_testclient,
+    run_real_full_case_reply,  # noqa: F401 (fixture override)
 )
 from vultron.demo.exchange import (
     initialize_case_demo as init_demo,
@@ -56,6 +58,7 @@ def test_demo(demo_env, demo_fn, caplog):
     with (
         caplog.at_level(logging.WARNING),
         expect_trusted_introductions(caplog),
+        expect_no_sender_refusals(caplog),
     ):
         demo.main(skip_health_check=True, demos=[demo_fn])
 

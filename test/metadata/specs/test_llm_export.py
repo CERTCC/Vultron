@@ -28,6 +28,7 @@ GRAPH_YAML_A = {
                     "priority": "MUST",
                     "kind": "protocol",
                     "statement": "GA-01-001 MUST be foundational",
+                    "rationale": "Because testing.",
                     "tags": ["protocol"],
                 },
                 {
@@ -35,6 +36,7 @@ GRAPH_YAML_A = {
                     "priority": "SHOULD",
                     "kind": "protocol",
                     "statement": "GA-01-002 SHOULD depend on GA-01-001",
+                    "rationale": "Because testing.",
                     "relationships": [
                         {
                             "rel_type": "depends_on",
@@ -54,6 +56,7 @@ GRAPH_YAML_A = {
                     "priority": "MAY",
                     "kind": "project",
                     "statement": "GA-02-001 MAY extend GA-01-002",
+                    "rationale": "Because testing.",
                     "scope": ["production"],
                     "relationships": [
                         {
@@ -82,6 +85,7 @@ GRAPH_YAML_B = {
                     "priority": "MUST",
                     "kind": "protocol",
                     "statement": "GB-01-001 MUST cross-reference GA-01-001",
+                    "rationale": "Because testing.",
                     "relationships": [
                         {
                             "rel_type": "depends_on",
@@ -293,10 +297,10 @@ class TestLlmExport:
             # testable=True is the default, should be omitted
             assert "testable" not in req
 
-    def test_omits_absent_rationale(self, graph_registry):
+    def test_always_exports_rationale(self, graph_registry):
         data = json.loads(to_llm_json(graph_registry))
         for req in data["requirements"]:
-            assert "rationale" not in req
+            assert req["rationale"] == "Because testing."
 
     def test_empty_result(self, graph_registry):
         data = json.loads(to_llm_json(graph_registry, topic="NONEXISTENT"))
@@ -330,6 +334,7 @@ class TestLlmExport:
                             "priority": "MUST",
                             "kind": "project",
                             "statement": "VV-01-001 MUST do the thing",
+                            "rationale": "Because testing.",
                             "verification": "A test in `test/foo.py` asserts this.",
                         }
                     ],
@@ -369,6 +374,7 @@ class TestMainLlmJsonKindFlag:
                             "priority": "MUST",
                             "kind": "protocol",
                             "statement": "KF-01-001 MUST be protocol",
+                            "rationale": "Because testing.",
                         },
                     ],
                 },
@@ -381,6 +387,7 @@ class TestMainLlmJsonKindFlag:
                             "priority": "SHOULD",
                             "kind": "project",
                             "statement": "KF-02-001 SHOULD be project",
+                            "rationale": "Because testing.",
                         },
                     ],
                 },
@@ -495,6 +502,7 @@ NOTE_YAML = {
                     "priority": "MUST",
                     "kind": "protocol",
                     "statement": "NT-01-001 MUST be exported with its note",
+                    "rationale": "Because testing.",
                     "note": "This binds the sender only; a receiver MUST NOT "
                     "enforce it.",
                 },
@@ -503,6 +511,7 @@ NOTE_YAML = {
                     "priority": "MUST",
                     "kind": "protocol",
                     "statement": "NT-01-002 MUST be exported without a note",
+                    "rationale": "Because testing.",
                 },
             ],
         }
@@ -537,7 +546,7 @@ class TestNoteIsExported:
         )
 
     def test_note_is_absent_when_unset(self, note_registry):
-        """Omitted rather than exported as null, matching `rationale`."""
+        """Omitted rather than exported as null."""
         assert "note" not in self._by_id(note_registry)["NT-01-002"]
 
     def test_every_schema_field_is_exported_or_deliberately_dropped(self):

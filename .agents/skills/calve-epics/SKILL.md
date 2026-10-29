@@ -45,9 +45,12 @@ build. The crucial point is that **the line along which a glacier calves is
 drawn by architectural judgment, not by scheduling convenience.** The split
 is not made because a chunk is the right size for a sprint or because a
 deadline looms. It is made because a set of pieces turns out to realize a
-single coherent design idea. Cutting a glacier along a merely convenient line
-— by size, by date, by superficial theme — produces plausible-looking work
-units that are subtly wrong, split across the grain of the actual design.
+single coherent design idea. Cut **by design grain, within one theme**: every
+epic sits inside one `theme:` (`notes/epic-themes.md` § "The Theme Contains
+the Grain"), and inside that theme the line follows the design. Cutting a
+glacier along a merely convenient line — by size, by date — produces
+plausible-looking work units that are subtly wrong, split across the grain of
+the actual design.
 
 The metaphor extends, and each extension names a real event: sometimes a new
 idea lands directly on an already-schedulable iceberg rather than on a
@@ -74,10 +77,31 @@ different things. **This skill keeps them separate on purpose.**
 
 If you remember one rule: **route freely, calve only with a human.**
 
+## The work list: the theme-fit report
+
+The `theme-fit` structural check (`uv run theme-fit`) lists every open issue
+that breaks a theme rule; a scheduled run keeps its output in the standing
+"Theme fit report" issue. That report is this skill's work list: read the
+standing report issue, or run `theme-fit` when it is missing or stale, and act
+on its findings before looking for other work.
+
+- An **unparented** or **theme-mismatch** child → Mode 1 routing.
+- An **auto-calved Epic still single-child** → Mode 2: decide whether its
+  theme gathers more work, or move the lone child and close the Epic.
+- An **Epic with two themes and no named split**, or many children of one
+  Epic in another theme → Mode 3: split it, or name the split.
+- A **leaf-theme-count**, **missing-reason-line**, **unknown-theme**, or
+  **retiring-theme** finding → relabel by `notes/epic-themes.md` § "Acting on
+  a Theme-Fit Finding", then route if the Epic no longer matches.
+
+The report is structural: it cannot see a label that is well-formed but
+wrong. The blind content audit (Mode 3) covers that.
+
 ## Mode 1 — Route an issue onto the forest
 
 Input: one or more leaf issue numbers that currently have no parent (or whose
-parent is wrong). Goal: land each on the epic that matches it.
+parent is wrong). Goal: land each on the epic that matches it. `create-issue`
+runs this mode for every new issue before it is created.
 
 1. **Load the forest.** List open epics with their Schedule tier (see
    *Reading the board* below). The query MUST filter for `state == "OPEN"` —
@@ -94,32 +118,38 @@ parent is wrong). Goal: land each on the epic that matches it.
    the list is partial and step 3's "zero plausible epics" branch is unsafe.
    At `--limit 200` on 305 open issues this returned 16 of 34 (#3319).
 
-2. **Match by grain, not by keyword.** Ask which epic's design idea this issue
-   advances. A protocol-correctness bug belongs with protocol correctness even
-   if its title mentions a demo scenario; a prod-only concern belongs with
-   productionization even if it surfaced during demo work.
+2. **Stay inside the issue's theme.** Candidates are only the open epics that
+   carry the issue's `theme:` label (PAD-02-017). If the issue's own label
+   looks wrong, relabel it first by its outcome (`notes/epic-themes.md`
+   § "Classify by Outcome"); never route across themes to fit a label.
 
-3. **Decide autonomy by ambiguity:**
+3. **Match by grain, not by keyword.** Among those candidates, ask which epic's
+   design idea this issue advances. A protocol-correctness bug belongs with
+   protocol correctness even if its title mentions a demo scenario; a prod-only
+   concern belongs with productionization even if it surfaced during demo work.
+
+4. **Decide autonomy by ambiguity:**
    - **Exactly one clearly-matching epic** → parent it there automatically via
      `manage-github-issue` (`--sub-issue`). No need to ask.
    - **Zero plausible epics** → this is a calving signal, not a routing
-     failure. Do **not** invent an epic on your own. When Mode 1 is invoked
-     **directly** (e.g. by `update-plan`): leave the issue at root and record
-     it as a candidate for Mode 2. When Mode 1 is invoked by a skill that
-     **requires** a parent (e.g. `plan-issue`, `bugfix`): report no match back
-     to the caller — the caller is responsible for asking the user to select an
-     existing epic or triggering Mode 2.
+     failure. No issue is left without a parent. With a user present, ask
+     whether to use one of the theme's epics anyway or calve a new one
+     (Mode 2). With no user present, calve a Someday epic in the issue's theme
+     through `create-epic`, marked `<!-- auto-calved -->`, and report it: this
+     is the one calve an agent makes alone, and the `theme-fit` report flags
+     the epic until a person reviews it. When the caller is `create-issue`,
+     report no match back and let it apply this rule.
    - **Two or more plausible epics** → ask the user with `AskUserQuestion`,
      presenting the candidates with a one-line rationale each. Route to their
-     choice.
+     choice. Unattended, take the best match and report it.
 
-4. **Inherit the horizon.** A routed issue should adopt its epic's Schedule
+5. **Inherit the horizon.** A routed issue should adopt its epic's Schedule
    tier rather than defaulting to Someday, so routing a Next-tier correctness
    gap onto a Next-tier epic does not silently bury it. Set the issue's
-   Schedule to match its new parent (see *Reading the board*). A true orphan
-   left at root stays Someday. To catch up children that drifted in without
-   routing, run `bash .agents/skills/shared/sync-epic-schedules.sh` (dry run,
-   then `--apply`).
+   Schedule to match its new parent (see *Reading the board*). To catch up
+   children that drifted in without routing, run
+   `bash .agents/skills/shared/sync-epic-schedules.sh` (dry run, then
+   `--apply`).
 
 ## Mode 2 — Calve a new iceberg (human-gated)
 
@@ -135,16 +165,22 @@ failing because the right home does not exist yet.
    size", because a deadline looms, or because several issues share a
    superficial keyword. Those cuts run across the grain.
 
-3. **Propose, then wait.** Present the proposed iceberg to the user with
-   `AskUserQuestion`: the one-sentence design idea, the leaf issues it would
-   contain, and the Schedule tier you recommend. Ask whether the fracture line
-   is along-grain. **Do not create the epic until the user confirms.**
+3. **Stay inside one theme.** Every leaf of the new iceberg carries the same
+   `theme:` label, and the epic carries it too. If the pieces span two themes,
+   they are two icebergs.
 
-4. **On confirmation, delegate the mechanics.** Invoke `create-epic` with the
-   agreed title, body (lead with the one-sentence design idea), leaf issue
-   numbers, and Schedule. `create-epic` owns epic-type creation, sub-issue
-   wiring, board placement, and the `needs-decomposition` label — do not
-   reimplement any of that here.
+4. **Propose, then wait.** Present the proposed iceberg to the user with
+   `AskUserQuestion`: the one-sentence design idea, its theme, the leaf issues
+   it would contain, and the Schedule tier you recommend. Ask whether the
+   fracture line is along-grain. **Do not create the epic until the user
+   confirms.** The only exception is the unattended auto-calve in Mode 1
+   step 4.
+
+5. **On confirmation, delegate the mechanics.** Invoke `create-epic` with the
+   agreed title, theme, body (a `Theme:` line, then the one-sentence design
+   idea), leaf issue numbers, and Schedule. `create-epic` owns epic-type
+   creation, sub-issue wiring, board placement, and the `needs-decomposition`
+   label — do not reimplement any of that here.
 
 ## Mode 3 — Recrystallize a muddled forest (human-gated)
 
@@ -184,16 +220,39 @@ Procedure:
 
 1. Build the current picture: every **open** epic (state == "OPEN" only —
    closed epics MUST be excluded even when they still appear on the board),
-   its Schedule tier, its parent (sub-epics exist), and its open children.
-   Diagnose where the grain and the current cuts disagree.
-2. Propose the target crystals to the user as a small set of decision forks
+   its Schedule tier, its theme, and its open children. Start from the
+   theme-fit report's findings. Diagnose where the grain and the current cuts
+   disagree.
+2. **Run a blind content audit** of each moldable epic's children. Give a
+   fresh subagent only the theme catalog block from `notes/epic-themes.md` and
+   each child's title and body — **not** its labels, its epic, or this
+   picture — and have it pick each child's theme by outcome (PAD-02-016). The
+   audit is blind so that a label copied from the parent cannot vouch for
+   itself. Compare its pick with each child's label and its epic's theme:
+   - pick ≠ label → the label is wrong: relabel it and rewrite its `Theme:`
+     line;
+   - pick = label ≠ the epic's theme → eject the child (Mode 1) or split the
+     epic;
+   - many children of one epic picked into another theme → split along that
+     boundary.
+
+   Report the share of children whose pick matches their epic's theme; it is
+   the epic's content coherence, which the structural report cannot measure.
+3. Propose the target crystals to the user as a small set of decision forks
    (`AskUserQuestion`), each naming the design idea of a proposed epic and what
    moves into it. Confirm tiers explicitly.
-3. On confirmation, execute: create new epics via `create-epic`, re-parent via
+4. On confirmation, execute: create new epics via `create-epic`, re-parent via
    `manage-github-issue`, close emptied epics with `gh issue close --reason
    "not planned"` and a comment explaining the consolidation. Verify at the end
    that no non-epic issue is left orphaned and that the root-epic set reads
    cleanly.
+
+## Before promoting an epic to Now
+
+Run the Mode 3 blind content audit on that epic alone before its Schedule moves
+to Now (or Focus), and fix what it finds first. Now and Focus epics are frozen
+against re-shaping, so promotion is the last point at which a cross-grain
+child can be moved cheaply.
 
 ## Reading the board
 
@@ -288,8 +347,12 @@ To read an issue's current parent and an epic's open children, use the
 
 ## Constraints
 
-- Route freely; calve, fuse, split, and dissolve only with human confirmation.
-- Cut by design grain, never by size, date, or superficial theme.
+- Route freely, within the issue's theme; calve, fuse, split, and dissolve
+  only with human confirmation, except the unattended auto-calve in Mode 1.
+- No issue is left without a parent.
+- Run the blind content audit in every recrystallize pass and before any epic
+  is promoted to Now.
+- Cut by design grain, within one theme; never by size or date.
 - Treat Now/Focus epics as frozen: add children only, never re-tier or
   re-shape them.
 - Do not create an epic when a single coherent design idea cannot be stated in

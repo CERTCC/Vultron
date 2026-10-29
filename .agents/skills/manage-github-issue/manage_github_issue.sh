@@ -32,15 +32,25 @@
 #   --issue-type-id, --parent, and exactly one of --opened-as or --planned
 # Missing any one exits non-zero. See shared/issue-creation-requirements.md.
 #
+# On CREATE the theme gate (`theme-gate`, notes/epic-themes.md) also requires,
+# before anything is created:
+#   - exactly one active catalog `theme:` label among the --label values;
+#   - a `Theme: <label> — <outcome>` line in --body naming it;
+#   - an open --parent that carries the same theme.
+# Every violation is printed; the script exits 1 without creating the issue.
+# Agents create issues through the `create-issue` skill, which decides the
+# theme and parent this gate checks.
+#
 # Outputs:
 #   Issue number on stdout. Progress and status on stderr.
 #
 # Examples:
-#   # Create with parent and blocker:
+#   # Create with parent and blocker (the create-issue skill builds this call):
 #   NUM=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
-#     --title "Implement X" --body "..." \
+#     --title "Implement X" --body "Theme: theme:dev-workflow — ...
+#   ..." \
 #     --issue-type-id "${TASK_TYPE_ID}" \
-#     --label "size:M" \
+#     --label "size:M" --label "theme:dev-workflow" \
 #     --parent 42 --planned --blocked-by 50)
 #
 #   # Wire relationships on an existing issue:
@@ -130,6 +140,22 @@ elif [[ -n "${OPENED_AS}" || -n "${WHERE}" || "${PLANNED}" -eq 1 ]]; then
   exit 1
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The checkout whose `theme-gate` and catalog are used.
+PROJECT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+
+# Once createIssue succeeds, a later failure must not lead to a re-run that
+# makes a duplicate: say the issue exists and how to finish it.
+CREATED_NUMBER=""
+warn_if_partial() {
+  local rc=$?
+  if [[ ${rc} -ne 0 && -n "${CREATED_NUMBER}" ]]; then
+    echo "ERROR: #${CREATED_NUMBER} was created, but a later step failed." >&2
+    echo "  Do not create it again; finish it with --issue-number ${CREATED_NUMBER}" >&2
+  fi
+}
+trap warn_if_partial EXIT
+
 REPO_OWNER="${REPO%%/*}"
 REPO_NAME="${REPO##*/}"
 
@@ -164,6 +190,39 @@ if [[ -z "${ISSUE_NUMBER}" ]]; then
   # CREATE mode
   [[ -z "${TITLE}" ]] && { echo "ERROR: --title is required when creating an issue" >&2; exit 1; }
 
+  # Theme gate: one theme, a Theme: line, a parent carrying the same theme.
+  GATE_ARGS=(--repo "${REPO}" --parent "${PARENT_ISSUE}"
+             --catalog "${PROJECT_DIR}/notes/epic-themes.md" --body-file -)
+  for L in ${LABELS[@]+"${LABELS[@]}"}; do GATE_ARGS+=(--label "${L}"); done
+  GATE_RC=0
+  printf '%s' "${BODY}" | PYTHONPATH= uv run --quiet --project "${PROJECT_DIR}" \
+    python -m vultron.metadata.planning.theme_fit.gate "${GATE_ARGS[@]}" || GATE_RC=$?
+  if [[ "${GATE_RC}" -ne 0 ]]; then
+    if [[ "${GATE_RC}" -eq 1 ]]; then
+      echo "ERROR: the theme gate refused the issue; nothing was created" >&2
+      echo "  Create issues through the create-issue skill" >&2
+    else
+      echo "ERROR: the theme gate could not run (exit ${GATE_RC}); nothing was created" >&2
+    fi
+    exit 1
+  fi
+
+  # Resolve every label first, so the labels go into createIssue itself and a
+  # missing label stops the run before anything is created.
+  LABEL_IDS=()
+  for L in ${LABELS[@]+"${LABELS[@]}"}; do
+    IFS=',' read -r -a PARTS <<< "${L}"
+    for P in "${PARTS[@]}"; do
+      P="${P#"${P%%[![:space:]]*}"}"; P="${P%"${P##*[![:space:]]}"}"
+      [[ -z "${P}" ]] && continue
+      LID=$(bash "${SCRIPT_DIR}/../shared/label-id.sh" "${REPO}" "${P}") || {
+        echo "ERROR: cannot resolve label '${P}'; nothing was created" >&2
+        exit 1
+      }
+      LABEL_IDS+=("\"${LID}\"")
+    done
+  done
+
   REPO_NODE_ID=$(resolve_repo_id)
 
   TITLE_JSON=$(printf '%s' "${TITLE}" | json_encode)
@@ -172,6 +231,11 @@ if [[ -z "${ISSUE_NUMBER}" ]]; then
   # Build optional fields
   TYPE_FIELD=""
   [[ -n "${ISSUE_TYPE_ID}" ]] && TYPE_FIELD="issueTypeId: \"${ISSUE_TYPE_ID}\""
+
+  LABEL_FIELD=""
+  if [[ ${#LABEL_IDS[@]} -gt 0 ]]; then
+    LABEL_FIELD="labelIds: [$(IFS=,; echo "${LABEL_IDS[*]}")]"
+  fi
 
   PARENT_FIELD=""
   PARENT_NODE_ID=""
@@ -190,6 +254,7 @@ if [[ -z "${ISSUE_NUMBER}" ]]; then
       body: ${BODY_JSON}
       ${TYPE_FIELD}
       ${PARENT_FIELD}
+      ${LABEL_FIELD}
     }) {
       issue { number id url }
     }
@@ -205,16 +270,9 @@ if [[ -z "${ISSUE_NUMBER}" ]]; then
     "import json,sys; print(json.load(sys.stdin)['data']['createIssue']['issue']['url'])" \
     <<< "${RESULT}")
 
+  CREATED_NUMBER="${ISSUE_NUMBER}"
   echo "  Created #${ISSUE_NUMBER}: ${ISSUE_URL}" >&2
-
-  # Apply labels (REST accepts label names directly)
-  if [[ ${#LABELS[@]} -gt 0 ]]; then
-    LABEL_STR=$(IFS=,; echo "${LABELS[*]}")
-    gh issue edit "${ISSUE_NUMBER}" \
-      --repo "${REPO}" \
-      --add-label "${LABEL_STR}" >&2
-    echo "  Applied labels: ${LABEL_STR}" >&2
-  fi
+  [[ ${#LABELS[@]} -gt 0 ]] && echo "  With labels: $(IFS=,; echo "${LABELS[*]}")" >&2
 
   # Apply milestone (optional)
   if [[ -n "${MILESTONE}" ]]; then

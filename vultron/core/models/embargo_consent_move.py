@@ -116,8 +116,8 @@ def joiner_agreement(
 
     Its agreement to the embargo in force (CM-10-001).  ``None`` with no
     embargo in force, when the row already reads ``AGREED``, or when it
-    reads ``DECLINED``: only the participant's own answer to the embargo
-    changes a decline (CM-18-003).
+    reads ``DECLINED``: an explicit refusal outranks the consent that
+    joining implies, so joining leaves a decline unchanged (CM-11-001).
 
     Raises:
         VultronNotFoundError: the participant holds no row for the embargo

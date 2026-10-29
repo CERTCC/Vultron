@@ -41,6 +41,7 @@ ARCH_YAML = {
                     "priority": "SHOULD",
                     "kind": "architecture",
                     "statement": "ARCH-01-002 SHOULD hold",
+                    "rationale": "Because testing.",
                     "relationships": [
                         {"rel_type": "depends_on", "spec_id": "ARCH-01-001"}
                     ],
@@ -65,6 +66,7 @@ CM_YAML = {
                     "priority": "MUST",
                     "kind": "protocol",
                     "statement": "CM-01-001 MUST depend on ARCH-01-002",
+                    "rationale": "Because testing.",
                     "relationships": [
                         {"rel_type": "depends_on", "spec_id": "ARCH-01-002"}
                     ],
@@ -80,6 +82,7 @@ CM_YAML = {
                     "priority": "MAY",
                     "kind": "protocol",
                     "statement": "CM-02-001 MAY exist",
+                    "rationale": "Because testing.",
                     "scope": ["production"],
                 },
             ],
@@ -365,6 +368,7 @@ class TestRequirementsText:
                         "priority": "MUST",
                         "kind": "architecture",
                         "statement": "first line\nsecond line\nthird line",
+                        "rationale": "Because testing.",
                     }
                 ],
             }
@@ -449,6 +453,7 @@ FOUNDATION_YAML = {
                     "priority": "MUST",
                     "kind": "foundation",
                     "statement": "Object IDs MUST be treated as opaque URIs.",
+                    "rationale": "Because testing.",
                     "tags": ["as2"],
                 },
                 {
@@ -456,6 +461,7 @@ FOUNDATION_YAML = {
                     "priority": "MUST",
                     "kind": "protocol",
                     "statement": "An Accept MUST reference the Offer.",
+                    "rationale": "Because testing.",
                 },
             ],
         }

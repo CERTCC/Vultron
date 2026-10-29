@@ -209,9 +209,9 @@ approves the correction and disposition.
 **Defer (only on real uncertainty):**
 
 1. Create a `type:Concern` issue capturing the wrong premise, the evidence, and
-   the open question, via the `manage-github-issue` / `new-item` idiom.
-2. Add it to Project #24 with a Schedule tier the user chooses
-   (`.agents/skills/shared/add-to-project.sh <N> <tier>`).
+   the open question, via `create-issue` (reason `planned`, user present). It
+   picks the theme, routes the Concern to a same-theme Epic, and adds it to
+   Project #24; the Concern takes its Epic's tier (PAD-02-001).
 
 **Always — archive a history entry** per resolved landmine via
 `archive-history`:

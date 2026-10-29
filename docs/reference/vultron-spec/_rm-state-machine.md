@@ -67,14 +67,21 @@ Three consequences follow.
 Each one corrects a plausible assumption that is not true:
 
 - **A report cannot be closed from every state.** Only Received, Invalid, Deferred and Accepted are closable.
-  A participant at Start or Valid MUST reach one of those states before it can close.
+  A participant at Start or Valid has to reach one of those states before it can close.
   A `Reject` sent from Received is the Received → Closed transition, and a participant at Valid that leaves a case is recorded as Valid → Deferred → Closed.
 
 - **Valid does not return to Invalid.** Invalidation is available only from Received.
   When a participant has assessed a report as valid, it does not invalidate it again.
   If the participant decides to stop work, it defers or closes.
 
-- **Accepted and Deferred are mutually reachable.** A participant may defer work it had accepted and accept work it had deferred, without passing through Valid again.
+- **Accepted and Deferred are mutually reachable.** A participant can defer work it had accepted and accept work it had deferred, without passing through Valid again.
+
+Closed has no transition out of it.
+A participant that expects to resume work on a report defers it instead of closing it.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RMB-14-004", "RMB-14-005", "RMB-14-006", "RMB-14-007", "VP-02-004"))
+```
 
 !!! info "See also"
     - [RM Transitions Reference](../formal_protocol/transitions.md)
@@ -83,24 +90,38 @@ Each one corrects a plausible assumption that is not true:
 
 Each participant tracks its own RM state independently.
 A participant is the authority on its own RM state ([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)).
+A receiver that processes an RM transition records it on the sender's participant record, never on its own.
 
-Received is the entry state for a participant that joins a case.
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-01-002", "CM-03-002", "CM-04-001"))
+```
+
+Received is the entry state for a participant in a case.
 A participant reaches it by several paths:
 
-- **Invited participant** — the CASE_MANAGER creates an inert participant record at RM Received when it sends the stub `Invite` ([CM-11-006](../../reference/vultron-spec/../specs/protocol.md#cm-11-006)).
-  `Accept(Invite)` activates the inert record, recording willingness to join and, where an embargo is active, consent to it.
-  `Reject(Invite)` closes the record (RM Received → Closed) and retains it as history ([CM-11-007](../../reference/vultron-spec/../specs/protocol.md#cm-11-007)).
-  Neither transition is a validation of the report, because at that point the invitee has seen only a case stub.
-
-    After the participant joins, the CASE_MANAGER sends the case and the ledger.
-    It then sends a second Invite, the full-case Invite, which carries the ledger position of the CASE_MANAGER as a floor ([CM-11-010](../../reference/vultron-spec/../specs/protocol.md#cm-11-010)).
-    The participant judges the case when it answers this Invite with its own ledger position.
-    The answer is `Accept` (RV, Received → Valid), `TentativeReject` (RI, Received → Invalid) or `Reject` (RC, Received → Closed) ([CM-11-011](../../reference/vultron-spec/../specs/protocol.md#cm-11-011)).
-    A reply behind the floor, or naming a ledger entry the CASE_MANAGER does not hold, is refused ([CM-11-012](../../reference/vultron-spec/../specs/protocol.md#cm-11-012)).
-
+- **Invited participant** — the CASE_MANAGER creates an inert participant record at RM Received when it sends the stub `Invite`.
 - **Direct report recipient** — on receiving a report.
-
 - **Case proposal recipient** — on receiving a `CaseProposal`.
+
+An invited participant answers the stub `Invite` before it has seen more than a case stub.
+`Accept(Invite)` activates the inert record, recording willingness to join and, where an embargo is active, consent to it, unless the participant has already declined that embargo.
+RM stays at Received.
+`Reject(Invite)` closes the record (RM Received → Closed) and retains it as history.
+Neither answer is a validation of the report.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-006", "CM-11-001", "CM-11-007"))
+```
+
+After the participant joins, the CASE_MANAGER sends the case and the ledger.
+It then sends a second Invite, the full-case Invite, which carries the ledger position of the CASE_MANAGER as a floor.
+The participant judges the case when it answers this Invite with its own ledger position.
+The answer is `Accept` (RV, Received → Valid), `TentativeReject` (RI, Received → Invalid) or `Reject` (RC, Received → Closed).
+A reply behind the floor, or naming a ledger entry the CASE_MANAGER does not hold, is refused.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-010", "CM-11-011", "CM-11-012"))
+```
 
 The triage cycle (`RECEIVED → VALID | INVALID → ACCEPTED | DEFERRED`) is a different, later step.
 The participant runs it **after** it receives the full case replica.
@@ -112,8 +133,12 @@ The participant runs it **after** it receives the full case replica.
 
     The full-case Invite asks whether the case is valid.
     Its `Accept` is RV (Received → Valid), and only a later `Join(VulnerabilityCase)` reaches RM Accepted.
-    A participant cannot accept what it has not seen, so the CASE_MANAGER MUST NOT treat a participant as having committed to the case until it receives an RM status message from that participant confirming the transition.
+    A participant cannot accept what it has not seen, so the CASE_MANAGER does not treat a participant as having committed to the case until that participant sends `Join(VulnerabilityCase)`.
 
     See [§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery) for why this matters to case delivery.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-002", "CM-11-004"))
+```
 
 ---

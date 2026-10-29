@@ -74,7 +74,8 @@ initial state: `RM.START` for `R*` groups (VP-03-010), `EM.NONE` for `EP`/`EA`/`
 groups, and the initial case-state pattern for `C*` groups.
 
 **Why:** the START case is the one most often missed, and its required response
-(for `R*`, `RE` plus `GI`) differs from every other state's.
+(for `R*`, a `Create(ProcessingFault)`, since `RE` has no wire activity) differs
+from every other state's.
 
 ## Not every item in a behavioral group is a `BehavioralSpec`
 

@@ -221,6 +221,7 @@ An act whose entry fails to commit changes nothing.
 | Stub invitation re-sent after the embargo changed | the replacement invitation | an `Update(EmbargoConsent)` moving the invitee's row for the embargo in force to `INVITED`; with no embargo in force, nothing |
 
 A Participant joining through its stub invitation agrees to the embargo in force with that same `Accept`, so the joiner's `AGREED` row has no entry of its own either.
+A joiner that had already declined that embargo keeps its `DECLINED` row: an explicit refusal outranks the consent that joining implies (CM-11-001).
 
 Every replica, and the case manager itself, uses one shared apply function to copy each register step and consent row that an entry carries (CM-23-016).
 That includes the row a Participant's own answer states, such as a joiner's `AGREED` or `DECLINED` row from its reply to the stub invitation.

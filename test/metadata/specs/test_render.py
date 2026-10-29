@@ -38,6 +38,7 @@ BEHAVIORAL_YAML = {
                     "priority": "MUST",
                     "kind": "protocol",
                     "statement": "BEH-01-001 MUST behave correctly",
+                    "rationale": "Because testing.",
                     "preconditions": [
                         {
                             "rm_state": ["START"],
@@ -170,6 +171,7 @@ def test_export_json_inherited_tags_present_in_output(tmp_path):
                         "priority": "MUST",
                         "kind": "protocol",
                         "statement": "TST-01-001 MUST pass",
+                        "rationale": "Because testing.",
                     }
                 ],
             }

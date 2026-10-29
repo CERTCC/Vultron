@@ -310,6 +310,8 @@ groups:
       duplicates it.
     verification: '`test/architecture/test_vfd_rm_pxa_write_sites.py` confirms every BT node that mutates EM state is
       immediately followed by a `CaseStatus` ledger write, with no uncovered write sites allowed.'
+    adr:
+    - ADR-0046
     stories:
     - story_2022_014
     - story_2022_045
@@ -330,6 +332,8 @@ groups:
       uncovered write sites allowed;
       `test/core/behaviors/status/test_add_participant_status_bt.py::TestAdoptedPxaReachesTheCaseStatus::test_an_owners_public_awareness_is_adopted`
       confirms an adopted P change commits one `CaseStatus` ledger entry carrying it.
+    adr:
+    - ADR-0046
     stories:
     - story_2022_045
     - story_2022_081
@@ -493,6 +497,8 @@ groups:
     verification: Unit tests in `test/core/behaviors/status/test_participant_status_acceptance.py`
       confirm a backward RM regression refuses the whole status, its forward
       dimensions included.
+    adr:
+    - ADR-0067
     stories:
     - story_2022_074
     - story_2022_088

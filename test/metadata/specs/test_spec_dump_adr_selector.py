@@ -45,6 +45,7 @@ FIXTURE_YAML = {
                     "priority": "MUST",
                     "kind": "process",
                     "statement": "MS-01-001 MUST cite one record",
+                    "rationale": "Because testing.",
                     "adr": ["ADR-0001"],
                 },
                 {
@@ -52,6 +53,7 @@ FIXTURE_YAML = {
                     "priority": "SHOULD",
                     "kind": "process",
                     "statement": "MS-01-002 SHOULD cite two records",
+                    "rationale": "Because testing.",
                     "adr": ["ADR-0001", "ADR-0002"],
                     "relationships": [
                         {"rel_type": "depends_on", "spec_id": "MS-01-003"}
@@ -62,6 +64,7 @@ FIXTURE_YAML = {
                     "priority": "MAY",
                     "kind": "process",
                     "statement": "MS-01-003 MAY cite no record",
+                    "rationale": "Because testing.",
                 },
             ],
         }

@@ -162,12 +162,28 @@ def report_ids_of(case: VulnerabilityCase) -> list[str]:
 
 
 def link_report_case_links(dl: CasePersistence, case) -> None:
-    """Attach any matching ``ReportCaseLink`` records to the announced case."""
+    """Point each pending ``ReportCaseLink`` for the case's reports at it.
+
+    Only a pending link (``case_id`` unset) is bound.  A link already bound
+    to a case, this one or another holding the same report, is left as it
+    is: it records the CASE_MANAGER trusted for *that* case (CBT-01-006),
+    and moving it would both strip that case's trust anchor and plant a
+    foreign CASE_MANAGER on this one, so the anchored sender check would
+    refuse this case's real CASE_MANAGER (CBT-02-003, HP-01-006, #4970).
+    """
     for report_id in report_ids_of(case):
         link = dl.read(VultronReportCaseLink.build_id(report_id))
         if not isinstance(link, VultronReportCaseLink):
             continue
-        if link.case_id == case.id_:
+        if link.case_id is not None:
+            if link.case_id != case.id_:
+                logger.debug(
+                    "link_report_case_links: report '%s' stays linked to"
+                    " case '%s', not case '%s' (CBT-02-003)",
+                    report_id,
+                    link.case_id,
+                    case.id_,
+                )
             continue
 
         dl.save(link.model_copy(update={"case_id": case.id_}))

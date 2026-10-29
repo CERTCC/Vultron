@@ -41,6 +41,7 @@ def _item(spec_id: str, kind: str) -> dict:
         "priority": "MUST",
         "kind": kind,
         "statement": f"{spec_id} MUST do the thing",
+        "rationale": "Because testing.",
     }
 
 

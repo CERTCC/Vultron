@@ -41,7 +41,8 @@ Use this decision tree for anything you find beyond the original issue. FILE
 1. **Not an "also" excursion** — you can explain fixing it and the original thing in one
    sentence without the word "also" → fix it now, no issue. The diff is the record.
 2. **An "also" excursion** → fix it now **and** file an issue this PR closes
-   (`- Closes #N`), with a one-line "why". Filing does not mean deferring.
+   (`- Closes #N`, filed through `create-issue`), with a one-line "why".
+   Filing does not mean deferring.
 3. **Genuinely too big to finish now** → defer only through Gate 1: file, present a
    *measured remainder* (what you did, what concretely remains) in plain language, and
    get explicit approval. On silence, fix it now. Only *second-order* findings (revealed

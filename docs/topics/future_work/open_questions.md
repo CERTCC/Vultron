@@ -58,8 +58,6 @@ Four more acronyms occur across the entries below:
 
 ## Protocol state
 
-{% include-markdown "../../reference/vultron-spec/_oq-cs-ordering.md" %}
-
 {% include-markdown "../../reference/vultron-spec/_oq-v-to-V.md" %}
 
 {% include-markdown "../../reference/vultron-spec/_oq-embargo-termination-authority.md" %}

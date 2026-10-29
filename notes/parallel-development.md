@@ -34,7 +34,7 @@ external agentic tools is `specs/agentic-readiness.yaml`, a different topic.
 | Question | Decision | Rationale |
 |---|---|---|
 | What is the authoritative priority ordering? | Project #24 `Schedule`, **on Epics only** | Priority is decided per body of work; a child's own value could only restate its Epic's or silently differ (PAD-02-001) |
-| What gives a non-Epic issue its priority? | Its nearest Epic ancestor's tier | An issue with no Epic ancestor *is* untriaged; small unrelated work goes under long-lived catch-all Epics (PAD-01-007) |
+| What gives a non-Epic issue its priority? | Its nearest Epic ancestor's tier | An issue with no Epic ancestor *is* untriaged; small unrelated work goes under a long-lived Epic in its own theme (PAD-01-007, PAD-02-017) |
 | How are tasks claimed? | A branch `<prefix>/<N>-slug` that GitHub creates with `createLinkedBranch`, linked to the issue | A null `linkedBranch` means the name exists, so the lock holds across machines. `gh issue develop` exits 0 there and is no lock (PAD-04-001) |
 | Is there a `claimed` label? | No; claims are facts GitHub keeps (claim branch, assignee), and board `Status` **mirrors** them | A hand-kept copy drifts; no agent decides claimability from `Status` (PAD-16-002/003) |
 | How does an epic run claim its Epic? | It assigns the Epic and comments; its Tasks and Features are held until it releases | Tasks in a later wave otherwise look free; Bugs, Ideas and Concerns stay open on purpose (PAD-19) |
@@ -285,7 +285,9 @@ only part other sessions need to see.
 
 Triage has two inputs: Epics at `Someday` (or with no Schedule), which need a
 tier, and non-Epic issues with no Epic ancestor, which need a parent (PAD-12).
-`manage_github_issue.sh` refuses to create an issue without `--parent`.
+`manage_github_issue.sh` refuses to create an issue without a `--parent` that
+carries the issue's theme, so new issues never need triage; `create-issue`
+picks the parent.
 
 ### Views
 
@@ -299,11 +301,14 @@ Issues (`Status` columns grouped by type), PRs (by `Ship stage`), and Needs you
 Read and edit issues with `gh` (it infers the repo from `git remote -v` inside a
 clone); create them only as the first bullet says.
 
-- **Create an issue**: use
-  `.agents/skills/manage-github-issue/manage_github_issue.sh` (or the
-  `createIssue` GraphQL mutation); never `gh issue create`, which cannot set
-  issue type, parent/child sub-issue links, or blocker/blocked-by links. Use
-  `create-epic` for Epics.
+- **Create an issue**: use the `create-issue` skill, the only creation path for
+  agents (PAD-02-022). It calls
+  `.agents/skills/manage-github-issue/manage_github_issue.sh`, whose theme gate
+  refuses an issue without one active `theme:` label, a `Theme:` line, and a
+  parent with the same theme. Never `gh issue create`, which cannot set issue
+  type, parent/child sub-issue links, or blocker/blocked-by links, and never a
+  raw `createIssue` mutation, which skips the gate. Use `create-epic` for
+  Epics.
 - **`--opened-as` flag**: every create must include
   `--opened-as excursion|separate-defect|debt|deferred` (applies an `opened:`
   label) or `--planned` for planned or user-requested work. `--opened-as debt`

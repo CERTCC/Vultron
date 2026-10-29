@@ -389,6 +389,7 @@ SPEC_YAML = {
                     "priority": "MUST",
                     "kind": "project",
                     "statement": "`vultron/a/mod.py` MUST hold.",
+                    "rationale": "Because testing.",
                 }
             ],
         },
@@ -401,6 +402,7 @@ SPEC_YAML = {
                     "priority": "MUST",
                     "kind": "project",
                     "statement": "Something MUST hold.",
+                    "rationale": "Because testing.",
                 }
             ],
         },

@@ -7,7 +7,7 @@ Shared scripts and reference documents referenced by multiple skills.
 | File | Purpose | Loaded by |
 |---|---|---|
 | `completeness-doctrine.md` | Project quality standard: what "done" means, finding severity taxonomy (FAIL/IMPROVE/DEFER), scope expansion rules | `orient-agent` Step 3 — in context for every workflow |
-| `issue-creation-requirements.md` | Two required fields (type, parent epic) for every new issue; lookup commands and defaults | `manage-github-issue`, `new-item`, `plan-issue`, `bugfix`, `build` |
+| `issue-creation-requirements.md` | The fields every new issue needs (type, reason, one theme with its `Theme:` line, a same-theme parent Epic) and the script gate that enforces them; lookup commands and defaults | `create-issue`, `manage-github-issue`, `create-epic` |
 | `pr-body-guide.md` | PR body templates and formatting rules | `build`, `bugfix`, `plan-issue` |
 | `bundling.md` | Normative definition of a bundle: the two selection stages, the three fit signals and their authorities, and how one bundle becomes one PR (PAD-15) | `propose-bundle`, `build`, `bugfix`, `plan-issue` |
 | `asking-the-user.md` | How to present a question or decision to the user: one at a time, problem before decision, plain language, no bare IDs, restate rather than point by number, which tool to use | `AGENTS.md` (every session), `grill-me`, `plan-issue`, `learn`, `decision-audit`, `spec-audit`, `bugfix`, `process-concerns`, `review-priorities` |
@@ -27,6 +27,7 @@ Shared scripts and reference documents referenced by multiple skills.
 | `claim-epic.sh` | Claim an Epic for an epic run (`work-epic-tasks`): refuse if already assigned, else `announce-claim.sh` (PAD-19-001) | `bash .agents/skills/shared/claim-epic.sh <EPIC>` |
 | `release-epic.sh` | End an epic run: unassign the Epic and post the summary comment (PAD-19-004) | `bash .agents/skills/shared/release-epic.sh <EPIC> <summary>` |
 | `query-epic-subissues.sh` | Emit an Epic's assignees and its leaf sub-issues with the eligibility fields plus `issueType` and the Project #24 `Schedule` tier. Pipe into the `bundle-fit` console script, which applies fit and owns the rules | `bash .agents/skills/shared/query-epic-subissues.sh <EPIC> \| PYTHONPATH= uv run bundle-fit` |
+| `label-id.sh` | Print a label's node ID (exit 1 if it does not exist), so the issue-creating scripts pass labels inside the create mutation | `bash .agents/skills/shared/label-id.sh <OWNER/NAME> <label>` |
 | `add-to-project.sh` | Add issue to Project #24 with Schedule | `bash .agents/skills/shared/add-to-project.sh <N> [Focus\|Now\|Next\|Later\|Someday]` |
 | `set-board-field.sh` | Put an issue on Project #24 and set its `Schedule` or `Status` | `bash .agents/skills/shared/set-board-field.sh <N> <schedule\|status> <option>` |
 | `sync-epic-schedules.sh` | Raise open descendants of scheduled Epics to their Epic's Schedule tier (raise-only, from Someday/unset/off-board; reports children above the Epic, at Later, or at a non-tier value). Dry run unless `--apply` | `bash .agents/skills/shared/sync-epic-schedules.sh [--apply] [--tiers "Focus Now Next"] [<EPIC>...]` |

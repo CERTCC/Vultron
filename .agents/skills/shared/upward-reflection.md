@@ -15,8 +15,8 @@ Ask each question. For each "yes", take the action in the right-hand column
 
 | Was there… | Route it to |
 |---|---|
-| Something that exists but is wrong — fragility, risk, debt, a bug in code you didn't touch | GitHub issue via `/new-item`: `Bug`, `Task`, or `Concern` by the rule in `issue-creation-requirements.md` § "Determining the right values" |
-| Something that should exist but doesn't | GitHub `type:Idea` issue (`/new-item`) |
+| Something that exists but is wrong — fragility, risk, debt, a bug in code you didn't touch | GitHub issue via `/create-issue`: `Bug`, `Task`, or `Concern` by the rule in `issue-creation-requirements.md` § "Determining the right values" |
+| Something that should exist but doesn't | GitHub `type:Idea` issue (`/create-issue`) |
 | A broken tool, skill, or tracking artefact — bad script, stale issue body, wrong path in a skill | Fix it now, in this session |
 | A narrow but true fact about the code that a future agent would trip over | An assertion at the site — regression test, type annotation, or comment |
 | A general claim you believe but can't prove from this one instance | `signal: theme-candidate` learning file |

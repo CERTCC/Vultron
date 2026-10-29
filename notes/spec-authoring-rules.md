@@ -18,8 +18,9 @@ description: >
   (MS-10-005 to MS-10-009, MS-10-016); one
   obligation per requirement in plain sentences, and how to split a compound
   one (MS-03); guards that
-  state a domain truth (MS-05-005); the rationale rule and its growth guard
-  (MS-10-012 to MS-10-015); removed requirements (MS-09); audit passes
+  state a domain truth (MS-05-005); the rationale rule, its style rule and its
+  advisory worklists (MS-10-012, MS-10-013, MS-10-015, MS-10-017); removed
+  requirements (MS-09); audit passes
   for retiring a name or splitting a requirement; and the CASE_MANAGER-versus-
   CaseActor naming discriminator.
 related_specs:
@@ -385,8 +386,15 @@ concurrent PR", not "changed from a ceiling to a guard in #4315". An issue cited
 as evidence for the reason is fine; an issue cited as the story is not.
 `uv run spec-rationale history` lists likely narration and `adr-links` lists
 requirements a live ADR names but `adr:` omits; both are advisory worklists with
-false positives (MS-10-015). Until the schema requires the field, MS-10-014's
-growth guard fails a PR that adds a requirement without one.
+false positives (MS-10-015). The schema requires the field (SR-02-009), so a
+spec file with a requirement that has none fails to load.
+
+Write the rationale in the style MS-10-017 states: Simplified Technical English
+in spirit, with no jargon, in the terms `CONTEXT.md` and
+`docs/reference/glossary.md` define, because a rationale is often the only
+written reason a new reader gets. A glossary or spec term beats an STE-approved
+swap ("create a case", not "make a case"), since a second word for one concept
+breaks the search from spec to docs to code.
 
 ### One Obligation per Requirement, in Plain Sentences (MS-03)
 

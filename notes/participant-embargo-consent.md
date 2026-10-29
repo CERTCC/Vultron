@@ -464,8 +464,8 @@ sender's id is needed or kept (DL-06-006).
 - The answer goes through the relayed `Invite(EmbargoEvent)`, never the
   full-case Invite, whose replies move only RM state (CM-11-011).
 - A joiner that accepts the stub Invite is already `AGREED` for the active
-  embargo (CM-11-001); only a participant that never answered a relayed
-  `Invite(EmbargoEvent)` (EP-09-011) needs this path.
+  embargo, unless its row was `DECLINED` (CM-11-001); only a participant that
+  never answered a relayed `Invite(EmbargoEvent)` (EP-09-011) needs this path.
 - **The caller names the Invite.** With no name the trigger picks among open
   proposals only (EP-08-002) and never falls back to the embargo in force: a
   fallback could consent to terms the caller did not mean.
