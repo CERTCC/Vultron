@@ -2828,8 +2828,10 @@ groups:
     adr:
     - ADR-0163
     verification: >-
-      `test/core/use_cases/received/test_invite_resend.py` asserts the defaults and that
-      a ceiling below its base is refused.
+      `test/core/use_cases/received/test_invite_resend.py` asserts the defaults, that
+      they equal the replay cooldown's base and ceiling, and that a ceiling below its
+      base is refused. The documented defaults are a review check of
+      `docs/reference/draft-vultron-replication-spec.md` §10.
   - id: SYNC-20-007
     priority: MUST_NOT
     kind: protocol
@@ -2873,8 +2875,9 @@ groups:
     - ADR-0163
     verification: >-
       `test/core/use_cases/received/test_invite_resend.py` states a removed
-      participant's position and asserts nothing is queued;
-      `test/core/behaviors/sync/test_position_statements.py` asserts a closed
-      participant's `Read(CaseLedgerEntry)` resends nothing.
+      participant's position and asserts nothing is queued, and asserts that a
+      participant owing two Invites owes none once it is closed and that an actor
+      off the roster owes none; `test/core/behaviors/sync/test_position_statements.py`
+      asserts a closed participant's `Read(CaseLedgerEntry)` is refused at the door.
     stories:
     - story_2022_045

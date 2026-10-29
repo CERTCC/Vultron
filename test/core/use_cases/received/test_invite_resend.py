@@ -26,6 +26,7 @@ from types import SimpleNamespace
 from typing import cast
 
 import pytest
+from py_trees.common import Status
 
 from test.core.use_cases.received.test_embargo_revision_relay import (
     MANAGER,
@@ -49,6 +50,7 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.config import get_config
 from vultron.config.ledger import LedgerConfig
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.full_case_invite import (
     FULL_CASE_INVITE_SEMANTIC_TYPE,
 )
@@ -57,15 +59,19 @@ from vultron.core.behaviors.embargo.nodes.relay import (
 )
 from vultron.core.behaviors.sync.nodes import invite_resend
 from vultron.core.behaviors.sync.nodes.replay_guard import (
+    MAX_REPLAY_COOLDOWN_SECONDS,
+    REPLAY_COOLDOWN_SECONDS,
     doubling_cooldown_seconds,
 )
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.invite_resend_record import InviteResendRecord
 from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -75,6 +81,7 @@ from vultron.core.ports.sync_activity import ResendOutcome
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
+from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.actor.full_case_invite import (
     AcceptInviteActorToFullCaseReceivedUseCase,
 )
@@ -299,6 +306,42 @@ def test_a_removed_participant_is_resent_nothing(make_payload):
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert dl.outbox_list() == []
+
+
+@pytest.mark.spec("SYNC-20-008", "CM-23-018")
+def test_a_closed_or_off_roster_peer_is_owed_nothing(make_payload):
+    """The stamped-position path has no Read door, so ``owed_invites``
+    itself must name nothing for a closed participant or an actor off the
+    roster (SYNC-20-008)."""
+    case_id = "https://example.org/cases/resend-closed"
+    dl, _ = _joined(case_id, make_payload)
+    case = cast(VulnerabilityCase, dl.read(case_id))
+
+    def owed(peer: str) -> list[str]:
+        return [
+            invite.invite_id
+            for invite in invite_resend.owed_invites(
+                case, dl, manager_id=MANAGER, peer_id=peer
+            )
+        ]
+
+    # Before closing, the joiner owes both Invites: the check below is not
+    # vacuous.
+    assert set(owed(JOINER)) == {_embargo_invite(dl), _full_case_invite(dl)}
+    assert owed("https://example.org/users/stranger") == []
+    record = cast(
+        CaseParticipant, dl.read(case.actor_participant_index[JOINER])
+    )
+    record.participant_statuses = [
+        ParticipantStatus(
+            context=case_id,
+            attributed_to=JOINER,
+            rm=RmDimension(state=RM.CLOSED),
+        )
+    ]
+    dl.save(record)
+
+    assert owed(JOINER) == []
 
 
 @pytest.mark.spec("SYNC-20-001")
@@ -529,6 +572,10 @@ def test_the_resend_cooldown_defaults_are_the_replay_defaults():
     config = LedgerConfig()
     assert config.invite_resend_cooldown_seconds == 30.0
     assert config.invite_resend_max_cooldown_seconds == 600.0
+    assert config.invite_resend_cooldown_seconds == REPLAY_COOLDOWN_SECONDS
+    assert config.invite_resend_max_cooldown_seconds == (
+        MAX_REPLAY_COOLDOWN_SECONDS
+    )
 
 
 @pytest.mark.spec("SYNC-20-006")
@@ -612,6 +659,9 @@ def test_an_invite_with_no_sealed_body_is_logged_and_skipped(
     assert result.disposition is HandlerDisposition.APPLIED
     assert dl.outbox_list() == []
     assert "no sealed body" in caplog.text
+    # A resend that sent nothing does not count toward the cooldown.
+    for invite_id in (_embargo_invite(dl), _full_case_invite(dl)):
+        assert dl.read(InviteResendRecord.build_id(invite_id, JOINER)) is None
 
 
 # ---------------------------------------------------------------------------
@@ -724,4 +774,46 @@ def test_a_failed_cooldown_record_keeps_no_resend(make_payload, monkeypatch):
     with pytest.raises(Exception, match="record write failed"):
         _state_position(dl, case_id, JOINER, make_payload)
 
+    assert dl.outbox_list() == []
+
+
+@pytest.mark.spec("SYNC-20-002")
+def test_an_invite_for_an_embargo_the_register_lacks_is_not_owed(
+    make_payload,
+):
+    case_id = "https://example.org/cases/resend-unknown-embargo"
+    dl, revision_id = _joined(case_id, make_payload)
+    case = cast(VulnerabilityCase, dl.read(case_id))
+    participant = cast(
+        CaseParticipant, dl.read(case.actor_participant_index[JOINER])
+    )
+
+    assert invite_resend._embargo_invite_owed(case, participant, revision_id)
+    assert not invite_resend._embargo_invite_owed(
+        case, participant, "https://example.org/embargoes/not-registered"
+    )
+
+
+def test_an_owed_invite_with_no_sync_port_is_a_wiring_error(make_payload):
+    """With an Invite owed, a missing sync port is a wiring fault, never a
+    silent skip (VultronWiringError)."""
+    case_id = "https://example.org/cases/resend-no-port"
+    dl, _ = _joined(case_id, make_payload)
+    read = read_ledger_entry_activity(
+        _tail(dl, case_id), actor=JOINER, to=[MANAGER]
+    )
+
+    result = BTBridge(datalayer=dl).execute_with_setup(
+        tree=invite_resend.ResendOwedInvitesNode(
+            case_id=case_id, sender_id=JOINER
+        ),
+        actor_id=MANAGER,
+        activity=read,
+    )
+
+    # The bridge reports the raise as an internal error, not an outcome.
+    assert result.status is Status.FAILURE
+    assert result.internal_error
+    assert "VultronWiringError" in result.feedback_message
+    assert "sync_port" in result.feedback_message
     assert dl.outbox_list() == []
