@@ -87,8 +87,13 @@ jobs:
           gh label create "$REFRESH_LABEL" --repo "$REPO" \
             --description "Bot-managed: committed demo recordings lag main" \
             --color "fbca04" 2>/dev/null || true
-          existing=$(gh issue list --repo "$REPO" --label "$REFRESH_LABEL" \
-            --state open --json number --jq '.[0].number // empty')
+          # The list-issues endpoint, not the lagging search index behind
+          # `gh issue list --label`, which once missed an open tracker and
+          # let a duplicate be filed (#5105).
+          existing=$(gh api --paginate \
+            "repos/$REPO/issues?labels=$REFRESH_LABEL&state=open&sort=created&direction=asc&per_page=100" \
+            --jq '.[] | select(.pull_request == null) | .number')
+          existing=${existing%%$'\n'*}  # the oldest
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --repo "$REPO" \
               --body "Still out of date on main: ${changed}. [Run and fresh recordings]($RUN_URL)"
@@ -116,8 +121,13 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
-          gh issue list --repo "$REPO" --label "$REFRESH_LABEL" --state open \
-            --json number --jq '.[].number' | while read -r num; do
+          # A command substitution, not a pipe into `while read`, so a failed
+          # lookup fails the step instead of reading as "none open"; and the
+          # list-issues endpoint, not the lagging search index (#5105).
+          open_tasks=$(gh api --paginate \
+            "repos/$REPO/issues?labels=$REFRESH_LABEL&state=open&per_page=100" \
+            --jq '.[] | select(.pull_request == null) | .number')
+          for num in $open_tasks; do
             gh issue close "$num" --repo "$REPO" \
               --comment "The recordings on main are current again. [Run]($RUN_URL)"
           done

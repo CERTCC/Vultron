@@ -11,14 +11,15 @@
 #
 # The parent Epic is passed in from a repository variable (named by
 # <epic-variable-name>, e.g. CI_FAILURE_EPIC), so re-homing a bot's issues
-# after the Epics are reshaped is a variable change, not a code change. An
-# unset variable, or a number that is not an open Epic, fails the step loudly
-# after the issue is filed, rather than leaving it silently unparented.
+# after the Epics are reshaped is a variable change, not a code change. The
+# step fails loudly, after the theme is set, when the variable is unset or
+# names anything but an open Epic that carries the theme and has room for
+# another sub-issue (GitHub caps a parent at 100, closed ones included).
 #
-# Idempotent, and it never overrides a person: an issue that already carries a
-# `theme:` label keeps its label and body, and an issue that already has a
-# parent keeps it. Run on both the create and the update arm, it also repairs an
-# issue an earlier run left without them.
+# Idempotent, and it never overrides a person: an issue that carries a
+# different `theme:` label keeps its label and body, and an issue that already
+# has a parent keeps it. Each part is checked on its own, so a run on either
+# the create or the update arm finishes whatever an earlier run left undone.
 #
 # Used by .github/actions/notify-failure and .github/workflows/demo-recordings.yml.
 # Needs GH_TOKEN with issues:write.
@@ -36,6 +37,8 @@ theme="$3"
 outcome="$4"
 epic="$5"
 epic_var="$6"
+# The cap GitHub puts on one parent's sub-issues.
+max_sub_issues=100
 
 case "$theme" in
   theme:?*) ;;
@@ -48,8 +51,11 @@ if [ -z "$outcome" ]; then
   exit 2
 fi
 
+# shellcheck source=.github/scripts/retry.sh
+source "$(dirname "${BASH_SOURCE[0]}")/retry.sh"
+
 # shellcheck disable=SC2016  # GraphQL variables, not shell ones
-issue=$(gh api graphql \
+issue=$(retry gh api graphql \
   -f owner="${repo%%/*}" \
   -f name="${repo##*/}" \
   -F number="$num" \
@@ -68,19 +74,28 @@ parent=$(jq -r '.parent.number // ""' <<< "$issue")
 themes=$(jq -r '[.labels.nodes[].name | select(startswith("theme:"))] | join(",")' \
   <<< "$issue")
 
-# Theme label and Theme: line (PAD-02-014, PAD-02-018).
-if [ -n "$themes" ]; then
-  echo "Issue #$num already has theme '$themes'"
+# Theme: line, then theme label (PAD-02-018, PAD-02-014). The line goes first
+# and each is checked on its own, so a run that stopped between the two is
+# finished by the next one.
+if [ -n "$themes" ] && [ "$themes" != "$theme" ]; then
+  echo "Issue #$num already has theme '$themes'; leaving its theme alone"
 else
-  gh issue edit "$num" --repo "$repo" --add-label "$theme"
-  line="Theme: $theme — $outcome"
-  if grep -qxF "$line" <<< "$body"; then
-    echo "Issue #$num already has its Theme: line"
+  # One awk, not `grep | grep -q`: an early `-q` exit can SIGPIPE the first
+  # grep, and under pipefail that reads as "no line" and writes a second one.
+  if awk -v t="$theme" '/^Theme:/ && index($0, t) { f = 1 } END { exit !f }' \
+      <<< "$body"; then
+    echo "Issue #$num already has a Theme: line for $theme"
   else
-    printf '%s\n\n%s\n' "$line" "$body" \
-      | gh issue edit "$num" --repo "$repo" --body-file -
+    body_file=$(mktemp)
+    trap 'rm -f "$body_file"' EXIT
+    printf 'Theme: %s — %s\n\n%s\n' "$theme" "$outcome" "$body" > "$body_file"
+    retry gh issue edit "$num" --repo "$repo" --body-file "$body_file"
+    echo "Set issue #$num Theme: line"
   fi
-  echo "Set issue #$num theme: $theme"
+  if [ -z "$themes" ]; then
+    retry gh issue edit "$num" --repo "$repo" --add-label "$theme"
+    echo "Set issue #$num theme: $theme"
+  fi
 fi
 
 # Epic parent (PAD-01-007).
@@ -94,18 +109,42 @@ if ! [[ "$epic" =~ ^[1-9][0-9]*$ ]]; then
     "variables > Actions > Variables." >&2
   exit 1
 fi
-# A command substitution, not `mapfile < <(...)`, so a failed lookup fails the
-# step under `set -e` instead of reading as "not an Epic".
-epic_info=$(gh issue view "$epic" \
-  --repo "$repo" --json id,state,issueType \
-  --jq '.id, .state, (.issueType.name // "")')
+# shellcheck disable=SC2016  # GraphQL variables, not shell ones
+epic_info=$(retry gh api graphql \
+  -f owner="${repo%%/*}" \
+  -f name="${repo##*/}" \
+  -F number="$epic" \
+  -f query='query($owner: String!, $name: String!, $number: Int!) {
+    repository(owner: $owner, name: $name) {
+      issue(number: $number) {
+        id state issueType { name } subIssues { totalCount }
+        labels(first: 100) { nodes { name } }
+      }
+    }
+  }' \
+  --jq '.data.repository.issue | .id, .state, (.issueType.name // ""),
+    .subIssues.totalCount, ([.labels.nodes[].name] | join(","))')
 mapfile -t epic_fields <<< "$epic_info"
 if [ "${epic_fields[1]:-}" != "OPEN" ] || [ "${epic_fields[2]:-}" != "Epic" ]; then
   echo "::error::#$epic (repository variable $epic_var) is not an open Epic;" \
     "issue #$num has no Epic parent." >&2
   exit 1
 fi
+if ! [[ ",${epic_fields[4]:-}," == *",$theme,"* ]]; then
+  echo "::error::Epic #$epic (repository variable $epic_var) does not carry" \
+    "$theme, so its sub-issue would break PAD-02-017; issue #$num has no" \
+    "Epic parent." >&2
+  exit 1
+fi
+if [ "${epic_fields[3]:-0}" -ge "$max_sub_issues" ]; then
+  echo "::error::Epic #$epic (repository variable $epic_var) already has" \
+    "$max_sub_issues sub-issues, GitHub's cap; point $epic_var at another" \
+    "Epic. Issue #$num has no Epic parent." >&2
+  exit 1
+fi
 
+# Not retried: a call that landed but reported an error would fail again as
+# "already a sub-issue", and the next run finds the parent set anyway.
 # shellcheck disable=SC2016  # GraphQL variables, not shell ones
 gh api graphql \
   -f parentId="${epic_fields[0]}" \

@@ -85,8 +85,8 @@ the moment it opens (PAD-01-007, PAD-02-014, PAD-02-018). Call
 `ensure-issue-type.sh`. Name the Epic with a repository variable
 (`CI_FAILURE_EPIC`, `DEMO_RECORDINGS_EPIC`), never a literal: Epics get fused and
 split, and a variable re-homes the issues without a PR. The script fails the
-step when the variable is unset or names no open Epic, after it sets the theme
-(#5435).
+step, after it sets the theme, when the variable is unset or names no open Epic
+that carries the theme and has room under GitHub's 100-sub-issue cap (#5435).
 
 ## An Artifact a Later Job Downloads Needs the Run Attempt in Its Name
 

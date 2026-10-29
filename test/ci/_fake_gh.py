@@ -7,13 +7,14 @@ every call and answers each with canned data:
 
 - the list-issues REST call gets the JSON page ``FAKE_ISSUES_PAGE``, filtered
   through the caller's real ``--jq`` expression, while a search-backed
-  ``gh issue list`` answers with ``FAKE_ISSUE_LIST``, by default nothing, as
-  the lagging search index did when it let the ADR Status Drift workflow file
-  a second tracker (#5105). With ``FAKE_API_FAIL`` set, the list-issues call
-  fails as an API error would;
-- the triage helper's issue query gets ``FAKE_ISSUE_JSON``, and its Epic
-  lookup gets the lines of ``FAKE_EPIC_VIEW``;
-- a body written with ``gh issue edit --body-file -`` is saved to
+  ``gh issue list`` answers with nothing, as the lagging search index did when
+  it let the ADR Status Drift workflow file a second tracker (#5105). With
+  ``FAKE_API_FAIL`` set, the list-issues call fails as an API error would;
+- the triage helper's GraphQL issue query gets ``FAKE_ISSUE_JSON`` and its Epic
+  lookup ``FAKE_EPIC_JSON``, each wrapped as a real response and run through
+  the caller's real ``--jq`` expression. With ``FAKE_EPIC_FAIL`` set, the Epic
+  lookup fails;
+- a body written with ``gh issue edit --body-file <file>`` is saved to
   ``FAKE_BODY_OUT``.
 """
 
@@ -26,20 +27,32 @@ from pathlib import Path
 
 _FAKE_GH = r"""#!/usr/bin/env bash
 printf '%s\n' "$*" >> "$FAKE_GH_LOG"
+jq_expr="" body_file="" prev=""
+for arg in "$@"; do
+  [ "$prev" = "--jq" ] && jq_expr="$arg"
+  [ "$prev" = "--body-file" ] && body_file="$arg"
+  prev="$arg"
+done
+# Answer a GraphQL issue query with {"data":{"repository":{"issue": $1}}},
+# run through the caller's real --jq expression.
+answer_issue() {
+  printf '{"data":{"repository":{"issue":%s}}}' "$1" | jq -r "$jq_expr"
+}
 case "$1 $2" in
   "api graphql")
     case "$*" in
       *issueTypes*) printf 'Bug\tBUG_TYPE_ID\nTask\tTASK_TYPE_ID\n' ;;
       *addSubIssue*) echo "Set parent" ;;
-      *"labels(first"*) printf '%s\n' "$FAKE_ISSUE_JSON" ;;
+      *subIssues*)
+        if [ -n "${FAKE_EPIC_FAIL:-}" ]; then
+          echo "HTTP 502: Bad Gateway" >&2
+          exit 1
+        fi
+        answer_issue "$FAKE_EPIC_JSON" ;;
+      *"labels(first"*) answer_issue "$FAKE_ISSUE_JSON" ;;
       *) echo "Set issue type" ;;
     esac ;;
   "api "*)
-    jq_expr="" prev=""
-    for arg in "$@"; do
-      [ "$prev" = "--jq" ] && jq_expr="$arg"
-      prev="$arg"
-    done
     for arg in "$@"; do
       case "$arg" in
         repos/*/issues\?*)
@@ -50,17 +63,9 @@ case "$1 $2" in
           printf '%s' "$FAKE_ISSUES_PAGE" | jq -r "$jq_expr" ;;
       esac
     done ;;
-  "issue view")
-    case "$*" in
-      *state*) printf '%s\n' "$FAKE_EPIC_VIEW" ;;
-      *) printf 'ISSUE_NODE_ID\nBug\n' ;;
-    esac ;;
+  "issue view") printf 'ISSUE_NODE_ID\nBug\n' ;;
   "issue edit")
-    case "$*" in
-      *--body-file*) cat > "$FAKE_BODY_OUT" ;;
-    esac ;;
-  "issue list")
-    if [ -n "${FAKE_ISSUE_LIST:-}" ]; then printf '%s\n' "$FAKE_ISSUE_LIST"; fi ;;
+    if [ -n "$body_file" ]; then cp "$body_file" "$FAKE_BODY_OUT"; fi ;;
   "issue create") echo "https://github.com/OWNER/REPO/issues/999" ;;
 esac
 """
@@ -73,8 +78,16 @@ UNTRIAGED_ISSUE: dict[str, object] = {
 }
 """A filed issue with no theme label, no ``Theme:`` line and no parent."""
 
-OPEN_EPIC = ("EPIC_NODE_ID", "OPEN", "Epic")
-"""The ``id``, ``state`` and issue type the Epic lookup answers with."""
+
+def open_epic(theme: str, *, sub_issues: int = 38) -> dict[str, object]:
+    """An open Epic carrying *theme*, as the Epic lookup sees it."""
+    return {
+        "id": "EPIC_NODE_ID",
+        "state": "OPEN",
+        "issueType": {"name": "Epic"},
+        "subIssues": {"totalCount": sub_issues},
+        "labels": {"nodes": [{"name": theme}]},
+    }
 
 
 @dataclass(frozen=True)
@@ -101,9 +114,9 @@ def install_fake_gh(
     *,
     issues_page: list[dict[str, object]] | None = None,
     issue: dict[str, object] | None = None,
-    epic_view: tuple[str, str, str] = OPEN_EPIC,
+    epic: dict[str, object] | None = None,
     api_fails: bool = False,
-    issue_list: str = "",
+    epic_lookup_fails: bool = False,
 ) -> FakeGh:
     """Write the fake ``gh`` under *tmp_path* and return how to run with it."""
     bin_dir = tmp_path / "bin"
@@ -121,11 +134,14 @@ def install_fake_gh(
         "FAKE_ISSUE_JSON": json.dumps(
             UNTRIAGED_ISSUE if issue is None else issue
         ),
-        "FAKE_EPIC_VIEW": "\n".join(epic_view),
+        "FAKE_EPIC_JSON": json.dumps(epic or open_epic("theme:test-and-ci")),
         "FAKE_BODY_OUT": str(body_out),
-        "FAKE_ISSUE_LIST": issue_list,
         "GH_TOKEN": "fake-token",
+        # One attempt: a failure under test should not wait out retry.sh.
+        "GH_RETRY_ATTEMPTS": "1",
     }
     if api_fails:
         env["FAKE_API_FAIL"] = "1"
+    if epic_lookup_fails:
+        env["FAKE_EPIC_FAIL"] = "1"
     return FakeGh(env=env, log=log, body_out=body_out)

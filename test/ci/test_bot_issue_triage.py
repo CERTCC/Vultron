@@ -20,7 +20,12 @@ from typing import Any
 import pytest
 import yaml
 
-from test.ci._fake_gh import UNTRIAGED_ISSUE, FakeGh, install_fake_gh
+from test.ci._fake_gh import (
+    UNTRIAGED_ISSUE,
+    FakeGh,
+    install_fake_gh,
+    open_epic,
+)
 from vultron.metadata.planning.theme_fit.analyze import analyze
 from vultron.metadata.planning.theme_fit.model import Ancestor, OpenIssue
 from vultron.metadata.planning.themes import load_theme_catalog
@@ -105,6 +110,7 @@ def test_helper_triages_an_untriaged_issue(tmp_path: Path) -> None:
     assert "Original body." in body, "The filed body must be kept."
     # A GraphQL query spans several log lines, so read the raw log.
     log = gh.log.read_text()
+    assert f"-F number={EPIC} " in log, "The Epic the variable names is read."
     assert log.count("addSubIssue(input") == 1, log
     assert "-f parentId=EPIC_NODE_ID -f childId=ISSUE_NODE_ID" in log, log
     assert _theme_fit_findings(gh, {"ci:main-failure"}, THEME, EPIC) == []
@@ -123,8 +129,8 @@ def test_helper_leaves_a_themed_and_parented_issue_alone(
     assert result.returncode == 0, result.stderr
     calls = gh.calls()
     assert not any(c.startswith("issue edit") for c in calls), calls
-    assert not any("addSubIssue" in c for c in calls), calls
-    assert not any(c.startswith("issue view") for c in calls), calls
+    log = gh.log.read_text()
+    assert "subIssues" not in log and "addSubIssue" not in log, log
 
 
 def test_helper_keeps_an_existing_theme_line(tmp_path: Path) -> None:
@@ -138,6 +144,26 @@ def test_helper_keeps_an_existing_theme_line(tmp_path: Path) -> None:
         f"issue edit 999 --repo OWNER/REPO --add-label {THEME}" in gh.calls()
     )
     assert gh.written_body() is None
+
+
+def test_helper_finishes_a_theme_a_failed_run_left_half_set(
+    tmp_path: Path,
+) -> None:
+    """The issue's own theme label with no ``Theme:`` line gets the line.
+
+    A run that set the label and then failed must not leave the issue
+    breaking PAD-02-018 for good.
+    """
+    issue = UNTRIAGED_ISSUE | {
+        "labels": {"nodes": [{"name": "ci:main-failure"}, {"name": THEME}]},
+    }
+    gh = install_fake_gh(tmp_path, issue=issue)
+    result = _run_helper(gh, *CALL)
+    assert result.returncode == 0, result.stderr
+    body = gh.written_body()
+    assert body is not None and body.startswith(f"Theme: {THEME} — ")
+    assert not any("--add-label" in c for c in gh.calls())
+    assert _theme_fit_findings(gh, {THEME}, THEME, EPIC) == []
 
 
 @pytest.mark.parametrize("epic", ["", "not-a-number", "0", "-5"])
@@ -155,23 +181,42 @@ def test_helper_fails_loudly_without_an_epic_number(
     assert "CI_FAILURE_EPIC" in result.stderr
     calls = gh.calls()
     assert any("--add-label" in c for c in calls), calls
-    assert not any("addSubIssue" in c for c in calls), calls
+    assert "addSubIssue" not in gh.log.read_text()
 
 
 @pytest.mark.parametrize(
-    "epic_view",
-    [("ID", "OPEN", "Task"), ("ID", "CLOSED", "Epic"), ("ID", "OPEN", "")],
-    ids=["not-an-epic", "closed-epic", "untyped"],
+    ("epic", "error"),
+    [
+        (
+            open_epic(THEME) | {"issueType": {"name": "Task"}},
+            "not an open Epic",
+        ),
+        (open_epic(THEME) | {"state": "CLOSED"}, "not an open Epic"),
+        (open_epic(THEME) | {"issueType": None}, "not an open Epic"),
+        (open_epic("theme:dev-workflow"), f"does not carry {THEME}"),
+        (open_epic(THEME, sub_issues=100), "GitHub's cap"),
+    ],
+    ids=["not-an-epic", "closed-epic", "untyped", "other-theme", "full"],
 )
-def test_helper_refuses_a_parent_that_is_not_an_open_epic(
-    tmp_path: Path, epic_view: tuple[str, str, str]
+def test_helper_refuses_a_parent_that_cannot_take_the_issue(
+    tmp_path: Path, epic: dict[str, object], error: str
 ) -> None:
-    """A variable naming anything but an open Epic fails, wiring nothing."""
-    gh = install_fake_gh(tmp_path, epic_view=epic_view)
+    """A variable naming anything but an open Epic with room for an issue of
+    this theme (PAD-02-017) fails, naming the variable and wiring nothing."""
+    gh = install_fake_gh(tmp_path, epic=epic)
     result = _run_helper(gh, *CALL)
     assert result.returncode == 1
-    assert "not an open Epic" in result.stderr
-    assert not any("addSubIssue" in c for c in gh.calls())
+    assert error in result.stderr
+    assert "CI_FAILURE_EPIC" in result.stderr
+    assert "addSubIssue" not in gh.log.read_text()
+
+
+def test_helper_fails_when_the_epic_lookup_fails(tmp_path: Path) -> None:
+    """An API error reading the Epic fails the step, wiring nothing."""
+    gh = install_fake_gh(tmp_path, epic_lookup_fails=True)
+    result = _run_helper(gh, *CALL)
+    assert result.returncode != 0
+    assert "addSubIssue" not in gh.log.read_text()
 
 
 @pytest.mark.parametrize(
@@ -275,8 +320,11 @@ def test_recordings_workflow_triages_the_task_it_files(
         "The parent Epic must come from the DEMO_RECORDINGS_EPIC repository "
         "variable, not a hard-coded number (#5435)."
     )
-    # The step's `gh issue list` finds the open Task, if any.
-    gh = install_fake_gh(tmp_path, issue_list=existing)
+    gh = install_fake_gh(
+        tmp_path,
+        issues_page=[{"number": int(existing)}] if existing else [],
+        epic=open_epic("theme:full-cvd-scenario-coverage"),
+    )
     work = tmp_path / "work"
     (work / ".github").mkdir(parents=True)
     (work / ".github" / "scripts").symlink_to(SCRIPTS_DIR)
@@ -302,3 +350,45 @@ def test_recordings_workflow_triages_the_task_it_files(
     )
     labels = {"demo-recordings-stale"}
     assert _theme_fit_findings(gh, labels, theme, 4747) == []
+
+
+def _run_recordings_close(gh: FakeGh) -> subprocess.CompletedProcess[str]:
+    step = _recordings_step("Close the refresh Task")
+    env = gh.env | {
+        "REPO": "OWNER/REPO",
+        "RUN_URL": "https://github.com/OWNER/REPO/actions/runs/1",
+        "REFRESH_LABEL": "demo-recordings-stale",
+    }
+    return subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", str(step["run"])],
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_recordings_close_step_closes_every_open_task(tmp_path: Path) -> None:
+    """Current recordings close each open refresh Task, found without the
+    search index (#5105); a labelled pull request is not a Task."""
+    page: list[dict[str, object]] = [{"number": 5434}, {"number": 5500}]
+    page.append({"number": 42, "pull_request": {"url": "https://example/42"}})
+    gh = install_fake_gh(tmp_path, issues_page=page)
+    result = _run_recordings_close(gh)
+    assert result.returncode == 0, result.stderr
+    calls = gh.calls()
+    closes = sorted(c.split()[2] for c in calls if c.startswith("issue close"))
+    assert closes == ["5434", "5500"], calls
+    assert not any(c.startswith("issue list") for c in calls), calls
+
+
+def test_recordings_close_step_fails_when_the_lookup_fails(
+    tmp_path: Path,
+) -> None:
+    """A failed lookup fails the step instead of reading as "none open"."""
+    gh = install_fake_gh(
+        tmp_path, issues_page=[{"number": 5434}], api_fails=True
+    )
+    result = _run_recordings_close(gh)
+    assert result.returncode != 0
+    assert not any(c.startswith("issue close") for c in gh.calls())
