@@ -120,7 +120,9 @@ headings inside the fragments keep theirs.
 Each annex is its own fragment, `_annex-a.md` through `_annex-f.md`. Annex G
 lives at `_conformance/_capability-shapes.md`, beside the §13 Conformance
 fragments: it carries the informative account of capability shapes, and §13.6
-Capability Shapes keeps the short normative text with its one conditional MUST.
+Capability Shapes keeps a short summary. A shape's contract binds only the
+implementation that provides it and no other participant can observe it, so no
+`protocol` requirement states it.
 
 On an annex page the annex heading is the page's top section (`##`). `full.md`
 nests the annexes under §17 Informative Annexes by including each annex fragment

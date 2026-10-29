@@ -1,13 +1,12 @@
 ### 13.2 Capability Sets
 
-A capability set is a group of obligations an implementation takes on. Three are
-defined: Case Observer, which every participant must provide, and Case Decision
-and Case Hosting, which add the obligations of deciding for a case and of running
-one. The **Case** prefix marks each as a capability set — a property of software —
-distinct from the similarly-named roles it serves.
+A capability set is a named group of the protocol requirements that an implementation meets.
+Three are defined.
+Case Observer is the set that every participant provides.
+Case Decision and Case Hosting add the requirements of deciding for a case and of running one.
+The **Case** prefix marks each as a capability set — a property of software — distinct from the similarly-named roles it serves.
 
-Most of what a capability set requires is expressed as maintaining a state machine,
-so that phrase needs pinning down first.
+Most of what a capability set requires is expressed as maintaining a state machine, so that phrase needs pinning down first.
 
 !!! note "What 'implement a state machine' means"
     Implementing a state machine has two components:
@@ -17,116 +16,140 @@ so that phrase needs pinning down first.
     2. **Drive**: cause a transition that the participant's roles authorize, and
        announce it so the other participants learn of it.
 
-    The two are separate obligations. A participant that tracks but does not
-    drive leaves the others to discover its state changes some other way. A
-    participant that drives but does not track acts on case state it does not
-    know. Which transitions a participant may drive depends on its roles
-    ([§13.4 Role-Specific Normative Requirements](../conformance.md#134-role-specific-normative-requirements)); every
-    participant tracks.
+    The two are separate obligations.
+    A participant that tracks but does not drive leaves the others to discover its state changes some other way.
+    A participant that drives but does not track acts on case state it does not know.
+    Which transitions a participant can drive depends on its roles ([§13.4 Role-Specific Normative Requirements](../conformance.md#134-role-specific-normative-requirements)); every participant tracks.
 
 {% include-markdown "../includes/_dimensions-vs-machines.md" %}
 
 #### Case Observer capability set
 
 The Case Observer capability set is the participation floor.
-**Every actor that participates in any Vultron case MUST implement it.**
+Every actor that participates in a Vultron case provides it, because the Observer role is the base role and every other role adds to it.
 
-There is no sub-Observer participation level. An actor that accepts a case
-invitation has committed to Observer behavior from that point. It must track
-state and notify others of its own transitions.
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-25-001"))
+```
 
-- MUST maintain all five state machines — **RM, EM, PEC, VFD, PXA** — for
-  itself: it MUST hold a current value for each, and MUST drive the transitions
-  its roles authorize
-- SHOULD also track the states of the other participants in the case, to inform
-  its own decisions. This is a SHOULD rather than a MUST because correct
-  operation of the protocol MUST NOT depend on any participant holding perfect
-  information about the others
-- MUST send the messages appropriate to its claimed roles when its own state
-  transitions occur
-- MUST receive and update local state when notified of other participants'
-  transitions
-- MUST participate in embargo negotiation: responding to `Invite(EmbargoEvent)`, and
-  recording consent or refusal via PEC
-- MUST route all case-scoped messages through the CASE_MANAGER ([§10.2 Routing Topology](../interactions.md#102-routing-topology))
-- MAY report PXA observations; no VFD drive obligations unless a role extension
-  set adds them
+There is no sub-Observer participation level.
+An actor that accepts a case invitation has committed to Observer behavior from that point: it tracks state and tells the others of its own transitions.
+
+A Case Observer implementation maintains all five state machines — **RM, EM, PEC, VFD, PXA** — for itself.
+It holds a current value for each, and it drives the transitions that its roles authorize.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-03-001", "CM-03-002", "CM-03-005", "CM-03-008"))
+```
+
+It also tracks the states of the other participants in the case, to inform its own decisions.
+That is a recommendation rather than a requirement, because the protocol does not depend on any participant holding perfect information about the others.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VP-01-001", "VP-01-002", "VP-01-003"))
+```
+
+When its own state changes, it sends the message for the transition.
+When it is told of another participant's transition, it updates its local state.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VP-03-012", "CM-04-001", "CM-04-002", "CM-04-004"))
+```
+
+It takes part in embargo negotiation: it answers an `Invite(EmbargoEvent)` addressed to it, and the CASE_MANAGER records its consent or refusal in PEC ([§9 Participant Embargo Consent (PEC) State Machine](../tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)).
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-09-003", "EMB-15-004"))
+```
+
+It sends every case-scoped message to the CASE_MANAGER ([§10.2 Routing Topology](../interactions.md#102-routing-topology)).
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("PCR-08-001", "PCR-08-005"))
+```
+
+It can report PXA observations ([§13.4.2 Participant-Agnostic CS Transitions (PXA)](../conformance.md#1342-participant-agnostic-cs-transitions-pxa)).
+It has no VFD drive obligations unless one of its roles adds them.
 
 !!! note "Why there is no sub-Observer level"
     A monitoring-only actor might seem to need message parsing and nothing else.
-    Two things rule that out. An actor that does not track its own PEC state
-    cannot take part in embargo negotiation, and the CASE_MANAGER decides what to
-    send it on the basis of that state — so an untracked participant cannot be
-    reliably served. An actor that does not track RM has no basis for evaluating
-    case status. Meaningful use of Vultron data requires the full Observer set.
+    Two things rule that out.
+    An actor that does not track its own PEC state cannot take part in embargo negotiation, and the CASE_MANAGER decides what to send it on the basis of that state — so an untracked participant cannot be reliably served.
+    An actor that does not track RM has no basis for evaluating case status.
+    Meaningful use of Vultron data requires the full Observer set.
 
-    The protocol governs what the CASE_MANAGER **sends**, not what a recipient
-    does with information it already holds. Vultron gates dissemination; it
-    cannot constrain display.
+    The protocol governs what the CASE_MANAGER **sends**, not what a recipient does with information it already holds.
+    Vultron gates dissemination; it cannot constrain display.
 
-    A parse-only tool is not a case Participant: it holds no `CaseParticipant`
-    record and no case is obliged to deliver anything to it.
+    A parse-only tool is not a case Participant: it holds no `CaseParticipant` record and no case is obliged to deliver anything to it.
 
 !!! note "Role-specific drive obligations"
-    All Observer participants **track** all five machines. Which transitions a
-    participant **drives** depends on its role extension set: a Vendor drives its
-    own VFD transitions; a Reporter drives RM; any participant may report PXA
-    observations. See [§13.3 Role Taxonomy](../conformance.md#133-role-taxonomy) and [§13.4 Role-Specific Normative Requirements](../conformance.md#134-role-specific-normative-requirements).
+    All Observer participants **track** all five machines.
+    Which transitions a participant **drives** depends on its role extension set: a Vendor drives its own fix-ready transition, a Deployer drives its own fix-deployed transition, and any participant can report PXA observations.
+    See [§13.3 Role Taxonomy](../conformance.md#133-role-taxonomy) and [§13.4 Role-Specific Normative Requirements](../conformance.md#134-role-specific-normative-requirements).
 
 #### Case Decision capability set
 
-The Case Decision capability set defines Case Owner governance capabilities.
+The Case Decision capability set provides what the Case Owner role needs.
 It is separable from the Case Hosting capability set.
+It adds these to the Case Observer capability set:
 
-- Case Observer capability set, plus:
-- Status updates MUST be adopted without requiring an external approval gate
-  (the Case Owner's own updates are authoritative)
-- MUST be able to drive shared EM transitions
-- MUST be able to transfer case ownership via the `Offer(VulnerabilityCase)` /
-  `Accept` handshake
+- The Case Owner's own status reports are adopted without an approval step, because its updates are authoritative ([§11.3 Status Adoption: The Two-Seam Model](../interactions.md#113-status-adoption-the-two-seam-model)).
+- The Case Owner decides the shared embargo: it activates and rejects embargo proposals for the case, and terminates the embargo in force.
+- The Case Owner can transfer case ownership, by a proposal to the CASE_MANAGER ([§12.3 Case Ownership Transfer](../interactions.md#123-case-ownership-transfer-n)).
 
-A human Coordinator typically provides the Case Decision capability set while a
-service actor provides Case Hosting.
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-02-005", "MSM-07-008", "MSM-07-009", "CM-21-005"))
+```
+
+A human Coordinator typically provides the Case Decision capability set while a service actor provides Case Hosting.
 
 #### Case Hosting capability set
 
-The Case Hosting capability set defines Case Manager infrastructure capabilities.
+The Case Hosting capability set provides what the CASE_MANAGER role needs.
 It is separable from the Case Decision capability set.
+It adds the following to the Case Observer capability set.
 
-- Case Observer capability set, plus:
-- MUST hold the **CASE_MANAGER** role for each case it hosts, and therefore MUST implement the
-  single-writer authority rules of [§10.1 Single-Writer Authority](../interactions.md#101-single-writer-authority)
-- MUST maintain the authoritative canonical case ledger and replicate it to
-  participants via `Announce(CaseLedgerEntry)`
-- MUST implement multi-party case management: participant invitation,
-  acceptance, role assignment, and case ownership operations
-- MUST implement the two-seam status adoption model ([§11.3 Status Adoption: The Two-Seam Model](../interactions.md#113-status-adoption-the-two-seam-model)), including the
-  canonical-write-before-side-effects ordering
-- MUST deliver full case content only when the [§9.7 Gating Full Case Delivery](../tracking-models.md#97-gating-full-case-delivery) gate is satisfied
+It holds the **CASE_MANAGER** role for each case it hosts, and so it is that case's single writer ([§10.1 Single-Writer Authority](../interactions.md#101-single-writer-authority)).
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-02-001", "CM-02-002", "BT-10-003", "BT-10-004"))
+```
+
+It keeps the canonical case ledger, and replicates each entry to the participants as `Announce(CaseLedgerEntry)`.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CLP-04-001", "CLP-04-004", "PCR-08-003"))
+```
+
+It runs multi-party case management: participant invitation and acceptance, role assignment and case ownership operations, each under the case's authorization rules.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-02-006", "PCR-08-008", "PCR-08-009"))
+```
+
+It applies the two-seam status adoption model, including the canonical-write-before-side-effects ordering ([§11.3 Status Adoption: The Two-Seam Model](../interactions.md#113-status-adoption-the-two-seam-model)).
+
+It delivers full case content only to a participant that passes the gate of [§9.7 Gating Full Case Delivery](../tracking-models.md#97-gating-full-case-delivery).
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-10-004", "CM-10-005"))
+```
 
 !!! note "Ledger replication mechanics are specified separately"
-    This specification states the obligation: an implementation holding the
-    Case Hosting capability set MUST maintain the canonical ledger and replicate it
-    via `Announce(CaseLedgerEntry)`. The single-writer-plus-fan-out model is normative:
-    one CASE_MANAGER holds exclusive write authority and sends each entry to every
-    participant actor.
+    This specification states what the ledger is and that the CASE_MANAGER replicates it.
+    One CASE_MANAGER holds exclusive write authority, and sends each entry to every participant actor.
 
-    The mechanics of that replication — hash-chaining, gap detection and ordering
-    guarantees — are specified in a companion Vultron Ledger Replication
-    Specification, which is still in draft and is not yet published alongside this
-    document. An implementation cannot demonstrate conformance to the replication
-    mechanics from this document alone. The reasoning for splitting them is
-    recorded in
-    [ADR-0077](../../../adr/0077-ledger-replication-companion-spec.md).
+    The mechanics of that replication — hash-chaining, gap detection and ordering guarantees — are specified in a companion Vultron Ledger Replication Specification, which is still in draft and is not yet published alongside this document.
+    An implementation cannot demonstrate conformance to the replication mechanics from this document alone.
+    The reasoning for splitting them is recorded in [ADR-0077](../../../adr/0077-ledger-replication-companion-spec.md).
 
-    Distributed consensus among several case managers is a possible future
-    extension and is out of scope here.
+    Distributed consensus among several case managers is a possible future extension and is out of scope here.
 
 #### Named configurations
 
-Common combinations of capability sets have names because they appear frequently
-in real deployments. These names are informative; conformance claims use the
-full capability set list.
+Common combinations of capability sets have names because they appear frequently in real deployments.
+These names are informative; conformance claims use the full capability set list.
 
 | Configuration | Capability sets | Roles |
 |---|---|---|
@@ -134,6 +157,5 @@ full capability set list.
 | **Self-coordinating Vendor** | Case Observer + Case Decision + Case Hosting | Vendor + Deployer + Case Owner |
 | **Bug Bounty Platform** | Case Observer + Case Hosting | Case Manager (Case Decision optional) |
 
-A Hosting Coordinator is a `type:service` actor that holds both `CASE_OWNER`
-and `CASE_MANAGER` roles. It decides and executes without a separate human
-approval step for its own status updates.
+A Hosting Coordinator is a `type:service` actor that holds both `CASE_OWNER` and `CASE_MANAGER` roles.
+It decides and executes without a separate human approval step for its own status updates.

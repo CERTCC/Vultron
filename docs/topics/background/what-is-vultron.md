@@ -134,7 +134,7 @@ Examples are `Case Observer / Vendor` and `Case Observer + Case Decision + Case 
 
 | Capability set | What it adds |
 |---|---|
-| **Case Observer** | The participation floor: track the case's state machines, send the messages your roles require, and take part in embargo negotiation |
+| **Case Observer** | The participation floor: track the case's state machines, announce your own transitions, and take part in embargo negotiation |
 | **Case Decision** | Governing a case as its owner: adopting its own status updates without approval, driving shared embargo transitions, and transferring ownership |
 | **Case Hosting** | Running a case for others: holding the canonical case ledger, replicating it to Participants, and managing who participates |
 

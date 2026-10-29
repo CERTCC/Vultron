@@ -616,6 +616,23 @@ class TestAcceptanceRules:
         asserted = _asserted_status(RM.ACCEPTED, None, CS_pxa.pxa)
         assert _refused(current, asserted) == ["pxa"]
 
+    @pytest.mark.spec("RSH-09-009")
+    @pytest.mark.parametrize(
+        "roles",
+        [[CVDRole.OBSERVER], [CVDRole.COORDINATOR], []],
+        ids=["observer", "coordinator", "no-role"],
+    )
+    @pytest.mark.parametrize(
+        "asserted_pxa",
+        [CS_pxa.Pxa, CS_pxa.pXa, CS_pxa.pxA],
+        ids=["public", "exploit", "attacks"],
+    )
+    def test_a_pxa_report_needs_no_role(self, roles, asserted_pxa):
+        """P, X and A are world state: no role is needed to report them."""
+        current = _current_status(RM.ACCEPTED, None, CS_pxa.pxa)
+        asserted = _asserted_status(RM.ACCEPTED, None, asserted_pxa)
+        assert _refused(current, asserted, roles) == []
+
     @pytest.mark.spec("RSH-09-003")
     def test_a_multi_step_pxa_advance_is_accepted(self):
         current = _current_status(RM.ACCEPTED, None, CS_pxa.pxa)
