@@ -45,6 +45,15 @@ from test.conftest import (
 
 pytest_plugins = ["pytester"]
 
+#: Slowest integration test under ``-n auto`` on a quiet host, in seconds
+#: (``test_rvcv_extension_demo.py``, 30.05 s; #5188).
+_SLOWEST_QUIET_INTEGRATION_SECONDS = 30
+
+#: How far host contention stretched the CPU-bound demos (#5188).  At host
+#: load ~30 on 16 cores they ran 2-3x their quiet time at ``-n 0``, and past
+#: 4x under ``-n auto``, where the 60 s tier tripped.
+_MEASURED_LOAD_INFLATION = 4
+
 
 class FakeItem:
     """Minimal stand-in for a pytest ``Item``.
@@ -227,6 +236,21 @@ class TestIntegrationTimeoutValue:
         original spurious aborts, so require real headroom.
         """
         assert INTEGRATION_TIMEOUT_SECONDS >= 30
+
+    @pytest.mark.spec("TB-14-003")
+    def test_clears_the_slowest_quiet_demo_under_measured_load(self):
+        """The tier covers the slowest demo at the load the suite meets.
+
+        The exchange demos are CPU-bound, so load stretches them in
+        proportion. The slowest integration test measured
+        :data:`_SLOWEST_QUIET_INTEGRATION_SECONDS` under ``-n auto`` on a
+        quiet host, and contention inflated demos by more than
+        :data:`_MEASURED_LOAD_INFLATION` at 60 s, where the embargo demos
+        tripped (#5188).
+        """
+        assert INTEGRATION_TIMEOUT_SECONDS >= (
+            _SLOWEST_QUIET_INTEGRATION_SECONDS * _MEASURED_LOAD_INFLATION
+        )
 
     def test_is_still_a_bounded_hang_detector(self):
         assert INTEGRATION_TIMEOUT_SECONDS <= 300
