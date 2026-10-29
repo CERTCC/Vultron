@@ -1171,8 +1171,15 @@ def test_a_case_reference_round_trips_as_a_reference():
     join = rm_engage_case_activity(
         case_id, actor=_CASE_ACTOR_ID, to=[_PEER_ACTOR_ID]
     )
-    stored = object_to_record(cast(Any, join)).data_.get("object_")
+    record = object_to_record(cast(Any, join))
+    stored = record.data_.get("object_")
     assert isinstance(stored, dict) and stored.get("id") == case_id
+    # The row reads back as a base ``Join``, whose object a case's own
+    # validation would refuse; it is retyped as the reference it is.
+    assert isinstance(
+        getattr(record.to_obj(), "object_", None),
+        as_VulnerabilityCaseReference,
+    )
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
     try:

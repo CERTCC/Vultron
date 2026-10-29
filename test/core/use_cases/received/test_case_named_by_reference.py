@@ -24,6 +24,7 @@ refused, naming the activity and the case.
 """
 
 import copy
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -45,6 +46,9 @@ from vultron.wire.as2.factories import (
     rm_engage_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCaseReference,
+)
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
 
@@ -183,6 +187,35 @@ def test_the_ledgered_act_carries_only_the_case_reference(act):
     before = _participant_ids(replica)
     assert semantic_type in net.replay_ledger(BYSTANDER)
     assert _participant_ids(replica) == before
+
+
+@pytest.mark.spec("AKM-03-004")
+@pytest.mark.parametrize("case_id", [CASE_ID, UNHELD_CASE_ID])
+@pytest.mark.parametrize("act", sorted(_ACTS))
+def test_the_ingress_edge_keeps_the_reference_as_a_reference(
+    act, case_id, caplog
+):
+    """Staging and rehydration leave the reference as it arrived.
+
+    Staging does not stage it as a case row, and rehydration does not cast
+    it to a case: a sparse case row fails the case's validation when read
+    back for a case the receiver lacks, and a cast fails it at once, each
+    reporting a fault for a well-formed act (ADR-0165).
+    """
+    build, _, path = _ACTS[act]
+    net = LedgerNetwork(CASE_ID)
+    ingress = FastAPIIngressAdapter(net.stores[MANAGER])
+
+    with caplog.at_level(logging.WARNING):
+        artifact = ingress.parse(delivered_body(build(case_id)))
+        assert artifact is not None
+        routed = ingress.rehydrate(artifact)
+
+    assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
+    named: Any = routed
+    for key in path:
+        named = getattr(named, f"{key}_")
+    assert isinstance(named, as_VulnerabilityCaseReference)
 
 
 @pytest.mark.spec("AKM-03-005")

@@ -21,8 +21,10 @@ or an ownership-transfer ``Offer``, names its case by (AKM-03-004, ADR-0165).
 Anywhere else a case is carried whole, so a reference there is a malformed
 case: a ``Create(VulnerabilityCase)`` that carried one would reach core
 naming a case with no owner and no position.  The parser refuses it where it
-arrives, as it refused the sparse case before references existed (ADR-0032:
-validate at the edge).
+arrives, as it refused the sparse case before references existed: an inline
+case that fails the case's validation is never read as a less specific type,
+and its activity is refused as malformed (MV-04-003; ADR-0032, validate at
+the edge).
 """
 
 from collections.abc import Iterator

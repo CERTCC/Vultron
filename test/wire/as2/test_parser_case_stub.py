@@ -133,6 +133,7 @@ def test_an_answer_embedding_an_act_keeps_its_reference():
 
 
 @pytest.mark.spec("AKM-03-004")
+@pytest.mark.spec("MV-04-003")
 @pytest.mark.parametrize("type_", ["Create", "Announce", "Update"])
 def test_a_case_reference_elsewhere_is_refused_at_parse(type_):
     """Anywhere but an act that names its case, a case is carried whole, so
@@ -144,6 +145,7 @@ def test_a_case_reference_elsewhere_is_refused_at_parse(type_):
 
 
 @pytest.mark.spec("AKM-03-004")
+@pytest.mark.spec("MV-04-003")
 def test_a_case_reference_as_a_target_is_refused_at_parse():
     body = _body("Join", dict(_REFERENCE))
     body["target"] = dict(_REFERENCE)

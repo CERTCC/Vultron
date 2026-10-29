@@ -64,6 +64,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
+    as_VulnerabilityCaseReference,
     as_VulnerabilityCaseStub,
 )
 
@@ -386,6 +387,34 @@ def test_stage_inline_object_skips_a_case_naming_an_unheld_embargo(
 
     assert datalayer.read(case_id) is None
     assert any("EMB-18-003" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.spec("AKM-03-004")
+def test_stage_inline_object_stages_nothing_for_a_case_reference(
+    datalayer, persisted
+):
+    """A Join's case reference names a case and is staged as no row.
+
+    Staged, it would be a ``VulnerabilityCase`` row with only an id, which
+    fails the case's validation when read back (ADR-0165).
+    """
+    case_id = "urn:uuid:case-reference-001"
+    activity = parse_activity(
+        {
+            "type": "Join",
+            "id": "https://example.org/activities/join-1",
+            "actor": _ACTOR_URI,
+            "published": _PUBLISHED,
+            "object": {"id": case_id, "type": "VulnerabilityCase"},
+        }
+    )
+    assert isinstance(
+        getattr(activity, "object_", None), as_VulnerabilityCaseReference
+    )
+
+    _stage_inline_object(datalayer, activity)
+
+    assert persisted == []
 
 
 @pytest.mark.spec("MV-11-005")
