@@ -1,12 +1,20 @@
-# Simple workflow for deploying static content to GitHub Pages
+# Deploys the MkDocs site to GitHub Pages from main (ADR-0166, DOCBW-06-005).
 name: Deploy static content to Pages
 
 on:
-  # Runs on pushes targeting the default publish branch
+  # Every merge to main deploys. The build and publication gates below are what
+  # stand between a merge and Pages: a failed gate stops the upload, and the
+  # live site stays at the last good deploy. No paths: filter, because pages
+  # render from vultron/ and specs/ as well as docs/. No debounce either: the
+  # pages concurrency group below already collapses a burst of merges into the
+  # running deploy plus the newest one queued.
   push:
-    branches: [publish]
+    branches: [main]
 
-  # Allows you to run this workflow manually from the Actions tab
+  # Manual runs. To roll back, choose a release tag under "Use workflow from":
+  # that tag's own workflow, gates and baseline build that tag's site. The
+  # github-pages environment's deployment rules decide which branches and
+  # tags may deploy, and are the brake if deploys need stopping.
   workflow_dispatch:
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
@@ -47,9 +55,9 @@ jobs:
       # This is the workflow that actually publishes, so it is the one the
       # publication checks have to gate. It must sit between Build Site and
       # Upload artifact: after the build so site/ exists, before the upload so
-      # a withheld artifact, a dead internal reference or a dropped URL cannot
-      # reach Pages. Same action as docs-build-check.yml (DOCBW-03-006,
-      # DOCBW-03-007, DOCBW-03-008).
+      # a withheld artifact, a dead internal reference, a dropped URL or an
+      # unrecorded page cannot reach Pages. Same action as docs-build-check.yml
+      # (DOCBW-03-006, DOCBW-03-007, DOCBW-03-008, DOCBW-03-012).
       - name: Check site publication
         uses: ./.github/actions/check-site-publication
 

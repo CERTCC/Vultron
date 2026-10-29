@@ -2,11 +2,12 @@ name: Check site publication
 description: >
   Checks a built `site/` against what the project has decided about
   publication, so a build cannot ship a withheld artifact or a dead internal
-  reference, or drop a URL an earlier publish served. Shared by every workflow
-  that builds the site (docs-build-check.yml, deploy_site.yml) so the checks
-  cannot drift apart, and in particular so the publishing workflow is gated by
-  exactly what the pull-request workflow is (DOCBW-03-006, DOCBW-03-007,
-  DOCBW-03-008). Run it after the build, and in deploy_site.yml before the
+  reference, drop a URL an earlier publish served, or serve a page whose URL
+  is not yet recorded. Shared by every workflow that builds the site
+  (docs-build-check.yml, deploy_site.yml) so the checks cannot drift apart,
+  and in particular so the publishing workflow is gated by exactly what the
+  pull-request workflow is (DOCBW-03-006, DOCBW-03-007, DOCBW-03-008,
+  DOCBW-03-012). Run it after the build, and in deploy_site.yml before the
   Pages upload.
 
 runs:
@@ -56,3 +57,16 @@ runs:
       shell: bash
       run: |
         PYTHONPATH='' uv run docs-path-boxes
+
+    # DOCBW-03-012: every page the checked-out commit builds is in the
+    # legacy-URL record, so the continuity check above knows its URL before it
+    # ships. main deploys on every merge (ADR-0166), so a page is due the
+    # moment its pull request merges: a pull request is checked at its merge
+    # result, and the deploy re-checks the commit it ships. Kept after the
+    # continuity check, so the first `docs-legacy-urls` step is the continuity
+    # one.
+    - name: Check every built page is recorded
+      if: ${{ !cancelled() }}
+      shell: bash
+      run: |
+        PYTHONPATH='' uv run docs-legacy-urls --require-recorded

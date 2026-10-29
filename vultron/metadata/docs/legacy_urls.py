@@ -15,23 +15,22 @@
 A page that moves between two publishes takes its old URL with it, and whoever
 cited that URL — in a paper, a standards comment, a partner's tracker — gets a
 404 on publish day. #3556 found well over a hundred such URLs between the
-``publish`` branch and ``main``. Every one had moved, been renamed, or been
+then-published site and ``main``. Every one had moved, been renamed, or been
 withdrawn, and nothing in the build said so.
 
-The evidence of what was live lives on the ``publish`` branch, and it is gone
-the moment ``publish`` advances. So the evidence is committed:
-:data:`BASELINE` lists every ``docs/`` page any publish has built, and it only
-grows. ``--snapshot <ref>`` adds the pages a ref builds. Snapshot the incoming
-publish: before opening the pull request to ``publish``, run
-``--snapshot origin/main`` on a branch from ``main`` and merge the result into
-``main``, which the release pull request then carries. Recording each
-publish as it ships covers every earlier one.
+The evidence of what was live is the deployed site, and it is gone the moment
+the next deploy replaces it. So the evidence is committed: :data:`BASELINE`
+lists every ``docs/`` page any publish has built, and it only grows.
+``--snapshot <ref>`` adds the pages a ref builds. ``main`` deploys on every
+merge (ADR-0166), so a page is due the moment its pull request merges: a pull
+request that adds a page commits it, runs ``--snapshot HEAD``, and commits the
+grown baseline too. Recording each page as it merges covers every deploy.
 
 ``--require-recorded`` enforces that (DOCBW-03-012): it fails when a page the
 checked-out commit builds is missing from the baseline, deciding "built" by
-:func:`built_pages`, the rule ``--snapshot`` records with. The pull-request
-workflow runs it on pull requests to ``publish`` only; on a pull request to
-``main`` a new page is not yet due.
+:func:`built_pages`, the rule ``--snapshot`` records with. The
+``check-site-publication`` action runs it, so a pull request is checked at its
+merge result and the deploy re-checks the commit it ships.
 
 :func:`unmapped_pages` checks a built ``site/`` against that list. A published
 page is accounted for when one of these holds:
@@ -55,7 +54,7 @@ CLI (``uv run docs-legacy-urls``)::
 
     uv run mkdocs build
     uv run docs-legacy-urls                       # exit 1 on an unmapped URL
-    uv run docs-legacy-urls --snapshot origin/main   # extend the baseline
+    uv run docs-legacy-urls --snapshot HEAD          # extend the baseline
     uv run docs-legacy-urls --require-recorded       # exit 1 on an unrecorded page
 """
 
@@ -85,11 +84,10 @@ _HEADER = """\
 #
 # `uv run docs-legacy-urls` fails when the built site/ neither serves nor
 # redirects one of these URLs, unless a withheld declaration covers it. The list
-# only grows: a URL that was once published stays accounted for. Before opening
-# the pull request to `publish`, run `uv run docs-legacy-urls --snapshot
-# origin/main` on a branch from `main` and merge the result into `main`, so the
-# incoming publish is recorded before it ships; `--require-recorded` fails that
-# pull request until it is.
+# only grows: a URL that was once published stays accounted for. main deploys
+# on every merge, so a pull request that adds a page commits it, runs `uv run
+# docs-legacy-urls --snapshot HEAD` and commits this file too;
+# `--require-recorded` fails the pull request until it does.
 #
 # Seeded from origin/publish at ee5d96d3d (#3556)."""
 
@@ -106,11 +104,9 @@ _MAX_HOPS = 10
 
 # How to fix every --require-recorded failure, so each message names it.
 _RECORD_HINT = (
-    "Run 'git fetch origin' and 'uv run docs-legacy-urls --snapshot "
-    "origin/main' on a branch from main, and merge the updated baseline into "
-    "main through its own pull request; a release pull request from main "
-    "picks it up. A listed page that only publish holds needs "
-    "'--snapshot origin/publish' too."
+    "Commit the page, run 'uv run docs-legacy-urls --snapshot HEAD', and "
+    "commit the updated baseline in the same pull request: main deploys on "
+    "every merge, so a page's URL is live once it merges."
 )
 
 

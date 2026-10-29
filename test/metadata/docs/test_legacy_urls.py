@@ -222,7 +222,7 @@ def test_an_empty_baseline_raises(tmp_path):
 
 
 def test_the_committed_baseline_is_seeded():
-    """The publish-era evidence is gone once publish advances; keep it here."""
+    """The deployed evidence is gone once the next deploy replaces it; keep it here."""
     pages = load_baseline()
     assert len(pages) > 300
     assert "topics/user_stories/story_2022_001.md" in pages
@@ -383,7 +383,7 @@ def test_cli_snapshot_reports_an_unreadable_ref(tmp_path, capsys):
 
 # --- require-recorded ----------------------------------------------------
 
-SNAPSHOT_FIX = "--snapshot origin/main"
+SNAPSHOT_FIX = "--snapshot HEAD"
 
 
 @pytest.mark.spec("DOCBW-03-012")
