@@ -1261,9 +1261,10 @@ groups:
       canonical case state from a wrong report.
     verification: >
       Tests in `test/core/behaviors/status/test_participant_status_acceptance.py`
-      confirm that a forward P/X/A move is accepted from a sender holding
-      only OBSERVER, and from one holding no VFD role, both by the acceptance
-      rules and by the received status tree.
+      confirm that the acceptance rules accept a forward P/X/A move from a
+      sender holding only OBSERVER, one holding only COORDINATOR and one
+      holding no role, and that the received status tree records a P/X/A
+      report from a sender holding only OBSERVER.
     relationships:
     - rel_type: extends
       spec_id: RSH-09-003

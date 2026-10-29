@@ -24,7 +24,7 @@ Conversely, holding a role in a case creates an expectation that the implementat
 
     - **Capability sets**, defined here, describe *what an implementation provides* — a claim an implementer makes about their software.
     - **Conformance test layers (L1–L4)**, used in the behavioral conformance material, describe *what a test verifies* — syntax, semantics, behavior, and internal process structure.
-      These are orthogonal: a Case Observer implementation is tested at layers L1 through L3.
 
+    These are orthogonal: a Case Observer implementation is tested at layers L1 through L3.
     A conformance claim names capability sets; a test result names a layer.
     The two are not interchangeable.

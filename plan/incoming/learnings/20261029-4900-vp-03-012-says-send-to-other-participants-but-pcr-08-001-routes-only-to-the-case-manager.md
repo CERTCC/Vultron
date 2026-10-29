@@ -11,15 +11,15 @@ prose about how a participant announces its own RM, EM or CS transitions.
 
 **Claim.** VP-03-012 says a participant whose state changes "SHOULD send a
 message to other Participants for each transition", and VP-02-019 says it
-"SHOULD announce their RM state transitions to the other Participants". Once a
-case exists, PCR-08-001 and PCR-08-005 make the CASE_MANAGER the sole
-recipient of every case-scoped message, and PCR-08-002 calls sending to the
-roster a violation. The two read consistently only if "send to other
-Participants" means "send to the CASE_MANAGER, whose fan-out reaches them".
-Neither VP statement says so, so a reader can take them as licensing a
-roster send.
+"SHOULD announce their RM state transitions to the other Participants". After
+a case is created and the CASE_MANAGER is introduced, PCR-08-001 and
+PCR-08-005 make the CASE_MANAGER the only recipient of case-scoped messages,
+and PCR-08-002 calls sending to the roster a violation. The two read
+consistently only if "send to other Participants" means "send to the
+CASE_MANAGER, whose fan-out reaches them". Neither VP statement says so, so a
+reader can take them as licensing a roster send.
 
 **Evidence.** PR #5473 renders VP-03-012 next to PCR-08-001 in §13.2 Case
-Observer capability set. The prose names no recipient ("the protocol
-recommends that it send the message for the transition") to avoid the
-conflict.
+Observer capability set. Its prose names no recipient for a transition
+("reports its own transitions", "the protocol recommends that it send the
+message for the transition") to avoid the conflict.

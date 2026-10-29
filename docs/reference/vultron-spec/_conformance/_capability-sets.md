@@ -32,7 +32,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 ```
 
 There is no sub-Observer participation level.
-An actor that accepts a case invitation has committed to Observer behavior from that point: it tracks state and tells the others of its own transitions.
+An actor that accepts a case invitation has committed to Observer behavior from that point: it tracks state and reports its own transitions.
 
 A Case Observer implementation maintains all five state machines — **RM, EM, PEC, VFD, PXA** — for itself.
 It holds a current value for each, and it drives the transitions that its roles authorize.
