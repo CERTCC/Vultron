@@ -63,6 +63,7 @@ from vultron.demo.scenario.branch_points import BRANCH_POINTS, BranchPoint
 from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
 from vultron.demo.scenario.tree import TreeNode, build_scenario_tree
 from vultron.errors import DemoRecordingError, DemoScenarioRegistryError
+from vultron.metadata.demo_scenarios.export_semantics import serialize
 from vultron.metadata.demo_scenarios.export_states import REPO_ROOT
 from vultron.metadata.generated_files import read_committed, write_generated
 
@@ -241,11 +242,6 @@ def build_payload(
     }
 
 
-def serialize(payload: dict[str, Any]) -> str:
-    """Render *payload* as the canonical on-disk string."""
-    return json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
-
-
 def stale_hint(path: Path = OUTPUT_PATH) -> str:
     """Return the message a stale or missing index is reported with."""
     shown = (
@@ -284,6 +280,22 @@ def main(argv: list[str] | None = None) -> None:
         return
     write_generated(OUTPUT_PATH, text)
     print(f"Wrote {OUTPUT_PATH.relative_to(REPO_ROOT)}")
+
+
+__all__ = [
+    "OUTPUT_PATH",
+    "REGEN_COMMAND",
+    "UI_SRC_DIR",
+    "branch_point_row",
+    "build_payload",
+    "is_stale",
+    "main",
+    "recording_files",
+    "scenario_row",
+    "serialize",
+    "stale_hint",
+    "tree_node",
+]
 
 
 if __name__ == "__main__":
