@@ -170,12 +170,8 @@ class TestReceiveReportCaseLookupIsGated:
                 "reporter_submits_report",
                 return_value=(report, offer),
             ),
-            patch.object(receive_report_demo, "get_offer_from_datalayer"),
-            patch.object(receive_report_demo, "rm_validate_report_activity"),
-            patch.object(receive_report_demo, "post_to_inbox_and_wait"),
-            patch.object(
-                receive_report_demo, "verify_received_activity_stored"
-            ),
+            patch.object(receive_report_demo, "receiver_validates_report"),
+            patch.object(receive_report_demo, "check_report_answer_recorded"),
             patch.object(
                 receive_report_demo, "find_case_by_report", return_value=None
             ),
