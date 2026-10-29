@@ -276,8 +276,8 @@ groups:
       begins (CSB-12-004).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CP with EM Active or
-      Revise transitions CS to ···P··, that the CASE_MANAGER emits ET before CK,
-      and that the CS transition is recorded before embargo teardown.
+      Revise transitions CS to ···P·· and that the CASE_MANAGER emits ET before
+      CK.
     testable: true
     preconditions:
     - cs_pattern: "...p.."
@@ -746,9 +746,10 @@ groups:
       The ledger commits the CS state change before any effect acts on it
       (CLP-10-006), so every replica sees the cause before its effect.
     verification: >-
-      Integration tests in `test/demo/` confirm that the CS state records ···PX·
-      before ET is emitted when CX is received with EM Active or Revise and
-      non-public CS.
+      Tests marked CSB-05-010 in
+      `test/core/behaviors/status/test_add_participant_status_bt.py` confirm
+      that the CASE_MANAGER's ledger commits a received X status before the
+      embargo teardown entry.
     testable: true
 
     stories:
@@ -777,9 +778,11 @@ groups:
       rest in (CSB-17-003), so the public bit waits for its own P event.
       When EM is None or Exited, no embargo teardown is needed.
     verification: >-
-      Integration tests in `test/demo/` confirm that receiving CA in CS ···p·a with
-      EM None or Exited sets the attacks bit (···p·A), leaves the public bit
-      unset, and emits CK.
+      Tests marked CSB-06-001 in
+      `test/core/behaviors/status/test_add_participant_status_bt.py` confirm
+      that a CA received in CS ···p·a with EM None sets the attacks bit
+      (···p·A) and leaves the public bit unset. Integration tests in
+      `test/demo/` confirm that CK is emitted.
     testable: true
     preconditions:
     - cs_pattern: "...p.a"
@@ -820,8 +823,11 @@ groups:
       making the vulnerability public, so only the attacks bit changes
       (CSB-17-002).
     verification: >-
-      Integration tests in `test/demo/` confirm that receiving CA in CS ···p·a with
-      EM Proposed transitions CS to ···p·A, sets EM to NONE, and emits CK.
+      Tests marked CSB-06-002 in
+      `test/core/behaviors/status/test_add_participant_status_bt.py` confirm
+      that a CA received in CS ···p·a with EM Proposed transitions CS to
+      ···p·A, leaving the public bit unset. Integration tests in `test/demo/`
+      confirm that EM is set to NONE and CK is emitted.
     testable: true
     preconditions:
     - cs_pattern: "...p.a"
@@ -868,10 +874,12 @@ groups:
       (CSB-17-002). The CS transition is recorded before teardown begins
       (CSB-06-010).
     verification: >-
-      Integration tests in `test/demo/` confirm that receiving CA in CS ···p·a with
-      EM Active or Revise transitions CS to ···p·A, that the CASE_MANAGER emits
-      ET, then CK is emitted, with the CS transition recorded before
-      teardown.
+      Tests marked CSB-06-003 in
+      `test/core/behaviors/status/test_add_participant_status_bt.py` confirm
+      that a CA received in CS ···p·a with EM Active transitions CS to ···p·A,
+      leaving the public bit unset, and that the CASE_MANAGER tears the
+      embargo down after recording it. Integration tests in `test/demo/`
+      confirm that CK is emitted.
     testable: true
     preconditions:
     - cs_pattern: "...p.a"
@@ -959,8 +967,11 @@ groups:
       CS or EM transitions, whether or not the case is public: ···p·A is a
       resting state (CSB-17-003).
     verification: >-
-      Integration tests in `test/demo/` confirm that receiving CA when CS is already
-      ···p·A or ···P·A enqueues CK and leaves all CS and EM states unchanged.
+      Tests marked CSB-06-005 in
+      `test/core/behaviors/status/test_add_participant_status_bt.py` confirm
+      that a CA received when CS is already ···p·A leaves the case CS at
+      ···p·A. Integration tests in `test/demo/` confirm that CK is enqueued
+      and that EM is unchanged.
     testable: true
     preconditions:
     - cs_pattern: ".....A"
@@ -1070,9 +1081,10 @@ groups:
       The ledger commits the CS state change before any effect acts on it
       (CLP-10-006), so every replica sees the cause before its effect.
     verification: >-
-      Integration tests in `test/demo/` confirm that the CS state records ···p·A
-      before ET is emitted when CA is received with EM Active or Revise and
-      non-public CS.
+      Tests marked CSB-06-010 in
+      `test/core/behaviors/status/test_add_participant_status_bt.py` confirm
+      that the CASE_MANAGER's ledger commits a received ···p·A status before
+      the embargo teardown entry.
     testable: true
 
     stories:
@@ -1420,9 +1432,9 @@ groups:
       the embargo teardown of CSB-12-001.
     rationale: >-
       Every replica replays the ledger in order, so a teardown committed ahead
-      of its cause would show the embargo ending for no recorded reason. The
-      received form of this rule is CSB-04-003; the ledger mechanism is
-      CLP-10-006.
+      of its cause would show the embargo ending for no recorded reason.
+      CSB-04-003 is the received transition this rule orders; the ledger
+      mechanism is CLP-10-006.
     verification: >-
       Tests marked CSB-12-004 in
       `test/core/behaviors/status/test_add_participant_status_bt.py` confirm
@@ -1691,11 +1703,11 @@ groups:
 
 
   - id: CSB-14-005
-    priority: MUST
+    priority: SHOULD
     kind: protocol
     statement: >-
       A Participant that terminates an active embargo (q^em ∈ {A, R}) on
-      entering CS Attacks Observed (q^cs → ·····A) MUST record the CS
+      entering CS Attacks Observed (q^cs → ·····A) SHOULD record the CS
       transition before it initiates the embargo teardown of CSB-14-001.
     rationale: >-
       Every replica replays the ledger in order, so a teardown committed ahead

@@ -2404,14 +2404,21 @@ class TestAdoptedPxa:
 
 def _cm_store_with_active_embargo() -> SqliteDataLayer:
     """The CASE_MANAGER's store: the vendor (Case Owner) and the CASE_MANAGER
-    seated on a case under an active embargo.
+    seated on a case under an active embargo."""
+    return _cm_store_with_embargo(EM.ACTIVE)
 
-    The participants are attached before the embargo is activated, so each
+
+def _cm_store_with_embargo(em: EM) -> SqliteDataLayer:
+    """The CASE_MANAGER's store: the vendor (Case Owner) and the CASE_MANAGER
+    seated on a case whose embargo is proposed or active.
+
+    The participants are attached before the embargo is registered, so each
     holds a consent row for it (ADR-0122).
     """
     from test.support.embargo_register import (
         activate,
         agree_to_active_embargo,
+        propose,
         write_consent_rows,
     )
     from vultron.core.models._helpers import days_from_now_utc
@@ -2440,15 +2447,19 @@ def _cm_store_with_active_embargo() -> SqliteDataLayer:
         context=CASE_ID,
         end_time=days_from_now_utc(45),
     )
-    activate(case, embargo.id_)
+    if em is EM.ACTIVE:
+        activate(case, embargo.id_)
+    else:
+        propose(case, embargo.id_)
     dl.create(case)
     dl.create(vendor)
     dl.create(manager)
     dl.create(embargo)
-    # Both are signatories, so the vendor's report is an active
-    # participant's (CM-10-004) and every commit can address it.
     write_consent_rows(dl, case)
-    agree_to_active_embargo(dl, case, ACTOR_ID, CASE_MANAGER_ID)
+    if em is EM.ACTIVE:
+        # Both are signatories, so the vendor's report is an active
+        # participant's (CM-10-004) and every commit can address it.
+        agree_to_active_embargo(dl, case, ACTOR_ID, CASE_MANAGER_ID)
     return dl
 
 
@@ -2534,6 +2545,8 @@ class TestAdoptedThreatTeardown:
     @pytest.mark.spec("CSB-12-004")
     @pytest.mark.spec("CSB-13-004")
     @pytest.mark.spec("CSB-14-005")
+    @pytest.mark.spec("CSB-05-010")
+    @pytest.mark.spec("CSB-06-010")
     @pytest.mark.parametrize(
         ("reported", "bit"),
         [(CS_pxa.Pxa, "P"), (CS_pxa.pXa, "X"), (CS_pxa.pxA, "A")],
@@ -2580,3 +2593,56 @@ class TestAdoptedThreatTeardown:
             if e.semantic_type == EMBARGO_TEARDOWN_SEMANTIC_TYPE
         )
         assert threat.log_index < teardown.log_index
+
+
+class TestReceivedAttacksLeaveThePublicBit:
+    """A received CA sets only the attacks bit: observed attacks are not
+    public information about the vulnerability (CSB-06, CSB-17-002)."""
+
+    @pytest.mark.spec("CSB-06-001")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
+    def test_attacks_with_no_embargo_leave_the_case_non_public(
+        self, populated_dl, make_payload
+    ):
+        result = _run_at_case_manager(
+            populated_dl, make_payload(_pxa_report(CS_pxa.pxA))
+        )
+
+        assert result.status == Status.SUCCESS, result.feedback_message
+        assert _case_pxa(populated_dl) == CS_pxa.pxA
+
+    @pytest.mark.spec("CSB-06-002")
+    @pytest.mark.spec("CSB-06-003")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
+    @pytest.mark.parametrize("em", [EM.PROPOSED, EM.ACTIVE])
+    def test_attacks_under_an_embargo_leave_the_case_non_public(
+        self, make_payload, em
+    ):
+        from vultron.core.behaviors.call_out.bundles.status_authorization import (
+            STATUS_AUTHORIZATION_PERMISSIVE,
+        )
+
+        dl = _cm_store_with_embargo(em)
+
+        result = _run_at_case_manager(
+            dl,
+            make_payload(_pxa_report(CS_pxa.pxA)),
+            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
+        )
+
+        assert result.status == Status.SUCCESS, result.feedback_message
+        assert _case_pxa(dl) == CS_pxa.pxA
+
+    @pytest.mark.spec("CSB-06-005")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
+    def test_a_duplicate_ca_keeps_the_case_at_pxA(
+        self, populated_dl, make_payload
+    ):
+        _seed_case_pxa(populated_dl, CS_pxa.pxA)
+
+        result = _run_at_case_manager(
+            populated_dl, make_payload(_pxa_report(CS_pxa.pxA))
+        )
+
+        assert result.status == Status.SUCCESS, result.feedback_message
+        assert _case_pxa(populated_dl) == CS_pxa.pxA
