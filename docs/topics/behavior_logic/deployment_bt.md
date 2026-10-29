@@ -8,8 +8,8 @@ stakeholder_type: [project-contributor]
 
 {% include-markdown "./_requirements_pointer.md" %}
 
-- [CSB-11](../../reference/specs/protocol.md#csb-11) — Enter CS D (Fix Deployed)
-- [CSB-15](../../reference/specs/protocol.md#csb-15) — Trigger-Side VFD Role Preconditions
+- [CSB-11](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-11) — Enter CS D (Fix Deployed)
+- [CSB-15](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-15) — Trigger-Side VFD Role Preconditions
 
 {% include-markdown "./_conformant_implementation_note.md" %}
 

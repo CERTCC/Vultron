@@ -139,7 +139,7 @@ def test_cited_section_must_be_the_anchored_one(
     ("text", "anchor"),
     [
         ("§13 Conformance", "13-conformance-n"),
-        ("§15 Security Considerations", "15-security-considerations-ni"),
+        ("§16 Security Considerations", "16-security-considerations-ni"),
         ("§4 Messages", "4-messages-n"),
         (
             "§8.1 VFD — Vendor Aware, Fix Ready, Fix Deployed",

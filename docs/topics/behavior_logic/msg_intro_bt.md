@@ -7,26 +7,26 @@ stakeholder_type: [project-contributor]
 ## Requirements
 
 The behavioral requirements for the message-receive behaviors are specified in the
-[Protocol Specifications](../../reference/specs/protocol.md):
+[Requirements Catalog](../../reference/vultron-spec/requirements/index.md):
 
-**Report Management Messages** ([RMB](../../reference/specs/protocol.md#rmb)):
+**Report Management Messages** ([RMB](../../reference/vultron-spec/requirements/state-behavior.md#protocol-rmb)):
 
 {% include-markdown "./_rm_message_requirements.md" %}
 
-**Embargo Management Messages** ([EMB](../../reference/specs/protocol.md#emb)):
+**Embargo Management Messages** ([EMB](../../reference/vultron-spec/requirements/state-behavior.md#protocol-emb)):
 
 {% include-markdown "./_em_message_requirements.md" %}
 
-**Case State Messages** ([CSB](../../reference/specs/protocol.md#csb)):
+**Case State Messages** ([CSB](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb)):
 
-- [CSB-01](../../reference/specs/protocol.md#csb-01) — Receive CV (Vendor Aware)
-- [CSB-02](../../reference/specs/protocol.md#csb-02) — Receive CF (Fix Ready)
-- [CSB-03](../../reference/specs/protocol.md#csb-03) — Receive CD (Fix Deployed)
-- [CSB-04](../../reference/specs/protocol.md#csb-04) — Receive CP (Public Aware)
-- [CSB-05](../../reference/specs/protocol.md#csb-05) — Receive CX (Exploit Public)
-- [CSB-06](../../reference/specs/protocol.md#csb-06) — Receive CA (Attacks Observed)
-- [CSB-07](../../reference/specs/protocol.md#csb-07) — Receive CE (CS Error)
-- [CSB-08](../../reference/specs/protocol.md#csb-08) — Receive CK (CS Acknowledgment)
+- [CSB-01](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-01) — Receive CV (Vendor Aware)
+- [CSB-02](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-02) — Receive CF (Fix Ready)
+- [CSB-03](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-03) — Receive CD (Fix Deployed)
+- [CSB-04](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-04) — Receive CP (Public Aware)
+- [CSB-05](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-05) — Receive CX (Exploit Public)
+- [CSB-06](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-06) — Receive CA (Attacks Observed)
+- [CSB-07](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-07) — Receive CE (CS Error)
+- [CSB-08](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-08) — Receive CK (CS Acknowledgment)
 
 {% include-markdown "./_conformant_implementation_note.md" %}
 

@@ -114,12 +114,12 @@ It must satisfy the RMB requirements for this step.
 
 | Requirement | Obligation |
 |---|---|
-| [RMB-09-001](../../../reference/specs/protocol.md#rmb-09-001) | A Participant entering `RM.RECEIVED` SHOULD start a validation process |
-| [RMB-10-001](../../../reference/specs/protocol.md#rmb-10-001) | A Participant entering `RM.VALID` MUST start a prioritization evaluation |
-| [RMB-10-002](../../../reference/specs/protocol.md#rmb-10-002) | A Participant MUST NOT close a report directly from `RM.VALID` |
-| [RMB-10-003](../../../reference/specs/protocol.md#rmb-10-003) | A Participant entering `RM.VALID` SHOULD emit RV |
-| [RMB-11-001](../../../reference/specs/protocol.md#rmb-11-001) | A Participant entering `RM.INVALID` SHOULD emit Report Invalid (RI) |
-| [RMB-11-002](../../../reference/specs/protocol.md#rmb-11-002) | Duplicate reports SHOULD NOT be marked invalid |
+| [RMB-09-001](../../../reference/vultron-spec/requirements/state-behavior.md#rmb-09-001) | A Participant entering `RM.RECEIVED` SHOULD start a validation process |
+| [RMB-10-001](../../../reference/vultron-spec/requirements/state-behavior.md#rmb-10-001) | A Participant entering `RM.VALID` MUST start a prioritization evaluation |
+| [RMB-10-002](../../../reference/vultron-spec/requirements/state-behavior.md#rmb-10-002) | A Participant MUST NOT close a report directly from `RM.VALID` |
+| [RMB-10-003](../../../reference/vultron-spec/requirements/state-behavior.md#rmb-10-003) | A Participant entering `RM.VALID` SHOULD emit RV |
+| [RMB-11-001](../../../reference/vultron-spec/requirements/state-behavior.md#rmb-11-001) | A Participant entering `RM.INVALID` SHOULD emit Report Invalid (RI) |
+| [RMB-11-002](../../../reference/vultron-spec/requirements/state-behavior.md#rmb-11-002) | Duplicate reports SHOULD NOT be marked invalid |
 | [RMB-15-001](../../../reference/specs/project.md#rmb-15-001) | An RM write MUST validate the transition before persisting |
 
 Two of those are easy to miss.

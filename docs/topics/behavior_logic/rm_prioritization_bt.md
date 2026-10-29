@@ -8,8 +8,8 @@ stakeholder_type: [project-contributor]
 
 {% include-markdown "./_requirements_pointer.md" %}
 
-- [RMB-12](../../reference/specs/protocol.md#rmb-12) — Enter RM Deferred
-- [RMB-13](../../reference/specs/protocol.md#rmb-13) — Enter RM Accepted
+- [RMB-12](../../reference/vultron-spec/requirements/state-behavior.md#protocol-rmb-12) — Enter RM Deferred
+- [RMB-13](../../reference/vultron-spec/requirements/state-behavior.md#protocol-rmb-13) — Enter RM Accepted
 
 {% include-markdown "./_conformant_implementation_note.md" %}
 

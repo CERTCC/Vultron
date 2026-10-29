@@ -10,13 +10,13 @@ in `vultron/core/behaviors/embargo/`.
 ## Requirements
 
 The behavioral requirements for these trees are specified in the
-[Protocol Specifications](../specs/protocol.md):
+[Requirements Catalog](../vultron-spec/requirements/index.md):
 
-- [EMB-10](../specs/protocol.md#emb-10) — Enter EM Proposed
-- [EMB-11](../specs/protocol.md#emb-11) — Enter EM Active
-- [EMB-12](../specs/protocol.md#emb-12) — Enter EM Revise
-- [EMB-13](../specs/protocol.md#emb-13) — Enter EM Exited
-- [EMB-14](../specs/protocol.md#emb-14) — Actor-Voluntary Embargo Termination (Trigger Side)
+- [EMB-10](../vultron-spec/requirements/state-behavior.md#protocol-emb-10) — Enter EM Proposed
+- [EMB-11](../vultron-spec/requirements/state-behavior.md#protocol-emb-11) — Enter EM Active
+- [EMB-12](../vultron-spec/requirements/state-behavior.md#protocol-emb-12) — Enter EM Revise
+- [EMB-13](../vultron-spec/requirements/state-behavior.md#protocol-emb-13) — Enter EM Exited
+- [EMB-14](../vultron-spec/requirements/state-behavior.md#protocol-emb-14) — Actor-Voluntary Embargo Termination (Trigger Side)
 
 ## Manage Embargo Tree
 

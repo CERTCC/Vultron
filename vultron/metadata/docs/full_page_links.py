@@ -31,7 +31,9 @@ unchanged:
 - a link to a section page without a fragment: it names a page, not a
   section, and the page has no in-page counterpart;
 - a link to ``index.md``, the routing page, which ``full.md`` does not include;
-- a link to any page outside the section (its target holds a ``/``);
+- a link to any page outside the section (its target holds a ``/``), except
+  a page of the Requirements Catalog in :data:`CATALOG_SUBDIR`, whose
+  subsections ``full.md`` includes too (DF-12-002);
 - a link shown inside a fenced code block or an inline code span (an
   escaped backtick, ``\\` ``, opens no code span);
 - a raw-HTML ``<a href>``, which is not a Markdown link;
@@ -74,17 +76,26 @@ FULL_PAGE_SRC_URI = "reference/vultron-spec/full.md"
 
 _INDEX_PAGE = "index.md"
 
+CATALOG_SUBDIR = "requirements/"
+"""The Requirements Catalog's pages, below the section's own directory.
+
+``vultron.metadata.docs.requirement_catalog.CATALOG_DIR`` relative to the
+section; a hook imports only the standard library and MkDocs, so it is
+restated here and a test holds the two equal.
+"""
+
 _PRIORITY = -50
 """Below ``include-markdown``'s 100, so the page is already assembled."""
 
 
 # A same-directory page with a fragment: ``page.md#fragment``, optionally
 # ``./``-prefixed. The page name has no ``/``, so only a page in the same
-# directory as ``full.md`` matches. Each link form names its own groups.
+# directory as ``full.md`` matches, or a catalog page below it
+# (``requirements/page.md#fragment``). Each link form names its own groups.
 def _target(form: str) -> str:
     return (
-        rf"(?:\./)?(?P<{form}_page>[A-Za-z0-9_.-]+\.md)"
-        rf"#(?P<{form}_fragment>[^)>\s\"']+)"
+        rf"(?:\./)?(?P<{form}_page>(?:{re.escape(CATALOG_SUBDIR)})?"
+        rf"[A-Za-z0-9_.-]+\.md)#(?P<{form}_fragment>[^)>\s\"']+)"
     )
 
 
@@ -128,7 +139,8 @@ def rewrite_section_links(markdown: str) -> str:
     """Return *markdown* with each same-section ``page.md#fragment`` link
     rewritten to ``#fragment``.
 
-    Inline links, images and reference definitions are rewritten. Links to
+    Inline links, images and reference definitions are rewritten, including
+    links to a Requirements Catalog page. Links to the section's
     ``index.md``, links without a fragment, links into another directory and
     anything inside a fenced code block or an inline code span are returned
     unchanged. A raw-HTML ``<a href>`` is not a Markdown link and is not
