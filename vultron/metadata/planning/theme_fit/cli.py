@@ -18,6 +18,7 @@
     theme-fit --json          # the report as JSON
     theme-fit --coherence     # only the coherence-per-tier table
     theme-fit --max-chars 65536   # the report, cut to fit an Issue body
+    theme-fit --no-schedule   # skip Project #24 (a token that cannot read it)
 
 Read-only: it applies no labels and moves no Issue (``notes/epic-themes.md``
 § "Acting on a Theme-Fit Finding"). Exit codes: 0 no findings, 1 findings,
@@ -88,6 +89,15 @@ def main(argv: list[str] | None = None, run: Runner = run_gh) -> int:
             f"characters (an Issue body takes {GITHUB_BODY_LIMIT})"
         ),
     )
+    parser.add_argument(
+        "--no-schedule",
+        action="store_true",
+        help=(
+            "do not read Project #24's Schedule, for a token that cannot "
+            "(such as a workflow's GITHUB_TOKEN); coherence is then shown "
+            "for all tiers together"
+        ),
+    )
     args = parser.parse_args(argv)
     if args.max_chars is not None and args.max_chars < 1:
         parser.error("--max-chars must be a positive number")
@@ -98,14 +108,16 @@ def main(argv: list[str] | None = None, run: Runner = run_gh) -> int:
         print(f"theme-fit: {exc}", file=sys.stderr)
         return 2
     try:
-        issues = fetch_open_issues(args.repo, run)
+        issues = fetch_open_issues(
+            args.repo, run, read_schedule=not args.no_schedule
+        )
     except GH_FAILURES as exc:
         print(
             f"theme-fit: gh failed: {gh_failure_detail(exc)}", file=sys.stderr
         )
         return 2
 
-    report = analyze(issues, catalog)
+    report = analyze(issues, catalog, schedule_read=not args.no_schedule)
     if args.json:
         print(json.dumps(report.to_json(), indent=2))
     elif args.coherence:

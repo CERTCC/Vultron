@@ -239,13 +239,18 @@ def _coherence(
 
 
 def analyze(
-    issues: Iterable[OpenIssue], catalog: ThemeCatalog
+    issues: Iterable[OpenIssue],
+    catalog: ThemeCatalog,
+    schedule_read: bool = True,
 ) -> ThemeFitReport:
     """Apply every structural theme rule to the open *issues*.
 
     Args:
         issues: Every open Issue; a parent outside the set is closed.
         catalog: The theme catalog the labels are checked against.
+        schedule_read: False when the *issues* were fetched without their
+            Project #24 ``Schedule`` (``fetch_open_issues(read_schedule=False)``);
+            the report then says its coherence has no per-tier split.
     """
     ordered = sorted(issues, key=lambda i: i.number)
     by_number = {i.number: i for i in ordered}
@@ -276,4 +281,5 @@ def analyze(
         findings=tuple(findings),
         coherence=_coherence(ordered, epic_of, by_number),
         untriaged=untriaged,
+        schedule_read=schedule_read,
     )
