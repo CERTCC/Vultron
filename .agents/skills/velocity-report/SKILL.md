@@ -123,7 +123,7 @@ explicitly in the narrative and flag it as a future improvement.
 
 The `pipeline_cost` section is the empirical check for ADR-0126.
 It is absent when the script ran with `--no-pipeline-cost`.
-It has three sub-keys:
+It has four sub-keys:
 
 - `per_pr` — one record per merged PR with: `open_to_merge_hours`,
   `ci_runs`, `failed_ci_runs`, `merges_from_main`, `full_suite_runs`,
@@ -131,7 +131,27 @@ It has three sub-keys:
   `Suite runs:` line in pr-execute's summary review).
 - `weekly_pr_cost` — weekly median and total for each numeric field,
   plus `total_full_suite_runs` and `total_targeted_suite_runs`.
-- `weekly_main_failures` — failed CI runs on `main` per week.
+- `weekly_main_failures` — per week: failed CI runs on `main`
+  (`failed_ci_runs_on_main`), and beside it the red episodes opened on `main`
+  (`red_episodes_opened_on_main`), merges to `main` (`merges_to_main`), and
+  `red_episodes_per_100_merges` (`null` in a week with no merges).
+- `main_red_episodes` — one record per red episode on `main`: `workflow`,
+  `first_red_sha`, `first_red_at`, `last_red_sha`, `red_runs`, `ended_at`
+  (`null` while still red), `opened_after_green`, `pr_number` (the PR whose
+  merge is the first red commit), `last_green_ci_at` (that PR's last green CI
+  run), and `candidate_partners` (PRs merged after that run and before the
+  PR's own merge).
+
+**What a red episode is.** Per workflow, consecutive failed push runs on
+`main` form one episode: it opens at the first red run after a green one and
+ends at the next green run. Cancelled and skipped runs neither open nor close
+one. One break that stays red across twelve merges is twelve failed CI runs
+on `main` but one episode. A streak already red at the window start has
+`opened_after_green: false` and is not counted as opened in any week.
+`pr_number`, `last_green_ci_at`, and `candidate_partners` are `null` when the
+data is unknown (a direct push, a merge from before the window, or a PR with
+no green CI run); an empty `candidate_partners` list means no merge landed
+between the PR's last green run and its own merge.
 
 **What a "CI run" is.** One CI run is one pushed head commit: the set of
 workflow runs GitHub started for it. A push that starts seven workflows is one
@@ -208,6 +228,19 @@ Every workflow on `main` counts, including non-test ones such as the docs
 deploy; before attributing a failure to a semantic conflict, check which
 workflow failed.
 Once three months of data exist, set a rolling-average baseline.
+
+**Red episodes on main** (`red_episodes_per_100_merges`, `main_red_episodes`)
+
+This is the rate the merge-queue reopen condition is stated in (#1863:
+more than one semantic-conflict episode per 100 merges over a month).
+Read it instead of `failed_ci_runs_on_main` when asking how often main
+breaks, since one break counts once however many merges it stays red across.
+The script does not classify an episode. For each episode in the month,
+classify it by hand as a semantic conflict, a scenario coverage gap, already
+red, or infrastructure: check the failed `workflow` and look at the
+`candidate_partners` — a semantic conflict needs at least one. Only semantic
+conflicts count toward the reopen condition; report the classified count
+per 100 merges for the month, not the raw episode rate.
 
 #### Integrated read: the ADR-0126 trade
 
