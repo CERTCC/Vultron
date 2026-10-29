@@ -123,7 +123,7 @@ explicitly in the narrative and flag it as a future improvement.
 
 The `pipeline_cost` section is the empirical check for ADR-0126.
 It is absent when the script ran with `--no-pipeline-cost`.
-It has three sub-keys:
+It has four sub-keys:
 
 - `per_pr` — one record per merged PR with: `open_to_merge_hours`,
   `ci_runs`, `failed_ci_runs`, `merges_from_main`, `full_suite_runs`,
@@ -131,7 +131,46 @@ It has three sub-keys:
   `Suite runs:` line in pr-execute's summary review).
 - `weekly_pr_cost` — weekly median and total for each numeric field,
   plus `total_full_suite_runs` and `total_targeted_suite_runs`.
-- `weekly_main_failures` — failed CI runs on `main` per week.
+- `weekly_main_failures` — per week: failed CI runs on `main`
+  (`failed_ci_runs_on_main`), and beside it the red episodes opened on `main`
+  (`red_episodes_opened_on_main`), merges to `main` (`merges_to_main`), and
+  `red_episodes_per_100_merges` (`null` in a week with no merges).
+- `main_red_episodes` — one record per red episode on `main`: `workflow`
+  (display name), `workflow_path` (the workflow file, which episodes are
+  grouped by), `opened_after_green`, `prior_green_sha` and `prior_green_at`
+  (the green run before it), `first_red_sha`, `first_red_at`, `last_red_sha`,
+  `red_runs`, `ended_at` (`null` while still red), `pr_number` (the PR whose
+  merge is the first red commit), `last_green_ci_at` (that PR's last green CI
+  run), `candidate_partners` (PRs merged to `main` after that run and before
+  the PR's own merge), and `unverified_merges` (PRs merged to `main` between
+  the prior green commit and the first red one, none with a completed run in
+  this workflow: cancelled, skipped, or never started because of a `paths`
+  filter).
+
+**What a red episode is.** Per workflow, consecutive failed push runs on
+`main` form one episode: it opens at the first red run after a green one and
+ends at the next green run. Cancelled and skipped runs, and any other
+conclusion that is neither failed nor `success` (such as `neutral`), neither
+open nor close one. One break that stays red across twelve merges is twelve failed CI runs
+on `main` but one episode. One commit that breaks several workflows opens one
+episode per workflow, but the weekly `red_episodes_opened_on_main` counts
+episodes that share a `first_red_sha` once, so the rate counts breaks. A
+streak already red at the window start has `opened_after_green: false` and is
+not counted as opened in any week. Only PRs merged into `main` count as merges
+or partners; merges to `publish` or an integration branch are left out.
+
+When a field is `null`, the data is unknown:
+
+- `pr_number` is `null` when no PR merged to `main` in the window owns the
+  first red commit (a direct push, or a merge from before the window). The
+  two fields after it are then `null` too.
+- `last_green_ci_at` and `candidate_partners` are `null` when the PR has no
+  green CI run. `candidate_partners` is also `null` when that run predates the
+  window start, since earlier merges were never fetched.
+- `unverified_merges` is `null` when there was no prior green run.
+
+An empty `candidate_partners` list means no merge landed between the PR's
+last green run and its own merge.
 
 **What a "CI run" is.** One CI run is one pushed head commit: the set of
 workflow runs GitHub started for it. A push that starts seven workflows is one
@@ -209,6 +248,24 @@ deploy; before attributing a failure to a semantic conflict, check which
 workflow failed.
 Once three months of data exist, set a rolling-average baseline.
 
+**Red episodes on main** (`red_episodes_per_100_merges`, `main_red_episodes`)
+
+This is the rate the merge-queue reopen condition is stated in (#1863:
+more than one semantic-conflict episode per 100 merges over a month).
+Read it instead of `failed_ci_runs_on_main` when asking how often main
+breaks, since one break counts once however many merges it stays red across.
+The script does not classify an episode. For each episode in the month,
+classify it by hand as a semantic conflict, a scenario coverage gap, already
+red, or infrastructure: check the failed `workflow` and look at the
+`candidate_partners` — a semantic conflict needs at least one. A non-empty
+`unverified_merges` means a merge landed between the last green commit and
+the first red one with no completed run in this workflow (its run was
+cancelled by `cancel-in-progress`, or a `paths` filter never started it), so
+`pr_number` may not be the breaker: check those merges as well. Episodes on
+several workflows with one `first_red_sha` are one break; classify it once.
+Only semantic conflicts count toward the reopen condition; report the
+classified count per 100 merges for the month, not the raw episode rate.
+
 #### Integrated read: the ADR-0126 trade
 
 The decision accepted rare semantic-conflict failures on `main` in exchange for
@@ -216,14 +273,18 @@ eliminating per-PR full reruns and merge-from-main loops.
 The data supports the decision when all of the following hold:
 
 1. `median_open_to_merge_hours` is falling.
-2. `failed_ci_runs_on_main` stays near zero week over week.
+2. The hand-classified semantic-conflict episodes stay at or below one per
+   100 merges over a month (see the red-episode lens above);
+   `failed_ci_runs_on_main` alone overstates breaks that stay red across
+   several merges.
 3. `median_merges_from_main` stays low and is not rising from ADR-0126 onward.
    The pre-ADR-0126 sync cost (captured in Concern #4015 at
    `plan/history/2610/learning/CONCERN-4015.md`) was paid in rebases, which
    this field cannot see; compare against that write-up, not against this
    field's pre-ADR values.
 
-If `failed_ci_runs_on_main` rises materially while `open_to_merge_hours`
+If the classified semantic-conflict episodes per 100 merges rise (read the
+red-episode lens, not `failed_ci_runs_on_main`) while `open_to_merge_hours`
 falls, report this explicitly: "The time saving appears real, but the
 semantic-conflict risk is materializing — check it against the reopen condition
 of the merge queue (Idea #1863, closed as set aside: more than one
