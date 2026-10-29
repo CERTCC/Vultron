@@ -11,12 +11,14 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for :func:`vultron.metadata.base.iter_tree_texts`,
-:func:`~vultron.metadata.base.markdown_files` and the ``mkdocs.yml`` readers."""
+:func:`~vultron.metadata.base.markdown_files`,
+:func:`~vultron.metadata.base.relative_posix` and the ``mkdocs.yml`` readers."""
 
 from __future__ import annotations
 
 import json
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -31,6 +33,7 @@ from vultron.metadata.base import (
     markdown_files,
     mkdocs_config,
     parse_mkdocs_config,
+    relative_posix,
 )
 from vultron.metadata.file_loading import MetadataLoadError
 
@@ -77,6 +80,29 @@ def test_markdown_files_are_sorted_and_skip_pruned_directories(tmp_path):
 
 def test_markdown_files_of_a_missing_directory_is_empty(tmp_path):
     assert markdown_files(tmp_path / "missing", lambda _d: False) == []
+
+
+@pytest.mark.parametrize(
+    ("path", "root"),
+    [
+        ("/r/a/b.py", "/r"),
+        ("a/b.py", "."),
+        ("a/b.py", "a"),
+        ("/r", "/r"),
+        (".", "."),
+        ("specs/../a/b.py", "specs/.."),
+    ],
+)
+def test_relative_posix_agrees_with_relative_to(path, root):
+    expected = Path(path).relative_to(Path(root)).as_posix()
+
+    assert relative_posix(Path(path), Path(root)) == expected
+
+
+@pytest.mark.parametrize(("path", "root"), [("/s/a.py", "/r"), ("ab/c", "a")])
+def test_relative_posix_refuses_a_path_outside_root(path, root):
+    with pytest.raises(ValueError, match="is not in the subpath of"):
+        relative_posix(Path(path), Path(root))
 
 
 @pytest.mark.spec("MS-17-001")

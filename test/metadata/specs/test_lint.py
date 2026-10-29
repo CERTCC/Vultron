@@ -5,6 +5,7 @@ mismatch) and advisory warnings (testable_without_steps, rationale_too_long,
 missing_tags) including lint_suppress suppression.
 """
 
+import re
 import sys
 from typing import cast
 
@@ -1825,6 +1826,24 @@ def test_lint_phantom_symbol_dotted_reference_not_checked(tmp_path):
     write_yaml(spec_dir, data)
 
     assert lint(spec_dir) == 0
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "FOO_BAR",
+        "x = FOO_BAR + _BAZ_QUX",
+        "aFOO_BAR FOO_BAR2 9FOO_BAR",
+        "éFOO_BAR ÉFOO_BAR",
+        "FOO_BAR_ FOO__BAR F_1 A_B_C.D_E",
+        "MUST RS FOO_V2 FOO_bar",
+    ],
+)
+def test_source_symbol_re_matches_the_word_bounded_form(text):
+    """The lookbehind spelling finds exactly what the ``\\b`` form does."""
+    plain = re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b")
+
+    assert lint_module.SOURCE_SYMBOL_RE.findall(text) == plain.findall(text)
 
 
 # ---------------------------------------------------------------------------

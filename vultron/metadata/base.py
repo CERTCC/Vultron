@@ -103,6 +103,26 @@ def repo_root(start: Path | None = None) -> Path:
     )
 
 
+def relative_posix(path: Path, root: Path) -> str:
+    """Return *path* relative to *root* as a POSIX string, as
+    ``path.relative_to(root).as_posix()`` does.
+
+    Compares path components as written, without the parent-by-parent search
+    ``Path.relative_to`` makes; that search cost about a millisecond a file,
+    seconds across a tree walk.  *path* is expected to be built under *root*,
+    as a ``root.rglob()`` or ``os.walk(root)`` result is.
+
+    Raises:
+        ValueError: If *path* does not lie under *root*.
+    """
+    parts, base = path.parts, root.parts
+    if parts[: len(base)] != base:
+        raise ValueError(
+            f"{str(path)!r} is not in the subpath of {str(root)!r}"
+        )
+    return "/".join(parts[len(base) :]) or "."
+
+
 def iter_tree_texts(
     root: Path, dirs: Iterable[str], pattern: str
 ) -> Iterator[tuple[str, str]]:
@@ -121,7 +141,7 @@ def iter_tree_texts(
                 text = path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 continue
-            yield path.relative_to(root).as_posix(), text
+            yield relative_posix(path, root), text
 
 
 def markdown_files(top: Path, prune: Callable[[Path], bool]) -> list[Path]:
