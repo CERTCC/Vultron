@@ -306,8 +306,11 @@ The `Reject(CaseLedgerEntry)` names the last entry the replica's chain stores.
 A replica whose chain stores no entry has none to name, so its `Reject` names no entry, states the `ledgerPosition` of its empty chain (`logIndex` -1) and names the case as its `target`; the CASE_MANAGER answers it with a replay from genesis. (SYNC-16-007)
 A `Reject` that names no entry and states no position, or a position naming an entry, is refused when it arrives.
 
-A divergence fault for an entry the last re-seed already reflected, from a participant whose acknowledged position is at or past that re-seed's position, means the CASE_MANAGER's case disagrees with its own ledger, and the CASE_MANAGER SHOULD log it as an error. (SYNC-16-008)
+A divergence fault for an entry the last re-seed already reflected, from a participant whose acknowledged position is at or past that re-seed's position, with a claimed `published` time after the time the participant claimed for that acknowledgement, means the CASE_MANAGER's case disagrees with its own ledger, and the CASE_MANAGER SHOULD log it as an error. (SYNC-16-008)
 Without that acknowledgement the copy may have been lost or may still be in flight, so the CASE_MANAGER SHOULD log the fault below error and leave it to the rate-bounded re-seed. (SYNC-16-008)
+A fault whose claimed `published` time is at or before the time the participant claimed for that acknowledgement was sent before the copy arrived and delivered late, so the CASE_MANAGER SHOULD log it below error too. (SYNC-16-008)
+A tie counts as recovery because `published` has whole-second precision, so a fault and the acknowledgement that follows it can share a second.
+Both times are the participant's own claims, so they share its clock.
 
 ### 5.6 Position Statements
 

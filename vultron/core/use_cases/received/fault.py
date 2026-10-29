@@ -186,7 +186,12 @@ def _case_diverged_tree(
     rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     return create_case_diverged_fault_tree(
-        refused_entry, sender_id=fault.actor_id, sender_rule=rule
+        refused_entry,
+        sender_id=fault.actor_id,
+        sender_rule=rule,
+        fault_published=(
+            None if fault.activity is None else fault.activity.published
+        ),
     )
 
 

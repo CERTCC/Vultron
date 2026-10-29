@@ -4,9 +4,10 @@ description: >
   Create or update a GitHub Issue with structured relationships (parent/child
   sub-issues, blocking/blocked-by) using the GraphQL API. Idempotent for all
   relationship wiring. Strips legacy body-text markers ("Blocked by #N",
-  "Blocks #N", "Parent: #N") when structured relationships are applied. Call
-  this skill wherever any other skill creates or modifies issues that carry
-  relationships.
+  "Blocks #N", "Parent: #N") when structured relationships are applied. Its
+  script refuses to create an issue without one theme, a `Theme:` line, and a
+  same-theme parent. Create issues through `create-issue`, which calls this;
+  call this directly to update an issue or wire its relationships.
 ---
 
 # Skill: Manage GitHub Issue
@@ -18,20 +19,14 @@ structured relationships are wired.
 
 **Never embed relationship information in the issue body as text.**
 
+**To create an issue, use the `create-issue` skill.** It decides the type,
+theme, `Theme:` line, and same-theme parent that this script's create mode
+requires, then calls it (`create-issue` Phase 7 shows the call). Other skills
+never call the create mode themselves.
+
 ## Quick Start (helper script)
 
 ```bash
-# Create a new issue (prints issue number to stdout)
-TASK_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Task)
-ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
-  --title "Implement X" \
-  --body "$(cat body.md)" \
-  --issue-type-id "${TASK_TYPE_ID}" \
-  --label "size:M" \
-  --parent 42 \
-  --planned \
-  --blocked-by 50)
-
 # Update an existing issue — wire relationships
 .agents/skills/manage-github-issue/manage_github_issue.sh \
   --issue-number 99 \
@@ -53,10 +48,10 @@ ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
 | `--issue-number` | — | Issue # to update; omit to create |
 | `--title` | — | Title (required for create) |
 | `--body` | — | Body markdown |
-| `--label` | — | Comma-separated label names |
+| `--label` | — | Label name (repeatable, or comma-separated); on create, exactly one must be a `theme:` label |
 | `--assignees` | — | Comma-separated GitHub usernames |
 | `--issue-type-id` | — | GraphQL node ID of the issue type (**required** on create) |
-| `--parent` | — | Parent epic issue number (**required** on create) |
+| `--parent` | — | Parent epic issue number (**required** on create; must be open and carry the issue's theme) |
 | `--milestone` | — | Milestone number (optional; use only for a release milestone) |
 | `--blocked-by` | — | Space-separated issue numbers that block this one |
 | `--blocks` | — | Space-separated issue numbers this one blocks |
@@ -67,9 +62,11 @@ ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
 | `--planned` | — | Issue comes from planning or a user request (**required** on create unless `--opened-as`) |
 
 > **On create**, `--issue-type-id`, `--parent`, and one of
-> `--opened-as` / `--planned` are all required.
-> The script exits non-zero if any is missing.
-> See `shared/issue-creation-requirements.md` for lookup commands and defaults.
+> `--opened-as` / `--planned` are all required, and the theme gate requires
+> exactly one active `theme:` label, a `Theme: <label> — <outcome>` line in
+> `--body`, and a parent carrying that theme. The script exits non-zero,
+> creating nothing, if any is missing. See
+> `shared/issue-creation-requirements.md` § "The script gate".
 
 Outputs: issue number on **stdout**; progress messages on **stderr**.
 

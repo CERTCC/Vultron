@@ -82,10 +82,10 @@ Size, Always"). Two tests detect surprise:
 1. **The "also" test (breadth surprise).** If explaining why you fixed both the
    original thing and the discovered thing requires the word "also" — "I fixed
    the parser bug, and *also* rewrote the retry logic" — then the discovered
-   thing is a genuine excursion. **File it.** It needs its own record so the PR
-   can close it and the "why" has somewhere to live. If you can explain both in
-   one sentence *without* "also," it is simply part of doing the task
-   correctly: **do not file it** — the diff is its record.
+   thing is a genuine excursion. **File it** (through `create-issue`). It needs
+   its own record so the PR can close it and the "why" has somewhere to live.
+   If you can explain both in one sentence *without* "also," it is simply part
+   of doing the task correctly: **do not file it** — the diff is its record.
 
 2. **The inversion test (foundation surprise).** If the work *inverts an
    assumption* the issue rested on — you did the exact thing asked, but on a
@@ -235,7 +235,7 @@ gate**: a run that steps into a real pothole of tech debt still ships. The point
 is that growth in the backlog is visible and attributable, so it can be read
 instead of guessed at.
 
-Every issue an agent files through `manage_github_issue.sh` carries a reason, as
+Every issue an agent files (through `create-issue`) carries a reason, as
 an `opened:` label (or `--planned` for planning and user-requested work, which
 carries none):
 

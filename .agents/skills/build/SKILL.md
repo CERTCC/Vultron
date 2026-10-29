@@ -208,29 +208,12 @@ body (Phase 8), and reviewers use it as their spec floor.
 
 2. Search `vultron/` and `test/` to confirm the current state.
 3. Do not assume missing functionality; verify in code.
-4. If a blocking prerequisite is discovered, create and wire it
-   (see `shared/issue-creation-requirements.md`):
-
-   ```bash
-   TASK_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Task)
-   # Determine parent epic from the current task's parent
-   EPIC_NUMBER=$(gh api graphql -f query='{
-     repository(owner:"CERTCC", name:"Vultron") {
-       issue(number: '"${ISSUE_NUMBER}"') { parent { number } }
-     }
-   }' --jq '.data.repository.issue.parent.number // ""')
-
-   NEW_ISSUE=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
-     --title "<prerequisite title>" \
-     --body "<description>
-
-   Governing specs: <IDs, or none — reason>" \
-     --issue-type-id "${TASK_TYPE_ID}" \
-     --label "size:<S|M|L>" \
-     --parent "${EPIC_NUMBER:-${ISSUE_NUMBER}}" \
-     --opened-as separate-defect)
-   bash .agents/skills/shared/add-to-project.sh "${NEW_ISSUE}"
-   ```
+4. If a blocking prerequisite is discovered, file it through `create-issue`
+   with type `Task`, reason `opened-as separate-defect`, a `size:` from its AC
+   count, `blocks` the current issue, and the current issue's Epic as the
+   suggested parent. Its body carries a `Governing specs:` line.
+   `create-issue` judges the prerequisite's own theme and routes it to a
+   same-theme Epic.
 
    Record the dependency as a learning file in `plan/incoming/learnings/` and stop.
 
@@ -344,13 +327,14 @@ later) are separate decisions. Apply
    `completeness-doctrine.md` § "Finding Severity".
 5. If pre-existing is proven, the PR is still held: a failing check blocks the
    PR whatever its cause (`completeness-doctrine.md` § "Never Merge on Red"). Do
-   not open or merge it past the red. Create/update a Bug issue via `manage-github-issue`
-   with evidence (failing command/output, clean-base proof, causality check,
-   blocked/unblocked impact), wire structured blockers, add a handoff comment,
-   and record the Bug link as a learning file in `plan/incoming/learnings/`.
-   Set `--parent "${ISSUE_NUMBER}"` so the bug is wired under the same
-   task (and therefore the same epic) where it was discovered — this keeps it
-   visible in the epic tree and off the `no:parent-issue` orphan list.
+   not open or merge it past the red. Create or update a Bug issue via
+   `create-issue` (reason `opened-as separate-defect`, `blocks` the current
+   issue) with evidence (failing command/output, clean-base proof, causality
+   check, blocked/unblocked impact), add a handoff comment, and record the Bug
+   link as a learning file in `plan/incoming/learnings/`. Do not wire the bug
+   under the task that found it: `create-issue` routes it by its own theme to
+   a same-theme Epic, because a bug filed under the work that found it lands
+   in the wrong theme.
 
 ### Phase 7 — Pre-Push Review by a Fresh Agent
 

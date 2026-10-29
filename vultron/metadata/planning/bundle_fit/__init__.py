@@ -25,7 +25,7 @@ already exist on every candidate:
    the top band (``size:XL``) has no weight at all and is refused outright.
 
 Thematic coherence is deliberately *not* scored. ``calve-epics`` requires cutting
-by design grain and warns that cutting by "superficial theme" produces
+by design grain and warns that cutting by a "superficial keyword" produces
 plausible-looking but wrong work units, so this code only emits structured
 **hints** (shared spec IDs, shared file paths, shared topic labels) and leaves
 the grain call to the agent, which must state the bundle's single shared design

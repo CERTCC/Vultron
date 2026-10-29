@@ -45,7 +45,7 @@ decision and the DEFER decision are separate (see
 | Outcome | Condition | What execute does |
 |---|---|---|
 | `fix-now` | Anything the agent can just do, and which is *not* an "also" excursion | Fix inline, no issue filed — the diff is the record |
-| `fix-now-file` | An "also" excursion (fails the "also" test) that the agent still fixes now | Fix inline **and** file an issue the PR closes; add a one-line "why" |
+| `fix-now-file` | An "also" excursion (fails the "also" test) that the agent still fixes now | Fix inline **and** file an issue the PR closes (through `create-issue`); add a one-line "why" |
 | `defer-ask` | Work genuinely too big to finish now — must be *earned* with evidence | Gate 1: file, present a **measured remainder** in plain language, ask. On silence, fix it now |
 | `inversion-halt` | The work inverts a premise from the issue *or its backing specs/ADRs* | Gate 2: explain the overturned premise, ask if/what to file. On silence, **halt** the PR |
 

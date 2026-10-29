@@ -98,10 +98,14 @@ def _catalog_findings(
             )
 
 
-def _label_findings(
+def label_findings(
     issue: OpenIssue, catalog: ThemeCatalog, is_leaf: bool
 ) -> Iterator[tuple[FindingKind, str]]:
-    """Count, catalog-membership and reason-line findings for one Issue."""
+    """Count, catalog-membership and reason-line findings for one Issue.
+
+    Public because ``theme-gate`` applies the same rules to an Issue before it
+    exists (:mod:`.gate`).
+    """
     detail = _count_detail(issue, is_leaf)
     if detail is not None:
         kind = (
@@ -242,7 +246,7 @@ def analyze(
         epic_number = epic_of[issue.number]
         children = open_children[issue.number]
         found = chain(
-            _label_findings(issue, catalog, is_leaf=children == 0),
+            label_findings(issue, catalog, is_leaf=children == 0),
             _hierarchy_findings(issue, epic_number, children, by_number),
         )
         findings.extend(

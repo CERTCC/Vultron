@@ -66,19 +66,9 @@ selection before continuing.
 
 #### Creating a new Idea (if selected)
 
-Ask the user to describe the idea (plain text, open-ended). Synthesize a
-short title. Then select a parent epic (query open Epics and ask the user to
-confirm — see `new-item` Phase 4 for the pattern). Then create:
-
-```bash
-IDEA_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Idea)
-ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
-  --title "${TITLE}" \
-  --body "${BODY}" \
-  --issue-type-id "${IDEA_TYPE_ID}" \
-  --parent "${EPIC_NUMBER}" \
-  --planned)
-```
+Invoke `create-issue` with type `Idea`, reason `planned`, and the user
+present. It asks for the description, picks the theme, and routes the Idea to
+a same-theme Epic. Continue with the issue number it returns.
 
 ### Phase 0b — Sync
 
@@ -283,29 +273,21 @@ returns the PR URL. Use the returned URL in the `archive-history` call (Phase 9)
 Create one Task sub-issue per distinct AC cluster from Phase 4.
 
 For Ideas and Concerns, wire the impl issue as **blocked-by the source
-issue** and as **child of the parent epic**. `manage_github_issue.sh` requires
-`--parent` on create, so if `EPIC_NUMBER` is empty, resolve it **before** the
-create call: invoke **`calve-epics`** (Mode 1) to find the epic the impl issue
-matches, and if it finds none, follow "A parent epic is mandatory" below
-(#3591).
+issue**. Create each one through **`create-issue`**, passing:
 
-```bash
-TASK_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Task)
+- type `Task`, reason `planned`, `size:` from the AC count (below), and
+  `blocked-by` the source issue;
+- the parent Epic, when known, as the **suggested parent**. `create-issue`
+  judges the impl issue's theme from its own content and uses the suggestion
+  only when that Epic carries the theme; otherwise it routes the issue to a
+  same-theme Epic (#3591);
+- the body below as the drafted fields. `create-issue` adds the `Theme:` line.
 
-# Body template. Include the "## Prior Art" heading and its bullets only
-# when Phase 4 found relevant helpers, use cases, or base classes; delete
-# both entirely when the prior-art search returned no results (AC-3 in
-# #2646). Instructions stay in these comments, never inside --body, or
-# they are posted verbatim (#2770). Pass --parent unconditionally: a
-# conditional ${VAR:+--parent "${VAR}"} is one word under zsh (#2771).
-# Keep the "<docs/ page> describes" AC only when a docs/ page is known to be
-# affected (see "Known docs/ impact" below); delete it otherwise.
-IMPL_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
-  --title "<Implementation title from grill-me>" \
-  --body "## Summary
+```text
+## Summary
 <Description>
 
-Governing specs: <spec/group IDs, e.g. CS-02-003, EM-04> ← or \"none — <reason>\"
+Governing specs: <spec/group IDs, e.g. CS-02-003, EM-04>, or "none — <reason>"
 
 ## Acceptance Criteria
 - [ ] AC-1: <from grill-me>
@@ -315,16 +297,17 @@ Governing specs: <spec/group IDs, e.g. CS-02-003, EM-04> ← or \"none — <reas
 - <existing helper / use case / base class and its location>
 
 ## Reference
-Source: #${ISSUE_NUMBER}
-$([ -n "${PR_URL}" ] && echo "Docs PR: ${PR_URL}")
-$([ -n "${SPEC_FILE}" ] && echo "Spec: \`specs/${SPEC_FILE}\`")
-$([ -n "${NOTES_FILE}" ] && echo "Notes: \`notes/${NOTES_FILE}\`")" \
-  --issue-type-id "${TASK_TYPE_ID}" \
-  --label "size:<S|M|L>" \
-  --parent "${EPIC_NUMBER}" \
-  --planned \
-  --blocked-by "${ISSUE_NUMBER}")
+Source: #<ISSUE_NUMBER>
+Docs PR: <PR_URL, if any>
+Spec: `specs/<SPEC_FILE>` (if any)
+Notes: `notes/<NOTES_FILE>` (if any)
 ```
+
+Include the "## Prior Art" heading and its bullets only when Phase 4 found
+relevant helpers, use cases, or base classes; delete both when the prior-art
+search found nothing (AC-3 in #2646). Keep the `<docs/ page> describes` AC only
+when a `docs/` page is known to be affected (see "Known docs/ impact" below).
+Keep these instructions out of the body, or they are posted verbatim (#2770).
 
 **`Governing specs:` is required in every impl issue body.** List the spec
 IDs (or group IDs) the work must satisfy: draw them from the Spec manifest
@@ -353,23 +336,10 @@ Repeat for each additional impl issue. Set `size:` from the AC count with
 `.agents/skills/shared/sizing.md`. Never `size:XL`: an issue that large is a
 decomposition signal, and the band is measurement-only (PAD-05-012).
 
-Add each new issue to Project #24:
-
-```bash
-bash .agents/skills/shared/add-to-project.sh "${IMPL_NUMBER}"
-```
-
-**The impl issue is already on the epic forest.** Because its parent epic is
-resolved before the create call, it is a sub-issue of that epic and inherits
-the epic's Schedule tier — leave it there.
-
-**A parent epic is mandatory.** If `calve-epics` Mode 1 finds no match, do
-**not** create the issue at root. Instead use `AskUserQuestion` to present the
-full list of open epics and require the user to select the best fit. If the
-user determines a new epic is warranted, run `calve-epics` Mode 2 to propose
-and confirm it before closing this skill. An impl issue without a parent epic
-is invisible to prioritisation and blocks future sprint planning — never ship
-one orphaned.
+**The impl issue is already on the epic forest.** `create-issue` adds it to
+Project #24 under a same-theme Epic, so it inherits that Epic's Schedule tier —
+leave it there. When no Epic fits, `create-issue` asks the user (or, unattended,
+calves an auto-calved Someday Epic); it never creates an orphan.
 
 ### Phase 8b — Add Implementation Issue References to Docs PR (Ideas and Concerns only)
 
@@ -427,8 +397,8 @@ See the loaded companion file for the type-specific completion step:
 - [ ] Known reader-facing `docs/` impact written into impl-issue ACs (Phase 8)
 - [ ] Markdown lint clean (if docs changed)
 - [ ] PR opened with `specs-notes` label — always
-- [ ] Implementation issue(s) created via `manage-github-issue` + `add-to-project.sh`
-      (with type and parent epic set)
+- [ ] Implementation issue(s) created via `create-issue` (type, theme, `Theme:` line,
+      and a same-theme parent Epic set)
 - [ ] Every impl issue body has a `Governing specs:` line (IDs, or `none — <reason>`)
 - [ ] Impl issues wired per type (blocked-by for Ideas/Concerns; sub-issue for Epics)
 - [ ] Impl issues reference docs PR URL in their body (Ideas/Concerns only — Phase 8)
@@ -448,10 +418,9 @@ See the loaded companion file for the type-specific completion step:
 - **Notes file names**: same base name as spec, `.md` in `notes/`
 - **Close behavior**: `Closes #N` in the PR body closes on merge for Ideas
   and Concerns. Epics are never closed by this skill.
-- **Project board**: new issues are added via `shared/add-to-project.sh`, then
-  routed onto the epic forest via `calve-epics` (Mode 1) — inheriting the parent
-  epic's Schedule tier. Only true orphans (no matching epic) stay at
-  `Schedule=Someday` as calving candidates.
+- **Project board**: new issues are created by `create-issue`, which adds them
+  to Project #24 and routes them to a same-theme Epic (`calve-epics` Mode 1),
+  inheriting the Epic's Schedule tier. No issue is left without a parent.
 
 ## Relationship to Other Skills
 
@@ -461,5 +430,5 @@ See the loaded companion file for the type-specific completion step:
 | `plan-issue` (Concern) | One Concern issue | Optional specs+notes | Yes |
 | `plan-issue` (Epic) | One Epic issue | Optional specs+notes | No — annotates only |
 | `learn` | plan/incoming/learnings/ + all Concern issues | specs/notes/AGENTS | Yes (batch) |
-| `new-item` | Freeform text | None | N/A (creates, not resolves) |
+| `create-issue` | Freeform text or a caller's fields | None | N/A (creates, not resolves) |
 | `process-concerns` | CONCERNS.md file | None | No |

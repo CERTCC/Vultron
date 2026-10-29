@@ -63,37 +63,32 @@ ACs instead (`SKILL.md` Phase 8).
 
 ## Implementation Issues
 
-Create one Task sub-issue per decomposition cluster from Phase B. Every Task
-body carries a `Governing specs:` line (see `SKILL.md` Phase 8). Keep the
-`<docs/ page> describes` AC only when a reader-facing `docs/` page is known to
-be affected; delete it otherwise. Wire each as:
+Create one Task sub-issue per decomposition cluster from Phase B, each through
+**`create-issue`** with type `Task`, reason `planned`, `size:` from the AC
+count, `blocked-by` any prerequisite Task for sequencing, and this Epic as the
+**suggested parent**. Every Task body carries a `Governing specs:` line (see
+`SKILL.md` Phase 8). Keep the `<docs/ page> describes` AC only when a
+reader-facing `docs/` page is known to be affected; delete it otherwise.
 
-- `--blocked-by <N>` for any sequencing constraints
-- `--issue-type-id "$(bash .agents/skills/shared/board-id.sh issue-type Task)"`
-  (Task type)
-
-```bash
-TASK_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Task)
-TASK_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
-  --title "<task title from Phase B>" \
-  --body "## Summary
+```text
+## Summary
 <description>
 
-Governing specs: <spec/group IDs this Task must satisfy> ← or \"none — <reason>\"
+Governing specs: <spec/group IDs this Task must satisfy>, or "none — <reason>"
 
 ## Acceptance Criteria
 - [ ] AC-1: <from Phase B>
 - [ ] AC-N: <docs/ page> describes <changed behavior>
 
 ## Reference
-Epic: #${ISSUE_NUMBER}" \
-  --label "size:<S|M|L>" \
-  --issue-type-id "${TASK_TYPE_ID}" \
-  --parent "${ISSUE_NUMBER}" \
-  --planned \
-  [--blocked-by "<prerequisite task number>"])
-bash .agents/skills/shared/add-to-project.sh "${TASK_NUMBER}"
+Epic: #<ISSUE_NUMBER>
 ```
+
+`create-issue` judges each Task's theme from its own content. A Task whose
+theme this Epic does not carry goes to a same-theme Epic instead, and the
+script refuses it here (PAD-02-017). Tell the user when that happens: a Task
+outside the Epic's theme usually means the decomposition has crossed the
+Epic's grain.
 
 ## Completion
 
