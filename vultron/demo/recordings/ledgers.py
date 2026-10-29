@@ -119,12 +119,7 @@ def parse_step_marks(
     """
     try:
         marks = tuple(
-            StepMark(
-                branch_point=step["branchPoint"],
-                choice=step["choice"],
-                ledger_tail=step["ledgerTail"],
-            )
-            for step in json.loads(text)["steps"]
+            StepMark.from_json(step) for step in json.loads(text)["steps"]
         )
     except (ValueError, KeyError, TypeError) as exc:
         raise DemoRecordingError(

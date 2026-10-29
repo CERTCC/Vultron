@@ -651,6 +651,10 @@ class TestParseStepMarks:
         with pytest.raises(DemoRecordingError, match="not readable"):
             ledger_dump.parse_step_marks(text, "rv", self.PATH)
 
+    def test_a_mark_round_trips_through_its_json_shape(self):
+        mark = StepMark("vendor-after-answer", "x", 4)
+        assert StepMark.from_json(mark.as_json()) == mark
+
     def test_a_run_without_marks_is_refused(self, tmp_path):
         with pytest.raises(DemoRecordingError, match="left no step marks"):
             ledger_dump.read_step_marks(tmp_path, "rv", self.PATH)

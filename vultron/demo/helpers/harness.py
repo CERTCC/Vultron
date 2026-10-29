@@ -76,10 +76,11 @@ recorder refuses a run whose marks do not cover its declared path.
 import json
 import logging
 import pathlib
-from collections.abc import Callable, Generator, Sequence
+from collections.abc import Callable, Generator, Mapping, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+from typing import Any
 
 from vultron.demo.helpers.ledger_dump import (
     STEP_MARKS_FILENAME,
@@ -134,6 +135,23 @@ class StepMark:
             "choice": self.choice,
             "ledgerTail": self.ledger_tail,
         }
+
+    @classmethod
+    def from_json(cls, data: Mapping[str, Any]) -> "StepMark":
+        """Return the mark :meth:`as_json` rendered as *data*, parsed JSON.
+
+        The values are not checked here: the reader of a committed file
+        (:func:`~vultron.demo.recordings.ledgers.parse_step_marks`) checks
+        them against the declared path and refuses a bad tail.
+
+        Raises:
+            KeyError: When a key is missing.
+        """
+        return cls(
+            branch_point=data["branchPoint"],
+            choice=data["choice"],
+            ledger_tail=data["ledgerTail"],
+        )
 
 
 @dataclass
@@ -278,31 +296,19 @@ def step_reporter(branch_point: str, choice: str) -> Callable[[], None]:
     return report
 
 
-def _registered_path(demo_name: str) -> tuple[PathStep, ...] | None:
-    """Return the ``@scenario`` path of *demo_name*, if it is registered."""
-    return next(
-        (
-            spec.path
-            for spec in registered_scenarios()
-            if spec.name == demo_name
-        ),
-        None,
-    )
-
-
 def _declared_path(demo_name: str) -> tuple[PathStep, ...]:
     """Return the ``@scenario`` path of *demo_name*.
 
     Raises:
         DemoScenarioStepError: When no scenario of that name is registered.
     """
-    path = _registered_path(demo_name)
-    if path is None:
-        raise DemoScenarioStepError(
-            f"no registered scenario is named {demo_name!r}, so it has no "
-            "declared path to reach a step on."
-        )
-    return path
+    for spec in registered_scenarios():
+        if spec.name == demo_name:
+            return spec.path
+    raise DemoScenarioStepError(
+        f"no registered scenario is named {demo_name!r}, so it has no "
+        "declared path to reach a step on."
+    )
 
 
 def write_step_marks(
