@@ -123,6 +123,7 @@ def run_case_invite_chain(
     expect_emitted_by: EmittedBy | None = None,
     reply_timeout: float = FULL_CASE_REPLY_TIMEOUT,
     then: Callable[[], None] | None = None,
+    before_answer: Callable[[], None] | None = None,
 ) -> None:
     """Drive one invitee through the case-invite chain.
 
@@ -161,6 +162,10 @@ def run_case_invite_chain(
             that copy to reach its floor before the reply.
         then: Runs inside the gate after the chain completes, so it is skipped
             when the invite was never delivered.
+        before_answer: Runs once the Invite is delivered, before the invitee
+            answers it: the invitee's decision, where a scenario reports
+            reaching its ``vendor-join`` step
+            (:func:`~vultron.demo.helpers.harness.step_reporter`).
     """
 
     authority_client = (
@@ -190,6 +195,7 @@ def run_case_invite_chain(
             reply_timeout=reply_timeout,
             authority_client=authority_client,
             then=then,
+            before_answer=before_answer,
         )
 
     if case_manager_client is not None:
@@ -254,6 +260,7 @@ def _await_and_answer(
     reply_timeout: float,
     authority_client: DataLayerClient | None,
     then: Callable[[], None] | None,
+    before_answer: Callable[[], None] | None = None,
 ) -> None:
     """Gate on the Invite's delivery, then answer it and run what follows.
 
@@ -282,6 +289,8 @@ def _await_and_answer(
                     expect_emitted_by.consequence,
                 )
 
+        if before_answer is not None:
+            before_answer()
         session = ActorSession(
             client=invitee_client, actor=invitee_in_own_container
         ).quiet()

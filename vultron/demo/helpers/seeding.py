@@ -915,7 +915,10 @@ def seed_containers_rcvv(
     """Seed four containers for the RCVV-embargo scenario.
 
     Containers: Reporter (Person), Coordinator (Organization, CASE_OWNER),
-    Vendor1 and Vendor2 (Organizations).  Every actor is created on its own
+    Vendor1 and Vendor2 (Organizations).  Vendor1 is named ``Vendor``, as the
+    one Vendor of ``rcv-embargo`` is, because the two scenarios share their
+    path up to Vendor1's decision and their ledgers must match there
+    (DEMOCI-11-017).  Every actor is created on its own
     container, then registered as a peer on each of the other three.  The
     function is idempotent, as the other ``seed_containers_*`` are.
 
@@ -940,7 +943,7 @@ def seed_containers_rcvv(
             "Organization",
             coordinator_actor_id,
         ),
-        (vendor_client, "Vendor1", "Organization", vendor_actor_id),
+        (vendor_client, "Vendor", "Organization", vendor_actor_id),
         (vendor2_client, "Vendor2", "Organization", vendor2_actor_id),
     ]
     logger.info("Phase 1: creating local actors on each container...")
@@ -996,8 +999,11 @@ def seed_containers_rcvcv(
 ) -> tuple[as_Actor, as_Actor, as_Actor, as_Actor, as_Actor]:
     """Seed five containers for the RCVCV scenario.
 
-    Containers: Reporter (Person), Coordinator1 (Organization), Vendor1
-    (Organization), Coordinator2 (Organization), VendorDeployer (Organization).
+    Containers: Reporter (Person), Coordinator1 (Organization), V1 (an
+    Organization named ``Vendor``), Coordinator2 (Organization),
+    VendorDeployer (Organization).  V1 is named as the one Vendor of ``rcv``
+    is, because the two scenarios share their path up to C1's decision and
+    their ledgers must match there (DEMOCI-11-017).
 
     The seeding is done in two phases:
 
@@ -1054,7 +1060,7 @@ def seed_containers_rcvcv(
         v1_client,
         seed_actor(
             client=v1_client,
-            name="Vendor1",
+            name="Vendor",
             actor_type="Organization",
             actor_id=v1_actor_id,
         ),
@@ -1097,7 +1103,7 @@ def seed_containers_rcvcv(
         client=reporter_client,
         local_actor_id=reporter.id_,
         peer_id=v1.id_,
-        name="Vendor1",
+        name="Vendor",
         actor_type="Organization",
     )
     seed_peer(
@@ -1128,7 +1134,7 @@ def seed_containers_rcvcv(
         client=c1_client,
         local_actor_id=c1.id_,
         peer_id=v1.id_,
-        name="Vendor1",
+        name="Vendor",
         actor_type="Organization",
     )
     seed_peer(
@@ -1197,7 +1203,7 @@ def seed_containers_rcvcv(
         client=c2_client,
         local_actor_id=c2.id_,
         peer_id=v1.id_,
-        name="Vendor1",
+        name="Vendor",
         actor_type="Organization",
     )
     seed_peer(
@@ -1228,7 +1234,7 @@ def seed_containers_rcvcv(
         client=v2_client,
         local_actor_id=v2.id_,
         peer_id=v1.id_,
-        name="Vendor1",
+        name="Vendor",
         actor_type="Organization",
     )
     seed_peer(

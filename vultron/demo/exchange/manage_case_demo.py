@@ -169,13 +169,13 @@ def demo_engage_path(
                 )
 
     with demo_step("Step 3: Vendor engages the case (RmEngageCaseActivity)"):
-        engage = rm_engage_case_activity(case, actor=vendor.id_)
+        engage = rm_engage_case_activity(case.id_, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, engage)
         with demo_check("RmEngageCaseActivity activity stored"):
             verify_received_activity_stored(client, engage.id_)
 
     with demo_step("Step 4: Vendor closes the case (RmCloseCaseActivity)"):
-        close = rm_close_case_activity(case, actor=vendor.id_)
+        close = rm_close_case_activity(case.id_, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, close)
         with demo_check("RmCloseCaseActivity activity stored"):
             verify_received_activity_stored(client, close.id_)
@@ -232,7 +232,7 @@ def demo_defer_reengage_path(
             log_case_state(client, case.id_, "after setup")
 
     with demo_step("Step 3: Vendor defers the case (RmDeferCaseActivity)"):
-        defer = rm_defer_case_activity(case, actor=vendor.id_)
+        defer = rm_defer_case_activity(case.id_, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, defer)
         with demo_check("RmDeferCaseActivity activity stored"):
             verify_received_activity_stored(client, defer.id_)
@@ -241,7 +241,7 @@ def demo_defer_reengage_path(
     with demo_step(
         "Step 4: Vendor re-engages the case (RmEngageCaseActivity from DEFERRED)"
     ):
-        reengage = rm_engage_case_activity(case, actor=vendor.id_)
+        reengage = rm_engage_case_activity(case.id_, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, reengage)
         with demo_check("RmEngageCaseActivity (re-engage) activity stored"):
             verify_received_activity_stored(client, reengage.id_)
@@ -252,7 +252,7 @@ def demo_defer_reengage_path(
         )
 
     with demo_step("Step 5: Vendor closes the case (RmCloseCaseActivity)"):
-        close = rm_close_case_activity(case, actor=vendor.id_)
+        close = rm_close_case_activity(case.id_, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, close)
         with demo_check("RmCloseCaseActivity activity stored"):
             verify_received_activity_stored(client, close.id_)

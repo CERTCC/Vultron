@@ -21,6 +21,7 @@ from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     case_manager_verdict,
     rm_declaration_verdict,
+    unheld_case_refusal,
     verdict_from_bt,
 )
 
@@ -76,6 +77,15 @@ class EngageCaseReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
 
+        # The Join names the case (ADR-0165): every detail comes from the case
+        # this store holds, so one it does not hold is refused.
+        if (
+            refusal := unheld_case_refusal(
+                self._dl, case_id, request.activity_id, "Join"
+            )
+        ) is not None:
+            return refusal
+
         logger.info(
             "Actor '%s' engages case '%s' (RM → ACCEPTED)",
             actor_id,
@@ -91,7 +101,6 @@ class EngageCaseReceivedUseCase:
         tree = create_engage_case_tree(
             case_id=case_id,
             actor_id=actor_id,
-            case_obj=request.case,
             sender_rule=self.sender_entitlement,
         )
         result = bridge.execute_with_setup(
@@ -158,6 +167,13 @@ class DeferCaseReceivedUseCase:
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
+
+        if (
+            refusal := unheld_case_refusal(
+                self._dl, case_id, request.activity_id, "Ignore"
+            )
+        ) is not None:
+            return refusal
 
         logger.info(
             "Actor '%s' defers case '%s' (RM → DEFERRED)",

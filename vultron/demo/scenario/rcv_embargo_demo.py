@@ -60,7 +60,11 @@ from vultron.demo.helpers.embargo_phases import (
     assert_canonical_em_state,
     revise_default_embargo,
 )
-from vultron.demo.helpers.harness import ScenarioHarness, scenario_harness
+from vultron.demo.helpers.harness import (
+    ScenarioHarness,
+    scenario_harness,
+    step_reporter,
+)
 from vultron.demo.helpers.notes import reporter_asks_vendor_answers
 from vultron.demo.helpers.polling import (
     wait_for_case_em_terminated,
@@ -233,17 +237,10 @@ def _phase_report_submission(
             case_actor_client=case_actor_client,
         )
 
-    opened, vendor_in_vendor = open_case_with_vendor(
-        reporter_client=reporter_client,
-        coordinator_client=coordinator_client,
-        case_actor_client=case_actor_client,
-        vendor_client=vendor_client,
-        reporter=reporter,
-        coordinator=coordinator,
-        vendor=vendor,
+    def on_case_opened(opened_case: as_VulnerabilityCase) -> None:
         # Register the dump as soon as there is a case to dump, so every phase
         # below can fail without costing us the ledgers (ISSUE-2239).
-        on_case_opened=lambda opened_case: harness.dump_with(
+        harness.dump_with(
             lambda: _phase_dump_case_ledgers(
                 reporter_client=reporter_client,
                 coordinator_client=coordinator_client,
@@ -252,7 +249,20 @@ def _phase_report_submission(
                 case=opened_case,
                 demo_name=harness.demo_name,
             )
-        ),
+        )
+        harness.follow_ledger(case_actor_client, opened_case.id_)
+        harness.reach_step("coordinator-invite-whom", "vendor")
+
+    opened, vendor_in_vendor = open_case_with_vendor(
+        reporter_client=reporter_client,
+        coordinator_client=coordinator_client,
+        case_actor_client=case_actor_client,
+        vendor_client=vendor_client,
+        reporter=reporter,
+        coordinator=coordinator,
+        vendor=vendor,
+        on_case_opened=on_case_opened,
+        before_answer=step_reporter("vendor-join", "accept"),
     )
     case = opened.case
 
@@ -456,6 +466,7 @@ def run_rcv_embargo_demo(
     # way out whether or not a phase failed, and asserts success last
     # (ISSUE-2239).
     with scenario_harness(DEMO_NAME) as harness:
+        harness.reach_step("reporter-whom-to-tell", "coordinator")
         cast, case = _phase_report_submission(
             harness=harness,
             reporter_client=reporter_client,
@@ -466,11 +477,13 @@ def run_rcv_embargo_demo(
             coordinator_id=coordinator_id,
             vendor_id=vendor_id,
         )
+        harness.reach_step("reporter-after-join", "propose-embargo")
         revised_embargo_id = _phase_embargo_proposal(cast, case)
         # The Reporter proposed rather than asked first (its branch point on
         # the scenario tree), so the shared notes exchange follows the
         # proposal and comes before the Vendor's own next decision.
         _notes_exchange(cast, case)
+        harness.reach_step("vendor-after-embargo", "report-fix-ready")
         _phase_fix_lifecycle(cast, case)
         # Termination, publication and closure all presuppose the revised
         # embargo of phase 2, so they run only while it is in force.

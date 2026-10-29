@@ -48,8 +48,15 @@ from vultron.demo.helpers.coordinated_case import (
     vendor_joins_coordinated_case,
     vendor_reports_fix_ready,
 )
-from vultron.demo.helpers.harness import scenario_harness
-from vultron.demo.helpers.notes import NotePost, add_note_thread
+from vultron.demo.helpers.harness import (
+    reach_step,
+    scenario_harness,
+    step_reporter,
+)
+from vultron.demo.helpers.notes import (
+    add_note_thread,
+    reporter_asks_vendor_timeline,
+)
 from vultron.demo.helpers.runner import check_all_containers
 from vultron.demo.helpers.seeding import (
     get_actor_by_id,
@@ -281,6 +288,7 @@ def _phase_invite_vendor(
         case_actor_client=case_actor_client,
         vendor=vendor,
         vendor_client=vendor_client,
+        before_answer=step_reporter("vendor-join", "accept"),
     )
 
 
@@ -335,30 +343,16 @@ def _phase_notes_exchange(
     add_note_thread(
         coordinator_client,
         case,
-        [
-            NotePost(
-                ActorSession(
-                    client=reporter_client, actor=reporter_in_reporter
-                ),
-                "Question from Reporter",
-                "Could you share the timeline for patch availability with Vendor?",
+        reporter_asks_vendor_timeline(
+            ActorSession(client=reporter_client, actor=reporter_in_reporter),
+            ActorSession(client=vendor_client, actor=vendor_in_vendor),
+            ActorSession(
+                client=coordinator_client, actor=coordinator_in_coordinator
             ),
-            NotePost(
-                ActorSession(client=vendor_client, actor=vendor_in_vendor),
-                "Vendor Status Update",
-                "We have confirmed the issue and are developing a fix. "
-                "Estimated patch availability: 14 days.",
-            ),
-            NotePost(
-                ActorSession(
-                    client=coordinator_client, actor=coordinator_in_coordinator
-                ),
-                "Coordinator Summary",
-                "All three parties engaged. Vendor fix expected in 14 days. "
-                "Embargo holds until patch is deployed.",
-            ),
-        ],
+        ),
     )
+    # The Coordinator decides once the thread is answered.
+    reach_step("coordinator-after-answer", "publish")
 
     logger.info(
         "✓ Notes exchange complete (three notes committed to case ledger)"
@@ -489,6 +483,7 @@ def run_rcv_demo(
     logger.info("CaseActor container:   %s", case_actor_client.base_url)
 
     with scenario_harness("rcv") as harness:
+        harness.reach_step("reporter-whom-to-tell", "coordinator")
         (
             reporter,
             reporter_in_reporter,
@@ -520,7 +515,9 @@ def run_rcv_demo(
                 demo_name=harness.demo_name,
             )
         )
+        harness.follow_ledger(case_actor_client, case.id_)
 
+        harness.reach_step("coordinator-invite-whom", "vendor")
         vendor_in_vendor = _phase_invite_vendor(
             coordinator_client=coordinator_client,
             case_actor_client=case_actor_client,
@@ -544,6 +541,7 @@ def run_rcv_demo(
             vendor=vendor_obj,
         )
 
+        harness.reach_step("reporter-after-join", "ask-vendor")
         _phase_notes_exchange(
             reporter_client=reporter_client,
             coordinator_client=coordinator_client,

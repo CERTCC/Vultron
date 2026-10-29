@@ -83,6 +83,7 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
+    as_VulnerabilityCaseReference,
     as_VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -310,15 +311,25 @@ def test_rm_engage_case_returns_join(sample_case):
     assert isinstance(result, as_Join)
 
 
-def test_rm_engage_case_object_is_case(sample_case):
+@pytest.mark.spec("AKM-03-004")
+def test_rm_engage_case_object_names_the_case(sample_case):
+    """The case travels as its typed reference, never a copy (ADR-0165)."""
     result = rm_engage_case_activity(case=sample_case, actor=_ACTOR_URI)
-    assert result.object_ == sample_case
+    assert result.object_ == as_VulnerabilityCaseReference(id_=sample_case.id_)
+
+
+@pytest.mark.spec("AKM-03-004")
+def test_rm_engage_case_takes_the_case_id(sample_case):
+    """Given only the case id, the factory names the same case."""
+    by_id = rm_engage_case_activity(case=sample_case.id_, actor=_ACTOR_URI)
+    held = rm_engage_case_activity(case=sample_case, actor=_ACTOR_URI)
+    assert by_id.object_ == held.object_
 
 
 @pytest.mark.spec("AF-04-001")
 def test_rm_engage_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        rm_engage_case_activity(case="not-a-case")  # type: ignore[arg-type]
+        rm_engage_case_activity(case="")
     assert exc_info.value.__cause__ is not None
 
 
@@ -333,15 +344,25 @@ def test_rm_defer_case_returns_ignore(sample_case):
     assert isinstance(result, as_Ignore)
 
 
-def test_rm_defer_case_object_is_case(sample_case):
+@pytest.mark.spec("AKM-03-004")
+def test_rm_defer_case_object_names_the_case(sample_case):
+    """The case travels as its typed reference, never a copy (ADR-0165)."""
     result = rm_defer_case_activity(case=sample_case, actor=_ACTOR_URI)
-    assert result.object_ == sample_case
+    assert result.object_ == as_VulnerabilityCaseReference(id_=sample_case.id_)
+
+
+@pytest.mark.spec("AKM-03-004")
+def test_rm_defer_case_takes_the_case_id(sample_case):
+    """Given only the case id, the factory names the same case."""
+    by_id = rm_defer_case_activity(case=sample_case.id_, actor=_ACTOR_URI)
+    held = rm_defer_case_activity(case=sample_case, actor=_ACTOR_URI)
+    assert by_id.object_ == held.object_
 
 
 @pytest.mark.spec("AF-04-001")
 def test_rm_defer_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        rm_defer_case_activity(case="not-a-case")  # type: ignore[arg-type]
+        rm_defer_case_activity(case="")
     assert exc_info.value.__cause__ is not None
 
 
@@ -356,15 +377,25 @@ def test_rm_close_case_returns_leave(sample_case):
     assert isinstance(result, as_Leave)
 
 
-def test_rm_close_case_object_is_case(sample_case):
+@pytest.mark.spec("AKM-03-004")
+def test_rm_close_case_object_names_the_case(sample_case):
+    """The case travels as its typed reference, never a copy (ADR-0165)."""
     result = rm_close_case_activity(case=sample_case, actor=_ACTOR_URI)
-    assert result.object_ == sample_case
+    assert result.object_ == as_VulnerabilityCaseReference(id_=sample_case.id_)
+
+
+@pytest.mark.spec("AKM-03-004")
+def test_rm_close_case_takes_the_case_id(sample_case):
+    """Given only the case id, the factory names the same case."""
+    by_id = rm_close_case_activity(case=sample_case.id_, actor=_ACTOR_URI)
+    held = rm_close_case_activity(case=sample_case, actor=_ACTOR_URI)
+    assert by_id.object_ == held.object_
 
 
 @pytest.mark.spec("AF-04-001")
 def test_rm_close_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        rm_close_case_activity(case="not-a-case")  # type: ignore[arg-type]
+        rm_close_case_activity(case="")
     assert exc_info.value.__cause__ is not None
 
 
@@ -381,11 +412,13 @@ def test_offer_ownership_transfer_returns_offer(sample_case):
     assert isinstance(result, as_Offer)
 
 
-def test_offer_ownership_transfer_object_is_case(sample_case):
+@pytest.mark.spec("AKM-03-004")
+def test_offer_ownership_transfer_object_names_the_case(sample_case):
+    """The case travels as its typed reference, never a copy (ADR-0165)."""
     result = offer_case_ownership_transfer_activity(
         case=sample_case, actor=_ACTOR_URI
     )
-    assert result.object_ == sample_case
+    assert result.object_ == as_VulnerabilityCaseReference(id_=sample_case.id_)
 
 
 def test_offer_ownership_transfer_target_is_set(sample_case, sample_actor):
@@ -411,9 +444,7 @@ def test_offer_ownership_transfer_wraps_a_bare_transferee_id(sample_case):
 @pytest.mark.spec("AF-04-001")
 def test_offer_ownership_transfer_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        offer_case_ownership_transfer_activity(
-            case="not-a-case"  # type: ignore[arg-type]
-        )
+        offer_case_ownership_transfer_activity(case="")
     assert exc_info.value.__cause__ is not None
 
 
@@ -530,7 +561,7 @@ def test_proposal_nests_the_offer_the_case_manager_will_make(sample_case):
     assert result.context == sample_case.id_
     inner = result.object_
     assert isinstance(inner, as_Offer)
-    assert inner.object_ == sample_case
+    assert inner.object_ == as_VulnerabilityCaseReference(id_=sample_case.id_)
     assert isinstance(inner.target, as_Actor)
     assert inner.target.id_ == _TARGET_URI
     assert inner.end_time == deadline

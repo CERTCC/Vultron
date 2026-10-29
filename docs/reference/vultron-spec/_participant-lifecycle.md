@@ -96,7 +96,7 @@ The Case Owner MAY transfer ownership to another participant via
 `Offer(VulnerabilityCase)` / `Accept` handshake routed through the CASE_MANAGER
 (ADR-0053).
 The Case Owner proposes the transfer to the CASE_MANAGER as `Offer(Offer(VulnerabilityCase))`, and the CASE_MANAGER makes the one `Offer(VulnerabilityCase)` the receiving actor answers ([CM-21-005](../specs/protocol.md#cm-21-005), ADR-0148).
-The Offer carries the case, so the receiving actor is one already entitled to the case's content: an active participant ([CM-10-004](../specs/protocol.md#cm-10-004)).
+The receiving actor is one already entitled to the case's content and holding the case, which the Offer names by reference: an active participant ([CM-10-004](../specs/protocol.md#cm-10-004)).
 An owner that means to transfer a case to any other actor invites that actor first.
 
 ```python exec="true" idprefix=""

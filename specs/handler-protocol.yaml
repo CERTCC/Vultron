@@ -175,13 +175,12 @@ groups:
       The `HP-01-005`-marked tests under `test/core/use_cases/received/` drive each affected
       handler at a receiver that is not the CASE_MANAGER, or not an entitled addressee, and
       assert `REFUSED` with no protocol effect: an empty outbox and no case-state write.
-      There are two deliberate retentions. One is `Offer(Report)`, whose handler stores the
-      report and the Offer before the addressing check so that a receiver with
+      There is one deliberate retention: `Offer(Report)`, whose handler stores the report
+      and the Offer before the addressing check so that a receiver with
       `auto_create_case` off keeps the data for a later explicit decision (CM-15-002); the
-      refused receipt still proposes no case. The other is a `Join(VulnerabilityCase)`
-      carrying a case snapshot, whose embargo is held before the CASE_MANAGER gate
-      (EMB-18-003); the refused receipt still records and sends nothing. A control test per
-      handler shows the CASE_MANAGER or entitled addressee still acts.
+      refused receipt still proposes no case. A `Join(VulnerabilityCase)` names its case
+      and carries no snapshot to hold (ADR-0165), so a refused one stores nothing. A
+      control test per handler shows the CASE_MANAGER or entitled addressee still acts.
     adr:
     - ADR-0095
     relationships:

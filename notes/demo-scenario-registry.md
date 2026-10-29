@@ -165,7 +165,7 @@ Route each consumer by what it is:
 | `notes/` scenario tables | check in place (DEMOCI-11-006/007) | Rows interleave hand-written columns; a generator would have to write cells nobody wrote |
 | `vultron/demo/cli.py` sub-commands | built at import time (DEMOCI-11-011) | No committed copy at all |
 | `ui/src/data/scenario_tree.json` | generate (`uv run export-demo-tree`) + `--check` (`demo-tree-sync`) | The UI reads the tree, not a copy; its case keys come from the committed recordings, so it follows them |
-| `ui/src/recordings/` | generate (`uv run export-demo-recordings`); `--check` hook on the recorded set; content checked daily on `main`, which files a refresh Task | A run of every scenario takes minutes, and a stale recording is work to schedule, not a reason to block a PR: a few days of lag is accepted, so no PR has to regenerate |
+| `ui/src/recordings/` (`case-actor.jsonl` and `steps.json` per scenario) | generate (`uv run export-demo-recordings`); `--check` hook on the recorded set and its two files; content checked daily on `main`, which files a refresh Task; siblings checked pairwise by the shared-prefix test | A run of every scenario takes minutes, and a stale recording is work to schedule, not a reason to block a PR: a few days of lag is accepted, so no PR has to regenerate |
 | `specs/` DEMOCI-06-002/003 and per-scenario DEMOMA-16 | check only | A requirement keeps its prose so it stays citable |
 | `mkdocs.yml` nav | check completeness | Hand-written labels |
 | `docs/topics/scenarios/*.md` narrative pages | check page set and frontmatter (DEMOCI-11-012) | Hand-written prose |
@@ -179,7 +179,11 @@ test module). A column with no named authority goes unratcheted and drifts.
 
 **A recording is generated, never hand-edited.** Run
 `uv run export-demo-recordings --scenario <name>` (`vultron/demo/recordings/`)
-to rewrite `ui/src/recordings/<name>/case-actor.jsonl`. A PR need not regenerate:
+to rewrite `ui/src/recordings/<name>/case-actor.jsonl` and its `steps.json`,
+the ledger tail at each declared step the scenario reports to its harness
+(`reach_step`). The shared-prefix test compares the committed recordings
+pairwise (DEMOCI-11-017), so regenerate a scenario's siblings with it: one fresh
+recording beside stale siblings can fail that test. A PR need not regenerate:
 the daily `demo-recordings` workflow files a refresh Task when one lags `main`.
 Regenerate in the PR only when the change needs current recordings (a UI change,
 or a new scenario, which the `--check` hook requires). Then run

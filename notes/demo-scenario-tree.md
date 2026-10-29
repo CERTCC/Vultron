@@ -3,7 +3,6 @@ title: Demo Scenario Tree — Names, the Tree Index, the Prefix Check, and Test 
 status: active
 kind: plan
 tracks:
-  - "#4727"
   - "#4733"
   - "#4747"
   - "#5303"
@@ -25,6 +24,7 @@ related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
   - specs/testability.yaml
+  - specs/case-proposal.yaml
 related_notes:
   - notes/demo-scenario-registry.md
   - notes/demo-interactive-ui.md
@@ -32,6 +32,7 @@ related_notes:
   - notes/demo-future-ideas.md
 relevant_packages:
   - vultron/demo/scenario
+  - vultron/demo/recordings
   - vultron/metadata/demo_scenarios
   - test/core/use_cases/received
   - ui/src/data
@@ -68,11 +69,12 @@ branch-point table". Read the tree there, not from a copy here.
   point is the Reporter's, so a Vendor that finds the vul itself is not one of
   its choices. It is either a second root or the Vendor acting as the Reporter;
   decide when that scenario is designed. Its name begins with `v` either way.
-- **Siblings share logic, not yet bytes.** The steps before a branch point are
-  meant to be the same across its siblings, but some still differ in note text
-  and order (`rcv`'s notes run Reporter, Vendor, Coordinator; `rcvcv`'s run
-  Reporter, C1, V1). The shared-prefix check (#4727) finds these; fix each in
-  that Task without changing a verdict (DEMOMA-17-002).
+- **Siblings share logic, not yet bytes.** The steps before a branch point
+  must be the same across its siblings, note text and order included. The
+  shared-prefix test fails when they drift; fix the order in the scenario
+  without changing a verdict (DEMOMA-17-002), then regenerate the recordings.
+  A shared step goes in one helper (`reporter_asks_vendor_timeline`,
+  `vendor_answers_workaround`), so its siblings cannot drift apart.
 
 ## Names
 
@@ -109,27 +111,36 @@ Built: `uv run export-demo-tree` writes `ui/src/data/scenario_tree.json`
 
 ## Shared-prefix check
 
-Prove each declared branch the way position-independent code is compared: same
-logic, different addresses (DEMOCI-11-017; byte identity once composed is
-DEMOCI-11-018).
+Each declared branch is proved the way position-independent code is compared:
+same logic, different addresses (DEMOCI-11-017; byte identity once composed is
+DEMOCI-11-018). The test is `TestSharedPrefixes` in
+`test/demo_unit/test_recordings.py`, over the committed recordings.
 
-- Relabel each recording's ids by first appearance, drop timestamps, and require
-  equal entries up to the branch point, references between objects included.
-- Byte identity is not required yet: siblings seed different actor names,
-  container slots and ports (`rccv-handoff` puts Coordinator1 in the vendor
-  slot), so ids differ even where logic matches. A composed family tightens to
-  byte identity, which then holds by construction.
-- The check needs to know where each branch point falls in the ledger. Have the
-  scenario report reaching each declared step to the harness, which records the
-  ledger tail; composition provides the same boundary for free.
-- A real ordering mismatch the check finds is fixed in that Task without
-  changing any scenario's pass or fail verdict (DEMOMA-17-002).
+- Each recording's ids are relabeled by first appearance and its timestamps
+  dropped; the entries must then be equal up to the branch point, references
+  between objects included.
+- Byte identity is not required yet: siblings seed different actor ids,
+  container slots and ports (`rcvcv` seeds named actor ids, its siblings UUIDs),
+  so ids differ even where logic matches. A composed family tightens to byte
+  identity, which then holds by construction; name it in `COMPOSED_FAMILIES`
+  (`vultron/demo/recordings/prefix.py`).
+- A container slot is not only an address. The proposer's container sets its
+  default case roles (CP-01-013), so a case owner must run in the same slot
+  as in its siblings, or the first entry already differs.
+- The check reads where each branch point falls from the step marks. A
+  scenario calls `harness.reach_step(branch_point, choice)` where it makes the
+  decision, before another role's steps that run ahead of the choice's
+  trigger; inside a phase it calls the module-level `reach_step`. A shared
+  helper takes a hook instead (`before_answer=step_reporter(...)` on the
+  invite chain). The recorder commits the marks as `steps.json` beside each
+  recording and refuses a run that leaves a declared step unmarked.
 
 ## Test starting points
 
 The multi-actor integration tests start from the same tree (TB-15). A **named
 starting point** is a declared step on a scenario path: the point each scenario
-will report to the harness for the shared-prefix check (#4727, DEMOCI-11-017).
+reports to the harness with `reach_step` for the shared-prefix check
+(DEMOCI-11-017), so the harness that builds a point stops a run there.
 
 - **Build once, copy per test.** Once per session the harness runs a path up to
   the point, in-process, and saves each actor's store; every test loads its own
@@ -163,7 +174,7 @@ will report to the harness for the shared-prefix check (#4727, DEMOCI-11-017).
 
 ## Task order
 
-1. #4727 — the tree-index exporter and the isomorphic prefix check, after #3901.
-2. #4733 — composition, family by family.
-3. Test starting points: #5344 (one act cheap) and #5345 (the harness, after #4727),
-   then the pilot #5346, then the migrations #5347 and #5348, and last #5349.
+1. #4733 — composition, family by family.
+2. Test starting points: #5344 (one act cheap) and #5345 (the harness, which
+   stops a run at a `reach_step` mark), then the pilot #5346, then the
+   migrations #5347 and #5348, and last #5349.

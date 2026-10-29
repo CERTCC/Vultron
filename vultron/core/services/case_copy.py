@@ -50,6 +50,7 @@ from vultron.core.models._helpers import _as_id, project_wire_snapshot_to_core
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_naming import CASE_NAMING_ACTIVITY_TYPES
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.ledger_position import (
@@ -224,14 +225,35 @@ def _named_by(case: VulnerabilityCase) -> set[str]:
     return named
 
 
+def _names_its_case(value: dict[str, Any], key: str, child: Any) -> bool:
+    """Whether *child*, *value*'s ``object``, is a case the act only names.
+
+    Such an act's case is its typed reference (ADR-0165).  One from another
+    sender may still carry a full case, which is that sender's copy, never
+    the CASE_MANAGER's, so nothing is copied out of it.
+    """
+    return (
+        key in ("object", "object_")
+        and value.get("type") in CASE_NAMING_ACTIVITY_TYPES
+        and isinstance(child, dict)
+        and child.get("type") == "VulnerabilityCase"
+    )
+
+
 def _snapshot_objects(value: Any) -> Iterator[dict[str, Any]]:
-    """Every object dict, with an id and a type, inside *value*."""
+    """Every object dict, with an id and a type, inside *value*.
+
+    The case an act only names is not descended into
+    (:func:`_names_its_case`).
+    """
     if isinstance(value, dict):
         if isinstance(value.get("id"), str) and isinstance(
             value.get("type"), str
         ):
             yield value
-        for child in value.values():
+        for key, child in value.items():
+            if _names_its_case(value, key, child):
+                continue
             yield from _snapshot_objects(child)
     elif isinstance(value, list):
         for child in value:

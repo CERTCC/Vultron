@@ -291,6 +291,20 @@ def _no_outbox_row_is_dead_lettered(caplog):
 
 
 @pytest.fixture(autouse=True)
+def _devlogs_in_a_temp_dir(monkeypatch, tmp_path_factory):
+    """Point ``DEVLOGS_DIR`` at a fresh temp directory for every demo test.
+
+    A test that runs a scenario under its harness with a mocked dump still
+    gets the harness's step marks written (``step-marks.json``,
+    DEMOCI-11-017). Written to the checkout's ``devlogs/<scenario>/``, they
+    leave a scenario directory with no ledger, and the
+    ``test/ci/invariants/`` suites then fail on it instead of skipping. A
+    test that sets ``DEVLOGS_DIR`` itself overrides this.
+    """
+    monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path_factory.mktemp("devlogs")))
+
+
+@pytest.fixture(autouse=True)
 def restore_case_actor_url_after_each_test():
     """Restore the session's CaseActor/server config after every demo test.
 

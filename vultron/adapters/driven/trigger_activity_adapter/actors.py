@@ -774,16 +774,15 @@ class _ActorsMixin:
 
         The proposal goes from ``actor`` to the CASE_MANAGER (*to*), which
         makes the inner Offer itself (ADR-0148, TRIG-11-001).  The inner
-        Offer carries the case inline, so its shape is the Offer the
-        CASE_MANAGER will make, the transferee as its ``target`` and, when
-        given, *end_time* as its deadline (CM-21-016).
+        Offer names the case by typed reference (ADR-0165), so its shape is
+        the Offer the CASE_MANAGER will make, the transferee as its
+        ``target`` and, when given, *end_time* as its deadline (CM-21-016).
         """
-        case = _case_for_wire(self._dl, case_id)
         extra: dict[str, Any] = {"actor": actor, "to": to}
         if content is not None:
             extra["content"] = content
         activity = propose_case_ownership_transfer_activity(
-            case,
+            case_id,
             target=_held_actor(self._dl, transferee_id),
             end_time=end_time,
             **extra,
@@ -806,8 +805,9 @@ class _ActorsMixin:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership transfer.
 
         The CASE_MANAGER's Offer to ``transferee_id``, made from the owner's
-        proposal (ADR-0148, CM-21-005).  The case is read from the DataLayer
-        and passed inline so the recipient can distinguish this from a
+        proposal (ADR-0148, CM-21-005).  The case travels as its typed
+        reference (ADR-0165): the transferee is an active participant that
+        holds it (CM-21-021), and the reference's ``type`` tells this from a
         ``SUBMIT_REPORT`` offer.  *end_time*, when given, is the Offer's
         deadline to answer (CM-21-016).  An Offer already built under *id_*
         is the earlier attempt's, and its sealed body is handed back
@@ -815,7 +815,6 @@ class _ActorsMixin:
         """
         if (built := _already_sealed(self._dl, id_)) is not None:
             return built
-        case = _case_for_wire(self._dl, case_id)
         extra: dict[str, Any] = _addressing(actor, to or [transferee_id], id_)
         if content is not None:
             extra["content"] = content
@@ -826,7 +825,7 @@ class _ActorsMixin:
         # The CASE_MANAGER ledgers the Offer it makes, and a ledger snapshot
         # names its case as ``context`` (CLP-07).
         activity = offer_case_ownership_transfer_activity(
-            case=case,
+            case=case_id,
             target=_held_actor(self._dl, transferee_id),
             context=case_id,
             **extra,

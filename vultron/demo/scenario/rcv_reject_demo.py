@@ -40,7 +40,7 @@ from vultron.demo.helpers.actor_roles import (
     role_map,
 )
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
-from vultron.demo.helpers.harness import scenario_harness
+from vultron.demo.helpers.harness import scenario_harness, step_reporter
 from vultron.demo.helpers.invite_chain import (
     CaseInviter,
     run_case_invite_chain,
@@ -335,6 +335,7 @@ def _phase_invite_vendor_reject(
         ),
         respond="reject",
         invite_timeout=20.0,
+        before_answer=step_reporter("vendor-join", "reject"),
     )
 
     # Gate on Vendor's Reject being committed before checking participant
@@ -630,6 +631,7 @@ def run_rcv_reject_demo(
     logger.info("CaseActor container:   %s", case_actor_client.base_url)
 
     with scenario_harness("rcv-reject") as harness:
+        harness.reach_step("reporter-whom-to-tell", "coordinator")
         (
             _reporter,
             reporter_in_reporter,
@@ -661,7 +663,9 @@ def run_rcv_reject_demo(
                 vendor_client=vendor_client,
             )
         )
+        harness.follow_ledger(case_actor_client, case.id_)
 
+        harness.reach_step("coordinator-invite-whom", "vendor")
         _phase_invite_vendor_reject(
             coordinator_client=coordinator_client,
             case_actor_client=case_actor_client,

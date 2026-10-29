@@ -783,24 +783,31 @@ def _role_offer_naming_a_peer():
     )
 
 
-def _ownership_offer_naming_a_peer():
-    """An ``Offer(VulnerabilityCase, target=Actor)`` — the ownership transfer.
-
-    Names the transferee by a bare id, as the trigger adapter passes it; the
-    factory wraps it as an ``as_Actor`` (DL-08-003, #4843).
-    """
-    from vultron.wire.as2.factories import (
-        offer_case_ownership_transfer_activity,
-    )
+def _ownership_transfer_case() -> Any:
+    """The case :func:`_ownership_offer_naming_a_peer` names, as its store holds it."""
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         as_VulnerabilityCase,
     )
 
+    return as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_="urn:uuid:case-dl08003-0000-0000-000000000001",
+    )
+
+
+def _ownership_offer_naming_a_peer():
+    """An ``Offer(VulnerabilityCase, target=Actor)`` — the ownership transfer.
+
+    Names the transferee by a bare id, as the trigger adapter passes it; the
+    factory wraps it as an ``as_Actor`` (DL-08-003, #4843).  The case travels
+    as its typed reference (ADR-0165).
+    """
+    from vultron.wire.as2.factories import (
+        offer_case_ownership_transfer_activity,
+    )
+
     return offer_case_ownership_transfer_activity(
-        as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID,
-            id_="urn:uuid:case-dl08003-0000-0000-000000000001",
-        ),
+        _ownership_transfer_case(),
         target=_PEER_ACTOR_ID,
         id_="urn:uuid:own-dl08003-0000-0000-000000000001",
         actor="http://vendor:7999/api/v2/actors/vendor-owner",
@@ -909,7 +916,7 @@ def test_ownership_transferee_round_trips_as_an_object(received):
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
     try:
-        dl.create(cast(Any, offer).object_)
+        dl.create(_ownership_transfer_case())
         dl.create(cast(Any, offer))
         assert dl.read(_PEER_ACTOR_ID) is None
         back = dl.read(offer.id_)
@@ -1144,3 +1151,43 @@ def test_a_bare_object_activity_takes_no_inline_contract_from_a_guessed_class():
     )
 
     assert _inline_required_refs(announce) == frozenset()
+
+
+@pytest.mark.spec("AKM-03-004")
+def test_a_case_reference_round_trips_as_a_reference():
+    """A Join's case reference is stored inline and read back as one.
+
+    A reference has no record of its own: collapsed to its id it would read
+    back as a bare id in a store that does not hold the case, which no
+    pattern routes (ADR-0165).
+    """
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.wire.as2.factories import rm_engage_case_activity
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCaseReference,
+    )
+
+    case_id = "urn:uuid:case-reference-roundtrip"
+    join = rm_engage_case_activity(
+        case_id, actor=_CASE_ACTOR_ID, to=[_PEER_ACTOR_ID]
+    )
+    record = object_to_record(cast(Any, join))
+    stored = record.data_.get("object_")
+    assert isinstance(stored, dict) and stored.get("id") == case_id
+    # The row reads back as a base ``Join``, whose object a case's own
+    # validation would refuse; it is retyped as the reference it is.
+    assert isinstance(
+        getattr(record.to_obj(), "object_", None),
+        as_VulnerabilityCaseReference,
+    )
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
+    try:
+        dl.create(cast(Any, join))
+        back = dl.read(join.id_)
+        assert dl.read(case_id) is None
+    finally:
+        dl.close()
+    assert isinstance(
+        getattr(back, "object_", None), as_VulnerabilityCaseReference
+    )

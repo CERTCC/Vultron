@@ -44,8 +44,9 @@ _Activity = TypeVar("_Activity", bound=as_Activity)
 #: its own index and hash, and a case copy its ``ledgerPosition``
 #: (SYNC-16-005).  ``Create(VulnerabilityCase)`` is the creator's first copy
 #: and ``Update(VulnerabilityCase)`` the CASE_MANAGER's copy recording a new
-#: owner.  ``Join``, ``Ignore``, ``Leave`` and ``Offer`` carry the case inline
-#: too, but they are acts on the case, not copies of it, so they are stamped.
+#: owner.  ``Join``, ``Ignore``, ``Leave`` and ``Offer`` name the case by typed
+#: reference (ADR-0165); they are acts on the case, not copies of it, so they
+#: are stamped.
 _STATES_ITS_OWN_POSITION: frozenset[tuple[str, str]] = frozenset(
     {
         ("Announce", "CaseLedgerEntry"),

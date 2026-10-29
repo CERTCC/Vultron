@@ -20,10 +20,8 @@ from vultron.primitives import normalise_actor_id
 
 if TYPE_CHECKING:
     from vultron.core.models.base import CoreObject
-    from vultron.core.models.case import VulnerabilityCase
 else:
     CoreObject = object
-    VulnerabilityCase = object
 
 
 class OfferActorToCaseReceivedEvent(LedgerPositionedEvent):
@@ -184,10 +182,6 @@ class AcceptCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
     @property
     def case_id(self) -> str | None:
         return self.inner_object_id
-
-    @property
-    def case(self) -> "VulnerabilityCase | None":
-        return cast("VulnerabilityCase | None", self.inner_object)
 
 
 class RejectCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):

@@ -49,11 +49,17 @@ from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
     as_VulnerabilityCaseRef,
+    as_VulnerabilityCaseReference,
     as_VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
+
+#: The case a participant's act on it names: its typed reference, which every
+#: factory builds (AKM-03-003, ADR-0165).  A full case another sender still
+#: carries is accepted, and its receiver reads only its id.
+NamedCase = as_VulnerabilityCaseReference | as_VulnerabilityCase
 
 ########################################################################################
 # Activities in which the VulnerabilityCase is a target
@@ -163,10 +169,10 @@ class _UpdateCaseActivity(as_Update):
 class _RmEngageCaseActivity(as_Join):
     """The actor is has joined (i.e., is actively working on) a case.
     This represents the Vultron Message Type RA, and indicates that the actor is now in the RM.ACCEPTED state.
-    object_: as_VulnerabilityCase
+    object_: the case, by typed reference (ADR-0165)
     """
 
-    object_: as_VulnerabilityCase = Field(
+    object_: NamedCase = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
 
@@ -178,10 +184,10 @@ class _RmDeferCaseActivity(as_Ignore):
     it just means that the actor is no longer actively working on it.
     This represents the Vultron Message Type RD, and indicates that the actor is now in the RM.DEFERRED state.
     Contrast with _RmCloseCaseActivity, which indicates that the actor is abandoning the case entirely.
-    object_: as_VulnerabilityCase
+    object_: the case, by typed reference (ADR-0165)
     """
 
-    object_: as_VulnerabilityCase = Field(
+    object_: NamedCase = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
 
@@ -192,10 +198,10 @@ class _RmCloseCaseActivity(as_Leave):
     Case closure is considered a permanent Leave from the case.
     If the case owner (attributedTo) is the actor, then the case is closed for all participants.
     If the actor is not the case owner, then the actor should be removed from the case participants.
-    object_: as_VulnerabilityCase
+    object_: the case, by typed reference (ADR-0165)
     """
 
-    object_: as_VulnerabilityCase = Field(
+    object_: NamedCase = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
 
@@ -279,13 +285,14 @@ class _RejectCaseParticipantRoleActivity(as_Reject):
 class _OfferCaseOwnershipTransferActivity(as_Offer):
     """The actor is offering to transfer ownership of the case to another actor.
 
-    The case MUST be provided as an inline ``VulnerabilityCase`` object so that
-    the recipient can identify the object type unambiguously during semantic
-    pattern matching.  Passing only a string URI makes the activity
-    indistinguishable from a ``SUBMIT_REPORT`` Offer and causes incorrect
-    dispatch.
+    The case travels as its typed reference, an inline object with only its
+    ``id`` and ``type`` (ADR-0165): every receiver of an ownership-transfer
+    Offer already holds the case (CM-21-021), and the ``type`` is what lets
+    the recipient tell it from a ``SUBMIT_REPORT`` Offer during semantic
+    pattern matching.  A bare string URI would make the two indistinguishable
+    and cause incorrect dispatch.
 
-    object_: as_VulnerabilityCase (inline — not a bare string ID)
+    object_: the case, by typed reference (not a bare string ID)
     target: the transferee, as the sender holds it or as an actor reference
 
     Declares ``target`` in :attr:`inline_required_refs` (DL-08-003). The
@@ -299,7 +306,7 @@ class _OfferCaseOwnershipTransferActivity(as_Offer):
     travels inline (AKM-05-005).
     """
 
-    object_: as_VulnerabilityCase = Field(
+    object_: NamedCase = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
     target: as_CarriedActor | as_ActorRef = None
