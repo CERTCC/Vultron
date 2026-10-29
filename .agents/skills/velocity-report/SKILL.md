@@ -135,23 +135,40 @@ It has four sub-keys:
   (`failed_ci_runs_on_main`), and beside it the red episodes opened on `main`
   (`red_episodes_opened_on_main`), merges to `main` (`merges_to_main`), and
   `red_episodes_per_100_merges` (`null` in a week with no merges).
-- `main_red_episodes` — one record per red episode on `main`: `workflow`,
-  `first_red_sha`, `first_red_at`, `last_red_sha`, `red_runs`, `ended_at`
-  (`null` while still red), `opened_after_green`, `pr_number` (the PR whose
+- `main_red_episodes` — one record per red episode on `main`: `workflow`
+  (display name), `workflow_path` (the workflow file, which episodes are
+  grouped by), `opened_after_green`, `prior_green_sha` and `prior_green_at`
+  (the green run before it), `first_red_sha`, `first_red_at`, `last_red_sha`,
+  `red_runs`, `ended_at` (`null` while still red), `pr_number` (the PR whose
   merge is the first red commit), `last_green_ci_at` (that PR's last green CI
-  run), and `candidate_partners` (PRs merged after that run and before the
-  PR's own merge).
+  run), `candidate_partners` (PRs merged to `main` after that run and before
+  the PR's own merge), and `unverified_merges` (PRs merged to `main` between
+  the prior green run and the first red one, whose own runs were cancelled
+  or skipped).
 
 **What a red episode is.** Per workflow, consecutive failed push runs on
 `main` form one episode: it opens at the first red run after a green one and
 ends at the next green run. Cancelled and skipped runs neither open nor close
 one. One break that stays red across twelve merges is twelve failed CI runs
-on `main` but one episode. A streak already red at the window start has
-`opened_after_green: false` and is not counted as opened in any week.
-`pr_number`, `last_green_ci_at`, and `candidate_partners` are `null` when the
-data is unknown (a direct push, a merge from before the window, or a PR with
-no green CI run); an empty `candidate_partners` list means no merge landed
-between the PR's last green run and its own merge.
+on `main` but one episode. One commit that breaks several workflows opens one
+episode per workflow, but the weekly `red_episodes_opened_on_main` counts
+episodes that share a `first_red_sha` once, so the rate counts breaks. A
+streak already red at the window start has `opened_after_green: false` and is
+not counted as opened in any week. Only PRs merged into `main` count as merges
+or partners; merges to `publish` or an integration branch are left out.
+
+When a field is `null`, the data is unknown:
+
+- `pr_number` is `null` when no PR merged to `main` in the window owns the
+  first red commit (a direct push, or a merge from before the window). The
+  two fields after it are then `null` too.
+- `last_green_ci_at` and `candidate_partners` are `null` when the PR has no
+  green CI run. `candidate_partners` is also `null` when that run predates the
+  window start, since earlier merges were never fetched.
+- `unverified_merges` is `null` when there was no prior green run.
+
+An empty `candidate_partners` list means no merge landed between the PR's
+last green run and its own merge.
 
 **What a "CI run" is.** One CI run is one pushed head commit: the set of
 workflow runs GitHub started for it. A push that starts seven workflows is one
@@ -238,7 +255,12 @@ breaks, since one break counts once however many merges it stays red across.
 The script does not classify an episode. For each episode in the month,
 classify it by hand as a semantic conflict, a scenario coverage gap, already
 red, or infrastructure: check the failed `workflow` and look at the
-`candidate_partners` — a semantic conflict needs at least one. Only semantic
+`candidate_partners` — a semantic conflict needs at least one. A non-empty
+`unverified_merges` means a merge between the last green run and the first
+red one had its run cancelled (by `cancel-in-progress`), so
+`pr_number` may not be the breaker: check those merges as well. Episodes on
+several workflows with one `first_red_sha` are one break; classify it once.
+Only semantic
 conflicts count toward the reopen condition; report the classified count
 per 100 merges for the month, not the raw episode rate.
 
