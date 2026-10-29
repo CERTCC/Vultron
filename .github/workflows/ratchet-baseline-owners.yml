@@ -45,6 +45,7 @@ jobs:
           mode: notify
           workflow-label: ci:workflow-ratchet-baseline-owners
           token: ${{ secrets.GITHUB_TOKEN }}
+          epic: ${{ vars.CI_FAILURE_EPIC }}
           details-file: ${{ runner.temp }}/ratchet-owners.md
       - name: Close the tracking issue
         if: steps.owners.outcome == 'success'

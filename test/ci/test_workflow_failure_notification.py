@@ -180,6 +180,38 @@ def test_qualifying_workflow_notify_step_has_workflow_label(wf: Path) -> None:
         )
 
 
+def _workflows_using_notify_failure() -> list[Path]:
+    return [
+        wf
+        for wf in sorted(WORKFLOWS_DIR.glob("*.yml"))
+        if NOTIFY_FAILURE_USES in wf.read_text()
+    ]
+
+
+@pytest.mark.spec("PAD-01-007")
+@pytest.mark.parametrize(
+    "wf", _workflows_using_notify_failure(), ids=lambda p: p.name
+)
+def test_notify_step_passes_the_ci_failure_epic(wf: Path) -> None:
+    """Each notify step passes ``vars.CI_FAILURE_EPIC`` as the ``epic`` input.
+
+    The composite action cannot read ``vars`` itself (GitHub documents the
+    context only for workflow keys), so a caller that omits it files every
+    failure issue without an Epic parent (#5435).
+    """
+    notify_steps = [
+        s
+        for s in _notify_failure_steps(_load_workflow(wf))
+        if s.get("with", {}).get("mode") == "notify"
+    ]
+    assert notify_steps, f"{wf.name} uses notify-failure but never notifies"
+    for step in notify_steps:
+        assert step["with"].get("epic") == "${{ vars.CI_FAILURE_EPIC }}", (
+            f"{wf.name}: a notify-failure notify step must pass "
+            "`epic: ${{ vars.CI_FAILURE_EPIC }}` (PAD-01-007)."
+        )
+
+
 AGGREGATE_FAILURE = "contains(needs.*.result, 'failure')"
 AGGREGATE_CANCELLED_EXCLUSION = "!contains(needs.*.result, 'cancelled')"
 AGGREGATE_CANCELLED_INCLUSION = "|| contains(needs.*.result, 'cancelled')"

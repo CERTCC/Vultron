@@ -133,6 +133,25 @@ def test_helper_leaves_a_themed_and_parented_issue_alone(
     assert "subIssues" not in log and "addSubIssue" not in log, log
 
 
+def test_helper_leaves_an_issue_a_person_re_themed_unparented(
+    tmp_path: Path,
+) -> None:
+    """Another theme with no parent gets no parent from the bot either.
+
+    The bot's Epic carries the bot's theme, so wiring the issue under it
+    would break PAD-02-017; the person who chose the theme picks the parent.
+    """
+    issue = UNTRIAGED_ISSUE | {
+        "labels": {"nodes": [{"name": "theme:dev-workflow"}]},
+    }
+    gh = install_fake_gh(tmp_path, issue=issue)
+    result = _run_helper(gh, *CALL)
+    assert result.returncode == 0, result.stderr
+    assert not any(c.startswith("issue edit") for c in gh.calls())
+    log = gh.log.read_text()
+    assert "subIssues" not in log and "addSubIssue" not in log, log
+
+
 def test_helper_keeps_an_existing_theme_line(tmp_path: Path) -> None:
     """A repair run adds the label without writing the line a second time."""
     line = f"Theme: {THEME} — {OUTCOME}"
@@ -164,6 +183,22 @@ def test_helper_finishes_a_theme_a_failed_run_left_half_set(
     assert body is not None and body.startswith(f"Theme: {THEME} — ")
     assert not any("--add-label" in c for c in gh.calls())
     assert _theme_fit_findings(gh, {THEME}, THEME, EPIC) == []
+
+
+def test_helper_does_not_take_a_longer_label_for_its_theme(
+    tmp_path: Path,
+) -> None:
+    """A ``Theme:`` line for a label that merely starts with the theme is
+    not the theme's line, so the line is still written."""
+    issue = UNTRIAGED_ISSUE | {
+        "body": f"Theme: {THEME}-extra — something else.\n\nOriginal body.",
+    }
+    gh = install_fake_gh(tmp_path, issue=issue)
+    result = _run_helper(gh, *CALL)
+    assert result.returncode == 0, result.stderr
+    body = gh.written_body()
+    assert body is not None
+    assert body.splitlines()[0] == f"Theme: {THEME} — {OUTCOME}"
 
 
 @pytest.mark.parametrize("epic", ["", "not-a-number", "0", "-5"])
@@ -215,7 +250,9 @@ def test_helper_fails_when_the_epic_lookup_fails(tmp_path: Path) -> None:
     """An API error reading the Epic fails the step, wiring nothing."""
     gh = install_fake_gh(tmp_path, epic_lookup_fails=True)
     result = _run_helper(gh, *CALL)
-    assert result.returncode != 0
+    assert result.returncode == 1
+    assert "::error::Could not read Epic" in result.stderr, result.stderr
+    assert "CI_FAILURE_EPIC" in result.stderr
     assert "addSubIssue" not in gh.log.read_text()
 
 
@@ -255,6 +292,57 @@ def _recordings_step(name: str) -> dict[str, Any]:
     return step
 
 
+def _run_notify(gh: FakeGh, epic: str) -> subprocess.CompletedProcess[str]:
+    """Run the notify arm's real script, with *epic* as the ``epic`` input."""
+    env = gh.env | {
+        "REPO": "OWNER/REPO",
+        "MODE": "notify",
+        "WORKFLOW_LABEL": "ci:workflow-example",
+        "WORKFLOW_NAME": "Example",
+        "RUN_URL": "https://github.com/OWNER/REPO/actions/runs/1",
+        "REF": "refs/heads/main",
+        "CI_FAILURE_EPIC": epic,
+        "GITHUB_ACTION_PATH": str(NOTIFY_ACTION.parent),
+    }
+    return subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", str(_notify_step()["run"])],
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_notify_failure_takes_the_epic_from_an_input() -> None:
+    """The Epic comes in through the ``epic`` input, not ``vars``.
+
+    GitHub documents the ``vars`` context for a workflow step's ``with:``,
+    but not inside a composite action's own steps, so each caller passes
+    ``vars.CI_FAILURE_EPIC`` in (checked per caller in
+    ``test_workflow_failure_notification.py``).
+    """
+    action: dict[str, Any] = yaml.safe_load(NOTIFY_ACTION.read_text())
+    assert "epic" in action["inputs"]
+    assert _notify_step()["env"]["CI_FAILURE_EPIC"] == "${{ inputs.epic }}"
+    assert "vars." not in NOTIFY_ACTION.read_text().split("runs:", 1)[1]
+
+
+def test_notify_failure_closes_duplicates_before_an_epic_error(
+    tmp_path: Path,
+) -> None:
+    """An unset Epic still fails the step, but only after the duplicate
+    trackers are closed (CISEC-05-003), so one tracker remains."""
+    gh = install_fake_gh(
+        tmp_path, issues_page=[{"number": 5087}, {"number": 5105}]
+    )
+    result = _run_notify(gh, "")
+    assert result.returncode == 1
+    assert "CI_FAILURE_EPIC" in result.stderr
+    calls = gh.calls()
+    assert any(c.startswith("issue close 5105") for c in calls), calls
+    assert f"issue edit 5087 --repo OWNER/REPO --add-label {THEME}" in calls
+
+
 @pytest.mark.spec("PAD-01-007", "PAD-02-014", "PAD-02-018")
 @pytest.mark.parametrize(
     ("open_issues", "number"),
@@ -268,32 +356,11 @@ def test_notify_failure_triages_the_issue_it_files(
 
     The comment arm repairs an open issue a run before this fix filed bare.
     """
-    step = _notify_step()
-    env_map = step["env"]
-    assert env_map["CI_FAILURE_EPIC"] == "${{ vars.CI_FAILURE_EPIC }}", (
-        "The parent Epic must come from the CI_FAILURE_EPIC repository "
-        "variable, not a hard-coded number (#5435)."
-    )
     gh = install_fake_gh(
         tmp_path, issues_page=[{"number": n} for n in open_issues]
     )
-    env = gh.env | {
-        "REPO": "OWNER/REPO",
-        "MODE": "notify",
-        "WORKFLOW_LABEL": "ci:workflow-example",
-        "WORKFLOW_NAME": "Example",
-        "RUN_URL": "https://github.com/OWNER/REPO/actions/runs/1",
-        "REF": "refs/heads/main",
-        "CI_FAILURE_EPIC": str(EPIC),
-        "GITHUB_ACTION_PATH": str(NOTIFY_ACTION.parent),
-    }
-    subprocess.run(
-        ["bash", "-e", "-o", "pipefail", "-c", str(step["run"])],
-        env=env,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    result = _run_notify(gh, str(EPIC))
+    assert result.returncode == 0, result.stderr
     calls = gh.calls()
     assert (
         f"issue edit {number} --repo OWNER/REPO --add-label {THEME}" in calls
@@ -305,13 +372,16 @@ def test_notify_failure_triages_the_issue_it_files(
 @pytest.mark.spec("PAD-01-007", "PAD-02-014", "PAD-02-018")
 @pytest.mark.parametrize(
     ("existing", "number"),
-    [("", "999"), ("5434", "5434")],
-    ids=["create-arm", "comment-arm"],
+    [([], "999"), ([5434], "5434"), ([5434, 5500], "5434")],
+    ids=["create-arm", "comment-arm", "comment-arm-oldest"],
 )
 def test_recordings_workflow_triages_the_task_it_files(
-    tmp_path: Path, existing: str, number: str
+    tmp_path: Path, existing: list[int], number: str
 ) -> None:
-    """AC-2: the refresh Task gets theme, line and parent, on both arms."""
+    """AC-2: the refresh Task gets theme, line and parent, on both arms.
+
+    With more than one open, only the oldest is updated.
+    """
     step = _recordings_step("File or update the refresh Task")
     env_map = step["env"]
     assert (
@@ -322,7 +392,7 @@ def test_recordings_workflow_triages_the_task_it_files(
     )
     gh = install_fake_gh(
         tmp_path,
-        issues_page=[{"number": int(existing)}] if existing else [],
+        issues_page=[{"number": n} for n in existing],
         epic=open_epic("theme:full-cvd-scenario-coverage"),
     )
     work = tmp_path / "work"
@@ -348,6 +418,12 @@ def test_recordings_workflow_triages_the_task_it_files(
     assert (
         f"issue edit {number} --repo OWNER/REPO --add-label {theme}" in calls
     )
+    touched = {
+        c.split()[2]
+        for c in calls
+        if c.startswith(("issue comment", "issue edit"))
+    }
+    assert touched == {number}, calls
     labels = {"demo-recordings-stale"}
     assert _theme_fit_findings(gh, labels, theme, 4747) == []
 

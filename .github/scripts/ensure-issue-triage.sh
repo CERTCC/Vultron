@@ -17,8 +17,9 @@
 # another sub-issue (GitHub caps a parent at 100, closed ones included).
 #
 # Idempotent, and it never overrides a person: an issue that carries a
-# different `theme:` label keeps its label and body, and an issue that already
-# has a parent keeps it. Each part is checked on its own, so a run on either
+# different `theme:` label keeps its label, body and parent (or lack of one,
+# since the bot's Epic carries the bot's theme), and an issue that already has
+# a parent keeps it. Each part is checked on its own, so a run on either
 # the create or the update arm finishes whatever an earlier run left undone.
 #
 # Used by .github/actions/notify-failure and .github/workflows/demo-recordings.yml.
@@ -78,11 +79,16 @@ themes=$(jq -r '[.labels.nodes[].name | select(startswith("theme:"))] | join(","
 # and each is checked on its own, so a run that stopped between the two is
 # finished by the next one.
 if [ -n "$themes" ] && [ "$themes" != "$theme" ]; then
-  echo "Issue #$num already has theme '$themes'; leaving its theme alone"
+  # A person chose another theme, so the bot's Epic, which carries the bot's
+  # theme, is the wrong parent (PAD-02-017): leave the parent to them too.
+  echo "Issue #$num already has theme '$themes'; leaving its theme and parent alone"
+  exit 0
 else
   # One awk, not `grep | grep -q`: an early `-q` exit can SIGPIPE the first
   # grep, and under pipefail that reads as "no line" and writes a second one.
-  if awk -v t="$theme" '/^Theme:/ && index($0, t) { f = 1 } END { exit !f }' \
+  # The label field must equal the theme, not merely contain it, so a line
+  # for a longer label that starts with this one is not taken for it.
+  if awk -v t="$theme" '$1 == "Theme:" && $2 == t { f = 1 } END { exit !f }' \
       <<< "$body"; then
     echo "Issue #$num already has a Theme: line for $theme"
   else
@@ -110,7 +116,7 @@ if ! [[ "$epic" =~ ^[1-9][0-9]*$ ]]; then
   exit 1
 fi
 # shellcheck disable=SC2016  # GraphQL variables, not shell ones
-epic_info=$(retry gh api graphql \
+if ! epic_info=$(retry gh api graphql \
   -f owner="${repo%%/*}" \
   -f name="${repo##*/}" \
   -F number="$epic" \
@@ -123,7 +129,13 @@ epic_info=$(retry gh api graphql \
     }
   }' \
   --jq '.data.repository.issue | .id, .state, (.issueType.name // ""),
-    .subIssues.totalCount, ([.labels.nodes[].name] | join(","))')
+    .subIssues.totalCount, ([.labels.nodes[].name] | join(","))'); then
+  # A number naming no issue, or a pull request, errors here; say which
+  # variable to fix rather than leave only retry's generic error.
+  echo "::error::Could not read Epic #$epic (repository variable $epic_var);" \
+    "issue #$num has no Epic parent." >&2
+  exit 1
+fi
 mapfile -t epic_fields <<< "$epic_info"
 if [ "${epic_fields[1]:-}" != "OPEN" ] || [ "${epic_fields[2]:-}" != "Epic" ]; then
   echo "::error::#$epic (repository variable $epic_var) is not an open Epic;" \

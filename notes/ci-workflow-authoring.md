@@ -84,9 +84,12 @@ the moment it opens (PAD-01-007, PAD-02-014, PAD-02-018). Call
 `.github/scripts/ensure-issue-triage.sh` on both arms, after
 `ensure-issue-type.sh`. Name the Epic with a repository variable
 (`CI_FAILURE_EPIC`, `DEMO_RECORDINGS_EPIC`), never a literal: Epics get fused and
-split, and a variable re-homes the issues without a PR. The script fails the
-step, after it sets the theme, when the variable is unset or names no open Epic
-that carries the theme and has room under GitHub's 100-sub-issue cap (#5435).
+split, and a variable re-homes the issues without a PR. A composite action
+takes the variable as an input that each caller sets from `vars.<NAME>` in its
+`with:`: GitHub documents `vars` for workflow keys, not inside a composite
+action's own steps. The script fails the step, after it sets the theme, when
+the variable is unset or names no open Epic that carries the theme and has room
+under GitHub's 100-sub-issue cap (#5435).
 
 ## An Artifact a Later Job Downloads Needs the Run Attempt in Its Name
 
