@@ -18,11 +18,17 @@ PAD-02-018.
 The package splits along its seams: :mod:`.fetch` owns the GraphQL query and
 response shape, :mod:`.analyze` applies the rules as a pure function,
 :mod:`.render` writes the Markdown report body, and :mod:`.cli` wires them.
+:mod:`.gate` (``theme-gate``) applies the label and parent rules to an Issue
+before it is created.
 The theme set comes from ``notes/epic-themes.md`` through
 :func:`~vultron.metadata.planning.themes.load_theme_catalog`.
 """
 
-from vultron.metadata.planning.theme_fit.analyze import analyze, nearest_epic
+from vultron.metadata.planning.theme_fit.analyze import (
+    analyze,
+    label_findings,
+    nearest_epic,
+)
 from vultron.metadata.planning.theme_fit.cli import main
 from vultron.metadata.planning.theme_fit.fetch import (
     QUERY,
@@ -62,6 +68,7 @@ __all__ = [
     "analyze",
     "fetch_open_issues",
     "main",
+    "label_findings",
     "nearest_epic",
     "parse_issue",
     "parse_pages",

@@ -79,8 +79,8 @@ to get more output** — grep or read those files instead.
 3. Classify as pre-existing only after:
    - clean-base proof on `main` (or equivalent documented evidence), and
    - at least one causality check against the current PR diff
-4. If pre-existing is proven, create/update a Bug issue with evidence, wire
-   structured blockers via `manage-github-issue`, and post a handoff comment
+4. If pre-existing is proven, create/update a Bug issue with evidence via
+   `create-issue`, wiring structured blockers, and post a handoff comment
 5. If evidence is incomplete, keep treating as PR-owned and continue debugging
 
 ### Integration Tests Fail ❌
@@ -94,8 +94,8 @@ to get more output** — grep or read those files instead.
 1. Display failure output (first 50 lines + last 20 for context)
 2. Perform targeted causality checks against the PR diff
 3. Allow "unrelated/pre-existing" only with clean-base + causality evidence
-4. If pre-existing is proven, create/update a Bug issue with evidence, wire
-   blockers via `manage-github-issue`, and add a handoff comment
+4. If pre-existing is proven, create/update a Bug issue with evidence via
+   `create-issue`, wiring blockers, and add a handoff comment
 5. Stop only after recording blocked/unblocked status with linked evidence
 
 **Why caution is needed**: Integration tests are slow and can fail due to:

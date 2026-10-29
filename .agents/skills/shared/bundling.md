@@ -50,7 +50,7 @@ stale-claim, non-leaf, held by an epic run). Both belong in what you show the us
 **Grain is yours, not the tool's.** `bundle-fit` emits coherence *hints*
 (shared spec IDs, shared file paths, shared topic labels) and stops there,
 because `calve-epics` requires cutting by design grain and warns that cutting
-by superficial theme produces plausible-looking but wrong work units. Before
+by a superficial shared keyword produces plausible-looking but wrong work units. Before
 proposing a bundle, state the single design idea its members share **in one
 sentence**. If a member needs a different sentence, drop it and say why. If no
 sentence covers two members, the Epic itself may need calving.

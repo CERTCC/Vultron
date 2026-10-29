@@ -33,10 +33,10 @@ reaches the band. XL is a retrospective finding.
 ## Who applies them
 
 - **Estimate**: the skill that writes the acceptance criteria — `plan-issue` and
-  `update-plan` — from `pr-size --acs <N>`, and `new-item` for the Bug and Task
+  `update-plan` — from `pr-size --acs <N>`, and `create-issue` for the Bug and Task
   issues it writes ACs for. Skills that create an Issue *without* ACs have
   nothing to count, so they assign no `size:` label at all and say so
-  explicitly: `new-item` for an Idea or a Concern, and `process-concerns`. Do not
+  explicitly: `create-issue` for an Idea or a Concern, and `process-concerns`. Do not
   add one there; an Idea or a Concern gets its estimate when `plan-issue` turns
   it into implementation Tasks.
 - **Measurement**: the `pr-size-label` GitHub Actions workflow, on every push to
