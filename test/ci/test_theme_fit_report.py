@@ -65,6 +65,16 @@ def test_a_finding_publishes_and_a_failed_run_does_not(
     assert _script.report_usable(returncode) is usable
 
 
+@pytest.mark.parametrize(
+    "stdout", ["", "Traceback (most recent call last):\n"]
+)
+@pytest.mark.spec("PAD-14-006")
+def test_a_crash_that_exits_1_is_not_a_report(stdout: str) -> None:
+    """Python exits 1 on an uncaught exception, the same status as findings."""
+    assert _script.report_usable(1, stdout) is False
+    assert _script.report_usable(1, _REPORT) is True
+
+
 def _item(number: int, state: str, **extra: object) -> dict[str, object]:
     return {"number": number, "state": state, **extra}
 
@@ -91,7 +101,23 @@ def _item(number: int, state: str, **extra: object) -> dict[str, object]:
 def test_pick_report_issue(
     items: list[dict[str, object]], expected: tuple[int, str] | None
 ) -> None:
-    assert _script.pick_report_issue(items) == expected
+    picked = _script.pick_report_issue(items)
+    assert (picked if picked is None else picked[:2]) == expected
+
+
+def test_pick_report_issue_carries_the_body() -> None:
+    items = [_item(3, "open", body="Theme: theme:a — x\n"), _item(4, "open")]
+    assert _script.pick_report_issue(items) == (
+        3,
+        "open",
+        "Theme: theme:a — x\n",
+    )
+    # A null body (an Issue created with none) reads as empty.
+    assert _script.pick_report_issue([_item(4, "open", body=None)]) == (
+        4,
+        "open",
+        "",
+    )
 
 
 def test_a_new_report_starts_on_the_default_theme() -> None:
@@ -116,6 +142,23 @@ def test_a_person_s_theme_line_survives_the_rewrite() -> None:
     assert _script.DEFAULT_THEME not in prefix
     assert "stale text" not in prefix
     assert "[this run](https://example.test/run/1)" in prefix
+
+
+@pytest.mark.parametrize(
+    ("body", "theme"),
+    [
+        ("", _script.DEFAULT_THEME),
+        ("Theme:\n", _script.DEFAULT_THEME),
+        ("Theme: not-a-label — x\n", _script.DEFAULT_THEME),
+        (
+            "Theme: theme:test-and-ci — a person re-themed this.\n",
+            "theme:test-and-ci",
+        ),
+        ("Theme: x\nTheme: theme:a — y\nTheme: theme:b — z\n", "theme:a"),
+    ],
+)
+def test_report_theme_follows_the_kept_line(body: str, theme: str) -> None:
+    assert _script.report_theme(body) == theme
 
 
 def test_theme_lines_ignores_lookalikes() -> None:
@@ -153,23 +196,20 @@ def test_the_body_it_writes_passes_theme_fit_as_untriaged() -> None:
 class _Gh:
     """Answers the script's ``gh`` calls and records them."""
 
-    def __init__(
-        self, candidates: list[dict[str, object]], body: str | None = ""
-    ) -> None:
+    def __init__(self, candidates: list[dict[str, object]]) -> None:
         self.candidates = candidates
-        self.body = body
         self.calls: list[tuple[str, ...]] = []
+        self.retried: dict[tuple[str, str], bool] = {}
         self.written: str | None = None
 
-    def __call__(self, *args: str) -> str:
+    def __call__(self, *args: str, retry: bool = True) -> str:
         self.calls.append(args)
+        self.retried[(args[0], args[1])] = retry
         if "--body-file" in args:
             path = Path(args[args.index("--body-file") + 1])
             self.written = path.read_text(encoding="utf-8")
         if args[:2] == ("api", "--paginate"):
             return json.dumps([self.candidates])
-        if args[0] == "api":
-            return json.dumps({"body": self.body})
         if args[:2] == ("issue", "create"):
             return "https://github.com/OWNER/REPO/issues/77\n"
         return ""
@@ -186,9 +226,9 @@ def run_publish(
 
     def go(
         gh: _Gh, dry_run: bool = False
-    ) -> tuple[list[tuple[str, int]], list[int]]:
+    ) -> tuple[list[tuple[str, int]], list[tuple[int, str]]]:
         theme_fit_calls: list[tuple[str, int]] = []
-        triaged: list[int] = []
+        triaged: list[tuple[int, str]] = []
 
         def fake_theme_fit(repo: str, max_chars: int) -> str:
             theme_fit_calls.append((repo, max_chars))
@@ -197,7 +237,9 @@ def run_publish(
         monkeypatch.setattr(_script, "_gh", gh)
         monkeypatch.setattr(_script, "run_theme_fit", fake_theme_fit)
         monkeypatch.setattr(
-            _script, "_triage", lambda _repo, num: triaged.append(num)
+            _script,
+            "_triage",
+            lambda _repo, num, theme: triaged.append((num, theme)),
         )
         _script.publish("OWNER/REPO", dry_run, "https://example.test/run/2")
         return theme_fit_calls, triaged
@@ -207,13 +249,13 @@ def run_publish(
 
 @pytest.mark.spec("PAD-14-004")
 def test_an_open_report_is_rewritten_in_place(run_publish: Any) -> None:
-    gh = _Gh([_item(12, "open")], body="Theme: theme:dev-workflow — x\n")
+    gh = _Gh([_item(12, "open", body="Theme: theme:dev-workflow — x\n")])
     theme_fit_calls, triaged = run_publish(gh)
-    assert ("issue", "create") not in gh.verbs()
-    assert ("issue", "reopen") not in gh.verbs()
+    # The body comes with the list record: no second read of the Issue.
+    assert gh.verbs() == [("api", "--paginate"), ("issue", "edit")]
     assert gh.calls[-1][:5] == ("issue", "edit", "12", "--repo", "OWNER/REPO")
     assert gh.written is not None and gh.written.endswith(_REPORT)
-    assert triaged == [12]
+    assert triaged == [(12, _script.DEFAULT_THEME)]
     # The report is cut to what is left of the body after the prefix.
     ((_, max_chars),) = theme_fit_calls
     assert max_chars + len(gh.written) - len(_REPORT) == GITHUB_BODY_LIMIT
@@ -223,9 +265,25 @@ def test_an_open_report_is_rewritten_in_place(run_publish: Any) -> None:
 def test_a_closed_report_is_reopened_not_replaced(run_publish: Any) -> None:
     gh = _Gh([_item(5, "closed")])
     _, triaged = run_publish(gh)
-    assert ("issue", "create") not in gh.verbs()
+    # Rewritten before it is reopened, so a failed rewrite leaves it closed.
+    assert gh.verbs() == [
+        ("api", "--paginate"),
+        ("issue", "edit"),
+        ("issue", "reopen"),
+    ]
     assert ("issue", "reopen", "5", "--repo", "OWNER/REPO") in gh.calls
-    assert triaged == [5]
+    assert triaged == [(5, _script.DEFAULT_THEME)]
+
+
+def test_a_re_themed_report_is_triaged_on_its_own_theme(
+    run_publish: Any,
+) -> None:
+    """No second, default Theme: line for a person who re-themed the body."""
+    gh = _Gh([_item(5, "open", body="Theme: theme:test-and-ci — mine.\n")])
+    _, triaged = run_publish(gh)
+    assert triaged == [(5, "theme:test-and-ci")]
+    assert gh.written is not None
+    assert gh.written.startswith("Theme: theme:test-and-ci — mine.\n")
 
 
 @pytest.mark.spec("PAD-14-005")
@@ -234,15 +292,20 @@ def test_the_report_is_created_only_when_none_exists(
 ) -> None:
     gh = _Gh([])
     _, triaged = run_publish(gh)
+    assert gh.verbs() == [
+        ("api", "--paginate"),
+        ("label", "create"),
+        ("issue", "create"),
+    ]
     (create,) = [c for c in gh.calls if c[:2] == ("issue", "create")]
     assert create[create.index("--title") + 1] == _script.TITLE
     assert create[create.index("--label") + 1] == _script.LABEL
     label = next(c for c in gh.calls if c[:2] == ("label", "create"))
     assert "--force" in label
-    assert gh.verbs().index(("label", "create")) < gh.verbs().index(
-        ("issue", "create")
-    )
-    assert triaged == [77]
+    # A retried create whose first attempt landed would file a second report.
+    assert gh.retried[("issue", "create")] is False
+    assert gh.retried[("label", "create")] is True
+    assert triaged == [(77, _script.DEFAULT_THEME)]
 
 
 @pytest.mark.spec("PAD-14-005")
@@ -315,7 +378,7 @@ def test_it_writes_to_no_issue_but_the_report(
     _, triaged = run_publish(gh)
     touched = {c[2] for c in gh.calls if c[:2] in _WRITES}
     assert touched <= {str(report)}
-    assert triaged == [report]
+    assert [num for num, _theme in triaged] == [report]
     assert not any(
         "--add-label" in c or "--remove-label" in c for c in gh.calls
     )
@@ -335,14 +398,14 @@ def test_triage_runs_the_helper_with_the_report_theme(
         "run",
         lambda argv, **_k: calls.append(argv),
     )
-    _script._triage("OWNER/REPO", 12)
+    _script._triage("OWNER/REPO", 12, "theme:test-and-ci")
     assert calls == [
         [
             "bash",
             str(_script.TRIAGE_HELPER),
             "OWNER/REPO",
             "12",
-            _script.DEFAULT_THEME,
+            "theme:test-and-ci",
             _script.DEFAULT_OUTCOME,
         ]
     ]
@@ -368,9 +431,61 @@ def test_a_failed_gh_call_logs_its_stderr(
         )
 
     monkeypatch.setattr(_script.subprocess, "run", fail)
+    monkeypatch.setattr(_script.time, "sleep", lambda _s: None)
     with pytest.raises(_script.subprocess.CalledProcessError):
         _script._gh("api", "repos/OWNER/REPO/issues/1")
     assert "HTTP 502" in capsys.readouterr().err
+
+
+class _Flaky:
+    """``subprocess.run`` that fails its first *failures* calls."""
+
+    def __init__(self, failures: int) -> None:
+        self.failures = failures
+        self.calls = 0
+
+    def __call__(self, argv: list[str], **_: object) -> Any:
+        self.calls += 1
+        if self.calls <= self.failures:
+            raise _script.subprocess.CalledProcessError(
+                1, argv, stderr="502\n"
+            )
+
+        class _Done:
+            stdout = "ok"
+
+        return _Done()
+
+
+def test_a_transient_gh_failure_is_retried_with_backoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    flaky = _Flaky(failures=2)
+    waits: list[float] = []
+    monkeypatch.setattr(_script.subprocess, "run", flaky)
+    monkeypatch.setattr(_script.time, "sleep", waits.append)
+    monkeypatch.delenv("GH_RETRY_ATTEMPTS", raising=False)
+    monkeypatch.delenv("GH_RETRY_DELAY", raising=False)
+    assert _script._gh("issue", "edit", "12") == "ok"
+    assert flaky.calls == 3
+    assert waits == [5.0, 10.0]
+
+
+def test_retries_are_bounded_and_skippable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_script.time, "sleep", lambda _s: None)
+    monkeypatch.delenv("GH_RETRY_ATTEMPTS", raising=False)
+    always = _Flaky(failures=99)
+    monkeypatch.setattr(_script.subprocess, "run", always)
+    with pytest.raises(_script.subprocess.CalledProcessError):
+        _script._gh("issue", "edit", "12")
+    assert always.calls == 4
+    once = _Flaky(failures=1)
+    monkeypatch.setattr(_script.subprocess, "run", once)
+    with pytest.raises(_script.subprocess.CalledProcessError):
+        _script._gh("issue", "create", retry=False)
+    assert once.calls == 1
 
 
 def test_findings_still_return_the_report(
@@ -394,10 +509,25 @@ def test_findings_still_return_the_report(
     assert cmd[cmd.index("--repo") + 1] == "OWNER/REPO"
 
 
+def test_a_crashed_theme_fit_run_fails_the_script(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A traceback exits 1 with no report: it must not blank the Issue."""
+
+    class _Done:
+        returncode = 1
+        stdout = ""
+        stderr = "Traceback (most recent call last):\n"
+
+    monkeypatch.setattr(_script.subprocess, "run", lambda *_a, **_k: _Done())
+    with pytest.raises(RuntimeError, match="exited 1, no report"):
+        _script.run_theme_fit("OWNER/REPO", 1000)
+
+
 def test_a_report_issue_with_no_body_gets_the_default_theme(
     run_publish: Any,
 ) -> None:
-    gh = _Gh([_item(12, "open")], body=None)
+    gh = _Gh([_item(12, "open", body=None)])
     run_publish(gh)
     assert gh.written is not None
     assert gh.written.startswith(f"Theme: {_script.DEFAULT_THEME} — ")
@@ -444,7 +574,12 @@ def test_workflow_runs_the_script_and_notifies() -> None:
         for s in wf_steps
         if s.get("uses") == "./.github/actions/notify-failure"
     }
-    assert notify == {"notify": "failure()", "close": "success()"}
+    # Scheduled runs only, like the sibling scheduled workflows, so a
+    # dispatch (a dry-run above all) writes no CI failure issue.
+    assert notify == {
+        "notify": "failure() && github.event_name == 'schedule'",
+        "close": "success() && github.event_name == 'schedule'",
+    }
 
 
 @pytest.mark.spec("PAD-14-004")

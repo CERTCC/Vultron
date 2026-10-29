@@ -342,8 +342,9 @@ findings, 1 with any, and 2 when the catalog or `gh` fails.
   if closed, and creates it only when none exists (PAD-14-004, PAD-14-005). It runs
   `theme-fit --no-schedule`, because a workflow's `GITHUB_TOKEN` cannot read
   Project #24, so its coherence table shows all tiers together. Exit 1
-  (findings) still publishes; only exit 2 fails the run. Reason: a finding is
-  the report's content, and a red run would file a CI failure each day.
+  (findings) still publishes; exit 2, or stdout that is not a report (Python
+  exits 1 on a crash too), fails the run. Reason: a finding is the report's
+  content, and a red run would file a CI failure each day.
 - **Finding kinds**: a leaf without exactly one theme, an Epic without one
   theme or a named split, a missing `Theme:` line, a child theme its Epic does
   not carry, a non-Epic whose parent chain reaches no open Epic (a parent in

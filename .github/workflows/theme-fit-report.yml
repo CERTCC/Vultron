@@ -54,16 +54,18 @@ jobs:
           args=()
           if [ -n "$DRY_RUN" ]; then args+=(--dry-run); fi
           PYTHONPATH='' uv run python -I .github/scripts/publish_theme_fit_report.py "${args[@]}"
+      # Scheduled runs only, as in the other scheduled workflows: a manual
+      # run (a dry-run above all) leaves the CI failure issue alone.
       - name: File or update the CI failure issue
         # failure() also catches checkout or setup failing first (CISEC-05).
-        if: failure()
+        if: failure() && github.event_name == 'schedule'
         uses: ./.github/actions/notify-failure
         with:
           mode: notify
           workflow-label: ci:workflow-theme-fit-report
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Close the CI failure issue
-        if: success()
+        if: success() && github.event_name == 'schedule'
         uses: ./.github/actions/notify-failure
         with:
           mode: close
