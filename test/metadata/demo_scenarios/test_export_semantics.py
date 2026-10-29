@@ -32,8 +32,8 @@ from vultron.metadata.demo_scenarios.export_semantics import (
     OUTPUT_PATH,
     REGEN_COMMAND,
     build_payload,
-    serialize,
 )
+from vultron.metadata.generated_files import serialize_json
 from vultron.metadata.msm.occasions import format_pattern
 from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.semantic_registry._entry import DISPATCHER_FALLBACKS
@@ -54,7 +54,7 @@ def test_artifact_path_is_the_one_the_hint_names() -> None:
 def test_committed_artifact_matches_a_fresh_export() -> None:
     assert OUTPUT_PATH.exists(), REGEN_HINT
     committed = OUTPUT_PATH.read_text(encoding="utf-8")
-    assert committed == serialize(build_payload()), REGEN_HINT
+    assert committed == serialize_json(build_payload()), REGEN_HINT
 
 
 def test_drift_hint_names_the_command_and_path() -> None:

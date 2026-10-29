@@ -164,6 +164,7 @@ Route each consumer by what it is:
 | `test/ci/README-case-log-ratchet.md`, `vultron/demo/scenario/README.md` | generate + `--check` | Outside the mkdocs tree, read raw, so an include directive would render literally |
 | `notes/` scenario tables | check in place (DEMOCI-11-006/007) | Rows interleave hand-written columns; a generator would have to write cells nobody wrote |
 | `vultron/demo/cli.py` sub-commands | built at import time (DEMOCI-11-011) | No committed copy at all |
+| `ui/src/data/scenario_tree.json` | generate (`uv run export-demo-tree`) + `--check` (`demo-tree-sync`) | The UI reads the tree, not a copy; its case keys come from the committed recordings, so it follows them |
 | `ui/src/recordings/` | generate (`uv run export-demo-recordings`); `--check` hook on the recorded set; content checked daily on `main`, which files a refresh Task | A run of every scenario takes minutes, and a stale recording is work to schedule, not a reason to block a PR: a few days of lag is accepted, so no PR has to regenerate |
 | `specs/` DEMOCI-06-002/003 and per-scenario DEMOMA-16 | check only | A requirement keeps its prose so it stays citable |
 | `mkdocs.yml` nav | check completeness | Hand-written labels |
@@ -181,7 +182,9 @@ test module). A column with no named authority goes unratcheted and drifts.
 to rewrite `ui/src/recordings/<name>/case-actor.jsonl`. A PR need not regenerate:
 the daily `demo-recordings` workflow files a refresh Task when one lags `main`.
 Regenerate in the PR only when the change needs current recordings (a UI change,
-or a new scenario, which the `--check` hook requires). Each role's `url_env` must
+or a new scenario, which the `--check` hook requires). Then run
+`uv run export-demo-tree`: the tree index lists each recording's case ids, so a
+new or refreshed recording leaves it stale. Each role's `url_env` must
 name a container slot the `demo-runner` service in
 `docker/docker-compose-multi-actor.yml` sets: the recorder reads the container
 layout from there and refuses a role it cannot place (#3901).

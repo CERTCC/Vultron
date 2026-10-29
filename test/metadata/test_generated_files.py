@@ -14,6 +14,7 @@
 
 from vultron.metadata.generated_files import (
     read_committed,
+    serialize_json,
     stale_paths,
     write_generated,
 )
@@ -40,3 +41,8 @@ def test_write_uses_lf_and_creates_parents(tmp_path):
     write_generated(target, "one\ntwo\n")
     assert target.read_bytes() == b"one\ntwo\n"
     assert list(stale_paths(tmp_path, {"deep/dir/a.md": "one\ntwo\n"})) == []
+
+
+def test_serialize_json_is_indented_keeps_non_ascii_and_ends_in_newline():
+    text = serialize_json({"b": ["→"], "a": 1})
+    assert text == '{\n  "b": [\n    "→"\n  ],\n  "a": 1\n}\n'
