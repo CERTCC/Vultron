@@ -39,6 +39,16 @@ from pydantic import BaseModel, ValidationError
 
 M = TypeVar("M", bound=BaseModel)
 
+#: Either PyYAML safe loader; the two share ``SafeLoader`` semantics.
+YamlLoader = type[yaml.SafeLoader | yaml.CSafeLoader]
+
+#: The default loader for every parse here: libyaml's ``CSafeLoader`` when the
+#: PyYAML wheel ships it, else the pure-Python ``SafeLoader``. The C loader
+#: parses the spec corpus about 10x faster, and pre-commit hooks parse it
+#: whole. Its marks place nodes at the same line and column; its ``problem``
+#: wording differs, which :data:`CAUSE_HINTS` covers.
+SAFE_LOADER: YamlLoader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
 #: Cause hints keyed on PyYAML's ``problem`` text. PyYAML reports *where* the
 #: parse failed but never *why* an author got there; these name the edit that
 #: most often produces each fault. A ``problem`` with no entry gets no hint — a
@@ -221,7 +231,7 @@ def load_yaml(
     path: Path,
     *,
     root: Path | None = None,
-    loader: type[yaml.SafeLoader | yaml.CSafeLoader] = yaml.SafeLoader,
+    loader: YamlLoader = SAFE_LOADER,
 ) -> object:
     """Parse the YAML file at *path*, attributing any fault to it.
 
@@ -264,7 +274,7 @@ def loads_yaml(
     text: str,
     shown: Path,
     *,
-    loader: type[yaml.SafeLoader | yaml.CSafeLoader] = yaml.SafeLoader,
+    loader: YamlLoader = SAFE_LOADER,
     line_offset: int = 0,
 ) -> object:
     """Parse YAML *text* that has no working-tree file behind it.
@@ -409,7 +419,7 @@ def yaml_node_positions(
     step reports that fault.
     """
     try:
-        root = yaml.compose(text, Loader=yaml.SafeLoader)
+        root = yaml.compose(text, Loader=SAFE_LOADER)
     except yaml.YAMLError:
         return {}
     positions: dict[tuple[str | int, ...], tuple[int, int]] = {}

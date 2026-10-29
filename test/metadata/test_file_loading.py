@@ -12,6 +12,7 @@ hand-written copies each got differently, or not at all.
 
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 
 import pytest
@@ -21,6 +22,7 @@ from pydantic import BaseModel, ValidationError
 from vultron.metadata.adr.index_gen import generate_index
 from vultron.metadata.adr.loader import load_adr_registry
 from vultron.metadata.file_loading import (
+    SAFE_LOADER,
     FailureCollector,
     MetadataLoadError,
     MetadataLoadErrors,
@@ -82,15 +84,29 @@ class TestExceptionContract:
         assert not issubclass(MetadataLoadError, VultronError)
 
 
+class TestDefaultLoader:
+    def test_is_libyaml_when_the_wheel_ships_it(self):
+        assert SAFE_LOADER is getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
+    @pytest.mark.parametrize("parse", [load_yaml, loads_yaml])
+    def test_parsers_default_to_it(self, parse):
+        default = inspect.signature(parse).parameters["loader"].default
+
+        assert default is SAFE_LOADER
+
+
 @pytest.mark.spec("MS-17-001")
 class TestYamlAttribution:
-    def test_names_path_line_and_column(self, tmp_path):
+    @pytest.mark.parametrize(
+        "loader", [yaml.SafeLoader, SAFE_LOADER], ids=["python", "default"]
+    )
+    def test_names_path_line_and_column(self, tmp_path, loader):
         path = _write(
             tmp_path / "specs" / "x.yaml", "a: 1\n" + _UNQUOTED_COLON
         )
 
         with pytest.raises(MetadataLoadError) as info:
-            load_yaml(path, root=tmp_path)
+            load_yaml(path, root=tmp_path, loader=loader)
 
         err = info.value
         assert err.path == "specs/x.yaml"
@@ -108,7 +124,7 @@ class TestYamlAttribution:
 
     @pytest.mark.parametrize(
         "loader",
-        [yaml.SafeLoader, getattr(yaml, "CSafeLoader", yaml.SafeLoader)],
+        [yaml.SafeLoader, SAFE_LOADER],
         ids=["python", "libyaml"],
     )
     def test_unquoted_colon_gets_the_quoting_hint(self, tmp_path, loader):
@@ -125,7 +141,7 @@ class TestYamlAttribution:
         [
             (yaml.SafeLoader, "a:\n\tb: 1\n"),
             (
-                getattr(yaml, "CSafeLoader", yaml.SafeLoader),
+                SAFE_LOADER,
                 "a: 1\nb:\n  c: 1\n\td: 2\n",
             ),
         ],
@@ -165,6 +181,7 @@ class TestYamlAttribution:
         assert str(info.value).startswith(
             "origin/main:specs/x.yaml:2:21 — YAML parse error:"
         )
+        assert 'containing ": " must be quoted' in str(info.value)
 
     def test_text_form_parses_valid_text(self):
         assert loads_yaml("a: 1\n", Path("HEAD:x.yaml")) == {"a": 1}
@@ -333,6 +350,19 @@ class TestYamlNodePositions:
         assert positions[("a", 0, "x")] == (2, 5)
         assert positions[("a", 1)] == (3, 5)
         assert positions[("b",)] == (4, 1)
+
+    def test_columns_count_characters_not_bytes(self):
+        """libyaml composes from UTF-8 bytes; its marks still count text."""
+        positions = yaml_node_positions("é: 1\nb:\n  - 日本: x\n    c: 1\n")
+
+        assert positions[("b", 0, "c")] == (4, 5)
+        assert positions == {
+            ("é",): (1, 1),
+            ("b",): (2, 1),
+            ("b", 0): (3, 5),
+            ("b", 0, "日本"): (3, 5),
+            ("b", 0, "c"): (4, 5),
+        }
 
     def test_text_that_does_not_compose_has_no_positions(self):
         assert yaml_node_positions("a: [\n") == {}
