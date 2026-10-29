@@ -33,16 +33,23 @@ from vultron.metadata.base import mkdocs_config, repo_root
 from vultron.metadata.docs.anchor_ids import anchor_ids_in
 from vultron.metadata.docs.exec_page import EXEC_PAGE_ENV
 from vultron.metadata.docs.full_page_links import (
+    CATALOG_SUBDIR,
     FULL_PAGE_SRC_URI,
     on_page_markdown,
     rewrite_section_links,
+)
+from vultron.metadata.docs.requirement_catalog import (
+    CATALOG_DIR,
+    CATALOG_PAGES,
 )
 
 _HOOK_PATH = "vultron/metadata/docs/full_page_links.py"
 
 # A rendered href into a page beside full.md, with a fragment. Python-Markdown
 # leaves ``.md`` targets as written, so the href keeps the source page name.
-_SIBLING_HREF = re.compile(r"^(?:\./)?(?P<page>[^/#:?]+\.md)#")
+_SIBLING_HREF = re.compile(
+    r"^(?:\./)?(?P<page>(?:requirements/)?[^/#:?]+\.md)#"
+)
 _IN_PAGE_LINK = re.compile(r"\]\(#([^)\s]+)")
 
 
@@ -64,6 +71,8 @@ class TestRewriteSectionLinks:
             "./tracking-models.md",
             "annex-g-capability-shapes.md",
             "open-questions.md",
+            "requirements/messages.md",
+            "./requirements/index.md",
         ],
     )
     def test_same_section_link_with_fragment_is_rewritten(self, page: str):
@@ -133,6 +142,8 @@ class TestRewriteSectionLinks:
                 "[CS](../formal_protocol/transitions.md#cs)",
                 id="sibling-directory",
             ),
+            pytest.param("[x](includes/table.md#a)", id="other-subdirectory"),
+            pytest.param("[x](requirements/a/b.md#a)", id="below-the-catalog"),
             pytest.param("[here](#already-in-page)", id="already-in-page"),
             pytest.param("`[x](layers.md#a)`", id="inline-code"),
             pytest.param("``[x](layers.md#a)``", id="double-tick-code"),
@@ -322,6 +333,34 @@ class TestAssembledFullPage:
         assert 'class="admonition info"' in full_page.html
         assert "vm-10-001" in full_page.html
 
+    @pytest.mark.spec("DF-12-001", "DF-12-002")
+    def test_catalog_is_in_document_order(self, full_page: _FullPage):
+        """§14 Requirements Catalog sits between §13 Conformance and §15,
+        each catalog page's subsection in placement-table order, and its rows
+        are on the page, so in-page requirement links have a target."""
+        md = full_page.assembled
+        headings = [
+            "## 13. Conformance",
+            "## 14. Requirements Catalog",
+            *(
+                f"### 14.{n} {page.title}\n"
+                for n, page in enumerate(CATALOG_PAGES, start=1)
+            ),
+            "## 15. IANA and Namespace Considerations",
+        ]
+        offsets = [md.find(h) for h in headings]
+        assert -1 not in offsets, [
+            h for h, o in zip(headings, offsets, strict=True) if o == -1
+        ]
+        assert offsets == sorted(offsets)
+        ids = anchor_ids_in(full_page.html)
+        assert {
+            "vm-10-001",
+            "id-01-001",
+            "protocol-vm",
+            "foundation-vm",
+        } <= ids
+
     def test_every_in_page_target_is_a_unique_heading_id(
         self, full_page: _FullPage
     ):
@@ -335,6 +374,13 @@ class TestAssembledFullPage:
         assert not sorted(targets - ids), "dead in-page anchors"
         duplicated = sorted(t for t in targets if f"{t}_1" in ids)
         assert not duplicated, f"ambiguous in-page anchors: {duplicated}"
+
+
+def test_catalog_subdir_matches_the_placement_table():
+    """The hook restates the catalog's directory; the two must agree."""
+    assert (
+        f"reference/vultron-spec/{CATALOG_SUBDIR}".rstrip("/") == CATALOG_DIR
+    )
 
 
 def test_full_page_source_exists():

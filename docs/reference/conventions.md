@@ -90,7 +90,7 @@ The badge names the kind of page, not whether it states requirements; the banner
 ## Normative and non-normative pages
 
 Not everything in this documentation about the Vultron Protocol is a normative requirement.
-The normative text is the [Vultron Protocol Specification](vultron-spec/index.md) together with the [Protocol](specs/protocol.md) and [Foundation](specs/foundation.md) requirement pages.
+The normative text is the [Vultron Protocol Specification](vultron-spec/index.md), whose [§14 Requirements Catalog](vultron-spec/requirements/index.md) holds the `protocol` and `foundation` requirements.
 Three banners say where a page stands relative to it.
 
 !!! info "Recognizing normative pages"

@@ -22,9 +22,9 @@ It assumes you know how the case history is kept ([The CASE_MANAGER and the Case
 
 ## Authority is a role
 
-Every case has exactly one actor that holds the `CASE_MANAGER` role ([CM-02-001](../../reference/specs/protocol.md#cm-02-001)).
+Every case has exactly one actor that holds the `CASE_MANAGER` role ([CM-02-001](../../reference/vultron-spec/requirements/case-management.md#cm-02-001)).
 That actor, the [CASE_MANAGER](case_manager_and_ledger.md), is the single writer of the case history.
-It is the only node whose record of the case is authoritative ([CM-02-002](../../reference/specs/protocol.md#cm-02-002)).
+It is the only node whose record of the case is authoritative ([CM-02-002](../../reference/vultron-spec/requirements/case-management.md#cm-02-002)).
 
 An actor is the authority for a case if and only if it holds the `CASE_MANAGER` role in that case's participant list ([CM-02-011](../../reference/specs/architecture.md#cm-02-011)).
 Authority does not come from where an actor is hosted, from its name, or from the shape of its URL.
@@ -35,13 +35,13 @@ Your node must not treat either as evidence of authority ([ARCH-24-004](../../re
 Read the role.
 
 A case never lacks a CASE_MANAGER.
-The role is assigned when the case is created, and a delegation hands it on without a gap ([CM-24-006](../../reference/specs/protocol.md#cm-24-006)).
+The role is assigned when the case is created, and a delegation hands it on without a gap ([CM-24-006](../../reference/vultron-spec/requirements/case-management.md#cm-24-006)).
 So a node that finds no CASE_MANAGER for a case has found a corrupt participant list, not a case that runs without one.
 It stops and reports the fault.
 It does not fall back to sending a message directly.
 
 The `CASE_MANAGER` role is not the `CASE_OWNER` role.
-The **Case Owner** is the participant whose disclosure decision the case exists to serve: the report receiver whose proposal caused the case to exist ([CBT-01-003](../../reference/specs/protocol.md#cbt-01-003)).
+The **Case Owner** is the participant whose disclosure decision the case exists to serve: the report receiver whose proposal caused the case to exist ([CBT-01-003](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-003)).
 The CASE_MANAGER writes the history.
 The Case Owner decides.
 The Case Owner role is never delegated to the CASE_MANAGER, though it can move to another participant by [ownership transfer](ownership_transfer.md).
@@ -58,11 +58,11 @@ What it accepts depends on who sent the assertion and what the assertion is abou
 ### Participant status is self-declared
 
 Each participant reports its own Report Management (RM) state and its own Vendor fix path (VFD) state.
-No other participant approves the report ([PRM-06-001](../../reference/specs/protocol.md#prm-06-001), [ADR-0121](../../adr/0121-joined-participant-judges-the-case-by-full-case-invite.md)).
+No other participant approves the report ([PRM-06-001](../../reference/vultron-spec/requirements/case-management.md#prm-06-001), [ADR-0121](../../adr/0121-joined-participant-judges-the-case-by-full-case-invite.md)).
 That is why these are *participant* status items: they are what the participant says about itself.
 
 There is one write about a participant that the participant does not make: its creation.
-When the CASE_MANAGER invites an actor, it creates that actor's participant record at RM `RECEIVED` ([CM-11-006](../../reference/specs/protocol.md#cm-11-006)).
+When the CASE_MANAGER invites an actor, it creates that actor's participant record at RM `RECEIVED` ([CM-11-006](../../reference/vultron-spec/requirements/case-management.md#cm-11-006)).
 The record is inert until the invitee accepts.
 
 ### Two narrow on-behalf exceptions
@@ -72,17 +72,17 @@ For two of them, the CASE_MANAGER or the Case Owner may assert the change on the
 
 | Change | Who may assert it on another's behalf | When |
 |---|---|---|
-| `v → V`, the Vendor is aware | The CASE_MANAGER or the Case Owner | The notification is evidenced: any acknowledgment from the Vendor, even a read receipt of its invitation ([PRM-06-003](../../reference/specs/protocol.md#prm-06-003)). The write does not change the Vendor's RM state |
-| `d → D`, the fix is deployed | The CASE_MANAGER or the Case Owner | The same evidenced pattern, and rarely — for example, a Deployer that joined and has since gone quiet ([PRM-06-004](../../reference/specs/protocol.md#prm-06-004)). The write succeeds only when the Deployer's RM state is consistent with deployment |
-| `f → F`, the fix is ready | Nobody | Fix readiness is not knowable from outside the Vendor, so only the Vendor asserts it ([PRM-06-005](../../reference/specs/protocol.md#prm-06-005)) |
+| `v → V`, the Vendor is aware | The CASE_MANAGER or the Case Owner | The notification is evidenced: any acknowledgment from the Vendor, even a read receipt of its invitation ([PRM-06-003](../../reference/vultron-spec/requirements/case-management.md#prm-06-003)). The write does not change the Vendor's RM state |
+| `d → D`, the fix is deployed | The CASE_MANAGER or the Case Owner | The same evidenced pattern, and rarely — for example, a Deployer that joined and has since gone quiet ([PRM-06-004](../../reference/vultron-spec/requirements/case-management.md#prm-06-004)). The write succeeds only when the Deployer's RM state is consistent with deployment |
+| `f → F`, the fix is ready | Nobody | Fix readiness is not knowable from outside the Vendor, so only the Vendor asserts it ([PRM-06-005](../../reference/vultron-spec/requirements/case-management.md#prm-06-005)) |
 
 An on-behalf assertion targets an existing participant only.
-One whose target is not a participant in the case is refused before any write, and it never creates a participant ([PRM-06-006](../../reference/specs/protocol.md#prm-06-006)).
+One whose target is not a participant in the case is refused before any write, and it never creates a participant ([PRM-06-006](../../reference/vultron-spec/requirements/case-management.md#prm-06-006)).
 A status update is not a way into a case.
 An actor joins a case only through the invitation flow.
 
 A Vendor that takes part in a case is, by definition, aware of it.
-So a Vendor never reports itself as unaware: its valid fix-path reports are `Vf` and `VF` ([PRM-06-002](../../reference/specs/protocol.md#prm-06-002)).
+So a Vendor never reports itself as unaware: its valid fix-path reports are `Vf` and `VF` ([PRM-06-002](../../reference/vultron-spec/requirements/case-management.md#prm-06-002)).
 The only `v` a Vendor participant carries is the one the CASE_MANAGER writes when the invitation creates its record.
 Any reply to that invitation sets `V`.
 The on-behalf `v → V` assertion exists for the case in between: an invited Vendor that has acknowledged the invitation but not yet answered it.
@@ -90,28 +90,28 @@ The on-behalf `v → V` assertion exists for the case in between: an invited Ven
 ### Decisions about the case need the Case Owner
 
 Changes to who is in the case, what roles they hold, and whether the case continues are not self-declared.
-They are the Case Owner's decisions, carried out by the CASE_MANAGER ([CM-02-005](../../reference/specs/protocol.md#cm-02-005)).
+They are the Case Owner's decisions, carried out by the CASE_MANAGER ([CM-02-005](../../reference/vultron-spec/requirements/case-management.md#cm-02-005)).
 
 | Decision | Who decides |
 |---|---|
-| Admitting an actor to the case | The Case Owner approves or rejects each invitation. Another participant may only recommend an actor ([CM-16-019](../../reference/specs/protocol.md#cm-16-019)) |
+| Admitting an actor to the case | The Case Owner approves or rejects each invitation. Another participant may only recommend an actor ([CM-16-019](../../reference/vultron-spec/requirements/case-management.md#cm-16-019)) |
 | Granting a role | The Case Owner, through a role offer the receiving actor accepts ([§12.1 Role Assignment](../../reference/vultron-spec/interactions.md#121-role-assignment-n)) |
-| Removing or reinstating a participant | The Case Owner only ([CM-31-004](../../reference/specs/protocol.md#cm-31-004)) |
-| Transferring ownership | Only the Case Owner may offer ([CM-21-019](../../reference/specs/protocol.md#cm-21-019)), and only to an active participant. Only the named transferee may accept ([CM-21-011](../../reference/specs/protocol.md#cm-21-011)), and only while it is still an active participant ([CM-21-021](../../reference/specs/protocol.md#cm-21-021)) |
-| Activating or ending an embargo | The Case Owner ([CM-02-005](../../reference/specs/protocol.md#cm-02-005)) |
+| Removing or reinstating a participant | The Case Owner only ([CM-31-004](../../reference/vultron-spec/requirements/case-management.md#cm-31-004)) |
+| Transferring ownership | Only the Case Owner may offer ([CM-21-019](../../reference/vultron-spec/requirements/case-management.md#cm-21-019)), and only to an active participant. Only the named transferee may accept ([CM-21-011](../../reference/vultron-spec/requirements/case-management.md#cm-21-011)), and only while it is still an active participant ([CM-21-021](../../reference/vultron-spec/requirements/case-management.md#cm-21-021)) |
+| Activating or ending an embargo | The Case Owner ([CM-02-005](../../reference/vultron-spec/requirements/case-management.md#cm-02-005)) |
 | Closing the case | The Case Owner, by leaving it (see [Closing a case](#closing-a-case-is-a-hard-write-boundary)) |
 
-What a participant may do is the union of what each of its roles permits ([CM-26-001](../../reference/specs/protocol.md#cm-26-001)).
+What a participant may do is the union of what each of its roles permits ([CM-26-001](../../reference/vultron-spec/requirements/case-management.md#cm-26-001)).
 A participant that holds both a Vendor role and the Case Owner role may do everything either role allows.
 
 ---
 
 ## Why every message goes through the CASE_MANAGER
 
-Once a case exists, a participant addresses every case-scoped message to the CASE_MANAGER and to nobody else ([PCR-08-001](../../reference/specs/protocol.md#pcr-08-001)).
+Once a case exists, a participant addresses every case-scoped message to the CASE_MANAGER and to nobody else ([PCR-08-001](../../reference/vultron-spec/requirements/ledger-replication.md#pcr-08-001)).
 That covers notes, status updates, embargo proposals, and every other message about the case.
 The CASE_MANAGER judges it, records the outcome in the ledger, and sends the new ledger entry to every active participant.
-That fan-out is the only way a participant learns of an admitted change ([PCR-08-003](../../reference/specs/protocol.md#pcr-08-003), [§10.2 Routing Topology](../../reference/vultron-spec/interactions.md#102-routing-topology)).
+That fan-out is the only way a participant learns of an admitted change ([PCR-08-003](../../reference/vultron-spec/requirements/ledger-replication.md#pcr-08-003), [§10.2 Routing Topology](../../reference/vultron-spec/interactions.md#102-routing-topology)).
 
 ```mermaid
 ---
@@ -149,10 +149,10 @@ Everything after those two messages goes through the CASE_MANAGER.
 
 One participant asks for some messages, but the CASE_MANAGER sends them.
 For these messages, the protocol requires the CASE_MANAGER to be the recognized sender.
-An invitation to join the case is the main example ([PCR-08-007](../../reference/specs/protocol.md#pcr-08-007)).
+An invitation to join the case is the main example ([PCR-08-007](../../reference/vultron-spec/requirements/ledger-replication.md#pcr-08-007)).
 The Case Owner asks, and the CASE_MANAGER sends.
 
-A message sent this way names the CASE_MANAGER as its `actor` and the participant who asked as its `attributedTo` ([CM-24-001](../../reference/specs/protocol.md#cm-24-001), [CM-24-002](../../reference/specs/protocol.md#cm-24-002)).
+A message sent this way names the CASE_MANAGER as its `actor` and the participant who asked as its `attributedTo` ([CM-24-001](../../reference/vultron-spec/requirements/case-management.md#cm-24-001), [CM-24-002](../../reference/vultron-spec/requirements/case-management.md#cm-24-002)).
 A receiver then knows both who sent the message and who wanted it sent.
 
 A node sends only as the actors it hosts ([ADR-0109](../../adr/0109-a-container-emits-only-as-actors-it-hosts.md)).
@@ -162,7 +162,7 @@ It sends its own request to the CASE_MANAGER, and the CASE_MANAGER sends the inv
 ### Who receives a broadcast
 
 Being on the participant list does not entitle a participant to the case content.
-The CASE_MANAGER sends case content only to **active participants** ([CM-10-004](../../reference/specs/protocol.md#cm-10-004), [ADR-0114](../../adr/0114-joining-a-case-stub-invite-inert-participant.md)).
+The CASE_MANAGER sends case content only to **active participants** ([CM-10-004](../../reference/vultron-spec/requirements/case-management.md#cm-10-004), [ADR-0114](../../adr/0114-joining-a-case-stub-invite-inert-participant.md)).
 
 An active participant was seated when the case was created or accepted its invitation, and has not been removed.
 While an embargo is active, it has also agreed to that embargo.
@@ -183,10 +183,10 @@ A node that receives a message meant for the CASE_MANAGER, but does not hold the
 It does not treat the message as a harmless duplicate.
 
 The second check is about the sender: *may this sender make this assertion?*
-The first check tells nothing about the second ([HP-01-006](../../reference/specs/protocol.md#hp-01-006), [ADR-0115](../../adr/0115-received-handlers-check-sender-entitlement.md)).
+The first check tells nothing about the second ([HP-01-006](../../reference/vultron-spec/requirements/message-processing.md#hp-01-006), [ADR-0115](../../adr/0115-received-handlers-check-sender-entitlement.md)).
 
 Each kind of message has its own sender rule.
-The CASE_MANAGER admits a reply to an invitation only from the actor that the invitation named ([CM-11-017](../../reference/specs/protocol.md#cm-11-017)).
+The CASE_MANAGER admits a reply to an invitation only from the actor that the invitation named ([CM-11-017](../../reference/vultron-spec/requirements/case-management.md#cm-11-017)).
 It accepts a reply to an ownership offer only from the named transferee.
 It accepts a request to remove a participant only from the Case Owner.
 
@@ -195,10 +195,10 @@ The copy of that request that the sender puts in its reply never does.
 Otherwise a sender could write itself into a request that the CASE_MANAGER never sent.
 
 A participant's replica applies the matching rule from the other side.
-It accepts a change to the case only when the CASE_MANAGER for that case sent it ([PCR-03-001](../../reference/specs/protocol.md#pcr-03-001)).
+It accepts a change to the case only when the CASE_MANAGER for that case sent it ([PCR-03-001](../../reference/vultron-spec/requirements/ledger-replication.md#pcr-03-001)).
 The Case Owner's own node follows the same rule.
 It does not write its own changes into its replica.
-It sends them to the CASE_MANAGER and waits for the ledger entry ([PCR-03-002](../../reference/specs/protocol.md#pcr-03-002), [PCR-03-006](../../reference/specs/protocol.md#pcr-03-006)).
+It sends them to the CASE_MANAGER and waits for the ledger entry ([PCR-03-002](../../reference/vultron-spec/requirements/ledger-replication.md#pcr-03-002), [PCR-03-006](../../reference/vultron-spec/requirements/ledger-replication.md#pcr-03-006)).
 
 ---
 
@@ -214,7 +214,7 @@ We call the local record of that relationship a **trust anchor**.
 A participant accepts the CASE_MANAGER for a case only when a trust anchor it wrote itself names that actor.
 
 Transport security does not replace the bootstrap.
-An authenticated or encrypted message proves who sent it, but not that the sender holds authority for this case ([CBT-02-002](../../reference/specs/protocol.md#cbt-02-002)).
+An authenticated or encrypted message proves who sent it, but not that the sender holds authority for this case ([CBT-02-002](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-02-002)).
 
 There are two bootstrap paths, one for each way a participant can come to a case.
 
@@ -227,39 +227,39 @@ Each of the first two has its own trust anchor.
 
 | Participant | What it already knows | What it checks |
 |---|---|---|
-| Report receiver (Case Owner) | The actor it sent its case proposal to | It acts on the reply to the proposal, and on the bootstrap, only when that actor sent it ([CP-06-005](../../reference/specs/protocol.md#cp-06-005)) |
-| Reporter | The report it submitted, and the actor it submitted it to | The bootstrap must reference that report and come from that actor ([CBT-01-005](../../reference/specs/protocol.md#cbt-01-005)) |
+| Report receiver (Case Owner) | The actor it sent its case proposal to | It acts on the reply to the proposal, and on the bootstrap, only when that actor sent it ([CP-06-005](../../reference/vultron-spec/requirements/case-management.md#cp-06-005)) |
+| Reporter | The report it submitted, and the actor it submitted it to | The bootstrap must reference that report and come from that actor ([CBT-01-005](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-005)) |
 
-The bootstrap is a one-time `Create(VulnerabilityCase)` message ([CBT-01-001](../../reference/specs/protocol.md#cbt-01-001)).
-It carries the whole case and every participant record, inline or by reference ([CBT-01-002](../../reference/specs/protocol.md#cbt-01-002), [CBT-01-007](../../reference/specs/protocol.md#cbt-01-007)).
+The bootstrap is a one-time `Create(VulnerabilityCase)` message ([CBT-01-001](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-001)).
+It carries the whole case and every participant record, inline or by reference ([CBT-01-002](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-002), [CBT-01-007](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-007)).
 The reference implementation embeds them in full rather than as bare links, because it fetches only a few objects by reference ([CBT-01-012](../../reference/specs/project.md#cbt-01-012)).
-It names the Case Owner and the CASE_MANAGER as distinct participants ([CBT-01-003](../../reference/specs/protocol.md#cbt-01-003)).
-It includes the reporter at RM `ACCEPTED`, set directly ([CBT-01-008](../../reference/specs/protocol.md#cbt-01-008)).
+It names the Case Owner and the CASE_MANAGER as distinct participants ([CBT-01-003](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-003)).
+It includes the reporter at RM `ACCEPTED`, set directly ([CBT-01-008](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-008)).
 
 A receiver that finds a required participant missing rejects the whole bootstrap.
-It does not fill the gap from what it thinks the participant should be ([CBT-05-008](../../reference/specs/protocol.md#cbt-05-008)).
+It does not fill the gap from what it thinks the participant should be ([CBT-05-008](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-05-008)).
 The reference implementation also counts a participant present only as a bare link as missing, because it does not fetch it ([CBT-05-009](../../reference/specs/project.md#cbt-05-009)).
 
 The report receiver, not the CASE_MANAGER, sends the reporter's bootstrap ([ADR-0132](../../adr/0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md)).
-The CASE_MANAGER sends its own `Create(VulnerabilityCase)` to the Case Owner only ([CBT-01-010](../../reference/specs/protocol.md#cbt-01-010)).
+The CASE_MANAGER sends its own `Create(VulnerabilityCase)` to the Case Owner only ([CBT-01-010](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-010)).
 The report receiver then sends the reporter a `Create(VulnerabilityCase)` as itself, and that message names the CASE_MANAGER the receiver delegated to.
 The reporter never addressed the CASE_MANAGER, so it trusts the introduction because it came from the actor the reporter chose.
 
 A case snapshot that names its own sender as CASE_MANAGER is never an anchor.
-A participant refuses a bootstrap from an actor that no record it wrote names, and stores nothing from it ([CBT-01-011](../../reference/specs/protocol.md#cbt-01-011)).
+A participant refuses a bootstrap from an actor that no record it wrote names, and stores nothing from it ([CBT-01-011](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-011)).
 When the Case Owner also holds the `CASE_MANAGER` role, the reporter gets only the receiver's message.
 
 After it accepts the bootstrap, a participant stores three things together.
-They are the case that its report became, the actor that created the case, and the actor that is the CASE_MANAGER ([CBT-01-006](../../reference/specs/protocol.md#cbt-01-006)).
+They are the case that its report became, the actor that created the case, and the actor that is the CASE_MANAGER ([CBT-01-006](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-006)).
 Those records are its trust anchor for the case from then on.
-Later full-case updates arrive as `Announce(VulnerabilityCase)` from that CASE_MANAGER, not as further `Create` messages ([CBT-02-001](../../reference/specs/protocol.md#cbt-02-001)).
+Later full-case updates arrive as `Announce(VulnerabilityCase)` from that CASE_MANAGER, not as further `Create` messages ([CBT-02-001](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-02-001)).
 
 Ordinary case traffic cannot replace the trusted CASE_MANAGER.
-A different actor becomes the CASE_MANAGER only through an explicit delegation the case records ([CBT-02-003](../../reference/specs/protocol.md#cbt-02-003)).
+A different actor becomes the CASE_MANAGER only through an explicit delegation the case records ([CBT-02-003](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-02-003)).
 
 A reporter may offer one report to several recipients, for example when the first one does not answer.
 Each recipient that creates a case sends its own bootstrap.
-The reporter checks each one against the recipient that sent it, and accepting one does not affect whether it accepts another ([CBT-06-002](../../reference/specs/protocol.md#cbt-06-002)).
+The reporter checks each one against the recipient that sent it, and accepting one does not affect whether it accepts another ([CBT-06-002](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-06-002)).
 
 ### A participant that joins later
 
@@ -286,13 +286,13 @@ sequenceDiagram
 The sequence shows the invitation creating the trust anchor before any case content reaches the invitee.
 
 The Case Owner asks the CASE_MANAGER to invite the actor.
-The CASE_MANAGER sends the invitation, which identifies both the case and the CASE_MANAGER ([CBT-04-001](../../reference/specs/protocol.md#cbt-04-001), [CBT-04-002](../../reference/specs/protocol.md#cbt-04-002)).
-The invitee records the CASE_MANAGER that the invitation names and replies to it, not to the Case Owner ([PCR-08-008](../../reference/specs/protocol.md#pcr-08-008)).
-When it accepts, the CASE_MANAGER sends the case snapshot and the earlier ledger entries without waiting for anything else ([CM-11-008](../../reference/specs/protocol.md#cm-11-008)).
-No separate `Create` bootstrap is needed, because the invitation already did that job ([CBT-04-003](../../reference/specs/protocol.md#cbt-04-003)).
+The CASE_MANAGER sends the invitation, which identifies both the case and the CASE_MANAGER ([CBT-04-001](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-04-001), [CBT-04-002](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-04-002)).
+The invitee records the CASE_MANAGER that the invitation names and replies to it, not to the Case Owner ([PCR-08-008](../../reference/vultron-spec/requirements/ledger-replication.md#pcr-08-008)).
+When it accepts, the CASE_MANAGER sends the case snapshot and the earlier ledger entries without waiting for anything else ([CM-11-008](../../reference/vultron-spec/requirements/case-management.md#cm-11-008)).
+No separate `Create` bootstrap is needed, because the invitation already did that job ([CBT-04-003](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-04-003)).
 
 Until the invitee accepts, a later invitation for the same case that names a different CASE_MANAGER replaces the recorded one.
-After the invitee accepts, the invitee refuses such an invitation and keeps the CASE_MANAGER it accepted ([PCR-03-004](../../reference/specs/protocol.md#pcr-03-004)).
+After the invitee accepts, the invitee refuses such an invitation and keeps the CASE_MANAGER it accepted ([PCR-03-004](../../reference/vultron-spec/requirements/ledger-replication.md#pcr-03-004)).
 So a forged invitation cannot stop the invitee from joining when the real invitation follows.
 The invitee cannot yet tell a forged invitation from a real one, so if it accepts a forged invitation first, the forger stays recorded.
 
@@ -304,14 +304,14 @@ That is a check against tampering and gaps, not a second source of trust.
 Messages can arrive in any order.
 A message from a CASE_MANAGER can reach a participant before the bootstrap that would make it trusted.
 
-The participant holds such a message for a short time and does not apply it ([CBT-03-001](../../reference/specs/protocol.md#cbt-03-001), [CBT-03-002](../../reference/specs/protocol.md#cbt-03-002)).
-Holding a message does not make its sender trusted: only an invitation or the bootstrap creates a trust anchor ([PCR-03-004](../../reference/specs/protocol.md#pcr-03-004)).
+The participant holds such a message for a short time and does not apply it ([CBT-03-001](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-03-001), [CBT-03-002](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-03-002)).
+Holding a message does not make its sender trusted: only an invitation or the bootstrap creates a trust anchor ([PCR-03-004](../../reference/vultron-spec/requirements/ledger-replication.md#pcr-03-004)).
 If the bootstrap arrives in time, normal checks resume.
-If it does not, the participant drops the held message ([CBT-03-003](../../reference/specs/protocol.md#cbt-03-003)).
+If it does not, the participant drops the held message ([CBT-03-003](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-03-003)).
 
 The reference implementation logs a warning when it drops one ([CBT-03-006](../../reference/specs/project.md#cbt-03-006)).
 The participant does not ask for the dropped message again.
-Once a case copy seeds its replica, it states its ledger position to the CASE_MANAGER ([SYNC-17-008](../../reference/specs/protocol.md#sync-17-008)).
+Once a case copy seeds its replica, it states its ledger position to the CASE_MANAGER ([SYNC-17-008](../../reference/vultron-spec/requirements/ledger-replication.md#sync-17-008)).
 That tells the CASE_MANAGER the replica is ready, and the CASE_MANAGER resends any Invite the participant has not answered ([ADR-0163](../../adr/0163-the-case-manager-resends-an-unanswered-invite-when-its-addressee-states-a-ledger-position.md)).
 The reference implementation holds a message for 300 seconds by default ([CBT-03-005](../../reference/specs/project.md#cbt-03-005)).
 
@@ -326,7 +326,7 @@ Refusing every early message would make delivery order part of protocol correctn
 A missing trust check at this step does the most harm.
 The seeded copy is the replica that the participant checks all later changes against.
 
-A participant must not create a replica from an `Announce(VulnerabilityCase)` unless it already has a trust anchor for that case ([PCR-03-004](../../reference/specs/protocol.md#pcr-03-004)).
+A participant must not create a replica from an `Announce(VulnerabilityCase)` unless it already has a trust anchor for that case ([PCR-03-004](../../reference/vultron-spec/requirements/ledger-replication.md#pcr-03-004)).
 One of two things must already be true:
 
 1. It accepted a bootstrap `Create(VulnerabilityCase)` that introduced the CASE_MANAGER, as described above.
@@ -346,7 +346,7 @@ That is why every trust anchor is written locally, by the participant, from a me
 
 ### Rules for the invitation anchor
 
-The invitation path has three rules, because an invitation is itself a message from an actor the invitee does not yet trust ([PCR-03-004](../../reference/specs/protocol.md#pcr-03-004)).
+The invitation path has three rules, because an invitation is itself a message from an actor the invitee does not yet trust ([PCR-03-004](../../reference/vultron-spec/requirements/ledger-replication.md#pcr-03-004)).
 
 | Rule | What it prevents |
 |---|---|
@@ -359,9 +359,9 @@ Whether the named CASE_MANAGER is genuine cannot be proved until actors sign the
 
 ### Messages for a case the participant does not hold
 
-A message about a case the participant has no replica for is not discarded ([PCR-06-001](../../reference/specs/protocol.md#pcr-06-001)).
-The participant holds it briefly and asks the CASE_MANAGER for the case snapshot ([PCR-06-002](../../reference/specs/protocol.md#pcr-06-002)).
-It applies nothing from the message until a trusted replica exists ([PCR-06-003](../../reference/specs/protocol.md#pcr-06-003)).
+A message about a case the participant has no replica for is not discarded ([PCR-06-001](../../reference/vultron-spec/requirements/ledger-replication.md#pcr-06-001)).
+The participant holds it briefly and asks the CASE_MANAGER for the case snapshot ([PCR-06-002](../../reference/vultron-spec/requirements/ledger-replication.md#pcr-06-002)).
+It applies nothing from the message until a trusted replica exists ([PCR-06-003](../../reference/vultron-spec/requirements/ledger-replication.md#pcr-06-003)).
 A node that hosts several actors holds these messages separately for each actor ([PCR-06-004](../../reference/specs/project.md#pcr-06-004)).
 Then a case seeded for one actor never receives messages held for another.
 
@@ -373,10 +373,10 @@ A reporter submits a report before any case exists.
 Later, case traffic arrives that refers to a case, not to the report.
 The reporter needs to know that the two belong together.
 
-So every actor keeps a record, for each report it submitted, of the case that report became ([PCR-05-001](../../reference/specs/protocol.md#pcr-05-001)).
+So every actor keeps a record, for each report it submitted, of the case that report became ([PCR-05-001](../../reference/vultron-spec/requirements/ledger-replication.md#pcr-05-001)).
 The record starts empty when the report is submitted.
-The bootstrap fills it, together with the trust anchors described above ([CBT-01-006](../../reference/specs/protocol.md#cbt-01-006)).
-An `Announce(VulnerabilityCase)` also fills it: when the announced case lists a report the actor submitted, the actor links its replica to that report ([PCR-05-002](../../reference/specs/protocol.md#pcr-05-002)).
+The bootstrap fills it, together with the trust anchors described above ([CBT-01-006](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-006)).
+An `Announce(VulnerabilityCase)` also fills it: when the announced case lists a report the actor submitted, the actor links its replica to that report ([PCR-05-002](../../reference/vultron-spec/requirements/ledger-replication.md#pcr-05-002)).
 
 The link is made only after the message has passed the sender check.
 A case from an untrusted sender is refused before any link is written, so an untrusted actor cannot claim someone else's report.
@@ -385,7 +385,7 @@ The link does three jobs.
 It lets a reporter see what became of each report it sent.
 It lets the reporter recognize later traffic about the case as the consequence of its own submission.
 It holds the identity of the CASE_MANAGER that later announcements must come from.
-When one report went to several recipients, each recipient's case is linked separately ([CBT-06-002](../../reference/specs/protocol.md#cbt-06-002)).
+When one report went to several recipients, each recipient's case is linked separately ([CBT-06-002](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-06-002)).
 
 ---
 
@@ -396,10 +396,10 @@ Other participants leave too, but only the Case Owner's departure closes the cas
 
 ### What happens when the Case Owner leaves
 
-The CASE_MANAGER runs one fixed sequence when it receives the Case Owner's `Leave(VulnerabilityCase)` ([CM-23-002](../../reference/specs/protocol.md#cm-23-002)).
+The CASE_MANAGER runs one fixed sequence when it receives the Case Owner's `Leave(VulnerabilityCase)` ([CM-23-002](../../reference/vultron-spec/requirements/case-management.md#cm-23-002)).
 
 1. It records the departure in the ledger.
-2. It expires every embargo invitation still waiting for an answer ([CM-23-014](../../reference/specs/protocol.md#cm-23-014)).
+2. It expires every embargo invitation still waiting for an answer ([CM-23-014](../../reference/vultron-spec/requirements/case-management.md#cm-23-014)).
 3. It moves the Case Owner to RM `CLOSED`, recording each step.
 4. It moves its own participant record to RM `CLOSED`, recording each step.
    Its own status entry that reaches RM `CLOSED` is the last entry of the close, and it marks the boundary.
@@ -407,18 +407,18 @@ The CASE_MANAGER runs one fixed sequence when it receives the Case Owner's `Leav
 It sends each of these entries to every active participant that has not already left.
 No separate entry marks the closure, because every node that holds the case and its ledger can already see it ([ADR-0152](../../adr/0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md)).
 
-The CASE_MANAGER declines the close with a `Reject` while an embargo is still active ([CM-23-011](../../reference/specs/protocol.md#cm-23-011)).
+The CASE_MANAGER declines the close with a `Reject` while an embargo is still active ([CM-23-011](../../reference/vultron-spec/requirements/case-management.md#cm-23-011)).
 It records nothing for the declined close.
 The Case Owner must end the embargo first and then leave again.
 
 Closing the case does not close every participant.
 Only the Case Owner and the CASE_MANAGER move to RM `CLOSED`.
-Every other participant keeps the RM state it last reported ([CM-23-012](../../reference/specs/protocol.md#cm-23-012)).
+Every other participant keeps the RM state it last reported ([CM-23-012](../../reference/vultron-spec/requirements/case-management.md#cm-23-012)).
 A participant's RM state is its own report about itself, and closing the case around it does not change that report.
 
 ### After the boundary, nothing is recorded
 
-Once its own RM `CLOSED` status entry is in the ledger, the CASE_MANAGER treats the case as if its process had exited ([CM-23-013](../../reference/specs/protocol.md#cm-23-013), [ADR-0085](../../adr/0085-case-lifecycle-boundaries.md)).
+Once its own RM `CLOSED` status entry is in the ledger, the CASE_MANAGER treats the case as if its process had exited ([CM-23-013](../../reference/vultron-spec/requirements/case-management.md#cm-23-013), [ADR-0085](../../adr/0085-case-lifecycle-boundaries.md)).
 For any inbound message about the case, it records no ledger entry and changes no state.
 That applies to every kind of message: notes, status updates, embargo messages, and departures alike.
 It is a kill switch, not a filter.
@@ -428,7 +428,7 @@ Suppose some kinds of message were still accepted after close.
 Then every implementation would draw the line in a different place, and the history of a closed case would keep growing.
 
 The CASE_MANAGER may reply to a late message with `Reject`, or send nothing.
-A participant must not rely on getting a reply ([CM-23-013](../../reference/specs/protocol.md#cm-23-013)).
+A participant must not rely on getting a reply ([CM-23-013](../../reference/vultron-spec/requirements/case-management.md#cm-23-013)).
 The reference implementation sends nothing by default ([ADR-0131](../../adr/0131-post-close-traffic-is-dropped-and-only-a-late-leave-may-be-answered.md)).
 A setting lets it answer a late `Leave(VulnerabilityCase)` with `Reject(Leave(VulnerabilityCase))`, and every other late message is still dropped without a reply.
 
@@ -438,33 +438,33 @@ A sender that received one after close would read it as an answer to its request
 `Reject(Leave)` already means "close declined", so it cannot be misread.
 
 A new case proposal is not a late message about the case, because it names a report, not a case.
-When a proposal resolves to a closed case, the CASE_MANAGER answers it with `Reject(CaseProposal)` under either setting, and records nothing for the case ([CP-05-006](../../reference/specs/protocol.md#cp-05-006), [CP-05-008](../../reference/specs/protocol.md#cp-05-008)).
+When a proposal resolves to a closed case, the CASE_MANAGER answers it with `Reject(CaseProposal)` under either setting, and records nothing for the case ([CP-05-006](../../reference/vultron-spec/requirements/case-management.md#cp-05-006), [CP-05-008](../../reference/vultron-spec/requirements/case-management.md#cp-05-008)).
 That reply is a decision on the proposal, so it cannot be misread either.
 
 The boundary stops new writes, not reads.
-The CASE_MANAGER may still answer a participant's request for missing ledger entries, because sending entries the ledger already holds adds nothing to it ([CM-23-013](../../reference/specs/protocol.md#cm-23-013)).
+The CASE_MANAGER may still answer a participant's request for missing ledger entries, because sending entries the ledger already holds adds nothing to it ([CM-23-013](../../reference/vultron-spec/requirements/case-management.md#cm-23-013)).
 A replica that missed entries before the close can still catch up.
 How that catch-up works is the subject of [Case Ledger Synchronization](case_ledger_sync.md).
 
 The CASE_MANAGER's own RM `CLOSED` status entry marks the write boundary, not the end of the ledger.
-A node must not treat it as proof that it holds the complete history ([CM-23-002](../../reference/specs/protocol.md#cm-23-002)).
+A node must not treat it as proof that it holds the complete history ([CM-23-002](../../reference/vultron-spec/requirements/case-management.md#cm-23-002)).
 
 ### The Case Owner leaves last
 
 A participant's departure after the close is a write, and the CASE_MANAGER no longer records writes.
 So a participant that wants its own departure recorded must leave before the Case Owner does.
-For that reason the Case Owner should leave last, after the other participants have left ([CM-23-015](../../reference/specs/protocol.md#cm-23-015)).
+For that reason the Case Owner should leave last, after the other participants have left ([CM-23-015](../../reference/vultron-spec/requirements/case-management.md#cm-23-015)).
 
 ---
 
 ## Closed is terminal, so defer instead
 
 RM `CLOSED` has no way out.
-Once a participant reaches it, no further RM change is possible for that participant in that case ([RMB-14-006](../../reference/specs/protocol.md#rmb-14-006)).
+Once a participant reaches it, no further RM change is possible for that participant in that case ([RMB-14-006](../../reference/vultron-spec/requirements/state-behavior.md#rmb-14-006)).
 There is no rejoin: making `CLOSED` reversible would need a second lifecycle for one participant record, and the protocol does not define one ([ADR-0085](../../adr/0085-case-lifecycle-boundaries.md)).
 
 A participant whose closure is recorded also has no further say in the case.
-The CASE_MANAGER refuses every later activity from it, with two exceptions ([CM-23-018](../../reference/specs/protocol.md#cm-23-018)).
+The CASE_MANAGER refuses every later activity from it, with two exceptions ([CM-23-018](../../reference/vultron-spec/requirements/case-management.md#cm-23-018)).
 
 Its request for missing ledger entries is still answered, but only with the entries that record its own closure.
 A repeat of an act that closed it, such as a second `Leave(VulnerabilityCase)`, changes nothing, so the CASE_MANAGER reports it as skipped.
@@ -472,9 +472,9 @@ The Case Owner's second `Leave` is the exception while the case is not fully clo
 The Case Owner's `Leave` also closes the case, so a repeat completes a closure that a failed first delivery left unfinished.
 
 A `Close(Report)` closes no one once a case holds the report.
-The CASE_MANAGER refuses it from every sender, and the Case Owner closes the case with `Leave(VulnerabilityCase)` ([CM-23-019](../../reference/specs/protocol.md#cm-23-019)).
+The CASE_MANAGER refuses it from every sender, and the Case Owner closes the case with `Leave(VulnerabilityCase)` ([CM-23-019](../../reference/vultron-spec/requirements/case-management.md#cm-23-019)).
 
-A participant that expects to come back should move to RM `DEFERRED` instead ([RMB-14-007](../../reference/specs/protocol.md#rmb-14-007)).
+A participant that expects to come back should move to RM `DEFERRED` instead ([RMB-14-007](../../reference/vultron-spec/requirements/state-behavior.md#rmb-14-007)).
 `DEFERRED` can resume to `ACCEPTED` or go on to `CLOSED` later.
 `CLOSED` can do neither.
 Deferring is a pause, and closing is an exit.
@@ -511,4 +511,4 @@ When that case is to be closed, it closes through the same close path as any oth
 - [The Case Model](case_model.md) — the objects a case is made of and the roles participants hold
 - [§10.3 Case Bootstrap and the Trust Root](../../reference/vultron-spec/interactions.md#103-case-bootstrap-and-the-trust-root) — the normative statement of the trust root
 - [§10.2 Routing Topology](../../reference/vultron-spec/interactions.md#102-routing-topology) — the normative routing rule and its two exceptions
-- [Protocol specifications](../../reference/specs/protocol.md) — the requirements behind this page, including CBT, PCR, PRM, and CM-23
+- [Requirements Catalog](../../reference/vultron-spec/requirements/index.md) — the requirements behind this page, including CBT, PCR, PRM, and CM-23

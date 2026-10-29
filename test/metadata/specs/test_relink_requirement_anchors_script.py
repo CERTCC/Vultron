@@ -1,10 +1,9 @@
-"""Tests for ``scripts/relink_requirement_anchors.py``, mainly pass 2.
+"""Tests for the ``scripts/relink_requirement_anchors.py`` CLI.
 
-A spec renders only on its own kind's docs page (SR-09-001, SR-09-002), so a
-``kind:`` relabel moves its anchor and every prose link to the old page
-dangles. Pass 2 rewrites the page slug in any kind-page link to the page the
-anchor renders on; for a group or file whose items straddle pages, the page
-holding the most of them, with ``SpecKind`` order as the tie-break.
+The rewrite rules live in :mod:`vultron.metadata.docs.requirement_links` and
+are tested in ``test/metadata/docs/test_requirement_links.py``. These tests
+pin the CLI around them: it writes the rewritten files, reports what it did
+and what it did not know, and ``--check`` reports without writing.
 """
 
 from __future__ import annotations
@@ -40,87 +39,39 @@ def _item(spec_id: str, kind: str) -> dict:
         "id": spec_id,
         "priority": "MUST",
         "kind": kind,
-        "statement": f"{spec_id} MUST do the thing",
+        "statement": f"{spec_id} statement",
         "rationale": "Because testing.",
     }
 
 
+# VP is a file the real placement table puts on the vultron-protocol page.
 _SPECS = {
-    "id": "TST",
+    "id": "VP",
     "title": "Test",
     "description": "Test spec file",
     "scope": ["production"],
     "groups": [
         {
-            # two project items, one protocol: the group anchor renders on
-            # both pages (SR-09-002), so a link to either is left alone;
-            # TST-01-003 alone stays on protocol.md
-            "id": "TST-01",
-            "title": "Straddling group",
+            "id": "VP-01",
+            "title": "Group",
             "specs": [
-                _item("TST-01-001", "project"),
-                _item("TST-01-002", "project"),
-                _item("TST-01-003", "protocol"),
-            ],
-        },
-        {
-            "id": "TST-02",
-            "title": "Protocol group",
-            "specs": [_item("TST-02-001", "protocol")],
-        },
-        {
-            # an even split: SpecKind order breaks the tie toward project
-            "id": "TST-03",
-            "title": "Tied group",
-            "specs": [
-                _item("TST-03-001", "process"),
-                _item("TST-03-002", "project"),
-            ],
-        },
-        {
-            # a letter-suffixed ID (as LST-05-002b) is a requirement ID too
-            "id": "TST-04",
-            "title": "Suffixed group",
-            "specs": [
-                _item("TST-04-001", "protocol"),
-                _item("TST-04-001b", "project"),
+                _item("VP-01-001", "protocol"),
+                _item("VP-01-002", "project"),
             ],
         },
     ],
 }
 
 _DOC = """\
-Moved requirement: [TST-01-001](../specs/protocol.md#tst-01-001).
-Group with an item on this page stays: [TST-01](../specs/protocol.md#tst-01).
-File with an item on this page stays: [TST](../../reference/specs/protocol.md#tst).
-Still protocol: [TST-01-003](../specs/protocol.md#tst-01-003).
-Still protocol group: [TST-02](../specs/protocol.md#tst-02).
-Tied group from a page with none of its items: [TST-03](../specs/architecture.md#tst-03).
-Tied group from a page holding some of its items: [TST-03](../specs/process.md#tst-03).
-Not a spec anchor: [Overview](../specs/protocol.md#overview).
-Pass 1 then pass 2: [TST-01-002](../specs/protocol.md#tst-01).
-Split list: [TST-01-001, TST-01-003](../specs/protocol.md#tst-01).
-List naming another group stays: [TST-01-003, TST-02-001](../specs/protocol.md#tst-01).
-List with unknown IDs stays: [TST-01-001, TST-01-008, TST-01-009](../specs/protocol.md#tst-01).
-Suffix ID: [TST-04-001b](../specs/protocol.md#tst-04).
-Suffix ID in a list: [TST-04-001, TST-04-001b](../specs/protocol.md#tst-04).
+Moved: [VP-01-001](../reference/specs/protocol.md#vp-01-001).
+Split: [VP-01-001, VP-01-002](../reference/specs/protocol.md#vp-01).
+Unknown: [Overview](../reference/specs/project.md#overview).
 """
 
 _EXPECTED = """\
-Moved requirement: [TST-01-001](../specs/project.md#tst-01-001).
-Group with an item on this page stays: [TST-01](../specs/protocol.md#tst-01).
-File with an item on this page stays: [TST](../../reference/specs/protocol.md#tst).
-Still protocol: [TST-01-003](../specs/protocol.md#tst-01-003).
-Still protocol group: [TST-02](../specs/protocol.md#tst-02).
-Tied group from a page with none of its items: [TST-03](../specs/project.md#tst-03).
-Tied group from a page holding some of its items: [TST-03](../specs/process.md#tst-03).
-Not a spec anchor: [Overview](../specs/protocol.md#overview).
-Pass 1 then pass 2: [TST-01-002](../specs/project.md#tst-01-002).
-Split list: [TST-01-001](../specs/project.md#tst-01-001), [TST-01-003](../specs/protocol.md#tst-01-003).
-List naming another group stays: [TST-01-003, TST-02-001](../specs/protocol.md#tst-01).
-List with unknown IDs stays: [TST-01-001, TST-01-008, TST-01-009](../specs/protocol.md#tst-01).
-Suffix ID: [TST-04-001b](../specs/project.md#tst-04-001b).
-Suffix ID in a list: [TST-04-001](../specs/protocol.md#tst-04-001), [TST-04-001b](../specs/project.md#tst-04-001b).
+Moved: [VP-01-001](../reference/vultron-spec/requirements/vultron-protocol.md#vp-01-001).
+Split: [VP-01-001](../reference/vultron-spec/requirements/vultron-protocol.md#vp-01-001), [VP-01-002](../reference/specs/project.md#vp-01-002).
+Unknown: [Overview](../reference/specs/project.md#overview).
 """
 
 
@@ -128,7 +79,7 @@ Suffix ID in a list: [TST-04-001](../specs/protocol.md#tst-04-001), [TST-04-001b
 def tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     specs_dir = tmp_path / "specs"
     specs_dir.mkdir()
-    (specs_dir / "tst.yaml").write_text(yaml.dump(_SPECS), encoding="utf-8")
+    (specs_dir / "vp.yaml").write_text(yaml.dump(_SPECS), encoding="utf-8")
     docs_dir = tmp_path / "docs" / "topics"
     docs_dir.mkdir(parents=True)
     (docs_dir / "page.md").write_text(_DOC, encoding="utf-8")
@@ -144,20 +95,14 @@ def _page(tree: Path) -> str:
     return (tree / "docs" / "topics" / "page.md").read_text(encoding="utf-8")
 
 
-def test_reroutes_every_link_to_the_page_its_anchor_renders_on(tree, capsys):
+def test_rewrites_and_reports(tree, capsys):
     assert relink.main([]) == 0
     assert _page(tree) == _EXPECTED
     out = capsys.readouterr().out
     assert "unknown anchor left as-is: #overview (1)" in out
-    # every unknown ID in a list is reported, not just the first
-    assert "unknown requirement left as-is: TST-01-008 (1)" in out
-    assert "unknown requirement left as-is: TST-01-009 (1)" in out
-    # 6 pass-1 repoints (two single IDs, two two-ID lists split in two), 4
-    # of them moved to another page; 2 pass-2 reroutes
     assert (
-        "6 requirement link(s) repointed at their own anchor, 4 of them moved "
-        "to a different kind page; 2 link(s) moved to the page their anchor "
-        "renders on; 1 file(s) changed"
+        "2 requirement link(s) repointed at their own anchor; 1 link(s) "
+        "moved to the page their anchor renders on; 1 file(s) changed"
     ) in out
 
 
@@ -167,14 +112,3 @@ def test_check_reports_without_writing_then_passes_once_applied(tree):
     assert relink.main([]) == 0
     assert relink.main(["--check"]) == 0
     assert _page(tree) == _EXPECTED
-
-
-def test_rerouter_picks_the_majority_page_and_breaks_ties_in_kind_order(
-    tree,
-):
-    rerouter = relink._Rerouter(relink.load_registry())
-    assert rerouter._page_for("tst-01") == "project"
-    assert rerouter._page_for("tst-02") == "protocol"
-    assert rerouter._page_for("tst-03") == "project"
-    assert rerouter._page_for("tst") == "project"
-    assert rerouter._page_for("nope") is None

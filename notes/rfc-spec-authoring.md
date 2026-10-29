@@ -63,6 +63,15 @@ arrive with their host fragment.
 | `tracking-models.md` | Case Tracking Models | §6–§9 | `_full-page-tip.md`, `_rm-state-machine.md`, `_em-state-machine.md`, `_cs-dimensions.md`, `_pec-state-machine.md` |
 | `interactions.md` | Coordination, Interactions, and Lifecycle | §10–§12 | `_full-page-tip.md`, `_case-coordination.md`, `_model-interactions.md`, `_participant-lifecycle.md` |
 | `conformance.md` | Conformance | §13 Conformance | `_full-page-tip.md`, `_conformance/_intro.md`, `_conformance/_capability-sets.md`, `_conformance/_role-taxonomy.md`, `_conformance/_role-requirements.md`, `_conformance/_conformance-testing.md` |
+| `requirements/index.md` | Requirements Catalog | §14 Requirements Catalog (landing) | `_full-page-tip.md`, `_catalog/_intro.md` |
+| `requirements/vultron-protocol.md` | Vultron Protocol | §14.1 Vultron Protocol | `_full-page-tip.md`, `_catalog/_vultron-protocol.md` |
+| `requirements/messages.md` | Messages and Vocabulary | §14.2 Messages and Vocabulary | `_full-page-tip.md`, `_catalog/_messages.md` |
+| `requirements/state-behavior.md` | Report, Embargo and Case State Behavior | §14.3 Report, Embargo and Case State Behavior | `_full-page-tip.md`, `_catalog/_state-behavior.md` |
+| `requirements/case-management.md` | Case Management | §14.4 Case Management | `_full-page-tip.md`, `_catalog/_case-management.md` |
+| `requirements/ledger-replication.md` | Case Ledger and Replication | §14.5 Case Ledger and Replication | `_full-page-tip.md`, `_catalog/_ledger-replication.md` |
+| `requirements/message-processing.md` | Message Processing | §14.6 Message Processing | `_full-page-tip.md`, `_catalog/_message-processing.md` |
+| `requirements/transport-security.md` | Transport and Security | §14.7 Transport and Security | `_full-page-tip.md`, `_catalog/_transport-security.md` |
+| `requirements/foundation.md` | Inherited Requirements | §14.8 Inherited Requirements | `_full-page-tip.md`, `_catalog/_foundation.md` |
 | `considerations.md` | Considerations and References | §15–§17 | `_full-page-tip.md`, `_iana.md`, `_security.md`, `_references.md` |
 | `annex-a-single-vendor.md` | Annex A Worked Example: Single-Vendor CVD | Annex A | `_full-page-tip.md`, `_annex-a.md` |
 | `annex-b-multi-party.md` | Annex B Worked Example: Multi-Party CVD | Annex B | `_full-page-tip.md`, `_annex-b.md` |
@@ -80,6 +89,28 @@ arrive with their host fragment.
 links every body page, every annex page, `open-questions.md` and `full.md`, and
 `docs-site --check` holds it to linking each member.
 
+### The Requirements Catalog pages
+
+The catalog's pages sit in `requirements/`, the one subdirectory of pages, so
+the catalog is a nav group that opens on its own routing landing page,
+`requirements/index.md` (`contents: routing`, DF-11-005); `docs-site --check`
+holds it to linking each themed page, and `index.md` links them too. The pages
+are the placement table's: `CATALOG_PAGES` in
+`vultron/metadata/docs/requirement_catalog.py` gives each page's key, title,
+tier and requirement files, and its path is `requirements/<key>.md`. A new
+catalog page needs a table entry, a `_catalog/_<key>.md` fragment calling
+`render_catalog_page("<key>")`, the page shell, a nav entry, and an include in
+`full.md`.
+
+Each `_catalog/_<key>.md` fragment holds its `### 14.N` heading, a lead
+sentence and the exec block. The page includes it with `heading-offset=-1`, so
+the heading is `##` there and `###` under `## 14.` on `full.md`.
+`render_catalog_page` prints its file headings one level below that: `###` on
+the page and `####` on `full.md`, chosen from the page being built. The
+fragments link the catalog with `requirements/<page>.md#anchor`, which the
+`full.md` hook rewrites in-page like a same-directory link (`CATALOG_SUBDIR`
+in `full_page_links.py`).
+
 ### `full.md`, the all-in-one page
 
 `full.md` includes every section fragment in document order: the sequence the
@@ -94,9 +125,10 @@ are evaluated (ADR-0092).
 
 On `full.md` a cross-reference stays on the page. The MkDocs hook
 `vultron/metadata/docs/full_page_links.py` runs after `include-markdown` and
-rewrites each link to another page of the section that has a fragment to a bare
-`#fragment` link. Links without a fragment, `index.md` links and every other page
-are left unchanged, so no fragment is edited (#4092).
+rewrites each link to another page of the section, a catalog page included,
+that has a fragment to a bare `#fragment` link. Links without a fragment,
+`index.md` links and every other page are left unchanged, so no fragment is
+edited (#4092).
 
 ### The shared tip fragment
 
@@ -108,10 +140,11 @@ like any other, so its wording is changed in one place.
 
 In the Reference nav the Protocol Specification comes first after the Reference
 landing page, followed by Protocol Quick Reference, then Conformance Matrix. The
-section opens on `index.md`, then lists the six body pages by name, then an
-**Annexes** nav group with one entry per annex page and no index page of its
-own, then **Open Questions** last. Nav titles carry no `[N]`/`[I]` tag; the
-headings inside the fragments keep theirs.
+section opens on `index.md`, then lists the body pages by name, with a
+**Requirements Catalog** nav group after Conformance that opens on its own
+landing page, then an **Annexes** nav group with one entry per annex page and
+no index page of its own, then **Open Questions** last. Nav titles carry no
+`[N]`/`[I]` tag; the headings inside the fragments keep theirs.
 
 ---
 
@@ -275,8 +308,10 @@ Keep the current order; each alternative was measured and is worse:
   Actor appears only in an informative note, because it is one way to hold the
   role, not the protocol's (ADR-0158).
 - §13 Conformance before the back matter is correct per RFC 7322: conformance
-  is a body section. §15 IANA and Namespace Considerations precedes §16 Security
-  Considerations, and §17 References closes the body.
+  is a body section. §14 Requirements Catalog follows it, after the narrative
+  that cites its rows and before the back matter (DF-12-001). §15 IANA and
+  Namespace Considerations precedes §16 Security Considerations, and §17
+  References closes the body.
 
 ---
 
@@ -298,11 +333,14 @@ and the specification renders them in two forms:
   ```
   ````
 
-- **The Requirements Catalog**, a body section after §13 Conformance: every
-  requirement of the two tiers, once, one subsection per requirement file,
-  files grouped onto themed pages, `foundation` rows on a page of their own
-  (DF-12-001). The catalog row is the requirement's only anchor, apart from its
-  in-page copy in `full.md` (DF-12-002).
+- **The Requirements Catalog**, §14, a body section after §13 Conformance:
+  every requirement of the two tiers, once, one subsection per requirement
+  file, files grouped onto themed pages, `foundation` rows on a page of their
+  own (DF-12-001). The catalog row is the requirement's only anchor, apart from
+  its in-page copy in `full.md` (DF-12-002): `render_for_kind` refuses the two
+  tiers, and `test_requirement_links.py` fails a page outside the catalog that
+  defines a row anchor, or a `docs/` link to a requirement that misses its row
+  (`scripts/relink_requirement_anchors.py` repoints them).
 
 Rules for the narrative around them:
 
@@ -321,20 +359,14 @@ Rules for the narrative around them:
   skips fenced code, which is how exec blocks are written, so the callout and
   catalog renderers emit in-page links themselves when rendering for `full.md`
   (DF-12-002).
-- **The catalog waits for the kind re-audit.** Publishing makes the two tiers
-  the normative text, so the catalog does not publish until every `protocol` and
-  `foundation` item's kind is re-checked with the MS-12 tree (ADR-0147, #4888).
 - **Placement is one table on the docs side** (DF-12-005): `CATALOG_PAGES` in
   `vultron/metadata/docs/requirement_catalog.py`. A new requirement file
   holding either tier fails `test_real_placement_table_is_sound` until it is
   placed on a catalog page; the requirement files carry no placement field.
   `render_catalog_page` in `docs_render.py` renders a page by its key.
-- **Links follow the catalog's publication.** Until the catalog publishes,
-  `CATALOG_PUBLISHED` is `False` and a callout links the row on the per-kind
-  requirements page, which is the row the built site has; publishing flips the
-  constant (#4901). The renderers learn the page they print on from the
-  `exec_page.py` hook, so a fragment shared by several pages links correctly
-  on each.
+- **Renderers learn their page.** The renderers learn the page they print on
+  from the `exec_page.py` hook, so a fragment shared by several pages links
+  correctly on each, in-page on `full.md`.
 - **The keyword check grows with reconciliation.** `RECONCILED_FRAGMENTS` in
   `vultron/metadata/docs/rfc2119_keywords.py` lists the fragments the check
   enforces; each reconcile task adds its page's fragments (DF-12-004). A page's

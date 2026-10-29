@@ -1,25 +1,47 @@
-"""Assert that every SpecKind value has a corresponding docs page (AC-5).
+"""Assert that every SpecKind has exactly one place its rows render (AC-5).
 
-Fails when a new kind is added to the SpecKind enum without a matching
-``docs/reference/specs/<kind-slug>.md`` file, enforcing the
-"new kind → new page" rule.
+A kind outside the Requirements Catalog has a matching
+``docs/reference/specs/<kind-slug>.md`` page, so a new kind fails here until
+its page exists ("new kind → new page"). The ``protocol`` and ``foundation``
+tiers render only in the Protocol Specification's Requirements Catalog
+(SR-09-001, DF-12-001), so they have no per-kind page; their old pages were
+retired behind redirects (#4901).
 """
 
 from pathlib import Path
 
 import pytest
 
+from vultron.metadata.docs.requirement_catalog import (
+    CATALOG_KINDS,
+    CATALOG_PAGES,
+)
 from vultron.metadata.specs.schema import SpecKind
 
-_DOCS_SPECS_DIR = Path(__file__).parents[3] / "docs" / "reference" / "specs"
+_ROOT = Path(__file__).parents[3]
+_DOCS = _ROOT / "docs"
+_DOCS_SPECS_DIR = _DOCS / "reference" / "specs"
 
 
-@pytest.mark.parametrize("kind", list(SpecKind))
+@pytest.mark.parametrize(
+    "kind", [k for k in SpecKind if k not in CATALOG_KINDS]
+)
 def test_kind_has_docs_page(kind: SpecKind) -> None:
-    """Every SpecKind must have a matching docs/reference/specs/<slug>.md."""
-    slug = kind.value  # StrEnum value is the slug (e.g. "dev-process")
-    page = _DOCS_SPECS_DIR / f"{slug}.md"
+    """Every other SpecKind must have a matching docs/reference/specs/<slug>.md."""
+    page = _DOCS_SPECS_DIR / f"{kind.value}.md"
     assert page.exists(), (
         f"Missing docs page for SpecKind.{kind.name}: "
-        f"expected {page.relative_to(Path(__file__).parents[3])}"
+        f"expected {page.relative_to(_ROOT)}"
     )
+
+
+@pytest.mark.spec("SR-09-001", "DF-12-001")
+@pytest.mark.parametrize("kind", sorted(CATALOG_KINDS))
+def test_catalog_tier_has_catalog_pages_and_no_kind_page(
+    kind: SpecKind,
+) -> None:
+    assert not (_DOCS_SPECS_DIR / f"{kind.value}.md").exists()
+    pages = [p for p in CATALOG_PAGES if p.tier is kind]
+    assert pages
+    missing = [p.path for p in pages if not (_DOCS / p.path).is_file()]
+    assert not missing, f"catalog pages missing: {missing}"

@@ -144,7 +144,7 @@ POST /api/v2/actors/{vendor_id}/trigger/engage-case
    The Vendor accepts it, then sends the Reporter its own `Create(VulnerabilityCase)`, which carries the same case inline, names the Case Actor as `CASE_MANAGER`, and references the Reporter's report.
    That introduction is the [trust bootstrap](../topics/case_lifecycle/case_authority_and_trust.md#trust-bootstrap-how-a-participant-learns-whom-to-trust): the Reporter trusts it because it comes from the actor the Reporter sent its report to, and it then binds the Case Actor's identity to this case (CBT-01-001, CBT-01-005, [ADR-0132](../adr/0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md)).
 4. The Vendor's `validate-report` trigger sends Report Valid (RV) to the Case Actor.
-   The Case Actor advances the Vendor's participant record to `RM.VALID` and commits that status after the act, and the Vendor's replica copies it ([RSH-08-006](specs/protocol.md#rsh-08-006)).
+   The Case Actor advances the Vendor's participant record to `RM.VALID` and commits that status after the act, and the Vendor's replica copies it ([RSH-08-006](vultron-spec/requirements/message-processing.md#rsh-08-006)).
 5. Once its replica holds `RM.VALID`, the Vendor's `engage-case` trigger sends Report/Case Accepted (RA), and the record advances to `RM.ACCEPTED` the same way.
 
 The case is created before validation, at `RM.RECEIVED`.
@@ -288,7 +288,7 @@ POST /api/v2/actors/{vendor_id}/demo/notify-fix-ready
    The hops are separate because the Case State machine admits one event per step.
    In `rv` the Vendor owns the case and starts at `vfd`, so both hops are sent; an invited vendor is already at `Vfd` when it accepts its invite, and sends only the second.
 2. The Case Actor validates the transition, appends the status to the Vendor's participant record, commits an `add_participant_status_to_participant` entry, and fans it out.
-   The Vendor's own replica changes only when it copies that entry: the trigger checks and sends each hop but writes none ([RSH-08-006](specs/protocol.md#rsh-08-006)).
+   The Vendor's own replica changes only when it copies that entry: the trigger checks and sends each hop but writes none ([RSH-08-006](vultron-spec/requirements/message-processing.md#rsh-08-006)).
 3. The demo does not call `notify-fix-deployed`.
    The `D` dimension belongs to a Deployer, and a vendor-only participant stops at `VFd`.
 
@@ -411,8 +411,8 @@ No participant replica is checked for every closure: a closed participant is sen
 The Case Actor commits the entries below, in this order.
 Each entry's `semanticType` names the protocol act; the actor column names the participant on whose behalf it was recorded.
 The exact count of entries in the initialization block depends on how many participant records and statuses the acceptance cascade writes, so the table shows the shape of one run rather than an invariant.
-Each act that moves a participant's RM state is followed by the status the Case Actor wrote for it, which every replica copies ([CLP-07-013](specs/protocol.md#clp-07-013)).
-A case status follows a participant status only when it changes the case's EM or PXA: one that would repeat the case status before it is not committed ([RSH-04-004](specs/protocol.md#rsh-04-004)).
+Each act that moves a participant's RM state is followed by the status the Case Actor wrote for it, which every replica copies ([CLP-07-013](vultron-spec/requirements/ledger-replication.md#clp-07-013)).
+A case status follows a participant status only when it changes the case's EM or PXA: one that would repeat the case status before it is not committed ([RSH-04-004](vultron-spec/requirements/message-processing.md#rsh-04-004)).
 
 | Index | `semanticType` | Recorded for | Phase |
 |------:|:------------|:-------------|:------|

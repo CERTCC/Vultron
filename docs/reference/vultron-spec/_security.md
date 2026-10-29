@@ -52,7 +52,7 @@ Duplicate delivery does not change state.
 **Ledger idempotency.** The canonical case ledger is append-only and hash-chained.
 A re-delivered `Announce(CaseLedgerEntry)` adds no second entry, and replaying entries a receiver already holds changes nothing.
 The ledger NAK path (`Reject(CaseLedgerEntry)`) and gap-fill replay provide recovery from missed entries.
-A participant's `Read(CaseLedgerEntry)` position statement recovers a missed last entry, which no later entry exposes as a gap; the CASE_MANAGER answers it only from an active participant ([SYNC-17-002](../specs/protocol.md#sync-17-002)).
+A participant's `Read(CaseLedgerEntry)` position statement recovers a missed last entry, which no later entry exposes as a gap; the CASE_MANAGER answers it only from an active participant ([SYNC-17-002](requirements/ledger-replication.md#sync-17-002)).
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("ID-01-001", "SYNC-03-003", "SYNC-08-003"))

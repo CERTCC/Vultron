@@ -7,7 +7,7 @@ stakeholder_type: [project-contributor]
 ## Related Requirements
 
 This orchestrating node coordinates multiple CVD work streams, each of which has its own behavioral requirements.
-See the [Protocol Specifications](../../reference/specs/protocol.md) for the full specification:
+See the [Requirements Catalog](../../reference/vultron-spec/requirements/index.md) for the full specification:
 
 {% include-markdown "./_behavior_spec_groups.md" %}
 

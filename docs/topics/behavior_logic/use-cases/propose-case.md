@@ -273,16 +273,16 @@ Bringing in a vendor or a coordinator is a separate flow.
 
 | Requirement | Obligation |
 |---|---|
-| [CP-04-001](../../../reference/specs/protocol.md#cp-04-001) | A proposer MUST send `Create(CaseProposal)` to the case actor service's inbox |
-| [CP-04-003](../../../reference/specs/protocol.md#cp-04-003) | The proposal MUST be addressed to the service's own actor identity, not a per-case one |
+| [CP-04-001](../../../reference/vultron-spec/requirements/case-management.md#cp-04-001) | A proposer MUST send `Create(CaseProposal)` to the case actor service's inbox |
+| [CP-04-003](../../../reference/vultron-spec/requirements/case-management.md#cp-04-003) | The proposal MUST be addressed to the service's own actor identity, not a per-case one |
 | [CP-04-005](../../../reference/specs/project.md#cp-04-005) | This implementation's service identity is `{case_actor_service_url}/actors/case-actor` |
-| [CP-05-002](../../../reference/specs/protocol.md#cp-05-002) | The service MUST evaluate the proposal and either accept or reject it |
-| [CP-05-003](../../../reference/specs/protocol.md#cp-05-003) | On acceptance it MUST send `Accept` and then `Create(VulnerabilityCase)`, in that order |
-| [CP-05-004](../../../reference/specs/protocol.md#cp-05-004) | On refusal it MUST send `Reject(as_CaseProposal)` with the proposal, inline or by reference |
-| [CP-05-005](../../../reference/specs/protocol.md#cp-05-005) | `Accept` and `Create(VulnerabilityCase)` MUST be queued together or not at all, each retried until delivered, and the `Accept` never sent a second time |
-| [CP-05-006](../../../reference/specs/protocol.md#cp-05-006) | A duplicate proposal (the same proposal identifier) MUST re-send the stored `Accept` unchanged, with its original identifier, and MUST NOT create a second case; when the case is fully closed it MUST be answered with `Reject(as_CaseProposal)` instead, with no ledger entry and no case or participant change |
-| [CP-05-008](../../../reference/specs/protocol.md#cp-05-008) | A proposal under a new identifier MUST be admitted and answered on its own; the case is reused only for its owner, and any other proposer gets a separate case; when the owner's case is fully closed the proposal MUST be answered with `Reject(as_CaseProposal)`, with no ledger entry and no case or participant change |
-| [CP-05-007](../../../reference/specs/protocol.md#cp-05-007) | A proposer MUST treat an unanswered proposal as expired at its deadline |
+| [CP-05-002](../../../reference/vultron-spec/requirements/case-management.md#cp-05-002) | The service MUST evaluate the proposal and either accept or reject it |
+| [CP-05-003](../../../reference/vultron-spec/requirements/case-management.md#cp-05-003) | On acceptance it MUST send `Accept` and then `Create(VulnerabilityCase)`, in that order |
+| [CP-05-004](../../../reference/vultron-spec/requirements/case-management.md#cp-05-004) | On refusal it MUST send `Reject(as_CaseProposal)` with the proposal, inline or by reference |
+| [CP-05-005](../../../reference/vultron-spec/requirements/case-management.md#cp-05-005) | `Accept` and `Create(VulnerabilityCase)` MUST be queued together or not at all, each retried until delivered, and the `Accept` never sent a second time |
+| [CP-05-006](../../../reference/vultron-spec/requirements/case-management.md#cp-05-006) | A duplicate proposal (the same proposal identifier) MUST re-send the stored `Accept` unchanged, with its original identifier, and MUST NOT create a second case; when the case is fully closed it MUST be answered with `Reject(as_CaseProposal)` instead, with no ledger entry and no case or participant change |
+| [CP-05-008](../../../reference/vultron-spec/requirements/case-management.md#cp-05-008) | A proposal under a new identifier MUST be admitted and answered on its own; the case is reused only for its owner, and any other proposer gets a separate case; when the owner's case is fully closed the proposal MUST be answered with `Reject(as_CaseProposal)`, with no ledger entry and no case or participant change |
+| [CP-05-007](../../../reference/vultron-spec/requirements/case-management.md#cp-05-007) | A proposer MUST treat an unanswered proposal as expired at its deadline |
 | [CP-06-003](../../../reference/specs/project.md#cp-06-003) | The proposer MUST record the acceptance and await the replica |
 | [CP-06-004](../../../reference/specs/project.md#cp-06-004) | The proposer MUST record a refusal and surface its reason where one is given |
 

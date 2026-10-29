@@ -278,12 +278,12 @@ research, routing, project pages) sits anywhere; it is not an escape hatch for
 a page that fails the check.
 
 **The normative protocol is the Protocol Specification plus the Protocol and
-Foundation requirement tiers**, all on Engineering; *Protocol Requirements* there
-labels the specification's Requirements Catalog, which replaces the per-kind
-pages (ADR-0147). The YAML is the source of truth: the specification
-renders both tiers in its Requirements Catalog body section and shows rules in
-its narrative only as rendered callouts, so the two cannot drift (DF-12,
-ADR-0147). In the basement, the Architecture,
+Foundation requirement tiers**, all on Engineering. Both tiers are published in
+the specification's §14 Requirements Catalog, and *Protocol Requirements* there
+is a routing page that sends a reader to it (ADR-0147). The YAML is the source
+of truth: the specification renders both tiers in its Requirements Catalog body
+section and shows rules in its narrative only as rendered callouts, so the two
+cannot drift (DF-12, ADR-0147). In the basement, the Architecture,
 Project and Process tiers are *Implementation Requirements*: how we build ours,
 not how others must build theirs. Messages, the Conformance Matrix, the Quick
 Reference and Formal Protocol are companions that never add to the normative

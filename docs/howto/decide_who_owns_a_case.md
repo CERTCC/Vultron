@@ -38,13 +38,13 @@ Read them before you choose a path.
 **The receiver of a report creates the case and owns it.**
 No actor creates a case without a report.
 Any actor that receives a report can create a case for it: a vendor, a coordinator, or you, if you report to yourself.
-The receiver becomes the Case Owner, and the Reporter becomes a participant ([CM-14-008](../reference/specs/protocol.md#cm-14-008), [CM-14-009](../reference/specs/protocol.md#cm-14-009), [CM-14-012](../reference/specs/protocol.md#cm-14-012)).
+The receiver becomes the Case Owner, and the Reporter becomes a participant ([CM-14-008](../reference/vultron-spec/requirements/case-management.md#cm-14-008), [CM-14-009](../reference/vultron-spec/requirements/case-management.md#cm-14-009), [CM-14-012](../reference/vultron-spec/requirements/case-management.md#cm-14-012)).
 
 **The Case Owner holds the Case Manager role, or delegates it.**
 Each case has a [Case Manager](../topics/case_lifecycle/case_manager_and_ledger.md), which keeps the history of the case and sends each change to the participants.
 The Case Owner can hold this role itself.
-The Case Owner can also delegate it to a different actor, for example a coordinator that hosts cases for others ([§10.3 Case Bootstrap and the Trust Root](../reference/vultron-spec/interactions.md#103-case-bootstrap-and-the-trust-root), [CBT-01-001](../reference/specs/protocol.md#cbt-01-001)).
-When it delegates, the delegate creates the case, and the receiver of the report is still its Case Owner ([CP-09-001](../reference/specs/protocol.md#cp-09-001), [CBT-01-003](../reference/specs/protocol.md#cbt-01-003)).
+The Case Owner can also delegate it to a different actor, for example a coordinator that hosts cases for others ([§10.3 Case Bootstrap and the Trust Root](../reference/vultron-spec/interactions.md#103-case-bootstrap-and-the-trust-root), [CBT-01-001](../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-001)).
+When it delegates, the delegate creates the case, and the receiver of the report is still its Case Owner ([CP-09-001](../reference/vultron-spec/requirements/case-management.md#cp-09-001), [CBT-01-003](../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-003)).
 The rest of this guide is the same in both cases.
 
 !!! note "Delegation in the reference implementation"
@@ -55,9 +55,9 @@ The rest of this guide is the same in both cases.
 
 **An invitation adds a participant, not an owner.**
 When the Case Owner invites an actor, that actor becomes a participant with the roles that the invitation names ([§12.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n)).
-A case has only one Case Owner at a time ([CM-21-001](../reference/specs/protocol.md#cm-21-001)).
-The Case Owner role moves to another participant only by an [ownership transfer](../topics/case_lifecycle/ownership_transfer.md) ([CM-21-002](../reference/specs/protocol.md#cm-21-002)).
-The Case Manager refuses any other offer of the Case Owner role ([CM-33-003](../reference/specs/protocol.md#cm-33-003)).
+A case has only one Case Owner at a time ([CM-21-001](../reference/vultron-spec/requirements/case-management.md#cm-21-001)).
+The Case Owner role moves to another participant only by an [ownership transfer](../topics/case_lifecycle/ownership_transfer.md) ([CM-21-002](../reference/vultron-spec/requirements/case-management.md#cm-21-002)).
+The Case Manager refuses any other offer of the Case Owner role ([CM-33-003](../reference/vultron-spec/requirements/case-management.md#cm-33-003)).
 If you create a case and invite a vendor, you still make the decisions for the case.
 
 **The actor that reports is the Reporter.**
@@ -67,9 +67,9 @@ That actor can be a [finder](../reference/glossary.md#cvd-roles-and-participants
 The report records who found the vulnerability, and the role does not.
 
 **A submitted report agrees to the embargo of the case.**
-When a case is created from your report, you become a signatory to any active embargo ([CM-14-005](../reference/specs/protocol.md#cm-14-005)).
-You can propose your own embargo terms in the report ([EP-04-004](../reference/specs/protocol.md#ep-04-004)).
-If the receiver also has default terms, the shorter embargo becomes active ([EP-04-003](../reference/specs/protocol.md#ep-04-003), [Default Embargoes](../topics/process_models/em/defaults.md)).
+When a case is created from your report, you become a signatory to any active embargo ([CM-14-005](../reference/vultron-spec/requirements/case-management.md#cm-14-005)).
+You can propose your own embargo terms in the report ([EP-04-004](../reference/vultron-spec/requirements/state-behavior.md#ep-04-004)).
+If the receiver also has default terms, the shorter embargo becomes active ([EP-04-003](../reference/vultron-spec/requirements/state-behavior.md#ep-04-003), [Default Embargoes](../topics/process_models/em/defaults.md)).
 The longer one should become a proposed revision.
 
 ---
@@ -93,7 +93,7 @@ This is the usual path for a finder that reports to a vendor or a coordinator.
 
 1. Send the report to the receiver as an `Offer(VulnerabilityReport)`.
    [How to Report a Vulnerability](activitypub/activities/report_vulnerability.md#submit-a-report) shows this message.
-2. If you have embargo terms, propose them in the report ([EP-04-004](../reference/specs/protocol.md#ep-04-004)).
+2. If you have embargo terms, propose them in the report ([EP-04-004](../reference/vultron-spec/requirements/state-behavior.md#ep-04-004)).
 3. Wait for the receiver to decide.
    If the receiver creates a case, the receiver is the Case Owner.
    You are a participant with the Reporter role.
@@ -130,19 +130,19 @@ An example is a vendor that transfers its case to a coordinator when the case co
 
 1. Make sure that the new owner is an active participant of the case.
    An [active participant](../reference/glossary.md#cvd-roles-and-participants) was in the case from its start, or accepted an invitation to it.
-   It has not been removed, and it agrees to the active embargo, if there is one ([CM-10-004](../reference/specs/protocol.md#cm-10-004)).
+   It has not been removed, and it agrees to the active embargo, if there is one ([CM-10-004](../reference/vultron-spec/requirements/case-management.md#cm-10-004)).
    If the new owner is not in the case, invite it first.
    Wait until it accepts the invitation.
-   When it accepts, it also agrees to the active embargo ([CM-11-001](../reference/specs/protocol.md#cm-11-001)).
-2. Propose the transfer to the Case Manager, which can be your own system, and name the new owner ([CM-21-005](../reference/specs/protocol.md#cm-21-005)).
-   The Case Manager refuses a transfer to an actor that is not an active participant ([CM-21-021](../reference/specs/protocol.md#cm-21-021)).
+   When it accepts, it also agrees to the active embargo ([CM-11-001](../reference/vultron-spec/requirements/case-management.md#cm-11-001)).
+2. Propose the transfer to the Case Manager, which can be your own system, and name the new owner ([CM-21-005](../reference/vultron-spec/requirements/case-management.md#cm-21-005)).
+   The Case Manager refuses a transfer to an actor that is not an active participant ([CM-21-021](../reference/vultron-spec/requirements/case-management.md#cm-21-021)).
 3. Wait for the new owner to accept the transfer.
-   It must be an active participant when it accepts ([CM-21-021](../reference/specs/protocol.md#cm-21-021)).
+   It must be an active participant when it accepts ([CM-21-021](../reference/vultron-spec/requirements/case-management.md#cm-21-021)).
 
 After the transfer, the case keeps its history, its embargo, and its participants.
-Only the Case Owner role moves ([CM-21-002](../reference/specs/protocol.md#cm-21-002), [CM-21-003](../reference/specs/protocol.md#cm-21-003)).
-You stay a participant, and you keep your other roles, for example Reporter or Vendor ([CM-21-008](../reference/specs/protocol.md#cm-21-008), [CM-21-009](../reference/specs/protocol.md#cm-21-009)).
-The Case Manager tells each participant about the new owner ([CM-21-007](../reference/specs/protocol.md#cm-21-007)).
+Only the Case Owner role moves ([CM-21-002](../reference/vultron-spec/requirements/case-management.md#cm-21-002), [CM-21-003](../reference/vultron-spec/requirements/case-management.md#cm-21-003)).
+You stay a participant, and you keep your other roles, for example Reporter or Vendor ([CM-21-008](../reference/vultron-spec/requirements/case-management.md#cm-21-008), [CM-21-009](../reference/vultron-spec/requirements/case-management.md#cm-21-009)).
+The Case Manager tells each participant about the new owner ([CM-21-007](../reference/vultron-spec/requirements/case-management.md#cm-21-007)).
 
 The Case Manager role does not move with the Case Owner role.
 If you held both roles, you still hold the Case Manager role after the transfer.
@@ -162,8 +162,8 @@ The table below compares what each path leaves in your hands.
 |---|---|---|
 | Who decides whether a case exists | X | You |
 | Who makes the early decisions, such as the embargo terms and the invitations | X, as the Case Owner. Your proposed embargo terms apply as Step 1 describes. | You, until X accepts the transfer |
-| What happens if X declines | X creates no case, or creates one and then invalidates or closes the report. Any case that exists is owned by X, not by you. | X rejects the invitation or the transfer. You keep the case, its history, and its participants ([CM-11-007](../reference/specs/protocol.md#cm-11-007), [CM-21-012](../reference/specs/protocol.md#cm-21-012)). |
-| What you can do next if X declines | Report to yourself and create a case of your own. It is separate from any case that X created. If the case of X has an active embargo, you are still a signatory to it. A case of your own does not end that agreement ([CM-14-005](../reference/specs/protocol.md#cm-14-005)). | Invite another participant, or propose a transfer to an active participant at once ([CM-21-014](../reference/specs/protocol.md#cm-21-014)). |
+| What happens if X declines | X creates no case, or creates one and then invalidates or closes the report. Any case that exists is owned by X, not by you. | X rejects the invitation or the transfer. You keep the case, its history, and its participants ([CM-11-007](../reference/vultron-spec/requirements/case-management.md#cm-11-007), [CM-21-012](../reference/vultron-spec/requirements/case-management.md#cm-21-012)). |
+| What you can do next if X declines | Report to yourself and create a case of your own. It is separate from any case that X created. If the case of X has an active embargo, you are still a signatory to it. A case of your own does not end that agreement ([CM-14-005](../reference/vultron-spec/requirements/case-management.md#cm-14-005)). | Invite another participant, or propose a transfer to an active participant at once ([CM-21-014](../reference/vultron-spec/requirements/case-management.md#cm-21-014)). |
 
 Use this test to choose.
 If both of these conditions are true, submit the report to X:

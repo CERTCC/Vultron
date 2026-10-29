@@ -128,7 +128,7 @@ Once an actor's profile is known, its inbox is the endpoint the profile names.
 The exchanges below show occasions of [§4 Messages](layers.md#4-messages-n) as they appear on the wire.
 Each one is given first in Wire Activity notation and then as the JSON a sender delivers.
 The identifiers, timestamps and hashes are illustrative, and optional fields such as `name` and `updated` are left out.
-Every activity carries the `published` timestamp its sender stamps on it ([CLP-15-006](../specs/protocol.md#clp-15-006)).
+Every activity carries the `published` timestamp its sender stamps on it ([CLP-15-006](requirements/ledger-replication.md#clp-15-006)).
 
 #### Submitting a report
 
@@ -312,8 +312,8 @@ The `vfState` value `VF` is what distinguishes this occasion from the other clai
 
 The CASE_MANAGER has committed a case event to the case ledger and sends the entry to every active participant ([§3.4 How the Dimensions Interact](introduction.md#34-how-the-dimensions-interact)).
 Each participant checks that the entry's `prevLogHash` matches the `entryHash` of the last entry it holds ([§4.12 Ledger Replication Messages](layers.md#412-ledger-replication-messages)).
-The entry shown is the first in its case's ledger, so its `prevLogHash` is the case's own genesis hash ([CLP-08-001](../specs/protocol.md#clp-08-001)).
-Its `published` is the CASE_MANAGER's commit stamp ([CLP-14-002](../specs/protocol.md#clp-14-002)).
+The entry shown is the first in its case's ledger, so its `prevLogHash` is the case's own genesis hash ([CLP-08-001](requirements/ledger-replication.md#clp-08-001)).
+Its `published` is the CASE_MANAGER's commit stamp ([CLP-14-002](requirements/ledger-replication.md#clp-14-002)).
 
 === "Notation"
 

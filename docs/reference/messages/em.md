@@ -78,7 +78,7 @@ A revision that ends later causes no such notice, because those participants nev
 {% include-markdown "./_occasions/sections/create-embargo-event.md" %}
 
 - **Protocol role:** each embargo that the creation of a case writes, such as the default embargo, is its own ledger entry.
-  This entry comes right after the genesis entry of the case and carries the embargo in full ([CLP-07-013](../specs/protocol.md#clp-07-013)).
+  This entry comes right after the genesis entry of the case and carries the embargo in full ([CLP-07-013](../vultron-spec/requirements/ledger-replication.md#clp-07-013)).
   A replica built from the ledger alone reads the embargo's start and end times from this entry.
 - **Who commits it:** only the Case Manager, as a ledger entry.
   No use case handles it on receipt.
@@ -87,14 +87,14 @@ A revision that ends later causes no such notice, because those participants nev
 {% include-markdown "./_occasions/sections/create-embargo-consent.md" %}
 
 - **Protocol role:** each consent row that the Case Manager creates is its own ledger entry.
-  This entry comes after the act that caused the row and carries the row in full ([CLP-07-013](../specs/protocol.md#clp-07-013)).
+  This entry comes after the act that caused the row and carries the row in full ([CLP-07-013](../vultron-spec/requirements/ledger-replication.md#clp-07-013)).
   A proposal writes an `UNINVITED` row for each participant this way.
 - **Who sends it:** only the Case Manager.
   No use case handles it on receipt: each replica writes the row from the ledger entry.
 
 {% include-markdown "./_occasions/sections/update-embargo-consent.md" %}
 
-- **Protocol role:** each consent row that the Case Manager changes is its own ledger entry, which carries the changed row in full ([CLP-07-013](../specs/protocol.md#clp-07-013)).
+- **Protocol role:** each consent row that the Case Manager changes is its own ledger entry, which carries the changed row in full ([CLP-07-013](../vultron-spec/requirements/ledger-replication.md#clp-07-013)).
   An invitation whose deadline passes unanswered moves to `TIMED_OUT` this way.
   The Case Manager writes the rows carried over at activation the same way.
 - **The Case Manager's own consent:** a Case Manager with a stake in the embargo records a change of its own consent as this `Update`, never as a `Reject` of the Invite (MSM-07-004).

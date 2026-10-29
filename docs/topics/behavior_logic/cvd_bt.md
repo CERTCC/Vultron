@@ -7,7 +7,7 @@ stakeholder_type: [project-contributor]
 ## Related Requirements
 
 This top-level tree integrates all CVD behavioral requirements.
-See the [Protocol Specifications](../../reference/specs/protocol.md) for the full specification:
+See the [Requirements Catalog](../../reference/vultron-spec/requirements/index.md) for the full specification:
 
 {% include-markdown "./_behavior_spec_groups.md" %}
 
