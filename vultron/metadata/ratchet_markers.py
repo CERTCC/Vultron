@@ -27,8 +27,9 @@ first line:
 
 This module is the one parser of those markers. The offline architecture test
 (``test/architecture/test_ratchet_baselines_name_an_owner.py``) feeds it the
-shared corpus's cached trees; the scheduled closed-owner report (ARCH-18-004)
-reads :attr:`Baseline.owners` through :func:`scan_paths`. Neither makes a
+shared corpus's cached trees; the scheduled closed-owner report
+(:mod:`vultron.metadata.ratchet_owners`, ARCH-18-004) reads
+:attr:`Baseline.owners` through :func:`baselines_in_source`. Neither makes a
 network call here: whether a cited owner is still open is the caller's
 question.
 """
@@ -42,6 +43,8 @@ import tokenize
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
+
+from vultron.metadata.file_loading import MetadataLoadError, read_utf8
 
 #: A constant-case identifier (upper case, digits and underscores).
 _CONSTANT_CASE = re.compile(r"[A-Z0-9_]+")
@@ -379,15 +382,32 @@ def baselines_in_source(source: str, path: Path) -> list[Baseline]:
     return baselines_in(ast.parse(source, filename=str(path)), source, path)
 
 
-def scan_paths(paths: Iterable[Path]) -> list[Baseline]:
+def scan_paths(
+    paths: Iterable[Path], root: Path | None = None
+) -> list[Baseline]:
     """Read, parse and scan each Python file in *paths*.
 
-    For a caller with no cached corpus (a CI script). A file that cannot be
-    read or parsed raises: a baseline silently skipped is an owner unchecked.
+    For a caller with no cached corpus (a CI script). When *root* is given,
+    each :attr:`Baseline.path` (and any error's path) is relative to it.
+
+    Raises:
+        MetadataLoadError: When a file is not valid UTF-8 or not valid
+            Python, naming it ``path:line:col`` (MS-17-001): a baseline
+            silently skipped is an owner unchecked.
     """
     found: list[Baseline] = []
     for path in paths:
-        found += baselines_in_source(path.read_text(encoding="utf-8"), path)
+        shown = path.relative_to(root) if root is not None else path
+        text = read_utf8(path, str(shown))
+        try:
+            found += baselines_in_source(text, shown)
+        except SyntaxError as exc:
+            raise MetadataLoadError(
+                f"not valid Python: {exc.msg}",
+                path=str(shown),
+                line=exc.lineno,
+                column=exc.offset,
+            ) from exc
     return found
 
 

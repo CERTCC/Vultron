@@ -16,6 +16,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 
+from vultron.metadata.base import issue_number
 from vultron.metadata.notes.loader import load_notes_registry
 from vultron.metadata.notes.schema import NoteKind, NotesFrontmatter
 
@@ -36,11 +37,6 @@ class TracksFinding:
 
     path: str
     reason: str
-
-
-def issue_number(ref: str) -> int:
-    """Return the number in a ``#N`` issue reference."""
-    return int(ref.removeprefix("#"))
 
 
 def plan_findings(

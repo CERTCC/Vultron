@@ -21,6 +21,14 @@ inputs:
     description: >-
       GitHub token with issues:write permission (pass secrets.GITHUB_TOKEN).
     required: true
+  details-file:
+    description: >-
+      Optional path to a Markdown file whose text is appended to the new
+      issue's body or to the update comment in "notify" mode, so a tracker
+      can say what failed, not only that it did. A missing or empty file
+      adds nothing.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -53,8 +61,15 @@ runs:
         WORKFLOW_NAME: ${{ github.workflow }}
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         REF: ${{ github.ref }}
+        DETAILS_FILE: ${{ inputs.details-file }}
       run: |
         set -euo pipefail
+
+        # What the caller says failed, if anything, set off by a blank line.
+        DETAILS=""
+        if [ -n "${DETAILS_FILE:-}" ] && [ -s "$DETAILS_FILE" ]; then
+          DETAILS=$(printf '\n\n%s' "$(cat "$DETAILS_FILE")")
+        fi
 
         # Collect all open issue numbers matching both labels, oldest first.
         # `gh issue list --label` goes through the search index, which lags
@@ -81,7 +96,7 @@ runs:
             # others as its duplicates so one tracker remains (CISEC-05-003).
             gh issue comment "${ISSUE_NUMS[0]}" \
               --repo "$REPO" \
-              --body "CI still failing — [run]($RUN_URL)"
+              --body "CI still failing — [run]($RUN_URL)$DETAILS"
             bash "$ensure_type" "$REPO" "${ISSUE_NUMS[0]}" Bug
             for NUM in "${ISSUE_NUMS[@]:1}"; do
               gh issue close "$NUM" \
@@ -92,8 +107,8 @@ runs:
           else
             # Create a new failure issue.
             BODY=$(printf \
-              'The **%s** workflow failed on ref `%s`.\n[View run](%s)\n\nThis issue is closed automatically when the workflow next passes.' \
-              "$WORKFLOW_NAME" "$REF" "$RUN_URL")
+              'The **%s** workflow failed on ref `%s`.\n[View run](%s)%s\n\nThis issue is closed automatically when the workflow next passes.' \
+              "$WORKFLOW_NAME" "$REF" "$RUN_URL" "$DETAILS")
             ISSUE_URL=$(gh issue create \
               --repo "$REPO" \
               --title "CI failure: $WORKFLOW_NAME" \

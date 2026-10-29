@@ -37,7 +37,6 @@ from vultron.metadata.specs.verification import (
     closing_pr_problems,
     debt_by_kind,
     debt_owner_refs,
-    gh_issue_state,
     gh_pr_closing_issues,
     idle_owners,
     issue_number,
@@ -345,6 +344,7 @@ def test_closed_owner_fails_and_open_owner_passes():
         FileNotFoundError("gh"),
         subprocess.CalledProcessError(1, ["gh"]),
         KeyError("state"),
+        TypeError("list indices must be integers"),
     ],
 )
 def test_lookup_failure_is_an_error_not_a_pass(exc):
@@ -361,21 +361,6 @@ def test_closed_debt_owners_defaults_to_the_gh_lookup(monkeypatch):
         verification_module, "gh_issue_state", lambda ref: "CLOSED"
     )
     assert "#5 is CLOSED" in closed_debt_owners({"#5"})[0]
-
-
-def test_gh_issue_state_asks_gh_for_the_issue_number(monkeypatch):
-    calls: list[list[str]] = []
-
-    def fake_run(argv, **kwargs):
-        calls.append(argv)
-        assert kwargs["check"] is True
-        return subprocess.CompletedProcess(
-            argv, 0, stdout=json.dumps({"state": "OPEN"}), stderr=""
-        )
-
-    monkeypatch.setattr(verification_module.subprocess, "run", fake_run)
-    assert gh_issue_state("#3612") == "OPEN"
-    assert calls == [["gh", "issue", "view", "3612", "--json", "state"]]
 
 
 # ---------------------------------------------------------------------------

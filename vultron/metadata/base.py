@@ -1,5 +1,7 @@
 """Shared type aliases and helpers for the vultron.metadata tooling layer."""
 
+import json
+import subprocess
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Annotated
@@ -17,6 +19,62 @@ from vultron.metadata.file_loading import (
 
 NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
 NonEmptyStrList = list[NonEmptyStr]
+
+#: What a single-issue ``gh`` lookup can raise: ``gh`` missing
+#: (:class:`OSError`), ``gh`` failing (:class:`subprocess.CalledProcessError`),
+#: or output that is not JSON or lacks the expected field (:class:`KeyError`,
+#: :class:`TypeError`, :class:`ValueError`). A caller that catches these
+#: treats the lookup as failed, never as a pass.
+GH_LOOKUP_ERRORS: tuple[type[Exception], ...] = (
+    OSError,
+    subprocess.CalledProcessError,
+    KeyError,
+    TypeError,
+    ValueError,
+)
+
+#: What ``gh`` prints when the number names no issue or pull request.
+_GH_NOT_FOUND = "Could not resolve to an issue or pull request"
+
+
+def issue_number(ref: str) -> int:
+    """The number in an ``#N`` issue reference."""
+    return int(ref.removeprefix("#"))
+
+
+def gh_issue_state(ref: str) -> str:
+    """The GitHub state (``OPEN``/``CLOSED``) of issue *ref* (``#N``).
+
+    Uses the ``gh`` CLI against the current repository, so it needs ``gh`` on
+    ``PATH`` and a token (``GH_TOKEN`` in CI). Raises one of
+    :data:`GH_LOOKUP_ERRORS` when the lookup cannot be made;
+    :func:`gh_issue_missing` tells a number that names no issue apart.
+    """
+    result = subprocess.run(
+        ["gh", "issue", "view", str(issue_number(ref)), "--json", "state"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return str(json.loads(result.stdout)["state"])
+
+
+def gh_issue_missing(exc: Exception) -> bool:
+    """Whether *exc*, raised by :func:`gh_issue_state`, says no such issue."""
+    stderr = getattr(exc, "stderr", None)
+    return isinstance(stderr, str) and _GH_NOT_FOUND in stderr
+
+
+def gh_lookup_failure(exc: Exception) -> str:
+    """*exc* as text, with ``gh``'s stderr when it is the reason.
+
+    ``str(CalledProcessError)`` names only the exit status; the cause (a
+    missing token scope, an unresolvable repository) is in its stderr.
+    """
+    stderr = getattr(exc, "stderr", None)
+    if isinstance(stderr, str) and stderr.strip():
+        return f"{exc}: {stderr.strip()}"
+    return str(exc)
 
 
 def repo_root(start: Path | None = None) -> Path:
