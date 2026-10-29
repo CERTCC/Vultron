@@ -870,7 +870,8 @@ def _main_red_spans(main_runs: list[dict]) -> list[dict]:
     at a failed run that follows a green (``success``) run and closes at the
     next green run; every failed run between them belongs to it.  Cancelled
     and skipped runs say nothing about main and are passed over, as are runs
-    with no ``created_at``.  A red streak that is already under way at the
+    with any other conclusion that is neither failed nor ``success`` (such
+    as ``neutral``) and runs with no ``created_at``.  A red streak that is already under way at the
     first run in the window has no green run before it, so its start is
     unknown: it is returned with ``opened_after_green`` false and
     ``prior_green_sha``/``prior_green_at`` ``None``.
@@ -969,6 +970,20 @@ def _merged_between(prs: list[dict], after: str, before: str) -> list[int]:
     return [p["number"] for p in window]
 
 
+def _landed_at(
+    by_merge_sha: dict[str, dict], sha: str | None, run_at: str
+) -> str:
+    """Return when a commit on main landed.
+
+    That is the merge time of the PR whose merge commit it is, or, for a
+    direct push or a merge from before the window, its run's ``created_at``.
+    A run starts seconds after its commit lands, so the merge time is the
+    tighter bound when it is known.
+    """
+    pr = by_merge_sha.get(sha or "")
+    return (pr.get("mergedAt") if pr else None) or run_at
+
+
 def _main_red_episodes(
     main_runs: list[dict],
     prs: list[dict],
@@ -993,10 +1008,14 @@ def _main_red_episodes(
       ``merged_since`` and so earlier partners were never fetched; ``[]``
       means no merge landed in between.
     - ``unverified_merges``: the PRs, other than ``pr_number``, merged to
-      main after the prior green run and before the first red run.  Their
-      own runs in this workflow were cancelled or skipped, so any of them
-      may be the real breaker and ``pr_number`` only the first commit to
-      finish red.  ``None`` when there was no prior green run.
+      main after the prior green commit and before the first red commit.
+      None of them has a completed run in this workflow: each run was
+      cancelled or skipped, or never started because of a ``paths`` filter.
+      Any of them may be the real breaker, and ``pr_number`` only the first
+      commit to finish red.  Each bound is the merge time of the PR whose
+      merge commit is that green or red commit, or the run's ``created_at``
+      for a direct push, since a run starts after its commit lands.
+      ``None`` when there was no prior green run.
 
     Classifying an episode (semantic conflict, scenario coverage gap,
     already red, infrastructure) is left to a human.
@@ -1022,13 +1041,17 @@ def _main_red_episodes(
             else None
         )
         unverified = (
-            [
-                n
-                for n in _merged_between(
-                    main_prs, span["prior_green_at"], span["first_red_at"]
-                )
-                if pr is None or n != pr.get("number")
-            ]
+            _merged_between(
+                main_prs,
+                _landed_at(
+                    by_merge_sha,
+                    span["prior_green_sha"],
+                    span["prior_green_at"],
+                ),
+                _landed_at(
+                    by_merge_sha, span["first_red_sha"], span["first_red_at"]
+                ),
+            )
             if span["prior_green_at"] is not None
             else None
         )

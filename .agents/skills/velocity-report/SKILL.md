@@ -143,13 +143,15 @@ It has four sub-keys:
   merge is the first red commit), `last_green_ci_at` (that PR's last green CI
   run), `candidate_partners` (PRs merged to `main` after that run and before
   the PR's own merge), and `unverified_merges` (PRs merged to `main` between
-  the prior green run and the first red one, whose own runs were cancelled
-  or skipped).
+  the prior green commit and the first red one, none with a completed run in
+  this workflow: cancelled, skipped, or never started because of a `paths`
+  filter).
 
 **What a red episode is.** Per workflow, consecutive failed push runs on
 `main` form one episode: it opens at the first red run after a green one and
-ends at the next green run. Cancelled and skipped runs neither open nor close
-one. One break that stays red across twelve merges is twelve failed CI runs
+ends at the next green run. Cancelled and skipped runs, and any other
+conclusion that is neither failed nor `success` (such as `neutral`), neither
+open nor close one. One break that stays red across twelve merges is twelve failed CI runs
 on `main` but one episode. One commit that breaks several workflows opens one
 episode per workflow, but the weekly `red_episodes_opened_on_main` counts
 episodes that share a `first_red_sha` once, so the rate counts breaks. A
@@ -256,13 +258,13 @@ The script does not classify an episode. For each episode in the month,
 classify it by hand as a semantic conflict, a scenario coverage gap, already
 red, or infrastructure: check the failed `workflow` and look at the
 `candidate_partners` — a semantic conflict needs at least one. A non-empty
-`unverified_merges` means a merge between the last green run and the first
-red one had its run cancelled (by `cancel-in-progress`), so
+`unverified_merges` means a merge landed between the last green commit and
+the first red one with no completed run in this workflow (its run was
+cancelled by `cancel-in-progress`, or a `paths` filter never started it), so
 `pr_number` may not be the breaker: check those merges as well. Episodes on
 several workflows with one `first_red_sha` are one break; classify it once.
-Only semantic
-conflicts count toward the reopen condition; report the classified count
-per 100 merges for the month, not the raw episode rate.
+Only semantic conflicts count toward the reopen condition; report the
+classified count per 100 merges for the month, not the raw episode rate.
 
 #### Integrated read: the ADR-0126 trade
 
@@ -271,14 +273,18 @@ eliminating per-PR full reruns and merge-from-main loops.
 The data supports the decision when all of the following hold:
 
 1. `median_open_to_merge_hours` is falling.
-2. `failed_ci_runs_on_main` stays near zero week over week.
+2. The hand-classified semantic-conflict episodes stay at or below one per
+   100 merges over a month (see the red-episode lens above);
+   `failed_ci_runs_on_main` alone overstates breaks that stay red across
+   several merges.
 3. `median_merges_from_main` stays low and is not rising from ADR-0126 onward.
    The pre-ADR-0126 sync cost (captured in Concern #4015 at
    `plan/history/2610/learning/CONCERN-4015.md`) was paid in rebases, which
    this field cannot see; compare against that write-up, not against this
    field's pre-ADR values.
 
-If `failed_ci_runs_on_main` rises materially while `open_to_merge_hours`
+If the classified semantic-conflict episodes per 100 merges rise (read the
+red-episode lens, not `failed_ci_runs_on_main`) while `open_to_merge_hours`
 falls, report this explicitly: "The time saving appears real, but the
 semantic-conflict risk is materializing — check it against the reopen condition
 of the merge queue (Idea #1863, closed as set aside: more than one

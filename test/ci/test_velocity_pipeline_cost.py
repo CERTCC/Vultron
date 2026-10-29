@@ -680,6 +680,23 @@ def test_main_red_spans_cancelled_run_neither_opens_nor_closes(
     assert ep["ended_at"] is None
 
 
+def test_main_red_spans_other_conclusion_neither_opens_nor_closes(
+    velocity: ModuleType,
+) -> None:
+    """A conclusion that is neither failed nor green is passed over."""
+    runs = [
+        _wf_run("g0", "success", "2026-09-07T09:00:00Z"),
+        _wf_run("n0", "neutral", "2026-09-07T09:30:00Z"),
+        _wf_run("a", "failure", "2026-09-07T10:00:00Z"),
+        _wf_run("n1", "action_required", "2026-09-07T11:00:00Z"),
+        _wf_run("b", "failure", "2026-09-07T12:00:00Z"),
+    ]
+    (ep,) = velocity._main_red_spans(runs)
+    assert ep["prior_green_sha"] == "g0"
+    assert ep["red_runs"] == 2
+    assert ep["ended_at"] is None
+
+
 def test_main_red_spans_groups_per_workflow(velocity: ModuleType) -> None:
     """A green run of one workflow does not close another's episode."""
     runs = [
@@ -886,6 +903,65 @@ def test_main_red_episodes_lists_merges_whose_runs_were_cancelled(
     )
     assert ep["pr_number"] == 3
     assert ep["unverified_merges"] == [2]
+
+
+def test_main_red_episodes_unverified_bounds_are_merge_times(
+    velocity: ModuleType,
+) -> None:
+    """Merge times, not run start times, bound the unverified merges.
+
+    #4 merged after the green commit #3 but before #3's run started, so a
+    run-time bound would miss it.  #6 merged after the breaker #5 but before
+    #5's run started, so a run-time bound would wrongly list it.
+    """
+    prs = [
+        _merged_pr(3, "2026-09-07T08:59:50Z", "m3"),
+        _merged_pr(4, "2026-09-07T08:59:55Z", "m4"),
+        _merged_pr(5, "2026-09-07T11:00:00Z", "m5"),
+        _merged_pr(6, "2026-09-07T11:00:02Z", "m6"),
+    ]
+    main_runs = [
+        _wf_run("m3", "success", "2026-09-07T09:00:00Z"),
+        _wf_run("m4", "cancelled", "2026-09-07T09:00:05Z"),
+        _wf_run("m5", "failure", "2026-09-07T11:00:05Z"),
+        _wf_run("m6", "failure", "2026-09-07T11:00:07Z"),
+    ]
+    (ep,) = velocity._main_red_episodes(
+        main_runs, prs, velocity._RunIndex([]), _SINCE
+    )
+    assert ep["pr_number"] == 5
+    assert ep["unverified_merges"] == [4]
+
+
+def test_main_red_episodes_direct_push_bounds_by_run_times(
+    velocity: ModuleType,
+) -> None:
+    """With no PR behind the green or red commit, run times bound the list.
+
+    #7 has no run in this workflow at all (a ``paths`` filter), yet it
+    landed between the green and red commits, so it may be the breaker.
+    """
+    prs = [_merged_pr(7, "2026-09-07T09:30:00Z", "m7")]
+    main_runs = [
+        _wf_run("g", "success", "2026-09-07T09:00:00Z"),
+        _wf_run("direct", "failure", "2026-09-07T10:00:00Z"),
+    ]
+    (ep,) = velocity._main_red_episodes(
+        main_runs, prs, velocity._RunIndex([]), _SINCE
+    )
+    assert ep["pr_number"] is None
+    assert ep["unverified_merges"] == [7]
+
+
+def test_merged_between_orders_by_merge_time(velocity: ModuleType) -> None:
+    prs = [
+        _merged_pr(2, "2026-09-07T11:00:00Z", "m2"),
+        _merged_pr(1, "2026-09-07T10:00:00Z", "m1"),
+        _merged_pr(3, "2026-09-07T13:00:00Z", "m3"),
+    ]
+    assert velocity._merged_between(
+        prs, "2026-09-07T09:00:00Z", "2026-09-07T12:00:00Z"
+    ) == [1, 2]
 
 
 def test_main_red_episodes_unknown_pr_or_green_run_is_none(
