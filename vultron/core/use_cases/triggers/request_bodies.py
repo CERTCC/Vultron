@@ -390,11 +390,11 @@ class RejectCaseInviteRequest(BaseModel):
     invite_id: NonEmptyString
 
 
-class AcceptActorRecommendationRequest(BaseModel):
-    """Request body for the accept-actor-recommendation trigger endpoint.
+class _ActorRecommendationAnswerRequest(BaseModel):
+    """The body shared by the Case Owner's two answers to a recommendation.
 
-    Sent by the Case Owner (e.g. Vendor1) to accept an Offer(CaseParticipant)
-    forwarded by the CaseActor per ADR-0026 (CM-16-006).
+    Both name the Offer(CaseParticipant) the CaseActor forwarded and the
+    CaseActor the answer goes to (ADR-0026, CM-16-006, CM-16-007).
 
     TRIG-03-001: Must include cp_offer_id and case_actor_id.
     TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
@@ -404,6 +404,28 @@ class AcceptActorRecommendationRequest(BaseModel):
 
     cp_offer_id: NonEmptyString
     case_actor_id: UriString
+
+
+class AcceptActorRecommendationRequest(_ActorRecommendationAnswerRequest):
+    """Request body for the accept-actor-recommendation trigger endpoint.
+
+    Sent by the Case Owner (e.g. Vendor1) to accept an Offer(CaseParticipant)
+    forwarded by the CaseActor per ADR-0026 (CM-16-006).
+
+    TRIG-03-001: Must include cp_offer_id and case_actor_id.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+
+class RejectActorRecommendationRequest(_ActorRecommendationAnswerRequest):
+    """Request body for the reject-actor-recommendation trigger endpoint.
+
+    Sent by the Case Owner to reject an Offer(CaseParticipant) forwarded by
+    the CaseActor per ADR-0026 (CM-16-007).
+
+    TRIG-03-001: Must include cp_offer_id and case_actor_id.
+    TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
 
 
 class InviteActorToCaseRequest(CaseTriggerRequest):

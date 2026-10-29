@@ -518,6 +518,11 @@ RECIPES: dict[str, Recipe] = {
             cp_offer_id=w.cp_offer_id(), actor=_ACTOR, to=[_CASE_ACTOR]
         )
     ),
+    "reject_case_participant_offer": lambda w: (
+        w.adapter.reject_case_participant_offer(
+            cp_offer_id=w.cp_offer_id(), actor=_ACTOR, to=[_CASE_ACTOR]
+        )
+    ),
     "emit_accept_actor_recommendation": lambda w: (
         w.adapter.emit_accept_actor_recommendation(
             recommender_id=_PEER,
