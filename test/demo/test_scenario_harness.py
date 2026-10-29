@@ -44,6 +44,7 @@ from vultron.demo.scenario.registry import discover_scenarios
 from vultron.demo.utils import (
     DataLayerClient,
     demo_check,
+    demo_step,
     reset_demo_failures,
 )
 from vultron.errors import DemoFailureError, DemoScenarioStepError
@@ -554,10 +555,32 @@ class TestDecidingRole:
                     "reporter-whom-to-tell", "vendor", by=REPORTER
                 )
 
+    def test_an_unchecked_root_keeps_the_failure_that_stopped_the_run(
+        self, _devlogs
+    ) -> None:
+        """A soft failure before the case is the cause; it is not lost."""
+        with pytest.raises(
+            DemoScenarioStepError, match="without following"
+        ) as exc_info:
+            with scenario_harness("rv") as harness:
+                harness.reach_step(
+                    "reporter-whom-to-tell", "vendor", by=REPORTER
+                )
+                with demo_step("submit the report"):
+                    raise RuntimeError("the report was refused")
+
+        notes = getattr(exc_info.value, "__notes__", [])
+        assert any("submit the report" in note for note in notes)
+
     @pytest.mark.parametrize(
         ("key", "value", "match"),
         [
-            ("urn:case", {}, "no participant index"),
+            # The root check reads the reports first; keep them readable.
+            (
+                "urn:case",
+                {"vulnerabilityReports": [{"attributedTo": REPORTER}]},
+                "no participant index",
+            ),
             ("urn:participant:vendor", {}, "no list of case roles"),
             ("urn:participant:vendor", {"caseRoles": "vendor"}, "no list"),
         ],
@@ -566,9 +589,6 @@ class TestDecidingRole:
         self, _devlogs, key, value, match
     ) -> None:
         client = _rv_store()
-        if key == "urn:case":
-            # The root check reads the reports first; keep them readable.
-            value = {"vulnerabilityReports": [{"attributedTo": REPORTER}]}
         client.records[key] = value
         with pytest.raises(DemoScenarioStepError, match=match):
             self._run(client)

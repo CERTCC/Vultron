@@ -135,7 +135,8 @@ DEMOCI-11-018). The test is `TestSharedPrefixes` in
   invite chain). The recorder commits the marks as `steps.json` beside each
   recording and refuses a run that leaves a declared step unmarked.
 - The harness also checks the `by` actor holds the branch point's role; the
-  rule is in demo-scenario-registry.md § "The path and the branch-point table".
+  rule is in [demo-scenario-registry.md](demo-scenario-registry.md) §
+  "The path and the branch-point table".
 
 ## Test starting points
 

@@ -520,7 +520,8 @@ def scenario_harness(
         DemoFailureError: When the body completed but ``demo_step`` or
             ``demo_check`` recorded failures.
         DemoScenarioStepError: When the body completed with its root step's
-            Reporter unchecked (:meth:`ScenarioHarness.require_root_checked`).
+            Reporter unchecked (:meth:`ScenarioHarness.require_root_checked`),
+            carrying any ``demo_step`` or ``demo_check`` failures as notes.
         BaseException: Whatever the body raised, unchanged — the dump runs
             first but never substitutes its own error for the body's.
     """
@@ -542,5 +543,11 @@ def scenario_harness(
         _ACTIVE.reset(token)
     _run_dump(harness)
     _record_marks(harness)
-    harness.require_root_checked()
+    try:
+        harness.require_root_checked()
+    except DemoScenarioStepError as exc:
+        # As on the failing path: a soft failure that stopped the scenario
+        # before it followed a ledger is the real cause, so keep it.
+        _note_accumulated_failures(exc)
+        raise
     assert_demo_success()

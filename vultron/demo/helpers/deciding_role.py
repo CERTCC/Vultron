@@ -110,7 +110,8 @@ def require_case_role(
 
     Raises:
         DemoScenarioStepError: When the actor is not a participant in the
-            case, or its participant does not hold *role*.
+            case, its participant does not hold *role*, or a record the
+            check reads is not a record or lacks the field it needs.
         httpx.HTTPStatusError: When the CaseActor's store cannot be read.
     """
     case = _read(case_actor_client, case_id)
@@ -156,7 +157,8 @@ def require_report_submitter(
 
     Raises:
         DemoScenarioStepError: When no report of the case names *actor_id*
-            as its author.
+            as its author, or a record the check reads is not a record or
+            lacks the field it needs.
         httpx.HTTPStatusError: When the CaseActor's store cannot be read.
     """
     case = _read(case_actor_client, case_id)
