@@ -988,8 +988,8 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Unit tests MUST verify that activities with an unknown case context are queued and are
-      dropped after timeout without updating any state.
+      Unit tests MUST verify that activities with an unknown case context are queued
+      and are dropped after timeout without updating any state.
     rationale: >-
       The handling of unknown case context (PCR-06-001 to PCR-06-003) has two parts:
       hold the activity, and drop it later without changing state. A failure in either

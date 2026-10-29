@@ -93,8 +93,9 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
     from the same CaseActor that no Accept has fixed moves
     ``anchor_invite_id`` to the newer Invite.  A record no Invite has
     anchored yet — created by the pre-bootstrap queue for an earlier
-    activity, whose sender it records but does not trust — takes the Invite's CaseActor in place of that sender: it
-    is not a second Invite (#4931).  Every record the node writes or confirms
+    activity, whose sender it records but does not trust — takes the
+    Invite's CaseActor in place of that sender: it is not a second Invite
+    (#4931).  Every record the node writes or confirms
     is marked ``invite_anchored``, so the anchored CASE_MANAGER check trusts
     it and the pre-bootstrap queue's expiry keeps it (PCR-03-004,
     CBT-03-003).

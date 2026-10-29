@@ -409,8 +409,9 @@ class TestRecordInviteTrustAnchorNodeMarksTheAnchor:
 class TestRecordInviteTrustAnchorNodeOverQueueRecordedSender:
     """A sender the queue recorded is not an anchor (#4931).
 
-    The first deferred activity from any actor records its sender.  A stub Invite naming another CaseActor is not a second
-    Invite, so it anchors trust in place of that sender.
+    The first deferred activity from any actor records its sender.  A stub
+    Invite naming another CaseActor is not a second Invite, so it anchors
+    trust in place of that sender.
     """
 
     def _scenario_with_queued_sender(self) -> BTTestScenario:
