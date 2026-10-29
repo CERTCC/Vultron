@@ -35,6 +35,7 @@ from vultron.wire.as2.unknown_keys import (
     resolve_inline_class as _inline_vocab_class,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCaseReference,
     as_VulnerabilityCaseStub,
     case_stub_id,
 )
@@ -82,10 +83,21 @@ def test_an_enriched_stub_is_a_stub():
 
 
 @pytest.mark.spec("CM-11-013")
-def test_a_sparse_case_is_a_case_not_a_stub():
-    """Only ``id`` and ``type``: still a case, because the type says so."""
+@pytest.mark.spec("AKM-03-003")
+def test_an_id_and_type_case_is_a_case_reference_not_a_stub():
+    """Only ``id`` and ``type``: the typed reference an act names its case by
+    (ADR-0165), never a stub, because the type says ``VulnerabilityCase``."""
     resolved = _inline_vocab_class(
         {"type": "VulnerabilityCase", "id": _CASE_ID}
+    )
+    assert resolved is as_VulnerabilityCaseReference
+
+
+@pytest.mark.spec("CM-11-013")
+def test_a_sparse_case_is_a_case_not_a_stub():
+    """One key past ``id`` and ``type``: a case, because the type says so."""
+    resolved = _inline_vocab_class(
+        {"type": "VulnerabilityCase", "id": _CASE_ID, "name": "sparse"}
     )
     assert resolved is VulnerabilityCase
 

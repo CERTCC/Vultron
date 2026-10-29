@@ -319,7 +319,7 @@ def demo_invalidate_and_close_report(
         )
         post_to_inbox_and_wait(client, vendor.id_, invalidate_activity)
         case = wait_for_case_for_offer(client, offer.id_)
-        close_activity = rm_close_case_activity(case, actor=vendor.id_)
+        close_activity = rm_close_case_activity(case.id_, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, close_activity)
         with demo_check("InvalidateReport and CloseCase activities stored"):
             verify_received_activity_stored(client, invalidate_activity.id_)

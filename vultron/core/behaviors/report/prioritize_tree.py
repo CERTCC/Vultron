@@ -32,11 +32,9 @@ Structure:
     EngageCaseBT (Sequence)
     ├─ Intake
     ├─ SenderIsParticipantNode                       # Sender guard, before any write
-    ├─ CheckCarriedEmbargoNode                       # Snapshot only; writes nothing
     ├─ AdjudicateRMDeclarationNode(ACCEPTED)         # RM acceptance rule (RSH-06-006)
     ├─ GuardedCommitCaseLedgerEntryBT                # Record receipt before effects (CLP-10-006)
     └─ EngageEffectsIfCaseManager                    # CASE_MANAGER only (RSH-08-003, #3814)
-       ├─ HoldCarriedEmbargoNode                     # Snapshot only (EMB-18-003)
        ├─ IdempotentTransitionRMtoAccepted           # Record the sender's ACCEPTED (RSH-08-001)
        ├─ EmitRMGapNoteNode                          # RSH-06-004 note on a non-adjacent jump
        ├─ CaptureCaseUpdateBroadcastExclusionsNode   # Resolve embargo-based exclusions
@@ -77,10 +75,6 @@ from vultron.core.behaviors.case.engage_defer_trigger_tree import (
     defer_case_trigger_bt,
     engage_case_trigger_bt,
 )
-from vultron.core.behaviors.case.nodes.carried_snapshot import (
-    CheckCarriedEmbargoNode,
-    HoldCarriedEmbargoNode,
-)
 from vultron.core.behaviors.case.nodes.update import (
     BroadcastCaseUpdateNode,
     CaptureCaseUpdateBroadcastExclusionsNode,
@@ -95,7 +89,6 @@ from vultron.core.behaviors.report.rm_declaration_tree import (
 )
 from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sender_guard import SenderCheckContext
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.rm import RM
 
 if TYPE_CHECKING:
@@ -111,7 +104,6 @@ logger = logging.getLogger(__name__)
 def create_engage_case_tree(
     case_id: str,
     actor_id: str,
-    case_obj: VulnerabilityCase | None = None,
     *,
     sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
@@ -130,45 +122,25 @@ def create_engage_case_tree(
         case_id: ID of VulnerabilityCase being engaged
         actor_id: The sender, whose declared RM state (ACCEPTED) is recorded
             (RSH-08-001)
-        case_obj: The case snapshot the Engage carried, if any.  Its embargo
-            is checked among the guards, writing nothing, and held only as
-            an effect of the committed act, so a refused Engage stores no
-            embargo (EMB-18-003, CLP-10-006, CLP-10-010); its inline
-            participants are not stored, because the
-            CASE_MANAGER already holds every record they name and replicas
-            take records only from the ledger (CLP-07-013, CM-23-016).
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-008).
 
     Returns:
         Root node of the engage_case behavior tree (Sequence)
     """
-    # The snapshot's participant records are not stored: the CASE_MANAGER
-    # already holds every record it names, and a participant's view of them
-    # is never an entry a replica can copy (CLP-07-013, CM-23-016).  Its
-    # embargo is checked among the guards, which write nothing, and held as
-    # the first effect, inside the act's transaction, so a refused Engage
-    # stores nothing (CLP-10-006, CLP-10-010, ADR-0146).
-    snapshot_guards: list[py_trees.behaviour.Behaviour] = (
-        []
-        if case_obj is None
-        else [CheckCarriedEmbargoNode(case_obj, case_id)]
-    )
-    snapshot_effects: list[py_trees.behaviour.Behaviour] = (
-        [] if case_obj is None else [HoldCarriedEmbargoNode(case_obj, case_id)]
-    )
+    # The Join names the case and carries no copy of it (ADR-0165), so the
+    # tree reads every detail from the case this store holds and stores
+    # nothing from the message but what intake archives (CLP-07-013).
     root = create_receive_activity_tree(
         name="EngageCaseBT",
         case_id=case_id,
         # The sender is checked against the participant records this store
-        # already holds, before the snapshot is read: an Engage goes to the
-        # CASE_MANAGER, which created the sender's record when it added the
-        # sender, so a snapshot never supplies the record the guard needs,
-        # and a stranger's Engage stores nothing (HP-01-006, #4696).
+        # already holds: an Engage goes to the CASE_MANAGER, which created
+        # the sender's record when it added the sender, and a stranger's
+        # Engage stores nothing (HP-01-006, #4696).
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(sender_id=actor_id, case_id=case_id),
         precondition_guards=[
-            *snapshot_guards,
             rm_declaration_guard(actor_id, RM.ACCEPTED, case_id),
         ],
         # RSH-08-003: the sender's RM move is canonical participant state only
@@ -179,7 +151,6 @@ def create_engage_case_tree(
         # CASE_MANAGER then announces the canonical case state, authored as the
         # executing actor (CM-06-001).
         manager_effects=[
-            *snapshot_effects,
             *record_rm_declaration(
                 actor_id, RM.ACCEPTED, case_id, name="TransitionRMtoAccepted"
             ),

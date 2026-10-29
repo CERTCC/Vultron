@@ -255,6 +255,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0160 A Requirement That Uses a Term Another Requirement Defines Records `uses_definition`, and a Link No Type Fits Is Not Recorded](0160-a-requirement-that-uses-a-term-another-defines-records-uses-definition.md) *(provisional)*
 - [ADR-0161 Eventual Consistency Is the Protocol's Ordering Guarantee](0161-eventual-consistency-is-the-protocols-ordering-guarantee.md) *(provisional)*
 - [ADR-0164 Actors Sign Content with Object-Level Proofs from Seeded Keys](0164-actors-sign-content-with-object-level-proofs-from-seeded-keys.md) *(provisional)*
+- [ADR-0165 A Participant's Act on a Case Names the Case and Never Carries It](0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md) *(provisional)*
 
 ## Proposed ADRs
 

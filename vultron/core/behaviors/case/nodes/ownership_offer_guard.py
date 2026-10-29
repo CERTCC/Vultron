@@ -69,9 +69,10 @@ class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
     recipient is the executing actor (BT-17-008, ADR-0109; CM-33-003 refuses
     the role offer on the same ground), nor the proposing owner, who already
     owns the case.  The transferee must also be an active participant whose
-    closure is not recorded (CM-21-021, CM-10-004): the Offer carries the case
-    inline, so only an actor entitled to its content may be offered it, and
-    an owner that means to transfer to anyone else invites it first.  The
+    closure is not recorded (CM-21-021, CM-10-004): only an actor entitled to
+    the case content, which holds the case the Offer names by reference
+    (ADR-0165), may be offered it, and an owner that means to transfer to
+    anyone else invites it first.  The
     test is :func:`~vultron.core.participants.recipients.may_act_on_case`,
     the one the transferee's Accept passes again (:class:`OwnershipTransfereeActiveNode`).
     Anything else in the inner

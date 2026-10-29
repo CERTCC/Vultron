@@ -108,9 +108,12 @@ class _CasesMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Accept(as_VulnerabilityCase)`` engage activity."""
-        case = _case_for_wire(self._dl, case_id)
-        activity = rm_engage_case_activity(case=case, actor=actor, to=to)
+        """Create and persist the RA ``Join(VulnerabilityCase)``, naming the case.
+
+        The case travels as its typed reference (ADR-0165): the CASE_MANAGER
+        it goes to holds the canonical case, so no copy is carried.
+        """
+        activity = rm_engage_case_activity(case=case_id, actor=actor, to=to)
         return _create_and_seal(self._dl, activity, "engage_case")
 
     def defer_case(
@@ -119,9 +122,11 @@ class _CasesMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``TentativeReject(as_VulnerabilityCase)`` activity."""
-        case = _case_for_wire(self._dl, case_id)
-        activity = rm_defer_case_activity(case=case, actor=actor, to=to)
+        """Create and persist the RD ``Ignore(VulnerabilityCase)``, naming the case.
+
+        The case travels as its typed reference (ADR-0165).
+        """
+        activity = rm_defer_case_activity(case=case_id, actor=actor, to=to)
         return _create_and_seal(self._dl, activity, "defer_case")
 
     def close_case(
@@ -130,9 +135,11 @@ class _CasesMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Leave(as_VulnerabilityCase)`` close-case activity."""
-        case = _case_for_wire(self._dl, case_id)
-        activity = rm_close_case_activity(case=case, actor=actor, to=to)
+        """Create and persist the RC ``Leave(VulnerabilityCase)``, naming the case.
+
+        The case travels as its typed reference (ADR-0165).
+        """
+        activity = rm_close_case_activity(case=case_id, actor=actor, to=to)
         return _create_and_seal(self._dl, activity, "close_case")
 
     def reject_close_case(
@@ -145,15 +152,15 @@ class _CasesMixin:
         """Create and persist a ``Reject(Leave(VulnerabilityCase))`` activity.
 
         Declines an owner's close while an embargo is active (CM-23-011).
-        The declined Leave is reconstructed from the case attributed to the
-        ``close_sender`` (the Case Owner), then wrapped in an ``as:Reject``
+        The declined Leave is reconstructed, naming the case as the owner's
+        Leave does (ADR-0165), as sent by the ``close_sender`` (the Case
+        Owner), then wrapped in an ``as:Reject``
         sent by ``actor`` (the Case Actor) back to the owner.  The inbound
         Leave is not yet persisted when this runs (intake archives it
         later in the tree), so the decline is threaded to it via
         ``in_reply_to`` rather than read back from the DataLayer.
         """
-        case = _case_for_wire(self._dl, case_id)
-        leave = rm_close_case_activity(case=case, actor=close_sender)
+        leave = rm_close_case_activity(case=case_id, actor=close_sender)
         kwargs: dict[str, Any] = {"actor": actor, "to": [close_sender]}
         if in_reply_to is not None:
             kwargs["in_reply_to"] = in_reply_to

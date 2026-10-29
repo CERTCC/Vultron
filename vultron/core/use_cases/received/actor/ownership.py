@@ -34,6 +34,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     intake_verdict,
     ownership_answer_verdict,
     ownership_offer_verdict,
+    unheld_case_refusal,
     verdict_from_bt,
 )
 from vultron.core.use_cases.received._offer_reply import (
@@ -114,11 +115,24 @@ class ProposeCaseOwnershipTransferReceivedUseCase:
             sender_rule=self.sender_entitlement,
             sender_id=request.actor_id,
         )
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
+        # The proposal names the case (ADR-0165): the CASE_MANAGER reads every
+        # detail from the case it holds, so one it does not hold is refused.
+        if (
+            case_id is not None
+            and (
+                refusal := unheld_case_refusal(
+                    self._dl, case_id, request.activity_id, "Offer(Offer)"
+                )
+            )
+            is not None
+        ):
+            return refusal
         result = self._bridge().execute_with_setup(
             tree=tree,
-            actor_id=resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            ),
+            actor_id=receiving_actor_id,
             activity=request,
         )
         verdict = ownership_offer_verdict(
@@ -177,11 +191,12 @@ class OfferCaseOwnershipTransferReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+        case_id = _as_id(request.activity.object_)
         # The tree's addressee door guard refuses a copy not addressed to
         # this store before it stores anything (HP-01-005, #3752); the sender
         # guard then admits the CASE_MANAGER alone (PCR-03-001).
         tree = create_offer_ownership_transfer_tree(
-            case_id=_as_id(request.activity.object_),
+            case_id=case_id,
             sender_rule=self.sender_entitlement,
             sender_id=request.actor_id,
         )

@@ -201,15 +201,16 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      This codebase MUST carry the `object` of every outbound activity as a fully inline
-      typed object, never as a bare URI reference or an `as_Link`. AKM-03-002 enforces
-      this at delivery.
+      Except for the case reference AKM-03-004 requires, this codebase MUST carry the
+      `object` of every outbound activity as a fully inline typed object, never as a
+      bare URI reference or an `as_Link`. AKM-03-002 enforces this at delivery.
     rationale: >-
       How this codebase meets AKM-03-001 and MV-09-001; split from them so they state
       only what other participants observe (MS-12-010). A receiver of this codebase does
       not dereference (AKM-05-003), so it could not resolve a reference to learn the
       activity's semantic type. Carrying the object inline is a shortcut of this
-      prototype reference implementation, not a protocol rule.
+      prototype reference implementation, not a protocol rule. A typed reference names
+      its `type`, so a receiver still routes by it (ADR-0165).
     note: >-
       The rule binds the activity's own `object`. An `Invite(EmbargoEvent)` nested as the
       object of an ER may name its terms by URI: the ER answers the Invite by id and type,
@@ -219,14 +220,85 @@ groups:
       include a fully serialized `object` field rather than a bare URI reference.
       `vultron/adapters/driving/fastapi/outbox_delivery.py` raises
       `VultronValidationError` when `object_` is a bare string URI rather than a typed
-      object. `test/architecture/test_introduced_objects_inline.py` classifies every
-      activity factory, and checks that each one introducing an object refuses it as a
-      bare id and carries it inline, and that every example activity does the same.
+      object, and passes a typed case reference
+      (`test/adapters/driving/fastapi/test_outbox_handle_item_validation.py`).
+      `test/architecture/test_introduced_objects_inline.py` classifies every activity
+      factory, and checks that each one introducing an object refuses it as a bare id
+      and carries it inline, that each excepted act carries exactly the case
+      reference, and that every example activity does the same.
+    adr:
+    - ADR-0165
     relationships:
     - rel_type: implements
       spec_id: AKM-03-001
     - rel_type: implements
       spec_id: MV-09-001
+  - id: AKM-03-004
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST carry the case that `Join`, `Ignore` and `Leave` of a case and
+      the ownership-transfer `Offer(VulnerabilityCase)` act on as a typed reference: an
+      inline object with only the case's `id` and `type`. The ownership-transfer
+      `Offer` is both the one nested in the owner's proposal and the one the
+      CASE_MANAGER makes.
+    rationale: >-
+      Every receiver of these acts holds the case: the CASE_MANAGER holds the canonical
+      case, and the transferee of an ownership-transfer `Offer` is an active participant
+      (CM-21-021). A full copy would put the sender's view of the case on the ledger,
+      where a replica could take records from it. The reference's `type` keeps routing
+      by object type, as an actor reference does (ADR-0159).
+    verification: >-
+      `test/architecture/test_introduced_objects_inline.py` asserts each of these
+      factories carries exactly the case reference, and
+      `test/wire/as2/factories/test_case_factories.py` asserts the reference each one
+      builds from a held case or its id.
+    adr:
+    - ADR-0165
+    relationships:
+    - rel_type: refines
+      spec_id: AKM-03-003
+  - id: AKM-03-005
+    priority: MUST
+    kind: project
+    statement: >-
+      A receiver of one of the acts AKM-03-004 names MUST read only the case's `id` from
+      the act's `object` and store nothing from it, taking every other detail from the
+      case it holds, whether the object is a typed reference or a full case.
+    rationale: >-
+      Another sender may still carry a full case in one of these acts. Refusing it would
+      refuse a message the receiver understands, and storing any of it would let the
+      sender's copy disagree with the canonical case. The body is still ledgered as
+      received (CLP-07-011), so a replica takes no record from such an act's case either
+      (ADR-0165).
+    verification: >-
+      `test/core/use_cases/received/test_case_named_by_reference.py` delivers each act
+      with a typed reference and with a full case whose details disagree with the
+      canonical case, and asserts the canonical case is used, nothing from the carried
+      case is stored and a replica applying the entry gains no record from it.
+    adr:
+    - ADR-0165
+    relationships:
+    - rel_type: refines
+      spec_id: AKM-03-004
+  - id: AKM-03-006
+    priority: MUST
+    kind: project
+    statement: >-
+      A receiver of one of the acts AKM-03-004 names MUST refuse one that names a case
+      it does not hold, naming the activity and the case in the reason.
+    rationale: >-
+      The act carries no case to act on, so a receiver that does not hold the case has
+      nothing to apply it to; naming both lets the sender see which act failed and why.
+    verification: >-
+      `test/core/use_cases/received/test_case_named_by_reference.py` delivers each act
+      naming a case the CASE_MANAGER does not hold and asserts it is `REFUSED` with a
+      reason naming the activity and the case.
+    adr:
+    - ADR-0165
+    relationships:
+    - rel_type: refines
+      spec_id: AKM-03-004
   - id: AKM-03-002
     priority: MUST
     kind: project

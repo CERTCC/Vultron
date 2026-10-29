@@ -48,6 +48,7 @@ from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCaseReference,
     as_VulnerabilityCaseStub,
 )
 
@@ -762,6 +763,10 @@ def _build_object_kwargs(
 
     if _obj_type == str(VOtype.VULNERABILITY_REPORT):
         kw.update(_build_report_object(obj))
+    elif isinstance(obj, as_VulnerabilityCaseReference):
+        # A case named by typed reference reaches core as its id and type
+        # only (ADR-0165); the receiver reads the case from its own store.
+        kw["object_"] = _to_domain_obj(obj)
     elif _obj_type == str(VOtype.VULNERABILITY_CASE):
         kw.update(_build_case_object(obj))
     elif isinstance(obj, (as_Event, EmbargoEvent)):

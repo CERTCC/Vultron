@@ -1,47 +1,13 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Join",
-  "id": "urn:uuid:30da67db-d200-4fbd-a70b-27d12a60ed17",
-  "name": "https://vultron.example/organizations/vendorco Join VendorCo Case #25584766",
+  "id": "urn:uuid:af659e60-7e7c-4dd1-9eeb-725a198065e2",
+  "name": "https://vultron.example/organizations/vendorco Join urn:uuid:2ff77bba-c8e8-4b48-b1d5-6c21657f66ae",
   "content": "We're engaging this case.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "id": "urn:uuid:ff55f4dd-64bd-4dc3-9ff5-bc70dbe939fb",
+    "@context": "https://www.w3.org/ns/activitystreams",
     "type": "VulnerabilityCase",
-    "name": "VendorCo Case #25584766",
-    "published": "2026-10-22T14:04:23+00:00",
-    "updated": "2026-10-22T14:04:23+00:00",
-    "attributedTo": "https://vultron.example/organizations/vendorco",
-    "caseParticipants": [],
-    "actorParticipantIndex": {},
-    "vulnerabilityReports": [],
-    "caseStatuses": [
-      {
-        "id": "urn:uuid:ae3f6696-f263-43a8-83ea-34aae0fe6683",
-        "type": "CaseStatus",
-        "name": "NONE pxa",
-        "context": "urn:uuid:ff55f4dd-64bd-4dc3-9ff5-bc70dbe939fb",
-        "published": "2026-10-22T14:04:23+00:00",
-        "updated": "2026-10-22T14:04:23+00:00",
-        "attributedTo": "https://vultron.example/organizations/vendorco",
-        "emState": "NONE",
-        "pxaState": "pxa",
-        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
-      }
-    ],
-    "notes": [],
-    "embargoRegister": [],
-    "pendingEmbargoProposalIndex": {},
-    "caseActivity": [],
-    "genesisHash": "5b4e8bd4b5d2e94c1d1269ef9c189010cf6f315f113b8151201f6e5b42eb3c8d",
-    "ledgerPosition": {
-      "logIndex": -1,
-      "entryHash": "5b4e8bd4b5d2e94c1d1269ef9c189010cf6f315f113b8151201f6e5b42eb3c8d"
-    },
-    "parentCases": [],
-    "childCases": [],
-    "siblingCases": [],
-    "activeParticipants": [],
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+    "id": "urn:uuid:2ff77bba-c8e8-4b48-b1d5-6c21657f66ae"
   }
 }

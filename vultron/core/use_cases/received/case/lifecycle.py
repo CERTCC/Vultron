@@ -30,6 +30,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     door_refusal,
     find_named,
     reference_edit_verdict,
+    unheld_case_refusal,
     verdict_from_bt,
 )
 
@@ -191,6 +192,15 @@ class CloseCaseReceivedUseCase:
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
+
+        # The Leave names the case (ADR-0165): every detail comes from the
+        # case this store holds, so one it does not hold is refused.
+        if (
+            refusal := unheld_case_refusal(
+                self._dl, case_id, request.activity_id, "Leave"
+            )
+        ) is not None:
+            return refusal
 
         logger.info(
             "Actor '%s' is closing case '%s'",

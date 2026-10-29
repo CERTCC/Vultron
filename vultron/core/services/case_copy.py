@@ -224,14 +224,43 @@ def _named_by(case: VulnerabilityCase) -> set[str]:
     return named
 
 
+#: The activity types whose ``object`` names a case without carrying a copy
+#: of it: a participant's ``Join``, ``Ignore`` and ``Leave`` of a case and the
+#: ownership-transfer ``Offer`` (ADR-0165).
+_CASE_NAMING_ACTIVITY_TYPES: frozenset[str] = frozenset(
+    {"Join", "Ignore", "Leave", "Offer"}
+)
+
+
+def _names_its_case(value: dict[str, Any], key: str, child: Any) -> bool:
+    """Whether *child*, *value*'s ``object``, is a case the act only names.
+
+    Such an act's case is its typed reference (ADR-0165).  One from another
+    sender may still carry a full case, which is that sender's copy, never
+    the CASE_MANAGER's, so nothing is copied out of it.
+    """
+    return (
+        key in ("object", "object_")
+        and value.get("type") in _CASE_NAMING_ACTIVITY_TYPES
+        and isinstance(child, dict)
+        and child.get("type") == "VulnerabilityCase"
+    )
+
+
 def _snapshot_objects(value: Any) -> Iterator[dict[str, Any]]:
-    """Every object dict, with an id and a type, inside *value*."""
+    """Every object dict, with an id and a type, inside *value*.
+
+    The case an act only names is not descended into
+    (:func:`_names_its_case`).
+    """
     if isinstance(value, dict):
         if isinstance(value.get("id"), str) and isinstance(
             value.get("type"), str
         ):
             yield value
-        for child in value.values():
+        for key, child in value.items():
+            if _names_its_case(value, key, child):
+                continue
             yield from _snapshot_objects(child)
     elif isinstance(value, list):
         for child in value:

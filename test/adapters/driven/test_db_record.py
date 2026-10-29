@@ -783,24 +783,31 @@ def _role_offer_naming_a_peer():
     )
 
 
-def _ownership_offer_naming_a_peer():
-    """An ``Offer(VulnerabilityCase, target=Actor)`` — the ownership transfer.
-
-    Names the transferee by a bare id, as the trigger adapter passes it; the
-    factory wraps it as an ``as_Actor`` (DL-08-003, #4843).
-    """
-    from vultron.wire.as2.factories import (
-        offer_case_ownership_transfer_activity,
-    )
+def _ownership_transfer_case() -> Any:
+    """The case :func:`_ownership_offer_naming_a_peer` names, as its store holds it."""
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         as_VulnerabilityCase,
     )
 
+    return as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_="urn:uuid:case-dl08003-0000-0000-000000000001",
+    )
+
+
+def _ownership_offer_naming_a_peer():
+    """An ``Offer(VulnerabilityCase, target=Actor)`` — the ownership transfer.
+
+    Names the transferee by a bare id, as the trigger adapter passes it; the
+    factory wraps it as an ``as_Actor`` (DL-08-003, #4843).  The case travels
+    as its typed reference (ADR-0165).
+    """
+    from vultron.wire.as2.factories import (
+        offer_case_ownership_transfer_activity,
+    )
+
     return offer_case_ownership_transfer_activity(
-        as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID,
-            id_="urn:uuid:case-dl08003-0000-0000-000000000001",
-        ),
+        _ownership_transfer_case(),
         target=_PEER_ACTOR_ID,
         id_="urn:uuid:own-dl08003-0000-0000-000000000001",
         actor="http://vendor:7999/api/v2/actors/vendor-owner",
@@ -909,7 +916,7 @@ def test_ownership_transferee_round_trips_as_an_object(received):
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
     try:
-        dl.create(cast(Any, offer).object_)
+        dl.create(_ownership_transfer_case())
         dl.create(cast(Any, offer))
         assert dl.read(_PEER_ACTOR_ID) is None
         back = dl.read(offer.id_)

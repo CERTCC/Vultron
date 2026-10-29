@@ -1012,6 +1012,54 @@ def test_a_current_copy_replaces_a_participant_the_replica_holds_ahead() -> (
     assert replaced.participant_status.rm.state is RM.VALID
 
 
+@pytest.mark.spec("AKM-03-005")
+@pytest.mark.parametrize(
+    "wrap",
+    [
+        pytest.param(lambda case: {"type": "Join", "object": case}, id="Join"),
+        pytest.param(
+            lambda case: {"type": "Ignore", "object": case}, id="Ignore"
+        ),
+        pytest.param(
+            lambda case: {"type": "Leave", "object": case}, id="Leave"
+        ),
+        pytest.param(
+            lambda case: {
+                "type": "Offer",
+                "object": {"type": "Offer", "id": "urn:x", "object": case},
+            },
+            id="Offer(Offer)",
+        ),
+    ],
+)
+def test_a_reflected_entry_copies_nothing_from_a_case_an_act_names(
+    wrap: Any,
+) -> None:
+    """A participant's act names its case; a full case another sender still
+    carries there is that sender's copy, so nothing is taken from it
+    (ADR-0165)."""
+    dl = _replica_holding("replaced replica")
+    status_id = f"{_CASE_ID}/statuses/s-carried"
+    case = cast(as_VulnerabilityCase, dl.read(_CASE_ID))
+    dl.save(
+        case.model_copy(
+            update={"case_statuses": [*case.case_statuses, status_id]}
+        )
+    )
+    carried = {
+        "id": _CASE_ID,
+        "type": "VulnerabilityCase",
+        "caseStatuses": [
+            CaseStatus(id_=status_id, context=_CASE_ID).model_dump(
+                mode="json", by_alias=True
+            )
+        ],
+    }
+    (entry,) = _chain(dl, [wrap(carried)])
+
+    assert records_a_reflected_entry_adds(entry, dl) == []
+
+
 @pytest.mark.spec("SYNC-16-007")
 @pytest.mark.spec("CM-23-016")
 def test_a_reflected_entry_copies_each_record_the_case_names_and_no_other() -> (
