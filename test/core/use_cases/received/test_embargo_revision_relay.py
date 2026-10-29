@@ -190,7 +190,11 @@ def _deliver(dl: SqliteDataLayer, activity, make_payload, receiving_actor_id):
 @pytest.mark.spec("EP-09-001")
 @pytest.mark.spec("EMB-03-001")
 def test_case_manager_moves_canonical_case_to_revise(make_payload):
-    """The Participant receiving EV is the CASE_MANAGER: ACTIVE → REVISE."""
+    """The Participant receiving EV is the CASE_MANAGER: ACTIVE → REVISE.
+
+    "Emit EK" is discharged by the commit of the received EV and its
+    ``Announce(CaseLedgerEntry)``; no acknowledgement message is queued.
+    """
     case_id = "https://example.org/cases/relay-revise"
     dl, revision = _active_case_with_revision(
         case_id, store_actor=MANAGER, participants=[PROPOSER]
@@ -207,6 +211,7 @@ def test_case_manager_moves_canonical_case_to_revise(make_payload):
 
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.current_status.em.state == EM.REVISE
+    _assert_ek_discharged_by_commit(dl, case_id, proposal.id_)
 
 
 @pytest.mark.spec("EP-09-002")
@@ -364,10 +369,41 @@ def _relayed_invites(dl: SqliteDataLayer) -> list[VultronActivity]:
     return _outbox_of_type(dl, "Invite")
 
 
+def _assert_ek_discharged_by_commit(
+    dl: SqliteDataLayer, case_id: str, proposal_id: str
+) -> None:
+    """The proposal is committed and announced, and no ack is queued.
+
+    "Emit EK" is discharged by the CASE_MANAGER's commit of the received
+    proposal and its ``Announce(CaseLedgerEntry)`` (EP-09-009). Call it on a
+    case whose only other participant is the proposer, so no Invite is relayed.
+    """
+    committed = [
+        e
+        for e in _ledger_entries(dl, case_id)
+        if e.log_object_id == proposal_id
+    ]
+    assert len(committed) == 1, "the received proposal is committed once"
+    announced = [
+        a.object_ if isinstance(a.object_, str) else a.object_.id_
+        for a in _outbox_of_type(dl, "Announce")
+        if a.object_ is not None
+    ]
+    assert committed[0].id_ in announced, "the proposal's entry is announced"
+    queued = {
+        cast(VultronActivity, dl.read(i)).type_ for i in dl.outbox_list()
+    }
+    assert queued == {"Announce"}, "no acknowledgement message is queued"
+
+
 @pytest.mark.spec("EP-09-001")
 @pytest.mark.spec("EMB-01-001")
 def test_case_manager_moves_first_proposal_to_proposed(make_payload):
-    """The Participant receiving EP is the CASE_MANAGER: NONE → PROPOSED."""
+    """The Participant receiving EP is the CASE_MANAGER: NONE → PROPOSED.
+
+    "Emit EK" is discharged by the commit of the received EP and its
+    ``Announce(CaseLedgerEntry)``; no acknowledgement message is queued.
+    """
     case_id = "https://example.org/cases/relay-first"
     dl, first = _unbound_case(
         case_id, store_actor=MANAGER, participants=[PROPOSER]
@@ -384,6 +420,7 @@ def test_case_manager_moves_first_proposal_to_proposed(make_payload):
 
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.current_status.em.state == EM.PROPOSED
+    _assert_ek_discharged_by_commit(dl, case_id, proposal.id_)
 
 
 @pytest.mark.spec("CM-28-012")
