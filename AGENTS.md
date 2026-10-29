@@ -378,10 +378,9 @@ Issues live in GitHub Issues. Full rules and CLI patterns:
 [notes/parallel-development.md](notes/parallel-development.md)
 § "GitHub Issue Tracker". Non-negotiables:
 
-- **Never use `gh issue create`** — it cannot set issue types or parent/child
-  and blocker links. Use
-  `.agents/skills/manage-github-issue/manage_github_issue.sh` (or the
-  `createIssue` GraphQL mutation).
+- **Create issues only through the `create-issue` skill** — never `gh issue
+  create` or a raw `createIssue`. Its script refuses an issue without one
+  `theme:`, a `Theme:` line, and a same-theme parent (PAD-02-022).
 - **Epics are the `Epic` issue type, not a label** — detect by
   `issueType.name == "Epic"`, not a label query; create with the `create-epic`
   skill.

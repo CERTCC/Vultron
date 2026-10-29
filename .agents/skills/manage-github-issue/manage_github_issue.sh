@@ -32,15 +32,25 @@
 #   --issue-type-id, --parent, and exactly one of --opened-as or --planned
 # Missing any one exits non-zero. See shared/issue-creation-requirements.md.
 #
+# On CREATE the theme gate (`theme-gate`, notes/epic-themes.md) also requires,
+# before anything is created:
+#   - exactly one active catalog `theme:` label among the --label values;
+#   - a `Theme: <label> — <outcome>` line in --body naming it;
+#   - an open --parent that carries the same theme.
+# Every violation is printed; the script exits 1 without creating the issue.
+# Agents create issues through the `create-issue` skill, which decides the
+# theme and parent this gate checks.
+#
 # Outputs:
 #   Issue number on stdout. Progress and status on stderr.
 #
 # Examples:
-#   # Create with parent and blocker:
+#   # Create with parent and blocker (the create-issue skill builds this call):
 #   NUM=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
-#     --title "Implement X" --body "..." \
+#     --title "Implement X" --body "Theme: theme:dev-workflow — ...
+#   ..." \
 #     --issue-type-id "${TASK_TYPE_ID}" \
-#     --label "size:M" \
+#     --label "size:M" --label "theme:dev-workflow" \
 #     --parent 42 --planned --blocked-by 50)
 #
 #   # Wire relationships on an existing issue:
@@ -130,6 +140,9 @@ elif [[ -n "${OPENED_AS}" || -n "${WHERE}" || "${PLANNED}" -eq 1 ]]; then
   exit 1
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+
 REPO_OWNER="${REPO%%/*}"
 REPO_NAME="${REPO##*/}"
 
@@ -163,6 +176,23 @@ resolve_repo_id() {
 if [[ -z "${ISSUE_NUMBER}" ]]; then
   # CREATE mode
   [[ -z "${TITLE}" ]] && { echo "ERROR: --title is required when creating an issue" >&2; exit 1; }
+
+  # Theme gate: one theme, a Theme: line, a parent carrying the same theme.
+  GATE_ARGS=(--repo "${REPO}" --parent "${PARENT_ISSUE}"
+             --catalog "${PROJECT_DIR}/notes/epic-themes.md" --body-file -)
+  for L in ${LABELS[@]+"${LABELS[@]}"}; do GATE_ARGS+=(--label "${L}"); done
+  GATE_RC=0
+  printf '%s' "${BODY}" | PYTHONPATH= uv run --quiet --project "${PROJECT_DIR}" \
+    python -m vultron.metadata.planning.theme_fit.gate "${GATE_ARGS[@]}" || GATE_RC=$?
+  if [[ "${GATE_RC}" -ne 0 ]]; then
+    if [[ "${GATE_RC}" -eq 1 ]]; then
+      echo "ERROR: the theme gate refused the issue; nothing was created" >&2
+      echo "  Create issues through the create-issue skill" >&2
+    else
+      echo "ERROR: the theme gate could not run (exit ${GATE_RC}); nothing was created" >&2
+    fi
+    exit 1
+  fi
 
   REPO_NODE_ID=$(resolve_repo_id)
 

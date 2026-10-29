@@ -149,10 +149,11 @@ If the user accepts, invoke `write-docs` with `mode: inline` and skip the rest
 of this step. With no user to answer (unattended), deferral is unavailable
 (`completeness-doctrine.md` Gate 1): invoke `write-docs` inline, or hold the
 PR. Scope alone never licenses the Task path unattended. If a user is
-present and declines, or says the scope exceeds this PR, invoke the `new-item`
-skill to file a `type:Task` issue. A deferred docs rewrite is known work, so it
-is a Task, not a Concern (`shared/issue-creation-requirements.md`
-§ "Determining the right values"). Provide these details as context:
+present and declines, or says the scope exceeds this PR, invoke the
+`create-issue` skill to file a `type:Task` issue. A deferred docs rewrite is
+known work, so it is a Task, not a Concern
+(`shared/issue-creation-requirements.md` § "Determining the right values").
+Provide these details as context:
 
 - **Type**: Task
 - **Title**: `docs: update <area> pages after <change>`
@@ -166,7 +167,8 @@ is a Task, not a Concern (`shared/issue-creation-requirements.md`
 - **Opened as**: `debt`, with `--where` naming the affected pages (a PR-originated
   deferral is not planned work)
 
-`new-item` handles duplicate detection, parent epic selection, and creation.
+`create-issue` handles duplicate detection, the theme, same-theme parent Epic
+selection, and creation.
 
 The Task body MUST list every affected page: `pr-triage` accepts a
 deferral only when the named issue lists the pages (PD-03-009). Record the

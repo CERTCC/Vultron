@@ -5,8 +5,9 @@ description: >
   issues. Optionally runs a focused acquire-codebase-knowledge scan first.
   Deduplicates against existing open Concern issues — updating the body and
   appending a refresh comment on matches, creating new issues otherwise.
-  Handles the [ASK USER] Questions section interactively. Adds all new
-  issues to Project #24 with Schedule=Someday. Does not write to specs/,
+  Handles the [ASK USER] Questions section interactively. Creates every new
+  issue through create-issue, which gives it a theme and a same-theme parent
+  Epic. Does not write to specs/,
   notes/, or open a PR. Use when you want to turn a codebase scan into a
   set of tracked GitHub issues.
 ---
@@ -19,23 +20,13 @@ before creating anything.
 
 A row whose correct fix is already known, with no decision left open, is a
 `Bug` or `Task` by `shared/issue-creation-requirements.md` § "Determining the
-right values", not a Concern. File such a row with `new-item` instead.
+right values", not a Concern. File such a row through `create-issue` as that
+type instead.
 
 ## Constants
 
 ```text
-REPO           = CERTCC/Vultron
-REPO_NODE_ID   = resolve via `bash .agents/skills/shared/board-id.sh repo`
-CONCERN_TYPE   = resolve via `bash .agents/skills/shared/board-id.sh issue-type Concern`
-TASK_TYPE      = resolve via `bash .agents/skills/shared/board-id.sh issue-type Task`
-```
-
-Resolve these into shell variables before the mutations below:
-
-```bash
-REPO_NODE_ID=$(bash .agents/skills/shared/board-id.sh repo)
-CONCERN_TYPE=$(bash .agents/skills/shared/board-id.sh issue-type Concern)
-TASK_TYPE=$(bash .agents/skills/shared/board-id.sh issue-type Task)
+REPO = CERTCC/Vultron
 ```
 
 ---
@@ -129,46 +120,11 @@ be identical, but the subject matter must clearly match.
 
 #### 3c — Create New Issue
 
-Synthesize a short, descriptive title from the row data. Build a body
-following the **Issue Body Format** below. Ensure labels exist, create the
-issue, then apply labels:
-
-```bash
-TITLE_JSON=$(printf '%s' "${TITLE}" \
-  | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
-BODY_JSON=$(printf '%s' "${BODY}" \
-  | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
-
-# Ensure concern label exists before applying it
-gh label create "concern" \
-  --repo CERTCC/Vultron \
-  --description "Technical risk, debt, or fragile area" \
-  --color "#d93f0b" 2>/dev/null || true
-
-RESULT=$(gh api graphql -f query="
-mutation {
-  createIssue(input: {
-    repositoryId: \"${REPO_NODE_ID}\"
-    title: ${TITLE_JSON}
-    body: ${BODY_JSON}
-    issueTypeId: \"${CONCERN_TYPE}\"
-  }) {
-    issue { number id url }
-  }
-}")
-ISSUE_NUMBER=$(echo "${RESULT}" | python3 -c \
-  "import json,sys; print(json.load(sys.stdin)['data']['createIssue']['issue']['number'])")
-
-gh issue edit "${ISSUE_NUMBER}" \
-  --repo CERTCC/Vultron \
-  --add-label "concern"
-
-# Add to Project #24 with Schedule=Someday via the shared helper
-# (single source of truth for board/field/option IDs).
-bash .agents/skills/shared/add-to-project.sh "${ISSUE_NUMBER}" Someday
-
-echo "Created concern issue #${ISSUE_NUMBER}"
-```
+Synthesize a short, descriptive title from the row data, draft a body
+following the **Issue Body Format** below, and invoke **`create-issue`** with
+type `Concern`, reason `planned`, and those fields. It adds the `concern`
+label, picks the Concern's theme, writes the `Theme:` line, routes it to a
+same-theme Epic, and adds it to Project #24 with no `Schedule` of its own.
 
 ### Phase 4 — Handle `[ASK USER]` Questions
 
@@ -179,30 +135,8 @@ user's response:
 - If the question reveals a **Concern** (a technical risk or gap) →
   create a `type:Concern` issue using the same flow as Phase 3c.
 - If the question reveals a **Task** (a decision or action item) →
-  create a `type:Task` issue and add to Project #24 with Schedule=Someday:
-
-  ```bash
-  TITLE_JSON=$(printf '%s' "${TITLE}" \
-    | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
-  BODY_JSON=$(printf '%s' "${BODY}" \
-    | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
-  RESULT=$(gh api graphql -f query="
-  mutation {
-    createIssue(input: {
-      repositoryId: \"${REPO_NODE_ID}\"
-      title: ${TITLE_JSON}
-      body: ${BODY_JSON}
-      issueTypeId: \"${TASK_TYPE}\"
-    }) {
-      issue { number id url }
-    }
-  }")
-  TASK_NUMBER=$(echo "${RESULT}" | python3 -c \
-    "import json,sys; print(json.load(sys.stdin)['data']['createIssue']['issue']['number'])")
-  TASK_NODE_ID=$(echo "${RESULT}" | python3 -c \
-    "import json,sys; print(json.load(sys.stdin)['data']['createIssue']['issue']['id'])")
-  # Then add to project with Schedule=Someday (same snippet as above)
-  ```
+  invoke `create-issue` with type `Task` and reason `planned`, with the user
+  present.
 
 - If the question is resolved by the user's answer (no issue needed) →
   skip issue creation and note the decision in the conversation.
@@ -276,8 +210,10 @@ Map CONCERNS.md section names to Category checkboxes:
 
 - Do **not** write to `specs/`, `notes/`, `AGENTS.md`, or open a PR.
 - Do **not** delete entries from `CONCERNS.md` — it is a generated file.
-- Do **not** assign a `size:` label.
-- Do **not** add a parent issue or link issues to each other.
+- Do **not** assign a `size:` label to a Concern.
+- Create issues only through `create-issue`; every one gets a theme and a
+  same-theme parent Epic (PAD-01-007, PAD-02-017). Do not link the issues to
+  each other.
 - Always check for existing open Concern issues before creating a new one.
 - Ask questions per `.agents/skills/shared/asking-the-user.md`: `ask_user` for
   discrete choices, plain text for open-ended ones.
@@ -289,8 +225,8 @@ Map CONCERNS.md section names to Category checkboxes:
 - [ ] CONCERNS.md parsed into per-row items
 - [ ] Each item deduplicated against open issues (by title similarity)
 - [ ] Matched items: body updated + refresh comment added
-- [ ] New items: Concern issue created with `concern` label, added to
-      Project #24 with Schedule=Someday
+- [ ] New items: Concern issue created through `create-issue` (theme,
+      `Theme:` line, same-theme parent Epic)
 - [ ] `[ASK USER]` questions surfaced via `ask_user`; issues created or
       decisions noted
 - [ ] Summary table printed

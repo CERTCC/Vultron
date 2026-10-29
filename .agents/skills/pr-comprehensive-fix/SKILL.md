@@ -82,7 +82,7 @@ If tests fail:
 - Allow "pre-existing/unrelated" only with clean-base proof + at least one
   causality check against the branch diff
 - If pre-existing is proven, file/update a Bug issue with evidence and wire
-  structured blocking relationships via `manage-github-issue`
+  structured blocking relationships via `create-issue`
 - Add a handoff comment on the Bug issue, then continue or stop explicitly as
   blocked/unblocked
 

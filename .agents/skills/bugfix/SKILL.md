@@ -49,36 +49,14 @@ If this fails, stop and investigate before proceeding.
      --jq '.[] | select(.issueType.name == "Bug") | "#\(.number): \(.title)"'
    ```
 
-   If the user selects **"Create a new bug"**: ask for a description,
-   synthesize a title, then **before creating** determine the required fields:
-
-   0. **Invoke `orient-agent` first.** `calve-epics` Mode 1 matches the bug
-      against open Epics using domain terminology drawn from the spec map,
-      the glossary term index, and the schedule — all of which `orient-agent`
-      loads.
-      Running the match before that context is loaded makes it unreliable.
-      Step 3 below then becomes a no-op.
-
-   1. **Parent epic** — invoke `calve-epics` Mode 1 to find the best-fit open
-      Epic. If it reports no match, present an `AskUserQuestion` with the top 5
-      closest epics plus "Specify other epic number". **A parent epic is
-      required** — do not create the issue until one is confirmed.
-
-   `BUG_BODY` includes a `Governing specs:` line naming the spec IDs the
-   correct behavior is defined by (or `none — <reason>`); see
-   `shared/issue-creation-requirements.md` § "Governing specs".
-
-   Then create with the required fields:
-
-   ```bash
-   BUG_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Bug)
-   ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
-     --title "${BUG_TITLE}" \
-     --body "${BUG_BODY}" \
-     --issue-type-id "${BUG_TYPE_ID}" \
-     --parent "${EPIC_NUMBER}" \
-     --planned)
-   ```
+   If the user selects **"Create a new bug"**: invoke `orient-agent` first
+   (step 3 then becomes a no-op), because routing the bug matches it against
+   open Epics using the spec map, glossary, and schedule that `orient-agent`
+   loads. Then invoke `create-issue` with type `Bug`, reason `planned`, and the
+   user present. It drafts the body (including the `Governing specs:` line
+   naming the requirements that define the correct behavior), picks the theme,
+   and routes the bug to a same-theme Epic. Continue with the number it
+   returns.
 
 3. Invoke `orient-agent` to load baseline context.
 4. Fetch the issue body and comments.
@@ -241,7 +219,7 @@ Once the plan is confirmed:
    original bug — so the default is **fix now**, never defer):
    - Fix each one in this PR.
    - If a hit is an **"also" excursion** (fails the "also" test in the
-     completeness doctrine), also file a Bug issue via `manage-github-issue`
+     completeness doctrine), also file a Bug issue via `create-issue`
      and have this PR **close** it: add `- Closes #NNN` to the PR body with a
      one-line "why". Filing the record does not mean leaving the work.
    - Defer a sibling hit only through Gate 1 (measured remainder + approval).

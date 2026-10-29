@@ -92,14 +92,13 @@ Compare the current `specs/` + `notes/` against `vultron/` and `test/`:
 
 ### Phase 3a — Create GitHub Issues for gaps, then route them
 
-For each confirmed gap, create a GitHub Issue using the `manage-github-issue`
-skill. If the issue has known blockers at creation time, wire them as
-structured relationships — do **not** add `Blocked by #N` text to the body.
+For each confirmed gap, create a GitHub Issue through the **`create-issue`**
+skill, with type `Task`, reason `planned`, a `size:` from the AC count, and any
+known blockers as `blocked-by` (wired structurally — never `Blocked by #N`
+text in the body). Draft the fields as:
 
-```bash
-ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
-  --title "<Gap description — one line>" \
-  --body "## Summary
+```text
+## Summary
 
 <What is missing and why it matters — one paragraph>
 
@@ -107,19 +106,12 @@ ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
 
 - [ ] AC-1: <testable criterion>
 - [ ] AC-2: <testable criterion>
-...
 
 Governing specs: <spec/group IDs the gap violates>
 
 ## Reference
 
-Spec: \`specs/<topic>.yaml\`" \
-  --issue-type-id "$(bash .agents/skills/shared/board-id.sh issue-type Task)" \
-  --parent "<epic-number>" \
-  --planned \
-  --label "size:<S|M|L>")
-  # Add --blocked-by N for known blockers
-echo "Created gap issue #${ISSUE_NUMBER}"
+Spec: `specs/<topic>.yaml`
 ```
 
 Set the `size:` label from the AC count with
@@ -127,22 +119,22 @@ Set the `size:` label from the AC count with
 `.agents/skills/shared/sizing.md`. This is an **estimate**; the measured size is
 applied to the PR by CI and never overwrites it (PAD-05-010).
 
-Do **not** add tasks to GitHub Issues outside the `manage-github-issue`
-workflow documented above.
+Do **not** create issues outside `create-issue`.
 
-**Route each gap onto the forest before creating it.** Every new issue is a
+**Each gap lands on the forest when it is created.** Every new issue is a
 sub-issue of an Epic (PAD-01-007, PAD-13-002), and `manage_github_issue.sh`
-refuses to create one without `--parent`. Use the **`calve-epics`** skill's
-routing mode to pick the epic (glacier or iceberg) each gap matches:
+refuses one without a same-theme `--parent`. `create-issue` picks the gap's
+theme from its own content, then routes it with the **`calve-epics`** routing
+mode among the Epics that carry that theme:
 
-- A clear match becomes the `--parent`. The issue takes that epic's Schedule
-  tier and carries no `Schedule` value itself (PAD-02-001).
-- An ambiguous match (two or more plausible epics) is presented to the user to
+- A clear match becomes the parent. The issue takes that Epic's Schedule tier
+  and carries no `Schedule` value itself (PAD-02-001).
+- An ambiguous match (two or more plausible Epics) is presented to the user to
   choose.
-- A gap with **no** plausible epic goes under the catch-all Epic whose stated
-  scope fits it (#3712) and is recorded as a **calving candidate** for
-  Phase 3b. If no catch-all fits, ask the user which Epic to use. Do not invent
-  an epic for it yourself.
+- A gap with **no** plausible same-theme Epic is a **calving candidate**:
+  `create-issue` asks the user whether to pick an Epic anyway or calve one
+  (Phase 3b). Unattended, it calves an auto-calved Someday Epic and reports
+  it. Never park a gap under an Epic in another theme.
 
 `calve-epics` queries the live Project #24 field/option IDs and delegates the
 board mutations, so this skill no longer hardcodes them.
@@ -150,16 +142,16 @@ board mutations, so this skill no longer hardcodes them.
 ### Phase 3b — Flag calving candidates (do not calve on your own)
 
 The old heuristic — "if 2 or more related gaps, create a parent Task" — cut
-epics on convenience (size and superficial theme) rather than on design grain,
+epics on convenience (size and superficial keywords) rather than on design grain,
 and is retired. Grouping issues into a new epic is **calving**, an
 architectural act reserved for a human decision.
 
 When routing (3a) surfaces a region that has accumulated coherent mass — a set
-of new gaps that realize one design idea with no existing home, or a pile of
-gaps parked under a catch-all Epic — collect them and hand them to the user as calving
-candidates via the `calve-epics` skill (Mode 2). State the one-sentence design
-idea, list the issues, and let the user confirm the fracture line before any
-epic is created. Never create the epic unprompted.
+of new gaps that realize one design idea with no existing home, or several
+gaps under auto-calved Epics in one theme — collect them and hand them to the
+user as calving candidates via the `calve-epics` skill (Mode 2). State the
+one-sentence design idea, list the issues, and let the user confirm the
+fracture line before any epic is created. Never create the epic unprompted.
 
 If the forest itself looks muddled (redundant epics, an epic mixing prod-only
 and buildable-soon work, a grab-bag with no coherent identity), note it and
@@ -194,6 +186,6 @@ specific message (e.g.,
 Issues created by this skill are added to Project #24 ("Vultron Planning") as
 sub-issues of the epic `calve-epics` routed them to, taking that epic's
 Schedule tier (the issue itself carries no `Schedule` value). Gaps with no
-matching epic sit under a catch-all Epic as calving candidates. Use
+matching same-theme epic are calving candidates (Phase 3b). Use
 `review-priorities` to re-tier Epics, and invoke `calve-epics`
 (Mode 2/3) when the epic structure itself needs to change.

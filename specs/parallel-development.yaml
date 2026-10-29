@@ -374,6 +374,58 @@ groups:
           `TestDrift::test_missing_changed_unlisted` in
           `test/metadata/test_theme_catalog.py` checks that a `theme:` label
           absent from the catalog is reported as unlisted.
+      - id: PAD-02-022
+        priority: MUST
+        kind: process
+        statement: >-
+          Agents MUST create Issues only through the `create-issue` skill,
+          which picks the Issue's one theme by its own outcome, writes its
+          `Theme:` line, and makes it a sub-issue of an open Epic with the same
+          theme. When no such Epic fits and no user is present, the skill MUST
+          create a `Someday` Epic in that theme, marked as auto-calved, rather
+          than leave the Issue without a parent.
+        rationale: >-
+          When each skill files Issues its own way, each one drops a different
+          rule. Bugs then land under the Epic of the work that found them, and
+          Issues get no theme. One path applies every rule the same way. An
+          Issue without a parent has no tier, so an Epic that a person reviews
+          later is better than an orphan.
+        relationships:
+        - rel_type: implements
+          spec_id: PAD-02-017
+        - rel_type: implements
+          spec_id: PAD-01-007
+        verification: >-
+          `TestCreationPath` in `test/metadata/test_theme_gate.py` checks that
+          no skill under `.agents/skills/` except `create-issue`,
+          `manage-github-issue`, and `create-epic` calls the create mode of
+          `manage_github_issue.sh`, `create_epic.sh`, `gh issue create`, or a
+          `createIssue` mutation.
+      - id: PAD-02-023
+        priority: MUST
+        kind: process
+        statement: >-
+          `manage_github_issue.sh` MUST refuse to create an Issue that does not
+          carry exactly one active catalog `theme:` label, has no `Theme:` line
+          naming it, or has a parent that is closed or does not carry that
+          theme. `create_epic.sh` MUST refuse an Epic without one active theme
+          (or two with a named split) and a `Theme:` line. Each refusal MUST
+          name every rule broken and create nothing.
+        rationale: >-
+          A skill is text that an agent can misread. A check in the script that
+          creates the Issue stops an Issue that breaks a theme rule before it
+          exists, so the `theme-fit` report does not have to find it later.
+        relationships:
+        - rel_type: implements
+          spec_id: PAD-02-014
+        - rel_type: implements
+          spec_id: PAD-02-018
+        verification: >-
+          `TestManageScriptGate` and `TestCreateEpicScriptGate` in
+          `test/metadata/test_theme_gate.py` run each script against a stand-in
+          `gh` and check that a missing theme, two themes, a missing `Theme:`
+          line, and a parent with another theme each exit 1 with no
+          `createIssue` call.
 
   - id: PAD-03
     title: Priority Ordering Authority
@@ -1275,7 +1327,7 @@ groups:
           signals MAY be surfaced as evidence but MUST NOT be treated as the
           coherence verdict.
         rationale: >-
-          Cutting by superficial theme rather than design grain produces
+          Cutting by a superficial shared keyword rather than design grain produces
           plausible-looking but wrong work units — the same failure `calve-epics`
           guards against when shaping the Epic forest.
         verification: >-

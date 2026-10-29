@@ -49,7 +49,9 @@ SCHEDULE_OPTION_ID=$(bash .agents/skills/shared/board-id.sh schedule "${TIER}")
 
 ### Move Item to a Different Tier
 
-1. Identify the issue or Epic number.
+1. Identify the issue or Epic number. Before moving an Epic **to Now or
+   Focus**, run the blind content audit on it (`calve-epics` § "Before
+   promoting an epic to Now") and fix what it finds first.
 2. Resolve board IDs and find the item's project item ID:
 
    ```bash

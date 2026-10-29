@@ -9,7 +9,8 @@ description: >
   classify by outcome, one theme per leaf, an Epic's second theme only when its
   body names the split, the theme contains the grain, the `Theme:` reason line;
   borderline examples; the `theme-fit` structural check, the split line and
-  the auto-calved marker it reads; how to act on a theme-fit finding; and
+  the auto-calved marker it reads; the `theme-gate` check that refuses a new
+  Issue breaking these rules; how to act on a theme-fit finding; and
   triage-label rules (`needs-info`, `ready-for-human`, and retired labels).
 related_specs:
   - specs/parallel-development.yaml
@@ -340,6 +341,22 @@ and 2 when the catalog or `gh` fails.
   marker once a person has reviewed the Epic. Reason: an unattended calve
   cannot judge whether the theme gathers more work, so a person must decide
   whether a lone child stays or moves.
+
+## The Create-Time Gate
+
+`theme-fit` finds breaches after the fact; `theme-gate` stops them at creation.
+`manage_github_issue.sh` and `create_epic.sh` run it before they create
+anything (PAD-02-023), and agents reach them only through the `create-issue`
+skill (PAD-02-022).
+
+- **Rule**: a new Issue needs exactly one active theme, a `Theme:` line naming
+  it, and an open parent carrying that theme; a new Epic needs one theme, or
+  two with a named split, and a `Theme:` line.
+- **Reason**: the label rules are the same ones `theme-fit` applies
+  (`label_findings` in `vultron/metadata/planning/theme_fit/analyze.py`), so a
+  created Issue never shows up in the report for a rule the gate could check.
+  Only the blind content audit (`calve-epics` Mode 3) can tell whether a
+  well-formed theme is the right one.
 
 ## Acting on a Theme-Fit Finding
 

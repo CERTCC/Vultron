@@ -155,8 +155,9 @@ pattern promotion. Process in this order:
    candidates by claim and count **independent witnesses** — entries with
    different `source` work items asserting the same thing:
    - **Two or more witnesses** → the claim is corroborated. Promote to `notes/`
-     or `AGENTS.md`, or file an issue if it names a defect, typed by
-     `shared/issue-creation-requirements.md` § "Determining the right values".
+     or `AGENTS.md`, or file an issue through `create-issue` if it names a
+     defect, typed by `shared/issue-creation-requirements.md` § "Determining
+     the right values".
    - **One witness** → try to confirm it against the code. If confirmed,
      promote. If not, leave it queued.
    - **One witness, older than 30 days** → archive as unreproduced via
@@ -182,7 +183,8 @@ A lesson is not complete until it has reached a durable destination: a `specs/`
 requirement, a `notes/` card, an `AGENTS.md` entry, a filed GitHub issue, or an
 explicit non-reproduction verdict. If an entry clearly warrants a spec or notes
 update that cannot be written in this session, document why and create a Concern
-issue — do not silently archive it as if nothing were owed.
+issue through `create-issue` — do not silently archive it as if nothing were
+owed. Every issue this skill files goes through `create-issue`.
 
 Two archive outcomes are legitimate without promotion, and both must be stated
 in the archive body rather than left implicit:

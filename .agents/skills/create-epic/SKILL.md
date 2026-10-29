@@ -20,8 +20,14 @@ consistent use of the `Epic` issue type and sub-issue wiring.
 - `EPIC_BODY`: multi-line body text (summary, open tasks list, rationale)
 - `LEAF_ISSUES`: space-separated issue numbers to link as sub-issues,
   e.g. `428 439 429`
-- `SCHEDULE`: initial Schedule value for Project #24 — one of `Now`, `Next`,
-  `Later`, `Someday` (default: `Someday`)
+- `SCHEDULE`: initial Schedule value for Project #24 — one of `Focus`, `Now`,
+  `Next`, `Later`, `Someday`
+- `THEME`: the Epic's `theme:` label, an active theme in the catalog in
+  `notes/epic-themes.md`. Pass a second only when `EPIC_BODY` has one line
+  naming both (PAD-02-015).
+- `EPIC_BODY` must start with a `Theme: <label> — <outcome>` line naming the
+  theme (PAD-02-018). An Epic that `create-issue` calves with no user present
+  also carries the line `<!-- auto-calved -->`.
 - `REPO`: `CERTCC/Vultron` (default)
 
 ## Workflow
@@ -51,16 +57,19 @@ If a matching Epic already exists, skip Step 2 and proceed to Step 3.
 
 ### Step 2 — Create the Epic issue via GraphQL
 
-Use the bash helper script in this skill's directory. It creates the Epic
-(with the correct Epic issue type), then adds it to Project #24 and sets its
-Schedule via the shared `add-to-project.sh` helper — so board IDs live in
-exactly one place:
+Use the bash helper script in this skill's directory. It runs the theme gate
+first and creates nothing if the theme or the `Theme:` line is wrong. It then
+creates the Epic (with the correct Epic issue type), applies the theme label,
+and adds it to Project #24 with its Schedule via the shared `add-to-project.sh`
+helper — so board IDs live in exactly one place:
 
 ```bash
 EPIC_NUMBER=$(.agents/skills/create-epic/create_epic.sh \
-  "${EPIC_TITLE}" "${EPIC_BODY}" "${SCHEDULE:-Someday}")
+  "${EPIC_TITLE}" "${EPIC_BODY}" "${SCHEDULE}" "${THEME}")
 echo "Created Epic #${EPIC_NUMBER}"
 ```
+
+Each leaf wired in Step 3 must carry a theme the Epic carries (PAD-02-017).
 
 ### Step 3 — Link leaf issues as sub-issues
 
@@ -97,6 +106,8 @@ echo "${EPIC_NUMBER}"
 ## Constraints
 
 - Always check for an existing open Epic before creating a new one.
+- Every Epic carries one theme and a `Theme:` line; the script refuses one
+  without them. Epics take no parent: they are never nested.
 - Board IDs are **never hardcoded** here — they rotate and are resolved by name
   at runtime via `.agents/skills/shared/board-id.sh` (see
   `.agents/skills/shared/README.md`). `create_epic.sh` resolves the repo node ID

@@ -55,7 +55,7 @@ Proceed to Phase 6.
    resolve is still a failure worth resolving. Only proceed to step 5 if the
    fix is genuinely non-trivial or requires design work outside this PR's scope.
 5. If a fix is not possible in this PR: create/update a Bug issue with evidence
-   via `manage-github-issue` (`--opened-as separate-defect`); wire structured
+   via `create-issue` (`opened-as separate-defect`), wiring structured
    blockers; post a handoff comment.
    The PR stays held — a proven pre-existing failure is a blocker, not a
    license to merge on red. Record `outcome: skipped` with `skip_reason`; CI
@@ -74,10 +74,10 @@ Proceed to Phase 6.
 4. If pre-existing is proven: assess whether a fix is straightforward and
    context is in hand. If yes, fix it now. Only proceed to step 5 if the fix
    is genuinely non-trivial or requires design work outside this PR's scope.
-5. If a fix is not possible in this PR: create/update a Bug issue with evidence; wire
-   blockers via `manage-github-issue` (`--opened-as separate-defect`); add a handoff
-   comment. The PR stays held, not merged on red: record `outcome: skipped` with
-   `skip_reason`.
+5. If a fix is not possible in this PR: create/update a Bug issue with evidence
+   via `create-issue` (`opened-as separate-defect`), wiring structured blockers;
+   add a handoff comment. The PR stays held, not merged on red: record
+   `outcome: skipped` with `skip_reason`.
 6. Stop only after recording blocked/unblocked status with linked evidence.
 
 Integration tests can fail due to: missing environment setup, timing issues
@@ -124,7 +124,9 @@ Read top 3 search results. If one is clearly the same failure: use it.
 **When in doubt: create a new issue** rather than incorrectly merging two
 distinct failures.
 
-**Creating a new flaky-test issue**:
+**Creating a new flaky-test issue** (through `create-issue`, type `Bug`, reason
+`opened-as separate-defect`; it picks the theme, usually `theme:test-and-ci`,
+and the same-theme Epic, and adds the issue to Project #24):
 
 - Labels: `bug` + `flaky-test`
 - Title: `Flaky: <job_name or test_node_id>`
@@ -132,7 +134,6 @@ distinct failures.
   - The exact node ID or job name (for future exact-phrase search)
   - A `## Blocked PRs` section with the first occurrence entry
   - Clean-base proof and causality check summary as evidence
-- Add to Project #24: `bash .agents/skills/shared/add-to-project.sh <N>`
 - Add entry to `notes/flaky-tests.md`
 
 ### xfail Ratchet
