@@ -161,6 +161,18 @@ narrowed by a distinguishing field value. One semantic type has one or more —
 *Avoid*: meaning, use, event (an occasion is the sender's situation, not a received
 event)
 
+**Proof**:
+A signature carried inside a wire activity, by which its author vouches for exactly the
+content it sent. It travels with the content, so it stays checkable after a relay or a
+ledger commit; an activity without a valid proof is refused.
+*Avoid*: HTTP signature (that signs one delivery, not the content); "signed message"
+without saying whose proof
+
+**Seeded key**:
+A prototype actor's key pair, computed from a fixed seed. It makes no security claim and
+exists so that tests, demos and documentation examples carry real, repeatable proofs.
+*Avoid*: test key, insecure key, production key
+
 ---
 
 ## Capability Shapes

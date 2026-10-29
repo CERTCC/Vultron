@@ -457,9 +457,11 @@ groups:
   scope:
   - production
   rationale: >-
-    Plain unauthenticated HTTP POST (current DemoHttpDeliveryAdapter) is acceptable for
-    prototype use. Production federation requires HTTP Message Signatures so recipient
-    actors can verify the sender's identity and reject spoofed activities.
+    The `proof` inside each activity shows who wrote it (SIG-01-001), but not which
+    server delivered the request. Production federation adds HTTP Message Signatures so
+    a recipient can authenticate the delivering server, as mainstream ActivityPub
+    servers expect. Prototype delivery (DemoHttpDeliveryAdapter) sends no HTTP
+    signature.
     vultron/adapters/driven/prod_http_delivery.py is a documented stub for this capability.
   specs:
   - id: OX-10-001
@@ -469,10 +471,11 @@ groups:
       For remote actor delivery, the outgoing HTTP POST SHOULD be signed using HTTP
       Message Signatures (RFC 9421) with the sending actor's private key
     rationale: >-
-      Production federation sends activities to peers that the sender does not control.
-      Without a signature, a recipient cannot verify the sender, and any party can post
-      a false activity in the name of that actor. RFC 9421 is the standard way to sign
-      an HTTP message.
+      Production federation sends activities to peers that the sender does not control,
+      and mainstream ActivityPub servers authenticate the delivering server by its HTTP
+      signature. The activity's own `proof` already shows its author (SIG-01-001); the
+      HTTP signature adds who delivered it. RFC 9421 is the standard way to sign an HTTP
+      message.
     scope:
     - production
   - id: OX-10-002

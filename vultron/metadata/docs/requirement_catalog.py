@@ -138,7 +138,7 @@ CATALOG_PAGES: tuple[CatalogPage, ...] = (
         "transport-security",
         "Transport and Security",
         SpecKind.PROTOCOL,
-        ("HTTP", "IE", "OX", "ENC"),
+        ("HTTP", "IE", "OX", "SIG", "ENC"),
     ),
     CatalogPage(
         "foundation",

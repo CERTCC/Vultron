@@ -55,8 +55,8 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   The React dashboard that watches live case ledgers over a prototype SSE stream.
   **Load when**: working on `ui/`, the ledger stream endpoint, or presentation demos.
 - **`encryption.md`** · `plan`
-  Exploratory options for message encryption on ActivityPub public-key infrastructure.
-  **Load when**: designing encryption in the inbox or outbox pipeline (#1156).
+  How to build actor signing (ADR-0164), plus open options for message encryption.
+  **Load when**: building signing or verification (#1156), or designing encryption.
 - **`message-occasion-table.md`** · `plan`
   Remaining occasion-table design: derived "Sent by"/"Send to", "When…" grammar.
   **Load when**: extending the message occasion table or its generated fragments.
