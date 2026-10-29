@@ -62,8 +62,8 @@ from vultron.demo.recordings.layout import RECORDING_SUFFIX, RECORDINGS_DIR
 from vultron.demo.scenario.branch_points import BRANCH_POINTS, BranchPoint
 from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
 from vultron.demo.scenario.tree import TreeNode, build_scenario_tree
-from vultron.errors import DemoRecordingError, DemoScenarioRegistryError
 from vultron.metadata.demo_scenarios.export_states import REPO_ROOT
+from vultron.metadata.file_loading import MetadataLoadError
 from vultron.metadata.generated_files import (
     read_committed,
     serialize_json,
@@ -102,23 +102,27 @@ def tree_node(
 
     A node's choices follow the branch-point table's order, the order the
     presenter sees them in, so adding a scenario never reorders its siblings.
+
+    Raises:
+        ValueError: When the tree is empty, decides a branch point the table
+            does not hold, or takes a choice the table does not list.
     """
     if node.scenario is not None:
         return {"scenario": node.scenario}
     if node.branch_point is None:
-        raise DemoScenarioRegistryError(
+        raise ValueError(
             "the scenario tree has a node that is neither a decision nor an "
             "ending; register at least one scenario."
         )
     branch_point = branch_points.get(node.branch_point)
     if branch_point is None:
-        raise DemoScenarioRegistryError(
+        raise ValueError(
             f"the scenario tree decides {node.branch_point!r}, which is not "
             "in the branch-point table."
         )
     order = [choice.id for choice in branch_point.choices]
     if unknown := sorted(set(node.children) - set(order)):
-        raise DemoScenarioRegistryError(
+        raise ValueError(
             f"the scenario tree takes choice(s) {unknown} at "
             f"{node.branch_point!r}, which the branch-point table does not "
             "list; exporting it would drop their scenarios."
@@ -133,11 +137,18 @@ def tree_node(
     }
 
 
+def _shown(path: Path) -> str:
+    """Return *path* as displayed: repository-relative when under the repo."""
+    return (
+        path.relative_to(REPO_ROOT) if path.is_relative_to(REPO_ROOT) else path
+    ).as_posix()
+
+
 def _case_ids(path: Path) -> list[str]:
     """Return the ``caseId`` of *path*'s entries, in order of first appearance.
 
     Raises:
-        DemoRecordingError: When a line is not a ledger entry with a
+        MetadataLoadError: When a line is not a ledger entry with a
             non-empty ``caseId``, or the file holds no entry at all.
     """
     case_ids: dict[str, None] = {}
@@ -146,20 +157,23 @@ def _case_ids(path: Path) -> list[str]:
         try:
             case_id = json.loads(line)["caseId"]
         except (ValueError, KeyError, TypeError) as exc:
-            raise DemoRecordingError(
-                f"{path}, line {number}, is not a ledger entry with a "
-                f"caseId: {exc}"
+            raise MetadataLoadError(
+                f"not a ledger entry with a caseId: {exc}",
+                path=_shown(path),
+                line=number,
             ) from exc
         if not isinstance(case_id, str) or not case_id:
-            raise DemoRecordingError(
-                f"{path}, line {number}, has caseId {case_id!r}; expected a "
-                "non-empty string."
+            raise MetadataLoadError(
+                f"caseId is {case_id!r}; expected a non-empty string.",
+                path=_shown(path),
+                line=number,
             )
         case_ids.setdefault(case_id)
     if not case_ids:
-        raise DemoRecordingError(
-            f"{path} holds no ledger entry; regenerate it with "
-            f"`{RECORDINGS_COMMAND} --scenario {path.parent.name}`."
+        raise MetadataLoadError(
+            "holds no ledger entry; regenerate it with "
+            f"`{RECORDINGS_COMMAND} --scenario {path.parent.name}`.",
+            path=_shown(path),
         )
     return list(case_ids)
 
@@ -177,7 +191,7 @@ def recording_files(
         relative_to: The directory each returned path is relative to.
 
     Raises:
-        DemoRecordingError: When the scenario has no recording, or a recording
+        MetadataLoadError: When the scenario has no recording, or a recording
             names no case.
     """
     scenario_dir = recordings_dir / scenario
@@ -187,9 +201,10 @@ def recording_files(
         else []
     )
     if not files:
-        raise DemoRecordingError(
-            f"scenario {scenario!r} has no recording under {scenario_dir}; "
-            f"record it with `{RECORDINGS_COMMAND} --scenario {scenario}`."
+        raise MetadataLoadError(
+            f"scenario {scenario!r} has no recording here; record it with "
+            f"`{RECORDINGS_COMMAND} --scenario {scenario}`.",
+            path=_shown(scenario_dir),
         )
     return {
         path.name.removesuffix(RECORDING_SUFFIX): {
@@ -231,8 +246,10 @@ def build_payload(
         relative_to: The directory recording paths are relative to.
 
     Raises:
-        DemoScenarioRegistryError: When the paths do not make one tree.
-        DemoRecordingError: When a scenario's recording is missing or names
+        DemoScenarioRegistryError: When the paths do not make one tree
+            (raised by :func:`~vultron.demo.scenario.tree.build_scenario_tree`).
+        ValueError: When the tree does not match the branch-point table.
+        MetadataLoadError: When a scenario's recording is missing or names
             no case.
     """
     resolved = discover_scenarios() if specs is None else tuple(specs)
@@ -259,9 +276,7 @@ def build_payload(
 
 def stale_hint(path: Path) -> str:
     """Return the message a stale or missing index is reported with."""
-    shown = (
-        path.relative_to(REPO_ROOT) if path.is_relative_to(REPO_ROOT) else path
-    )
+    shown = _shown(path)
     return (
         f"{shown} is stale: the branch-point table, a scenario path or a "
         f"recording changed but the index was not regenerated. Run "

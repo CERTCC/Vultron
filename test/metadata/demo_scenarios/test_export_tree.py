@@ -47,7 +47,6 @@ from vultron.demo.scenario.branch_points import (
 from vultron.demo.scenario.registry import discover_scenarios
 from vultron.demo.scenario.tree import TreeNode
 from vultron.enums.roles import CVDRole
-from vultron.errors import DemoRecordingError, DemoScenarioRegistryError
 from vultron.metadata.demo_scenarios import export_tree
 from vultron.metadata.demo_scenarios.export_states import REPO_ROOT
 from vultron.metadata.demo_scenarios.export_tree import (
@@ -59,6 +58,7 @@ from vultron.metadata.demo_scenarios.export_tree import (
     stale_hint,
     tree_node,
 )
+from vultron.metadata.file_loading import MetadataLoadError
 from vultron.metadata.generated_files import read_committed, serialize_json
 
 ARTIFACT = "ui/src/data/scenario_tree.json"
@@ -332,10 +332,10 @@ def test_a_file_holding_two_cases_is_listed_under_each_in_order(
 
 
 def test_a_scenario_without_a_recording_is_refused(tmp_path: Path) -> None:
-    with pytest.raises(DemoRecordingError, match="export-demo-recordings"):
+    with pytest.raises(MetadataLoadError, match="export-demo-recordings"):
         recording_files("absent", tmp_path, tmp_path)
     (tmp_path / "empty-dir").mkdir()
-    with pytest.raises(DemoRecordingError, match="no recording"):
+    with pytest.raises(MetadataLoadError, match="no recording"):
         recording_files("empty-dir", tmp_path, tmp_path)
 
 
@@ -356,20 +356,23 @@ def test_a_line_without_a_case_id_is_refused(
     path = tmp_path / "bad" / "case-actor.jsonl"
     path.parent.mkdir()
     path.write_text(line + "\n", encoding="utf-8")
-    with pytest.raises(DemoRecordingError, match="line 1"):
+    with pytest.raises(
+        MetadataLoadError, match=r"case-actor\.jsonl:1 "
+    ) as exc:
         recording_files("bad", tmp_path, tmp_path)
+    assert exc.value.line == 1
 
 
 def test_an_empty_recording_is_refused(tmp_path: Path) -> None:
     path = tmp_path / "blank" / "case-actor.jsonl"
     path.parent.mkdir()
     path.write_text("", encoding="utf-8")
-    with pytest.raises(DemoRecordingError, match="no ledger entry"):
+    with pytest.raises(MetadataLoadError, match="no ledger entry"):
         recording_files("blank", tmp_path, tmp_path)
 
 
 def test_an_empty_registry_has_no_tree(tmp_path: Path) -> None:
-    with pytest.raises(DemoScenarioRegistryError, match="neither"):
+    with pytest.raises(ValueError, match="neither"):
         build_payload(specs=(), recordings_dir=tmp_path, relative_to=tmp_path)
 
 
@@ -421,10 +424,10 @@ def test_tree_node_orders_choices_by_the_table() -> None:
 
 
 def test_tree_node_refuses_a_choice_the_table_does_not_list() -> None:
-    with pytest.raises(DemoScenarioRegistryError, match="'c'"):
+    with pytest.raises(ValueError, match="'c'"):
         tree_node(_fork("a", "c"), _FIXTURE_TABLE)
 
 
 def test_tree_node_refuses_an_unknown_branch_point() -> None:
-    with pytest.raises(DemoScenarioRegistryError, match="'elsewhere'"):
+    with pytest.raises(ValueError, match="'elsewhere'"):
         tree_node(_fork("a", branch_point="elsewhere"), _FIXTURE_TABLE)
