@@ -637,12 +637,11 @@ groups:
 - id: RSH-07
   title: Conservative Default Authorization Policy for Status Gates
   description: >
-    Both StatusAdoptionGate and EmbargoTeardownAuthorizationGate MUST default to
-    requiring explicit Case Owner authorization before allowing PXA assertion
-    adoption or embargo teardown side-effects. Permissive backends are valid but
-    MUST be explicitly configured.
-    Derived from CONCERN-2092 and ADR-0076; the mechanism is amended by ADR-0080
-    (CONCERN-2812, CONCERN-2809) — see RSH-07-004.
+    Adopting a non-owner's reported P, X or A value, and executing the embargo
+    teardown an adopted value calls for, each wait by default for the Case
+    Owner's authorization. A permissive policy is a deployment's explicit
+    choice. Derived from CONCERN-2092 and ADR-0076; the mechanism is amended by
+    ADR-0080 (CONCERN-2812, CONCERN-2809) — see RSH-07-004.
   specs:
   - id: RSH-07-001
     priority: MUST
@@ -650,20 +649,17 @@ groups:
     statement: >
       Before it adopts a P, X or A value that a non-owner participant reports,
       the CASE_MANAGER MUST by default obtain the Case Owner's authorization.
-      Adoption makes the value canonical case state. The CASE_MANAGER adopts the
-      Case Owner's own report without asking the Case Owner to approve it.
+      Adoption makes the value canonical case state.
     rationale: >-
       A permissive default lets any admitted participant, a hostile or defective
       sentinel included, force PXA adoption and start the embargo teardown with no
       Case Owner confirmation. So the default is conservative, and permissive
-      behavior needs an explicit opt-in (ADR-0076). Approving its own report would
-      be circular, so the Case Owner's report needs none. The rule says what a
-      receiver does with a reported status, so every CASE_MANAGER obeys it.
+      behavior needs an explicit opt-in (ADR-0076). The rule says what a receiver
+      does with a reported status, so every CASE_MANAGER obeys it. The Case
+      Owner's own report is RSH-07-006.
     verification: >
       With the default bundle and a non-owner sender, no `Add(CaseStatus)` is
-      emitted until Case Owner authorization is recorded in the case ledger; a Case
-      Owner's report is adopted with the default bundle
-      (`TestAdoptedPxaReachesTheCaseStatus::test_an_owners_public_awareness_is_adopted`).
+      emitted until Case Owner authorization is recorded in the case ledger.
     adr:
     - ADR-0076
     - ADR-0080
@@ -686,10 +682,34 @@ groups:
       the mechanism only; the conservative default is unchanged.
     verification: >
       With the default bundle, `ThreatTerminationBranchNode` does not execute until
-      Case Owner authorization is recorded in the case ledger.
+      Case Owner authorization is recorded in the case ledger
+      (`TestAdoptedThreatTeardown::test_default_bundle_adopts_but_holds_the_teardown`).
     adr:
     - ADR-0076
     - ADR-0080
+    stories:
+    - story_2022_081
+  - id: RSH-07-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >
+      Before it adopts a P, X or A value that the Case Owner reports, the
+      CASE_MANAGER MUST NOT ask the Case Owner to approve it.
+    rationale: >-
+      The Case Owner is the authority that RSH-07-001 asks. Asking it to approve
+      its own report would be circular and would hold the case's canonical state
+      on a question with only one possible answer. The report is still judged by
+      the acceptance rules of RSH-09.
+    verification: >
+      With the default bundle, the Case Owner's P report reaches the case's
+      canonical `CaseStatus` with no authorization recorded
+      (`TestAdoptedPxaReachesTheCaseStatus::test_an_owners_public_awareness_is_adopted`).
+    relationships:
+    - rel_type: refines
+      spec_id: RSH-07-001
+    adr:
+    - ADR-0046
+    - ADR-0076
     stories:
     - story_2022_081
   - id: RSH-07-004

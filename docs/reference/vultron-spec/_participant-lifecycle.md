@@ -32,7 +32,7 @@ A self-declared role would let an actor take on authority the Case Owner never g
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-33-001", "CM-33-002", "CM-33-003", "CM-33-004", "CM-33-005", "CM-33-006"))
 ```
 
-Together these rules mean that an actor holds only a role it accepted, and only one the Case Owner granted.
+Together these rules mean that an actor holds only a role it accepted, from an offer that the Case Owner made, or that a Case Manager made where its policy delegates role offers to it.
 The role an `Accept` grants is the one the recorded offer names, not one the accepting actor's reply names.
 Otherwise, an actor could widen its own grant on the way back.
 An invitee's roles are those its stub Invite names, recorded when the Case Manager sends that Invite ([§12.2 Invitation and Acceptance](interactions.md#122-invitation-and-acceptance-n)).

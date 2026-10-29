@@ -172,7 +172,7 @@ For every other sender, the CASE_MANAGER obtains Case Owner authorization before
 This is the default posture, and it is deliberate: without it, any admitted participant could force a change to canonical case state.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-07-001"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-07-006", "RSH-07-001"))
 ```
 
 A deployment where every admitted participant is trusted, and where the cost of Case Owner approval is too high, can configure a permissive policy instead.
@@ -226,8 +226,12 @@ without a change to the other.
     Evaluating teardown is mandatory; executing it is authorized. If the
     authorization is withheld, the case is left in a state where public
     awareness coexists with an active embargo. That combination is a
-    contradiction. The reference implementation records it as a diagnostic
-    note on the case rather than resolving it silently.
+    contradiction: the cross-machine invariants of
+    [§8.3 Case State as a Compound Tuple](tracking-models.md#83-case-state-as-a-compound-tuple)
+    state that it cannot occur. The reference implementation records it as a
+    diagnostic note on the case rather than resolving it silently. This
+    version of the specification does not yet say how the teardown default
+    and those invariants are reconciled.
 
 !!! note "Where the gate model applies"
     Seam 1 governs any reported status. Its authorization question matters most

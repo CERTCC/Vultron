@@ -12,7 +12,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 This section specifies what the CASE_MANAGER does for its case.
 It is the only writer of the case's shared state ([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)), and every case-scoped message passes through it ([§10.2 Routing Topology](interactions.md#102-routing-topology)).
 The case-creation message is the root of every participant's trust in it ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)).
-It replicates the case ledger to every participant and delivers the case to each new one ([§10.4 Ledger Replication and Case Delivery](interactions.md#104-ledger-replication-and-case-delivery)).
+It replicates the case ledger to every active participant and delivers the case to each new one ([§10.4 Ledger Replication and Case Delivery](interactions.md#104-ledger-replication-and-case-delivery)).
 It also decides which participants' claims become the case's canonical status ([§10.5 Claims and Canonical Status](interactions.md#105-claims-and-canonical-status)).
 
 The cascades that the CASE_MANAGER runs when one state machine's transition obliges another are specified at [§11 Model Interactions and Cascade Rules](interactions.md#11-model-interactions-and-cascade-rules-n).
@@ -76,7 +76,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 
 The report acknowledgment, `RK`, falls outside this rule rather than adding a bootstrap exception.
 It answers the reporter's original report offer, outside the case, so it goes to the reporter directly, never to the CASE_MANAGER.
-PCR-08-001 above states this exception.
+The routing requirements above state this exception.
 
 !!! warning "This is a routing rule, not a prohibition on talking"
     The rule above scopes **Vultron protocol messages about a case**.
@@ -131,7 +131,7 @@ The threat model, identity verification, and the limits of this trust chain are 
 
 ### 10.4 Ledger Replication and Case Delivery
 
-The CASE_MANAGER keeps every participant's replica in step with the case through two operations.
+The CASE_MANAGER keeps every active participant's replica in step with the case through two operations.
 
 | Operation | What the CASE_MANAGER does |
 |---|---|

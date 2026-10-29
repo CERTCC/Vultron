@@ -2122,7 +2122,7 @@ class TestAdoptedPxaReachesTheCaseStatus:
 
     @pytest.mark.spec("RSH-01-003")
     @pytest.mark.spec("RSH-04-003")
-    @pytest.mark.spec("RSH-07-001")
+    @pytest.mark.spec("RSH-07-006")
     @pytest.mark.spec("CLP-10-009")
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_an_owners_public_awareness_is_adopted(
@@ -2492,6 +2492,29 @@ class TestAdoptedThreatTeardown:
         assert result.status == Status.SUCCESS, result.feedback_message
         case = populated_dl.read(CASE_ID)
         assert isinstance(case, VulnerabilityCase)
+        assert case.current_status.em.state == EM.ACTIVE
+
+    @pytest.mark.spec("RSH-07-002")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
+    def test_default_bundle_adopts_but_holds_the_teardown(self, make_payload):
+        """With the default bundle, an adopted P does not end the embargo.
+
+        The Case Owner's own P report passes adoption without approval
+        (RSH-07-006), so the case's P is set; the teardown it calls for
+        still waits for the Case Owner's recorded authorization, which no
+        ledger entry holds, so EM stays ACTIVE (RSH-07-002).
+        """
+
+        populated_dl = _cm_store_with_active_embargo()
+
+        result = _run_at_case_manager(
+            populated_dl, make_payload(_pxa_report(CS_pxa.Pxa))
+        )
+
+        assert result.status == Status.SUCCESS, result.feedback_message
+        case = populated_dl.read(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        assert case.current_status.pxa.state == CS_pxa.Pxa
         assert case.current_status.em.state == EM.ACTIVE
 
     @pytest.mark.spec("CSB-18-002")
