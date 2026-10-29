@@ -319,7 +319,7 @@ When the last `Announce(CaseLedgerEntry)` before a quiet period is lost, no late
 A participant closes that gap by stating its position.
 
 - A participant MAY send the case's CASE_MANAGER `Read(CaseLedgerEntry)` whose `object` is the last canonical entry it has applied, by reference. A participant that has applied no entry sends none. (SYNC-17-001)
-- The CASE_MANAGER MUST act on a stated position only when the sender is an active participant; from any other sender it MUST record no replication state, send nothing and report `REFUSED`. (SYNC-17-002)
+- The CASE_MANAGER MUST act on a stated position only when the sender is an active participant; from any other sender it MUST record no replication state, send nothing and report `REFUSED`. The Invite resend of §5.7 is no answer to the position and runs apart from this check. (SYNC-17-002)
 - When it acts on a position that names an entry in its ledger, it MUST record that entry's hash as the sender's acknowledged position. (SYNC-17-003)
 - When that position is behind its ledger tail, it MUST send the sender every entry after it, in log order, as `Announce(CaseLedgerEntry)`, under the replay rate bound of §5.4 and the outbox de-duplication; at the tail it MUST send nothing. (SYNC-17-004)
 - A position naming an entry its ledger does not hold, or an index at which its entry has a different hash, MUST be logged at WARNING, with no replication state recorded and nothing sent. (SYNC-17-005)
@@ -328,6 +328,19 @@ A participant closes that gap by stating its position.
 
 [I] In this implementation, the `Read` names the case as its `context` and carries the named entry's position as its `ledgerPosition`, with `logIndex` and `entryHash` members.
 The reference participant sends one for each case it holds after every restart, and on a configurable interval that is off by default (§10). (SYNC-17-007)
+
+### 5.7 Resending Unanswered Invites
+
+An Invite can be lost before its addressee can answer it: one that reaches a joiner before its case copy is dropped when the pre-bootstrap queue's window ends, and any Invite can be lost in delivery.
+A position statement tells the CASE_MANAGER the replica holds the case, which is when a resent Invite can be answered.
+
+- When a participant on the roster that is not removed and not closed states a position the CASE_MANAGER's ledger holds, in `Read(CaseLedgerEntry)` or as an activity's `ledgerPosition`, the CASE_MANAGER MUST resend each Invite that participant owes an answer to, whether the participant is active or inert. (SYNC-20-001)
+- An Invite is owed while its answer can still count: an `Invite(EmbargoEvent)` for a proposed or active embargo whose consent row is `INVITED` and whose RSVP deadline has not passed, and the full-case Invite until the participant's reply is ledgered. Only the last Invite sent for an embargo is owed, and the Invite the stating activity answers is not. (SYNC-20-002)
+- A resent Invite MUST be the activity as first sent, from its sealed body, with the same id, `ledgerPosition` and RSVP deadline. (SYNC-20-003)
+- The CASE_MANAGER MUST NOT resend an Invite whose earlier send is still pending in its outbox. (SYNC-20-004)
+- Each consecutive resend of one Invite to one participant MUST double the cooldown before the next, up to a fixed ceiling. (SYNC-20-005)
+- A resend MUST NOT be ledgered and MUST NOT change the outcome of the activity that stated the position. (SYNC-20-007)
+- The CASE_MANAGER MUST NOT resend an Invite to a sender off the roster, removed, or whose closure the case records. (SYNC-20-008)
 
 ---
 
@@ -500,6 +513,7 @@ The stamp lets the CASE_MANAGER see that a participant is behind without waiting
 
 The CASE_MANAGER MUST NOT refuse, hold or defer an activity because its `ledgerPosition` is behind its own ledger tail, and MUST log such a lag at DEBUG; a reply to the full-case Invite is the one exception, judged against its Invite's floor. (SYNC-18-004)
 A `ledgerPosition` that names an entry the CASE_MANAGER's ledger holds is answered as a position stated in `Read(CaseLedgerEntry)` is: for an active participant, the CASE_MANAGER MUST record it as the sender's acknowledged position and replay the entries after it, rate-bounded; from any other sender it MUST record and send nothing. (SYNC-18-007)
+The Invite resend of §5.7 is no answer to the position and runs apart from that check. (SYNC-20-001)
 A `ledgerPosition` that names an index the CASE_MANAGER's ledger holds with another hash, or an index past its tail, means the sender's chain has split: the activity MUST be judged as it would be without the position, the split MUST be logged at ERROR, and an active participant MUST be sent `Announce(VulnerabilityCase)` under the re-seed rate bound. (SYNC-18-005)
 Neither the record, the replay nor the re-seed changes the activity's own outcome.
 
@@ -520,6 +534,8 @@ A value of 5 seconds or less is insufficient under multi-actor load. (SYNC-05-00
 
 [I] In this implementation, a participant states its ledger position (§5.6) after every restart, and also every `ledger.position_statement_interval_seconds` when that is set.
 The interval defaults to off (`None`), because a periodic check costs traffic a deployment should choose. (SYNC-17-007)
+
+[I] The CASE_MANAGER's resend of an unanswered Invite waits `ledger.invite_resend_cooldown_seconds` (30 seconds by default) after the first resend, doubling with each further resend of the same Invite to the same participant up to `ledger.invite_resend_max_cooldown_seconds` (600 seconds by default). (SYNC-20-005, SYNC-20-006)
 
 ---
 
@@ -659,6 +675,14 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-19-001 | §6.7 | A coordination decision MUST NOT depend on an arrival order the ledger does not define |
 | SYNC-19-002 | §6.7 | Eventual consistency is the guarantee; every replica reaches the CASE_MANAGER's case file |
 | SYNC-19-003 | §6.7 | Per-recipient delivery order MUST NOT be a protocol guarantee |
+| SYNC-20-001 | §5.7 | A stated position MUST resend the Invites its sender owes, inert senders included |
+| SYNC-20-002 | §5.7 | An Invite is owed only while its answer can still count |
+| SYNC-20-003 | §5.7 | A resent Invite MUST be the activity as first sent |
+| SYNC-20-004 | §5.7 | An Invite still pending in the outbox MUST NOT be resent |
+| SYNC-20-005 | §5.7 | Each resend of one Invite to one participant MUST double the cooldown, up to a ceiling |
+| SYNC-20-006 | §10 | The resend cooldown base and ceiling MUST be configurable, with documented defaults |
+| SYNC-20-007 | §5.7 | A resend MUST NOT be ledgered or change the stating activity's outcome |
+| SYNC-20-008 | §5.7 | A removed, closed or unlisted sender MUST NOT be resent an Invite |
 
 ---
 

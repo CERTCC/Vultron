@@ -48,6 +48,7 @@ It records the position as the sender's acknowledged position and, when the posi
 A position that names an entry the CASE_MANAGER's ledger holds with a different hash, or an index past its tail, means the sender's chain has split from the canonical ledger.
 The CASE_MANAGER logs the split at ERROR and sends the sender `Announce(VulnerabilityCase)` of its current case, at most once per re-seed cooldown (SYNC-18-005, SYNC-16-004).
 It answers only an active participant: a removed or unconsented participant's position is not recorded, and nothing is replayed or re-seeded to it (CM-10-004).
+A held position from any participant still on the roster also has the CASE_MANAGER resend each Invite that participant owes an answer to, as [Resending unanswered Invites](#resending-unanswered-invites) describes (SYNC-20-001).
 
 A participant's replica of the case is the replay of its ledger.
 It is the case as it stood when the replica was seeded, plus every ledger entry since, applied in ledger order ([ADR-0124](../../adr/0124-case-is-a-projection-of-its-ledger.md), CM-23-016).
@@ -132,7 +133,7 @@ The check runs before any write, so a stranger cannot obtain case content by sen
 - **`ledgerPosition`:** the named entry's `logIndex` and `entryHash`, so the CASE_MANAGER can tell a lag from a position its ledger does not hold (SYNC-17-001).
   The entry it names is the participant's tail, so this is the same `ledgerPosition` every case activity carries (SYNC-18-001).
 - **Triggering transition:** a case copy seeding the participant's replica (SYNC-17-008), and otherwise the participant's own policy, not a protocol shorthand. The reference participant also sends one for each case it holds after every restart, and on `ledger.position_statement_interval_seconds` when that is set, which is off by default (SYNC-17-007).
-- **Spec:** SYNC-17-001 through SYNC-17-008.
+- **Spec:** SYNC-17-001 through SYNC-17-008; the Invite resend, SYNC-20-001 through SYNC-20-008.
 - **Pattern:** `ReadLogEntryPattern` in `vultron/wire/as2/extractor/_instances.py`.
 - **Factory:** `read_ledger_entry_activity`, or `read_ledger_position_activity` for a position whose entry the sender does not store, in `vultron/wire/as2/factories/sync.py`.
 - **Example artifact:** [read_case_ledger_entry.json](../examples/read_case_ledger_entry.json).
@@ -154,9 +155,39 @@ When that position is behind its ledger tail, it sends the sender every entry af
 At the tail it sends nothing.
 
 It answers only an active participant (SYNC-17-002, CM-10-004).
-A removed, unconsented or closed participant's `Read` is `REFUSED`, with no replication state recorded and nothing sent.
+A removed, unconsented or closed participant's `Read` is `REFUSED`, with no replication state recorded and no entry replayed.
+An unconsented participant that is still on the roster is still resent the Invites it owes an answer to (SYNC-20-001).
 A position the CASE_MANAGER's ledger does not hold, or an index at which its entry has a different hash, is logged at WARNING and answered with nothing (SYNC-17-005).
 A `Read` and its answer are never ledgered: stating a position changes nothing in the case file (SYNC-17-006).
+
+### Resending unanswered Invites
+
+A position statement tells the CASE_MANAGER that the participant's replica holds the case, so the participant can now answer an Invite it lost.
+An Invite that reached a joiner before its case copy waits in the joiner's pre-bootstrap queue, and is dropped when the queue's window ends (CBT-03-003).
+Any Invite can also be lost in delivery.
+So when a participant states a position the CASE_MANAGER's ledger holds, in `Read(CaseLedgerEntry)` or as any case activity's `ledgerPosition`, the CASE_MANAGER resends each Invite that participant owes an answer to ([ADR-0163](../../adr/0163-the-case-manager-resends-an-unanswered-invite-when-its-addressee-states-a-ledger-position.md), SYNC-20-001).
+
+The resend runs apart from the active-participant check.
+Any participant still on the roster is resent its Invites, even an inert one that has not consented to the embargo in force, because an Invite is how it is asked to consent.
+A resent Invite is one the participant was already sent, so it carries no withheld case content (CM-10-007).
+A removed participant is asked nothing (CM-31-013), and a closed one is sent nothing (SYNC-20-008).
+For an inert sender the rest of the answer is unchanged: nothing is replayed, no replication state is recorded, and its `Read` is still `REFUSED` (SYNC-17-002).
+
+An Invite is owed while its answer can still count (SYNC-20-002):
+
+- an `Invite(EmbargoEvent)` whose embargo is still a proposal or is the embargo in force, whose consent row for the participant is `INVITED`, and whose RSVP deadline has not passed;
+- the full-case Invite, until the CASE_MANAGER's ledger records the participant's reply to it (CM-11-010).
+
+The Invite that the stating activity itself answers is not owed, and of several Invites for one embargo only the last one sent is owed.
+
+A resend is the Invite as first sent: the same id, `ledgerPosition` and RSVP deadline, from the body sealed when it was first sent (SYNC-20-003, SYNC-18-002).
+A receiver that already handled it treats it as a redelivery and does nothing, and a receiver that dropped it handles it as new.
+A resend never extends a deadline, and the full-case Invite's ledger floor is unchanged, so a reply at or beyond it is still accepted (CM-11-012).
+
+Resends are rate-bounded per Invite and participant.
+The CASE_MANAGER does not resend an Invite whose earlier send is still pending in its outbox (SYNC-20-004).
+Each consecutive resend of one Invite to one participant doubles the cooldown before the next, from `ledger.invite_resend_cooldown_seconds` (30 seconds by default) up to `ledger.invite_resend_max_cooldown_seconds` (600 seconds by default) (SYNC-20-005, SYNC-20-006).
+A resend commits no ledger entry, because the Invite's emission was ledgered when it was first sent, and it does not change the outcome of the activity that stated the position (SYNC-20-007).
 
 ---
 

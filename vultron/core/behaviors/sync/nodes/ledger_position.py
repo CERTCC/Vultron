@@ -337,6 +337,13 @@ class PeerActiveParticipantNode(DataLayerConditionWithPorts):
             self.feedback_message = str(exc)
             return Status.FAILURE
         if withheld is self.active:
+            self.feedback_message = (
+                f"sender '{self.sender_id}' is not an active participant of"
+                f" case '{self.case_id}'"
+                if withheld
+                else f"sender '{self.sender_id}' is an active participant of"
+                f" case '{self.case_id}'"
+            )
             return Status.FAILURE
         if withheld:
             self.logger.info(
