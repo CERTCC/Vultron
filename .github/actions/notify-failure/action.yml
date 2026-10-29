@@ -93,7 +93,7 @@ runs:
         # (PAD-02-014, PAD-02-018), set the same way on both arms, so an
         # issue an earlier run left without them is repaired. No parent: the
         # issue starts untriaged and `theme-fit` lists it for routing
-        # (PAD-02-026).
+        # (PAD-02-027).
         ensure_triage="$GITHUB_ACTION_PATH/../../scripts/ensure-issue-triage.sh"
         triage_args=(theme:test-and-ci
           "gets the $WORKFLOW_NAME workflow passing on main again.")

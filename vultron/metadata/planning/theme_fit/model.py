@@ -218,7 +218,7 @@ class UntriagedIssue:
     """An open non-Epic Issue with no parent at all: it needs routing.
 
     PAD-01-007 calls such an Issue untriaged; routing it to an Epic is its
-    triage. A workflow files its Issues this way on purpose (PAD-02-026), so
+    triage. A workflow files its Issues this way on purpose (PAD-02-027), so
     the report lists them for a person to route instead of counting them as
     a rule broken. Its ``themes`` say which Epics are candidates; an Issue
     with none also gets a ``leaf-theme-count`` finding.

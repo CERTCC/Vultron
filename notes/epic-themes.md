@@ -320,12 +320,14 @@ Markdown report: coherence per `Schedule` tier, each finding grouped by kind,
 then the untriaged Issues. It changes nothing on GitHub. It exits 0 with no
 findings, 1 with any, and 2 when the catalog or `gh` fails.
 
-- **Untriaged is listed, not a finding.** A non-Epic Issue with no parent is
-  untriaged (PAD-01-007) and appears under "Untriaged: no parent, needs
-  routing" with its themes, so the report can still come back clean. Reason:
-  workflows file their issues with a theme and no parent (PAD-02-026), and
-  routing them is triage, not a repair. An untriaged Issue with no theme still
-  gets a leaf-theme-count finding.
+- **No parent is listed, not a finding.** PAD-01-007 calls a non-Epic Issue
+  with no Epic ancestor untriaged. One with no parent at all appears under
+  "Untriaged: no parent, needs routing" with its themes, so the report can
+  still come back clean; one whose parent chain reaches no open Epic was wired
+  wrongly and stays an `unparented` finding (PAD-02-028). Reason: workflows
+  file their issues with a theme and no parent (PAD-02-027), and routing them
+  is triage, not a repair. An untriaged Issue with no theme still gets a
+  leaf-theme-count finding.
 
 - **Coherence** is the share of children that match their Epic: a child is an
   open non-Epic Issue in its nearest Epic's tier (PAD-02-001), and it matches

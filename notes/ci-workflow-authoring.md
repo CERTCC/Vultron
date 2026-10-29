@@ -21,6 +21,7 @@ related_notes:
 related_specs:
   - specs/ci-security.yaml
   - specs/demo-ci.yaml
+  - specs/parallel-development.yaml
 ---
 
 # CI and GitHub Actions Workflow Authoring Pitfalls
@@ -79,9 +80,9 @@ never copy its body into a workflow.
 ## A Bot-Filed Issue Gets a Theme From the Filer, and No Parent
 
 A workflow that files an issue MUST give it one `theme:` label and a
-`Theme: <label> — <outcome>` line, and MUST NOT give it a parent (PAD-02-014,
-PAD-02-018, PAD-02-026). Call `.github/scripts/ensure-issue-triage.sh` on both
-arms, after `ensure-issue-type.sh`; it never overrides a theme a person set.
+`Theme: <label> — <outcome>` line, and MUST NOT give it a parent (PAD-02-026,
+PAD-02-027). Call `.github/scripts/ensure-issue-triage.sh` on both arms, after
+`ensure-issue-type.sh`; it never overrides a theme a person set (PAD-02-029).
 Reason: a workflow cannot calve an Epic, and a fixed Epic number (a literal or a
 repository variable) breaks the step whenever that Epic closes, is rethemed or
 split, or reaches GitHub's 100-sub-issue cap. The issue starts untriaged

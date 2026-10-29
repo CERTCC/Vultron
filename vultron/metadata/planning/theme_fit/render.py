@@ -108,7 +108,7 @@ def _render_untriaged(
         f"## {UNTRIAGED_HEADING} ({len(untriaged)})",
         "",
         "Open non-Epic Issues with no parent (PAD-01-007). They are not",
-        "findings: a workflow files its Issues this way (PAD-02-026). Route",
+        "findings: a workflow files its Issues this way (PAD-02-027). Route",
         "each to an open Epic that carries its theme.",
         "",
     ]
@@ -165,8 +165,8 @@ def render_markdown(report: ThemeFitReport, limit: int | None = None) -> str:
             :data:`GITHUB_BODY_LIMIT` for an Issue body. When the full list
             is longer, each kind and the untriaged list show only their
             first entries, the same number for every list, and say how many
-            they left out. The
-            summary and coherence tables always appear in full.
+            they left out. The summary and coherence tables always appear
+            in full.
 
     Raises:
         ValueError: If even the summary alone is longer than *limit*.

@@ -5,7 +5,8 @@ Two workflows file issues: the ``notify-failure`` composite action (a
 Each gives its issue one ``theme:`` label (PAD-02-014) and a ``Theme:`` line
 (PAD-02-018) through ``.github/scripts/ensure-issue-triage.sh``, and sets no
 parent: the issue starts untriaged (PAD-01-007), and ``theme-fit`` lists it
-for routing instead of reporting a finding (PAD-02-026, #5450).
+for routing instead of reporting a finding (PAD-02-026 to PAD-02-029,
+#5450).
 
 The helper is run here against a fake ``gh`` (``test/ci/_fake_gh.py``), and the
 issue each filer leaves is checked with the ``theme-fit`` analysis itself, so
@@ -14,6 +15,7 @@ a theme retired from the catalog fails here, not on the board.
 
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -88,7 +90,7 @@ def _assert_untriaged_and_clean(gh: FakeGh, labels: set[str]) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("PAD-02-014", "PAD-02-018", "PAD-02-026")
+@pytest.mark.spec("PAD-02-026", "PAD-02-027")
 def test_helper_themes_an_unthemed_issue_and_sets_no_parent(
     tmp_path: Path,
 ) -> None:
@@ -107,6 +109,7 @@ def test_helper_themes_an_unthemed_issue_and_sets_no_parent(
     _assert_untriaged_and_clean(gh, {"ci:main-failure"})
 
 
+@pytest.mark.spec("PAD-02-029")
 def test_helper_leaves_an_issue_a_person_re_themed_alone(
     tmp_path: Path,
 ) -> None:
@@ -191,21 +194,35 @@ def test_helper_rejects_a_bad_call(
     assert gh.calls() == []
 
 
-@pytest.mark.spec("PAD-02-026")
-def test_no_workflow_action_or_script_reads_an_epic_variable() -> None:
+def _github_files() -> list[tuple[str, str]]:
+    """Every file under ``.github/``, as (repo-relative path, text)."""
+    return [
+        (str(path.relative_to(REPO_ROOT)), path.read_text(errors="replace"))
+        for path in sorted(GITHUB_DIR.rglob("*"))
+        if path.is_file()
+    ]
+
+
+@pytest.mark.spec("PAD-02-027")
+def test_nothing_under_github_names_an_epic_or_sets_a_parent() -> None:
     """AC-2 (#5450): no filer is wired to a fixed Epic any more.
 
     A fixed Epic number needs upkeep each time that Epic closes, is
-    rethemed or split, or fills up, so a workflow-filed issue gets no parent.
+    rethemed or split, or fills up, so a workflow-filed issue gets no
+    parent: nothing under ``.github/`` reads a retired variable or any
+    ``vars.*EPIC*`` variable, or calls the ``addSubIssue`` mutation.
     """
-    readers = sorted(
-        f"{path.relative_to(REPO_ROOT)}: {name}"
-        for path in GITHUB_DIR.rglob("*")
-        if path.is_file()
-        for name in RETIRED_EPIC_VARIABLES
-        if name in path.read_text(errors="replace")
-    )
-    assert readers == []
+    epic_var = re.compile(r"vars\.\w*EPIC\w*", re.IGNORECASE)
+    breaches = [
+        f"{path}: {hit}"
+        for path, text in _github_files()
+        for hit in (
+            *(n for n in RETIRED_EPIC_VARIABLES if n in text),
+            *epic_var.findall(text),
+            *(["addSubIssue"] if "addSubIssue" in text else []),
+        )
+    ]
+    assert breaches == []
 
 
 # ---------------------------------------------------------------------------
@@ -273,7 +290,7 @@ def test_notify_failure_closes_duplicates_and_themes_the_oldest(
     _assert_no_parent_set(gh)
 
 
-@pytest.mark.spec("PAD-02-014", "PAD-02-018", "PAD-02-026")
+@pytest.mark.spec("PAD-02-026", "PAD-02-027", "PAD-02-028")
 @pytest.mark.parametrize(
     ("open_issues", "number"),
     [([], "999"), ([5087], "5087")],
@@ -299,7 +316,7 @@ def test_notify_failure_triages_the_issue_it_files(
     _assert_untriaged_and_clean(gh, {"ci:main-failure", "ci:workflow-example"})
 
 
-@pytest.mark.spec("PAD-02-014", "PAD-02-018", "PAD-02-026")
+@pytest.mark.spec("PAD-02-026", "PAD-02-027", "PAD-02-028")
 @pytest.mark.parametrize(
     ("existing", "number"),
     [([], "999"), ([5434], "5434"), ([5434, 5500], "5434")],

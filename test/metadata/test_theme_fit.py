@@ -375,7 +375,7 @@ class TestMismatch:
         }
 
 
-@pytest.mark.spec("PAD-01-007", "PAD-02-026")
+@pytest.mark.spec("PAD-01-007", "PAD-02-028")
 class TestUntriaged:
     """A non-Epic with no parent is untriaged: listed, not a finding."""
 
@@ -971,7 +971,7 @@ class TestMain:
         fake = _FakeGh([_page(_node(2))])
         assert main(["--catalog", str(note)], run=fake) == 1
 
-    @pytest.mark.spec("PAD-02-026")
+    @pytest.mark.spec("PAD-02-028")
     def test_only_untriaged_issues_exit_zero(
         self, note: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:

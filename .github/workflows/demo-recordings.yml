@@ -76,7 +76,7 @@ jobs:
           ensure_type=.github/scripts/ensure-issue-type.sh
           # Its theme label and Theme: line (PAD-02-014, PAD-02-018) are set
           # the same way, on both arms. No parent: the Task starts untriaged
-          # and `theme-fit` lists it for routing (PAD-02-026).
+          # and `theme-fit` lists it for routing (PAD-02-027).
           ensure_triage=.github/scripts/ensure-issue-triage.sh
           triage_args=(theme:full-cvd-scenario-coverage
             "brings the committed demo recordings back in line with main.")

@@ -13,7 +13,7 @@
 """The structural theme rules, as one pure function over open Issues.
 
 Requirements: PAD-01-002, PAD-01-007, PAD-02-001, PAD-02-008, PAD-02-014, PAD-02-015,
-PAD-02-017, PAD-02-018, PAD-02-026.
+PAD-02-017, PAD-02-018, PAD-02-028.
 """
 
 from __future__ import annotations

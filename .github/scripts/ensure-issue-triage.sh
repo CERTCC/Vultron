@@ -8,7 +8,7 @@
 # `Theme: <label> — <outcome>` line in its body (PAD-02-018). A workflow that
 # files an issue sets both itself, right after `gh issue create`.
 #
-# It sets no parent (PAD-02-026). A fixed Epic number would need upkeep each
+# It sets no parent (PAD-02-027). A fixed Epic number would need upkeep each
 # time that Epic closes, is rethemed or split, or fills up, and a workflow
 # cannot calve an Epic of its own. So the issue starts untriaged
 # (PAD-01-007), and `theme-fit` lists it for a person to route to an Epic.
