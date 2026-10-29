@@ -24,9 +24,8 @@ from vultron.demo.actor_session import ActorSession
 from vultron.demo.exchange.embargo_lifecycle import demo_terminate_embargo
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.workflow import (
-    check_report_answer_recorded,
     receiver_invalidates_report,
-    wait_for_case_for_offer,
+    wait_for_report_answer_recorded,
 )
 from vultron.demo.utils import DataLayerClient, demo_gate, demo_step
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -47,7 +46,7 @@ def receiver_invalidates_and_closes(
     CASE_MANAGER (#5438):
 
     1. *receiver* invalidates the report (:func:`receiver_invalidates_report`),
-       and the reporter's replica is checked to record it.
+       and the closure is gated on the reporter's replica recording it.
     2. *receiver*, the Case Owner, ends the case's embargo, which would
        refuse its ``Leave`` (TRIG-13-003).
     3. The reporter leaves, then *receiver* does, last (CM-23-015).
@@ -61,11 +60,16 @@ def receiver_invalidates_and_closes(
         note: The Report Invalid's ``content``.
     """
     receiver_invalidates_report(client, receiver, offer_id, note=note)
-    check_report_answer_recorded(
-        client, reporter, receiver, offer_id, {RM.INVALID}
-    )
-    with demo_gate("Case opened on receipt found for the closure"):
-        case = wait_for_case_for_offer(client, offer_id)
+    # The closure's cause is the recorded answer, so one gate both checks
+    # the reporter's replica and finds the case the closure acts on.
+    with demo_gate(f"Reporter's replica records {receiver.id_} at RM.INVALID"):
+        case = wait_for_report_answer_recorded(
+            client,
+            receiver,
+            offer_id,
+            {RM.INVALID},
+            store_actor_id=reporter.id_,
+        )
         with demo_step(
             "Case Owner ends the embargo and closes the case, leaving last"
         ):

@@ -380,12 +380,14 @@ def demo_manage_participants_reject(
 
     case = _setup_case_with_vendor(client, reporter, vendor)
 
+    # Bound before the step so Step 4 can read it (#2308 ratchet).
+    case_manager_id: str | None = None
     with demo_step(
         "Steps 2-3: Vendor has the coordinator invited; coordinator declines"
     ):
         # Through the triggers: the CASE_MANAGER sends the Invite, and the
         # coordinator rejects that recorded Invite (EP-09-010, #5438).
-        invitee_declines_stub_invite(
+        case_manager_id = invitee_declines_stub_invite(
             client,
             case,
             owner=vendor,
@@ -396,14 +398,14 @@ def demo_manage_participants_reject(
     with demo_step("Step 4: Verify coordinator never became active"):
         # The Invite put an inert record for the coordinator on the roster
         # (CM-11-006); its Reject closes that record, which never joined
-        # (CM-11-007).  The vendor is the CASE_MANAGER, so its store holds
-        # the record.
+        # (CM-11-007).  The CASE_MANAGER's store holds the record.
         with demo_check("Coordinator's inert record closed after reject"):
             wait_for_participant_rm_state(
                 client=client,
                 case_id=case.id_,
                 actor_id=coordinator.id_,
                 expected_states={RM.CLOSED},
+                dl_actor_id=case_manager_id,
             )
             log_case_state(client, case.id_, "after reject")
 

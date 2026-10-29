@@ -1000,7 +1000,7 @@ def invitee_declines_stub_invite(
     owner: as_Actor,
     invitee: as_Actor,
     role: CVDRole,
-) -> None:
+) -> str:
     """*owner* has *invitee* invited to *case*, and *invitee* declines.
 
     The reject counterpart of :func:`seat_participant_through_stub_invite`:
@@ -1016,8 +1016,12 @@ def invitee_declines_stub_invite(
         owner: The Case Owner, who asks for the invitation.
         invitee: The actor that declines.
         role: The CVD role the Invite names.
+
+    Returns:
+        The id of the actor holding CASE_MANAGER on *case*, whose store
+        holds *invitee*'s closed inert record (CM-11-007).
     """
-    _run_stub_invite_chain(
+    return _run_stub_invite_chain(
         client, case, owner, invitee, role, respond="reject"
     )
 

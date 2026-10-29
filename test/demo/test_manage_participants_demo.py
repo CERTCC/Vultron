@@ -55,9 +55,9 @@ def test_demo(demo_env, demo_fn, caplog):
 
     For the reject path, verifies:
     - Case initialized with vendor as sole participant
-    - Invite sent to coordinator inbox
-    - Coordinator rejection sent to vendor inbox
-    - Participant list unchanged (coordinator not added)
+    - The CASE_MANAGER's stub Invite reaches the coordinator
+    - The coordinator declines through its ``reject-case-invite`` trigger
+    - The coordinator's inert record closes (CM-11-006, CM-11-007)
     - No errors logged
     """
     import logging

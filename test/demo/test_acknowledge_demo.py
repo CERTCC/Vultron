@@ -46,9 +46,13 @@ def test_demo(demo_env, demo_fn, caplog):
     Tests that each acknowledge demo workflow completes successfully with no errors.
 
     Covers:
-    - demo_acknowledge_only: submit → RmReadReportActivity → notify reporter
-    - demo_acknowledge_then_validate: submit → RmReadReportActivity → RmValidateReportActivity → notify
-    - demo_acknowledge_then_invalidate: submit → RmReadReportActivity → RmInvalidateReportActivity → notify
+    - demo_acknowledge_only: submit → RmReadReportActivity to the reporter
+    - demo_acknowledge_then_validate: submit → RmReadReportActivity →
+      RmValidateReportActivity through the vendor's trigger → the reporter's
+      replica records the answer
+    - demo_acknowledge_then_invalidate: submit → RmReadReportActivity →
+      RmInvalidateReportActivity through the vendor's trigger → the
+      reporter's replica records the answer
     """
     import logging
 
