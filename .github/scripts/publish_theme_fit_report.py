@@ -112,12 +112,17 @@ def compose_body(prefix: str, report: str) -> str:
 
 
 def _gh(*args: str) -> str:
-    return subprocess.run(  # noqa: S603 - fixed argv, no shell
-        ["gh", *args],  # noqa: S607
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
+    """``gh``'s stdout; on failure its stderr goes to the log, then it raises."""
+    try:
+        return subprocess.run(  # noqa: S603 - fixed argv, no shell
+            ["gh", *args],  # noqa: S607
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+    except subprocess.CalledProcessError as exc:
+        sys.stderr.write(exc.stderr or "")
+        raise
 
 
 def run_theme_fit(repo: str, max_chars: int) -> str:

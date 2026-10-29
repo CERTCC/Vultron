@@ -292,6 +292,84 @@ def test_a_failed_theme_fit_run_fails_the_script(
     assert cmd[0] == "theme-fit" and "--no-schedule" in cmd
 
 
+_WRITES = {("issue", "edit"), ("issue", "reopen"), ("issue", "close")}
+
+
+@pytest.mark.parametrize(
+    ("candidates", "report"),
+    [
+        ([_item(12, "open"), _item(30, "open")], 12),
+        ([_item(5, "closed"), _item(6, "closed")], 5),
+        ([], 77),
+    ],
+)
+@pytest.mark.spec("PAD-14-004")
+def test_it_writes_to_no_issue_but_the_report(
+    run_publish: Any, candidates: list[dict[str, object]], report: int
+) -> None:
+    """It labels, moves or edits no Issue it reports, nor a second report."""
+    gh = _Gh(candidates)
+    _, triaged = run_publish(gh)
+    touched = {c[2] for c in gh.calls if c[:2] in _WRITES}
+    assert touched <= {str(report)}
+    assert triaged == [report]
+    assert not any(
+        "--add-label" in c or "--remove-label" in c for c in gh.calls
+    )
+    assert not any(
+        c[0] == "api" and ("-X" in c or "--method" in c) for c in gh.calls
+    )
+    created = [c for c in gh.calls if c[:2] == ("issue", "create")]
+    assert len(created) == (0 if candidates else 1)
+
+
+def test_triage_runs_the_helper_with_the_report_theme(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(
+        _script.subprocess,
+        "run",
+        lambda argv, **_k: calls.append(argv),
+    )
+    _script._triage("OWNER/REPO", 12)
+    assert calls == [
+        [
+            "bash",
+            str(_script.TRIAGE_HELPER),
+            "OWNER/REPO",
+            "12",
+            _script.DEFAULT_THEME,
+            _script.DEFAULT_OUTCOME,
+        ]
+    ]
+    assert _script.TRIAGE_HELPER.name == "ensure-issue-triage.sh"
+    assert _script.TRIAGE_HELPER.is_file()
+
+
+def test_candidates_are_joined_across_pages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pages = [[_item(1, "open")], [_item(2, "closed"), _item(3, "open")]]
+    monkeypatch.setattr(_script, "_gh", lambda *_a: json.dumps(pages))
+    numbers = [c["number"] for c in _script.report_candidates("OWNER/REPO")]
+    assert numbers == [1, 2, 3]
+
+
+def test_a_failed_gh_call_logs_its_stderr(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def fail(*_a: object, **_k: object) -> None:
+        raise _script.subprocess.CalledProcessError(
+            1, ["gh"], stderr="HTTP 502: Bad Gateway\n"
+        )
+
+    monkeypatch.setattr(_script.subprocess, "run", fail)
+    with pytest.raises(_script.subprocess.CalledProcessError):
+        _script._gh("api", "repos/OWNER/REPO/issues/1")
+    assert "HTTP 502" in capsys.readouterr().err
+
+
 def test_findings_still_return_the_report(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -300,8 +378,17 @@ def test_findings_still_return_the_report(
         stdout = _REPORT
         stderr = ""
 
-    monkeypatch.setattr(_script.subprocess, "run", lambda *_a, **_k: _Done())
+    seen: list[list[str]] = []
+
+    def fake_run(argv: list[str], **_: object) -> _Done:
+        seen.append(argv)
+        return _Done()
+
+    monkeypatch.setattr(_script.subprocess, "run", fake_run)
     assert _script.run_theme_fit("OWNER/REPO", 1000) == _REPORT
+    ((*cmd,),) = seen
+    assert cmd[cmd.index("--max-chars") + 1] == "1000"
+    assert cmd[cmd.index("--repo") + 1] == "OWNER/REPO"
 
 
 def test_a_report_issue_with_no_body_gets_the_default_theme(

@@ -1047,6 +1047,8 @@ class TestMain:
         assert "projectItems" not in query
         out = capsys.readouterr().out
         assert NO_SCHEDULE_NOTE in out
+        assert "## Coherence (all tiers; Schedule not read)" in out
+        assert "per Schedule tier" not in out
         assert "| All tiers | 1 | 1 | 1 | 100% |" in out
         assert "| (unscheduled) |" not in out
 

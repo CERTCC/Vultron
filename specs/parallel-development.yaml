@@ -1337,7 +1337,9 @@ groups:
           failure every day the board is imperfect.
         verification: >-
           `test/ci/test_theme_fit_report.py` pins the issue choice, the exit-code
-          handling, the create-only-when-none path and the workflow triggers.
+          handling, the create-only-when-none path, the workflow triggers, and
+          (`test_it_writes_to_no_issue_but_the_report`) that every write names
+          the report Issue alone.
 
 
   - id: PAD-15

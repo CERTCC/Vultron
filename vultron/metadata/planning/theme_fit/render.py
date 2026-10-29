@@ -142,7 +142,9 @@ def _render(report: ThemeFitReport, per_kind: int | None) -> str:
         f"{report.issues} open Issues checked; {total} finding(s); "
         f"{len(report.untriaged)} untriaged.",
         "",
-        "## Coherence per Schedule tier",
+        "## Coherence per Schedule tier"
+        if report.schedule_read
+        else "## Coherence (all tiers; Schedule not read)",
         "",
         "A child is an open non-Epic Issue, in its nearest Epic's tier. It",
         "matches when it carries exactly one theme and its Epic carries it.",
