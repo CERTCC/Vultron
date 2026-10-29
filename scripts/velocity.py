@@ -871,9 +871,9 @@ def _main_red_spans(main_runs: list[dict]) -> list[dict]:
     next green run; every failed run between them belongs to it.  Cancelled
     and skipped runs say nothing about main and are passed over, as are runs
     with any other conclusion that is neither failed nor ``success`` (such
-    as ``neutral``) and runs with no ``created_at``.  A red streak that is already under way at the
-    first run in the window has no green run before it, so its start is
-    unknown: it is returned with ``opened_after_green`` false and
+    as ``neutral``) and runs with no ``created_at``.  A red streak that is
+    already under way at the first run in the window has no green run before
+    it, so its start is unknown: it is returned with ``opened_after_green`` false and
     ``prior_green_sha``/``prior_green_at`` ``None``.
 
     Returns one dict per episode with ``workflow`` (display name),
