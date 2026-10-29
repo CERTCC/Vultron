@@ -21,7 +21,6 @@ from test.demo._helpers import (
     expect_no_sender_refusals,
     expect_trusted_introductions,
     route_exchange_demo_at_testclient,
-    run_real_full_case_reply,  # noqa: F401 (fixture override)
 )
 from vultron.demo.exchange import (
     initialize_case_demo as init_demo,
