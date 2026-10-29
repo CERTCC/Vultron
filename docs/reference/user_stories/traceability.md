@@ -48,7 +48,7 @@ Source specifications: `specs/*.yaml`
 | [7. Publication and Disclosure](#7-publication-and-disclosure) | ~1457 | 101–106 | Coordinated publication, advisories, disclosure timing |
 | [8. Bug Bounty and Incentives](#8-bug-bounty-and-incentives) | ~1708 | 107–109 | Bug bounty programs and incentives |
 | [9. Prioritization, Assessment, and Fix Verification](#9-prioritization-assessment-and-fix-verification) | ~1763 | 110–111 | SSVC scoring, fix readiness |
-| [10. Stories Added in 2026](#10-stories-added-in-2026) | ~1863 | 2026_001–2026_009 | Embargo consent, case ledger, ownership transfer, automation, federation, answers, simulation, CSAF, conformance |
+| [10. Stories Added in 2026](#10-stories-added-in-2026) | ~1863 | 2026_001–2026_009 | Embargo consent, case ledger, ownership transfer, automation, federation, answers, exercises, CSAF, conformance |
 
 ---
 
