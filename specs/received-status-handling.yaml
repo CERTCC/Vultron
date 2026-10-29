@@ -1246,12 +1246,12 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >
-      A received `ParticipantStatus` MUST NOT be refused because of the
-      sender's case roles for the public-state (P/X/A) values its embedded
-      `CaseStatus` states: a participant holding any role, OBSERVER alone
+      A received `ParticipantStatus` MUST NOT be refused for the sender's
+      case roles over the public-state (P/X/A) values that its embedded
+      `CaseStatus` states. A participant holding any role, OBSERVER alone
       included, can report that the vulnerability is public, that an exploit
-      is public or that attacks are observed. Whether a reported value becomes
-      canonical case state is decided at adoption (RSH-01-003), not by the
+      is public or that attacks are observed. Adoption decides whether a
+      reported value becomes canonical case state (RSH-01-003), not the
       acceptance rules.
     rationale: >
       P, X and A record the state of the world, not anything a participant
