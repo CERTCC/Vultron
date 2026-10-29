@@ -288,7 +288,7 @@ def _aggregate_job_violations(
 
 
 def _reporting_violations(wf_data: dict[str, Any]) -> list[str]:
-    """Return every CISEC-05-003 violation in one workflow's report wiring.
+    """Return every CISEC-05-012/013 violation in one workflow's report wiring.
 
     For each ``workflow-label``: exactly one notify step and one close step,
     both in one job that has no matrix; when another job can run in the same
@@ -313,12 +313,12 @@ def _reporting_violations(wf_data: dict[str, Any]) -> list[str]:
     return problems
 
 
-@pytest.mark.spec("CISEC-05-003")
+@pytest.mark.spec("CISEC-05-012", "CISEC-05-013")
 @pytest.mark.parametrize(
     "wf", _qualifying_workflow_files(), ids=lambda p: p.name
 )
 def test_one_job_reports_each_workflow_label(wf: Path) -> None:
-    """CISEC-05-003 (#4874): one job reports each workflow-label, once.
+    """CISEC-05-012/013 (#4874): one job reports each workflow-label, once.
 
     The close step closes every open issue carrying the label. When several
     jobs each run a notify step and a close step under one label, a job that
@@ -331,7 +331,7 @@ def test_one_job_reports_each_workflow_label(wf: Path) -> None:
     problems = _reporting_violations(_load_workflow(wf))
     assert not problems, (
         f"{wf.name}: report once per workflow-label, from a final aggregate "
-        "job that `needs:` every other job (CISEC-05-003, #4874): "
+        "job that `needs:` every other job (CISEC-05-012/013, #4874): "
         + "; ".join(problems)
     )
 
