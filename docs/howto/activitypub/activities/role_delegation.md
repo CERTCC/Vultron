@@ -19,7 +19,7 @@ You finish with the participant holding the role, or with the roster unchanged.
 {% include-markdown "./_demo_prerequisites.md" %}
 
 - An existing case on which you are the Case Owner.
-  Only the Case Owner may offer a role, and the Case Manager refuses an offer from anyone else ([CM-33-002](../../../reference/specs/protocol.md#cm-33-002)).
+  The Case Manager acts on a role offer it receives only when the Case Owner sent it, and refuses one from anyone else ([CM-33-002](../../../reference/specs/protocol.md#cm-33-002)).
 - The target participant's Uniform Resource Identifier (URI).
   The target must already be a participant in the case.
 - The specific `CVDRole` you intend to offer.

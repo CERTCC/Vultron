@@ -562,10 +562,11 @@ groups:
       A participant embeds its suggested `CaseStatus` in
       `Add(ParticipantStatus)` (RSH-04-001), so the formal message has one wire
       form per sender. The participant's is its view, not a change: the
-      CASE_MANAGER adopts it, by default only with the Case Owner's
-      authorization (RSH-07-001), as its own `Add(CaseStatus)` ledger entry
-      (RSH-01-003), and a receiver refuses an `Add(CaseStatus)` from anyone
-      else (RSH-04-005). Each form dispatches to its own entry (MSM-08-001).
+      CASE_MANAGER adopts it, a non-owner's by default only with the Case
+      Owner's authorization (RSH-07-001, RSH-07-006), as its own
+      `Add(CaseStatus)` ledger entry (RSH-01-003), and a receiver refuses an
+      `Add(CaseStatus)` from anyone else (RSH-04-005). Each form dispatches to
+      its own entry (MSM-08-001).
     verification: >-
       `test/test_message_semantics_mapping.py` asserts that `CP` rides both
       the `Add(CaseStatus)` pattern and the `Add(ParticipantStatus)` pattern's
@@ -597,10 +598,11 @@ groups:
       A participant embeds its suggested `CaseStatus` in
       `Add(ParticipantStatus)` (RSH-04-001), so the formal message has one wire
       form per sender. The participant's is its view, not a change: the
-      CASE_MANAGER adopts it, by default only with the Case Owner's
-      authorization (RSH-07-001), as its own `Add(CaseStatus)` ledger entry
-      (RSH-01-003), and a receiver refuses an `Add(CaseStatus)` from anyone
-      else (RSH-04-005). Each form dispatches to its own entry (MSM-08-001).
+      CASE_MANAGER adopts it, a non-owner's by default only with the Case
+      Owner's authorization (RSH-07-001, RSH-07-006), as its own
+      `Add(CaseStatus)` ledger entry (RSH-01-003), and a receiver refuses an
+      `Add(CaseStatus)` from anyone else (RSH-04-005). Each form dispatches to
+      its own entry (MSM-08-001).
     verification: >-
       `test/test_message_semantics_mapping.py` asserts that `CX` rides both
       the `Add(CaseStatus)` pattern and the `Add(ParticipantStatus)` pattern's
@@ -632,10 +634,11 @@ groups:
       A participant embeds its suggested `CaseStatus` in
       `Add(ParticipantStatus)` (RSH-04-001), so the formal message has one wire
       form per sender. The participant's is its view, not a change: the
-      CASE_MANAGER adopts it, by default only with the Case Owner's
-      authorization (RSH-07-001), as its own `Add(CaseStatus)` ledger entry
-      (RSH-01-003), and a receiver refuses an `Add(CaseStatus)` from anyone
-      else (RSH-04-005). Each form dispatches to its own entry (MSM-08-001).
+      CASE_MANAGER adopts it, a non-owner's by default only with the Case
+      Owner's authorization (RSH-07-001, RSH-07-006), as its own
+      `Add(CaseStatus)` ledger entry (RSH-01-003), and a receiver refuses an
+      `Add(CaseStatus)` from anyone else (RSH-04-005). Each form dispatches to
+      its own entry (MSM-08-001).
     verification: >-
       `test/test_message_semantics_mapping.py` asserts that `CA` rides both
       the `Add(CaseStatus)` pattern and the `Add(ParticipantStatus)` pattern's
