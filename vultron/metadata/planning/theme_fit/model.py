@@ -89,7 +89,7 @@ _HEADINGS: dict[FindingKind, str] = {
     FindingKind.EPIC_THEME_COUNT: "Epic without one theme or a named split",
     FindingKind.MISSING_REASON_LINE: "Missing `Theme:` reason line",
     FindingKind.THEME_MISMATCH: "Child theme differs from its Epic's",
-    FindingKind.UNPARENTED: "Non-Epic with no open Epic ancestor",
+    FindingKind.UNPARENTED: "Parent chain reaches no open Epic",
     FindingKind.NESTED_EPIC: "Epic nested under an Epic",
     FindingKind.SINGLE_CHILD_CALVED_EPIC: "Auto-calved Epic still single-child",
     FindingKind.UNKNOWN_THEME: "Theme label not in the catalog",
@@ -214,6 +214,32 @@ class Finding:
 
 
 @dataclass(frozen=True)
+class UntriagedIssue:
+    """An open non-Epic Issue with no parent at all: it needs routing.
+
+    PAD-01-007 calls such an Issue untriaged; routing it to an Epic is its
+    triage. A workflow files its Issues this way on purpose (PAD-02-027), so
+    the report lists them for a person to route instead of counting them as
+    a rule broken. Its ``themes`` say which Epics are candidates; an Issue
+    with none also gets a ``leaf-theme-count`` finding.
+    """
+
+    number: int
+    title: str
+    issue_type: str | None
+    themes: tuple[str, ...]
+
+    def to_json(self) -> dict[str, object]:
+        """The Issue as a JSON-ready mapping."""
+        return {
+            "number": self.number,
+            "title": self.title,
+            "type": self.issue_type,
+            "themes": list(self.themes),
+        }
+
+
+@dataclass(frozen=True)
 class TierCoherence:
     """How many children in one ``Schedule`` tier match their Epic's theme.
 
@@ -245,15 +271,20 @@ class TierCoherence:
 
 @dataclass(frozen=True)
 class ThemeFitReport:
-    """Every finding, and coherence per tier."""
+    """Every finding, every untriaged Issue, and coherence per tier."""
 
     issues: int
     findings: tuple[Finding, ...]
     coherence: tuple[TierCoherence, ...]
+    untriaged: tuple[UntriagedIssue, ...] = ()
 
     @property
     def clean(self) -> bool:
-        """True when no Issue breaks a rule."""
+        """True when no Issue breaks a rule.
+
+        An untriaged Issue (:class:`UntriagedIssue`) is work waiting to be
+        routed, not a broken rule, so it does not make the report unclean.
+        """
         return not self.findings
 
     def of_kind(self, kind: FindingKind) -> tuple[Finding, ...]:
@@ -267,5 +298,6 @@ class ThemeFitReport:
             "clean": self.clean,
             "counts": {k.value: len(self.of_kind(k)) for k in FindingKind},
             "findings": [f.to_json() for f in self.findings],
+            "untriaged": [u.to_json() for u in self.untriaged],
             "coherence": [t.to_json() for t in self.coherence],
         }

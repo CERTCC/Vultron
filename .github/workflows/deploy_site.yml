@@ -70,7 +70,6 @@ jobs:
           mode: notify
           workflow-label: ci:workflow-deploy-site
           token: ${{ secrets.GITHUB_TOKEN }}
-          epic: ${{ vars.CI_FAILURE_EPIC }}
       - name: Close CI failure issue
         if: success() && github.event_name == 'push'
         uses: ./.github/actions/notify-failure
