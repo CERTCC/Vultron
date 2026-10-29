@@ -128,7 +128,10 @@ groups:
   - id: TRIG-02-005
     priority: SHOULD
     kind: project
-    statement: 'The following participant management behaviors SHOULD be individually triggerable via the trigger API: suggest-actor-to-case, accept-case-invite, reject-case-invite, invite-actor-to-case, accept-actor-recommendation'
+    statement: >-
+      The following participant management behaviors SHOULD be individually triggerable
+      via the trigger API: suggest-actor-to-case, accept-case-invite, reject-case-invite,
+      invite-actor-to-case, accept-actor-recommendation, reject-actor-recommendation
     rationale: >-
       Invitations, suggestions and answers to invitations decide who takes part in a
       case. This is an actor decision. One trigger for each step lets a client make each

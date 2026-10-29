@@ -38,6 +38,7 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
     accept_case_invite_trigger_bt,
     accept_case_ownership_transfer_trigger_bt,
     offer_case_ownership_transfer_trigger_bt,
+    reject_actor_recommendation_trigger_bt,
     reject_case_invite_trigger_bt,
     reject_case_ownership_transfer_trigger_bt,
     suggest_actor_to_case_trigger_bt,
@@ -71,6 +72,7 @@ from vultron.core.use_cases.triggers.requests import (
     InviteActorToCaseTriggerRequest,
     OfferCaseOwnershipTransferTriggerRequest,
     OfferCaseParticipantRoleTriggerRequest,
+    RejectActorRecommendationTriggerRequest,
     RejectCaseInviteTriggerRequest,
     RejectCaseOwnershipTransferTriggerRequest,
     SuggestActorToCaseTriggerRequest,
@@ -251,19 +253,46 @@ class SvcInviteActorToCaseUseCase(_SvcRecommendActorBase):
         )
 
 
-class SvcAcceptActorRecommendationUseCase(SvcActivityTriggerBase):
+class _SvcActorRecommendationAnswerBase(SvcActivityTriggerBase):
+    """The Case Owner's answer to a forwarded Offer(CaseParticipant) (ADR-0026).
+
+    Shared by the Accept (CM-16-006) and the Reject (CM-16-007): both name
+    the forwarded Offer and the CaseActor the answer goes to.  Subclasses
+    build the tree and name the verb they log.
+    """
+
+    _verb: ClassVar[str]
+    """Past-tense verb for the success log line; each subclass sets it."""
+
+    def _prepare(self) -> None:
+        request = cast(
+            AcceptActorRecommendationTriggerRequest
+            | RejectActorRecommendationTriggerRequest,
+            self._request,
+        )
+        actor = resolve_actor(request.actor_id, self._dl)
+        self._actor_id = actor.id_
+        self._cp_offer_id = request.cp_offer_id
+        self._case_actor_id = request.case_actor_id
+
+    def _handle_result(self) -> None:
+        logger.info(
+            "Actor '%s' %s actor recommendation offer '%s' → CaseActor '%s'",
+            self._actor_id,
+            self._verb,
+            self._cp_offer_id,
+            self._case_actor_id,
+        )
+
+
+class SvcAcceptActorRecommendationUseCase(_SvcActorRecommendationAnswerBase):
     """Accept an actor recommendation on behalf of the Case Owner.
 
     Emits Accept(Offer(CaseParticipant)) queued in the Case Owner's outbox for
     delivery to the CaseActor, completing ADR-0026 CM-16-006.
     """
 
-    def _prepare(self) -> None:
-        request = cast(AcceptActorRecommendationTriggerRequest, self._request)
-        actor = resolve_actor(request.actor_id, self._dl)
-        self._actor_id = actor.id_
-        self._cp_offer_id = request.cp_offer_id
-        self._case_actor_id = request.case_actor_id
+    _verb = "accepted"
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return accept_actor_recommendation_trigger_bt(
@@ -272,12 +301,22 @@ class SvcAcceptActorRecommendationUseCase(SvcActivityTriggerBase):
             captured=self._captured,
         )
 
-    def _handle_result(self) -> None:
-        logger.info(
-            "Actor '%s' accepted actor recommendation offer '%s' → CaseActor '%s'",
-            self._actor_id,
-            self._cp_offer_id,
-            self._case_actor_id,
+
+class SvcRejectActorRecommendationUseCase(_SvcActorRecommendationAnswerBase):
+    """Reject an actor recommendation on behalf of the Case Owner.
+
+    Emits Reject(Offer(CaseParticipant)) queued in the Case Owner's outbox for
+    delivery to the CaseActor, which ledgers it and answers the recommender
+    (ADR-0026, CM-16-007).
+    """
+
+    _verb = "rejected"
+
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        return reject_actor_recommendation_trigger_bt(
+            cp_offer_id=self._cp_offer_id,
+            case_actor_id=self._case_actor_id,
+            captured=self._captured,
         )
 
 
