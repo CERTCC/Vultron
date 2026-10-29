@@ -338,8 +338,8 @@ addopts = "-ra -q -m 'not integration' --dist loadgroup --max-worker-restart=0"
 # cost, and 5s and 20s both tripped on honest work under load.  A generous
 # ceiling costs nothing on a genuine hang: that test was never going to finish.
 #
-# Integration tests get a wider tier; see `INTEGRATION_TIMEOUT_SECONDS` in
-# `test/conftest.py`.
+# Integration tests get a wider tier (120s, sized from measured demo cost
+# under load, #5188); see `INTEGRATION_TIMEOUT_SECONDS` in `test/conftest.py`.
 timeout = 30
 timeout_method = "signal"
 testpaths = [

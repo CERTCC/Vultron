@@ -156,8 +156,9 @@ def test_connect_replay_commit_receive_disconnect(base_url: str, caplog):
 
 
 # The waits below can add up to ~115s (60s readiness, 10s per stream read, 15s
-# exit), past the 60s integration ceiling; this ceiling stays above them so an
-# overrun fails this test by name instead of killing the session (#4868).
+# exit), too close to the 120s integration ceiling; this ceiling keeps headroom
+# above them so an overrun fails this test by name instead of killing the
+# session (#4868).
 # Readiness gets 60s because the child's start-up passes 30s on a machine
 # saturated by a full xdist run (#5468).
 @pytest.mark.timeout(180)
