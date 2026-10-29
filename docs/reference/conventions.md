@@ -98,7 +98,7 @@ Three banners say where a page stands relative to it.
     {% include-markdown "../includes/normative.md" %}
 
     The normative pages carry this banner at the top of the page.
-    They are the body sections of the Protocol Specification and the Protocol and Foundation requirement pages.
+    They are the body sections of the Protocol Specification, including its Requirements Catalog, which holds the Protocol and Foundation requirements.
     The specification's landing page, its single-page edition, its annexes, and its open questions do not carry it.
 
 !!! info "Recognizing pages that explain the protocol's design"

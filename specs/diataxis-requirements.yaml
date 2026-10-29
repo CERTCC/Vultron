@@ -1495,8 +1495,8 @@ groups:
       - ADR-0147
     statement: >-
       Every page of the normative set — the Protocol Specification's body section
-      pages and the `protocol` and `foundation` requirement-tier pages, but not the
-      specification's landing page, its single-page full view, its annexes or its
+      pages, including the Requirements Catalog pages that render the `protocol`
+      and `foundation` requirement tiers, but not the specification's landing page, its single-page full view, its annexes or its
       open-questions page — MUST include the shared normative banner
       (`docs/includes/normative.md`) in the page itself, not through a shared
       fragment, and every other page MUST NOT include it except the page that
