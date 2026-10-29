@@ -243,9 +243,12 @@ def _event_exclusive(guard_a: str, guard_b: str) -> bool:
 
     Recognizes only the plain ``github.event_name == 'X'`` /
     ``github.event_name != 'X'`` pair, as in a job that runs only on
-    ``pull_request`` beside one that never does. Anything subtler counts as
-    able to share a run, so the check errs toward requiring ``needs:``.
+    ``pull_request`` beside one that never does. Anything subtler, including
+    a guard with ``||`` or a negated group, counts as able to share a run, so
+    the check errs toward requiring ``needs:``.
     """
+    if any("||" in g or "!(" in g for g in (guard_a, guard_b)):
+        return False
     a = set(_EVENT_GUARD.findall(guard_a))
     b = set(_EVENT_GUARD.findall(guard_b))
     return any(
@@ -307,12 +310,14 @@ def _aggregate_job_violations(
             f"{label}: reporting job {owner!r} must run "
             "`always()`, or a failed job skips the report"
         )
-    problems += [
-        f"{label}: notify step in {owner!r} must key on `{AGGREGATE_FAILURE}`"
-        for step in steps
-        if step.get("with", {}).get("mode") == "notify"
-        and AGGREGATE_FAILURE not in _normalize_expr(str(step.get("if", "")))
-    ]
+    expected = {"notify": AGGREGATE_FAILURE, "close": f"!{AGGREGATE_FAILURE}"}
+    for step in steps:
+        mode = str(step.get("with", {}).get("mode", ""))
+        key = expected.get(mode)
+        if key and key not in _normalize_expr(str(step.get("if", ""))):
+            problems.append(
+                f"{label}: {mode} step in {owner!r} must key on `{key}`"
+            )
     return problems
 
 
@@ -401,6 +406,54 @@ def test_reporting_check_accepts_a_single_job_workflow() -> None:
     assert _reporting_violations(wf) == []
 
 
+def test_reporting_check_accepts_a_string_needs() -> None:
+    wf = {
+        "jobs": {
+            "a": {"steps": []},
+            "notify": {
+                "needs": "a",
+                "if": "always()",
+                "steps": _notify_pair("ci:x"),
+            },
+        }
+    }
+    assert _reporting_violations(wf) == []
+
+
+def test_reporting_check_exempts_an_event_exclusive_job_either_way() -> None:
+    """A reporting job that runs only on ``push`` ignores a non-push job."""
+    wf = {
+        "jobs": {
+            "not-push": {"if": "github.event_name != 'push'"},
+            "report": {
+                "if": "github.event_name == 'push'",
+                "steps": _notify_pair("ci:x"),
+            },
+        }
+    }
+    assert _reporting_violations(wf) == []
+
+
+def test_reporting_check_does_not_exempt_an_or_guard() -> None:
+    """``push || schedule`` can share a scheduled run with a non-push job."""
+    wf = {
+        "jobs": {
+            "not-push": {"if": "github.event_name != 'push'"},
+            "report": {
+                "if": (
+                    "github.event_name == 'push' || "
+                    "github.event_name == 'schedule'"
+                ),
+                "steps": _notify_pair("ci:x"),
+            },
+        }
+    }
+    problems = _reporting_violations(wf)
+    assert any("does not `needs:` ['not-push']" in p for p in problems), (
+        problems
+    )
+
+
 def test_reporting_check_exempts_an_event_exclusive_job() -> None:
     """A job that runs only on ``pull_request`` never shares a push run."""
     wf = {
@@ -437,7 +490,18 @@ def test_reporting_check_exempts_an_event_exclusive_job() -> None:
                     for s in _notify_pair("ci:x")
                 ]
             ),
-            "must key on",
+            "notify step in 'notify' must key on",
+        ),
+        (
+            _aggregate_workflow(
+                steps=[
+                    {**s, "if": "success()"}
+                    if s["with"]["mode"] == "close"
+                    else s
+                    for s in _notify_pair("ci:x")
+                ]
+            ),
+            "close step in 'notify' must key on",
         ),
         (
             {
@@ -470,6 +534,7 @@ def test_reporting_check_exempts_an_event_exclusive_job() -> None:
         "matrix",
         "repeated-step",
         "notify-not-aggregate",
+        "close-not-aggregate",
         "split-jobs",
         "no-mode",
     ],

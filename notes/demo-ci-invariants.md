@@ -307,10 +307,12 @@ against the merged head (CONCERN-1859).
 ## CI Failure Notification — `notify-failure` Composite Action (CISEC-05)
 
 Every push-to-`main` or scheduled workflow wires `.github/actions/notify-failure`
-twice, once with `mode: notify` under `if: failure()` and once with `mode: close`
-under `if: success()` (ADR-0055); `test/ci/test_workflow_failure_notification.py`
-enforces the wiring. The wiring rule is in
-[ci-workflow-authoring](ci-workflow-authoring.md).
+once with `mode: notify` and once with `mode: close` (ADR-0055), both in one job.
+A single-job workflow keys them on `failure()` and `success()`; a workflow with
+several jobs runs them in a final `notify` job that `needs:` every other job and
+keys on `needs.*.result` (CISEC-05-003).
+`test/ci/test_workflow_failure_notification.py` enforces the wiring. The wiring
+rule is in [ci-workflow-authoring](ci-workflow-authoring.md).
 
 - **Deduplication.** The action finds an open issue carrying both
   `ci:main-failure` and the workflow-specific label: `notify` comments on it or
