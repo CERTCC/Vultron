@@ -92,6 +92,9 @@ jobs:
   lint-ruff:
     name: Lint (ruff)
     runs-on: ubuntu-latest
+    # Observed: 13–76 s across 15 recent runs. Cap at 10 min so a hung job
+    # fails fast instead of consuming a runner slot until GitHub's 6-h limit.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/debounce-main-push
@@ -107,6 +110,8 @@ jobs:
   lint-mypy:
     name: Lint (mypy)
     runs-on: ubuntu-latest
+    # Observed: 30–112 s across 15 recent runs.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/debounce-main-push
@@ -118,6 +123,9 @@ jobs:
   lint-pyright:
     name: Lint (pyright)
     runs-on: ubuntu-latest
+    # Observed: 69–109 s (1–2 min) across 15 recent runs. Cap at 10 min so a
+    # hung job is cancelled in minutes rather than at GitHub's 6-h default.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/debounce-main-push
@@ -131,6 +139,8 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     needs: [test, lint-ruff, lint-mypy, lint-pyright]
+    # Observed: 23–35 s across 15 recent runs.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -153,6 +163,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test, lint-ruff, lint-mypy, lint-pyright, build]
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Observed: 0–6 s across 15 recent runs.
+    timeout-minutes: 5
     permissions:
       contents: read
       issues: write

@@ -115,3 +115,32 @@ def test_ci_test_job_has_a_timeout() -> None:
     assert isinstance(minutes, int) and minutes > 0, (
         "The `Tests (pytest)` job needs `timeout-minutes` (TB-14-005)."
     )
+
+
+def test_all_python_app_jobs_have_timeouts() -> None:
+    """Every job in python-app.yml must have a timeout-minutes cap.
+
+    A job without a cap runs until GitHub's 6-hour default — a hung linter
+    or build step ties up a runner slot and shows as ``cancelled`` in
+    ``gh pr checks``, which the tooling reports as a failure (issue #2076).
+    Lint jobs observed at 13–112 s; build at 23–35 s; notify at 0–6 s.
+    A cap of 10 min (lint/build) or 5 min (notify) provides ample headroom.
+    """
+    workflow = yaml.safe_load(
+        (_REPO_ROOT / ".github/workflows/python-app.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    missing = [
+        job_key
+        for job_key, job_spec in workflow["jobs"].items()
+        if not (
+            isinstance(job_spec, dict)
+            and isinstance(job_spec.get("timeout-minutes"), int)
+            and job_spec["timeout-minutes"] > 0
+        )
+    ]
+    assert not missing, (
+        "These python-app.yml jobs lack `timeout-minutes` (issue #2076): "
+        + ", ".join(missing)
+    )
