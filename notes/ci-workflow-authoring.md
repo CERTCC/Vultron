@@ -8,8 +8,9 @@ description: >
   `actionlint` and block-scalar indentation, single-quoted apostrophes, the
   mandatory `notify-failure` wiring and its one-job-per-label rule, why an
   automated find-or-file lookup must not go through the search index, why a
-  `GITHUB_TOKEN`-raised event never triggers another workflow, why an artifact
-  name needs the run attempt, why a GitHub write is retried and a label swap is
+  `GITHUB_TOKEN`-raised event never triggers another workflow, how a bot-filed
+  issue gets its theme and Epic parent, why an artifact name needs the run
+  attempt, why a GitHub write is retried and a label swap is
   split, and how to read a red CI job correctly.
 related_notes:
   - notes/demo-ci-invariants.md
@@ -74,6 +75,18 @@ and update arms. The script resolves the type by name, applies it with
 `updateIssue`, leaves a typed issue alone, and fails the step when the type does
 not exist (CISEC-05-007). `notify-failure` and `demo-recordings.yml` use it;
 never copy its body into a workflow.
+
+## A Bot-Filed Issue Gets Its Theme and Epic Parent From the Filer
+
+A workflow that files an issue MUST also give it one `theme:` label, a
+`Theme: <label> — <outcome>` line and an Epic parent, or `theme-fit` reports it
+the moment it opens (PAD-01-007, PAD-02-014, PAD-02-018). Call
+`.github/scripts/ensure-issue-triage.sh` on both arms, after
+`ensure-issue-type.sh`. Name the Epic with a repository variable
+(`CI_FAILURE_EPIC`, `DEMO_RECORDINGS_EPIC`), never a literal: Epics get fused and
+split, and a variable re-homes the issues without a PR. The script fails the
+step when the variable is unset or names no open Epic, after it sets the theme
+(#5435).
 
 ## An Artifact a Later Job Downloads Needs the Run Attempt in Its Name
 

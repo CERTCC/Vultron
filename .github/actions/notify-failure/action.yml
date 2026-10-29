@@ -62,6 +62,10 @@ runs:
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         REF: ${{ github.ref }}
         DETAILS_FILE: ${{ inputs.details-file }}
+        # The Epic a failure issue is filed under (PAD-01-007). A repository
+        # variable, so re-homing the issues after the Epics are reshaped
+        # needs no code change.
+        CI_FAILURE_EPIC: ${{ vars.CI_FAILURE_EPIC }}
       run: |
         set -euo pipefail
 
@@ -89,6 +93,13 @@ runs:
         # helper shared with other bot-filed issues. It also repairs an
         # issue a failed assignment left untyped.
         ensure_type="$GITHUB_ACTION_PATH/../../scripts/ensure-issue-type.sh"
+        # The theme label, Theme: line and Epic parent every open leaf issue
+        # needs (PAD-01-007, PAD-02-014, PAD-02-018), set the same way on
+        # both arms, so an issue an earlier run left without them is repaired.
+        ensure_triage="$GITHUB_ACTION_PATH/../../scripts/ensure-issue-triage.sh"
+        triage_args=(theme:test-and-ci
+          "gets the $WORKFLOW_NAME workflow passing on main again."
+          "${CI_FAILURE_EPIC:-}" CI_FAILURE_EPIC)
 
         if [ "$MODE" = "notify" ]; then
           if [ "${#ISSUE_NUMS[@]}" -gt 0 ]; then
@@ -104,6 +115,8 @@ runs:
                 --duplicate-of "${ISSUE_NUMS[0]}" \
                 --comment "Duplicate of #${ISSUE_NUMS[0]}, which tracks this failure."
             done
+            # Last, so an unset CI_FAILURE_EPIC cannot stop the duplicates closing.
+            bash "$ensure_triage" "$REPO" "${ISSUE_NUMS[0]}" "${triage_args[@]}"
           else
             # Create a new failure issue.
             BODY=$(printf \
@@ -117,6 +130,7 @@ runs:
               --label "$WORKFLOW_LABEL")
             echo "Filed $ISSUE_URL"
             bash "$ensure_type" "$REPO" "${ISSUE_URL##*/}" Bug
+            bash "$ensure_triage" "$REPO" "${ISSUE_URL##*/}" "${triage_args[@]}"
           fi
         elif [ "$MODE" = "close" ]; then
           for NUM in "${ISSUE_NUMS[@]}"; do
