@@ -106,7 +106,7 @@ as a path-prefixed `ValueError` — the shape every hand-written copy took.
 
 | Helper | Use it for |
 |---|---|
-| `load_yaml(path, root=, loader=)` | a whole YAML file (`specs/*.yaml`); `loader` defaults to `SAFE_LOADER` (libyaml when present, about 10x faster), so don't pass one to get speed |
+| `load_yaml(path, root=, loader=)` | a whole YAML file (`specs/*.yaml`); no `loader` parses with `SAFE_LOADER` (libyaml when present, about 10x faster) and re-parses a fault in Python so its error reads unchanged; pass one only for its own errors |
 | `load_frontmatter(path, root=)` | a markdown file's frontmatter block |
 | `loads_frontmatter(text)` | the no-path form, for content not yet on disk |
 | `validate(Model, data, path=, root=, prefix=, key_lines=, positions=)` | the Pydantic half; `key_lines` locates the failure at its key's line, `positions` (from `yaml_node_positions(text)`) at the failing node's line and column |

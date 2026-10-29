@@ -727,6 +727,33 @@ def test_one_batch_reads_every_path_at_the_ref(
     assert texts["docs/adr/0001-x.md"].startswith("---")
 
 
+def test_an_ambiguous_name_reads_as_empty_and_the_batch_reads_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out = b"HEAD:a.yaml ambiguous\n0123 blob 4\nb: 1\n"
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *a, **k: subprocess.CompletedProcess(a, 0, out, b""),
+    )
+
+    assert _texts_at("HEAD", ["a.yaml", "b.yaml"]) == {
+        "a.yaml": "",
+        "b.yaml": "b: 1",
+    }
+
+
+def test_a_failed_batch_reads_every_path_as_empty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)  # not a repository: cat-file exits non-zero
+
+    assert _texts_at("HEAD", ["specs/t.yaml", "specs/u.yaml"]) == {
+        "specs/t.yaml": "",
+        "specs/u.yaml": "",
+    }
+
+
 @pytest.mark.spec("MS-14-010")
 def test_dependents_are_read_from_the_base_and_the_tree(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

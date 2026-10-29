@@ -89,10 +89,56 @@ class TestDefaultLoader:
         assert SAFE_LOADER is getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
     @pytest.mark.parametrize("parse", [load_yaml, loads_yaml])
-    def test_parsers_default_to_it(self, parse):
+    def test_parsers_take_the_fast_path_by_default(self, parse, monkeypatch):
         default = inspect.signature(parse).parameters["loader"].default
+        used = []
+        real_load = yaml.load
 
-        assert default is SAFE_LOADER
+        def spy(source, Loader):
+            used.append(Loader)
+            return real_load(source, Loader=Loader)
+
+        monkeypatch.setattr(yaml, "load", spy)
+
+        assert default is None
+        assert loads_yaml("a: 1\n", Path("x.yaml")) == {"a": 1}
+        assert used == [SAFE_LOADER]
+
+    @pytest.mark.parametrize(
+        "text",
+        ['a: "\\q"\n', "a:\n\tb: 1\n", "a: [1,\n", "a: *nope\n", "a: `b`\n"],
+        ids=[
+            "bad-escape",
+            "tab",
+            "unclosed-flow",
+            "undefined-alias",
+            "backtick",
+        ],
+    )
+    def test_default_faults_read_as_the_python_parser_reports_them(
+        self, tmp_path, text
+    ):
+        """A libyaml default must not move a column or drop a hint (#5483)."""
+        path = _write(tmp_path / "x.yaml", text)
+        reported = []
+        for loader in (None, yaml.SafeLoader):
+            with pytest.raises(MetadataLoadError) as info:
+                load_yaml(path, root=tmp_path, loader=loader)
+            with pytest.raises(MetadataLoadError) as text_info:
+                loads_yaml(text, Path("x.yaml"), loader=loader)
+            reported.append((str(info.value), str(text_info.value)))
+
+        assert reported[0] == reported[1]
+
+    def test_default_keeps_the_tab_hint(self, tmp_path):
+        path = _write(tmp_path / "x.yaml", "a:\n\tb: 1\n")
+
+        with pytest.raises(MetadataLoadError) as info:
+            load_yaml(path, root=tmp_path)
+
+        assert "(hint: YAML indentation must use spaces, not tabs)" in str(
+            info.value
+        )
 
 
 @pytest.mark.spec("MS-17-001")

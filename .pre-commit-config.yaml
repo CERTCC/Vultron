@@ -43,8 +43,12 @@ repos:
         # ~40s on every markdown commit. The config's `ignores` still apply to
         # the filenames, and each file still picks up its nearest nested
         # .markdownlint-cli2.yaml. lint_md_all.yml keeps the whole-tree check.
+        # markdownlint-cli2 reads each filename as a glob, so a name with glob
+        # syntax (`(p).md`) or a root-level one starting `#` or `!` lints
+        # nothing here; lint_md_all.yml still lints it. `files:` matches only
+        # `.md`, the one extension the whole-tree glob ever covered.
         args: ["--fix", "--config", ".markdownlint-cli2.yaml"]
-        files: \.(md|markdown)$
+        files: \.md$
 
       - id: validate-notes-frontmatter
         name: Validate notes frontmatter

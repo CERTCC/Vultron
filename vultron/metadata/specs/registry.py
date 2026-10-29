@@ -12,6 +12,7 @@ from pydantic import BaseModel, PrivateAttr
 
 from vultron.metadata.base import repo_root
 from vultron.metadata.file_loading import (
+    SAFE_LOADER,
     FailureCollector,
     load_yaml,
     validate,
@@ -241,7 +242,11 @@ def load_spec_files(spec_dir: Path) -> list[tuple[Path, SpecFile]]:
     collector = FailureCollector()
     for yaml_path in sorted(spec_dir.glob("*.yaml")):
         with collector.attempt():
-            raw = load_yaml(yaml_path, root=spec_dir.parent)
+            # Named, not defaulted: spec-lint has always reported libyaml's
+            # own fault wording, and the default re-parses a fault in Python.
+            raw = load_yaml(
+                yaml_path, root=spec_dir.parent, loader=SAFE_LOADER
+            )
             files.append(
                 (
                     yaml_path,
