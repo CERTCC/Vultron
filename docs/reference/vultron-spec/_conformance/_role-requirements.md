@@ -24,7 +24,8 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 ```
 
 Two transitions can also be asserted on another participant's behalf, by the Case Manager or the Case Owner.
-Vendor awareness (`v→V`) is the usual case: once the notification is evidenced, for example by the vendor's acknowledgment of its Invite, the party that notified the vendor knows that the vendor has the information.
+Vendor awareness (`v→V`) is the usual case: the party that notified the vendor knows that the vendor has the information.
+The assertion needs evidence of the notification, for example the vendor's acknowledgment of its Invite.
 A Deployer's fix deployment (`d→D`) can be asserted the same way, which is expected to be rare: deployment is normally the Deployer's own report.
 Fix readiness is never asserted on a vendor's behalf, because only the vendor can know it.
 
@@ -82,7 +83,7 @@ The role rule here — *who can report* — is deliberately separate from the au
 
 #### 13.4.3 CVE ID Assignment
 
-Assigning Common Vulnerabilities and Exposures (CVE) IDs happens outside the protocol, so this section states no protocol requirement for it.
+Assigning CVE IDs happens outside the protocol, so this section states no protocol requirement for it.
 It describes how the CVE Numbering Authority (CNA) role fits into a case.
 
 An actor holding the CNA role can assign CVE IDs.
