@@ -154,12 +154,15 @@ def test_factory_names_the_entry_by_reference() -> None:
 @pytest.mark.spec("SYNC-17-001")
 def test_read_case_ledger_entry_is_a_message_semantic() -> None:
     """A delivered ``Read(CaseLedgerEntry)`` has its own semantic type."""
-    event = _read(_make_entry(0), SIGNATORY_ID)
+    # One entry: its hash covers a commit stamp, so a second build in a later
+    # second would not match.
+    entry = _make_entry(0)
+    event = _read(entry, SIGNATORY_ID)
 
     assert event.semantic_type is MessageSemantics.READ_CASE_LEDGER_ENTRY
-    assert event.stated_entry_id == _make_entry(0).id_
+    assert event.stated_entry_id == entry.id_
     assert event.replay_case_id == CASE_ID
-    assert event.last_accepted_hash == _make_entry(0).entry_hash
+    assert event.last_accepted_hash == entry.entry_hash
 
 
 @pytest.mark.spec("SYNC-17-001")
