@@ -14,6 +14,7 @@ related_specs:
   - specs/actor-knowledge-model.yaml
   - specs/case-management.yaml
   - specs/case-proposal.yaml
+  - specs/sync-ledger-replication.yaml (SYNC-17-008)
 related_notes:
   - notes/participant-case-replica.md
   - notes/activitystreams-semantics.md
@@ -87,9 +88,10 @@ refused on load via `RetiredFieldsRecord`, never aliased (see
 
 Rejecting a CASE_MANAGER message that beats the bootstrap would make delivery
 order part of protocol correctness. Instead queue it unapplied for a bounded
-interval (`AppConfig.pre_bootstrap_queue_timeout_seconds`); on expiry drop it,
-warn, and send an `as_Question` asking the **report receiver** — the only actor
-already trusted — to resend the bootstrap.
+interval (`AppConfig.pre_bootstrap_queue_timeout_seconds`); on expiry drop it and
+warn (CBT-03-003, CBT-03-006). Do not ask anyone to resend from the receiver: a
+dropped Invite is the CASE_MANAGER's to resend, prompted by the position statement
+the participant sends once its replica is seeded (SYNC-17-008, ADR-0163).
 
 The queue record also carries the stub Invite's trust anchor (`invite_anchored`,
 PCR-03-004 path b), so expiry empties an anchored record but keeps it until the
@@ -97,7 +99,7 @@ bootstrap arrives and deletes it, and the window opens with the first activity q
 not with the Invite: the time an invitee takes to answer must not cost it the anchor
 that admits the case's `Announce` (#4915).
 
-The queue's `case_actor_id` is a replay target until an Invite sets `invite_anchored`:
+The queue's `case_actor_id` is no anchor until an Invite sets `invite_anchored`:
 the first deferred activity's sender writes it, so any actor could otherwise anchor
 itself as CASE_MANAGER of a case the receiver lacks. Read it as an anchor only when
 the flag is set, and let a stub Invite replace an unconfirmed sender

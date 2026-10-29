@@ -517,7 +517,6 @@ def test_the_queue_port_queues_nothing_when_the_hold_fails(
     queue = io.FastAPIQueuePort(
         dl=dl,
         actor_dl=dl,
-        actor_id=_RECEIVER,
         staging=InlineObjectStaging(dl),
     )
 

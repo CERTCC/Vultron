@@ -459,12 +459,15 @@ groups:
     kind: protocol
     statement: >-
       When an activity with an unknown case context arrives, the actor SHOULD queue the activity
-      briefly and request a case snapshot from the CASE_MANAGER.
+      briefly.
     rationale: >-
       An activity for an unknown case usually arrives before the case copy that would
       let the participant apply it. Holding it for a short time gives that copy time
-      to arrive. Asking the CASE_MANAGER for a copy covers the case where the copy was
-      lost.
+      to arrive. The participant does not ask for the copy: the CASE_MANAGER sends it
+      when the participant joins (CM-11-008), and resends an Invite the participant
+      dropped once the participant states its ledger position (SYNC-17-008, ADR-0163).
+    adr:
+    - ADR-0163
   - id: PCR-06-003
     priority: MUST_NOT
     kind: protocol
@@ -985,20 +988,19 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Unit tests MUST verify that activities with an unknown case context are queued, a resync
-      request is emitted, and the activity is dropped after timeout without updating any state.
+      Unit tests MUST verify that activities with an unknown case context are queued and are
+      dropped after timeout without updating any state.
     rationale: >-
-      The handling of unknown case context (PCR-06-001 to PCR-06-003) has three parts:
-      hold the activity, ask for the case, and drop it later without changing state. A
-      failure in any part loses an activity or writes untrusted state, so each part
-      needs a test.
+      The handling of unknown case context (PCR-06-001 to PCR-06-003) has two parts:
+      hold the activity, and drop it later without changing state. A failure in either
+      part loses an activity or writes untrusted state, so each part needs a test.
     verification: >-
       `test/core/behaviors/inbox/nodes/test_defer_check_node.py` asserts that
       activities for an unknown case are deferred.
-      `test_pending_case_queue_expiry_emits_question` and
-      `test_pending_case_queue_expires_drops_and_warns` in
+      `test_pending_case_queue_expires_drops_and_warns` and
+      `test_pending_case_queue_expiry_sends_nothing` in
       `test/adapters/driving/fastapi/test_inbox_handler.py` assert that an expired
-      queue sends a replay request and is dropped with a WARNING. No test yet
+      queue is dropped with a WARNING and sends nothing. No test yet
       asserts that a dropped activity changed no local state (#5377).
   - id: PCR-07-006
     priority: MUST

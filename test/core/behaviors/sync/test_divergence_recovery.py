@@ -718,9 +718,7 @@ def test_the_inbox_routes_the_copy_not_the_held_case() -> None:
             FastAPIDispatchAdapter(
                 dl=dl, actor_id=_REPLICA_ID, dispatcher=make_dispatcher()
             ),
-            FastAPIQueuePort(
-                dl=dl, actor_dl=dl, actor_id=_REPLICA_ID, staging=staging
-            ),
+            FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging),
         )
 
     stale = deliver(
@@ -955,9 +953,7 @@ def test_the_genesis_request_survives_the_inbox_rebuild() -> None:
         FastAPIDispatchAdapter(
             dl=dl, actor_id=_CASE_ACTOR_ID, dispatcher=make_dispatcher()
         ),
-        FastAPIQueuePort(
-            dl=dl, actor_dl=dl, actor_id=_CASE_ACTOR_ID, staging=staging
-        ),
+        FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging),
     )
 
     # Routed and judged: the stranger is no participant, so the sender
@@ -1170,9 +1166,7 @@ def test_the_inbox_takes_the_position_of_a_copy_ahead() -> None:
             FastAPIDispatchAdapter(
                 dl=dl, actor_id=_REPLICA_ID, dispatcher=make_dispatcher()
             ),
-            FastAPIQueuePort(
-                dl=dl, actor_dl=dl, actor_id=_REPLICA_ID, staging=staging
-            ),
+            FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging),
         )
 
     replaced = deliver(_at(_owned_case("copy ahead"), ahead))

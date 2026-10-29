@@ -23,7 +23,10 @@ nodes a ``Reject(CaseLedgerEntry)`` already runs (SYNC-17-003, SYNC-17-004).
 
 :class:`StateLedgerPositionsNode` is the sending side: it queues one
 ``Read(CaseLedgerEntry)`` for each case the executing actor holds a replica
-of (SYNC-17-007).
+of (SYNC-17-007).  :func:`position_statement_recipient` decides, for it and
+for the statement a participant sends once a case copy seeds its replica
+(SYNC-17-008), whether the actor states a position in a case at all and to
+whom.
 """
 
 from __future__ import annotations
@@ -148,17 +151,15 @@ class CheckStatedPositionInLedgerNode(DataLayerConditionWithPorts):
         return Status.FAILURE
 
 
-class StateLedgerPositionsNode(DataLayerActionWithPorts):
-    """Queue ``Read(CaseLedgerEntry)`` for each case replica the actor holds.
+def position_statement_recipient(
+    case: VulnerabilityCase, dl: CasePersistence, actor_id: str
+) -> str | None:
+    """The CASE_MANAGER *actor_id* states its position in *case* to.
 
-    For each ``VulnerabilityCase`` in the executing actor's store whose
-    CASE_MANAGER is another actor, the participant names the last entry its
-    replica has stored and sends it to that CASE_MANAGER (SYNC-17-001,
-    SYNC-17-007).  It sends nothing for a case it manages, a case naming no
-    CASE_MANAGER, a case whose roster does not list it, a case whose ledger
-    it holds no entry of (it has no entry to name), or a case that records
-    its own closure: closure is final, and the CASE_MANAGER refuses a closed
-    sender (CM-23-018).  An inert participant, removed or not yet a
+    ``None`` when *actor_id* states none: for a case it manages, a case
+    naming no CASE_MANAGER, a case whose roster does not list it, or a case
+    that records its own closure, which is final and which the CASE_MANAGER
+    refuses (CM-23-018).  An inert participant, removed or not yet a
     signatory, still states its position.  Its replica learns that it is
     inert from ledger entries, and the entry that made it active again may be
     the one it lost; the CASE_MANAGER refuses the statement of a participant
@@ -166,6 +167,26 @@ class StateLedgerPositionsNode(DataLayerActionWithPorts):
     participant's replica is seeded from a copy that already lists it, so a
     case whose roster lacks the actor is not a replica it participates in,
     and the CASE_MANAGER would refuse its statement (SYNC-17-002).
+    """
+    manager_id = resolve_case_manager_id(case, dl)
+    if manager_id is None or manager_id == actor_id:
+        return None
+    if actor_id not in case.actor_participant_index:
+        return None
+    if closure_recorded(case, dl, actor_id):
+        return None
+    return manager_id
+
+
+class StateLedgerPositionsNode(DataLayerActionWithPorts):
+    """Queue ``Read(CaseLedgerEntry)`` for each case replica the actor holds.
+
+    For each ``VulnerabilityCase`` in the executing actor's store whose
+    CASE_MANAGER is another actor, the participant names the last entry its
+    replica has stored and sends it to that CASE_MANAGER (SYNC-17-001,
+    SYNC-17-007).  It sends nothing for a case whose ledger it holds no
+    entry of (it has no entry to name), nor for one
+    :func:`position_statement_recipient` names no CASE_MANAGER for.
 
     ``sent`` counts the statements queued, for the caller's log.
     """
@@ -208,19 +229,20 @@ class StateLedgerPositionsNode(DataLayerActionWithPorts):
         for case in dl.list_objects("VulnerabilityCase"):
             if not isinstance(case, VulnerabilityCase):
                 continue
-            manager_id = resolve_case_manager_id(case, dl)
-            if manager_id is None or manager_id == self.actor_id:
-                continue
-            if self.actor_id not in case.actor_participant_index:
-                continue
-            if closure_recorded(case, dl, self.actor_id):
+            manager_id = position_statement_recipient(case, dl, self.actor_id)
+            if manager_id is None:
                 continue
             entries = sorted_case_ledger_entries(dl, case.id_)
             if not entries:
                 continue
             tail = entries[-1]
             self._sync_port.send_read_ledger_entry(
-                entry=tail, actor_id=self.actor_id, to=[manager_id]
+                case_id=case.id_,
+                ledger_position=LedgerPosition(
+                    log_index=tail.log_index, entry_hash=tail.entry_hash
+                ),
+                actor_id=self.actor_id,
+                to=[manager_id],
             )
             self.sent += 1
             self.logger.info(

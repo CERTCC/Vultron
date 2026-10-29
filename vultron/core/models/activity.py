@@ -76,8 +76,9 @@ class VultronActivity(CoreObject):
     # Read(CaseLedgerEntry) states it as the entry it names (SYNC-17-001).
     # The wire dump carries it as ``ledgerPosition``.
     ledger_position: LedgerPosition | None = None
-    # ``Question`` fields (AS2 §4.1); the CBT-03-004 bootstrap-replay Question
-    # is delivered through this model.
+    # ``Question`` fields (AS2 §4.1).  Vultron sends no ``Question``, but a
+    # received one is stored as this model, so every key its wire class dumps
+    # must be a field here (ARCH-25-008).
     any_of: Any | None = None
     one_of: Any | None = None
     closed: Any | None = None

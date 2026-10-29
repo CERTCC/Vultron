@@ -42,6 +42,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.sync import ReadLogEntryReceivedEvent
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -427,7 +428,14 @@ def test_participant_states_its_tail_to_the_case_manager() -> None:
     assert sent == 1
     port.send_read_ledger_entry.assert_called_once()
     call = port.send_read_ledger_entry.call_args
-    assert call.kwargs["entry"].log_index == 1
+    assert call.kwargs["case_id"] == CASE_ID
+    tail = max(
+        cast(list[CaseLedgerEntry], store.list_objects("CaseLedgerEntry")),
+        key=lambda entry: entry.log_index,
+    )
+    assert call.kwargs["ledger_position"] == LedgerPosition(
+        log_index=1, entry_hash=tail.entry_hash
+    )
     assert call.kwargs["actor_id"] == SIGNATORY_ID
     assert call.kwargs["to"] == [MANAGER_ID]
 

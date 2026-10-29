@@ -32,6 +32,7 @@ from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
@@ -47,6 +48,7 @@ from vultron.core.use_cases.received.sync import (
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import announce_vulnerability_case_activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Read
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -402,12 +404,12 @@ class TestAnnounceFirstContactTrustGap:
             "Case MUST be seeded when an invite trust anchor for the sender exists"
         )
 
-    @pytest.mark.spec("PCR-03-004", "CBT-03-004")
+    @pytest.mark.spec("PCR-03-004")
     def test_announce_from_queue_recorded_sender_is_refused(self, dl, event):
         """#4931: the sender the pre-bootstrap queue recorded is no anchor.
 
-        The queue records the sender of the first deferred activity as its
-        replay target (CBT-03-004); only a stub Invite anchors trust.
+        The queue records the sender of the first deferred activity; only a
+        stub Invite anchors trust.
         """
         dl.save(
             VultronPendingCaseInbox(
@@ -770,3 +772,164 @@ class TestAnnounceStoresEmbeddedParticipants:
             "Vendor as_CaseParticipant must be stored even when the case already "
             "exists (idempotent early-return path, #566)"
         )
+
+
+# ---------------------------------------------------------------------------
+# SYNC-17-008: a first seed states the replica's ledger position
+# ---------------------------------------------------------------------------
+
+_RECEIVER_PARTICIPANT_ID = f"{_CASE_ID}/participants/receiver"
+_COPY_POSITION = LedgerPosition(log_index=3, entry_hash="ab" * 32)
+
+
+def _joined_case(
+    position: LedgerPosition = _COPY_POSITION,
+    manager_id: str = _CASE_ACTOR_ID,
+) -> as_VulnerabilityCase:
+    """A copy of the case that lists the receiver, at *position*."""
+    manager = as_CaseParticipant(
+        case_roles=[CVDRole.CASE_MANAGER],
+        id_=_CASE_ACTOR_PARTICIPANT_ID,
+        attributed_to=manager_id,
+        context=_CASE_ID,
+    )
+    receiver = as_CaseParticipant(
+        case_roles=[CVDRole.VENDOR],
+        id_=_RECEIVER_PARTICIPANT_ID,
+        attributed_to=_RECEIVER_ID,
+        context=_CASE_ID,
+    )
+    return as_VulnerabilityCase(
+        id_=_CASE_ID,
+        name="SYNC-17-008 joined case",
+        attributed_to=_OWNER_ID,
+        case_participants=[manager, receiver],
+        actor_participant_index={
+            manager_id: _CASE_ACTOR_PARTICIPANT_ID,
+            _RECEIVER_ID: _RECEIVER_PARTICIPANT_ID,
+        },
+        ledger_position=position,
+    )
+
+
+def _queued_reads(dl: SqliteDataLayer) -> list[as_Read]:
+    reads = [dl.read(activity_id) for activity_id in dl.outbox_list()]
+    return [read for read in reads if isinstance(read, as_Read)]
+
+
+class TestFirstSeedStatesLedgerPosition:
+    """A participant states its position once a case copy seeds its replica.
+
+    The statement tells the CASE_MANAGER the replica is ready, so it can
+    resend an Invite the participant dropped before the copy arrived
+    (SYNC-17-008, ADR-0163).
+    """
+
+    def _announce(
+        self,
+        dl: SqliteDataLayer,
+        make_payload,
+        case: as_VulnerabilityCase,
+        **ports: Any,
+    ):
+        activity = announce_vulnerability_case_activity(
+            case, actor=_CASE_ACTOR_ID, to=[_RECEIVER_ID], context=_CASE_ID
+        )
+        event = make_payload(activity, at=dl)
+        return AnnounceVulnerabilityCaseReceivedUseCase(dl, event, **ports)
+
+    def _seed(self, dl, make_payload, case):
+        return self._announce(
+            dl, make_payload, case, sync_port=SyncActivityAdapter(dl)
+        ).execute()
+
+    @pytest.mark.spec("SYNC-17-008", "SYNC-17-001", "PCR-02-003")
+    def test_first_seed_queues_one_read_naming_the_copys_position(
+        self, dl, make_payload
+    ):
+        _anchor_expected_authority(dl)
+
+        result = self._seed(dl, make_payload, _joined_case())
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        reads = _queued_reads(dl)
+        assert len(reads) == 1
+        read = reads[0]
+        assert read.actor == _RECEIVER_ID
+        assert read.to == [_CASE_ACTOR_ID]
+        assert read.object_ == f"{_CASE_ID}/log/{_COPY_POSITION.log_index}"
+        assert read.context == _CASE_ID
+        assert read.ledger_position == _COPY_POSITION
+
+    @pytest.mark.spec("SYNC-17-008", "PCR-02-004")
+    def test_a_copy_that_updates_a_held_replica_queues_no_read(
+        self, dl, make_payload
+    ):
+        _anchor_expected_authority(dl)
+        self._seed(dl, make_payload, _joined_case())
+        seeded_reads = _queued_reads(dl)
+        ahead = LedgerPosition(log_index=5, entry_hash="cd" * 32)
+
+        result = self._seed(dl, make_payload, _joined_case(ahead))
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        stored = dl.read(_CASE_ID)
+        assert stored is not None and stored.ledger_position == ahead
+        # The replacement asks for what it lacks (SYNC-16-007), and states
+        # no position: only the first seed's statement is queued.
+        assert _queued_reads(dl) == seeded_reads
+
+    @pytest.mark.spec("SYNC-17-008")
+    def test_a_redelivered_announce_queues_no_second_read(
+        self, dl, make_payload
+    ):
+        _anchor_expected_authority(dl)
+        case = _joined_case()
+        self._seed(dl, make_payload, case)
+
+        self._seed(dl, make_payload, case)
+
+        assert len(_queued_reads(dl)) == 1
+
+    @pytest.mark.spec("SYNC-17-001")
+    def test_a_copy_at_the_empty_ledger_states_nothing(self, dl, make_payload):
+        """The empty ledger's position names no entry to state."""
+        _anchor_expected_authority(dl)
+        empty = as_VulnerabilityCase(
+            id_=_CASE_ID, attributed_to=_OWNER_ID
+        ).ledger_position
+
+        result = self._seed(dl, make_payload, _joined_case(empty))
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert _queued_reads(dl) == []
+
+    @pytest.mark.spec("SYNC-17-008")
+    def test_a_copy_whose_roster_omits_the_receiver_states_nothing(
+        self, dl, make_payload
+    ):
+        """Not a replica the receiver participates in (SYNC-17-002)."""
+        _anchor_expected_authority(dl)
+        case = _joined_case()
+        unlisted = as_VulnerabilityCase.model_validate(
+            {
+                **case.model_dump(exclude_none=True),
+                "case_participants": case.case_participants[:1],
+                "actor_participant_index": {
+                    _CASE_ACTOR_ID: _CASE_ACTOR_PARTICIPANT_ID
+                },
+            }
+        )
+
+        result = self._seed(dl, make_payload, unlisted)
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert _queued_reads(dl) == []
+
+    @pytest.mark.spec("SYNC-17-008")
+    def test_missing_sync_port_is_a_wiring_error(self, dl, make_payload):
+        """A statement is due, so a missing port is a composition fault."""
+        _anchor_expected_authority(dl)
+
+        with pytest.raises(VultronBTInternalError, match="sync_port"):
+            self._announce(dl, make_payload, _joined_case()).execute()

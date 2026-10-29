@@ -310,7 +310,9 @@ If the bootstrap arrives in time, normal checks resume.
 If it does not, the participant drops the held message ([CBT-03-003](../../reference/specs/protocol.md#cbt-03-003)).
 
 The reference implementation logs a warning when it drops one ([CBT-03-006](../../reference/specs/project.md#cbt-03-006)).
-The participant should also ask the case creator, with a `Question`, to send the bootstrap again ([CBT-03-004](../../reference/specs/project.md#cbt-03-004)).
+The participant does not ask for the dropped message again.
+Once a case copy seeds its replica, it states its ledger position to the CASE_MANAGER ([SYNC-17-008](../../reference/specs/protocol.md#sync-17-008)).
+That tells the CASE_MANAGER the replica is ready, and the CASE_MANAGER resends any Invite the participant has not answered ([ADR-0163](../../adr/0163-the-case-manager-resends-an-unanswered-invite-when-its-addressee-states-a-ledger-position.md)).
 The reference implementation holds a message for 300 seconds by default ([CBT-03-005](../../reference/specs/project.md#cbt-03-005)).
 
 We chose a bounded hold over an outright refusal on purpose.

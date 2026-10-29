@@ -341,8 +341,6 @@ def test_pending_case_queue_expires_drops_and_warns(monkeypatch, caplog):
     with caplog.at_level(logging.WARNING, logger="vultron"):
         expired = _expire_pending_case_activities(
             case_id=case_id,
-            actor_id=actor_id,
-            dl=shared_dl,
             queue_dl=queue_dl,
             timeout_seconds=60,  # 1 minute; queue is 10 minutes old
         )
@@ -893,57 +891,44 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
     )
 
 
-def test_pending_case_queue_expiry_emits_question(monkeypatch):
-    """AC-7: A replay Question is appended to the actor outbox on expiry.
+@pytest.mark.spec("CBT-03-003", "CBT-05-003")
+def test_pending_case_queue_expiry_sends_nothing():
+    """An expired queue is dropped without asking anyone for the case.
 
-    Covers CBT-05-003 (third bullet): generate a replay request.
+    The receiver's replay ``Question`` is gone: a dropped Invite is the
+    CASE_MANAGER's to resend once the receiver states its ledger position
+    after its replica is seeded (ADR-0163).  So expiry queues nothing to the
+    outbox, even with a ``case_actor_id`` recorded on the queue.
     """
     from datetime import datetime, timedelta
 
     actor_id = "https://example.org/actors/reporter"
     case_id = "https://example.org/cases/cbt-ac7"
     activity_id = "https://example.org/activities/cbt-ac7-note"
-    case_actor_id = "https://example.org/actors/case-actor"
     shared_dl = SqliteDataLayer(
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
     queue_dl = shared_dl.clone_for_actor(actor_id)
-
-    old_time = datetime.now(UTC) - timedelta(minutes=10)
-    pending = VultronPendingCaseInbox(
-        case_id=case_id,
-        activity_ids=[activity_id],
-        case_actor_id=case_actor_id,
+    queue_dl.save(
+        VultronPendingCaseInbox(
+            case_id=case_id,
+            activity_ids=[activity_id],
+            case_actor_id="https://example.org/actors/case-actor",
+            queued_at=datetime.now(UTC) - timedelta(minutes=10),
+        )
     )
-    pending.queued_at = old_time
-    queue_dl.save(pending)
 
     expired = _expire_pending_case_activities(
         case_id=case_id,
-        actor_id=actor_id,
-        dl=shared_dl,
         queue_dl=queue_dl,
         timeout_seconds=60,
     )
 
     assert expired is True
-
-    outbox = queue_dl.outbox_list()
-    assert len(outbox) == 1, (
-        "One Question should have been queued in the outbox"
-    )
-
-    question_id = outbox[0]
-    from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
-        as_Question,
-    )
-
-    question = shared_dl.read(question_id)
-    assert isinstance(question, as_Question)
-    assert question.context == case_id
-    assert question.actor == actor_id
-    assert question.to == [case_actor_id]
+    assert queue_dl.outbox_list() == []
+    assert shared_dl.outbox_list() == []
+    assert shared_dl.get_all("Question") == []
 
 
 @pytest.mark.spec("EP-07-001")
@@ -1053,8 +1038,6 @@ def test_expired_queue_keeps_a_stub_invite_trust_anchor():
 
     expired = _expire_pending_case_activities(
         case_id=case_id,
-        actor_id=actor_id,
-        dl=shared_dl,
         queue_dl=queue_dl,
         timeout_seconds=60,
     )
@@ -1090,8 +1073,6 @@ def test_a_queue_holding_no_activity_does_not_expire():
 
     assert not _expire_pending_case_activities(
         case_id=case_id,
-        actor_id=actor_id,
-        dl=shared_dl,
         queue_dl=queue_dl,
         timeout_seconds=60,
     )
