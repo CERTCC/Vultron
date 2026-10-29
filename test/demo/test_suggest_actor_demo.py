@@ -11,9 +11,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import contextlib
+import logging
+
 import pytest
 
 from test.demo._helpers import (
+    expect_no_inbox_refusals,
     expect_no_sender_refusals,
     expect_trusted_introductions,
     route_exchange_demo_at_testclient,
@@ -33,19 +37,25 @@ def demo_env(client):
 
 
 @pytest.mark.parametrize(
-    "demo_fn",
-    [demo.demo_suggest_actor_accept, demo.demo_suggest_actor_reject],
+    ("demo_fn", "inbox_refusal_free"),
+    [
+        (demo.demo_suggest_actor_accept, True),
+        # The reject path still posts the Case Owner's Reject into its own
+        # inbox, which refuses it: no trigger sends it yet (#5459).
+        (demo.demo_suggest_actor_reject, False),
+    ],
     ids=["suggest_accept", "suggest_reject"],
 )
-def test_demo(demo_env, demo_fn, caplog):
+def test_demo(demo_env, demo_fn, inbox_refusal_free, caplog):
     """
     Tests that the suggest_actor demo workflows complete successfully.
 
-    For the accept path, verifies:
+    For the accept path, verifies, every act through its actor's trigger:
     - Case initialized with reporter participant
-    - Reporter recommends coordinator to vendor
-    - Vendor accepts the recommendation
-    - Acceptance stored in data layer
+    - Reporter recommends coordinator to the CASE_MANAGER
+    - Case Owner accepts the forwarded recommendation
+    - The CASE_MANAGER invites the coordinator
+    - No inbox refuses an activity (#5438)
 
     For the reject path, verifies:
     - Case initialized with reporter participant
@@ -53,14 +63,17 @@ def test_demo(demo_env, demo_fn, caplog):
     - Vendor rejects the recommendation
     - Participant list unchanged after rejection
     """
-    import logging
-
     # WARNING, not ERROR: a refused case introduction (CBT-01-011) is
     # logged at WARNING, and the run must log none (#4675).
     with (
         caplog.at_level(logging.WARNING),
         expect_trusted_introductions(caplog),
         expect_no_sender_refusals(caplog),
+        (
+            expect_no_inbox_refusals(caplog)
+            if inbox_refusal_free
+            else contextlib.nullcontext()
+        ),
     ):
         demo.main(skip_health_check=True, demos=[demo_fn])
 
