@@ -49,7 +49,6 @@ jobs:
           mode: notify
           workflow-label: ci:workflow-stale-claim-sweeper
           token: ${{ secrets.GITHUB_TOKEN }}
-          epic: ${{ vars.CI_FAILURE_EPIC }}
       - name: Close CI failure issue
         if: success() && github.event_name == 'schedule'
         uses: ./.github/actions/notify-failure

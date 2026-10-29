@@ -156,6 +156,14 @@ template. `src/semanticRegistry.ts` is the only file that reads it. Do not add a
 closed list of semantic types or a phrase table to `ui/`: the Python demo
 report renders the same templates (DRPT-03-005).
 
+The scenario tree works the same way. `src/data/scenario_tree.json`, generated
+by `uv run export-demo-tree`
+([`export_tree.py`](../vultron/metadata/demo_scenarios/export_tree.py)) and
+drift-tested, holds the branch-point table, the tree from the root, and each
+scenario's label, path and recording files keyed by actor and case. Read
+prompts, choice labels and recording paths from it; do not keep a scenario list
+in `ui/` (DEMOCI-11-016).
+
 **Several dests per trigger.** A machine may list more than one dest for one
 (source, trigger): EM's `accept`/`reject` from PROPOSED/REVISE either close the
 last open proposal (leave negotiation) or leave another open (stay; ADR-0130).

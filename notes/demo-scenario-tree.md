@@ -97,17 +97,15 @@ instructions and docs instead (#4736).
 
 ## Tree index
 
-A generated, committed, drift-tested JSON file under `ui/src/data/`
-(DEMOCI-11-016), holding:
+Built: `uv run export-demo-tree` writes `ui/src/data/scenario_tree.json`
+(DEMOCI-11-016); its shape is in the exporter's docstring
+(`vultron/metadata/demo_scenarios/export_tree.py`). Two rules for work on it:
 
-- the branch-point table;
-- the tree as nested nodes from the root, each choice pointing at a child node
-  or an ending;
-- one entry per scenario: label, path, and recording files keyed by actor and
-  case.
-
-Follow `protocol_states.json`'s conventions for key style and the export entry
-point.
+- **Case keys come from the recordings.** Each recording is listed under the
+  `caseId`s its entries carry, so a recording refresh that changes a case id
+  needs a re-export too; the `demo-tree-sync` hook and the drift test say so.
+- **Choices follow the table's order**, not discovery order, so adding a
+  scenario never reorders the siblings the presenter sees.
 
 ## Shared-prefix check
 

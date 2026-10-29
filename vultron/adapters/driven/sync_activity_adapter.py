@@ -45,13 +45,14 @@ from vultron.adapters.outbox_sealed_body import (
 )
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.sync_helpers import ledger_tail_position
 from vultron.core.use_cases._helpers import add_activity_to_outbox
 from vultron.wire.as2.factories import (
     announce_log_entry_activity,
     genesis_replay_reject_activity,
-    read_ledger_entry_activity,
+    read_ledger_position_activity,
     reject_log_entry_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -235,7 +236,8 @@ class SyncActivityAdapter:
 
     def send_read_ledger_entry(
         self,
-        entry: CaseLedgerEntry,
+        case_id: str,
+        ledger_position: LedgerPosition,
         actor_id: str,
         to: list[str],
     ) -> None:
@@ -247,9 +249,11 @@ class SyncActivityAdapter:
         grown since (SYNC-17-004).  A derived id would make the repeat a
         redelivery the CASE_MANAGER skips.
 
-        Spec: SYNC-17-001.
+        Spec: SYNC-17-001, SYNC-17-008.
         """
-        read = read_ledger_entry_activity(entry, actor=actor_id, to=to)
+        read = read_ledger_position_activity(
+            case_id, ledger_position, actor=actor_id, to=to
+        )
         self._dl.save(read)
         seal_outbound_body(self._dl, read)
         add_activity_to_outbox(actor_id, read.id_, self._dl)
@@ -257,7 +261,7 @@ class SyncActivityAdapter:
             "sync adapter: queued Read(CaseLedgerEntry) '%s' for entry '%s'"
             " to %s",
             read.id_,
-            entry.id_,
+            read.object_,
             to,
         )
 

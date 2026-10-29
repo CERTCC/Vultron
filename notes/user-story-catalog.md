@@ -34,7 +34,7 @@ related_notes:
 
 # User Story Catalog — Personas, Identity, Coverage, and the Protocol Story Gap
 
-The 111 pages under `docs/reference/user_stories/` are the only "why" a protocol
+The pages under `docs/reference/user_stories/` are the only "why" a protocol
 requirement can cite (SR-11). This note records how the catalog is kept and how
 the protocol requirements that have no story get one. The planning decisions
 were made on 2026-10-12 from the Concern #4487 and the five SR-11 gap
@@ -181,6 +181,10 @@ than a Task of their own.
 Distilled from the five Ideas' suggested framings and deduplicated. The seed
 task writes these as pages, finalizing wording; the area tasks cite them before
 adding new ones. Spec prefixes are the expected citers, not a commitment.
+
+Number the seed pages from `story_2026_010`: IDs never repeat, and
+`story_2026_001`–`story_2026_009` are taken by stories on what sets
+Vultron apart from ticket-based CVD (PR #5425).
 
 ### Implementer family
 

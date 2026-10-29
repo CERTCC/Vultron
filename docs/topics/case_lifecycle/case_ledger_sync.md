@@ -336,6 +336,7 @@ When the lost entry is the last one before a quiet period, nothing follows it, s
 The replica closes that gap itself by stating its position: `Read(CaseLedgerEntry)` names the last entry it applied ([SYNC-17-001](../../reference/specs/protocol.md#sync-17-001)).
 The CASE_MANAGER records that position and replays every entry after it, under the same cooldown as a `Reject` replay ([SYNC-17-004](../../reference/specs/protocol.md#sync-17-004)).
 The reference participant sends one for each case it holds after every restart, the moment it is most likely to have missed an entry.
+A participant also states its position once a case copy first seeds its replica, so the CASE_MANAGER learns the replica is ready and can resend an Invite the participant dropped before the copy arrived ([SYNC-17-008](../../reference/specs/protocol.md#sync-17-008)).
 Every other case message the participant sends states the same position as its `ledgerPosition`, so the CASE_MANAGER answers that position the same way whenever the participant acts ([SYNC-18-007](../../reference/specs/protocol.md#sync-18-007)).
 A position the CASE_MANAGER's ledger does not hold means the participant's chain has split, and the CASE_MANAGER sends it a fresh copy of the case ([SYNC-18-005](../../reference/specs/protocol.md#sync-18-005)).
 Neither answer changes how the CASE_MANAGER judges the message itself.

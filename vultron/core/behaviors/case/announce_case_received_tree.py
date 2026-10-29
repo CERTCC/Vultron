@@ -45,6 +45,7 @@ from vultron.core.behaviors.case.nodes.announce import (
 from vultron.core.behaviors.case.nodes.case_copy import (
     CaseCopyNotStaleNode,
     RequestCaseCopyBackfillNode,
+    StateSeededLedgerPositionNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -82,13 +83,17 @@ def create_announce_vulnerability_case_received_tree(
         ├── CaseCopyNotStaleNode              # guard (SYNC-16-006)
         ├── SeedAnnouncedCaseNode             # effect (seed or replace)
         ├── RequestCaseCopyBackfillNode       # effect (SYNC-16-007)
-        └── ReplayHeldSuccessorNode           # effect (SYNC-14-009)
+        ├── ReplayHeldSuccessorNode           # effect (SYNC-14-009)
+        └── StateSeededLedgerPositionNode     # effect (SYNC-17-008)
 
     A replica that already holds the case replaces it only with a copy whose
     ledger position is current against its own; a stale copy is skipped and
     a conflicting one refused, with the case unchanged (SYNC-16-006).  A copy
     ahead of the chain is backfilled: the case takes the copy's position and
-    the replica asks for the missing entries (SYNC-16-007).
+    the replica asks for the missing entries (SYNC-16-007).  A first seed
+    instead states the position the copy seeded the replica at, to the case's
+    CASE_MANAGER, so it can resend an Invite the participant dropped before
+    the copy arrived (SYNC-17-008, ADR-0163).
 
     An Announce that carries no ``VulnerabilityCase`` with an id is refused
     by the same tree's guard instead
@@ -155,6 +160,8 @@ def create_announce_vulnerability_case_received_tree(
             ReplayHeldSuccessorNode(
                 case_id=case_id, name="ReplayHeldPreGenesisEntry"
             ),
+            # Last, so a failed statement leaves every other effect done.
+            StateSeededLedgerPositionNode(case_id=case_id),
         ],
     )
     logger.debug("Created %s for case='%s'", _NAME, case_id)

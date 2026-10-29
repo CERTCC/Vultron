@@ -28,7 +28,9 @@ import logging
 
 from pydantic import ValidationError
 
+from vultron.core.models.case_ledger_entry import ledger_entry_id
 from vultron.core.models.ledger_position import (
+    EMPTY_LEDGER_LOG_INDEX,
     LedgerPosition,
 )
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
@@ -155,7 +157,8 @@ def read_ledger_entry_activity(
     Sent by a participant to the case's CASE_MANAGER to state that it has
     applied the case's ledger up to *entry* (SYNC-17-001).  The entry goes by
     reference: the ``object`` is its id, the ``context`` its case, and the
-    ``ledgerPosition`` its ``log_index`` and ``entry_hash``.
+    ``ledgerPosition`` its ``log_index`` and ``entry_hash``.  It is
+    :func:`read_ledger_position_activity` for the entry's own position.
 
     Args:
         entry: The last ledger entry the participant has applied.
@@ -169,13 +172,8 @@ def read_ledger_entry_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return _ReadLogEntryActivity(
-            object_=entry.id_,
-            context=entry.case_id,
-            ledger_position=LedgerPosition(
-                log_index=entry.log_index, entry_hash=entry.entry_hash
-            ),
-            **kwargs,
+        position = LedgerPosition(
+            log_index=entry.log_index, entry_hash=entry.entry_hash
         )
     except ValidationError as exc:
         logger.warning(
@@ -183,4 +181,56 @@ def read_ledger_entry_activity(
         )
         raise VultronActivityConstructionError(
             "read_ledger_entry_activity: invalid arguments"
+        ) from exc
+    return read_ledger_position_activity(entry.case_id, position, **kwargs)
+
+
+def read_ledger_position_activity(
+    case_id: str,
+    ledger_position: LedgerPosition,
+    **kwargs,
+) -> as_Read:
+    """Build a Read(CaseLedgerEntry) stating *ledger_position* in *case_id*.
+
+    The same position statement as :func:`read_ledger_entry_activity`, for
+    a sender that knows the position but does not store the entry there: a
+    participant whose replica a case copy has just seeded holds the case at
+    the copy's position before its chain stores any entry (SYNC-16-007).  The
+    entry goes by reference, its id derived from its ledger coordinates
+    (:func:`~vultron.core.models.case_ledger_entry.ledger_entry_id`); the
+    ``context`` is the case and the ``ledgerPosition`` the position.
+
+    Args:
+        case_id: The case whose ledger the position is in.
+        ledger_position: The position the sender states, which names an
+            entry.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``to``, ``id_``).
+
+    Returns:
+        An ``as_Read`` naming the entry at *ledger_position* by reference.
+
+    Raises:
+        VultronActivityConstructionError: If *ledger_position* is the empty
+            ledger's, which names no entry (SYNC-17-001), or Pydantic
+            validation fails.
+    """
+    if ledger_position.log_index == EMPTY_LEDGER_LOG_INDEX:
+        raise VultronActivityConstructionError(
+            "read_ledger_position_activity: the empty ledger's position names"
+            " no entry to state (SYNC-17-001)"
+        )
+    try:
+        return _ReadLogEntryActivity(
+            object_=ledger_entry_id(case_id, ledger_position.log_index),
+            context=case_id,
+            ledger_position=ledger_position,
+            **kwargs,
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "read_ledger_position_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "read_ledger_position_activity: invalid arguments"
         ) from exc

@@ -109,9 +109,7 @@ def _deliver(dl: SqliteDataLayer, activity: as_Activity) -> InboxOutcome:
         FastAPIDispatchAdapter(
             dl=dl, actor_id=_RECEIVER_URI, dispatcher=make_dispatcher()
         ),
-        FastAPIQueuePort(
-            dl=dl, actor_dl=dl, actor_id=_RECEIVER_URI, staging=staging
-        ),
+        FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging),
     )
 
 

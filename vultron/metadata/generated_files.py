@@ -25,8 +25,10 @@ Windows.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator, Mapping
 from pathlib import Path
+from typing import Any
 
 
 def read_committed(target: Path) -> str | None:
@@ -43,6 +45,15 @@ def write_generated(target: Path, text: str) -> None:
         fh.write(text)
 
 
+def serialize_json(payload: Mapping[str, Any]) -> str:
+    """Render *payload* as a generated JSON file's canonical text.
+
+    Two-space indent, non-ASCII kept as is, and a final newline, so every
+    exported JSON artifact under ``ui/src/data/`` has one on-disk form.
+    """
+    return json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
+
+
 def stale_paths(base: Path, desired: Mapping[str, str]) -> Iterator[str]:
     """Yield each repo-relative path in *desired* whose file differs or is missing."""
     for path, text in desired.items():
@@ -50,4 +61,9 @@ def stale_paths(base: Path, desired: Mapping[str, str]) -> Iterator[str]:
             yield path
 
 
-__all__ = ["read_committed", "stale_paths", "write_generated"]
+__all__ = [
+    "read_committed",
+    "serialize_json",
+    "stale_paths",
+    "write_generated",
+]

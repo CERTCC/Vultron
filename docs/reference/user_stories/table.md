@@ -118,3 +118,12 @@
 | [2022_109](story_2022_109.md) | {% include-markdown "./story_2022_109.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} |    :material-check:     |
 | [2022_110](story_2022_110.md) | {% include-markdown "./story_2022_110.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | :material-block-helper: |
 | [2022_111](story_2022_111.md) | {% include-markdown "./story_2022_111.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | :material-block-helper: |
+| [2026_001](story_2026_001.md) | {% include-markdown "./story_2026_001.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} |                         |
+| [2026_002](story_2026_002.md) | {% include-markdown "./story_2026_002.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} |                         |
+| [2026_003](story_2026_003.md) | {% include-markdown "./story_2026_003.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} |                         |
+| [2026_004](story_2026_004.md) | {% include-markdown "./story_2026_004.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} |                         |
+| [2026_005](story_2026_005.md) | {% include-markdown "./story_2026_005.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} |                         |
+| [2026_006](story_2026_006.md) | {% include-markdown "./story_2026_006.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} |                         |
+| [2026_007](story_2026_007.md) | {% include-markdown "./story_2026_007.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} |                         |
+| [2026_008](story_2026_008.md) | {% include-markdown "./story_2026_008.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} |                         |
+| [2026_009](story_2026_009.md) | {% include-markdown "./story_2026_009.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} |                         |

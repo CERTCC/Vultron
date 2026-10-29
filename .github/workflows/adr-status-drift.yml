@@ -48,7 +48,6 @@ jobs:
           mode: notify
           workflow-label: ci:workflow-adr-status-drift
           token: ${{ secrets.GITHUB_TOKEN }}
-          epic: ${{ vars.CI_FAILURE_EPIC }}
       - name: Close the tracking issue
         if: steps.drift.outcome == 'success'
         uses: ./.github/actions/notify-failure

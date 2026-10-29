@@ -139,7 +139,7 @@ def test_vultron_activity_accepts_every_wire_activity_key(
     ``VultronActivity`` inherits ``extra="forbid"`` from ``CoreObject``, so an
     undeclared AS2 key makes a received activity unstorable as a core
     activity.  ``as_Question``'s ``anyOf``/``oneOf``/``closed`` did exactly
-    that to the CBT-03-004 replay Question (ARCH-25-008).
+    that to a received ``Question`` (ARCH-25-008).
     """
     from vultron.core.models.activity import VultronActivity
 

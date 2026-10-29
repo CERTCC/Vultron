@@ -168,9 +168,7 @@ def _deliver(dl: SqliteDataLayer, body: dict[str, Any]) -> InboxOutcome:
         FastAPIDispatchAdapter(
             dl=dl, actor_id=_INVITEE_ID, dispatcher=make_dispatcher()
         ),
-        FastAPIQueuePort(
-            dl=dl, actor_dl=dl, actor_id=_INVITEE_ID, staging=staging
-        ),
+        FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging),
     )
 
 
@@ -406,14 +404,14 @@ def imposter_dl() -> Iterator[SqliteDataLayer]:
     dl.close()
 
 
-@pytest.mark.spec("PCR-03-004", "CBT-03-004", "PCR-06-002")
+@pytest.mark.spec("PCR-03-004", "PCR-06-002")
 def test_announce_from_queue_recorded_sender_is_refused(
     imposter_dl, invitee_dl
 ):
     """#4931 AC-1: a deferred activity's sender is no trust anchor.
 
-    The queue records the sender of the first deferred activity as its
-    replay target (CBT-03-004).  An imposter that sends one first must not
+    The queue records the sender of the first deferred activity, which
+    admits no sender.  An imposter that sends one first must not
     then be admitted as CASE_MANAGER of a case it announces.
     """
     assert (
@@ -431,7 +429,7 @@ def test_announce_from_queue_recorded_sender_is_refused(
     assert invitee_dl.read(_CASE_ID) is None
 
 
-@pytest.mark.spec("PCR-03-004", "CBT-03-004")
+@pytest.mark.spec("PCR-03-004")
 def test_stub_invite_anchors_after_another_senders_deferred_activity(
     case_actor_dl, invitee_dl
 ):

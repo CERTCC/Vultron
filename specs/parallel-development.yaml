@@ -104,9 +104,11 @@ groups:
           Epic, whose tier is set like any other Epic's.
         verification: >-
           A query for open non-Epic Issues with no Epic ancestor returns none.
-          `theme-fit` is that query: it reports each such Issue as an
-          `unparented` finding, which `TestHierarchy` in
-          `test/metadata/test_theme_fit.py` checks.
+          `theme-fit` is that query, in two parts: it lists each such Issue
+          with no parent at all in its untriaged list, for routing, and
+          reports one whose parent chain reaches no open Epic as an
+          `unparented` finding. `TestUntriaged` and `TestHierarchy` in
+          `test/metadata/test_theme_fit.py` check both.
         relationships:
         - rel_type: refines
           spec_id: PAD-01-005
@@ -382,7 +384,8 @@ groups:
           `create-issue` skill, which picks the Issue's one theme by its own
           outcome, writes its `Theme:` line, and makes it a sub-issue of an
           open Epic with the same theme. Epics are created through
-          `create-epic` (PAD-02-013).
+          `create-epic` (PAD-02-013). This rule covers agents only; an Issue
+          that a GitHub Actions workflow files follows PAD-02-026 to PAD-02-029.
         rationale: >-
           When each skill files Issues its own way, each one drops a different
           rule. Bugs then land under the Epic of the work that found them, and
@@ -463,6 +466,84 @@ groups:
           `TestCreateEpicScriptGate` in `test/metadata/test_theme_gate.py`
           checks that a missing theme argument, a missing `Theme:` line, and
           two themes with no named split each fail before any `gh` call.
+      - id: PAD-02-026
+        priority: MUST
+        kind: process
+        statement: >-
+          An Issue that a GitHub Actions workflow files MUST carry exactly one
+          `theme:` label and a `Theme:` line naming it, set by the workflow.
+        rationale: >-
+          The theme and the `Theme:` line show which Epics are candidates for
+          an Issue that has no parent (PAD-02-027), so routing it later is
+          quick. A workflow sets them because no agent or skill is in the loop
+          to do it.
+        relationships:
+        - rel_type: implements
+          spec_id: PAD-02-014
+        - rel_type: implements
+          spec_id: PAD-02-018
+        verification: >-
+          In `test/ci/test_bot_issue_triage.py`, the `notify-failure` action and
+          the Demo Recordings workflow run against a stand-in `gh` on both the
+          file and the update arm. The tests check that each issue gets one
+          theme and a `Theme:` line, and that `theme-fit` reports no finding
+          on it.
+      - id: PAD-02-027
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          A GitHub Actions workflow that files an Issue MUST NOT make it a
+          sub-issue. The Issue starts untriaged (PAD-01-007) until someone
+          routes it to an Epic.
+        rationale: >-
+          A workflow cannot ask anyone and cannot calve an Epic, so it can only
+          use an Epic that someone names in advance. A fixed Epic number needs
+          upkeep each time that Epic closes, is rethemed or split, or fills
+          up, and the workflow fails until someone edits it.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-01-007
+        verification: >-
+          In `test/ci/test_bot_issue_triage.py`, the tests that run each filer
+          against a stand-in `gh` check that no call sets a parent. A scan
+          checks that no file under `.github/` names a `vars.*EPIC*` variable
+          or sets a parent through `addSubIssue` or a write to the REST
+          `sub_issues` endpoint.
+      - id: PAD-02-028
+        priority: MUST
+        kind: process
+        statement: >-
+          `theme-fit` MUST list each open non-Epic Issue that has no parent as
+          untriaged, apart from its findings, without counting it against a
+          clean report.
+        rationale: >-
+          Workflows file Issues with no parent on purpose (PAD-02-027), so a
+          report that counted them as findings would never come back clean.
+          Listing them still shows triage what to route (PAD-01-007).
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-01-007
+        verification: >-
+          `TestUntriaged` and `TestMain::test_only_untriaged_issues_exit_zero`
+          in `test/metadata/test_theme_fit.py` check the list, the clean
+          report and exit 0. `test/ci/test_bot_issue_triage.py` checks that
+          each issue a workflow files is listed as untriaged.
+      - id: PAD-02-029
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          A GitHub Actions workflow MUST NOT change the `theme:` label or the
+          body of an Issue whose `theme:` label a person set.
+        rationale: >-
+          A person who chose another theme read the Issue; the workflow did
+          not. Leaving their choice keeps a later run from undoing triage.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-02-026
+        verification: >-
+          `test_helper_leaves_an_issue_a_person_re_themed_alone` in
+          `test/ci/test_bot_issue_triage.py` checks that the helper makes no
+          edit to an Issue that carries another theme.
 
   - id: PAD-03
     title: Priority Ordering Authority

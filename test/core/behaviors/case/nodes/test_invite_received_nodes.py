@@ -405,13 +405,13 @@ class TestRecordInviteTrustAnchorNodeMarksTheAnchor:
         assert record.case_actor_id == OTHER_CASE_ACTOR_ID
 
 
-@pytest.mark.spec("PCR-03-004", "CBT-03-004")
+@pytest.mark.spec("PCR-03-004")
 class TestRecordInviteTrustAnchorNodeOverQueueRecordedSender:
-    """A sender the queue recorded is a replay target, not an anchor (#4931).
+    """A sender the queue recorded is not an anchor (#4931).
 
-    The first deferred activity from any actor records its sender
-    (CBT-03-004).  A stub Invite naming another CaseActor is not a second
-    Invite, so it anchors trust in place of that sender.
+    The first deferred activity from any actor records its sender.  A stub
+    Invite naming another CaseActor is not a second Invite, so it anchors
+    trust in place of that sender.
     """
 
     def _scenario_with_queued_sender(self) -> BTTestScenario:

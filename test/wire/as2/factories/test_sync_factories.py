@@ -29,10 +29,13 @@ from vultron.core.models.ledger_position import LedgerPosition
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
     announce_log_entry_activity,
+    read_ledger_entry_activity,
+    read_ledger_position_activity,
     reject_log_entry_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Announce,
+    as_Read,
     as_Reject,
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
@@ -142,3 +145,65 @@ def test_all_sync_factories_importable_from_package():
         announce_log_entry_activity,
         reject_log_entry_activity,
     )
+
+
+# ---------------------------------------------------------------------------
+# Read(CaseLedgerEntry) by position (SYNC-17-001, SYNC-17-008)
+# ---------------------------------------------------------------------------
+
+_CASE_URI = "https://example.org/cases/case-001"
+_POSITION = LedgerPosition(log_index=4, entry_hash="ab" * 32)
+
+
+@pytest.mark.spec("SYNC-17-001", "SYNC-17-008")
+def test_read_ledger_position_names_the_entry_at_the_position():
+    """The Read names the entry by its ledger coordinates and states them."""
+    read = read_ledger_position_activity(
+        _CASE_URI, _POSITION, actor=_ACTOR_URI
+    )
+
+    assert isinstance(read, as_Read)
+    assert read.object_ == f"{_CASE_URI}/log/4"
+    assert read.context == _CASE_URI
+    assert read.ledger_position == _POSITION
+
+
+@pytest.mark.spec("SYNC-17-001")
+def test_read_ledger_position_refuses_the_empty_ledger():
+    """The empty ledger's position names no entry, so there is no Read."""
+    empty = LedgerPosition(log_index=-1, entry_hash="cd" * 32)
+
+    with pytest.raises(VultronActivityConstructionError, match="no entry"):
+        read_ledger_position_activity(_CASE_URI, empty, actor=_ACTOR_URI)
+
+
+@pytest.mark.spec("SYNC-17-001")
+def test_read_ledger_entry_is_the_read_of_its_position():
+    """Naming an entry and naming its position build the same statement."""
+    sample_log_entry = as_CaseLedgerEntry(
+        case_id=_CASE_URI,
+        log_index=4,
+        log_object_id="https://example.org/activities/act-004",
+        semantic_type="ReportCreated",
+        prev_log_hash="ef" * 32,
+        entry_hash="ab" * 32,
+    )
+    by_entry = read_ledger_entry_activity(sample_log_entry, actor=_ACTOR_URI)
+    by_position = read_ledger_position_activity(
+        sample_log_entry.case_id,
+        LedgerPosition(
+            log_index=sample_log_entry.log_index,
+            entry_hash=sample_log_entry.entry_hash,
+        ),
+        actor=_ACTOR_URI,
+    )
+
+    assert by_entry.object_ == sample_log_entry.id_ == by_position.object_
+    assert by_entry.ledger_position == by_position.ledger_position
+
+
+@pytest.mark.spec("AF-04-001")
+def test_read_ledger_entry_without_a_hash_raises(sample_log_entry):
+    """An entry whose position cannot be stated is a construction error."""
+    with pytest.raises(VultronActivityConstructionError):
+        read_ledger_entry_activity(sample_log_entry, actor=_ACTOR_URI)
