@@ -173,6 +173,7 @@ adr/0161-eventual-consistency-is-the-protocols-ordering-guarantee.md
 adr/0162-protocol-statecharts-are-projections-of-the-core-transition-tables-and-occasions-name-their-transitions.md
 adr/0163-the-case-manager-resends-an-unanswered-invite-when-its-addressee-states-a-ledger-position.md
 adr/0164-actors-sign-content-with-object-level-proofs-from-seeded-keys.md
+adr/0166-deploy-the-site-from-main-and-release-by-tag.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md

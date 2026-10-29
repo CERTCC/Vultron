@@ -230,6 +230,23 @@ def test_the_committed_baseline_is_seeded():
     assert pages == sorted(pages)
 
 
+@pytest.mark.spec("DOCBW-03-012")
+def test_every_page_this_checkout_builds_is_recorded():
+    """A page is live once its pull request merges, so it is recorded with it.
+
+    The workflow step does the same, but only on pull requests its path filter
+    admits; this runs wherever the suite does (#5162). It reads the committed
+    tree, so commit a new page before running the fix.
+    """
+    missing = unrecorded_pages(load_baseline(), "HEAD")
+    assert not missing, (
+        f"{len(missing)} built page(s) are not in the legacy-URL baseline: "
+        f"{', '.join(missing)}. Commit the page, run 'uv run docs-legacy-urls "
+        "--snapshot HEAD', and commit the updated baseline in the same pull "
+        "request (DOCBW-03-012)."
+    )
+
+
 # --- snapshot -------------------------------------------------------------
 
 

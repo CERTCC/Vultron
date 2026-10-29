@@ -304,18 +304,19 @@ groups:
           the same terms as DOCBW-03-006, and MUST fail when the commit builds
           no pages.
         rationale: >-
-          The record stays complete only if each page is recorded before it ships.
-          `main` deploys on every merge (DOCBW-06-005), so a page ships the moment
-          its pull request merges. A pull request is checked at its merge result,
-          which is what `main` deploys once it merges. The deploy checks again the
-          commit it ships, which covers a page that became built through a change
-          the review workflow's path filter did not see. See
+          `main` deploys every merge (DOCBW-06-005), so a page ships when its pull
+          request merges and must be recorded by then. The deploy re-checks the
+          commit it ships, covering a change the review's path filter missed.
+          Every recorded page was live, so the record has one kind of entry: a
+          page renamed after it merged needs a redirect like any other. See
           `notes/documentation-strategy.md`.
         verification: >-
           A `docs-legacy-urls` mode (`vultron/metadata/docs/legacy_urls.py`)
           exits non-zero on an unrecorded built page and on an empty built-page
-          set, covered by `test/metadata/docs/test_legacy_urls.py`;
-          `test/ci/test_publication_gates_in_workflows.py` asserts that every
+          set, covered by `test/metadata/docs/test_legacy_urls.py`, whose
+          `test_every_page_this_checkout_builds_is_recorded` also applies it to
+          the checked-out tree; `test/ci/test_publication_gates_in_workflows.py`
+          asserts that every
           site-building workflow runs the step after the build and cannot skip
           or swallow it, and that `deploy_site.yml` runs it before the Pages
           upload.
@@ -507,14 +508,12 @@ groups:
           path filter, and on a manual run, and on no other event. Its runs MUST
           share one concurrency group that never cancels a run in progress.
         rationale: >-
-          A deploy that waits for a human step lapses, and then each release puts
-          a large, unreviewed batch of pages live at once. Deploying every merge
-          checks each change as it lands. Pages render from `vultron/` and
-          `specs/` as well as `docs/`, so a path filter would leave some merges
-          undeployed. A deploy cancelled part-way through can leave Pages
-          half-updated, so a newer merge queues behind the running deploy
-          instead. The brake on deploys is the `github-pages` environment's
-          deployment rules, and a manual run from a release tag is the rollback.
+          A deploy that waits for a human step lapses, and each release then puts
+          a large, unreviewed batch of pages live at once. Pages render from
+          `vultron/` and `specs/` as well as `docs/`, so a path filter would skip
+          some merges. A cancelled deploy can leave Pages half-updated, so a newer
+          merge queues instead. The `github-pages` environment's rules are the
+          brake, and a manual run from a release tag is the rollback.
         verification: >-
           `test_the_publication_workflow_deploys_every_push_to_main` and
           `test_the_publication_workflow_never_cancels_a_running_deploy` in
