@@ -221,6 +221,22 @@ class TestDedicatedCaseActorTopology:
         )
 
 
+class TestCoordinatorCaseRoles:
+    """The Coordinator container owns its cases as a Coordinator (#5467).
+
+    A report receiver seats itself with its configured default case roles
+    (CP-01-013).  Without ``coordinator`` there, a Coordinator that owns the
+    case holds only ``case_owner``, and the harness fails every Coordinator
+    step of its scenario (DEMOCI-11-013).
+    """
+
+    def test_coordinator_states_the_coordinator_role(self):
+        env = _env(_load_compose()["services"]["coordinator"])
+        assert env.get("VULTRON_ACTOR__DEFAULT_CASE_ROLES") == (
+            '["coordinator"]'
+        )
+
+
 _DURATION_RE = re.compile(r"(?:\d+(?:\.\d+)?(?:ms|s|m|h))+")
 
 

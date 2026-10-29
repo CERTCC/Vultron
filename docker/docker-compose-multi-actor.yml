@@ -173,6 +173,9 @@ services:
       - VULTRON_ACTOR_ID=http://coordinator:7999/api/v2/actors/coordinator
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-coordinator.yaml
       - VULTRON_SERVER__LOG_LEVEL=${VULTRON_SERVER__LOG_LEVEL:-INFO}
+      # CP-01-013: a Coordinator that owns a case holds CVDRole.COORDINATOR
+      # there, the role its scenario steps are checked against (DEMOCI-11-013).
+      - VULTRON_ACTOR__DEFAULT_CASE_ROLES=["coordinator"]
       # CP-08-003, CP-08-008: proposals go to the dedicated case-actor container.
       - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://case-actor:7999/api/v2
     volumes:

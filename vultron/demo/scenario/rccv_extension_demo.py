@@ -306,6 +306,8 @@ def _phase_report_submission(
     c1_in_c1 = get_actor_by_id(c1_client, c1.id_)
     c2_in_c2 = get_actor_by_id(c2_client, c2.id_)
 
+    # The Reporter's decision; its role comes from submitting the report.
+    reach_step("reporter-whom-to-tell", "coordinator", by=reporter.id_)
     report, offer = reporter_submits_report(
         receiver_client=c1_client,
         reporter=reporter,
@@ -332,7 +334,7 @@ def _phase_report_submission(
         )
 
         follow_ledger(case_actor_client, case.id_)
-        reach_step("coordinator-invite-whom", "coordinator")
+        reach_step("coordinator-invite-whom", "coordinator", by=c1.id_)
 
         # C1 invites C2 with CVDRole.COORDINATOR (not CASE_MANAGER).  The chain
         # nests the delivery gate, the accept and the replica wait inside the
@@ -912,7 +914,6 @@ def run_rccv_extension_demo(
     logger.info("CaseActor container: %s", case_actor_client.base_url)
 
     with scenario_harness("rccv-extension") as harness:
-        harness.reach_step("reporter-whom-to-tell", "coordinator")
         (
             reporter,
             c1,
@@ -952,7 +953,7 @@ def run_rccv_extension_demo(
 
         # C1, the case owner, decides before C2's suggestion it then accepts
         # (another role's step between decision and trigger).
-        harness.reach_step("owner-keep-case", "keep")
+        harness.reach_step("owner-keep-case", "keep", by=c1.id_)
         _phase_c2_suggests_vendor(
             reporter_client=reporter_client,
             c1_client=c1_client,

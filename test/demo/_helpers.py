@@ -72,6 +72,19 @@ def patch_chain_shared(
             yield mock
 
 
+@contextlib.contextmanager
+def stub_scenario_harness(_demo_name: str) -> Iterator[MagicMock]:
+    """Stand in for ``scenario_harness`` in a test that patches out phases.
+
+    The real harness checks each reported step against the declared path and
+    reads the deciding actor's role from the CaseActor's store
+    (DEMOCI-11-013), and it writes a dump manifest under ``devlogs/`` on exit,
+    which the invariant harness would read as an aborted run.  A test of a
+    scenario's phase order has neither the steps nor the store.
+    """
+    yield MagicMock()
+
+
 def mock_actor(id_: str = "urn:test:actor") -> MagicMock:
     """A stand-in actor whose only observed attribute is ``id_``."""
     actor = MagicMock()
