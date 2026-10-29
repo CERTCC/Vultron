@@ -72,6 +72,7 @@ How a case ledger entry records the objects of the activity it records is specif
 
 !!! note "The reference implementation inlines every object"
     The reference implementation dereferences only a few references, so it carries every object inline and refuses a bare URI it cannot fetch where it needs the object.
+    The one exception is the case that a participant's `Join`, `Ignore` or `Leave` acts on, and the case of an ownership-transfer `Offer`: every receiver of these holds the case, so the activity names it by a typed reference, an inline object with only its `id` and `type` ([ADR-0165](../../adr/0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md)).
     That is a shortcut of the prototype, not a Vultron rule.
 
 !!! note "Provisional namespace URI"

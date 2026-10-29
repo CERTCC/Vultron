@@ -35,7 +35,6 @@ from vultron.wire.as2.factories import (
     rm_invite_to_case_activity,
     undo_case_ownership_transfer_activity,
 )
-from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -264,21 +263,25 @@ def test_non_overlapping_activity_patterns():
 
 
 @pytest.mark.spec("AF-01-003")
-def test_offer_case_ownership_transfer_rejects_string_object():
-    """OfferCaseOwnershipTransferActivity must have an inline as_VulnerabilityCase,
-    not a bare string URI as object_.
+def test_offer_case_ownership_transfer_never_carries_a_bare_string_object():
+    """OfferCaseOwnershipTransferActivity's object is a typed case reference.
 
-    Sending a string URI causes pattern-matching ambiguity: both
+    A bare string URI would cause pattern-matching ambiguity: both
     OFFER_CASE_OWNERSHIP_TRANSFER and SUBMIT_REPORT are Offer activities, and
-    the conservative string-passthrough in ActivityPattern._match_field makes
-    both patterns match when the object is opaque.  Enforcing the inline object
-    at the model level eliminates the ambiguity at its source.
+    an opaque object tells them apart by nothing.  Given the case id, the
+    factory still carries the case's ``id`` and ``type`` (ADR-0165), so the
+    Offer is classified by its object's type.
     """
-    with pytest.raises(VultronActivityConstructionError):
-        offer_case_ownership_transfer_activity(
-            "urn:uuid:some-case-id",  # type: ignore[arg-type]  # intentional invalid type — must be rejected by Pydantic
-            actor="https://example.org/vendor",
-        )
+    offer = offer_case_ownership_transfer_activity(
+        "urn:uuid:some-case-id",
+        actor="https://example.org/vendor",
+    )
+    assert not isinstance(offer.object_, str)
+    assert getattr(offer.object_, "type_", None) == "VulnerabilityCase"
+    assert (
+        find_matching_semantics(offer)
+        == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
+    )
 
 
 @pytest.mark.spec("VAM-04-007")

@@ -141,6 +141,56 @@ def test_handle_outbox_item_refuses_a_link_object():
     mock_emitter.emit.assert_not_called()
 
 
+@pytest.mark.spec("AKM-03-002")
+@pytest.mark.spec("AKM-03-003")
+@pytest.mark.parametrize(
+    ("activity_type", "case_slot"),
+    [
+        ("Join", None),
+        ("Ignore", None),
+        ("Leave", None),
+        ("Offer", None),
+        ("Offer", "nested"),
+    ],
+)
+def test_handle_outbox_item_delivers_a_typed_case_reference(
+    activity_type, case_slot
+):
+    """A participant's act names its case by typed reference, which passes.
+
+    The reference is an inline object with an ``id`` and a ``type``, so a
+    receiver routes by it (AKM-03-003, ADR-0165).  The owner's proposal
+    nests the inner ``Offer`` that carries it.
+    """
+    reference = {
+        "type": "VulnerabilityCase",
+        "id": "https://example.org/cases/case-ref",
+    }
+    obj = (
+        reference
+        if case_slot is None
+        else {
+            "type": "Offer",
+            "id": "urn:uuid:inner-offer",
+            "actor": SENDER,
+            "object": reference,
+            "target": {"type": "Actor", "id": RECIPIENT},
+        }
+    )
+    sealed = _sealed(
+        f"urn:test:act-ref-{activity_type.lower()}-{case_slot}",
+        {
+            "type": activity_type,
+            "actor": SENDER,
+            "to": [RECIPIENT],
+            "object": obj,
+        },
+    )
+    mock_emitter = AsyncMock()
+    _deliver(sealed, mock_emitter)
+    mock_emitter.emit.assert_called_once()
+
+
 def test_handle_outbox_item_allows_a_bare_object_for_non_initiating_types():
     """The guard (AKM-03-002) is scoped to AKM-03-001's initiating types."""
     sealed = _sealed(

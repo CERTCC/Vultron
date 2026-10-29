@@ -13,6 +13,9 @@ from typing import Any, cast
 from vultron.wire.as2.case_proposal_envelope import (
     refuse_malformed_case_proposal_envelope,
 )
+from vultron.wire.as2.case_reference_placement import (
+    refuse_misplaced_case_reference,
+)
 from vultron.wire.as2.errors import (
     VultronParseError,
     VultronParseMissingPublishedError,
@@ -134,7 +137,9 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         VultronParseValidationError: If Pydantic validation fails, including
             when a recognised inline object fails its own class's validation,
             if a ``Create(CaseProposal)`` does not carry its proposer's inline
-            actor profile (CP-01-010),
+            actor profile (CP-01-010), if a case reference sits anywhere but
+            the object of a ``Join``, ``Ignore``, ``Leave`` or ``Offer``
+            (AKM-03-004),
             or if the body cannot be re-serialized as strict JSON to seal it
             as received evidence (VM-08-002).
     """
@@ -243,6 +248,8 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     # A schema-valid envelope can still be one this receiver cannot act on;
     # the Create(CaseProposal) checks are the CP-01-010 refusals.
     refuse_malformed_case_proposal_envelope(activity)
+    # A case reference names the case only where an act may (AKM-03-004).
+    refuse_misplaced_case_reference(activity)
 
     activity.seal_received_evidence(evidence_json)
     return activity

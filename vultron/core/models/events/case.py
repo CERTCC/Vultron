@@ -35,7 +35,12 @@ class CreateCaseReceivedEvent(VultronEvent):
 
 
 class EngageCaseReceivedEvent(LedgerPositionedEvent):
-    """Actor joined (engaged) a VulnerabilityCase."""
+    """Actor joined (engaged) a VulnerabilityCase.
+
+    The activity names the case by typed reference and carries no copy of
+    it (ADR-0165), so the event offers only :attr:`case_id`: the receiver
+    reads the case from its own store.
+    """
 
     semantic_type: Literal[MessageSemantics.ENGAGE_CASE] = (
         MessageSemantics.ENGAGE_CASE
@@ -45,13 +50,14 @@ class EngageCaseReceivedEvent(LedgerPositionedEvent):
     def case_id(self) -> str | None:
         return self.object_id
 
-    @property
-    def case(self) -> "VulnerabilityCase | None":
-        return cast("VulnerabilityCase | None", self.object_)
-
 
 class DeferCaseReceivedEvent(LedgerPositionedEvent):
-    """Actor ignored (deferred) a VulnerabilityCase."""
+    """Actor ignored (deferred) a VulnerabilityCase.
+
+    The activity names the case by typed reference and carries no copy of
+    it (ADR-0165), so the event offers only :attr:`case_id`: the receiver
+    reads the case from its own store.
+    """
 
     semantic_type: Literal[MessageSemantics.DEFER_CASE] = (
         MessageSemantics.DEFER_CASE
@@ -60,10 +66,6 @@ class DeferCaseReceivedEvent(LedgerPositionedEvent):
     @property
     def case_id(self) -> str | None:
         return self.object_id
-
-    @property
-    def case(self) -> "VulnerabilityCase | None":
-        return cast("VulnerabilityCase | None", self.object_)
 
 
 class AddReportToCaseReceivedEvent(LedgerPositionedEvent):
@@ -91,7 +93,12 @@ class AddReportToCaseReceivedEvent(LedgerPositionedEvent):
 
 
 class CloseCaseReceivedEvent(LedgerPositionedEvent):
-    """Actor left (closed) a VulnerabilityCase."""
+    """Actor left (closed) a VulnerabilityCase.
+
+    The activity names the case by typed reference and carries no copy of
+    it (ADR-0165), so the event offers only :attr:`case_id`: the receiver
+    reads the case from its own store.
+    """
 
     semantic_type: Literal[MessageSemantics.CLOSE_CASE] = (
         MessageSemantics.CLOSE_CASE
@@ -100,10 +107,6 @@ class CloseCaseReceivedEvent(LedgerPositionedEvent):
     @property
     def case_id(self) -> str | None:
         return self.object_id
-
-    @property
-    def case(self) -> "VulnerabilityCase | None":
-        return cast("VulnerabilityCase | None", self.object_)
 
 
 class UpdateCaseOwnerReceivedEvent(VultronEvent):

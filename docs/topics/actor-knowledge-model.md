@@ -81,6 +81,7 @@ A participant fetches a case object it lacks from the case manager when an activ
 A replica fetches the embargo that an announced revision replaces.
 The case manager fetches a proposer's profile that the proposal names by its URI.
 It still carries every outbound `object` inline, and a bare URI it cannot fetch is refused where the object is needed (AKM-02-004, AKM-03-003).
+The one exception is the case that a participant's `Join`, `Ignore` or `Leave` acts on, and the case of an ownership-transfer `Offer`: every receiver of these holds the case, so the activity names it by a typed reference with only its `id` and `type` (AKM-03-004).
 That is a shortcut of the prototype, not a Vultron rule; an implementation that dereferences may send references wherever the protocol allows them.
 
 ---
