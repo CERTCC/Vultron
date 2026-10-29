@@ -29,6 +29,10 @@ Two primitives, because every caller needs one or both:
 - :func:`iter_tables` yields each pipe table with the heading it sits under and
   the line it starts on, so a diagnostic can say *which* table disagreed.
 
+:func:`exec_blocks` reads the same fences for a third purpose: the
+``markdown-exec`` Python blocks the docs build runs, so a check of what those
+blocks call parses their code instead of matching it line by line.
+
 Three hazards this module exists to absorb, the first two of which bit the
 hand-rolled predecessors:
 
@@ -86,6 +90,10 @@ _HEADING_RE = re.compile(r"^(?P<hashes>#{1,6})\s+(?P<text>.*?)\s*$")
 #: (#3648) and rejected: it is a choice every new caller would have to get
 #: right (#3685).
 _FENCE_RE = re.compile(r"^\s*(?P<fence>`{3,}|~{3,})")
+
+#: The info string of a ``markdown-exec`` Python block: ``python`` and
+#: ``exec="true"``, in any order with other options after the language.
+_EXEC_INFO_RE = re.compile(r'^python\b[^\n]*\bexec="true"')
 
 #: A table's delimiter row: ``|---|:---:|---|``. Its presence is what promotes
 #: the line above it from prose-containing-pipes to a table header.
@@ -241,6 +249,64 @@ def fenced_lines(text: str) -> frozenset[int]:
     return frozenset(fenced)
 
 
+@dataclass(frozen=True, slots=True)
+class ExecBlock:
+    """One ``markdown-exec`` Python block: code the docs build runs.
+
+    Attributes:
+        line: 1-based line number of the opening fence, so line ``n`` of
+            :attr:`code` (an ``ast`` ``lineno``) is line ``line + n`` of the
+            file.
+        code: The block body, dedented by the opener's indentation so a block
+            nested in an admonition or a list item still parses.
+    """
+
+    line: int
+    code: str
+
+
+def exec_blocks(text: str) -> tuple[ExecBlock, ...]:
+    """Return each ``markdown-exec`` Python block in *text*, in order.
+
+    Only a block whose info string is ``python`` with ``exec="true"`` runs at
+    build time, so prose or a plain ``python`` fence that names a helper is not
+    one. A fence is recognised at any indentation (:data:`_FENCE_RE`); a
+    closer is a bare run of the opener's character at least as long as the
+    opener, as CommonMark requires. An unclosed block runs to the end of the
+    text, as it would render.
+    """
+    blocks: list[ExecBlock] = []
+    fence: str | None = None
+    opener = indent = 0
+    runs = False
+    body: list[str] = []
+    for number, line in enumerate(text.splitlines(), start=1):
+        match = _FENCE_RE.match(line)
+        run = match.group("fence") if match is not None else None
+        if fence is None:
+            if run is not None:
+                fence, opener, body = run, number, []
+                indent = len(line) - len(line.lstrip())
+                info = line.strip()[len(run) :].lstrip()
+                runs = _EXEC_INFO_RE.match(info) is not None
+            continue
+        stripped = line.strip()
+        if (
+            run is not None
+            and len(run) >= len(fence)
+            and run[0] == fence[0]
+            and stripped == run
+        ):
+            if runs:
+                blocks.append(ExecBlock(opener, "\n".join(body)))
+            fence = None
+            continue
+        body.append(line[indent:])
+    if fence is not None and runs:
+        blocks.append(ExecBlock(opener, "\n".join(body)))
+    return tuple(blocks)
+
+
 def iter_sections(text: str) -> tuple[MarkdownSection, ...]:
     """Partition *text* at ATX headings, ignoring hashes inside code fences.
 
@@ -323,8 +389,10 @@ def iter_tables(text: str) -> tuple[MarkdownTable, ...]:
 
 
 __all__ = [
+    "ExecBlock",
     "MarkdownSection",
     "MarkdownTable",
+    "exec_blocks",
     "fenced_lines",
     "iter_sections",
     "iter_tables",

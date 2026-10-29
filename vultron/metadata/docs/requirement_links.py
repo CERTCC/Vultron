@@ -50,6 +50,7 @@ The CLI is ``scripts/relink_requirement_anchors.py``; the gate that holds
 
 from __future__ import annotations
 
+import ast
 import posixpath
 import re
 from collections import Counter
@@ -69,13 +70,21 @@ from vultron.metadata.docs.requirement_catalog import (
     anchor_homes,
     kind_page,
 )
-from vultron.metadata.markdown_tables import fenced_lines
+from vultron.metadata.markdown_tables import (
+    ExecBlock,
+    exec_blocks,
+    fenced_lines,
+)
 from vultron.metadata.specs.registry import SpecRegistry
-from vultron.metadata.specs.schema import SpecKind
+from vultron.metadata.specs.schema import (
+    SPEC_GROUP_PATTERN,
+    SPEC_ID_PATTERN,
+    SpecKind,
+)
 
-_SPEC_ID = r"[A-Z][A-Z0-9]{1,7}-\d{2}-\d{3}[a-z]?"
-_ID_LIST_RE = re.compile(rf"{_SPEC_ID}(?:,\s*{_SPEC_ID})*")
-_GROUP_RE = re.compile(r"[a-z][a-z0-9]{0,7}-\d{2}")
+_ID_LIST_RE = re.compile(rf"{SPEC_ID_PATTERN}(?:,\s*{SPEC_ID_PATTERN})*")
+# A group anchor is the lowercased group ID (``#df-12``).
+_GROUP_RE = re.compile(SPEC_GROUP_PATTERN, re.IGNORECASE)
 _LINK_RE = re.compile(
     r"\[(?P<text>[^\]\n]*)\]"
     r"\((?P<page>[^)#\s]+)#(?P<fragment>[^)\s]+)\)"
@@ -242,9 +251,9 @@ def retired_page_links(text: str, path: str) -> list[str]:
     return found
 
 
-_EXEC_CALL_RE = re.compile(
-    r"\b(?P<fn>render_catalog_page|render_for_kind)\(\s*[\"'](?P<arg>[^\"']+)[\"']"
-)
+# The renderers whose output defines requirement anchors, with the keyword
+# name of the argument that picks what they render.
+_RENDERERS = {"render_catalog_page": "key", "render_for_kind": "kind"}
 # An ``id=`` attribute, an ``<a name=>``, or an attribute-list id in any of
 # its forms: ``{#id}``, ``{: #id }``, ``{.cls #id}``.
 _ANCHOR_DEF_RE = re.compile(
@@ -265,11 +274,14 @@ def anchor_definition_faults(
     tier-prefixed anchors of its group and file headings, are defined only by
     the Requirements Catalog and its copy on ``full.md`` (DF-12-002). They are
     printed by :func:`~vultron.metadata.specs.docs_render.render_catalog_page`,
-    so a fault is:
+    so a fault is (renderer calls count only inside ``markdown-exec``
+    blocks, the code the build runs):
 
     * a ``render_catalog_page`` call anywhere but the key's own catalog
       fragment, :attr:`CatalogPage.fragment`;
     * a ``render_for_kind`` call for a catalog tier (which also raises);
+    * a renderer call whose argument is not a string literal, so it cannot
+      be placed, or a ``markdown-exec`` block that does not parse;
     * a catalog fragment that is missing, or that renders on a page other
       than its catalog page and ``full.md``, or not on both;
     * a hand-written ``id=``, ``<a name=>`` or ``{#…}`` naming a catalog
@@ -299,11 +311,54 @@ def anchor_definition_faults(
     return faults + _fragment_host_faults(root, pages)
 
 
+def _renderer_calls(code: str) -> list[tuple[int, str, str | None]]:
+    """``(lineno, renderer, argument)`` for each renderer call in *code*.
+
+    The argument is the literal that picks what the call renders, positional
+    or by keyword, or ``None`` when it is not a string literal and so cannot
+    be placed.
+
+    Raises:
+        SyntaxError: If *code* does not parse.
+    """
+    calls: list[tuple[int, str, str | None]] = []
+    for node in ast.walk(ast.parse(code)):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        name = (
+            func.id
+            if isinstance(func, ast.Name)
+            else func.attr
+            if isinstance(func, ast.Attribute)
+            else None
+        )
+        if name not in _RENDERERS:
+            continue
+        picked = node.args[:1] or [
+            k.value for k in node.keywords if k.arg == _RENDERERS[name]
+        ]
+        arg = (
+            picked[0].value
+            if picked
+            and isinstance(picked[0], ast.Constant)
+            and isinstance(picked[0].value, str)
+            else None
+        )
+        calls.append((node.lineno, name, arg))
+    return calls
+
+
 def _exec_call_fault(
-    where: str, call: re.Match[str], rel: str, fragment_of: Mapping[str, str]
+    where: str,
+    fn: str,
+    arg: str | None,
+    rel: str,
+    fragment_of: Mapping[str, str],
 ) -> str | None:
-    """The fault in one renderer call inside a fenced block, if any."""
-    fn, arg = call["fn"], call["arg"]
+    """The fault in one renderer call inside an exec block, if any."""
+    if arg is None:
+        return f"{where}: {fn}() without a literal argument cannot be placed"
     if fn == "render_for_kind":
         if arg in {kind.value for kind in CATALOG_KINDS}:
             return (
@@ -317,30 +372,52 @@ def _exec_call_fault(
     return None
 
 
+def _exec_faults(
+    rel: str, block: ExecBlock, fragment_of: Mapping[str, str]
+) -> list[str]:
+    """The renderer-call faults in one ``markdown-exec`` block."""
+    try:
+        calls = _renderer_calls(block.code)
+    except SyntaxError as error:
+        line = block.line + (error.lineno or 0)
+        return [f"docs/{rel}:{line}: exec block does not parse: {error.msg}"]
+    return [
+        fault
+        for lineno, fn, arg in calls
+        if (
+            fault := _exec_call_fault(
+                f"docs/{rel}:{block.line + lineno}", fn, arg, rel, fragment_of
+            )
+        )
+    ]
+
+
 def _file_faults(
     rel: str,
     text: str,
     anchors: frozenset[str],
     fragment_of: Mapping[str, str],
 ) -> list[str]:
-    """The anchor-definition faults in one ``docs/`` file."""
+    """The anchor-definition faults in one ``docs/`` file.
+
+    A renderer call counts only inside a ``markdown-exec`` block, the one
+    place the build runs it, and is read by parsing the block, so a call over
+    several lines or by keyword is still seen. An anchor counts only outside
+    fenced code, where it would render.
+    """
     faults: list[str] = []
+    for block in exec_blocks(text):
+        faults.extend(_exec_faults(rel, block, fragment_of))
     fenced = fenced_lines(text)
     for number, line in enumerate(text.splitlines(), 1):
-        where = f"docs/{rel}:{number}"
         if number in fenced:
-            faults.extend(
-                fault
-                for call in _EXEC_CALL_RE.finditer(line)
-                if (fault := _exec_call_fault(where, call, rel, fragment_of))
-            )
             continue
         for match in _ANCHOR_DEF_RE.finditer(line):
             anchor = match["id"] or match["name"] or match["attr"]
             if anchor in anchors:
                 faults.append(
-                    f"{where}: defines #{anchor}, a Requirements Catalog "
-                    "anchor (DF-12-002)"
+                    f"docs/{rel}:{number}: defines #{anchor}, a Requirements "
+                    "Catalog anchor (DF-12-002)"
                 )
     return faults
 

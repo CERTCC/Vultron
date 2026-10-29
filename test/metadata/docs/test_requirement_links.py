@@ -357,6 +357,58 @@ def test_catalog_render_of_an_unknown_key_fails(tmp_path, registry) -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("code", "line"),
+    [
+        ('print(render_catalog_page(\n    "one",\n))', 2),
+        ('print(render_catalog_page(key="one"))', 2),
+        ('print(docs_render.render_catalog_page("one"))', 2),
+    ],
+    ids=["multi-line", "keyword", "attribute"],
+)
+def test_catalog_render_is_read_by_parsing_the_block(
+    tmp_path, registry, code, line
+) -> None:
+    files = _sound_catalog()
+    files["topics/x.md"] = _EXEC.format(code=code)
+    faults = anchor_definition_faults(_tree(tmp_path, files), registry, _PAGES)
+    assert faults == [
+        f"docs/topics/x.md:{line}: render_catalog_page('one') belongs only "
+        "in reference/vultron-spec/_catalog/_one.md"
+    ]
+
+
+def test_catalog_render_in_a_plain_fence_is_an_example(
+    tmp_path, registry
+) -> None:
+    files = _sound_catalog()
+    files["topics/x.md"] = (
+        '```python\nprint(render_catalog_page("one"))\n```\n'
+    )
+    root = _tree(tmp_path, files)
+    assert anchor_definition_faults(root, registry, _PAGES) == []
+
+
+def test_render_without_a_literal_argument_fails(tmp_path, registry) -> None:
+    files = _sound_catalog()
+    files["topics/x.md"] = _EXEC.format(code="print(render_catalog_page(k))")
+    faults = anchor_definition_faults(_tree(tmp_path, files), registry, _PAGES)
+    assert faults == [
+        "docs/topics/x.md:2: render_catalog_page() without a literal "
+        "argument cannot be placed"
+    ]
+
+
+def test_exec_block_that_does_not_parse_fails(tmp_path, registry) -> None:
+    files = _sound_catalog()
+    files["topics/x.md"] = _EXEC.format(code="print(")
+    faults = anchor_definition_faults(_tree(tmp_path, files), registry, _PAGES)
+    assert len(faults) == 1
+    assert faults[0].startswith(
+        "docs/topics/x.md:2: exec block does not parse"
+    )
+
+
 def test_per_kind_render_of_another_kind_is_allowed(
     tmp_path, registry
 ) -> None:

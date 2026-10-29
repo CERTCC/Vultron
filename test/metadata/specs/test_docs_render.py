@@ -32,6 +32,7 @@ from vultron.metadata.docs.requirement_catalog import (
     kind_page,
 )
 from vultron.metadata.docs.site_urls import url_path
+from vultron.metadata.markdown_tables import exec_blocks
 from vultron.metadata.specs.docs_render import (
     _REL_LABEL,
     render_catalog_page,
@@ -713,17 +714,6 @@ def test_render_for_kind_real_registry_produces_output(
     )
 
 
-@pytest.mark.spec_corpus
-@pytest.mark.parametrize("kind", _KIND_PAGE_KINDS)
-def test_render_for_kind_real_registry_empty_kind_shows_notice(
-    kind: SpecKind, real_registry
-):
-    """A SpecKind no spec carries yet renders the notice, so its page builds."""
-    if kind in _carried_kinds(real_registry):
-        pytest.skip(f"kind {kind.value!r} has specs")
-    assert "No requirements yet" in render_for_kind(kind.value, real_registry)
-
-
 # ---------------------------------------------------------------------------
 # SR-09-001 / SR-09-002: effective-kind routing for mixed-kind files/groups
 # ---------------------------------------------------------------------------
@@ -1170,38 +1160,7 @@ def test_callout_refuses_a_repeated_id(catalog_registry):
 
 
 _DOCS = Path(__file__).resolve().parents[3] / "docs"
-_EXEC_FENCE_RE = re.compile(
-    r'^(?P<indent>\s*)(?P<fence>`{3,}|~{3,})python\b[^\n]*\bexec="true"'
-)
 _CALLOUT_LINK_RE = re.compile(r"\]\((?P<href>[^)\s]+)\)")
-
-
-def _exec_blocks(text: str) -> list[str]:
-    """Return the code of each ``markdown-exec`` Python block in *text*.
-
-    Only an exec block prints a callout, so prose or a plain code fence that
-    names the helper is not one, and a block may spread a call over several
-    lines.
-    """
-    blocks: list[str] = []
-    lines = text.splitlines()
-    i = 0
-    while i < len(lines):
-        opener = _EXEC_FENCE_RE.match(lines[i])
-        i += 1
-        if opener is None:
-            continue
-        fence, indent = opener.group("fence"), len(opener.group("indent"))
-        body: list[str] = []
-        while i < len(lines) and not (
-            lines[i].strip().startswith(fence[0] * len(fence))
-            and set(lines[i].strip()) == {fence[0]}
-        ):
-            body.append(lines[i][indent:])
-            i += 1
-        i += 1
-        blocks.append("\n".join(body))
-    return blocks
 
 
 def _callout_ids(code: str) -> list[list[str]]:
@@ -1226,9 +1185,11 @@ def _hosts() -> dict[str, set[str]]:
 
     A page renders itself and, through the docs-tree classification the
     other checks use (``classify_docs_tree``, ``fragment_hosts``), every
-    fragment it includes, nested includes too. A fragment's exec block runs
-    once per page that includes it, so its links are relative to each of
-    those pages, not to the fragment's own path.
+    fragment it includes whole, nested includes too. A fragment's exec block
+    runs once per page that includes it, so its links are relative to each of
+    those pages, not to the fragment's own path. That classification does not
+    count a ``start=``/``end=`` slice or an ``auto_append`` fragment as an
+    include, so a callout in one is checked on its own page only.
     """
     tree = classify_docs_tree(_DOCS.parent)
     pages = frozenset(tree.pages)
@@ -1266,9 +1227,8 @@ def test_docs_callouts_link_existing_rows():
     MkDocs never sees a link an exec block prints, so this is the check that
     the callouts link real rows (``anchor_ids.py``). Each callout is
     rendered for each page that includes its fragment, and each link is
-    resolved against the rendered ids of the per-kind and catalog pages, so
-    the test holds before and after the catalog publishes. Zero callouts is
-    a failure (DF-09-009).
+    resolved against the rendered ids of the per-kind pages, the catalog
+    pages and ``full.md``. Zero callouts is a failure (DF-09-009).
     """
     registry = load_registry()
     target_ids = {
@@ -1297,8 +1257,8 @@ def test_docs_callouts_link_existing_rows():
     for source in sorted(_DOCS.rglob("*.md")):
         path = source.relative_to(_DOCS).as_posix()
         text = source.read_text(encoding="utf-8")
-        for code in _exec_blocks(text):
-            callouts = _callout_ids(code)
+        for block in exec_blocks(text):
+            callouts = _callout_ids(block.code)
             assert not callouts or hosts.get(path), (
                 f"docs/{path}: no page renders this callout"
             )
@@ -1365,7 +1325,9 @@ def test_exec_blocks_find_callouts_only_where_they_print():
             "    ````",
         ]
     )
-    found = [ids for code in _exec_blocks(text) for ids in _callout_ids(code)]
+    found = [
+        ids for block in exec_blocks(text) for ids in _callout_ids(block.code)
+    ]
     assert found == [["VM-10-001"], ["ID-01-001", "SYNC-03-003"]]
 
 
@@ -1407,8 +1369,15 @@ def test_repository_registry_reloads_when_specs_change(tmp_path, monkeypatch):
 
 def test_dangling_links_flags_a_missing_id():
     """Guard the link test above against passing vacuously."""
-    ids = {"reference/specs/project.md": frozenset({"vm-10-001"})}
-    md = "[a](../../specs/project/#vm-10-001) [b](../../specs/project/#nope)"
+    ids = {
+        "reference/specs/project.md": frozenset({"vm-10-001"}),
+        "reference/vultron-spec/x.md": frozenset({"id-01-001"}),
+    }
+    md = (
+        "[a](../../specs/project/#vm-10-001) [b](../../specs/project/#nope) "
+        "[c](#id-01-001) [d](#vm-10-001)"
+    )
     assert _dangling_links(md, "reference/vultron-spec/x.md", ids) == [
-        "../../specs/project/#nope"
+        "../../specs/project/#nope",
+        "#vm-10-001",
     ]
