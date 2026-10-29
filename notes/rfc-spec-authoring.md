@@ -76,7 +76,7 @@ arrive with their host fragment.
 
 ### The landing page
 
-`index.md` is a routing page (`contents: routing`, DF-11-005): its framing
+`index.md` is a routing page (`contents: routing`, DF-11-028): its framing
 links every body page, every annex page, `open-questions.md` and `full.md`, and
 `docs-site --check` holds it to linking each member.
 
@@ -164,7 +164,7 @@ has published keeps its URL, so the closure also adds a `redirect_maps` entry to
 the answering section; without one `docs-legacy-urls` fails (#4898). Every
 open-question fragment is also included by
 `docs/topics/future_work/open_questions.md`, an Explanation page, so each must
-satisfy that host's quadrant as well (DF-09-008).
+satisfy that host's quadrant as well (DF-09-012).
 
 **`includes/`** holds shared fragments reused across sections — the state
 tables and the four-dimensions note. It is covered by
@@ -228,13 +228,13 @@ share an id.
 
 ## Page-Scoped Rules on the Pages
 
-Each page is evaluated as published (DF-09-003, DF-09-007; ADR-0092), so the
+Each page is evaluated as published (DF-09-003, DF-09-011; ADR-0092), so the
 split decides what a fragment must carry:
 
 - **Acronym expansion** (SG-07) resets per page. A fragment that is first to use
   an acronym on its page carries the expansion, even when an earlier page
   already made it. `full.md` then renders the expansion more than once, which is
-  compliant (SG-44, DF-11-007).
+  compliant (SG-44, DF-11-030).
 - **Concept order** (SG-10) holds within a page. A concept a page needs from an
   earlier page is linked to its owning page (SG-11), not assumed.
 - **Furniture** (SG-21, SG-39, SG-41) belongs to the page shell: the H1 matches
@@ -289,7 +289,7 @@ and the specification renders them in two forms:
 - **Callouts** in the narrative: an `info` admonition holding a short table of
   the requirements a passage discusses, rendered by ID in the catalog's row
   format. The ID cell links to the catalog row. A callout naming an ID of any
-  other kind fails the build (DF-12-003). Write one as a one-line exec block,
+  other kind fails the build (DF-12-012). Write one as a one-line exec block,
   `requirement_callout` from `vultron/metadata/specs/docs_render.py`:
 
   ````markdown
@@ -320,7 +320,7 @@ Rules for the narrative around them:
 - **Exec-printed links bypass the `full.md` rewrite.** The `full.md` link hook
   skips fenced code, which is how exec blocks are written, so the callout and
   catalog renderers emit in-page links themselves when rendering for `full.md`
-  (DF-12-002).
+  (DF-12-011).
 - **The catalog waits for the kind re-audit.** Publishing makes the two tiers
   the normative text, so the catalog does not publish until every `protocol` and
   `foundation` item's kind is re-checked with the MS-12 tree (ADR-0147, #4888).
@@ -337,10 +337,10 @@ Rules for the narrative around them:
   on each.
 - **The keyword check grows with reconciliation.** `RECONCILED_FRAGMENTS` in
   `vultron/metadata/docs/rfc2119_keywords.py` lists the fragments the check
-  enforces; each reconcile task adds its page's fragments (DF-12-004). A page's
+  enforces; each reconcile task adds its page's fragments (DF-12-013). A page's
   fragments include the `includes/` files they pull in, since an unlisted
   include carries keywords onto the page unchecked. A shared include must read
-  correctly on every page that includes it (DF-09-008). The check sees only
+  correctly on every page that includes it (DF-09-012). The check sees only
   upper-case keywords, so a reconcile also checks by hand the rules written
   without one ("only", "never", "cannot", "require", "every") against the
   YAML, since a keyword-free rule can contradict it unseen (CM-10-004, #4896).

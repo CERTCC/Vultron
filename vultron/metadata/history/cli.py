@@ -291,7 +291,7 @@ def append_history_entry(
             the ``YYMM`` directory; defaults to today).
         discriminator: Optional per-entry suffix used to disambiguate a second
             entry sharing the same ``source``. One work item may legitimately
-            produce several learnings (BW-01-003 names incoming files
+            produce several learnings (BW-01-009; BW-01-003 names incoming files
             ``YYYYMMDD-SLUG`` precisely so concurrent PRs do not collide), so
             ``<entry-id>`` alone is not unique. When the plain
             ``<entry-id>.md`` path is taken and a discriminator is supplied,

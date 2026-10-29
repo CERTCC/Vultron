@@ -2832,7 +2832,7 @@ groups:
           - rel_type: depends_on
             spec_id: MS-10-011
           - rel_type: depends_on
-            spec_id: PD-10-003
+            spec_id: PD-10-005
         tags:
           - tooling
       - id: PAD-20-004
@@ -2872,7 +2872,7 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          Once the `Docs:` line is recorded (PD-03-008), the session that opened
+          Once the `Docs:` line is recorded (PD-03-013), the session that opened
           the Pull Request MUST run `pr-body-lint --stage final` on its body and
           fix every finding before it ends.
         rationale: >-
@@ -2885,6 +2885,6 @@ groups:
           final-stage refusal of the placeholder.
         relationships:
           - rel_type: refines
-            spec_id: PD-03-008
+            spec_id: PD-03-013
         tags:
           - tooling

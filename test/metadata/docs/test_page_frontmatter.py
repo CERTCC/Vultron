@@ -2,8 +2,9 @@
 
 It checks ``stakeholder_type``, ``level``, ``page_type`` and ``subject``.
 
-Requirements: DF-11-001, DF-11-003, DF-11-010, DF-11-012, DF-11-018,
-DF-11-025, DF-11-026, DF-09-009; the failures are attributed per MS-17-001.
+Requirements: DF-11-001, DF-11-003, DF-11-010, DF-11-012, DF-11-018, DF-11-027,
+DF-11-033, DF-11-036, DF-11-025, DF-11-026, DF-09-009; the failures are
+attributed per MS-17-001.
 """
 
 from __future__ import annotations

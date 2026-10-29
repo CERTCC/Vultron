@@ -151,7 +151,7 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
   `create-pr` writes the placeholder with `<TODO>` fields; the author fills
   them. `pr-triage` FAILs a diff that changes a statement or priority without the
   section, or one that still contains `<TODO>`; `pr-verify` blocks on it.
-- **Docs**: required on every implementation or bug-fix PR (PD-03-008) —
+- **Docs**: required on every implementation or bug-fix PR (PD-03-013) —
   one that closes a `Task`, `Feature`, or `Bug` issue, or changes `.py`
   files. This is the scope `create-pr`, `pr-triage`, `pr-execute`, and
   `pr-verify` apply. A single line beginning `Docs:` records

@@ -1,6 +1,6 @@
 """Tests for the incoming-learnings frontmatter validator.
 
-Covers: BW-02-001, BW-02-002, BW-02-004, BW-02-006.
+Covers: BW-02-001, BW-02-002, BW-02-004, BW-02-006, BW-02-007.
 """
 
 from __future__ import annotations

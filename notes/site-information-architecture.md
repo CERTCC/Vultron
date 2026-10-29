@@ -115,7 +115,7 @@ documented-reason escape).
 `stakeholder_type` records who a page is **addressed to** — not what it is
 about, and not who could get use out of it. Tagging by subject matter collapses
 the axis to `ALL`: almost every conceptual page is "about" everyone. A list
-covering every type MUST be written `ALL` (DF-11-001).
+covering every type MUST be written `ALL` (DF-11-027).
 
 Three consequences that are easy to get wrong:
 
@@ -221,7 +221,7 @@ link or a re-level, never an entry.
 The working record — decision records, generated code documentation,
 enumerated state pages, retained design history, and the individual user-story
 pages with their traceability matrix — is a different kind of thing, not a
-greater depth, so it has **no level** (DF-11-003, DF-11-012). It stays
+greater depth, so it has **no level** (DF-11-003, DF-11-033). It stays
 published and linkable, and out of the reader-facing nav behind one labeled
 door: `docs/about/project_record.md`, a `project-contributor` page that links
 one routing page per working-record group. `uv run docs-frontmatter` fails a
@@ -293,7 +293,7 @@ set. Normative status is not a `page_type`.
 
 | Banner | Carried by |
 |---|---|
-| `normative.md` | exactly the normative set: the specification's body pages and the two tier pages, never its annexes or open questions (DF-12-006) |
+| `normative.md` | exactly the normative set: the specification's body pages and the two tier pages, never its annexes or open questions (DF-12-006, DF-12-016) |
 | `specification_governs.md` | informative pages that explain the protocol's design, such as Formal Protocol and the RM, EM and CS process models (DF-12-007) |
 | `not_normative.md` | every other informative page, including the protocol-floor companions (Messages, the Conformance Matrix, the Quick Reference); a page with no requirement-like statements may omit it |
 
@@ -382,7 +382,7 @@ render as a badge from frontmatter (DF-11-019,
 `overrides/partials/page_type.html`).
 `page_type` is independent of `contents:`: an index that mostly explains is
 `explanation`. Working-record pages declare none (DF-11-003 marks them). A
-mixed-type page is split or clearly sectioned (DF-01-003). The Protocol
+mixed-type page is split or clearly sectioned (DF-01-003, DF-01-006). The Protocol
 Specification declares a type per page: its body parts and single-page edition
 are `reference`, its landing page is `routing`, and each annex takes the type of
 its content (the worked examples and design annexes `explanation`, the notation
@@ -501,17 +501,17 @@ at some points and not at others (ADR-0150).
   a start page, previous is `---` and current is the start page. The sets are
   the adjacent ones: the neighbor in a chain, or else the whole neighboring set
   stage (or the near end of a neighboring chain). It is the same for every
-  reader, so no query parameter or referrer is needed (DF-11-015).
+  reader, so no query parameter or referrer is needed (DF-11-035).
 - **A box is a committed fragment, placed by hand.** `docs-site --write`
   generates one per thread and member (a section's anchor in its name) under
   `docs/start/_paths/<thread>/`; the page's author adds the `include-markdown`
   line where directions onward belong, and `uv run docs-path-boxes`, run in CI
   after the build, fails when a box is missing, naming the line to add
-  (DF-11-023). The build never adds one, because no pass finds the right
-  spot: the Markdown pass would have to copy the toc extension's ids and cannot
-  see headings printed by exec blocks, and the HTML pass is past MkDocs' link
-  rewriting and checks. A section member's box says "section" and goes at that
-  section's end (DF-11-022). The built site has the section's anchor as an id,
+  (DF-11-045). The build never adds one (DF-11-044), because no pass finds the
+  right spot: the Markdown pass would have to copy the toc extension's ids and
+  cannot see headings printed by exec blocks, and the HTML pass is past MkDocs'
+  link rewriting and checks. A section member's box says "section" and goes at
+  that section's end (DF-11-043). The built site has the section's anchor as an id,
   so the same check fails when the box is not between that heading and the next
   one of the same or a higher level. With no box at the page end, the theme's
   footer stays.
@@ -582,7 +582,7 @@ navigation edits at a time.
 
 Repeated openings and re-expanded acronyms serve readers who arrive from search
 and deep links, so they are required, not accretion damage; do not deduplicate
-them from a rendered page to make neighbors read as a sequence (DF-11-007,
+them from a rendered page to make neighbors read as a sequence (DF-11-030,
 SG-07). The rule binds the rendered page, not the source: a block one authority
 owns (a banner, a pointer, a shared prerequisite list) is sourced from one
 fragment that every page includes, so it still renders on each (DF-10-002,

@@ -81,7 +81,7 @@ Report the target count.
 A file that other pages pull in with `{% include-markdown %}` is a
 **fragment**; a page that pulls fragments in is an **assembly unit**. Both are
 prose and both are targets. They differ in which rules can be evaluated
-against them (DF-09-007, ADR-0092):
+against them (DF-09-007, DF-09-011, ADR-0092):
 
 - **Sentence- and block-scoped rules apply to the fragment**, with the
   fragment's own line numbers: spelling (SG-37), filler (SG-24), sentence and
@@ -165,7 +165,7 @@ on target pages. A `docs-thread-order`
 finding is a thread member using a term a later member introduces, with no
 link (DF-11-024); report it with the link to add or the reorder. A banner
 finding means a normative-set page lacks the `normative.md` include, or
-another page carries it (DF-12-006), or the same for a protocol-design page and
+another page carries it (DF-12-016), or the same for a protocol-design page and
 `specification_governs.md` (DF-12-007). A `docs-nav-subjects` finding is a nav
 section holding both a `subject: protocol` and a `subject: implementation` page
 (DF-11-020); recommend moving the named page, or correcting its `subject`.
@@ -210,12 +210,12 @@ recommendation, never applied:
   appears on an adjacent page is compliant on the rendered page** — never
   recommend removing it. That repetition is the rule working, and a
   recommendation to remove it so neighbors "read as a sequence" is itself a
-  defect in the review (DF-11-007). Where the block's source lives is a separate
+  defect in the review (DF-11-030). Where the block's source lives is a separate
   SG-43 question. A page introducing itself in its own words (prose describing
   this page, not content another authority owns, SG-44) is never an SG-43
   finding. A block one authority owns (a banner, a pointer, a shared
   prerequisite list) is one even when it serves arrival: recommend sourcing it
-  from a fragment every page still includes, which satisfies DF-11-007.
+  from a fragment every page still includes, which satisfies DF-11-030.
 - **Rendered level or audience** (DF-11-004, DF-11-009; SG-40) — the page's own
   `level` or `stakeholder_type` appears in its prose, a heading, an admonition,
   or the nav label ("this 300-level page", "for platform developers").
@@ -236,7 +236,8 @@ recommendation, never applied:
   explains declared `routing`. The badge shows the declaration to every reader
   (DF-11-019), so a wrong one misleads. Recommend the type the content is, never
   the one its directory suggests. If the page genuinely mixes types, the finding
-  is DF-01-003 instead: recommend splitting it or separating the parts clearly.
+  is DF-01-003 instead: recommend splitting it or separating the parts clearly
+  (DF-01-006).
 - **Subject mismatch** (DF-11-025, DF-11-020; SG-40) — the declared `subject`
   is not what the page is about: a page about CERT/CC's code or demos declared
   `protocol`, a page explaining the protocol declared `implementation`, or
@@ -288,7 +289,7 @@ recommendation, never applied:
   that is correct against its authority, unless a documented reason keeps the
   two apart (DF-10-002). A page's own opening (prose describing this page, not
   content another authority owns) and its acronym expansions are exempt even
-  when a neighbor's text matches them (SG-44, DF-11-007) — see
+  when a neighbor's text matches them (SG-44, DF-11-030) — see
   "Self-sufficiency on arrival" above.
 
 ### Quadrant misclassification
@@ -338,10 +339,10 @@ Output, in this order:
   apply at any scale.
 - Never evaluate a page-scoped rule against a fragment, and never drop a
   fragment from the target set because its name is `_`-prefixed or excluded
-  from nav (DF-09-007).
+  from nav (DF-09-007, DF-09-011).
 - Never report a page's own opening or a re-expanded acronym on adjacent pages
   as duplication, and never recommend removing an opening, a prerequisite, or an
-  expansion from a rendered page (SG-44, DF-11-007); sourcing one authority's
+  expansion from a rendered page (SG-44, DF-11-030); sourcing one authority's
   block from a shared fragment is not a removal.
 - Never report success on an empty target set (DF-09-009).
 - Do not duplicate `format-markdown` or `build-docs` checks. Line length, list

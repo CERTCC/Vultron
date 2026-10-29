@@ -77,7 +77,7 @@ class TestIntroduces:
 
         (failure,) = failures(root)
 
-        assert "DF-11-012" in failure.detail
+        assert "DF-11-033" in failure.detail
 
     def test_fragment_cannot_introduce(self, tmp_path):
         root = make_repo(

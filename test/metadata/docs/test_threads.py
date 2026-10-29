@@ -1,7 +1,7 @@
 """Tests for reading-path threads (``uv run docs-threads``, ``docs-site``).
 
 Requirements: DF-11-013 (a thread is staged data on its start page), DF-11-014
-(the start page's listing is generated and check gated), DF-11-015 (the before
+(the start page's listing is generated and check gated), DF-11-034 (the before
 and after sets; the box itself is ``test_thread_boxes.py``), DF-11-016 (the
 thread check), DF-09-009 (an empty target set fails).
 """
@@ -191,7 +191,7 @@ class TestThreadSchema:
 
 
 # ---------------------------------------------------------------------------
-# Before and after sets (DF-11-015)
+# Before and after sets (DF-11-034)
 # ---------------------------------------------------------------------------
 
 

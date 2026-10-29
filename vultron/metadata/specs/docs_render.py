@@ -13,7 +13,7 @@ shows, in three places:
   (:func:`requirement_callout`, DF-12-003).
 
 A catalog row and a per-kind row define the requirement's anchor; a callout
-row links it instead (DF-12-002). Where each requirement's row is, and the
+row links it instead (DF-12-010). Where each requirement's row is, and the
 link a row shows to it, come from
 :mod:`vultron.metadata.docs.requirement_catalog`.
 
@@ -488,7 +488,7 @@ def requirement_callout(
     The callout is how the Protocol Specification's narrative presents a
     normative requirement (DF-12-003): a table in the catalog's row format,
     each ID cell linking the requirement's catalog row and defining no anchor
-    (DF-12-002). Call it in one line from a ``markdown-exec`` block.
+    (DF-12-010). Call it in one line from a ``markdown-exec`` block.
 
     Args:
         spec_ids: The requirement IDs, in display order.
@@ -503,7 +503,7 @@ def requirement_callout(
         ValueError: If no ID is given, an ID is given twice, or an ID names no
             requirement of kind ``protocol`` or ``foundation``
             (:class:`NotInCatalogError`), which fails the documentation
-            build (DF-12-003).
+            build (DF-12-012).
     """
     if not spec_ids:
         raise ValueError("a requirement callout needs at least one ID")

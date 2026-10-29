@@ -1,9 +1,9 @@
 """Tests for the built-site reading-path box check (``uv run docs-path-boxes``).
 
-Requirements: DF-11-023 (every member page and start page renders its box for
-each thread it is on, through an ``include-markdown`` line placed by hand; the
-check names the page and the line to add and fails on an empty target set),
-DF-11-022 (a section member's box sits in its section), DF-09-009.
+Requirements: DF-11-045 (every member page and start page renders its box for
+each thread it is on; the check names the page and the line to add and fails
+on an empty target set), DF-11-044 (through an ``include-markdown`` line placed
+by hand), DF-11-043 (a section member's box sits in its section), DF-09-009.
 """
 
 from __future__ import annotations

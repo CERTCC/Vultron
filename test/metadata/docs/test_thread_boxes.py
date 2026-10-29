@@ -4,7 +4,8 @@ Requirements: DF-11-015 (one box per thread on every member page and start
 page: a start, previous, current and next table, the same for every reader),
 DF-11-022 (a section member's box names the section), DF-11-023 (each box is a
 committed fragment under ``docs/start/_paths/``, generated, check gated and
-excluded from the build), DF-11-009 (titled by situation, never by
+excluded from the build), DF-11-034 (the table's cells), DF-11-035 (the same
+for every reader), DF-11-044 (placed by hand), DF-11-009 (titled by situation, never by
 ``stakeholder_type``).
 """
 

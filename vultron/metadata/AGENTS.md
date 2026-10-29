@@ -14,8 +14,8 @@ testable without the network. The caller fetches the payload
 And `docs/withheld.py`, `docs/links.py` and `docs/legacy_urls.py` read the **built**
 `site/` tree, so they only run after `mkdocs build` — they are the tools here whose
 input is a build product rather than a source file, and all three fail rather than
-passing when that input is missing (`docs/built_site.py`; DOCBW-03-005, DOCBW-03-007,
-DOCBW-03-008, DF-09-009).
+passing when that input is missing (`docs/built_site.py`; DOCBW-03-016, DOCBW-03-019,
+DOCBW-03-025, DF-09-009).
 
 Nothing here is protocol code. The audience for its output is a human or an
 agent who just edited a metadata file and got it wrong, so **error messages

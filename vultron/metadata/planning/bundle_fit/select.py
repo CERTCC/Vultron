@@ -1,9 +1,9 @@
 """The two selection stages — eligibility, then fit.
 
 Requirements: PAD-15-001 (two stages), PAD-15-002 (homogeneous by workflow),
-PAD-15-003/004 (Schedule tier ordering and exclusion), PAD-15-005 (size budget),
-PAD-15-006 (per-candidate rejection reasons), PAD-15-007 (hints, not verdicts),
-PAD-19-002/003 (an epic run's claim holds the Epic's Tasks and Features).
+PAD-15-003/004/014 (Schedule tier ordering and exclusion), PAD-15-005 (size budget),
+PAD-15-006 (per-candidate rejection reasons), PAD-15-007/016/017 (hints, not verdicts),
+PAD-19-002/003/009 (an epic run's claim holds the Epic's Tasks and Features).
 
 Selection used to be one stage: filter an Epic's sub-issues for *eligibility*
 (open, unassigned, unblocked, leaf) and take the first five in GitHub order.
@@ -40,7 +40,7 @@ _SPEC_ID_RE = SPEC_ID_CITATION_RE
 _PATH_RE = re.compile(r"\b(?:[\w.-]+/)+[\w.-]+\.\w{2,5}\b")
 
 # The lane an epic run owns. Bugs, Ideas, and Concerns under a claimed Epic stay
-# open to other agents on purpose (PAD-19-002).
+# open to other agents on purpose (PAD-19-009).
 HELD_WORKFLOW = "build"
 
 

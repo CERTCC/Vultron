@@ -1,9 +1,10 @@
 """Tests for the generated docs-site artifacts (``uv run docs-site``).
 
-Requirements: DF-11-005 (landing pages generated and check gated; every
-group-opening index declares its shape; routing pages link every member),
-DF-11-008 (the coverage matrix), DF-11-011 (the stakeholder-type fragment),
-DF-09-009 (an empty target set fails), DF-11-004 (a level is never rendered).
+Requirements: DF-11-005 (landing pages generated and check gated), DF-11-028
+(every group-opening index declares its shape), DF-11-029 (routing pages link
+every member), DF-11-008 (the coverage matrix), DF-11-011 (the stakeholder-type
+fragment), DF-09-009 (an empty target set fails), DF-11-004 (a level is never
+rendered).
 """
 
 from __future__ import annotations

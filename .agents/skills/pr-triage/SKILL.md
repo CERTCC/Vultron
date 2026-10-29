@@ -79,7 +79,7 @@ grows the PR is simply `fix-now-file` (see the doctrine § "Clarity Over Size").
 ## Modes
 
 Every phase runs once per change: before the push on the reviewed diff, and
-after the push on what the PR adds to it (PAD-07-007, ADR-0139). The mode
+after the push on what the PR adds to it (PAD-07-007, PAD-07-012, ADR-0139). The mode
 decides which phases run on which diff.
 
 | Mode | When | Phases | Diff |
@@ -309,7 +309,7 @@ Also emit findings for these `merge_state_status` values even when
 
 - `BEHIND` — base has advanced and a ruleset requires branches be up to date:
   **IMPROVE**, `fix-now` (execute clears it with `gh pr update-branch`,
-  PAD-18-004). This repository sets no such ruleset today (ADR-0126), so say
+  PAD-18-014). This repository sets no such ruleset today (ADR-0126), so say
   in the description that the premise changed; `pr-verify` still blocks on a
   live `BEHIND` (PAD-18-005).
 - `DIRTY` — treat exactly like `CONFLICTING` above, even if `mergeable`

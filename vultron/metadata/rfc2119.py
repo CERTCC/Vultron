@@ -13,7 +13,7 @@
 """RFC 2119 keywords in prose, and the code spans that only quote one.
 
 Two checks count keywords: the Protocol Specification fragment check
-(:mod:`vultron.metadata.docs.rfc2119_keywords`, DF-12-004) and the compound
+(:mod:`vultron.metadata.docs.rfc2119_keywords`, DF-12-013) and the compound
 requirement check (:mod:`vultron.metadata.specs.statement_style`, MS-03-001).
 Both read a keyword inside an inline code span as a quoted name, not an
 obligation, so both strip the spans with :func:`strip_code_spans` first.

@@ -31,7 +31,7 @@ publish as it ships covers every earlier one.
 checked-out commit builds is missing from the baseline, deciding "built" by
 :func:`built_pages`, the rule ``--snapshot`` records with. The pull-request
 workflow runs it on pull requests to ``publish`` only; on a pull request to
-``main`` a new page is not yet due.
+``main`` a new page is not yet due (DOCBW-03-028).
 
 :func:`unmapped_pages` checks a built ``site/`` against that list. A published
 page is accounted for when one of these holds:

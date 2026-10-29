@@ -250,7 +250,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.pycodestyle]
-# The 88-character prose limit outside docs/ (PD-10-003), read by `ruff check
+# The 88-character prose limit outside docs/ (PD-10-006), read by `ruff check
 # --select W505` and pinned to vultron.metadata.line_length.LINE_LIMIT. Code
 # lines keep the formatter's line-length above.
 max-doc-length = 88

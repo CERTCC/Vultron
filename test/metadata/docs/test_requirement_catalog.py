@@ -2,7 +2,7 @@
 
 The placement table decides which Requirements Catalog page shows each
 requirement file (DF-12-005), and the lookup and linker decide where a
-requirement's row is and how a rendered row links it (DF-12-002). The first
+requirement's row is and how a rendered row links it (DF-12-002, DF-12-010). The first
 tests are gates on the real ``specs/`` corpus; the rest pin each fault, the
 lookup's refusals, and every link path, including the single-page edition.
 """
@@ -140,7 +140,7 @@ def test_unplaced_file_fails(registry: SpecRegistry) -> None:
     pages = PAGES[1:]
     assert placement_faults(registry, pages) == [
         "AAA holds protocol requirements but no protocol catalog page "
-        "places it (DF-12-005)"
+        "places it (DF-12-015)"
     ]
 
 
@@ -153,7 +153,7 @@ def test_file_unplaced_for_one_of_its_tiers_fails(
     )
     assert placement_faults(registry, pages) == [
         "BBB holds foundation requirements but no foundation catalog page "
-        "places it (DF-12-005)"
+        "places it (DF-12-015)"
     ]
 
 
@@ -163,7 +163,7 @@ def test_file_placed_twice_for_one_tier_fails(registry: SpecRegistry) -> None:
         *PAGES[1:],
     )
     assert placement_faults(registry, pages) == [
-        "BBB is placed 2 times for the protocol tier (DF-12-005)"
+        "BBB is placed 2 times for the protocol tier (DF-12-015)"
     ]
 
 
@@ -173,7 +173,7 @@ def test_file_placed_twice_on_one_page_fails(registry: SpecRegistry) -> None:
         *PAGES[1:],
     )
     assert placement_faults(registry, pages) == [
-        "AAA is placed 2 times for the protocol tier (DF-12-005)"
+        "AAA is placed 2 times for the protocol tier (DF-12-015)"
     ]
 
 

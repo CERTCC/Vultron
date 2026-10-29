@@ -488,7 +488,7 @@ class TestCoherenceHints:
 
     def test_shared_file_path_is_surfaced(self):
         """Path overlap is advertised in the module docstring, `bundling.md` and
-        PAD-15-007, but the `_PATH_RE` branch had no test at all."""
+        PAD-15-016, but the `_PATH_RE` branch had no test at all."""
         members = [
             task(1, title="Harden specs/outbox.yaml retry caps"),
             task(2, title="Document specs/outbox.yaml in notes/outbox.md"),

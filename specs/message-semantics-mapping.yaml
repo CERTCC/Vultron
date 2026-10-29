@@ -1614,7 +1614,7 @@ groups:
     rationale: 'One grammar lets a reader scan the "When…" column by situation. The
       prose lives in Python, outside the reach of DF-09-001 as written, yet renders on
       reference pages and in how-to guides; a fragment with more than one host must
-      satisfy the rules of each (DF-09-008), so it can use neither the how-to "you" nor
+      satisfy the rules of each (DF-09-012), so it can use neither the how-to "you" nor
       reference-only phrasing.'
     verification: >-
       The generated occasion fragments under `docs/` are `lint-docs` targets
@@ -1626,7 +1626,7 @@ groups:
     - rel_type: extends
       spec_id: DF-09-001
     - rel_type: depends_on
-      spec_id: DF-09-008
+      spec_id: DF-09-012
     adr:
     - ADR-0128
   - id: MSM-08-008
