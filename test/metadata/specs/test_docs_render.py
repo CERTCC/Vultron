@@ -21,6 +21,8 @@ import yaml
 
 from vultron.metadata.docs.anchor_ids import anchor_ids_in
 from vultron.metadata.docs.exec_page import EXEC_PAGE_ENV
+from vultron.metadata.docs.level_order import fragment_hosts
+from vultron.metadata.docs.page_frontmatter import classify_docs_tree
 from vultron.metadata.docs.requirement_catalog import (
     CATALOG_KINDS,
     CATALOG_PAGES,
@@ -1171,7 +1173,6 @@ _DOCS = Path(__file__).resolve().parents[3] / "docs"
 _EXEC_FENCE_RE = re.compile(
     r'^(?P<indent>\s*)(?P<fence>`{3,}|~{3,})python\b[^\n]*\bexec="true"'
 )
-_INCLUDE_RE = re.compile(r'\{%\s*include-markdown\s+"([^"]+)"')
 _CALLOUT_LINK_RE = re.compile(r"\]\((?P<href>[^)\s]+)\)")
 
 
@@ -1223,33 +1224,19 @@ def _callout_ids(code: str) -> list[list[str]]:
 def _hosts() -> dict[str, set[str]]:
     """Map each ``docs/`` file to the pages that render it.
 
-    A page renders itself and, transitively, every file it includes. A
-    fragment's exec block runs once per page that includes it, so its links
-    are relative to each of those pages, not to the fragment's own path.
+    A page renders itself and, through the docs-tree classification the
+    other checks use (``classify_docs_tree``, ``fragment_hosts``), every
+    fragment it includes, nested includes too. A fragment's exec block runs
+    once per page that includes it, so its links are relative to each of
+    those pages, not to the fragment's own path.
     """
-    includes: dict[str, set[str]] = {}
-    for source in _DOCS.rglob("*.md"):
-        path = source.relative_to(_DOCS).as_posix()
-        includes[path] = {
-            posixpath.normpath(posixpath.join(posixpath.dirname(path), target))
-            for target in _INCLUDE_RE.findall(
-                source.read_text(encoding="utf-8")
-            )
-        }
-    hosts: dict[str, set[str]] = {}
-    for page in includes:
-        if posixpath.basename(page).startswith("_"):
-            continue
-        seen: set[str] = set()
-        todo = [page]
-        while todo:
-            current = todo.pop()
-            if current in seen:
-                continue
-            seen.add(current)
-            todo.extend(includes.get(current, ()))
-        for rendered in seen:
-            hosts.setdefault(rendered, set()).add(page)
+    tree = classify_docs_tree(_DOCS.parent)
+    pages = frozenset(tree.pages)
+    hosts: dict[str, set[str]] = {page: {page} for page in pages}
+    for fragment in tree.fragments:
+        hosts[fragment] = set(
+            fragment_hosts(fragment, tree, pages, frozenset())
+        )
     return hosts
 
 
