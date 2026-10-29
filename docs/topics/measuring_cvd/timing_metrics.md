@@ -70,14 +70,29 @@ Each ledger entry carries two times: the commit stamp of the CASE_MANAGER, and t
 Every interval on this page uses the commit stamp by default, because all commit stamps in a case come from one clock.
 A commit stamp shows when the CASE_MANAGER learned of an event, and the CASE_MANAGER can learn of an event late.
 
-Some intervals start and end at events of the same participant, for example the time to fix of vendor $i$.
+Some intervals start and end at entries that the same participant sent, for example the time to fix of vendor $i$.
 For these intervals, both claimed times come from the clock of that participant, and the claimed time should be the time that the event occurred (CLP-15-004).
+A fixed offset in the clock of that participant cancels out of the interval.
 Thus the claimed times are often the better data for an interval inside one participant.
-The clock skew of that participant, listed under process health below, shows whether its claimed times can be trusted.
+An event of a participant is not always in an entry that the participant sent.
+For example, the CASE_MANAGER or the case owner can report a deployment for a deployer, and the CASE_MANAGER records the join of an Invitee.
+An interval with ends from two senders mixes two clocks.
+
+The clock skew of a participant, listed under process health below, is not by itself a test of its claimed times.
+A large skew can mean only that the participant reported its events late, and then its claimed times are the better data.
+Some signs do show a clock that is wrong:
+
+- A negative skew: a claimed time after the commit of its entry.
+- Claimed times that decrease across activities that depend on each other (CLP-15-003).
+- A skew that changes much from one entry of the participant to the next.
 
 An interval on claimed times and the same interval on commit stamps can differ.
 A large difference is itself worth reporting.
-It shows that the participant reported its events to the case late, or that its clock is wrong.
+It shows that the two ends of the interval reached the ledger with different delays, or that the clock of the participant drifted.
+The delay can be on the side of the participant, or on the side of the CASE_MANAGER, for example when the CASE_MANAGER was down.
+
+A few metrics use a third time: the time on an object inside an activity, such as the time on a report.
+The CASE_MANAGER carries this time as the sender received it (CLP-15-007), so it comes from the clock of the author of the object.
 
 This page does not choose a clock for each metric.
 An implementer of the metrics can use commit stamps, claimed times, or both.
@@ -116,7 +131,7 @@ They are per-participant, because Report Management (RM) is per-participant.
 | Time to accept | $\evVa_i$ to report acceptance by participant $i$ ($\evAc_i$) |
 | Time to join, for an Invitee | Its Stub Invite to joining by participant $i$ ($\evJ_i$) |
 | Time to judge, for an Invitee | Its Full-Case Invite to its answer, which is $\evVa_i$ when it accepts (CM-11-011) |
-| Report to case | The time on the report itself to case creation |
+| Report to case | The time on the report that created the case to case creation, when the report carries a time |
 
 For an Invitee $i$, $\evR_i$ and $\evJ_i$ are the same event.
 The reason is that acceptance of the Stub Invite puts the Invitee at RM Received (CM-11-001).
@@ -124,14 +139,17 @@ For an Invitee, then, time to validate is time to judge plus the wait between jo
 
 The case owner's $\evR$ and the reporter's $\evAc$ are set when the case is created ([What a Case Records](./what_a_case_records.md#statuses-seated-at-case-creation)).
 The validation and acceptance by the case owner come later, each in its own ledger entry.
-Thus time to validate and time to accept are measurable for the case owner, from case creation.
+Thus time to validate is measurable for the case owner from case creation, and time to accept is measurable from the validation.
+The reporter's $\evAc$ is not a decision, so the reporter has no time to accept.
 The time that the case owner held the report before it created the case is not on the ledger.
 
 Report to case is a bound on that time.
 The ledger entry that adds the report to the case carries the report as received, with the time that the reporter put on the report, when the reporter put a time on it (CLP-15-007).
 The case owner received the report after that time and before it created the case.
-Thus report to case is an upper bound on the time before the case existed.
-The interval uses two clocks, the reporter's clock and the CASE_MANAGER's clock, so it is a research measure.
+Thus, when the reporter's clock agrees with the CASE_MANAGER's clock, report to case is an upper bound on how long the case owner held the report.
+A reporter's clock that runs fast makes report to case too small, and it can make the value negative.
+The interval uses two clocks, so it is a research measure.
+A report that the case owner adds to the case later has no report to case.
 
 ---
 
@@ -259,7 +277,7 @@ They help separate a slow case from a case whose messages went missing.
 A gap is a forward move that skips a step the CASE_MANAGER never saw.
 Either a message was lost, or the participant took the step locally and reported only its latest state.
 Thus a rising gap rate is a reason to look for lost messages, but it does not prove that messages were lost.
-A large clock skew for one participant means its claimed times cannot be trusted for intervals.
+A large clock skew alone does not mean that the claimed times of a participant are wrong ([Which clock to use](#which-clock-to-use)).
 
 ---
 
@@ -276,13 +294,14 @@ A metric that uses an event with a data gap has the same gap.
 
 Many cases never see $\evX$ or $\evA$, and an open case has not yet closed.
 An interval that ends at an event that has not occurred is **censored**.
-A censored interval is not missing: the interval is at least as long as the case has run.
+A censored interval is not missing: the interval is at least as long as the time from its first event to now, or to the close of the case.
 A measure that treats censored intervals as missing biases every average toward the cases that finished.
 
 The close of a case censors its intervals for good.
 After the case closes, the ledger cannot record $\evX$ or $\evA$, even if a public exploit or attacks occur later.
 A margin whose second event never occurred is censored in the same way.
-For example, a case with $\evF$ and no $\evX$ achieved $\evF \prec \evX$, by at least the time from $\evF$ to the close of the case.
+For example, a closed case with $\evF$ and no $\evX$ on its ledger achieved $\evF \prec \evX$, by at least the time from $\evF$ to the close of the case.
+This result is only as good as the reports: a public exploit that no participant reported is not on the ledger.
 
 This page does not choose a method for censored data.
 Survival-analysis methods, such as a Kaplan–Meier estimate of time to fix, are one idea, as are medians rather than means.
@@ -335,7 +354,7 @@ A CVD program that wants a short set can start with the metrics below.
 | Case duration | The total effort and time that a case takes |
 
 The other metrics are mainly for research or for tuning the protocol.
-These metrics include the process-health counts, the pocket-veto and lapse rates, the exposure dwell times, and report to case.
+These metrics include the process-health metrics, the pocket-veto rate, the lapse count, the exposure dwell times, and report to case.
 
 ---
 

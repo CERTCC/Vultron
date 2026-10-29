@@ -161,7 +161,7 @@ The gaps in this section limit some measures.
 
 ### Statuses seated at case creation
 
-The case owner creates the case when it receives the report.
+The case owner creates the case after it receives the report.
 The [RM model](../process_models/rm/index.md) gives each participant a report state, such as Received, Valid, Accepted, Deferred, or Closed.
 The creation sequence puts the case owner at RM Received (CM-14-009), and puts the reporter at RM Accepted (CM-14-012).
 The CASE_MANAGER commits these two statuses during the creation sequence.
@@ -169,6 +169,7 @@ Thus the commit stamps of these two statuses show the creation time, not the tim
 
 For the case owner, the time of report receipt ($\evR$) is the creation time.
 The time that the case owner actually received the report stays with the case owner, outside the case ledger.
+The time on the report gives a bound on how long the case owner held the report ([Timing Metrics Within a Case](./timing_metrics.md#intake-and-triage)).
 For the reporter, report acceptance ($\evAc$) is not a decision, so $\evAc$ has no interval to measure.
 The later validation and acceptance by the case owner are separate entries.
 Thus the time from case creation to the validation and acceptance by the case owner is measurable.
