@@ -272,13 +272,12 @@ groups:
       transition their local CS to Public Aware.
     rationale: >-
       VP-09-001 and VP-11-002 require immediate embargo termination when public
-      awareness occurs. The ordering — CS transition recorded before embargo
-      teardown — satisfies constraint C-14 from the behavioral spec design note:
-      record CS state change first, then initiate teardown.
+      awareness occurs. The CS transition is recorded before embargo teardown
+      begins (CSB-12-004).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CP with EM Active or
       Revise transitions CS to ···P··, that the CASE_MANAGER emits ET before CK,
-      and that the CS transition is recorded before embargo teardown (C-14).
+      and that the CS transition is recorded before embargo teardown.
     testable: true
     preconditions:
     - cs_pattern: "...p.."
@@ -540,13 +539,13 @@ groups:
       (q^em ∈ {A, R}) receiving CX MUST transition their local CS to ···PX·.
     rationale: >-
       VP-09-001 and VP-11-002 require immediate embargo termination when exploit
-      publication occurs. The pX→PX invariant applies. C-14 ordering: record
-      CS transition first, then initiate teardown.
+      publication occurs. The pX→PX invariant applies. The CS transition is
+      recorded before teardown begins (CSB-05-010).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CX in CS ···px· with
       EM Active or Revise transitions CS to ···PX·, that the CASE_MANAGER emits
-      ET, then CK is emitted, with the CS transition recorded before teardown
-      (C-14).
+      ET, then CK is emitted, with the CS transition recorded before
+      teardown.
     testable: true
     preconditions:
     - cs_pattern: "...px."
@@ -742,14 +741,14 @@ groups:
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       and not yet exploit-public (q^cs ∈ ···px·) and EM Active or Revise
       (q^em ∈ {A, R}) receiving CX MUST record the CS transition to ···PX·
-      before embargo teardown is initiated (constraint C-14).
+      before embargo teardown is initiated.
     rationale: >-
-      C-14 ordering requires the CS state change to be recorded first so that
-      the canonical ledger correctly reflects cause before effect.
+      The ledger commits the CS state change before any effect acts on it
+      (CLP-10-006), so every replica sees the cause before its effect.
     verification: >-
       Integration tests in `test/demo/` confirm that the CS state records ···PX·
       before ET is emitted when CX is received with EM Active or Revise and
-      non-public CS (C-14 ordering satisfied).
+      non-public CS.
     testable: true
 
     stories:
@@ -866,13 +865,13 @@ groups:
     rationale: >-
       Observed attacks warrant embargo termination (VP-11-006, CSB-18-004)
       without making the vulnerability public, so only the attacks bit changes
-      (CSB-17-002). The C-14 ordering: record CS transition first, then
-      initiate teardown.
+      (CSB-17-002). The CS transition is recorded before teardown begins
+      (CSB-06-010).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CA in CS ···p·a with
       EM Active or Revise transitions CS to ···p·A, that the CASE_MANAGER emits
-      ET, then CK is emitted, with the CS transition recorded before teardown
-      (C-14).
+      ET, then CK is emitted, with the CS transition recorded before
+      teardown.
     testable: true
     preconditions:
     - cs_pattern: "...p.a"
@@ -1066,14 +1065,14 @@ groups:
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       and attacks not yet observed (q^cs ∈ ···p·a) and EM Active or Revise
       (q^em ∈ {A, R}) receiving CA MUST record the CS transition to ···p·A
-      before embargo teardown is initiated (constraint C-14).
+      before embargo teardown is initiated.
     rationale: >-
-      C-14 ordering requires the CS state change to be recorded first so that
-      the canonical ledger correctly reflects cause before effect.
+      The ledger commits the CS state change before any effect acts on it
+      (CLP-10-006), so every replica sees the cause before its effect.
     verification: >-
       Integration tests in `test/demo/` confirm that the CS state records ···p·A
       before ET is emitted when CA is received with EM Active or Revise and
-      non-public CS (C-14 ordering satisfied).
+      non-public CS.
     testable: true
 
     stories:
@@ -1375,18 +1374,13 @@ groups:
     statement: >-
       A Participant entering CS Public Aware (q^cs → ···P··) with an active
       embargo (q^em ∈ {A, R}) SHALL terminate the embargo immediately by
-      emitting ET. The CS state transition MUST be recorded before the embargo
-      teardown is initiated (constraint C-14).
+      emitting ET.
     rationale: >-
       VP-09-001 and VP-14-001 require immediate embargo termination upon public
-      disclosure. Constraint C-14 requires observably correct ordering: the CS
-      state change is recorded first, then the teardown begins. This ensures
-      the canonical ledger correctly reflects cause (P transition) before effect
-      (embargo termination).
+      disclosure. CSB-12-004 orders the CS transition before the teardown.
     verification: >-
       Integration tests in `test/demo/` confirm that entering CS Public Aware with an
-      active embargo records the CS transition before emitting ET, and that EM
-      reaches EXITED (C-14 ordering satisfied).
+      active embargo emits ET and that EM reaches EXITED.
     testable: true
     preconditions:
     - cs_pattern: "...P.."
@@ -1405,8 +1399,7 @@ groups:
       expected: ET queued for participants; EM begins transitioning to EXITED
     postconditions:
     - description: >-
-        CS public bit is P; ET emitted; EM is EXITED; CS transition recorded
-        before teardown (C-14)
+        CS public bit is P; ET emitted; EM is EXITED
     relationships:
     - rel_type: satisfies
       spec_id: VP-09-001
@@ -1415,6 +1408,30 @@ groups:
       spec_id: VP-14-001
       note: Once Public Awareness, any existing embargo SHALL terminate
 
+    stories:
+    - story_2022_023
+    - story_2022_081
+  - id: CSB-12-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant entering CS Public Aware (q^cs → ···P··) with an active
+      embargo (q^em ∈ {A, R}) MUST record the CS transition before it initiates
+      the embargo teardown of CSB-12-001.
+    rationale: >-
+      Every replica replays the ledger in order, so a teardown committed ahead
+      of its cause would show the embargo ending for no recorded reason. The
+      received form of this rule is CSB-04-003; the ledger mechanism is
+      CLP-10-006.
+    verification: >-
+      Tests marked CSB-12-004 in
+      `test/core/behaviors/status/test_add_participant_status_bt.py` confirm
+      that the CASE_MANAGER's ledger commits the adopted P status before
+      the embargo teardown entry.
+    testable: true
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-12-001
     stories:
     - story_2022_023
     - story_2022_081
@@ -1529,15 +1546,13 @@ groups:
     statement: >-
       A Participant entering CS Exploit Public (q^cs → ···PX·) with an active
       embargo (q^em ∈ {A, R}) SHALL terminate the embargo immediately by
-      emitting ET. The CS state transition MUST be recorded before the embargo
-      teardown is initiated (constraint C-14).
+      emitting ET.
     rationale: >-
       VP-09-001 and VP-14-002 require immediate embargo termination upon exploit
-      publication. The C-14 ordering applies: CS state recorded before teardown
-      begins.
+      publication. CSB-13-004 orders the CS transition before the teardown.
     verification: >-
       Integration tests in `test/demo/` confirm that entering CS ···PX· with an active
-      embargo records the CS transition before emitting ET and that EM reaches EXITED.
+      embargo emits ET and that EM reaches EXITED.
     testable: true
     preconditions:
     - cs_pattern: "...PX."
@@ -1556,8 +1571,7 @@ groups:
       expected: ET queued for participants; EM begins transitioning to EXITED
     postconditions:
     - description: >-
-        CS exploit bit is X; ET emitted; EM is EXITED; CS transition recorded
-        before teardown (C-14)
+        CS exploit bit is X; ET emitted; EM is EXITED
     relationships:
     - rel_type: satisfies
       spec_id: VP-09-001
@@ -1567,6 +1581,30 @@ groups:
       spec_id: VP-14-002
       note: Once Exploit Publication, any existing embargo SHALL terminate
 
+    stories:
+    - story_2022_023
+    - story_2022_014
+  - id: CSB-13-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant entering CS Exploit Public (q^cs → ···PX·) with an active
+      embargo (q^em ∈ {A, R}) MUST record the CS transition before it initiates
+      the embargo teardown of CSB-13-002.
+    rationale: >-
+      Every replica replays the ledger in order, so a teardown committed ahead
+      of its cause would show the embargo ending for no recorded reason. The
+      received form of this rule is CSB-05-010; the ledger mechanism is
+      CLP-10-006.
+    verification: >-
+      Tests marked CSB-13-004 in
+      `test/core/behaviors/status/test_add_participant_status_bt.py` confirm
+      that the CASE_MANAGER's ledger commits the adopted X status before
+      the embargo teardown entry.
+    testable: true
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-13-002
     stories:
     - story_2022_023
     - story_2022_014
@@ -1608,12 +1646,12 @@ groups:
     statement: >-
       A Participant entering CS Attacks Observed (q^cs → ·····A) with an
       active embargo (q^em ∈ {A, R}) SHOULD terminate the embargo by emitting
-      ET. The CS state transition SHOULD be recorded before the embargo
-      teardown is initiated (constraint C-14).
+      ET.
     rationale: >-
       VP-09-003 and VP-14-013 recommend early embargo termination when attacks
       are observed. Unlike P and X, the attacks case is SHOULD (not SHALL) to
-      allow for judgment in cases where other factors may apply.
+      allow for judgment in cases where other factors may apply. CSB-14-005
+      orders the CS transition before any teardown.
     verification: >-
       Integration tests in `test/demo/` confirm that a participant entering CS Attacks
       Observed with an active embargo records the A transition and emits ET.
@@ -1652,6 +1690,29 @@ groups:
     - story_2022_014
 
 
+  - id: CSB-14-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant that terminates an active embargo (q^em ∈ {A, R}) on
+      entering CS Attacks Observed (q^cs → ·····A) MUST record the CS
+      transition before it initiates the embargo teardown of CSB-14-001.
+    rationale: >-
+      Every replica replays the ledger in order, so a teardown committed ahead
+      of its cause would show the embargo ending for no recorded reason. The
+      received form of this rule is CSB-06-010; the ledger mechanism is
+      CLP-10-006.
+    verification: >-
+      Tests marked CSB-14-005 in
+      `test/core/behaviors/status/test_add_participant_status_bt.py` confirm
+      that the CASE_MANAGER's ledger commits the adopted A status before
+      the embargo teardown entry.
+    testable: true
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-14-001
+    stories:
+    - story_2022_014
   - id: CSB-14-003
     priority: MUST_NOT
     kind: protocol

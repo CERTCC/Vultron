@@ -2530,3 +2530,53 @@ class TestAdoptedThreatTeardown:
         assert case.current_status.em.state == EM.ACTIVE
         note = assert_case_manager_note_recorded(populated_dl, CASE_ID)
         assert "Cross-machine entailment violated" in note["content"]
+
+    @pytest.mark.spec("CSB-12-004")
+    @pytest.mark.spec("CSB-13-004")
+    @pytest.mark.spec("CSB-14-005")
+    @pytest.mark.parametrize(
+        ("reported", "bit"),
+        [(CS_pxa.Pxa, "P"), (CS_pxa.pXa, "X"), (CS_pxa.pxA, "A")],
+    )
+    def test_threat_status_is_committed_before_the_teardown(
+        self, make_payload, reported, bit
+    ):
+        """The adopted P/X/A status precedes the embargo teardown in the
+        ledger, so every replica replays the cause before its effect."""
+        from vultron.core.behaviors.call_out.bundles.status_authorization import (
+            STATUS_AUTHORIZATION_PERMISSIVE,
+        )
+        from vultron.core.behaviors.embargo.nodes import (
+            EMBARGO_TEARDOWN_SEMANTIC_TYPE,
+        )
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        populated_dl = _cm_store_with_active_embargo()
+
+        result = _run_at_case_manager(
+            populated_dl,
+            make_payload(_pxa_report(reported)),
+            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
+        )
+
+        assert result.status == Status.SUCCESS, result.feedback_message
+        entries = sorted(
+            (
+                e
+                for e in populated_dl.list_objects("CaseLedgerEntry")
+                if isinstance(e, CaseLedgerEntry)
+            ),
+            key=lambda e: e.log_index,
+        )
+        threat = next(
+            e
+            for e in entries
+            if e.semantic_type == "add_case_status_to_case"
+            and bit in e.payload_snapshot["object"]["pxaState"]
+        )
+        teardown = next(
+            e
+            for e in entries
+            if e.semantic_type == EMBARGO_TEARDOWN_SEMANTIC_TYPE
+        )
+        assert threat.log_index < teardown.log_index
