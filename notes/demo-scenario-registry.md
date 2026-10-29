@@ -184,7 +184,10 @@ the ledger tail at each declared step the scenario reports to its harness
 (`reach_step`). The shared-prefix test compares the committed recordings
 pairwise (DEMOCI-11-017), so regenerate a scenario's siblings with it: one fresh
 recording beside stale siblings can fail that test. A PR need not regenerate:
-the daily `demo-recordings` workflow files a refresh Task when one lags `main`.
+the daily `demo-recordings` workflow regenerates the tree index alongside the
+recordings and files a refresh Task (with an artifact containing both
+`ui/src/recordings/` and `ui/src/data/scenario_tree.json`) when recordings lag
+`main` (#5462).
 Regenerate in the PR only when the change needs current recordings (a UI change,
 or a new scenario, which the `--check` hook requires). Then run
 `uv run export-demo-tree`: the tree index lists each recording's case ids, so a

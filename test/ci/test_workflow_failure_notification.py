@@ -697,6 +697,53 @@ def test_recordings_workflow_sets_task_issue_type() -> None:
     assert len(_type_setting_calls(workflow, "Task")) == 2
 
 
+def test_recordings_workflow_regenerates_scenario_tree_index() -> None:
+    """DEMOCI-11-016: the record step regenerates the scenario-tree index.
+
+    A recording refresh that changes a case id also requires a fresh
+    export-demo-tree run (#5462). The record step runs it unconditionally
+    (after recordings succeed) so the index is always current in the artifact.
+    """
+    workflow = yaml.safe_load(
+        (WORKFLOWS_DIR / "demo-recordings.yml").read_text()
+    )
+    record_step = next(
+        s
+        for s in workflow["jobs"]["recordings"]["steps"]
+        if s.get("id") == "record"
+    )
+    run_script: str = record_step.get("run", "")
+    assert "export-demo-tree" in run_script, (
+        "The record step must run export-demo-tree after export-demo-recordings "
+        "so the scenario-tree index is regenerated against the fresh recordings "
+        "(DEMOCI-11-016, #5462)."
+    )
+
+
+def test_recordings_artifact_includes_scenario_tree_json() -> None:
+    """DEMOCI-11-016: the demo-recordings artifact includes scenario_tree.json.
+
+    Committing a stale tree alongside fresh recordings breaks the
+    demo-tree-sync hook. The artifact must carry both files so a
+    download-and-commit refresh is complete (#5462).
+    """
+    workflow = yaml.safe_load(
+        (WORKFLOWS_DIR / "demo-recordings.yml").read_text()
+    )
+    upload_step = next(
+        s
+        for s in workflow["jobs"]["recordings"]["steps"]
+        if "upload" in s.get("name", "").lower()
+        and s.get("if", "") == "steps.record.outputs.status == '3'"
+    )
+    path = upload_step.get("with", {}).get("path", "")
+    assert "scenario_tree.json" in path, (
+        "The demo-recordings artifact must include ui/src/data/scenario_tree.json "
+        "alongside ui/src/recordings/ so a download-and-commit refresh keeps "
+        "the tree index current (DEMOCI-11-016, #5462)."
+    )
+
+
 def test_issue_type_helper_resolves_the_type_by_name() -> None:
     """CISEC-05-007: the type is resolved by name and applied by mutation.
 
