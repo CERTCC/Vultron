@@ -1,0 +1,19 @@
+{
+  "steps": [
+    {
+      "branchPoint": "reporter-whom-to-tell",
+      "choice": "coordinator",
+      "ledgerTail": 0
+    },
+    {
+      "branchPoint": "coordinator-invite-whom",
+      "choice": "coordinator",
+      "ledgerTail": 13
+    },
+    {
+      "branchPoint": "owner-keep-case",
+      "choice": "keep",
+      "ledgerTail": 20
+    }
+  ]
+}

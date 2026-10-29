@@ -313,6 +313,30 @@ def test_then_runs_after_a_reject(chain_mocks):
     chain_mocks.replica.assert_not_called()
 
 
+@pytest.mark.parametrize("respond", ["accept", "reject"])
+def test_before_answer_runs_once_the_invite_is_delivered(chain_mocks, respond):
+    """The invitee's decision point: after delivery, before its answer (#4727)."""
+    order: list[str] = []
+    chain_mocks.find.side_effect = lambda *a, **k: order.append("delivered")
+    chain_mocks.accept.side_effect = lambda *a, **k: order.append("answer")
+    chain_mocks.reject.side_effect = lambda *a, **k: order.append("answer")
+
+    _run(respond=respond, before_answer=lambda: order.append("decide"))
+
+    assert order == ["delivered", "decide", "answer"]
+
+
+def test_before_answer_is_skipped_when_the_invite_is_not_delivered(
+    chain_mocks,
+):
+    chain_mocks.find.side_effect = AssertionError("timed out")
+    ran = []
+
+    _run(before_answer=lambda: ran.append(True))
+
+    assert ran == []
+
+
 def test_step_and_gate_labels_are_pinned(chain_mocks):
     """Scenario logs and CI triage grep these labels; changing one is visible."""
     labels: list[str] = []

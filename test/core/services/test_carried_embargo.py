@@ -11,10 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""``store_carried_embargo``: a received case's embargo is held first (EMB-18-003).
-
-``check_carried_embargo`` is its read-only half, for a received guard.
-"""
+"""``store_carried_embargo``: a received case's embargo is held first (EMB-18-003)."""
 
 from collections.abc import Generator
 
@@ -32,7 +29,6 @@ from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.services.carried_embargo import (
     carried_entry_embargo,
-    check_carried_embargo,
     entry_embargo,
     store_carried_embargo,
 )
@@ -124,7 +120,6 @@ def test_a_bare_reference_the_store_holds_passes(dl: SqliteDataLayer) -> None:
         embargo_register=register(active=embargo.id_),
     )
 
-    check_carried_embargo(case, dl)
     store_carried_embargo(case, dl)
 
 
@@ -161,8 +156,6 @@ def test_a_reference_to_a_non_embargo_record_is_refused(
         embargo_register=register(active=report.id_),
     )
 
-    with pytest.raises(VultronValidationError):
-        check_carried_embargo(case, dl)
     with pytest.raises(VultronValidationError):
         store_carried_embargo(case, dl)
 
@@ -348,8 +341,6 @@ def test_a_case_naming_a_held_embargo_of_another_case_is_refused_unwritten(
         embargo_register=register(active=active),
     )
 
-    with pytest.raises(VultronValidationError, match=_OTHER_CASE):
-        check_carried_embargo(case, dl)
     with pytest.raises(VultronValidationError, match=_OTHER_CASE):
         store_carried_embargo(case, dl)
 
@@ -570,19 +561,6 @@ def _case_naming(embargo: EmbargoEvent | str) -> VulnerabilityCase:
     )
 
 
-@pytest.mark.spec("CLP-10-006")
-@pytest.mark.spec("EMB-18-003")
-def test_the_check_admits_an_inline_embargo_and_writes_nothing(
-    dl: SqliteDataLayer,
-) -> None:
-    """The guard half leaves the store to the act's effects (#5395)."""
-    embargo = _embargo()
-
-    check_carried_embargo(_case_naming(embargo), dl)
-
-    assert dl.list_objects("EmbargoEvent") == []
-
-
 @pytest.mark.spec("EMB-18-003")
 @pytest.mark.spec("EMB-18-004")
 @pytest.mark.parametrize(
@@ -604,15 +582,13 @@ def test_the_check_admits_an_inline_embargo_and_writes_nothing(
         ),
     ],
 )
-def test_the_check_refuses_what_the_hold_refuses(
+def test_the_hold_refuses_and_writes_nothing(
     dl: SqliteDataLayer,
     named: EmbargoEvent | str,
     error: type[Exception],
 ) -> None:
     case = _case_naming(named)
 
-    with pytest.raises(error):
-        check_carried_embargo(case, dl)
     with pytest.raises(error):
         store_carried_embargo(case, dl)
 

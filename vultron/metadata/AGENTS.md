@@ -47,7 +47,7 @@ Shared helpers live in three places — `base.py`, `markdown_tables.py`, and
 | `mkdocs_config()` | the parsed `mkdocs.yml` |
 | `nav_paths()` | every document path reachable from the nav, flattened. The ADR nav check, the docs-frontmatter check and the scenario-narrative nav check read it; it was `adr/index_gen._iter_nav_paths` until #3451 |
 | `not_in_nav_spec()` | the `not_in_nav` patterns, matched as MkDocs matches them (gitignore lines via `pathspec`); a hand-rolled glob here would disagree with the build |
-| `iter_tree_texts()` | `(path, text)` for each file matching a pattern under some directories, unreadable files skipped. The PD-10 spec YAML line guard (`line_length.py`, also at the package root; its Python doc-line guard runs ruff's `W505` instead) and the MS-10-010 test index read through it |
+| `iter_tree_texts()`, `markdown_files()` | `(path, text)` for each file matching a pattern under some directories, unreadable files skipped. The PD-10 spec YAML line guard (`line_length.py`, also at the package root; its Python doc-line guard runs ruff's `W505` instead) and the MS-10-010 test index read through it. `markdown_files()` is every sorted `*.md` under one directory, not descending what its predicate prunes: use it, not `sorted(rglob("*.md"))` plus a filter, since a repository-wide `rglob` walks all of `.git` and `.venv` first |
 | `gh_issue_state()`, `gh_issue_missing()`, `gh_lookup_failure()`, `GH_LOOKUP_ERRORS`, `issue_number()` | one issue's state through `gh issue view`, whether a failed lookup means "no such issue", the failure as text with `gh`'s stderr, and what a lookup can raise. The `verification_debt` owner check (`specs/verification.py`) and the ratchet-baseline owner report (`ratchet_owners.py`, ARCH-18-004) both read owners through them; a lookup that raises is reported, never passed |
 | `nav_exclusion_fault()` | why a page that must stay out of the nav is misplaced (navved, or matched by no `not_in_nav` pattern), or `None`. The ADR check and the docs-frontmatter check share it (#3528) |
 
@@ -106,7 +106,7 @@ as a path-prefixed `ValueError` — the shape every hand-written copy took.
 
 | Helper | Use it for |
 |---|---|
-| `load_yaml(path, root=, loader=)` | a whole YAML file (`specs/*.yaml`) |
+| `load_yaml(path, root=, loader=)` | a whole YAML file (`specs/*.yaml`); no `loader` parses with `SAFE_LOADER` (libyaml when present, about 10x faster) and re-parses a fault in Python so its error reads unchanged; pass one only for its own errors |
 | `load_frontmatter(path, root=)` | a markdown file's frontmatter block |
 | `loads_frontmatter(text)` | the no-path form, for content not yet on disk |
 | `validate(Model, data, path=, root=, prefix=, key_lines=, positions=)` | the Pydantic half; `key_lines` locates the failure at its key's line, `positions` (from `yaml_node_positions(text)`) at the failing node's line and column |

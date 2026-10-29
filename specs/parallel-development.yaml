@@ -1318,6 +1318,69 @@ groups:
           Abandoned claims come from sessions that ended, so the sweeper must run when
           no agent session is active. A scheduled workflow runs without one, and
           `workflow_dispatch` lets a human run it on demand.
+      - id: PAD-14-004
+        priority: MUST
+        kind: process
+        statement: >-
+          A GitHub Actions workflow MUST run `theme-fit` daily and on
+          `workflow_dispatch`, and write its report into one standing
+          "Theme fit report" Issue.
+        rationale: >-
+          `calve-epics` needs a current work list when no agent session is running,
+          and one Issue rewritten in place stays the single place to look.
+        verification: >-
+          `test/ci/test_theme_fit_report.py::test_workflow_runs_daily_and_on_dispatch`
+          and `::test_an_open_report_is_rewritten_in_place`.
+      - id: PAD-14-005
+        priority: MUST
+        kind: process
+        statement: >-
+          The PAD-14-004 workflow MUST find the report Issue by its
+          `theme-fit-report` label through the list-issues endpoint. It
+          rewrites the oldest open one, else reopens the oldest closed one, and
+          creates one only when none exists.
+        rationale: >-
+          The search index lags, and that lag once let a workflow file a second
+          tracker (#5105). Reopening a closed report keeps one Issue, where a new one
+          would leave two.
+        verification: >-
+          `test/ci/test_theme_fit_report.py::test_pick_report_issue`,
+          `::test_a_closed_report_is_reopened_not_replaced`,
+          `::test_the_report_is_created_only_when_none_exists` and
+          `::test_the_lookup_uses_the_list_endpoint_any_state`.
+      - id: PAD-14-006
+        priority: MUST
+        kind: process
+        statement: >-
+          The PAD-14-004 workflow MUST publish the report and end green only
+          when `theme-fit` exits 0 or 1 with a report on stdout (text that
+          starts with `# Theme fit report`), and fail the run on any other
+          outcome: exit 2, or exit 0 or 1 without a report.
+        rationale: >-
+          A finding (exit 1) is what the report exists to show, so failing on one
+          would file a CI failure every day the board is imperfect. Python also
+          exits 1 on an uncaught crash, so the exit code alone cannot tell findings
+          from a crash, and a crash published as a report would blank the Issue. A
+          failed run must reach `notify-failure` (CISEC-05).
+        verification: >-
+          `test/ci/test_theme_fit_report.py::test_findings_publish_and_the_run_ends_green`
+          (exit 1 with a report),
+          `::test_a_finding_publishes_and_a_failed_run_does_not` (exit codes),
+          `::test_a_failed_theme_fit_run_fails_the_script` (exit 2),
+          `::test_a_run_without_a_report_is_not_published` and
+          `::test_a_crashed_theme_fit_run_fails_the_script` (exit 0 or 1 without a
+          report).
+      - id: PAD-14-007
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          The PAD-14-004 workflow MUST NOT label, move or otherwise change any
+          Issue but the report Issue.
+        rationale: >-
+          The report is read-only by design: a person or `calve-epics` decides each
+          finding (`notes/epic-themes.md` § "Acting on a Theme-Fit Finding").
+        verification: >-
+          `test/ci/test_theme_fit_report.py::test_it_writes_to_no_issue_but_the_report`.
 
 
   - id: PAD-15

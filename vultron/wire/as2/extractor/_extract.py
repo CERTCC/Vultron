@@ -41,8 +41,56 @@ from vultron.wire.as2.extractor._pattern import bare_object_id
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCaseReference,
+    case_reference,
+)
 
 logger = logging.getLogger(__name__)
+
+#: The acts that name their case rather than carry it (ADR-0165): a
+#: participant's ``Join``, ``Ignore`` and ``Leave`` of a case and the
+#: ownership-transfer ``Offer``.  Their receiver holds the case and reads only
+#: its id, so a full case another sender still carries is reduced to its
+#: typed reference here, at the edge, and nothing else in it reaches core.
+_ACTS_NAMING_THEIR_CASE: frozenset[MessageSemantics] = frozenset(
+    {
+        MessageSemantics.ENGAGE_CASE,
+        MessageSemantics.DEFER_CASE,
+        MessageSemantics.CLOSE_CASE,
+        MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER,
+    }
+)
+
+
+def _as_case_reference(value: object) -> object:
+    """*value* reduced to its case reference when it is a case, else as is."""
+    if isinstance(value, (as_VulnerabilityCaseReference, str)):
+        return value
+    if str(getattr(value, "type_", "")) != str(VOtype.VULNERABILITY_CASE):
+        return value
+    case_id = _get_id(value)
+    return case_reference(case_id) if case_id is not None else value
+
+
+def _named_case_only(semantics: MessageSemantics, obj: object) -> object:
+    """The object an act that names its case is read with (ADR-0165).
+
+    For one of :data:`_ACTS_NAMING_THEIR_CASE` the case is its typed
+    reference.  The owner's proposal nests the Offer it asks for, whose case
+    is reduced the same way.  Any other object is returned unchanged.
+    """
+    if semantics in _ACTS_NAMING_THEIR_CASE:
+        return _as_case_reference(obj)
+    if (
+        semantics is MessageSemantics.PROPOSE_CASE_OWNERSHIP_TRANSFER
+        and isinstance(obj, as_Activity)
+    ):
+        inner = getattr(obj, "object_", None)
+        reduced = _as_case_reference(inner)
+        if reduced is not inner:
+            return obj.model_copy(update={"object_": reduced})
+    return obj
 
 
 def extract_intent(
@@ -84,7 +132,7 @@ def extract_intent(
     # gets the normalised id (OID-01-006, OID-01-007).
     actor_id = _get_id(getattr(activity, "actor", None)) or ""
     sender_id = normalise_actor_id(actor_id)
-    obj = getattr(activity, "object_", None)
+    obj = _named_case_only(semantics, getattr(activity, "object_", None))
     target = getattr(activity, "target", None)
     context = getattr(activity, "context", None)
     origin = getattr(activity, "origin", None)

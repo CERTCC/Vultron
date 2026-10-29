@@ -36,7 +36,11 @@ from vultron.demo.helpers.actor_roles import (
     role_map,
 )
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
-from vultron.demo.helpers.harness import scenario_harness
+from vultron.demo.helpers.harness import (
+    follow_ledger,
+    reach_step,
+    scenario_harness,
+)
 from vultron.demo.helpers.invite_chain import (
     CaseInviter,
     run_case_invite_chain,
@@ -53,9 +57,11 @@ from vultron.demo.helpers.milestones import (
     verify_publicly_disclosed,
 )
 from vultron.demo.helpers.notes import (
+    WORKAROUND_QUESTION,
     NotePost,
     add_note_thread,
     reporter_asks,
+    vendor_answers_workaround,
 )
 from vultron.demo.helpers.polling import (
     wait_for_case_em_terminated,
@@ -307,6 +313,8 @@ def _phase_report_submission(
             vendor_in_vendor=vendor_in_vendor,
             case=case,
         )
+        follow_ledger(case_actor_client, case.id_)
+        reach_step("vendor-after-answer", "invite-vendor")
 
         # Vendor1 invites Vendor2 to the case; the chain nests the delivery
         # gate, the accept and the replica wait (ADR-0058, EDF-06-005, #3038).
@@ -451,14 +459,10 @@ def _phase_notes_exchange(
         ActorSession(client=reporter_client, actor=reporter_in_reporter),
         vendor_client,
         case,
-        "Is there a workaround available while waiting for the patch? "
-        "Our security team needs to provide interim guidance to users.",
+        WORKAROUND_QUESTION,
         [
-            NotePost(
-                ActorSession(client=vendor_client, actor=vendor_in_vendor),
-                "Vendor1 Response",
-                "Yes, disabling the affected component is an effective "
-                "workaround. A patched version is expected within 30 days.",
+            vendor_answers_workaround(
+                ActorSession(client=vendor_client, actor=vendor_in_vendor)
             ),
         ],
     )
@@ -776,6 +780,7 @@ def run_rvv_demo(
     logger.info("CaseActor container: %s", case_actor_client.base_url)
 
     with scenario_harness("rvv") as harness:
+        harness.reach_step("reporter-whom-to-tell", "vendor")
         (
             reporter,
             vendor,

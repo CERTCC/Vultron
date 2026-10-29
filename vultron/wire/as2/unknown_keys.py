@@ -48,6 +48,10 @@ from pydantic import AliasChoices, AliasPath, BaseModel
 from vultron.core.models._helpers import strip_annotated
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCaseReference,
+    is_case_reference_shape,
+)
 
 #: The JSON-LD context key every object may carry (MV-11-001).  It is the only
 #: JSON-LD keyword that is a declared spelling: ``@id`` and ``@type`` are near
@@ -292,13 +296,21 @@ def resolve_inline_class(value: dict[str, Any]) -> type[BaseModel] | None:
     on the raw dict, and the parser's expansion, which calls it on the
     partitioned one; both calls answer the same class.
 
-    The ``type`` alone decides the class, a case stub included: a stub names
-    itself ``VulnerabilityCaseStub`` (CM-11-013), so a sparse
-    ``VulnerabilityCase`` is a case however few keys it carries.
+    The ``type`` decides the class, a case stub included: a stub names
+    itself ``VulnerabilityCaseStub`` (CM-11-013).  The one exception is a
+    ``VulnerabilityCase`` that carries only its ``id`` and ``type``: that is
+    the typed reference a participant's act on a case names it by
+    (:class:`as_VulnerabilityCaseReference`, AKM-03-004), and a dict with any
+    other key is a case.  The partition, on the raw dict, therefore decides a
+    foreign key against the case's fields and sets it aside; the expansion,
+    on the partitioned dict, then sees the reference that remains.  A key the
+    case declares keeps the dict a case in both calls.
     """
     obj_type = value.get("type")
     if not isinstance(obj_type, str):
         return None
+    if is_case_reference_shape(value):
+        return as_VulnerabilityCaseReference
     try:
         return find_in_vocabulary(obj_type)
     except KeyError:

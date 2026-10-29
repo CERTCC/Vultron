@@ -32,6 +32,7 @@ from vultron.metadata.planning.theme_fit.analyze import (
 from vultron.metadata.planning.theme_fit.cli import main
 from vultron.metadata.planning.theme_fit.fetch import (
     QUERY,
+    QUERY_NO_SCHEDULE,
     fetch_open_issues,
     parse_issue,
     parse_pages,
@@ -49,6 +50,7 @@ from vultron.metadata.planning.theme_fit.model import (
 )
 from vultron.metadata.planning.theme_fit.render import (
     GITHUB_BODY_LIMIT,
+    NO_SCHEDULE_NOTE,
     WORD_JOINER,
     render_coherence,
     render_markdown,
@@ -60,8 +62,10 @@ __all__ = [
     "Finding",
     "GITHUB_BODY_LIMIT",
     "FindingKind",
+    "NO_SCHEDULE_NOTE",
     "OpenIssue",
     "QUERY",
+    "QUERY_NO_SCHEDULE",
     "ThemeFitReport",
     "TierCoherence",
     "UNSCHEDULED",

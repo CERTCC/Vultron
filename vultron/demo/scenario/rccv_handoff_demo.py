@@ -20,10 +20,16 @@ Reporter, Coordinator1 (C1, initial CASE_OWNER), Coordinator2 (C2, new
 CASE_OWNER after handoff), and Vendor.  C1 transfers case ownership to C2 via
 the trigger endpoints (TRIG-11-001/TRIG-11-002), then C2 invites Vendor.
 
-Container mapping (reuses docker-compose-multi-actor.yml services):
-  VULTRON_VENDOR_BASE_URL      → C1 container
-  VULTRON_COORDINATOR_BASE_URL → C2 container
-  VULTRON_VENDOR2_BASE_URL     → Vendor container
+Container mapping (reuses docker-compose-multi-actor.yml services, as
+``rccv-extension`` does):
+  VULTRON_COORDINATOR_BASE_URL → C1 container
+  VULTRON_VENDOR2_BASE_URL     → C2 container (actor5)
+  VULTRON_VENDOR_BASE_URL      → Vendor container
+
+C1 proposes the case, so its container's default case roles become C1's
+roles in the case (CP-01-013).  C1 runs in the coordinator container, which
+sets none, so C1 holds the same roles here as in ``rccv-extension``, and the
+two scenarios' ledgers match up to the owner's decision (DEMOCI-11-017).
 
 Spec: GitHub issue #1216 (DEMOMA-14).
 """
@@ -40,7 +46,11 @@ from vultron.demo.helpers.actor_roles import (
     role_map,
 )
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
-from vultron.demo.helpers.harness import scenario_harness
+from vultron.demo.helpers.harness import (
+    follow_ledger,
+    reach_step,
+    scenario_harness,
+)
 from vultron.demo.helpers.invite_chain import (
     CaseInviter,
     EmittedBy,
@@ -58,6 +68,7 @@ from vultron.demo.helpers.milestones import (
     verify_publicly_disclosed,
 )
 from vultron.demo.helpers.notes import (
+    WORKAROUND_ANSWER,
     WORKAROUND_QUESTION,
     NotePost,
     add_note_thread,
@@ -122,8 +133,8 @@ logger = logging.getLogger(__name__)
 # all wait_for_case_on_container calls here remain necessary.
 
 # Default container base URLs.
-# C1 reuses the docker-compose "vendor" container; C2 reuses "coordinator";
-# Vendor reuses "vendor2".  Override via environment variables.
+# C1 uses the docker-compose "coordinator" container; C2 uses "actor5";
+# Vendor uses "vendor".  Override via environment variables.
 ROLES: list[ActorRole] = [
     ActorRole(
         name="reporter",
@@ -136,20 +147,20 @@ ROLES: list[ActorRole] = [
     ),
     ActorRole(
         name="c1",
-        url_env="VULTRON_VENDOR_BASE_URL",
-        default_url="http://localhost:7902/api/v2",
+        url_env="VULTRON_COORDINATOR_BASE_URL",
+        default_url="http://localhost:7903/api/v2",
         url_help="Base URL of the C1 (Coordinator1) container API "
-        "(env: VULTRON_VENDOR_BASE_URL).",
+        "(env: VULTRON_COORDINATOR_BASE_URL).",
         has_id=True,
         id_help="Deterministic full URI for the C1 (Coordinator1) actor "
         "(optional).",
     ),
     ActorRole(
         name="c2",
-        url_env="VULTRON_COORDINATOR_BASE_URL",
-        default_url="http://localhost:7903/api/v2",
-        url_help="Base URL of the C2 (Coordinator2) container API "
-        "(env: VULTRON_COORDINATOR_BASE_URL).",
+        url_env="VULTRON_VENDOR2_BASE_URL",
+        default_url="http://localhost:7904/api/v2",
+        url_help="Base URL of the C2 (Coordinator2/actor5) container API "
+        "(env: VULTRON_VENDOR2_BASE_URL).",
         has_id=True,
         id_help="Deterministic full URI for the C2 (Coordinator2) actor "
         "(optional).",
@@ -157,10 +168,10 @@ ROLES: list[ActorRole] = [
     case_actor_role("http://localhost:7905/api/v2", has_id=True),
     ActorRole(
         name="vendor",
-        url_env="VULTRON_VENDOR2_BASE_URL",
-        default_url="http://localhost:7904/api/v2",
+        url_env="VULTRON_VENDOR_BASE_URL",
+        default_url="http://localhost:7902/api/v2",
         url_help="Base URL of the Vendor container API "
-        "(env: VULTRON_VENDOR2_BASE_URL).",
+        "(env: VULTRON_VENDOR_BASE_URL).",
         has_id=True,
         id_help="Deterministic full URI for the Vendor actor (optional).",
     ),
@@ -348,6 +359,9 @@ def _phase_ownership_handoff(
     )
     logger.info("─" * 80)
 
+    follow_ledger(case_actor_client, case.id_)
+    reach_step("coordinator-invite-whom", "coordinator")
+
     # C1 invites C2 with COORDINATOR role; the chain nests the delivery gate,
     # the accept and the replica wait (ADR-0058, EDF-06-005, #3038).
     run_case_invite_chain(
@@ -380,6 +394,8 @@ def _phase_ownership_handoff(
             expected_actor_ids={reporter.id_, c1.id_, c2.id_},
         )
         logger.info("C2 has joined the case")
+        # C1, the case owner, decides once C2 has joined.
+        reach_step("owner-keep-case", "offer-ownership")
 
         # C1 offers ownership transfer to C2 (TRIG-11-001).  The delivery
         # gate and C2's accept are nested inside the offer step so a failed
@@ -666,8 +682,7 @@ def _phase_notes_exchange(
             NotePost(
                 ActorSession(client=c1_client, actor=c1_in_c1),
                 "C1 Response",
-                "Yes, disabling the affected module is an effective interim "
-                "workaround.",
+                WORKAROUND_ANSWER,
             ),
             NotePost(
                 ActorSession(client=c2_client, actor=c2_in_c2),
@@ -921,18 +936,21 @@ def _phase_dump_case_ledgers(
             reporter_client,
             replica_route_key(reporter_client, "reporter"),
         ),
+        # C1 is on the coordinator container.
         LedgerDumpTarget(
-            "vendor", c1_client, replica_route_key(c1_client, "vendor")
+            "vendor", c1_client, replica_route_key(c1_client, "coordinator")
         ),
+        # C2 is on actor5.
         LedgerDumpTarget(
             "coordinator",
             c2_client,
-            replica_route_key(c2_client, "coordinator"),
+            replica_route_key(c2_client, "coordinator2"),
         ),
+        # Vendor is on the vendor container.
         LedgerDumpTarget(
             "vendor2",
             vendor_client,
-            replica_route_key(vendor_client, "vendor2"),
+            replica_route_key(vendor_client, "vendor"),
         ),
         # The canonical ledger lives on the dedicated case-actor container.
         case_actor_dump_target(case_actor_client),
@@ -960,6 +978,7 @@ def run_rccv_handoff_demo(
 ) -> None:
     """Orchestrate the RCCV-handoff CVD workflow."""
     with scenario_harness("rccv-handoff") as harness:
+        harness.reach_step("reporter-whom-to-tell", "coordinator")
         logger.info("=" * 80)
         logger.info(
             "RCCV-HANDOFF DEMO: Reporter + C1 → C2 (ownership) + Vendor"

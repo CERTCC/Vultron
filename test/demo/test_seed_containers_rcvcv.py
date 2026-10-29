@@ -62,7 +62,7 @@ class TestSeedContainersRcvcv:
         )
         assert reporter.name == "Reporter"
         assert c1.name == "Coordinator1"
-        assert v1.name == "Vendor1"
+        assert v1.name == "Vendor"
         assert c2.name == "Coordinator2"
         assert v2.name == "VendorDeployer"
 
@@ -93,7 +93,7 @@ class TestSeedContainersRcvcv:
         expected_names = {
             "Reporter",
             "Coordinator1",
-            "Vendor1",
+            "Vendor",
             "Coordinator2",
             "VendorDeployer",
         }

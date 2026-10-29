@@ -48,7 +48,12 @@ def test_the_recorder_records_a_scenario():
 
     entries = [
         CaseLedgerEntry.model_validate(json.loads(line))
-        for line in recording.splitlines()
+        for line in recording.entries
     ]
     assert entries, "the recording is empty"
     assert [entry.log_index for entry in entries] == list(range(len(entries)))
+    # The run marked every declared step of the path, within the ledger
+    # (record_scenario refuses anything less, DEMOCI-11-017).
+    assert [(m.branch_point, m.choice) for m in recording.steps] == list(
+        spec.path
+    )

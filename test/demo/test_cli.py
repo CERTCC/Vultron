@@ -14,12 +14,14 @@
 """Unit tests for the unified Vultron demo CLI (DC-05-001 through DC-05-004)."""
 
 import logging
+from contextlib import ExitStack, contextmanager
 from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
 
 from vultron.demo.cli import DEMOS, main
+from vultron.demo.utils import demo_gate, demo_step
 
 
 class TestCliLogging:
@@ -41,7 +43,8 @@ class TestCliLogging:
         """The root logger must have at least one handler after CLI invocation."""
         runner = CliRunner()
 
-        name, module = DEMOS[0]
+        name = "receive-report"
+        module = dict(DEMOS)[name]
         mock_fn = MagicMock()
 
         with patch.object(module, "main", mock_fn):
@@ -57,7 +60,8 @@ class TestCliLogging:
         """Root logger effective level must be INFO (or lower) after CLI invocation."""
         runner = CliRunner()
 
-        name, module = DEMOS[0]
+        name = "receive-report"
+        module = dict(DEMOS)[name]
         mock_fn = MagicMock()
 
         with patch.object(module, "main", mock_fn):
@@ -73,7 +77,8 @@ class TestCliLogging:
         """--debug flag must configure root logger at DEBUG level."""
         runner = CliRunner()
 
-        name, module = DEMOS[0]
+        name = "receive-report"
+        module = dict(DEMOS)[name]
         mock_fn = MagicMock()
 
         with patch.object(module, "main", mock_fn):
@@ -241,3 +246,79 @@ class TestCliSubCommandFailure:
         assert result.exit_code != 0, (
             f"Expected non-zero exit for '{name}' when demo raises"
         )
+
+
+@contextmanager
+def _stub_demo_environment(client):
+    """Yield stub actors so the real runner needs no live server."""
+    yield MagicMock(), MagicMock(), MagicMock()
+
+
+def _step_fails(client, reporter, vendor, coordinator):
+    with demo_step("injected step"):
+        raise ValueError("Could not find case related to this report.")
+
+
+def _gate_times_out(client, reporter, vendor, coordinator):
+    with demo_gate("injected precondition"):
+        raise TimeoutError("timed out waiting for the transfer")
+
+
+class TestCliReportsFailWhenAStepFails:
+    """A step failure inside a demo exits non-zero with a FAIL report (#3852).
+
+    Unlike the tests above, these drive the real ``module.main()`` and the
+    real ``run_exchange_demos``: the failure is recorded by ``demo_step`` or
+    ``demo_gate``, never raised by the demo, which is the path that used to
+    print PASS and exit 0 (DEMOCI-01-001, DEMOCI-01-003).
+    """
+
+    def test_subcommand_exits_nonzero_and_reports_fail_when_a_step_fails(
+        self,
+    ):
+        name = "receive-report"
+        module = dict(DEMOS)[name]
+        with (
+            patch(
+                "vultron.demo.helpers.runner.demo_environment",
+                _stub_demo_environment,
+            ),
+            patch.object(module, "_ALL_DEMOS", [("Demo 1", _step_fails)]),
+        ):
+            result = CliRunner().invoke(main, [name, "--skip-health-check"])
+
+        assert result.exit_code != 0, result.output
+        assert "FAIL" in result.output
+        assert "Could not find case" in result.output
+
+    def test_all_exits_nonzero_and_reports_fail_when_a_sub_demo_times_out(
+        self,
+    ):
+        failing = dict(DEMOS)["transfer-ownership"]
+        with ExitStack() as stack:
+            for name, module in DEMOS:
+                if name != "transfer-ownership":
+                    stack.enter_context(
+                        patch.object(module, "main", MagicMock())
+                    )
+            stack.enter_context(
+                patch.object(
+                    failing, "_ALL_DEMOS", [("Demo 1", _gate_times_out)]
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "vultron.demo.helpers.runner.demo_environment",
+                    _stub_demo_environment,
+                )
+            )
+            result = CliRunner().invoke(main, ["all", "--skip-health-check"])
+
+        assert result.exit_code != 0, result.output
+        summary_rows = [
+            line
+            for line in result.output.splitlines()
+            if line.strip().startswith("transfer-ownership")
+        ]
+        assert any("❌ FAIL" in row for row in summary_rows), result.output
+        assert "timed out waiting for the transfer" in result.output

@@ -198,7 +198,8 @@ def check_changed_statements(
     changed; *spec_dir* is read for the comments that give a suppression its
     reason.
     """
-    ids = sorted(i for i in changed if i in registry.all_specs)
+    specs = registry.all_specs
+    ids = sorted(i for i in changed if i in specs)
     items = spec_items(spec_dir)
     errors: list[str] = []
     warnings: list[str] = []
@@ -206,7 +207,7 @@ def check_changed_statements(
         problem = _compound_problem(spec_id, registry, items)
         if problem is not None:
             errors.append(problem)
-        statement = registry.all_specs[spec_id].statement
+        statement = specs[spec_id].statement
         warnings.extend(_long_sentence_warnings(spec_id, statement))
     return StatementReport(errors, warnings)
 

@@ -93,7 +93,7 @@ Each workflow ends with its own completion line, for example:
 ✅ DEMO 1 COMPLETE: Report validated, case created, and introduced to the reporter.
 ```
 
-If any step or check failed, the demo prints a failure summary after the last workflow.
+If any step or check failed, the demo prints a failure summary after the last workflow, reports `FAIL`, and exits with a non-zero status.
 
 ---
 

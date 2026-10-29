@@ -18,7 +18,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
+import httpx2 as httpx
 import pytest
 from _pytest.outcomes import Failed
 
@@ -26,6 +28,7 @@ from test.ci.invariants import common
 from vultron.demo.helpers.ledger_dump import (
     _PRERUN_SENTINEL_REASON,
     DUMP_MANIFEST_FILENAME,
+    case_ledger_length,
     write_prerun_sentinel,
 )
 
@@ -176,3 +179,34 @@ class TestCaseActorDumpTarget:
         )
 
         assert case_actor_dump_target(client).route_key == "case-actor-2"
+
+
+class TestCaseLedgerLength:
+    """The step-mark tail read: the canonical ledger's length, never a guess."""
+
+    @staticmethod
+    def _client(result: object) -> MagicMock:
+        client = MagicMock()
+        client.actor_id = "http://case-actor:7999/api/v2/actors/case-actor"
+        if isinstance(result, BaseException):
+            client.get_list.side_effect = result
+        else:
+            client.get_list.return_value = result
+        return client
+
+    def test_counts_the_entries_on_the_canonical_route(self) -> None:
+        client = self._client([{}, {}, {}])
+        assert case_ledger_length(client, "urn:uuid:case-1") == 3
+        (path,), _ = client.get_list.call_args
+        assert path.startswith("/actors/case-actor/demo/cases/")
+        assert path.endswith("/log")
+
+    def test_a_404_is_an_error_not_an_empty_ledger(self) -> None:
+        request = httpx.Request("GET", "http://case-actor/x")
+        not_found = httpx.HTTPStatusError(
+            "404",
+            request=request,
+            response=httpx.Response(404, request=request),
+        )
+        with pytest.raises(httpx.HTTPStatusError):
+            case_ledger_length(self._client(not_found), "urn:uuid:case-1")

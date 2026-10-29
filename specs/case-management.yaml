@@ -4128,13 +4128,14 @@ groups:
       that means to transfer a case to an actor not active in it invites that actor
       first.
     rationale: >-
-      The ownership-transfer Offer carries the case inline, with its active embargo,
-      its participant records and its reports, so offering it to an actor not
-      entitled to case content would send that actor embargoed information it never
-      agreed to protect. `CASE_OWNER` is held on a participant record (CM-21-002), so
-      only a transferee with one can end the transfer as the single owner CM-21-001
-      requires. The second check covers a participant removed, or lapsed by an
-      embargo revision, between the Offer and its answer.
+      The new owner administers the case, its active embargo included, so it must
+      first have agreed to that embargo and be entitled to the case content, as joining
+      requires. An active participant holds the case, which is also what lets the Offer
+      name the case by reference rather than carry it (ADR-0165). `CASE_OWNER` is held
+      on a participant record (CM-21-002), so only a transferee with one can end the
+      transfer as the single owner CM-21-001 requires. The second check covers a
+      participant removed, or lapsed by an embargo revision, between the Offer and its
+      answer.
     verification: >-
       Tests marked `CM-21-021` deliver to the CASE_MANAGER a proposal naming an actor
       off the roster, an invitee that has not accepted, a removed participant and a

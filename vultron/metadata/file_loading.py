@@ -30,7 +30,7 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, TextIO, TypeVar
 
 import frontmatter
 import yaml
@@ -38,6 +38,18 @@ from frontmatter.default_handlers import YAMLHandler
 from pydantic import BaseModel, ValidationError
 
 M = TypeVar("M", bound=BaseModel)
+
+#: Either PyYAML safe loader; the two share ``SafeLoader`` semantics.
+YamlLoader = type[yaml.SafeLoader | yaml.CSafeLoader]
+
+#: The fast loader: libyaml's ``CSafeLoader`` when the PyYAML wheel ships it,
+#: else the pure-Python ``SafeLoader``. The C loader parses the spec corpus
+#: about 10x faster, and pre-commit hooks parse it whole. Its marks place nodes
+#: at the same line and column, but its *error* marks and ``problem`` wording
+#: differ (a bad escape one column earlier, a tab with no ``'\t'``), so a parse
+#: that takes the default re-reads a faulty text with ``SafeLoader`` and
+#: reports that error: see :func:`_load_default`.
+SAFE_LOADER: YamlLoader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
 #: Cause hints keyed on PyYAML's ``problem`` text. PyYAML reports *where* the
 #: parse failed but never *why* an author got there; these name the edit that
@@ -217,17 +229,40 @@ def _yaml_error(
     )
 
 
+def _load_default(source: str | TextIO) -> object:
+    """Parse *source* with :data:`SAFE_LOADER`, faulting as ``SafeLoader`` does.
+
+    A fault is re-parsed with the pure-Python loader, whose error is raised, so
+    a speed-up never changes what an author is told: the column, the wording
+    and the :data:`CAUSE_HINTS` hint stay as they were before the default
+    moved to libyaml. Faults are rare, so the second parse costs nothing in
+    practice.
+
+    Raises:
+        yaml.YAMLError: The pure-Python parser's error for a faulty *source*.
+    """
+    try:
+        return yaml.load(source, Loader=SAFE_LOADER)  # noqa: S506 — safe loader
+    except yaml.YAMLError:
+        if SAFE_LOADER is yaml.SafeLoader:
+            raise
+    if not isinstance(source, str):
+        source.seek(0)
+    return yaml.load(source, Loader=yaml.SafeLoader)
+
+
 def load_yaml(
     path: Path,
     *,
     root: Path | None = None,
-    loader: type[yaml.SafeLoader | yaml.CSafeLoader] = yaml.SafeLoader,
+    loader: YamlLoader | None = None,
 ) -> object:
     """Parse the YAML file at *path*, attributing any fault to it.
 
     The file is handed to PyYAML as a stream rather than as text, so even the
     parser's own mark would carry the filename; the message still takes its
-    position from the mark and its name from *path*.
+    position from the mark and its name from *path*. With no *loader* the parse
+    is :func:`_load_default`'s: fast, with the pure-Python parser's error.
 
     Raises:
         MetadataLoadError: On a YAML syntax fault or an undecodable file.
@@ -236,6 +271,8 @@ def load_yaml(
     shown = display_path(path, root)
     try:
         with path.open(encoding="utf-8") as fh:
+            if loader is None:
+                return _load_default(fh)
             return yaml.load(fh, Loader=loader)  # noqa: S506 — caller's loader
     except yaml.YAMLError as exc:
         raise _yaml_error(exc, shown, "YAML parse error") from exc
@@ -264,7 +301,7 @@ def loads_yaml(
     text: str,
     shown: Path,
     *,
-    loader: type[yaml.SafeLoader | yaml.CSafeLoader] = yaml.SafeLoader,
+    loader: YamlLoader | None = None,
     line_offset: int = 0,
 ) -> object:
     """Parse YAML *text* that has no working-tree file behind it.
@@ -279,6 +316,8 @@ def loads_yaml(
         MetadataLoadError: On a YAML syntax fault.
     """
     try:
+        if loader is None:
+            return _load_default(text)
         return yaml.load(text, Loader=loader)  # noqa: S506 — caller's loader
     except yaml.YAMLError as exc:
         raise _yaml_error(
@@ -409,7 +448,7 @@ def yaml_node_positions(
     step reports that fault.
     """
     try:
-        root = yaml.compose(text, Loader=yaml.SafeLoader)
+        root = yaml.compose(text, Loader=SAFE_LOADER)
     except yaml.YAMLError:
         return {}
     positions: dict[tuple[str | int, ...], tuple[int, int]] = {}

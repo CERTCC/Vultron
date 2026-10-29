@@ -133,9 +133,10 @@ V1 accepts, and an `accept_invite_actor_to_case` entry appears.
 
 *Antecedent:* V1's `invite_actor_to_case` entry is in the ledger.
 
-### 6. The Reporter asks; C1 and V1 answer
+### 6. The Reporter asks; V1 and C1 answer
 
-The Reporter asks a question in a case note, C1 answers it, and V1 adds its status.
+The Reporter asks V1 a question in a case note, V1 answers it, and C1 sums up.
+This is the same note exchange as in [rcv](rcv.md), because the two scenarios make the same choices up to this point.
 {% include-markdown "./_case_notes.md" trailing-newlines=false %}
 C1 decides to invite a second Coordinator only after these notes.
 

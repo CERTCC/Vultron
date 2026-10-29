@@ -18,7 +18,8 @@ A per-test ``signal`` timeout cannot reach a C call that holds the GIL or a
 stuck xdist controller, so the outer ceiling is the only thing that ends such
 a run (TB-14-005, #4809).  The printed ``targeted-tests --pytest`` command is
 pinned in ``test_targeted_tests.py``; this module pins the written commands
-an agent copies and the CI job.
+an agent copies and the CI job, and every other ``python-app.yml`` job
+(TB-14-006).
 
 Human developer how-to pages under ``docs/developer/`` are out of scope: stock
 macOS has no ``timeout`` binary.
@@ -105,13 +106,43 @@ def test_agent_gate_command_runs_under_the_ceiling(rel_path: str) -> None:
     )
 
 
-def test_ci_test_job_has_a_timeout() -> None:
+def _python_app_jobs() -> dict[str, object]:
     workflow = yaml.safe_load(
         (_REPO_ROOT / ".github/workflows/python-app.yml").read_text(
             encoding="utf-8"
         )
     )
-    minutes = workflow["jobs"]["test"].get("timeout-minutes")
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    return jobs
+
+
+def test_ci_test_job_has_a_timeout() -> None:
+    job = _python_app_jobs()["test"]
+    assert isinstance(job, dict)
+    minutes = job.get("timeout-minutes")
     assert isinstance(minutes, int) and minutes > 0, (
         "The `Tests (pytest)` job needs `timeout-minutes` (TB-14-005)."
+    )
+
+
+def test_all_python_app_jobs_have_timeouts() -> None:
+    """Every job in python-app.yml has a ``timeout-minutes`` cap (TB-14-006).
+
+    A job without a cap runs until GitHub's default limit, so a hung linter
+    or build step holds a runner for hours and shows as ``cancelled`` in
+    ``gh pr checks`` (#2076).
+    """
+    missing = [
+        job_key
+        for job_key, job_spec in _python_app_jobs().items()
+        if not (
+            isinstance(job_spec, dict)
+            and isinstance(job_spec.get("timeout-minutes"), int)
+            and job_spec["timeout-minutes"] > 0
+        )
+    ]
+    assert not missing, (
+        "These python-app.yml jobs lack `timeout-minutes` (TB-14-006): "
+        + ", ".join(missing)
     )

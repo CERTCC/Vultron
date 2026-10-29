@@ -11,6 +11,7 @@ description: >
   the transferee answers only the Offer it received and must be an active
   participant (ADR-0148 revision 2); and the demo preconditions.
 related_specs:
+  - specs/actor-knowledge-model.yaml
   - specs/case-management.yaml
   - specs/case-ledger-processing.yaml
   - specs/event-driven-control-flow.yaml
@@ -38,8 +39,8 @@ relevant_packages:
 
 Requirements: CM-21, CM-24, TRIG-11. Decision: ADR-0053, partially superseded by
 ADR-0148 (proposed), whose revision 2 narrows the transferee check to an active
-participant: the Offer carries the case inline, so only an actor entitled to
-case content may be offered it. The participant-facing
+participant, entitled to case content and holding the case, which the Offer names
+by typed reference (ADR-0165). The participant-facing
 description is `docs/topics/case_lifecycle/ownership_transfer.md`. The close paths
 without an answer (withdrawal and the binding deadline, both built) are in
 [ownership-transfer-close-paths](ownership-transfer-close-paths.md). A

@@ -312,9 +312,10 @@ answer, clock decisions, guards, commit, effects.
    place a sender check after a write: a snapshot an activity carries is
    stored only once its sender is admitted (HP-01-006). Nor store it among the
    guards: a guard checks what the activity carries and writes nothing, and the
-   store is an effect of the committed act, so a refusal stores nothing. The
-   Engage tree checks its snapshot's embargo (`CheckCarriedEmbargoNode`) and
-   holds it after the commit (CLP-10-006, CLP-10-010).
+   store is an effect of the committed act, so a refusal stores nothing
+   (CLP-10-006, CLP-10-010). A participant's `Join`, `Ignore` or `Leave` names
+   its case and carries no snapshot, so its tree stores nothing from it
+   (ADR-0165).
 
    After the door guards of every tree whose `SenderCheckContext` names a case,
    the factory places the CASE_MANAGER's answer to the sender's stamped

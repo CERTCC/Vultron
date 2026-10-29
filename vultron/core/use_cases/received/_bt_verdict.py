@@ -45,6 +45,7 @@ act on and reached an actor that is not it, so the handler reports ``REFUSED``
 for a duplicate or an otherwise idempotent re-delivery.
 """
 
+import logging
 from typing import Protocol, TypeVar
 
 import py_trees
@@ -110,6 +111,8 @@ from vultron.core.models.use_case_result import (
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronBTInternalError, VultronWiringError
+
+logger = logging.getLogger(__name__)
 
 _N = TypeVar("_N", bound=py_trees.behaviour.Behaviour)
 
@@ -295,6 +298,30 @@ def case_manager_verdict(
         return verdict
     refusal = not_case_manager_refusal(tree, dl, case_id)
     return verdict if refusal is None else refusal
+
+
+def unheld_case_refusal(
+    dl: CasePersistence, case_id: str, activity_id: str, label: str
+) -> HandlerResult | None:
+    """The refusal owed to an act that names a case this store does not hold.
+
+    ``Join``, ``Ignore`` and ``Leave`` of a case and the ownership-transfer
+    ``Offer`` name their case and carry no copy of it (ADR-0165): the
+    receiver reads every detail from the case it holds, so a case it does not
+    hold leaves it nothing to act on, and the act is ``REFUSED`` naming the
+    activity and the case.  ``None`` when the store holds the case.
+    """
+    if dl.read_case(case_id) is not None:
+        return None
+    logger.warning(
+        "%s '%s' names case '%s', which this actor does not hold — REFUSED",
+        label,
+        activity_id,
+        case_id,
+    )
+    return HandlerResult.refused(
+        f"{label} '{activity_id}' names unknown case '{case_id}'"
+    )
 
 
 def case_manager_absence_refusal(

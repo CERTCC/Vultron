@@ -86,10 +86,9 @@ def main(
     topology = load_topology()
     for name in scenarios or tuple(specs):
         recording = record_scenario(specs[name], topology)
-        path = layout.recording_path(name)
-        if not path.is_file() or path.read_text(encoding="utf-8") != recording:
+        if not layout.is_current(recording):
             changed.append(name)
-        layout.write_recording(name, recording)
+        path = layout.write_recording(recording)
         click.echo(f"Wrote {path.relative_to(layout.REPO_ROOT)}")
     if report_changes and changed:
         click.echo(f"Changed recordings: {', '.join(changed)}")

@@ -2,7 +2,7 @@
 
 import json
 import subprocess
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 from typing import Annotated
 
@@ -103,6 +103,26 @@ def repo_root(start: Path | None = None) -> Path:
     )
 
 
+def relative_posix(path: Path, root: Path) -> str:
+    """Return *path* relative to *root* as a POSIX string, as
+    ``path.relative_to(root).as_posix()`` does.
+
+    Compares path components as written, without the parent-by-parent search
+    ``Path.relative_to`` makes; that search cost about a millisecond a file,
+    seconds across a tree walk.  *path* is expected to be built under *root*,
+    as a ``root.rglob()`` or ``os.walk(root)`` result is.
+
+    Raises:
+        ValueError: If *path* does not lie under *root*.
+    """
+    parts, base = path.parts, root.parts
+    if parts[: len(base)] != base:
+        raise ValueError(
+            f"{str(path)!r} is not in the subpath of {str(root)!r}"
+        )
+    return "/".join(parts[len(base) :]) or "."
+
+
 def iter_tree_texts(
     root: Path, dirs: Iterable[str], pattern: str
 ) -> Iterator[tuple[str, str]]:
@@ -121,7 +141,28 @@ def iter_tree_texts(
                 text = path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 continue
-            yield path.relative_to(root).as_posix(), text
+            yield relative_posix(path, root), text
+
+
+def markdown_files(top: Path, prune: Callable[[Path], bool]) -> list[Path]:
+    """Return every ``*.md`` file under *top*, sorted, outside pruned directories.
+
+    *prune* is asked of each directory below *top*; one it answers true for is
+    not descended. Pruning during the walk, rather than filtering an ``rglob``
+    afterwards, is the point: a repository-wide ``rglob`` reads all of
+    ``.git`` and ``.venv`` before a filter discards them, which made that walk
+    most of a pre-commit hook's run time. Symlinked directories are not
+    followed, as ``rglob`` does not follow them.
+    """
+    found: list[Path] = []
+    for directory, dirnames, filenames in top.walk():
+        dirnames[:] = [
+            name for name in dirnames if not prune(directory / name)
+        ]
+        found.extend(
+            directory / name for name in filenames if name.endswith(".md")
+        )
+    return sorted(found)
 
 
 class MkDocsYamlLoader(yaml.SafeLoader):

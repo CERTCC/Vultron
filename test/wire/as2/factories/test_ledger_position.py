@@ -153,10 +153,9 @@ def test_an_activity_whose_object_states_its_position_names_no_case(
 
 
 @pytest.mark.spec("SYNC-18-001")
-def test_an_act_on_an_inline_case_names_it_to_be_stamped() -> None:
-    join = rm_engage_case_activity(
-        as_VulnerabilityCase(id_=_CASE, attributed_to=_ACTOR), actor=_ACTOR
-    )
+def test_an_act_on_a_named_case_names_it_to_be_stamped() -> None:
+    """A Join names its case by typed reference (ADR-0165) and is stamped."""
+    join = rm_engage_case_activity(_CASE, actor=_ACTOR)
 
     assert not object_states_its_own_position(join)
     assert list(ledger_position_case_ids(join)) == [_CASE]
