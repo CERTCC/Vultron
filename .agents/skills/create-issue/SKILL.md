@@ -144,7 +144,8 @@ its title.
        why, then report both.
 
 Never create the issue without a parent, and never under an Epic whose theme
-differs: the script refuses both.
+differs: the script refuses both. (A GitHub Actions workflow files its issues
+with no parent, PAD-02-027; this skill never does.)
 
 ### Phase 6 — Build the Title and Body
 

@@ -17,7 +17,7 @@ AS2 defines ``anyOf`` and ``oneOf`` as non-functional properties: a Question
 offers a *set* of options.  The class declared them as a single value, which
 serialised a list last-writer-wins and refused it on re-validation — the
 defect that made the retired ``ChoosePreferredEmbargo`` poll unparseable.
-``as_Question`` itself stays for the CBT-03-004 bootstrap-replay Question,
+``as_Question`` itself stays as AS2 vocabulary a received activity may use,
 so its option fields are corrected rather than removed.
 """
 

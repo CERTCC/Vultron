@@ -21,7 +21,9 @@
 
 Read-only: it applies no labels and moves no Issue (``notes/epic-themes.md``
 § "Acting on a Theme-Fit Finding"). Exit codes: 0 no findings, 1 findings,
-2 the catalog cannot be loaded or a ``gh`` call fails.
+2 the catalog cannot be loaded or a ``gh`` call fails. Untriaged Issues (no
+parent; PAD-01-007, PAD-02-028) are listed in the report but are not
+findings, so they leave the exit code at 0.
 """
 
 from __future__ import annotations
@@ -81,7 +83,8 @@ def main(argv: list[str] | None = None, run: Runner = run_gh) -> int:
         type=int,
         metavar="N",
         help=(
-            "cut the Markdown report's finding lists so it fits in N "
+            "cut the Markdown report's finding and untriaged lists so it "
+            "fits in N "
             f"characters (an Issue body takes {GITHUB_BODY_LIMIT})"
         ),
     )

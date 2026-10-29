@@ -29,6 +29,7 @@ See also:
 from typing import Protocol
 
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.ledger_position import LedgerPosition
 
 
 class SyncActivityPort(Protocol):
@@ -93,21 +94,25 @@ class SyncActivityPort(Protocol):
 
     def send_read_ledger_entry(
         self,
-        entry: CaseLedgerEntry,
+        case_id: str,
+        ledger_position: LedgerPosition,
         actor_id: str,
         to: list[str],
     ) -> None:
         """Build and queue a ``Read(CaseLedgerEntry)`` position statement.
 
-        Called by a participant to state that it has applied the case's
-        ledger up to *entry*, the last entry its replica holds.  The activity
-        names the entry by reference, the case as its ``context`` and the
-        entry's position as its ``ledgerPosition`` (SYNC-17-001).  Each call
-        is a statement of its own, so it queues a new activity even when an
-        earlier one named the same entry.
+        Called by a participant to state that it has applied *case_id*'s
+        ledger up to *ledger_position*: the tail of its chain, or the
+        position a case copy seeded its replica at (SYNC-17-001,
+        SYNC-17-008).  The activity names the entry at that position by
+        reference, the case as its ``context`` and the position as its
+        ``ledgerPosition``.  Each call is a statement of its own, so it
+        queues a new activity even when an earlier one named the same entry.
 
         Args:
-            entry: The last ledger entry the participant has applied.
+            case_id: The case whose ledger position is stated.
+            ledger_position: The position stated; it names an entry, so its
+                ``log_index`` is not the empty ledger's.
             actor_id: URI of the participant stating its position.
             to: List of recipient actor URIs (the case's CASE_MANAGER).
         """

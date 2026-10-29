@@ -34,6 +34,7 @@ from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi import ledger_position_statements as lps
 from vultron.config.ledger import LedgerConfig
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Read,
 )
@@ -118,8 +119,16 @@ def test_each_statement_is_a_new_activity(participant_dl) -> None:
         key=lambda entry: entry.log_index,
     )
 
-    adapter.send_read_ledger_entry(tail, SIGNATORY_ID, [MANAGER_ID])
-    adapter.send_read_ledger_entry(tail, SIGNATORY_ID, [MANAGER_ID])
+    position = LedgerPosition(
+        log_index=tail.log_index, entry_hash=tail.entry_hash
+    )
+
+    adapter.send_read_ledger_entry(
+        tail.case_id, position, SIGNATORY_ID, [MANAGER_ID]
+    )
+    adapter.send_read_ledger_entry(
+        tail.case_id, position, SIGNATORY_ID, [MANAGER_ID]
+    )
 
     reads = _queued_reads(participant_dl)
     assert len(reads) == 2

@@ -80,12 +80,16 @@ If you remember one rule: **route freely, calve only with a human.**
 ## The work list: the theme-fit report
 
 The `theme-fit` structural check (`uv run theme-fit`) lists every open issue
-that breaks a theme rule; a scheduled run keeps its output in the standing
+that breaks a theme rule, and every untriaged issue (no parent) waiting to be
+routed; a scheduled run keeps its output in the standing
 "Theme fit report" issue. That report is this skill's work list: read the
 standing report issue, or run `theme-fit` when it is missing or stale, and act
 on its findings before looking for other work.
 
-- An **unparented** or **theme-mismatch** child → Mode 1 routing.
+- An issue in the report's **untriaged** list, or an **unparented** or
+  **theme-mismatch** child → Mode 1 routing. An untriaged issue is not a
+  finding: workflows file their issues with a theme and no parent
+  (PAD-02-027, PAD-02-028).
 - An **auto-calved Epic still single-child** → Mode 2: decide whether its
   theme gathers more work, or move the lone child and close the Epic.
 - An **Epic with two themes and no named split**, or many children of one

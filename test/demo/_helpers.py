@@ -781,25 +781,50 @@ def expect_no_sender_refusals(
     """Assert no sender check refused a sender in the wrapped run (HP-01-006).
 
     Wrap a demo run in this.  On exit it asserts that no log message carries
-    ``REFUSED (HP-01-006)``, the refusal of a sender check such as the
-    anchored CASE_MANAGER check, or ``REFUSED (HP-01-006, PCR-03-004)``, the
-    anchored check finding no trusted CASE_MANAGER.  A receiver refusing the
+    a ``REFUSED (...)`` group citing HP-01-006, alone or beside another
+    gate's ID: ``REFUSED (HP-01-006)``, the refusal of a sender check such as
+    the anchored CASE_MANAGER check, ``REFUSED (HP-01-006, PCR-03-004)``, the
+    anchored check finding no trusted CASE_MANAGER, or ``REFUSED (HP-01-006,
+    HP-01-008)``, no sender being entitled at all.  A receiver refusing the
     full-case Invite from its real CASE_MANAGER logged only the first, at
-    WARNING, while the demo passed (#4970).  The caller's ``caplog`` level
-    must let WARNING records through; entering at a higher level fails at
-    once.  Refusals that cite HP-01-006 beside another gate's ID are not
-    matched: own-inbox posts in the exchange demos still trip them (#5438).
+    WARNING, while the demo passed (#4970); the suggest-actor demo's own-inbox
+    Accept logged the last (#5438).  The caller's ``caplog`` level must let
+    WARNING records through; entering at a higher level fails at once.
     """
     assert caplog.handler.level <= logging.WARNING, (
         "expect_no_sender_refusals needs caplog at WARNING or lower, or an"
         " HP-01-006 sender refusal could not be seen"
     )
     yield
-    refusals = _logged_refusals(
-        caplog, r"REFUSED \(HP-01-006(, PCR-03-004)?\)"
-    )
+    refusals = _logged_refusals(caplog, r"REFUSED \([^)]*\bHP-01-006\b[^)]*\)")
     assert not refusals, (
         "a sender check refused a sender (HP-01-006):\n" + "\n".join(refusals)
+    )
+
+
+@contextlib.contextmanager
+def expect_no_inbox_refusals(
+    caplog: pytest.LogCaptureFixture,
+) -> Iterator[None]:
+    """Assert no actor's inbox refused an activity in the wrapped run (#5438).
+
+    Wrap a demo run in this.  On exit it asserts that no log message is the
+    queue drain's ``Inbox activity rejected (...)`` line, which every refused
+    inbound activity logs at WARNING whatever the refusal's cause.  A demo
+    that puppeteers its actors through their triggers provokes none: the
+    exchange demos posted the vendor's Report Valid into its own inbox, which
+    refused it as not the CASE_MANAGER, and passed (#5438).  The caller's
+    ``caplog`` level must let WARNING records through; entering at a higher
+    level fails at once.
+    """
+    assert caplog.handler.level <= logging.WARNING, (
+        "expect_no_inbox_refusals needs caplog at WARNING or lower, or an"
+        " inbox refusal could not be seen"
+    )
+    yield
+    refusals = _logged_refusals(caplog, r"^Inbox activity rejected \(")
+    assert not refusals, "an actor's inbox refused an activity:\n" + (
+        "\n".join(refusals)
     )
 
 

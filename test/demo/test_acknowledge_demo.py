@@ -13,6 +13,8 @@
 import pytest
 
 from test.demo._helpers import (
+    expect_no_inbox_refusals,
+    expect_no_sender_refusals,
     expect_trusted_introductions,
     route_exchange_demo_at_testclient,
 )
@@ -44,9 +46,13 @@ def test_demo(demo_env, demo_fn, caplog):
     Tests that each acknowledge demo workflow completes successfully with no errors.
 
     Covers:
-    - demo_acknowledge_only: submit → RmReadReportActivity → notify reporter
-    - demo_acknowledge_then_validate: submit → RmReadReportActivity → RmValidateReportActivity → notify
-    - demo_acknowledge_then_invalidate: submit → RmReadReportActivity → RmInvalidateReportActivity → notify
+    - demo_acknowledge_only: submit → RmReadReportActivity to the reporter
+    - demo_acknowledge_then_validate: submit → RmReadReportActivity →
+      RmValidateReportActivity through the vendor's trigger → the reporter's
+      replica records the answer
+    - demo_acknowledge_then_invalidate: submit → RmReadReportActivity →
+      RmInvalidateReportActivity through the vendor's trigger → the
+      reporter's replica records the answer
     """
     import logging
 
@@ -55,6 +61,8 @@ def test_demo(demo_env, demo_fn, caplog):
     with (
         caplog.at_level(logging.WARNING),
         expect_trusted_introductions(caplog),
+        expect_no_inbox_refusals(caplog),
+        expect_no_sender_refusals(caplog),
     ):
         demo.main(skip_health_check=True, demos=[demo_fn])
 

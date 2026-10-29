@@ -31,6 +31,16 @@ introduction, and `verify_reporter_trusts_introduction` checks the reporter
 accepted it. `test/architecture/test_demo_reports_submitted_through_trigger.py`
 enforces this.
 
+A participant's answer that must reach the CASE_MANAGER is never injected
+either: the Report Valid, the Report Invalid, the Case Owner's `Leave` and the
+`Reject` of a stub Invite go through the actor's own trigger
+(`validate-report`, `invalidate-report`, `leave-case`, `reject-case-invite`).
+Posted into the sender's own inbox, each is refused, because the sender is not
+the CASE_MANAGER of the case opened on receipt (HP-01-006, #5438). The demo
+tests wrap each run in `expect_no_inbox_refusals` and
+`expect_no_sender_refusals` (`test/demo/_helpers.py`), so an injected answer
+fails the test.
+
 ## Available exchange demos
 
 | Sub-command              | Script                           | What it demonstrates                            |

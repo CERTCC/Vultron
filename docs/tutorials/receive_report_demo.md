@@ -112,8 +112,9 @@ DEMO 1: Validate Report and Create Case
    Notice the log lines showing that the offer and the report are both stored in the vendor's DataLayer.
    When the vendor receives the report, it asks its CaseActor to open a case for it.
 
-2. **Step 2** — The *vendor* posts a Report Valid (RV), `Accept(Offer(VulnerabilityReport))`, to its own inbox, which runs the validation behavior tree and moves the report to `RM.VALID`.
-   Notice the log line confirming the activity was stored.
+2. **Step 2** — The *vendor* calls its own `validate-report` trigger, which sends a Report Valid (RV), `Accept(Offer(VulnerabilityReport))`, to the CaseActor that manages the case.
+   The CaseActor records the vendor at `RM.VALID`, and the case ledger carries that record to the reporter's copy of the case.
+   Notice the ✅ confirming that the reporter's copy records the vendor at `VALID`.
 
 3. **Step 3** — The vendor finds the case that was opened for the report, and introduces it to the reporter with its own Create Case, `Create(VulnerabilityCase)`.
    The reporter accepts the introduction because it comes from the actor the reporter sent the report to.
@@ -126,12 +127,14 @@ title: Demo 1 — validate the report
 sequenceDiagram
     participant R as Reporter
     participant V as Vendor
+    participant CA as CaseActor
 
     R->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
-    Note over V: Stores offer and report<br/>case opened
+    Note over V,CA: Stores offer and report<br/>case opened
     V->>R: Create Case<br/>Create(VulnerabilityCase)
-    V->>V: Report Valid (RV)<br/>Accept(Offer(VulnerabilityReport))
-    Note over V: Validation BT runs<br/>RM.VALID
+    V->>CA: Report Valid (RV)<br/>Accept(Offer(VulnerabilityReport))
+    Note over CA: Records the vendor at RM.VALID
+    CA-->>R: Case ledger entry
 ```
 
 ### Demo 2: Invalidate Report
@@ -141,8 +144,9 @@ DEMO 2: Invalidate Report (Hold for Reconsideration)
 ```
 
 The reporter submits a second, separate report.
-The vendor responds with a Report Invalid (RI), `TentativeReject(Offer(VulnerabilityReport))`, meaning the report is held open for further investigation rather than closed outright.
-The report sits at `RM.INVALID`, and the vendor sends the same activity to the reporter so the reporter learns the decision.
+The vendor calls its `invalidate-report` trigger, which sends a Report Invalid (RI), `TentativeReject(Offer(VulnerabilityReport))`, to the CaseActor.
+A Report Invalid means the report is held open for further investigation rather than closed outright.
+The CaseActor records the vendor at `RM.INVALID`, and the reporter learns the decision from its copy of the case.
 The vendor still opened a case when the report arrived, so the demo ends by checking that the reporter accepted the vendor's introduction of it.
 
 ```mermaid
@@ -152,19 +156,23 @@ title: Demo 2 — hold the report as invalid
 sequenceDiagram
     participant R as Reporter
     participant V as Vendor
+    participant CA as CaseActor
 
     R->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
-    V->>V: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
-    Note over V: Report held at RM.INVALID<br/>case opened on receipt
-    V->>R: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
+    Note over V,CA: case opened on receipt
+    V->>CA: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
+    Note over CA: Records the vendor at RM.INVALID
+    CA-->>R: Case ledger entry
 ```
 
 ### Demo 3: Invalidate and Close Report
 
 A third report is submitted.
-The vendor first invalidates it with a Report Invalid (RI) and then closes the case it opened for the report with `Leave(VulnerabilityCase)`.
-Once a case holds a report, its Case Owner closes the case this way, never with a Report Closed (RC), `Reject(Offer(VulnerabilityReport))`, which the case manager refuses from every sender.
-Notice that the invalidation notice appears in the reporter's inbox at the end, and that the reporter again accepted the vendor's introduction of the case.
+The vendor first invalidates it with a Report Invalid (RI), and then closes the case it opened for the report.
+Once a case holds a report, its Case Owner closes the case with `Leave(VulnerabilityCase)`, never with a Report Closed (RC), `Reject(Offer(VulnerabilityReport))`, which the case manager refuses from every sender.
+The case has an active embargo, and the Case Owner cannot leave while it is active, so the vendor ends the embargo first with its `terminate-embargo` trigger.
+The reporter then leaves the case, and the vendor leaves last, each through its own `leave-case` trigger.
+Notice the ✅ lines confirming that the CaseActor records every participant at `RM.CLOSED`, and that the reporter again accepted the vendor's introduction of the case.
 
 ```mermaid
 ---
@@ -173,12 +181,14 @@ title: Demo 3 — invalidate the report and close its case
 sequenceDiagram
     participant R as Reporter
     participant V as Vendor
+    participant CA as CaseActor
 
     R->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
-    V->>V: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
-    V->>V: Close Case<br/>Leave(VulnerabilityCase)
-    V->>R: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
-    Note over R: Invalidation notice in reporter's inbox
+    V->>CA: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
+    V->>CA: Embargo ended
+    R->>CA: Leave(VulnerabilityCase)
+    V->>CA: Close Case<br/>Leave(VulnerabilityCase)
+    Note over CA: Every participant at RM.CLOSED
 ```
 
 ---

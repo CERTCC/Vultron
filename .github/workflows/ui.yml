@@ -66,7 +66,6 @@ jobs:
           mode: notify
           workflow-label: ci:workflow-ui
           token: ${{ secrets.GITHUB_TOKEN }}
-          epic: ${{ vars.CI_FAILURE_EPIC }}
       - name: Close CI failure issue
         if: "!contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')"
         uses: ./.github/actions/notify-failure

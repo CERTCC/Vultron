@@ -215,6 +215,13 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
             "vultron.core.behaviors.case.nodes.case_copy",
             "RequestCaseCopyBackfillNode",
         ),
+        # Its only send is the replica's Read(CaseLedgerEntry) position
+        # statement after a first seed, to the CASE_MANAGER whose Announce
+        # the tree's sender guard admitted (SYNC-17-008).
+        (
+            "vultron.core.behaviors.case.nodes.case_copy",
+            "StateSeededLedgerPositionNode",
+        ),
         (
             "vultron.core.behaviors.case.nodes.invite_ledger_backfill",
             "BackfillCanonicalLedgerToInviteeNode",

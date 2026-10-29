@@ -33,9 +33,9 @@ import pytest
 
 from vultron.metadata.demo_scenarios.export_states import (
     OUTPUT_PATH,
-    _serialize,
     build_payload,
 )
+from vultron.metadata.generated_files import serialize_json
 
 REGEN_HINT = (
     "data/json/protocol_states.json is stale. The protocol state machines "
@@ -56,7 +56,7 @@ def test_exported_states_match_committed_file() -> None:
     if not OUTPUT_PATH.exists():
         pytest.skip("artifact missing; see test_exported_states_file_exists")
 
-    fresh = _serialize(build_payload())
+    fresh = serialize_json(build_payload())
     committed = OUTPUT_PATH.read_text(encoding="utf-8")
     assert committed == fresh, REGEN_HINT
 

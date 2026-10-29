@@ -45,7 +45,6 @@ from vultron.wire.as2.factories.case import (
     add_report_to_case_activity,
     add_status_to_case_activity,
     announce_vulnerability_case_activity,
-    bootstrap_replay_question_activity,
     create_case_activity,
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
@@ -106,6 +105,7 @@ from vultron.wire.as2.factories.sync import (
     announce_log_entry_activity,
     genesis_replay_reject_activity,
     read_ledger_entry_activity,
+    read_ledger_position_activity,
     reject_log_entry_activity,
 )
 
@@ -134,7 +134,6 @@ __all__ = [
     "add_report_to_case_activity",
     "add_status_to_case_activity",
     "announce_vulnerability_case_activity",
-    "bootstrap_replay_question_activity",
     "create_case_activity",
     "offer_case_participant_role_activity",
     "offer_case_ownership_transfer_activity",
@@ -187,5 +186,6 @@ __all__ = [
     "announce_log_entry_activity",
     "genesis_replay_reject_activity",
     "read_ledger_entry_activity",
+    "read_ledger_position_activity",
     "reject_log_entry_activity",
 ]
