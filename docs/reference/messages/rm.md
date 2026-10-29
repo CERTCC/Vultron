@@ -16,6 +16,8 @@ All other RM messages convey the sender's status.
 The RM state ladder has **two** wire expressions: the dedicated report-scoped activities listed below, and the `rmState` field of an `Add(ParticipantStatus)` broadcast (see [Case State (CS)](cs.md)).
 *Report/Case Accepted* (`RA`) and *Report/Case Deferred* (`RD`) also take case-scoped verbs: `Join(VulnerabilityCase)` and `Ignore(VulnerabilityCase)`.
 The reason is that engaging or deferring is a case-participation decision, not a report-validity judgment (MSM-01-004, MSM-01-005).
+Both name the case by a typed reference, an inline object with only its `id` and `type`, and carry no copy of it: the CASE_MANAGER reads the case from its own store ([AKM-03-004](../specs/project.md#akm-03-004), [ADR-0165](../../adr/0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md)).
+The same holds for the *Report/Case Closed* `Leave(VulnerabilityCase)`; see [Close case](case_management.md#close-case).
 
 The CASE_MANAGER applies one rule to an RM state whichever of these expressions carries it (RSH-06-006).
 The state is recorded for the sender, never for the receiver (RSH-08-001), and only when the sender is a participant of the case.
@@ -79,17 +81,11 @@ The CASE_MANAGER sends no notice when the sender is not a participant of the cas
 - **Triggering transition:** Valid or Deferred → Accepted ({V,D} → A).
 - **Re-engagement:** re-engaging a deferred case emits the same activity.
   There is no separate re-engagement wire form, because `DEFERRED` → `ACCEPTED` is a forward transition rather than a retraction of the earlier deferral.
-- **Object:** the case, as a typed reference: an inline object with only its `id` and `type` ([AKM-03-004](../specs/project.md#akm-03-004), [ADR-0165](../../adr/0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md)).
-  The CASE_MANAGER reads the case from its own store and refuses a case it does not hold ([AKM-03-006](../specs/project.md#akm-03-006)).
-  A full case that another sender still carries is not refused, but the CASE_MANAGER reads only its `id` and stores nothing from it ([AKM-03-005](../specs/project.md#akm-03-005)).
 
 {% include-markdown "./_occasions/sections/report-deferred.md" %}
 
 - **Triggering transition:** Valid or Accepted → Deferred ({V,A} → D).
 - **Why a case verb:** deferring is a case-participation decision, not a report-validity judgment (MSM-01-004).
-- **Object:** the case, as a typed reference: an inline object with only its `id` and `type` ([AKM-03-004](../specs/project.md#akm-03-004), [ADR-0165](../../adr/0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md)).
-  The CASE_MANAGER reads the case from its own store and refuses a case it does not hold ([AKM-03-006](../specs/project.md#akm-03-006)).
-  A full case that another sender still carries is not refused, but the CASE_MANAGER reads only its `id` and stores nothing from it ([AKM-03-005](../specs/project.md#akm-03-005)).
 
 ## Formal messages with no dedicated wire activity
 
