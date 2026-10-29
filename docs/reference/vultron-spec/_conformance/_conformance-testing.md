@@ -24,8 +24,7 @@ L4 is only enforceable against a reference implementation and is therefore outsi
 Some process ordering surfaces at L3 where the output sequence is itself observable — the canonical-write-before-side-effects rule of [§11.3 Status Adoption: The Two-Seam Model](../interactions.md#113-status-adoption-the-two-seam-model) being the clearest case.
 
 !!! info "See also"
-    - [Process Models](../../../topics/process_models/index.md) — the behavioral
-      material the L2 and L3 layers test against
+    - [Process Models](../../../topics/process_models/index.md) — the behavioral material the L2 and L3 layers test against
 
 ### 13.6 Capability Shapes
 

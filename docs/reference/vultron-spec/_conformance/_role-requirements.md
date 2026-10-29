@@ -23,8 +23,9 @@ A CASE_MANAGER refuses a received status that states a fix-readiness value from 
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("PRM-06-001", "CSB-15-001", "CSB-15-002", "CSB-15-004", "RSH-09-003"))
 ```
 
-Two transitions can also be asserted on another participant's behalf, by the Case Manager or the Case Owner, when the evidence is outside the protocol.
-Vendor awareness (`v→V`) is the usual case: the party that notified the vendor knows that the vendor has the information.
+Two transitions can also be asserted on another participant's behalf, by the Case Manager or the Case Owner.
+Vendor awareness (`v→V`) is the usual case: once the notification is evidenced, for example by the vendor's acknowledgment of its Invite, the party that notified the vendor knows that the vendor has the information.
+A Deployer's fix deployment (`d→D`) can be asserted the same way, which is expected to be rare: deployment is normally the Deployer's own report.
 Fix readiness is never asserted on a vendor's behalf, because only the vendor can know it.
 
 ```python exec="true" idprefix=""

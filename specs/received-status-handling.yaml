@@ -1262,10 +1262,12 @@ groups:
     verification: >
       Tests in `test/core/behaviors/status/test_participant_status_acceptance.py`
       confirm that a forward P/X/A move is accepted from a sender holding
-      only OBSERVER, and from one holding no VFD role.
+      only OBSERVER, and from one holding no VFD role, both by the acceptance
+      rules and by the received status tree.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: RSH-09-003
     stories:
     - story_2022_018
     - story_2022_019
+    - story_2022_081

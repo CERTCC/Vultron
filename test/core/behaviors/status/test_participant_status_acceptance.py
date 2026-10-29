@@ -391,6 +391,62 @@ class TestAcceptedStatusIsRecordedAsSent:
         )
 
 
+def _make_sender_observer(dl: SqliteDataLayer) -> None:
+    """Re-seat the seeded sender as a participant holding OBSERVER only."""
+    sender = dl.read(PARTICIPANT_ID)
+    assert isinstance(sender, CaseParticipant)
+    dl.save(sender.model_copy(update={"case_roles": [CVDRole.OBSERVER]}))
+    case = dl.read(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    case.case_participants = [
+        (
+            p.model_copy(update={"case_roles": [CVDRole.OBSERVER]})
+            if isinstance(p, CaseParticipant) and p.id_ == PARTICIPANT_ID
+            else p
+        )
+        for p in case.case_participants
+    ]
+    dl.save(case)
+
+
+class TestPxaReportFromAnyRole:
+    """The received tree accepts a P/X/A report from an Observer (RSH-09-009)."""
+
+    @pytest.mark.spec("RSH-09-009")
+    def test_an_observers_pxa_report_is_recorded(
+        self, store_for, make_payload
+    ):
+        dl = store_for(CASE_MANAGER_ID)
+        current = _current_status(RM.ACCEPTED, None, CS_pxa.pxa)
+        asserted = _asserted_status(RM.ACCEPTED, None, CS_pxa.Pxa)
+        _seed_case(dl, current, asserted)
+        _make_sender_observer(dl)
+
+        _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
+
+        assert ASSERTED_STATUS_ID in _status_ids(dl, PARTICIPANT_ID)
+        assert _pxa_of(_latest_status(dl, PARTICIPANT_ID)) == CS_pxa.Pxa.name
+
+    @pytest.mark.spec("RSH-09-009", "RSH-09-003")
+    def test_the_same_observer_is_refused_a_fix_readiness_claim(
+        self, store_for, make_payload
+    ):
+        """Control: the sender really is judged as an Observer."""
+        dl = store_for(CASE_MANAGER_ID)
+        current = _current_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa)
+        asserted = _asserted_status(RM.ACCEPTED, CS_vf.VF, CS_pxa.Pxa)
+        _seed_case(dl, current, asserted)
+        _make_sender_observer(dl)
+
+        result = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
+
+        assert result.status == Status.FAILURE
+        assert "the sender does not hold the VENDOR role" in (
+            result.feedback_message
+        )
+        assert ASSERTED_STATUS_ID not in _status_ids(dl, PARTICIPANT_ID)
+
+
 # ---------------------------------------------------------------------------
 # RSH-09-002: a refused status is refused whole
 # ---------------------------------------------------------------------------

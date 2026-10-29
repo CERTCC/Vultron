@@ -1,6 +1,7 @@
 ### 13.2 Capability Sets
 
-A capability set is a named group of the protocol requirements that an implementation meets.
+A capability set is a named group of the obligations that an implementation takes on.
+Where an obligation is a protocol requirement, this section renders it as a callout; the others link the section that describes them.
 Three are defined.
 Case Observer is the set that every participant provides.
 Case Decision and Case Hosting add the requirements of deciding for a case and of running one.
@@ -11,10 +12,8 @@ Most of what a capability set requires is expressed as maintaining a state machi
 !!! note "What 'implement a state machine' means"
     Implementing a state machine has two components:
 
-    1. **Track**: maintain a local value for the machine, and update it as
-       incoming messages report transitions.
-    2. **Drive**: cause a transition that the participant's roles authorize, and
-       announce it so the other participants learn of it.
+    1. **Track**: maintain a local value for the machine, and update it as incoming messages report transitions.
+    2. **Drive**: cause a transition that the participant's roles authorize, and announce it so the other participants learn of it.
 
     The two are separate obligations.
     A participant that tracks but does not drive leaves the others to discover its state changes some other way.
@@ -49,7 +48,7 @@ That is a recommendation rather than a requirement, because the protocol does no
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VP-01-001", "VP-01-002", "VP-01-003"))
 ```
 
-When its own state changes, it sends the message for the transition.
+When its own state changes, the protocol recommends that it send the message for the transition.
 When it is told of another participant's transition, it updates its local state.
 
 ```python exec="true" idprefix=""
