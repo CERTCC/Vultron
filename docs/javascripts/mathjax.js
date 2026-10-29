@@ -30,8 +30,7 @@ window.MathJax = {
       evEx: ["\\texttip{\\mathbf{E_x}}{embargo exit: the embargo ends}", 0],
       evExOwn: ["\\texttip{\\mathbf{E_x^\\ast}}{embargo exit on its own terms: the end time passed, or the fixes are ready or deployed}", 0],
       evExThreat: ["\\texttip{\\mathbf{E_x^!}}{embargo exit on a threat signal: public awareness, a public exploit, or attacks ended the embargo}", 0],
-      evPu: ["\\texttip{\\mathbf{P_u}}{participant publication: a participant publishes the vul}", 0],
-      evPl: ["\\texttip{\\mathbf{P_\\ell}}{outside public awareness: the public learns of the vul from outside the case}", 0]
+      evExOther: ["\\texttip{\\mathbf{E_x^\\circ}}{other early embargo exit: the embargo ended early for another reason, or for no recorded reason}", 0]
     }
   },
   options: {
