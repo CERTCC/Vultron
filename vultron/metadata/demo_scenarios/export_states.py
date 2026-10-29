@@ -54,7 +54,6 @@ whenever the protocol's state machines change. The drift test
 committed file goes stale.
 """
 
-import json
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -72,6 +71,7 @@ from vultron.core.states.cs import (
 )
 from vultron.core.states.em import create_em_machine
 from vultron.core.states.rm import create_rm_machine
+from vultron.metadata.generated_files import serialize_json
 
 # Where the artifact lives, co-located with its only consumer under ``ui/``.
 # __file__ = <repo>/vultron/metadata/demo_scenarios/export_states.py
@@ -252,16 +252,11 @@ def build_payload() -> dict[str, Any]:
     return payload
 
 
-def _serialize(payload: dict[str, Any]) -> str:
-    """Render the payload as the canonical on-disk string (stable + newline)."""
-    return json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
-
-
 def main() -> None:
     """Write the export to ``ui/src/data/protocol_states.json``."""
     payload = build_payload()
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT_PATH.write_text(_serialize(payload), encoding="utf-8")
+    OUTPUT_PATH.write_text(serialize_json(payload), encoding="utf-8")
     print(f"Wrote {OUTPUT_PATH.relative_to(REPO_ROOT)}")
 
 

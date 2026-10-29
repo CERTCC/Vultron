@@ -38,8 +38,15 @@ import pytest
 import yaml
 
 from vultron.demo.recordings.layout import RECORDINGS_DIR, recording_path
-from vultron.demo.scenario.branch_points import BRANCH_POINTS
+from vultron.demo.scenario.branch_points import (
+    BRANCH_POINTS,
+    BranchPoint,
+    Choice,
+    build_branch_point_table,
+)
 from vultron.demo.scenario.registry import discover_scenarios
+from vultron.demo.scenario.tree import TreeNode
+from vultron.enums.roles import CVDRole
 from vultron.errors import DemoRecordingError, DemoScenarioRegistryError
 from vultron.metadata.demo_scenarios import export_tree
 from vultron.metadata.demo_scenarios.export_states import REPO_ROOT
@@ -49,9 +56,10 @@ from vultron.metadata.demo_scenarios.export_tree import (
     UI_SRC_DIR,
     build_payload,
     recording_files,
-    serialize,
     stale_hint,
+    tree_node,
 )
+from vultron.metadata.generated_files import read_committed, serialize_json
 
 ARTIFACT = "ui/src/data/scenario_tree.json"
 
@@ -94,13 +102,15 @@ def test_artifact_path_is_the_one_the_hint_names() -> None:
 
 
 def test_committed_index_matches_a_fresh_export() -> None:
-    assert OUTPUT_PATH.exists(), stale_hint()
-    committed = OUTPUT_PATH.read_text(encoding="utf-8")
-    assert committed == serialize(build_payload()), stale_hint()
+    # read_committed keeps line endings, so a CRLF copy fails here too.
+    committed = read_committed(OUTPUT_PATH)
+    assert committed == serialize_json(build_payload()), stale_hint(
+        OUTPUT_PATH
+    )
 
 
 def test_stale_hint_names_the_regeneration_command_and_path() -> None:
-    hint = stale_hint()
+    hint = stale_hint(OUTPUT_PATH)
     assert f"`{REGEN_COMMAND}`" in hint
     assert REGEN_COMMAND == "uv run export-demo-tree"
     assert ARTIFACT in hint
@@ -112,15 +122,18 @@ def test_check_passes_on_the_committed_index() -> None:
 
 @pytest.mark.parametrize(
     "stale",
-    [None, "{}\n", "edited by hand"],
-    ids=["missing", "stale", "hand-edited"],
+    [None, "{}\n", "edited by hand", "crlf"],
+    ids=["missing", "stale", "hand-edited", "crlf"],
 )
 def test_check_fails_on_a_stale_index_and_names_the_command(
     stale: str | None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = tmp_path / "scenario_tree.json"
+    if stale == "crlf":
+        fresh = serialize_json(build_payload())
+        stale = fresh.replace("\n", "\r\n")
     if stale is not None:
-        target.write_text(stale, encoding="utf-8")
+        target.write_bytes(stale.encode("utf-8"))
     monkeypatch.setattr(export_tree, "OUTPUT_PATH", target)
     with pytest.raises(SystemExit) as excinfo:
         export_tree.main(["--check"])
@@ -128,7 +141,7 @@ def test_check_fails_on_a_stale_index_and_names_the_command(
     assert REGEN_COMMAND in message
     assert str(target) in message
     if stale is not None:
-        assert target.read_text(encoding="utf-8") == stale
+        assert target.read_bytes().decode("utf-8") == stale
 
 
 def test_write_mode_writes_a_fresh_export(
@@ -138,7 +151,9 @@ def test_write_mode_writes_a_fresh_export(
     monkeypatch.setattr(export_tree, "OUTPUT_PATH", target)
     monkeypatch.setattr(export_tree, "REPO_ROOT", tmp_path)
     export_tree.main([])
-    assert target.read_bytes().decode("utf-8") == serialize(build_payload())
+    assert target.read_bytes().decode("utf-8") == serialize_json(
+        build_payload()
+    )
     export_tree.main(["--check"])
 
 
@@ -151,10 +166,18 @@ def test_pre_commit_runs_the_check() -> None:
     }
     hook = hooks["demo-tree-sync"]
     assert hook["entry"] == f"{REGEN_COMMAND} --check"
+    # Every module the export reads or renders through, the recordings and
+    # the index itself.
     for watched in (
         "vultron/demo/scenario/branch_points.py",
+        "vultron/demo/scenario/registry.py",
+        "vultron/demo/scenario/tree.py",
         "vultron/demo/scenario/rv_demo.py",
+        "vultron/demo/recordings/layout.py",
+        "vultron/enums/roles.py",
         "vultron/metadata/demo_scenarios/export_tree.py",
+        "vultron/metadata/demo_scenarios/export_states.py",
+        "vultron/metadata/generated_files.py",
         "ui/src/recordings/rv/case-actor.jsonl",
         ARTIFACT,
     ):
@@ -176,16 +199,29 @@ def test_index_has_the_documented_top_level_keys(
 
 def test_index_carries_the_branch_point_table(payload: dict[str, Any]) -> None:
     assert list(payload["branch_points"]) == list(BRANCH_POINTS)
+    assert payload["branch_points"]["vendor-join"] == {
+        "role": "vendor",
+        "prompt": "As the Vendor, choose whether to join the case.",
+        "choices": [
+            {
+                "id": "reject",
+                "label": "Reject the invite",
+                "trigger": "reject-case-invite",
+            },
+            {
+                "id": "accept",
+                "label": "Accept the invite",
+                "trigger": "accept-case-invite",
+            },
+        ],
+    }
     for branch_point_id, row in payload["branch_points"].items():
         branch_point = BRANCH_POINTS[branch_point_id]
-        assert row == {
-            "role": branch_point.role.value,
-            "prompt": branch_point.prompt,
-            "choices": [
-                {"id": c.id, "label": c.label, "trigger": c.trigger}
-                for c in branch_point.choices
-            ],
-        }
+        assert row["role"] == branch_point.role.value
+        assert row["prompt"] == branch_point.prompt
+        assert [c["id"] for c in row["choices"]] == [
+            c.id for c in branch_point.choices
+        ]
 
 
 def test_one_root_whose_endings_are_every_scenario_once(
@@ -348,3 +384,47 @@ def test_the_committed_recordings_are_the_ones_listed(
     }
     committed = {path.resolve() for path in RECORDINGS_DIR.glob("*/*.jsonl")}
     assert listed == committed
+
+
+# ---------------------------------------------------------------------------
+# Tree nodes, on fixture tables
+# ---------------------------------------------------------------------------
+
+_FIXTURE_TABLE = build_branch_point_table(
+    (
+        BranchPoint(
+            id="fork",
+            role=CVDRole.VENDOR,
+            prompt="As the Vendor, choose.",
+            choices=(
+                Choice(id="a", label="Do A", trigger="notify-fix-ready"),
+                Choice(id="b", label="Do B", trigger="notify-published"),
+            ),
+        ),
+    )
+)
+
+
+def _fork(*choices: str, branch_point: str = "fork") -> TreeNode:
+    root = TreeNode(prefix=(), branch_point=branch_point)
+    for choice in choices:
+        root.children[choice] = TreeNode(
+            prefix=((branch_point, choice),), scenario=f"s-{choice}"
+        )
+    return root
+
+
+def test_tree_node_orders_choices_by_the_table() -> None:
+    node = tree_node(_fork("b", "a"), _FIXTURE_TABLE)
+    assert list(node["choices"]) == ["a", "b"]
+    assert node["choices"]["b"] == {"scenario": "s-b"}
+
+
+def test_tree_node_refuses_a_choice_the_table_does_not_list() -> None:
+    with pytest.raises(DemoScenarioRegistryError, match="'c'"):
+        tree_node(_fork("a", "c"), _FIXTURE_TABLE)
+
+
+def test_tree_node_refuses_an_unknown_branch_point() -> None:
+    with pytest.raises(DemoScenarioRegistryError, match="'elsewhere'"):
+        tree_node(_fork("a", branch_point="elsewhere"), _FIXTURE_TABLE)

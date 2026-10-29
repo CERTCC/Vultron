@@ -46,11 +46,11 @@ Usage::
     uv run export-demo-semantics
 """
 
-import json
 from collections.abc import Sequence
 from typing import Any
 
 from vultron.metadata.demo_scenarios.export_states import REPO_ROOT
+from vultron.metadata.generated_files import serialize_json
 from vultron.metadata.msm.occasions import format_pattern
 from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.semantic_registry._entry import SemanticEntry
@@ -88,15 +88,10 @@ def build_payload(
     }
 
 
-def serialize(payload: dict[str, Any]) -> str:
-    """Render *payload* as the canonical on-disk string."""
-    return json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
-
-
 def main() -> None:
     """Write the export to ``ui/src/data/semantic_registry.json``."""
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT_PATH.write_text(serialize(build_payload()), encoding="utf-8")
+    OUTPUT_PATH.write_text(serialize_json(build_payload()), encoding="utf-8")
     print(f"Wrote {OUTPUT_PATH.relative_to(REPO_ROOT)}")
 
 

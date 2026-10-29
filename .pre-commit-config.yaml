@@ -214,15 +214,16 @@ repos:
 
       - id: demo-tree-sync
         name: Demo scenario-tree index in sync
-        # DEMOCI-11-016 via DEMOCI-11-005. The index is generated from the
-        # branch-point table and the @scenario paths (vultron/demo/scenario/),
-        # and lists each recording's cases (ui/src/recordings/), so all three
-        # are watched, with the exporter and the index itself, so a hand-edit
-        # is caught too. test/metadata/demo_scenarios/test_export_tree.py is the
-        # backstop for a deletion, which no `files:` pattern can match.
+        # DEMOCI-11-016 via DEMOCI-11-005. Every input of the index is watched:
+        # the branch-point table and the @scenario paths (vultron/demo/scenario/),
+        # the role enum whose values it prints, the recordings package and the
+        # recordings whose case ids it lists, the exporters and the
+        # generated-file helpers it renders through, and the index itself, so a
+        # hand-edit is caught too. test/metadata/demo_scenarios/test_export_tree.py
+        # is the backstop for a deletion, which no `files:` pattern can match.
         entry: uv run export-demo-tree --check
         language: system
-        files: ^(vultron/demo/scenario/.*\.py|vultron/demo/recordings/.*\.py|vultron/metadata/demo_scenarios/export_tree\.py|ui/src/recordings/.*|ui/src/data/scenario_tree\.json)$
+        files: ^(vultron/demo/scenario/.*\.py|vultron/demo/recordings/.*\.py|vultron/enums/roles\.py|vultron/metadata/demo_scenarios/.*\.py|vultron/metadata/generated_files\.py|ui/src/recordings/.*|ui/src/data/scenario_tree\.json)$
         pass_filenames: false
 
       - id: msm-occasions-sync

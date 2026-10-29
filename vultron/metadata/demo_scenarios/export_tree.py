@@ -63,9 +63,12 @@ from vultron.demo.scenario.branch_points import BRANCH_POINTS, BranchPoint
 from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
 from vultron.demo.scenario.tree import TreeNode, build_scenario_tree
 from vultron.errors import DemoRecordingError, DemoScenarioRegistryError
-from vultron.metadata.demo_scenarios.export_semantics import serialize
 from vultron.metadata.demo_scenarios.export_states import REPO_ROOT
-from vultron.metadata.generated_files import read_committed, write_generated
+from vultron.metadata.generated_files import (
+    read_committed,
+    serialize_json,
+    write_generated,
+)
 
 #: Where the artifact lives, beside ``protocol_states.json``.
 OUTPUT_PATH = REPO_ROOT / "ui" / "src" / "data" / "scenario_tree.json"
@@ -107,7 +110,19 @@ def tree_node(
             "the scenario tree has a node that is neither a decision nor an "
             "ending; register at least one scenario."
         )
-    order = [choice.id for choice in branch_points[node.branch_point].choices]
+    branch_point = branch_points.get(node.branch_point)
+    if branch_point is None:
+        raise DemoScenarioRegistryError(
+            f"the scenario tree decides {node.branch_point!r}, which is not "
+            "in the branch-point table."
+        )
+    order = [choice.id for choice in branch_point.choices]
+    if unknown := sorted(set(node.children) - set(order)):
+        raise DemoScenarioRegistryError(
+            f"the scenario tree takes choice(s) {unknown} at "
+            f"{node.branch_point!r}, which the branch-point table does not "
+            "list; exporting it would drop their scenarios."
+        )
     return {
         "branch_point": node.branch_point,
         "choices": {
@@ -242,7 +257,7 @@ def build_payload(
     }
 
 
-def stale_hint(path: Path = OUTPUT_PATH) -> str:
+def stale_hint(path: Path) -> str:
     """Return the message a stale or missing index is reported with."""
     shown = (
         path.relative_to(REPO_ROOT) if path.is_relative_to(REPO_ROOT) else path
@@ -252,12 +267,6 @@ def stale_hint(path: Path = OUTPUT_PATH) -> str:
         f"recording changed but the index was not regenerated. Run "
         f"`{REGEN_COMMAND}` and commit {shown}."
     )
-
-
-def is_stale(path: Path = OUTPUT_PATH, text: str | None = None) -> bool:
-    """Return whether *path* differs from *text* (a fresh export by default)."""
-    desired = serialize(build_payload()) if text is None else text
-    return read_committed(path) != desired
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -273,9 +282,9 @@ def main(argv: list[str] | None = None) -> None:
         help="Write nothing; exit 1 if the committed index is stale.",
     )
     args = parser.parse_args(argv)
-    text = serialize(build_payload())
+    text = serialize_json(build_payload())
     if args.check:
-        if is_stale(OUTPUT_PATH, text):
+        if read_committed(OUTPUT_PATH) != text:
             raise SystemExit(stale_hint(OUTPUT_PATH))
         return
     write_generated(OUTPUT_PATH, text)
@@ -288,11 +297,9 @@ __all__ = [
     "UI_SRC_DIR",
     "branch_point_row",
     "build_payload",
-    "is_stale",
     "main",
     "recording_files",
     "scenario_row",
-    "serialize",
     "stale_hint",
     "tree_node",
 ]
