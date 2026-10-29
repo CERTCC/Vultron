@@ -1,11 +1,11 @@
 """Tests for vultron.metadata.specs.growth_guard (SR-05-005, MS-12-007, MS-10-016).
 
 Each test builds a throwaway git repository whose ``origin/main`` ref is the
-base, edits the working tree, and runs a real guard extractor through
-:func:`added_since_base`: the marker-coverage guard over ``protocol`` and
-``foundation`` specs (:func:`uncovered_implementer_ids`), the
-``missing_story_reference`` guard (:func:`missing_story_suppression_carriers`),
-and the ``verification_debt`` guard (:func:`verification_debt_items`).
+base, edits the working tree, and runs a real guard: the marker-coverage guard
+over ``protocol`` and ``foundation`` specs (:func:`uncovered_implementer_ids`)
+and the ``missing_story_reference`` guard
+(:func:`missing_story_suppression_carriers`) through :func:`added_since_base`,
+and the ``verification_debt`` guard (:func:`debt_added_since_base`).
 """
 
 import logging
@@ -39,7 +39,7 @@ from vultron.metadata.specs.growth_guard import (
 from vultron.metadata.specs.kind_classification import (
     missing_story_suppression_carriers,
 )
-from vultron.metadata.specs.verification import verification_debt_items
+from vultron.metadata.specs.verification import debt_added_since_base
 
 _SUPPRESS = ["missing_story_reference"]
 
@@ -496,8 +496,10 @@ def test_suppression_without_base_ref_skips_with_logged_reason(
 # --- verification_debt guard (MS-10-016) ------------------------------------
 
 
-def _marked(spec_id: str, marker: str = "#1", kind: str = "project") -> dict:
-    return _spec(spec_id, kind, verification_debt=marker)
+def _marked(
+    spec_id: str, marker: str = "#1", kind: str = "project", **extra
+) -> dict:
+    return _spec(spec_id, kind, verification_debt=marker, **extra)
 
 
 def _verified(spec_id: str, kind: str = "project") -> dict:
@@ -505,8 +507,17 @@ def _verified(spec_id: str, kind: str = "project") -> dict:
 
 
 def _debt(repo: Path):
-    return added_since_base(
-        verification_debt_items, repo_root=repo, paths=("specs",)
+    return debt_added_since_base(repo)
+
+
+def _split_off(
+    spec_id: str, parent: str, marker: str = "#1", kind: str = "project"
+) -> dict:
+    return _marked(
+        spec_id,
+        marker,
+        kind,
+        relationships=[{"rel_type": "extends", "spec_id": parent}],
     )
 
 
@@ -610,6 +621,101 @@ def test_debt_relabel_repointing_its_marker_is_added(debt_repo):
         _verified("TST-01-002"),
     )
     assert _debt(debt_repo).added == {"TST-01-001 verification_debt: '#2'"}
+
+
+@pytest.mark.spec("MS-10-016")
+def test_debt_split_child_keeping_its_parents_marker_is_not_an_addition(
+    debt_repo,
+):
+    """Splitting a compound requirement moves its debt, it adds none."""
+    _write_specs(
+        debt_repo,
+        _marked("TST-01-001"),
+        _verified("TST-01-002"),
+        _split_off("TST-01-003", "TST-01-001"),
+    )
+    check = _debt(debt_repo)
+    assert check.added == frozenset()
+    assert check.head_total == 2
+
+
+@pytest.mark.spec("MS-10-016")
+def test_debt_split_grandchild_is_not_an_addition(debt_repo):
+    _write_specs(
+        debt_repo,
+        _marked("TST-01-001"),
+        _verified("TST-01-002"),
+        _split_off("TST-01-003", "TST-01-001"),
+        _split_off("TST-01-004", "TST-01-003"),
+    )
+    assert _debt(debt_repo).added == frozenset()
+
+
+@pytest.mark.spec("MS-10-016")
+def test_debt_split_child_of_a_verified_parent_is_added(
+    debt_repo,
+):
+    """Only a parent's existing debt can be split; a verified one has none."""
+    _write_specs(
+        debt_repo,
+        _marked("TST-01-001"),
+        _verified("TST-01-002"),
+        _split_off("TST-01-003", "TST-01-002"),
+    )
+    assert _debt(debt_repo).added == {"TST-01-003 verification_debt: '#1'"}
+
+
+@pytest.mark.spec("MS-10-016")
+def test_debt_split_child_repointing_its_parents_marker_is_added(debt_repo):
+    _write_specs(
+        debt_repo,
+        _marked("TST-01-001"),
+        _verified("TST-01-002"),
+        _split_off("TST-01-003", "TST-01-001", marker="#2"),
+    )
+    assert _debt(debt_repo).added == {"TST-01-003 verification_debt: '#2'"}
+
+
+@pytest.mark.spec("MS-10-016")
+def test_debt_child_of_a_newly_marked_parent_is_added(debt_repo):
+    """A parent whose marker is itself new passes no exemption down."""
+    _write_specs(
+        debt_repo,
+        _marked("TST-01-001"),
+        _marked("TST-01-002"),
+        _split_off("TST-01-003", "TST-01-002"),
+    )
+    assert _debt(debt_repo).added == {
+        "TST-01-002 verification_debt: '#1'",
+        "TST-01-003 verification_debt: '#1'",
+    }
+
+
+@pytest.mark.spec("MS-10-016")
+def test_debt_existing_requirement_linking_to_a_marked_one_is_added(
+    debt_repo,
+):
+    """An ID the base already had is not a split child, whatever it links to."""
+    _write_specs(
+        debt_repo,
+        _marked("TST-01-001"),
+        _split_off("TST-01-002", "TST-01-001"),
+    )
+    assert _debt(debt_repo).added == {"TST-01-002 verification_debt: '#1'"}
+
+
+@pytest.mark.spec("MS-10-016")
+def test_debt_split_child_of_a_parent_verified_in_the_same_change(
+    debt_repo,
+):
+    """The parent's debt at the base is what the child inherits."""
+    _write_specs(
+        debt_repo,
+        _verified("TST-01-001"),
+        _verified("TST-01-002"),
+        _split_off("TST-01-003", "TST-01-001"),
+    )
+    assert _debt(debt_repo).added == frozenset()
 
 
 @pytest.mark.spec("MS-10-016")

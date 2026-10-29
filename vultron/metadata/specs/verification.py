@@ -36,11 +36,14 @@ per kind computed from the markers (MS-10-005).
 The per-item rule cannot by itself stop a new unverified MUST from arriving
 with a marker on it. The PR-only growth guard
 (``test/architecture/test_verification_debt_guard.py``, MS-10-016) does: it
-compares :func:`verification_debt_items` at the merge base with the working
-tree and fails on any marker the branch added. An item is a requirement's ID
-with its marker, so a marker re-pointed at another issue — a relabel that swaps
-in the destination kind's owner (MS-10-008) — is an addition too, while a
-removed marker, or one that moves with its requirement to another file, is not.
+compares :func:`debt_snapshot` at the merge base with the working tree and
+fails on any marker the branch added (:func:`added_debt`). An item is a
+requirement's ID with its marker, so a marker re-pointed at another issue — a
+relabel that swaps in the destination kind's owner (MS-10-008) — is an addition
+too, while a removed marker, or one that moves with its requirement to another
+file, is not. Nor is the marker of a new ID split off a marked requirement
+(MS-03-001): the new ID names that requirement in its ``relationships:`` and
+carries the same marker, so the split moves debt without adding any.
 
 An owner is checked against GitHub at two points, both in
 ``.github/workflows/verification-debt-owners.yml`` (MS-10-006):
@@ -80,6 +83,7 @@ from vultron.metadata.base import (
     gh_lookup_failure as _lookup_failure,
     issue_number,
 )
+from vultron.metadata.specs.growth_guard import GrowthCheck, compare_with_base
 from vultron.metadata.specs.registry import SpecRegistry, load_registry
 from vultron.metadata.specs.schema import (
     RFC2119Priority,
@@ -163,25 +167,101 @@ def debt_by_kind(registry: SpecRegistry) -> dict[SpecKind, DebtReport]:
     return reports
 
 
-def debt_marker_items(registry: SpecRegistry) -> frozenset[str]:
-    """Each marked requirement in *registry* as ``ID verification_debt: '#N'``.
+@dataclass(frozen=True)
+class DebtSnapshot:
+    """What the MS-10-016 guard reads from one tree.
 
-    The marker is part of the item, so changing the issue a marker names
-    reads as a new item, not as the old one kept.
+    Attributes:
+        ids: Every requirement ID in the tree.
+        markers: Each marked requirement's ID mapped to its marker.
+        links: Each requirement's ID mapped to the IDs its own
+            ``relationships:`` name.
     """
-    return frozenset(
-        f"{spec_id} verification_debt: '{marker}'"
-        for spec_id, _spec, marker in marked_specs(registry)
+
+    ids: frozenset[str]
+    markers: Mapping[str, str]
+    links: Mapping[str, frozenset[str]]
+
+
+def _debt_item(spec_id: str, marker: str) -> str:
+    return f"{spec_id} verification_debt: '{marker}'"
+
+
+def debt_snapshot(repo_root: Path) -> DebtSnapshot:
+    """The :class:`DebtSnapshot` of ``specs/`` under *repo_root*."""
+    specs = load_registry(repo_root / "specs").all_specs
+    return DebtSnapshot(
+        ids=frozenset(specs),
+        markers={
+            spec_id: spec.verification_debt
+            for spec_id, spec in specs.items()
+            if spec.verification_debt
+        },
+        links={
+            spec_id: frozenset(r.spec_id for r in spec.relationships or ())
+            for spec_id, spec in specs.items()
+        },
     )
 
 
-def verification_debt_items(repo_root: Path) -> frozenset[str]:
-    """:func:`debt_marker_items` for ``specs/`` under *repo_root*.
+def added_debt(base: DebtSnapshot, head: DebtSnapshot) -> frozenset[str]:
+    """Markers *head* has that *base* lacked, less those split off (MS-10-016).
 
-    The per-item extractor behind the MS-10-016 growth guard
-    (:func:`vultron.metadata.specs.growth_guard.added_since_base`).
+    A requirement split into several IDs keeps its debt: a new ID whose own
+    ``relationships:`` name a requirement that carried the same marker at the
+    base, or that is itself such a split child, is not new debt. An ID the base
+    already had is never a split child, so a marker it gains is still added.
     """
-    return debt_marker_items(load_registry(repo_root / "specs"))
+    added = {
+        spec_id: marker
+        for spec_id, marker in head.markers.items()
+        if base.markers.get(spec_id) != marker
+    }
+    split: set[str] = set()
+    grew = True
+    while grew:
+        grew = False
+        for spec_id, marker in added.items():
+            if spec_id in split or spec_id in base.ids:
+                continue
+            if any(
+                base.markers.get(parent) == marker
+                or (parent in split and head.markers.get(parent) == marker)
+                for parent in head.links.get(spec_id, frozenset())
+            ):
+                split.add(spec_id)
+                grew = True
+    return frozenset(
+        _debt_item(spec_id, marker)
+        for spec_id, marker in added.items()
+        if spec_id not in split
+    )
+
+
+def debt_added_since_base(
+    repo_root: Path,
+    *,
+    base_ref: str | None = None,
+    require_base: bool | None = None,
+) -> GrowthCheck:
+    """The MS-10-016 guard: :func:`added_debt` against the merge base.
+
+    Arguments, skipping and errors are as
+    :func:`~vultron.metadata.specs.growth_guard.added_since_base` documents.
+    """
+    seen = compare_with_base(
+        debt_snapshot,
+        repo_root=repo_root,
+        paths=("specs",),
+        base_ref=base_ref,
+        require_base=require_base,
+    )
+    head_total = len(seen.head_value.markers)
+    if seen.base_value is None:
+        return GrowthCheck(None, frozenset(), head_total, skipped=seen.skipped)
+    return GrowthCheck(
+        seen.base, added_debt(seen.base_value, seen.head_value), head_total
+    )
 
 
 def verification_problems(
