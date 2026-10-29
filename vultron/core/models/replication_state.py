@@ -166,8 +166,8 @@ class VultronReplicationState(RetiredFieldsRecord):
         default=None,
         description=(
             "The ledger position the last re-seed's case copy named: a"
-            " divergence fault for an entry at or before it, once the peer"
-            " has acknowledged this position, means the CASE_MANAGER's case"
+            " divergence fault for an entry at or before it, sent after the"
+            " peer acknowledged this position, means the CASE_MANAGER's case"
             " disagrees with its own ledger (SYNC-16-004, SYNC-16-008). None"
             " means the peer has never been re-seeded"
         ),

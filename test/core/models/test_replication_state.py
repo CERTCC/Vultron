@@ -37,6 +37,7 @@ _WHEN = datetime(2026, 10, 1, tzinfo=UTC)
 #: field name -> a non-default value for it.
 _VALUES: dict[str, Any] = {
     "last_acknowledged_hash": "abc123",
+    "last_acknowledged_published": _WHEN,
     "updated_at": _WHEN,
     "last_replayed_from_hash": "def456",
     "last_replayed_at": _WHEN,

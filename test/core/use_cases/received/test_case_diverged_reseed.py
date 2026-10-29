@@ -262,12 +262,18 @@ _ACKNOWLEDGED_AT = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
 
 @pytest.mark.spec("SYNC-16-008")
 @pytest.mark.parametrize(
-    "fault_published",
-    [_ACKNOWLEDGED_AT + timedelta(seconds=1), _ACKNOWLEDGED_AT, None],
+    ("fault_published", "acknowledged_at"),
+    [
+        (_ACKNOWLEDGED_AT + timedelta(seconds=1), _ACKNOWLEDGED_AT),
+        (_ACKNOWLEDGED_AT, _ACKNOWLEDGED_AT),
+        (_ACKNOWLEDGED_AT - timedelta(seconds=1), None),
+    ],
     ids=["after", "same-time", "ack-claims-none"],
 )
 def test_a_divergence_after_an_acknowledged_reseed_is_logged_at_error(
-    caplog: pytest.LogCaptureFixture, fault_published: datetime | None
+    caplog: pytest.LogCaptureFixture,
+    fault_published: datetime | None,
+    acknowledged_at: datetime | None,
 ) -> None:
     """The peer applied a copy that reflected the entry: a CASE_MANAGER defect.
 
@@ -277,17 +283,14 @@ def test_a_divergence_after_an_acknowledged_reseed_is_logged_at_error(
     naming the entry and the position.  A fault sent at the same claimed
     time, or an acknowledgement that claims no time, shows no such order.
     """
-    net, announce_id = _diverged(f"reseed-repeat-acked-{fault_published}")
+    net, announce_id = _diverged(
+        f"reseed-repeat-acked-{fault_published}-{acknowledged_at}"
+    )
     with caplog.at_level(logging.WARNING, logger=_RESEED_LOGGER):
         _report(net)
     assert not _reseed_records(caplog, logging.WARNING)
     (entry,) = ledger_entries(net.stores[MANAGER], net.case_id)
-    _acknowledge(
-        net,
-        BYSTANDER,
-        entry.entry_hash,
-        None if fault_published is None else _ACKNOWLEDGED_AT,
-    )
+    _acknowledge(net, BYSTANDER, entry.entry_hash, acknowledged_at)
 
     caplog.clear()
     with caplog.at_level(logging.WARNING, logger=_RESEED_LOGGER):
@@ -590,6 +593,40 @@ def _run_reseed(net: LedgerNetwork, node: Any) -> Any:
     return BTBridge(
         datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
     ).execute_with_setup(tree=node, actor_id=MANAGER)
+
+
+@pytest.mark.spec("SYNC-16-008")
+def test_the_report_node_keeps_the_error_for_a_fault_claiming_no_time(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A fault with no claimed time shows no order, so the ERROR stays.
+
+    The inbox refuses an activity with no ``published`` at parse, so only a
+    caller building the node itself can pass none.
+    """
+    from py_trees.common import Status
+
+    from vultron.core.behaviors.sync.nodes.reseed import (
+        ReportRepeatDivergenceNode,
+    )
+
+    net, _ = _diverged("reseed-report-no-time")
+    _report(net)
+    (entry,) = ledger_entries(net.stores[MANAGER], net.case_id)
+    _acknowledge(net, BYSTANDER, entry.entry_hash, _ACKNOWLEDGED_AT)
+    node = ReportRepeatDivergenceNode(
+        case_id=net.case_id,
+        peer_id=BYSTANDER,
+        refused_entry=entry,
+        fault_published=None,
+    )
+
+    with caplog.at_level(logging.WARNING, logger=_RESEED_LOGGER):
+        result = _run_reseed(net, node)
+
+    assert result.status is Status.SUCCESS
+    assert node.repeated and not node.stale
+    assert _reseed_records(caplog, logging.ERROR)
 
 
 @pytest.mark.spec("CM-10-004")

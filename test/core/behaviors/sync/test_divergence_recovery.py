@@ -230,6 +230,8 @@ def test_replication_state_records_the_last_reseed() -> None:
         peer_id=_REPLICA_ID,
         last_reseeded_at=_PUBLISHED,
         last_reseed_position=LedgerPosition(log_index=3, entry_hash="a" * 64),
+        last_acknowledged_hash="a" * 64,
+        last_acknowledged_published=_PUBLISHED,
     )
 
     restored = VultronReplicationState.model_validate(
@@ -238,6 +240,7 @@ def test_replication_state_records_the_last_reseed() -> None:
 
     assert restored.last_reseeded_at == _PUBLISHED
     assert restored.last_reseed_position == state.last_reseed_position
+    assert restored.last_acknowledged_published == _PUBLISHED
 
 
 _MANAGER_PARTICIPANT_ID = f"{_CASE_ID}/participants/case-manager"
