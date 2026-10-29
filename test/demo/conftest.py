@@ -480,7 +480,7 @@ def stub_full_case_reply():
     that drives a real app overrides this fixture to run the real step:
     ``test_invite_chain``, and the invite-actor, suggest-actor and
     status-updates demo tests, whose shared setup seats the reporter through
-    the chain (#4970).
+    the chain and which import ``_helpers.run_real_full_case_reply`` (#4970).
     """
     from vultron.demo.helpers import invite_chain
 

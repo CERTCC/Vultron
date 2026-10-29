@@ -14,26 +14,15 @@
 import pytest
 
 from test.demo._helpers import (
-    assert_no_sender_refusals,
+    expect_no_sender_refusals,
     expect_trusted_introductions,
     route_exchange_demo_at_testclient,
+    run_real_full_case_reply,  # noqa: F401 (fixture override)
 )
 from vultron.demo.exchange import (
     initialize_case_demo as init_demo,
     status_updates_demo as demo,
 )
-
-
-@pytest.fixture(autouse=True)
-def stub_full_case_reply():
-    """Override the conftest stub: the reporter answers the full-case Invite.
-
-    The shared setup seats the reporter through the invite chain, whose last
-    step waits for the full-case Invite and accepts it (CM-11-010, CM-11-011).
-    These tests run a real in-process app, so the step runs for real: a
-    refused Invite then fails the run instead of passing silently (#4970).
-    """
-    yield
 
 
 @pytest.fixture(scope="module")
@@ -69,10 +58,10 @@ def test_demo(demo_env, demo_fn, caplog):
     with (
         caplog.at_level(logging.WARNING),
         expect_trusted_introductions(caplog),
+        expect_no_sender_refusals(caplog),
     ):
         demo.main(skip_health_check=True, demos=[demo_fn])
 
     assert "ERROR SUMMARY" not in caplog.text, (
         "Expected demo to succeed, but got errors:\n" + caplog.text
     )
-    assert_no_sender_refusals(caplog)

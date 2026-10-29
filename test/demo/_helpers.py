@@ -16,6 +16,7 @@
 import contextlib
 import importlib
 import logging
+import re
 from collections.abc import Iterator, Mapping, Sequence
 from types import ModuleType, SimpleNamespace
 from typing import Any
@@ -692,13 +693,14 @@ def _reporter_links(
 
 
 def _logged_refusals(
-    caplog: pytest.LogCaptureFixture, marker: str
+    caplog: pytest.LogCaptureFixture, pattern: str
 ) -> list[str]:
-    """Every captured log message carrying the refusal *marker*."""
+    """Every captured log message matching the refusal regex *pattern*."""
+    marker = re.compile(pattern)
     return [
         record.getMessage()
         for record in caplog.records
-        if marker in record.getMessage()
+        if marker.search(record.getMessage())
     ]
 
 
@@ -755,7 +757,7 @@ def expect_trusted_introductions(
     ):
         yield
 
-    refusals = _logged_refusals(caplog, "(CBT-01-011)")
+    refusals = _logged_refusals(caplog, r"\(CBT-01-011\)")
     assert not refusals, (
         "a reporter refused its receiver's case introduction:\n"
         + "\n".join(refusals)
@@ -772,20 +774,43 @@ def expect_trusted_introductions(
         )
 
 
-def assert_no_sender_refusals(caplog: pytest.LogCaptureFixture) -> None:
-    """Assert no receiver refused a sender as unentitled (HP-01-006).
+@contextlib.contextmanager
+def expect_no_sender_refusals(
+    caplog: pytest.LogCaptureFixture,
+) -> Iterator[None]:
+    """Assert no sender check refused a sender in the wrapped run (HP-01-006).
 
-    A demo that means no refusal must log none, and the refusal is logged at
-    WARNING, so the caller's ``caplog`` must let WARNING records through.  A
-    receiver refusing the full-case Invite from its real CASE_MANAGER logged
-    only this warning while the demo passed (#4970).
+    Wrap a demo run in this.  On exit it asserts that no log message carries
+    ``REFUSED (HP-01-006)``, the refusal of a sender check such as the
+    anchored CASE_MANAGER check, or ``REFUSED (HP-01-006, PCR-03-004)``, the
+    anchored check finding no trusted CASE_MANAGER.  A receiver refusing the
+    full-case Invite from its real CASE_MANAGER logged only the first, at
+    WARNING, while the demo passed (#4970).  The caller's ``caplog`` level
+    must let WARNING records through; entering at a higher level fails at
+    once.  Refusals that cite HP-01-006 beside another gate's ID are not
+    matched: own-inbox posts in the exchange demos still trip them (#5438).
     """
     assert caplog.handler.level <= logging.WARNING, (
-        "assert_no_sender_refusals needs caplog at WARNING or lower, or an"
-        " HP-01-006 refusal could not be seen"
+        "expect_no_sender_refusals needs caplog at WARNING or lower, or an"
+        " HP-01-006 sender refusal could not be seen"
     )
-    refusals = _logged_refusals(caplog, "REFUSED (HP-01-006)")
+    yield
+    refusals = _logged_refusals(
+        caplog, r"REFUSED \(HP-01-006(, PCR-03-004)?\)"
+    )
     assert not refusals, (
-        "a receiver refused a sender as unentitled (HP-01-006):\n"
-        + "\n".join(refusals)
+        "a sender check refused a sender (HP-01-006):\n" + "\n".join(refusals)
     )
+
+
+@pytest.fixture(name="stub_full_case_reply", autouse=True)
+def run_real_full_case_reply() -> Iterator[None]:
+    """Override the conftest stub: the reporter answers the full-case Invite.
+
+    Import this into a real-app demo test module whose setup seats the
+    reporter through the invite chain.  The chain's last step waits for the
+    full-case Invite and accepts it (CM-11-010, CM-11-011); with the stub
+    lifted it runs for real, so a refused Invite fails the run instead of
+    passing silently (#4970).
+    """
+    yield
