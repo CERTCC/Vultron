@@ -536,8 +536,10 @@ before a quiet period leaves the replica behind with no signal on either side.
   skipped as a redelivery (`SyncActivityAdapter.send_read_ledger_entry`).
 - **A first seed states the copy's position** (SYNC-17-008): the chain stores no
   entry yet, so the `Read` names the entry at the seeded case's position
-  (`read_ledger_position_activity`), not a chain tail. A replacing copy sends none;
-  its gap goes by the SYNC-16-007 `Reject`.
+  (`stated_replica_position`), not a chain tail. A replacing copy sends none; its
+  gap goes by the SYNC-16-007 `Reject`. The send is the tree's last effect and a
+  redelivery replaces rather than seeds, so the restart statement, which also uses
+  `stated_replica_position`, is what recovers a failed one.
 - **The restart round waits for the startup inbox replay** (IE-06-006), so the
   stated tail includes every entry the queue held; a shutdown during that wait
   states nothing (`ledger_position_statements.py`).

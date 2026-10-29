@@ -35,15 +35,13 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
 from vultron.core.behaviors.sync.nodes.position_statement import (
     position_statement_recipient,
+    stated_replica_position,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
-from vultron.core.models.ledger_position import (
-    EMPTY_LEDGER_LOG_INDEX,
-    LedgerPosition,
-)
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.services.case_copy import (
     CaseCopyJudgement,
@@ -54,7 +52,8 @@ from vultron.errors import VultronNotFoundError, VultronWiringError
 
 #: Blackboard key: whether the announced copy replaces a case this replica
 #: already holds, written by :class:`CaseCopyNotStaleNode` and read by
-#: :class:`RequestCaseCopyBackfillNode`.
+#: :class:`RequestCaseCopyBackfillNode` and
+#: :class:`StateSeededLedgerPositionNode`.
 CASE_COPY_REPLACES_KEY = "case_copy_replaces"
 
 
@@ -295,10 +294,14 @@ class StateSeededLedgerPositionNode(DataLayerActionWithPorts):
     copy seeded a replica this actor did not hold (``/case_copy_replaces`` is
     ``False``, PCR-02-003), the participant queues one
     ``Read(CaseLedgerEntry)`` to the case's CASE_MANAGER stating the stored
-    case's ledger position (SYNC-17-008).  That is the replica's tail: a
-    first seed finds no entry stored, since a replica stores no entry for a
-    case it does not hold, and the case is at the copy's position, which
-    reflects every entry up to it (SYNC-16-005, SYNC-16-007).  The statement
+    case's ledger position (SYNC-17-008,
+    :func:`~vultron.core.behaviors.sync.nodes.position_statement.stated_replica_position`).
+    That is the replica's tail: a first seed finds no entry stored, since a
+    replica stores no entry for a case it does not hold, and the case is at
+    the copy's position, which reflects every entry up to it (SYNC-16-005,
+    SYNC-16-007).  If the send fails after the seed, a redelivery replaces
+    the case and states nothing; the participant's restart statement
+    (SYNC-17-007) states the same position instead.  The statement
     tells the CASE_MANAGER the replica is ready, so it can resend an Invite
     the participant dropped before the copy arrived (ADR-0163).
 
@@ -356,8 +359,8 @@ class StateSeededLedgerPositionNode(DataLayerActionWithPorts):
         manager_id = position_statement_recipient(
             case, self.datalayer, self.actor_id
         )
-        position = case.ledger_position
-        if manager_id is None or position.log_index == EMPTY_LEDGER_LOG_INDEX:
+        position = stated_replica_position(case, self.datalayer)
+        if manager_id is None or position is None:
             self.logger.debug(
                 "%s: case '%s' seeded; no ledger position to state",
                 self.name,

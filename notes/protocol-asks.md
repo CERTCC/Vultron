@@ -316,8 +316,7 @@ activity to the entry claiming its event happened (OX-14-001).
 live and `find_protocol_pair`, which keys on an object ID, cannot pair it. Use
 `Offer` for "may I". Do not use `Question` to make a choice either: competing
 embargo terms resolve as sequential `Invite`s in earliest-expiration order (EP-08,
-ADR-0100). Vultron sends no `Question`; the bootstrap replay `Question` was
-removed because nothing handled it (ADR-0163, #3471). Design a request/response
+ADR-0100). Vultron sends no `Question` (ADR-0163). Design a request/response
 exchange as a protocol ask.
 
 **Do not relax a gate to make a blocked path proceed** (RSH-07-005).

@@ -13,9 +13,12 @@
 """Tests for AnnounceVulnerabilityCaseReceivedUseCase (DR-10 / MV-10-003,004)."""
 
 from typing import Any, cast
+from unittest.mock import MagicMock
 
 import pytest
+from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.case_owner import (
     CASE_OWNER_ID,
     CONSTRUCTED_CASE_OWNERSHIP,
@@ -29,6 +32,9 @@ from test.support.inbox_replay import (
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.core.behaviors.case.nodes.case_copy import (
+    StateSeededLedgerPositionNode,
+)
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -39,11 +45,15 @@ from vultron.core.models.received_activity_record import (
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.sync import (
     AnnounceLedgerEntryReceivedUseCase,
+)
+from vultron.core.use_cases.triggers.sync import (
+    state_ledger_positions_trigger,
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
@@ -933,3 +943,45 @@ class TestFirstSeedStatesLedgerPosition:
 
         with pytest.raises(VultronBTInternalError, match="sync_port"):
             self._announce(dl, make_payload, _joined_case()).execute()
+
+    @pytest.mark.spec("SYNC-17-008", "SYNC-17-007")
+    def test_a_statement_lost_to_a_failed_send_is_made_at_restart(
+        self, dl, make_payload
+    ):
+        """A failed post-seed send leaves the case seeded and states nothing.
+
+        A redelivery then replaces the case and states nothing either, so
+        the restart statement names the seeded position instead.
+        """
+        _anchor_expected_authority(dl)
+        failing = MagicMock(spec=SyncActivityPort)
+        failing.send_read_ledger_entry.side_effect = RuntimeError("store down")
+
+        with pytest.raises(VultronBTInternalError):
+            self._announce(
+                dl, make_payload, _joined_case(), sync_port=failing
+            ).execute()
+        assert dl.read(_CASE_ID) is not None
+        assert _queued_reads(dl) == []
+
+        sent = state_ledger_positions_trigger(
+            dl, _RECEIVER_ID, SyncActivityAdapter(dl)
+        )
+
+        assert sent == 1
+        (read,) = _queued_reads(dl)
+        assert read.to == [_CASE_ACTOR_ID]
+        assert read.ledger_position == _COPY_POSITION
+
+    @pytest.mark.spec("SYNC-17-008")
+    def test_the_node_raises_when_the_seeded_case_is_not_stored(self):
+        """It runs after the seed, so a missing case is a fault, not a skip."""
+        scenario = BTTestScenario(actor_id=_RECEIVER_ID)
+
+        result = scenario.run(
+            StateSeededLedgerPositionNode(case_id=_CASE_ID),
+            case_copy_replaces=False,
+        )
+
+        assert result.status is Status.FAILURE
+        assert _queued_reads(scenario.dl) == []

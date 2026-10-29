@@ -146,6 +146,7 @@ A participant also states its position once `Announce(VulnerabilityCase)` seeds 
 Its chain stores no entry yet, but the seeded case reflects every entry up to the copy's position, so the `Read` names the entry at that position.
 The statement tells the CASE_MANAGER that the replica is ready, so the CASE_MANAGER can resend an Invite the participant dropped before the copy arrived ([ADR-0163](../../adr/0163-the-case-manager-resends-an-unanswered-invite-when-its-addressee-states-a-ledger-position.md)).
 A copy that replaces a case the participant already holds sends no `Read`.
+If that send fails after the seed, the reference participant's next restart statement names the same position, because a replica whose chain stores no entry states its case's position (SYNC-17-007).
 
 The CASE_MANAGER's answer is the one it gives a `Reject`.
 It records the named entry's hash as the sender's acknowledged position (SYNC-17-003).

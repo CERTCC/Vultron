@@ -83,8 +83,8 @@ def create_announce_vulnerability_case_received_tree(
         ├── CaseCopyNotStaleNode              # guard (SYNC-16-006)
         ├── SeedAnnouncedCaseNode             # effect (seed or replace)
         ├── RequestCaseCopyBackfillNode       # effect (SYNC-16-007)
-        ├── StateSeededLedgerPositionNode     # effect (SYNC-17-008)
-        └── ReplayHeldSuccessorNode           # effect (SYNC-14-009)
+        ├── ReplayHeldSuccessorNode           # effect (SYNC-14-009)
+        └── StateSeededLedgerPositionNode     # effect (SYNC-17-008)
 
     A replica that already holds the case replaces it only with a copy whose
     ledger position is current against its own; a stale copy is skipped and
@@ -151,7 +151,6 @@ def create_announce_vulnerability_case_received_tree(
                 case_obj=case_obj,
                 request=request,
             ),
-            StateSeededLedgerPositionNode(case_id=case_id),
             # Seeding anchors the genesis hash, so an Announce held in the
             # pre-genesis window may now extend the chain: replay it, as it
             # was received, through this actor's inbox as a delivery of its
@@ -161,6 +160,8 @@ def create_announce_vulnerability_case_received_tree(
             ReplayHeldSuccessorNode(
                 case_id=case_id, name="ReplayHeldPreGenesisEntry"
             ),
+            # Last, so a failed statement leaves every other effect done.
+            StateSeededLedgerPositionNode(case_id=case_id),
         ],
     )
     logger.debug("Created %s for case='%s'", _NAME, case_id)

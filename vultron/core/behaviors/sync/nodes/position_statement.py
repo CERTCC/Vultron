@@ -45,7 +45,10 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.sync.nodes.replay_case import replay_case_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.ledger_position import (
+    EMPTY_LEDGER_LOG_INDEX,
+    LedgerPosition,
+)
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.recipients import closure_recorded
 from vultron.core.ports.case_persistence import CasePersistence
@@ -151,6 +154,29 @@ class CheckStatedPositionInLedgerNode(DataLayerConditionWithPorts):
         return Status.FAILURE
 
 
+def stated_replica_position(
+    case: VulnerabilityCase, dl: CasePersistence
+) -> LedgerPosition | None:
+    """The ledger position a participant states for its replica of *case*.
+
+    The position of the last entry its chain stores (SYNC-17-001).  A chain
+    that stores none, as after a first seed from a case copy, is stated at
+    the case's own position: the seeded case reflects every entry up to it,
+    and the replica stores them as no-ops when they arrive (SYNC-16-005,
+    SYNC-16-007, SYNC-17-008).  ``None`` when that position is the empty
+    ledger's, which names no entry to state.
+    """
+    entries = sorted_case_ledger_entries(dl, case.id_)
+    if entries:
+        tail = entries[-1]
+        return LedgerPosition(
+            log_index=tail.log_index, entry_hash=tail.entry_hash
+        )
+    if case.ledger_position.log_index == EMPTY_LEDGER_LOG_INDEX:
+        return None
+    return case.ledger_position
+
+
 def position_statement_recipient(
     case: VulnerabilityCase, dl: CasePersistence, actor_id: str
 ) -> str | None:
@@ -184,8 +210,11 @@ class StateLedgerPositionsNode(DataLayerActionWithPorts):
     For each ``VulnerabilityCase`` in the executing actor's store whose
     CASE_MANAGER is another actor, the participant names the last entry its
     replica has stored and sends it to that CASE_MANAGER (SYNC-17-001,
-    SYNC-17-007).  It sends nothing for a case whose ledger it holds no
-    entry of (it has no entry to name), nor for one
+    SYNC-17-007); a replica whose chain stores no entry yet states the
+    position its case copy seeded it at (:func:`stated_replica_position`),
+    so a post-seed statement lost to a failed delivery is made after the
+    next restart (SYNC-17-008).  It sends nothing for a case at the empty
+    ledger's position (it has no entry to name), nor for one
     :func:`position_statement_recipient` names no CASE_MANAGER for.
 
     ``sent`` counts the statements queued, for the caller's log.
@@ -232,15 +261,12 @@ class StateLedgerPositionsNode(DataLayerActionWithPorts):
             manager_id = position_statement_recipient(case, dl, self.actor_id)
             if manager_id is None:
                 continue
-            entries = sorted_case_ledger_entries(dl, case.id_)
-            if not entries:
+            position = stated_replica_position(case, dl)
+            if position is None:
                 continue
-            tail = entries[-1]
             self._sync_port.send_read_ledger_entry(
                 case_id=case.id_,
-                ledger_position=LedgerPosition(
-                    log_index=tail.log_index, entry_hash=tail.entry_hash
-                ),
+                ledger_position=position,
                 actor_id=self.actor_id,
                 to=[manager_id],
             )
@@ -250,7 +276,7 @@ class StateLedgerPositionsNode(DataLayerActionWithPorts):
                 " CASE_MANAGER '%s' (SYNC-17-007)",
                 self.name,
                 case.id_,
-                tail.log_index,
+                position.log_index,
                 manager_id,
             )
         return Status.SUCCESS
