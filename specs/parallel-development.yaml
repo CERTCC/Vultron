@@ -1352,16 +1352,24 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          The PAD-14-004 workflow MUST publish the report when `theme-fit`
-          finds a breach (exit 1), and fail the run only when `theme-fit`
-          errs (exit 2).
+          The PAD-14-004 workflow MUST publish the report and end green only
+          when `theme-fit` exits 0 or 1 with a report on stdout (text that
+          starts with `# Theme fit report`), and fail the run on any other
+          outcome: exit 2, or exit 0 or 1 without a report.
         rationale: >-
-          A finding is what the report exists to show. Failing on one would file a CI
-          failure every day the board is imperfect, while a failed run must still
-          reach `notify-failure` (CISEC-05).
+          A finding (exit 1) is what the report exists to show, so failing on one
+          would file a CI failure every day the board is imperfect. Python also
+          exits 1 on an uncaught crash, so the exit code alone cannot tell findings
+          from a crash, and a crash published as a report would blank the Issue. A
+          failed run must reach `notify-failure` (CISEC-05).
         verification: >-
-          `test/ci/test_theme_fit_report.py::test_a_finding_publishes_and_a_failed_run_does_not`
-          and `::test_a_failed_theme_fit_run_fails_the_script`.
+          `test/ci/test_theme_fit_report.py::test_findings_publish_and_the_run_ends_green`
+          (exit 1 with a report),
+          `::test_a_finding_publishes_and_a_failed_run_does_not` (exit codes),
+          `::test_a_failed_theme_fit_run_fails_the_script` (exit 2),
+          `::test_a_run_without_a_report_is_not_published` and
+          `::test_a_crashed_theme_fit_run_fails_the_script` (exit 0 or 1 without a
+          report).
       - id: PAD-14-007
         priority: MUST_NOT
         kind: process

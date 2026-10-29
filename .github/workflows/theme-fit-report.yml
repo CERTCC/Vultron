@@ -10,8 +10,9 @@
 # - It applies no labels to the Issues it reports and fixes nothing; a person
 #   or `calve-epics` acts on the report (notes/epic-themes.md).
 # - A finding is the report's content, not a red run: `theme-fit` exit 1
-#   publishes like exit 0. Any other exit (the catalog or `gh` failed) fails
-#   the job, and notify-failure files a CI failure (CISEC-05).
+#   publishes like exit 0 when its stdout is a report. Exit 2 (the catalog or
+#   `gh` failed), or exit 0 or 1 without a report (a crash also exits 1),
+#   fails the job, and notify-failure files a CI failure (CISEC-05).
 
 name: Theme Fit Report
 

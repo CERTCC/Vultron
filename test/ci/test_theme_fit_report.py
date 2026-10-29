@@ -65,14 +65,17 @@ def test_a_finding_publishes_and_a_failed_run_does_not(
     assert _script.report_usable(returncode) is usable
 
 
+@pytest.mark.parametrize("returncode", [0, 1])
 @pytest.mark.parametrize(
-    "stdout", ["", "Traceback (most recent call last):\n"]
+    "stdout", ["", "Traceback (most recent call last):\n", "## Theme fit\n"]
 )
 @pytest.mark.spec("PAD-14-006")
-def test_a_crash_that_exits_1_is_not_a_report(stdout: str) -> None:
+def test_a_run_without_a_report_is_not_published(
+    returncode: int, stdout: str
+) -> None:
     """Python exits 1 on an uncaught exception, the same status as findings."""
-    assert _script.report_usable(1, stdout) is False
-    assert _script.report_usable(1, _REPORT) is True
+    assert _script.report_usable(returncode, stdout) is False
+    assert _script.report_usable(returncode, _REPORT) is True
 
 
 def _item(number: int, state: str, **extra: object) -> dict[str, object]:
@@ -509,18 +512,41 @@ def test_findings_still_return_the_report(
     assert cmd[cmd.index("--repo") + 1] == "OWNER/REPO"
 
 
-def test_a_crashed_theme_fit_run_fails_the_script(
+@pytest.mark.spec("PAD-14-006")
+def test_findings_publish_and_the_run_ends_green(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A traceback exits 1 with no report: it must not blank the Issue."""
+    """Exit 1 with a report: the Issue is rewritten and ``main`` returns 0."""
 
     class _Done:
         returncode = 1
+        stdout = _REPORT
+        stderr = ""
+
+    gh = _Gh([_item(12, "open")])
+    monkeypatch.setattr(_script, "_gh", gh)
+    monkeypatch.setattr(_script.subprocess, "run", lambda *_a, **_k: _Done())
+    monkeypatch.setattr(_script, "_triage", lambda *_a: None)
+    assert _script.main(["--repo", "OWNER/REPO"]) == 0
+    assert gh.written is not None and gh.written.endswith(_REPORT)
+
+
+@pytest.mark.parametrize("returncode", [0, 1])
+@pytest.mark.spec("PAD-14-006")
+def test_a_crashed_theme_fit_run_fails_the_script(
+    monkeypatch: pytest.MonkeyPatch, returncode: int
+) -> None:
+    """Exit 0 or 1 with no report must not blank the Issue."""
+
+    class _Done:
         stdout = ""
         stderr = "Traceback (most recent call last):\n"
 
+        def __init__(self) -> None:
+            self.returncode = returncode
+
     monkeypatch.setattr(_script.subprocess, "run", lambda *_a, **_k: _Done())
-    with pytest.raises(RuntimeError, match="exited 1, no report"):
+    with pytest.raises(RuntimeError, match=f"exited {returncode}, no report"):
         _script.run_theme_fit("OWNER/REPO", 1000)
 
 
