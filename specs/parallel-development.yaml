@@ -1318,6 +1318,26 @@ groups:
           Abandoned claims come from sessions that ended, so the sweeper must run when
           no agent session is active. A scheduled workflow runs without one, and
           `workflow_dispatch` lets a human run it on demand.
+      - id: PAD-14-004
+        priority: MUST
+        kind: process
+        statement: >-
+          A GitHub Actions workflow MUST run `theme-fit` daily and on
+          `workflow_dispatch` and rewrite one standing "Theme fit report"
+          Issue, found by its `theme-fit-report` label through the
+          list-issues endpoint. It MUST rewrite the oldest open such Issue in
+          place, reopen the oldest closed one when none is open, and create
+          one only when none exists. A `theme-fit` finding MUST NOT fail the
+          run; a `theme-fit` error MUST. The workflow MUST NOT label, move or
+          otherwise change any Issue but the report Issue.
+        rationale: >-
+          `calve-epics` needs a current work list when no agent session is running,
+          and one Issue rewritten in place stays the single place to look. A finding
+          is what the report exists to show, so failing on one would file a CI
+          failure every day the board is imperfect.
+        verification: >-
+          `test/ci/test_theme_fit_report.py` pins the issue choice, the exit-code
+          handling, the create-only-when-none path and the workflow triggers.
 
 
   - id: PAD-15

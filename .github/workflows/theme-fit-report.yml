@@ -1,0 +1,70 @@
+# Rewrites the standing "Theme fit report" Issue from a fresh `theme-fit` run
+# (PAD-14-004). The maintainer authorized this workflow on 2026-10-28 (#5331).
+#
+# - The report Issue is the one labelled `theme-fit-report`, found through the
+#   list-issues endpoint, not the lagging search index (#5105). The oldest open
+#   one is rewritten in place; with none open, the oldest closed one is
+#   reopened; one is created only when none exists. No repository variable
+#   names it.
+# - It applies no labels to the Issues it reports and fixes nothing; a person
+#   or `calve-epics` acts on the report (notes/epic-themes.md).
+# - A finding is the report's content, not a red run: `theme-fit` exit 1
+#   publishes like exit 0. Any other exit (the catalog or `gh` failed) fails
+#   the job, and notify-failure files a CI failure (CISEC-05).
+
+name: Theme Fit Report
+
+on:
+  schedule:
+    - cron: "17 7 * * *"  # Daily
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Print the report body without writing the Issue
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  report:
+    name: Rewrite the theme-fit report Issue (never fails on findings)
+    # A manual run on another branch would publish that branch's catalog.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+      - name: Rewrite the report Issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DRY_RUN: ${{ inputs.dry-run && '--dry-run' || '' }}
+        # An array keeps an empty DRY_RUN from becoming an empty argument.
+        run: |
+          args=()
+          if [ -n "$DRY_RUN" ]; then args+=(--dry-run); fi
+          PYTHONPATH='' uv run python -I .github/scripts/publish_theme_fit_report.py "${args[@]}"
+      - name: File or update the CI failure issue
+        # failure() also catches checkout or setup failing first (CISEC-05).
+        if: failure()
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-theme-fit-report
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Close the CI failure issue
+        if: success()
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-theme-fit-report
+          token: ${{ secrets.GITHUB_TOKEN }}

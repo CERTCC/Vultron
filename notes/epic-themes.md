@@ -9,7 +9,8 @@ description: >
   classify by outcome, one theme per leaf, an Epic's second theme only when its
   body names the split, the theme contains the grain, the `Theme:` reason line;
   borderline examples; the `theme-fit` structural check, its untriaged list,
-  the split line and the auto-calved marker it reads; the `theme-gate` check
+  the split line and the auto-calved marker it reads, the standing report Issue
+  the daily workflow rewrites; the `theme-gate` check
   that refuses a new Issue breaking these rules; how to act on a theme-fit finding; and
   triage-label rules (`needs-info`, `ready-for-human`, and retired labels).
 related_specs:
@@ -335,6 +336,14 @@ findings, 1 with any, and 2 when the catalog or `gh` fails.
   `--coherence` for the table alone, `--json` for the whole report, and
   `--max-chars 65536` to cut the finding and untriaged lists so the report fits
   an Issue body.
+- **The standing report Issue** is the open Issue labelled `theme-fit-report`,
+  titled "Theme fit report". The daily Theme Fit Report workflow
+  (`.github/workflows/theme-fit-report.yml`) rewrites it in place, reopens it
+  if closed, and creates it only when none exists (PAD-14-004). It runs
+  `theme-fit --no-schedule`, because a workflow's `GITHUB_TOKEN` cannot read
+  Project #24, so its coherence table shows all tiers together. Exit 1
+  (findings) still publishes; only exit 2 fails the run. Reason: a finding is
+  the report's content, and a red run would file a CI failure each day.
 - **Finding kinds**: a leaf without exactly one theme, an Epic without one
   theme or a named split, a missing `Theme:` line, a child theme its Epic does
   not carry, a non-Epic whose parent chain reaches no open Epic (a parent in
