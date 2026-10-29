@@ -1831,7 +1831,9 @@ groups:
     verification: >-
       A test loads the requirement registry and the catalog's placement table and fails
       when a catalog subsection holds requirements from more than one requirement
-      file. Not yet written; owned by #4895.
+      file. Not yet written; owned by #4895. In
+      `test/metadata/specs/test_docs_render.py`,
+      `test_catalog_page_has_one_subsection_per_file` covers the renderer.
     relationships:
     - rel_type: refines
       spec_id: DF-12-001
@@ -1917,7 +1919,9 @@ groups:
       resolve to the in-page copy.
       In `test/metadata/docs/test_requirement_catalog.py`,
       `test_full_page_links_the_in_page_catalog_copy` covers the link the renderer
-      prints.
+      prints, and in `test/metadata/specs/test_docs_render.py`,
+      `test_catalog_page_on_full_page_links_in_page` and
+      `test_callout_on_full_page_links_in_page` cover the catalog page and callout.
     relationships:
     - rel_type: refines
       spec_id: DF-12-010
@@ -1950,11 +1954,12 @@ groups:
       Failing on a non-normative ID stops the specification from presenting a Project
       or Architecture rule as protocol.
     verification: >-
-      A test renders a callout for a `project` ID and checks that it raises.
-      In `test/metadata/docs/test_requirement_catalog.py`,
+      A test renders a callout for a non-normative ID and checks that it raises:
+      `test_callout_refuses_another_kind` in
+      `test/metadata/specs/test_docs_render.py`. In
+      `test/metadata/docs/test_requirement_catalog.py`,
       `test_catalog_location_refuses_another_kind` covers the lookup the renderer
-      uses. The rendering test is not yet written;
-      owned by #4895.
+      uses.
     relationships:
     - rel_type: extends
       spec_id: DF-12-003

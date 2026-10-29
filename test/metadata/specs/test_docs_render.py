@@ -915,7 +915,7 @@ def test_per_kind_and_catalog_rows_are_one_format(catalog_registry):
     assert kind_rows and kind_rows == catalog_rows
 
 
-@pytest.mark.spec("DF-12-001")
+@pytest.mark.spec("DF-12-008")
 def test_catalog_page_has_one_subsection_per_file(catalog_registry):
     md = render_catalog_page(
         "general",
@@ -989,7 +989,7 @@ def test_catalog_page_with_missing_file_raises(catalog_registry):
         )
 
 
-@pytest.mark.spec("DF-12-002")
+@pytest.mark.spec("DF-12-011")
 def test_catalog_page_on_full_page_links_in_page(catalog_registry):
     md = render_catalog_page(
         "general",
@@ -1011,7 +1011,7 @@ def test_catalog_page_defaults_to_the_page_being_built(
     assert "[GEN-01-001](#gen-01-001)" in md
 
 
-@pytest.mark.spec("DF-12-003", "DF-12-002")
+@pytest.mark.spec("DF-12-003", "DF-12-010")
 def test_callout_is_an_info_admonition_linking_rows(catalog_registry):
     md = requirement_callout(
         "GEN-01-002",
@@ -1056,7 +1056,7 @@ def test_callout_before_publishing_links_the_per_kind_row(catalog_registry):
     assert "[`GEN-01-001`](../../specs/protocol/#gen-01-001)" in md
 
 
-@pytest.mark.spec("DF-12-002")
+@pytest.mark.spec("DF-12-011")
 def test_callout_on_full_page_links_in_page(catalog_registry, monkeypatch):
     monkeypatch.setenv(EXEC_PAGE_ENV, FULL_PAGE)
     md = requirement_callout(
@@ -1069,7 +1069,7 @@ def test_callout_on_full_page_links_in_page(catalog_registry, monkeypatch):
     assert "[GEN-01-001](#gen-01-001)" in md
 
 
-@pytest.mark.spec("DF-12-003")
+@pytest.mark.spec("DF-12-012")
 def test_callout_refuses_another_kind(catalog_registry):
     with pytest.raises(NotInCatalogError, match="architecture requirement"):
         requirement_callout(
