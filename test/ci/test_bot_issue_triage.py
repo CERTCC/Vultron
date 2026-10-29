@@ -203,6 +203,43 @@ def _github_files() -> list[tuple[str, str]]:
     ]
 
 
+_EPIC_VARIABLE = re.compile(r"""vars(?:\.\w*|\[\s*['"]\w*)EPIC\w*""", re.I)
+# ``addSubIssue`` is the GraphQL write; the REST write is a POST to
+# ``.../sub_issues`` whose body needs ``sub_issue_id``. A read of
+# ``.../sub_issues`` carries no ``sub_issue_id`` and is not a hit.
+_PARENT_WRITES = ("addSubIssue", "sub_issue_id")
+
+
+def _epic_or_parent_hits(text: str) -> list[str]:
+    """Each retired variable, ``vars.*EPIC*`` read, or parent write in *text*."""
+    return [
+        *(n for n in RETIRED_EPIC_VARIABLES if n in text),
+        *_EPIC_VARIABLE.findall(text),
+        *(m for m in _PARENT_WRITES if m in text),
+    ]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "epic: ${{ vars.CI_FAILURE_EPIC }}",
+        "epic: ${{ vars.SOME_NEW_EPIC }}",
+        "epic: ${{ vars['OTHER_EPIC'] }}",
+        "mutation { addSubIssue(input: $i) { subIssue { number } } }",
+        "gh api -X POST repos/o/r/issues/1/sub_issues -F sub_issue_id=7",
+    ],
+)
+def test_the_scan_catches_each_way_to_name_an_epic(text: str) -> None:
+    """A positive control: the scan below would fail on each form."""
+    assert _epic_or_parent_hits(text)
+
+
+def test_the_scan_passes_a_read_of_sub_issues() -> None:
+    """The sweeper and planning scripts read sub-issues; that is no write."""
+    text = 'gh api "repos/o/r/issues/1/sub_issues?per_page=100"'
+    assert _epic_or_parent_hits(text) == []
+
+
 @pytest.mark.spec("PAD-02-027")
 def test_nothing_under_github_names_an_epic_or_sets_a_parent() -> None:
     """AC-2 (#5450): no filer is wired to a fixed Epic any more.
@@ -210,17 +247,13 @@ def test_nothing_under_github_names_an_epic_or_sets_a_parent() -> None:
     A fixed Epic number needs upkeep each time that Epic closes, is
     rethemed or split, or fills up, so a workflow-filed issue gets no
     parent: nothing under ``.github/`` reads a retired variable or any
-    ``vars.*EPIC*`` variable, or calls the ``addSubIssue`` mutation.
+    ``vars.*EPIC*`` variable, or sets a parent through ``addSubIssue`` or
+    the REST ``sub_issues`` endpoint.
     """
-    epic_var = re.compile(r"vars\.\w*EPIC\w*", re.IGNORECASE)
     breaches = [
         f"{path}: {hit}"
         for path, text in _github_files()
-        for hit in (
-            *(n for n in RETIRED_EPIC_VARIABLES if n in text),
-            *epic_var.findall(text),
-            *(["addSubIssue"] if "addSubIssue" in text else []),
-        )
+        for hit in _epic_or_parent_hits(text)
     ]
     assert breaches == []
 

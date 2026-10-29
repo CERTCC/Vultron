@@ -507,7 +507,8 @@ groups:
           In `test/ci/test_bot_issue_triage.py`, the tests that run each filer
           against a stand-in `gh` check that no call sets a parent. A scan
           checks that no file under `.github/` names a `vars.*EPIC*` variable
-          or calls `addSubIssue`.
+          or sets a parent through `addSubIssue` or a write to the REST
+          `sub_issues` endpoint.
       - id: PAD-02-028
         priority: MUST
         kind: process

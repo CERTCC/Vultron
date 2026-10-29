@@ -723,6 +723,22 @@ class TestRender:
         assert untriaged.count("— `theme:alpha`") == listed
         assert f"- … and {40 - listed} more; run" in untriaged
 
+    def test_limit_cuts_an_untriaged_list_longer_than_any_finding_list(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        # No findings at all, so the cut is sized by the untriaged list
+        # alone; a ceiling that left it out would cut the list to nothing.
+        report = analyze(
+            [_issue(n, "theme:alpha", kind="Bug") for n in range(1, 41)],
+            catalog,
+        )
+        assert report.findings == ()
+        full = render_markdown(report)
+        cut = render_markdown(report, len(full) - 300)
+        listed = cut.split("## Untriaged")[1].count("— `theme:alpha`")
+        assert 0 < listed < 40
+        assert f"- … and {40 - listed} more; run" in cut
+
     def test_limit_the_full_report_fits_changes_nothing(
         self, catalog: ThemeCatalog
     ) -> None:
@@ -735,7 +751,7 @@ class TestRender:
         self, catalog: ThemeCatalog
     ) -> None:
         report = analyze([_issue(2, "theme:alpha")], catalog)
-        with pytest.raises(ValueError, match="summary alone"):
+        with pytest.raises(ValueError, match="fixed parts alone"):
             render_markdown(report, 10)
 
     def test_json_counts_every_kind(self, catalog: ThemeCatalog) -> None:
@@ -1022,7 +1038,7 @@ class TestMain:
     ) -> None:
         args = ["--catalog", str(note), "--max-chars", "10"]
         assert main(args, run=_FakeGh(_CLEAN_PAGES)) == 2
-        assert "summary alone" in capsys.readouterr().err
+        assert "fixed parts alone" in capsys.readouterr().err
 
     def test_max_chars_must_be_positive(self, note: Path) -> None:
         with pytest.raises(SystemExit) as exc:

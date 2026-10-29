@@ -169,7 +169,9 @@ def render_markdown(report: ThemeFitReport, limit: int | None = None) -> str:
             in full.
 
     Raises:
-        ValueError: If even the summary alone is longer than *limit*.
+        ValueError: If even the report's fixed parts alone (the summary,
+            the coherence tables and each list's heading) are longer than
+            *limit*.
     """
     full = _render(report, None)
     if limit is None or len(full) <= limit:
@@ -187,7 +189,7 @@ def render_markdown(report: ThemeFitReport, limit: int | None = None) -> str:
     text = _render(report, low)
     if len(text) > limit:
         raise ValueError(
-            f"the report summary alone is {len(text)} characters; "
+            f"the report's fixed parts alone are {len(text)} characters; "
             f"the limit is {limit}"
         )
     return text

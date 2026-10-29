@@ -333,8 +333,8 @@ findings, 1 with any, and 2 when the catalog or `gh` fails.
   open non-Epic Issue in its nearest Epic's tier (PAD-02-001), and it matches
   when it carries exactly one theme and its Epic carries that theme. Use
   `--coherence` for the table alone, `--json` for the whole report, and
-  `--max-chars 65536` to cut the finding lists so the report fits an Issue
-  body.
+  `--max-chars 65536` to cut the finding and untriaged lists so the report fits
+  an Issue body.
 - **Finding kinds**: a leaf without exactly one theme, an Epic without one
   theme or a named split, a missing `Theme:` line, a child theme its Epic does
   not carry, a non-Epic whose parent chain reaches no open Epic (a parent in
