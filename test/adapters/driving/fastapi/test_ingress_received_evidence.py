@@ -229,9 +229,7 @@ def _assert_refused_through_the_inbox(
     before = _store_state(dl)
     staging = InlineObjectStaging(dl)
     dispatch_adp = _RecordingDispatch()
-    queue = FastAPIQueuePort(
-        dl=dl, actor_dl=dl, actor_id=RECEIVER, staging=staging
-    )
+    queue = FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging)
 
     with caplog.at_level(logging.INFO):
         outcome = process_payload(

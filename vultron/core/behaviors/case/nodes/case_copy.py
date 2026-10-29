@@ -15,10 +15,12 @@
 """BT nodes that judge a case copy by its ledger position and ask for the rest.
 
 The guard that decides whether a copy of a case this replica already holds
-may replace it (SYNC-16-006), and the node that asks the CASE_MANAGER for the
-entries a replacing copy is ahead of the replica's chain by (SYNC-16-007).
+may replace it (SYNC-16-006), the node that asks the CASE_MANAGER for the
+entries a replacing copy is ahead of the replica's chain by (SYNC-16-007),
+and the node that states the position a first copy seeded the replica at
+(SYNC-17-008, ADR-0163).
 :class:`~vultron.core.behaviors.case.nodes.announce.SeedAnnouncedCaseNode`
-does the replacement between them (ADR-0142).
+does the seed or replacement between them (ADR-0142).
 """
 
 from typing import cast
@@ -31,6 +33,10 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
 from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
+from vultron.core.behaviors.sync.nodes.position_statement import (
+    position_statement_recipient,
+    stated_replica_position,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
@@ -42,11 +48,12 @@ from vultron.core.services.case_copy import (
     CaseCopyVerdict,
     judge_case_copy,
 )
-from vultron.errors import VultronWiringError
+from vultron.errors import VultronNotFoundError, VultronWiringError
 
 #: Blackboard key: whether the announced copy replaces a case this replica
 #: already holds, written by :class:`CaseCopyNotStaleNode` and read by
-#: :class:`RequestCaseCopyBackfillNode`.
+#: :class:`RequestCaseCopyBackfillNode` and
+#: :class:`StateSeededLedgerPositionNode`.
 CASE_COPY_REPLACES_KEY = "case_copy_replaces"
 
 
@@ -280,8 +287,111 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
         )
 
 
+class StateSeededLedgerPositionNode(DataLayerActionWithPorts):
+    """State the ledger position a first case copy seeded the replica at.
+
+    Runs after :class:`SeedAnnouncedCaseNode` has stored the case.  When the
+    copy seeded a replica this actor did not hold (``/case_copy_replaces`` is
+    ``False``, PCR-02-003), the participant queues one
+    ``Read(CaseLedgerEntry)`` to the case's CASE_MANAGER stating the stored
+    case's ledger position (SYNC-17-008,
+    :func:`~vultron.core.behaviors.sync.nodes.position_statement.stated_replica_position`).
+    That is the replica's tail: a first seed finds no entry stored, since a
+    replica stores no entry for a case it does not hold, and the case is at
+    the copy's position, which reflects every entry up to it (SYNC-16-005,
+    SYNC-16-007).  If the send fails after the seed, a redelivery replaces
+    the case and states nothing; the participant's restart statement
+    (SYNC-17-007) states the same position instead.  The statement
+    tells the CASE_MANAGER the replica is ready, so it can resend an Invite
+    the participant dropped before the copy arrived (ADR-0163).
+
+    It sends nothing for a copy that replaced a held case: the participant
+    already held the case, and :class:`RequestCaseCopyBackfillNode` asks for
+    what it lacks.  It sends nothing either for a case at the empty ledger's
+    position, which names no entry (SYNC-17-001), or one
+    :func:`~vultron.core.behaviors.sync.nodes.position_statement.position_statement_recipient`
+    names no CASE_MANAGER for, such as a copy of a case this actor manages.
+
+    Raises:
+        VultronWiringError: A statement is due and no ``sync_port`` was
+            injected.
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        CASE_COPY_REPLACES_KEY: PortInformation(data_type=bool, required=True),
+        "sync_port": PortInformation(data_type=object, required=False),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            CASE_COPY_REPLACES_KEY: f"/{CASE_COPY_REPLACES_KEY}",
+            "sync_port": "/sync_port",
+        }
+
+    def __init__(self, case_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self._replaces = False
+        self._sync_port: SyncActivityPort | None = None
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._replaces = bool(self.get_input(CASE_COPY_REPLACES_KEY))
+        try:
+            self._sync_port = cast(
+                SyncActivityPort, self.get_input("sync_port")
+            )
+        except (NoDataAvailable, NotImplementedError):
+            self._sync_port = None
+
+    def update(self) -> Status:
+        if self._replaces:
+            return Status.SUCCESS
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None and self.actor_id is not None
+        case = self._resolve_case_replica(self.case_id)
+        if case is None:
+            # The seed before this node stores the case (BT-HELPER-01).
+            raise VultronNotFoundError("VulnerabilityCase", self.case_id)
+        manager_id = position_statement_recipient(
+            case, self.datalayer, self.actor_id
+        )
+        position = stated_replica_position(case, self.datalayer)
+        if manager_id is None or position is None:
+            self.logger.debug(
+                "%s: case '%s' seeded; no ledger position to state",
+                self.name,
+                self.case_id,
+            )
+            return Status.SUCCESS
+        if self._sync_port is None:
+            raise VultronWiringError(
+                f"{self.name}: sync_port must be injected to state the"
+                " ledger position a case copy seeded (SYNC-17-008)"
+            )
+        self._sync_port.send_read_ledger_entry(
+            case_id=self.case_id,
+            ledger_position=position,
+            actor_id=self.actor_id,
+            to=[manager_id],
+        )
+        self.logger.info(
+            "%s: case '%s' seeded at log_index=%d; stated the position to"
+            " CASE_MANAGER '%s' (SYNC-17-008)",
+            self.name,
+            self.case_id,
+            position.log_index,
+            manager_id,
+        )
+        return Status.SUCCESS
+
+
 __all__ = [
     "CASE_COPY_REPLACES_KEY",
     "CaseCopyNotStaleNode",
     "RequestCaseCopyBackfillNode",
+    "StateSeededLedgerPositionNode",
 ]

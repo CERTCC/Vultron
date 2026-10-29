@@ -174,10 +174,7 @@ class InboxPipeline:
                 and not isinstance(self._dl.read(case_id), VulnerabilityCase)
             ):
                 if _expire_pending_case_activities(
-                    case_id=case_id,
-                    actor_id=receiving_actor_id,
-                    dl=self._dl,
-                    queue_dl=queue_dl,
+                    case_id=case_id, queue_dl=queue_dl
                 ):
                     return None
                 # Held before it is queued: the record is its only copy.
@@ -202,7 +199,6 @@ class InboxPipeline:
                     case_id=case_id,
                     dl=self._dl,
                     queue_dl=queue_dl,
-                    actor_id=receiving_actor_id,
                 )
             return event
         except VultronProtocolViolationError:

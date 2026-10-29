@@ -398,7 +398,7 @@ groups:
     - story_2022_050
     - story_2022_035
 - id: CBT-03
-  title: Out-of-Order Handling and Replay Requests
+  title: Out-of-Order Handling
   specs:
   - id: CBT-03-001
     priority: SHOULD
@@ -449,18 +449,6 @@ groups:
     stories:
     - story_2022_090
     - story_2022_088
-  - id: CBT-03-004
-    priority: SHOULD
-    kind: project
-    statement: When bootstrap has not arrived in time, the receiver SHOULD request a replay from the original report receiver
-      / case creator by sending an `as_Question` activity (`vultron.wire.as2.vocab.base.objects.activities.intransitive.as_Question`)
-      asking for the bootstrap `Create(VulnerabilityCase)` to be resent. The `target` of the `as_Question` SHOULD be set to
-      the `case_actor_id` recorded on the `VultronPendingCaseInbox` entry.
-    rationale: >-
-      A receiver whose queue expired has lost messages it could not yet trust, and
-      only a case copy lets it trust the next ones. The `Question` asks the actor
-      that the queue record names for that case copy, so the receiver does not
-      depend only on other traffic to get it.
   - id: CBT-03-005
     priority: MUST
     kind: project
@@ -613,21 +601,23 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Tests MUST verify that pre-bootstrap CASE_MANAGER messages remain unapplied,
-      expire safely, and lead to a replay request (CBT-03-004).
+      Tests MUST verify that pre-bootstrap CASE_MANAGER messages remain unapplied
+      and expire safely (CBT-03-003, CBT-03-006).
     rationale: >-
       A message arrives before its bootstrap only when delivery is out of order,
       which a normal run seldom causes. Only a test checks regularly that such a
-      message stays unapplied and that its expiry follows CBT-03-003 and CBT-03-004.
+      message stays unapplied and that its expiry follows CBT-03-003 and CBT-03-006.
+      The receiver asks no one to resend what it dropped: the CASE_MANAGER recovers
+      a dropped Invite once the participant states its position (SYNC-17-008,
+      ADR-0163).
     verification: >-
       `test_deferred_activity_replays_with_its_inline_object` in
       `test/adapters/driving/fastapi/test_inbox_staging.py` confirms that a queued
       activity is held, not stored, until the case arrives.
       `test_pending_case_queue_expires_drops_and_warns` and
-      `test_pending_case_queue_expiry_emits_question` in
+      `test_pending_case_queue_expiry_sends_nothing` in
       `test/adapters/driving/fastapi/test_inbox_handler.py` confirm that an expired
-      queue is dropped with a warning and that a replay `Question` goes to the
-      `case_actor_id` the queue record holds.
+      queue is dropped with a warning and that expiry queues nothing to the outbox.
     stories:
     - story_2022_090
     - story_2022_088
