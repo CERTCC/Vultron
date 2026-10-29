@@ -75,12 +75,11 @@ the private spelling will not find a public duplicate** — search for the behav
 Three subpackages own committed generated artifacts, and all split the same way:
 **generate what is derivable, check what is prose.** `adr/index_gen.py`
 regenerates `docs/adr/index.md` but only checks the hand-labelled nav;
-`demo_scenarios/` regenerates the CI matrix, two scenario tables and the
-scenario-tree index but leaves spec enumerations and nav to completeness checks;
-`msm/occasions.py` regenerates the occasion YAML and its fragments, not the page
-prose. Each is a `--check` hook (`adr-index-sync`, `demo-scenarios-sync`,
-`demo-tree-sync`, `msm-occasions-sync`) comparing byte for byte via
-`generated_files.py`; an ungated one is hand-edited.
+`demo_scenarios/` regenerates the CI matrix, two scenario tables and the tree
+index, leaving spec enumerations and nav to checks; `msm/occasions.py` regenerates
+the occasion YAML and fragments, not page prose. Each is a `--check` hook
+(`adr-index-sync`, `demo-scenarios-sync`, `demo-tree-sync`, `msm-occasions-sync`)
+comparing byte for byte via `generated_files.py`; an ungated one is hand-edited.
 `docs/landing_pages.py` (`docs-site-sync`) splits per page: a nav group's
 `index.md` declares `contents: generated | routing | rendered`, and a routing
 index is *checked* to link every member of its section, not written (#3617).
