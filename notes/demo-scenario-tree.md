@@ -134,14 +134,8 @@ DEMOCI-11-018). The test is `TestSharedPrefixes` in
   shared helper takes a hook instead (`before_answer=step_reporter(...)` on the
   invite chain). The recorder commits the marks as `steps.json` beside each
   recording and refuses a run that leaves a declared step unmarked.
-- The harness fails a step whose `by` actor lacks the branch point's role,
-  read from its participant in the canonical case (DEMOCI-11-013). Before an
-  actor is a participant, its role comes from the act that brings it in: the
-  root step's actor must be the report's author, and an invitee's role is the
-  one its Invite offers, which the CASE_MANAGER seats as an inert participant
-  (CM-17-003). So the root step is reported after seeding, before the report
-  is submitted, and a Coordinator container states `["coordinator"]` as its
-  default case roles (CP-01-013).
+- The harness also checks the `by` actor holds the branch point's role; the
+  rule is in demo-scenario-registry.md § "The path and the branch-point table".
 
 ## Test starting points
 

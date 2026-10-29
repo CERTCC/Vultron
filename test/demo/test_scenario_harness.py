@@ -22,7 +22,7 @@ raises.
 
 import json
 from collections.abc import Iterator
-from typing import Any
+from typing import cast
 from unittest.mock import MagicMock
 from urllib.parse import unquote
 
@@ -252,13 +252,14 @@ class _CaseActorStore(DataLayerClient):
     and (when the case names its report by id) the report.
     """
 
-    records: dict[str, Any]
+    records: dict[str, object]
 
     def dl_path(self, key: str = "", actor_id: str | None = None) -> str:
         return key
 
-    def get(self, path: str, **kwargs: Any) -> Any:
-        return self.records[unquote(path)]
+    def get(self, path: str, **kwargs: object) -> dict:
+        # A malformed record may be any JSON value; the check must refuse it.
+        return cast(dict, self.records[unquote(path)])
 
 
 def _rv_store(
@@ -432,6 +433,7 @@ class TestStepMarks:
         reach_step("vendor-after-answer", "report-fix-ready", by=VENDOR)
 
 
+@pytest.mark.spec("DEMOCI-11-013")
 class TestDecidingRole:
     """The harness fails a step whose caller lacks the role (DEMOCI-11-013).
 
@@ -526,10 +528,63 @@ class TestDecidingRole:
         )
         self._run(client)
 
+    def test_an_inline_report_without_an_author_is_read_by_id(
+        self, _devlogs
+    ) -> None:
+        self._run(_rv_store(reports=[{"id": "urn:report"}]))
+
+    @pytest.mark.parametrize("report", [42, {"attributedTo": 42}])
+    def test_a_report_naming_no_author_fails_the_root_step(
+        self, _devlogs, report
+    ) -> None:
+        with pytest.raises(DemoScenarioStepError, match="are by \\[None\\]"):
+            self._run(_rv_store(reports=[report]))
+
+    def test_a_report_author_given_as_an_object_is_read(
+        self, _devlogs
+    ) -> None:
+        self._run(_rv_store(reports=[{"attributedTo": {"id": REPORTER}}]))
+
+    def test_the_root_step_is_checked_when_no_ledger_is_followed(
+        self, _devlogs
+    ) -> None:
+        with pytest.raises(DemoScenarioStepError, match="without following"):
+            with scenario_harness("rv") as harness:
+                harness.reach_step(
+                    "reporter-whom-to-tell", "vendor", by=REPORTER
+                )
+
+    @pytest.mark.parametrize(
+        ("key", "value", "match"),
+        [
+            ("urn:case", {}, "no participant index"),
+            ("urn:participant:vendor", {}, "no list of case roles"),
+            ("urn:participant:vendor", {"caseRoles": "vendor"}, "no list"),
+        ],
+    )
+    def test_a_record_missing_the_field_fails_the_step(
+        self, _devlogs, key, value, match
+    ) -> None:
+        client = _rv_store()
+        if key == "urn:case":
+            # The root check reads the reports first; keep them readable.
+            value = {"vulnerabilityReports": [{"attributedTo": REPORTER}]}
+        client.records[key] = value
+        with pytest.raises(DemoScenarioStepError, match=match):
+            self._run(client)
+
+    def test_a_case_with_no_report_list_fails_the_root_step(
+        self, _devlogs
+    ) -> None:
+        client = _rv_store()
+        client.records["urn:case"] = {"actorParticipantIndex": {}}
+        with pytest.raises(DemoScenarioStepError, match="no list of reports"):
+            self._run(client)
+
     def test_a_store_that_returns_no_record_fails_the_step(
         self, _devlogs
     ) -> None:
         client = _rv_store()
         client.records["urn:participant:vendor"] = []
-        with pytest.raises(DemoScenarioStepError, match="not a stored record"):
+        with pytest.raises(DemoScenarioStepError, match="not a record"):
             self._run(client)

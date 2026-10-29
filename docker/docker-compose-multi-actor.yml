@@ -222,7 +222,7 @@ services:
   # Fifth actor container with a scenario-neutral name.  Different scenarios
   # seed this container with different actor identities:
   #   - rvv, rvcv-extension, rvcv-handoff: seeded as Vendor2
-  #   - rccv-extension: seeded as Coordinator2
+  #   - rccv-extension, rccv-handoff: seeded as Coordinator2
   # The neutral service name avoids hard-coding a specific CVD role.
   actor5:
     <<: *actor-service
@@ -232,7 +232,7 @@ services:
       - VULTRON_DATABASE__DB_URL=sqlite:////app/data/mydb.sqlite
       # VULTRON_ACTOR_ID: default identity for rvv/rvcv-* scenarios.
       # Override by passing a different VULTRON_SEED_CONFIG at runtime
-      # (e.g. seed-coordinator2.yaml for rccv-extension).
+      # (e.g. seed-coordinator2.yaml for rccv-extension and rccv-handoff).
       - VULTRON_ACTOR_ID=http://actor5:7999/api/v2/actors/vendor2
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-actor5.yaml
       - VULTRON_SERVER__LOG_LEVEL=${VULTRON_SERVER__LOG_LEVEL:-INFO}

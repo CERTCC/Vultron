@@ -288,6 +288,24 @@ class ScenarioHarness:
             tail,
         )
 
+    def require_root_checked(self) -> None:
+        """Fail when the root step's Reporter was never checked.
+
+        The check runs when :meth:`follow_ledger` first names the case, so a
+        scenario that reaches the root step and ends cleanly without following
+        a ledger would otherwise pass unchecked (DEMOCI-11-013).
+
+        Raises:
+            DemoScenarioStepError: When a root step is still unchecked.
+        """
+        if self._report_submitter is not None:
+            step, actor_id = self._report_submitter
+            raise DemoScenarioStepError(
+                f"{step} was decided by {actor_id!r} as the Reporter, but the "
+                "scenario ended without following a case ledger, so nothing "
+                "checked that it submitted the report (DEMOCI-11-013)."
+            )
+
     def _check_role(self, step: PathStep, actor_id: str) -> None:
         """Fail unless *actor_id* holds the role of *step*'s branch point."""
         role = BRANCH_POINTS[step[0]].role
@@ -501,6 +519,8 @@ def scenario_harness(
     Raises:
         DemoFailureError: When the body completed but ``demo_step`` or
             ``demo_check`` recorded failures.
+        DemoScenarioStepError: When the body completed with its root step's
+            Reporter unchecked (:meth:`ScenarioHarness.require_root_checked`).
         BaseException: Whatever the body raised, unchanged — the dump runs
             first but never substitutes its own error for the body's.
     """
@@ -522,4 +542,5 @@ def scenario_harness(
         _ACTIVE.reset(token)
     _run_dump(harness)
     _record_marks(harness)
+    harness.require_root_checked()
     assert_demo_success()

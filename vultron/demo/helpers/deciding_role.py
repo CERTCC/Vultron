@@ -29,23 +29,33 @@ role is read from the canonical case in the CaseActor's own store
 """
 
 from collections.abc import Mapping
-from typing import Any
 
 from vultron.demo.helpers.seeding import _dl_key
 from vultron.demo.utils import DataLayerClient
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoScenarioStepError
 
-# The checks read the stored JSON rather than parsing it into wire models: a
-# model fills unset fields from its id and clock factories, and in a
-# deterministic recording run (``vultron.demo.determinism``) those draws would
-# shift every id the scenario mints afterwards.  A read made only to check a
-# role must leave the recording as it would be without the check.
+# The checks read the stored JSON rather than parsing it into wire models.
+# Each needs one or two fields, and a field that is missing or of the wrong
+# shape must fail the step, not be filled in by a model default.  The reads
+# are not free in a recording run: the server draws ids when it serves a
+# record, so a recording made with the checks differs from one made without
+# them from the first check on (``vultron.demo.determinism``).
+
+#: A record as the store serves it: JSON, keyed by field name.
+Record = Mapping[str, object]
+
+_MISSING = object()
 
 
-def _field(data: Mapping[str, Any], camel: str, snake: str) -> Any:
-    """*data*'s value for a field stored under its camelCase or snake name."""
-    return data[camel] if camel in data else data.get(snake)
+def _field(data: Record, camel: str, snake: str) -> object:
+    """*data*'s value for a field stored under its camelCase or snake name.
+
+    Returns ``_MISSING`` when the record has neither.
+    """
+    if camel in data:
+        return data[camel]
+    return data.get(snake, _MISSING)
 
 
 def _ref_id(value: object) -> str | None:
@@ -58,14 +68,26 @@ def _ref_id(value: object) -> str | None:
     return None
 
 
-def _read(client: DataLayerClient, key: str) -> Mapping[str, Any]:
+def _author(report: object) -> str | None:
+    """The author a report's JSON names, or ``None`` when it names none."""
+    if not isinstance(report, Mapping):
+        return None
+    author = _field(report, "attributedTo", "attributed_to")
+    return None if author is _MISSING else _ref_id(author)
+
+
+def _unreadable(key: str, what: str) -> DemoScenarioStepError:
+    return DemoScenarioStepError(
+        f"the CaseActor's record {key!r} {what}, so the step's role cannot "
+        "be read (DEMOCI-11-013)."
+    )
+
+
+def _read(client: DataLayerClient, key: str) -> Record:
     """Read *key* from *client*'s own store, raising when it is not a record."""
-    data = client.get(client.dl_path(key))
+    data: object = client.get(client.dl_path(key))
     if not isinstance(data, Mapping):
-        raise DemoScenarioStepError(
-            f"the CaseActor's store returned {type(data).__name__} for "
-            f"{key!r}, not a stored record; the step's role cannot be read."
-        )
+        raise _unreadable(key, f"is a {type(data).__name__}, not a record")
     return data
 
 
@@ -93,9 +115,9 @@ def require_case_role(
     """
     case = _read(case_actor_client, case_id)
     index = _field(case, "actorParticipantIndex", "actor_participant_index")
-    participant_id = (
-        index.get(actor_id) if isinstance(index, Mapping) else None
-    )
+    if not isinstance(index, Mapping):
+        raise _unreadable(case_id, "has no participant index")
+    participant_id = index.get(actor_id)
     if not isinstance(participant_id, str):
         raise DemoScenarioStepError(
             f"{step} is decided by {actor_id!r}, which is not a participant "
@@ -103,7 +125,9 @@ def require_case_role(
             "(DEMOCI-11-013)."
         )
     participant = _read(case_actor_client, _dl_key(participant_id))
-    roles = _field(participant, "caseRoles", "case_roles") or []
+    roles = _field(participant, "caseRoles", "case_roles")
+    if not isinstance(roles, list):
+        raise _unreadable(participant_id, "has no list of case roles")
     if role.value not in roles:
         raise DemoScenarioStepError(
             f"{step} is decided by {actor_id!r}, whose participant in case "
@@ -136,18 +160,14 @@ def require_report_submitter(
         httpx.HTTPStatusError: When the CaseActor's store cannot be read.
     """
     case = _read(case_actor_client, case_id)
+    reports = _field(case, "vulnerabilityReports", "vulnerability_reports")
+    if not isinstance(reports, list):
+        raise _unreadable(case_id, "has no list of reports")
     authors: list[str | None] = []
-    for report in (
-        _field(case, "vulnerabilityReports", "vulnerability_reports") or []
-    ):
-        author = (
-            _ref_id(_field(report, "attributedTo", "attributed_to"))
-            if isinstance(report, Mapping)
-            else None
-        )
+    for report in reports:
+        author = _author(report)
         if author is None and (report_id := _ref_id(report)) is not None:
-            stored = _read(case_actor_client, _dl_key(report_id))
-            author = _ref_id(_field(stored, "attributedTo", "attributed_to"))
+            author = _author(_read(case_actor_client, _dl_key(report_id)))
         authors.append(author)
     if actor_id not in authors:
         raise DemoScenarioStepError(
