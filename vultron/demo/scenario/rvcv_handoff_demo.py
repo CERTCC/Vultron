@@ -35,7 +35,7 @@ from vultron.demo.helpers.actor_roles import (
     role_map,
 )
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
-from vultron.demo.helpers.harness import scenario_harness
+from vultron.demo.helpers.harness import reach_step, scenario_harness
 from vultron.demo.helpers.invite_chain import (
     CaseInviter,
     EmittedBy,
@@ -57,6 +57,7 @@ from vultron.demo.helpers.notes import (
     NotePost,
     add_note_thread,
     reporter_asks,
+    vendor_answers_workaround,
 )
 from vultron.demo.helpers.polling import (
     LATE_JOINER_TIMEOUT,
@@ -378,6 +379,8 @@ def _phase_ownership_handoff(
             },
         )
         logger.info("Coordinator has joined the case")
+        # Vendor1, the case owner, decides once the Coordinator has joined.
+        reach_step("owner-keep-case", "offer-ownership")
 
         # Vendor1 offers ownership transfer to Coordinator (TRIG-11-001).  The
         # delivery gate and the Coordinator's accept are nested inside the
@@ -705,11 +708,8 @@ def _phase_notes_exchange(
         case,
         WORKAROUND_QUESTION,
         [
-            NotePost(
-                ActorSession(client=vendor_client, actor=vendor_in_vendor),
-                "Vendor1 Response",
-                "Yes, disabling the affected module is an effective interim "
-                "workaround.",
+            vendor_answers_workaround(
+                ActorSession(client=vendor_client, actor=vendor_in_vendor)
             ),
         ],
     )
@@ -1066,6 +1066,7 @@ def run_rvcv_handoff_demo(
 ) -> None:
     """Orchestrate the RVCV-handoff CVD workflow."""
     with scenario_harness("rvcv-handoff") as harness:
+        harness.reach_step("reporter-whom-to-tell", "vendor")
         logger.info("=" * 80)
         logger.info(
             "RVCV-HANDOFF DEMO: Reporter + Vendor1 → Coordinator (ownership) + Vendor2"
@@ -1112,6 +1113,7 @@ def run_rvcv_handoff_demo(
                 demo_name=harness.demo_name,
             )
         )
+        harness.follow_ledger(case_actor_client, case.id_)
 
         # The case's CaseActor is the dedicated case-actor container's identity
         # (CP-08-008, DEMOMA-06-004), and it stays the CASE_MANAGER through the
@@ -1139,6 +1141,7 @@ def run_rvcv_handoff_demo(
             vendor_in_vendor,
             case,
         )
+        harness.reach_step("vendor-after-answer", "invite-coordinator")
 
         case = _phase_ownership_handoff(
             reporter_client=reporter_client,

@@ -50,7 +50,7 @@ class TestSeedContainersRcvv:
         assert [a.name for a in (reporter, coordinator, vendor, vendor2)] == [
             "Reporter",
             "Coordinator",
-            "Vendor1",
+            "Vendor",
             "Vendor2",
         ]
 

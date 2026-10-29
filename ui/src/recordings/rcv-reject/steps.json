@@ -1,0 +1,19 @@
+{
+  "steps": [
+    {
+      "branchPoint": "reporter-whom-to-tell",
+      "choice": "coordinator",
+      "ledgerTail": 0
+    },
+    {
+      "branchPoint": "coordinator-invite-whom",
+      "choice": "vendor",
+      "ledgerTail": 13
+    },
+    {
+      "branchPoint": "vendor-join",
+      "choice": "reject",
+      "ledgerTail": 16
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "steps": [
+    {
+      "branchPoint": "reporter-whom-to-tell",
+      "choice": "coordinator",
+      "ledgerTail": 0
+    },
+    {
+      "branchPoint": "coordinator-invite-whom",
+      "choice": "vendor",
+      "ledgerTail": 13
+    },
+    {
+      "branchPoint": "vendor-join",
+      "choice": "accept",
+      "ledgerTail": 16
+    },
+    {
+      "branchPoint": "reporter-after-join",
+      "choice": "propose-embargo",
+      "ledgerTail": 23
+    },
+    {
+      "branchPoint": "vendor-after-embargo",
+      "choice": "report-fix-ready",
+      "ledgerTail": 36
+    }
+  ]
+}

@@ -212,3 +212,29 @@ def test_scenario_notes_exchange_is_one_thread(
         kwargs[f"{name}_in_{name}"] for name in posters
     ]
     assert posts[0].name == "Question from Reporter"
+
+
+def test_the_timeline_thread_asks_then_the_vendor_and_coordinator_answer():
+    """The ask-vendor thread every sibling posts before C's decision (#4727)."""
+    reporter, vendor, coordinator = (
+        _session("reporter"),
+        _session("vendor"),
+        _session("coordinator"),
+    )
+
+    posts = notes.reporter_asks_vendor_timeline(reporter, vendor, coordinator)
+
+    assert [post.poster for post in posts] == [reporter, vendor, coordinator]
+    assert [post.name for post in posts] == [
+        "Question from Reporter",
+        "Vendor Status Update",
+        "Coordinator Summary",
+    ]
+
+
+def test_the_workaround_answer_is_the_vendors_shared_reply():
+    vendor = _session("vendor")
+
+    assert notes.vendor_answers_workaround(vendor) == notes.NotePost(
+        vendor, notes.WORKAROUND_ANSWER_NAME, notes.WORKAROUND_ANSWER
+    )

@@ -46,7 +46,11 @@ from vultron.demo.helpers.actor_roles import (
     role_map,
 )
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
-from vultron.demo.helpers.harness import scenario_harness
+from vultron.demo.helpers.harness import (
+    follow_ledger,
+    reach_step,
+    scenario_harness,
+)
 from vultron.demo.helpers.invite_chain import (
     CaseInviter,
     run_case_invite_chain,
@@ -325,6 +329,9 @@ def _phase_report_submission(
             case_id=case.id_,
             expected_actor_ids={reporter.id_, c1.id_},
         )
+
+        follow_ledger(case_actor_client, case.id_)
+        reach_step("coordinator-invite-whom", "coordinator")
 
         # C1 invites C2 with CVDRole.COORDINATOR (not CASE_MANAGER).  The chain
         # nests the delivery gate, the accept and the replica wait inside the
@@ -905,6 +912,7 @@ def run_rccv_extension_demo(
     logger.info("CaseActor container: %s", case_actor_client.base_url)
 
     with scenario_harness("rccv-extension") as harness:
+        harness.reach_step("reporter-whom-to-tell", "coordinator")
         (
             reporter,
             c1,
@@ -942,6 +950,9 @@ def run_rccv_extension_demo(
 
         vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
 
+        # C1, the case owner, decides before C2's suggestion it then accepts
+        # (another role's step between decision and trigger).
+        harness.reach_step("owner-keep-case", "keep")
         _phase_c2_suggests_vendor(
             reporter_client=reporter_client,
             c1_client=c1_client,

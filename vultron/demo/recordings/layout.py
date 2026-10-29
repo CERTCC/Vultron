@@ -11,19 +11,74 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The committed recordings under ``ui/src/recordings/``, and their layout check."""
+"""The committed recordings under ``ui/src/recordings/``, and their layout check.
 
+Each scenario's directory holds two files: the canonical ledger
+(``case-actor.jsonl``) and its step marks (``steps.json``), the ledger tail at
+each declared step of the scenario's path, which the shared-prefix check reads
+(:mod:`.prefix`, DEMOCI-11-017).
+"""
+
+import json
 import shutil
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 import click
 
-from vultron.demo.recordings.ledgers import CANONICAL_ACTOR
+from vultron.demo.helpers.harness import StepMark
+from vultron.demo.recordings.ledgers import CANONICAL_ACTOR, parse_step_marks
 from vultron.demo.recordings.topology import REPO_ROOT
+from vultron.demo.scenario.tree import PathStep
+from vultron.errors import DemoRecordingError
 
 RECORDINGS_DIR = REPO_ROOT / "ui" / "src" / "recordings"
 RECORDING_SUFFIX = ".jsonl"
+STEPS_FILENAME = "steps.json"
+
+
+@dataclass(frozen=True)
+class Recording:
+    """One scenario's recording: its canonical ledger and its step marks.
+
+    Attributes:
+        scenario: The scenario name.
+        ledger: The canonical ledger, as JSONL.
+        steps: The ledger tail at each declared step of the scenario's path.
+
+    Raises:
+        DemoRecordingError: When a step's ledger tail lies past the ledger.
+    """
+
+    scenario: str
+    ledger: str
+    steps: tuple[StepMark, ...]
+
+    def __post_init__(self) -> None:
+        entries = len(self.ledger.splitlines())
+        for mark in self.steps:
+            if mark.ledger_tail > entries:
+                raise DemoRecordingError(
+                    f"scenario {self.scenario!r} marked step "
+                    f"{mark.branch_point}:{mark.choice} at ledger tail "
+                    f"{mark.ledger_tail}, past the {entries} entries its "
+                    "canonical ledger holds."
+                )
+
+    @property
+    def entries(self) -> list[str]:
+        """The ledger's JSONL lines, one per entry."""
+        return self.ledger.splitlines()
+
+    def steps_text(self) -> str:
+        """Return the step marks as committed in ``steps.json``."""
+        return (
+            json.dumps(
+                {"steps": [mark.as_json() for mark in self.steps]}, indent=2
+            )
+            + "\n"
+        )
 
 
 def recording_path(scenario: str) -> Path:
@@ -31,18 +86,63 @@ def recording_path(scenario: str) -> Path:
     return RECORDINGS_DIR / scenario / f"{CANONICAL_ACTOR}{RECORDING_SUFFIX}"
 
 
-def write_recording(scenario: str, recording: str) -> Path:
-    """Replace the committed recording of *scenario* with *recording*.
+def steps_path(scenario: str) -> Path:
+    """Return the committed path of a scenario's step marks."""
+    return RECORDINGS_DIR / scenario / STEPS_FILENAME
+
+
+def write_recording(recording: Recording) -> Path:
+    """Replace the committed recording of its scenario with *recording*.
 
     Anything else in the scenario's directory is removed with it.
+
+    Returns:
+        The path of the ledger written.
     """
-    scenario_dir = RECORDINGS_DIR / scenario
+    scenario_dir = RECORDINGS_DIR / recording.scenario
     if scenario_dir.exists():
         shutil.rmtree(scenario_dir)
     scenario_dir.mkdir(parents=True)
-    path = recording_path(scenario)
-    path.write_text(recording, encoding="utf-8")
+    path = recording_path(recording.scenario)
+    path.write_text(recording.ledger, encoding="utf-8")
+    steps_path(recording.scenario).write_text(
+        recording.steps_text(), encoding="utf-8"
+    )
     return path
+
+
+def read_recording(scenario: str, path: Sequence[PathStep]) -> Recording:
+    """Return the committed recording of *scenario*.
+
+    Args:
+        scenario: The scenario name.
+        path: Its declared path, which the step marks must cover.
+
+    Raises:
+        DemoRecordingError: As :func:`~.ledgers.parse_step_marks`, or when a
+            step's ledger tail lies past the ledger.
+    """
+    return Recording(
+        scenario,
+        ledger=recording_path(scenario).read_text(encoding="utf-8"),
+        steps=parse_step_marks(
+            steps_path(scenario).read_text(encoding="utf-8"), scenario, path
+        ),
+    )
+
+
+def is_current(recording: Recording) -> bool:
+    """Whether the committed files of its scenario equal *recording*."""
+    ledger, steps = (
+        recording_path(recording.scenario),
+        steps_path(recording.scenario),
+    )
+    return (
+        ledger.is_file()
+        and steps.is_file()
+        and ledger.read_text(encoding="utf-8") == recording.ledger
+        and steps.read_text(encoding="utf-8") == recording.steps_text()
+    )
 
 
 def layout_problems(scenario_names: Sequence[str]) -> list[str]:
@@ -67,14 +167,20 @@ def layout_problems(scenario_names: Sequence[str]) -> list[str]:
         f"{name}: recorded but not a registered scenario"
         for name in sorted(recorded - registered)
     ]
-    expected = f"{CANONICAL_ACTOR}{RECORDING_SUFFIX}"
+    expected = (f"{CANONICAL_ACTOR}{RECORDING_SUFFIX}", STEPS_FILENAME)
     for name in sorted(registered & recorded):
         held = sorted(path.name for path in (RECORDINGS_DIR / name).iterdir())
-        if expected not in held:
-            problems.append(f"{name}: has no {expected}")
-        if extra := [held_name for held_name in held if held_name != expected]:
+        problems += [
+            f"{name}: has no {file_name}"
+            for file_name in expected
+            if file_name not in held
+        ]
+        if extra := [
+            held_name for held_name in held if held_name not in expected
+        ]:
             problems.append(
-                f"{name}: holds files other than {expected}: {extra}"
+                f"{name}: holds files other than {' and '.join(expected)}: "
+                f"{extra}"
             )
     return problems
 

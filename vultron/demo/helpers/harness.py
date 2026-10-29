@@ -48,24 +48,57 @@ phase can die and the harness still has something to dump. Before that point
 the harness writes a manifest-only artifact, which is enough for the invariant
 harness to distinguish "the demo produced no ledgers" from "the demo never
 ran".
+
+**Step marks.** A scenario also reports reaching each step of its declared
+path (``@scenario(path=...)``) with :meth:`ScenarioHarness.reach_step`, at the
+point where it makes that decision.  The harness checks the step is the next
+one declared and records the canonical ledger's tail there: how many entries
+the case had when the decision was made.  The marks are written beside the
+dump manifest on the way out, however the scenario ends, and the recorder
+commits them with each recording so the shared-prefix check knows where each
+branch point falls (DEMOCI-11-017, ``notes/demo-scenario-tree.md``)::
+
+    with scenario_harness("rv") as harness:
+        harness.reach_step("reporter-whom-to-tell", "vendor")
+        ..., case = _phase_report_submission(...)
+        harness.follow_ledger(case_actor_client, case.id_)
+        ...
+        harness.reach_step("vendor-after-answer", "report-fix-ready")
+
+A step that falls inside a phase function is reported with the module-level
+:func:`reach_step` (and the ledger followed with :func:`follow_ledger`), which
+go to the harness of the scenario running now, so a phase does not take the
+harness as a parameter.  Outside a harness, a phase called directly by a test
+for example, both do nothing: the marks belong to a scenario run, and the
+recorder refuses a run whose marks do not cover its declared path.
 """
 
+import json
 import logging
+import pathlib
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 
 from vultron.demo.helpers.ledger_dump import (
+    STEP_MARKS_FILENAME,
     LedgerDumpReport,
+    case_ledger_length,
     ensure_dump_manifest,
+    resolve_output_root,
     write_dump_manifest,
 )
+from vultron.demo.scenario.registry import registered_scenarios
+from vultron.demo.scenario.tree import PathStep
 from vultron.demo.utils import (
+    DataLayerClient,
     _note_accumulated_failures,
     assert_demo_success,
     demo_step,
     reset_demo_failures,
 )
+from vultron.errors import DemoScenarioStepError
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +112,30 @@ DUMP_CRASHED_REASON = (
 )
 
 
+@dataclass(frozen=True)
+class StepMark:
+    """Where one declared step of a scenario's path fell in its case ledger.
+
+    Attributes:
+        branch_point: The branch point decided at this step.
+        choice: The choice the scenario takes there.
+        ledger_tail: How many entries the canonical ledger held when the
+            scenario reached the step; ``0`` before the case exists.
+    """
+
+    branch_point: str
+    choice: str
+    ledger_tail: int
+
+    def as_json(self) -> dict[str, str | int]:
+        """Return the mark in the camelCase shape the recordings use."""
+        return {
+            "branchPoint": self.branch_point,
+            "choice": self.choice,
+            "ledgerTail": self.ledger_tail,
+        }
+
+
 @dataclass
 class ScenarioHarness:
     """Per-run state shared between a scenario body and its harness.
@@ -87,10 +144,15 @@ class ScenarioHarness:
         demo_name: Scenario name; the devlogs sub-directory the dump writes to.
         dump: Zero-argument callable that performs the ledger dump, or ``None``
             while the scenario has not reached a dumpable state yet.
+        marks: The steps reached so far, in order (:meth:`reach_step`).
     """
 
     demo_name: str
     dump: Callable[[], None] | None = None
+    marks: list[StepMark] = field(default_factory=list)
+    _ledger: tuple[DataLayerClient, str] | None = field(
+        default=None, init=False, repr=False
+    )
 
     def dump_with(self, dump: Callable[[], None]) -> None:
         """Register the ledger dump to run when the scenario ends.
@@ -104,6 +166,173 @@ class ScenarioHarness:
                 scenario ends.
         """
         self.dump = dump
+
+    def follow_ledger(
+        self, case_actor_client: DataLayerClient, case_id: str
+    ) -> None:
+        """Read step marks from this case's canonical ledger from now on.
+
+        Call this as soon as the case exists, with the dedicated case-actor
+        container's client, which holds the canonical ledger (DEMOMA-06-005).
+
+        Args:
+            case_actor_client: Client bound to the CaseActor.
+            case_id: The case whose ledger tail each later step records.
+        """
+        self._ledger = (case_actor_client, case_id)
+
+    def reach_step(self, branch_point: str, choice: str) -> None:
+        """Report that the scenario is at a declared step of its path.
+
+        Call it where the scenario makes the decision, before the choice's
+        trigger and before any step of another role that runs between the two
+        (DEMOCI-11-013).  The harness records the canonical ledger's tail as
+        the step's mark.
+
+        Args:
+            branch_point: The branch point decided here.
+            choice: The choice this scenario takes.
+
+        Raises:
+            DemoScenarioStepError: When ``(branch_point, choice)`` is not the
+                next step of the scenario's declared path, or when a step
+                after the first is reached before :meth:`follow_ledger`.
+        """
+        path = _declared_path(self.demo_name)
+        index = len(self.marks)
+        step = (branch_point, choice)
+        if index >= len(path) or path[index] != step:
+            expected = (
+                f"step {index + 1} is {path[index]}"
+                if index < len(path)
+                else f"all {len(path)} steps were already reached"
+            )
+            raise DemoScenarioStepError(
+                f"scenario {self.demo_name!r} reached {step}, but its declared "
+                f"path says {expected}. Fix the reach_step() call or the "
+                "@scenario path (DEMOCI-11-014)."
+            )
+        if self._ledger is None and index > 0:
+            raise DemoScenarioStepError(
+                f"scenario {self.demo_name!r} reached {step} before following "
+                "a case ledger; call harness.follow_ledger() once the case "
+                "exists, so the step's mark is its ledger tail."
+            )
+        tail = 0 if self._ledger is None else case_ledger_length(*self._ledger)
+        self.marks.append(StepMark(branch_point, choice, tail))
+        logger.info(
+            "%s reached step %d %s:%s at ledger tail %d",
+            self.demo_name,
+            index + 1,
+            branch_point,
+            choice,
+            tail,
+        )
+
+
+#: The harness of the scenario running now, set by :func:`scenario_harness`.
+_ACTIVE: ContextVar["ScenarioHarness | None"] = ContextVar(
+    "active_scenario_harness", default=None
+)
+
+
+def reach_step(branch_point: str, choice: str) -> None:
+    """Report a declared step to the running scenario's harness.
+
+    As :meth:`ScenarioHarness.reach_step`; does nothing outside
+    :func:`scenario_harness`.
+    """
+    harness = _ACTIVE.get()
+    if harness is None:
+        logger.debug(
+            "No scenario harness is running; step %s:%s is not recorded",
+            branch_point,
+            choice,
+        )
+        return
+    harness.reach_step(branch_point, choice)
+
+
+def follow_ledger(case_actor_client: DataLayerClient, case_id: str) -> None:
+    """Have the running scenario's harness follow this case's ledger.
+
+    As :meth:`ScenarioHarness.follow_ledger`; does nothing outside
+    :func:`scenario_harness`.
+    """
+    harness = _ACTIVE.get()
+    if harness is not None:
+        harness.follow_ledger(case_actor_client, case_id)
+
+
+def step_reporter(branch_point: str, choice: str) -> Callable[[], None]:
+    """Return a callable that reports this step when a helper calls it.
+
+    For a step that falls inside a shared helper, which cannot know the
+    scenario's branch points: the scenario passes the callable as the
+    helper's hook (``on_invited=step_reporter("vendor-join", "accept")``).
+    """
+
+    def report() -> None:
+        reach_step(branch_point, choice)
+
+    return report
+
+
+def _declared_path(demo_name: str) -> tuple[PathStep, ...]:
+    """Return the ``@scenario`` path of *demo_name*.
+
+    Raises:
+        DemoScenarioStepError: When no scenario of that name is registered.
+    """
+    for spec in registered_scenarios():
+        if spec.name == demo_name:
+            return spec.path
+    raise DemoScenarioStepError(
+        f"no registered scenario is named {demo_name!r}, so it has no "
+        "declared path to reach a step on."
+    )
+
+
+def write_step_marks(
+    demo_name: str,
+    marks: list[StepMark],
+    output_root: pathlib.Path | None = None,
+) -> pathlib.Path:
+    """Write *marks* to ``{output_root}/{demo_name}/step-marks.json``.
+
+    Args:
+        demo_name: Scenario name; the devlogs sub-directory.
+        marks: The steps reached, in order.
+        output_root: Devlogs root; defaults to ``DEVLOGS_DIR``.
+
+    Returns:
+        Path to the file written.
+    """
+    out_dir = resolve_output_root(output_root) / demo_name
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / STEP_MARKS_FILENAME
+    path.write_text(
+        json.dumps({"steps": [mark.as_json() for mark in marks]}, indent=2)
+        + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _record_marks(harness: ScenarioHarness) -> None:
+    """Write the harness's step marks, never raising.
+
+    Runs on the way out however the scenario ends, beside the dump, and for
+    the same reason must not replace the scenario's own exception.
+    """
+    try:
+        write_step_marks(harness.demo_name, harness.marks)
+    except BaseException:
+        logger.exception(
+            "Could not write the step marks of the %s demo; reporting the "
+            "scenario's own outcome instead",
+            harness.demo_name,
+        )
 
 
 def _backstop_manifest(demo_name: str) -> None:
@@ -196,6 +425,7 @@ def scenario_harness(
     """
     reset_demo_failures()
     harness = ScenarioHarness(demo_name=demo_name)
+    token = _ACTIVE.set(harness)
     try:
         yield harness
     except BaseException as exc:
@@ -204,7 +434,11 @@ def scenario_harness(
             demo_name,
         )
         _run_dump(harness)
+        _record_marks(harness)
         _note_accumulated_failures(exc)
         raise
+    finally:
+        _ACTIVE.reset(token)
     _run_dump(harness)
+    _record_marks(harness)
     assert_demo_success()

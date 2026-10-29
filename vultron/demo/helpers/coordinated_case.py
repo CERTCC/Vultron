@@ -177,6 +177,7 @@ def vendor_joins_coordinated_case(
     vendor_client: DataLayerClient,
     vendor_name: str = "Vendor",
     already_seated: Sequence[as_Actor] = (),
+    before_answer: Callable[[], None] | None = None,
 ) -> as_Actor:
     """The Coordinator invites the Vendor; the Vendor accepts and triages.
 
@@ -187,6 +188,8 @@ def vendor_joins_coordinated_case(
             (``Vendor2`` for the second vendor of ``rcvv-embargo``).
         already_seated: Vendors that joined before this one, so the
             participant gate expects them as well.
+        before_answer: Runs once the Invite is delivered, before the Vendor
+            answers it (:func:`~.invite_chain.run_case_invite_chain`).
 
     Returns:
         The Vendor as its own container knows it.
@@ -220,6 +223,7 @@ def vendor_joins_coordinated_case(
         ),
         invite_timeout=20.0,
         replica_timeout=20.0,
+        before_answer=before_answer,
     )
 
     # All participants present is the causal precondition for the Vendor's RM
@@ -268,6 +272,7 @@ def open_case_with_vendor(
     coordinator: as_Actor,
     vendor: as_Actor,
     on_case_opened: Callable[[as_VulnerabilityCase], None] | None = None,
+    before_answer: Callable[[], None] | None = None,
 ) -> tuple[CoordinatedCase, as_Actor]:
     """Open the case, bring the Vendor in, and verify the replicas converge.
 
@@ -280,6 +285,8 @@ def open_case_with_vendor(
         on_case_opened: Called with the case as soon as it exists, before the
             Vendor joins, so a scenario can register its ledger dump while every
             later step can still fail without costing the ledgers (ISSUE-2239).
+        before_answer: Runs once the Vendor's Invite is delivered, before the
+            Vendor answers it.
 
     Returns:
         The opened case and the Vendor as its own container knows it.
@@ -301,6 +308,7 @@ def open_case_with_vendor(
         case_actor_client=case_actor_client,
         vendor=vendor,
         vendor_client=vendor_client,
+        before_answer=before_answer,
     )
 
     run_sync_verification_phase(

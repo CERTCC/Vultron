@@ -568,9 +568,24 @@ class DemoRecordingError(VultronError):
       holds no CaseActor (canonical) ledger;
     - a dumped ledger line is not an entry with a ``logIndex``;
     - a replica holds an entry that differs from, or is absent from, the
-      canonical ledger at the same ``logIndex``.
+      canonical ledger at the same ``logIndex``;
+    - a run ends without reporting every step of its declared path, or its
+      step marks are missing or malformed.
 
     A scenario that itself fails raises :class:`DemoFailureError` instead.
+    """
+
+
+class DemoScenarioStepError(VultronError):
+    """Raised when a scenario reports a step its declared path does not hold.
+
+    Raised by :meth:`~vultron.demo.helpers.harness.ScenarioHarness.reach_step`
+    when the reported ``(branch point, choice)`` is not the next step of the
+    scenario's ``@scenario(path=...)`` declaration, or when a step after the
+    first is reached before the harness follows a case ledger.  Either way the
+    code and the declaration disagree about where the scenario is on the tree,
+    so the step mark the shared-prefix check reads would be wrong
+    (DEMOCI-11-014, DEMOCI-11-017).
     """
 
 
