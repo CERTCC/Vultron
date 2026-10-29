@@ -47,6 +47,9 @@ from vultron.core.behaviors.sync.nodes import (
 from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
     ApplyEmbargoChangeFromLedgerNode,
 )
+from vultron.core.behaviors.sync.nodes.ledger_position import (
+    PeerActiveParticipantNode,
+)
 from vultron.core.behaviors.sync.nodes.position_statement import (
     CheckStatedPositionInLedgerNode,
 )
@@ -488,20 +491,24 @@ class ReadLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
     acknowledged position, and replays every entry after it under the replay
     rate bound and the outbox de-duplication (SYNC-17-003, SYNC-17-004).
 
-    Only an active participant's statement is acted on (SYNC-17-002): the
-    sender standing is ``ACTIVE_PARTICIPANT``, which also refuses a closed
-    participant (CM-23-018, CM-23-020).  Any other sender, and any receiver
-    that is not the case's CASE_MANAGER, is ``REFUSED`` with nothing recorded
-    or sent (HP-01-005, HP-01-006).  A position the ledger does not hold is
-    logged at WARNING and ``REFUSED``, with nothing recorded or sent
-    (SYNC-17-005).  No ledger entry is committed either way (SYNC-17-006).
+    The sender standing is ``PARTICIPANT``: an actor off the roster, or a
+    participant whose closure the case records, is refused at the door
+    (CM-23-018, CM-23-020).  Any other participant's held position has the
+    CASE_MANAGER resend each Invite it still owes an answer to, whether or
+    not it is active (SYNC-20-001, ADR-0163).  Only an active participant's
+    position is then recorded and answered (SYNC-17-002): an inert sender is
+    ``REFUSED`` with no replication state recorded and no entry replayed, as
+    is any receiver that is not the case's CASE_MANAGER (HP-01-005,
+    HP-01-006).  A position the ledger does not hold is logged at WARNING
+    and ``REFUSED``, with nothing recorded or sent (SYNC-17-005).  No ledger
+    entry is committed either way (SYNC-17-006, SYNC-20-007).
 
     Spec: SYNC-17-002 through SYNC-17-006, SYNC-04-001, SYNC-15-003,
-    SYNC-15-012, SYNC-15-013.
+    SYNC-15-012, SYNC-15-013, SYNC-20-001.
     """
 
     sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
-        SenderEntitlementKind.ACTIVE_PARTICIPANT
+        SenderEntitlementKind.PARTICIPANT
     )
 
     def __init__(
@@ -562,14 +569,23 @@ def _read_verdict(
 
     A position the ledger does not hold fails the position check, which
     already logged it at WARNING (SYNC-17-005); it is refused with that
-    reason.  Only the CASE_MANAGER answers a ``Read``; a replica that
-    receives one was misaddressed (HP-01-005).
+    reason.  An inert sender fails the active check after its owed Invites
+    were resent, and is refused (SYNC-17-002, SYNC-20-001).  Only the
+    CASE_MANAGER answers a ``Read``; a replica that receives one was
+    misaddressed (HP-01-005).
     """
     if node_failed(tree, CheckStatedPositionInLedgerNode):
         check = find_node(tree, CheckStatedPositionInLedgerNode)
         assert check is not None  # it ran: node_failed found it
         return HandlerResult.refused(
             f"{check.feedback_message}; nothing recorded or sent (SYNC-17-005)"
+        )
+    if node_failed(tree, PeerActiveParticipantNode):
+        active = find_node(tree, PeerActiveParticipantNode)
+        assert active is not None  # it ran: node_failed found it
+        return HandlerResult.refused(
+            f"{active.feedback_message}; no replication state recorded and"
+            " no entry replayed (SYNC-17-002)"
         )
     verdict = verdict_from_bt(tree, result, label="ReadLogEntryReceivedBT")
     return case_manager_verdict(tree, verdict, dl, case_id)
