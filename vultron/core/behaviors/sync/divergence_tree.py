@@ -60,8 +60,8 @@ def create_case_diverged_fault_tree(
     refuses it.  At that case's
     CASE_MANAGER the tree logs a divergence the last re-seed's copy already
     reflected, at ERROR once the peer acknowledged that copy's position and at
-    WARNING before, or when the peer sent the fault before that
-    acknowledgement (:class:`ReportRepeatDivergenceNode`, SYNC-16-008),
+    WARNING before, or when the fault's claimed time is at or before that
+    acknowledgement's (:class:`ReportRepeatDivergenceNode`, SYNC-16-008),
     then sends the sender ``Announce(VulnerabilityCase)`` of its current
     case, rate-bounded per peer (:class:`ReseedPeerNode`, SYNC-16-003,
     SYNC-16-004).  Both are the CASE_MANAGER's own acts, so they sit in

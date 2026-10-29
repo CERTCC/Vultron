@@ -2101,8 +2101,8 @@ groups:
     statement: >-
       The CASE_MANAGER SHOULD log at ERROR a SYNC-16-001 fault for an entry at or before
       the tail of the last re-seed it sent that peer only when the peer's acknowledged
-      position is at or past that tail and the fault's claimed `published` time is not
-      before the time the peer claimed for that acknowledgement. Any other such fault
+      position is at or past that tail and the fault's claimed `published` time is
+      after the time the peer claimed for that acknowledgement. Any other such fault
       is ordinary recovery, logged below ERROR and left to the rate-bounded re-seed
       (SYNC-16-004).
     rationale: >-
@@ -2113,7 +2113,10 @@ groups:
       copy may have been lost in transit, or the entry replayed before the copy
       arrived. A fault the peer sent before acknowledging is recovery too: a replay
       refused before the copy arrived, delivered late because arrival order is not
-      guaranteed (SYNC-19). The two times compared are both the peer's own claims, so
+      guaranteed (SYNC-19). A tie counts as recovery: `published` has whole-second
+      precision, so a refusal and the acknowledgement that follows it can share a
+      second; a defect fault sent in that same second reads as recovery once. The
+      two times compared are both the peer's own claims, so
       they share its clock and no skew between machines enters the comparison. The
       acknowledgement's time is the peer's first statement of that position, so a
       later restatement cannot hide a fault sent after it; a peer that moves on to a
@@ -2128,10 +2131,10 @@ groups:
     - ADR-0142
     verification: >-
       `test/core/use_cases/received/test_case_diverged_reseed.py` asserts the ERROR
-      record when the peer acknowledged the re-seed's position before, at the same
-      time as, or with no time against the fault's, a WARNING when the fault predates
-      the acknowledgement, a WARNING and a re-seed after the cooldown when the peer did
-      not acknowledge, and no ERROR for an entry past the last re-seed;
+      record when the peer acknowledged the re-seed's position before the fault's
+      time or with no time against it, a WARNING when the fault's time is at or
+      before the acknowledgement's, a WARNING and a re-seed after the cooldown when
+      the peer did not acknowledge, and no ERROR for an entry past the last re-seed;
       `test/core/behaviors/sync/nodes/test_chain.py` asserts the acknowledgement's
       claimed time is kept, the earliest for a restated position.
     stories:

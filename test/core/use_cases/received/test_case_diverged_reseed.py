@@ -265,10 +265,9 @@ _ACKNOWLEDGED_AT = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
     ("fault_published", "acknowledged_at"),
     [
         (_ACKNOWLEDGED_AT + timedelta(seconds=1), _ACKNOWLEDGED_AT),
-        (_ACKNOWLEDGED_AT, _ACKNOWLEDGED_AT),
         (_ACKNOWLEDGED_AT - timedelta(seconds=1), None),
     ],
-    ids=["after", "same-time", "ack-claims-none"],
+    ids=["after", "ack-claims-none"],
 )
 def test_a_divergence_after_an_acknowledged_reseed_is_logged_at_error(
     caplog: pytest.LogCaptureFixture,
@@ -279,9 +278,9 @@ def test_a_divergence_after_an_acknowledged_reseed_is_logged_at_error(
 
     The first fault, with no re-seed before it, is routine.  Once the peer's
     acknowledged position reaches the re-seed's, a fault for the same entry
-    that the peer did not send before that acknowledgement is an ERROR
-    naming the entry and the position.  A fault sent at the same claimed
-    time, or an acknowledgement that claims no time, shows no such order.
+    that the peer claims it sent after that acknowledgement is an ERROR
+    naming the entry and the position.  An acknowledgement that claims no
+    time shows no order, so it keeps the ERROR too.
     """
     net, announce_id = _diverged(
         f"reseed-repeat-acked-{fault_published}-{acknowledged_at}"
@@ -304,30 +303,32 @@ def test_a_divergence_after_an_acknowledged_reseed_is_logged_at_error(
 
 
 @pytest.mark.spec("SYNC-16-008")
-def test_a_repeat_fault_sent_before_the_acknowledgement_is_a_warning(
+@pytest.mark.parametrize(
+    "fault_published",
+    [_ACKNOWLEDGED_AT - timedelta(seconds=1), _ACKNOWLEDGED_AT],
+    ids=["before", "same-time"],
+)
+def test_a_repeat_fault_sent_by_the_acknowledgement_is_a_warning(
     caplog: pytest.LogCaptureFixture,
+    fault_published: datetime,
 ) -> None:
     """A delayed repeat fault the peer sent before applying the copy (#5253).
 
     The peer refused a replayed entry again before the re-seed's copy
     arrived, then applied the copy and acknowledged its position; the second
-    fault arrives after that acknowledgement (SYNC-19).  Its claimed time
-    predates the acknowledgement's, both on the peer's own clock, so it is
-    stale recovery: a WARNING, never an ERROR.
+    fault arrives after that acknowledgement (SYNC-19).  Its claimed time is
+    at or before the acknowledgement's, both on the peer's own clock, so it
+    is stale recovery: a WARNING, never an ERROR.  A tie counts as stale
+    because ``published`` has whole-second precision.
     """
-    net, announce_id = _diverged("reseed-repeat-stale")
+    net, announce_id = _diverged(f"reseed-repeat-stale-{fault_published}")
     _report(net)
     (entry,) = ledger_entries(net.stores[MANAGER], net.case_id)
     _acknowledge(net, BYSTANDER, entry.entry_hash, _ACKNOWLEDGED_AT)
 
     caplog.clear()
     with caplog.at_level(logging.WARNING, logger=_RESEED_LOGGER):
-        _fault_from(
-            net,
-            BYSTANDER,
-            announce_id,
-            _ACKNOWLEDGED_AT - timedelta(seconds=1),
-        )
+        _fault_from(net, BYSTANDER, announce_id, fault_published)
 
     assert not _reseed_records(caplog, logging.ERROR)
     (warning,) = _reseed_records(caplog, logging.WARNING)

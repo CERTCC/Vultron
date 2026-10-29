@@ -29,11 +29,11 @@ peer (the choice SYNC-15-003 makes for replay).
 
 :class:`ReportRepeatDivergenceNode` reads the same record: a divergence
 fault for an entry the last re-seed's copy already reflected is logged at
-ERROR when the peer has acknowledged that copy's position and did not send
-the fault before that acknowledgement, since the CASE_MANAGER's case then
-disagrees with its own ledger, and at WARNING otherwise, since the copy may
-be lost or in flight, or the fault a delayed one from before the copy
-arrived (SYNC-16-008).
+ERROR when the peer has acknowledged that copy's position and claims a
+time for the fault after that acknowledgement's, since the CASE_MANAGER's
+case then disagrees with its own ledger, and at WARNING otherwise, since the
+copy may be lost or in flight, or the fault a delayed one from before the
+copy arrived (SYNC-16-008).
 
 Neither node commits a ledger entry: a re-seed is replication signalling,
 like the replay it resembles (SYNC-16-002).
@@ -293,16 +293,18 @@ class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
 
     - If the peer's acknowledged position (``last_acknowledged_hash``) is at
       or past the re-seed's position, the peer applied that copy.  When
-      *fault_published*, the time the peer claims for the fault, is before
-      the time it claimed for that acknowledgement
+      *fault_published*, the time the peer claims for the fault, is at or
+      before the time it claimed for that acknowledgement
       (``last_acknowledged_published``), the fault is a stale repeat sent
       before the copy arrived and delivered late: ordinary recovery, logged
-      at WARNING (``stale``).  Both times are the peer's own clock, so no
-      skew between machines enters the comparison.
-    - Otherwise, after that acknowledgement, the CASE_MANAGER's case
-      disagrees with its own ledger: a defect, logged at ERROR
-      (``repeated``).  A missing time on either side shows no order, so it
-      keeps the ERROR.
+      at WARNING (``stale``).  A tie counts as stale because ``published``
+      has whole-second precision, so the two can share a second.  Both times
+      are the peer's own clock, so no skew between machines enters the
+      comparison.
+    - Otherwise, when the fault's time is after that acknowledgement's, the
+      CASE_MANAGER's case disagrees with its own ledger: a defect, logged at
+      ERROR (``repeated``).  A missing time on either side shows no order,
+      so it keeps the ERROR.
     - Without that acknowledgement the copy may have been lost, or the entry
       replayed before the copy arrived: ordinary recovery, logged at WARNING
       (``unconfirmed``) and left to the rate-bounded re-seed (SYNC-16-004).
@@ -330,9 +332,10 @@ class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
         """The ``published`` time the peer claims for its fault, if any."""
         self.repeated = False
         """True when the peer acknowledged the copy that reflected the entry
-        and did not send the fault before that acknowledgement."""
+        and claims a time for the fault after that acknowledgement's."""
         self.stale = False
-        """True when the peer acknowledged that copy after sending the fault."""
+        """True when the peer acknowledged that copy at or after the time it
+        claims for the fault."""
         self.unconfirmed = False
         """True when the copy reflected the entry but no acknowledgement shows
         the peer applied it."""
@@ -356,11 +359,11 @@ class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
         )
         if acknowledged is not None and acknowledged >= position.log_index:
             acknowledged_at = state.last_acknowledged_published
-            if _sent_before(self.fault_published, acknowledged_at):
+            if _sent_by(self.fault_published, acknowledged_at):
                 self.stale = True
                 self.logger.warning(
                     "%s: peer '%s' reports case '%s' diverged at ledger entry"
-                    " '%s' (log_index %d) in a fault it sent at %s, before it"
+                    " '%s' (log_index %d) in a fault it sent at %s, at or before it"
                     " acknowledged position %d at %s: a stale repeat from"
                     " before its re-seed copy (position %d) arrived, so the"
                     " re-seed bound decides (SYNC-16-008, SYNC-16-004)",
@@ -408,18 +411,20 @@ class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-def _sent_before(
+def _sent_by(
     fault_published: datetime | None, acknowledged_at: datetime | None
 ) -> bool:
-    """True when the fault's claimed time is before the acknowledgement's.
+    """True when the fault's claimed time is at or before the acknowledgement's.
 
-    Both are times the same peer claimed, so they share its clock.  A time
-    missing on either side shows no order, so it is never "before".
+    Both are times the same peer claimed, so they share its clock.  A tie is
+    not after: ``published`` has whole-second precision, so a fault and the
+    acknowledgement that followed it can share a second.  A time missing on
+    either side shows no order, so it is never "at or before".
     """
     acknowledged = as_utc(acknowledged_at)
     if fault_published is None or acknowledged is None:
         return False
-    return fault_published < acknowledged
+    return fault_published <= acknowledged
 
 
 def _acknowledged_index(

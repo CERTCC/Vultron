@@ -51,8 +51,8 @@ class VultronReplicationState(RetiredFieldsRecord):
     the peer, which bounds the re-seed rate and tells a repeated divergence
     from a first one (SYNC-16-004, SYNC-16-008).
     ``last_acknowledged_published`` keeps the time the peer claimed for its
-    acknowledged position, so a repeat fault the peer sent before that
-    acknowledgement reads as stale (SYNC-16-008).
+    acknowledged position, so a repeat fault the peer claims it sent at or
+    before that acknowledgement reads as stale (SYNC-16-008).
 
     Spec: SYNC-04-001, SYNC-04-002; the embargo pause is CM-10-005/006.
     """
