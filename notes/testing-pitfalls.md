@@ -17,7 +17,8 @@ description: >
   MagicMock), test layout rules for module splits, why a two-sided count pin
   races concurrent PRs (keep a per-item record and a PR-only growth guard
   instead), why a schema change that the merge base fails breaks every growth
-  guard, and when to delete a migration check.
+  guard, when to delete a migration check, and why a child Python process
+  must get its environment from `child_env()`.
   `test/AGENTS.md` keeps the short index and the rules you need on every run.
 related_specs:
   - specs/testability.yaml
@@ -294,6 +295,15 @@ path misses deliveries from the other: set `configure_default_emitter(router)`
 Prefer `config_override()` over `monkeypatch` + `reload_config()`, and if you
 cannot, get the teardown order right. Both rules are in
 [notes/configuration.md](configuration.md) § "Testing Pattern".
+
+### A Child Python Process Gets Its Environment From `child_env()`
+
+A test that runs `sys.executable` on code importing `vultron` MUST pass
+`env=child_env()` (`test/support/child_env.py`). pytest puts the repository
+root first only on its own `sys.path`; a child inherits just `PYTHONPATH`, and
+in a worktree that can name another checkout. A script child's `sys.path[0]` is
+the script's directory, so the other checkout's `vultron` wins and a module it
+lacks fails to import (#5456).
 
 ### Store Scoping
 
