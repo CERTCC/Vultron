@@ -21,11 +21,15 @@ uses it.
 """
 
 import logging
+from collections.abc import Callable
 from datetime import datetime
+from typing import Literal
 
 from vultron.adapters.utils import parse_id
 from vultron.core.states.rm import RM
-from vultron.demo.actor_session import ActorSession
+from vultron.demo.actor_session import ActorSession, WireTriggerResult
+from vultron.demo.exchange.embargo_lifecycle import demo_terminate_embargo
+from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.invite_chain import (
     DEMO_STUB_SUMMARY,
     CaseInviter,
@@ -51,7 +55,6 @@ from vultron.demo.utils import (
     demo_check,
     demo_gate,
     demo_step,
-    get_offer_from_datalayer,
     log_case_state,
     logfmt,
     post_to_inbox_and_wait,
@@ -66,7 +69,6 @@ from vultron.wire.as2.factories import (
     add_report_to_case_activity,
     parse_submit_report_offer,
     reject_embargo_proposal_activity,
-    rm_validate_report_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
@@ -262,32 +264,224 @@ def receiver_validates_report(
     receiver_client: DataLayerClient,
     receiver: as_Actor,
     offer_id: str,
+    note: str | None = None,
 ) -> dict:
     """Receiver validates the submitted report via the trigger endpoint.
 
     Advances RM state to VALID only.  To transition RM to ACCEPTED the
-    receiver must subsequently call ``receiver_engages_case``.
+    receiver must subsequently call ``receiver_engages_case``.  The
+    ``validate-report`` trigger sends the Report Valid (RV) to the
+    CASE_MANAGER of the case opened on receipt; a demo never posts the RV
+    into the receiver's own inbox, which refuses it (#5438).
 
     Args:
         receiver_client: Client connected to the receiver's container.
         receiver: Receiver ``as_Actor``.
         offer_id: Full URI of the submit-report ``as_Offer`` to validate.
+        note: The Report Valid's ``content``; ``None`` sends none.
 
     Returns:
         Response dict from the trigger endpoint (contains the validate
         activity).
     """
-    receiver_obj_id = parse_id(receiver.id_)["object_id"]
-    result: dict = {}
-    with demo_step("Receiver validates the vulnerability report"):
-        result = (
-            ActorSession(client=receiver_client, actor=receiver)
-            .quiet()
-            .validate_report(offer_id=offer_id)
-            .model_dump(exclude_none=True)
+    return _receiver_answers_report(
+        receiver_client,
+        receiver,
+        "validates",
+        lambda session: session.validate_report(offer_id=offer_id, note=note),
+    )
+
+
+def receiver_invalidates_report(
+    receiver_client: DataLayerClient,
+    receiver: as_Actor,
+    offer_id: str,
+    note: str | None = None,
+) -> dict:
+    """Receiver invalidates the submitted report via the trigger endpoint.
+
+    The ``invalidate-report`` trigger sends the Report Invalid (RI),
+    ``TentativeReject(Offer(VulnerabilityReport))``, to the CASE_MANAGER of
+    the case opened on receipt, which records the receiver at RM.INVALID and
+    replicates that to the other participants.  A demo never posts the RI
+    into an inbox by hand: the receiver's own inbox refuses it, as it is not
+    the CASE_MANAGER (#5438, vultron/demo/AGENTS.md).
+
+    Args:
+        receiver_client: Client connected to the receiver's container.
+        receiver: Receiver ``as_Actor``.
+        offer_id: Full URI of the submit-report ``as_Offer`` to invalidate.
+        note: The Report Invalid's ``content``; ``None`` sends none.
+
+    Returns:
+        Response dict from the trigger endpoint (contains the invalidate
+        activity).
+    """
+    return _receiver_answers_report(
+        receiver_client,
+        receiver,
+        "invalidates",
+        lambda session: session.invalidate_report(
+            offer_id=offer_id, note=note
+        ),
+    )
+
+
+def check_report_answer_recorded(
+    client: DataLayerClient,
+    reporter: as_Actor,
+    receiver: as_Actor,
+    offer_id: str,
+    expected_states: set[RM],
+) -> None:
+    """Check the reporter learned *receiver*'s answer to its report Offer.
+
+    A ``demo_check`` on the effect of a report-answer trigger (ADR-0058):
+    the CASE_MANAGER of the case opened on receipt records the answer, and
+    the ledger carries it to the reporter's replica.  This replaces posting
+    a copy of the answer into the reporter's inbox, which refused it (#5438).
+
+    Args:
+        client: DataLayerClient for the container hosting both actors.
+        reporter: The actor that submitted the report.
+        receiver: The actor that answered it.
+        offer_id: Full URI of the submit-report ``as_Offer``.
+        expected_states: RM states that count as the answer recorded.
+    """
+    with demo_check(
+        f"Reporter's replica records {receiver.id_} at"
+        f" {sorted(str(state) for state in expected_states)}"
+    ):
+        wait_for_report_answer_recorded(
+            client,
+            receiver,
+            offer_id,
+            expected_states,
+            store_actor_id=reporter.id_,
         )
-    logger.info("Validate-report trigger result for actor %s", receiver_obj_id)
+
+
+def receiver_invalidates_and_closes(
+    client: DataLayerClient,
+    reporter: as_Actor,
+    receiver: as_Actor,
+    offer_id: str,
+    note: str,
+) -> None:
+    """Invalidate the report, then close the case opened for it on receipt.
+
+    Once a case holds the report, its Case Owner closes the case by
+    ``Leave(VulnerabilityCase)``, never by ``Close(Report)`` (CM-23-019).
+    Every act goes through its actor's own trigger to the case's
+    CASE_MANAGER (#5438):
+
+    1. *receiver* invalidates the report (:func:`receiver_invalidates_report`),
+       and the reporter's replica is checked to record it.
+    2. *receiver*, the Case Owner, ends the case's embargo, which would
+       refuse its ``Leave`` (TRIG-13-003).
+    3. The reporter leaves, then *receiver* does, last (CM-23-015).
+
+    Args:
+        client: DataLayerClient for the container hosting every actor; it
+            is bound to *receiver*'s store.
+        reporter: The actor that submitted the report.
+        receiver: The actor the report was offered to, the case's owner.
+        offer_id: Full URI of the submit-report ``as_Offer``.
+        note: The Report Invalid's ``content``.
+    """
+    receiver_invalidates_report(client, receiver, offer_id, note=note)
+    check_report_answer_recorded(
+        client, reporter, receiver, offer_id, {RM.INVALID}
+    )
+    with demo_gate("Case opened on receipt found for the closure"):
+        case = wait_for_case_for_offer(client, offer_id)
+        with demo_step(
+            "Case Owner ends the embargo and closes the case, leaving last"
+        ):
+            demo_terminate_embargo(
+                ActorSession(client=client, actor=receiver), case
+            )
+            close_case_owner_last(
+                case=case,
+                authority_client=client,
+                # Each leaver's replica is read through a client bound to
+                # its own store.
+                others=[
+                    CaseLeaver(
+                        client=client.model_copy(
+                            update={"actor_id": reporter.id_}
+                        ),
+                        actor=reporter,
+                    )
+                ],
+                owner=CaseLeaver(client=client, actor=receiver),
+            )
+
+
+def _receiver_answers_report(
+    receiver_client: DataLayerClient,
+    receiver: as_Actor,
+    verb: str,
+    answer: Callable[[ActorSession], WireTriggerResult],
+) -> dict:
+    """Run one report-answer trigger for *receiver* inside a demo step."""
+    result: dict = {}
+    with demo_step(f"Receiver {verb} the vulnerability report"):
+        result = answer(
+            ActorSession(client=receiver_client, actor=receiver).quiet()
+        ).model_dump(exclude_none=True)
+    logger.info(
+        "Receiver %s report: trigger result for actor %s",
+        verb,
+        parse_id(receiver.id_)["object_id"],
+    )
     return result
+
+
+def wait_for_report_answer_recorded(
+    client: DataLayerClient,
+    receiver: as_Actor,
+    offer_id: str,
+    expected_states: set[RM],
+    *,
+    store_actor_id: str | None = None,
+    timeout_seconds: float = 20.0,
+) -> as_VulnerabilityCase:
+    """Wait until a store shows *receiver*'s answer to the report Offer.
+
+    The effect a demo gates a report-answer trigger on (ADR-0058): the case
+    opened on receipt records *receiver* in one of *expected_states*.  The
+    CASE_MANAGER records the answer and the ledger carries it to every
+    participant's replica, so reading the reporter's store shows the
+    reporter learned it.
+
+    Args:
+        client: DataLayerClient for the container holding the store.
+        receiver: The actor that answered the report.
+        offer_id: Full URI of the submit-report ``as_Offer``.
+        expected_states: RM states that count as the answer recorded.
+        store_actor_id: The actor whose store to read; ``None`` reads
+            *client*'s own actor's store.
+        timeout_seconds: Polling timeout per wait (default 20s).
+
+    Returns:
+        The case opened on receipt, as *client*'s actor holds it.
+
+    Raises:
+        AssertionError: If the case or the answer does not appear in time.
+    """
+    case = wait_for_case_for_offer(
+        client, offer_id, timeout_seconds=timeout_seconds
+    )
+    wait_for_participant_rm_state(
+        client=client,
+        case_id=case.id_,
+        actor_id=receiver.id_,
+        expected_states=expected_states,
+        timeout_seconds=timeout_seconds,
+        dl_actor_id=store_actor_id,
+    )
+    return case
 
 
 def receiver_engages_case(
@@ -842,6 +1036,66 @@ def seat_participant_through_stub_invite(
     Raises:
         ValueError: The CASE_MANAGER's case does not seat *invitee*.
     """
+    case_manager_id = _run_stub_invite_chain(
+        client, case, owner, invitee, role, respond="accept"
+    )
+    participant = _fetch_participant(
+        client, case.id_, invitee.id_, dl_actor_id=case_manager_id
+    )
+    if participant is None:
+        raise ValueError(
+            f"'{invitee.id_}' is not seated on case '{case.id_}' after"
+            " accepting its stub Invite"
+        )
+    log_case_state(
+        client, case.id_, f"after {invitee.name or invitee.id_} joined"
+    )
+    return participant
+
+
+def invitee_declines_stub_invite(
+    client: DataLayerClient,
+    case: as_VulnerabilityCase,
+    owner: as_Actor,
+    invitee: as_Actor,
+    role: CVDRole,
+) -> None:
+    """*owner* has *invitee* invited to *case*, and *invitee* declines.
+
+    The reject counterpart of :func:`seat_participant_through_stub_invite`:
+    the CASE_MANAGER sends the stub Invite, and *invitee* answers it with
+    its own ``reject-case-invite`` trigger.  The Invite is one the
+    CASE_MANAGER recorded, so the ``Reject`` is admitted from its invitee
+    (EP-09-010); a hand-built Invite posted into the invitee's inbox is not,
+    and its ``Reject`` is refused (#5438).
+
+    Args:
+        client: DataLayerClient for the container hosting every actor.
+        case: The case *invitee* is invited to.
+        owner: The Case Owner, who asks for the invitation.
+        invitee: The actor that declines.
+        role: The CVD role the Invite names.
+    """
+    _run_stub_invite_chain(
+        client, case, owner, invitee, role, respond="reject"
+    )
+
+
+def _run_stub_invite_chain(
+    client: DataLayerClient,
+    case: as_VulnerabilityCase,
+    owner: as_Actor,
+    invitee: as_Actor,
+    role: CVDRole,
+    *,
+    respond: Literal["accept", "reject"],
+) -> str:
+    """Drive the stub-Invite chain in one container; return the manager's id.
+
+    Returns:
+        The id of the actor holding CASE_MANAGER on *case*: its CaseActor,
+        or *owner* when the owner is its own CASE_MANAGER.
+    """
     # The CASE_MANAGER builds the stub Invite from its own copy of the case,
     # which needs a summary (CM-17-010).  A separate CaseActor is seeded by
     # the chain; an owner that is its own CASE_MANAGER is seeded here, with
@@ -865,20 +1119,9 @@ def seat_participant_through_stub_invite(
             role=role,
         ),
         case_manager_client=client if case_actor_id is not None else None,
+        respond=respond,
     )
-    case_manager_id = case_actor_id or owner.id_
-    participant = _fetch_participant(
-        client, case.id_, invitee.id_, dl_actor_id=case_manager_id
-    )
-    if participant is None:
-        raise ValueError(
-            f"'{invitee.id_}' is not seated on case '{case.id_}' after"
-            " accepting its stub Invite"
-        )
-    log_case_state(
-        client, case.id_, f"after {invitee.name or invitee.id_} joined"
-    )
-    return participant
+    return case_actor_id or owner.id_
 
 
 def submit_validate_and_create_case(
@@ -900,8 +1143,9 @@ def submit_validate_and_create_case(
 
     1. The reporter submits the report through its own ``submit-report``
        trigger (:func:`reporter_submits_report`).
-    2. The vendor validates it with a Report Valid (RV),
-       ``Accept(Offer(VulnerabilityReport))``, posted to its own inbox.
+    2. The vendor validates it through its ``validate-report`` trigger
+       (:func:`receiver_validates_report`), which sends the Report Valid (RV)
+       to the CASE_MANAGER of the case opened on receipt (#5438).
     3. The vendor mints the case through the ``create-case`` trigger
        (:func:`create_case_via_trigger`), which seats it as CASE_OWNER and
        CASE_MANAGER.
@@ -934,11 +1178,9 @@ def submit_validate_and_create_case(
         report_content=report_content,
     )
 
-    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-    validate_activity = rm_validate_report_activity(
-        offer, actor=vendor.id_, content=validation_note
+    receiver_validates_report(
+        client, vendor, report_offer.id_, note=validation_note
     )
-    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
     case = create_case_via_trigger(
         client,
@@ -1079,13 +1321,9 @@ def setup_canonical_case(
         report_content=report_content,
     )
 
-    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-    validate_activity = rm_validate_report_activity(
-        offer,
-        actor=vendor.id_,
-        content=validation_content,
+    receiver_validates_report(
+        client, vendor, report_offer.id_, note=validation_content
     )
-    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
     case = wait_for_initialized_case(client, report.id_)
     verify_reporter_trusts_introduction(

@@ -48,7 +48,8 @@ Sub-modules
   case-state assertion primitives, plus ``verify_activity_in_inbox``,
   ``verify_receiver_case_state``, and ``verify_case_actor_holds_records``.
 - :mod:`~vultron.demo.helpers.workflow` — ``reporter_submits_report``,
-  ``receiver_validates_report``, ``receiver_engages_case``,
+  ``receiver_validates_report``, ``receiver_invalidates_report``,
+  ``wait_for_report_answer_recorded``, ``receiver_engages_case``,
   ``find_case_by_report_id``, ``find_case_for_offer``,
   ``wait_for_case_for_offer``, ``seat_participant_through_stub_invite``,
   ``setup_initialized_case``, ``setup_two_participant_case``,
@@ -193,6 +194,7 @@ from vultron.demo.helpers.workflow import (
     find_case_by_report_id,
     find_case_for_offer,
     receiver_engages_case,
+    receiver_invalidates_report,
     receiver_validates_report,
     reporter_submits_report,
     run_invite_path_rm_triage,
@@ -202,4 +204,5 @@ from vultron.demo.helpers.workflow import (
     submit_validate_and_create_case,
     verify_reporter_trusts_introduction,
     wait_for_case_for_offer,
+    wait_for_report_answer_recorded,
 )

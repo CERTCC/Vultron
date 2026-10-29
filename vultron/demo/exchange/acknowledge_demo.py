@@ -19,14 +19,18 @@ Demonstrates the acknowledgement workflow for vulnerability reports via the Vult
 This demo script showcases the RmReadReportActivity (as:Read) acknowledgement mechanism:
 
 1. Acknowledge Only: submit → vendor sends ack (RmReadReportActivity) to reporter
-2. Acknowledge then Validate: submit → ack to reporter → validate → notify reporter
-3. Acknowledge then Invalidate: submit → ack to reporter → invalidate → notify reporter
+2. Acknowledge then Validate: submit → ack to reporter → validate → reporter's
+   replica records it
+3. Acknowledge then Invalidate: submit → ack to reporter → invalidate → reporter's
+   replica records it
 
 The reporter submits through its ``submit-report`` trigger, so it holds the
 Offer and admits the ack only from the Offer's addressee, the vendor
 (RMB-08-004).  The vendor sends the ack through its ``ack-report`` trigger,
 which addresses the reporter alone, never the CASE_MANAGER, case or no case
-(RMB-08-003).
+(RMB-08-003).  The vendor validates or invalidates through its own
+``validate-report`` or ``invalidate-report`` trigger, which sends the answer to
+the CASE_MANAGER of the case opened on receipt (#5438).
 
 The acknowledge workflow corresponds to:
     docs/howto/activitypub/activities/acknowledge.md
@@ -43,23 +47,24 @@ When run as a script, this module will:
 3. Discover actors (reporter, vendor, coordinator) via the API
 4. Run three separate demo workflows, each with a unique report:
    - demo_acknowledge_only: Submit → RmReadReportActivity to reporter
-   - demo_acknowledge_then_validate: Submit → RmReadReportActivity → Validate → notify reporter
-   - demo_acknowledge_then_invalidate: Submit → RmReadReportActivity → Invalidate →
-     notify reporter
-5. Verify side effects in the data layer and reporter's inbox for each workflow
+   - demo_acknowledge_then_validate: Submit → RmReadReportActivity → Validate
+   - demo_acknowledge_then_invalidate: Submit → RmReadReportActivity → Invalidate
+5. Verify the ack reached the reporter's inbox, and the reporter's replica of the
+   case records each validate or invalidate
 """
 
 # Standard library imports
 import logging
 from collections.abc import Callable, Sequence
 
+from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.polling import wait_for_received_activity
 from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.demo.helpers.verification import (
-    verify_activity_in_inbox,
-)
 from vultron.demo.helpers.workflow import (
+    check_report_answer_recorded,
+    receiver_invalidates_report,
+    receiver_validates_report,
     reporter_submits_report,
     verify_reporter_trusts_introduction,
 )
@@ -68,13 +73,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     DataLayerClient,
     demo_check,
     demo_step,
-    post_to_inbox_and_wait,
     setup_demo_logging,
-    verify_received_activity_stored,
-)
-from vultron.wire.as2.factories import (
-    rm_invalidate_report_activity,
-    rm_validate_report_activity,
 )
 
 # Vultron imports
@@ -178,8 +177,9 @@ def demo_acknowledge_then_validate(
     Workflow:
       1. Reporter submits report to vendor
       2. Vendor sends RmReadReportActivity (as:Read) to the reporter
-      3. Vendor then sends RmValidateReportActivity (as:Accept)
-      4. Verify both activities stored; verify validate notification to reporter
+      3. Vendor validates through its validate-report trigger, which sends
+         the Report Valid (as:Accept) to the case's CASE_MANAGER
+      4. Verify the reporter's replica of the case records the validation
     """
     logger.info("=" * 80)
     logger.info("DEMO 2: Acknowledge then Validate")
@@ -194,38 +194,26 @@ def demo_acknowledge_then_validate(
             client, reporter, vendor, offer, "Report received — under review."
         )
 
-    with demo_step(
-        "Step 3: Vendor validates report (RmValidateReportActivity)"
-    ):
-        validate = rm_validate_report_activity(
-            offer,
-            actor=vendor.id_,
-            content="Confirmed SQL injection. Creating a case.",
+    with demo_step("Step 3: Vendor validates the report (validate-report)"):
+        # Through the vendor's validate-report trigger, which sends the Report
+        # Valid to the CASE_MANAGER of the case opened on receipt (#5438).
+        receiver_validates_report(
+            client,
+            vendor,
+            offer.id_,
+            note="Confirmed SQL injection.",
         )
-        post_to_inbox_and_wait(client, vendor.id_, validate)
-        with demo_check("RmValidateReportActivity activity stored"):
-            verify_received_activity_stored(client, validate.id_)
 
-    with demo_step("Step 4: Vendor notifies reporter of validation"):
-        validate_to_reporter = rm_validate_report_activity(
-            offer,
-            actor=vendor.id_,
-            to=[reporter.id_],
-            content="Your report has been validated. A case has been created.",
+    with demo_step("Step 4: Reporter learns of the validation"):
+        # The CASE_MANAGER records the Report Valid and the ledger carries it
+        # to the reporter's replica; nothing is posted to its inbox.
+        check_report_answer_recorded(
+            client, reporter, vendor, offer.id_, {RM.VALID}
         )
-        post_to_inbox_and_wait(client, reporter.id_, validate_to_reporter)
-        with demo_check(
-            "RmValidateReportActivity notification in reporter's inbox"
-        ):
-            if not verify_activity_in_inbox(
-                client, reporter.id_, validate_to_reporter.id_
-            ):
-                raise ValueError(
-                    "RmValidateReportActivity notification not found in reporter's inbox."
-                )
 
     logger.info(
-        "✅ DEMO 2 COMPLETE: Report acknowledged then validated; reporter notified."
+        "✅ DEMO 2 COMPLETE: Report acknowledged then validated; the reporter's"
+        " replica records it."
     )
 
 
@@ -241,9 +229,10 @@ def demo_acknowledge_then_invalidate(
     Workflow:
       1. Reporter submits report to vendor
       2. Vendor sends RmReadReportActivity (as:Read) to the reporter
-      3. Vendor sends RmInvalidateReportActivity (as:TentativeReject)
-      4. Vendor notifies reporter of the invalidation
-      5. Verify activities stored and invalidation in reporter's inbox
+      3. Vendor invalidates through its invalidate-report trigger, which
+         sends the Report Invalid (as:TentativeReject) to the case's
+         CASE_MANAGER
+      4. Verify the reporter's replica of the case records the invalidation
     """
     logger.info("=" * 80)
     logger.info("DEMO 3: Acknowledge then Invalidate")
@@ -259,42 +248,29 @@ def demo_acknowledge_then_invalidate(
         )
 
     with demo_step(
-        "Step 3: Vendor invalidates report (RmInvalidateReportActivity)"
+        "Step 3: Vendor invalidates the report (invalidate-report)"
     ):
-        invalidate = rm_invalidate_report_activity(
-            offer,
-            actor=vendor.id_,
-            content=(
+        # Through the vendor's invalidate-report trigger, which sends the
+        # Report Invalid to the CASE_MANAGER of the case opened on receipt
+        # (#5438).
+        receiver_invalidates_report(
+            client,
+            vendor,
+            offer.id_,
+            note=(
                 "This is a UX defect, not a security vulnerability. "
                 "Holding for further review."
             ),
         )
-        post_to_inbox_and_wait(client, vendor.id_, invalidate)
-        with demo_check("RmInvalidateReportActivity activity stored"):
-            verify_received_activity_stored(client, invalidate.id_)
 
-    with demo_step("Step 4: Vendor notifies reporter of invalidation"):
-        invalidate_to_reporter = rm_invalidate_report_activity(
-            offer,
-            actor=vendor.id_,
-            to=[reporter.id_],
-            content=(
-                "After review, this does not appear to be a security vulnerability."
-            ),
+    with demo_step("Step 4: Reporter learns of the invalidation"):
+        check_report_answer_recorded(
+            client, reporter, vendor, offer.id_, {RM.INVALID}
         )
-        post_to_inbox_and_wait(client, reporter.id_, invalidate_to_reporter)
-        with demo_check(
-            "RmInvalidateReportActivity notification in reporter's inbox"
-        ):
-            if not verify_activity_in_inbox(
-                client, reporter.id_, invalidate_to_reporter.id_
-            ):
-                raise ValueError(
-                    "RmInvalidateReportActivity notification not found in reporter's inbox."
-                )
 
     logger.info(
-        "✅ DEMO 3 COMPLETE: Report acknowledged then invalidated; reporter notified."
+        "✅ DEMO 3 COMPLETE: Report acknowledged then invalidated; the"
+        " reporter's replica records it."
     )
 
 
