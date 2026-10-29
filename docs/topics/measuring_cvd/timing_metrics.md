@@ -68,8 +68,19 @@ Thus the ledger is a history of the case in time order, and almost every metric 
 Each ledger entry carries two times: the commit stamp of the CASE_MANAGER, and the claimed time of the sender.
 [What a Case Records](./what_a_case_records.md#two-clocks) describes the two times.
 Every interval on this page uses the commit stamp by default, because all commit stamps in a case come from one clock.
-The claimed time is useful only for the delay between an event and its commit, and only for the events of one participant.
-The difference between the two clocks on one entry is itself a measure, listed under process health below.
+A commit stamp shows when the CASE_MANAGER learned of an event, and the CASE_MANAGER can learn of an event late.
+
+Some intervals start and end at events of the same participant, for example the time to fix of vendor $i$.
+For these intervals, both claimed times come from the clock of that participant, and the claimed time should be the time that the event occurred (CLP-15-004).
+Thus the claimed times are often the better data for an interval inside one participant.
+The clock skew of that participant, listed under process health below, shows whether its claimed times can be trusted.
+
+An interval on claimed times and the same interval on commit stamps can differ.
+A large difference is itself worth reporting.
+It shows that the participant reported its events to the case late, or that its clock is wrong.
+
+This page does not choose a clock for each metric.
+An implementer of the metrics can use commit stamps, claimed times, or both.
 
 ---
 
@@ -105,12 +116,22 @@ They are per-participant, because Report Management (RM) is per-participant.
 | Time to accept | $\evVa_i$ to report acceptance by participant $i$ ($\evAc_i$) |
 | Time to join, for an Invitee | Its Stub Invite to joining by participant $i$ ($\evJ_i$) |
 | Time to judge, for an Invitee | Its Full-Case Invite to its answer, which is $\evVa_i$ when it accepts (CM-11-011) |
+| Report to case | The time on the report itself to case creation |
 
 For an Invitee $i$, $\evR_i$ and $\evJ_i$ are the same event.
 The reason is that acceptance of the Stub Invite puts the Invitee at RM Received (CM-11-001).
 For an Invitee, then, time to validate is time to judge plus the wait between joining and receiving the Full-Case Invite.
-The case owner's $\evR$ and the reporter's $\evAc$ are set when the case is created.
-Thus neither event has a measurable time ([What a Case Records](./what_a_case_records.md#statuses-seated-at-case-creation)).
+
+The case owner's $\evR$ and the reporter's $\evAc$ are set when the case is created ([What a Case Records](./what_a_case_records.md#statuses-seated-at-case-creation)).
+The validation and acceptance by the case owner come later, each in its own ledger entry.
+Thus time to validate and time to accept are measurable for the case owner, from case creation.
+The time that the case owner held the report before it created the case is not on the ledger.
+
+Report to case is a bound on that time.
+The ledger entry that adds the report to the case carries the report as received, with the time that the reporter put on the report, when the reporter put a time on it (CLP-15-007).
+The case owner received the report after that time and before it created the case.
+Thus report to case is an upper bound on the time before the case existed.
+The interval uses two clocks, the reporter's clock and the CASE_MANAGER's clock, so it is a research measure.
 
 ---
 
@@ -257,7 +278,14 @@ Many cases never see $\evX$ or $\evA$, and an open case has not yet closed.
 An interval that ends at an event that has not occurred is **censored**.
 A censored interval is not missing: the interval is at least as long as the case has run.
 A measure that treats censored intervals as missing biases every average toward the cases that finished.
-Across cases, censored intervals need survival-analysis methods, such as a Kaplan–Meier estimate of time to fix, and medians rather than means.
+
+The close of a case censors its intervals for good.
+After the case closes, the ledger cannot record $\evX$ or $\evA$, even if a public exploit or attacks occur later.
+A margin whose second event never occurred is censored in the same way.
+For example, a case with $\evF$ and no $\evX$ achieved $\evF \prec \evX$, by at least the time from $\evF$ to the close of the case.
+
+This page does not choose a method for censored data.
+Survival-analysis methods, such as a Kaplan–Meier estimate of time to fix, are one idea, as are medians rather than means.
 
 ---
 
@@ -268,6 +296,7 @@ An SLE is a timer that starts and stops on transitions, such as a limit on the t
 An SLE is a threshold on one of the intervals above.
 When the intervals have definitions first, a program can state an SLE as a number against a metric that already has a definition.
 The program can also report the distribution of an interval across its cases, rather than only how often it met a threshold.
+An SLE uses the same clock as its interval, so the program must say whether the SLE is on commit stamps or claimed times ([Which clock to use](#which-clock-to-use)).
 
 ---
 
@@ -290,11 +319,31 @@ A vendor has a deployment state only when the vendor also has the Deployer role 
 
 ---
 
+## A starting set for a CVD program
+
+The page lists many metrics.
+A CVD program that wants a short set can start with the metrics below.
+
+| Metric | Why it is in the starting set |
+|---|---|
+| Time to fix | The vendor's response, and the interval that SLEs most often limit |
+| $m(\evF \prec \evP)$ | The warning that defenders get before the vul is public |
+| Planned and actual embargo length | Whether embargoes last as long as they were planned to last |
+| Time left at exit and exit cause | Why an embargo ended, and what an early end cost |
+| Time to deploy | How fast a fix reaches the deployers, where the risk is |
+| Notification spread | How fast the case reaches every vendor in an MPCVD case |
+| Case duration | The total effort and time that a case takes |
+
+The other metrics are mainly for research or for tuning the protocol.
+These metrics include the process-health counts, the pocket-veto and lapse rates, the exposure dwell times, and report to case.
+
+---
+
 ## Summary
 
 | Area | Representative metrics |
 |---|---|
-| Intake and triage | Time to validate, accept, judge, join |
+| Intake and triage | Time to validate, accept, judge, join; report to case |
 | Embargo | Decision latency, revisions, planned and actual length, time left at exit, exit cause, response latency, pocket-veto rate |
 | Fix and deployment | Time to fix and deploy; notification spread, fix spread, trailing-vendor gap |
 | Disclosure margins | $m(\evF \prec \evP)$, $m(\evD \prec \evP)$, $m(\evP \prec \evX)$, and the margin of every other desideratum |
