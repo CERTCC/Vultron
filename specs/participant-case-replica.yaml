@@ -425,15 +425,15 @@ groups:
     statement: >-
       When a participant actor receives `Announce(VulnerabilityCase)` and the case references
       a report whose report-to-case link is not yet bound to a case, the actor MUST bind
-      that link to the local case replica; a link already bound to another case MUST
-      stay bound to that case.
+      that link to the local case replica.
     rationale: >-
       The report-to-case link is how a reporter finds the case for its report
       (PCR-05-001). If a received case copy did not update the link, the reporter
       would hold the case but could not find it from the report. A bound link also
-      records the CASE_MANAGER trusted for its case (CBT-01-006). Moving it to a second
-      case holding the same report would take that trust from the first case and give
-      the second case a CASE_MANAGER it never had (CBT-02-003).
+      records the CASE_MANAGER trusted for its case (CBT-01-006), so a link already
+      bound to a case is left on it. Moving it to a second case holding the same report
+      would take that trust from the first case and give the second case a CASE_MANAGER
+      it never had, which CBT-02-003 forbids.
     verification: >-
       `test_updates_report_case_link_when_case_contains_report` in
       `test/core/use_cases/received/actor/test_announce.py` confirms that an admitted
