@@ -141,9 +141,20 @@ elif [[ -n "${OPENED_AS}" || -n "${WHERE}" || "${PLANNED}" -eq 1 ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# The checkout whose `theme-gate` and catalog are used; VULTRON_PROJECT_DIR
-# overrides it (tests run a copy of this script outside the checkout).
-PROJECT_DIR="${VULTRON_PROJECT_DIR:-$(cd "${SCRIPT_DIR}/../../.." && pwd)}"
+# The checkout whose `theme-gate` and catalog are used.
+PROJECT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+
+# Once createIssue succeeds, a later failure must not lead to a re-run that
+# makes a duplicate: say the issue exists and how to finish it.
+CREATED_NUMBER=""
+warn_if_partial() {
+  local rc=$?
+  if [[ ${rc} -ne 0 && -n "${CREATED_NUMBER}" ]]; then
+    echo "ERROR: #${CREATED_NUMBER} was created, but a later step failed." >&2
+    echo "  Do not create it again; finish it with --issue-number ${CREATED_NUMBER}" >&2
+  fi
+}
+trap warn_if_partial EXIT
 
 REPO_OWNER="${REPO%%/*}"
 REPO_NAME="${REPO##*/}"
@@ -259,6 +270,7 @@ if [[ -z "${ISSUE_NUMBER}" ]]; then
     "import json,sys; print(json.load(sys.stdin)['data']['createIssue']['issue']['url'])" \
     <<< "${RESULT}")
 
+  CREATED_NUMBER="${ISSUE_NUMBER}"
   echo "  Created #${ISSUE_NUMBER}: ${ISSUE_URL}" >&2
   [[ ${#LABELS[@]} -gt 0 ]] && echo "  With labels: $(IFS=,; echo "${LABELS[*]}")" >&2
 

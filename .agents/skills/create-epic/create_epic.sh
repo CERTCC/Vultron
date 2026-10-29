@@ -28,13 +28,21 @@ SCHEDULE="${3:?${USAGE}}"
 THEMES=("${4:?${USAGE}}")
 [[ -n "${5:-}" ]] && THEMES+=("$5")
 [[ $# -gt 5 ]] && { echo "${USAGE}" >&2; exit 1; }
+for T in "${THEMES[@]}"; do
+  [[ "${T}" == *,* ]] && {
+    echo "ERROR: one theme per argument, got '${T}'; pass a second theme as <second-theme>" >&2
+    exit 1
+  }
+done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ADD_TO_PROJECT="${SCRIPT_DIR}/../shared/add-to-project.sh"
 BOARD_ID="${SCRIPT_DIR}/../shared/board-id.sh"
 
-# The checkout whose `theme-gate` and catalog are used; VULTRON_PROJECT_DIR
-# overrides it (tests run a copy of this script outside the checkout).
+# The checkout whose `theme-gate` and catalog are used. VULTRON_PROJECT_DIR is
+# test-only: test_theme_gate.py runs a copy of this script outside the
+# checkout. Never set it in an agent shell, where a stale value would gate
+# against another worktree's catalog.
 PROJECT_DIR="${VULTRON_PROJECT_DIR:-$(cd "${SCRIPT_DIR}/../../.." && pwd)}"
 
 # Theme gate: refuse before creating anything.
@@ -92,6 +100,9 @@ EPIC_URL=$(echo "${RESULT}" | python3 -c \
   "import json,sys; print(json.load(sys.stdin)['data']['createIssue']['issue']['url'])")
 
 echo "  Created Epic #${EPIC_NUMBER}: ${EPIC_URL}" >&2
+
+# A failure after this point must not lead to a re-run that makes a duplicate.
+trap 'rc=$?; [[ ${rc} -ne 0 ]] && echo "ERROR: Epic #${EPIC_NUMBER} was created but not added to the board; do not create it again, run: bash ${ADD_TO_PROJECT} ${EPIC_NUMBER} ${SCHEDULE}" >&2' EXIT
 
 # Step 2: Add to Project #24 and set Schedule via the shared helper, which is
 # the single source of truth for the project/field/option IDs.

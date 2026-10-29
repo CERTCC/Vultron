@@ -429,13 +429,13 @@ def _create_rules() -> list[dict[str, object]]:
 
 
 def _manage(
-    gh: _Gh, *labels: str, body: str = _BODY
+    gh: _Gh, *labels: str, body: str = _BODY, extra: Sequence[str] = ()
 ) -> subprocess.CompletedProcess[str]:
     args = [str(_MANAGE), "--title", "T", "--body", body]
     args += ["--issue-type-id", "IT_task", "--parent", "42", "--planned"]
     for label in labels:
         args += ["--label", label]
-    return gh.run(*args)
+    return gh.run(*args, *extra)
 
 
 @pytest.mark.spec("PAD-02-023")
@@ -499,6 +499,24 @@ class TestManageScriptGate:
         assert "does not exist" in result.stderr
         assert not gh.created()
 
+    def test_a_failure_after_create_says_not_to_create_again(
+        self, tmp_path: Path
+    ) -> None:
+        # The milestone PATCH has no rule, so the fake gh fails it.
+        gh = _Gh(tmp_path, [_parent_rule(_THEME), *_create_rules()])
+        result = _manage(gh, "size:M", _THEME, extra=("--milestone", "3"))
+        assert result.returncode != 0
+        assert "#99 was created" in result.stderr
+        assert "--issue-number 99" in result.stderr
+
+    def test_a_refusal_gives_no_partial_create_warning(
+        self, tmp_path: Path
+    ) -> None:
+        gh = _Gh(tmp_path, [_parent_rule("theme:test-and-ci")])
+        result = _manage(gh, _THEME)
+        assert result.returncode == 1
+        assert "Do not create it again" not in result.stderr
+
     def test_update_mode_skips_the_gate(self, tmp_path: Path) -> None:
         gh = _Gh(
             tmp_path,
@@ -515,6 +533,48 @@ class TestManageScriptGate:
         result = gh.run(str(_MANAGE), "--issue-number", "5", "--label", "x")
         assert result.returncode == 0, result.stderr
         assert not any(c[:2] == ["issue", "view"] for c in gh.calls())
+
+
+_EPIC_CREATED: dict[str, object] = {
+    "match": ["createIssue"],
+    "stdout": json.dumps(
+        {"data": {"createIssue": {"issue": {"number": 77, "url": "u"}}}}
+    ),
+}
+
+
+class _EpicTree:
+    """A copy of the create-epic skill tree with stub board helpers.
+
+    The run touches neither the real board-id cache nor the board.
+    """
+
+    def __init__(self, tmp_path: Path) -> None:
+        self.tmp_path = tmp_path
+        skills = tmp_path / "tree/.agents/skills"
+        (skills / "create-epic").mkdir(parents=True)
+        (skills / "shared").mkdir()
+        self.script = skills / "create-epic/create_epic.sh"
+        self.script.write_text(_CREATE_EPIC.read_text())
+        self.script.chmod(0o755)
+        (skills / "shared/label-id.sh").write_text(
+            (_ROOT / ".agents/skills/shared/label-id.sh").read_text()
+        )
+        (skills / "shared/board-id.sh").write_text('echo "ID_$1_${2:-}"\n')
+        self.board_log = tmp_path / "board.log"
+        self.add_to_project = skills / "shared/add-to-project.sh"
+        self.add_to_project.write_text(f'echo "$@" >> "{self.board_log}"\n')
+
+    def gh(self, *rules: dict[str, object]) -> _Gh:
+        gh = _Gh(self.tmp_path, list(rules))
+        # The copy lives outside the checkout, so point it at the real one.
+        gh.env["VULTRON_PROJECT_DIR"] = str(_ROOT)
+        return gh
+
+
+@pytest.fixture
+def epic_tree(tmp_path: Path) -> _EpicTree:
+    return _EpicTree(tmp_path)
 
 
 @pytest.mark.spec("PAD-02-025")
@@ -549,60 +609,65 @@ class TestCreateEpicScriptGate:
         assert "PAD-02-015" in result.stderr
         assert gh.calls() == []
 
-    def test_creates_labelled_and_scheduled_when_the_gate_passes(
-        self, tmp_path: Path
+    @pytest.mark.parametrize("theme", [f"{_THEME},theme:test-and-ci", "x,"])
+    def test_refuses_a_comma_joined_theme(
+        self, tmp_path: Path, theme: str
     ) -> None:
-        # A copy of the skill tree with stub board helpers, so the run touches
-        # neither the real board-id cache nor the board.
-        skills = tmp_path / "tree/.agents/skills"
-        (skills / "create-epic").mkdir(parents=True)
-        (skills / "shared").mkdir()
-        script = skills / "create-epic/create_epic.sh"
-        script.write_text(_CREATE_EPIC.read_text())
-        script.chmod(0o755)
-        label_id = skills / "shared/label-id.sh"
-        label_id.write_text(
-            (_ROOT / ".agents/skills/shared/label-id.sh").read_text()
-        )
-        (skills / "shared/board-id.sh").write_text('echo "ID_$1_${2:-}"\n')
-        board_log = tmp_path / "board.log"
-        (skills / "shared/add-to-project.sh").write_text(
-            f'echo "$@" >> "{board_log}"\n'
-        )
-        gh = _Gh(
-            tmp_path,
-            [
-                _label_rule(_THEME, "L_theme"),
-                {
-                    "match": ["createIssue"],
-                    "stdout": json.dumps(
-                        {
-                            "data": {
-                                "createIssue": {
-                                    "issue": {"number": 77, "url": "u"}
-                                }
-                            }
-                        }
-                    ),
-                },
-            ],
-        )
-        gh.env["VULTRON_PROJECT_DIR"] = str(_ROOT)
-        result = gh.run(str(script), "T", _BODY, "Later", _THEME)
+        gh = _Gh(tmp_path, [])
+        result = gh.run(str(_CREATE_EPIC), "T", _BODY, "Someday", theme)
+        assert result.returncode == 1
+        assert "one theme per argument" in result.stderr
+        assert gh.calls() == []
+
+    def test_creates_labelled_and_scheduled_when_the_gate_passes(
+        self, epic_tree: _EpicTree
+    ) -> None:
+        gh = epic_tree.gh(_label_rule(_THEME, "L_theme"), _EPIC_CREATED)
+        result = gh.run(str(epic_tree.script), "T", _BODY, "Later", _THEME)
         assert result.returncode == 0, result.stderr
         assert result.stdout.strip() == "77"
         create = next(c for c in gh.calls() if "createIssue" in " ".join(c))
         joined = " ".join(create)
         assert 'labelIds: ["L_theme"]' in joined
         assert "ID_issue-type_Epic" in joined
-        assert board_log.read_text().split() == ["77", "Later"]
+        assert epic_tree.board_log.read_text().split() == ["77", "Later"]
+
+    def test_missing_label_stops_before_create(
+        self, epic_tree: _EpicTree
+    ) -> None:
+        gh = epic_tree.gh(_label_rule(_THEME, None), _EPIC_CREATED)
+        result = gh.run(str(epic_tree.script), "T", _BODY, "Later", _THEME)
+        assert result.returncode == 1
+        assert "does not exist" in result.stderr
+        assert not gh.created()
+        assert not epic_tree.board_log.exists()
+
+    def test_a_failed_board_add_says_not_to_create_again(
+        self, epic_tree: _EpicTree
+    ) -> None:
+        epic_tree.add_to_project.write_text("exit 3\n")
+        gh = epic_tree.gh(_label_rule(_THEME, "L_theme"), _EPIC_CREATED)
+        result = gh.run(str(epic_tree.script), "T", _BODY, "Later", _THEME)
+        assert result.returncode == 3
+        assert "Epic #77 was created" in result.stderr
+        assert "do not create it again" in result.stderr
+        assert result.stdout.strip() == ""
 
 
 # --- the one creation path ---------------------------------------------------
 
 _SKILLS = _ROOT / ".agents/skills"
 _CREATORS = {"create-issue", "manage-github-issue", "create-epic"}
-_DIRECT_CALLS = ("gh issue create", "createIssue", "create_epic.sh")
+_REST_CREATE = re.compile(
+    r"\bgh\s+api\b(?=[^\n]*/issues(?![/\w]))(?=[^\n]*(?:-X\s*|--method[\s=]+)POST)",
+    re.IGNORECASE,
+)
+_DIRECT_CALLS = (
+    re.compile(r"\bgh\b[^\n`]*?\bissue\s+create\b"),
+    re.compile(r"\bcreateIssue\b"),
+    re.compile(r"\bcreate_epic\.sh\b"),
+    _REST_CREATE,
+)
 _FILING_PROSE = re.compile(
     r"\b(?:create|file|open)s?\s+an?\s+(?:new\s+)?(?:gh\s+|github\s+)?"
     r"`?(?:type:)?(?:bug|task|feature|idea|concern)?`?\s*issue\b",
@@ -648,7 +713,7 @@ class TestCreationPath:
             f"{path.relative_to(_ROOT)}: {call}"
             for path in _skill_files()
             for call in _DIRECT_CALLS
-            if call in path.read_text(encoding="utf-8")
+            if call.search(path.read_text(encoding="utf-8"))
         ]
         assert offenders == []
 
@@ -686,3 +751,60 @@ class TestCreationPath:
         assert len(commands) == 2
         assert "--title" in commands[0] and "--planned" in commands[0]
         assert "--issue-number" in commands[1]
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "gh issue create --title x",
+            "gh -R CERTCC/Vultron issue  create --title x",
+            "gh api repos/CERTCC/Vultron/issues -X POST -f title=x",
+            "gh api --method POST repos/o/r/issues -f title=x",
+            "mutation { createIssue(input: {}) }",
+            "bash create_epic.sh T B Someday theme:x",
+        ],
+    )
+    def test_the_direct_call_patterns_catch(self, text: str) -> None:
+        assert any(call.search(text) for call in _DIRECT_CALLS)
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "gh issue view 5 --json state",
+            "gh api repos/o/r/issues/5/comments -X POST -f body=x",
+            "gh api repos/o/r/issues/5 -X PATCH -f milestone=3",
+        ],
+    )
+    def test_the_direct_call_patterns_pass(self, text: str) -> None:
+        assert not any(call.search(text) for call in _DIRECT_CALLS)
+
+
+_CREATE_ISSUE_SKILL = _SKILLS / "create-issue/SKILL.md"
+
+
+@pytest.mark.spec("PAD-02-024")
+class TestUnattendedAutoCalve:
+    """`create-issue`'s no-user branch calves rather than orphans.
+
+    The skill is prose an agent follows, so the check pins what that branch
+    tells the agent to do: calve through `create-epic`, at `Someday`, marked
+    `<!-- auto-calved -->`, and parent the issue on it.
+    """
+
+    @staticmethod
+    def _branch() -> str:
+        text = _CREATE_ISSUE_SKILL.read_text(encoding="utf-8")
+        match = re.search(
+            r"\*\*No user present\*\*:(.*?)(?=\n\S|\n\s*\n\S)", text, re.S
+        )
+        assert match, "create-issue has no 'No user present' branch"
+        return match.group(1)
+
+    @pytest.mark.parametrize(
+        "phrase", ["`create-epic`", "Someday Epic", "`<!-- auto-calved -->`"]
+    )
+    def test_the_branch_names(self, phrase: str) -> None:
+        assert phrase in " ".join(self._branch().split())
+
+    def test_the_skill_never_leaves_an_orphan(self) -> None:
+        text = _CREATE_ISSUE_SKILL.read_text(encoding="utf-8")
+        assert "Never create the issue without a parent" in text

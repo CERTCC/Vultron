@@ -436,9 +436,14 @@ groups:
         - rel_type: implements
           spec_id: PAD-01-007
         verification: >-
-          A `theme-fit` run reports no `unparented` Issue created after this
-          rule, and reports each auto-calved Epic with fewer than two open
-          sub-issues as a `single-child-calved-epic` finding, which
+          `TestUnattendedAutoCalve` in `test/metadata/test_theme_gate.py`
+          fails if the `create-issue` skill's no-user branch stops calving
+          through `create-epic`, at `Someday`, with the `<!-- auto-calved -->`
+          marker, or stops forbidding an Issue with no parent. The
+          `manage_github_issue.sh` create mode refuses an Issue with no
+          `--parent` (PAD-02-023). Whether an unattended run followed the
+          branch is checked at review, and after the fact by `theme-fit`'s
+          `single-child-calved-epic` finding, which
           `test/metadata/test_theme_fit.py` checks.
       - id: PAD-02-025
         priority: MUST

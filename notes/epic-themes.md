@@ -346,8 +346,9 @@ and 2 when the catalog or `gh` fails.
 
 `theme-fit` finds breaches after the fact; `theme-gate` stops them at creation.
 `manage_github_issue.sh` and `create_epic.sh` run it before they create
-anything (PAD-02-023, PAD-02-025), and agents reach them only through the
-`create-issue` skill (PAD-02-022, PAD-02-024).
+anything (PAD-02-023, PAD-02-025). Agents reach the first only through the
+`create-issue` skill and the second only through `create-epic` (PAD-02-022,
+PAD-02-013, PAD-02-024).
 
 - **Rule**: a new Issue needs exactly one active theme, a `Theme:` line naming
   it, and an open parent carrying that theme; a new Epic needs one theme, or

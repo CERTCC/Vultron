@@ -136,6 +136,12 @@ its title.
      `<!-- auto-calved -->` (`notes/epic-themes.md` § "The Structural
      Check"). Report the new Epic in Phase 8 so a person reviews it
      (PAD-02-024).
+     - Before calving, run `theme-gate` on the issue's labels and body with
+       no `--parent`, so an issue the script would refuse anyway never
+       leaves an empty Epic behind.
+     - If the issue's create still fails after the calve, close the new Epic
+       with `gh issue close <N> --reason "not planned"` and a comment saying
+       why, then report both.
 
 Never create the issue without a parent, and never under an Epic whose theme
 differs: the script refuses both.
