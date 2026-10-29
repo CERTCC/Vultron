@@ -228,7 +228,7 @@ class TestClaimIssue:
             f"issue comment {TASK}" in c and f"task/{TASK}-slug" in c
             for c in calls
         )
-        assert _status_set(calls), "PAD-04-002: Status = In Progress"
+        assert _status_set(calls), "PAD-04-005: Status = In Progress"
 
     def test_a_branch_already_on_github_means_already_claimed(
         self, box: Sandbox
