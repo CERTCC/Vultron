@@ -831,26 +831,6 @@ groups:
       spec_id: MS-10-012
     tags:
     - documentation
-  - id: MS-10-017
-    priority: SHOULD
-    kind: process
-    statement: >-
-      A `rationale:` SHOULD read as Simplified Technical English in spirit, with
-      short sentences, a constrained vocabulary, the active voice and no jargon,
-      in the domain terms that `CONTEXT.md` and `docs/reference/glossary.md`
-      define, even where an STE-approved word could replace one of those terms.
-    rationale: >-
-      For most project and process requirements, the rationale is the only
-      written reason. A reader who is new to the project must understand it.
-      Short, plain sentences are easy to read and to translate. One term for
-      each concept lets a reader find the same idea in specs, docs and code. An
-      STE swap gives a second word for the concept and breaks that link, so the
-      glossary term or spec term stays: "create a case", not "make a case".
-    relationships:
-    - rel_type: refines
-      spec_id: MS-10-012
-    tags:
-    - documentation
   - id: MS-10-015
     priority: SHOULD
     kind: process
@@ -864,7 +844,7 @@ groups:
       missing `adr:` link is a likely gap in the trace from rule to reason. History
       narration is easy to recognize but has false positives, such as an issue cited
       as evidence, so both lists are worklists for a person to judge rather than
-      gates. A per-file filter lets each backfill take its own share.
+      gates. A per-file filter lets one task work through its own spec files.
     verification: >-
       `test/metadata/specs/test_rationale.py` covers both reports, the per-file
       filter, and the `spec-rationale` command line exiting 0.
@@ -908,6 +888,26 @@ groups:
     tags:
     - documentation
     - tooling
+  - id: MS-10-017
+    priority: SHOULD
+    kind: process
+    statement: >-
+      A `rationale:` SHOULD read as Simplified Technical English in spirit: short
+      sentences, a constrained vocabulary, the active voice and no jargon. Its
+      domain terms are the ones `CONTEXT.md` and `docs/reference/glossary.md`
+      define, even where an STE-approved word could replace one.
+    rationale: >-
+      For most project and process requirements, the rationale is the only
+      written reason. A reader who is new to the project must understand it.
+      Short, plain sentences are easy to read and to translate. One term for
+      each concept lets a reader find the same idea in specs, docs and code. An
+      STE swap gives a second word for the concept and breaks that link, so the
+      glossary term or spec term stays: "create a case", not "make a case".
+    relationships:
+    - rel_type: refines
+      spec_id: MS-10-012
+    tags:
+    - documentation
 - id: MS-11
   title: Spec vs. ADR Delineation
   specs:

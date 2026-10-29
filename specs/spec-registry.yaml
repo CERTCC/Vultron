@@ -242,7 +242,6 @@ groups:
   - id: SR-02-009
     priority: MUST
     kind: project
-    verification_debt: '#2574'
     statement: '`StatementSpec` MUST have fields: `id` (`SpecIdStr`), `priority` (`RFC2119Priority`), `kind` (`SpecKind`,
       required), `statement` (non-empty str), `rationale` (non-empty str), and optional fields: `testable`, `scope`, `tags`,
       `relationships`, `adr`, `lint_suppress`.'
@@ -251,6 +250,14 @@ groups:
       `spec-dump`, so the schema is what guarantees each requirement has them. A
       required `rationale` keeps the reason for each rule next to the rule
       (MS-10-012).
+    verification: >-
+      `test/metadata/specs/test_schema.py` checks the required fields
+      (`test_statement_spec_kind_omitted_rejected`,
+      `test_statement_spec_rationale_omitted_rejected`,
+      `test_statement_spec_empty_statement_rejected`,
+      `test_statement_spec_empty_rationale_rejected`), the optional defaults
+      (`test_statement_spec_absent_fields`) and the full field set
+      (`test_statement_spec_full`).
   - id: SR-02-010
     priority: MUST
     kind: project

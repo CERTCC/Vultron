@@ -171,6 +171,17 @@ def test_statement_spec_empty_rationale_rejected():
         )
 
 
+def test_statement_spec_kind_omitted_rejected():
+    """``kind`` is required on every requirement (SR-02-009)."""
+    with pytest.raises(ValidationError, match="kind"):
+        StatementSpec(  # type: ignore[call-arg]
+            id="AB-01-001",
+            priority=RFC2119Priority.MUST,
+            statement="AB-01-001 MUST satisfy this",
+            rationale="Because testing.",
+        )
+
+
 @pytest.mark.spec("MS-10-012")
 def test_statement_spec_rationale_omitted_rejected():
     """A requirement with no rationale fails validation (SR-02-009)."""

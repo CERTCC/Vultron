@@ -284,7 +284,7 @@ ones it reads from.
 - **#4483–#4486** (rationale backfill by area) run first per area; see above.
   Where a contributor or maintainer seed story fits a project or process
   requirement they touch, they may cite it; the rationale is still the reason.
-- **#4482** (rationale rule and growth guard) and **#4315** (PR-only growth
+- **#4482** (rationale rule) and **#4315** (PR-only growth
   guards replacing the count ceilings) build the helper the project/process
   story advisory and the closing step should reuse, so a guard is written once.
 - **#3601** (adjudicating suppressed protocol specs) was to hand the five Ideas

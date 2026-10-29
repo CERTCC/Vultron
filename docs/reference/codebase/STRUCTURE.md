@@ -61,7 +61,7 @@ stakeholder_type: [project-contributor]
   - `spec-coverage` → `vultron.metadata.specs.coverage:main`
   - `spec-backstop` → `vultron.metadata.specs.backstop:main` (spec groups governing the changed code, checked against a Spec manifest)
   - `spec-rationale` → `vultron.metadata.specs.rationale:main`.
-    Its `missing`, `history` and `adr-links` reports list requirements with no `rationale:`, rationales that may narrate history, and requirements a live decision record names that their `adr:` does not cite (MS-10-015).
+    Its `history` and `adr-links` reports list rationales that may narrate history, and requirements a live decision record names that their `adr:` does not cite (MS-10-015).
     `--file specs/<name>.yaml` narrows a report to one spec file; the reports are advisory, so it exits 0 whatever they find.
   - `pr-body-lint` → `vultron.metadata.planning.pr_body_lint:cli` (the mechanical PR body rules of `pr-body-guide.md`, PAD-20)
   - `glossary-index` → `vultron.metadata.docs.glossary_index:main` (term index of `docs/reference/glossary.md`)

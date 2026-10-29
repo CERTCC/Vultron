@@ -53,7 +53,7 @@ One entry per spec topic that has a selected requirement. Fields: `id`,
 | `kind` | `protocol`, `foundation`, `architecture`, `project`, or `process` |
 | `scope` | List: `prototype`, `production`, or both |
 | `tags` | Optional topic tags |
-| `rationale` | Optional explanatory text |
+| `rationale` | Why the requirement exists (required) |
 | `note` | Optional caveat (for example, which side an obligation binds) |
 | `relationships` | Optional list of `{rel_type, spec_id, note?}` |
 | `verification` | How the requirement is verified, or `null` |

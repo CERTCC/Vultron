@@ -539,7 +539,7 @@ is empty (MS-12-008).
 Every guard reads the merge base with this branch's loaders, so a branch that
 tightens the spec schema fails all of them with `BaseExtractionError` unless the
 base already satisfies the new rule. Land the data fix on `main` first, then the
-schema change.
+schema change (#5437 before #5285).
 
 When adding one, keep three properties:
 
