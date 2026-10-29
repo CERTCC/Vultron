@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -210,6 +211,37 @@ def test_notify_step_passes_the_ci_failure_epic(wf: Path) -> None:
             f"{wf.name}: a notify-failure notify step must pass "
             "`epic: ${{ vars.CI_FAILURE_EPIC }}` (PAD-01-007)."
         )
+
+
+@pytest.mark.spec("CISEC-05-003")
+@pytest.mark.parametrize(
+    "wf", _qualifying_workflow_files(), ids=lambda p: p.name
+)
+def test_one_notify_and_one_close_step_per_workflow_label(wf: Path) -> None:
+    """CISEC-05-003 (#4874): one job reports each workflow-label, once.
+
+    The close step closes every open issue carrying the label. When several
+    jobs each run a notify step and a close step under one label, a job that
+    passes closes the issue a failing sibling just filed, and the job that
+    finishes last decides whether a red ``main`` stays reported. Counted
+    across all jobs, each label may have at most one notify step and one
+    close step; when several jobs can run, they belong in a final aggregate
+    job that ``needs:`` the others.
+    """
+    counts: Counter[tuple[str, str]] = Counter(
+        (
+            str(step.get("with", {}).get("workflow-label", "")),
+            str(step.get("with", {}).get("mode", "")),
+        )
+        for step in _notify_failure_steps(_load_workflow(wf))
+    )
+    repeated = {key: n for key, n in counts.items() if n > 1}
+    assert not repeated, (
+        f"{wf.name}: more than one notify-failure step per (workflow-label, "
+        f"mode): {repeated}. A passing job's close step would close the "
+        "issue a failing sibling filed; report once, from a final aggregate "
+        "job that `needs:` every other job (CISEC-05-003, #4874)."
+    )
 
 
 AGGREGATE_FAILURE = "contains(needs.*.result, 'failure')"
