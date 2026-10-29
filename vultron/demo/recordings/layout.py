@@ -19,7 +19,6 @@ each declared step of the scenario's path, which the shared-prefix check reads
 (:mod:`.prefix`, DEMOCI-11-017).
 """
 
-import json
 import shutil
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -27,7 +26,7 @@ from pathlib import Path
 
 import click
 
-from vultron.demo.helpers.harness import StepMark
+from vultron.demo.helpers.harness import StepMark, step_marks_text
 from vultron.demo.recordings.ledgers import CANONICAL_ACTOR, parse_step_marks
 from vultron.demo.recordings.topology import REPO_ROOT
 from vultron.demo.scenario.tree import PathStep
@@ -73,12 +72,7 @@ class Recording:
 
     def steps_text(self) -> str:
         """Return the step marks as committed in ``steps.json``."""
-        return (
-            json.dumps(
-                {"steps": [mark.as_json() for mark in self.steps]}, indent=2
-            )
-            + "\n"
-        )
+        return step_marks_text(self.steps)
 
 
 def recording_path(scenario: str) -> Path:
@@ -119,15 +113,22 @@ def read_recording(scenario: str, path: Sequence[PathStep]) -> Recording:
         path: Its declared path, which the step marks must cover.
 
     Raises:
-        DemoRecordingError: As :func:`~.ledgers.parse_step_marks`, or when a
-            step's ledger tail lies past the ledger.
+        DemoRecordingError: When either file is missing or unreadable, as
+            :func:`~.ledgers.parse_step_marks`, or when a step's ledger tail
+            lies past the ledger.
     """
+    try:
+        ledger = recording_path(scenario).read_text(encoding="utf-8")
+        steps = steps_path(scenario).read_text(encoding="utf-8")
+    except OSError as exc:
+        raise DemoRecordingError(
+            f"scenario {scenario!r} has no readable committed recording: "
+            f"{exc}. Regenerate with uv run export-demo-recordings."
+        ) from exc
     return Recording(
         scenario,
-        ledger=recording_path(scenario).read_text(encoding="utf-8"),
-        steps=parse_step_marks(
-            steps_path(scenario).read_text(encoding="utf-8"), scenario, path
-        ),
+        ledger=ledger,
+        steps=parse_step_marks(steps, scenario, path),
     )
 
 

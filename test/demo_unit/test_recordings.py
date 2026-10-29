@@ -790,11 +790,6 @@ class TestByteIdentity:
         )
 
 
-def _prefix_entries(recording: Recording, depth: int) -> list[str]:
-    """The ledger lines of *recording* before its step at *depth*."""
-    return recording.entries[: recording.steps[depth].ledger_tail]
-
-
 def _committed(name: str) -> Recording:
     return layout.read_recording(name, _spec(name).path)
 
@@ -829,10 +824,8 @@ class TestSharedPrefixes:
         ids=lambda pair: pair.id,
     )
     def test_the_ledgers_are_isomorphic_up_to_the_branch_point(self, pair):
-        first, second = _committed(pair.first), _committed(pair.second)
-        mismatch = prefix.isomorphism_mismatch(
-            [json.loads(line) for line in _prefix_entries(first, pair.depth)],
-            [json.loads(line) for line in _prefix_entries(second, pair.depth)],
+        mismatch = prefix.pair_isomorphism_mismatch(
+            pair, _committed(pair.first), _committed(pair.second)
         )
         assert mismatch is None, (
             f"{pair.first} and {pair.second} share their path for "
@@ -841,14 +834,24 @@ class TestSharedPrefixes:
             f"Regenerate with {cli.REGENERATE_COMMAND} after fixing the order."
         )
 
+    def test_a_missing_committed_recording_names_the_command(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(layout, "RECORDINGS_DIR", tmp_path)
+        with pytest.raises(DemoRecordingError, match="export-demo-recordings"):
+            layout.read_recording("rv", _spec("rv").path)
 
-def _composed_pairs() -> list[prefix.SharedPrefix]:
-    return [
-        pair
-        for pair in prefix.shared_prefixes(scenario_tree())
-        for family in prefix.COMPOSED_FAMILIES
-        if {pair.first, pair.second} <= family
-    ]
+
+#: Two fixture recordings of rv's path: the root at 0, the Vendor's decision
+#: after two entries, then one entry each that differs.
+_RV_MARKS = (
+    StepMark("reporter-whom-to-tell", "vendor", 0),
+    StepMark("vendor-after-answer", "report-fix-ready", 2),
+)
+
+
+def _fixture(name: str, lines: list[str]) -> Recording:
+    return Recording(name, "".join(f"{line}\n" for line in lines), _RV_MARKS)
 
 
 class TestComposedFamilies:
@@ -856,16 +859,16 @@ class TestComposedFamilies:
 
     # Parametrizes over no pair until the first family is written as
     # composition (#4733) and named in COMPOSED_FAMILIES: until then every
-    # sibling seeds its own actor names, slots and ports, so only the
+    # sibling seeds its own actor ids, slots and ports, so only the
     # isomorphism above can hold.  pytest reports the empty set as one skip.
     @pytest.mark.parametrize(
-        "pair", _composed_pairs(), ids=lambda pair: pair.id
+        "pair",
+        prefix.composed_pairs(prefix.shared_prefixes(scenario_tree())),
+        ids=lambda pair: pair.id,
     )
     def test_the_ledgers_are_byte_identical_up_to_the_branch_point(self, pair):
-        first, second = _committed(pair.first), _committed(pair.second)
-        mismatch = prefix.byte_mismatch(
-            _prefix_entries(first, pair.depth),
-            _prefix_entries(second, pair.depth),
+        mismatch = prefix.pair_byte_mismatch(
+            pair, _committed(pair.first), _committed(pair.second)
         )
         assert mismatch is None, (
             f"{pair.first} and {pair.second} are one composed family, but "
@@ -876,3 +879,32 @@ class TestComposedFamilies:
         names = {spec.name for spec in discover_scenarios()}
         for family in prefix.COMPOSED_FAMILIES:
             assert len(family) >= 2 and family <= names, family
+
+    def test_only_pairs_inside_one_family_are_selected(self):
+        pairs = prefix.shared_prefixes(scenario_tree())
+        selected = prefix.composed_pairs(
+            pairs, [frozenset({"rv", "rvv"}), frozenset({"rcv", "rcv-reject"})]
+        )
+        assert [pair.id for pair in selected] == [
+            "rcv~rcv-reject@2",
+            "rv~rvv@1",
+        ]
+
+    def test_a_marked_family_pair_one_byte_apart_fails(self):
+        (pair,) = prefix.composed_pairs(
+            prefix.shared_prefixes(scenario_tree()), [frozenset({"rv", "rvv"})]
+        )
+        first = _fixture("rv", ['{"a": 1}', '{"b": 2}', '{"rv": 3}'])
+        second = _fixture("rvv", ['{"a": 1}', '{"b": 3}', '{"rvv": 3}'])
+        assert prefix.pair_byte_mismatch(pair, first, second) == (
+            "entry 1 differs from byte 6 on."
+        )
+
+    def test_a_marked_family_pair_that_differs_after_the_branch_passes(self):
+        (pair,) = prefix.composed_pairs(
+            prefix.shared_prefixes(scenario_tree()), [frozenset({"rv", "rvv"})]
+        )
+        first = _fixture("rv", ['{"a": 1}', '{"b": 2}', '{"rv": 3}'])
+        second = _fixture("rvv", ['{"a": 1}', '{"b": 2}', '{"rvv": 3}'])
+        assert prefix.pair_byte_mismatch(pair, first, second) is None
+        assert prefix.pair_isomorphism_mismatch(pair, first, second) is None

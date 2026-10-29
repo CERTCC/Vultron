@@ -3,7 +3,6 @@ title: Demo Scenario Tree — Names, the Tree Index, the Prefix Check, and Test 
 status: active
 kind: plan
 tracks:
-  - "#4727"
   - "#4733"
   - "#4747"
   - "#5303"
@@ -112,12 +111,14 @@ Built: `uv run export-demo-tree` writes `ui/src/data/scenario_tree.json`
 
 ## Shared-prefix check
 
-Prove each declared branch the way position-independent code is compared: same
-logic, different addresses (DEMOCI-11-017; byte identity once composed is
-DEMOCI-11-018).
+Each declared branch is proved the way position-independent code is compared:
+same logic, different addresses (DEMOCI-11-017; byte identity once composed is
+DEMOCI-11-018). The test is `TestSharedPrefixes` in
+`test/demo_unit/test_recordings.py`, over the committed recordings.
 
-- Relabel each recording's ids by first appearance, drop timestamps, and require
-  equal entries up to the branch point, references between objects included.
+- Each recording's ids are relabeled by first appearance and its timestamps
+  dropped; the entries must then be equal up to the branch point, references
+  between objects included.
 - Byte identity is not required yet: siblings seed different actor ids,
   container slots and ports (`rcvcv` seeds named actor ids, its siblings UUIDs),
   so ids differ even where logic matches. A composed family tightens to byte
@@ -173,7 +174,7 @@ reports to the harness with `reach_step` for the shared-prefix check
 
 ## Task order
 
-1. #4727 — the tree-index exporter and the isomorphic prefix check, after #3901.
-2. #4733 — composition, family by family.
-3. Test starting points: #5344 (one act cheap) and #5345 (the harness, after #4727),
-   then the pilot #5346, then the migrations #5347 and #5348, and last #5349.
+1. #4733 — composition, family by family.
+2. Test starting points: #5344 (one act cheap) and #5345 (the harness, which
+   stops a run at a `reach_step` mark), then the pilot #5346, then the
+   migrations #5347 and #5348, and last #5349.

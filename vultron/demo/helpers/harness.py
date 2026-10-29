@@ -76,7 +76,7 @@ recorder refuses a run whose marks do not cover its declared path.
 import json
 import logging
 import pathlib
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -278,19 +278,31 @@ def step_reporter(branch_point: str, choice: str) -> Callable[[], None]:
     return report
 
 
+def _registered_path(demo_name: str) -> tuple[PathStep, ...] | None:
+    """Return the ``@scenario`` path of *demo_name*, if it is registered."""
+    return next(
+        (
+            spec.path
+            for spec in registered_scenarios()
+            if spec.name == demo_name
+        ),
+        None,
+    )
+
+
 def _declared_path(demo_name: str) -> tuple[PathStep, ...]:
     """Return the ``@scenario`` path of *demo_name*.
 
     Raises:
         DemoScenarioStepError: When no scenario of that name is registered.
     """
-    for spec in registered_scenarios():
-        if spec.name == demo_name:
-            return spec.path
-    raise DemoScenarioStepError(
-        f"no registered scenario is named {demo_name!r}, so it has no "
-        "declared path to reach a step on."
-    )
+    path = _registered_path(demo_name)
+    if path is None:
+        raise DemoScenarioStepError(
+            f"no registered scenario is named {demo_name!r}, so it has no "
+            "declared path to reach a step on."
+        )
+    return path
 
 
 def write_step_marks(
@@ -311,12 +323,16 @@ def write_step_marks(
     out_dir = resolve_output_root(output_root) / demo_name
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / STEP_MARKS_FILENAME
-    path.write_text(
-        json.dumps({"steps": [mark.as_json() for mark in marks]}, indent=2)
-        + "\n",
-        encoding="utf-8",
-    )
+    path.write_text(step_marks_text(marks), encoding="utf-8")
     return path
+
+
+def step_marks_text(marks: Sequence[StepMark]) -> str:
+    """Return *marks* as the harness writes them and the recordings commit."""
+    return (
+        json.dumps({"steps": [mark.as_json() for mark in marks]}, indent=2)
+        + "\n"
+    )
 
 
 def _record_marks(harness: ScenarioHarness) -> None:

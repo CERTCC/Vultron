@@ -379,20 +379,24 @@ def case_ledger_length(
     """Return how many entries the canonical ledger of *case_id* holds now.
 
     Reads the CaseActor's own ledger, the canonical one (DEMOMA-06-005),
-    through the same route :func:`dump_case_ledgers` exports it from.  A 404
-    reads as an empty ledger, as it does for the dump.
+    through the same route :func:`dump_case_ledgers` exports it from.  Unlike
+    the dump, a 404 is not read as an empty ledger: the case exists when a
+    scenario follows its ledger, so a 404 means the client or the case is
+    wrong, and a tail of 0 would mark the step at the wrong place.
 
     Args:
         case_actor_client: Client for the dedicated case-actor container,
             bound to its CaseActor.
         case_id: The case whose ledger is read.
+
+    Raises:
+        httpx.HTTPStatusError: When the container answers with an error,
+            a 404 included.
     """
     route_key = replica_route_key(case_actor_client, CASE_ACTOR_SLUG)
     return len(
-        _fetch_entries(
-            case_actor_client,
-            f"/actors/{route_key}/demo/cases/{strip_id_prefix(case_id)}/log",
-            CASE_ACTOR_SLUG,
+        case_actor_client.get_list(
+            f"/actors/{route_key}/demo/cases/{strip_id_prefix(case_id)}/log"
         )
     )
 

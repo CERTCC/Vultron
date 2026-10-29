@@ -41,6 +41,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from itertools import combinations
 
+from vultron.demo.recordings.layout import Recording
 from vultron.demo.scenario.tree import PathStep, TreeNode
 
 #: A string that names an object, wherever it occurs in an entry: an actor or
@@ -110,6 +111,50 @@ def shared_prefixes(root: TreeNode) -> list[SharedPrefix]:
         SharedPrefix(first, second, _common_depth(paths[first], paths[second]))
         for first, second in combinations(paths, 2)
     ]
+
+
+def composed_pairs(
+    pairs: Iterable[SharedPrefix],
+    families: Iterable[frozenset[str]] = COMPOSED_FAMILIES,
+) -> list[SharedPrefix]:
+    """Return the *pairs* whose two scenarios are in one composed family."""
+    family_list = list(families)
+    return [
+        pair
+        for pair in pairs
+        if any({pair.first, pair.second} <= family for family in family_list)
+    ]
+
+
+def prefix_lines(recording: Recording, depth: int) -> list[str]:
+    """Return the ledger lines of *recording* before its step at *depth*.
+
+    The step at *depth* is where the pair's paths part, so its mark is the
+    branch point's place in this ledger.
+    """
+    return recording.entries[: recording.steps[depth].ledger_tail]
+
+
+def pair_isomorphism_mismatch(
+    pair: SharedPrefix, first: Recording, second: Recording
+) -> str | None:
+    """Compare *pair*'s recordings up to its branch point (DEMOCI-11-017)."""
+    return isomorphism_mismatch(
+        [json.loads(line) for line in prefix_lines(first, pair.depth)],
+        [json.loads(line) for line in prefix_lines(second, pair.depth)],
+    )
+
+
+def pair_byte_mismatch(
+    pair: SharedPrefix, first: Recording, second: Recording
+) -> str | None:
+    """Compare *pair*'s recordings byte for byte up to its branch point.
+
+    The check for a composed family (DEMOCI-11-018).
+    """
+    return byte_mismatch(
+        prefix_lines(first, pair.depth), prefix_lines(second, pair.depth)
+    )
 
 
 def _common_depth(
@@ -228,7 +273,11 @@ __all__ = [
     "COMPOSED_FAMILIES",
     "SharedPrefix",
     "byte_mismatch",
+    "composed_pairs",
     "isomorphism_mismatch",
+    "pair_byte_mismatch",
+    "pair_isomorphism_mismatch",
+    "prefix_lines",
     "relabeled",
     "shared_prefixes",
 ]

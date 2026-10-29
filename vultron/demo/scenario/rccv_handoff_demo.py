@@ -68,6 +68,7 @@ from vultron.demo.helpers.milestones import (
     verify_publicly_disclosed,
 )
 from vultron.demo.helpers.notes import (
+    WORKAROUND_ANSWER,
     WORKAROUND_QUESTION,
     NotePost,
     add_note_thread,
@@ -681,8 +682,7 @@ def _phase_notes_exchange(
             NotePost(
                 ActorSession(client=c1_client, actor=c1_in_c1),
                 "C1 Response",
-                "Yes, disabling the affected module is an effective interim "
-                "workaround.",
+                WORKAROUND_ANSWER,
             ),
             NotePost(
                 ActorSession(client=c2_client, actor=c2_in_c2),
