@@ -147,7 +147,8 @@ expected response message.
 |               $\{RI,RV,RD,RA,RC\}$                | $\{R,I,V,D,A\},*,*$ | $-,-,-$ |                       $RK$                       |
 |               $\{RI,RV,RD,RA,RC\}$                | $S,*,*$ | $-,-,-$ |           `Create(ProcessingFault)`            |
 |                       $RE$                        | $*,*,*$ | $-,-,-$ |                    $RK + GI$                    |
-|                       $RK$                        | $*,*,*$ | $-,-,-$ |                       $-$                        |
+|                       $RK$                        | $\{R,I,V,D,A\},*,*$ | $-,-,-$ |                       $-$                        |
+|                       $RK$                        | $S,*,*$ | $-,-,-$ |           `Create(ProcessingFault)`            |
 
 ## EM Transition Functions
 

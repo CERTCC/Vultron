@@ -217,7 +217,8 @@ class TestJoinerAgreement:
         """Seeding never overrides an answer the participant gave.
 
         A DECLINED row stays DECLINED when the joiner accepts the stub
-        Invite: joining is not an answer to the embargo (CM-11-001).
+        Invite: an explicit refusal outranks the consent that joining
+        implies (CM-11-001).
         """
         assert joiner_agreement(_case_file(joiner={E1: held}), JOINER) is None
 

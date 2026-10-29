@@ -594,8 +594,10 @@ groups:
       An $R*$ message from a party the recipient has no report from means the two
       disagree about whether a report was sent. A fault lets the sender re-send the
       report. No $RE$ message exists, because faults are grouped by failure mode
-      (MSM-05-001). The rule is a SHOULD, not the MUST of ASK-07-001, because the
-      recipient can also handle such a message by ignoring it.
+      (MSM-05-001). The rule is a SHOULD, not the MUST of ASK-07-001, because a
+      recipient that understands the message can decline it with `as:Reject`
+      instead (MSM-05-001). It never permits silence: a recipient that cannot
+      process the message falls under ASK-07-001.
   - id: VP-03-011
     priority: SHOULD
     kind: protocol

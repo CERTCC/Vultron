@@ -35,9 +35,11 @@ groups:
       CV announces a Vendor-specific CS transition. The receiver does not change
       their own CS state; they update their awareness model for the sender.
     verification: >-
-      A receive test confirms that CV in an active RM state updates the sender's CS
-      model to Vfd··· without changing the receiver's own CS state, with no CK message
-      queued.
+      `TestReceiveVendorPathNotices` (`[CV]`) in
+      `test/core/behaviors/status/test_add_participant_status_bt.py` confirms
+      that CV in an active RM state updates the sender's CS model to Vfd···
+      without changing the receiver's own CS state, and that only `Announce`
+      activities are queued, with no CK message.
     testable: true
     preconditions:
     - rm_state:
@@ -93,9 +95,11 @@ groups:
       CF announces a Vendor-specific CS transition. The receiver does not change
       their own CS state; they update their awareness model for the sender.
     verification: >-
-      A receive test confirms that CF in an active RM state updates the sender's CS
-      model to VFd··· without changing the receiver's own CS state, with no CK message
-      queued.
+      `TestReceiveVendorPathNotices` (`[CF]`) in
+      `test/core/behaviors/status/test_add_participant_status_bt.py` confirms
+      that CF in an active RM state updates the sender's CS model to VFd···
+      without changing the receiver's own CS state, and that only `Announce`
+      activities are queued, with no CK message.
     testable: true
     preconditions:
     - rm_state:
@@ -151,9 +155,11 @@ groups:
       CD announces a Vendor-specific CS transition. The receiver does not change
       their own CS state; they update their awareness model for the sender.
     verification: >-
-      A receive test confirms that CD in an active RM state updates the sender's CS
-      model to VFD··· without changing the receiver's own CS state, with no CK message
-      queued.
+      `TestReceiveVendorPathNotices` (`[CD]`) in
+      `test/core/behaviors/status/test_add_participant_status_bt.py` confirms
+      that CD in an active RM state updates the sender's CS model to VFD···
+      without changing the receiver's own CS state, and that only `Announce`
+      activities are queued, with no CK message.
     testable: true
     preconditions:
     - rm_state:
