@@ -23,6 +23,8 @@ import logging
 import pytest
 
 from test.demo._helpers import (
+    expect_no_inbox_refusals,
+    expect_no_sender_refusals,
     expect_trusted_introductions,
     make_client,
     route_exchange_demo_at_testclient,
@@ -61,6 +63,8 @@ def _run(base: str, demo_fn, caplog: pytest.LogCaptureFixture):
     with (
         caplog.at_level(logging.WARNING),
         expect_trusted_introductions(caplog),
+        expect_no_inbox_refusals(caplog),
+        expect_no_sender_refusals(caplog),
         demo_environment(client) as (reporter, vendor, coordinator),
     ):
         demo_fn(client, reporter, vendor, coordinator)

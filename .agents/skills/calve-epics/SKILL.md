@@ -81,10 +81,18 @@ If you remember one rule: **route freely, calve only with a human.**
 
 The `theme-fit` structural check (`uv run theme-fit`) lists every open issue
 that breaks a theme rule, and every untriaged issue (no parent) waiting to be
-routed; a scheduled run keeps its output in the standing
-"Theme fit report" issue. That report is this skill's work list: read the
-standing report issue, or run `theme-fit` when it is missing or stale, and act
-on its findings before looking for other work.
+routed. The daily Theme Fit Report workflow keeps its output in the standing
+"Theme fit report" issue, the one labelled `theme-fit-report`:
+
+```bash
+gh issue list --repo CERTCC/Vultron --label theme-fit-report --state open
+```
+
+That issue is this skill's work list: read it, or run `theme-fit` when it is
+missing or its "Last rewritten" run is more than a day old, and act on its
+findings before looking for other work. The workflow's token cannot read
+Project #24, so the issue shows coherence for all tiers together; run
+`uv run theme-fit` for the per-tier split.
 
 - An issue in the report's **untriaged** list, or an **unparented** or
   **theme-mismatch** child → Mode 1 routing. An untriaged issue is not a

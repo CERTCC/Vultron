@@ -46,9 +46,12 @@ prototype design. Actors post activities directly to each other's inboxes.
 import logging
 from collections.abc import Callable, Sequence
 
+from vultron.core.states.rm import RM
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
+    check_report_answer_recorded,
     create_case_via_trigger,
+    receiver_validates_report,
     reporter_submits_report,
     seat_participant_through_stub_invite,
     verify_reporter_trusts_introduction,
@@ -58,7 +61,6 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     DataLayerClient,
     demo_check,
     demo_step,
-    get_offer_from_datalayer,
     log_case_state,
     logfmt,
     post_to_inbox_and_wait,
@@ -67,10 +69,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     verify_object_stored,
 )
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.factories import (
-    add_report_to_case_activity,
-    rm_validate_report_activity,
-)
+from vultron.wire.as2.factories import add_report_to_case_activity
 
 # Vultron imports
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -89,7 +88,7 @@ def demo_initialize_case(
 
     Steps:
     1. Reporter submits a vulnerability report to vendor inbox
-    2. Vendor validates the report (RmValidateReportActivity)
+    2. Vendor validates the report through its validate-report trigger
     3. Vendor creates the case through the create-case trigger
     4. The trigger registers the vendor as CASE_OWNER and CASE_MANAGER
     5. Vendor adds the report to the case (AddReportToCaseActivity)
@@ -126,13 +125,17 @@ def demo_initialize_case(
         logger.info("Submitted report: %s", logfmt(report))
 
     with demo_step("Step 2: Vendor validates report"):
-        offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-        validate_activity = rm_validate_report_activity(
-            offer,
-            actor=vendor.id_,
-            content="Confirmed — remote code execution via unsanitized input.",
+        # Through the vendor's validate-report trigger, which sends the Report
+        # Valid to the CASE_MANAGER of the case opened on receipt (#5438).
+        receiver_validates_report(
+            client,
+            vendor,
+            report_offer.id_,
+            note="Confirmed — remote code execution via unsanitized input.",
         )
-        post_to_inbox_and_wait(client, vendor.id_, validate_activity)
+        check_report_answer_recorded(
+            client, reporter, vendor, report_offer.id_, {RM.VALID}
+        )
 
     case = None
     with demo_step("Step 3: Vendor creates vulnerability case"):

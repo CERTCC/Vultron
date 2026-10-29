@@ -52,11 +52,13 @@ from vultron.core.models.dimensions import (
     RmDimension,
 )
 from vultron.core.states.rm import RM
+from vultron.demo.helpers.polling import wait_for_participant_rm_state
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.verification import (
     verify_participant_status_appended,
 )
 from vultron.demo.helpers.workflow import (
+    invitee_declines_stub_invite,
     seat_participant_through_stub_invite,
     submit_validate_and_create_case,
 )
@@ -67,7 +69,6 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     demo_step,
     get_offer_from_datalayer,
     log_case_state,
-    logfmt,
     post_to_inbox_and_wait,
     ref_id,
     setup_demo_logging,
@@ -78,8 +79,6 @@ from vultron.wire.as2.factories import (
     add_participant_to_case_activity,
     add_status_to_participant_activity,
     remove_participant_from_case_activity,
-    rm_invite_to_case_activity,
-    rm_reject_invite_to_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
@@ -366,9 +365,11 @@ def demo_manage_participants_reject(
     Steps:
     1. Setup: initialize case (report submitted + validated, case created,
        vendor participant added)
-    2. Vendor invites coordinator to case (RmInviteToCaseActivity)
-    3. Coordinator rejects invitation (RmRejectInviteToCaseActivity)
-    4. Verify coordinator does NOT appear in case participant list
+    2. Vendor asks the CASE_MANAGER (itself) to invite the coordinator, which
+       sends the stub Invite
+    3. Coordinator rejects that Invite through its reject-case-invite trigger
+    4. Verify the coordinator's inert record is closed: it never joined
+       (CM-11-006, CM-11-007)
 
     This follows the reject branch in
     docs/howto/activitypub/activities/manage_participants.md.
@@ -379,42 +380,34 @@ def demo_manage_participants_reject(
 
     case = _setup_case_with_vendor(client, reporter, vendor)
 
-    initial_case = log_case_state(client, case.id_, "initial")
-    initial_count = len(initial_case.case_participants) if initial_case else 0
-
-    invite = None
-    with demo_step("Step 2: Vendor invites coordinator to case"):
-        invite = rm_invite_to_case_activity(
-            coordinator,
-            actor=vendor.id_,
-            target=case,
-            to=[coordinator.id_],
-            content=f"Inviting you to participate in {case.name}.",
+    # Bound before the step so Step 4 can read it (#2308 ratchet).
+    case_manager_id: str | None = None
+    with demo_step(
+        "Steps 2-3: Vendor has the coordinator invited; coordinator declines"
+    ):
+        # Through the triggers: the CASE_MANAGER sends the Invite, and the
+        # coordinator rejects that recorded Invite (EP-09-010, #5438).
+        case_manager_id = invitee_declines_stub_invite(
+            client,
+            case,
+            owner=vendor,
+            invitee=coordinator,
+            role=CVDRole.COORDINATOR,
         )
-        logger.info("Sending invite: %s", logfmt(invite))
-        post_to_inbox_and_wait(client, coordinator.id_, invite)
 
-    with demo_step("Step 3: Coordinator rejects invitation"):
-        reject = rm_reject_invite_to_case_activity(
-            invite,
-            actor=coordinator.id_,
-            to=[vendor.id_],
-            content=f"Declining invitation to participate in {case.name}.",
-        )
-        logger.info("Sending reject: %s", logfmt(reject))
-        post_to_inbox_and_wait(client, vendor.id_, reject)
-
-    with demo_step("Step 4: Verify coordinator not added as participant"):
-        with demo_check("Participant count unchanged after reject"):
-            final_case = log_case_state(client, case.id_, "after reject")
-            if final_case is None:
-                raise ValueError("Could not retrieve case after reject")
-            final_count = len(final_case.case_participants)
-            if final_count != initial_count:
-                raise ValueError(
-                    f"Expected participant count to remain {initial_count} after "
-                    f"reject, got {final_count}"
-                )
+    with demo_step("Step 4: Verify coordinator never became active"):
+        # The Invite put an inert record for the coordinator on the roster
+        # (CM-11-006); its Reject closes that record, which never joined
+        # (CM-11-007).  The CASE_MANAGER's store holds the record.
+        with demo_check("Coordinator's inert record closed after reject"):
+            wait_for_participant_rm_state(
+                client=client,
+                case_id=case.id_,
+                actor_id=coordinator.id_,
+                expected_states={RM.CLOSED},
+                dl_actor_id=case_manager_id,
+            )
+            log_case_state(client, case.id_, "after reject")
 
     logger.info(
         "✅ DEMO COMPLETE (reject path): Invitation rejected gracefully."

@@ -12,6 +12,7 @@ import pytest
 from vultron.metadata.adr.lifecycle import (
     AdrEpoch,
     Dependents,
+    _texts_at,
     check_change,
     check_paths,
     dependents_at,
@@ -702,6 +703,55 @@ def _set_spec(tmp_path: Path, *specs: tuple[str, str | None, str | None]):
     (tmp_path / "specs" / "t.yaml").write_text(
         _spec_yaml(*specs), encoding="utf-8"
     )
+
+
+def test_one_batch_reads_every_path_at_the_ref(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _dep_repo(tmp_path, monkeypatch, spec=("T-01-001", "ADR-0001", _CHECKS))
+    _set_spec(tmp_path, ("T-01-002", None, None))
+    texts = _texts_at(
+        "HEAD",
+        ["specs/t.yaml", "specs/absent.yaml", "specs", "docs/adr/0001-x.md"],
+    )
+
+    assert list(texts) == [
+        "specs/t.yaml",
+        "specs/absent.yaml",
+        "specs",
+        "docs/adr/0001-x.md",
+    ]
+    assert "T-01-001" in texts["specs/t.yaml"]
+    assert "T-01-002" not in texts["specs/t.yaml"]
+    assert texts["specs/absent.yaml"] == texts["specs"] == ""
+    assert texts["docs/adr/0001-x.md"].startswith("---")
+
+
+def test_an_ambiguous_name_reads_as_empty_and_the_batch_reads_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out = b"HEAD:a.yaml ambiguous\n0123 blob 4\nb: 1\n"
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *a, **k: subprocess.CompletedProcess(a, 0, out, b""),
+    )
+
+    assert _texts_at("HEAD", ["a.yaml", "b.yaml"]) == {
+        "a.yaml": "",
+        "b.yaml": "b: 1",
+    }
+
+
+def test_a_failed_batch_reads_every_path_as_empty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)  # not a repository: cat-file exits non-zero
+
+    assert _texts_at("HEAD", ["specs/t.yaml", "specs/u.yaml"]) == {
+        "specs/t.yaml": "",
+        "specs/u.yaml": "",
+    }
 
 
 @pytest.mark.spec("MS-14-010")

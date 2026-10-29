@@ -47,7 +47,8 @@ When run as a script, this module will:
    - demo_engage_path: submit → validate → create_case → engage → close
    - demo_defer_reengage_path: submit → validate → create_case →
      defer → re-engage → close
-   - demo_invalidate_path: submit → invalidate → close the case (Leave)
+   - demo_invalidate_path: submit → invalidate → end the embargo → close the
+     case (Leave), each act through its actor's trigger
 3. Verify side effects in the data layer for each workflow
 """
 
@@ -55,19 +56,18 @@ When run as a script, this module will:
 import logging
 from collections.abc import Callable, Sequence
 
+from vultron.demo.helpers.report_closure import receiver_invalidates_and_closes
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
     reporter_submits_report,
     submit_validate_and_create_case,
     verify_reporter_trusts_introduction,
-    wait_for_case_for_offer,
 )
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
     demo_check,
     demo_step,
-    get_offer_from_datalayer,
     log_case_state,
     logfmt,
     post_to_inbox_and_wait,
@@ -79,7 +79,6 @@ from vultron.wire.as2.factories import (
     rm_close_case_activity,
     rm_defer_case_activity,
     rm_engage_case_activity,
-    rm_invalidate_report_activity,
 )
 
 # Vultron imports
@@ -277,8 +276,10 @@ def demo_invalidate_path(
 
     Workflow steps:
     1. Reporter submits a report to the vendor
-    2. Vendor invalidates the report (RmInvalidateReportActivity — RM → INVALID)
-    3. Vendor closes the case (RmCloseCaseActivity — as:Leave)
+    2. Vendor invalidates the report through its invalidate-report trigger
+       (RM → INVALID)
+    3. Vendor ends the embargo; the reporter leaves, then the vendor
+       (as:Leave), through their leave-case triggers
     """
     logger.info("=" * 80)
     logger.info("DEMO 3: Invalidate Path (submit → invalidate → close case)")
@@ -300,29 +301,21 @@ def demo_invalidate_path(
         )
         logger.info("Submitted report: %s", logfmt(report))
 
-    stored_offer = None
     with demo_step(
-        "Step 2: Vendor invalidates the report (RmInvalidateReportActivity)"
+        "Steps 2-3: Vendor invalidates the report and closes the case"
     ):
-        stored_offer = get_offer_from_datalayer(client, vendor.id_, offer.id_)
-        invalidate = rm_invalidate_report_activity(
-            stored_offer,
-            actor=vendor.id_,
-            content=(
+        # Through the vendor's own triggers, to the CASE_MANAGER of the case
+        # opened on receipt (#5438).
+        receiver_invalidates_and_closes(
+            client,
+            reporter,
+            vendor,
+            offer.id_,
+            note=(
                 "Assessed as not a vulnerability — consistent error messages "
                 "are expected behavior per the security policy."
             ),
         )
-        post_to_inbox_and_wait(client, vendor.id_, invalidate)
-        with demo_check("RmInvalidateReportActivity activity stored"):
-            verify_received_activity_stored(client, invalidate.id_)
-
-    with demo_step("Step 3: Vendor closes the case (RmCloseCaseActivity)"):
-        case = wait_for_case_for_offer(client, stored_offer.id_)
-        close = rm_close_case_activity(case, actor=vendor.id_)
-        post_to_inbox_and_wait(client, vendor.id_, close)
-        with demo_check("RmCloseCaseActivity activity stored"):
-            verify_received_activity_stored(client, close.id_)
 
     # The case was created on receipt (auto_create_case), so the vendor still
     # introduces it to the reporter (CBT-01-001); it is never engaged.

@@ -15,7 +15,8 @@
 
 ``run_exchange_demos`` must attach accumulated soft failures as notes on any
 in-flight hard exception, mirroring the pattern in
-``scenario_harness._note_accumulated_failures``.
+``scenario_harness._note_accumulated_failures``.  Since ISSUE-3852 the runner
+then raises ``DemoFailureError`` once every demo has run.
 """
 
 import logging
@@ -26,6 +27,7 @@ import pytest
 
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.utils import demo_check, reset_demo_failures
+from vultron.errors import DemoFailureError
 
 
 @contextmanager
@@ -58,9 +60,10 @@ class TestRunnerSoftFailuresOnException:
             _fake_demo_environment,
         ):
             with caplog.at_level(logging.ERROR):
-                run_exchange_demos(
-                    [("test_demo", demo_fn)], skip_health_check=True
-                )
+                with pytest.raises(DemoFailureError):
+                    run_exchange_demos(
+                        [("test_demo", demo_fn)], skip_health_check=True
+                    )
 
         hard_exc_records = [
             r
@@ -86,9 +89,10 @@ class TestRunnerSoftFailuresOnException:
             _fake_demo_environment,
         ):
             with caplog.at_level(logging.ERROR):
-                run_exchange_demos(
-                    [("test_demo", demo_fn)], skip_health_check=True
-                )
+                with pytest.raises(DemoFailureError):
+                    run_exchange_demos(
+                        [("test_demo", demo_fn)], skip_health_check=True
+                    )
 
         hard_exc_records = [
             r
@@ -118,9 +122,10 @@ class TestRunnerSoftFailuresOnException:
             "vultron.demo.helpers.runner.demo_environment",
             _fake_demo_environment,
         ):
-            run_exchange_demos(
-                [("demo1", demo_fails), ("demo2", demo_succeeds)],
-                skip_health_check=True,
-            )
+            with pytest.raises(DemoFailureError):
+                run_exchange_demos(
+                    [("demo1", demo_fails), ("demo2", demo_succeeds)],
+                    skip_health_check=True,
+                )
 
         assert "ran" in calls, "Second demo must run even after first fails"
