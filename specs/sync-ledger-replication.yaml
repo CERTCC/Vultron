@@ -2735,7 +2735,7 @@ groups:
     - ADR-0163
     verification: >-
       `test/core/use_cases/received/test_invite_resend.py` asserts that an answered
-      embargo Invite, one for a rejected or cancelled proposal, one past its RSVP
+      embargo Invite, one for a rejected or withdrawn proposal, one past its RSVP
       deadline and a replied full-case Invite are not resent, and that the Invite a
       stamped `Accept` answers is not resent with it.
     stories:

@@ -86,16 +86,6 @@ _ANSWERABLE_EMBARGO: frozenset[EmbargoRegisterStatus] = frozenset(
     {EmbargoRegisterStatus.PROPOSED, EmbargoRegisterStatus.ACTIVE}
 )
 
-#: Ledger ``semantic_type`` of an ``Invite(EmbargoEvent)`` emission, the
-#: relay's (``embargo.nodes.relay.EMBARGO_INVITE_SEMANTIC_TYPE``).
-EMBARGO_INVITE_SEMANTIC_TYPE = MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value
-
-#: Ledger ``semantic_type`` of the full-case Invite's emission
-#: (``case.nodes.full_case_invite.FULL_CASE_INVITE_SEMANTIC_TYPE``).
-FULL_CASE_INVITE_SEMANTIC_TYPE = (
-    MessageSemantics.INVITE_ACTOR_TO_FULL_CASE.value
-)
-
 #: Ledger ``semantic_type`` of each reply to the full-case Invite (CM-11-011).
 _FULL_CASE_REPLY_SEMANTIC_TYPES: frozenset[str] = frozenset(
     {
@@ -137,7 +127,7 @@ def _latest_embargo_invites(
     sent *peer_id*, for each embargo; *entries* in log order."""
     latest: dict[str, str] = {}
     for entry in entries:
-        if entry.semantic_type != EMBARGO_INVITE_SEMANTIC_TYPE:
+        if entry.semantic_type != MessageSemantics.INVITE_TO_EMBARGO_ON_CASE:
             continue
         snapshot = entry.payload_snapshot
         embargo_id = _as_id(snapshot.get("object"))
@@ -172,19 +162,21 @@ def _full_case_invite(
 ) -> str | None:
     """The full-case Invite *peer_id* has not replied to, or ``None``.
 
+    *entries* are in log order.
+
     The CASE_MANAGER asks once per case (CM-11-010); the ledger records any
     reply to it (CM-11-011), and a replied Invite is owed nothing.
     """
-    invite_id = next(
-        (
-            entry.log_object_id
-            for entry in entries
-            if entry.semantic_type == FULL_CASE_INVITE_SEMANTIC_TYPE
+    # The last one sent: the CASE_MANAGER asks once per case (CM-11-010), so
+    # there is one, but the newest is the one a reply would answer.
+    invite_id: str | None = None
+    for entry in entries:
+        if (
+            entry.semantic_type == MessageSemantics.INVITE_ACTOR_TO_FULL_CASE
             and _sent_by(entry.payload_snapshot, manager_id)
             and _addressed_to(entry.payload_snapshot, peer_id)
-        ),
-        None,
-    )
+        ):
+            invite_id = entry.log_object_id
     if invite_id is None:
         return None
     replied = any(
@@ -217,9 +209,10 @@ def owed_invites(
     """
     if peer_id not in invitation_recipients(case, dl):
         return []
-    participant = dl.read(case.actor_participant_index[peer_id])
-    if not isinstance(participant, CaseParticipant):
-        return []
+    # ``invitation_recipients`` names only participants whose record it read.
+    participant = cast(
+        CaseParticipant, dl.read(case.actor_participant_index[peer_id])
+    )
     entries = sorted_case_ledger_entries(dl, case.id_)
     owed = [
         OwedInvite(invite_id=invite_id, label=embargo_id)
@@ -282,8 +275,10 @@ class ResendOwedInvitesNode(DataLayerActionWithPorts):
     since its last resend to the sender has not passed (SYNC-20-005).  A
     resend the port finds still pending is not counted (SYNC-20-004); one it
     cannot find sealed is logged at WARNING and skipped.  It commits
-    nothing (SYNC-20-007) and always succeeds once wired: what it resends is
-    no part of the received activity's outcome.  A store fault raises.
+    nothing (SYNC-20-007) and succeeds once wired and the case is held:
+    what it resends is no part of the received activity's outcome.  The
+    requeue and its cooldown record are one transaction; a store fault
+    raises.
 
     ``resent`` lists the Invite ids queued in the last run, for inspection.
 
@@ -337,12 +332,10 @@ class ResendOwedInvitesNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
-        if same_actor_id(self.sender_id, self.actor_id):
-            return Status.SUCCESS
         dl = cast(CasePersistence, self.datalayer)
-        case = dl.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
-            return Status.SUCCESS
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
         owed = owed_invites(
             case,
             dl,
@@ -372,9 +365,14 @@ class ResendOwedInvitesNode(DataLayerActionWithPorts):
                 self.sender_id,
             )
             return
-        outcome = self._sync_port.resend_sealed_activity(invite.invite_id)
+        # The requeue and its cooldown record are kept together or not at
+        # all, so a failed record never leaves a resend with no cooldown
+        # (ADR-0146).
+        with dl.transaction():
+            outcome = self._sync_port.resend_sealed_activity(invite.invite_id)
+            if outcome is ResendOutcome.QUEUED:
+                _record_resend(dl, invite.invite_id, self.sender_id)
         if outcome is ResendOutcome.QUEUED:
-            _record_resend(dl, invite.invite_id, self.sender_id)
             self.resent.append(invite.invite_id)
             self.logger.info(
                 "%s: resent unanswered Invite '%s' (%s) to '%s' for case"

@@ -60,7 +60,7 @@ Chosen option: "The CASE_MANAGER resends each Invite a participant owes an answe
   For an inert sender the position statement is otherwise refused as before: nothing is replayed, no replication state is recorded, and a `Read(CaseLedgerEntry)` is still `REFUSED` (SYNC-17-002).
   A removed or closed participant is sent nothing.
 - **An Invite is owed while its answer can still count.** That is:
-  - an `Invite(EmbargoEvent)` to the participant whose consent row is still `INVITED`, for a proposal that is still open and whose RSVP deadline has not passed (EP-09-002, EP-09-011, CM-31-013);
+  - an `Invite(EmbargoEvent)` to the participant whose consent row is still `INVITED`, for an embargo that is still proposed or is the one in force, and whose RSVP deadline has not passed (EP-09-002, EP-09-011, CM-31-013);
   - the full-case Invite, until the participant replies to it (CM-11-010).
     It has no RSVP deadline yet; #5320 proposes one, and the resend stops at that deadline once it exists.
 - **A resend is the activity as first sent.** It has the same id, `ledgerPosition` and RSVP deadline (SYNC-18-002).

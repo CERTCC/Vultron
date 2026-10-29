@@ -22,6 +22,7 @@ stores through the inbox pipeline.
 """
 
 from datetime import timedelta
+from types import SimpleNamespace
 from typing import cast
 
 import pytest
@@ -62,6 +63,7 @@ from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.invite_resend_record import InviteResendRecord
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.replication_state import VultronReplicationState
@@ -438,10 +440,15 @@ def test_a_replied_full_case_invite_is_not_resent_and_a_reply_still_counts(
     ).execute()
     assert accepted.disposition is HandlerDisposition.APPLIED, accepted.reason
     _drain(dl)
+    # Let both cooldowns pass, so only the reply keeps the full-case Invite
+    # from being resent; the embargo Invite, still owed, shows the resend ran.
+    _age_resend(dl, invite_id, timedelta(hours=1))
+    _age_resend(dl, _embargo_invite(dl), timedelta(hours=1))
 
     _state_position(dl, case_id, JOINER, make_payload)
 
     assert invite_id not in dl.outbox_list()
+    assert _embargo_invite(dl) in dl.outbox_list()
 
 
 # ---------------------------------------------------------------------------
@@ -605,3 +612,116 @@ def test_an_invite_with_no_sealed_body_is_logged_and_skipped(
     assert result.disposition is HandlerDisposition.APPLIED
     assert dl.outbox_list() == []
     assert "no sealed body" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# SYNC-20-002: which of several Invites is owed
+# ---------------------------------------------------------------------------
+
+_PEER = "https://example.org/users/peer"
+_OTHER = "https://example.org/users/other"
+_EMBARGO = "https://example.org/embargoes/e1"
+
+
+def _entry(
+    log_index: int,
+    semantic_type: str,
+    *,
+    actor: str = MANAGER,
+    to: str = _PEER,
+    obj: object = _EMBARGO,
+) -> CaseLedgerEntry:
+    """A stand-in for a ledger entry: the fields ``owed_invites`` reads."""
+    return cast(
+        CaseLedgerEntry,
+        SimpleNamespace(
+            log_index=log_index,
+            semantic_type=semantic_type,
+            log_object_id=f"https://example.org/activities/{log_index}",
+            payload_snapshot={"actor": actor, "to": [to], "object": obj},
+        ),
+    )
+
+
+_INVITE = MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value
+_FULL_CASE = MessageSemantics.INVITE_ACTOR_TO_FULL_CASE.value
+
+
+@pytest.mark.spec("SYNC-20-002", "EMB-17-003")
+def test_only_the_last_invite_sent_for_an_embargo_is_owed():
+    entries = [_entry(0, _INVITE), _entry(1, _INVITE)]
+
+    latest = invite_resend._latest_embargo_invites(
+        entries, manager_id=MANAGER, peer_id=_PEER
+    )
+
+    assert latest == {_EMBARGO: "https://example.org/activities/1"}
+
+
+@pytest.mark.spec("SYNC-20-002")
+def test_an_invite_to_another_participant_or_from_another_actor_is_not_owed():
+    """Only the CASE_MANAGER's own Invite to the stating participant counts:
+    not its Invite to someone else, and not the proposer's Invite it
+    received."""
+    entries = [
+        _entry(0, _INVITE),
+        _entry(1, _INVITE, to=_OTHER),
+        _entry(2, _INVITE, actor=PROPOSER, to=MANAGER),
+        _entry(3, _INVITE, obj={"id": "https://example.org/embargoes/e2"}),
+    ]
+
+    latest = invite_resend._latest_embargo_invites(
+        entries, manager_id=MANAGER, peer_id=_PEER
+    )
+
+    assert latest == {
+        _EMBARGO: "https://example.org/activities/0",
+        "https://example.org/embargoes/e2": "https://example.org/activities/3",
+    }
+
+
+@pytest.mark.spec("SYNC-20-002", "CM-11-011")
+def test_a_full_case_invite_is_owed_until_its_invitee_replies():
+    invite = _entry(0, _FULL_CASE, obj=_PEER)
+    invite_id = invite.log_object_id
+    other_reply = _entry(
+        1,
+        MessageSemantics.ACCEPT_INVITE_ACTOR_TO_FULL_CASE.value,
+        actor=_OTHER,
+        to=MANAGER,
+        obj=invite_id,
+    )
+    reply = _entry(
+        2,
+        MessageSemantics.TENTATIVE_REJECT_INVITE_ACTOR_TO_FULL_CASE.value,
+        actor=_PEER,
+        to=MANAGER,
+        obj={"id": invite_id},
+    )
+
+    def owed(entries: list[CaseLedgerEntry]) -> str | None:
+        return invite_resend._full_case_invite(
+            entries, manager_id=MANAGER, peer_id=_PEER
+        )
+
+    assert owed([invite]) == invite_id
+    assert owed([invite, other_reply]) == invite_id
+    assert owed([invite, other_reply, reply]) is None
+    assert owed([_entry(0, _FULL_CASE, to=_OTHER, obj=_OTHER)]) is None
+
+
+@pytest.mark.spec("SYNC-20-005")
+def test_a_failed_cooldown_record_keeps_no_resend(make_payload, monkeypatch):
+    """The requeue and its cooldown record commit together (ADR-0146)."""
+    case_id = "https://example.org/cases/resend-record-fails"
+    dl, _ = _joined(case_id, make_payload)
+
+    def _fail(*_args: object) -> None:
+        raise RuntimeError("record write failed")
+
+    monkeypatch.setattr(invite_resend, "_record_resend", _fail)
+
+    with pytest.raises(Exception, match="record write failed"):
+        _state_position(dl, case_id, JOINER, make_payload)
+
+    assert dl.outbox_list() == []
