@@ -180,12 +180,20 @@ def test_read_without_a_ledger_position_is_not_a_position_statement() -> None:
 
 
 def _assert_refused_with_nothing(
-    dl: SqliteDataLayer, sender: str, result: HandlerResult, port: MagicMock
+    dl: SqliteDataLayer,
+    sender: str,
+    result: HandlerResult,
+    port: MagicMock,
+    *,
+    reason: str = "not an active participant",
 ) -> None:
     assert result.disposition is HandlerDisposition.REFUSED
-    assert "active participant" in (result.reason or "")
+    assert reason in (result.reason or "")
     assert _state(dl, sender) is None
     port.send_announce_log_entry.assert_not_called()
+    # It holds no Invite it owes an answer to, so none is resent either
+    # (SYNC-20-001).
+    port.resend_sealed_activity.assert_not_called()
 
 
 @pytest.mark.spec("SYNC-17-002")
@@ -227,6 +235,7 @@ def test_unconsented_participant_with_lagging_position_is_refused() -> None:
 
 @pytest.mark.spec("SYNC-17-002")
 @pytest.mark.spec("CM-23-018")
+@pytest.mark.spec("SYNC-20-008")
 def test_closed_participant_with_lagging_position_is_refused(dl) -> None:
     """A participant that has left the case may act on nothing further."""
     entries = seed_ledger(dl, 3)
@@ -235,7 +244,10 @@ def test_closed_participant_with_lagging_position_is_refused(dl) -> None:
 
     result = _answer(dl, _read(entries[0], SIGNATORY_ID), port)
 
-    _assert_refused_with_nothing(dl, SIGNATORY_ID, result, port)
+    # Refused at the door: its closure is recorded (CM-23-018).
+    _assert_refused_with_nothing(
+        dl, SIGNATORY_ID, result, port, reason="has left case"
+    )
 
 
 @pytest.mark.spec("SYNC-17-002")

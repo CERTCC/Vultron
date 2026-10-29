@@ -122,9 +122,25 @@ def replay_cooldown_seconds(
         if from_hash == ""
         else REPLAY_COOLDOWN_SECONDS
     )
-    doublings = max(replays_at_position, 1) - 1
+    return doubling_cooldown_seconds(
+        base, MAX_REPLAY_COOLDOWN_SECONDS, sent=replays_at_position
+    )
+
+
+def doubling_cooldown_seconds(
+    base: float, ceiling: float, *, sent: int
+) -> float:
+    """The wait after *sent* consecutive sends: *base*, doubled per send.
+
+    One send waits *base*, two wait twice that, and so on up to *ceiling*.
+    The replay bound (SYNC-15-013) and the unanswered-Invite resend bound
+    (SYNC-20-005) share it.  A *sent* of ``0`` reads as one.
+
+    Spec: SYNC-15-013, SYNC-20-005.
+    """
+    doublings = max(sent, 1) - 1
     # Capping the exponent keeps the arithmetic finite for a long-stuck peer.
-    return min(base * 2.0 ** min(doublings, 32), MAX_REPLAY_COOLDOWN_SECONDS)
+    return min(base * 2.0 ** min(doublings, 32), ceiling)
 
 
 def read_replication_state(

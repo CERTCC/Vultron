@@ -17,10 +17,12 @@ from vultron.core.behaviors.sync.nodes import (
     CheckStatedPositionInLedgerNode,
     FindCaseActorNode,
     ReplayMissingEntriesNode,
+    ResendOwedInvitesNode,
     UpdateReplicationStateNode,
 )
 from vultron.core.behaviors.sync.nodes.ledger_position import (
     STATED_POSITION_ANSWERED_BY_TREE,
+    PeerActiveParticipantNode,
 )
 
 
@@ -44,15 +46,28 @@ def create_read_log_entry_tree(
     Every effect is the CASE_MANAGER's act alone, so it sits in
     ``manager_effects``, gated by the factory on the case's CASE_MANAGER role
     (BT-17-001, BT-17-008); a replica that receives a ``Read`` does nothing,
-    and the use case reports it ``REFUSED``.
+    and the use case reports it ``REFUSED``::
 
-    The sender guard is the use case's declared ``ACTIVE_PARTICIPANT``
-    standing on the case the ``context`` names: a removed, unconsented or
-    closed participant's statement is refused before any write (SYNC-17-002,
-    CM-10-004, CM-23-018).  Nothing is committed: a position statement
-    changes nothing in the case file (SYNC-17-006, ADR-0152).  Like the
-    ``Reject`` replay, it replays only entries the ledger already holds, so
-    it keeps working after the case closes (ADR-0085, CM-23-013).
+        manager_effects
+        ├─ CheckStatedPositionInLedger   # SYNC-17-005
+        ├─ ResendOwedInvites             # SYNC-20-001: inert senders too
+        ├─ SenderIsActiveParticipant     # SYNC-17-002: else REFUSED here
+        ├─ UpdateReplicationState        # SYNC-17-003
+        └─ ReplayMissingEntries          # SYNC-17-004
+
+    The sender guard is the use case's declared ``PARTICIPANT`` standing on
+    the case the ``context`` names: an actor off the roster, or one whose
+    closure the case records, is refused before anything runs (CM-23-018).
+    A removed or unconsented participant passes it, because the
+    CASE_MANAGER resends each Invite a participant it may still invite owes
+    an answer to, active or not (SYNC-20-001, ADR-0163); a removed one is
+    owed none (CM-31-013).  The active check comes next: an inert sender is
+    refused there, with no replication state recorded and no entry
+    replayed (SYNC-17-002, CM-10-004).  Nothing is committed: a position
+    statement changes nothing in the case file (SYNC-17-006, SYNC-20-007,
+    ADR-0152).  Like the ``Reject`` replay, it replays only entries the
+    ledger already holds, so it keeps working after the case closes
+    (ADR-0085, CM-23-013).
 
     Args:
         case_id: The case the ``Read`` names in its ``context``.
@@ -76,6 +91,17 @@ def create_read_log_entry_tree(
         manager_effects=[
             CheckStatedPositionInLedgerNode(
                 name="CheckStatedPositionInLedger"
+            ),
+            ResendOwedInvitesNode(
+                case_id=case_id,
+                sender_id=sender_id,
+                name="ResendOwedInvites",
+            ),
+            PeerActiveParticipantNode(
+                case_id=case_id,
+                sender_id=sender_id,
+                active=True,
+                name="SenderIsActiveParticipant",
             ),
             UpdateReplicationStateNode(name="UpdateReplicationState"),
             ReplayMissingEntriesNode(name="ReplayMissingEntries"),
