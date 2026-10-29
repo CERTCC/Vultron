@@ -508,6 +508,24 @@ class TestDecidingRole:
                     "vendor-after-answer", "report-fix-ready", by=VENDOR
                 )
 
+    def test_records_stored_under_field_names_are_read_too(
+        self, _devlogs
+    ) -> None:
+        client = _CaseActorStore(
+            records={
+                "urn:case": {
+                    "actor_participant_index": {
+                        VENDOR: "urn:participant:vendor"
+                    },
+                    "vulnerability_reports": [
+                        {"id": "urn:report", "attributed_to": REPORTER}
+                    ],
+                },
+                "urn:participant:vendor": {"case_roles": ["vendor"]},
+            }
+        )
+        self._run(client)
+
     def test_a_store_that_returns_no_record_fails_the_step(
         self, _devlogs
     ) -> None:
