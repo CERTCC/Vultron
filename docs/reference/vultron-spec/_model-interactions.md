@@ -38,8 +38,8 @@ sequenceDiagram
     CM->>I: Invite(Actor, VulnerabilityCase) — full-case Invite
 ```
 
-On receiving `Accept(Invite)`, the CASE_MANAGER MUST perform these four steps in
-this order (CM-17-004):
+On receiving `Accept(Invite)`, the CASE_MANAGER performs these four steps in
+this order:
 
 1. Commit a ledger entry recording the acceptance, and send that entry to every active participant.
 2. Record the acceptance's effect on the participant.
@@ -47,6 +47,10 @@ this order (CM-17-004):
    Its consent row for the active embargo, if any, becomes `AGREED`, unless the participant had declined that embargo.
 3. When the participant is now active, send `Announce(VulnerabilityCase)` carrying the full case snapshot, then replay the ledger entries committed before this participant joined, oldest first.
 4. Send the full-case Invite, which asks the participant to judge the case.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-17-004", "CM-11-001", "CM-11-008", "CM-11-010"))
+```
 
 !!! note "Recall: report management states"
     {% include-markdown "./includes/_rm-states-table.md" %}
@@ -69,47 +73,76 @@ Each cascade below starts from a step on the case's embargo register ([§7.1.1 T
 
     Full definitions are in [§7.1 States](tracking-models.md#71-states).
 
-- **A revision is proposed** (EM enters, or stays at, `Revised`).
-  The register gains a `PROPOSED` entry for the revision, and every other participant gets an `UNINVITED` row for it (CM-18-001).
-  No consent to the embargo in force changes: the prior embargo is still in force and every signatory to it remains one (EP-05-002).
-  The CASE_MANAGER records the proposer's row for the revision as `AGREED`, because proposing terms is consenting to them.
-- **The case owner activates the revision.**
-  The register activates the revision's entry and supersedes the entry in force, in one step.
-  EM returns to `Active`, or stays at `Revised` while another revision is open (EMB-18-005).
-  The owner's row for the revision becomes `AGREED` unless it already is.
-  If the revision ends no later than the embargo it replaces, the CASE_MANAGER applies `CARRY_OVER` (EP-05-001, MSM-07-005).
-  That transition goes to the revision's row of every participant whose row for the replaced embargo is `AGREED`, a `DECLINED` revision row included.
-  If the revision ends later, no row is written.
-  In that case, a signatory to the replaced terms whose row for the revision is not `AGREED` has lapsed.
-  That lapse is read from its rows and the register ([§9.3 Signatory and Lapsed](tracking-models.md#93-signatory-and-lapsed)).
-  A participant that has already agreed to the revision is its signatory by lookup.
-- **The case owner rejects the revision.**
-  The register rejects the revision's entry.
-  EM returns to `Active` once no other revision is open.
-  No consent row changes, the owner's included, and the prior terms stand (MSM-07-009).
-- **The embargo is terminated** (EM enters `Exited`).
-  The register terminates the entry in force and cancels every open proposal in the same step (EP-08-004).
-  No consent row is written (CM-18-016, MSM-07-006).
-  With no `ACTIVE` entry, no participant is a signatory and none has lapsed.
-  Every row for the terminated and canceled entries is frozen as it stood, so an accept that arrives afterwards records nothing (EMB-17-004).
-- **After a teardown.**
-  The termination's own ledger entry, fanned out as `Announce(CaseLedgerEntry)`, records the end (EP-09-009).
-  The CASE_MANAGER then sends `Announce(EmbargoEvent)` to every other active participant (EMB-19-001), and a direct `Remove(EmbargoEvent)` notice to each signatory the ledger fan-out does not reach (CM-31-009).
-  No message is sent for consent, because none is written (MSM-07-006).
+**A revision is proposed** (EM enters, or stays at, `Revised`).
+The register gains a `PROPOSED` entry for the revision, and every other participant gets an `UNINVITED` row for it.
+No consent to the embargo in force changes: the prior embargo is still in force and every signatory to it remains one.
+The CASE_MANAGER records the proposer's row for the revision as `AGREED`, because proposing terms is consenting to them.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-18-001", "EP-05-002"))
+```
+
+**The case owner activates the revision.**
+The register activates the revision's entry and supersedes the entry in force, in one step.
+EM returns to `Active`, or stays at `Revised` while another revision is open.
+The owner's row for the revision becomes `AGREED` unless it already is.
+If the revision ends no later than the embargo it replaces, the CASE_MANAGER applies `CARRY_OVER`.
+That transition goes to the revision's row of every participant whose row for the replaced embargo is `AGREED`, a `DECLINED` revision row included.
+If the revision ends later, no row is written.
+In that case, a signatory to the replaced terms whose row for the revision is not `AGREED` has lapsed.
+That lapse is read from its rows and the register ([§9.3 Signatory and Lapsed](tracking-models.md#93-signatory-and-lapsed)).
+A participant that has already agreed to the revision is its signatory by lookup.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-18-005", "EP-05-001", "MSM-07-005"))
+```
+
+**The case owner rejects the revision.**
+The register rejects the revision's entry.
+EM returns to `Active` once no other revision is open.
+No consent row changes, the owner's included, and the prior terms stand.
+One case differs: when the rejected revision is the last open one and the case is already public, exploited or attacked, the same act also terminates the embargo.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MSM-07-009", "EMB-04-002"))
+```
+
+**The embargo is terminated** (EM enters `Exited`).
+The register terminates the entry in force and cancels every open proposal in the same step.
+No consent row is written.
+With no `ACTIVE` entry, no participant is a signatory and none has lapsed.
+Every row for the terminated and canceled entries is frozen as it stood, so an accept that arrives afterwards records nothing.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-08-004", "MSM-07-006", "EMB-17-004"))
+```
+
+**After a teardown.**
+The termination's own ledger entry, fanned out as `Announce(CaseLedgerEntry)`, records the end.
+The CASE_MANAGER then sends `Announce(EmbargoEvent)` to every other active participant, and a direct `Remove(EmbargoEvent)` notice to each signatory the ledger fan-out does not reach.
+No message is sent for consent, because none is written.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-09-009", "EMB-19-001", "CM-31-009"))
+```
 
 !!! note "Recall: participant embargo consent states"
     {% include-markdown "./includes/_pec-states-table.md" %}
 
     Full definitions are in [§9.1 States](tracking-models.md#91-states).
 
-Every one of these changes reaches the case ledger, and every replica applies it by copying (CM-23-016).
-The act's own activity carries its whole register step: a termination's entry also cancels every open proposal, and an activation's entry also supersedes the embargo it replaces (CLP-07-013).
-Where the act's activity states a row itself, as the owner's `Accept` states the owner's agreement, the act's entry carries that row (CLP-07-013).
+Every one of these changes reaches the case ledger, and every replica applies it by copying.
+The act's own activity carries its whole register step: a termination's entry also cancels every open proposal, and an activation's entry also supersedes the embargo it replaces.
+Where the act's activity states a row itself, as the owner's `Accept` states the owner's agreement, the act's entry carries that row.
 
 Each other consent row that the CASE_MANAGER writes as a consequence of the act is its own CASE_MANAGER entry after the act's entry.
 Examples are an `UNINVITED` row, the proposer's `AGREED` row or a `CARRY_OVER`.
-That entry is a `Create(EmbargoConsent)` for a new row or an `Update(EmbargoConsent)` for a changed one, and it carries the row in full (EP-09-007).
+That entry is a `Create(EmbargoConsent)` for a new row or an `Update(EmbargoConsent)` for a changed one, and it carries the row in full.
 A replica copies those rows and never decides a carry-over, an expiry or a lapse itself.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CLP-07-013", "CM-23-016"))
+```
 
 ### 11.3 Status Adoption: The Two-Seam Model
 
@@ -129,25 +162,37 @@ case status is reserved to the CASE_MANAGER
 ([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)).
 
 The CASE_MANAGER records the claim in the case ledger first, and then decides
-whether to adopt it as canonical:
+whether to adopt it as canonical.
 
-- The CASE_MANAGER MUST adopt a Case Owner's report without seeking approval.
-  Asking the Case Owner to approve its own report would be circular
-  ([§13.4.4 Case Owner Authority](conformance.md#1344-case-owner-authority)).
-- For every other sender, the CASE_MANAGER MUST obtain Case Owner authorization
-  before adopting the report as canonical case state. This is the default
-  posture, and it is deliberate: without it, any admitted participant could
-  force a change to canonical case state.
-- An implementation MAY configure a permissive policy instead, where all
-  admitted participants are trusted and the cost of Case Owner approval is
-  unacceptable. Such a configuration MUST be explicit and documented. An
-  implementation MUST NOT relax the default in order to unblock a path that the
-  gate is correctly blocking.
-- The CASE_MANAGER accepts a reported status as sent or refuses all of it, and the refusal names every refused value and why.
-  A valid `vfd` update is refused with an `rm` value in the same report that cannot be accepted, and the sender corrects and resends the status.
-- On adoption, the CASE_MANAGER commits the adopted status as its own `Add(CaseStatus)` case ledger entry, setting every public-state flag the report sets and clearing none.
-  It writes the entry directly, never by sending an `Add(CaseStatus)` to itself, and a receiver refuses an `Add(CaseStatus)` from any other sender.
-- The component that records the claim MUST NOT execute side-effects.
+**Who authorizes adoption.**
+The CASE_MANAGER adopts a Case Owner's report without seeking approval.
+The Case Owner is the party whose authorization the other reports need, so asking it to approve its own report would be circular.
+For every other sender, the CASE_MANAGER obtains Case Owner authorization before it adopts the report as canonical case state.
+This is the default posture, and it is deliberate: without it, any admitted participant could force a change to canonical case state.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-07-006", "RSH-07-001"))
+```
+
+A deployment where every admitted participant is trusted, and where the cost of Case Owner approval is too high, can configure a permissive policy instead.
+That configuration is an explicit operator choice, not a default.
+It is not a way to unblock a path that the gate is correctly blocking.
+
+**What is adopted.**
+The CASE_MANAGER accepts a reported status as sent or refuses all of it, and the refusal names every refused value and why.
+A valid `vfd` update is refused with an `rm` value in the same report that cannot be accepted, and the sender corrects and resends the status.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-09-001", "RSH-09-002"))
+```
+
+On adoption, the CASE_MANAGER commits the adopted status as its own `Add(CaseStatus)` case ledger entry, setting every public-state flag the report sets and clearing none.
+It writes the entry directly, never by sending an `Add(CaseStatus)` to itself, and a receiver refuses an `Add(CaseStatus)` from any other sender.
+Recording the claim executes no side-effect: side-effects belong to seam 2.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-01-003", "RSH-04-004", "RSH-04-005"))
+```
 
 !!! warning "The default is Case Owner authorization, not automatic adoption"
     With a permissive default, any admitted participant could force a canonical PXA change, and through it an embargo teardown, with no Case Owner confirmation.
@@ -157,17 +202,19 @@ whether to adopt it as canonical:
 #### Seam 2 — Side-effects
 
 After the canonical write, the CASE_MANAGER evaluates what the new canonical
-state requires:
+state requires.
+When the adopted status sets Public Aware, Exploit Public, or Attacks Observed
+([§8.2 PXA — Public Aware, Exploit Public, Attacks Observed](tracking-models.md#82-pxa-public-aware-exploit-public-attacks-observed)),
+the CASE_MANAGER evaluates embargo teardown.
 
-- The CASE_MANAGER MUST check whether the adopted status set Public Aware,
-  Exploit Public, or Attacks Observed
-  ([§8.2 PXA — Public Aware, Exploit Public, Attacks Observed](tracking-models.md#82-pxa-public-aware-exploit-public-attacks-observed)).
-- If any of those is now set, the CASE_MANAGER MUST evaluate embargo teardown.
-- **This check MUST run after the canonical write, never before.**
-  What is written is the `CaseStatus` record that holds the case's shared EM and PXA values.
-  The check reads that written record, so the side-effect always follows from canonical state, not from an unadopted claim.
-- Executing the teardown MUST also require Case Owner authorization by default,
-  on the same terms as adoption above.
+**The check follows the canonical write, never precedes it.**
+What is written is the `CaseStatus` record that holds the case's shared EM and PXA values.
+The check reads that written record, so the side-effect always follows from canonical state, not from an unadopted claim.
+Executing the teardown also requires Case Owner authorization by default.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-03-001", "RSH-07-002"))
+```
 
 The two seams are independent. Seam 1 does not examine embargo teardown, and
 seam 2 cannot tell whether the canonical write came from an inbound message or
@@ -178,8 +225,12 @@ without a change to the other.
     Evaluating teardown is mandatory; executing it is authorized. If the
     authorization is withheld, the case is left in a state where public
     awareness coexists with an active embargo. That combination is a
-    contradiction, and the CASE_MANAGER records it as a diagnostic note on the
-    case rather than resolving it silently.
+    contradiction: the cross-machine invariants of
+    [§8.3 Case State as a Compound Tuple](tracking-models.md#83-case-state-as-a-compound-tuple)
+    state that it cannot occur. The reference implementation records it as a
+    diagnostic note on the case rather than resolving it silently. This
+    version of the specification does not yet say how the teardown default
+    and those invariants are reconciled.
 
 !!! note "Where the gate model applies"
     Seam 1 governs any reported status. Its authorization question matters most

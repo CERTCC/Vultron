@@ -747,6 +747,25 @@
         "title": "ProposeEmbargoRevisionRequest",
         "type": "object"
       },
+      "RejectActorRecommendationRequest": {
+        "description": "Request body for the reject-actor-recommendation trigger endpoint.\n\nSent by the Case Owner to reject an Offer(CaseParticipant) forwarded by\nthe CaseActor per ADR-0026 (CM-16-007).\n\nTRIG-03-001: Must include cp_offer_id and case_actor_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "properties": {
+          "case_actor_id": {
+            "title": "Case Actor Id",
+            "type": "string"
+          },
+          "cp_offer_id": {
+            "title": "Cp Offer Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cp_offer_id",
+          "case_actor_id"
+        ],
+        "title": "RejectActorRecommendationRequest",
+        "type": "object"
+      },
       "RejectCaseInviteRequest": {
         "description": "Request body for the reject-case-invite trigger endpoint.\n\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").\ninvite_id identifies the RmInviteToCaseActivity to reject.",
         "properties": {
@@ -2733,6 +2752,59 @@
           }
         },
         "summary": "Trigger an embargo revision proposal.",
+        "tags": [
+          "Triggers"
+        ]
+      }
+    },
+    "/api/v2/actors/{actor_id}/trigger/reject-actor-recommendation": {
+      "post": {
+        "description": "Emits a Reject(Offer(CaseParticipant)) from the Case Owner's identity addressed to the CaseActor, which ledgers it and answers the original recommender (ADR-0026, CM-16-007).  The Offer(CaseParticipant) must already exist in the actor's DataLayer (delivered by the CaseActor).",
+        "operationId": "actors_trigger_reject_actor_recommendation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "actor_id",
+            "required": true,
+            "schema": {
+              "title": "Actor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectActorRecommendationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reject an actor recommendation as Case Owner.",
         "tags": [
           "Triggers"
         ]

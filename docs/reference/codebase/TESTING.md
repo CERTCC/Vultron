@@ -82,7 +82,7 @@ timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&
     The structural ratchets in the same directory (`test_universal_semantic_types.py`, `test_diagnostic_map_sync.py`) and the `test_common.py` helper tests carry no marker and run everywhere.
     The `_AllSkipGuard` in that directory's `conftest.py` (DEMOCI-10-005) fails a session in which every test skipped, so CI invokes one harness file at a time rather than the whole directory.
   - Demo CI integration tests run against Docker Compose and are not part of `uv run pytest`.
-  - The pytest-timeout unit tier is 30 s (raised from 5 s in #2270; integration tier 60 s).
+  - The pytest-timeout unit tier is 30 s (raised from 5 s in #2270; integration tier 120 s, sized in #5188).
     `timeout_method = "signal"` fails only the test that trips, and the run goes on to its summary.
     `--max-worker-restart=0` in `addopts` fails the run when an xdist worker dies, instead of hanging it.
     Run with `--timeout=0` to disable when diagnosing suite-level hangs.

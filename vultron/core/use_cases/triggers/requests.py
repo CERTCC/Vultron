@@ -58,6 +58,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     OfferCaseParticipantRoleRequest,
     ProposeEmbargoRequest,
     ProposeEmbargoRevisionRequest,
+    RejectActorRecommendationRequest,
     RejectCaseInviteRequest,
     RejectCaseOwnershipTransferRequest,
     RejectEmbargoRequest,
@@ -322,6 +323,16 @@ class AcceptActorRecommendationTriggerRequest(
     """
 
 
+class RejectActorRecommendationTriggerRequest(
+    TriggerRequest[ActivityResult], RejectActorRecommendationRequest
+):
+    """Trigger request for the Case Owner to reject an actor recommendation.
+
+    Emits a Reject(Offer(CaseParticipant)) queued in the Case Owner's outbox
+    for delivery to the CaseActor (ADR-0026, CM-16-007).
+    """
+
+
 class InviteActorToCaseTriggerRequest(
     TriggerRequest[ActivityResult], InviteActorToCaseRequest
 ):
@@ -443,6 +454,7 @@ class WithdrawCaseOwnershipTransferTriggerRequest(
 
 __all__ = [
     "AcceptActorRecommendationTriggerRequest",
+    "RejectActorRecommendationTriggerRequest",
     "AcceptCaseInviteTriggerRequest",
     "AcceptCaseOwnershipTransferTriggerRequest",
     "AcceptFullCaseInviteTriggerRequest",

@@ -24,6 +24,7 @@ from vultron.core.use_cases.triggers.actor import (
     SvcInviteActorToCaseUseCase,
     SvcOfferCaseOwnershipTransferUseCase,
     SvcOfferCaseParticipantRoleUseCase,
+    SvcRejectActorRecommendationUseCase,
     SvcRejectCaseInviteUseCase,
     SvcRejectCaseOwnershipTransferUseCase,
     SvcSuggestActorToCaseUseCase,
@@ -42,6 +43,7 @@ from vultron.core.use_cases.triggers.requests import (
     InviteActorToCaseTriggerRequest,
     OfferCaseOwnershipTransferTriggerRequest,
     OfferCaseParticipantRoleTriggerRequest,
+    RejectActorRecommendationTriggerRequest,
     RejectCaseInviteTriggerRequest,
     RejectCaseOwnershipTransferTriggerRequest,
     RejectFullCaseInviteTriggerRequest,
@@ -130,6 +132,15 @@ ENTRIES: list[TriggerEntry] = [
         exposure=TriggerExposure.GENERAL_PURPOSE,
         bt_backed=True,
         spec_ids=(*_PARTICIPANT, "CM-16-006"),
+    ),
+    TriggerEntry(
+        verb="reject-actor-recommendation",
+        request_model=RejectActorRecommendationTriggerRequest,
+        use_case_class=SvcRejectActorRecommendationUseCase,
+        result_type=ActivityResult,
+        exposure=TriggerExposure.GENERAL_PURPOSE,
+        bt_backed=True,
+        spec_ids=(*_PARTICIPANT, "CM-16-007"),
     ),
     # The one verb not backed by ``SvcBTTriggerBase`` (ADR-0110 § Named
     # exceptions): its body carries no ``emitting_actor_id``.

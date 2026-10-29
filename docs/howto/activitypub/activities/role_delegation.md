@@ -19,7 +19,7 @@ You finish with the participant holding the role, or with the roster unchanged.
 {% include-markdown "./_demo_prerequisites.md" %}
 
 - An existing case on which you are the Case Owner.
-  Only the Case Owner may offer a role, and the Case Manager refuses an offer from anyone else ([CM-33-002](../../../reference/specs/protocol.md#cm-33-002)).
+  The Case Manager acts on a role offer it receives only when the Case Owner sent it, and refuses one from anyone else ([CM-33-002](../../../reference/specs/protocol.md#cm-33-002)).
 - The target participant's Uniform Resource Identifier (URI).
   The target must already be a participant in the case.
 - The specific `CVDRole` you intend to offer.
@@ -153,4 +153,4 @@ The role appears only once the Case Manager's entry is replayed, never from your
 - [Case Management Messages](../../../reference/messages/case_management.md) — the wire format, pattern, and factory for each activity above
 - [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) — why a new object type was minted here rather than a new verb
 - [ADR-0039 — Resolve Wire Ambiguity Between OFFER\_CASE\_MANAGER\_ROLE and OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object Type](../../../adr/0039-offer-case-participant-role-wire-type.md)
-- [Trigger API Reference](../../../reference/trigger-api.md#actor-participation) — request schema and endpoint details for `offer-case-participant-role`, `offer-case-ownership-transfer`, `accept-actor-recommendation`, `accept-case-ownership-transfer`, `reject-case-ownership-transfer`, and `withdraw-case-ownership-transfer`
+- [Trigger API Reference](../../../reference/trigger-api.md#actor-participation) — request schema and endpoint details for `offer-case-participant-role`, `offer-case-ownership-transfer`, `accept-actor-recommendation`, `reject-actor-recommendation`, `accept-case-ownership-transfer`, `reject-case-ownership-transfer`, and `withdraw-case-ownership-transfer`

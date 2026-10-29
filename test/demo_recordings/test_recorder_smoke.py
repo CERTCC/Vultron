@@ -22,8 +22,9 @@ Task, so no pull request has to regenerate recordings to pass CI.
 
 This is an integration test, and it lives outside ``test/demo/`` on purpose:
 that directory's autouse fixtures stub protocol steps for mock-driven tests
-(``stub_full_case_reply`` skips the full-case Invite reply), so a recording made
-there would not be the recording the CLI writes.
+(``stub_full_case_reply`` and ``stub_summary_seed``), and a recording made
+there could pick up any stub added to them later, so it would not reliably be
+the recording the CLI writes.
 """
 
 import json

@@ -63,6 +63,7 @@ DOMAIN_GROUPS: list[dict] = [
             "suggest-actor-to-case",
             "invite-actor-to-case",
             "accept-actor-recommendation",
+            "reject-actor-recommendation",
             "accept-case-invite",
             "reject-case-invite",
             "offer-case-participant-role",

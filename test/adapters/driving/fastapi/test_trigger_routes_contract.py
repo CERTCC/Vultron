@@ -133,6 +133,10 @@ _BODIES: dict[str, dict[str, Any]] = {
         "cp_offer_id": "urn:uuid:cp-offer",
         "case_actor_id": _OTHER,
     },
+    "reject-actor-recommendation": {
+        "cp_offer_id": "urn:uuid:cp-offer",
+        "case_actor_id": _OTHER,
+    },
     "offer-case-participant-role": {
         "case_id": _CASE,
         "target_actor_id": _OTHER,

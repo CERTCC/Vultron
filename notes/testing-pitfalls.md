@@ -6,7 +6,9 @@ description: >
   Full write-ups for pytest pitfalls in this repo: reading a killed run, a dead
   xdist worker hanging the run, the two-tier timeout guardrail and why the
   timeout *method* matters more than the ceiling, profiling a near-ceiling test
-  before re-tiering it, proving off-loop work without a wall-clock window,
+  before re-tiering it, sizing the integration tier from measured load, the
+  ledger-rebuild teardown error a timeout trip leaves behind, proving off-loop
+  work without a wall-clock window,
   measuring effective markers rather than declarations,
   `filterwarnings` precedence, `nproc` in a worktree slot, `xdist_group` for
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
@@ -103,7 +105,7 @@ Timeouts are **two-tier** (`pytest-timeout`):
 | Tier | Ceiling | Set in |
 |---|---|---|
 | Unit (default) | 30s | `timeout = 30`, `pyproject.toml` |
-| `@pytest.mark.integration` | 60s | `INTEGRATION_TIMEOUT_SECONDS`, `test/conftest.py` |
+| `@pytest.mark.integration` | 120s | `INTEGRATION_TIMEOUT_SECONDS`, `test/conftest.py` |
 
 `apply_integration_timeout` in `test/conftest.py` widens the ceiling for
 integration-marked tests at collection time; an explicit
@@ -128,6 +130,19 @@ corpus once per sub-check, or an adapter that re-reads the whole outbox on every
 send. Removing the repeat also speeds up every other test on that path
 (#5341, #4906). Also look for a second test that runs the same expensive fixture
 only to inspect what the first test's run already recorded (#5227).
+
+Size the integration tier from the slowest test's quiet cost times the load
+stretch it meets, not from the typical test. The exchange demos are CPU-bound
+(wall time equals CPU time), so host load stretches them in proportion (#5188).
+`test/test_integration_timeout_tier.py` records the measured inputs and pins
+their product as the tier's floor.
+
+A demo test that trips its timeout also fails at teardown with a ledger-rebuild
+error (`… rebuilt from its ledger differs …`, or a case naming a `log_index`
+past its chain's end). The trip stopped the demo between a ledger commit and the
+case update that follows it, and the rebuild check in
+`test/demo/_helpers.py` runs on the half-finished case. Diagnose the timeout;
+the rebuild error is its consequence, not a second defect (#5188).
 
 #### A Count of Events in a Wall-Clock Window Is Not a Concurrency Proof
 

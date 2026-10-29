@@ -24,7 +24,11 @@ import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
-from test.support.received import archive_received
+from test.support.received import (
+    archive_delivered,
+    archive_received,
+    delivered_body,
+)
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronNotFoundError,
@@ -515,7 +519,18 @@ class TestRemoveParticipantFromCase:
             )
 
 
-class TestAcceptCaseParticipantOffer:
+@pytest.mark.parametrize(
+    "method",
+    ["accept_case_participant_offer", "reject_case_participant_offer"],
+    ids=["accept", "reject"],
+)
+class TestAnswerCaseParticipantOffer:
+    """The Case Owner's Accept and Reject of a forwarded Offer(CaseParticipant).
+
+    Both embed the Offer as the owner received it (DL-06-004, CM-16-006,
+    CM-16-007).
+    """
+
     def _make_cp_offer(self, dl) -> str:
         vendor = as_Service(id_=_INVITEE, name="Vendor")
         dl.create(vendor)
@@ -530,10 +545,10 @@ class TestAcceptCaseParticipantOffer:
         archive_received(dl, offer)
         return offer.id_
 
-    def test_returns_id_and_dict(self, adapter, dl):
+    def test_returns_id_and_dict(self, adapter, dl, method):
         cp_offer_id = self._make_cp_offer(dl)
 
-        activity_id, activity_dict = adapter.accept_case_participant_offer(
+        activity_id, activity_dict = getattr(adapter, method)(
             cp_offer_id=cp_offer_id,
             actor=_ACTOR,
         )
@@ -542,17 +557,17 @@ class TestAcceptCaseParticipantOffer:
         assert isinstance(activity_dict, str)
 
     def test_verbatim_reconstitution_preserves_inline_object(
-        self, adapter, dl
+        self, adapter, dl, method
     ):
-        """Accept(Offer(CaseParticipant)) object_ must embed the original offer inline.
+        """The answer's object_ must embed the original offer inline.
 
         DL-06-004: the adapter reads the stored offer activity and passes it
-        verbatim as ``object_`` of the Accept.  The serialised dict MUST
-        contain the offer id as ``object.id``, not a bare URI string.
+        verbatim as ``object_`` of the Accept or Reject.  The serialised dict
+        MUST contain the offer id as ``object.id``, not a bare URI string.
         """
         cp_offer_id = self._make_cp_offer(dl)
 
-        _, activity_dict = adapter.accept_case_participant_offer(
+        _, activity_dict = getattr(adapter, method)(
             cp_offer_id=cp_offer_id,
             actor=_ACTOR,
         )
@@ -563,13 +578,13 @@ class TestAcceptCaseParticipantOffer:
         )
         assert obj.get("id") == cp_offer_id
 
-    def test_accept_embeds_the_participant_the_owner_received(
-        self, adapter, dl
+    def test_answer_embeds_the_participant_the_owner_received(
+        self, adapter, dl, method
     ):
         """#3763: the Offer the owner received keeps its inline participant.
 
         Ingress stores neither the received Offer nor a participant record
-        (DL-06-006), so the Accept reads the Offer from the intake archive,
+        (DL-06-006), so the answer reads the Offer from the intake archive,
         which holds it as the event carried it.
         """
         from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -589,7 +604,7 @@ class TestAcceptCaseParticipantOffer:
         assert participant_id is not None
         assert dl.read(participant_id) is None
 
-        _, activity_dict = adapter.accept_case_participant_offer(
+        _, activity_dict = getattr(adapter, method)(
             cp_offer_id=offer.id_, actor=_ACTOR
         )
 
@@ -597,6 +612,32 @@ class TestAcceptCaseParticipantOffer:
         assert embedded["id"] == offer.id_
         assert isinstance(embedded["object"], dict)
         assert embedded["object"]["id"] == participant_id
+
+    @pytest.mark.spec("DL-06-004")
+    def test_answer_embeds_the_offer_body_as_received(
+        self, adapter, dl, method
+    ):
+        """The answer embeds the archived Offer body, every key included.
+
+        A key the owner's vocabulary does not name survives into the
+        answer, so the answer embeds what arrived, never a re-dump of the
+        parsed Offer (ADR-0149).
+        """
+        vendor = as_Service(id_=_INVITEE, name="Vendor")
+        offer = offer_case_participant_activity(
+            recommended=vendor, target=_CASE_ID, actor=_ACTOR, to=[_ACTOR]
+        )
+        body = {
+            **delivered_body(offer),
+            "x-vendorExtension": {"priority": 3},
+        }
+        archive_delivered(dl, body)
+
+        _, activity_dict = getattr(adapter, method)(
+            cp_offer_id=offer.id_, actor=_ACTOR
+        )
+
+        assert json.loads(activity_dict)["object"] == body
 
 
 _VENDOR = "https://example.org/actors/vendor"

@@ -51,7 +51,7 @@ The docs toolchain is declared as a production dependency, not a dev group.
 | pre-commit | Git hook runner (>=4.6.2); hooks include codespell, actionlint, markdownlint-cli2, frontmatter validators, generated-artifact sync checks, ruff and spec-lint | `.pre-commit-config.yaml`, `[dependency-groups].dev` |
 | codespell | Spelling floor for docs (en-GB to en-US only) | `pyproject.toml` `[tool.codespell]`, `.pre-commit-config.yaml` |
 | pytest | Test runner (>=9.1.1) | `pyproject.toml` `[dependency-groups].dev` |
-| pytest-timeout | Per-test timeout (30 s unit tier, raised from 5 s in #2270; 60 s integration tier) | `pyproject.toml` `[tool.pytest.ini_options]`, `test/conftest.py` |
+| pytest-timeout | Per-test timeout (30 s unit tier, raised from 5 s in #2270; 120 s integration tier, #5188) | `pyproject.toml` `[tool.pytest.ini_options]`, `test/conftest.py` |
 | pytest-xdist | Parallel test execution (>=3.8.0) | `[dependency-groups].dev` |
 | pandas-stubs / types-networkx / types-pyyaml | Type stubs for third-party deps | `[dependency-groups].dev` |
 | graphifyy | Codebase knowledge-graph tooling (>=0.9.43) | `[dependency-groups].dev` |

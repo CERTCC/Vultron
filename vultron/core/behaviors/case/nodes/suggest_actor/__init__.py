@@ -26,8 +26,9 @@ Submodules:
   decided
   (``EmitAcceptActorRecommendationNode``,
   ``EmitRejectActorRecommendationNode``)
-- ``accept_offer``: Case Owner owner-side Accept response
-  (``EmitAcceptCaseParticipantOfferNode``)
+- ``accept_offer``: Case Owner owner-side Accept and Reject responses
+  (``EmitAcceptCaseParticipantOfferNode``,
+  ``EmitRejectCaseParticipantOfferNode``)
 - ``conditions``: Duplicate-detection precondition nodes
   (``ActorAlreadyParticipantNode``,
   ``InviteInFlightNode``,
@@ -42,6 +43,7 @@ Submodules:
 
 from vultron.core.behaviors.case.nodes.suggest_actor.accept_offer import (
     EmitAcceptCaseParticipantOfferNode,
+    EmitRejectCaseParticipantOfferNode,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor.conditions import (
     AcceptedInviteeIsNotRemovedNode,
@@ -87,6 +89,7 @@ __all__ = [
     "EmitAcceptRecordedRecommendationNode",
     "EmitRecordedInviteNode",
     "EmitAcceptCaseParticipantOfferNode",
+    "EmitRejectCaseParticipantOfferNode",
     "EmitNoteDuplicateRecommendationToOwnerNode",
     "EmitOfferCaseParticipantToOwnerNode",
     "EmitRejectActorRecommendationNode",

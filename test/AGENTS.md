@@ -63,7 +63,7 @@ Before a Pull Request's first push, if `vultron/demo/` or `test/demo/` was touch
 | Tier | Ceiling | Set in |
 |---|---|---|
 | Unit (default) | 30s | `timeout = 30`, `pyproject.toml` |
-| `@pytest.mark.integration` | 60s | `INTEGRATION_TIMEOUT_SECONDS`, `test/conftest.py` |
+| `@pytest.mark.integration` | 120s | `INTEGRATION_TIMEOUT_SECONDS`, `test/conftest.py` |
 
 `timeout_method = "signal"`: a trip fails that one test and the session goes on.
 An explicit `@pytest.mark.timeout(N)` wins over the tier default, is a last
