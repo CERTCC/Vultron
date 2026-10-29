@@ -1,6 +1,6 @@
-## 15. Security Considerations [N/I]
+## 16. Security Considerations [N/I]
 
-### 15.1 Trust Model
+### 16.1 Trust Model
 
 **Actor identity.** The protocol uses actor URIs as process identifiers. An
 actor URI is the identity anchor for all messages sent by that actor, and for
@@ -26,7 +26,7 @@ This chain is the minimal trust model; cryptographic ledger integrity (hash-chai
     - [§4.1 Rules Under Any Coordination Model](layers.md#41-rules-under-any-coordination-model) (messages that arrive before their case)
     - [§5.3 Transport](layers.md#53-transport-ni) (addressing and channels)
 
-### 15.2 Embargo Integrity
+### 16.2 Embargo Integrity
 
 **Protocol adherence.** An active embargo is an agreement, not a technical
 enforcement. The protocol provides the signaling infrastructure — Participant Embargo Consent (PEC) state
@@ -44,7 +44,7 @@ out-of-band organizational matter.
 While an embargo is in force, a participant that is not a signatory to it, because its consent row for that embargo is not `AGREED`, does not receive full case details.
 This is the primary technical lever the protocol provides against inadvertent over-disclosure to non-consenting parties.
 
-### 15.3 Replay and Idempotency
+### 16.3 Replay and Idempotency
 
 **Message deduplication.** Each ActivityStreams Activity carries a unique `id`, so a receiver can recognize a message it has already processed.
 Duplicate delivery does not change state.
@@ -58,7 +58,7 @@ A participant's `Read(CaseLedgerEntry)` position statement recovers a missed las
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("ID-01-001", "SYNC-03-003", "SYNC-08-003"))
 ```
 
-### 15.4 Confidentiality
+### 16.4 Confidentiality
 
 **In-transit protection.** The protocol does not currently mandate a specific
 in-transit encryption mechanism. Transport Layer Security (TLS) is the expected transport protection for

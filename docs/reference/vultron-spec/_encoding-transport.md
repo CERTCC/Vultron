@@ -22,7 +22,7 @@ Every Activity carries these fields:
 | `type` | The Activity type: the verb, such as `Offer` or `Announce` |
 | `actor` | The Uniform Resource Identifier (URI) of the actor that performed the action |
 | `object` | The thing acted on, inline or by reference ([§5.2 Serialization](layers.md#52-serialization)) |
-| `id` | A URI uniquely identifying this Activity, used for deduplication ([§15.3 Replay and Idempotency](considerations.md#153-replay-and-idempotency)) |
+| `id` | A URI uniquely identifying this Activity, used for deduplication ([§16.3 Replay and Idempotency](considerations.md#163-replay-and-idempotency)) |
 | `published` | The timestamp its sender stamps on the Activity |
 
 The fields that tell occasions apart, such as `target` and `context`, are the bracketed fields of the [Wire Activity Notation](annex-c-notation.md#wire-activity-notation).
@@ -77,7 +77,7 @@ How a case ledger entry records the objects of the activity it records is specif
 
 !!! note "Provisional namespace URI"
     The namespace is currently hosted on GitHub Pages.
-    A permanent URI may be registered in a future version ([§14 IANA and Namespace Considerations](considerations.md#14-iana-and-namespace-considerations-i)).
+    A permanent URI may be registered in a future version ([§15 IANA and Namespace Considerations](considerations.md#15-iana-and-namespace-considerations-i)).
 
 ### 5.3 Transport [N/I]
 
@@ -97,7 +97,7 @@ This Representational State Transfer (REST) profile is the transport this versio
 
 - Each actor exposes an inbox endpoint, named in its actor profile, that accepts inbound Activities.
 - An outbound Activity is delivered by HTTP POST to the recipient's inbox.
-- Authentication and authorization requirements are at [§15 Security Considerations](considerations.md#15-security-considerations-ni).
+- Authentication and authorization requirements are at [§16 Security Considerations](considerations.md#16-security-considerations-ni).
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("IE-02-001", "IE-02-002"))

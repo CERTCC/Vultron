@@ -63,7 +63,7 @@ arrive with their host fragment.
 | `tracking-models.md` | Case Tracking Models | §6–§9 | `_full-page-tip.md`, `_rm-state-machine.md`, `_em-state-machine.md`, `_cs-dimensions.md`, `_pec-state-machine.md` |
 | `interactions.md` | Coordination, Interactions, and Lifecycle | §10–§12 | `_full-page-tip.md`, `_case-coordination.md`, `_model-interactions.md`, `_participant-lifecycle.md` |
 | `conformance.md` | Conformance | §13 Conformance | `_full-page-tip.md`, `_conformance/_intro.md`, `_conformance/_capability-sets.md`, `_conformance/_role-taxonomy.md`, `_conformance/_role-requirements.md`, `_conformance/_conformance-testing.md` |
-| `considerations.md` | Considerations and References | §14–§16 | `_full-page-tip.md`, `_iana.md`, `_security.md`, `_references.md` |
+| `considerations.md` | Considerations and References | §15–§17 | `_full-page-tip.md`, `_iana.md`, `_security.md`, `_references.md` |
 | `annex-a-single-vendor.md` | Annex A Worked Example: Single-Vendor CVD | Annex A | `_full-page-tip.md`, `_annex-a.md` |
 | `annex-b-multi-party.md` | Annex B Worked Example: Multi-Party CVD | Annex B | `_full-page-tip.md`, `_annex-b.md` |
 | `annex-c-notation.md` | Annex C Notation Reference | Annex C | `_full-page-tip.md`, `_annex-c.md` |
@@ -84,7 +84,7 @@ links every body page, every annex page, `open-questions.md` and `full.md`, and
 
 `full.md` includes every section fragment in document order: the sequence the
 body pages, the annex pages and `open-questions.md` give when read in nav order,
-with the annexes nested under §17 Informative Annexes, which `_annexes-intro.md`
+with the annexes nested under §18 Informative Annexes, which `_annexes-intro.md`
 supplies. It exists for readers who want the whole document on one page, to read
 through or print. It is listed in `not_in_nav` and sets `search: exclude: true`
 in its frontmatter, so search results always land on the page that owns a
@@ -125,10 +125,10 @@ implementation that provides it and no other participant can observe it, so no
 `protocol` requirement states it.
 
 On an annex page the annex heading is the page's top section (`##`). `full.md`
-nests the annexes under §17 Informative Annexes by including each annex fragment
+nests the annexes under §18 Informative Annexes by including each annex fragment
 with a `heading-offset`.
 
-`_annexes-intro.md` holds the §17 Informative Annexes heading and its paragraph
+`_annexes-intro.md` holds the §18 Informative Annexes heading and its paragraph
 stating that no annex is normative and that a normative section governs where
 the two appear to disagree. Only `full.md` includes it, so it is the one
 fragment that renders on a single page. An annex page does not need it: the
@@ -275,8 +275,8 @@ Keep the current order; each alternative was measured and is worse:
   Actor appears only in an informative note, because it is one way to hold the
   role, not the protocol's (ADR-0158).
 - §13 Conformance before the back matter is correct per RFC 7322: conformance
-  is a body section. §14 IANA and Namespace Considerations precedes §15 Security
-  Considerations, and §16 References closes the body.
+  is a body section. §15 IANA and Namespace Considerations precedes §16 Security
+  Considerations, and §17 References closes the body.
 
 ---
 

@@ -355,7 +355,7 @@ The invitation path has three rules, because an invitation is itself a message f
 | A second invitation to the same case that names a different CASE_MANAGER is refused, and the first anchor stays | A later message silently replacing the authority |
 
 These rules are structural.
-Whether the named CASE_MANAGER is genuine cannot be proved until actors sign their messages, which is future work ([§15.1 Trust Model](../../reference/vultron-spec/considerations.md#151-trust-model)).
+Whether the named CASE_MANAGER is genuine cannot be proved until actors sign their messages, which is future work ([§16.1 Trust Model](../../reference/vultron-spec/considerations.md#161-trust-model)).
 
 ### Messages for a case the participant does not hold
 
