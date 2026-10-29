@@ -2122,6 +2122,7 @@ class TestAdoptedPxaReachesTheCaseStatus:
 
     @pytest.mark.spec("RSH-01-003")
     @pytest.mark.spec("RSH-04-003")
+    @pytest.mark.spec("RSH-07-001")
     @pytest.mark.spec("CLP-10-009")
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_an_owners_public_awareness_is_adopted(

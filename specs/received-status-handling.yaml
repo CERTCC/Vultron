@@ -646,42 +646,52 @@ groups:
   specs:
   - id: RSH-07-001
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >
-      `StatusAdoptionGate` MUST default to requiring explicit Case Owner
-      authorization before a non-owner participant's PXA assertion is adopted as
-      canonical case state.
+      Before it adopts a P, X or A value that a non-owner participant reports,
+      the CASE_MANAGER MUST by default obtain the Case Owner's authorization.
+      Adoption makes the value canonical case state. The CASE_MANAGER adopts the
+      Case Owner's own report without asking the Case Owner to approve it.
     rationale: >-
-      A permissive default (for example `AlwaysSucceed`) lets any admitted participant
-      force PXA adoption and start the embargo teardown with no confirmation from the
-      Case Owner. This includes a hostile or defective Observer that the case admits as
-      a sentinel. Thus the default must be conservative, and permissive behavior needs
-      an explicit opt-in (ADR-0076). The gate waits for a recorded authorization: it
-      routes on the state of the conversation and does not ask an Evaluator (RSH-07-004,
-      ADR-0080).
+      A permissive default lets any admitted participant, a hostile or defective
+      sentinel included, force PXA adoption and start the embargo teardown with no
+      Case Owner confirmation. So the default is conservative, and permissive
+      behavior needs an explicit opt-in (ADR-0076). Approving its own report would
+      be circular, so the Case Owner's report needs none. The rule says what a
+      receiver does with a reported status, so every CASE_MANAGER obeys it.
     verification: >
       With the default bundle and a non-owner sender, no `Add(CaseStatus)` is
-      emitted until Case Owner authorization is recorded in the case ledger.
+      emitted until Case Owner authorization is recorded in the case ledger; a Case
+      Owner's report is adopted with the default bundle
+      (`TestAdoptedPxaReachesTheCaseStatus::test_an_owners_public_awareness_is_adopted`).
     adr:
     - ADR-0076
     - ADR-0080
+    stories:
+    - story_2022_081
   - id: RSH-07-002
     priority: MUST
-    kind: project
+    kind: protocol
     statement: >
-      `EmbargoTeardownAuthorizationGate` MUST default to requiring explicit Case
-      Owner authorization before embargo teardown side-effects execute. See also
-      RSH-02-002.
+      Before it executes a teardown that an adopted P, X or A value calls for,
+      the CASE_MANAGER MUST by default get the Case Owner's approval.
+      RSH-03-001 says when a teardown is called for.
     rationale: >
-      Belt-and-suspenders: both gates default conservatively. See RSH-02-002
-      rationale and ADR-0076 for full justification. Amended by ADR-0080 for the
-      mechanism only; the conservative default is unchanged.
+      Belt-and-suspenders: adoption and teardown each default conservatively, so
+      an adopted claim cannot end an embargo with no Case Owner confirmation.
+      Every implementation holding the CASE_MANAGER role obeys this, because it
+      decides what the receiver does once canonical state calls for a teardown.
+      In this codebase the rule is the `EmbargoTeardownAuthorizationGate`
+      (RSH-02-002). See ADR-0076 for full justification. Amended by ADR-0080 for
+      the mechanism only; the conservative default is unchanged.
     verification: >
       With the default bundle, `ThreatTerminationBranchNode` does not execute until
       Case Owner authorization is recorded in the case ledger.
     adr:
     - ADR-0076
     - ADR-0080
+    stories:
+    - story_2022_081
   - id: RSH-07-004
     priority: MUST
     kind: project
