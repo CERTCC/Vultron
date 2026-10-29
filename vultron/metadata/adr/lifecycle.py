@@ -48,7 +48,7 @@ import datetime as _dt
 import re
 import subprocess
 import sys
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
@@ -546,13 +546,12 @@ def tree_dependents(
 def dependents_at(ref: str) -> dict[str, list[str]]:
     """Return the test-verified dependents in the tree of commit ``ref``."""
     files = _git_files(ref)
+    texts = _texts_at(
+        ref, sorted(f for f in files if _SPEC_FILE_RE.fullmatch(f))
+    )
     specs = (
-        (
-            Path(f"{ref}:{f}"),
-            loads_yaml(_text_at(ref, Path(f)) or "", Path(f"{ref}:{f}")),
-        )
-        for f in sorted(files)
-        if _SPEC_FILE_RE.fullmatch(f)
+        (Path(f"{ref}:{f}"), loads_yaml(text, Path(f"{ref}:{f}")))
+        for f, text in texts.items()
     )
     return verified_dependents(_spec_fields(specs), files.__contains__)
 
@@ -603,6 +602,37 @@ def _text_at(base: str, path: Path) -> str | None:
     """Return the text of ``path`` at ``base``, or None if absent there."""
     res = _git("show", f"{base}:{path.as_posix()}")
     return res.stdout if res.returncode == 0 else None
+
+
+def _texts_at(ref: str, paths: Sequence[str]) -> dict[str, str]:
+    """Return the text of each of ``paths`` at ``ref``, keyed in order.
+
+    One ``git cat-file --batch`` reads every path, where :func:`_text_at`
+    spawns a process per file. A path that is not a file at ``ref`` reads as
+    empty, as :func:`_text_at`'s ``None`` does to its callers.
+    """
+    texts = dict.fromkeys(paths, "")
+    res = subprocess.run(
+        ["git", "cat-file", "--batch"],
+        input="".join(f"{ref}:{path}\n" for path in paths).encode(),
+        capture_output=True,
+        check=False,
+    )
+    if res.returncode != 0:
+        return texts
+    out, pos = res.stdout, 0
+    for path in paths:
+        eol = out.index(b"\n", pos)
+        # "<oid> <type> <size>" then the content, or "<name> missing".
+        header = out[pos:eol]
+        pos = eol + 1
+        if header.endswith((b" missing", b" ambiguous")):
+            continue
+        _, kind, size = header.split()
+        if kind == b"blob":
+            texts[path] = out[pos : pos + int(size)].decode("utf-8")
+        pos += int(size) + 1
+    return texts
 
 
 def _rename_sources(base: str) -> dict[Path, Path]:

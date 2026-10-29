@@ -12,6 +12,7 @@ from pydantic import BaseModel, PrivateAttr
 
 from vultron.metadata.base import repo_root
 from vultron.metadata.file_loading import (
+    SAFE_LOADER,
     FailureCollector,
     load_yaml,
     validate,
@@ -26,20 +27,6 @@ from vultron.metadata.specs.schema import (
     SpecKind,
     SpecTag,
 )
-
-try:
-    import yaml
-except ImportError as exc:  # pragma: no cover
-    raise ImportError(
-        "pyyaml is required for the spec registry loader. "
-        "Install it with: pip install pyyaml"
-    ) from exc
-
-# libyaml-backed loader when the wheel provides it, else the pure-Python one.
-# Same SafeLoader semantics either way; the C loader parses the ~1.2 MB spec
-# corpus about 10x faster, which matters because ``load_registry()`` is
-# uncached and several tests run under a 5 s per-test timeout.
-_SafeLoader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
 
 def effective_scope(
@@ -255,8 +242,10 @@ def load_spec_files(spec_dir: Path) -> list[tuple[Path, SpecFile]]:
     collector = FailureCollector()
     for yaml_path in sorted(spec_dir.glob("*.yaml")):
         with collector.attempt():
+            # Named, not defaulted: spec-lint has always reported libyaml's
+            # own fault wording, and the default re-parses a fault in Python.
             raw = load_yaml(
-                yaml_path, root=spec_dir.parent, loader=_SafeLoader
+                yaml_path, root=spec_dir.parent, loader=SAFE_LOADER
             )
             files.append(
                 (
