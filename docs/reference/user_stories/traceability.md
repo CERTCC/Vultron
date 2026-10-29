@@ -23,6 +23,8 @@ Source specifications: `specs/*.yaml`
      the table (table -> thead/tbody -> tr, then markdown="span" on each td).
      Drop it from any level and that subtree's links silently render as raw
      text — and broken anchors in raw text are NOT caught by the strict build.
+     A section whose stories have no mapped requirements needs no rowspan, so
+     it may use a plain pipe table, as section 10 does.
   2. Spec IDs link to the requirement's OWN anchor on its tier page, e.g.
      `../specs/protocol.md#vp-02-001` for VP-02-001. The strict link check
      accepts it because the `vultron/metadata/docs/anchor_ids.py` hook (see
@@ -1868,15 +1870,15 @@ No requirement cites them yet.
 
 | User Story ID | Story text | Spec ID |
 |---|---|---|
-| [2026_001](story_2026_001.md) | {% include-markdown "./story_2026_001.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements yet* |
-| [2026_002](story_2026_002.md) | {% include-markdown "./story_2026_002.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements yet* |
-| [2026_003](story_2026_003.md) | {% include-markdown "./story_2026_003.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements yet* |
-| [2026_004](story_2026_004.md) | {% include-markdown "./story_2026_004.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements yet* |
-| [2026_005](story_2026_005.md) | {% include-markdown "./story_2026_005.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements yet* |
-| [2026_006](story_2026_006.md) | {% include-markdown "./story_2026_006.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements yet* |
-| [2026_007](story_2026_007.md) | {% include-markdown "./story_2026_007.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements yet* |
-| [2026_008](story_2026_008.md) | {% include-markdown "./story_2026_008.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements yet* |
-| [2026_009](story_2026_009.md) | {% include-markdown "./story_2026_009.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements yet* |
+| [2026_001](story_2026_001.md) | {% include-markdown "./story_2026_001.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements* |
+| [2026_002](story_2026_002.md) | {% include-markdown "./story_2026_002.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements* |
+| [2026_003](story_2026_003.md) | {% include-markdown "./story_2026_003.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements* |
+| [2026_004](story_2026_004.md) | {% include-markdown "./story_2026_004.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements* |
+| [2026_005](story_2026_005.md) | {% include-markdown "./story_2026_005.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements* |
+| [2026_006](story_2026_006.md) | {% include-markdown "./story_2026_006.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements* |
+| [2026_007](story_2026_007.md) | {% include-markdown "./story_2026_007.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements* |
+| [2026_008](story_2026_008.md) | {% include-markdown "./story_2026_008.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements* |
+| [2026_009](story_2026_009.md) | {% include-markdown "./story_2026_009.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements* |
 
 ---
 
