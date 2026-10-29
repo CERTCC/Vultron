@@ -865,20 +865,25 @@ groups:
       A PR-only growth guard MUST fail a pull request that gives a requirement a
       `verification_debt:` marker its merge-base version lacked. A marker naming a
       different issue there counts as a new marker. A marker removed, or moved with its
-      requirement to another file, does not. The guard lists each such requirement and
-      compares against no committed count.
+      requirement to another file, does not. Nor does the same marker on a new ID whose
+      own `relationships:` name a requirement that carried it at the merge base. The
+      guard lists each such requirement and compares against no committed count.
     rationale: >-
       spec-lint judges each marker alone, so it passes a new unverified requirement that
       arrives with a marker. It also passes a relabel that re-points its marker at the
       destination kind's owner, which MS-10-008 forbids. Either adds debt to a backlog
-      that may only shrink. Comparing per-item sets with the merge base leaves no
-      committed number for concurrent pull requests to race on (#3984).
+      that may only shrink. Splitting a compound requirement (MS-03-001) adds none: it
+      moves one unverified obligation to a new ID, which links back to the original.
+      Comparing per-item sets with the merge base leaves no committed number for
+      concurrent pull requests to race on (#3984).
     verification: >-
       `test/architecture/test_verification_debt_guard.py::test_no_pr_adds_a_verification_debt_marker`
       runs the guard on the live corpus, and the `test_debt_*` tests in
       `test/metadata/specs/test_growth_guard.py` cover a marker added to a new or a
       verified requirement, a removed marker, an edited marked requirement, a marker
-      moved to another file, a relabel that keeps or re-points its marker, and a
+      moved to another file, a relabel that keeps or re-points its marker, a split
+      child or grandchild that keeps or re-points its parent's marker, a child of a
+      verified or newly marked parent, an existing ID that gains a link, and a
       skipped run with no base ref that logs its reason.
     relationships:
     - rel_type: refines

@@ -147,7 +147,9 @@ that bite most often:
   error); a relabel replaces it with `verification:` (MS-10-008). Never add one
   to a new item — write the clause: MS-10-016's PR-only growth guard
   (`test/architecture/test_verification_debt_guard.py`) fails a PR that adds a
-  marker or points one at a different issue. The retired
+  marker or points one at a different issue. The one exception is a split
+  (MS-03-001): a new ID keeps the original's same marker when its own
+  `relationships:` name the original. The retired
   `lint_suppress: [must_without_verification]` no longer loads.
   `uv run spec-lint --list-unverified` names the marked IDs per kind.
 - **`rel_type:`** — one of the enumerated values; `related_to` is not among them.

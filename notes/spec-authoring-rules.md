@@ -300,7 +300,8 @@ The MS-10 verification rule is built so it can only end at zero:
 3. **Zero is terminal.** When a kind has no markers, delete its owner entry;
    a marker of that kind is then a hard error (MS-10-007). While an entry
    exists, a PR-only growth guard fails any marker a branch adds or re-points
-   (MS-10-016).
+   (MS-10-016). A split moves debt, it adds none: a new ID keeps the original's
+   same marker when its own `relationships:` name the original.
 4. **A relabel carries its verification with it** (MS-10-008).
 
 A new backlog-style ratchet follows the same four rules unless it states why it
@@ -411,8 +412,10 @@ Split a compound requirement the way MS-12-010 splits a mixed-kind one. The
 citations stay valid. Each other obligation gets a **new ID with its own
 `rationale:`**, linked to the original only by a type whose SR-13 definition
 holds (often `refines` or `depends_on`); when none holds, record no link
-(SR-13-018). Two keywords that state one obligation, and cannot be split
-without losing meaning, may stay: add `lint_suppress: [compound_statement]`
+(SR-13-018). A child of an unverified original keeps the original's
+`verification_debt:` marker only if its own `relationships:` name the original,
+the one split MS-10-016 lets pass. Two keywords that state one obligation, and
+cannot be split without losing meaning, may stay: add `lint_suppress: [compound_statement]`
 with the reason in a YAML comment on the entry or the line before it. A
 suppression without a reason still fails. Removing a suppression or its reason
 is not a statement change, so `--changed-since` passes it, but the CI guard
