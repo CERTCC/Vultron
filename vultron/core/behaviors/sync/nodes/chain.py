@@ -37,6 +37,7 @@ from vultron.core.behaviors.sync.nodes.replay_case import (
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     update_replication_state,
 )
+from vultron.core.models._helpers import as_utc
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
@@ -165,6 +166,25 @@ class ReconstructChainTailNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
+def _acknowledged_published(
+    state: VultronReplicationState,
+    acknowledged: str,
+    claimed: datetime | None,
+) -> datetime | None:
+    """The claimed time to keep for the position *acknowledged*.
+
+    A new position takes *claimed*, the time its statement carries.  A
+    restatement of the held position keeps the earliest claim, so the time
+    reads as when the peer first stated it (SYNC-16-008).
+    """
+    held = state.last_acknowledged_published
+    if acknowledged != state.last_acknowledged_hash or held is None:
+        return claimed
+    if claimed is None:
+        return held
+    return min(held, claimed)
+
+
 class UpdateReplicationStateNode(CaseNamedReplayNode):
     """Record the sender's stated position as its acknowledged position.
 
@@ -172,7 +192,10 @@ class UpdateReplicationStateNode(CaseNamedReplayNode):
     ``Reject(CaseLedgerEntry)`` reports (SYNC-04-001), a
     ``Read(CaseLedgerEntry)`` states (SYNC-17-003), or any case activity
     stamps (SYNC-18-007).  The case is *case_id* when the tree names it,
-    else the activity's ``replay_case_id``.
+    else the activity's ``replay_case_id``.  The ``published`` time the
+    sender claims for the statement is kept beside it, the earliest claim
+    for a restated position, so a fault the sender sent before reaching the
+    position can be told apart (SYNC-16-008).
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -202,8 +225,16 @@ class UpdateReplicationStateNode(CaseNamedReplayNode):
             )
 
         acknowledged = activity.last_accepted_hash
+        claimed = (
+            None
+            if activity.activity is None
+            else as_utc(activity.activity.published)
+        )
 
         def _acknowledge(state: VultronReplicationState) -> None:
+            state.last_acknowledged_published = _acknowledged_published(
+                state, acknowledged, claimed
+            )
             state.last_acknowledged_hash = acknowledged
 
         update_replication_state(

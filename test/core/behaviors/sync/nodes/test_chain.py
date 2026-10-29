@@ -2,6 +2,7 @@
 """Unit tests for sync chain nodes."""
 
 import logging
+from datetime import UTC, datetime, timedelta
 from typing import cast
 
 import py_trees
@@ -350,15 +351,20 @@ class TestPersistLogEntryNodeLogging:
 
 
 def _reject_event(
-    entry: CaseLedgerEntry, peer_id: str, last_accepted_hash: str
+    entry: CaseLedgerEntry,
+    peer_id: str,
+    last_accepted_hash: str,
+    published: datetime | None = None,
 ) -> RejectLogEntryReceivedEvent:
     wire_entry = WireCaseLedgerEntry.model_validate(
         entry.model_dump(mode="json")
     )
+    published_kwargs = {} if published is None else {"published": published}
     activity = reject_log_entry_activity(
         wire_entry,
         ledger_position=peer_position(last_accepted_hash),
         actor=peer_id,
+        **published_kwargs,
     )
     return cast(RejectLogEntryReceivedEvent, received_event(activity))
 
@@ -425,6 +431,55 @@ def test_update_replication_state_node_upserts_existing_state(
     stored = owner_store.read(_replication_state_id(PARTICIPANT_ACTOR_ID))
     assert isinstance(stored, VultronReplicationState)
     assert stored.last_acknowledged_hash == entry1.entry_hash
+
+
+def _acknowledge_via_node(
+    bridge: BTBridge, entry: CaseLedgerEntry, published: datetime
+) -> None:
+    result = bridge.execute_with_setup(
+        tree=UpdateReplicationStateNode(name="UpdateReplicationState"),
+        actor_id=OWNER_ACTOR_ID,
+        activity=_reject_event(
+            entry, PARTICIPANT_ACTOR_ID, entry.entry_hash, published
+        ),
+    )
+    assert result.status == Status.SUCCESS
+
+
+@pytest.mark.spec("SYNC-16-008")
+def test_update_replication_state_node_keeps_the_first_claimed_published(
+    owner_bridge, owner_store
+):
+    """The peer's claimed time for its position is retained (#5253).
+
+    A restatement of the same position keeps the earliest claim, so the
+    time reads as when the peer first reached it; a new position takes its
+    own statement's claim.
+    """
+    entry0 = _make_entry(0)
+    entry1 = _make_entry(1, prev_hash=entry0.entry_hash)
+    first = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
+    later = first + timedelta(minutes=5)
+    earlier = first - timedelta(minutes=5)
+
+    def _stored() -> VultronReplicationState:
+        state = owner_store.read(_replication_state_id(PARTICIPANT_ACTOR_ID))
+        assert isinstance(state, VultronReplicationState)
+        return state
+
+    _acknowledge_via_node(owner_bridge, entry0, first)
+    assert _stored().last_acknowledged_published == first
+
+    _acknowledge_via_node(owner_bridge, entry0, later)
+    assert _stored().last_acknowledged_published == first
+
+    _acknowledge_via_node(owner_bridge, entry0, earlier)
+    assert _stored().last_acknowledged_published == earlier
+
+    _acknowledge_via_node(owner_bridge, entry1, first)
+    stored = _stored()
+    assert stored.last_acknowledged_hash == entry1.entry_hash
+    assert stored.last_acknowledged_published == first
 
 
 @pytest.mark.spec("SYNC-01-003")

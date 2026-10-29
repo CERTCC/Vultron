@@ -24,7 +24,7 @@ sealed body the sender's outbox delivers.
 """
 
 import logging
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 import pytest
@@ -80,7 +80,10 @@ def _report(net: LedgerNetwork) -> HandlerResult:
 
 
 def _fault_from(
-    net: LedgerNetwork, sender: str, announce_id: str
+    net: LedgerNetwork,
+    sender: str,
+    announce_id: str,
+    published: datetime | None = None,
 ) -> HandlerResult:
     """A new case-diverged fault from *sender* naming *announce_id*.
 
@@ -89,7 +92,8 @@ def _fault_from(
     drop it as a redelivery, and a repeat arrives only after a replay, which
     mints a fresh ``Announce`` of the same entry.  The handler reads nothing
     from the ``Announce`` but the entry it carried, so a fresh fault naming
-    the original ``Announce`` exercises the same path.
+    the original ``Announce`` exercises the same path.  *published* is the
+    time the sender claims, when the test pins one.
     """
     activity = create_processing_fault_activity(
         actor=sender,
@@ -99,7 +103,10 @@ def _fault_from(
         ),
         to=[MANAGER],
     )
-    return cast(HandlerResult, net.receive(MANAGER, delivered_body(activity)))
+    body = delivered_body(activity)
+    if published is not None:
+        body["published"] = published.isoformat()
+    return cast(HandlerResult, net.receive(MANAGER, body))
 
 
 def _seeds(net: LedgerNetwork, to: str = BYSTANDER) -> list[dict[str, Any]]:
@@ -250,31 +257,79 @@ def test_reseeds_are_rate_bounded_per_peer_not_suppressed() -> None:
     assert len(_seeds(net)) == 2
 
 
+_ACKNOWLEDGED_AT = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
+
+
 @pytest.mark.spec("SYNC-16-008")
+@pytest.mark.parametrize(
+    "fault_published",
+    [_ACKNOWLEDGED_AT + timedelta(seconds=1), _ACKNOWLEDGED_AT, None],
+    ids=["after", "same-time", "ack-claims-none"],
+)
 def test_a_divergence_after_an_acknowledged_reseed_is_logged_at_error(
-    caplog: pytest.LogCaptureFixture,
+    caplog: pytest.LogCaptureFixture, fault_published: datetime | None
 ) -> None:
     """The peer applied a copy that reflected the entry: a CASE_MANAGER defect.
 
     The first fault, with no re-seed before it, is routine.  Once the peer's
     acknowledged position reaches the re-seed's, a fault for the same entry
-    is an ERROR naming the entry and the position.
+    that the peer did not send before that acknowledgement is an ERROR
+    naming the entry and the position.  A fault sent at the same claimed
+    time, or an acknowledgement that claims no time, shows no such order.
     """
-    net, announce_id = _diverged("reseed-repeat-acked")
+    net, announce_id = _diverged(f"reseed-repeat-acked-{fault_published}")
     with caplog.at_level(logging.WARNING, logger=_RESEED_LOGGER):
         _report(net)
     assert not _reseed_records(caplog, logging.WARNING)
     (entry,) = ledger_entries(net.stores[MANAGER], net.case_id)
-    _acknowledge(net, BYSTANDER, entry.entry_hash)
+    _acknowledge(
+        net,
+        BYSTANDER,
+        entry.entry_hash,
+        None if fault_published is None else _ACKNOWLEDGED_AT,
+    )
 
     caplog.clear()
     with caplog.at_level(logging.WARNING, logger=_RESEED_LOGGER):
-        _fault_from(net, BYSTANDER, announce_id)
+        _fault_from(net, BYSTANDER, announce_id, fault_published)
 
     (error,) = _reseed_records(caplog, logging.ERROR)
     message = error.getMessage()
     assert "SYNC-16-008" in message
     assert BYSTANDER in message
+    assert entry.id_ in message
+
+
+@pytest.mark.spec("SYNC-16-008")
+def test_a_repeat_fault_sent_before_the_acknowledgement_is_a_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A delayed repeat fault the peer sent before applying the copy (#5253).
+
+    The peer refused a replayed entry again before the re-seed's copy
+    arrived, then applied the copy and acknowledged its position; the second
+    fault arrives after that acknowledgement (SYNC-19).  Its claimed time
+    predates the acknowledgement's, both on the peer's own clock, so it is
+    stale recovery: a WARNING, never an ERROR.
+    """
+    net, announce_id = _diverged("reseed-repeat-stale")
+    _report(net)
+    (entry,) = ledger_entries(net.stores[MANAGER], net.case_id)
+    _acknowledge(net, BYSTANDER, entry.entry_hash, _ACKNOWLEDGED_AT)
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger=_RESEED_LOGGER):
+        _fault_from(
+            net,
+            BYSTANDER,
+            announce_id,
+            _ACKNOWLEDGED_AT - timedelta(seconds=1),
+        )
+
+    assert not _reseed_records(caplog, logging.ERROR)
+    (warning,) = _reseed_records(caplog, logging.WARNING)
+    message = warning.getMessage()
+    assert "before" in message and "SYNC-16-008" in message
     assert entry.id_ in message
 
 
@@ -360,12 +415,19 @@ def _reseed_records(
     ]
 
 
-def _acknowledge(net: LedgerNetwork, peer: str, entry_hash: str) -> None:
-    """Record *peer*'s acknowledgement of the entry *entry_hash* names, as its
-    ``Reject`` or ``Read`` would (SYNC-04-001)."""
+def _acknowledge(
+    net: LedgerNetwork,
+    peer: str,
+    entry_hash: str,
+    published: datetime | None = None,
+) -> None:
+    """Record *peer*'s acknowledgement of the entry *entry_hash* names, with
+    the ``published`` time it claimed, as its ``Reject`` or ``Read`` would
+    (SYNC-04-001)."""
     state = _state(net, peer)
     assert state is not None
     state.last_acknowledged_hash = entry_hash
+    state.last_acknowledged_published = published
     net.stores[MANAGER].save(state)
 
 

@@ -308,6 +308,8 @@ A `Reject` that names no entry and states no position, or a position naming an e
 
 A divergence fault for an entry the last re-seed already reflected, from a participant whose acknowledged position is at or past that re-seed's position, means the CASE_MANAGER's case disagrees with its own ledger, and the CASE_MANAGER SHOULD log it as an error. (SYNC-16-008)
 Without that acknowledgement the copy may have been lost or may still be in flight, so the CASE_MANAGER SHOULD log the fault below error and leave it to the rate-bounded re-seed. (SYNC-16-008)
+A fault whose claimed `published` time is before the time the participant claimed for that acknowledgement was sent before the copy arrived and delivered late, so the CASE_MANAGER SHOULD log it below error too. (SYNC-16-008)
+Both times are the participant's own claims, so they share its clock.
 
 ### 5.6 Position Statements
 

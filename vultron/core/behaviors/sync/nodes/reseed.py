@@ -29,9 +29,11 @@ peer (the choice SYNC-15-003 makes for replay).
 
 :class:`ReportRepeatDivergenceNode` reads the same record: a divergence
 fault for an entry the last re-seed's copy already reflected is logged at
-ERROR when the peer has acknowledged that copy's position, since the
-CASE_MANAGER's case then disagrees with its own ledger, and at WARNING
-otherwise, since the copy may be lost or in flight (SYNC-16-008).
+ERROR when the peer has acknowledged that copy's position and did not send
+the fault before that acknowledgement, since the CASE_MANAGER's case then
+disagrees with its own ledger, and at WARNING otherwise, since the copy may
+be lost or in flight, or the fault a delayed one from before the copy
+arrived (SYNC-16-008).
 
 Neither node commits a ledger entry: a re-seed is replication signalling,
 like the replay it resembles (SYNC-16-002).
@@ -39,6 +41,7 @@ like the replay it resembles (SYNC-16-002).
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import cast
 
 from py_trees.common import Status
@@ -53,7 +56,7 @@ from vultron.core.behaviors.sync.nodes.replay_guard import (
     read_replication_state,
     update_replication_state,
 )
-from vultron.core.models._helpers import _as_id, now_utc
+from vultron.core.models._helpers import _as_id, as_utc, now_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.replication_state import VultronReplicationState
@@ -289,11 +292,19 @@ class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
     after it, the copy the peer was sent already reflected that entry.
 
     - If the peer's acknowledged position (``last_acknowledged_hash``) is at
-      or past the re-seed's position, the peer applied that copy, so the
-      CASE_MANAGER's case disagrees with its own ledger: a defect, logged at
-      ERROR (``repeated``).
-    - Otherwise the copy may have been lost, or the entry replayed before
-      the copy arrived: ordinary recovery, logged at WARNING
+      or past the re-seed's position, the peer applied that copy.  When
+      *fault_published*, the time the peer claims for the fault, is before
+      the time it claimed for that acknowledgement
+      (``last_acknowledged_published``), the fault is a stale repeat sent
+      before the copy arrived and delivered late: ordinary recovery, logged
+      at WARNING (``stale``).  Both times are the peer's own clock, so no
+      skew between machines enters the comparison.
+    - Otherwise, after that acknowledgement, the CASE_MANAGER's case
+      disagrees with its own ledger: a defect, logged at ERROR
+      (``repeated``).  A missing time on either side shows no order, so it
+      keeps the ERROR.
+    - Without that acknowledgement the copy may have been lost, or the entry
+      replayed before the copy arrived: ordinary recovery, logged at WARNING
       (``unconfirmed``) and left to the rate-bounded re-seed (SYNC-16-004).
 
     Writes nothing and always returns SUCCESS; the re-seed that follows stays
@@ -307,20 +318,26 @@ class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
         case_id: str,
         peer_id: str,
         refused_entry: CaseLedgerEntry,
+        fault_published: datetime | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.peer_id = peer_id
         self.refused_entry = refused_entry
+        self.fault_published = as_utc(fault_published)
+        """The ``published`` time the peer claims for its fault, if any."""
         self.repeated = False
-        """True when the peer acknowledged the copy that reflected the entry."""
+        """True when the peer acknowledged the copy that reflected the entry
+        and did not send the fault before that acknowledgement."""
+        self.stale = False
+        """True when the peer acknowledged that copy after sending the fault."""
         self.unconfirmed = False
         """True when the copy reflected the entry but no acknowledgement shows
         the peer applied it."""
 
     def update(self) -> Status:
-        self.repeated = self.unconfirmed = False
+        self.repeated = self.stale = self.unconfirmed = False
         if (f := self._require_datalayer()) is not None:
             return f
         datalayer = cast(CasePersistence, self.datalayer)
@@ -337,6 +354,26 @@ class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
             datalayer, self.case_id, state.last_acknowledged_hash
         )
         if acknowledged is not None and acknowledged >= position.log_index:
+            acknowledged_at = state.last_acknowledged_published
+            if _sent_before(self.fault_published, acknowledged_at):
+                self.stale = True
+                self.logger.warning(
+                    "%s: peer '%s' reports case '%s' diverged at ledger entry"
+                    " '%s' (log_index %d) in a fault it sent at %s, before it"
+                    " acknowledged position %d at %s: a stale repeat from"
+                    " before its re-seed copy (position %d) arrived, so the"
+                    " re-seed bound decides (SYNC-16-008, SYNC-16-004)",
+                    self.name,
+                    self.peer_id,
+                    self.case_id,
+                    self.refused_entry.id_,
+                    self.refused_entry.log_index,
+                    self.fault_published,
+                    acknowledged,
+                    acknowledged_at,
+                    position.log_index,
+                )
+                return Status.SUCCESS
             self.repeated = True
             self.logger.error(
                 "%s: peer '%s' reports case '%s' diverged at ledger entry '%s'"
@@ -368,6 +405,20 @@ class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
             position.log_index,
         )
         return Status.SUCCESS
+
+
+def _sent_before(
+    fault_published: datetime | None, acknowledged_at: datetime | None
+) -> bool:
+    """True when the fault's claimed time is before the acknowledgement's.
+
+    Both are times the same peer claimed, so they share its clock.  A time
+    missing on either side shows no order, so it is never "before".
+    """
+    acknowledged = as_utc(acknowledged_at)
+    if fault_published is None or acknowledged is None:
+        return False
+    return fault_published < acknowledged
 
 
 def _acknowledged_index(

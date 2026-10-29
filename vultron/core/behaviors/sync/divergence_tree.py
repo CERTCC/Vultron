@@ -20,6 +20,8 @@ CASE_MANAGER ``Create(ProcessingFault)`` of class
 with a fresh case copy (SYNC-16-003, ADR-0142).
 """
 
+from datetime import datetime
+
 import py_trees
 
 from vultron.core.behaviors.case.intake_only_received_tree import (
@@ -47,6 +49,7 @@ def create_case_diverged_fault_tree(
     *,
     sender_id: str,
     sender_rule: SenderRule,
+    fault_published: datetime | None = None,
 ) -> py_trees.composites.Sequence:
     """Create the BT that re-seeds a replica reporting its case diverged.
 
@@ -57,7 +60,8 @@ def create_case_diverged_fault_tree(
     refuses it.  At that case's
     CASE_MANAGER the tree logs a divergence the last re-seed's copy already
     reflected, at ERROR once the peer acknowledged that copy's position and at
-    WARNING before (:class:`ReportRepeatDivergenceNode`, SYNC-16-008),
+    WARNING before, or when the peer sent the fault before that
+    acknowledgement (:class:`ReportRepeatDivergenceNode`, SYNC-16-008),
     then sends the sender ``Announce(VulnerabilityCase)`` of its current
     case, rate-bounded per peer (:class:`ReseedPeerNode`, SYNC-16-003,
     SYNC-16-004).  Both are the CASE_MANAGER's own acts, so they sit in
@@ -76,6 +80,8 @@ def create_case_diverged_fault_tree(
             ``None`` when the fault names none this store sent.
         sender_id: The fault's ``actor``: the replica to re-seed.
         sender_rule: The use case's declared sender rule (HP-01-008).
+        fault_published: The ``published`` time the fault's sender claims,
+            or ``None`` when it claims none (SYNC-16-008).
     """
     if refused_entry is None:
         return create_intake_only_received_tree("CaseDivergedFaultReceivedBT")
@@ -93,6 +99,7 @@ def create_case_diverged_fault_tree(
                 case_id=case_id,
                 peer_id=sender_id,
                 refused_entry=refused_entry,
+                fault_published=fault_published,
             ),
             ReseedPeerNode(case_id=case_id, peer_id=sender_id),
         ],

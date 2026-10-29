@@ -50,6 +50,9 @@ class VultronReplicationState(RetiredFieldsRecord):
     The ``last_reseed*`` fields record the CASE_MANAGER's last re-seed of
     the peer, which bounds the re-seed rate and tells a repeated divergence
     from a first one (SYNC-16-004, SYNC-16-008).
+    ``last_acknowledged_published`` keeps the time the peer claimed for its
+    acknowledged position, so a repeat fault the peer sent before that
+    acknowledgement reads as stale (SYNC-16-008).
 
     Spec: SYNC-04-001, SYNC-04-002; the embargo pause is CM-10-005/006.
     """
@@ -80,6 +83,19 @@ class VultronReplicationState(RetiredFieldsRecord):
         ),
         validation_alias="lastAcknowledgedHash",
         serialization_alias="lastAcknowledgedHash",
+    )
+    last_acknowledged_published: datetime | None = Field(
+        default=None,
+        description=(
+            "The published time the peer claimed on the activity that first"
+            " stated last_acknowledged_hash; a later statement of the same"
+            " position keeps the earliest claim. It is the peer's own clock,"
+            " so it is compared only with another time the peer claimed, such"
+            " as its case-diverged fault's (SYNC-16-008). None when nothing"
+            " has been acknowledged or the statement claimed no time"
+        ),
+        validation_alias="lastAcknowledgedPublished",
+        serialization_alias="lastAcknowledgedPublished",
     )
     updated_at: datetime = Field(
         default_factory=now_utc,

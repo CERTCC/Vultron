@@ -2101,16 +2101,26 @@ groups:
     statement: >-
       The CASE_MANAGER SHOULD log at ERROR a SYNC-16-001 fault for an entry at or before
       the tail of the last re-seed it sent that peer only when the peer's acknowledged
-      position is at or past that tail. Without that acknowledgement the fault is
-      ordinary recovery, logged below ERROR and left to the rate-bounded re-seed
+      position is at or past that tail and the fault's claimed `published` time is not
+      before the time the peer claimed for that acknowledgement. Any other such fault
+      is ordinary recovery, logged below ERROR and left to the rate-bounded re-seed
       (SYNC-16-004).
     rationale: >-
       A peer that acknowledged the copy's position has applied a case that already
-      reflects the entry, so its refusal means the CASE_MANAGER's own case disagrees
-      with its ledger: a defect, not recovery, and it must not read as routine. Without
-      the acknowledgement the same fault is ordinary recovery: the copy may have been
-      lost in transit, or the entry replayed before the copy arrived. Logging that at
-      ERROR would mark a self-healing path as a failure.
+      reflects the entry, so a refusal it sends afterwards means the CASE_MANAGER's own
+      case disagrees with its ledger: a defect, not recovery, and it must not read as
+      routine. Without the acknowledgement the same fault is ordinary recovery: the
+      copy may have been lost in transit, or the entry replayed before the copy
+      arrived. A fault the peer sent before acknowledging is recovery too: a replay
+      refused before the copy arrived, delivered late because arrival order is not
+      guaranteed (SYNC-19). The two times compared are both the peer's own claims, so
+      they share its clock and no skew between machines enters the comparison. The
+      acknowledgement's time is the peer's first statement of that position, so a
+      later restatement cannot hide a fault sent after it; a peer that moves on to a
+      later position takes that statement's time, so a defect fault sent in between
+      reads as recovery once, and the defect shows at ERROR on the next repeat. A
+      missing time on either side shows no order and keeps the ERROR. Logging recovery
+      at ERROR would mark a self-healing path as a failure.
     relationships:
     - rel_type: refines
       spec_id: SYNC-16-004
@@ -2118,9 +2128,12 @@ groups:
     - ADR-0142
     verification: >-
       `test/core/use_cases/received/test_case_diverged_reseed.py` asserts the ERROR
-      record when the peer acknowledged the re-seed's position, a WARNING and a
-      re-seed after the cooldown when it did not, and no ERROR for an entry past the
-      last re-seed.
+      record when the peer acknowledged the re-seed's position before, at the same
+      time as, or with no time against the fault's, a WARNING when the fault predates
+      the acknowledgement, a WARNING and a re-seed after the cooldown when the peer did
+      not acknowledge, and no ERROR for an entry past the last re-seed;
+      `test/core/behaviors/sync/nodes/test_chain.py` asserts the acknowledgement's
+      claimed time is kept, the earliest for a restated position.
     stories:
     - story_2022_045
 - id: SYNC-17
