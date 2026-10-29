@@ -768,15 +768,19 @@ groups:
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       and attacks not yet observed (q^cs ∈ ···p·a) and EM None or Exited
-      (q^em ∈ {N, X}) receiving CA MUST transition their local CS to both
-      Public Aware and Attacks Observed (q^cs ···p·a → ···P·A) and emit CK.
+      (q^em ∈ {N, X}) receiving CA MUST transition their local CS attacks bit
+      to A (q^cs ···p·a → ···p·A) and emit CK.
     rationale: >-
-      CA in state ···p·a implies constraint C-16: attack observation without
-      prior public awareness triggers the CS→P transition alongside CS→A.
+      An observed attack is evidence of exploitation, not public information
+      about the vulnerability: an attack can be seen on one network while
+      nothing about the vulnerability has been published. A CS transition
+      changes one dimension (CSB-17-002), and ···p·A is a state a case can
+      rest in (CSB-17-003), so the public bit waits for its own P event.
       When EM is None or Exited, no embargo teardown is needed.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CA in CS ···p·a with
-      EM None or Exited atomically sets both P and A bits (···P·A) and emits CK.
+      EM None or Exited sets the attacks bit (···p·A), leaves the public bit
+      unset, and emits CK.
     testable: true
     preconditions:
     - cs_pattern: "...p.a"
@@ -787,15 +791,14 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: >-
-        Transition local CS to Public Aware and Attacks Observed (···P·A)
-      expected: Receiver CS public bit P and attacks bit A both set
+      action: Transition local CS attacks bit to A (···p·A)
+      expected: Receiver CS attacks bit A set; public bit p remains unset
     - order: 2
       actor: receiver
       action: Emit CK to acknowledge receipt of CA
       expected: CK queued for sender
     postconditions:
-    - description: Receiver CS is ···P·A; CK emitted
+    - description: Receiver CS is ···p·A; CK emitted
     relationships:
     - rel_type: satisfies
       spec_id: MSM-03-006
@@ -811,13 +814,15 @@ groups:
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       and attacks not yet observed (q^cs ∈ ···p·a) and EM Proposed
-      (q^em ∈ P) receiving CA MUST transition their local CS to ···P·A.
+      (q^em ∈ P) receiving CA MUST transition their local CS attacks bit to A
+      (q^cs ···p·a → ···p·A).
     rationale: >-
-      Attacks observed alongside previously non-public CS triggers CS→P, which
-      terminates a pending embargo proposal. Constraint C-16 applies.
+      Observed attacks abandon a pending embargo proposal (EMB-16-001) without
+      making the vulnerability public, so only the attacks bit changes
+      (CSB-17-002).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CA in CS ···p·a with
-      EM Proposed transitions CS to ···P·A, sets EM to NONE, and emits CK.
+      EM Proposed transitions CS to ···p·A, sets EM to NONE, and emits CK.
     testable: true
     preconditions:
     - cs_pattern: "...p.a"
@@ -827,9 +832,8 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: >-
-        Transition local CS to Public Aware and Attacks Observed (···P·A)
-      expected: Receiver CS public bit P and attacks bit A both set
+      action: Transition local CS attacks bit to A (···p·A)
+      expected: Receiver CS attacks bit A set; public bit p remains unset
     - order: 2
       actor: receiver
       action: Transition EM from PROPOSED to NONE (embargo proposal abandoned)
@@ -839,11 +843,11 @@ groups:
       action: Emit CK to acknowledge receipt of CA
       expected: CK queued for sender
     postconditions:
-    - description: Receiver CS is ···P·A; EM is NONE; CK emitted
+    - description: Receiver CS is ···p·A; EM is NONE; CK emitted
     relationships:
     - rel_type: satisfies
-      spec_id: VP-09-001
-      note: Embargoes SHALL terminate immediately when information becomes public
+      spec_id: VP-11-006
+      note: SHOULD terminate embargo when attacks are known to have occurred
     - rel_type: satisfies
       spec_id: MSM-03-006
       note: 'CA shorthand wire-type mapping'
@@ -857,14 +861,16 @@ groups:
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       and attacks not yet observed (q^cs ∈ ···p·a) and EM Active or Revise
-      (q^em ∈ {A, R}) receiving CA MUST transition their local CS to ···P·A.
+      (q^em ∈ {A, R}) receiving CA MUST transition their local CS attacks bit
+      to A (q^cs ···p·a → ···p·A).
     rationale: >-
-      Attacks observed without prior public awareness triggers CS→P (constraint
-      C-16) which in turn requires embargo termination per VP-09-001. The C-14
-      ordering: record CS transition first, then initiate teardown.
+      Observed attacks warrant embargo termination (VP-11-006, CSB-18-004)
+      without making the vulnerability public, so only the attacks bit changes
+      (CSB-17-002). The C-14 ordering: record CS transition first, then
+      initiate teardown.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CA in CS ···p·a with
-      EM Active or Revise transitions CS to ···P·A, that the CASE_MANAGER emits
+      EM Active or Revise transitions CS to ···p·A, that the CASE_MANAGER emits
       ET, then CK is emitted, with the CS transition recorded before teardown
       (C-14).
     testable: true
@@ -877,9 +883,8 @@ groups:
     steps:
     - order: 1
       actor: receiver
-      action: >-
-        Transition local CS to Public Aware and Attacks Observed (···P·A)
-      expected: Receiver CS public bit P and attacks bit A both set
+      action: Transition local CS attacks bit to A (···p·A)
+      expected: Receiver CS attacks bit A set; public bit p remains unset
     - order: 2
       actor: CASE_MANAGER
       action: >-
@@ -892,12 +897,9 @@ groups:
       expected: CK queued for sender
     postconditions:
     - description: >-
-        Receiver CS is ···P·A; the CASE_MANAGER has emitted ET; EM is EXITED;
+        Receiver CS is ···p·A; the CASE_MANAGER has emitted ET; EM is EXITED;
         CK emitted
     relationships:
-    - rel_type: satisfies
-      spec_id: VP-09-001
-      note: Embargoes SHALL terminate immediately when information becomes public
     - rel_type: satisfies
       spec_id: VP-11-006
       note: SHOULD terminate embargo when attacks are known to have occurred
@@ -951,18 +953,19 @@ groups:
     kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS attacks already
-      observed (q^cs ∈ ···P·A) receiving a duplicate CA MUST emit CK without
+      observed (q^cs ∈ ·····A) receiving a duplicate CA MUST emit CK without
       any CS or EM state transition.
     rationale: >-
       All C* messages warrant acknowledgment. Duplicate CA does not re-trigger
-      CS or EM transitions.
+      CS or EM transitions, whether or not the case is public: ···p·A is a
+      resting state (CSB-17-003).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CA when CS is already
-      ···P·A enqueues CK and leaves all CS and EM states unchanged.
+      ···p·A or ···P·A enqueues CK and leaves all CS and EM states unchanged.
     testable: true
     preconditions:
-    - cs_pattern: "...P.A"
-      description: CS matches pattern ...P.A
+    - cs_pattern: ".....A"
+      description: CS matches pattern .....A
     steps:
     - order: 1
       actor: receiver
@@ -987,8 +990,8 @@ groups:
       (q^em ∈ P) receiving CA MUST transition EM to None (q^em P → N) by
       abandoning each open proposal (EMB-16-001).
     rationale: >-
-      The CS→P transition triggered by attacks observation makes further embargo
-      negotiation moot; the pending proposal is abandoned per VP-09-001.
+      Observed attacks make further embargo negotiation moot; the pending
+      proposal is abandoned per VP-11-006 and EMB-16-001.
       The abandonment is shared EM state, so the CASE_MANAGER, which can be the
       Case Owner itself, makes it when it records the P/X/A status (RSH-03-001,
       EMB-16-001). A Participant that does not hold the role writes no EM
@@ -1026,8 +1029,8 @@ groups:
       Revise (q^em ∈ {A, R}) receiving CA MUST initiate embargo termination by
       emitting ET.
     rationale: >-
-      VP-09-001 requires immediate embargo termination when public awareness
-      occurs; constraint C-16 triggers CS→P on attacks observation.
+      Observed attacks warrant embargo termination (VP-11-006), and an active
+      embargo cannot coexist with the attacks bit (CSB-18-004).
       Only the CASE_MANAGER writes shared EM state, so it emits the ET when it
       records the P/X/A status (RSH-03-001, EP-09-008). The CASE_MANAGER can be
       the Case Owner itself. A Participant that does not hold the role reports
@@ -1062,13 +1065,13 @@ groups:
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       and attacks not yet observed (q^cs ∈ ···p·a) and EM Active or Revise
-      (q^em ∈ {A, R}) receiving CA MUST record the CS transition to ···P·A
+      (q^em ∈ {A, R}) receiving CA MUST record the CS transition to ···p·A
       before embargo teardown is initiated (constraint C-14).
     rationale: >-
       C-14 ordering requires the CS state change to be recorded first so that
       the canonical ledger correctly reflects cause before effect.
     verification: >-
-      Integration tests in `test/demo/` confirm that the CS state records ···P·A
+      Integration tests in `test/demo/` confirm that the CS state records ···p·A
       before ET is emitted when CA is received with EM Active or Revise and
       non-public CS (C-14 ordering satisfied).
     testable: true
@@ -1648,41 +1651,6 @@ groups:
     stories:
     - story_2022_014
 
-  - id: CSB-14-002
-    priority: SHOULD
-    kind: protocol
-    statement: >-
-      A Participant entering CS Attacks Observed with CS not yet public
-      (q^cs ∈ ···p·A) SHOULD also trigger CS→P and emit CP to announce public
-      awareness.
-    rationale: >-
-      Constraint C-16: attacks observed on an otherwise non-public case SHOULD
-      trigger the P transition. Active attacks constitute de-facto public
-      awareness of the vulnerability's existence.
-    verification: >-
-      Integration tests in `test/demo/` confirm that entering CS Attacks Observed in a
-      non-public state (···p·A) triggers the P transition and emits both CP and CA.
-    testable: true
-    preconditions:
-    - cs_pattern: "...p.A"
-      description: CS matches pattern ...p.A
-    steps:
-    - order: 1
-      actor: participant
-      action: Transition CS to Public Aware and Attacks Observed (···P·A)
-      expected: Receiver CS public bit P and attacks bit A both set
-    - order: 2
-      actor: participant
-      action: Emit CP to announce Public Aware transition
-      expected: CP queued for case participants
-    - order: 3
-      actor: participant
-      action: Emit CA to announce Attacks Observed transition
-      expected: CA queued for case participants
-    postconditions:
-    - description: CS is ···P·A; CP and CA emitted
-    stories:
-    - story_2022_081
 
   - id: CSB-14-003
     priority: MUST_NOT
