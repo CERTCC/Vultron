@@ -2,12 +2,12 @@
 
 !!! info "Embargo Revision Rejection (EJ)"
 
-    Records the sender's own refusal of the revision. The Case Owner keeps the prior terms by sending its decision.
+    Rejects the revision for the case. The active embargo stays in force on its prior terms.
 
-    - **When…** a Participant refuses a proposed embargo revision
-    - **Send:** `Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])`
+    - **When…** the Case Owner decides to reject a proposed revision
+    - **Send:** `Reject(EmbargoEvent)[target=VulnerabilityCase]`
     - **Send to:** the case manager
-    - **Sent by:** the invitee
+    - **Sent by:** the case owner
     - **Distinguished by:** EM state `REVISE`
     - **Reference:** [Embargo Revision Rejection (EJ)](../../em.md#embargo-revision-rejection)
 
@@ -15,9 +15,9 @@
 
         ```python exec="true" idprefix=""
         from vultron.wire.as2.vocab.examples.vocab_examples import (
-            reject_embargo_revision,
+            reject_embargo_revision_proposal,
             json2md,
         )
 
-        print(json2md(reject_embargo_revision()))
+        print(json2md(reject_embargo_revision_proposal()))
         ```

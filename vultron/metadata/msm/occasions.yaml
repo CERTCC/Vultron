@@ -622,73 +622,81 @@ groups:
     - path: howto/activitypub/activities/establish_embargo.md
       title: How to Establish an Embargo
     example: relay_embargo_proposal
-  - anchor: embargo-proposal-acceptance
-    heading: Embargo Proposal Acceptance (EA)
+  - anchor: agree-to-embargo-proposal
+    heading: Agree to proposed embargo terms
     when: a Participant agrees to proposed embargo terms
     send: Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])
     send_to: the case manager
     sent_by: the invitee
     distinguished_by: EM state `PROPOSED`
     semantics: accept_invite_to_embargo_on_case
-    shorthand: EA
-    status: collapse
+    status: none
     description: Records the sender's own consent to the proposed terms. The embargo becomes
       active only when the Case Owner sends its decision.
     seen_in:
     - path: howto/activitypub/activities/establish_embargo.md
       title: How to Establish an Embargo
     example: accept_embargo
-  - anchor: embargo-revision-acceptance
-    heading: Embargo Revision Acceptance (EC)
+  - anchor: agree-to-embargo-revision
+    heading: Agree to an embargo revision
     when: a Participant agrees to a proposed embargo revision
     send: Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])
     send_to: the case manager
     sent_by: the invitee
     distinguished_by: EM state `REVISE`
     semantics: accept_invite_to_embargo_on_case
-    shorthand: EC
-    status: collapse
+    status: none
     description: Records the sender's own consent to the revision. The revision replaces the
       active embargo only when the Case Owner sends its decision.
     seen_in:
     - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
     example: accept_embargo_revision
-  - anchor: embargo-proposal-rejection
-    heading: Embargo Proposal Rejection (ER)
+  - anchor: refuse-embargo-proposal
+    heading: Refuse proposed embargo terms
     when: a Participant refuses proposed embargo terms
     send: Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])
     send_to: the case manager
     sent_by: the invitee
     distinguished_by: EM state `PROPOSED`
     semantics: reject_invite_to_embargo_on_case
-    shorthand: ER
-    status: collapse
+    status: expansion
     description: Records the sender's own refusal of the proposed terms. The proposal is rejected
       for the case only when the Case Owner sends its decision.
-    notes: The Case Manager sends the same activity when it abandons an open proposal once
-      the case is public, an exploit is public or attacks are observed. Its Reject cancels
-      the proposal, and each Invite it relayed for the proposal is then withdrawn.
     seen_in:
     - path: howto/activitypub/activities/establish_embargo.md
       title: How to Establish an Embargo
     example: reject_embargo
-  - anchor: embargo-revision-rejection
-    heading: Embargo Revision Rejection (EJ)
+  - anchor: refuse-embargo-revision
+    heading: Refuse an embargo revision
     when: a Participant refuses a proposed embargo revision
     send: Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])
     send_to: the case manager
     sent_by: the invitee
     distinguished_by: EM state `REVISE`
     semantics: reject_invite_to_embargo_on_case
-    shorthand: EJ
-    status: collapse
+    status: expansion
     description: Records the sender's own refusal of the revision. The Case Owner keeps the
       prior terms by sending its decision.
     seen_in:
     - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
     example: reject_embargo_revision
+  - anchor: abandon-embargo-proposal
+    heading: Abandon embargo proposal
+    when: the Case Manager abandons an open embargo proposal it received once the case is
+      public, an exploit is public or attacks are observed
+    send: Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])
+    send_to: a participant
+    sent_by: the case manager
+    semantics: reject_invite_to_embargo_on_case
+    shorthand: ER
+    status: expansion
+    description: Cancels the proposal for the case. The Case Manager then withdraws each Invite
+      it relayed for the proposal. This Reject is not the Case Manager's consent.
+    notes: Each participant learns of it from the case ledger, so it is addressed to nobody.
+    seen_in: []
+    example: abandon_embargo_proposal
   - anchor: withdraw-embargo-invite
     heading: Withdraw an embargo invitation
     when: the Case Manager abandons an open embargo proposal once the case is public, an exploit
@@ -705,38 +713,71 @@ groups:
     notes: Each participant learns of it from the case ledger, so it is addressed to nobody.
     seen_in: []
     example: undo_embargo_invite
-  - anchor: activate-embargo
-    heading: Activate embargo
-    when: the Case Owner decides to activate a proposed embargo
+  - anchor: embargo-proposal-acceptance
+    heading: Embargo Proposal Acceptance (EA)
+    when: the Case Owner decides to activate a proposed embargo for a case with no active
+      embargo
     send: Accept(EmbargoEvent)[target=VulnerabilityCase]
     send_to: the case manager
     sent_by: the case owner
+    distinguished_by: EM state `PROPOSED`
     semantics: activate_embargo_on_case
-    status: none
-    description: Activates the proposal for the case. If an embargo is already active, the
-      proposal replaces it.
+    shorthand: EA
+    status: collapse
+    description: Activates the proposal for the case. Any other open proposal stays open as
+      a revision.
     seen_in:
     - path: howto/activitypub/activities/establish_embargo.md
       title: How to Establish an Embargo
+    example: activate_embargo
+  - anchor: embargo-revision-acceptance
+    heading: Embargo Revision Acceptance (EC)
+    when: the Case Owner decides to replace the active embargo with a proposed revision
+    send: Accept(EmbargoEvent)[target=VulnerabilityCase]
+    send_to: the case manager
+    sent_by: the case owner
+    distinguished_by: EM state `REVISE`
+    semantics: activate_embargo_on_case
+    shorthand: EC
+    status: collapse
+    description: Activates the revision for the case. It replaces the active embargo in the
+      same register step.
+    seen_in:
     - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
-    example: activate_embargo
+    example: activate_embargo_revision
   - anchor: reject-embargo-proposal
     heading: Reject embargo proposal
-    when: the Case Owner decides to reject a proposed embargo
+    when: the Case Owner decides to reject a proposed embargo for a case with no active embargo
     send: Reject(EmbargoEvent)[target=VulnerabilityCase]
     send_to: the case manager
     sent_by: the case owner
+    distinguished_by: EM state `PROPOSED`
     semantics: reject_embargo_proposal_on_case
-    status: none
-    description: Rejects the proposal for the case. An active embargo stays in force on its
-      current terms.
+    shorthand: ER
+    status: collapse
+    description: Rejects the proposal for the case. The case has no embargo once no other
+      proposal is open.
     seen_in:
     - path: howto/activitypub/activities/establish_embargo.md
       title: How to Establish an Embargo
+    example: reject_embargo_proposal
+  - anchor: embargo-revision-rejection
+    heading: Embargo Revision Rejection (EJ)
+    when: the Case Owner decides to reject a proposed revision
+    send: Reject(EmbargoEvent)[target=VulnerabilityCase]
+    send_to: the case manager
+    sent_by: the case owner
+    distinguished_by: EM state `REVISE`
+    semantics: reject_embargo_proposal_on_case
+    shorthand: EJ
+    status: collapse
+    description: Rejects the revision for the case. The active embargo stays in force on its
+      prior terms.
+    seen_in:
     - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
-    example: reject_embargo_proposal
+    example: reject_embargo_revision_proposal
   - anchor: embargo-withdrawal
     heading: Withdraw from embargo
     when: a Participant bound by the active embargo stops complying with it

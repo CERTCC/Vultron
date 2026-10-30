@@ -87,9 +87,11 @@ from vultron.wire.as2.vocab.examples.case_proposal import (
 )
 from vultron.wire.as2.vocab.examples.embargo import *  # noqa: F403
 from vultron.wire.as2.vocab.examples.embargo import (
+    abandon_embargo_proposal,
     accept_embargo,
     accept_embargo_revision,
     activate_embargo,
+    activate_embargo_revision,
     announce_embargo,
     announce_embargo_termination,
     create_embargo_consent,
@@ -101,6 +103,7 @@ from vultron.wire.as2.vocab.examples.embargo import (
     reject_embargo,
     reject_embargo_proposal,
     reject_embargo_revision,
+    reject_embargo_revision_proposal,
     relay_embargo_proposal,
     remove_embargo,
     undo_embargo_invite,
@@ -442,6 +445,9 @@ def main(outdir=None):
         announce_embargo_termination,
         accept_embargo_revision,
         reject_embargo_revision,
+        activate_embargo_revision,
+        reject_embargo_revision_proposal,
+        abandon_embargo_proposal,
         remove_note_from_case,
         invite_to_full_case,
         accept_full_case_invite,

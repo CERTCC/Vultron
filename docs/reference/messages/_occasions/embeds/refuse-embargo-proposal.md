@@ -1,6 +1,6 @@
 <!-- Generated from SEMANTIC_REGISTRY — do not edit; edit the occasions and run `uv run msm-occasions --write` -->
 
-!!! info "Embargo Proposal Rejection (ER)"
+!!! info "Refuse proposed embargo terms"
 
     Records the sender's own refusal of the proposed terms. The proposal is rejected for the case only when the Case Owner sends its decision.
 
@@ -9,7 +9,7 @@
     - **Send to:** the case manager
     - **Sent by:** the invitee
     - **Distinguished by:** EM state `PROPOSED`
-    - **Reference:** [Embargo Proposal Rejection (ER)](../../em.md#embargo-proposal-rejection)
+    - **Reference:** [Refuse proposed embargo terms](../../em.md#refuse-embargo-proposal)
 
     ??? example "Example activity"
 

@@ -213,6 +213,127 @@ def test_ep_is_carried_only_by_the_embargo_invite():
     assert carriers == [MessageSemantics.INVITE_TO_EMBARGO_ON_CASE]
 
 
+def _occasions_carrying(
+    shorthand: ProtocolShorthand,
+) -> set[tuple[MessageSemantics, str]]:
+    """The (semantics, anchor) of every registry occasion carrying *shorthand*."""
+    return {
+        (entry.semantics, occasion.anchor)
+        for entry in SEMANTIC_REGISTRY
+        for occasion in entry.occasions
+        if occasion.shorthand is shorthand
+    }
+
+
+@pytest.mark.spec("MSM-02-002")
+@pytest.mark.spec("MSM-02-004")
+@pytest.mark.spec("MSM-02-005")
+@pytest.mark.spec("MSM-02-006")
+@pytest.mark.parametrize(
+    ("shorthand", "expected"),
+    [
+        (
+            ProtocolShorthand.EA,
+            {
+                (
+                    MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
+                    "embargo-proposal-acceptance",
+                )
+            },
+        ),
+        (
+            ProtocolShorthand.EC,
+            {
+                (
+                    MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
+                    "embargo-revision-acceptance",
+                )
+            },
+        ),
+        (
+            ProtocolShorthand.ER,
+            {
+                (
+                    MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
+                    "reject-embargo-proposal",
+                ),
+                (
+                    MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
+                    "abandon-embargo-proposal",
+                ),
+            },
+        ),
+        (
+            ProtocolShorthand.EJ,
+            {
+                (
+                    MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
+                    "embargo-revision-rejection",
+                )
+            },
+        ),
+    ],
+    ids=str,
+)
+def test_em_decision_shorthands_are_carried_by_the_owner_decision(
+    shorthand: ProtocolShorthand, expected: set[tuple[MessageSemantics, str]]
+):
+    """EA, EC, ER and EJ tag the Case Owner's decision, plus the CASE_MANAGER's
+    abandoning Reject for ER, never a Participant's Invite answer."""
+    assert _occasions_carrying(shorthand) == expected
+
+
+@pytest.mark.spec("MSM-02-010")
+@pytest.mark.spec("MSM-07-001")
+@pytest.mark.parametrize(
+    "anchor",
+    [
+        "agree-to-embargo-proposal",
+        "agree-to-embargo-revision",
+        "refuse-embargo-proposal",
+        "refuse-embargo-revision",
+    ],
+)
+def test_a_participants_invite_answer_carries_no_shorthand(anchor: str):
+    """A Participant's Accept/Reject(Invite) is its consent (MSM-02-010), and
+    its section still says the Case Owner decides on it (AC-2, #5309)."""
+    occasion = next(
+        o for e in SEMANTIC_REGISTRY for o in e.occasions if o.anchor == anchor
+    )
+    assert occasion.shorthand is None
+    assert occasion.addressee is AddresseeSide.CASE_MANAGER
+    assert "Case Owner" in occasion.description
+
+
+@pytest.mark.spec("MSM-02-006")
+@pytest.mark.spec("MSM-08-006")
+@pytest.mark.parametrize(
+    ("semantics", "expected"),
+    [
+        (MessageSemantics.ACTIVATE_EMBARGO_ON_CASE, MappingStatus.COLLAPSE),
+        (
+            MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
+            MappingStatus.COLLAPSE,
+        ),
+        (
+            MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
+            MappingStatus.EXPANSION,
+        ),
+        (
+            MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
+            MappingStatus.NONE,
+        ),
+    ],
+)
+def test_em_answer_and_decision_statuses_derive_from_the_shorthands(
+    semantics: MessageSemantics, expected: MappingStatus
+):
+    """ER on the abandoning Reject and on the owner's Reject is an expansion
+    for the Invite answer's entry; the owner's decision collapses two."""
+    entry = lookup_entry(semantics)
+    assert mapping_status(entry, SEMANTIC_REGISTRY) is expected
+
+
 # ---------------------------------------------------------------------------
 # "Sent by" (MSM-08-005).
 # ---------------------------------------------------------------------------

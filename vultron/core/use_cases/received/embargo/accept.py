@@ -1,4 +1,8 @@
-"""Received ``Accept(Invite(EmbargoEvent))`` (EA, EC) and its late Accept.
+"""Received ``Accept(Invite(EmbargoEvent))`` and its late Accept.
+
+The Accept is the sender's own consent to the proposed terms and carries no
+protocol shorthand (MSM-02-010): EA and EC are the Case Owner's decision,
+``Accept(EmbargoEvent)[target=VulnerabilityCase]`` (:mod:`.owner_decision`).
 
 One tree per delivery (CLP-10-005, ADR-0135): the door guards, the Invite
 expiry, the repeat guard, the P/X/A refusal and the late-Accept routing are
@@ -188,7 +192,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             refusal := pxa_refusal_verdict(
                 tree,
                 PXA_ACCEPT_REFUSAL,
-                f"EA for Invite '{invite_id}' on case '{case_id}'",
+                f"Accept of Invite '{invite_id}' on case '{case_id}'",
             )
         ) is not None:
             return refusal

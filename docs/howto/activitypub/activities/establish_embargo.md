@@ -47,12 +47,12 @@ flowchart TB
         EmProposeEmbargo["Embargo Proposal (EP) / Embargo Revision Proposal (EV)<br/>Invite(EmbargoEvent)"]
     end
     subgraph participant answers
-        EmAcceptEmbargo["Embargo Proposal Acceptance (EA) / Embargo Revision Acceptance (EC)<br/>Accept(Invite(EmbargoEvent))"]
-        EmRejectEmbargo["Embargo Proposal Rejection (ER) / Embargo Revision Rejection (EJ)<br/>Reject(Invite(EmbargoEvent))"]
+        EmAcceptEmbargo["Agree to the terms<br/>Accept(Invite(EmbargoEvent))"]
+        EmRejectEmbargo["Refuse the terms<br/>Reject(Invite(EmbargoEvent))"]
     end
     subgraph Case Owner decides
-        ActivateEmbargo["Activate the embargo<br/>Accept(EmbargoEvent)[target=VulnerabilityCase]"]
-        RejectEmbargoProposal["Reject the proposal<br/>Reject(EmbargoEvent)[target=VulnerabilityCase]"]
+        ActivateEmbargo["Embargo Proposal Acceptance (EA)<br/>Accept(EmbargoEvent)[target=VulnerabilityCase]"]
+        RejectEmbargoProposal["Embargo Proposal Rejection (ER)<br/>Reject(EmbargoEvent)[target=VulnerabilityCase]"]
     end
     subgraph as:Announce
         AnnounceEmbargo["Announce the embargo terms<br/>Announce(EmbargoEvent)"]
@@ -95,26 +95,26 @@ The receiver uses the EM state of the case (MSM-02).
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/relay-embargo-proposal.md" %}
 
-3. Each participant answers with Embargo Proposal Acceptance (EA), `Accept(Invite(EmbargoEvent))`, or Embargo Proposal Rejection (ER), `Reject(Invite(EmbargoEvent))`.
-   Either answer records only the consent of that participant.
+3. Each participant answers with Agree to proposed embargo terms, `Accept(Invite(EmbargoEvent))`, or Refuse proposed embargo terms, `Reject(Invite(EmbargoEvent))`.
+   Either answer records only the consent of that participant, so it carries no protocol shorthand.
    This rule also applies to an answer from the Case Owner.
    The case stays at `EM.PROPOSED`.
 
-    {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal-acceptance.md" %}
+    {% include-markdown "../../../reference/messages/_occasions/embeds/agree-to-embargo-proposal.md" %}
 
-    {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal-rejection.md" %}
+    {% include-markdown "../../../reference/messages/_occasions/embeds/refuse-embargo-proposal.md" %}
 
-4. When you judge that the proposal has carried, send `Accept(EmbargoEvent)` as Case Owner, with the proposed `EmbargoEvent` as its `object` and the case as its `target`.
+4. When you judge that the proposal has carried, send Embargo Proposal Acceptance (EA), `Accept(EmbargoEvent)`, as Case Owner, with the proposed `EmbargoEvent` as its `object` and the case as its `target`.
    The case moves to `EM.ACTIVE`.
    Your own consent to the terms is recorded at the same time.
 
-    {% include-markdown "../../../reference/messages/_occasions/embeds/activate-embargo.md" %}
+    {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal-acceptance.md" %}
 
 5. Send `Announce(EmbargoEvent)` so every participant has the terms in hand.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/announce-embargo.md" %}
 
-To reject the proposal, send `Reject(EmbargoEvent)` with the same `object` and `target` as Case Owner instead.
+To reject the proposal, send Embargo Proposal Rejection (ER), `Reject(EmbargoEvent)`, with the same `object` and `target` as Case Owner instead.
 The case returns to `EM.NONE`.
 The negotiation is then open again.
 Propose revised terms with another `Invite(EmbargoEvent)`.
