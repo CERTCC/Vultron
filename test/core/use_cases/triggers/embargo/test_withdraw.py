@@ -3,7 +3,7 @@
 A signatory leaves the embargo in force by sending ``Leave(EmbargoEvent)`` to
 the CASE_MANAGER (MSM-07-010).  The trigger resolves the embargo from the
 case's active embargo and needs no Invite; the reject trigger never
-withdraws (MSM-07-004).
+withdraws (MSM-07-014).
 """
 
 from typing import cast
@@ -291,6 +291,7 @@ def _reject_no_name(dl: SqliteDataLayer, actor_id: str, case_id: str):
 @pytest.mark.spec("MSM-07-004")
 @pytest.mark.spec("EP-08-002")
 @pytest.mark.spec("EP-09-016")
+@pytest.mark.spec("MSM-07-015")
 def test_a_no_name_reject_refuses_the_revision_and_never_withdraws(
     finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -315,6 +316,7 @@ def test_a_no_name_reject_refuses_the_revision_and_never_withdraws(
 
 @pytest.mark.spec("EP-09-013")
 @pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("MSM-07-015")
 def test_a_case_manager_signatorys_no_name_reject_keeps_it_bound(
     finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:

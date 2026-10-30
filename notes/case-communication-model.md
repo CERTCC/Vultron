@@ -231,7 +231,7 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
 
 - **A proposer's trigger writes no EM state** unless it holds the CASE_MANAGER role: it
   emits to the manager, records the ask in the pending-assertion store, and its replica
-  moves on the announced commit (EP-09-008, EP-09-014).
+  moves on the announced commit (EP-09-017, EP-09-018).
 - **A CASE_MANAGER deciding by trigger** writes, commits, and addresses nothing to
   itself (EP-09-008; `notes/embargo-lifecycle.md` § "Embargo Negotiation Relays
   Through the CASE_MANAGER"). The commit is the EK acknowledgement (EP-09-009).
@@ -272,7 +272,7 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
 | `reject_invite_to_embargo_on_case` from the CASE_MANAGER | `EmbargoAbandonment` | copies the `CANCEL` step of the proposal it rejects (EMB-16-001, ADR-0152) |
 | `undo_invite_to_embargo_on_case` (the CASE_MANAGER's `Undo` of an Invite it sent) | `EmbargoInviteWithdrawal` | copies the `CANCEL` step of the proposal; in place after the abandonment's first entry (EMB-16-001) |
 | `withdraw_from_embargo_on_case` (`Leave(EmbargoEvent)`) | `EmbargoWithdrawal` | stores the embargo if absent; writes no row: each row it declines follows as its own `update_embargo_consent` (MSM-07-010) |
-| `create_embargo_consent` / `update_embargo_consent` | `EmbargoConsent` | copies the row the CASE_MANAGER changed, an invitation expiry (`TIMED_OUT`, CM-28-014) and the CASE_MANAGER's own consent change (MSM-07-004) included; a no-op when the seed is past it, else refuses it and holds its Announce |
+| `create_embargo_consent` / `update_embargo_consent` | `EmbargoConsent` | copies the row the CASE_MANAGER changed, an invitation expiry (`TIMED_OUT`, CM-28-014) and the CASE_MANAGER's own consent change (MSM-07-017) included; a no-op when the seed is past it, else refuses it and holds its Announce |
 | `activate_embargo_on_case` (owner's `Accept(EmbargoEvent, target=Case)`) | `EmbargoActivation` | copies the `ACTIVATE` step (B `ACTIVE`, A `SUPERSEDED`) and the owner's `AGREED` row; each `CARRY_OVER` row follows as its own `update_embargo_consent` |
 | `reject_embargo_proposal_on_case` (owner's `Reject(EmbargoEvent, target=Case)`) | `EmbargoProposalRejection` | copies the `REJECT` step: B `REJECTED`, EM back to A (or `NONE`) once no proposal is open; no consent. After disclosure the CASE_MANAGER's teardown entry follows in the same act and terminates A (EMB-04-002, MSM-07-009); the replica copies both and decides nothing |
 | `remove_embargo_event_from_case` | `EmbargoTeardown` | copies the `TERMINATE` step for the embargo the entry names, with the `CANCEL` of every open proposal (EP-08-004); writes no row (MSM-07-006); an entry naming an embargo not in force here changes nothing |
@@ -284,7 +284,7 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
   participant is still a proposal (PCR-08-010).
 - The CASE_MANAGER never commits a `Reject(Invite(EmbargoEvent))` as its own consent:
   that shape from it is the abandonment, so its own consent change is its
-  `Update(EmbargoConsent)` of the row (MSM-07-004).
+  `Update(EmbargoConsent)` of the row (MSM-07-017).
 - Each apply node stores the snapshot's `EmbargoEvent` as it applies the entry,
   so `active_embargo` never names an unreadable record
   (EMB-18-003). A replica without the case skips; one with the case that cannot

@@ -275,7 +275,8 @@ sequenceDiagram
 
 In the next diagram, the Coordinator acts as a proxy for the Reporter.
 The Coordinator notifies the Vendor and sends the embargo information in an $RS,EP$ message of its own.
-The Vendor accepts the existing embargo (*EA*), and then validates (*RV*) and prioritizes (*RA*) the report.
+The Vendor agrees to the existing embargo, and then validates (*RV*) and prioritizes (*RA*) the report.
+The case's embargo is already active, so the Vendor's agreement is its own consent to the embargo, an `Accept` of the Invite, and not an *EA*: *EA* is the decision that moves the case's embargo from proposed to active.
 The Coordinator passes the relevant responses from the Vendor to the Reporter.
 
 The Vendor accepted the report for further work, so the Vendor then creates a fix for the reported vulnerability.
@@ -298,9 +299,9 @@ sequenceDiagram
     Reporter -->> Coordinator: CK
     activate Vendor
     note right of Vendor: Embargo Active
-    Vendor ->> Coordinator: EA
+    Vendor ->> Coordinator: Accept(Invite)
     activate Coordinator
-    Coordinator ->> Reporter: EA
+    Coordinator ->> Reporter: Accept(Invite)
     activate Reporter
     Vendor --> Vendor: Validate Report
     Coordinator -->> Vendor: EK

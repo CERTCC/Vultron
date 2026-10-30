@@ -14,9 +14,9 @@
 
 """The P/X/A refusal diversions' shape (BT-17-008, CLP-10-026).
 
-The ER is the receiver's own answer, so each refusal is a ``RECEIVER``
+The Reject is the receiver's own answer, so each refusal is a ``RECEIVER``
 diversion whose one emit is admitted by the ``EMBARGO_INVITE_REFUSAL``
-exemption; the factory refuses it otherwise.  The ER comes last, after the
+exemption; the factory refuses it otherwise.  The Reject comes last, after the
 checks that decide whether it can be sent at all.
 """
 
@@ -37,9 +37,9 @@ from vultron.core.behaviors.embargo.nodes.invite_answer import (
 )
 from vultron.core.behaviors.embargo.nodes.pxa_refusal import (
     EmbargoInviteNotYetRefusedNode,
-    ErFactoryAvailableNode,
     PxaBarsEmbargoNode,
     ReceiverIsInviteeNode,
+    RefusalFactoryAvailableNode,
     SendEmbargoProposalRefusalNode,
 )
 from vultron.core.behaviors.embargo.refusal_tree import (
@@ -72,7 +72,7 @@ def _invite_refusal(embargo: EmbargoEvent | None = None):
 
 @pytest.mark.spec("BT-17-008")
 @pytest.mark.spec("CLP-10-026")
-def test_the_invite_refusal_stores_checks_then_sends_the_er_last() -> None:
+def test_the_invite_refusal_stores_checks_then_sends_the_reject_last() -> None:
     embargo = EmbargoEvent(
         id_=f"{_CASE}/embargo_events/e1",
         context=_CASE,
@@ -87,11 +87,11 @@ def test_the_invite_refusal_stores_checks_then_sends_the_er_last() -> None:
     assert [type(n) for n in refusal.effects] == [
         PersistEmbargoEventNode,
         ReceiverIsInviteeNode,
-        ErFactoryAvailableNode,
+        RefusalFactoryAvailableNode,
         EmbargoInviteNotYetRefusedNode,
         SendEmbargoProposalRefusalNode,
     ]
-    assert refusal.effects[-1].name == "SendEmbargoRefusalER"
+    assert refusal.effects[-1].name == "SendEmbargoRefusal"
 
 
 @pytest.mark.spec("EMB-01-002")
@@ -102,7 +102,7 @@ def test_an_invite_naming_its_terms_by_uri_stores_no_terms() -> None:
     assert types[0] is ReceiverIsInviteeNode
 
 
-@pytest.mark.spec("EMB-02-002")
+@pytest.mark.spec("EMB-02-004")
 def test_the_accept_refusal_answers_the_accepter() -> None:
     refusal = pxa_accept_refusal(
         case_id=_CASE, invite_id=_INVITE, accepting_actor_id=_SENDER
@@ -110,7 +110,7 @@ def test_the_accept_refusal_answers_the_accepter() -> None:
 
     assert refusal.name == PXA_ACCEPT_REFUSAL
     assert [type(n) for n in refusal.effects] == [
-        ErFactoryAvailableNode,
+        RefusalFactoryAvailableNode,
         EmbargoInviteNotYetRefusedNode,
         SendEmbargoInviteAnswerNode,
     ]
@@ -121,6 +121,7 @@ def test_the_accept_refusal_answers_the_accepter() -> None:
 
 @pytest.mark.spec("CLP-10-026")
 @pytest.mark.spec("BT-17-008")
+@pytest.mark.spec("EMB-15-010")
 def test_the_factory_builds_each_refusal_in_place() -> None:
     tree = create_receive_activity_tree(
         name="Probe",

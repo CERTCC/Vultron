@@ -143,8 +143,9 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         )
         result = BTBridge(
             datalayer=self._dl,
-            # The ER, the late-Accept answers and the owner's acceptance of a
-            # shorter revision all emit (CM-31-009, EMB-17, EMB-02-002).
+            # The P/X/A Reject of the Invite, the late-Accept answers and the
+            # owner's acceptance of a shorter revision all emit (CM-31-009,
+            # EMB-17, EMB-02-004).
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,

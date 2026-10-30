@@ -163,7 +163,7 @@ def reject_is_withdrawal_refusal(
 
     A ``Reject(Invite(EmbargoEvent))`` of the embargo *in force* from an
     ``AGREED`` row would be a withdrawal, and withdrawal is
-    ``Leave(EmbargoEvent)`` (MSM-07-004, MSM-07-010), so it is refused.  A
+    ``Leave(EmbargoEvent)`` (MSM-07-014, MSM-07-010), so it is refused.  A
     Reject of the embargo in force from any other row, or of a proposal,
     is an answer and is not refused here.
     """
@@ -175,7 +175,7 @@ def reject_is_withdrawal_refusal(
     return (
         f"'{actor_id}' is AGREED on the embargo in force '{embargo_id}' of"
         f" case '{_as_id(case)}': a Reject does not withdraw from it;"
-        " withdrawal is Leave(EmbargoEvent) (MSM-07-004, MSM-07-010)"
+        " withdrawal is Leave(EmbargoEvent) (MSM-07-014, MSM-07-010)"
     )
 
 
@@ -336,7 +336,7 @@ class _PecEffectsMixin(_ActivationArmMixin):
         *proposed* embargo leaves the actor's row for the embargo in force
         untouched, so a signatory stays a signatory to it, and a Reject of the
         embargo in force answers it from a row that never agreed
-        (MSM-07-004).
+        (MSM-07-004, MSM-07-015).
 
         With *withdrawal* set — ``Leave(EmbargoEvent)`` from an ``AGREED``
         row for the embargo in force (MSM-07-010) — every open proposal the

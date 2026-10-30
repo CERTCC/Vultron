@@ -709,6 +709,8 @@ class TestApplyEmbargoAnswers:
     @pytest.mark.spec("MSM-07-004")
     @pytest.mark.parametrize("verb", ["Accept", "Reject"])
     @pytest.mark.parametrize("actor", [PARTICIPANT_ACTOR_ID, OWNER_ACTOR_ID])
+    @pytest.mark.spec("MSM-07-011")
+    @pytest.mark.spec("MSM-07-013")
     def test_an_answer_copies_the_row_it_states_and_decides_nothing(
         self, bridge, datalayer, revising_case, verb, actor
     ):

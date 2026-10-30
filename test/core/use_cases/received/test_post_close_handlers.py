@@ -16,7 +16,7 @@
 """Handlers that write or answer before their tree still honour CM-23-013.
 
 The factory's post-close guard stops a received tree before its commit and
-before any ER, late-Accept answer or ProcessingFault the tree would send.
+before any Reject, late-Accept answer or ProcessingFault the tree would send.
 After the CASE_MANAGER's own RM.CLOSED entry none of that may happen: it is
 ``REFUSED``, nothing is recorded and nothing is sent (CM-23-013, CM-23-017).
 """

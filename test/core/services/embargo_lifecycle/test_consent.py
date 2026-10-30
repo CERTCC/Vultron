@@ -13,7 +13,7 @@
 
 
 """record_participant_consent — PEC-only operations that leave EM state alone
-(consent.py), including the Reject that never withdraws (MSM-07-004) and the
+(consent.py), including the Reject that never withdraws (MSM-07-014) and the
 withdrawal that ``Leave(EmbargoEvent)`` records (MSM-07-010)."""
 
 from dataclasses import dataclass
@@ -220,6 +220,7 @@ def _move(
 
 @pytest.mark.spec("MSM-07-004")
 @pytest.mark.spec("CM-18-003")
+@pytest.mark.spec("MSM-07-014")
 def test_record_embargo_rejection_of_the_active_embargo_is_not_withdrawal(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -244,6 +245,7 @@ def test_record_embargo_rejection_of_the_active_embargo_is_not_withdrawal(
 
 
 @pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("MSM-07-015")
 def test_record_embargo_rejection_of_a_proposed_revision_keeps_a_signatory(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -795,7 +797,7 @@ def test_an_invitation_to_a_final_entry_is_closed_before_its_deadline(
 
 # ---------------------------------------------------------------------------
 # record_embargo_withdrawal — Leave(EmbargoEvent) (MSM-07-010), and the Reject
-# that never withdraws (MSM-07-004)
+# that never withdraws (MSM-07-014)
 # ---------------------------------------------------------------------------
 
 
@@ -967,7 +969,7 @@ def test_withdrawal_with_no_embargo_in_force_is_refused(
         )
 
 
-@pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("MSM-07-014")
 def test_a_reject_of_the_active_embargo_from_an_agreed_row_is_refused(
     revising: _Revising,
 ) -> None:
@@ -1007,6 +1009,7 @@ def test_a_reject_of_the_active_embargo_from_another_row_declines_it_only(
 
 
 @pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("MSM-07-015")
 def test_a_signatorys_reject_of_a_revision_keeps_it_bound(
     revising: _Revising,
 ) -> None:

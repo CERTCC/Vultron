@@ -40,6 +40,7 @@ from .conftest import (
 
 
 @pytest.mark.spec("EP-09-008")
+@pytest.mark.spec("EP-09-017")
 def test_non_manager_accept_embargo_asks_the_case_manager(
     finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -250,6 +251,7 @@ def test_accept_embargo_with_unknown_proposal_id_raises_not_found(
 
 
 @pytest.mark.spec("MSM-07-003")
+@pytest.mark.spec("MSM-07-011")
 def test_non_owner_manager_accept_is_consent_and_moves_no_register_entry(
     owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:

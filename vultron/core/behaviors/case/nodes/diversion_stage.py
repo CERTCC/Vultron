@@ -18,9 +18,9 @@
 Some deliveries are answered by an act of the receiver's own rather than by
 committing the received activity: the CASE_MANAGER honours, re-invites or
 acknowledges a late embargo ``Accept`` with an entry of its own (EMB-17), and
-a receiver answers an embargo Invite or Accept with ER once P/X/A is set
-(EMB-01-002, EMB-02-002).  Which arm runs is decided by the case at tick
-time, so the choice belongs in the tree, never in the use case (CLP-10-005,
+a receiver answers an embargo Invite or Accept with a ``Reject`` of the Invite
+once P/X/A is set (EMB-01-002, EMB-02-004).  Which arm runs is decided by
+the case at tick time, so the choice belongs in the tree, never in the use case (CLP-10-005,
 ADR-0135).
 
 A tree passes a :class:`Diversion` among its ``precondition_guards``;

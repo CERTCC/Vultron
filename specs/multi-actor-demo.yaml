@@ -3363,14 +3363,14 @@ groups:
     report submission and case setup, R proposes an embargo (EP). Case creation
     has already activated the default embargo (EP-04-001), so the case is at
     EM.ACTIVE before R proposes and R's proposal revises that embargo
-    (ACTIVE → REVISE). V and C accept (EA); C, as case owner, activates the
-    revision, returning EM to ACTIVE with the revision as the active embargo and
+    (ACTIVE → REVISE). V and C accept the Invite; C, as case owner, activates the
+    revision (EC), returning EM to ACTIVE with the revision as the active embargo and
     all three parties as signatories to it. The fix lifecycle then proceeds. Before
     the natural embargo window expires, C deliberately terminates the embargo
     (ET), advancing EM to EXITED. The case continues to the normal P-transition
     and closure sequence. This scenario is the first to exercise: (a) embargo
     proposal initiated after report submission (variation b), (b) the full
-    EP→EA→ET arc (propose, activate, terminate without a further revision),
+    EV→EC→ET arc (propose, activate, terminate without a further revision),
     (c) each party's consent row for the revised embargo passing through
     INVITED → AGREED (signatory to the active embargo) for all three parties.
   specs:
@@ -3661,18 +3661,19 @@ groups:
     Specifies the rcvv-embargo demo scenario: a 4-party CVD case with Reporter
     (R), Coordinator (C), Vendor1 (V1), and Vendor2 (V2), exercising embargo
     lifecycle variations (b) post-submission negotiation, (c) revision during
-    active embargo (EV→ER→EJ), (f) deliberate notification delay for V2
+    active embargo (EV→EC), (f) deliberate notification delay for V2
     (late invitation simulating a short-deadline vendor), and (d) accidental
     collapse via CS.P. After R proposes and C accepts an initial embargo (EP→EA),
     EM reaches ACTIVE with R, C, and V1 as signatories. C then proposes a
-    revision (EV), V1 accepts (EJ), and EM returns to ACTIVE with updated terms.
+    revision (EV), V1 accepts the revision Invite, C activates the revision (EC),
+    and EM returns to ACTIVE with updated terms.
     V2 is not invited until after the revision is accepted, simulating a
     coordinator holding off on inviting a short-deadline vendor until the
     embargo window is near its close. V2 accepts the case invite and becomes
     a signatory. Finally, R publishes (CS.P fires), triggering
     `ThreatTerminationBranchNode` which auto-terminates the embargo (EM→EXITED).
     This scenario is the first to exercise: (a) an embargo revision cycle
-    (EV→ER/EJ arc), (b) a late-invitee V2 joining an active embargo (consent
+    (EV→EC arc), (b) a late-invitee V2 joining an active embargo (consent
     row INVITED→AGREED after EM.ACTIVE), (c) accidental embargo collapse via
     external P-event rather than deliberate termination.
   specs:

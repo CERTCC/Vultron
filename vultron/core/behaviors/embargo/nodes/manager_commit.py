@@ -211,7 +211,7 @@ class CommitOwnConsentDecisionNode(
     ``Reject(Invite(EmbargoEvent))``: the CASE_MANAGER's ``Reject`` of a
     proposal is its abandonment of it (EMB-16-001, ADR-0152), so a replica
     reads every CASE_MANAGER-sent ``Reject`` as the cancel, and the
-    manager's own consent is its row's entry (MSM-07-004).  The deciding
+    manager's own consent is its row's entry (MSM-07-017).  The deciding
     lifecycle node before this one left an
     :class:`~vultron.core.behaviors.embargo.decided_entries.EmbargoDecision`
     in ``decision_from[EMBARGO_DECISION_KEY]``; the row its act states is

@@ -313,7 +313,7 @@ def _consent_states(
 @pytest.mark.spec("EP-09-003")
 @pytest.mark.spec("TB-06-007")
 def test_a_participant_with_pxa_set_rejects_a_relayed_invite_to_the_case_manager():
-    """A public case refuses the relayed Invite and answers ER (#4104)."""
+    """A public case refuses the relayed Invite and answers with a Reject (#4104)."""
     net = _Network("https://example.org/cases/relay-replay-pxa")
     _propose(net, "public", 90)
     _set_pxa(net, OWNER)
@@ -333,7 +333,7 @@ def test_a_participant_with_pxa_set_rejects_a_relayed_invite_to_the_case_manager
     # The refusal moves no case EM or consent state (EP-09-003).
     assert net.case(OWNER).current_status.em.state == em_before
     assert _consent_states(net, OWNER) == consent_before
-    # The ER reaches the CASE_MANAGER as a routable activity.
+    # The Reject reaches the CASE_MANAGER as a routable activity.
     ((type_, answered),) = net.deliver(OWNER, to=MANAGER, type_="Reject")
     assert answered.disposition is HandlerDisposition.APPLIED, (
         type_,
@@ -344,12 +344,14 @@ def test_a_participant_with_pxa_set_rejects_a_relayed_invite_to_the_case_manager
 @pytest.mark.spec("EMB-03-003")
 @pytest.mark.spec("EMB-01-002")
 @pytest.mark.spec("TB-06-007")
-def test_a_participant_with_pxa_set_answers_a_revision_with_er_never_et():
-    """A non-owner, non-manager answers a P/X/A revision with ER only.
+@pytest.mark.spec("EMB-03-004")
+def test_a_participant_with_pxa_set_answers_a_revision_with_a_reject_never_et():
+    """A non-owner, non-manager answers a P/X/A revision with a Reject only.
 
     Termination is the case owner's or the delegated CASE_MANAGER's to
     initiate (EMB-03-003, EP-09-003, ADR-0113): the participant's store
-    queues exactly one activity — the ER, to the CASE_MANAGER — and its
+    queues exactly one activity — the Reject of the Invite, to the
+    CASE_MANAGER (EMB-03-004) — and its
     EM state and active embargo stay as they were.
     """
     net = _Network("https://example.org/cases/relay-replay-pxa-revision")
@@ -421,9 +423,9 @@ def _receive_after_fetch(net: _Network, body: dict[str, Any]) -> Any:
 @pytest.mark.spec("SE-01-006")
 @pytest.mark.spec("AKM-05-007")
 def test_a_bare_uri_invite_with_pxa_set_gets_an_er_once_its_terms_are_fetched():
-    """Terms held by bare URI only: fetched, then the ER names the Invite.
+    """Terms held by bare URI only: fetched, then the Reject names the Invite.
 
-    The ER answers the Invite, not the terms (EMB-01-002), but a bare
+    The Reject answers the Invite, not the terms (EMB-01-002), but a bare
     ``object`` does not say the Invite is an embargo's (SE-01-006), so the
     receiver fetches the terms first (AKM-05-007) and then declines.
     """
@@ -443,16 +445,16 @@ def test_a_bare_uri_invite_with_pxa_set_gets_an_er_once_its_terms_are_fetched():
     sealed = read_sealed_body_dict(net.stores[OWNER], reject.id_)
     assert sealed is not None
     assert sealed["object"]["id"] == invite.id_
-    # The proposer understands it: the ER echoes the Invite as received, its
+    # The proposer understands it: the Reject echoes the Invite as received, its
     # terms bare, and the CASE_MANAGER, which holds them, rehydrates it.
     received = _receive_rehydrated(net, MANAGER, sealed)
     assert received.disposition is HandlerDisposition.APPLIED, received.reason
 
 
-@pytest.mark.spec("EMB-02-002")
 @pytest.mark.spec("TB-06-007")
+@pytest.mark.spec("EMB-02-004")
 def test_a_case_manager_with_pxa_set_rejects_a_participants_acceptance():
-    """A public case at the CASE_MANAGER answers an Accept with ER."""
+    """A public case at the CASE_MANAGER answers an Accept with a Reject."""
     net = _Network("https://example.org/cases/relay-replay-pxa-accept")
     _propose(net, "public-accept", 90)
     net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
@@ -462,7 +464,7 @@ def test_a_case_manager_with_pxa_set_rejects_a_participants_acceptance():
     ((_, verdict),) = net.deliver(BYSTANDER, to=MANAGER, type_="Accept")
 
     assert verdict.disposition is HandlerDisposition.REFUSED
-    assert verdict.reason is not None and "EMB-02-002" in verdict.reason
+    assert verdict.reason is not None and "EMB-02-004" in verdict.reason
     (reject,) = net.queued(MANAGER, to=BYSTANDER, type_="Reject")
     assert reject.to == [BYSTANDER]
     sealed = read_sealed_body_dict(net.stores[MANAGER], reject.id_)
@@ -502,7 +504,7 @@ def _pxa_invite_body(
 @pytest.mark.spec("HP-01-003")
 @pytest.mark.spec("TB-06-007")
 def test_a_redelivered_invite_with_pxa_set_is_refused_once():
-    """A re-delivery was answered on first arrival: no second ER."""
+    """A re-delivery was answered on first arrival: no second Reject."""
     net = _Network("https://example.org/cases/relay-replay-pxa-again")
     _propose(net, "public-again", 90)
     _set_pxa(net, OWNER)
@@ -521,7 +523,7 @@ def test_a_redelivered_invite_with_pxa_set_is_refused_once():
 @pytest.mark.spec("EMB-01-002")
 @pytest.mark.spec("HP-01-003")
 def test_an_invite_answered_before_pxa_is_not_contradicted_on_redelivery():
-    """An Invite accepted before the case went public gets no later ER."""
+    """An Invite accepted before the case went public gets no later Reject."""
     net = _Network("https://example.org/cases/relay-replay-pxa-late")
     _propose(net, "late", 90)
     (invite,) = net.queued(MANAGER, to=BYSTANDER, type_="Invite")
@@ -542,7 +544,7 @@ def test_an_invite_answered_before_pxa_is_not_contradicted_on_redelivery():
 @pytest.mark.spec("PCR-08-001")
 @pytest.mark.spec("HP-01-006")
 def test_a_participant_refuses_a_peers_invite_and_answers_nobody():
-    """A peer is no CASE_MANAGER: its Invite is refused and draws no ER.
+    """A peer is no CASE_MANAGER: its Invite is refused and draws no Reject.
 
     A participant takes an Invite from the CASE_MANAGER alone (EP-09-003,
     PCR-08-001, ADR-0115), so the peer's Invite is refused before the P/X/A
@@ -565,9 +567,9 @@ def test_a_participant_refuses_a_peers_invite_and_answers_nobody():
 def test_an_invite_with_pxa_set_addressed_to_another_actor_gets_no_er(caplog):
     """An unaddressed copy is refused at the door, and not answered.
 
-    EMB-01-002's ER duty binds only the addressee (ADR-0118, #4132): a
+    EMB-01-002's refusal binds only the addressee (ADR-0118, #4132): a
     store named in neither ``to`` nor ``cc`` runs no tree, so P/X/A is
-    never consulted and no ER is built.
+    never consulted and no Reject is built.
     """
     net = _Network("https://example.org/cases/relay-replay-pxa-misrouted")
     _set_pxa(net, BYSTANDER)
@@ -591,7 +593,7 @@ def test_an_invite_with_pxa_set_addressed_to_another_actor_gets_no_er(caplog):
 @pytest.mark.spec("HP-01-005")
 @pytest.mark.spec("HP-10-001")
 def test_a_cc_copy_of_an_invite_with_pxa_set_gets_no_er(caplog):
-    """A ``cc`` recipient is not addressed at all: no ER.
+    """A ``cc`` recipient is not addressed at all: no Reject.
 
     ``cc`` has no handler semantics and the extractor does not carry it into
     core (ADR-0109), so the copy is refused at the door check (HP-01-005)
@@ -915,7 +917,7 @@ def _faults(net: _Network, sender: str, to: str):
 def test_an_invite_with_zero_or_several_recipients_gets_a_processing_fault(
     recipients,
 ):
-    """A shape violation is received but not understood: fault, not ER."""
+    """A shape violation is received but not understood: fault, not a Reject."""
     net = _Network("https://example.org/cases/relay-replay-fault")
     _, body = _pxa_invite_body(net, MANAGER, OWNER, "shape")
     body["to"] = recipients
@@ -933,11 +935,11 @@ def test_an_invite_with_zero_or_several_recipients_gets_a_processing_fault(
     assert net.queued(OWNER, to=MANAGER, type_="Reject") == []
 
 
-@pytest.mark.spec("EMB-02-002")
+@pytest.mark.spec("EMB-02-004")
 @pytest.mark.spec("HP-01-003")
 @pytest.mark.spec("TB-06-007")
 def test_a_redelivered_accept_with_pxa_set_is_answered_once():
-    """The Accept-side refusal answers a repeated Accept once (EMB-02-002)."""
+    """The Accept-side refusal answers a repeated Accept once (EMB-02-004)."""
     net = _Network("https://example.org/cases/relay-replay-pxa-accept-again")
     _propose(net, "public-accept-again", 90)
     net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
@@ -968,13 +970,14 @@ def _refused_invite(net: _Network, suffix: str) -> dict[str, Any]:
 @pytest.mark.spec("EMB-01-002")
 @pytest.mark.spec("HP-01-003")
 @pytest.mark.spec("EMB-01-006")
+@pytest.mark.spec("EMB-01-007")
 def test_a_refusal_whose_queue_write_failed_is_queued_on_redelivery(
     monkeypatch,
 ):
-    """The ER is sealed before it is queued: a failed queue write loses nothing.
+    """The Reject is sealed before it is queued: a failed queue write loses nothing.
 
-    The sealed body is the record that the ER was sent, so a redelivery that
-    reads it as "already answered" must still see the ER queued (ID-04-005).
+    The sealed body is the record that the Reject was sent, so a redelivery that
+    reads it as "already answered" must still see the Reject queued (ID-04-005).
     """
     net = _Network("https://example.org/cases/relay-replay-pxa-queue-fails")
     body = _refused_invite(net, "queue-fails")
@@ -1003,7 +1006,7 @@ def test_a_refusal_whose_queue_write_failed_is_queued_on_redelivery(
 @pytest.mark.spec("EMB-01-002")
 @pytest.mark.spec("MSM-05-001")
 def test_a_refusal_with_no_trigger_port_stands_without_its_er(caplog):
-    """A receiver composed without the port refuses, says so, and sends no ER."""
+    """A receiver composed without the port refuses, says so, and sends no Reject."""
     net = _Network("https://example.org/cases/relay-replay-pxa-no-port")
     body = _refused_invite(net, "no-port")
 
@@ -1059,10 +1062,10 @@ def test_a_bare_uri_invite_on_a_private_case_is_fetched_and_not_answered():
     assert_held_only_as_received(net.stores[OWNER], body["id"])
 
 
-@pytest.mark.spec("EMB-02-002")
+@pytest.mark.spec("EMB-02-004")
 @pytest.mark.spec("HP-01-003")
-def test_an_accept_of_an_invite_the_receiver_does_not_hold_sends_no_er():
-    """An Accept naming an Invite this store never saw cannot be answered with ER."""
+def test_an_accept_of_an_invite_the_receiver_does_not_hold_sends_no_reject():
+    """An Accept naming an Invite this store never saw gets no Reject."""
     net = _Network("https://example.org/cases/relay-replay-pxa-accept-unheld")
     _propose(net, "accept-unheld", 90)
     net.deliver(MANAGER, to=BYSTANDER, type_="Invite")
@@ -1073,7 +1076,7 @@ def test_an_accept_of_an_invite_the_receiver_does_not_hold_sends_no_er():
     body["object"]["id"] = f"{net.case_id}/embargo_proposals/never-sent"
 
     # The sender guard refuses an Accept of an Invite the receiver never
-    # recorded before any ER is routed (HP-01-006, ADR-0115).
+    # recorded before any Reject is routed (HP-01-006, ADR-0115).
     result = net.receive(MANAGER, body)
 
     assert result.disposition is HandlerDisposition.REFUSED

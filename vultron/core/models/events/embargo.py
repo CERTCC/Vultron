@@ -388,7 +388,7 @@ class UpdateEmbargoConsentReceivedEvent(LedgerPositionedEvent):
 
     ``Update(EmbargoConsent)``: the CASE_MANAGER's own act, such as a
     ``CARRY_OVER`` at activation, an invitation's time-out or a change of its
-    own consent (MSM-07-004), committed as its ``update_embargo_consent``
+    own consent (MSM-07-017), committed as its ``update_embargo_consent``
     ledger entry.  No received use case handles it (ADR-0140 item 5).
     """
 
