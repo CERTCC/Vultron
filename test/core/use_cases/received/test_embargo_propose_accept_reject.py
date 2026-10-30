@@ -795,7 +795,10 @@ class TestInviteToEmbargoReceivedPxaGuard:
 
 
 class TestAcceptInviteToEmbargoReceivedPxaGuard:
-    """EMB-02-002: EA received when P/X/A set — block processing and emit ER."""
+    """EMB-02-002: an Accept of the Invite received when P/X/A is set is refused.
+
+    The receiver records no consent and answers with a Reject of the Invite.
+    """
 
     COORD_ID = "https://example.org/actors/coord-ea-pxa"
     CASE_ID = "https://example.org/cases/c-ea-pxa"
@@ -887,7 +890,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         coordinator_id = self.COORD_ID
 
         case = VulnerabilityCase(
-            id_=case_id, name="PXA clear EA", attributed_to=coordinator_id
+            id_=case_id, name="PXA clear Accept", attributed_to=coordinator_id
         )
         # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
         seed_store_owner_as_case_manager(dl, case)
@@ -939,7 +942,7 @@ class TestPxaRejectionAttribution:
     EMB-01-002 / EMB-02-002 name the *receiver* as the actor that emits ER:
     this store can only speak for its own actor, and emitting as the subject
     would impersonate it.  An EP is answered only by its invitee (EP-09-010),
-    so an EP naming another invitee gets no ER at all.  In the EA test the
+    so an EP naming another invitee gets no ER at all.  In the Accept test the
     accepting actor is both sender and subject, so it tells the receiver apart
     from the accepter but cannot tell "to the sender" apart from "to the
     subject".
@@ -1019,8 +1022,10 @@ class TestPxaRejectionAttribution:
         assert dl.outbox_list() == []
 
     @pytest.mark.spec("EMB-02-002")
-    def test_ea_rejection_is_sent_as_receiver_not_accepter(self, make_payload):
-        """An EA from the invitee is rejected as the receiving actor, to the invitee."""
+    def test_accept_refusal_is_sent_as_receiver_not_accepter(
+        self, make_payload
+    ):
+        """The invitee's Accept is refused as the receiving actor, to the invitee."""
         dl = self._dl()
         case_id = f"{self.CASE_ID}/ea"
         case, _, proposal = _make_pxa_case(

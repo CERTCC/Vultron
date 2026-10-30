@@ -285,6 +285,7 @@ def receiver_validates_report(
     return _receiver_answers_report(
         receiver_client,
         receiver,
+        offer_id,
         "validates",
         lambda session: session.validate_report(offer_id=offer_id, note=note),
     )
@@ -318,6 +319,7 @@ def receiver_invalidates_report(
     return _receiver_answers_report(
         receiver_client,
         receiver,
+        offer_id,
         "invalidates",
         lambda session: session.invalidate_report(
             offer_id=offer_id, note=note
@@ -362,20 +364,48 @@ def check_report_answer_recorded(
 def _receiver_answers_report(
     receiver_client: DataLayerClient,
     receiver: as_Actor,
+    offer_id: str,
     verb: str,
     answer: Callable[[ActorSession], WireTriggerResult],
 ) -> dict:
-    """Run one report-answer trigger for *receiver* inside a demo step."""
+    """Run one report-answer trigger for *receiver*, gated on its cause.
+
+    The answer goes to the CASE_MANAGER of the case opened on receipt, which
+    the receiver knows only once the CaseActor's ``Create(VulnerabilityCase)``
+    replica reaches its own store (ADR-0041, PCR-01-003).  That replica lands
+    after the report, on another actor's outbox delivery, so the trigger
+    waits for it inside a ``demo_gate`` (ADR-0058, DEMOCI-01-007).  Answering
+    first is refused: ``validate-report`` with HTTP 422, while
+    ``invalidate-report`` addresses the reporter, whose inbox has no case to
+    record it against (#5464).
+
+    Args:
+        receiver_client: Client connected to the receiver's container, bound
+            to the receiver's store.
+        receiver: Receiver ``as_Actor``.
+        offer_id: Full URI of the submit-report ``as_Offer`` being answered.
+        verb: The answer's verb, for the step label.
+        answer: Posts the trigger through the receiver's session.
+
+    Returns:
+        The trigger response dict, or ``{}`` when the gate or step failed
+        and was recorded.
+    """
     result: dict = {}
-    with demo_step(f"Receiver {verb} the vulnerability report"):
-        result = answer(
-            ActorSession(client=receiver_client, actor=receiver).quiet()
-        ).model_dump(exclude_none=True)
-    logger.info(
-        "Receiver %s report: trigger result for actor %s",
-        verb,
-        parse_id(receiver.id_)["object_id"],
-    )
+    with demo_gate(
+        f"case replica present in {receiver.id_}'s own store before it"
+        f" {verb} the report"
+    ):
+        wait_for_case_for_offer(receiver_client, offer_id)
+        with demo_step(f"Receiver {verb} the vulnerability report"):
+            result = answer(
+                ActorSession(client=receiver_client, actor=receiver).quiet()
+            ).model_dump(exclude_none=True)
+            logger.info(
+                "Receiver %s report: trigger result for actor %s",
+                verb,
+                parse_id(receiver.id_)["object_id"],
+            )
     return result
 
 

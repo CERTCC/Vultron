@@ -13,16 +13,17 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""EmbargoTeardownAuthorizationGate threat-termination BT node for add_participant_status_tree.
+"""Threat-termination BT node for add_participant_status_tree.
 
 Provides :class:`ThreatTerminationBranchNode` which fires embargo teardown
 when a CaseStatus signals a threat (CS.P, CS.X, or CS.A set): an active
 embargo is terminated, and while EM is ``PROPOSED`` every open proposal is
 abandoned instead (EMB-16-001, #4145).  It runs only at the CASE_MANAGER,
-after an adopted report (RSH-01-004); a replica learns the teardown from the
+after an adopted report (RSH-01-004), in the same act: the adoption also
+authorizes the teardown (ADR-0166).  A replica learns the teardown from the
 committed entries alone and asks nothing (RSH-03-004).
 
-Per RSH-03-001 to RSH-03-004, ADR-0046.
+Per RSH-03-001 to RSH-03-004, ADR-0046, ADR-0166.
 """
 
 import logging
@@ -200,14 +201,15 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
 
 
 class ThreatTerminationBranchNode(py_trees.composites.Selector):
-    """EmbargoTeardownAuthorizationGate: Trigger embargo teardown when CaseStatus signals a threat.
+    """Trigger embargo teardown when CaseStatus signals a threat.
 
     Fires when the CaseStatus has at least one of P=True, X=True, or A=True
     (any ``CS_pxa`` state other than ``pxa``) AND the case has an active
     embargo or an open proposal.
 
     Does NOT gate on sender role (RSH-03-002) — authorization was
-    already verified at StatusAdoptionGate before this node is reached.
+    already verified at StatusAdoptionGate before this node is reached, and
+    that adoption also authorizes this teardown (ADR-0166).
 
     Delegates to :func:`pxa_embargo_teardown_bt`: ``terminate_embargo_bt``
     for an active embargo (BT-19-002), ``reject_proposed_embargo_bt`` while
@@ -220,7 +222,7 @@ class ThreatTerminationBranchNode(py_trees.composites.Selector):
     - Child 2 ``TeardownSelector``: SUCCESS on teardown; FAILURE on routing
       prerequisites absent or dispatch failure (BT-14-001).
 
-    Per RSH-03-001 to RSH-03-004, ADR-0046.
+    Per RSH-03-001 to RSH-03-004, ADR-0046, ADR-0166.
     """
 
     def __init__(

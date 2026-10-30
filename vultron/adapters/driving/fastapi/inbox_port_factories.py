@@ -209,7 +209,8 @@ def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
     proposal — the behaviour the service had before the seam existed
     (BT-23-001, BT-23-011).  A deployment with an admission policy substitutes
     its own bundle here, the same way this module wires
-    ``STATUS_AUTHORIZATION_PERMISSIVE`` for the received-side status gates.
+    ``STATUS_AUTHORIZATION_PERMISSIVE`` for the received-side status adoption
+    gate.
     """
     return _with_actor_config(
         {
@@ -271,10 +272,10 @@ _EMBARGO_INVITE_SEMANTICS = frozenset(
 # carries none: it is admitted only at a participant replica, from the
 # CASE_MANAGER, and gates nothing (RSH-04-005).  The adapter
 # wires STATUS_AUTHORIZATION_PERMISSIVE (explicit trusted/demo configuration)
-# so the EmbargoTeardownAuthorizationGate and StatusAdoptionGate succeed
-# without a live Case Owner approval round-trip.  Production deployments that
-# implement the full Offer/Accept/Reject round-trip would inject a different
-# bundle here.
+# so the StatusAdoptionGate succeeds without a live Case Owner approval
+# round-trip; the adoption also authorizes the embargo teardown (ADR-0166).
+# Production deployments that implement the full Offer/Accept/Reject
+# round-trip would inject a different bundle here.
 _STATUS_AUTH_TRIGGER_SEMANTICS = frozenset(
     {
         # ADD_PARTICIPANT_STATUS_TO_PARTICIPANT triggers the downstream
@@ -284,16 +285,17 @@ _STATUS_AUTH_TRIGGER_SEMANTICS = frozenset(
 )
 
 
-# ANNOUNCE_CASE_LEDGER_ENTRY commits a replica entry and ANNOUNCE_VULNERABILITY_CASE
-# seeds the case (anchoring its genesis hash); either can make a held
-# Announce(CaseLedgerEntry) appliable.  That Announce, as it was received, is
-# replayed through the receiving actor's own inbox as a delivery of its own,
+# ANNOUNCE_CASE_LEDGER_ENTRY commits a replica entry, and ANNOUNCE_VULNERABILITY_CASE
+# and CREATE_CASE seed the case (anchoring its genesis hash); any of them can
+# make a held Announce(CaseLedgerEntry) appliable.  That Announce, as it was
+# received, is replayed through the receiving actor's own inbox as a delivery of its own,
 # through the InboxReplayPort (SYNC-14-009, SYNC-15-005, ADR-0135).  See
 # _inbox_replay_port_factory.
 _LEDGER_REPLAY_SEMANTICS = frozenset(
     {
         MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
         MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
+        MessageSemantics.CREATE_CASE,
     }
 )
 
@@ -312,9 +314,9 @@ def _status_auth_trigger_port_factory(dl: DataLayer) -> dict[str, Any]:
     """Inject trigger_activity + STATUS_AUTHORIZATION_PERMISSIVE.
 
     Used for ``ADD_PARTICIPANT_STATUS_TO_PARTICIPANT``.  Wires the permissive
-    authorization bundle (RSH-07-003, ADR-0076) so the
-    EmbargoTeardownAuthorizationGate and StatusAdoptionGate succeed in this
-    adapter's trusted/demo deployment context.
+    authorization bundle (RSH-07-003, ADR-0076) so the StatusAdoptionGate
+    succeeds in this adapter's trusted/demo deployment context; the adoption
+    also authorizes the embargo teardown (ADR-0166).
     """
     return {
         **_trigger_activity_port_factory(dl),

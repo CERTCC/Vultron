@@ -51,12 +51,14 @@ from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.core.services.held_ledger_announces import held_ledger_announces
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     announce_log_entry_activity,
     announce_vulnerability_case_activity,
+    create_case_activity,
 )
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -232,3 +234,76 @@ def test_pre_genesis_entries_converge_through_the_replay(dl, dispatcher):
     assert dl.read(_CASE_ID) is not None
     assert _stored(dl, entries) == [True, True]
     _assert_archive_is_what_was_delivered(dl, [*announces, seed])
+
+
+_REPORT_RECEIVER = "https://example.org/actors/report-receiver-rp"
+_REPORT_ID = "https://example.org/reports/report-replay"
+
+
+@pytest.mark.spec("SYNC-15-005")
+@pytest.mark.spec("SYNC-14-009")
+@pytest.mark.spec("CBT-01-001")
+def test_pre_genesis_entries_converge_on_the_report_receivers_introduction(
+    dl, dispatcher
+):
+    """The reporter's replica drains on the Create that introduces the case.
+
+    The report receiver, not the CASE_MANAGER, introduces the case to the
+    reporter with its own ``Create(VulnerabilityCase)`` (CBT-01-001,
+    ADR-0132), so the CASE_MANAGER's ledger fan-out can reach the reporter
+    first.  Seeding the case through that Create anchors the genesis hash
+    and must drain the held entries (SYNC-15-005), not leave them to the
+    CASE_MANAGER's rate-limited replay (#5521).
+    """
+    manager = CaseParticipant(
+        attributed_to=_CASE_MANAGER,
+        context=_CASE_ID,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    owner = CaseParticipant(
+        attributed_to=_REPORT_RECEIVER,
+        context=_CASE_ID,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    reporter = CaseParticipant(
+        attributed_to=_RECEIVER,
+        context=_CASE_ID,
+        case_roles=[CVDRole.REPORTER],
+    )
+    case = VulnerabilityCase(
+        id_=_CASE_ID,
+        attributed_to=_REPORT_RECEIVER,
+        case_participants=[manager, owner, reporter],
+        actor_participant_index={
+            _CASE_MANAGER: manager.id_,
+            _REPORT_RECEIVER: owner.id_,
+            _RECEIVER: reporter.id_,
+        },
+        vulnerability_reports=[_REPORT_ID],
+    )
+    entries = _chain(case.genesis_hash, 2)
+    # The reporter submitted the report to the report receiver, so it
+    # expects the case from that actor (CBT-01-005).
+    dl.save(
+        VultronReportCaseLink(
+            report_id=_REPORT_ID,
+            case_id=None,
+            case_creator_id=_REPORT_RECEIVER,
+        )
+    )
+
+    # The CASE_MANAGER's fan-out arrives before the introduction.
+    announces = [_announce_entry(entry) for entry in entries]
+    for body in announces:
+        _deliver(dl, dispatcher, body)
+    assert _stored(dl, entries) == [False, False]
+    assert len(held_ledger_announces(dl, _CASE_ID)) == 2
+
+    introduction = _body(
+        create_case_activity(case, actor=_REPORT_RECEIVER, to=[_RECEIVER])
+    )
+    _deliver(dl, dispatcher, introduction)
+
+    assert dl.read(_CASE_ID) is not None
+    assert _stored(dl, entries) == [True, True]
+    _assert_archive_is_what_was_delivered(dl, [*announces, introduction])

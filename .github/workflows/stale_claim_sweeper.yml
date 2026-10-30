@@ -28,6 +28,10 @@ jobs:
   sweep:
     name: Sweep stale claims
     runs-on: ubuntu-latest
+    # Observed: up to 24 s over the 15 latest successful runs (2026-10-30). Cap at 5
+    # min so a hang fails fast instead of holding a runner until GitHub's 6-h limit
+    # (TB-14-006).
+    timeout-minutes: 5
     env:
       GH_TOKEN: ${{ github.token }}
 

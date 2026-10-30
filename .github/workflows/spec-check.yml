@@ -35,6 +35,10 @@ jobs:
   spec-lint:
     name: Spec Lint
     runs-on: ubuntu-latest
+    # Observed: up to 1.4 min over the 15 latest successful runs (2026-10-30). Cap at
+    # 5 min so a hang fails fast instead of holding a runner until GitHub's 6-h limit
+    # (TB-14-006).
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/debounce-main-push
@@ -51,6 +55,10 @@ jobs:
   spec-tests:
     name: Spec Corpus Tests (pytest)
     runs-on: ubuntu-latest
+    # Observed: up to 2.4 min over the 15 latest successful runs (2026-10-30). Cap at
+    # 10 min so a hang fails fast instead of holding a runner until GitHub's 6-h limit
+    # (TB-14-006).
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -69,6 +77,10 @@ jobs:
   docs-path-ratchet:
     name: Codebase Docs Path Ratchet
     runs-on: ubuntu-latest
+    # Observed: up to 1.8 min over the 15 latest successful runs (2026-10-30). Cap at
+    # 10 min so a hang fails fast instead of holding a runner until GitHub's 6-h limit
+    # (TB-14-006).
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/debounce-main-push
@@ -82,6 +94,10 @@ jobs:
   notify:
     name: Notify CI failure
     runs-on: ubuntu-latest
+    # Observed: up to 48 s over its latest successful runs (2026-10-30). Cap at 5 min
+    # so a hang fails fast instead of holding a runner until GitHub's 6-h limit
+    # (TB-14-006).
+    timeout-minutes: 5
     needs: [spec-lint, spec-tests, docs-path-ratchet]
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:

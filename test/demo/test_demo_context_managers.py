@@ -417,6 +417,11 @@ class TestUnboundLocalErrorRegression:
             "vultron.demo.actor_session.post_to_trigger",
             MagicMock(side_effect=RuntimeError("trigger failed")),
         )
+        # The case copy is present, so the answer's gate opens and the
+        # failing trigger is what this test exercises (#5464).
+        monkeypatch.setattr(
+            workflow_mod, "wait_for_case_for_offer", MagicMock()
+        )
 
         receiver = MagicMock()
         receiver.id_ = "http://example.com/api/v2/actors/vendor-1"
@@ -427,6 +432,8 @@ class TestUnboundLocalErrorRegression:
             offer_id="offer-abc",
         )
         assert result == {}
+        assert len(demo_utils._demo_failures) == 1
+        assert demo_utils._demo_failures[0].startswith("STEP FAILED")
 
     def test_receiver_engages_case_returns_none_on_trigger_failure(
         self, monkeypatch

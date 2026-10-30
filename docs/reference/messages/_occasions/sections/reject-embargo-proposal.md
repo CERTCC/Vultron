@@ -2,16 +2,18 @@
 
 ## Reject embargo proposal { #reject-embargo-proposal }
 
-Rejects the proposal for the case. An active embargo stays in force on its current terms.
+Rejects the proposal for the case. The case has no embargo once no other proposal is open.
 
 === "Details"
 
-    - **When…** the Case Owner decides to reject a proposed embargo
+    - **When…** the Case Owner decides to reject a proposed embargo for a case with no active embargo
     - **Send:** `Reject(EmbargoEvent)[target=VulnerabilityCase]`
     - **Send to:** the case manager
     - **Sent by:** the case owner
-    - **Seen in:** [How to Establish an Embargo](../../../../howto/activitypub/activities/establish_embargo.md), [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)
-    - **Mapping status:** [none](../../index.md#mapping-status)
+    - **Distinguished by:** EM state `PROPOSED`
+    - **Seen in:** [How to Establish an Embargo](../../../../howto/activitypub/activities/establish_embargo.md)
+    - **Formal definition:** [Embargo Proposal Rejection (ER)](../../../formal_protocol/messages.md#em-message-types)
+    - **Mapping status:** [collapse](../../index.md#mapping-status)
 
 === "Example activity"
 

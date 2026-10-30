@@ -2,12 +2,13 @@
 
 !!! info "Reject embargo proposal"
 
-    Rejects the proposal for the case. An active embargo stays in force on its current terms.
+    Rejects the proposal for the case. The case has no embargo once no other proposal is open.
 
-    - **When…** the Case Owner decides to reject a proposed embargo
+    - **When…** the Case Owner decides to reject a proposed embargo for a case with no active embargo
     - **Send:** `Reject(EmbargoEvent)[target=VulnerabilityCase]`
     - **Send to:** the case manager
     - **Sent by:** the case owner
+    - **Distinguished by:** EM state `PROPOSED`
     - **Reference:** [Reject embargo proposal](../../em.md#reject-embargo-proposal)
 
     ??? example "Example activity"

@@ -18,8 +18,8 @@ A per-test ``signal`` timeout cannot reach a C call that holds the GIL or a
 stuck xdist controller, so the outer ceiling is the only thing that ends such
 a run (TB-14-005, #4809).  The printed ``targeted-tests --pytest`` command is
 pinned in ``test_targeted_tests.py``; this module pins the written commands
-an agent copies and the CI job, and every other ``python-app.yml`` job
-(TB-14-006).
+an agent copies and the CI test job, and the ``timeout-minutes`` cap on every
+job in every workflow (TB-14-006).
 
 Human developer how-to pages under ``docs/developer/`` are out of scope: stock
 macOS has no ``timeout`` binary.
@@ -27,10 +27,11 @@ macOS has no ``timeout`` binary.
 
 import re
 from pathlib import Path
+from typing import Any
 
 import pytest
-import yaml
 
+from test.ci._workflows import WORKFLOWS_DIR, load_workflow, workflow_files
 from vultron.metadata.planning.targeted_tests import GATE_CEILING
 
 _REPO_ROOT = Path(__file__).parents[2]
@@ -107,12 +108,7 @@ def test_agent_gate_command_runs_under_the_ceiling(rel_path: str) -> None:
 
 
 def _python_app_jobs() -> dict[str, object]:
-    workflow = yaml.safe_load(
-        (_REPO_ROOT / ".github/workflows/python-app.yml").read_text(
-            encoding="utf-8"
-        )
-    )
-    jobs = workflow["jobs"]
+    jobs = load_workflow(WORKFLOWS_DIR / "python-app.yml")["jobs"]
     assert isinstance(jobs, dict)
     return jobs
 
@@ -126,23 +122,85 @@ def test_ci_test_job_has_a_timeout() -> None:
     )
 
 
-def test_all_python_app_jobs_have_timeouts() -> None:
-    """Every job in python-app.yml has a ``timeout-minutes`` cap (TB-14-006).
+def _uncapped_jobs(file_name: str, wf_data: dict[str, Any]) -> list[str]:
+    """Return ``<file>:<job>`` for each job with no positive ``timeout-minutes``.
+
+    A job that calls a reusable workflow (``uses:``) is skipped: GitHub rejects
+    ``timeout-minutes`` there, and the called workflow's jobs carry the cap.
+    A ``bool`` is an ``int`` to Python, so ``timeout-minutes: true`` is refused
+    explicitly.
+    """
+    jobs = wf_data.get("jobs")
+    # A file with no jobs would pass while checking nothing.
+    assert isinstance(jobs, dict) and jobs, (
+        f"{file_name} has no non-empty `jobs:` mapping"
+    )
+    missing = []
+    for job_key, job_spec in jobs.items():
+        if isinstance(job_spec, dict) and "uses" in job_spec:
+            continue
+        minutes = (
+            job_spec.get("timeout-minutes")
+            if isinstance(job_spec, dict)
+            else None
+        )
+        if (
+            isinstance(minutes, bool)
+            or not isinstance(minutes, int)
+            or minutes <= 0
+        ):
+            missing.append(f"{file_name}:{job_key}")
+    return missing
+
+
+def test_detector_flags_an_uncapped_job_and_skips_a_reusable_call() -> None:
+    wf_data: dict[str, Any] = {
+        "jobs": {
+            "capped": {"runs-on": "ubuntu-latest", "timeout-minutes": 5},
+            "uncapped": {"runs-on": "ubuntu-latest"},
+            "zero": {"runs-on": "ubuntu-latest", "timeout-minutes": 0},
+            "boolean": {"runs-on": "ubuntu-latest", "timeout-minutes": True},
+            "call": {"uses": "./.github/workflows/docs-build-check.yml"},
+            "null": None,
+        }
+    }
+    assert _uncapped_jobs("x.yml", wf_data) == [
+        "x.yml:uncapped",
+        "x.yml:zero",
+        "x.yml:boolean",
+        "x.yml:null",
+    ]
+
+
+@pytest.mark.parametrize("wf_data", [{}, {"jobs": {}}, {"jobs": ["a"]}])
+def test_detector_refuses_a_workflow_with_no_jobs(
+    wf_data: dict[str, Any],
+) -> None:
+    with pytest.raises(AssertionError, match=r"x\.yml has no non-empty"):
+        _uncapped_jobs("x.yml", wf_data)
+
+
+def test_discovery_finds_every_workflow_file() -> None:
+    names = {p.name for p in workflow_files()}
+    # python-app.yml has the gate jobs; docs-publish-check.yml has only a
+    # reusable-workflow call, so it must be read and skipped, not missed.
+    assert {"python-app.yml", "docs-publish-check.yml"} <= names
+
+
+def test_every_workflow_job_has_a_timeout() -> None:
+    """Every job in every workflow has a ``timeout-minutes`` cap (TB-14-006).
 
     A job without a cap runs until GitHub's default limit, so a hung linter
     or build step holds a runner for hours and shows as ``cancelled`` in
-    ``gh pr checks`` (#2076).
+    ``gh pr checks`` (#2076). Scheduled and issue-triggered jobs hang the same
+    way with nobody watching (#5507).
     """
     missing = [
-        job_key
-        for job_key, job_spec in _python_app_jobs().items()
-        if not (
-            isinstance(job_spec, dict)
-            and isinstance(job_spec.get("timeout-minutes"), int)
-            and job_spec["timeout-minutes"] > 0
-        )
+        entry
+        for path in workflow_files()
+        for entry in _uncapped_jobs(path.name, load_workflow(path))
     ]
     assert not missing, (
-        "These python-app.yml jobs lack `timeout-minutes` (TB-14-006): "
-        + ", ".join(missing)
+        "These workflow jobs lack a positive integer `timeout-minutes` "
+        "(TB-14-006): " + ", ".join(missing)
     )

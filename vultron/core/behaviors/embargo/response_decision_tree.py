@@ -53,7 +53,7 @@ Tree structure (EMB-15, ADR-0046)::
 
 Spec: ``specs/em-behavior.yaml`` EMB-15 through EMB-15-004.
 Per: ``docs/adr/0025-call-out-point-abstraction-layer.md`` (call-out injection),
-     ``docs/adr/0046-received-status-authorization.md`` (two-seam authorization).
+     ``docs/adr/0046-received-status-authorization.md`` (status adoption gate).
 """
 
 import logging

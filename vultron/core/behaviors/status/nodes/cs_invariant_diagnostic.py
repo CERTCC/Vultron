@@ -57,11 +57,13 @@ class PxaEmInvariantDiagnosticNode(_CommitCaseManagerNoteBase):
     The node runs in the tree's CASE_MANAGER-gated effects, as every commit
     of a CASE_MANAGER act does.
 
-    This node runs whether or not the authorization gate permitted teardown,
-    because :func:`~vultron.core.behaviors.status.add_participant_status_tree.add_participant_status_tree`
-    wraps the gate and teardown in a ``FailureIsSuccess`` decorator.  Reading
-    fresh DataLayer state after that block therefore reflects the post-teardown
-    (or post-block) EM value, allowing accurate post-hoc detection.
+    The adoption authorizes the teardown, so on the authorized path the
+    teardown has ended the embargo and this node finds no violation
+    (ADR-0166).  It is a safety net for a teardown that fails for another
+    reason: :func:`~vultron.core.behaviors.status.add_participant_status_tree.add_participant_status_tree`
+    wraps the teardown in a ``FailureIsSuccess`` decorator, so this node
+    still runs, and reading fresh DataLayer state reflects the post-teardown
+    (or failed-teardown) EM value, allowing accurate post-hoc detection.
 
     No violation, no case context or an unresolvable case is a no-op
     SUCCESS (lenient diagnostic, ADR-0087).  The note is best-effort: a

@@ -2,14 +2,14 @@
 
 ## Embargo Proposal Acceptance (EA) { #embargo-proposal-acceptance }
 
-Records the sender's own consent to the proposed terms. The embargo becomes active only when the Case Owner sends its decision.
+Activates the proposal for the case. Any other open proposal stays open as a revision.
 
 === "Details"
 
-    - **When…** a Participant agrees to proposed embargo terms
-    - **Send:** `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])`
+    - **When…** the Case Owner decides to activate a proposed embargo for a case with no active embargo
+    - **Send:** `Accept(EmbargoEvent)[target=VulnerabilityCase]`
     - **Send to:** the case manager
-    - **Sent by:** the invitee
+    - **Sent by:** the case owner
     - **Distinguished by:** EM state `PROPOSED`
     - **Seen in:** [How to Establish an Embargo](../../../../howto/activitypub/activities/establish_embargo.md)
     - **Formal definition:** [Embargo Proposal Acceptance (EA)](../../../formal_protocol/messages.md#em-message-types)
@@ -19,9 +19,9 @@ Records the sender's own consent to the proposed terms. The embargo becomes acti
 
     ```python exec="true" idprefix=""
     from vultron.wire.as2.vocab.examples.vocab_examples import (
-        accept_embargo,
+        activate_embargo,
         json2md,
     )
 
-    print(json2md(accept_embargo()))
+    print(json2md(activate_embargo()))
     ```

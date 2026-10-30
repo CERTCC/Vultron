@@ -47,7 +47,7 @@ The four formal-model pages end with a section for each shorthand that has no de
 <!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
 
 - [Report Management (RM)](rm.md) — Wire activities for the Report Management message types RS, RI, RV, RD, RA, RC, RK, and RE.
-- [Embargo Management (EM)](em.md) — Wire activities for the Embargo Management message types EP, ER, EA, EV, EJ, EC, ET, EK, and EE, the Case Owner's decision on a proposal, and a participant's withdrawal from the embargo in force.
+- [Embargo Management (EM)](em.md) — Wire activities for the Embargo Management message types EP, ER, EA, EV, EJ, EC, ET, EK, and EE, a participant's consent to a proposal, the Case Owner's decision on a proposal, and a participant's withdrawal from the embargo in force.
 - [Case State (CS)](cs.md) — Wire activities for the Case State message types CV, CF, CD, CP, CX, CA, CK, and CE.
 - [General (GI)](general.md) — Wire activities for the General message types GI, GK, and GE.
 - [Faults and Acknowledgments](faults_and_acknowledgements.md) — The fault trichotomy and the cumulative hash-chain acknowledgment.

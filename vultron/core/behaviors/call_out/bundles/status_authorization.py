@@ -16,28 +16,28 @@
 Provides :class:`StatusAuthorizationCallOutBundle` and the two pre-built core
 singletons:
 
-- :data:`STATUS_AUTHORIZATION_DETERMINISTIC` — conservative default; both gates
-  use :class:`~vultron.core.behaviors.call_out.nodes.RequireCaseOwnerApprovalNode`
-  (ADR-0076, RSH-07-001, RSH-07-002).
+- :data:`STATUS_AUTHORIZATION_DETERMINISTIC` — conservative default; the
+  adoption gate uses
+  :class:`~vultron.core.behaviors.call_out.nodes.RequireCaseOwnerApprovalNode`
+  (ADR-0076, RSH-07-001).
 - :data:`STATUS_AUTHORIZATION_PERMISSIVE` — explicit override for demos and
-  trusted-participant deployments; both gates use ``AlwaysSucceed`` (RSH-07-003).
+  trusted-participant deployments; the adoption gate uses ``AlwaysSucceed``
+  (RSH-07-003).
 
 The matching STOCHASTIC singleton lives in the simulation layer
 (:data:`vultron.demo.fuzzer.bundles.status_authorization.STATUS_AUTHORIZATION_STOCHASTIC`).
 
-The two fields back the two authorization gates of the received-side
-CaseStatus canonicalization model (ADR-0046):
+The one field backs the one authorization gate of the received-side
+CaseStatus canonicalization model (ADR-0046, ADR-0166):
 
-- ``status_adoption_gate_factory`` — StatusAdoptionGate, the ``CaseOwnerApprovesStatusUpdate``
-  Evaluator call-out inside the ``StatusAdoptionGate`` Fallback in
-  ``add_participant_status_tree``.  Decides whether a non-owner participant's
-  reported CaseStatus is adopted as canonical (RSH-01).
-- ``embargo_teardown_authorization_gate_factory`` — EmbargoTeardownAuthorizationGate, the ``EmbargoTeardownAuthorizationGate`` Evaluator
-  call-out in ``add_participant_status_tree``.  Gates execution of
-  ``ThreatTerminationBranchNode`` (embargo teardown) after the canonical write
-  (RSH-02).
+- ``status_adoption_gate_factory`` — StatusAdoptionGate, the
+  ``CaseOwnerApprovesStatusUpdate`` Evaluator call-out inside the
+  ``StatusAdoptionGate`` Fallback in ``add_participant_status_tree``.  Decides
+  whether a non-owner participant's reported CaseStatus is adopted as
+  canonical (RSH-01).  Adopting a P, X or A value also authorizes the embargo
+  teardown that value calls for, so no second gate asks again (ADR-0166).
 
-Security-significant gate exception (ADR-0076): both gates control unilateral
+Security-significant gate exception (ADR-0076): the gate controls unilateral
 state change, so the DETERMINISTIC default MUST be ``RequireCaseOwnerApproval``
 (most restrictive), not ``AlwaysSucceed``.  Permissive behavior requires an
 explicit ``STATUS_AUTHORIZATION_PERMISSIVE`` override (RSH-07-003).
@@ -47,8 +47,9 @@ References
 - ADR-0025: ``docs/adr/0025-call-out-point-abstraction-layer.md``
 - ADR-0046: ``docs/adr/0046-received-status-authorization.md``
 - ADR-0076: ``docs/adr/0076-security-significant-gates-default-require-case-owner-approval.md``
+- ADR-0166: ``docs/adr/0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md``
 - Spec: ``specs/behavior-tree-integration.yaml`` BT-23;
-  ``specs/received-status-handling.yaml`` RSH-01, RSH-02, RSH-07
+  ``specs/received-status-handling.yaml`` RSH-01, RSH-07
 - Notes: ``notes/received-status-authorization.md``,
   ``notes/call-out-configuration.md``
 """
@@ -79,18 +80,17 @@ def _require_case_owner_approval(name: str) -> py_trees.behaviour.Behaviour:
 class StatusAuthorizationCallOutBundle(CallOutBundle):
     """Call-out backend bundle for the received-side status authorization domain.
 
-    Fields map to the two authorization gates of ADR-0046:
+    The one field maps to the adoption gate (ADR-0046):
 
     - ``status_adoption_gate_factory`` → the ``CaseOwnerApprovesStatusUpdate``
       Evaluator call-out in
       :func:`~vultron.core.behaviors.status.add_participant_status_tree.add_participant_status_tree`
       (StatusAdoptionGate).
-    - ``embargo_teardown_authorization_gate_factory`` → the ``EmbargoTeardownAuthorizationGate`` Evaluator
-      call-out in
-      :func:`~vultron.core.behaviors.status.add_participant_status_tree.add_participant_status_tree`
-      (EmbargoTeardownAuthorizationGate), after the canonical write.
 
-    Both default to ``RequireCaseOwnerApprovalNode`` (conservative: blocks
+    The adoption also authorizes the embargo teardown an adopted P, X or A
+    value calls for; the bundle has no teardown gate (ADR-0166).
+
+    It defaults to ``RequireCaseOwnerApprovalNode`` (conservative: blocks
     until Case Owner approves).  Use :data:`STATUS_AUTHORIZATION_PERMISSIVE`
     for demos and trusted-participant deployments (RSH-07-003, ADR-0076).
     """
@@ -98,19 +98,16 @@ class StatusAuthorizationCallOutBundle(CallOutBundle):
     status_adoption_gate_factory: CallOutBackendFactory = field(
         default=_require_case_owner_approval  # type: ignore[assignment]
     )
-    embargo_teardown_authorization_gate_factory: CallOutBackendFactory = field(
-        default=_require_case_owner_approval  # type: ignore[assignment]
-    )
 
 
 STATUS_AUTHORIZATION_DETERMINISTIC = StatusAuthorizationCallOutBundle()
-"""Conservative deterministic bundle: both seams use RequireCaseOwnerApprovalNode (ADR-0076, RSH-07-001, RSH-07-002)."""
+"""Conservative deterministic bundle: the adoption gate uses
+RequireCaseOwnerApprovalNode (ADR-0076, RSH-07-001)."""
 
 STATUS_AUTHORIZATION_PERMISSIVE = StatusAuthorizationCallOutBundle(
     status_adoption_gate_factory=_always_succeed,  # type: ignore[arg-type]
-    embargo_teardown_authorization_gate_factory=_always_succeed,  # type: ignore[arg-type]
 )
-"""Permissive bundle: both seams use AlwaysSucceed.
+"""Permissive bundle: the adoption gate uses AlwaysSucceed.
 
 MUST be explicitly configured — never the default (RSH-07-003, ADR-0076).
 Suitable for demos and trusted-participant deployments only.
