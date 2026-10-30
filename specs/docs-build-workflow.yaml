@@ -309,8 +309,9 @@ groups:
           release. Each docs pull request is checked at its merge result, and the
           deploy re-checks the commit it ships, covering a change the review's
           path filter missed.
-          Every recorded page was live, so the record has one kind of entry: a
-          page renamed after it merged needs a redirect like any other. See
+          The record has one kind of entry, so a page counts as served once it
+          is recorded: a page renamed after it merged needs a redirect even if
+          no deploy shipped it, which is cheap. See
           `notes/documentation-strategy.md`.
         verification: >-
           A `docs-legacy-urls` mode (`vultron/metadata/docs/legacy_urls.py`)
