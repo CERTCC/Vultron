@@ -865,17 +865,17 @@ groups:
       A PR-only growth guard MUST fail a pull request that gives a requirement a
       `verification_debt:` marker its merge-base version lacked. A marker naming a
       different issue there counts as a new marker. A marker removed, or moved with its
-      requirement to another file, does not. Nor does the same marker on a new ID whose
-      own `relationships:` name a requirement that carried it at the merge base. The
-      guard lists each such requirement and compares against no committed count.
+      requirement to another file, does not. Nor does the same marker on a split child.
+      A split child is a new ID whose own `relationships:` name a split parent or
+      another split child. A split parent carried the marker at the merge base, and the
+      pull request rewrote or removed its statement. The guard lists each such
+      requirement and compares against no committed count.
     rationale: >-
-      spec-lint judges each marker alone, so it passes a new unverified requirement that
-      arrives with a marker. It also passes a relabel that re-points its marker at the
-      destination kind's owner, which MS-10-008 forbids. Either adds debt to a backlog
-      that may only shrink. Splitting a compound requirement (MS-03-001) adds none: it
-      moves one unverified obligation to a new ID, which links back to the original.
-      Comparing per-item sets with the merge base leaves no committed number for
-      concurrent pull requests to race on (#3984).
+      spec-lint judges each marker alone, so it passes a new unverified requirement
+      with a marker, and a relabel that re-points its marker at the destination kind's
+      owner (MS-10-008). Either adds debt to a backlog that may only shrink. A split
+      (MS-03-001) adds none: it moves an obligation out of a parent it trims. Comparing
+      per-item sets with the merge base leaves no committed number to race on (#3984).
     verification: >-
       `test/architecture/test_verification_debt_guard.py::test_no_pr_adds_a_verification_debt_marker`
       runs the guard on the live corpus, and the `test_debt_*` tests in
@@ -883,8 +883,9 @@ groups:
       verified requirement, a removed marker, an edited marked requirement, a marker
       moved to another file, a relabel that keeps or re-points its marker, a split
       child or grandchild that keeps or re-points its parent's marker, a child of a
-      verified or newly marked parent, an existing ID that gains a link, and a
-      skipped run with no base ref that logs its reason.
+      verified, newly marked, untouched or removed parent, a child with several links,
+      an existing ID that gains a link, and a skipped run with no base ref that logs
+      its reason.
     relationships:
     - rel_type: refines
       spec_id: MS-10-007

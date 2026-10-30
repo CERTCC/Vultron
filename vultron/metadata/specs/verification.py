@@ -176,11 +176,13 @@ class DebtSnapshot:
         markers: Each marked requirement's ID mapped to its marker.
         links: Each requirement's ID mapped to the IDs its own
             ``relationships:`` name.
+        statements: Each requirement's ID mapped to its ``statement:``.
     """
 
     ids: frozenset[str]
     markers: Mapping[str, str]
     links: Mapping[str, frozenset[str]]
+    statements: Mapping[str, str]
 
 
 def _debt_item(spec_id: str, marker: str) -> str:
@@ -201,22 +203,33 @@ def debt_snapshot(repo_root: Path) -> DebtSnapshot:
             spec_id: frozenset(r.spec_id for r in spec.relationships or ())
             for spec_id, spec in specs.items()
         },
+        statements={
+            spec_id: spec.statement for spec_id, spec in specs.items()
+        },
     )
 
 
 def added_debt(base: DebtSnapshot, head: DebtSnapshot) -> frozenset[str]:
     """Markers *head* has that *base* lacked, less those split off (MS-10-016).
 
-    A requirement split into several IDs keeps its debt: a new ID whose own
-    ``relationships:`` name a requirement that carried the same marker at the
-    base, or that is itself such a split child, is not new debt. An ID the base
-    already had is never a split child, so a marker it gains is still added.
+    A requirement split into several IDs keeps its debt. A new ID is a split
+    child, not new debt, when its own ``relationships:`` name a requirement
+    that carried the same marker at the base and whose statement the change
+    rewrote or removed, or name another split child with the same marker. A
+    split always trims its parent, so a link to an untouched requirement
+    cannot carry debt in. An ID the base already had is never a split child.
     """
     added = {
         spec_id: marker
         for spec_id, marker in head.markers.items()
         if base.markers.get(spec_id) != marker
     }
+
+    def split_parent(parent: str, marker: str) -> bool:
+        return base.markers.get(parent) == marker and head.statements.get(
+            parent
+        ) != base.statements.get(parent)
+
     split: set[str] = set()
     grew = True
     while grew:
@@ -225,7 +238,7 @@ def added_debt(base: DebtSnapshot, head: DebtSnapshot) -> frozenset[str]:
             if spec_id in split or spec_id in base.ids:
                 continue
             if any(
-                base.markers.get(parent) == marker
+                split_parent(parent, marker)
                 or (parent in split and head.markers.get(parent) == marker)
                 for parent in head.links.get(spec_id, frozenset())
             ):
