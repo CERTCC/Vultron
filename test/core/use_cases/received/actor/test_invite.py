@@ -536,6 +536,7 @@ class TestInviteActorUseCases:
             "An accepted trust anchor MUST NOT be overwritten by a second invite"
         )
 
+    @pytest.mark.spec("HP-01-016")
     @pytest.mark.spec("HP-01-003")
     def test_invite_actor_to_case_redelivery_is_skipped_not_refused(
         self, make_payload
@@ -1016,6 +1017,7 @@ class TestInviteActorUseCases:
         participant_obj = cast(Any, participant_obj)
         assert participant_obj.consent_for(embargo.id_) == "AGREED"
 
+    @pytest.mark.spec("BT-10-010")
     def test_accept_invite_participant_recorded_at_rm_received(
         self, make_payload
     ):

@@ -420,7 +420,7 @@ groups:
       spec_id: SE-01-003
       note: semantic-extraction.md
     - rel_type: refines
-      spec_id: ARCH-25-009
+      spec_id: ARCH-25-029
   - id: VM-06-005
     priority: MUST
     kind: project
@@ -489,7 +489,7 @@ groups:
       spec_id: VM-06-002
       note: Materialisation needs the `dl` parameter that requirement mandates.
     - rel_type: refines
-      spec_id: ARCH-25-009
+      spec_id: ARCH-25-029
   - id: VM-06-008
     priority: MUST
     kind: project

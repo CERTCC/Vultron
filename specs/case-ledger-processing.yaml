@@ -1751,7 +1751,7 @@ groups:
       as they did before per-actor storage.
     relationships:
     - rel_type: refines
-      spec_id: BT-05-006
+      spec_id: BT-05-008
     - rel_type: refines
       spec_id: CLP-10-001
     tags:

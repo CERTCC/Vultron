@@ -89,9 +89,13 @@ ACTIVITY_ID = "urn:uuid:11111111-1111-1111-1111-111111111111"
 #: time and are stripped in :func:`create_report_activity_body`.)
 _FIXED_TS = datetime(2026, 1, 1, tzinfo=UTC)
 
-#: Command the reader runs to start the reference implementation.
+#: Command the reader runs to start the reference implementation.  The server
+#: is its own CaseActor service: the vendor proposes the case for the report it
+#: receives there, and with no ``VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`` that
+#: proposal fails and no case is opened (CP-08-001, CP-08-005, #5464).
 SERVER_COMMAND = (
-    "uv run uvicorn vultron.adapters.driving.fastapi.main:app "
+    "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://localhost:7999/api/v2 \\\n"
+    "  uv run uvicorn vultron.adapters.driving.fastapi.main:app "
     "--host 127.0.0.1 --port 7999"
 )
 

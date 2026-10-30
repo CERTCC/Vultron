@@ -553,7 +553,7 @@ on the receiver (PCR-03-001, PCR-08-001):
 | `Announce(EmbargoEvent)` | the CASE_MANAGER | the CASE_MANAGER |
 
 Each row is the use case's declared `SenderRule`, and the receive-tree factory
-composes the guard from it (HP-01-008, `vultron/core/behaviors/sender_guard.py`).
+composes the guard from it (HP-01-025, `vultron/core/behaviors/sender_guard.py`).
 The embargo rows are checked in `embargo_sender_context()`: a store that holds no
 case, or a case that names no CASE_MANAGER, refuses the sender rather than
 passing it through. A proposer must be active (`ACTIVE_PARTICIPANT`), not only

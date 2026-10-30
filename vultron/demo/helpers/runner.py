@@ -86,7 +86,9 @@ def run_exchange_demos(
         logger.error("")
         logger.error("Please ensure the Vultron API server is running:")
         logger.error(
-            "  uv run uvicorn vultron.api.main:app --host localhost --port 7999"
+            "  VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://localhost:7999/api/v2"
+            " uv run uvicorn vultron.adapters.driving.fastapi.main:app"
+            " --host localhost --port 7999"
         )
         logger.error("=" * 80)
         sys.exit(1)

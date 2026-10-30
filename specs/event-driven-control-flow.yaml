@@ -80,8 +80,9 @@ groups:
     priority: MUST_NOT
     kind: architecture
     verification_debt: '#2569'
-    statement: The inbox MUST be the sole entry point for inbound activity processing; handlers MUST NOT be invoked directly
-      by callers that bypass the inbox dispatch pipeline.
+    statement: >-
+      A caller MUST NOT invoke a handler directly, bypassing the inbox dispatch
+      pipeline.
     rationale: >-
       The inbox pipeline parses each activity, extracts its semantics and checks its
       case context before a handler runs. A caller that invokes a handler directly skips
@@ -90,12 +91,38 @@ groups:
     priority: MUST_NOT
     kind: architecture
     verification_debt: '#2569'
-    statement: The outbox MUST be the sole exit point for outbound activity delivery; handlers MUST NOT deliver activities
-      directly to peer actors.
+    statement: >-
+      A handler MUST NOT deliver an activity directly to a peer actor.
     rationale: >-
       The outbox records each outbound activity, keeps the delivery order to each
       recipient and retries failed deliveries. A handler that sends directly to a peer
       skips that record and those retries, so nobody can see or repeat a lost delivery.
+  - id: EDF-02-005
+    priority: MUST
+    kind: architecture
+    verification_debt: '#2569'
+    statement: >-
+      The inbox MUST be the sole entry point for inbound activity processing.
+    rationale: >-
+      One entry point means every inbound activity passes the same parsing,
+      extraction and case checks. A second entry point would let some activities
+      reach core logic unchecked.
+    relationships:
+    - rel_type: extends
+      spec_id: EDF-02-003
+  - id: EDF-02-006
+    priority: MUST
+    kind: architecture
+    verification_debt: '#2569'
+    statement: >-
+      The outbox MUST be the sole exit point for outbound activity delivery.
+    rationale: >-
+      One exit point means every outbound activity is recorded, ordered and
+      retried in the same way. A second exit point would send activities that no
+      record shows.
+    relationships:
+    - rel_type: extends
+      spec_id: EDF-02-004
 - id: EDF-03
   title: Cascade Implementation
   specs:
@@ -117,8 +144,9 @@ groups:
     priority: MUST_NOT
     kind: project
     verification_debt: '#2575'
-    statement: Outbox emissions that are part of a cascade MUST be implemented as BT leaf-node actions (e.g., `EmitXxxNode`);
-      they MUST NOT be procedural calls made after `BTBridge.execute_with_setup()` returns.
+    statement: >-
+      A use case MUST NOT emit a cascade's outbox activity through a procedural call
+      after `BTBridge.execute_with_setup()` returns.
     rationale: >-
       An emission placed after `execute_with_setup()` returns can run when the tree
       failed. As a leaf node, the emission runs only when its tree reaches it, and the
@@ -166,6 +194,20 @@ groups:
       When one actor runs the cascade of another, the state of the receiver depends on
       code the receiver does not run. Each actor runs its own cascade only from what it
       receives, so its state follows from its own processing of the messages it holds.
+  - id: EDF-03-006
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      This codebase MUST implement each outbox emission in a cascade as a BT leaf
+      node, such as an `EmitXxxNode`.
+    rationale: >-
+      A leaf node runs only when its tree reaches it, and the tree status reports
+      its result. An emission in a leaf node then cannot run when an earlier step of
+      the tree failed.
+    relationships:
+    - rel_type: extends
+      spec_id: EDF-03-002
 - id: EDF-04
   title: External Decision Nodes
   specs:
@@ -184,7 +226,7 @@ groups:
     kind: project
     statement: >-
       An external decision node MUST NOT return `py_trees.common.Status.RUNNING` to
-      represent awaiting input; it MUST request the input it needs and terminate.
+      show that it awaits input.
     rationale: >-
       The execution model cannot host `RUNNING`: `BTBridge.execute_tree` treats root
       `RUNNING` as "continue ticking", exhausts its budget, logs `ERROR`, returns
@@ -195,8 +237,8 @@ groups:
       It had zero implementations — no node in `vultron/` returns `RUNNING` — and any
       node that had complied would have busy-looped and then failed.
     verification: >-
-      A repository-wide search finds no `return Status.RUNNING` in `vultron/`, and a
-      gated tree returns `SUCCESS` after emitting its request.
+      `test/architecture/test_no_running_status.py::test_no_node_returns_running`
+      finds no `return Status.RUNNING` in `vultron/`.
     adr:
     - ADR-0080
     relationships:
@@ -246,7 +288,7 @@ groups:
       has this defect: it returns `FAILURE` and asks nobody.
     relationships:
     - rel_type: refines
-      spec_id: EDF-04-002
+      spec_id: EDF-04-007
   - id: EDF-04-006
     priority: MUST_NOT
     kind: project
@@ -257,6 +299,26 @@ groups:
       inspection and making the decision requirement undetectable.
     relationships:
     - rel_type: refines
+      spec_id: EDF-04-007
+  - id: EDF-04-007
+    priority: MUST
+    kind: project
+    statement: >-
+      An external decision node MUST request the input it needs and then terminate.
+    rationale: >-
+      No tree instance stays alive between events, so a node cannot wait inside the
+      tree. The node shows that it waits by sending its request. The arrival of the
+      input then starts a fresh evaluation (EDF-04-003).
+    verification: >-
+      `test_status_adoption_default_requests_authorization` in
+      `test/architecture/test_protocol_asks_specs.py` asserts that the default
+      status-adoption backend asks rather than only refusing. It is a strict `xfail`
+      until #2885 builds that ask, and `test_no_node_returns_running` in
+      `test/architecture/test_no_running_status.py` checks that no node waits instead.
+    adr:
+    - ADR-0080
+    relationships:
+    - rel_type: extends
       spec_id: EDF-04-002
 - id: EDF-05
   title: Demo Constraints
@@ -274,8 +336,8 @@ groups:
     priority: MUST_NOT
     kind: project
     verification_debt: '#2575'
-    statement: Demo scripts MUST NOT trigger intermediate cascade steps manually; all cascade steps that are not external
-      decision nodes MUST complete automatically as a result of the primary event.
+    statement: >-
+      A demo script MUST NOT trigger an intermediate cascade step manually.
     rationale: >-
       A manual trigger for a cascade step lets a demo pass when the system does not
       complete that step itself. The demo then hides the missing automation that it
@@ -311,6 +373,20 @@ groups:
       A demo that needs a manual step shows that the system does not complete a cascade
       on its own. When that need counts as a defect, the fix goes into the tree, and the
       demo does not hide the gap.
+  - id: EDF-05-006
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      The handling actor MUST complete each cascade step that is not an external
+      decision node automatically, as a result of the primary event.
+    rationale: >-
+      A demo may inject only primary events (EDF-05-001). Each later step must then
+      follow from the primary event alone. Otherwise the demo cannot reach its final
+      state without a manual trigger.
+    relationships:
+    - rel_type: extends
+      spec_id: EDF-05-002
 - id: EDF-06
   title: Causal Gating in Demo Scenarios
   specs:
@@ -318,9 +394,9 @@ groups:
     priority: MUST
     kind: architecture
     verification_debt: '#2569'
-    statement: A harness step that depends on an asynchronous effect MUST be gated on positive evidence that the effect has
-      been committed by the actor that produces it. Elapsed time, the step's position in the script, and the return of an
-      HTTP 202 acknowledgement MUST NOT be treated as such evidence.
+    statement: >-
+      The harness MUST gate each step that depends on an asynchronous effect on
+      positive evidence that the actor that produces the effect committed it.
     rationale: >-
       A scenario ordered by time ("A, then B") and not by cause ("A, therefore B") makes
       each step race asynchronous delivery. Elapsed time, script position and a 202
@@ -335,9 +411,9 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: The gate predicate MUST be evaluated against the state of the actor that owns the awaited effect, read from
-      that actor's own container. Observing the effect on the sending actor's container MUST NOT be accepted as evidence that
-      the receiving actor committed it.
+    statement: >-
+      The harness MUST evaluate a gate predicate against the state of the actor that
+      owns the awaited effect, read from that actor's own container.
     rationale: Each actor holds an independent DataLayer replica. A sender-side observation proves only that the sender
       emitted the activity, not that the recipient processed it.
     adr:
@@ -366,11 +442,10 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      When a received-side use case creates a new activity in response to a
-      received one (the forwarding or propose-then-execute pattern), the harness
-      MUST discover the derived object by scanning the recipient's state for its
-      semantic properties (activity type, target, and object), and MUST NOT poll
-      for the identifier of the sender's original activity.
+      A received-side use case can create a new activity in response to a received
+      one, as in the forwarding or propose-then-execute pattern. The harness MUST
+      find that derived activity by scanning the recipient's state for its activity
+      type, target and object.
     rationale: >-
       In the forwarding and propose-then-execute patterns, the recipient gets a new
       activity under an id that the received-side use case derives, and not the sender's
@@ -406,8 +481,10 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: A wait that is irreducibly temporal — service liveness probes, protocol deadlines such as embargo expiry, and
-      transport retry backoff — MUST be identified as temporal at its call site and MUST NOT be counted as a causal gate.
+    statement: >-
+      The harness MUST mark each irreducibly temporal wait as temporal at its call
+      site. Service liveness probes, protocol deadlines such as embargo expiry, and
+      transport retry backoff are such waits.
     rationale: Not every wait is a defect. Naming the temporal waits explicitly keeps them from being "fixed" into
       meaningless causal gates, and keeps the causal-gate inventory honest about what it does and does not cover.
     adr:
@@ -418,9 +495,10 @@ groups:
   - id: EDF-06-007
     priority: SHOULD
     kind: project
-    statement: A step whose causal precondition cannot be expressed as an observable predicate SHOULD be treated as evidence
-      of a missing observable or an unautomated cascade, and SHOULD be recorded as such rather than replaced with a timed
-      wait.
+    statement: >-
+      A scenario author SHOULD treat a step whose causal precondition has no
+      observable predicate as evidence of a missing observable or an unautomated
+      cascade.
     rationale: 'Refines EDF-05-005 to the harness side: where EDF-05-005 detects missing cascade automation from a needed
       manual trigger, this detects it from an ungateable precondition. Some preconditions are genuinely unobservable today
       (an actor having *processed* a delivery leaves no completion record); those gaps belong in the record, not behind a
@@ -455,6 +533,98 @@ groups:
     - rel_type: refines
       spec_id: EDF-06-006
       note: Adds a justification requirement to the identification requirement; both apply to every temporal wait.
+    tags:
+    - demo
+    - testing
+  - id: EDF-06-009
+    priority: MUST_NOT
+    kind: architecture
+    verification_debt: '#2569'
+    statement: >-
+      The harness MUST NOT treat elapsed time, a step's position in the script, or an
+      HTTP 202 acknowledgement as evidence that an effect was committed.
+    rationale: >-
+      Elapsed time, script position and a 202 response show only that a request was
+      accepted. They do not show that the actor committed its effect. A gate on them
+      still races asynchronous delivery (ADR-0058).
+    adr:
+    - ADR-0058
+    relationships:
+    - rel_type: extends
+      spec_id: EDF-06-001
+    tags:
+    - demo
+    - testing
+  - id: EDF-06-010
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      The harness MUST NOT accept an effect seen in the sending actor's container as
+      evidence that the receiving actor committed it.
+    rationale: >-
+      Each actor holds an independent DataLayer replica. An effect seen on the
+      sender's side proves only that the sender emitted the activity. It does not
+      prove that the recipient processed it.
+    adr:
+    - ADR-0058
+    relationships:
+    - rel_type: extends
+      spec_id: EDF-06-002
+    tags:
+    - demo
+    - testing
+  - id: EDF-06-011
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      For a derived activity (EDF-06-004), the harness MUST NOT poll for the id of the
+      sender's original activity.
+    rationale: >-
+      The recipient holds the derived activity under an id that the received-side use
+      case derives. It does not hold the sender's activity under the sender's id. A
+      poll for that id can never succeed.
+    adr:
+    - ADR-0058
+    relationships:
+    - rel_type: extends
+      spec_id: EDF-06-004
+    tags:
+    - demo
+    - testing
+  - id: EDF-06-012
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      The harness MUST NOT count a temporal wait (EDF-06-006) as a causal gate.
+    rationale: >-
+      A temporal wait does not show that an effect was committed. If the causal-gate
+      inventory counts it, the inventory claims coverage that it does not have.
+    adr:
+    - ADR-0058
+    relationships:
+    - rel_type: extends
+      spec_id: EDF-06-006
+    tags:
+    - demo
+    - testing
+  - id: EDF-06-013
+    priority: SHOULD
+    kind: project
+    statement: >-
+      A scenario author SHOULD record a step with no observable causal predicate
+      (EDF-06-007) as a gap, and not replace its gate with a timed wait.
+    rationale: >-
+      A timed wait hides the gap and makes the scenario race delivery. A record of
+      the gap keeps it visible, so a later change can add the missing observable or
+      automation.
+    adr:
+    - ADR-0058
+    relationships:
+    - rel_type: extends
+      spec_id: EDF-06-007
     tags:
     - demo
     - testing

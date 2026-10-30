@@ -54,7 +54,6 @@ from vultron.demo.helpers.closure import (
 from vultron.demo.helpers.polling import wait_for_participant_rm_state
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
-    find_case_for_offer,
     reporter_submits_report,
     verify_reporter_trusts_introduction,
     wait_for_case_for_offer,
@@ -109,26 +108,35 @@ def demo_validate_and_engage(
         )
 
     vendor_session = ActorSession(client=client, actor=vendor).quiet()
-    stored_offer = response = None
-    with demo_step("Step 2: Vendor triggers validate-report"):
+    # validate-report addresses the CASE_MANAGER of the case opened on
+    # receipt, which the vendor knows only once the CaseActor's replica of
+    # the case reaches its own store; on a live server that lands after the
+    # report (#5464).  Every later step depends on the case, so they all sit
+    # inside the gate (ADR-0058).
+    with demo_gate(
+        f"case replica present in {vendor.id_}'s own store before"
+        " validate-report"
+    ):
         stored_offer = get_offer_from_datalayer(client, vendor.id_, offer.id_)
-        response = vendor_session.validate_report(offer_id=stored_offer.id_)
-        logger.info(
-            "validate-report response: %s",
-            response.model_dump_json(indent=2),
-        )
-        with demo_check("Response contains activity"):
-            activity = response.activity
-            assert activity is not None, (
-                "Expected 'activity' key in trigger response"
-            )
-            logger.info("Resulting activity type: %s", activity.get("type"))
+        case = wait_for_case_for_offer(client, stored_offer.id_)
+        logger.info("Found case: %s", case.id_)
 
-    with demo_step("Step 3: Vendor triggers engage-case"):
-        case = find_case_for_offer(client, stored_offer.id_)
-        with demo_check("Case created by validate-report BT"):
-            assert case is not None, f"No case found for report {report.id_}"
-            logger.info("Found case: %s", case.id_)
+        with demo_step("Step 2: Vendor triggers validate-report"):
+            response = vendor_session.validate_report(
+                offer_id=stored_offer.id_
+            )
+            logger.info(
+                "validate-report response: %s",
+                response.model_dump_json(indent=2),
+            )
+            with demo_check("Response contains activity"):
+                activity = response.activity
+                assert activity is not None, (
+                    "Expected 'activity' key in trigger response"
+                )
+                logger.info(
+                    "Resulting activity type: %s", activity.get("type")
+                )
 
         # Gate the engagement on its cause: the CASE_MANAGER records the
         # vendor's RM.VALID and the vendor's replica copies it from the
@@ -141,18 +149,21 @@ def demo_validate_and_engage(
                 actor_id=vendor.id_,
                 expected_states={RM.VALID, RM.ACCEPTED},
             )
-
-        response = vendor_session.with_case(case).engage_case()
-        logger.info(
-            "engage-case response: %s",
-            response.model_dump_json(indent=2),
-        )
-        with demo_check("Response contains activity"):
-            activity = response.activity
-            assert activity is not None, (
-                "Expected 'activity' key in engage-case trigger response"
-            )
-            logger.info("Resulting activity type: %s", activity.get("type"))
+            with demo_step("Step 3: Vendor triggers engage-case"):
+                response = vendor_session.with_case(case).engage_case()
+                logger.info(
+                    "engage-case response: %s",
+                    response.model_dump_json(indent=2),
+                )
+                with demo_check("Response contains activity"):
+                    activity = response.activity
+                    assert activity is not None, (
+                        "Expected 'activity' key in engage-case trigger"
+                        " response"
+                    )
+                    logger.info(
+                        "Resulting activity type: %s", activity.get("type")
+                    )
 
     verify_reporter_trusts_introduction(client, reporter, vendor, report)
 
@@ -202,53 +213,67 @@ def demo_invalidate_and_close(
         )
 
     vendor_session = ActorSession(client=client, actor=vendor).quiet()
-    stored_offer = response = None
-    with demo_step("Step 2: Vendor triggers invalidate-report"):
+    # invalidate-report addresses the CASE_MANAGER of the case opened on
+    # receipt; before the vendor holds its replica of that case the trigger
+    # addresses the reporter, whose inbox refuses it (#5464).  The close
+    # steps act on the same case, so they sit inside the gate too.
+    with demo_gate(
+        f"case replica present in {vendor.id_}'s own store before"
+        " invalidate-report"
+    ):
         stored_offer = get_offer_from_datalayer(client, vendor.id_, offer.id_)
-        response = vendor_session.invalidate_report(
-            offer_id=stored_offer.id_,
-            note="Report lacks reproduction steps; marked invalid.",
-        )
-        logger.info(
-            "invalidate-report response: %s",
-            response.model_dump_json(indent=2),
-        )
-        with demo_check("Response contains activity"):
-            activity = response.activity
-            assert activity is not None, (
-                "Expected 'activity' key in invalidate-report response"
-            )
-            logger.info("Resulting activity type: %s", activity.get("type"))
+        case = wait_for_case_for_offer(client, stored_offer.id_)
 
-    case = wait_for_case_for_offer(client, stored_offer.id_)
-    # The owner's leave-case call is refused while the case's embargo is
-    # active (TRIG-13-003, CM-23-011), so the vendor ends the embargo first.
-    demo_terminate_embargo(vendor_session, case)
-    # The refusal reads the vendor's own replica, which applies the
-    # termination after the CASE_MANAGER commits it (EDF-06-002).
-    with demo_gate("Vendor's replica records the embargo ended"):
-        wait_for_owner_replica_embargo_state(
-            authority_client=client,
-            owner=CaseLeaver(client=client, actor=vendor),
-            case_id=case.id_,
-        )
-        with demo_step(
-            "Step 3: Vendor closes the case with leave-case (Leave)"
-        ):
-            response = vendor_session.with_case(case).leave_case()
+        with demo_step("Step 2: Vendor triggers invalidate-report"):
+            response = vendor_session.invalidate_report(
+                offer_id=stored_offer.id_,
+                note="Report lacks reproduction steps; marked invalid.",
+            )
             logger.info(
-                "leave-case response: %s",
+                "invalidate-report response: %s",
                 response.model_dump_json(indent=2),
             )
-            with demo_check("Response contains the Leave activity"):
+            with demo_check("Response contains activity"):
                 activity = response.activity
                 assert activity is not None, (
-                    "Expected 'activity' key in leave-case trigger response"
+                    "Expected 'activity' key in invalidate-report response"
                 )
-                assert activity.get("type") == "Leave", activity.get("type")
                 logger.info(
                     "Resulting activity type: %s", activity.get("type")
                 )
+
+        # The owner's leave-case call is refused while the case's embargo is
+        # active (TRIG-13-003, CM-23-011), so the vendor ends the embargo
+        # first.
+        demo_terminate_embargo(vendor_session, case)
+        # The refusal reads the vendor's own replica, which applies the
+        # termination after the CASE_MANAGER commits it (EDF-06-002).
+        with demo_gate("Vendor's replica records the embargo ended"):
+            wait_for_owner_replica_embargo_state(
+                authority_client=client,
+                owner=CaseLeaver(client=client, actor=vendor),
+                case_id=case.id_,
+            )
+            with demo_step(
+                "Step 3: Vendor closes the case with leave-case (Leave)"
+            ):
+                response = vendor_session.with_case(case).leave_case()
+                logger.info(
+                    "leave-case response: %s",
+                    response.model_dump_json(indent=2),
+                )
+                with demo_check("Response contains the Leave activity"):
+                    activity = response.activity
+                    assert activity is not None, (
+                        "Expected 'activity' key in leave-case trigger"
+                        " response"
+                    )
+                    assert activity.get("type") == "Leave", activity.get(
+                        "type"
+                    )
+                    logger.info(
+                        "Resulting activity type: %s", activity.get("type")
+                    )
 
     # The case was created on receipt, so the vendor still introduces it to
     # the reporter (CBT-01-001).

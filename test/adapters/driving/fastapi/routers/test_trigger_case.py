@@ -999,6 +999,7 @@ def test_trigger_add_object_to_case_unknown_case_returns_404(
 
 
 @pytest.mark.spec("TRIG-10-001")
+@pytest.mark.spec("TRIG-10-005")
 @pytest.mark.parametrize(
     "make_object",
     [

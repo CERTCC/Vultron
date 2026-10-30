@@ -303,7 +303,7 @@ answer, clock decisions, guards, commit, effects.
    on the tree; never run the check as a tree of its own or write it per handler.
 
    When the case the sender is checked against is resolved at run time, the
-   guard still comes from the factory (HP-01-008). Pass the read-only
+   guard still comes from the factory (HP-01-025). Pass the read-only
    `CaseResolving` steps that resolve it as `case_resolution`; they run just
    before the guard, so an unknown case is refused as such (#2255). The report
    verdicts pass `RequireCaseForReport`. A ledger activity's tree passes a

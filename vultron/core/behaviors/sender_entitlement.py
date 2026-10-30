@@ -142,9 +142,9 @@ Nodes
   the handler tells a repeated closing act (``SKIPPED``) from any other act
   (``REFUSED``) (CM-23-018)
 - ``NoSenderAdmittedNode`` — refuses every sender on a side a ``SenderRule``
-  leaves empty (HP-01-008)
+  leaves empty (HP-01-024)
 - ``SenderHoldsNoneOfNode`` — the last arm of an any-of side, naming every
-  standing the side accepts (HP-01-008)
+  standing the side accepts (HP-01-023)
 
 Helper predicate
 ----------------
@@ -366,7 +366,7 @@ class AddresseeSide(Enum):
     The sides are the standings a receiver can hold for one activity: the
     case's CASE_MANAGER, any other participant of the case, or, for an
     activity sent before a case exists, an actor outside any case
-    (HP-01-008).  An occasion declares its addressee as one of them, which
+    (HP-01-024).  An occasion declares its addressee as one of them, which
     picks the side of its use case's rule that gives "Sent by" and renders
     as "Send to" (MSM-08-009, ADR-0129).
 
@@ -983,7 +983,7 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
                 no case or the case names no CASE_MANAGER.
             sender_actor_id: The sender to check.  ``None`` reads it from the
                 blackboard activity's ``actor_id``; the composed guard passes
-                the sender every other kind checks (HP-01-008).
+                the sender every other kind checks (HP-01-025).
         """
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
@@ -1953,7 +1953,7 @@ class NoSenderAdmittedNode(SenderEntitlementConditionNode):
     the CASE_MANAGER may be sent (HP-01-008).  It always fails, naming the
     side, so the tree ends ``REFUSED`` with nothing written.
 
-    Spec: HP-01-006, HP-01-008.
+    Spec: HP-01-006, HP-01-024.
     """
 
     def __init__(self, side: str, name: str | None = None) -> None:
@@ -1970,7 +1970,7 @@ class NoSenderAdmittedNode(SenderEntitlementConditionNode):
     def update(self) -> Status:
         self.feedback_message = (
             f"No sender is entitled to send this activity to {self._side}"
-            " — REFUSED (HP-01-006, HP-01-008)"
+            " — REFUSED (HP-01-006, HP-01-024)"
         )
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
@@ -1979,11 +1979,11 @@ class NoSenderAdmittedNode(SenderEntitlementConditionNode):
 class SenderHoldsNoneOfNode(SenderEntitlementConditionNode):
     """The last arm of an any-of side: the sender held none of its kinds.
 
-    The factory appends it to the selector of an any-of side (HP-01-008), so
+    The factory appends it to the selector of an any-of side (HP-01-023), so
     a refused sender's reason names every standing the side accepts rather
     than only the last kind tried (HP-01-006, BT-13-001).  It always fails.
 
-    Spec: HP-01-006, HP-01-008.
+    Spec: HP-01-006, HP-01-023.
     """
 
     def __init__(
@@ -2004,7 +2004,7 @@ class SenderHoldsNoneOfNode(SenderEntitlementConditionNode):
         names = ", ".join(kind.name for kind in self._kinds)
         self.feedback_message = (
             f"Sender holds none of the standings this activity accepts"
-            f" ({names}) — REFUSED (HP-01-006, HP-01-008)"
+            f" ({names}) — REFUSED (HP-01-006, HP-01-023)"
         )
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE

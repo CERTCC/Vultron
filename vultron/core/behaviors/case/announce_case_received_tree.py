@@ -101,7 +101,7 @@ def create_announce_vulnerability_case_received_tree(
     so either way the delivery runs one tree and is archived (CLP-10-005,
     CLP-10-018).
 
-    The factory composes the sender guard from *sender_rule* (HP-01-008):
+    The factory composes the sender guard from *sender_rule* (HP-01-025):
     the sender must be the CASE_MANAGER this store has trusted for the case,
     the one its bootstrap recorded on a completed ``ReportCaseLink``
     (CBT-01-006, CBT-02-003), else the one the replica names, else the one

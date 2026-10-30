@@ -14,7 +14,7 @@ related_specs:
   - specs/em-behavior.yaml (EMB-13-005)
   - specs/sync-ledger-replication.yaml (SYNC-16-005)
   - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-12-010,
-    ARCH-14-001, ARCH-20-002, ARCH-23-002, ARCH-25-003)
+    ARCH-12-014, ARCH-14-001, ARCH-20-002, ARCH-23-002, ARCH-25-003)
   - specs/docs-build-workflow.yaml (DOCBW-03-005)
   - specs/message-validation.yaml (MV-04-003)
 related_notes:
@@ -117,7 +117,7 @@ only for classes that are defined, and a never-imported module defines none.
 
 ## `CORE_TYPE_MAP` Is Core-Only
 
-Core types never enter the wire `VOCABULARY` (ARCH-12-003). `CoreRecord` and
+Core types never enter the wire `VOCABULARY` (ARCH-12-014). `CoreRecord` and
 `CoreObject` subclasses auto-register in `CORE_TYPE_MAP`
 (`vultron/core/models/registry.py`). The hook lives on `CoreRecord` because the
 bookkeeping records extend it but not `CoreObject` (ARCH-12-010); ratchets

@@ -74,7 +74,7 @@ def create_reject_invite_actor_to_case_received_tree(
             resolved, in which case the sender guard refuses.
         invite_id: ID of the recorded stub Invite the Reject answers.
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         Root ``RejectInviteActorToCaseReceivedBT`` Sequence node.
@@ -155,7 +155,7 @@ def create_invite_actor_to_case_received_tree(
         invite_id: The Invite's id, recorded so the invitee's Accept of it
             can fix the anchor (PCR-03-004).
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         Root ``InviteActorToCaseReceivedBT`` Sequence node.

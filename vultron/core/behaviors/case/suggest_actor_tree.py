@@ -119,7 +119,7 @@ def create_receive_offer_case_participant_tree(
         case_id: ID of the VulnerabilityCase.
         sender_id: Actor ID of the Offer's sender.
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         Root ``ReceiveOfferCaseParticipantBT`` Sequence node.
@@ -220,7 +220,7 @@ def create_recommend_actor_to_case_received_tree(
             the reply deadline of every stub Invite it sends (CM-11-014,
             CM-28-012).  ``None`` applies the ``ActorConfig`` defaults.
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         Root ``RecommendActorToCaseBT`` Sequence node.
@@ -506,7 +506,7 @@ def create_accept_actor_recommendation_received_tree(
         case_id: ID of the VulnerabilityCase.
         sender_id: Actor ID of the Accept's sender, who must be the Case Owner.
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         Root ``AcceptActorRecommendationBT`` Sequence node.
@@ -587,7 +587,7 @@ def create_reject_actor_recommendation_received_tree(
         case_id: ID of the VulnerabilityCase.
         sender_id: Actor ID of the Reject's sender, who must be the Case Owner.
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         Root ``RejectActorRecommendationBT`` Sequence node.
@@ -646,7 +646,7 @@ def create_recommendation_answer_received_tree(
             against (CLP-10-018).
         sender_id: Actor ID of the answer's sender.
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         Root Sequence node named *name*.

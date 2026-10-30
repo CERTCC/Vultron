@@ -89,7 +89,8 @@ docker_rebuild:  ## Rebuild and restart docker containers
 
 .PHONY: api_dev
 api_dev:  ## Start API server in development mode
-	uv run uvicorn vultron.api:app --reload --port 7999
+	VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://localhost:7999/api/v2 \
+	  uv run uvicorn vultron.adapters.driving.fastapi.main:app --reload --port 7999
 
 .PHONY: docker_api_dev
 docker_api_dev: docker_up  ## Start API server in Docker in development mode

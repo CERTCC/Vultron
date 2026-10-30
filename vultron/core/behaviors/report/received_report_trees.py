@@ -151,7 +151,7 @@ def create_validate_report_received_tree(
             the sender guard, the RM adjudication and the guarded commit
             read; ``None`` when this store holds no case for the report.
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         Root node of the ``ValidateReportReceivedBT`` Sequence.
@@ -377,7 +377,7 @@ def create_close_report_received_tree(
     1. Intake archives the ``Reject`` as received (CLP-10-017, CLP-10-018).
     2. The post-close guard drops it on a fully closed case (CM-23-013).
     3. The sender guard is composed from the use case's declared rule
-       (HP-01-008).  On a case that holds the report the rule admits no
+       (HP-01-025).  On a case that holds the report the rule admits no
        sender on either side, so every sender is refused with nothing
        written or sent: the Case Owner closes a case by
        ``Leave(VulnerabilityCase)``, and nobody else holds the report.
@@ -464,7 +464,7 @@ def create_invalidate_report_received_tree(
             use case before the tree runs; ``None`` when it holds none.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it after the case is resolved
-            (HP-01-008).
+            (HP-01-025).
 
     Returns:
         Root node of the ``InvalidateReportReceivedBT`` Sequence.

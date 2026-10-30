@@ -397,6 +397,7 @@ class TestHappyPath:
         assert not link.proposal_rejected
 
     @pytest.mark.spec("BT-10-002")
+    @pytest.mark.spec("BT-10-008")
     def test_case_creator_id_is_the_case_actor_container(
         self,
         datalayer,

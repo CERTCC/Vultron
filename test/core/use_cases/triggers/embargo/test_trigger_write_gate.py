@@ -319,6 +319,7 @@ def test_non_manager_propose_on_exited_case_is_refused_locally(
 
 @pytest.mark.spec("BT-19-001")
 @pytest.mark.spec("EP-09-008")
+@pytest.mark.spec("BT-19-005")
 def test_non_manager_propose_resolves_the_manager_before_storing_terms(
     finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:

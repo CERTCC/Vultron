@@ -319,12 +319,18 @@ does not re-queue an `Announce` the outbox already holds for that peer
   and a `Reject(CaseLedgerEntry)` is **still always sent** as the loss backstop.
   At-or-behind-tail entries go straight to the reject.
 - **On commit**, `ReplayHeldSuccessorNode` (`sync/nodes/replay_held.py`, last in
-  the participant arm, and after the seed in the case-Announce tree) asks
+  the participant arm, and after the seed in every seed tree: the case
+  Announce, and both arms of the `Create(VulnerabilityCase)` bootstrap) asks
   `InboxReplayPort` to replay the one held Announce that extends the new tail,
   by its own id (SYNC-14-009). That delivery's tree replays the next, so the
   cascade needs no loop and runs the in-order path by construction
   (SYNC-14-008). Reason: running the successor inline made one delivery run
   several trees (CLP-10-005, ADR-0135).
+- **Every tree that seeds a case drains**, and its use case's semantic is in
+  `_LEDGER_REPLAY_SEMANTICS` so it gets the port. Reason: the reporter's case
+  arrives from the report receiver (CBT-01-001), not the CASE_MANAGER whose
+  entries it holds, so nothing orders the two; a seed without the drain leaves
+  them to the rate-limited replay (SYNC-15-005, #5521).
 - **The adapter queues, it never processes.** `InboxReplayAdapter` checks the
   body is held and calls `inbox_append`; the inbox loop pops it afterwards and
   replays it through `process_payload` under the same actor lock, parsed again
