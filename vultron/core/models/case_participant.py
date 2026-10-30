@@ -53,6 +53,7 @@ from vultron.core.models.participant_status import (
     coerce_cvd_roles,
     participant_status_rm_state,
 )
+from vultron.core.models.wire_keys import wire_key
 from vultron.core.states.embargo_register import (
     FINAL_REGISTER_STATUSES,
     EmbargoRegisterStatus,
@@ -168,10 +169,19 @@ class CaseParticipant(CoreObject):
     @model_validator(mode="before")
     @classmethod
     def _init_participant_status_if_empty(cls, data: Any) -> Any:
-        """Seed ``participant_statuses`` with a default entry when empty."""
+        """Seed ``participant_statuses`` with a default entry when absent.
+
+        Reads both spellings (ARCH-25-002, ADR-0099): an AS2 dump carries the
+        statuses under their alias, and seeding beside them drew an id and read
+        the clock for a status the alias then discarded (#5510).
+        """
         if not isinstance(data, dict):
             return data
-        if "participant_statuses" in data:
+        spellings = (
+            "participant_statuses",
+            wire_key("participant_statuses", cls),
+        )
+        if any(key in data for key in spellings):
             return data
         data = dict(data)
         if not data.get("id") and not data.get("id_"):

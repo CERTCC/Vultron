@@ -23,7 +23,6 @@ from typing import Annotated, Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from vultron.adapters.driven import actor_hosts
-from vultron.adapters.driven.db_record import Record, record_to_object
 from vultron.adapters.driving.fastapi.deps import (
     get_actor_dl,
     get_hosted_actor_dls,
@@ -32,6 +31,7 @@ from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
 from vultron.adapters.received_archive import read_held_as_received
 from vultron.adapters.utils import full_object_id
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.base import CoreObject
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
@@ -41,6 +41,7 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.rehydration import rehydrate
+from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.collections import (
@@ -130,6 +131,22 @@ def _concerns_actor(offer: as_Offer, actor_uri: str) -> bool:
     return actor_uri in addressed or sender == actor_uri
 
 
+def _serve_stored(obj: PersistableModel) -> AS2JSONResponse | dict[str, Any]:
+    """Serve *obj* as the store holds it, without rebuilding it.
+
+    ``dl.read()`` already returns the typed object (ADR-0034), and a
+    ``CoreObject`` is its own AS2 class (ADR-0099), so it renders as AS2
+    directly.  Rebuilding it from its dump ran its construction validators
+    again, and a validator that seeds a default drew an id and read the
+    clock: a read then shifted every id a seeded demo run minted after it
+    (#5510).  A bookkeeping row that has no AS2 form is served as its plain
+    dump.
+    """
+    if isinstance(obj, (as_Base, CoreObject)):
+        return AS2JSONResponse(obj)
+    return obj.model_dump(by_alias=True, serialize_as_any=True)
+
+
 # Declared ahead of ``/{object_type}/{object_id}``: routes match in
 # declaration order, and that pattern would otherwise answer every
 # ``/Offers/{offer_id}`` request, so this route was never reached.
@@ -150,6 +167,9 @@ def get_actor_offer(
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
+    # Unlike the by-id reads, this rebuild is the response shape: it narrows a
+    # semantic Offer subtype to the declared ``as_Offer``, whose inline object
+    # renders as its base fields.  It mints no id and reads no clock (#5510).
     offer = as_Offer.model_validate(
         obj.model_dump(by_alias=True, serialize_as_any=True)
     )
@@ -177,20 +197,7 @@ def get_object(
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    wire_data = obj.model_dump(by_alias=True, serialize_as_any=True)
-    rec = Record(
-        id_=wire_data.get("id", object_id),
-        type_=wire_data.get("type", ""),
-        data_=wire_data,
-    )
-    try:
-        wire_obj = record_to_object(rec)
-        return AS2JSONResponse(wire_obj)
-    except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
-        logger.debug(
-            "get_object: wire conversion failed for %r: %s", object_id, exc
-        )
-        return wire_data
+    return _serve_stored(obj)
 
 
 @router.get(
@@ -219,14 +226,12 @@ def get_offer(
 def get_report(
     id: str, datalayer: DataLayer = Depends(get_actor_dl)
 ) -> AS2JSONResponse:
+    # Served as stored (#5510): ``VulnerabilityReport`` is its own AS2 class
+    # (ADR-0099), so a rebuild from its dump would add nothing.
     obj = datalayer.read(id)
-    if not obj:
+    if not isinstance(obj, as_VulnerabilityReport):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    return AS2JSONResponse(
-        as_VulnerabilityReport.model_validate(
-            obj.model_dump(by_alias=True, serialize_as_any=True)
-        )
-    )
+    return AS2JSONResponse(obj)
 
 
 @router.get(
@@ -463,17 +468,4 @@ def get_object_by_key(key: str, datalayer: DataLayer = Depends(get_actor_dl)):
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    wire_data = obj.model_dump(by_alias=True, serialize_as_any=True)
-    rec = Record(
-        id_=wire_data.get("id", key),
-        type_=wire_data.get("type", ""),
-        data_=wire_data,
-    )
-    try:
-        wire_obj = record_to_object(rec)
-        return AS2JSONResponse(wire_obj)
-    except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
-        logger.debug(
-            "get_object_by_key: wire conversion failed for %r: %s", key, exc
-        )
-        return wire_data
+    return _serve_stored(obj)

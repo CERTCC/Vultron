@@ -11,7 +11,7 @@ description: >
 related_specs:
   - specs/architecture.yaml (ARCH-10-001, ARCH-12-001, ARCH-12-003, ARCH-15-001,
     ARCH-15-002, ARCH-15-004, ARCH-18-005, ARCH-20-008, ARCH-21-001 through ARCH-21-004,
-    ARCH-25-003)
+    ARCH-25-002, ARCH-25-003)
   - specs/case-management.yaml (CM-01-001, CM-18-005, CM-23-001, CM-27-001
     through CM-27-003, CM-31-001)
   - specs/case-ledger-processing.yaml (CLP-07-002)
@@ -274,6 +274,11 @@ type with seeding validators (`_init_participant_status_if_empty`,
 `_seed_accepted_status`). Tests place a participant at an RM state with
 `advance_participant_rm` (`test/support/participant_status.py`), which carries
 the same paths forward.
+
+A seeding validator MUST look for its field under both spellings (`wire_key`,
+ARCH-25-002). One that reads only the Python name sees an AS2 dump as empty, so it
+mints an id and reads the clock for a seed that the alias then discards. That draw
+shifts every id a seeded demo recording mints afterwards (#5510).
 
 ### Pitfall: a forced promotion runs after validation
 
