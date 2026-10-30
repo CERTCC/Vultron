@@ -17,8 +17,7 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
+from test.ci._workflows import WORKFLOWS_DIR, workflow_files as _workflow_files
 
 # Matches a `uses:` value ending in @<40-hex-char SHA>
 _SHA_RE = re.compile(r"@([0-9a-f]{40})\s*$", re.IGNORECASE)
@@ -45,10 +44,6 @@ def _uses_lines(workflow_path: Path) -> list[tuple[int, str]]:
                 continue
             lines.append((lineno, stripped))
     return lines
-
-
-def _workflow_files() -> list[Path]:
-    return sorted(WORKFLOWS_DIR.glob("*.yml"))
 
 
 # ---------------------------------------------------------------------------

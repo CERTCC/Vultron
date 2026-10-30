@@ -31,7 +31,7 @@ from typing import Any
 
 import pytest
 
-from test.ci._workflows import WORKFLOWS_DIR, load_workflow
+from test.ci._workflows import WORKFLOWS_DIR, load_workflow, workflow_files
 from vultron.metadata.planning.targeted_tests import GATE_CEILING
 
 _REPO_ROOT = Path(__file__).parents[2]
@@ -130,8 +130,11 @@ def _uncapped_jobs(file_name: str, wf_data: dict[str, Any]) -> list[str]:
     A ``bool`` is an ``int`` to Python, so ``timeout-minutes: true`` is refused
     explicitly.
     """
-    jobs = wf_data.get("jobs", {})
-    assert isinstance(jobs, dict), f"{file_name} has no `jobs:` mapping"
+    jobs = wf_data.get("jobs")
+    # A file with no jobs would pass while checking nothing.
+    assert isinstance(jobs, dict) and jobs, (
+        f"{file_name} has no non-empty `jobs:` mapping"
+    )
     missing = []
     for job_key, job_spec in jobs.items():
         if isinstance(job_spec, dict) and "uses" in job_spec:
@@ -167,14 +170,16 @@ def test_detector_flags_an_uncapped_job_and_skips_a_reusable_call() -> None:
     ]
 
 
-def _workflow_files() -> list[Path]:
-    return sorted(WORKFLOWS_DIR.glob("*.yml")) + sorted(
-        WORKFLOWS_DIR.glob("*.yaml")
-    )
+@pytest.mark.parametrize("wf_data", [{}, {"jobs": {}}, {"jobs": ["a"]}])
+def test_detector_refuses_a_workflow_with_no_jobs(
+    wf_data: dict[str, Any],
+) -> None:
+    with pytest.raises(AssertionError, match=r"x\.yml has no non-empty"):
+        _uncapped_jobs("x.yml", wf_data)
 
 
 def test_discovery_finds_every_workflow_file() -> None:
-    names = {p.name for p in _workflow_files()}
+    names = {p.name for p in workflow_files()}
     # python-app.yml has the gate jobs; docs-publish-check.yml has only a
     # reusable-workflow call, so it must be read and skipped, not missed.
     assert {"python-app.yml", "docs-publish-check.yml"} <= names
@@ -190,7 +195,7 @@ def test_every_workflow_job_has_a_timeout() -> None:
     """
     missing = [
         entry
-        for path in _workflow_files()
+        for path in workflow_files()
         for entry in _uncapped_jobs(path.name, load_workflow(path))
     ]
     assert not missing, (

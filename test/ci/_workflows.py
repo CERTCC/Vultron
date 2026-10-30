@@ -38,6 +38,13 @@ _IGNORED_EXIT = re.compile(
 )
 
 
+def workflow_files() -> list[Path]:
+    """Return every workflow file, ``*.yml`` and ``*.yaml``, sorted by path."""
+    return sorted(
+        [*WORKFLOWS_DIR.glob("*.yml"), *WORKFLOWS_DIR.glob("*.yaml")]
+    )
+
+
 # Parsed workflow YAML is untyped by nature; ``Any`` here is the YAML boundary.
 def load_workflow(path: Path) -> dict[str, Any]:
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
