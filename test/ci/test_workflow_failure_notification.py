@@ -27,10 +27,9 @@ import pytest
 import yaml
 
 from test.ci._fake_gh import FakeGh, install_fake_gh
-from test.ci._workflows import triggers
+from test.ci._workflows import WORKFLOWS_DIR, triggers, workflow_files
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 NOTIFY_FAILURE_USES = "./.github/actions/notify-failure"
 NOTIFY_FAILURE_ACTION = (
     REPO_ROOT / ".github" / "actions" / "notify-failure" / "action.yml"
@@ -86,7 +85,7 @@ def _notify_failure_steps(
 
 def _qualifying_workflow_files() -> list[Path]:
     files = []
-    for wf in sorted(WORKFLOWS_DIR.glob("*.yml")):
+    for wf in workflow_files():
         try:
             data = _load_workflow(wf)
         except Exception:  # noqa: BLE001, S112  # ruff-baseline #3989  # pragma: no cover
