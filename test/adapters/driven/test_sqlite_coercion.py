@@ -374,3 +374,74 @@ class TestCoerceToSemanticClass:
         result = dl.read(report.id_)
 
         assert isinstance(result, VulnerabilityReport)
+
+
+class TestCoerceByReferenceFields:
+    """A by-reference field rehydration expanded coerces by id (#5513).
+
+    The stored row's base class (``as_Read``, ``as_Invite``) admits an
+    object in the field, so :func:`rehydrate_fields` expands it, and the
+    pattern match needs the expanded type.  The semantic class declares the
+    field a plain URI, so coercion must hand it the object's id, not the
+    object: a correct dispatch logs no WARNING (SL-01-005).
+    """
+
+    def test_read_log_entry_round_trips_without_warning(self, dl, caplog):
+        """A stored Read(CaseLedgerEntry) reads back as _ReadLogEntryActivity."""
+        import logging
+
+        from vultron.core.behaviors.sync.nodes.chain import (
+            _to_persistable_entry,
+        )
+        from vultron.core.models.case_ledger import HashChainLedgerRecord
+        from vultron.wire.as2.factories import read_ledger_entry_activity
+
+        entry = _to_persistable_entry(
+            HashChainLedgerRecord(
+                case_id="https://example.org/cases/case-read-5513",
+                log_index=0,
+                object_id="https://example.org/activities/logged-5513",
+                semantic_type="log_entry_committed",
+                payload_snapshot={"status": "ok"},
+                prev_log_hash=_ZERO_HASH,
+            )
+        )
+        read = read_ledger_entry_activity(
+            entry, actor="https://example.org/actors/reporter"
+        )
+        dl.save(entry)
+        dl.save(read)
+
+        with caplog.at_level(logging.WARNING):
+            result = dl.read(read.id_)
+
+        assert type(result).__name__ == "_ReadLogEntryActivity"
+        assert result.object_ == entry.id_  # type: ignore[union-attr]
+        assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+    def test_full_case_invite_round_trips_without_warning(self, dl, caplog):
+        """A stored full-case Invite reads back as _RmInviteToFullCaseActivity."""
+        import logging
+
+        from vultron.core.models.ledger_position import LedgerPosition
+        from vultron.wire.as2.factories import rm_invite_to_full_case_activity
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        invite = rm_invite_to_full_case_activity(
+            "https://example.org/actors/vendor",
+            case,
+            LedgerPosition(log_index=0, entry_hash=_ZERO_HASH),
+            actor="https://example.org/actors/case-actor",
+        )
+        dl.save(case)
+        dl.save(invite)
+
+        with caplog.at_level(logging.WARNING):
+            result = dl.read(invite.id_)
+
+        assert type(result).__name__ == "_RmInviteToFullCaseActivity"
+        assert result.target == case.id_  # type: ignore[union-attr]
+        assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
