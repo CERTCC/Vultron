@@ -1,9 +1,9 @@
 """Tests for the built-site reading-path box check (``uv run docs-path-boxes``).
 
-Requirements: DF-11-023 (every member page and start page renders its box for
-each thread it is on, through an ``include-markdown`` line placed by hand; the
-check names the page and the line to add and fails on an empty target set),
-DF-11-022 (a section member's box sits in its section), DF-09-009.
+Requirements: DF-11-045 (every member page and start page renders its box for
+each thread it is on; the check names the page and the line to add and fails
+on an empty target set), DF-11-044 (through an ``include-markdown`` line placed
+by hand), DF-11-043 (a section member's box sits in its section), DF-09-009.
 """
 
 from __future__ import annotations
@@ -162,7 +162,7 @@ def _faults(root: Path) -> list[str]:
     return check_boxes(root).faults
 
 
-@pytest.mark.spec("DF-11-023")
+@pytest.mark.spec("DF-11-045", "DF-11-049", "DF-11-050", "DF-11-051")
 class TestBuiltSiteCheck:
     def test_every_box_in_place_passes(self, site):
         report = check_boxes(site)
@@ -202,6 +202,7 @@ class TestBuiltSiteCheck:
             '{% include-markdown "./start/_paths/practice/a.md" %}'
         )
 
+    @pytest.mark.spec("DF-11-043")
     def test_a_section_box_outside_its_section_fails(self, site):
         _build(site, misplace=True)
         (fault,) = _faults(site)
@@ -213,6 +214,7 @@ class TestBuiltSiteCheck:
             in fault
         )
 
+    @pytest.mark.spec("DF-11-043")
     def test_a_section_box_before_its_heading_fails(self, site):
         html = site / "site/g/index.html"
         text = html.read_text()
@@ -226,6 +228,7 @@ class TestBuiltSiteCheck:
         (fault,) = _faults(site)
         assert "outside that section" in fault
 
+    @pytest.mark.spec("DF-11-043")
     def test_a_section_box_whose_anchor_is_gone_fails(self, site):
         html = site / "site/g/index.html"
         html.write_text(html.read_text().replace('id="later"', 'id="renamed"'))
@@ -259,6 +262,7 @@ class TestBuiltSiteCheck:
         (fault,) = _faults(site)
         assert "outside that section" in fault
 
+    @pytest.mark.spec("DF-11-044")
     def test_a_box_with_no_include_directive_fails(self, site):
         _build(site, sourced=False)
         faults = _faults(site)
@@ -310,7 +314,7 @@ class TestBuiltSiteCheck:
         )
 
 
-@pytest.mark.spec("DF-11-023")
+@pytest.mark.spec("DF-11-045")
 class TestScan:
     def test_only_the_article_is_read(self):
         scan = scan_page(
@@ -326,7 +330,7 @@ class TestScan:
         assert scan.boxes == []
 
 
-@pytest.mark.spec("DF-11-023")
+@pytest.mark.spec("DF-11-045")
 def test_the_check_runs_in_ci_beside_the_built_site_checks():
     action = yaml.safe_load(
         (

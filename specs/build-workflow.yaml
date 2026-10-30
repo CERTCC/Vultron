@@ -23,14 +23,15 @@ groups:
         verification_debt: '#2571'
         statement: >-
           `plan/incoming/learnings/` MUST contain only implementation
-          observations, open questions, constraints, and insights discovered
-          during `build` or `bugfix` execution that are relevant to future
-          implementation work. Completion summaries, "what was done"
-          narratives, and status updates MUST NOT appear here.
+          observations, open questions, constraints and insights. Each one
+          comes from a `build` or `bugfix` run and bears on future
+          implementation work.
         rationale: >-
           The queue is a focused upstream communication channel from executing
           skills to the `learn` skill. Mixing status updates with actionable
           insights dilutes the signal and creates noise for `learn` to filter.
+          Thus completion summaries, "what was done" narratives and status
+          updates do not go in the queue (BW-01-002).
         relationships:
           - rel_type: depends_on
             spec_id: HM-03-001
@@ -73,22 +74,54 @@ groups:
         kind: process
         verification_debt: '#2571'
         statement: >-
-          Each incoming learning file MUST be named `YYYYMMDD-SLUG.md`
-          where `YYYYMMDD` is the creation date and `SLUG` is a short
-          lowercase, hyphenated slug describing the observation —
-          conventionally the originating issue number followed by a
-          descriptive phrase (e.g.,
-          `20260918-3399-bt18-has-no-contract-for-a-refusal-carrying-a-payload.md`).
-          `SLUG` MUST NOT be required to equal or derive from the `source`
-          frontmatter field; the link to the originating work item is
-          carried by `source` (BW-02-002). One work item MAY produce several
-          learning files, so each file's `SLUG` MUST be distinct from every
-          other file in the queue sharing its date prefix.
+          Each incoming learning file MUST be named `YYYYMMDD-SLUG.md`.
+          `YYYYMMDD` is the creation date. `SLUG` is a short, lowercase,
+          hyphenated phrase that describes the observation.
         rationale: >-
           One file for each learning lets each branch record an observation without
           merge conflicts on a shared file. The date prefix sorts the directory by date.
-          The slug must not come from `source`, because one work item can produce many
-          learnings. A name from `source` gives all of them the same filename.
+          By convention, the slug is the originating issue number and then a
+          descriptive phrase, for example
+          `20260918-3399-bt18-has-no-contract-for-a-refusal-carrying-a-payload.md`.
+      - id: BW-01-008
+        priority: MUST_NOT
+        kind: process
+        verification_debt: '#2571'
+        statement: >-
+          A tool or skill MUST NOT require a learning file's `SLUG` to equal or
+          derive from its `source` frontmatter field.
+        rationale: >-
+          The `source` field carries the link to the originating work item
+          (BW-02-002), so the filename does not have to carry it. One work item can
+          produce many learnings. A name from `source` gives all of them the same
+          filename.
+        relationships:
+          - rel_type: extends
+            spec_id: BW-01-003
+      - id: BW-01-009
+        priority: MAY
+        kind: process
+        statement: >-
+          One work item MAY produce several incoming learning files.
+        rationale: >-
+          One session can find several unrelated observations. Each one needs its own
+          file, so that `learn` can promote, archive or reject each one separately.
+      - id: BW-01-010
+        priority: MUST
+        kind: process
+        verification_debt: '#2571'
+        statement: >-
+          Each incoming learning file's `SLUG` MUST differ from the `SLUG` of every
+          other file in the queue with the same date prefix.
+        rationale: >-
+          Two files with the same date and slug have the same filename. Then the second
+          file overwrites the first, and the first observation is lost. This can occur
+          when one work item produces several learnings on one day (BW-01-009).
+        relationships:
+          - rel_type: extends
+            spec_id: BW-01-003
+          - rel_type: derives_from
+            spec_id: BW-01-009
       - id: BW-01-006
         priority: MUST
         kind: process
@@ -123,16 +156,12 @@ groups:
         verification_debt: '#2571'
         statement: >-
           The `update-plan` skill MUST write observations and open questions
-          to the `notes/*.md` file whose topic matches the content. It MUST NOT use
-          `plan/incoming/learnings/` as an intermediate staging area.
+          directly to the `notes/*.md` file whose topic matches the content.
         rationale: >-
           Gap-analysis observations already have a topic file in `notes/`. If they go
           into the learnings queue first, a later step must move them to `notes/`. A
           direct write also keeps the queue for build and bugfix output only
-          (BW-01-004).
-        relationships:
-          - rel_type: refines
-            spec_id: BW-01-004
+          (BW-01-004), so `update-plan` does not stage its observations there.
   - id: BW-02
     title: Incoming Learnings File Format
     specs:
@@ -163,22 +192,16 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          The `source` field in an incoming learning file MUST be the
-          originating work-item identifier — `ISSUE-<n>`, `CONCERN-<n>`,
-          `IDEA-<n>`, `BUG-<n>` or equivalent — matching HM-02-001's
-          definition of `source`. It MUST NOT be set to the incoming file's
-          own `YYYYMMDD-SLUG` stem. `append-history` sanitises `source` into
-          the archived entry's filename, so `source` is what makes the
-          archived entry discoverable from the work item it came from, and
-          several incoming files may legitimately share one `source` when one
-          work item produced several observations.
+          The `source` field of an incoming learning file MUST be the originating
+          work-item identifier, not the file's `YYYYMMDD-SLUG` stem. Examples are
+          `ISSUE-<n>`, `CONCERN-<n>`, `IDEA-<n>` and `BUG-<n>`.
         rationale: >-
           `source` identifies the work item that produced the observation. HM-02-001
           defines it as an originating identifier. `append-history` uses it to name the
           archived file. Thus it must be the work-item ID, so that a reader of that item
           can find the archived entry. The incoming filename is the date and slug
           (BW-01-003), which is a different value. Many incoming files can have the same
-          `source`.
+          `source` when one work item produced several observations.
         verification: Inspection of `plan/incoming/learnings/` confirms each file's `source` matches the
           originating-identifier form defined by HM-02-001, and that `append-history --from-file` archives it to
           `plan/history/YYMM/<type>/<sanitised-source>.md`.
@@ -260,22 +283,35 @@ groups:
         kind: project
         statement: >-
           The `learnings-index` entry point MUST render one line per file in
-          `plan/incoming/learnings/` carrying its source, title, and filename,
-          and MUST still print the valid entries when a file fails
-          validation, reporting the failures on stderr.
+          `plan/incoming/learnings/` that carries its source, title and filename.
         rationale: >-
           `orient-agent` needs a map of the queue, not its full text. If it reads each
           full file, it uses much of the orientation budget. Each title states its
-          lesson, so one line for each file gives orientation what it needs. People
-          write the queue by hand, so a malformed file is probable. If one bad file
-          stops the index, orientation cannot see the other entries.
+          lesson, so one line for each file gives orientation what it needs.
         verification: >-
-          `test/metadata/test_incoming_learnings.py` asserts the line format,
-          newest-first ordering, and that a malformed file is reported on
-          stderr while the valid entries still render.
+          `test/metadata/test_incoming_learnings.py` asserts the line format and
+          newest-first ordering.
         relationships:
           - rel_type: depends_on
             spec_id: BW-02-001
+      - id: BW-02-007
+        priority: MUST
+        kind: project
+        statement: >-
+          When a file fails validation, the `learnings-index` entry point MUST still
+          print the valid entries and report each failure on stderr.
+        rationale: >-
+          People write the queue by hand, so a malformed file is probable. If one bad
+          file stops the index, orientation cannot see the other entries.
+        verification: >-
+          `test_malformed_file_does_not_cost_the_valid_entries` in
+          `test/metadata/test_incoming_learnings.py` asserts that a malformed file is
+          reported on stderr while the valid entries still render.
+          `test_clean_queue_writes_nothing_to_stderr` asserts that a valid queue
+          reports nothing on stderr.
+        relationships:
+          - rel_type: extends
+            spec_id: BW-02-006
   - id: BW-03
     title: learn Skill Processing
     specs:
@@ -301,15 +337,14 @@ groups:
         kind: process
         verification_debt: '#2571'
         statement: >-
-          `uv run append-history --from-file <path>` MUST be used to
-          archive each processed incoming learning file. This command
-          moves the file from `plan/incoming/learnings/` to
-          `plan/history/YYMM/learning/` and deletes the source. Files
-          MUST NOT be moved manually or remain in `plan/incoming/learnings/`
-          after archiving.
+          An agent MUST archive each processed incoming learning file with
+          `uv run append-history --from-file <path>`, not by moving it by hand.
         rationale: >-
           Using the CLI tool preserves the audit trail, regenerates the
-          monthly history README, and enforces write-once semantics.
+          monthly history README, and enforces write-once semantics. The command
+          moves the file from `plan/incoming/learnings/` to
+          `plan/history/YYMM/learning/` and deletes the source (BW-05-004), so no
+          archived file stays in the queue.
         relationships:
           - rel_type: depends_on
             spec_id: HM-01-002
@@ -318,8 +353,7 @@ groups:
         kind: process
         statement: >-
           After a complete `learn` cycle, `plan/incoming/learnings/` SHOULD
-          contain only a `.gitkeep` file. The queue SHOULD be empty after
-          every learning session that fully drains it.
+          contain only a `.gitkeep` file.
         rationale: >-
           Each `learn` cycle must process all queued entries. An empty queue after the
           cycle shows that the cycle did not skip an entry. An entry that stays in the
@@ -379,30 +413,61 @@ groups:
         kind: project
         verification_debt: '#2575'
         statement: >-
-          `uv run append-history --from-file <path>` MUST read the
-          complete file content (frontmatter + body), parse the
-          frontmatter to derive `type`, `title`, `source`, and
-          `timestamp`, then call the normal write path to create the
-          history entry at `plan/history/YYMM/<type>/<source>.md`.
-          It MUST delete the source file after a successful write.
+          `uv run append-history --from-file <path>` MUST write the file's
+          frontmatter and body through the normal write path to
+          `plan/history/YYMM/<type>/<source>.md`. It takes `type`, `title`, `source`
+          and `timestamp` from the frontmatter.
         rationale: >-
           Incoming learnings already have complete frontmatter. Thus the archive step
-          can read it from the file, and the caller does not have to state it again. The
-          tool deletes the source after the write, so each learning is in one location
-          only: the queue or the archive.
+          can read it from the file, and the caller does not have to state it again.
+      - id: BW-05-004
+        priority: MUST
+        kind: project
+        statement: >-
+          `uv run append-history --from-file <path>` MUST delete the source file
+          after a successful write.
+        rationale: >-
+          The tool deletes the source after the write, so each learning is in one
+          location only: the queue or the archive. A copy left in the queue would be
+          processed again.
+        verification: >-
+          `test_source_file_deleted_after_archive` in
+          `test/metadata/test_append_history.py` asserts the source file is gone
+          after a successful archive.
+        relationships:
+          - rel_type: extends
+            spec_id: BW-05-001
       - id: BW-05-002
         priority: MUST
         kind: project
         verification_debt: '#2575'
         statement: >-
-          `uv run append-history --from-file` MUST be mutually exclusive
-          with the positional `type` argument, `--title`, `--source`,
-          `--file`, and `--timestamp` flags. Any combination MUST exit
-          non-zero with an error message listing the conflicting flags.
+          `uv run append-history --from-file` MUST be mutually exclusive with the
+          positional `type` argument and the `--title`, `--source`, `--file` and
+          `--timestamp` flags.
         rationale: >-
           With `--from-file`, the frontmatter in the file is the only source of the
           entry's metadata. If a flag conflicts with it, nobody can tell which value
-          applies. Thus the tool refuses the combination and names the flags.
+          applies.
+      - id: BW-05-005
+        priority: MUST
+        kind: project
+        statement: >-
+          When an agent combines `--from-file` with a conflicting argument,
+          `uv run append-history` MUST exit non-zero with an error message that
+          names the conflicting flags.
+        rationale: >-
+          A refusal with no message does not tell the agent what to change. The
+          message names the flags, so the agent can remove them and run the command
+          again.
+        verification: >-
+          `test_incompatible_with_title_flag`, `test_incompatible_with_source_flag`
+          and `test_incompatible_with_positional_type` in
+          `test/metadata/test_append_history.py` assert a non-zero exit and an error
+          that names the conflicting argument.
+        relationships:
+          - rel_type: extends
+            spec_id: BW-05-002
       - id: BW-05-003
         priority: MUST
         kind: project
@@ -410,12 +475,28 @@ groups:
         statement: >-
           `uv run append-history --from-file` MUST reject files whose
           frontmatter `timestamp` is more than 60 seconds in the future
-          (HM-06-004). It MUST reject files with missing or invalid
-          frontmatter fields (HM-02-001).
+          (HM-06-004).
         rationale: >-
           `--from-file` must not bypass the validation that all other entries get. The
-          same frontmatter and future-date checks apply, so a file that the normal path
-          rejects cannot go into the archive by this path.
+          same future-date check applies, so a file that the normal path rejects cannot
+          go into the archive by this path.
+      - id: BW-05-006
+        priority: MUST
+        kind: project
+        statement: >-
+          `uv run append-history --from-file` MUST reject files with missing or
+          invalid frontmatter fields (HM-02-001).
+        rationale: >-
+          `--from-file` must not bypass the frontmatter validation that all other
+          entries get. An archived entry with a missing or invalid field breaks the
+          indexes and `show-history`, which read every entry in the same way.
+        verification: >-
+          `test_file_without_frontmatter_exits_nonzero` and
+          `test_file_with_missing_required_fields_exits_nonzero` in
+          `test/metadata/test_append_history.py` assert a non-zero exit for each.
+        relationships:
+          - rel_type: extends
+            spec_id: BW-05-003
   - id: BW-06
     title: Skill Documentation Updates
     specs:
@@ -439,25 +520,36 @@ groups:
         kind: process
         verification_debt: '#2571'
         statement: >-
-          The `learn` skill documentation MUST reference
-          `plan/incoming/learnings/` as its primary input source and MUST
-          describe the `append-history --from-file` archiving lifecycle.
+          The `learn` skill documentation MUST name `plan/incoming/learnings/` as its
+          primary input source.
         rationale: >-
-          `learn` agents follow the skill text. If the skill does not name the queue and
-          the archive step, agents do not read the entries, or they leave them in the
-          queue after processing.
+          `learn` agents follow the skill text. If the skill does not name the queue,
+          agents do not read the entries.
+      - id: BW-06-004
+        priority: MUST
+        kind: process
+        verification_debt: '#2571'
+        statement: >-
+          The `learn` skill documentation MUST describe the
+          `append-history --from-file` archiving lifecycle.
+        rationale: >-
+          `learn` agents follow the skill text. If the skill does not describe the
+          archive step, agents leave the entries in the queue after processing.
+        relationships:
+          - rel_type: extends
+            spec_id: BW-06-002
       - id: BW-06-003
         priority: MUST_NOT
         kind: process
         verification_debt: '#2571'
         statement: >-
           The `update-plan` skill MUST NOT instruct agents to write to
-          `plan/incoming/learnings/`. Observations discovered during gap
-          analysis MUST be written directly to `notes/*.md` files.
+          `plan/incoming/learnings/`.
         rationale: >-
           Agents follow the skill text. If `update-plan` tells agents to write to the
-          queue, it contradicts BW-01-007. It also puts gap-analysis observations in a
-          channel that is for build and bugfix output.
+          queue, it contradicts BW-01-007, which sends gap-analysis observations
+          directly to `notes/*.md`. It also puts those observations in a channel that
+          is for build and bugfix output.
   - id: BW-07
     title: Upward-Reflection Finding Routing
     specs:
@@ -466,21 +558,20 @@ groups:
         kind: process
         verification_debt: '#2571'
         statement: >-
-          Before completing a `build` or `bugfix` session, the agent MUST
-          run an upward-reflection checklist that explicitly asks whether
-          each of the following was encountered: behaviour with no spec
-          entry; a requirement that was unclear or that conflicted with
-          another; something that exists but is wrong; something that
-          should exist but does not; a broken tool, skill, or tracking
-          artefact; and a narrow but true fact about the code. Every
-          triggered item MUST then be routed to exactly one destination
-          per BW-07-004. A session that records nothing is valid only if
-          the checklist was completed and every answer was "no".
+          Before an agent completes a `build` or `bugfix` session, it MUST run an
+          upward-reflection checklist. The checklist asks explicitly whether the
+          session found each of six things. The first two are behaviour with no spec
+          entry, and a requirement that was unclear or conflicted with another. The
+          next two are something that exists but is wrong, and something that should
+          exist but does not. The last two are a broken tool, skill or tracking
+          artefact, and a narrow but true fact about the code.
         rationale: >-
           Without a mandatory checklist, agents usually record only small tactical tips.
           They do not record the more important problems: spec gaps, conflicts and
           broken tools. The checklist asks each question explicitly. Each triggered item
-          goes to one destination, so somebody acts on it, and it is not only recorded.
+          goes to one destination (BW-07-004), so somebody acts on it, and it is not
+          only recorded. A session that records nothing is valid only if the agent
+          completed the checklist and every answer was "no".
       - id: BW-07-002
         priority: SHOULD
         kind: process
@@ -544,7 +635,7 @@ groups:
         adr:
           - ADR-0054
       - id: BW-07-005
-        priority: MUST
+        priority: MUST_NOT
         kind: process
         verification_debt: '#2571'
         statement: >-
@@ -619,22 +710,29 @@ groups:
         kind: process
         verification_debt: '#2571'
         statement: >-
-          Code-review findings in files the current change did not touch
-          (pre-existing findings, and findings deferred as out of scope)
-          MUST be filed as GitHub `type:Bug`, `type:Task`, or `type:Concern`
-          issues in the session that surfaced them. They MUST NOT be recorded as
-          learning files, and MUST NOT be left only as PR-comment
-          advisories.
+          This rule covers each code-review finding in a file that the current change
+          did not touch. An agent MUST file each such finding as a GitHub `type:Bug`,
+          `type:Task` or `type:Concern` issue, in the session that surfaced it.
         rationale: >-
-          Nobody can assign, schedule or close a learning file. Thus a finding in a
-          learning file is not tracked, but it can seem tracked. A PR comment records a
-          finding but does not schedule it. A merged PR records what shipped, not what
-          was deferred. Only an issue keeps the finding open until
-          somebody resolves it.
-        lint_suppress:
-          # compound_statement: the MUST / MUST NOT / MUST NOT triple pre-dates
-          # #5364, which only widened the issue types the first clause allows.
-          - compound_statement
+          Such findings are pre-existing findings and findings deferred as out of scope.
+          A PR comment records a finding but does not schedule it, so a PR-comment
+          advisory alone does not meet this rule. A merged PR records what shipped, not
+          what was deferred. Only an issue keeps the finding open until somebody
+          resolves it.
         relationships:
           - rel_type: refines
             spec_id: BW-07-004
+      - id: BW-07-010
+        priority: MUST_NOT
+        kind: process
+        verification_debt: '#2571'
+        statement: >-
+          An agent MUST NOT record a code-review finding in a file that the current
+          change did not touch as a learning file.
+        rationale: >-
+          Nobody can assign, schedule or close a learning file. Thus a finding in a
+          learning file is not tracked, but it can seem tracked. The finding goes to an
+          issue instead (BW-07-009).
+        relationships:
+          - rel_type: extends
+            spec_id: BW-07-009

@@ -13,12 +13,12 @@ Every ``docs/**/*.md`` file is one of three things:
   ``{% include-markdown %}`` and that is not itself in the nav, or a
   ``pymdownx.snippets`` ``auto_append`` file. It has no reader of its own, so it
   is excluded from the target set and reported if it declares any of the
-  four keys (DF-11-010, DF-11-018, DF-11-026); its hosts' declarations govern
+  four keys (DF-11-010, DF-11-036, DF-11-026); its hosts' declarations govern
   it.
 * a **working-record page** — matched by
   :data:`~vultron.metadata.docs.page_schema.WORKING_RECORD_PATTERNS`. It
-  declares ``[project-contributor]``, no ``level`` (DF-11-012), no
-  ``page_type`` (DF-11-018) and no ``subject`` (DF-11-026), and it is
+  declares ``[project-contributor]``, no ``level`` (DF-11-033), no
+  ``page_type`` (DF-11-036) and no ``subject`` (DF-11-026), and it is
   absent from the ``mkdocs.yml`` nav and matched by ``not_in_nav``
   (DF-11-003).
 * a **reader-facing page** — everything else. It declares all four keys
@@ -286,7 +286,7 @@ def _check_declarations(
     if not declared:
         wanted = (
             "stakeholder_type: [project-contributor] (working record, "
-            "no level, page_type or subject; DF-11-012, DF-11-018, "
+            "no level, page_type or subject; DF-11-033, DF-11-036, "
             "DF-11-026)"
             if working
             else "stakeholder_type, level (DF-11-001), page_type "
@@ -410,7 +410,7 @@ def check_docs_frontmatter(repo_root: Path | None = None) -> CheckResult:
                 raise MetadataLoadError(
                     f"an include fragment must not declare {key}; it takes "
                     f"its declarations from the pages hosting it "
-                    f"({', '.join(hosts)}) (DF-11-010, DF-11-018, "
+                    f"({', '.join(hosts)}) (DF-11-010, DF-11-036, "
                     f"DF-11-026)",
                     path=shown(rel),
                     line=frontmatter_key_lines(path).get(key),

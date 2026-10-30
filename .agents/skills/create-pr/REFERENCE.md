@@ -23,7 +23,7 @@ gh pr create --repo CERTCC/Vultron \
 > **Nature of each conflict:**
 > <one line per file: what both sides changed>
 >
-> **To resolve** (merge, do not rebase — this branch is now published, PAD-11-001):
+> **To resolve** (merge, do not rebase — this branch is now published, PAD-11-006):
 > \`\`\`bash
 > bash .agents/skills/shared/sync-with-main.sh main
 > # resolve conflicts in the files listed above, then:

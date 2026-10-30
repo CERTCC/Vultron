@@ -54,7 +54,7 @@ class Coverage:
     """Counts behind the matrix.
 
     Only declarations are counted. Pages that declare nothing yet, and
-    working-record pages, which carry no level (DF-11-012), are left out, so
+    working-record pages, which carry no level (DF-11-033), are left out, so
     adding such a page does not make the committed matrix stale.
 
     Attributes:
@@ -109,7 +109,7 @@ status: active
 kind: generated
 description: >
   Generated count of reader-facing docs/ pages per stakeholder_type and level
-  (DF-11-008). A gap here is planning input, never a merge blocker.
+  (DF-11-008, DF-11-031). A gap here is planning input, never a merge blocker.
 related_notes:
   - notes/site-information-architecture.md
 related_specs:
@@ -143,6 +143,6 @@ def render_matrix(coverage: Coverage) -> str:
         "two\ntypes is counted in both of their rows.\n\n"
         f"{header}\n{delimiter}\n" + "\n".join(rows) + "\n\n"
         f"Reader-facing pages that declare both keys: {coverage.declared}.\n"
-        "Working-record pages carry no level (DF-11-012) and are not "
+        "Working-record pages carry no level (DF-11-033) and are not "
         "counted.\n"
     )

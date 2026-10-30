@@ -93,6 +93,7 @@ def test_violation_catches_a_static_file_not_only_a_page(tmp_path):
     assert "site/withheld/context.jsonld" in built
 
 
+@pytest.mark.spec("DOCBW-03-016")
 def test_absent_site_raises_rather_than_reporting_clean(tmp_path):
     """An unbuilt site cannot evidence the claim, so it fails (DF-09-009)."""
     (tmp_path / "docs/withheld").mkdir(parents=True)
@@ -101,6 +102,7 @@ def test_absent_site_raises_rather_than_reporting_clean(tmp_path):
         published_violations(tmp_path, (_artifact(),))
 
 
+@pytest.mark.spec("DOCBW-03-016")
 def test_empty_site_raises_rather_than_reporting_clean(tmp_path):
     (tmp_path / "site").mkdir()
     with pytest.raises(FileNotFoundError, match="mkdocs build"):
@@ -138,6 +140,7 @@ def test_violations_are_sorted_for_stable_output(tmp_path):
 # --- undeclared_artifacts -------------------------------------------------
 
 
+@pytest.mark.spec("DOCBW-03-016")
 def test_declaration_matching_no_source_file_is_reported(tmp_path):
     """A declaration describing nothing would pass forever while checking nothing."""
     _build_tree(tmp_path, site_paths=["index.html"], source_paths=[])

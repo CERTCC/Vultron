@@ -18,7 +18,7 @@ def test_readme_keeps_the_description_its_landing_page_lists(tmp_path):
     assert post.content.startswith("<!-- This file is auto-generated.")
 
 
-@pytest.mark.spec("DF-11-012")
+@pytest.mark.spec("DF-11-012", "DF-11-033")
 def test_readme_declares_itself_working_record(tmp_path):
     print_readme(model_dir=str(tmp_path))
     post = frontmatter.loads((tmp_path / "index.md").read_text())
@@ -26,7 +26,7 @@ def test_readme_declares_itself_working_record(tmp_path):
     assert "level" not in post.metadata
 
 
-@pytest.mark.spec("DF-11-012")
+@pytest.mark.spec("DF-11-012", "DF-11-033")
 def test_every_state_page_declares_itself_working_record(tmp_path):
     print_model(model_dir=str(tmp_path))
     pages = sorted(tmp_path.glob("state_*.md"))

@@ -89,7 +89,7 @@ introduce get a link to their canonical introduction instead (SG-11).
 Settle the page's frontmatter here, because the concept list decides it
 (SG-40). All four keys are required on every reader-facing page (DF-11-001,
 DF-11-018, DF-11-025); a working-record page declares `stakeholder_type:
-[project-contributor]` and no `level` (DF-11-012), `page_type` (DF-11-018) or
+[project-contributor]` and no `level` (DF-11-033), `page_type` (DF-11-036) or
 `subject` (DF-11-026); a fragment declares none of them (DF-11-010):
 
 - **`stakeholder_type`**: who the page is *addressed to* — not what it is about,
@@ -163,7 +163,7 @@ from the source:
      resolve; a `docs/`-rooted argument fails the strict build.
    - **Lint scope** — a fragment is a `lint-docs` target in its own right, so
      pass it explicitly (or lint the branch diff, which includes it). Page-scoped
-     rules belong to the assembled page, not the fragment (DF-09-007); quadrant
+     rules belong to the assembled page, not the fragment (DF-09-011); quadrant
      comes from each host page (DF-09-008). See `lint-docs` § "Fragments and
      assembly units".
 
@@ -275,7 +275,7 @@ and need no nav entry.
 Two traps the note settles, restated because they recur: a page's own level and
 stakeholder type are never rendered or navigated by (DF-11-004, DF-11-009), and
 repeated openings on adjacent pages are **required** for deep-link arrivals —
-never remove them to make neighbors read as a sequence (SG-44, DF-11-007).
+never remove them to make neighbors read as a sequence (SG-44, DF-11-030).
 
 ## Phase 7 — Validate
 
@@ -287,7 +287,7 @@ In this order:
    `uv run docs-normative-banner`, the frontmatter, level-order and banner
    gates the pre-commit hooks run. All three are site-wide. The banner gate
    fails a normative-set page that does not include `normative.md` itself, and
-   any other page or fragment that includes it (DF-12-006). The level-order
+   any other page or fragment that includes it (DF-12-016). The level-order
    gate can flag an existing lower-level page that uses a new `introduces:`
    term unlinked. Link that use; if the finding is on a page this change does not
    touch and linking it would collide with another task's ownership of that

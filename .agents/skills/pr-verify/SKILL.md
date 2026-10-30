@@ -64,7 +64,7 @@ comment.
    `sync_commit_ref` (PAD-18-004 called for a merge that never happened).
    `merge_reason: "deferred"` with `merge_required: false` and a null
    `sync_commit_ref` is **not** that: execute found an overlap and, by design,
-   left it to the merger's `gh pr update-branch` (PAD-18-009, ADR-0138). Do not
+   left it to the merger's `gh pr update-branch` (PAD-18-019, ADR-0138). Do not
    flag it.
    Continue to Phase 2 — the live check there is what decides the verdict —
    but this flag alone blocks `READY-TO-MERGE`, because it means execute never
@@ -102,7 +102,7 @@ cannot be ready to merge no matter what those checks find.
    - `BEHIND` → flag `BRANCH-BEHIND`; blocks `READY-TO-MERGE`. GitHub reports
      it only when a ruleset requires up-to-date branches, which this
      repository does not set (ADR-0126). `pr-execute` updates the branch on
-     GitHub when it sees `BEHIND` (PAD-18-004), so a live `BEHIND` here means
+     GitHub when it sees `BEHIND` (PAD-18-014), so a live `BEHIND` here means
      the base moved again after execute's last check: re-run `/pr-execute`,
      which clears it.
    - `DRAFT` → flag `PR-IS-DRAFT`; blocks `READY-TO-MERGE`. Report whether the
@@ -149,7 +149,7 @@ cannot be ready to merge no matter what those checks find.
    `skipped` findings do not clear it (`completeness-doctrine.md` § "Never Merge
    on Red"). A check that is red on `main` too is fixed by the single fix PR
    for `main`; this PR waits for it to land, then re-runs CI, which tests the
-   PR merged into the fixed base (no rebase, PAD-11-001). The only exception is one
+   PR merged into the fixed base (no rebase, PAD-11-006). The only exception is one
    re-run of a check already tracked by an open `flaky-test` issue holding a
    reproduction: name that issue in the verdict comment. A pass on re-run with no
    such issue is not evidence — the verdict stays `GAPS-FOUND`.
@@ -174,7 +174,7 @@ cannot be ready to merge no matter what those checks find.
 For implementation and bug-fix PRs (scope in
 `.agents/skills/shared/pr-body-guide.md` § "Implementation PR rules"), check
 that the PR body's `Docs:` line is
-not stale relative to execute's fix commits (PD-03-008):
+not stale relative to execute's fix commits (PD-03-013):
 
 1. Read the live PR body (`gh pr view <number> --json body`). A missing `Docs:`
    line or `Docs: pending check-docs-sync` → flag `STALE-DOCS-LINE`.

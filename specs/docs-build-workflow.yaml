@@ -143,99 +143,158 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          A withheld-artifact step MUST run after the Build Site step and MUST
-          fail the workflow when any artifact declared withheld produced files
-          in `site/`. It MUST also fail when `site/` is absent or empty, and
-          when a withheld declaration matches no file in the source tree.
+          A withheld-artifact step MUST run after the Build Site step and fail
+          the workflow when any artifact declared withheld produced files in
+          `site/`.
         rationale: >-
           A decision not to publish an artifact is a claim, and only the build
           output shows if the claim is true. A key that looks like a suppression
           can have no effect on the build. For example, `draft: true` is a key of
           the Material blog plugin, not of MkDocs, so a page with it still gets
           to `site/`. A check of the output, not of the `mkdocs.yml` mechanism,
-          also finds a pattern that matches the wrong path. The empty-`site/` and
-          stale-declaration failures exist because a gate that finds no targets
-          and passes is worse than no gate (DF-09-009).
+          also finds a pattern that matches the wrong path.
         verification: >-
           `uv run docs-withheld` (`vultron/metadata/docs/withheld.py`) exits
           non-zero, invoked by the `Check withheld artifacts are unpublished`
           step of `.github/actions/check-site-publication`, which
           `.github/workflows/docs-build-check.yml` runs after the build. Its logic is
-          covered by `test/metadata/docs/test_withheld.py`, including the
-          empty-`site/` and stale-declaration failure modes.
+          covered by `test/metadata/docs/test_withheld.py`.
+      - id: DOCBW-03-016
+        priority: MUST
+        kind: project
+        statement: >-
+          The withheld-artifact step MUST also fail when `site/` is absent or
+          empty, and when a withheld declaration matches no file in the source
+          tree.
+        rationale: >-
+          With no `site/`, or with a declaration that matches nothing, the step
+          has nothing to check and would pass. A gate that finds no targets and
+          passes is worse than no gate (DF-09-009).
+        verification: >-
+          `test/metadata/docs/test_withheld.py` covers the absent-`site/`,
+          empty-`site/` and stale-declaration failure modes of `docs-withheld`.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-03-005
       - id: DOCBW-03-006
         priority: MUST
         kind: project
         statement: >-
           Every workflow that builds the site MUST run the DOCBW-03-005 step,
-          including `.github/workflows/deploy_site.yml`, where it MUST sit
-          between the build step and the Pages artifact upload.
+          including `.github/workflows/deploy_site.yml`.
         rationale: >-
           `deploy_site.yml` is the workflow that actually publishes: it builds
           `site/` on a push to `publish` and uploads it to Pages. A gate present
           only in the pull-request workflow does not bind the publishing path, so
           a withheld artifact reintroduced by a direct push to `publish`, or by a
-          plugin or dependency change that alters the build, would ship. Placing
-          the step before the upload means the deploy fails rather than
-          publishing an artifact the project declared withheld.
+          plugin or dependency change that alters the build, would ship.
         verification: >-
           `test/ci/test_publication_gates_in_workflows.py` asserts every
-          workflow running `mkdocs build` also runs `docs-withheld` after it,
-          directly or through a local composite action, and that in
-          `deploy_site.yml` the step precedes `actions/upload-pages-artifact`.
+          workflow running `mkdocs build` also runs `docs-withheld`, directly or
+          through a local composite action, `deploy_site.yml` included.
       - id: DOCBW-03-007
         priority: MUST
         kind: project
         statement: >-
-          A reference-axis step MUST run after the Build Site step on every
-          trigger, with no step-level `if:` condition, and MUST fail the workflow
-          when any internal reference in the built `site/` tree resolves to a
-          path the build did not produce. It MUST evaluate every built HTML file
-          rather than only those reachable from an entry page, MUST fail when
-          `site/` is absent or empty, and MUST run in every workflow that builds
-          the site, on the same terms as DOCBW-03-006.
+          A reference-axis step MUST fail the workflow when any internal
+          reference in the built `site/` tree resolves to a path the build did
+          not produce.
         rationale: >-
           An internal reference can have a correct form and still point to a
           path that the build did not make, for example after its target moves
           to `draft_docs`. `--strict` cannot see every such reference, because
           markdown-exec renders on a child `Markdown` instance that has no
           relative-link treeprocessor. A check of *resolution* also covers form
-          checks such as a `.md` suffix. A crawl from an entry page misses every
-          page that no page links to, so the step reads every built file. Other
-          clauses: `notes/documentation-strategy.md`.
+          checks such as a `.md` suffix. Other clauses:
+          `notes/documentation-strategy.md`.
         verification: >-
           `uv run docs-links` (`vultron/metadata/docs/links.py`) exits non-zero,
           invoked by the `Check internal references resolve` step of
-          `.github/actions/check-site-publication`, which both site-building
-          workflows run after the build and, in `deploy_site.yml`, before the
-          Pages upload. Its logic
-          is covered by `test/metadata/docs/test_links.py` over synthetic built
-          trees, including the absent-`site/` failure, a reference to a withheld
-          page, a reference ending in `.md`, and a reference on a page no entry
-          point links to. `test/ci/test_publication_gates_in_workflows.py`
-          asserts the step's presence, placement, and that neither it nor its
-          calling step is conditional.
+          `.github/actions/check-site-publication`. Its logic is covered by
+          `test/metadata/docs/test_links.py` over synthetic built trees,
+          including a reference to a withheld page and a reference ending in
+          `.md`.
+      - id: DOCBW-03-017
+        priority: MUST
+        kind: project
+        statement: >-
+          The reference-axis step MUST run after the Build Site step on every
+          trigger, with no step-level `if:` condition.
+        rationale: >-
+          The step reads `site/`, so before the build it has nothing to check. A
+          step that an `if:` can skip lets a dead reference merge on any trigger
+          the condition excludes.
+        verification: >-
+          `test/ci/test_publication_gates_in_workflows.py` asserts the step
+          follows the build and that neither it nor its calling step is
+          conditional.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-03-007
+      - id: DOCBW-03-018
+        priority: MUST
+        kind: project
+        statement: >-
+          The reference-axis step MUST evaluate every built HTML file rather
+          than only those reachable from an entry page.
+        rationale: >-
+          A crawl from an entry page misses every page that no page links to,
+          and a dead reference on such a page still reaches readers who arrive
+          from a search or a bookmark.
+        verification: >-
+          `test/metadata/docs/test_links.py::test_dead_reference_on_unreachable_page_is_found`
+          finds a dead reference on a page that no entry point links to.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-03-007
+      - id: DOCBW-03-019
+        priority: MUST
+        kind: project
+        statement: >-
+          The reference-axis step MUST fail when `site/` is absent or empty.
+        rationale: >-
+          With no built files the step checks no reference and would pass. A
+          gate that finds no targets and passes is worse than no gate
+          (DF-09-009).
+        verification: >-
+          `test/metadata/docs/test_links.py` covers the absent-`site/` and
+          empty-`site/` failures of `docs-links`.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-03-007
+      - id: DOCBW-03-020
+        priority: MUST
+        kind: project
+        statement: >-
+          The reference-axis step MUST run in every workflow that builds the
+          site, on the same terms as DOCBW-03-006.
+        rationale: >-
+          A check present only in the pull-request workflow does not bind the
+          publishing path, so a dead reference that a direct push to `publish`
+          adds would ship.
+        verification: >-
+          `test/ci/test_publication_gates_in_workflows.py` asserts that both
+          site-building workflows run the step through
+          `.github/actions/check-site-publication`, and that in
+          `deploy_site.yml` it precedes the Pages upload.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-03-007
       - id: DOCBW-03-008
         priority: MUST
         kind: project
         statement: >-
-          A continuity step MUST run after the Build Site step and MUST fail the
-          workflow when a URL that any earlier publish of the site served
-          resolves to neither a built page nor a redirect whose chain ends at a
-          built page, unless a withheld declaration (DOCBW-03-005) covers it. The
-          record of served URLs MUST be committed, MUST only grow, and MUST NOT
-          be derived at check time from the branch the publish replaces. The
-          step MUST fail when `site/` is absent or empty or the record is empty,
-          and MUST run in every workflow that builds the site on the same terms
-          as DOCBW-03-006.
+          A continuity step MUST fail the workflow when a URL that an earlier
+          publish served reaches no built page, directly or through a redirect
+          chain. A URL that a withheld declaration (DOCBW-03-005) covers is
+          exempt.
         rationale: >-
           Readers and other sites keep links to the URLs that an earlier publish
           served. When a page moves or is withdrawn with no redirect, each of
           those links gets a 404. `--strict` checks links in one build, not URLs
-          that an earlier build served. The record is committed because its
-          evidence, the `publish` branch, is gone when `publish` advances. A
-          withdrawn page is excluded, not redirected, so a retirement does not
-          look like a move. Other clauses: `notes/documentation-strategy.md`.
+          that an earlier build served. A withdrawn page is excluded, not
+          redirected, so a retirement does not look like a move. Other clauses:
+          `notes/documentation-strategy.md`.
         verification: >-
           `uv run docs-legacy-urls` (`vultron/metadata/docs/legacy_urls.py`)
           exits non-zero, reading the record in
@@ -243,10 +302,102 @@ groups:
           `Check published URLs still resolve` step of
           `.github/actions/check-site-publication`. Its logic is covered by
           `test/metadata/docs/test_legacy_urls.py` over synthetic built trees,
-          including the absent-`site/` and empty-record failures, a redirect to
-          an unbuilt page, a loop, and a withheld URL.
+          including a redirect to an unbuilt page, a loop, and a withheld URL.
+      - id: DOCBW-03-021
+        priority: MUST
+        kind: project
+        statement: >-
+          The continuity step MUST run after the Build Site step.
+        rationale: >-
+          The step reads `site/`, so before the build it has nothing to check.
+        verification: >-
+          `test/ci/test_publication_gates_in_workflows.py::test_gate_runs_after_the_build`
+          asserts the step follows the build in every site-building workflow.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-03-008
+      - id: DOCBW-03-022
+        priority: MUST
+        kind: project
+        statement: >-
+          This codebase MUST commit the record of URLs that earlier publishes
+          served.
+        rationale: >-
+          The evidence of what a publish served, the `publish` branch, is gone
+          when `publish` advances, so only a committed copy keeps it.
+        verification: >-
+          `test/metadata/docs/test_legacy_urls.py::test_the_committed_baseline_is_seeded`
+          reads the committed record in
+          `vultron/metadata/docs/legacy_urls_baseline.txt`.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-03-008
+      - id: DOCBW-03-023
+        priority: MUST
+        kind: project
+        statement: >-
+          The record of served URLs MUST only grow.
+        rationale: >-
+          A URL dropped from the record is no longer checked, so a later publish
+          can turn it into a 404 with no failing check.
+        verification: >-
+          `test/metadata/docs/test_legacy_urls.py::test_snapshot_extends_the_baseline_and_never_drops`
+          shows that a snapshot adds pages and keeps every recorded one.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-03-022
+      - id: DOCBW-03-024
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          The continuity step MUST NOT derive the record at check time from the
+          branch the publish replaces.
+        rationale: >-
+          That branch holds only the last publish, and it is gone when `publish`
+          advances. A record derived from it at check time loses every URL that
+          an older publish served.
+        verification: >-
+          `docs-legacy-urls` reads the URLs it checks from the committed record
+          through `load_baseline` and reads no git ref; only its `--snapshot`
+          and `--require-recorded` modes read a ref.
+          `test/metadata/docs/test_legacy_urls.py` checks the comparison over a
+          page list with no git repository.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-03-008
+      - id: DOCBW-03-025
+        priority: MUST
+        kind: project
+        statement: >-
+          The continuity step MUST fail when `site/` is absent or empty or the
+          record is empty.
+        rationale: >-
+          With no built site or no recorded URL the step checks nothing and
+          would pass. A gate that finds no targets and passes is worse than no
+          gate (DF-09-009).
+        verification: >-
+          `test/metadata/docs/test_legacy_urls.py` covers the absent-`site/`,
+          empty-`site/` and empty-record failures of `docs-legacy-urls`.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-03-008
+      - id: DOCBW-03-026
+        priority: MUST
+        kind: project
+        statement: >-
+          The continuity step MUST run in every workflow that builds the site,
+          on the same terms as DOCBW-03-006.
+        rationale: >-
+          A check present only in the pull-request workflow does not bind the
+          publishing path, so a direct push to `publish` that breaks a served
+          URL would ship.
+        verification: >-
           `test/ci/test_publication_gates_in_workflows.py` asserts the step's
-          presence and placement in every site-building workflow.
+          presence in every site-building workflow and, in `deploy_site.yml`,
+          before the Pages upload.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-03-008
       - id: DOCBW-03-009
         priority: MUST
         kind: project
@@ -297,35 +448,60 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          On every pull request whose base branch is `publish`, whatever paths it
-          changes, the review workflow MUST fail when a page its merge result
-          builds is absent from the DOCBW-03-008 record of served URLs, deciding
-          which pages are built by the same rule that extends the record. The
-          step MUST fail when the merge result builds no pages, and MUST NOT run
-          on pull requests to any other base branch.
+          On every pull request to `publish`, the review workflow MUST fail when a
+          page that its merge result builds is missing from the DOCBW-03-008
+          record. The check runs whatever paths the pull request changes. It
+          decides which pages are built by the same rule that extends the record.
         rationale: >-
-          The record stays complete only if each publish is recorded before it ships.
-          Each pull request to `publish` checks every page that its merge result builds,
-          so it also finds a page that an earlier publish shipped unrecorded. The merge
-          result is checked because it is what `publish` will serve once the pull
-          request merges. A path filter would skip a release that changes no docs while
-          pages from an earlier unchecked publish are still unrecorded. On a pull
-          request to `main` a new page is not yet due, so the step would fail every page
-          addition. `publish` has no required status checks, so the gate holds through
-          the rule that a pull request never merges on a red check; a direct push or
-          manual deploy goes unchecked, an accepted gap. See
-          `notes/documentation-strategy.md`.
+          The record stays complete only if each publish is recorded before it
+          ships. A check of every page the merge result builds also finds a page
+          that an earlier publish shipped unrecorded. The merge result is what
+          `publish` serves after the merge. A path filter would skip a release
+          that changes no docs. `publish` has no required checks, so the gate
+          holds only because no pull request merges on a red check. A direct
+          push or manual deploy goes unchecked, an accepted gap.
         verification: >-
           A `docs-legacy-urls` mode (`vultron/metadata/docs/legacy_urls.py`)
-          exits non-zero on an unrecorded built page and on an empty built-page
-          set, covered by `test/metadata/docs/test_legacy_urls.py`;
+          exits non-zero on an unrecorded built page, covered by
+          `test/metadata/docs/test_legacy_urls.py`;
           `test/ci/test_publication_gates_in_workflows.py` asserts that the
           workflow running the step triggers on pull requests to `publish` with
-          no path filter, and that the step is conditioned on a `publish` base
-          branch and does not set `continue-on-error`.
+          no path filter, and that the step does not set `continue-on-error`.
         relationships:
           - rel_type: depends_on
             spec_id: DOCBW-03-008
+      - id: DOCBW-03-027
+        priority: MUST
+        kind: project
+        statement: >-
+          The DOCBW-03-012 step MUST fail when the merge result builds no pages.
+        rationale: >-
+          With no built page the step checks nothing and would pass. A gate
+          that finds no targets and passes is worse than no gate (DF-09-009).
+        verification: >-
+          The `docs-legacy-urls --require-recorded` mode exits non-zero on an
+          empty built-page set, covered by
+          `test/metadata/docs/test_legacy_urls.py::test_a_commit_that_builds_no_pages_raises`
+          and `test_cli_require_recorded_fails_when_it_would_check_nothing`.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-03-012
+      - id: DOCBW-03-028
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          The DOCBW-03-012 step MUST NOT run on pull requests to any base branch
+          other than `publish`.
+        rationale: >-
+          On a pull request to `main` a new page is not yet due, so the step
+          would fail every page addition.
+        verification: >-
+          `test/ci/test_publication_gates_in_workflows.py` asserts that the step
+          is conditioned on a `publish` base branch and is absent from the
+          shared publication action that pull requests to `main` run.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-03-012
       - id: DOCBW-03-013
         priority: MUST
         kind: project
@@ -467,7 +643,7 @@ groups:
         statement: >-
           The publication workflow MUST notify on failure and close the failure
           notice on a later success, through the `notify-failure` composite action
-          (CISEC-05-001).
+          (CISEC-05-001, CISEC-05-002, CISEC-05-008).
         rationale: >-
           A failed publish leaves the live site stale with no failing pull request
           to notice it, so the failure has to be reported by the run itself.
@@ -484,9 +660,8 @@ groups:
         kind: project
         statement: >-
           Every workflow that builds the site MUST build it through one shared
-          composite action that fixes the checkout (history depth and tags), the
-          dependency set and the `mkdocs build` command. A workflow MAY add steps
-          after the shared build, and MUST NOT run a `mkdocs build` of its own.
+          composite action. That action fixes the checkout (history depth and
+          tags), the dependency set and the `mkdocs build` command.
         rationale: >-
           A review build is evidence about the published site only when it builds
           the same thing. Two workflows that each set up their own build can
@@ -494,12 +669,36 @@ groups:
           the build flags. Then a green review does not show that the published
           site builds.
         verification: >-
-          `test/ci/test_site_build_shared_action.py` fails when any workflow or
-          any other local action runs `mkdocs build` outside
-          `.github/actions/build-site`, when a site-building workflow runs a
-          step other than its checkout before that action, and when the action
-          takes inputs or stops fixing the checkout, the dependency set or the
-          single build.
+          `test/ci/test_site_build_shared_action.py` fails when a site-building
+          workflow does not use `.github/actions/build-site`, when it runs a
+          step other than its checkout before the shared build, and when the
+          action takes inputs or stops fixing the checkout, the dependency set
+          or the single build.
         relationships:
           - rel_type: refines
             spec_id: DOCBW-03-009
+      - id: DOCBW-06-005
+        priority: MAY
+        kind: project
+        statement: >-
+          A site-building workflow MAY add steps after the shared build.
+        rationale: >-
+          The review workflow and the publication workflow need different
+          checks and uploads after the build. Steps after the shared build
+          cannot change the site it built, so both still build the same site.
+      - id: DOCBW-06-006
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A workflow MUST NOT run a `mkdocs build` of its own.
+        rationale: >-
+          A second build outside the shared action can differ from it in
+          dependencies, tags or flags. Then the site that one workflow checks is
+          not the site that another publishes.
+        verification: >-
+          `test/ci/test_site_build_shared_action.py` fails when any workflow or
+          any other local action runs `mkdocs build` outside
+          `.github/actions/build-site`.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-004

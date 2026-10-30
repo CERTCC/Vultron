@@ -76,9 +76,9 @@ arrive from search and from deep links, not by reading in nav order. "Page" mean
 the page as published, not the source file it was authored in — a page assembled
 from `{% include-markdown %}` fragments has one first use, not one per fragment,
 so this rule is evaluated against the assembling page and never against a
-fragment on its own (DF-09-007, ADR-0092). Implements DF-09-003. An expansion
+fragment on its own (DF-09-011, ADR-0092). Implements DF-09-003. An expansion
 that the previous page in the nav also carries is this rule working, not
-duplication (SG-44, DF-11-007).
+duplication (SG-44, DF-11-030).
 
 **SG-08 — Register in the acronyms snippet.** Every acronym used in `docs/`
 must appear in `docs/_acronyms/index.md`, which `pymdownx.snippets` appends to
@@ -315,7 +315,7 @@ introductions.** Every reader-facing page declares `stakeholder_type`, a `level`
 from 100–500 (DF-11-001), a `page_type` (DF-11-018): its Diátaxis quadrant, or
 `routing` for a page that mainly gives directions, and a `subject` (DF-11-025):
 `protocol`, `implementation` or `neutral`. A working-record page declares
-`stakeholder_type: [project-contributor]` and no `level` (DF-11-012),
+`stakeholder_type: [project-contributor]` and no `level` (DF-11-033),
 `page_type` or `subject` (DF-11-026). An include fragment declares none of
 them, because it takes its hosts' declarations (DF-11-010). A page that is
 the canonical introduction of a glossary term lists it under `introduces:`
@@ -390,7 +390,7 @@ describing this page, not content another authority owns — stays inline and is
 never an SG-43 copy. A block one authority owns (a banner, a pointer, a shared
 prerequisite list) is an SG-43 copy even when it serves arrival, and becomes a
 fragment that every page still renders. Page-scoped:
-evaluated against the assembly unit, never a fragment (DF-09-007). Implements
+evaluated against the assembly unit, never a fragment (DF-09-011). Implements
 DF-11-007; rationale in `notes/site-information-architecture.md` § "Pages stay
 self-sufficient; nav order carries dependency".
 
@@ -475,8 +475,9 @@ or to make an ordinary link stand out.
 
 **SG-51 — The page-type badge is rendered, never written.** The site draws the
 badge above the title from the page's `page_type` (DF-11-019), and a `routing`
-page shows none. Its styles are in `docs/stylesheets/page_type.css`. Never write
-a badge by hand, and never state the page's type in prose (SG-40).
+page shows none (DF-11-037). Its styles are in `docs/stylesheets/page_type.css`.
+Never write a badge by hand (DF-11-038), and never state the page's type in prose
+(SG-40).
 
 ---
 

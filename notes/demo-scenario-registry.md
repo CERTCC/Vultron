@@ -221,7 +221,7 @@ whose stem names no registered scenario (no CI run exercises it) and refuses
 passes, and the live answer is the demo-integration workflow (MS-16-002). A
 missing page is `missing_derived_paths`'s finding, not this check's. A
 `_`-prefixed file in the directory is an include fragment the narratives share,
-not a page, so the check skips it (DEMOCI-11-012, DF-09-007).
+not a page, so the check skips it (DEMOCI-11-012, DF-09-011).
 
 ## The CLI is a registry consumer, and `ActorRole` is what lets it be one
 

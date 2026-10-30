@@ -66,7 +66,7 @@ fragment instead of copying prose — one source, many render points
   the strict build.
 - **Lint scope.** A fragment is linted as source for sentence- and block-scoped
   rules; page-scoped rules (acronym first use, concept order) run on the
-  assembled page (DF-09-007), and its quadrant comes from its including pages
+  assembled page (DF-09-007, DF-09-011), and its quadrant comes from its including pages
   (DF-09-008). Pass a new fragment to `lint-docs` explicitly. Lint checks the
   prose, not the claims, so the claims are still verified at the move.
 - **A list-item fragment holds the item's text, not its marker.** Write

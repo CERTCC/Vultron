@@ -69,11 +69,11 @@ stakeholder_type: [project-contributor]
   - `adr-back-edges` → `vultron.metadata.adr.back_edges:main`.
     It reports each live decision record that no requirement's `adr:` edge and no `specs/` or `notes/` citation points back to, unless it is in the record-only exemption set, and each exemption that is no longer needed.
   - `docs-frontmatter` → `vultron.metadata.docs.page_frontmatter:main`.
-    It validates the `stakeholder_type`, `level` (DF-11-001), `page_type` (DF-11-018) and `subject` (DF-11-025) every reader-facing `docs/` page declares, and refuses `level`, `page_type` and `subject` on working-record pages and every key on include fragments.
+    It validates the `stakeholder_type`, `level` (DF-11-001), `page_type` (DF-11-018) and `subject` (DF-11-025) every reader-facing `docs/` page declares, and refuses `level`, `page_type` and `subject` on working-record pages (DF-11-033, DF-11-036) and every key on include fragments.
     It also fails a working-record page that is in the nav or matched by no `not_in_nav` pattern (DF-11-003).
     It validates the `thread:` each start page under `docs/start/` declares, and refuses the key on any other page (DF-11-013).
   - `docs-normative-banner` → `vultron.metadata.docs.normative_banner:main`.
-    It fails when a normative-set page does not include `docs/includes/normative.md` itself, or when any other page or fragment includes it, naming that include's `path:line` (DF-12-006).
+    It fails when a normative-set page does not include `docs/includes/normative.md` itself, or when any other page or fragment includes it, naming that include's `path:line` (DF-12-006, DF-12-016).
     It also fails when a listed page or the banner does not exist, or when the docs tree or the normative set is empty (DF-09-009).
     It applies the same rules to `docs/includes/specification_governs.md` and the protocol-design pages it declares, and also fails a declared protocol-design page whose `subject` is not `protocol` or that carries the not-normative banner too (DF-12-007).
     `docs/reference/conventions.md` is exempt, because it shows the banners as examples.
@@ -84,9 +84,9 @@ stakeholder_type: [project-contributor]
     It fails when a `docs/` page uses a glossary term that a higher-level page declares in `introduces:`, unless the page links that introducing page at or before the first use or the use itself links to the glossary (DF-11-002).
     Working-record pages and pages with no level are skipped, and include fragments are checked at their lowest host's level.
     Pre-existing violations sit in a shrink-only baseline, pinned by key in its test, where each entry names a reason; `--prune-baseline` drops entries that are no longer violations.
-  - `docs-site` → `vultron.metadata.docs.site_sync:main` (`--write` also writes the reading-path box fragments under `docs/start/_paths/` and deletes stale ones; `--check` reports both, DF-11-023; it also writes the listing on the cross-tab lookup page `docs/lookup.md` and checks that the home page and every start page link it, DF-11-021).
+  - `docs-site` → `vultron.metadata.docs.site_sync:main` (`--write` also writes the reading-path box fragments under `docs/start/_paths/` and deletes stale ones; `--check` reports both, DF-11-023; it also writes the listing on the cross-tab lookup page `docs/lookup.md` and checks that the home page and every start page link it, DF-11-042).
     `--write` regenerates the contents listing of each section landing page whose `index.md` declares `contents: generated`, at any nav depth, from the `mkdocs.yml` nav and each listed page's `description:` frontmatter.
-    It also checks that a `contents: routing` index links every member of its section, directly or through a fragment it includes uncut (DF-11-005), and regenerates `docs/includes/stakeholder_types.md` from the page schema (DF-11-011) and `notes/site-coverage-matrix.md` (DF-11-008).
+    It also checks that a `contents: routing` index links every member of its section, directly or through a fragment it includes uncut (DF-11-029), and regenerates `docs/includes/stakeholder_types.md` from the page schema (DF-11-011) and `notes/site-coverage-matrix.md` (DF-11-008).
     It regenerates each start page's reading-path listing from the page's `thread:` frontmatter (DF-11-014).
     `--check` fails if any committed copy is stale.
   - `docs-threads` → `vultron.metadata.docs.threads:main`.

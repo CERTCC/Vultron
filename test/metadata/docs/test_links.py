@@ -83,6 +83,7 @@ def test_clean_tree_has_no_dead_references(tmp_path):
 
 
 @pytest.mark.spec("DF-09-009")
+@pytest.mark.spec("DOCBW-03-019")
 def test_absent_site_raises(tmp_path):
     (tmp_path / "mkdocs.yml").write_text(f"site_url: '{SITE_URL}'\n", "utf-8")
     with pytest.raises(FileNotFoundError, match="absent or empty"):
@@ -90,6 +91,7 @@ def test_absent_site_raises(tmp_path):
 
 
 @pytest.mark.spec("DF-09-009")
+@pytest.mark.spec("DOCBW-03-019")
 def test_empty_site_raises(tmp_path):
     _build_tree(tmp_path, {})
     (tmp_path / "site").mkdir()
@@ -129,6 +131,7 @@ def test_reference_ending_in_md_is_dead(tmp_path):
 
 
 @pytest.mark.spec("DOCBW-03-007")
+@pytest.mark.spec("DOCBW-03-018")
 def test_dead_reference_on_unreachable_page_is_found(tmp_path):
     """Anti-crawl: no page links to ``orphan/``, and its links are still read."""
     _build_tree(tmp_path, {**CLEAN, "orphan/index.html": _page("../gone/")})
@@ -334,6 +337,7 @@ def test_main_exits_nonzero_when_no_internal_reference_was_checked(
 
 
 @pytest.mark.spec("DF-09-009")
+@pytest.mark.spec("DOCBW-03-019")
 def test_main_exits_nonzero_without_a_built_site(tmp_path, capsys):
     (tmp_path / "mkdocs.yml").write_text(f"site_url: '{SITE_URL}'\n", "utf-8")
     with pytest.raises(SystemExit) as exc:
