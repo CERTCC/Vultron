@@ -32,6 +32,14 @@ module is the one place that owns it, with the variants as parameters:
 - **what follows** — ``then`` runs inside the gate, so it is skipped when any
   earlier link fails (ADR-0058, EDF-06-005, #3038).
 
+A composed story needs the chain in **two halves**, because the invitee's
+decision is a branch point that falls between the Invite and the answer:
+:func:`invite_and_await_delivery` then :func:`answer_case_invite`, with the
+story's ``choose(...)`` between them (``notes/demo-scenario-tree.md``
+§ "Composition").  Both halves and the whole chain share one copy of each
+link, so the two forms cannot drift, and they use the same step and gate
+labels.
+
 The chain reports pass/fail through ``demo_step`` / ``demo_gate`` /
 ``demo_check`` as the hand-written copies did: a failed trigger or lookup
 skips its dependents and is recorded, never raised.  Two differences: step
@@ -173,12 +181,7 @@ def run_case_invite_chain(
         or ledger_client
         or (inviter.client if inviter is not None else None)
     )
-    if respond == "accept" and authority_client is None:
-        raise ValueError(
-            f"Chain for {invitee_name} has no client to wait on ledger"
-            " coverage with: pass case_manager_client, ledger_client or"
-            " inviter (SYNC-10-004)"
-        )
+    _require_ledger_authority(invitee_name, respond, authority_client)
 
     def answer(gate_label: str) -> None:
         _await_and_answer(
@@ -207,24 +210,185 @@ def run_case_invite_chain(
         )
         return
 
-    with demo_step(
-        f"{inviter.name} invites {invitee_name} with CVDRole.{inviter.role.name}"
-    ):
-        invite_offer = (
-            ActorSession(client=inviter.client, actor=inviter.actor)
-            .with_case(case)
-            .quiet()
-            .invite_actor_to_case(invitee_id=invitee.id_, roles=[inviter.role])
-        ).activity
-        logger.info(
-            "%s asked the CASE_MANAGER to invite %s: %s",
-            inviter.name,
-            invitee_name,
-            invite_offer.id_,
+    with demo_step(_invite_step_label(inviter, invitee_name)):
+        _trigger_invite(inviter, invitee, invitee_name, case)
+        answer(_delivery_gate_label(invitee_name))
+
+
+def invite_and_await_delivery(
+    *,
+    case: as_VulnerabilityCase,
+    invitee_name: str,
+    invitee_client: DataLayerClient,
+    invitee: as_Actor,
+    inviter: CaseInviter,
+    case_manager_client: DataLayerClient | None = None,
+    invite_timeout: float = 15.0,
+    expect_emitted_by: EmittedBy | None = None,
+) -> str | None:
+    """Invite *invitee* and gate on the Invite reaching its container.
+
+    The chain's first half, for a story that puts a branch point between the
+    Invite and the answer (:mod:`vultron.demo.helpers.story`): the invitee
+    decides only once it holds the Invite, and by then the CASE_MANAGER has
+    seated its inert participant carrying the role the Invite offers — which
+    is where the harness reads the deciding actor's role from (CM-17-003,
+    DEMOCI-11-013).  :func:`answer_case_invite` is the second half.
+
+    The step and gate labels are :func:`run_case_invite_chain`'s, so the two
+    forms read the same in the logs and the CI diagnostics.
+
+    Args:
+        case: The case the invitee is invited to.
+        invitee_name: Display name used in step and gate labels.
+        invitee_client: Client for the invitee's container, where the Invite
+            is delivered.
+        invitee: The invitee as the inviter addresses it.
+        inviter: The participant that triggers the invite.
+        case_manager_client: As :func:`run_case_invite_chain`; seeds
+            ``stub_summary`` on the CASE_MANAGER's copy of the case first.
+        invite_timeout: Seconds to wait for the Invite to be delivered.
+        expect_emitted_by: When given, verify the delivered Invite's sender.
+
+    Returns:
+        The delivered Invite's id, or ``None`` when the invite trigger or the
+        delivery wait failed — both recorded by their own ``demo_step`` /
+        ``demo_gate``, never raised (DEMOCI-01-003).
+    """
+    if case_manager_client is not None:
+        _seed_stub_summary(case_manager_client, case)
+
+    delivered: str | None = None
+    with demo_step(_invite_step_label(inviter, invitee_name)):
+        _trigger_invite(inviter, invitee, invitee_name, case)
+        with demo_gate(_delivery_gate_label(invitee_name)):
+            delivered = _find_invite(
+                case=case,
+                invitee_name=invitee_name,
+                invitee_client=invitee_client,
+                invitee=invitee,
+                invite_timeout=invite_timeout,
+                expect_emitted_by=expect_emitted_by,
+            )
+    return delivered
+
+
+def answer_case_invite(
+    *,
+    invite_id: str | None,
+    case: as_VulnerabilityCase,
+    invitee_name: str,
+    invitee_client: DataLayerClient,
+    invitee: as_Actor,
+    invitee_in_own_container: as_Actor,
+    respond: Literal["accept", "reject"] = "accept",
+    replica_timeout: float | None = None,
+    reply_timeout: float = FULL_CASE_REPLY_TIMEOUT,
+    authority_client: DataLayerClient | None = None,
+    then: Callable[[], None] | None = None,
+) -> None:
+    """Answer the Invite :func:`invite_and_await_delivery` delivered.
+
+    The chain's second half.  The answer and everything after it nest in one
+    gate, as they do inside the whole chain: an Invite that never arrived
+    (*invite_id* is ``None``) skips them all rather than posting
+    ``invite_id: None`` (EDF-06-005, #3038).
+
+    Args:
+        invite_id: The delivered Invite's id, or ``None`` when none arrived.
+        case: The case the invitee was invited to.
+        invitee_name: Display name used in step and gate labels.
+        invitee_client: Client for the invitee's container.
+        invitee: The invitee as the inviter addressed it.
+        invitee_in_own_container: The invitee as its own container holds it,
+            used to puppeteer the answer.
+        respond: ``"accept"`` waits for the case replica and replies to the
+            full-case Invite afterwards; ``"reject"`` does neither.
+        replica_timeout: Seconds to wait for the case replica; the polling
+            default when ``None``.
+        reply_timeout: As :func:`run_case_invite_chain`.
+        authority_client: Client for the container hosting the CASE_MANAGER,
+            for the ledger-coverage wait before the full-case reply.  Required
+            for an accepting answer (SYNC-10-004).
+        then: Runs inside the gate after the answer, so it is skipped when the
+            Invite never arrived.
+
+    Raises:
+        ValueError: When an accepting answer is given no *authority_client*.
+    """
+    _require_ledger_authority(invitee_name, respond, authority_client)
+    with demo_gate(f"{invitee_name} answers the case invitation"):
+        if invite_id is None:
+            raise AssertionError(
+                f"No case Invite reached {invitee_name}, so it has none to"
+                " answer; the invite trigger or its delivery failed and was"
+                " recorded above (EDF-06-005)"
+            )
+        _answer(
+            invite_id=invite_id,
+            case=case,
+            invitee_name=invitee_name,
+            invitee_client=invitee_client,
+            invitee=invitee,
+            invitee_in_own_container=invitee_in_own_container,
+            respond=respond,
+            replica_timeout=replica_timeout,
+            reply_timeout=reply_timeout,
+            authority_client=authority_client,
+            then=then,
         )
-        answer(
-            f"{invitee_name} invite delivered to {invitee_name}'s DataLayer"
+
+
+def _invite_step_label(inviter: CaseInviter, invitee_name: str) -> str:
+    """The step label under which *inviter* triggers the Invite."""
+    return (
+        f"{inviter.name} invites {invitee_name} with "
+        f"CVDRole.{inviter.role.name}"
+    )
+
+
+def _delivery_gate_label(invitee_name: str) -> str:
+    """The gate label the Invite's delivery to *invitee_name* is awaited under."""
+    return f"{invitee_name} invite delivered to {invitee_name}'s DataLayer"
+
+
+def _require_ledger_authority(
+    invitee_name: str,
+    respond: Literal["accept", "reject"],
+    authority_client: DataLayerClient | None,
+) -> None:
+    """Refuse an accepting answer with no client to wait on ledger coverage.
+
+    Raises:
+        ValueError: When one is needed and none was given (SYNC-10-004).
+    """
+    if respond == "accept" and authority_client is None:
+        raise ValueError(
+            f"Chain for {invitee_name} has no client to wait on ledger"
+            " coverage with: pass case_manager_client, ledger_client or"
+            " inviter (SYNC-10-004)"
         )
+
+
+def _trigger_invite(
+    inviter: CaseInviter,
+    invitee: as_Actor,
+    invitee_name: str,
+    case: as_VulnerabilityCase,
+) -> None:
+    """Have *inviter* ask the CASE_MANAGER to invite *invitee* to *case*."""
+    invite_offer = (
+        ActorSession(client=inviter.client, actor=inviter.actor)
+        .with_case(case)
+        .quiet()
+        .invite_actor_to_case(invitee_id=invitee.id_, roles=[inviter.role])
+    ).activity
+    logger.info(
+        "%s asked the CASE_MANAGER to invite %s: %s",
+        inviter.name,
+        invitee_name,
+        invite_offer.id_,
+    )
 
 
 def _seed_stub_summary(
@@ -269,56 +433,113 @@ def _await_and_answer(
     instead of posting ``invite_id: None`` (EDF-06-005, #3038).
     """
     with demo_gate(gate_label):
-        invite_id = find_case_invite_for_actor(
-            client=invitee_client,
-            case_id=case.id_,
-            invitee_id=invitee.id_,
-            timeout_seconds=invite_timeout,
+        invite_id = _find_invite(
+            case=case,
+            invitee_name=invitee_name,
+            invitee_client=invitee_client,
+            invitee=invitee,
+            invite_timeout=invite_timeout,
+            expect_emitted_by=expect_emitted_by,
         )
-        logger.info("CaseActor Invite for %s: %s", invitee_name, invite_id)
-
-        if expect_emitted_by is not None:
-            with demo_check(
-                f"{invitee_name} invite was emitted as the CaseActor"
-                " (PCR-08-008)"
-            ):
-                assert_received_from(
-                    invitee_client,
-                    invite_id,
-                    expect_emitted_by.case_actor_id,
-                    expect_emitted_by.consequence,
-                )
-
         if before_answer is not None:
             before_answer()
-        session = ActorSession(
-            client=invitee_client, actor=invitee_in_own_container
-        ).quiet()
-        if respond == "accept":
-            with demo_step(f"{invitee_name} accepts the case invitation"):
-                session.accept_case_invite(invite_id=invite_id)
-            logger.info("%s sent Accept(Invite) to CaseActor", invitee_name)
-            _await_case_replica(
-                invitee_name, invitee_client, case, replica_timeout
-            )
-            # run_case_invite_chain refused an accepting chain without one.
-            assert authority_client is not None
-            reply_to_full_case_invite(
-                invitee_name=invitee_name,
-                invitee_client=invitee_client,
-                invitee=invitee,
-                invitee_in_own_container=invitee_in_own_container,
-                case=case,
-                authority_client=authority_client,
-                timeout=reply_timeout,
-            )
-        else:
-            with demo_step(f"{invitee_name} rejects the case invitation"):
-                session.reject_case_invite(invite_id=invite_id)
-            logger.info("%s sent Reject(Invite) to CaseActor", invitee_name)
+        _answer(
+            invite_id=invite_id,
+            case=case,
+            invitee_name=invitee_name,
+            invitee_client=invitee_client,
+            invitee=invitee,
+            invitee_in_own_container=invitee_in_own_container,
+            respond=respond,
+            replica_timeout=replica_timeout,
+            reply_timeout=reply_timeout,
+            authority_client=authority_client,
+            then=then,
+        )
 
-        if then is not None:
-            then()
+
+def _find_invite(
+    *,
+    case: as_VulnerabilityCase,
+    invitee_name: str,
+    invitee_client: DataLayerClient,
+    invitee: as_Actor,
+    invite_timeout: float,
+    expect_emitted_by: EmittedBy | None,
+) -> str:
+    """Wait for the CASE_MANAGER's Invite for *invitee* and return its id.
+
+    Raises:
+        AssertionError: When no Invite arrives within *invite_timeout*; the
+            caller runs this inside the delivery gate, which records it.
+    """
+    invite_id = find_case_invite_for_actor(
+        client=invitee_client,
+        case_id=case.id_,
+        invitee_id=invitee.id_,
+        timeout_seconds=invite_timeout,
+    )
+    logger.info("CaseActor Invite for %s: %s", invitee_name, invite_id)
+
+    if expect_emitted_by is not None:
+        with demo_check(
+            f"{invitee_name} invite was emitted as the CaseActor (PCR-08-008)"
+        ):
+            assert_received_from(
+                invitee_client,
+                invite_id,
+                expect_emitted_by.case_actor_id,
+                expect_emitted_by.consequence,
+            )
+    return invite_id
+
+
+def _answer(
+    *,
+    invite_id: str,
+    case: as_VulnerabilityCase,
+    invitee_name: str,
+    invitee_client: DataLayerClient,
+    invitee: as_Actor,
+    invitee_in_own_container: as_Actor,
+    respond: Literal["accept", "reject"],
+    replica_timeout: float | None,
+    reply_timeout: float,
+    authority_client: DataLayerClient | None,
+    then: Callable[[], None] | None,
+) -> None:
+    """Answer the delivered Invite and run what follows it.
+
+    Runs inside the caller's gate, so a failure here skips the rest of it.
+    """
+    session = ActorSession(
+        client=invitee_client, actor=invitee_in_own_container
+    ).quiet()
+    if respond == "accept":
+        with demo_step(f"{invitee_name} accepts the case invitation"):
+            session.accept_case_invite(invite_id=invite_id)
+        logger.info("%s sent Accept(Invite) to CaseActor", invitee_name)
+        _await_case_replica(
+            invitee_name, invitee_client, case, replica_timeout
+        )
+        # Both entry points refuse an accepting answer without one.
+        assert authority_client is not None
+        reply_to_full_case_invite(
+            invitee_name=invitee_name,
+            invitee_client=invitee_client,
+            invitee=invitee,
+            invitee_in_own_container=invitee_in_own_container,
+            case=case,
+            authority_client=authority_client,
+            timeout=reply_timeout,
+        )
+    else:
+        with demo_step(f"{invitee_name} rejects the case invitation"):
+            session.reject_case_invite(invite_id=invite_id)
+        logger.info("%s sent Reject(Invite) to CaseActor", invitee_name)
+
+    if then is not None:
+        then()
 
 
 def _await_case_replica(

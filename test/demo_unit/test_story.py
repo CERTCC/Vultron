@@ -1,0 +1,442 @@
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""The story API: fragments, named prefixes, choices and the runner (#5533).
+
+A scenario written as composition states its story once and the registry reads
+its path off the story's choices (DEMOCI-11-019); declaring both forms fails
+discovery (DEMOCI-11-024).  These tests cover the derivation, both declaration
+forms, the refusals, and the runner's own job: play the items in order and
+report each choice to the harness with the deciding actor's id, so a composed
+scenario places no ``reach_step`` by hand.
+
+Kept in ``test/demo_unit/`` for the reason ``test_scenario_registry.py``
+gives: ``test/demo/`` is auto-marked ``integration`` and deselected by default.
+"""
+
+from __future__ import annotations
+
+import contextlib
+from collections.abc import Callable, Iterator
+from typing import Any, cast
+from unittest.mock import MagicMock
+
+import pytest
+
+from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers import story as story_module
+from vultron.demo.helpers.story import (
+    Choose,
+    Story,
+    StoryState,
+    choose,
+    run_story,
+    story,
+)
+from vultron.demo.scenario import registry
+from vultron.demo.scenario.registry import ScenarioSpec, scenario
+from vultron.demo.scenario.tree import build_scenario_tree
+from vultron.errors import DemoScenarioRegistryError, DemoStoryError
+
+#: ``rv``'s path, as choices of a story.  Reused as the fixture story so the
+#: fixture registry it is spliced into stays one well-formed tree.
+_RV_CHOICES = (
+    ("reporter-whom-to-tell", "vendor"),
+    ("vendor-after-answer", "report-fix-ready"),
+)
+
+
+def _fragment(name: str, log: list[str]) -> Callable[[StoryState], None]:
+    """A fragment that records that it ran."""
+
+    def run(_state: StoryState) -> None:
+        log.append(name)
+
+    run.__name__ = name
+    return run
+
+
+def _session(actor_id: str) -> ActorSession:
+    """A session whose actor carries *actor_id* and nothing else."""
+    actor = MagicMock()
+    actor.id_ = actor_id
+    return ActorSession(client=MagicMock(base_url="x"), actor=actor)
+
+
+def _state(**cast: ActorSession) -> StoryState:
+    return StoryState(
+        cast=cast,
+        case_actor_client=MagicMock(),
+        harness=MagicMock(),
+        dump=lambda _state: None,
+    )
+
+
+def _rv_story(log: list[str] | None = None) -> Story:
+    """A composed fixture story walking ``rv``'s path."""
+    entries = log if log is not None else []
+    return story(
+        choose("reporter-whom-to-tell", "vendor", by="reporter"),
+        _fragment("submit", entries),
+        choose("vendor-after-answer", "report-fix-ready", by="vendor"),
+        _fragment("fix", entries),
+    )
+
+
+# ---------------------------------------------------------------------------
+# choose(...) and story(...)
+# ---------------------------------------------------------------------------
+
+
+class TestChoose:
+    @pytest.mark.spec("DEMOCI-11-013")
+    def test_an_unknown_branch_point_is_refused_where_it_is_written(
+        self,
+    ) -> None:
+        with pytest.raises(
+            DemoScenarioRegistryError, match="unknown branch point"
+        ):
+            choose("no-such-branch-point", "vendor", by="reporter")
+
+    @pytest.mark.spec("DEMOCI-11-013")
+    def test_an_unknown_choice_is_refused_where_it_is_written(self) -> None:
+        with pytest.raises(DemoScenarioRegistryError, match="no choice"):
+            choose("reporter-whom-to-tell", "nobody", by="reporter")
+
+    @pytest.mark.spec("DEMOCI-11-013")
+    @pytest.mark.parametrize("by", ["", None])
+    def test_a_choice_names_the_actor_that_decides(self, by: Any) -> None:
+        with pytest.raises(DemoStoryError, match="as the actor that decides"):
+            choose("reporter-whom-to-tell", "vendor", by=by)
+
+    def test_the_step_is_the_branch_point_and_choice_pair(self) -> None:
+        item = choose("reporter-whom-to-tell", "vendor", by="reporter")
+        assert item.step == ("reporter-whom-to-tell", "vendor")
+
+
+class TestStoryAssembly:
+    def test_a_named_prefix_is_spliced_not_nested(self) -> None:
+        """A prefix's items become the start of the whole, one flat sequence."""
+        log: list[str] = []
+        prefix = story(
+            choose("reporter-whom-to-tell", "vendor", by="reporter"),
+            _fragment("submit", log),
+        )
+        whole = story(
+            prefix,
+            choose("vendor-after-answer", "report-fix-ready", by="vendor"),
+            _fragment("fix", log),
+        )
+        assert whole.items[:2] == prefix.items
+        assert len(whole.items) == 4
+        assert not any(isinstance(item, Story) for item in whole.items)
+
+    @pytest.mark.spec("DEMOCI-11-019")
+    def test_the_path_is_the_choices_in_order(self) -> None:
+        assert _rv_story().path == _RV_CHOICES
+
+    def test_a_story_with_no_items_is_refused(self) -> None:
+        with pytest.raises(DemoStoryError, match="at least one item"):
+            story()
+
+    def test_a_part_that_is_not_an_item_is_refused(self) -> None:
+        with pytest.raises(DemoStoryError, match="neither a named prefix"):
+            story("reporter-whom-to-tell")  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# StoryState
+# ---------------------------------------------------------------------------
+
+
+class TestStoryState:
+    def test_an_unseated_actor_names_the_cast_it_is_missing_from(self) -> None:
+        state = _state(reporter=_session("urn:test:reporter"))
+        with pytest.raises(DemoStoryError, match=r"it seats \['reporter'\]"):
+            state.actor("vendor")
+
+    def test_reading_the_case_before_it_opens_raises(self) -> None:
+        state = _state(reporter=_session("urn:test:reporter"))
+        with pytest.raises(DemoStoryError, match="has not opened a case"):
+            _ = state.case
+        with pytest.raises(DemoStoryError, match="no report yet"):
+            _ = state.report
+        with pytest.raises(DemoStoryError, match="no report Offer yet"):
+            _ = state.offer
+
+    def test_opening_the_case_arms_the_dump_and_follows_the_ledger(
+        self,
+    ) -> None:
+        """DEMOMA-23-003: the dump is registered the moment there is a case."""
+        state = _state(reporter=_session("urn:test:reporter"))
+        case = MagicMock(id_="urn:test:case")
+        dumped: list[StoryState] = []
+        state.dump = dumped.append
+
+        state.open_case(case=case, report=MagicMock(), offer=MagicMock())
+
+        assert state.case is case
+        harness = cast(MagicMock, state.harness)
+        harness.follow_ledger.assert_called_once_with(
+            state.case_actor_client, "urn:test:case"
+        )
+        harness.dump_with.assert_called_once()
+        harness.dump_with.call_args.args[0]()
+        assert dumped == [state]
+
+    def test_a_delivered_invite_is_read_back_by_cast_name(self) -> None:
+        state = _state(vendor=_session("urn:test:vendor"))
+        assert state.delivered_invite("vendor") is None
+        state.invited("vendor", "urn:test:invite")
+        assert state.delivered_invite("vendor") == "urn:test:invite"
+
+    def test_an_undelivered_invite_clears_the_slot(self) -> None:
+        """``None`` is what the answer fragment refuses in its own gate."""
+        state = _state(vendor=_session("urn:test:vendor"))
+        state.invited("vendor", "urn:test:invite")
+        state.invited("vendor", None)
+        assert state.delivered_invite("vendor") is None
+
+    def test_an_invite_for_an_unseated_actor_raises(self) -> None:
+        state = _state(vendor=_session("urn:test:vendor"))
+        with pytest.raises(DemoStoryError, match="does not seat"):
+            state.invited("coordinator", "urn:test:invite")
+        with pytest.raises(DemoStoryError, match="does not seat"):
+            state.delivered_invite("coordinator")
+
+    def test_an_actor_with_no_id_cannot_decide_a_step(self) -> None:
+        session = _session("urn:test:reporter")
+        cast(MagicMock, session.actor).id_ = None
+        state = _state(reporter=session)
+        with pytest.raises(DemoStoryError, match="has no actor id"):
+            state.actor_id("reporter")
+
+
+# ---------------------------------------------------------------------------
+# run_story
+# ---------------------------------------------------------------------------
+
+
+class _FakeHarness:
+    """Records the step marks a story reports, in order."""
+
+    def __init__(self) -> None:
+        self.marks: list[tuple[str, str, str]] = []
+        self.demo_name = "rv"
+
+    def reach_step(self, branch_point: str, choice: str, *, by: str) -> None:
+        self.marks.append((branch_point, choice, by))
+
+
+@pytest.fixture
+def fake_harness(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[_FakeHarness]:
+    """Stand in for ``scenario_harness``, which needs a real case to check."""
+    harness = _FakeHarness()
+
+    @contextlib.contextmanager
+    def stub(_demo_name: str) -> Iterator[_FakeHarness]:
+        yield harness
+
+    monkeypatch.setattr(story_module, "scenario_harness", stub)
+    yield harness
+
+
+class TestRunStory:
+    @pytest.mark.spec("DEMOCI-11-013")
+    def test_the_runner_marks_each_choice_as_it_passes_it(
+        self, fake_harness: _FakeHarness
+    ) -> None:
+        """No fragment places a reach_step: the runner emits every mark."""
+        log: list[str] = []
+        state = _state(
+            reporter=_session("urn:test:reporter"),
+            vendor=_session("urn:test:vendor"),
+        )
+
+        run_story("rv", _rv_story(log), lambda _harness: state)
+
+        assert log == ["submit", "fix"]
+        assert fake_harness.marks == [
+            ("reporter-whom-to-tell", "vendor", "urn:test:reporter"),
+            ("vendor-after-answer", "report-fix-ready", "urn:test:vendor"),
+        ]
+
+    def test_the_cast_is_opened_inside_the_harness(
+        self, fake_harness: _FakeHarness
+    ) -> None:
+        """A seeding failure is dumped and reported like any other."""
+        seen: list[object] = []
+
+        def open_cast(harness: Any) -> StoryState:
+            seen.append(harness)
+            return _state(
+                reporter=_session("urn:test:reporter"),
+                vendor=_session("urn:test:vendor"),
+            )
+
+        run_story("rv", _rv_story(), open_cast)
+        assert seen == [fake_harness]
+
+    def test_a_choice_by_an_unseated_actor_fails_the_run(
+        self, fake_harness: _FakeHarness
+    ) -> None:
+        state = _state(vendor=_session("urn:test:vendor"))
+        with pytest.raises(DemoStoryError, match="does not seat"):
+            run_story("rv", _rv_story(), lambda _harness: state)
+        assert fake_harness.marks == []
+
+
+# ---------------------------------------------------------------------------
+# @scenario(story=...) — the path is read off the story (DEMOCI-11-019)
+# ---------------------------------------------------------------------------
+
+
+def _register_fixture(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    name: str,
+    story_obj: Story | None = None,
+    path: Any = None,
+) -> ScenarioSpec:
+    """Register a fixture scenario in an isolated copy of the registry."""
+    monkeypatch.setattr(registry, "_REGISTRY", dict(registry._REGISTRY))
+    registry._REGISTRY.pop(name, None)
+    decorate = scenario(
+        name=name,
+        label=name.upper(),
+        participants="Reporter + Vendor",
+        feature="Fixture",
+        in_pr_set=False,
+        story=story_obj,
+        path=path,
+    )
+
+    def fixture_main() -> None:
+        """Stand in for a composed scenario's main()."""
+
+    fixture_main.__module__ = "test.demo_unit.test_story"
+    decorate(fixture_main)
+    return registry._REGISTRY[name]
+
+
+class TestRegisteringAStory:
+    @pytest.mark.spec("DEMOCI-11-019")
+    def test_a_composed_scenarios_path_is_its_storys_choices(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The derived path is the one the fixture registry's tree holds."""
+        composed = _rv_story()
+        spec = _register_fixture(monkeypatch, name="rv", story_obj=composed)
+        assert spec.path == composed.path
+
+        tree = build_scenario_tree(registry.registered_scenarios())
+        assert tree.endings()["rv"].prefix == composed.path
+
+    @pytest.mark.spec("DEMOCI-11-014")
+    def test_a_scenario_not_yet_composed_still_declares_a_path(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        spec = _register_fixture(monkeypatch, name="rv", path=_RV_CHOICES)
+        assert spec.path == _RV_CHOICES
+
+    @pytest.mark.spec("DEMOCI-11-024")
+    def test_declaring_both_a_story_and_a_path_fails_discovery(self) -> None:
+        with pytest.raises(
+            DemoScenarioRegistryError, match="both a story and a path"
+        ):
+            scenario(
+                name="rv",
+                label="RV",
+                participants="Reporter + Vendor",
+                feature="Fixture",
+                in_pr_set=False,
+                story=_rv_story(),
+                path=_RV_CHOICES,
+            )
+
+    @pytest.mark.spec("DEMOCI-11-014")
+    def test_declaring_neither_fails_discovery(self) -> None:
+        with pytest.raises(
+            DemoScenarioRegistryError, match="neither a story nor a path"
+        ):
+            scenario(
+                name="rv",
+                label="RV",
+                participants="Reporter + Vendor",
+                feature="Fixture",
+                in_pr_set=False,
+            )
+
+
+# ---------------------------------------------------------------------------
+# The composed scenarios keep their place on the tree (DEMOMA-17-002)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("DEMOCI-11-019", "DEMOMA-17-002")
+@pytest.mark.parametrize(
+    ("module_name", "expected"),
+    [
+        (
+            "vultron.demo.scenario.rcv_demo",
+            (
+                ("reporter-whom-to-tell", "coordinator"),
+                ("coordinator-invite-whom", "vendor"),
+                ("vendor-join", "accept"),
+                ("reporter-after-join", "ask-vendor"),
+                ("coordinator-after-answer", "publish"),
+            ),
+        ),
+        (
+            "vultron.demo.scenario.rcv_reject_demo",
+            (
+                ("reporter-whom-to-tell", "coordinator"),
+                ("coordinator-invite-whom", "vendor"),
+                ("vendor-join", "reject"),
+            ),
+        ),
+    ],
+)
+def test_a_composed_scenario_keeps_the_path_it_declared(
+    module_name: str, expected: tuple[tuple[str, str], ...]
+) -> None:
+    """Composition moved the code, not the scenario's place on the tree.
+
+    Pinned against literals rather than against the registry, which would
+    compare the derivation with itself.
+    """
+    import importlib
+
+    module = importlib.import_module(module_name)
+    assert module.STORY.path == expected
+
+
+@pytest.mark.spec("DEMOMA-17-001")
+def test_the_two_composed_scenarios_share_one_opening() -> None:
+    """``rcv`` and ``rcv-reject`` start from the same prefix object's items."""
+    import importlib
+
+    from vultron.demo.helpers.coordinated_story import (
+        COORDINATOR_INVITES_VENDOR,
+    )
+
+    rcv = importlib.import_module("vultron.demo.scenario.rcv_demo")
+    rcv_reject = importlib.import_module(
+        "vultron.demo.scenario.rcv_reject_demo"
+    )
+    shared = len(COORDINATOR_INVITES_VENDOR.items)
+    assert rcv.STORY.items[:shared] == COORDINATOR_INVITES_VENDOR.items
+    assert rcv_reject.STORY.items[:shared] == COORDINATOR_INVITES_VENDOR.items
+    assert isinstance(rcv.STORY.items[shared], Choose)
+    assert isinstance(rcv_reject.STORY.items[shared], Choose)

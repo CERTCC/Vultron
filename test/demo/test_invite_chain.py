@@ -412,24 +412,35 @@ def test_chain_without_case_manager_client_does_not_seed(chain_mocks):
     seed.assert_not_called()
 
 
-def test_every_scenario_chain_with_an_inviter_is_ordered_after_a_seed():
-    """A scenario's first inviter-triggered chain must seed ``stub_summary``.
+def test_every_chain_with_an_inviter_is_ordered_after_a_seed():
+    """The first inviter-triggered chain of a story must seed ``stub_summary``.
 
     Docker CI is the only place a missing seed shows (the in-process demo
     tests patch ``set_stub_summary`` out), so pin it statically: within each
-    scenario module, the first ``run_case_invite_chain`` call that passes
-    ``inviter=`` must also pass ``case_manager_client=`` (#4285).
+    module that starts a chain, the first call passing ``inviter=`` must also
+    pass ``case_manager_client=`` (#4285).
+
+    Covers the composed story fragments under ``helpers/`` as well as the
+    scenario modules: a family written as composition moves its invite into a
+    shared fragment (#5533), and a scan of ``scenario/`` alone would pass
+    vacuously for it.
     """
     import ast
     from pathlib import Path
 
-    scenario_dir = Path(invite_chain.__file__).parents[1] / "scenario"
+    helpers_dir = Path(invite_chain.__file__).parent
+    scenario_dir = helpers_dir.parent / "scenario"
+    starters = {"run_case_invite_chain", "invite_and_await_delivery"}
+    sources = sorted(scenario_dir.glob("*_demo.py")) + sorted(
+        helpers_dir.glob("coordinated_*.py")
+    )
+    assert sources, "no module starts an invite chain"
     offenders = []
-    for path in sorted(scenario_dir.glob("*_demo.py")):
+    for path in sources:
         for node in ast.walk(ast.parse(path.read_text())):
             if not (
                 isinstance(node, ast.Call)
-                and getattr(node.func, "id", None) == "run_case_invite_chain"
+                and getattr(node.func, "id", None) in starters
             ):
                 continue
             keywords = {k.arg for k in node.keywords}

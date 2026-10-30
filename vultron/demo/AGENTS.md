@@ -37,20 +37,20 @@ via `wait_for_received_activity`, DL-06-006). A reliably-timing-out poll is a
 delivery bug to investigate, not a workaround to write. Scope: `vultron/demo/scenario/`
 plus the `vultron/demo/helpers/` code it calls (#3980); `vultron/demo/exchange/` demos
 drive one backend directly and use `post_to_inbox_and_wait` as their normal mechanism.
-
 There is **no self-delivery exception**: an actor does not POST to its own inbox to
-update its own replica either. Activities route through the CaseActor, whose
-`Announce` every replica consumes — a replica that is not updating means the
-routing is wrong. See
-[`notes/ownership-transfer.md`](../../notes/ownership-transfer.md) § "The Accepting
-Actor's Replica Updates via the CASE_MANAGER's Announce". (CONCERN-1635, ISSUE-2719)
+update its own replica either — activities route through the CaseActor, whose
+`Announce` every replica consumes, so a replica that is not updating means the routing
+is wrong. See [`notes/ownership-transfer.md`](../../notes/ownership-transfer.md)
+§ "The Accepting Actor's Replica Updates via the CASE_MANAGER's Announce".
+(CONCERN-1635, ISSUE-2719)
 
 ### A Scenario Declares Itself Once; Every Consumer Is Generated
 
 A scenario module declares itself, and nothing else anywhere does:
 
-- `@scenario(name, label, participants, feature, in_pr_set, path)` on `main()`, from
-  `scenario/registry.py` (`path`: `scenario/branch_points.py` entries). Every table
+- `@scenario(name, label, participants, feature, in_pr_set, story | path)` on `main()`,
+  from `scenario/registry.py`; `story=` is the composed form, `path=` the interim one,
+  and both name `scenario/branch_points.py` entries. Every table
   and `.github/demo-scenarios.json` are generated from it (`demo-scenarios --write`,
   gated by `demo-scenarios-sync`): never hand-edit one, change the decorator. Script,
   harness and narrative paths are **derived** from `name` (`<name_>_demo.py`,
@@ -65,9 +65,9 @@ A scenario module declares itself, and nothing else anywhere does:
   gets no option, keeps its default, and runs the scenario against the wrong
   container without failing.
 
-A scenario specified but not yet built goes in `notes/demo-future-ideas.md`, never
-the registry (DEMOCI-11-010). Its recording is generated, never hand-edited. Full
-write-up: [demo-scenario-registry](../../notes/demo-scenario-registry.md). DEMOCI-11.
+A scenario specified but not yet built goes in `notes/demo-future-ideas.md`, never the
+registry (DEMOCI-11-010); its recording is generated, never hand-edited. Full write-up:
+[demo-scenario-registry](../../notes/demo-scenario-registry.md). DEMOCI-11.
 
 ### Extract Before Reuse: No Copy-Paste from Existing Scenario Files
 
@@ -79,7 +79,10 @@ inline with a comment marking it for extraction. MUST-level per
 `specs/multi-actor-demo.yaml` DEMOMA-17-001 (specialising the project-wide SHOULD,
 CS-22-001). Rationale and the four-step application in
 [`notes/demo-scenario-authoring.md`](../../notes/demo-scenario-authoring.md)
-§ "Extract Before Reuse". (ISSUE-1652)
+§ "Extract Before Reuse". (ISSUE-1652) Siblings go further: a family writes its shared
+opening **once**, as a named prefix of story fragments (`helpers/story.py`), and each
+scenario assembles its story from that prefix plus one continuation (DEMOCI-11-019,
+[demo-scenario-tree](../../notes/demo-scenario-tree.md) § "Composition", #5533).
 
 ### Gate Each Step on Its Cause, Not on Its Position in the Script
 
@@ -131,35 +134,30 @@ Window Patterns". Normative: EDF-06-005, EDF-06-006. (CONCERN-2325)
 
 ### Event-Phrase Lookups MUST Use `lookup_entry()`, Not a Local Phrase Dict
 
-Display-layer code maps `MessageSemantics` → phrase via
-`lookup_entry(semantics).phrase` from `vultron.semantic_registry`, never a local
-`dict[str, str]`. A parallel table drifts silently as the enum grows; a missing
-`SemanticEntry.phrase` is a construction-time `TypeError` (SE-07-003). Only
-`{actor}`, `{object}` and `{target}` are ever filled. See
-[`notes/activitystreams-semantics.md`](../../notes/activitystreams-semantics.md)
-§ "Event Phrases Come From `lookup_entry()`, Never a Local Dict". (CONCERN-1675)
+Display-layer code maps `MessageSemantics` → phrase via `lookup_entry(semantics)
+.phrase` from `vultron.semantic_registry`, never a local `dict[str, str]`: a parallel
+table drifts as the enum grows. Only `{actor}`, `{object}` and `{target}` are filled.
+[activitystreams-semantics](../../notes/activitystreams-semantics.md) § "Event Phrases
+Come From `lookup_entry()`, Never a Local Dict". (CONCERN-1675)
 
 ### Every Scenario Runs on the Fixed Cast
 
-`vultron/demo/helpers/cast.py` declares one role-neutral container per cast slot,
-with one address and one actor id per slot in every scenario (DEMOCI-11-020).
-Slots 0–2 are the first Reporter, Vendor and Coordinator a scenario seats; 3 and up
-take their role from the act that seats them (DEMOCI-11-021). Only slots 1 and 2
-declare `VULTRON_ACTOR__DEFAULT_CASE_ROLES`, because only they own a case and a case
-is owned as a role (CP-01-013, DEMOCI-11-032). Seat a new part in a free slot; a
-wider scenario grows `CAST_SIZE`. See
-[`notes/demo-scenario-authoring.md`](../../notes/demo-scenario-authoring.md)
+`vultron/demo/helpers/cast.py` declares one role-neutral container per cast slot, with
+one address and one actor id per slot in every scenario (DEMOCI-11-020). Slots 0–2 are
+the first Reporter, Vendor and Coordinator a scenario seats; 3 and up take their role
+from the act that seats them (DEMOCI-11-021). Only slots 1 and 2 declare
+`VULTRON_ACTOR__DEFAULT_CASE_ROLES`, because only they own a case and a case is owned
+as a role (CP-01-013, DEMOCI-11-032). Seat a new part in a free slot; a wider scenario
+grows `CAST_SIZE`. [demo-scenario-authoring](../../notes/demo-scenario-authoring.md)
 § "Every Scenario Runs on the Fixed Cast". (#5532)
 
 ### Exchange Demos: Discover the Canonical Case from the DataLayer
 
-After `validate-report`, the BT fires `ProposeReportCaseToActorNode` and the
-CaseActor creates the **canonical** `VulnerabilityCase` (ADR-0041). Do NOT call
-`create_case_activity` in exchange demo setup — that makes a second, vendor-local
-case with no `ReportCaseLink` and no participants. Find the canonical case with
-`wait_for_initialized_case(client, report_id)` — keyed on the report, never the
-first case found. See
-[`notes/case-proposal.md`](../../notes/case-proposal.md) § "Exchange Demo:
+After `validate-report` the BT proposes the report and the CaseActor creates the
+**canonical** `VulnerabilityCase` (ADR-0041). Do NOT call `create_case_activity` in
+exchange demo setup: that makes a second, vendor-local case with no `ReportCaseLink`.
+Find the canonical one with `wait_for_initialized_case(client, report_id)`, keyed on
+the report. [`notes/case-proposal.md`](../../notes/case-proposal.md) § "Exchange Demo:
 Discovering the Canonical Case". (ISSUE-1994)
 
 ### The Ledger Dump Belongs in the Failure Path, Not After the Last Phase
@@ -170,9 +168,11 @@ dead on artifact download).
 
 - Wrap the whole body of `run_<name>_demo()` in
   `with scenario_harness("<demo-name>") as harness:` — it resets the accumulator,
-  always dumps on the way out, and calls `assert_demo_success()` last.
+  always dumps on the way out, and calls `assert_demo_success()` last; `run_story()`
+  does it for a composed scenario.
 - Register the dump as soon as a case exists:
-  `harness.dump_with(lambda: _phase_dump_case_ledgers(...))`.
+  `harness.dump_with(lambda: _phase_dump_case_ledgers(...))`; in a story,
+  `state.open_case(...)` arms it.
 - Do not re-add `try/finally: assert_demo_success()` in `main()` — a second owner
   of the accumulator asserts before the dump runs.
 - Keep `_phase_dump_case_ledgers` thin; delegate to
@@ -185,16 +185,16 @@ DEMOCI-10, DEMOMA-23, and
 ### Demo Devlog Race: Wait for Replica Before Dumping
 
 After any phase that commits a new canonical ledger entry, poll until the replica
-acknowledges the sender's tail hash before writing the devlog — otherwise the
-dump misses entries still in `Announce(CaseLedgerEntry)` fan-out. Pattern in
-[`notes/demo-ci-diagnostics.md`](../../notes/demo-ci-diagnostics.md) § "Demo
-Devlog Race". (DEMO-DEVLOG-RACE)
+acknowledges the sender's tail hash before writing the devlog — otherwise the dump
+misses entries still in `Announce(CaseLedgerEntry)` fan-out. Pattern in
+[demo-ci-diagnostics](../../notes/demo-ci-diagnostics.md) § "Demo Devlog Race".
+(DEMO-DEVLOG-RACE)
 
 ### BT Demo `main()` Must Be Callable With No Arguments
 
 `[project.scripts]` entry points call `main()` with no arguments. Use
-`def main(args=None)` and fall back to `_parse_args()` when `args is None`, so
-both the console script and `cli.py`'s click sub-group work. Test the real
-console script with `PYTHONPATH= uv run <script>`. See
-[`notes/demo-scenario-authoring.md`](../../notes/demo-scenario-authoring.md)
-§ "BT Demo `main()`". (ISSUE-1568)
+`def main(args=None)` and fall back to `_parse_args()` when `args is None`, so both
+the console script and `cli.py`'s click sub-group work. Test the real console script
+with `PYTHONPATH= uv run <script>`.
+[demo-scenario-authoring](../../notes/demo-scenario-authoring.md) § "BT Demo
+`main()`". (ISSUE-1568)

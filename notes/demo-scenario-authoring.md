@@ -238,12 +238,13 @@ once.
   later steps can gate per replica. It is never used after closure: a closed
   participant is sent nothing after the entries recording its own closure
   (CM-23-004), so no replica covers the authority's tail then.
-- A scenario's `_phase_sync_verification` is a thin call to
-  `run_sync_verification_phase`, declaring only its authority, Reporter, replicas,
-  late joiners, expected participants and the replica pairs to state-check
-  (DEMOMA-23-007). A replica whose coverage gate failed is not state-checked, and
-  an authority with no entries is one failure naming the authority — the
-  comparison would only cascade or misattribute the fault (EDF-06-005).
+- A scenario's sync-verification step — its `_phase_sync_verification`, or a
+  composed story's fragment — is a thin call to `run_sync_verification_phase`,
+  declaring only its authority, Reporter, replicas, late joiners, expected
+  participants and the replica pairs to state-check (DEMOMA-23-007). A replica
+  whose coverage gate failed is not state-checked, and an authority with no
+  entries is one failure naming the authority — the comparison would only
+  cascade or misattribute the fault (EDF-06-005).
 - No module under `vultron/demo/` except `helpers/sync.py` calls
   `wait_for_contiguous_ledger_coverage` or `_get_log_entries_for_case`
   (DEMOMA-23-006, enforced by

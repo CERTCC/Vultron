@@ -29,6 +29,7 @@ To fix a drift failure here::
     git add ui/src/data/scenario_tree.json
 """
 
+import importlib
 import json
 import re
 from pathlib import Path
@@ -38,6 +39,7 @@ import pytest
 import yaml
 
 from vultron.demo.recordings.layout import RECORDINGS_DIR, recording_path
+from vultron.demo.recordings.prefix import COMPOSED_FAMILIES
 from vultron.demo.scenario.branch_points import (
     BRANCH_POINTS,
     BranchPoint,
@@ -266,6 +268,32 @@ def test_one_entry_per_scenario_with_label_and_path(
             {"branch_point": bp, "choice": choice} for bp, choice in spec.path
         ]
         assert _path_to(payload["tree"], spec.name) == row["path"]
+
+
+@pytest.mark.spec("DEMOCI-11-016", "DEMOCI-11-019")
+@pytest.mark.parametrize(
+    "name", sorted(set().union(*COMPOSED_FAMILIES, set()))
+)
+def test_a_composed_scenarios_derived_path_is_the_committed_one(
+    name: str,
+) -> None:
+    """The committed index follows a composed story with no new sync step.
+
+    Read from the committed file rather than a fresh export: the point is that
+    the artifact the UI imports already holds the path the running code walks,
+    not that the exporter would produce it.  Parametrized over the composed
+    families (``COMPOSED_FAMILIES``), so each family that lands is covered the
+    moment it is named there.
+    """
+    spec = next(s for s in discover_scenarios() if s.name == name)
+    module = importlib.import_module(spec.module_name)
+    text = read_committed(OUTPUT_PATH)
+    assert text is not None, f"{ARTIFACT} is missing; run {REGEN_COMMAND}"
+    committed = json.loads(text)
+    assert committed["scenarios"][name]["path"] == [
+        {"branch_point": branch_point, "choice": choice}
+        for branch_point, choice in module.STORY.path
+    ]
 
 
 def test_recordings_are_keyed_by_actor_then_case(

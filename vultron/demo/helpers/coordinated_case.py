@@ -111,18 +111,24 @@ def open_coordinated_case(
     reporter_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     reporter: as_Actor,
-    coordinator: as_Actor,
+    coordinator_in_coordinator: as_Actor,
 ) -> CoordinatedCase:
     """The Reporter submits a report; the Coordinator validates and engages it.
 
     Gates on the Reporter and Coordinator both being participants and on the
     Reporter holding a case replica (M1) before returning the case as the
     Coordinator stores it.
-    """
-    coordinator_in_coordinator = get_actor_by_id(
-        coordinator_client, coordinator.id_
-    )
 
+    Args:
+        reporter_client: Client for the Reporter's container.
+        coordinator_client: Client for the Coordinator's container.
+        reporter: The Reporter, as its own container holds it.
+        coordinator_in_coordinator: The Coordinator as its own container holds
+            it — the object a trigger session binds to.  Read by the caller,
+            which already holds it when the cast is assembled once per run
+            (:func:`~vultron.demo.helpers.coordinated_story
+            .open_coordinated_cast`).
+    """
     report, offer = reporter_submits_report(
         receiver_client=coordinator_client,
         reporter=reporter,
@@ -143,7 +149,10 @@ def open_coordinated_case(
         wait_for_case_participants(
             vendor_client=coordinator_client,
             case_id=case.id_,
-            expected_actor_ids={reporter.id_, coordinator.id_},
+            expected_actor_ids={
+                reporter.id_,
+                coordinator_in_coordinator.id_,
+            },
         )
 
     with demo_check("M1: ≥3 participants, EM.ACTIVE, Reporter has replica"):
@@ -151,7 +160,7 @@ def open_coordinated_case(
             receiver_client=coordinator_client,
             reporter_client=reporter_client,
             case_id=case.id_,
-            receiver_actor_id=coordinator.id_,
+            receiver_actor_id=coordinator_in_coordinator.id_,
             reporter_actor_id=reporter.id_,
         )
 
@@ -295,7 +304,9 @@ def open_case_with_vendor(
         reporter_client=reporter_client,
         coordinator_client=coordinator_client,
         reporter=reporter,
-        coordinator=coordinator,
+        coordinator_in_coordinator=get_actor_by_id(
+            coordinator_client, coordinator.id_
+        ),
     )
     if on_case_opened is not None:
         on_case_opened(opened.case)

@@ -48,6 +48,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers import invite_chain, runner, workflow
+from vultron.demo.helpers.story import StoryState
 from vultron.demo.in_process import response_value
 from vultron.demo.utils import DataLayerClient
 from vultron.errors import VultronError
@@ -97,6 +98,47 @@ def mock_case(id_: str = "urn:test:case") -> MagicMock:
     case = MagicMock()
     case.id_ = id_
     return case
+
+
+def mock_client() -> MagicMock:
+    """A stand-in container client whose reads return an empty record."""
+    client = MagicMock()
+    client.get.return_value = {}
+    return client
+
+
+def story_state(
+    *names: str,
+    case: MagicMock | None = None,
+) -> StoryState:
+    """A :class:`StoryState` whose cast is one stand-in session per name.
+
+    For the call-shape tests of a story fragment (#5533): each name gets its
+    own client and an actor whose id is ``urn:test:<name>``, and the harness is
+    a mock, so a test observes what the fragment calls rather than driving a
+    real run.
+
+    Args:
+        names: The cast names the fragment under test reads, e.g. ``"reporter"``.
+        case: When given, the state is opened on it so ``state.case`` resolves.
+
+    Returns:
+        The state, with ``state.client(name)`` and ``state.actor(name)`` live.
+    """
+    state = StoryState(
+        cast={
+            name: ActorSession(
+                client=mock_client(), actor=mock_actor(f"urn:test:{name}")
+            )
+            for name in names
+        },
+        case_actor_client=mock_client(),
+        harness=MagicMock(),
+        dump=lambda _state: None,
+    )
+    if case is not None:
+        state.open_case(case=case, report=MagicMock(), offer=MagicMock())
+    return state
 
 
 @contextlib.contextmanager

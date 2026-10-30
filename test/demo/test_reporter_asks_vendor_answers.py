@@ -182,8 +182,6 @@ def test_reporter_asks_gates_on_the_reporter_replica_and_asks_first():
 @pytest.mark.parametrize(
     ("module", "posters"),
     [
-        ("rcv_demo", ["reporter", "vendor", "coordinator"]),
-        ("rcv_reject_demo", ["reporter", "coordinator"]),
         ("rccv_extension_demo", ["reporter", "c1", "c2", "vendor"]),
         ("rccv_handoff_demo", ["reporter", "c1", "c2", "vendor"]),
     ],
@@ -210,6 +208,43 @@ def test_scenario_notes_exchange_is_one_thread(
     ]
     assert [p.poster.actor for p in posts] == [
         kwargs[f"{name}_in_{name}"] for name in posters
+    ]
+    assert posts[0].name == "Question from Reporter"
+
+
+@pytest.mark.parametrize(
+    ("fragment", "posters"),
+    [
+        (
+            "reporter_asks_about_the_timeline",
+            ["reporter", "vendor", "coordinator"],
+        ),
+        ("reporter_asks_about_the_rejection", ["reporter", "coordinator"]),
+    ],
+)
+@pytest.mark.spec("DEMOMA-17-001")
+def test_a_story_fragment_posts_one_thread(
+    fragment: str, posters: list[str]
+) -> None:
+    """The composed form of the check above (#5533).
+
+    ``rcv`` and ``rcv-reject`` assemble their stories, so their note exchange
+    is a fragment taking the story's state rather than a phase taking one
+    keyword per actor.
+    """
+    from test.demo._helpers import mock_case, story_state
+    from vultron.demo.helpers import coordinated_story
+
+    state = story_state("reporter", "coordinator", "vendor", case=mock_case())
+
+    with patch.object(coordinated_story, "add_note_thread") as thread:
+        getattr(coordinated_story, fragment)(state)
+
+    watching, case, posts = thread.call_args.args
+    assert watching is state.client("coordinator")
+    assert case is state.case
+    assert [post.poster for post in posts] == [
+        state.actor(name) for name in posters
     ]
     assert posts[0].name == "Question from Reporter"
 

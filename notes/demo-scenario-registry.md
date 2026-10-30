@@ -89,8 +89,10 @@ composition states no `path=`: its path is read off its story's choices
   and paths that decide different branch points at one node. Each has a test on a
   mutated registry in `test/demo_unit/test_scenario_tree.py`.
 - **The deciding actor must hold the branch point's role.** A scenario names
-  it in `reach_step(..., by=actor_id)`, and the harness reads its role from
-  its participant in the canonical case (DEMOCI-11-013,
+  it in `reach_step(..., by=actor_id)` — or, once composed, in
+  `choose(..., by=<cast name>)`, which `run_story` resolves to that actor's id
+  — and the harness reads its role from its participant in the canonical case
+  (DEMOCI-11-013,
   `vultron/demo/helpers/deciding_role.py`). Before an actor is a participant,
   its role comes from the act that brings it in: the root step's actor must
   be the report's author, and an invitee holds the role its Invite offers,

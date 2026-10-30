@@ -71,20 +71,23 @@ _TIMESTAMP = "<timestamp>"
 
 #: Scenario families written as composition (#4733), each the names of its
 #: scenarios.  Every two scenarios in one family must be byte-identical up to
-#: the branch point where their paths part (DEMOCI-11-018).  Empty because no
-#: family is composed yet, and composition is what the byte check is for: a
-#: family is admitted here when its scenarios share one authored opening
-#: (#5533), not when two hand-placed openings happen to agree.
+#: the branch point where their paths part (DEMOCI-11-018).  A family is
+#: admitted here when its scenarios share one authored opening, not when two
+#: hand-placed openings happen to agree.
 #:
-#: They do now agree for some pairs, which they could not before the fixed cast
-#: and the tree-wide seed: five of the twelve sibling pairs with a shared prefix
-#: are byte-identical as of #5532, where none was before.  The seven that still
-#: differ all pair ``rcvcv`` or ``rcvv-embargo`` with a narrower sibling, and
-#: the cause is setup length, not protocol: those two read the stepping clock
-#: more times before the case opens, so they stamp ``create_case`` one second
-#: later and the hash chain carries the offset to the branch point.  Composing
-#: the opening is what removes that, which is why the check waits for it.
-COMPOSED_FAMILIES: tuple[frozenset[str], ...] = ()
+#: ``{rcv, rcv-reject}`` is the first (#5533): both assemble their stories from
+#: ``COORDINATOR_INVITES_VENDOR``
+#: (:mod:`vultron.demo.helpers.coordinated_story`), so the bytes before
+#: ``vendor-join`` come from one copy of the code and byte identity holds by
+#: construction.  The remaining families follow as they are composed
+#: (#5534, #5535, #5536); until then only the isomorphism check
+#: (DEMOCI-11-017) holds for them, because a hand-placed opening can still
+#: differ in setup length — ``rcvcv`` and ``rcvv-embargo`` read the stepping
+#: clock more times before the case opens, so they stamp ``create_case`` one
+#: second later and the hash chain carries the offset to the branch point.
+COMPOSED_FAMILIES: tuple[frozenset[str], ...] = (
+    frozenset({"rcv", "rcv-reject"}),
+)
 
 
 @dataclass(frozen=True)
