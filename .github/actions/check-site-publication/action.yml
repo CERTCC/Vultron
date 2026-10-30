@@ -2,11 +2,12 @@ name: Check site publication
 description: >
   Checks a built `site/` against what the project has decided about
   publication, so a build cannot ship a withheld artifact or a dead internal
-  reference, or drop a URL an earlier publish served. Shared by every workflow
-  that builds the site (docs-build-check.yml, deploy_site.yml) so the checks
-  cannot drift apart, and in particular so the publishing workflow is gated by
-  exactly what the pull-request workflow is (DOCBW-03-006, DOCBW-03-007,
-  DOCBW-03-008). Run it after the build, and in deploy_site.yml before the
+  reference, drop a URL an earlier publish served, or serve a page whose URL
+  is not yet recorded. Shared by every workflow that builds the site
+  (docs-build-check.yml, deploy_site.yml) so the checks cannot drift apart,
+  and in particular so the publishing workflow is gated by exactly what the
+  pull-request workflow is (DOCBW-03-006, DOCBW-03-007, DOCBW-03-008,
+  DOCBW-03-012). Run it after the build, and in deploy_site.yml before the
   Pages upload.
 
 runs:
@@ -25,7 +26,8 @@ runs:
 
     # DOCBW-03-008: every URL an earlier publish served still resolves, as a
     # page or a redirect, unless a withheld declaration withdraws it. Once
-    # `publish` advances, a dropped URL is a 404 for everyone who cited it.
+    # the next deploy replaces the site, a dropped URL is a 404 for everyone
+    # who cited it.
     # Runs even when the withheld check failed, so one run reports both.
     - name: Check published URLs still resolve
       if: ${{ !cancelled() }}
@@ -56,3 +58,14 @@ runs:
       shell: bash
       run: |
         PYTHONPATH='' uv run docs-path-boxes
+
+    # DOCBW-03-012: every page the checked-out commit builds is in the
+    # legacy-URL record, so the continuity check above knows its URL before it
+    # ships. A page goes live at the next deploy after it merges, so it is due
+    # in the pull request that adds it: a pull request is checked at its merge
+    # result, and the deploy re-checks the commit it ships.
+    - name: Check every built page is recorded
+      if: ${{ !cancelled() }}
+      shell: bash
+      run: |
+        PYTHONPATH='' uv run docs-legacy-urls --require-recorded

@@ -22,6 +22,7 @@ from pathlib import Path
 import pytest
 
 from vultron.metadata.docs.legacy_urls import (
+    RECORD_HINT,
     EmptyBaselineError,
     NoBuiltPagesError,
     load_baseline,
@@ -226,12 +227,27 @@ def test_an_empty_baseline_raises(tmp_path):
 
 @pytest.mark.spec("DOCBW-03-022")
 def test_the_committed_baseline_is_seeded():
-    """The publish-era evidence is gone once publish advances; keep it here."""
+    """The deployed evidence is gone once the next deploy replaces it; keep it here."""
     pages = load_baseline()
     assert len(pages) > 300
     assert "topics/user_stories/story_2022_001.md" in pages
     assert all(page.endswith(".md") for page in pages)
     assert pages == sorted(pages)
+
+
+@pytest.mark.spec("DOCBW-03-012")
+def test_every_page_this_checkout_builds_is_recorded():
+    """A page goes live at the next deploy, so it is recorded when it merges.
+
+    The workflow step does the same, but only on pull requests its path filter
+    admits; this runs wherever the suite does (#5162). It reads the committed
+    tree, so commit a new page before running the fix.
+    """
+    missing = unrecorded_pages(load_baseline(), "HEAD")
+    assert not missing, (
+        f"{len(missing)} built page(s) are not in the legacy-URL baseline: "
+        f"{', '.join(missing)}. {RECORD_HINT}"
+    )
 
 
 # --- snapshot -------------------------------------------------------------
@@ -388,7 +404,7 @@ def test_cli_snapshot_reports_an_unreadable_ref(tmp_path, capsys):
 
 # --- require-recorded ----------------------------------------------------
 
-SNAPSHOT_FIX = "--snapshot origin/main"
+SNAPSHOT_FIX = "--snapshot HEAD"
 
 
 @pytest.mark.spec("DOCBW-03-012")

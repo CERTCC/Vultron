@@ -65,8 +65,8 @@ groups:
           trigger leaves out one of these paths, a change there can break the
           site while this workflow does not run. Changes only to `plan/`,
           `notes/` or other markdown outside the site do not change the built
-          site, so they do not trigger the workflow (DOCBW-02-003), except on a
-          pull request to `publish` (DOCBW-03-012).
+          site, so they do not trigger the workflow (DOCBW-02-003). A change the
+          filter misses is still checked by the deploy (DOCBW-03-012).
         verification: >-
           `test/ci/test_docs_build_trigger_paths.py` asserts the
           `pull_request` paths include every path this statement lists.
@@ -323,8 +323,8 @@ groups:
           This codebase MUST commit the record of URLs that earlier publishes
           served.
         rationale: >-
-          The evidence of what a publish served, the `publish` branch, is gone
-          when `publish` advances, so only a committed copy keeps it.
+          The evidence of what a publish served, the deployed site, is gone
+          when the next deploy replaces it, so only a committed copy keeps it.
         verification: >-
           `test/metadata/docs/test_legacy_urls.py::test_the_committed_baseline_is_seeded`
           reads the committed record in
@@ -448,25 +448,31 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          On every pull request to `publish`, the review workflow MUST fail when a
-          page that its merge result builds is missing from the DOCBW-03-008
-          record. The check runs whatever paths the pull request changes. It
-          decides which pages are built by the same rule that extends the record.
+          Every workflow that builds the site MUST run, after the Build Site
+          step and on the same terms as DOCBW-03-006, a step that fails when a
+          page the checked-out commit builds is absent from the DOCBW-03-008
+          record of served URLs, deciding which pages are built by the same
+          rule that extends the record.
         rationale: >-
-          The record stays complete only if each publish is recorded before it
-          ships. A check of every page the merge result builds also finds a page
-          that an earlier publish shipped unrecorded. The merge result is what
-          `publish` serves after the merge. A path filter would skip a release
-          that changes no docs. `publish` has no required checks, so the gate
-          holds only because no pull request merges on a red check. A direct
-          push or manual deploy goes unchecked, an accepted gap.
+          A page goes live at the next deploy after it reaches `main`, whatever
+          triggers that deploy, so it is recorded in the pull request that adds
+          it, while its author is at hand, instead of in a catch-up before a
+          release. Each docs pull request is checked at its merge result, and the
+          deploy re-checks the commit it ships, covering a change the review's
+          path filter missed.
+          The record has one kind of entry, so a page counts as served once it
+          is recorded: a page renamed after it merged needs a redirect even if
+          no deploy shipped it, which is cheap. See
+          `notes/documentation-strategy.md`.
         verification: >-
           A `docs-legacy-urls` mode (`vultron/metadata/docs/legacy_urls.py`)
           exits non-zero on an unrecorded built page, covered by
-          `test/metadata/docs/test_legacy_urls.py`;
-          `test/ci/test_publication_gates_in_workflows.py` asserts that the
-          workflow running the step triggers on pull requests to `publish` with
-          no path filter, and that the step does not set `continue-on-error`.
+          `test/metadata/docs/test_legacy_urls.py`, whose
+          `test_every_page_this_checkout_builds_is_recorded` also applies it to
+          the checked-out tree; `test/ci/test_publication_gates_in_workflows.py`
+          asserts that every site-building workflow runs the step after the
+          build and cannot skip or swallow it, and that `deploy_site.yml` runs
+          it before the Pages upload.
         relationships:
           - rel_type: depends_on
             spec_id: DOCBW-03-008
@@ -474,7 +480,8 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          The DOCBW-03-012 step MUST fail when the merge result builds no pages.
+          The DOCBW-03-012 step MUST fail when the checked-out commit builds no
+          pages.
         rationale: >-
           With no built page the step checks nothing and would pass. A gate
           that finds no targets and passes is worse than no gate (DF-09-009).
@@ -483,22 +490,6 @@ groups:
           empty built-page set, covered by
           `test/metadata/docs/test_legacy_urls.py::test_a_commit_that_builds_no_pages_raises`
           and `test_cli_require_recorded_fails_when_it_would_check_nothing`.
-        relationships:
-          - rel_type: extends
-            spec_id: DOCBW-03-012
-      - id: DOCBW-03-028
-        priority: MUST_NOT
-        kind: project
-        statement: >-
-          The DOCBW-03-012 step MUST NOT run on pull requests to any base branch
-          other than `publish`.
-        rationale: >-
-          On a pull request to `main` a new page is not yet due, so the step
-          would fail every page addition.
-        verification: >-
-          `test/ci/test_publication_gates_in_workflows.py` asserts that the step
-          is conditioned on a `publish` base branch and is absent from the
-          shared publication action that pull requests to `main` run.
         relationships:
           - rel_type: extends
             spec_id: DOCBW-03-012
@@ -624,7 +615,7 @@ groups:
         kind: project
         statement: >-
           In the publication workflow, the publication gates (DOCBW-03-005,
-          DOCBW-03-007 and DOCBW-03-008, run through the
+          DOCBW-03-007, DOCBW-03-008 and DOCBW-03-012, run through the
           `.github/actions/check-site-publication` composite action) MUST run after
           the site build and before the Pages artifact upload.
         rationale: >-
