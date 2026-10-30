@@ -1419,8 +1419,8 @@ groups:
       spec_id: MSM-07-003
     adr:
     - ADR-0122
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
   - id: MSM-07-012
     priority: MUST
     kind: protocol
@@ -1445,8 +1445,8 @@ groups:
       spec_id: CLP-05-001
     adr:
     - ADR-0122
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
   - id: MSM-07-013
     priority: MUST_NOT
     kind: protocol
@@ -1468,8 +1468,8 @@ groups:
       spec_id: MSM-07-004
     adr:
     - ADR-0122
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
   - id: MSM-07-014
     priority: MUST
     kind: protocol
@@ -1495,8 +1495,8 @@ groups:
       note: In the case it names, the refusal replaces the DECLINE
     adr:
     - ADR-0122
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
   - id: MSM-07-015
     priority: MUST
     kind: protocol
@@ -1527,8 +1527,8 @@ groups:
     adr:
     - ADR-0093
     - ADR-0122
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
   - id: MSM-07-016
     priority: MUST
     kind: protocol
@@ -1555,8 +1555,8 @@ groups:
       spec_id: MSM-02-006
     adr:
     - ADR-0152
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
   - id: MSM-07-017
     priority: MUST
     kind: protocol
@@ -1575,8 +1575,8 @@ groups:
       `Update(EmbargoConsent)` and the replica copies the DECLINED row.
     adr:
     - ADR-0152
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
   - id: MSM-07-018
     priority: MUST_NOT
     kind: protocol
@@ -1596,8 +1596,8 @@ groups:
       spec_id: MSM-07-017
     adr:
     - ADR-0152
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
 - id: MSM-08
   title: Occasions
   description: >-

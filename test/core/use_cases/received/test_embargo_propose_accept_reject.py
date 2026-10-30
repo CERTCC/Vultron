@@ -644,7 +644,10 @@ class TestInviteToEmbargoReceivedPxaGuard:
     def test_pxa_set_emits_er_when_trigger_activity_provided(
         self, make_payload, pxa_state_name
     ):
-        """invite_to_embargo_on_case emits Reject when trigger_activity is available and P/X/A set (EMB-01-002)."""
+        """invite_to_embargo_on_case emits a Reject with P/X/A set (EMB-01-002).
+
+        Only when trigger_activity is available.
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         dl = SqliteDataLayer(
@@ -807,7 +810,10 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
 
     @pytest.mark.parametrize("pxa_state_name", _PXA_INELIGIBLE_STATES)
     def test_pxa_set_blocks_ea_processing(self, make_payload, pxa_state_name):
-        """accept_invite_to_embargo_on_case does not activate embargo when P/X/A set (EMB-02-004)."""
+        """accept_invite_to_embargo_on_case activates no embargo with P/X/A set.
+
+        EMB-02-004.
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         dl = SqliteDataLayer(
@@ -844,7 +850,10 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
     def test_pxa_set_emits_er_when_trigger_activity_provided(
         self, make_payload, pxa_state_name
     ):
-        """accept_invite_to_embargo_on_case emits a Reject of the Invite when P/X/A set (EMB-02-004)."""
+        """accept_invite_to_embargo_on_case emits a Reject of the Invite (EMB-02-004).
+
+        Only when P/X/A is set.
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         dl = SqliteDataLayer(

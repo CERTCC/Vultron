@@ -152,8 +152,8 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         untouched (MSM-07-015); a Reject of the embargo *in force* answers it
         from a row that has not agreed to it.  A Reject of the embargo in force
         from an ``AGREED`` row is not a withdrawal and is refused (MSM-07-014):
-        withdrawal is :meth:`record_embargo_withdrawal` (MSM-07-010).  The owner's decision
-        on a proposal is :meth:`reject_embargo_proposal`.
+        withdrawal is :meth:`record_embargo_withdrawal` (MSM-07-010).  The
+        owner's decision on a proposal is :meth:`reject_embargo_proposal`.
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` that owns the participant.
