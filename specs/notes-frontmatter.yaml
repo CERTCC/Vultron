@@ -63,7 +63,7 @@ groups:
     kind: process
     statement: >-
       A `superseded_by` value MUST be a non-empty string that names the replacement file
-      path, such as `notes/new-topic.md` or `specs/new-spec.md`.
+      path, such as `notes/new-topic.md`.
     rationale: >-
       The pointer is useful only if it names a file. An empty value passes a presence
       check, but it still gives the reader no way to find the current guidance.
