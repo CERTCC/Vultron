@@ -39,8 +39,8 @@ Run `.agents/skills/shared/sync-check.sh`, which uses the `manage-worktree`
 a repo that keeps its own `start-dev.sh`; on that refusal alone the script
 falls back to its plain fetch-and-count check. Raw
 `git rebase origin/main` in a worktree can trip pre-commit hooks mid-rebase.
-Never rebase a branch with an open PR: merge `main` into it (PAD-11-001). See
-[parallel-development](parallel-development.md).
+Never rebase a branch with an open PR: merge `main` into it (PAD-11-001,
+PAD-11-006). See [parallel-development](parallel-development.md).
 
 ## A Conflict-Free Merge Is Not a Working Merge — Run Tests After Every Catch-Up
 
@@ -125,7 +125,7 @@ ISSUE-4189).
 - **A red `main` gets exactly one fix PR.** Every other PR waits for it to
   land, then re-runs CI against the fixed base; none merges past the red and
   none opens a second fix for the same failure. Never rebase an open PR onto it
-  (PAD-11-001).
+  (PAD-11-006).
 - **A flaky check may be re-run once, and only when it is already tracked**:
   an open `flaky-test` issue holds a reproduction (see
   [flaky-tests](flaky-tests.md)) and the PR body names it. Without one, file it

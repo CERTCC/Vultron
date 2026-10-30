@@ -182,7 +182,7 @@ cause must be the act itself (the relayed Invite, the re-issued stub), never
 an id two acts share.
 
 A CASE_MANAGER decision about one row (an RSVP time-out, its own consent,
-never a `Reject` since from it that is the abandonment, MSM-07-004) is one
+never a `Reject` since from it that is the abandonment, MSM-07-017) is one
 act, its factory-built `Update(EmbargoConsent)` carrying the row, committed
 before the row is written (`expiry_commit.py`, `CommitOwnConsentDecisionNode`,
 ADR-0140, ADR-0152); the consent slot copies it. An honoured late Accept is

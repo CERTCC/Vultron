@@ -1,7 +1,7 @@
 """Check that no ``docs/`` page depends on a page above its own level.
 
 Requirements: specs/diataxis-requirements.yaml DF-11-002 (the rule), DF-11-003
-and DF-11-012 (working record has no level), DF-11-010 (fragments take their
+and DF-11-033 (working record has no level), DF-11-010 (fragments take their
 hosts' declarations), DF-09-009 (an empty target set fails); the cross-page
 concept edge is SG-11 in ``.agents/skills/shared/docs-style-guide.md``. Design
 rationale: ``notes/site-information-architecture.md`` (ADR-0102).
@@ -177,7 +177,7 @@ def collect_declarations(
             elif is_working_record(rel):
                 analysis.unleveled += 1
                 why_not = (
-                    "a working-record page has no level (DF-11-012), so "
+                    "a working-record page has no level (DF-11-033), so "
                     "nothing can be ordered against its concepts"
                 )
             elif level is None:

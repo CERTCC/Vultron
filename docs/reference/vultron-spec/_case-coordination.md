@@ -173,7 +173,7 @@ The difference between them is one of authority rather than content.
   Only the CASE_MANAGER writes it ([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)).
 
 A claim becomes canonical only when the CASE_MANAGER adopts it.
-Adoption is an authorization decision with a named default, not an automatic consequence of receipt ([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)).
+Adoption is an authorization decision with a named default, not an automatic consequence of receipt ([§11.3 Status Adoption: One Authorization Gate](interactions.md#113-status-adoption-one-authorization-gate)).
 The two types are not interchangeable.
 A participant that emits `CaseStatus` is asserting authority it does not hold.
 A CASE_MANAGER that treats an inbound `ParticipantStatus` as canonical has skipped the decision.

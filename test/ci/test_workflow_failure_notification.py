@@ -27,10 +27,9 @@ import pytest
 import yaml
 
 from test.ci._fake_gh import FakeGh, install_fake_gh
-from test.ci._workflows import triggers
+from test.ci._workflows import WORKFLOWS_DIR, triggers, workflow_files
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 NOTIFY_FAILURE_USES = "./.github/actions/notify-failure"
 NOTIFY_FAILURE_ACTION = (
     REPO_ROOT / ".github" / "actions" / "notify-failure" / "action.yml"
@@ -86,7 +85,7 @@ def _notify_failure_steps(
 
 def _qualifying_workflow_files() -> list[Path]:
     files = []
-    for wf in sorted(WORKFLOWS_DIR.glob("*.yml")):
+    for wf in workflow_files():
         try:
             data = _load_workflow(wf)
         except Exception:  # noqa: BLE001, S112  # ruff-baseline #3989  # pragma: no cover
@@ -288,7 +287,7 @@ def _aggregate_job_violations(
 
 
 def _reporting_violations(wf_data: dict[str, Any]) -> list[str]:
-    """Return every CISEC-05-003 violation in one workflow's report wiring.
+    """Return every CISEC-05-012/013 violation in one workflow's report wiring.
 
     For each ``workflow-label``: exactly one notify step and one close step,
     both in one job that has no matrix; when another job can run in the same
@@ -313,12 +312,12 @@ def _reporting_violations(wf_data: dict[str, Any]) -> list[str]:
     return problems
 
 
-@pytest.mark.spec("CISEC-05-003")
+@pytest.mark.spec("CISEC-05-012", "CISEC-05-013")
 @pytest.mark.parametrize(
     "wf", _qualifying_workflow_files(), ids=lambda p: p.name
 )
 def test_one_job_reports_each_workflow_label(wf: Path) -> None:
-    """CISEC-05-003 (#4874): one job reports each workflow-label, once.
+    """CISEC-05-012/013 (#4874): one job reports each workflow-label, once.
 
     The close step closes every open issue carrying the label. When several
     jobs each run a notify step and a close step under one label, a job that
@@ -331,7 +330,7 @@ def test_one_job_reports_each_workflow_label(wf: Path) -> None:
     problems = _reporting_violations(_load_workflow(wf))
     assert not problems, (
         f"{wf.name}: report once per workflow-label, from a final aggregate "
-        "job that `needs:` every other job (CISEC-05-003, #4874): "
+        "job that `needs:` every other job (CISEC-05-012/013, #4874): "
         + "; ".join(problems)
     )
 
@@ -539,8 +538,8 @@ def test_notify_step_does_not_file_on_cancellation(wf: Path) -> None:
 def test_notify_step_files_on_failure_mixed_with_cancellation(
     wf: Path,
 ) -> None:
-    """CISEC-05-006 (#3293, #3294): a genuine failure must be filed even when
-    a sibling job in the same run was cancelled.
+    """CISEC-05-014, CISEC-05-015 (#3293, #3294): a genuine failure must be filed
+    even when a sibling job in the same run was cancelled.
 
     When a job fails and a newer push then cancels the jobs still running,
     ``needs.*.result`` holds both ``failure`` and ``cancelled``. A guard of
@@ -568,7 +567,7 @@ def test_notify_step_files_on_failure_mixed_with_cancellation(
             f"{wf.name}: a notify (file) step must not require "
             f"`{AGGREGATE_CANCELLED_EXCLUSION}` — that "
             f"suppresses a genuine failure whenever a sibling job in the same "
-            f"run was cancelled (CISEC-05-006, #3293, #3294). Skip artifact "
+            f"run was cancelled (CISEC-05-014, #3293, #3294). Skip artifact "
             f"consumers on a cancelled producer instead (DEMOCI-04-007). "
             f"Current guard: {guard!r}"
         )
@@ -578,8 +577,8 @@ def test_notify_step_files_on_failure_mixed_with_cancellation(
     "wf", _qualifying_workflow_files(), ids=lambda p: p.name
 )
 def test_close_step_does_not_close_on_cancellation(wf: Path) -> None:
-    """CISEC-05-002 (#3293, #3294): the close step must not declare recovery
-    on a cancelled (concurrency-superseded) run.
+    """CISEC-05-009, CISEC-05-010 (#3293, #3294): the close step must not declare
+    recovery on a cancelled (concurrency-superseded) run.
 
     The notify step dropped its cancellation exclusion because a genuine
     ``failure`` sitting beside a ``cancelled`` result is still genuine
@@ -598,7 +597,7 @@ def test_close_step_does_not_close_on_cancellation(wf: Path) -> None:
             f"{wf.name}: a close step keyed on the `needs.*.result` aggregate "
             f"must also require `{AGGREGATE_CANCELLED_EXCLUSION}` — a "
             f"superseded run must not retire the ci:main-failure issue on a "
-            f"commit it never finished checking (CISEC-05-002, #3293, "
+            f"commit it never finished checking (CISEC-05-009, #3293, "
             f"#3294). Current guard: {guard!r}"
         )
 
@@ -787,7 +786,7 @@ def test_recordings_refresh_task_names_the_tree_index() -> None:
 
 
 def test_issue_type_helper_resolves_the_type_by_name() -> None:
-    """CISEC-05-007: the type is resolved by name and applied by mutation.
+    """CISEC-05-017: the type is resolved by name and applied by mutation.
 
     By *name*: a hardcoded node ID would break silently if the type were
     re-created.
@@ -795,16 +794,16 @@ def test_issue_type_helper_resolves_the_type_by_name() -> None:
     script = ENSURE_ISSUE_TYPE.read_text()
     assert "issueTypes" in script, (
         "The helper must resolve the issue type by name via the `issueTypes` "
-        "GraphQL field (CISEC-05-007)."
+        "GraphQL field (CISEC-05-017)."
     )
     assert "updateIssue" in script and "issueTypeId" in script, (
         "The helper must apply the type via the `updateIssue` mutation's "
-        "`issueTypeId` (CISEC-05-007)."
+        "`issueTypeId` (CISEC-05-017)."
     )
 
 
 def test_issue_type_helper_fails_visibly_without_the_type() -> None:
-    """CISEC-05-007: no type of that name in the repository is a loud failure.
+    """CISEC-05-019: no type of that name in the repository is a loud failure.
 
     The guard has to come *after* a jq expression that tolerates a null
     ``issueTypes`` connection (an owner with no issue types at all); otherwise
@@ -814,17 +813,17 @@ def test_issue_type_helper_fails_visibly_without_the_type() -> None:
     assert "(.data.repository.issueTypes.nodes // [])" in script, (
         "The type lookup must default a null `issueTypes` connection to an "
         "empty list, or jq aborts the step before the guard runs "
-        "(CISEC-05-007)."
+        "(CISEC-05-019)."
     )
     assert 'if [ -z "$type_id" ]' in script, (
-        "The helper must guard on an empty type ID (CISEC-05-007)."
+        "The helper must guard on an empty type ID (CISEC-05-019)."
     )
     guard = script.index('if [ -z "$type_id" ]')
     guard_body = script[guard : script.index("fi", guard)]
     assert "::error::" in guard_body and "exit 1" in guard_body, (
         "A missing issue type must fail the step with an `::error::` "
         "annotation, not leave the filed issue silently untyped "
-        "(CISEC-05-007)."
+        "(CISEC-05-019)."
     )
 
 
@@ -834,7 +833,7 @@ def _notify_action_lookup_script() -> str:
     lookup = [s for s in scripts if "ISSUE_NUMS" in s]
     assert len(lookup) == 1, (
         "Expected exactly one step in notify-failure/action.yml to look up "
-        f"the open failure issue; found {len(lookup)} (CISEC-05-003)."
+        f"the open failure issue; found {len(lookup)} (CISEC-05-011)."
     )
     return lookup[0]
 
@@ -896,7 +895,7 @@ def _run_notify_action(
 def test_notify_action_finds_existing_issue_without_search_index(
     tmp_path: Path,
 ) -> None:
-    """CISEC-05-003: an open tracker is found, not duplicated (#5105).
+    """CISEC-05-011: an open tracker is found, not duplicated (#5105).
 
     ``gh issue list --label`` runs through the search index, which lags: it
     once returned nothing while the ADR Status Drift tracker was open, so the
@@ -914,7 +913,7 @@ def test_notify_action_finds_existing_issue_without_search_index(
 
 
 def test_notify_action_closes_duplicate_trackers(tmp_path: Path) -> None:
-    """MS-14-007, CISEC-05-003: notify leaves one tracker, the oldest, open.
+    """MS-14-007, CISEC-05-011: notify leaves one tracker, the oldest, open.
 
     A duplicate filed before this lookup was fixed, or by any future miss,
     is closed as a duplicate of the oldest open tracker on the next run.
@@ -965,7 +964,7 @@ def test_notify_action_files_a_tracker_when_none_is_open(
 
 
 def test_notify_action_fails_when_the_lookup_fails(tmp_path: Path) -> None:
-    """CISEC-05-003: an API error fails the step, never files a duplicate.
+    """CISEC-05-011: an API error fails the step, never files a duplicate.
 
     Read through ``mapfile < <(...)``, a failed lookup escapes ``set -e``
     and looks like "no open tracker", so the action would file a second one.

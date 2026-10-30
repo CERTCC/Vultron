@@ -15,8 +15,8 @@
 
 The example tests compare an activity's embedded object against a second,
 independent call to the same builder. That holds only when the builder reads
-no clock: a ``start_time`` truncated to the minute, or a ``published`` stamp at
-second precision, differs between two calls that straddle a tick.
+no clock: a ``start_time`` truncated to the minute, or a ``published`` stamp,
+differs between two calls that straddle a tick.
 
 Each test runs under ``straddling_clock`` (see ``conftest.py``), which moves
 the clock past a minute boundary between consecutive reads.

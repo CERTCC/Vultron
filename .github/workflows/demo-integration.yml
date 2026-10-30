@@ -130,6 +130,10 @@ jobs:
   scenarios:
     name: Select scenarios
     runs-on: ubuntu-latest
+    # Observed: up to 1.1 min over the 15 latest successful runs (2026-10-30). Cap at
+    # 5 min so a hang fails fast instead of holding a runner until GitHub's 6-h limit
+    # (TB-14-006).
+    timeout-minutes: 5
     if: "!startsWith(github.head_ref, 'dependabot/')"
     outputs:
       matrix: ${{ steps.select.outputs.matrix }}
@@ -267,6 +271,10 @@ jobs:
   invariant-harness:
     name: "${{ matrix.demo }} Invariant Harness"
     runs-on: ubuntu-latest
+    # Observed: up to 1.1 min for any one matrix entry over the 15 latest successful
+    # runs (2026-10-30). Cap at 5 min so a hang fails fast instead of holding a runner
+    # until GitHub's 6-h limit (TB-14-006).
+    timeout-minutes: 5
     # DEMOCI-04-002: always run after the demo job, even on demo failure.
     # DEMOCI-04-005, DEMOCI-02-004: the Dependabot guard is enforced upstream on
     # the `scenarios` job; `always()` must not resurrect this job when that job
@@ -364,6 +372,10 @@ jobs:
   notify:
     name: Notify CI failure
     runs-on: ubuntu-latest
+    # Observed: about 6 s over its latest successful runs (2026-10-30). Cap at 5 min
+    # so a hang fails fast instead of holding a runner until GitHub's 6-h limit
+    # (TB-14-006).
+    timeout-minutes: 5
     needs: [scenarios, demo, invariant-harness]
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:

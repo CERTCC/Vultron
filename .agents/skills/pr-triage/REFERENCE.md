@@ -198,7 +198,7 @@ if the PR modifies any of:
 
 The flag is informational. `pr-execute`'s local gate comes from
 `targeted-tests`, which gates these paths by their importers and leaves the
-rest to CI (PAD-18-003, ADR-0143), so execute does not read the flag to
+rest to CI (PAD-18-012, ADR-0143), so execute does not read the flag to
 choose its test scope.
 
 ---
@@ -219,7 +219,7 @@ by GitHub, so check both.
 |---|---|---|
 | `CLEAN` | Mergeable, checks green | none |
 | `UNSTABLE` | Mergeable, but a non-required check is failing/pending | none — Phase 11 owns CI |
-| `BEHIND` | Base advanced; a ruleset requires up-to-date branches (none does today, ADR-0126) | **IMPROVE** (`fix-now`: execute clears it with `gh pr update-branch`, PAD-18-004) |
+| `BEHIND` | Base advanced; a ruleset requires up-to-date branches (none does today, ADR-0126) | **IMPROVE** (`fix-now`: execute clears it with `gh pr update-branch`, PAD-18-014) |
 | `DIRTY` | Conflicts — authoritative even if `mergeable` says otherwise | **FAIL** |
 | `BLOCKED` | Missing required review or failing required check | **IMPROVE** (note the cause; not fixable by execute) |
 | `DRAFT` | PR is a draft and cannot merge | **IMPROVE** |
@@ -304,7 +304,7 @@ determination: the pre-push run writes it, and the delta run adds the pages its
 delta affects before comparing the `Docs:` line.
 
 `resolution` is written by `build` into the pre-push artifact only, once per
-finding, before `create-pr` (PAD-07-003): `{"status": "fixed", "note": "<what
+finding, before `create-pr` (PAD-07-010): `{"status": "fixed", "note": "<what
 changed, where>"}`, or `{"status": "filed-and-fixed", "note": "...", "issue":
 N}` for a `fix-now-file`, or `{"status": "held", "note": "<why>"}` when the PR
 opens as a draft held on it. It names no commit: `create-pr`'s cherry-pick

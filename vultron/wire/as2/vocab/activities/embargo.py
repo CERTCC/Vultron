@@ -48,8 +48,8 @@ class _EmProposeEmbargoActivity(as_Invite):
     """The actor is proposing an embargo on the case.
     This corresponds to the Vultron Message Types EP and EV
     object_: as_EmbargoEvent, or its URI when the sender named the terms by
-        reference.  An Invite received that way is still answered: the ER
-        names the Invite by id and needs no terms (ADR-0123).
+        reference.  An Invite received that way is still answered: the
+        ``Reject`` names the Invite by id and needs no terms (ADR-0123).
     """
 
     object_: as_EmbargoEvent | NonEmptyString = Field(
@@ -60,7 +60,9 @@ class _EmProposeEmbargoActivity(as_Invite):
 
 class _EmAcceptEmbargoActivity(as_Accept):
     """The actor is accepting an embargo proposal.
-    This corresponds to the Vultron Message Types EA and EC.
+    It is the sender's own consent to those terms and carries no protocol
+    shorthand: EA and EC are the Case Owner's decision,
+    ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` (MSM-02-010).
     Per ActivityStreams convention: Accept(object=<Invite>) — the actor accepts
     the proposal activity itself, not the as_EmbargoEvent being proposed.
 
@@ -77,7 +79,11 @@ class _EmAcceptEmbargoActivity(as_Accept):
 
 class _EmRejectEmbargoActivity(as_Reject):
     """The actor is rejecting an embargo proposal.
-    This corresponds to the Vultron Message Types ER and EJ.
+    A Participant's Reject is its own consent, declining those terms, and
+    carries no protocol shorthand: ER and EJ are the Case Owner's decision,
+    ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (MSM-02-010).  The
+    CASE_MANAGER's own Reject abandons the proposal and is ER (MSM-02-006,
+    EMB-16-001).
     Per ActivityStreams convention: Reject(object=<Invite>) — the actor rejects
     the proposal activity itself, not the as_EmbargoEvent being proposed.
 

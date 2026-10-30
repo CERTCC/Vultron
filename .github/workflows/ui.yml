@@ -30,6 +30,10 @@ jobs:
   ui:
     name: UI lint & build
     runs-on: ubuntu-latest
+    # Observed: up to 24 s over the 15 latest successful runs (2026-10-30). Cap at 5
+    # min so a hang fails fast instead of holding a runner until GitHub's 6-h limit
+    # (TB-14-006).
+    timeout-minutes: 5
     defaults:
       run:
         working-directory: ui
@@ -52,6 +56,10 @@ jobs:
   notify:
     name: Notify CI failure
     runs-on: ubuntu-latest
+    # Observed: up to 12 s over its latest successful runs (2026-10-30). Cap at 5 min
+    # so a hang fails fast instead of holding a runner until GitHub's 6-h limit
+    # (TB-14-006).
+    timeout-minutes: 5
     needs: [ui]
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:

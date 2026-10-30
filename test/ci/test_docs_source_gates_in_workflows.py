@@ -40,6 +40,7 @@ from test.ci._workflows import (
     neutering,
     swallowed_failure,
     triggers,
+    workflow_files,
 )
 
 PRE_COMMIT_CONFIG = REPO_ROOT / ".pre-commit-config.yaml"
@@ -47,10 +48,7 @@ DOCS_DIR = REPO_ROOT / "docs"
 REVIEW_WORKFLOW = WORKFLOWS_DIR / "docs-build-check.yml"
 # The steps that check the built site; the source gates run after them, so a
 # failed gate cannot skip one (DOCBW-03-014).
-BUILT_SITE_CHECKS = (
-    "./.github/actions/check-site-publication",
-    "docs-legacy-urls",
-)
+BUILT_SITE_CHECKS = ("./.github/actions/check-site-publication",)
 
 # A hook whose own command no workflow runs, and the command that checks the
 # same thing in CI. ``validate-adr-frontmatter`` only loads the ADR registry,
@@ -259,7 +257,7 @@ def _runs_hook(wf_data: dict[str, Any], hook: Hook) -> bool:
 def _pull_request_workflows() -> tuple[tuple[str, Any, dict[str, Any]], ...]:
     """Return (name, pull_request block, parsed workflow) for each PR workflow."""
     found = []
-    for path in sorted(WORKFLOWS_DIR.glob("*.yml")):
+    for path in workflow_files():
         data = load_workflow(path)
         on = triggers(data)
         if "pull_request" in on:
@@ -316,7 +314,7 @@ def test_this_check_runs_on_a_pull_request_that_changes_what_it_reads():
         f"{TEST_WORKFLOW.name} no longer fires on {THIS_TEST}; update "
         "TEST_WORKFLOW to the workflow that runs it."
     )
-    read = [PRE_COMMIT_CONFIG, *sorted(WORKFLOWS_DIR.glob("*.yml"))]
+    read = [PRE_COMMIT_CONFIG, *workflow_files()]
     missed = [
         rel
         for rel in (p.relative_to(REPO_ROOT).as_posix() for p in read)

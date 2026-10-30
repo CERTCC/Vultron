@@ -617,8 +617,8 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         dimension.  Each assignment is validated (ARCH-21-001).  The new
         entry gets a fresh ``id_`` and a ``name`` derived from its own states
         unless one is passed.  Timestamps come from ``now_utc_after``, so the
-        new entry sorts strictly after the old one, as ``current_status``, at
-        second precision (CS-13-002, CS-13-003).  EM is
+        new entry sorts strictly after the old one, as ``current_status``
+        (CS-13-002).  EM is
         not a status field to set: it is derived from the embargo register
         (ADR-0122), so ``em`` is refused.
 

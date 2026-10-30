@@ -80,8 +80,8 @@ Invoke the `orient-agent` skill.
    `Idea` or `Concern` leaf clears every one of those gates and still must not
    be built — it belongs to `plan-issue`, and a `Bug` belongs to `bugfix`.
    `bundle-fit` enforces that routing, orders candidates by the authoritative
-   Project #24 `Schedule` tier rather than sub-issue list order (PAD-03-001),
-   and respects the size budget. See `bundling.md` for the rule table.
+   Project #24 `Schedule` tier rather than sub-issue list order (PAD-03-001,
+   PAD-15-014), and respects the size budget. See `bundling.md` for the rule table.
 
 3. Take the tool's proposed bundle. Auto-selection may return several members;
    confirm they share one design idea in a single sentence (`bundling.md`
@@ -306,7 +306,7 @@ later) are separate decisions. Apply
 
    Do **not** run `pytest` here. The full local unit and integration suites run
    exactly once before the first push, in `create-pr` Phase 3, adjacent to the
-   push they guard (PAD-18-001, PAD-18-008). Running them here as well would
+   push they guard (PAD-18-001, PAD-18-008, PAD-18-017). Running them here as well would
    pay for the most expensive step in the pipeline twice with no change to the
    tree in between. While implementing, run the specific test files you are
    writing or changing (`uv run pytest <path> -n 0`) as often as you like;
@@ -360,7 +360,7 @@ push, so its findings cost no fix commit and no CI run (PAD-07-001, ADR-0139).
    `defer-ask` or `inversion-halt` through the gates in Phase 5's scope
    judgment, which on an unattended run means fix it or hold the PR as a draft.
    Write each finding's `resolution` into the artifact (`pr-triage/REFERENCE.md`
-   § "Review-Mode Fields") and commit the fixes (PAD-07-003).
+   § "Review-Mode Fields") and commit the fixes (PAD-07-003, PAD-07-010).
 4. Hand the fixes to the post-push triage, which reviews them as part of its
    delta; the pre-push review runs once (PAD-07-006).
 
@@ -411,7 +411,7 @@ the PR body per `pr-body-guide.md`. Any issue you file takes `--opened-as`.
    Commit message: docs: sync docs/ for issue #<N>
    ```
 
-   Then **record the outcome** (PD-03-008): edit the PR body to replace the
+   Then **record the outcome** (PD-03-013): edit the PR body to replace the
    `Docs: pending check-docs-sync` placeholder `create-pr` wrote with the
    `Docs:` line `check-docs-sync` reported, and push any docs commit. Then run
    `pr-body-lint --pr-json` at the final stage, with `--closes-work-item` (a
@@ -455,4 +455,4 @@ the PR body per `pr-body-guide.md`. Any issue you file takes `--opened-as`.
 - Do not skip validation, the self-check, or the fresh-agent pre-push review.
 - Do not commit directly to `main`. All work goes through a PR.
 - The run is not done while the PR body still reads
-  `Docs: pending check-docs-sync` (Phase 8 step 3, PD-03-008).
+  `Docs: pending check-docs-sync` (Phase 8 step 3, PD-03-013).

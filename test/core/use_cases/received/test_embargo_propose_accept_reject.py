@@ -569,7 +569,7 @@ def _make_pxa_case(
         to=to if to is not None else [coordinator_id],
     )
     # The case's CASE_MANAGER is the coordinator: the role is never unfilled
-    # (CM-24-006), and a participant's ER goes to it (PCR-08-001).
+    # (CM-24-006), and a participant's Reject goes to it (PCR-08-001).
     from vultron.wire.as2.vocab.objects.case_participant import (
         as_CaseParticipant,
     )
@@ -592,15 +592,17 @@ def _make_pxa_case(
 def _sole_queued_reject(dl) -> Any:
     """Return the one activity queued in *dl*'s outbox, asserting it is a Reject."""
     outbox = dl.outbox_list()
-    assert len(outbox) == 1, f"Expected exactly 1 ER in outbox; got {outbox}"
+    assert len(outbox) == 1, (
+        f"Expected exactly 1 Reject in outbox; got {outbox}"
+    )
     reject = dl.read(outbox[0])
-    assert reject is not None, "queued ER must be readable"
+    assert reject is not None, "queued Reject must be readable"
     assert getattr(reject, "type_", None) == "Reject"
     return reject
 
 
 class TestInviteToEmbargoReceivedPxaGuard:
-    """EMB-01-002: EP received when P/X/A set — block processing and emit ER."""
+    """EMB-01-002: EP received when P/X/A set — block processing and emit Reject."""
 
     COORD_ID = "https://example.org/actors/coord-ep-pxa"
     CASE_ID = "https://example.org/cases/c-ep-pxa"
@@ -642,7 +644,10 @@ class TestInviteToEmbargoReceivedPxaGuard:
     def test_pxa_set_emits_er_when_trigger_activity_provided(
         self, make_payload, pxa_state_name
     ):
-        """invite_to_embargo_on_case emits ER when trigger_activity is available and P/X/A set (EMB-01-002)."""
+        """invite_to_embargo_on_case emits a Reject with P/X/A set (EMB-01-002).
+
+        Only when trigger_activity is available.
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         dl = SqliteDataLayer(
@@ -668,7 +673,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
         assert result.disposition is HandlerDisposition.REFUSED
         assert "EMB-01-002" in (result.reason or "")
 
-        # ER activity must be in the outbox
+        # The Reject of the Invite must be in the outbox
         _sole_queued_reject(dl)
 
     @pytest.mark.spec("EP-09-010")
@@ -683,10 +688,10 @@ class TestInviteToEmbargoReceivedPxaGuard:
     ):
         """A misrouted EP is refused before the P/X/A check answers it.
 
-        EMB-01-002's ER answers a proposal this receiver was sent; an Invite
+        EMB-01-002's Reject answers a proposal this receiver was sent; an Invite
         naming no recipient or several is a misrouting (EP-09-010), received
         but not understood, so it is refused with the count and answered with
-        a ProcessingFault, never an ER (MSM-05-001).  Nothing is accepted, so
+        a ProcessingFault, never a Reject (MSM-05-001).  Nothing is accepted, so
         EMB-01-002's MUST NOT still holds.
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -795,14 +800,20 @@ class TestInviteToEmbargoReceivedPxaGuard:
 
 
 class TestAcceptInviteToEmbargoReceivedPxaGuard:
-    """EMB-02-002: EA received when P/X/A set — block processing and emit ER."""
+    """EMB-02-004: an Accept of the Invite received when P/X/A is set is refused.
+
+    The receiver records no consent and answers with a Reject of the Invite.
+    """
 
     COORD_ID = "https://example.org/actors/coord-ea-pxa"
     CASE_ID = "https://example.org/cases/c-ea-pxa"
 
     @pytest.mark.parametrize("pxa_state_name", _PXA_INELIGIBLE_STATES)
     def test_pxa_set_blocks_ea_processing(self, make_payload, pxa_state_name):
-        """accept_invite_to_embargo_on_case does not activate embargo when P/X/A set (EMB-02-002)."""
+        """accept_invite_to_embargo_on_case activates no embargo with P/X/A set.
+
+        EMB-02-004.
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         dl = SqliteDataLayer(
@@ -828,7 +839,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
             dl, event
         ).execute()
         assert result.disposition is HandlerDisposition.REFUSED
-        assert "EMB-02-002" in (result.reason or "")
+        assert "EMB-02-004" in (result.reason or "")
 
         # BT was not run: EM state must remain PROPOSED (not ACTIVE)
         updated = cast(VulnerabilityCase, dl.read(case.id_))
@@ -839,7 +850,10 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
     def test_pxa_set_emits_er_when_trigger_activity_provided(
         self, make_payload, pxa_state_name
     ):
-        """accept_invite_to_embargo_on_case emits ER when trigger_activity available and P/X/A set (EMB-02-002)."""
+        """accept_invite_to_embargo_on_case emits a Reject of the Invite (EMB-02-004).
+
+        Only when P/X/A is set.
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         dl = SqliteDataLayer(
@@ -866,9 +880,9 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
             dl, event, trigger_activity=trigger_activity
         ).execute()
         assert result.disposition is HandlerDisposition.REFUSED
-        assert "EMB-02-002" in (result.reason or "")
+        assert "EMB-02-004" in (result.reason or "")
 
-        # ER activity must be in the outbox
+        # The Reject of the Invite must be in the outbox
         _sole_queued_reject(dl)
 
     def test_pxa_clear_allows_ea_processing(self, make_payload):
@@ -887,7 +901,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         coordinator_id = self.COORD_ID
 
         case = VulnerabilityCase(
-            id_=case_id, name="PXA clear EA", attributed_to=coordinator_id
+            id_=case_id, name="PXA clear Accept", attributed_to=coordinator_id
         )
         # The receiver is the CASE_MANAGER (CM-24-006, BT-17-005).
         seed_store_owner_as_case_manager(dl, case)
@@ -934,12 +948,12 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
 
 
 class TestPxaRejectionAttribution:
-    """The P/X/A-guard ER is sent as the receiving actor.
+    """The P/X/A-guard Reject of the Invite is sent as the receiving actor.
 
-    EMB-01-002 / EMB-02-002 name the *receiver* as the actor that emits ER:
+    EMB-01-002 / EMB-02-004 name the *receiver* as the actor that emits it:
     this store can only speak for its own actor, and emitting as the subject
     would impersonate it.  An EP is answered only by its invitee (EP-09-010),
-    so an EP naming another invitee gets no ER at all.  In the EA test the
+    so an EP naming another invitee gets no Reject at all.  In the Accept test the
     accepting actor is both sender and subject, so it tells the receiver apart
     from the accepter but cannot tell "to the sender" apart from "to the
     subject".
@@ -990,7 +1004,7 @@ class TestPxaRejectionAttribution:
         """An EP addressed to another actor is refused at the door, unanswered.
 
         The receiver is neither the sender nor named in ``to``/``cc``, so
-        no tree runs and EMB-01-002's ER duty — which binds only the
+        no tree runs and EMB-01-002's Reject duty — which binds only the
         addressee — never arises (ADR-0118, #4132).
         """
         dl = self._dl()
@@ -1018,9 +1032,11 @@ class TestPxaRejectionAttribution:
         assert self.RECEIVER_ID in reason and self.INVITEE_ID in reason
         assert dl.outbox_list() == []
 
-    @pytest.mark.spec("EMB-02-002")
-    def test_ea_rejection_is_sent_as_receiver_not_accepter(self, make_payload):
-        """An EA from the invitee is rejected as the receiving actor, to the invitee."""
+    @pytest.mark.spec("EMB-02-004")
+    def test_accept_refusal_is_sent_as_receiver_not_accepter(
+        self, make_payload
+    ):
+        """The invitee's Accept is refused as the receiving actor, to the invitee."""
         dl = self._dl()
         case_id = f"{self.CASE_ID}/ea"
         case, _, proposal = _make_pxa_case(

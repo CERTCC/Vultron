@@ -15,7 +15,7 @@
 The Protocol Specification renders its normative text from the ``protocol``
 and ``foundation`` requirement tiers (ADR-0147). Every requirement of the two
 tiers is shown once, in a Requirements Catalog row, and every other page that
-shows or links it links that row (DF-12-001, DF-12-002). This module is the
+shows or links it links that row (DF-12-001, DF-12-010). This module is the
 one place that decides where a row lives:
 
 * :data:`CATALOG_PAGES` is the placement table. It maps each catalog page key
@@ -23,7 +23,7 @@ one place that decides where a row lives:
   holds. Placement is declared here, on the documentation side, and never as
   a field in a requirement file (DF-12-005). :func:`placement_faults` fails a
   file holding either tier that no page of that tier places, or that two
-  places of that tier name.
+  places of that tier name (DF-12-015).
 * :func:`catalog_location` returns the catalog page and anchor of a
   requirement of either tier, and refuses an ID of any other kind.
 * :func:`requirement_linker` turns a requirement ID into the link target a
@@ -249,8 +249,8 @@ def catalog_location(
 
     Raises:
         NotInCatalogError: If *spec_id* names no requirement, names one whose
-            kind is not ``protocol`` or ``foundation`` (DF-12-003), or names
-            one whose file no catalog page of its tier places (DF-12-005).
+            kind is not ``protocol`` or ``foundation`` (DF-12-012), or names
+            one whose file no catalog page of its tier places (DF-12-015).
     """
     try:
         kind = registry.get_effective_kind(spec_id)
@@ -260,14 +260,14 @@ def catalog_location(
         raise NotInCatalogError(
             f"{spec_id} is a {kind.value} requirement; only protocol and "
             "foundation requirements are in the Requirements Catalog "
-            "(DF-12-003)"
+            "(DF-12-012)"
         )
     file_id = _file_of(registry)[spec_id]
     page = _page_for(file_id, kind, pages)
     if page is None:
         raise NotInCatalogError(
             f"{spec_id}: no {kind.value} catalog page places file {file_id} "
-            "(add it to CATALOG_PAGES, DF-12-005)"
+            "(add it to CATALOG_PAGES, DF-12-015)"
         )
     return CatalogLocation(page, requirement_anchor(spec_id))
 
@@ -294,7 +294,7 @@ def _page_faults(pages: tuple[CatalogPage, ...]) -> list[str]:
     if len(foundation_pages) != 1:
         faults.append(
             "foundation requirements need exactly one catalog page of their "
-            f"own (DF-12-001); found {foundation_pages or 'none'}"
+            f"own (DF-12-009); found {foundation_pages or 'none'}"
         )
     return faults
 
@@ -327,11 +327,11 @@ def _file_faults(
         if count > 1:
             faults.append(
                 f"{file_id} is placed {count} times for the {tier.value} tier "
-                "(DF-12-005)"
+                "(DF-12-015)"
             )
     faults.extend(
         f"{file_id} holds {tier.value} requirements but no "
-        f"{tier.value} catalog page places it (DF-12-005)"
+        f"{tier.value} catalog page places it (DF-12-015)"
         for file_id, file_tiers in sorted(tiers.items())
         for tier in sorted(file_tiers, key=lambda k: k.value)
         if (file_id, tier) not in placed
@@ -346,10 +346,10 @@ def placement_faults(
     """Return every fault in the placement table *pages* against *registry*.
 
     A fault is a duplicate page key, a page of a tier the catalog does not
-    hold, other than one ``foundation`` page (DF-12-001), a placed file that
+    hold, other than one ``foundation`` page (DF-12-009), a placed file that
     does not exist or holds no item of the page's tier, or a file holding a
     tier that no page of that tier places, or that two places of that tier
-    name (DF-12-005). An empty list means the table is sound.
+    name (DF-12-015). An empty list means the table is sound.
     """
     return _page_faults(pages) + _file_faults(registry, pages)
 
@@ -398,7 +398,7 @@ def requirement_linker(
     *page*, or to ``None`` when the ID names no requirement or names one of
     the two tiers whose file no catalog page places (a fault
     :func:`placement_faults` reports). A ``protocol`` or ``foundation``
-    requirement links its catalog row, in-page on ``full.md`` (DF-12-002);
+    requirement links its catalog row, in-page on ``full.md`` (DF-12-011);
     any other kind links its row on its per-kind requirements page.
 
     Args:

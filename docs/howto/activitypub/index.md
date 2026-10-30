@@ -55,7 +55,7 @@ It was produced by the reference implementation; the identifiers and timestamps 
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Offer",
   "id": "urn:uuid:70f657e8-8640-414f-9b1a-2512f9664e3a",
-  "published": "2026-09-28T17:38:03+00:00",
+  "published": "2026-09-28T17:38:03.000000+00:00",
   "to": ["https://vendor.example/actors/psirt"],
   "actor": "https://reporter.example/actors/finder",
   "object": {
@@ -100,7 +100,7 @@ Standard AS2 objects appear too: a case note is an `as:Note`, and the actor invi
 An embargo is not one of them: it is sent with the Vultron `type` `EmbargoEvent`, never a plain `as:Event`.
 
 The same verb carries different protocol messages depending on its object.
-`Accept(Offer(VulnerabilityReport))` is Report Valid (RV); `Accept(Invite(EmbargoEvent))` is Embargo Proposal Acceptance (EA); `Accept(Invite(Actor))` is an actor joining a case.
+`Accept(Offer(VulnerabilityReport))` is Report Valid (RV); `Accept(Invite(EmbargoEvent))` is a participant's consent to embargo terms, while `Accept(EmbargoEvent)` is Embargo Proposal Acceptance (EA); `Accept(Invite(Actor))` is an actor joining a case.
 Read the object before the verb.
 
 <div class="grid cards" markdown>

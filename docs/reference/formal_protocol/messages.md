@@ -139,11 +139,11 @@ Therefore, the message types below are those a Participant SHOULD emit when thei
 | Message Type | Name | Description                                                                                                                                                                             |
 |:------------:| --- |-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | $EP$         | Embargo Proposal | A message containing proposed embargo terms (e.g., date/time of expiration).                                                                                                            |
-| $ER$         | Embargo Proposal Rejection | A message indicating the Participant has rejected an embargo proposal.                                                                                                                  |
-| $EA$         | Embargo Proposal Acceptance | A message indicating the Participant has accepted an embargo proposal.                                                                                                                  |
+| $ER$         | Embargo Proposal Rejection | A message indicating that the case's embargo proposal is rejected: the Case Owner's decision, or the CASE_MANAGER's abandonment of the proposal. |
+| $EA$         | Embargo Proposal Acceptance | A message indicating that the Case Owner has accepted an embargo proposal for the case. |
 | $EV$         | Embargo Revision Proposal | A message containing a proposed revision to embargo terms (e.g., date/time of expiration).                                                                                              |
-| $EJ$         | Embargo Revision Rejection | A message indicating the Participant has rejected a proposed embargo revision.                                                                                                          |
-| $EC$         | Embargo Revision Acceptance | A message indicating the Participant has accepted a proposed embargo revision.                                                                                                          |
+| $EJ$         | Embargo Revision Rejection | A message indicating that the Case Owner has rejected a proposed embargo revision for the case. |
+| $EC$         | Embargo Revision Acceptance | A message indicating that the Case Owner has accepted a proposed embargo revision for the case. |
 | $ET$         | Embargo Termination | A message indicating the Participant has terminated an embargo (including the reason for termination). Note that an *Embargo Termination* message is intended to have immediate effect. |
 | $EK$         | Embargo Acknowledgment | A message acknowledging receipt of any of the above EM message types.                                                                                                                   |
 | $EE$         | Embargo Error | A message indicating a Participant received an unexpected EM message.                                                                                                                   |
@@ -157,6 +157,14 @@ A summary of the EM message types is shown below.
 !!! note "EM Message Types"
 
     $$M^{em} = \{EP,ER,EA,EV,EJ,EC,ET,EK,EE\}$$
+
+!!! note "Acceptance and rejection are decided at the case level"
+
+    $EA$, $ER$, $EJ$ and $EC$ describe the case's view of the embargo, not each Participant's answer.
+    Each one names the decision that makes its EM transition: the Case Owner's acceptance or rejection of a proposal or revision.
+    $ER$ also names the CASE_MANAGER's abandonment of a proposal once the case is public, an exploit is public, or attacks are observed (EMB-16-001).
+    Each Participant answers a proposal with its own consent, which the Case Owner weighs before it decides.
+    The formal model does not model that per-Participant consent (Participant Embargo Consent, PEC), and a Participant's answer makes no EM transition (MSM-02-010).
 
 ## CS Message Types
 
@@ -269,6 +277,9 @@ See [Vultron AS Activity Guides](../../howto/activitypub/activities/index.md) fo
 
     The ActivityStreams-based wire format collapses the revision-negotiation message types:
     $EV$ is sent as $EP$, $EC$ is sent as $EA$, and $EJ$ is sent as $ER$.
+    $EA$ and $EC$ are both the Case Owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]`, and $ER$ and $EJ$ are both its `Reject(EmbargoEvent)[target=VulnerabilityCase]`; the case's EM state, `PROPOSED` or `REVISE`, tells them apart.
+    $ER$ is also the CASE_MANAGER's abandoning `Reject(Invite(EmbargoEvent))`.
+    A Participant's `Accept` or `Reject` of the embargo `Invite` is that Participant's consent and carries no shorthand (MSM-02-010).
     The formal message type set above remains normative for protocol semantics;
     the AS2 mapping is an implementation detail of the current prototype.
 

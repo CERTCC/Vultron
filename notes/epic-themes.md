@@ -406,4 +406,4 @@ Two triage labels exist alongside `theme:` and the workflow labels in
 The labels `needs-triage`, `ready-for-agent`, and `wontfix` are not used, because
 each duplicates a fact the tracker already holds: untriaged means "no Epic
 ancestor", `Ready` is computed, and "will not be actioned" is GitHub's "not
-planned" close reason (PAD-16-010). Their retirement is tracked in #3717.
+planned" close reason (PAD-16-014). Their retirement is tracked in #3717.

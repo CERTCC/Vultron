@@ -2,11 +2,10 @@
 #
 # `uv run docs-legacy-urls` fails when the built site/ neither serves nor
 # redirects one of these URLs, unless a withheld declaration covers it. The list
-# only grows: a URL that was once published stays accounted for. Before opening
-# the pull request to `publish`, run `uv run docs-legacy-urls --snapshot
-# origin/main` on a branch from `main` and merge the result into `main`, so the
-# incoming publish is recorded before it ships; `--require-recorded` fails that
-# pull request until it is.
+# only grows: a URL that was once published stays accounted for. A page goes
+# live at the next deploy, so a pull request that adds a page commits it, runs
+# `uv run docs-legacy-urls --snapshot HEAD` and commits this file too;
+# `--require-recorded` fails the pull request until it does.
 #
 # Seeded from origin/publish at ee5d96d3d (#3556).
 _acronyms/index.md
@@ -167,6 +166,16 @@ adr/0154-a-received-message-is-one-staged-record-archived-only-when-applied.md
 adr/0155-a-participant-states-its-ledger-position-and-the-case-manager-answers-a-lag.md
 adr/0156-every-case-activity-states-its-senders-ledger-position.md
 adr/0157-a-cases-creation-is-one-create-delivered-and-ledgered.md
+adr/0158-the-occasion-is-the-specifications-message-unit-and-case-coordination-is-its-own-section.md
+adr/0159-an-actor-known-only-by-uri-travels-as-an-id-and-type-reference.md
+adr/0160-a-requirement-that-uses-a-term-another-defines-records-uses-definition.md
+adr/0161-eventual-consistency-is-the-protocols-ordering-guarantee.md
+adr/0162-protocol-statecharts-are-projections-of-the-core-transition-tables-and-occasions-name-their-transitions.md
+adr/0163-the-case-manager-resends-an-unanswered-invite-when-its-addressee-states-a-ledger-position.md
+adr/0164-actors-sign-content-with-object-level-proofs-from-seeded-keys.md
+adr/0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md
+adr/0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md
+adr/0168-a-replay-from-the-start-is-asked-once-per-wait-and-answered-once-per-need.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md
@@ -222,6 +231,7 @@ howto/activitypub/activities/_reject_invite_to_case.md
 howto/activitypub/activities/_remove_embargo_from_case.md
 howto/activitypub/activities/_submit_report.md
 howto/activitypub/activities/_validate_report.md
+howto/activitypub/activities/_vfd_one_activity.md
 howto/activitypub/activities/acknowledge.md
 howto/activitypub/activities/error.md
 howto/activitypub/activities/establish_embargo.md
@@ -241,6 +251,7 @@ howto/activitypub/index.md
 howto/activitypub/objects.md
 howto/adopt_vultron.md
 howto/case_object.md
+howto/decide_who_owns_a_case.md
 howto/demos/rvv-demo.md
 howto/em_icalendar.md
 howto/general_implementation.md
@@ -250,6 +261,7 @@ howto/process_implementation.md
 howto/wire_capability.md
 includes/curr_ver.md
 includes/do_not_start_here.md
+includes/lookup_link.md
 includes/normative.md
 includes/not_normative.md
 includes/notional_external_process.md
@@ -259,9 +271,15 @@ includes/specification_governs.md
 includes/stakeholder_types.md
 includes/start_here_cards.md
 includes/tab_exp_freq.md
+includes/test_bench.md
+includes/twelve_desiderata.md
 includes/use_protege.md
 includes/vultron_is_not.md
 index.md
+lookup.md
+project/open_questions.md
+project/proposing_a_change.md
+reference/_notation-math.md
 reference/activitypub/objects.md
 reference/behaviors/case_handlers.md
 reference/behaviors/cs_handlers.md
@@ -350,6 +368,7 @@ reference/formal_protocol/states.md
 reference/formal_protocol/transitions.md
 reference/glossary.md
 reference/index.md
+reference/iso_crosswalks/_table_legend.md
 reference/iso_crosswalks/index.md
 reference/iso_crosswalks/iso_29147_2018.md
 reference/iso_crosswalks/iso_30111_2019.md
@@ -492,6 +511,15 @@ reference/user_stories/story_2022_108.md
 reference/user_stories/story_2022_109.md
 reference/user_stories/story_2022_110.md
 reference/user_stories/story_2022_111.md
+reference/user_stories/story_2026_001.md
+reference/user_stories/story_2026_002.md
+reference/user_stories/story_2026_003.md
+reference/user_stories/story_2026_004.md
+reference/user_stories/story_2026_005.md
+reference/user_stories/story_2026_006.md
+reference/user_stories/story_2026_007.md
+reference/user_stories/story_2026_008.md
+reference/user_stories/story_2026_009.md
 reference/user_stories/table.md
 reference/user_stories/traceability.md
 reference/versioning.md
@@ -503,6 +531,16 @@ reference/vultron-spec/_annex-d.md
 reference/vultron-spec/_annex-e.md
 reference/vultron-spec/_annex-f.md
 reference/vultron-spec/_annexes-intro.md
+reference/vultron-spec/_case-coordination.md
+reference/vultron-spec/_catalog/_case-management.md
+reference/vultron-spec/_catalog/_foundation.md
+reference/vultron-spec/_catalog/_intro.md
+reference/vultron-spec/_catalog/_ledger-replication.md
+reference/vultron-spec/_catalog/_message-processing.md
+reference/vultron-spec/_catalog/_messages.md
+reference/vultron-spec/_catalog/_state-behavior.md
+reference/vultron-spec/_catalog/_transport-security.md
+reference/vultron-spec/_catalog/_vultron-protocol.md
 reference/vultron-spec/_conformance/_capability-sets.md
 reference/vultron-spec/_conformance/_capability-shapes.md
 reference/vultron-spec/_conformance/_conformance-testing.md
@@ -511,9 +549,11 @@ reference/vultron-spec/_conformance/_role-requirements.md
 reference/vultron-spec/_conformance/_role-taxonomy.md
 reference/vultron-spec/_cs-dimensions.md
 reference/vultron-spec/_em-state-machine.md
+reference/vultron-spec/_encoding-transport.md
 reference/vultron-spec/_full-page-tip.md
 reference/vultron-spec/_iana.md
 reference/vultron-spec/_introduction.md
+reference/vultron-spec/_messages.md
 reference/vultron-spec/_model-interactions.md
 reference/vultron-spec/_open-questions.md
 reference/vultron-spec/_oq-cs-ordering.md
@@ -553,12 +593,22 @@ reference/vultron-spec/interactions.md
 reference/vultron-spec/introduction.md
 reference/vultron-spec/layers.md
 reference/vultron-spec/open-questions.md
+reference/vultron-spec/requirements/case-management.md
+reference/vultron-spec/requirements/foundation.md
+reference/vultron-spec/requirements/index.md
+reference/vultron-spec/requirements/ledger-replication.md
+reference/vultron-spec/requirements/message-processing.md
+reference/vultron-spec/requirements/messages.md
+reference/vultron-spec/requirements/state-behavior.md
+reference/vultron-spec/requirements/transport-security.md
+reference/vultron-spec/requirements/vultron-protocol.md
 reference/vultron-spec/tracking-models.md
 reference/vultron-taxonomy.md
 research/index.md
 start/connect-your-tracker.md
 start/contribute.md
 start/coordinate-cases.md
+start/how-vultron-works.md
 start/index.md
 start/study-the-process.md
 topics/activity_vocabulary_design.md
@@ -572,6 +622,13 @@ topics/background/overview.md
 topics/background/terms.md
 topics/background/versioning.md
 topics/background/what-is-vultron.md
+topics/behavior_logic/_behavior_spec_groups.md
+topics/behavior_logic/_conformant_implementation_note.md
+topics/behavior_logic/_em_message_requirements.md
+topics/behavior_logic/_legacy_diagram_note.md
+topics/behavior_logic/_no_normative_spec_group_note.md
+topics/behavior_logic/_requirements_pointer.md
+topics/behavior_logic/_rm_message_requirements.md
 topics/behavior_logic/acquire_exploit_bt.md
 topics/behavior_logic/bt_notation.md
 topics/behavior_logic/cvd_bt.md
@@ -634,6 +691,7 @@ topics/future_work/ontology.md
 topics/future_work/open_questions.md
 topics/future_work/reward_functions.md
 topics/index.md
+topics/measuring_cvd/_case_events.md
 topics/measuring_cvd/_history_constraints.md
 topics/measuring_cvd/_ordered_pairs_events.md
 topics/measuring_cvd/_table_possible_histories.md
@@ -641,8 +699,10 @@ topics/measuring_cvd/benchmarking.md
 topics/measuring_cvd/benchmarking_mpcvd.md
 topics/measuring_cvd/desirable_histories.md
 topics/measuring_cvd/discriminating_skill_and_luck.md
+topics/measuring_cvd/foundations/index.md
 topics/measuring_cvd/index.md
 topics/measuring_cvd/observing_skill.md
+topics/measuring_cvd/open_questions.md
 topics/measuring_cvd/possible_histories.md
 topics/measuring_cvd/process_model_desiderata.md
 topics/measuring_cvd/random_walk.md
@@ -650,6 +710,7 @@ topics/measuring_cvd/reasoning_over_histories.md
 topics/measuring_cvd/reward_functions.md
 topics/measuring_cvd/state_space_size.md
 topics/measuring_cvd/timing_metrics.md
+topics/measuring_cvd/what_a_case_records.md
 topics/message_semantics.md
 topics/other_uses/action_rules.md
 topics/other_uses/index.md
@@ -695,6 +756,11 @@ topics/process_models/rm/rm_interactions.md
 topics/process_models/rm/rm_state_machine_diagram.md
 topics/protocol_flow.md
 topics/reference_architecture.md
+topics/scenarios/_case_notes.md
+topics/scenarios/_engagement_status_entry.md
+topics/scenarios/_owner_leaves_last.md
+topics/scenarios/_participant_case_actor.md
+topics/scenarios/_participant_reporter.md
 topics/scenarios/index.md
 topics/scenarios/rccv-extension.md
 topics/scenarios/rccv-handoff.md
@@ -820,6 +886,9 @@ topics/user_stories/story_2022_109.md
 topics/user_stories/story_2022_110.md
 topics/user_stories/story_2022_111.md
 topics/user_stories/table.md
+tutorials/_cleanup_volumes.md
+tutorials/_docker_prerequisites.md
+tutorials/_first_run_build.md
 tutorials/container_demos.md
 tutorials/index.md
 tutorials/other_demos.md

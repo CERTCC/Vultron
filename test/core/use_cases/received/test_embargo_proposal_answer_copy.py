@@ -385,9 +385,10 @@ def test_the_managers_own_accept_is_its_rows_entry():
     assert _row(net, MANAGER, MANAGER, revision_id) is _S.AGREED
 
 
-@pytest.mark.spec("MSM-07-004")
 @pytest.mark.spec("CLP-07-013")
 @pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("MSM-07-017")
+@pytest.mark.spec("MSM-07-018")
 def test_the_managers_own_reject_is_its_update_of_the_row():
     """The CASE_MANAGER declines as its own ``Update(EmbargoConsent)``.
 
@@ -403,6 +404,7 @@ def test_the_managers_own_reject_is_its_update_of_the_row():
     entries = _new_entries(net, lambda: act(net))
 
     assert entries == [UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE]
+    assert net.queued(MANAGER, to=BYSTANDER, type_="Reject") == []
     assert _row(net, MANAGER, MANAGER, revision_id) is _S.DECLINED
     _assert_replica_copies(net, BYSTANDER)
     assert _row(net, BYSTANDER, MANAGER, revision_id) is _S.DECLINED

@@ -39,6 +39,7 @@ from py_trees.common import Status
 from pydantic import BaseModel
 
 from test.support.embargo_register import propose, write_consent_rows
+from test.support.failed_teardown import fail_pxa_teardown
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -257,17 +258,24 @@ def test_a_replica_follows_the_owners_rejection_of_a_proposal():
     assert _ledger(net, BYSTANDER) == _ledger(net, MANAGER)
 
 
-def _report_pxa(net: LedgerNetwork, pxa: CS_pxa) -> None:
-    """The case owner reports CS at *pxa*; the CASE_MANAGER adopts and commits it.
+def _report_pxa(
+    net: LedgerNetwork, pxa: CS_pxa, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The case owner reports CS at *pxa*; the CASE_MANAGER adopts and commits it,
+    but the teardown the adopted value calls for fails.
 
-    The owner's report is adopted without a call-out (RSH-01-002), but the
-    default EmbargoTeardownAuthorizationGate waits for the case owner's
-    approval (ADR-0076), so the embargo stays in force and the revision open.
+    The owner's report is adopted without a call-out (RSH-01-002), and the
+    adoption authorizes the teardown, which runs in the same act (ADR-0166).
+    A teardown that fails for another reason is the one way the embargo
+    stays in force beside P, X or A, the state the EMB-04-002 rejection
+    starts from, so the teardown is made to fail for this delivery only.
     Each replica learns *pxa* from the committed entry, as it would in
     production.
     """
     em = net.case(MANAGER).em_state
-    _send(net, net.pxa_report(OWNER, pxa))
+    with monkeypatch.context() as patch:
+        fail_pxa_teardown(patch)
+        _send(net, net.pxa_report(OWNER, pxa))
     assert net.case(MANAGER).em_state == em
     assert net.case(MANAGER).current_status.pxa.state == pxa
 
@@ -321,7 +329,9 @@ def test_a_replica_carries_signatories_over_to_a_shorter_activated_revision():
 @pytest.mark.spec("MSM-07-009")
 @pytest.mark.spec("CM-23-016")
 @pytest.mark.spec("EMB-13-005")
-def test_a_replica_follows_the_owners_rejection_of_a_revision_after_disclosure():
+def test_a_replica_follows_the_owners_rejection_of_a_revision_after_disclosure(
+    monkeypatch,
+):
     """Reject of the last revision with P set: both registers end the same.
 
     The CASE_MANAGER records the rejection as decided and then terminates
@@ -335,7 +345,7 @@ def test_a_replica_follows_the_owners_rejection_of_a_revision_after_disclosure()
         LedgerNetwork("https://example.org/cases/replay-reject-disclosed")
     )
     revision = _propose_revision_everywhere(net, days=120)
-    _report_pxa(net, CS_pxa.Pxa)
+    _report_pxa(net, CS_pxa.Pxa, monkeypatch)
 
     _send(
         net,
@@ -345,7 +355,8 @@ def test_a_replica_follows_the_owners_rejection_of_a_revision_after_disclosure()
     )
 
     # The owner's report, its adopted P, with the CSB-18 note the
-    # CASE_MANAGER records while the embargo is still in force (#4829), then
+    # CASE_MANAGER records when the failed teardown leaves the embargo in
+    # force (#4829), then
     # the reject entry, then the termination it forced (EMB-04-002).
     assert _replay(net, BYSTANDER)[:5] == [
         "add_participant_status_to_participant",
@@ -387,7 +398,7 @@ def test_a_refused_termination_commits_neither_entry(monkeypatch):
         LedgerNetwork("https://example.org/cases/replay-reject-refused")
     )
     revision = _propose_revision_everywhere(net, days=120)
-    _report_pxa(net, CS_pxa.Pxa)
+    _report_pxa(net, CS_pxa.Pxa, monkeypatch)
     ledger_before = _ledger(net, MANAGER)
 
     def _refuse(*_args: object) -> NoReturn:
@@ -421,7 +432,7 @@ def test_a_termination_failing_after_its_remove_commits_neither_entry(
         LedgerNetwork("https://example.org/cases/replay-reject-late-failure")
     )
     revision = _propose_revision_everywhere(net, days=120)
-    _report_pxa(net, CS_pxa.Pxa)
+    _report_pxa(net, CS_pxa.Pxa, monkeypatch)
     ledger_before = _ledger(net, MANAGER)
 
     monkeypatch.setattr(
@@ -473,6 +484,7 @@ def test_a_redelivered_owner_activation_entry_changes_nothing():
 
 @pytest.mark.spec("MSM-07-003")
 @pytest.mark.spec("RSH-08-004")
+@pytest.mark.spec("MSM-07-011")
 def test_the_owners_accept_of_an_invite_is_only_its_own_consent():
     """Accept(Invite(EmbargoEvent)) from the owner records its row; EM stays PROPOSED.
 

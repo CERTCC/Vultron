@@ -47,7 +47,7 @@ regression test, a `Literal`, a lint rule, or a comment on the offending line,
 do that instead of writing a file. Fixing the broken script beats describing the
 broken script.
 
-## Code-review findings are issues, always (BW-07-009)
+## Code-review findings are issues, always (BW-07-009, BW-07-010)
 
 Findings in files your change didn't touch — pre-existing bugs, DEFER items,
 anything ruled out of scope — **must** be filed as issues before the session
@@ -83,10 +83,10 @@ A `theme-candidate` is a claim awaiting a second witness. Two consequences:
 
 For the two rows that do write a file: `plan/incoming/learnings/YYYYMMDD-SLUG.md`,
 where `SLUG` is a descriptive kebab slug (conventionally `<issue>-<phrase>`),
-never the `source` value — one source may produce several files (BW-01-003);
-frontmatter `title`, `type: learning`, `timestamp` (tz-aware ISO 8601 UTC),
+never the `source` value — one source may produce several files (BW-01-008,
+BW-01-009); frontmatter `title`, `type: learning`, `timestamp` (tz-aware ISO 8601 UTC),
 `source`, and `signal:` (one of `theme-candidate`, `spec-gap`, `spec-ambiguity`,
-`spec-contradiction`). No completion summaries (BW-01-001).
+`spec-contradiction`). No completion summaries (BW-01-002).
 
 ### Body shape
 

@@ -426,21 +426,27 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER in a non-Closed RM state (q^rm ∉ C) with CS not yet
-      public (q^cs ∈ ···p··) and EM Active or Revise (q^em ∈ {A, R}) receiving
-      CP MUST initiate embargo termination by emitting ET.
+      This rule covers a CASE_MANAGER whose RM state is not Closed (q^rm ∉ C)
+      and whose EM is Active or Revise (q^em ∈ {A, R}).
+      Its CS is not yet public (q^cs ∈ ···p··).
+      On receiving CP, it MUST initiate embargo termination by emitting ET
+      in the act that adopts the P value.
     rationale: >-
       VP-09-001 and VP-11-002 require immediate embargo termination when public
       awareness occurs.
       Only the CASE_MANAGER writes shared EM state, so it emits the ET when it
-      records the P/X/A status (RSH-03-001, EP-09-008). The CASE_MANAGER can be
-      the Case Owner itself. A Participant that does not hold the role reports
-      the CS change and emits no ET (EMB-03-003, ADR-0118).
+      records the P/X/A status (RSH-03-001, EP-09-008); it can be the Case
+      Owner itself. A non-manager Participant reports the CS change and emits
+      no ET (EMB-03-003, ADR-0118). Adopting P also authorizes the
+      termination, so no second approval is asked (ADR-0166).
     verification: >-
-      Integration tests in `test/demo/` confirm that the CASE_MANAGER receiving
-      CP with EM Active or Revise and CS ···p·· enqueues ET to initiate embargo
-      termination.
+      Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py`
+      (`TestAdoptedThreatTeardown`) confirm that, with the default
+      authorization bundle, the CASE_MANAGER that receives and adopts CP
+      with EM Active or Revise ends the embargo in the same act.
     testable: true
+    adr:
+    - ADR-0166
 
     stories:
     - story_2022_023
@@ -725,22 +731,27 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER in a non-Closed RM state (q^rm ∉ C) with CS not yet
-      public and not yet exploit-public (q^cs ∈ ···px·) and EM Active or Revise
-      (q^em ∈ {A, R}) receiving CX MUST initiate embargo termination by emitting
-      ET.
+      This rule covers a CASE_MANAGER whose RM state is not Closed (q^rm ∉ C)
+      and whose EM is Active or Revise (q^em ∈ {A, R}).
+      Its CS is not yet public and not yet exploit-public (q^cs ∈ ···px·).
+      On receiving CX, it MUST initiate embargo termination by emitting ET
+      in the act that adopts the X value.
     rationale: >-
       VP-09-001 and VP-11-002 require immediate embargo termination when exploit
       publication occurs.
       Only the CASE_MANAGER writes shared EM state, so it emits the ET when it
-      records the P/X/A status (RSH-03-001, EP-09-008). The CASE_MANAGER can be
-      the Case Owner itself. A Participant that does not hold the role reports
-      the CS change and emits no ET (EMB-03-003, ADR-0118).
+      records the P/X/A status (RSH-03-001, EP-09-008); it can be the Case
+      Owner itself. A non-manager Participant reports the CS change and emits
+      no ET (EMB-03-003, ADR-0118). Adopting X also authorizes the
+      termination, so no second approval is asked (ADR-0166).
     verification: >-
-      Integration tests in `test/demo/` confirm that the CASE_MANAGER receiving
-      CX with EM Active or Revise and CS ···px· enqueues ET to initiate embargo
-      termination.
+      Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py`
+      (`TestAdoptedThreatTeardown`) confirm that, with the default
+      authorization bundle, the CASE_MANAGER that receives and adopts CX
+      with EM Active or Revise ends the embargo in the same act.
     testable: true
+    adr:
+    - ADR-0166
 
     stories:
     - story_2022_023
@@ -1060,22 +1071,27 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER in a non-Closed RM state (q^rm ∉ C) with CS not yet
-      public and attacks not yet observed (q^cs ∈ ···p·a) and EM Active or
-      Revise (q^em ∈ {A, R}) receiving CA MUST initiate embargo termination by
-      emitting ET.
+      This rule covers a CASE_MANAGER whose RM state is not Closed (q^rm ∉ C)
+      and whose EM is Active or Revise (q^em ∈ {A, R}).
+      Its CS is not yet public and has no attacks observed (q^cs ∈ ···p·a).
+      On receiving CA, it MUST initiate embargo termination by emitting ET
+      in the act that adopts the A value.
     rationale: >-
       Observed attacks warrant embargo termination (VP-11-006), and an active
       embargo cannot coexist with the attacks bit (CSB-18-004).
       Only the CASE_MANAGER writes shared EM state, so it emits the ET when it
-      records the P/X/A status (RSH-03-001, EP-09-008). The CASE_MANAGER can be
-      the Case Owner itself. A Participant that does not hold the role reports
-      the CS change and emits no ET (EMB-03-003, ADR-0118).
+      records the P/X/A status (RSH-03-001, EP-09-008); it can be the Case
+      Owner itself. A non-manager Participant reports the CS change and emits
+      no ET (EMB-03-003, ADR-0118). Adopting A also authorizes the
+      termination, so no second approval is asked (ADR-0166).
     verification: >-
-      Integration tests in `test/demo/` confirm that the CASE_MANAGER receiving
-      CA with EM Active or Revise and CS ···p·a enqueues ET to initiate embargo
-      termination.
+      Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py`
+      (`TestAdoptedThreatTeardown`) confirm that, with the default
+      authorization bundle, the CASE_MANAGER that receives and adopts CA
+      with EM Active or Revise ends the embargo in the same act.
     testable: true
+    adr:
+    - ADR-0166
 
     stories:
     - story_2022_023

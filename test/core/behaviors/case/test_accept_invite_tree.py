@@ -181,7 +181,7 @@ class TestSignEmbargoConsentLeafNode:
         """DECLINED: AGREE is skipped (AGREE from DECLINED is invalid), SUCCESS.
 
         Mirrors the service-layer guard in _record_actor_acceptance.
-        A DECLINED participant reaching this node (e.g., out-of-order EA
+        A DECLINED participant reaching this node (e.g., out-of-order Accept
         without prior EP re-invite) must not crash.
         """
         status, participant = _run_sign_node(

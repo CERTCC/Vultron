@@ -267,6 +267,7 @@ def test_accept_embargo_invite_idempotent(
 
 @pytest.mark.spec("MSM-07-003")
 @pytest.mark.spec("MSM-02-010")
+@pytest.mark.spec("MSM-07-011")
 def test_owners_accept_of_an_invite_is_its_consent_and_decides_nothing(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -337,6 +338,8 @@ def test_reject_embargo_proposal_owner_proposed_to_none(
 
 @pytest.mark.spec("MSM-07-004")
 @pytest.mark.spec("MSM-02-010")
+@pytest.mark.spec("MSM-07-013")
+@pytest.mark.spec("EMB-15-009")
 def test_reject_embargo_invite_signatory_owner_rejecting_first_proposal_declines(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -541,6 +544,7 @@ def test_owner_activation_prunes_the_proposal_and_a_repeat_changes_nothing(
 
 
 @pytest.mark.spec("EP-08-003")
+@pytest.mark.spec("MSM-07-011")
 def test_participant_accept_is_consent_and_prunes_nothing(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -973,6 +977,7 @@ def test_owner_rejecting_a_revision_changes_no_participant_record(
 
 @pytest.mark.spec("MSM-07-004")
 @pytest.mark.spec("MSM-02-010")
+@pytest.mark.spec("MSM-07-015")
 def test_signatory_rejecting_a_proposed_revision_keeps_its_consent_to_the_active_embargo(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:

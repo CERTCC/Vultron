@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Literal, cast
 
 from pydantic import field_validator, model_validator
 
+from vultron.core.models._helpers import timestamp_serializer
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
@@ -177,6 +178,7 @@ class InviteToEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
     rsvp_deadline: datetime | None = None
+    _serialize_rsvp_deadline = timestamp_serializer("rsvp_deadline")
 
     @field_validator("rsvp_deadline", mode="before")
     @classmethod
@@ -388,7 +390,7 @@ class UpdateEmbargoConsentReceivedEvent(LedgerPositionedEvent):
 
     ``Update(EmbargoConsent)``: the CASE_MANAGER's own act, such as a
     ``CARRY_OVER`` at activation, an invitation's time-out or a change of its
-    own consent (MSM-07-004), committed as its ``update_embargo_consent``
+    own consent (MSM-07-017), committed as its ``update_embargo_consent``
     ledger entry.  No received use case handles it (ADR-0140 item 5).
     """
 

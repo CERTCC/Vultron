@@ -40,6 +40,7 @@ from datetime import UTC, datetime
 from typing import Any, Protocol
 from urllib.parse import urlparse
 
+from vultron.core.models._helpers import format_timestamp
 from vultron.wire.as2.factories import rm_create_report_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.examples._base import (
@@ -108,8 +109,8 @@ STORED_REPORT_RESPONSE: dict[str, dict[str, Any]] = {
         "id": REPORT_ID,
         "type": "VulnerabilityReport",
         "name": REPORT_NAME,
-        "published": _FIXED_TS.isoformat(),
-        "updated": _FIXED_TS.isoformat(),
+        "published": format_timestamp(_FIXED_TS),
+        "updated": format_timestamp(_FIXED_TS),
         "content": REPORT_CONTENT,
         # The submitted report carries ``attributed_to`` as a single-element
         # list (AS2 permits an array).  The inbound report now parses straight
@@ -205,7 +206,7 @@ def create_report_activity_body() -> dict[str, Any]:
     """
     activity = _strip_published_udpated(create_report_activity())
     body: dict[str, Any] = json.loads(_to_json(activity))
-    body["published"] = _FIXED_TS.isoformat()
+    body["published"] = format_timestamp(_FIXED_TS)
     return body
 
 

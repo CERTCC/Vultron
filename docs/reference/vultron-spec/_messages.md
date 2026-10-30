@@ -4,6 +4,9 @@
     The formal message set, with its two-letter shorthands such as `RS`, `EP` and `CV`, was a design model of the protocol's messages.
     This version realizes that model as occasions, each conveyed by one wire activity.
     Formal types that share one wire activity merged, and context tells them apart: the receiver's embargo state separates `EV`, `EJ` and `EC` from `EP`, `ER` and `EA`, and a field value separates `CV`, `CF` and `CD`, and `CP`, `CX` and `CA`.
+    `EA` and `EC` are the Case Owner's activation of a proposal, and `ER` and `EJ` its rejection, told apart by whether the case embargo is Proposed or Revise.
+    `ER` is also the CASE_MANAGER's abandonment of a proposal, its own `Reject` of the `Invite`.
+    A participant's `Accept` or `Reject` of an embargo `Invite` is its own consent, which the formal set does not model, so it carries no shorthand (MSM-02-010).
     The formal set remains the vocabulary of the transition tables of [§6 Report Management (RM) State Machine](tracking-models.md#6-report-management-rm-state-machine-n) through [§9 Participant Embargo Consent (PEC) State Machine](tracking-models.md#9-participant-embargo-consent-pec-state-machine-n) ([ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)).
 
 This section defines what a participant sends in each situation of a case, and what a message it receives means.
@@ -198,6 +201,9 @@ A participant proposes or answers terms by writing to the CASE_MANAGER, which as
 !!! warning "A revision proposal and an initial proposal are the same activity"
     Embargo Revision Proposal (`EV`), Embargo Revision Rejection (`EJ`) and Embargo Revision Acceptance (`EC`) share their wire activities with Embargo Proposal (`EP`), Embargo Proposal Rejection (`ER`) and Embargo Proposal Acceptance (`EA`).
     The activity does not encode the difference.
+    `EA` and `EC` are both the Case Owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]`, and `ER` and `EJ` are both its `Reject(EmbargoEvent)[target=VulnerabilityCase]`.
+    `ER` is also the CASE_MANAGER's `Reject(Invite(EmbargoEvent))` that abandons a proposal.
+    A participant's `Accept` or `Reject` of the `Invite` it was sent is its own consent, carries no shorthand, and moves no embargo state (MSM-02-010).
 
     A receiver tells which it has received from its own embargo state, as the "Distinguished by" column states.
     If the case embargo is Active or Revise, an arriving proposal is a revision.
@@ -244,7 +250,7 @@ A participant reports them as a claim in a `ParticipantStatus`, and the CASE_MAN
 
 The Vendor aware, Fix ready, fix Deployed (VFD) occasions report the sender's own progress, so receiving one updates the receiver's model of the sender rather than the receiver's own state ([§8.4 Receiving CS Messages: Own State vs. Model of Others](tracking-models.md#84-receiving-cs-messages-own-state-vs-model-of-others)).
 The Public aware, eXploit public, Attacks observed (PXA) occasions in a `ParticipantStatus` report a claim about the world.
-That claim becomes canonical case state only if the CASE_MANAGER adopts it ([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)).
+That claim becomes canonical case state only if the CASE_MANAGER adopts it ([§11.3 Status Adoption: One Authorization Gate](interactions.md#113-status-adoption-one-authorization-gate)).
 
 ### 4.10 General Messages
 

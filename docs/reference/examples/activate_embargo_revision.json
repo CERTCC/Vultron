@@ -1,0 +1,21 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Accept",
+  "id": "urn:uuid:ac57ebf8-b865-4f9a-82f8-e1036590f8a0",
+  "name": "https://vultron.example/organizations/vendorco Accept Embargo for VendorCo Case #24004842 to urn:uuid:60dbd227-0435-4e69-a67c-b4168e1e1b9e",
+  "context": "urn:uuid:60dbd227-0435-4e69-a67c-b4168e1e1b9e",
+  "actor": "https://vultron.example/organizations/vendorco",
+  "target": "urn:uuid:60dbd227-0435-4e69-a67c-b4168e1e1b9e",
+  "object": {
+    "id": "urn:uuid:60dbd227-0435-4e69-a67c-b4168e1e1b9e/embargo_events/2026-09-29T00:00:00+00:00",
+    "type": "EmbargoEvent",
+    "name": "Embargo for VendorCo Case #24004842",
+    "context": "urn:uuid:60dbd227-0435-4e69-a67c-b4168e1e1b9e",
+    "startTime": "2026-06-01T19:12:00.000000+00:00",
+    "endTime": "2026-09-29T00:00:00.000000+00:00",
+    "published": "2026-06-01T19:12:00.000000+00:00",
+    "updated": "2026-06-01T19:12:00.000000+00:00",
+    "content": "We propose to embargo VendorCo Case #24004842 for 120 days.",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+  }
+}

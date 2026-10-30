@@ -113,7 +113,7 @@ for. `pr-execute` Phase 5 (CI Loop) syncs and resolves; `pr-verify` Phase 2 gate
 verdict. A conflicted PR at this point is a normal input, not an error. Neither
 is a PR that is merely behind its base: the pipeline merges the base locally
 only on conflict, and clears GitHub's `BEHIND` with `gh pr update-branch`
-(PAD-18-004). File overlap is left to the merger (PAD-18-009).
+(PAD-18-004, PAD-18-014). File overlap is left to the merger (PAD-18-019).
 
 If the PR is a draft carrying the `needs-rebase` label, note that `create-pr`
 opened it that way because it could not freshen the branch, and that execute will

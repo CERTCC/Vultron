@@ -11,6 +11,7 @@ description: >
   is invisible to every replica.
 related_specs:
   - specs/architecture.yaml
+  - specs/code-style.yaml
   - specs/case-ledger-processing.yaml
   - specs/case-management.yaml
   - specs/case-proposal.yaml
@@ -418,8 +419,9 @@ what changed, so a retry hands back the first sealed body (ID-04-004).
 ## Per-Case Genesis Hash (CLP-08)
 
 The genesis hash is
-`SHA-256(case_id + "|" + created_at.isoformat() + "|" + owner_actor_id)`, with
-`owner_actor_id` the case owner (`attributed_to` at creation), on every creation
+`SHA-256(case_id + "|" + format_timestamp(created_at) + "|" + owner_actor_id)`,
+the time in the fixed six-digit form (CS-13-007), with `owner_actor_id` the case
+owner (`attributed_to` at creation), on every creation
 path (ADR-0117). There is one formula, `compute_genesis_hash`, called by the
 `VulnerabilityCase` validator when no hash is supplied:
 

@@ -55,8 +55,8 @@ RECORDING_EPOCH = datetime(2026, 1, 1, tzinfo=UTC)
 #: byte-identical up to the branch point where they part (DEMOCI-11-018).
 TREE_RECORDING_SEED = "vultron-scenario-tree"
 
-#: How far the recording clock moves on each read.  ``now_utc()`` keeps whole
-#: seconds, so about one hundred reads share a second.  A step of one second
+#: How far the recording clock moves on each read.  Small enough that about
+#: one hundred reads fit in a second of recorded time.  A step of one second
 #: would age a held record past a timeout such as the 300-second
 #: pre-bootstrap queue window after only 300 unrelated reads, which a real run
 #: of the same length never does.

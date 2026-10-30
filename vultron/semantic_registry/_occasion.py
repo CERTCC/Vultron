@@ -89,8 +89,11 @@ class ProtocolShorthand(StrEnum):
     """The formal protocol message set (``formal_protocol/messages.md``).
 
     Unlike the legacy simulator's ``MessageTypes``, this lists the revision
-    messages ``EV``, ``EJ`` and ``EC`` in their own right, because the wire
-    vocabulary collapses them onto ``EP``, ``ER`` and ``EA`` (MSM-02).
+    messages ``EV``, ``EJ`` and ``EC`` in their own right.  Each shares its
+    wire activity with its initial-negotiation counterpart, told apart by the
+    case's EM state: ``EV`` with ``EP`` on the embargo Invite, and ``EC`` and
+    ``EJ`` with ``EA`` and ``ER`` on the Case Owner's decision,
+    ``Accept``/``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (MSM-02).
     """
 
     RS = "RS"

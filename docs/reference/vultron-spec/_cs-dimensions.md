@@ -49,7 +49,7 @@ Independence gives PXA **eight** states — every combination of the three, writ
 {% include-markdown "../../topics/process_models/cs/pxa_diagram.md" %}
 
 A PXA observation is not tied to any participant's role, because a PXA fact is not any participant's to own — anyone can notice that an exploit has appeared.
-Reporting is not the same as the case adopting the observation ([§13.4.2 Participant-Agnostic CS Transitions (PXA)](conformance.md#1342-participant-agnostic-cs-transitions-pxa), [§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)).
+Reporting is not the same as the case adopting the observation ([§13.4.2 Participant-Agnostic CS Transitions (PXA)](conformance.md#1342-participant-agnostic-cs-transitions-pxa), [§11.3 Status Adoption: One Authorization Gate](interactions.md#113-status-adoption-one-authorization-gate)).
 
 !!! note "Two PXA states are passed through, not rested in"
     Publishing an exploit makes the vulnerability public.
@@ -80,7 +80,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 
 The orderings also constrain the embargo.
 Public awareness, a public exploit and observed attacks each end an active embargo.
-When the CASE_MANAGER adopts a status that sets one of them while an embargo is active, it terminates the embargo, and it records the CS change before the termination ([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)).
+When the CASE_MANAGER adopts a status that sets one of them while an embargo is active, it terminates the embargo, and it records the CS change before the termination ([§11.3 Status Adoption: One Authorization Gate](interactions.md#113-status-adoption-one-authorization-gate)).
 The embargo therefore ends after the CS change that ends it is recorded, not before.
 
 ```python exec="true" idprefix=""
@@ -96,7 +96,7 @@ Different events update each one.
   The receiver's own VFD state does not change.
   No acknowledgment is sent: a participant confirms it has the case history by the fact that its ledger replica is unbroken, not by acknowledging each entry ([§4.11 Faults and Acknowledgments](layers.md#411-faults-and-acknowledgments)).
 - **Driving one's own VFD transition** happens locally, subject to the role requirements of [§13.4.1 Participant-Specific CS Transitions (VFD)](conformance.md#1341-participant-specific-cs-transitions-vfd), and is then announced.
-- **PXA is shared case state**, so an adopted PXA observation updates the case's canonical status rather than any per-participant model ([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)).
+- **PXA is shared case state**, so an adopted PXA observation updates the case's canonical status rather than any per-participant model ([§11.3 Status Adoption: One Authorization Gate](interactions.md#113-status-adoption-one-authorization-gate)).
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CSB-01-001", "CSB-02-001", "CSB-03-001", "CM-04-002", "CM-04-004", "CM-04-005"))

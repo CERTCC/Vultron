@@ -681,7 +681,7 @@ class TestFromFileMode:
     def test_second_entry_for_same_source_gets_discriminated_path(
         self, fake_repo: Path, tmp_path: Path
     ) -> None:
-        """A work item may produce several learnings (HM-01-002, BW-01-003).
+        """A work item may produce several learnings (HM-01-002, BW-01-009).
 
         The second entry is written alongside the first under a slug-suffixed
         name rather than failing, but the first is never overwritten.

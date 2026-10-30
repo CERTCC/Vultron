@@ -47,12 +47,12 @@ flowchart TB
         EmProposeEmbargo["Embargo Proposal (EP) / Embargo Revision Proposal (EV)<br/>Invite(EmbargoEvent)"]
     end
     subgraph participant answers
-        EmAcceptEmbargo["Embargo Proposal Acceptance (EA) / Embargo Revision Acceptance (EC)<br/>Accept(Invite(EmbargoEvent))"]
-        EmRejectEmbargo["Embargo Proposal Rejection (ER) / Embargo Revision Rejection (EJ)<br/>Reject(Invite(EmbargoEvent))"]
+        EmAcceptEmbargo["Agree to the revision<br/>Accept(Invite(EmbargoEvent))"]
+        EmRejectEmbargo["Refuse the revision<br/>Reject(Invite(EmbargoEvent))"]
     end
     subgraph Case Owner decides
-        ActivateEmbargo["Activate the revision<br/>Accept(EmbargoEvent)[target=VulnerabilityCase]"]
-        RejectEmbargoProposal["Keep the current terms<br/>Reject(EmbargoEvent)[target=VulnerabilityCase]"]
+        ActivateEmbargo["Embargo Revision Acceptance (EC)<br/>Accept(EmbargoEvent)[target=VulnerabilityCase]"]
+        RejectEmbargoProposal["Embargo Revision Rejection (EJ)<br/>Reject(EmbargoEvent)[target=VulnerabilityCase]"]
     end
     subgraph as:Remove
         RemoveEmbargoFromCase["Embargo Termination (ET)<br/>Remove(EmbargoEvent)"]
@@ -89,22 +89,22 @@ An initial proposal, Embargo Proposal (EP), uses the same activity.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-revision-proposal.md" %}
 
-2. Each participant answers with Embargo Revision Acceptance (EC), `Accept(Invite(EmbargoEvent))`, or Embargo Revision Rejection (EJ), `Reject(Invite(EmbargoEvent))`.
-   Either answer records only the consent of that participant to the revision.
+2. Each participant answers with Agree to an embargo revision, `Accept(Invite(EmbargoEvent))`, or Refuse an embargo revision, `Reject(Invite(EmbargoEvent))`.
+   Either answer records only the consent of that participant to the revision, so it carries no protocol shorthand.
    This rule also applies to an answer from the Case Owner.
    The active embargo does not change.
 
-    {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-revision-acceptance.md" %}
+    {% include-markdown "../../../reference/messages/_occasions/embeds/agree-to-embargo-revision.md" %}
 
-    {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-revision-rejection.md" %}
+    {% include-markdown "../../../reference/messages/_occasions/embeds/refuse-embargo-revision.md" %}
 
-3. When you judge that the revision has carried, send `Accept(EmbargoEvent)` as Case Owner, with the revised `EmbargoEvent` as its `object` and the case as its `target`.
+3. When you judge that the revision has carried, send Embargo Revision Acceptance (EC), `Accept(EmbargoEvent)`, as Case Owner, with the revised `EmbargoEvent` as its `object` and the case as its `target`.
    Then send `Announce(EmbargoEvent)`.
    The revision replaces the active embargo.
    Your own consent to the revision is recorded too.
    If the revision ends no later than the embargo it replaces, every participant that agreed to the old terms is bound by the new ones too.
 
-    {% include-markdown "../../../reference/messages/_occasions/embeds/activate-embargo.md" %}
+    {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-revision-acceptance.md" %}
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/announce-embargo.md" %}
 
@@ -112,12 +112,13 @@ A revision uses the same activities as an initial proposal.
 The receiver uses the EM state of the case to distinguish a revision from an initial proposal.
 A proposal that arrives while the embargo is active is a revision (MSM-02).
 
-To keep the current terms, send `Reject(EmbargoEvent)` with the same `object` and `target` as Case Owner instead.
+To keep the current terms, send Embargo Revision Rejection (EJ), `Reject(EmbargoEvent)`, with the same `object` and `target` as Case Owner instead.
 The case returns to `EM.ACTIVE` under the original terms.
 The consent of every participant stays the same.
 The embargo does not lapse because a revision failed.
+One exception applies: if the case is public, an exploit is public, or attacks are observed when you reject the last open revision, the CASE_MANAGER also ends the embargo in the same act (EMB-04-002).
 
-{% include-markdown "../../../reference/messages/_occasions/embeds/reject-embargo-proposal.md" %}
+{% include-markdown "../../../reference/messages/_occasions/embeds/embargo-revision-rejection.md" %}
 
 ---
 
@@ -231,7 +232,7 @@ The trigger refuses the withdrawal in three cases:
     `Reject(Invite(EmbargoEvent))` refuses terms.
     It is not a way to leave an embargo that you agreed to.
     A `Reject` of the embargo in force from an `AGREED` row is refused.
-    A `reject-embargo` with no `proposal_id` rejects an open revision, and your consent to the embargo in force stays `AGREED` (MSM-07-004).
+    A `reject-embargo` with no `proposal_id` rejects an open revision, and your consent to the embargo in force stays `AGREED` (MSM-07-015).
 
 ---
 

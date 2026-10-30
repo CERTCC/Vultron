@@ -181,6 +181,7 @@ def test_record_actor_rejection_withdrawal_declines_the_active_row(
 
 
 @pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("MSM-07-015")
 def test_record_actor_rejection_of_proposed_terms_keeps_a_signatory(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -393,6 +394,7 @@ def test_record_actor_acceptance_for_a_declined_actor_changes_its_answer(
 
 
 @pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("MSM-07-015")
 def test_record_actor_rejection_withdrawal_declines_every_agreed_proposal(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -433,6 +435,37 @@ def test_record_actor_rejection_withdrawal_declines_every_agreed_proposal(
         active.id_: "DECLINED",
         revision.id_: "DECLINED",
         unanswered.id_: "UNINVITED",
+    }
+
+
+@pytest.mark.spec("MSM-07-015")
+def test_a_reject_of_one_proposal_keeps_the_other_agreed_proposals(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """With no embargo in force, a Reject declines only the named proposal.
+
+    The case is at EM PROPOSED with two open proposals the actor agreed to.
+    Rejecting one withdraws from nothing: the other stays AGREED.
+    """
+    owner, dl = owner_and_dl
+    case, (owner_p,) = _make_case(dl, owner.id_)
+    first = _make_embargo(dl, case.id_)
+    second = _make_embargo(dl, case.id_, days=90)
+    propose(case, first.id_, second.id_)
+    dl.save(case)
+    write_consent_rows(dl, case)
+    lifecycle = EmbargoLifecycle(persistence=dl)
+
+    _seed_consent(dl, owner_p.id_, first.id_, ECS.AGREED)
+    _seed_consent(dl, owner_p.id_, second.id_, ECS.AGREED)
+    refused = lifecycle._record_actor_rejection(
+        case, owner.id_, first.id_, withdrawal=False
+    )
+    assert [c.embargo_id for c in refused] == [first.id_]
+    assert case.active_embargo_id is None
+    assert _consents_of(dl, owner_p.id_) == {
+        first.id_: "DECLINED",
+        second.id_: "AGREED",
     }
 
 

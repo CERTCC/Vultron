@@ -32,6 +32,7 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
+from vultron.core.models._helpers import timestamp_serializer
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.base import CoreRecord, NonEmptyString, with_record_id
 
@@ -59,6 +60,7 @@ class InviteResendRecord(CoreRecord):
     peer_id: NonEmptyString
     resends: int = Field(default=1, ge=1)
     last_resent_at: datetime
+    _serialize_last_resent_at = timestamp_serializer("last_resent_at")
 
     @classmethod
     def build_id(cls, invite_id: str, peer_id: str) -> str:

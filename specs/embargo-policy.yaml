@@ -1368,6 +1368,8 @@ groups:
       spec_id: EMB-03-002
     - rel_type: implements
       spec_id: EMB-03-003
+    - rel_type: implements
+      spec_id: EMB-03-004
     - rel_type: depends_on
       spec_id: EMB-18-001
       note: The EM write goes through EmbargoLifecycle, never a direct assignment.
@@ -1639,15 +1641,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An actor acting on its own initiative MUST write shared EM state — proposing,
-      accepting, rejecting or terminating an embargo — only when it holds the
-      `CASE_MANAGER` role for the case. When it does not, it MUST send its activity to
-      the CASE_MANAGER, write no EM state, and send no case-status declaration of an EM
-      state; the actor's replica moves when the CASE_MANAGER's commit is announced
-      (EP-09-007). The CASE_MANAGER's `Reject` of a refused proposal answers the
-      activity, and so does its ER to an `Accept` it refuses once P/X/A is set
-      (EMB-02-002): a participant takes a `Reject(Invite(EmbargoEvent))` from the
-      CASE_MANAGER and from nobody else (PCR-08-001, HP-01-006).
+      Shared EM state covers proposing, accepting, rejecting or terminating an embargo.
+      An actor acting on its own initiative MUST write it only when it holds the
+      `CASE_MANAGER` role for the case. EP-09-017 says what an actor without the role
+      does instead.
     rationale: >-
       An actor that writes its own EM state before the CASE_MANAGER has answered, then
       declares that state to the manager, is left wrong when the manager refuses:
@@ -1664,10 +1661,7 @@ groups:
       `test/core/use_cases/triggers/embargo/test_trigger_write_gate.py`
       (`test_non_manager_trigger_asks_and_writes_no_em_state`) confirms a participant
       without the CASE_MANAGER role leaves its case at `EM.NONE`, sends its Invite to
-      the CASE_MANAGER and declares no EM state, and
-      `test/core/use_cases/received/test_embargo_refusal_notice.py` asserts that the
-      CASE_MANAGER's ER to a participant's `Accept` passes the participant's sender
-      guard.
+      the CASE_MANAGER and declares no EM state.
     relationships:
     - rel_type: depends_on
       spec_id: EP-09-007
@@ -1683,15 +1677,48 @@ groups:
     - ADR-0108
     stories:
     - story_2022_014
+  - id: EP-09-017
+    priority: MUST
+    kind: protocol
+    statement: >-
+      This rule binds an actor acting on its own initiative without the `CASE_MANAGER`
+      role. It MUST send its embargo activity to the CASE_MANAGER, write no EM state,
+      and declare no EM state. Its replica moves when the CASE_MANAGER's
+      commit is announced (EP-09-007). The CASE_MANAGER's `Reject` of a refused proposal
+      answers the activity. So does its `Reject` of the Invite to an `Accept` it refuses
+      once P/X/A is set (EMB-02-004). A participant takes a
+      `Reject(Invite(EmbargoEvent))` from the CASE_MANAGER and from nobody else
+      (PCR-08-001, HP-01-006).
+    rationale: >-
+      The CASE_MANAGER is the one writer of shared case state (ADR-0108), so an actor
+      without the role asks it instead of writing. A write made before the CASE_MANAGER
+      answers is left wrong when the CASE_MANAGER refuses, and a declaration of that
+      state spreads the error. The CASE_MANAGER's answer is the only one a participant
+      takes, so a refusal always reaches the actor that asked.
+    verification: >-
+      `test/core/use_cases/triggers/embargo/test_trigger_write_gate.py`
+      (`test_non_manager_trigger_asks_and_writes_no_em_state`) confirms a participant
+      without the CASE_MANAGER role leaves its case at `EM.NONE`, sends its Invite to
+      the CASE_MANAGER and declares no EM state, and
+      `test/core/use_cases/received/test_embargo_refusal_notice.py` asserts that the
+      CASE_MANAGER's `Reject` of the Invite to a participant's `Accept` passes the
+      participant's sender guard.
+    relationships:
+    - rel_type: refines
+      spec_id: EP-09-008
+    - rel_type: depends_on
+      spec_id: EP-09-007
+    adr:
+    - ADR-0113
+    - ADR-0108
+    stories:
+    - story_2022_014
   - id: EP-09-014
     priority: MUST
     kind: project
     statement: >-
       This codebase MUST gate a trigger use case's write of shared EM state (EP-09-008)
-      with the same CASE_MANAGER role gate the received trees use (BT-17-001). When the
-      gate refuses, the trigger MUST record its activity in the pending-assertion store
-      (SYNC-11-002), and the CASE_MANAGER's `Reject` of a refused proposal, or its ER to
-      a refused `Accept`, MUST close that pending entry.
+      with the same CASE_MANAGER role gate the received trees use (BT-17-001).
     rationale: >-
       How this codebase keeps a non-manager's trigger from writing shared EM state and
       tracks the ask it sent; split from EP-09-008 so that item states only what other
@@ -1708,15 +1735,48 @@ groups:
       EM write sits behind the role gate;
       `test/core/use_cases/triggers/embargo/test_trigger_write_gate.py`
       (`test_non_manager_trigger_asks_and_writes_no_em_state`) confirms a non-manager's
-      proposal is recorded in the pending-assertion store; and
-      `test/core/use_cases/received/test_pending_refusal.py`
-      (`test_case_managers_reject_closes_the_pending_proposal`) and
-      `test/core/use_cases/received/test_embargo_refusal_notice.py`
-      (`test_the_case_managers_er_to_an_accept_closes_the_accepters_ask`) confirm the
-      CASE_MANAGER's `Reject` and its ER close the pending entry.
+      proposal is recorded in the pending-assertion store.
     relationships:
     - rel_type: implements
       spec_id: EP-09-008
+  - id: EP-09-018
+    priority: MUST
+    kind: project
+    statement: >-
+      When the role gate of EP-09-014 refuses a trigger's write, this codebase MUST
+      record the trigger's activity in the pending-assertion store (SYNC-11-002).
+    rationale: >-
+      The record is how this codebase tracks the ask it sent to the CASE_MANAGER, so the
+      answer can close it (EP-09-019). No other participant sees the store.
+    verification: >-
+      `test/core/use_cases/triggers/embargo/test_trigger_write_gate.py`
+      (`test_non_manager_trigger_asks_and_writes_no_em_state`) confirms a non-manager's
+      proposal is recorded in the pending-assertion store.
+    relationships:
+    - rel_type: implements
+      spec_id: EP-09-017
+    - rel_type: depends_on
+      spec_id: EP-09-014
+  - id: EP-09-019
+    priority: MUST
+    kind: project
+    statement: >-
+      The CASE_MANAGER answers a refused ask with its `Reject` of the proposal, or of
+      the Invite to a refused `Accept` (EMB-02-004). This codebase MUST close the
+      pending entry of EP-09-018 when that answer arrives.
+    rationale: >-
+      A pending entry that no answer closes would leave the ask open for good, so the
+      actor would wait for an answer it already has.
+    verification: >-
+      `test/core/use_cases/received/test_pending_refusal.py`
+      (`test_case_managers_reject_closes_the_pending_proposal`) and
+      `test/core/use_cases/received/test_embargo_refusal_notice.py`
+      (`test_the_case_managers_reject_to_an_accept_closes_the_accepters_ask`) confirm the
+      CASE_MANAGER's `Reject` of the proposal and its `Reject` of the Invite close the
+      pending entry.
+    relationships:
+    - rel_type: depends_on
+      spec_id: EP-09-018
   - id: EP-09-009
     priority: MUST_NOT
     kind: protocol
@@ -1757,8 +1817,8 @@ groups:
       that recipient is its adjudicator under EP-09-001, not its invitee, so the
       CASE_MANAGER's own record takes no RSVP deadline from it (CM-28-003). The refusal
       comes before the P/X/A check, so a misrouted Invite on a public, exploited or attacked
-      case gets no ER: EMB-01-002's ER answers a proposal its receiver was sent, and a
-      misrouting is received but not understood. The receiver answers it with
+      case gets no `Reject`: EMB-01-002's `Reject` answers a proposal its receiver was
+      sent, and a misrouting is received but not understood. The receiver answers it with
       `Create(ProcessingFault)` to the sender, naming the Invite in `inReplyTo` and
       failure class `MisroutedEmbargoInvite` (MSM-05-001, ADR-0123). An Invite that names
       no embargo is answered the same way, with failure class `EmbargoInviteWithoutEmbargo`.

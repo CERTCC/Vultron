@@ -17,7 +17,7 @@
 
 A participant that does not hold ``CVDRole.CASE_MANAGER`` asks the manager to
 end the embargo and records the ask in its pending-assertion store, keyed by
-the embargo it ends (EP-09-008, SYNC-11-002).  A repeat inside the window is
+the embargo it ends (EP-09-018, SYNC-11-002).  A repeat inside the window is
 suppressed by :class:`TeardownAskPendingNode`; the manager's announced commit
 of the ask clears it (SYNC-11-003).  BTND-07-005.
 """
@@ -108,7 +108,7 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
     ``case_manager_id`` from the blackboard, builds the activity through
     ``trigger_activity_factory`` addressed to the manager alone (PCR-08-001),
     and once it is queued records the ask in this actor's pending-assertion
-    store, keyed by the embargo it ends (EP-09-008, SYNC-11-002).
+    store, keyed by the embargo it ends (EP-09-018, SYNC-11-002).
 
     The CASE_MANAGER never runs this node: its arm commits and announces the
     teardown itself (``CommitAndApplyEmbargoTerminationNode``, EMB-19-001),
@@ -229,7 +229,7 @@ def ask_case_manager_to_terminate_once(
     The non-manager arm of ``terminate_embargo_bt`` when no trigger use case
     builds the activity (the CS.P/X/A cascade in
     ``ThreatTerminationBranchNode``).  There is no use case to record the ask
-    or suppress a repeat, so this subtree does both (EP-09-008, SYNC-11-002):
+    or suppress a repeat, so this subtree does both (EP-09-018, SYNC-11-002):
     SUCCESS without sending when the ask is still pending, else the send
     node's result, whose FAILURE still fails the tree (BT-14-001).  The ask
     carries *reason*, the termination's what (ADR-0122), and *cause*, its

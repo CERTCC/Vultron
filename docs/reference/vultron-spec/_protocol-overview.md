@@ -31,7 +31,7 @@ change to every active participant ([§3.4 How the Dimensions Interact](introduc
 A participant reports its own state and reports observations about the world. It
 does not write shared case state, and reporting an observation is not the same as
 that observation becoming canonical
-([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)).
+([§11.3 Status Adoption: One Authorization Gate](interactions.md#113-status-adoption-one-authorization-gate)).
 
 ### 3.2 What a Deployment Looks Like
 
@@ -145,7 +145,7 @@ the case's embargo by itself — EM is shared case state
 one participant has done. A PXA transition is a fact about the world. Any
 participant may report a PXA observation; whether that report becomes canonical
 case state is decided separately
-([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)).
+([§11.3 Status Adoption: One Authorization Gate](interactions.md#113-status-adoption-one-authorization-gate)).
 
 **EM and PEC answer different questions.**
 EM says whether the case has an embargo.

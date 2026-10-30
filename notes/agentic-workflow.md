@@ -45,7 +45,7 @@ with `uv run append-history --from-file <path>`.
 **The filename slug describes the observation; it is not the `source`.** Name
 files `YYYYMMDD-<issue>-<descriptive-phrase>.md` and put the work-item id in the
 `source` frontmatter (`ISSUE-3399`). One issue often yields several learnings,
-so a filename derived from `source` alone collides (BW-01-003, BW-02-002).
+so a filename derived from `source` alone collides (BW-01-008, BW-01-010, BW-02-002).
 
 ### What belongs here
 
@@ -77,7 +77,7 @@ and send each triggered item to exactly one destination:
 - A narrow, true fact about the code → an assertion at the site (test, type
   annotation or comment) in the same session.
 - A code-review finding in a file the change did not touch → an issue typed
-  the same way, never a learning file or a PR-comment advisory (BW-07-009).
+  the same way, never a learning file or a PR-comment advisory (BW-07-009, BW-07-010).
 
 A decision made, applied and shipped in the session is not a learning; its
 record is the commit and the PR body (BW-07-008). Completion summaries go

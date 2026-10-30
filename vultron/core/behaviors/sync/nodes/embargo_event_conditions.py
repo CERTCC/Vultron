@@ -207,8 +207,8 @@ class _RejectEmbargoInviteEventNode(_ActivityEventNode):
     A participant's ``Reject(Invite(EmbargoEvent))`` is its own consent
     (MSM-07-004); the CASE_MANAGER's is its abandonment of the proposal it
     received, which cancels it (EMB-16-001).  Both carry one semantic type
-    (ADR-0152), so the payload's ``actor`` tells them apart
-    (:func:`sent_by_case_manager`).
+    (ADR-0152), so the payload's ``actor`` tells them apart (MSM-07-016,
+    :func:`sent_by_case_manager`).
     """
 
     _match_case_manager: bool

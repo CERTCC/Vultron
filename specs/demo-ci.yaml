@@ -741,6 +741,8 @@ groups:
             spec_id: DEMOCI-04-002
           - rel_type: refines
             spec_id: DEMOCI-02-013
+          - rel_type: refines
+            spec_id: CISEC-05-016
 
       - id: DEMOCI-04-008
         priority: MUST

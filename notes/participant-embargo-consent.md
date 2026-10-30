@@ -154,7 +154,7 @@ agreed to.**
 | Owner activates B while its own row for B is `DECLINED` | the owner has changed its answer: its row for B → `AGREED` and B is activated, with no re-invite first |
 | Termination | nothing — no entry is `ACTIVE`, and answers to the ended embargo can no longer change |
 
-**Withdrawal is `Leave(EmbargoEvent)`, never a Reject** (MSM-07-004, MSM-07-010).
+**Withdrawal is `Leave(EmbargoEvent)`, never a Reject** (MSM-07-010, MSM-07-014).
 A Reject of the active embargo from an `AGREED` row is refused; from any other
 row it declines that row only and cascades to no revision. One predicate in
 `vultron/core/services/embargo_lifecycle/pec.py` decides each refusal, and the
@@ -168,8 +168,9 @@ see § "Answering the Embargo in Force").
 Only the owner's decision changes the embargo on the case, through
 `Accept`/`Reject(EmbargoEvent, target=Case)` (MSM-07-008/009). Every
 `Accept`/`Reject` of an Invite, the owner's included, is the sender's consent
-(MSM-07-003/004). The only activation writes are the owner's own agreement and
-the carry-over (`_consent_at_activation`, `_carry_signatories_over`).
+(MSM-07-003/004) and moves no register entry (MSM-07-011/013). The only
+activation writes are the owner's own agreement and the carry-over
+(`_consent_at_activation`, `_carry_signatories_over`).
 
 **Never write consent on propose, lapse, advance or exit.** A proposal only adds
 rows for the proposed embargo. Code that changes a participant's consent to the
@@ -206,9 +207,10 @@ when a deadline passes, and carries signatories over on activation. There is no
 "I am now a signatory" activity, which is why consent needs no wire message
 partition of its own.
 
-**A participant refuses a P/X/A revision with ER, never ET** (EMB-03-003,
-ADR-0118). A participant that is neither owner nor CASE_MANAGER answers a
-revision Invite with ER to the CASE_MANAGER and does not move its own EM state;
+**A participant refuses a P/X/A revision with a `Reject` of the Invite, never ET**
+(EMB-03-003, EMB-03-004, ADR-0118). A participant that is neither owner nor
+CASE_MANAGER answers a revision Invite with its own `Reject` of it to the
+CASE_MANAGER and does not move its own EM state;
 termination is the owner's (or delegated CASE_MANAGER's) decision. A store the
 revision is not addressed to (`addressed_to_receiver()`, HP-01-012) refuses the
 copy at the tree's addressee door guard (`ActivityAddressedToReceiverNode`) and
@@ -228,7 +230,7 @@ never bound; `apply_pec_transition()` raises
 `VultronInvalidStateTransitionError` instead, so consent writes are fail-closed
 even when an upstream guard is wrong.
 
-Keep the MSM-07-004 classification in the service (`_assert_rejectable`,
+Keep the MSM-07-014 classification in the service (`_assert_rejectable`,
 `reject_is_withdrawal_refusal`), not in a node: the received `Reject(Invite)`
 tree writes through `RecordParticipantRejectionNode` →
 `record_embargo_rejection()`, and its read-only guard `RejectIsNotWithdrawalNode`
@@ -477,7 +479,7 @@ sender's id is needed or kept (DL-06-006).
   active embargo (`resolve_embargo_to_withdraw`, beside
   `_resolve_embargo_proposal` in the same module), so a signatory made by
   seeding or joining can leave too. The reject trigger never withdraws
-  (MSM-07-004; ADR-0122).
+  (MSM-07-014; ADR-0122).
 
 ---
 

@@ -1,21 +1,21 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Leave",
-  "id": "urn:uuid:b44c205f-1cbb-47fd-a964-68eb0d789476",
-  "name": "https://vultron.example/users/finndervul Leave Embargo for VendorCo Case #47073710",
-  "context": "urn:uuid:e70d16ac-135b-4631-90c6-d2e7dd985796",
+  "id": "urn:uuid:7366457e-6714-4784-9575-59f2ddd10d3d",
+  "name": "https://vultron.example/users/finndervul Leave Embargo for VendorCo Case #83288480",
+  "context": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
   "to": "https://vultron.example/case-actors/vendorco-case-actor",
   "actor": "https://vultron.example/users/finndervul",
   "object": {
-    "id": "urn:uuid:e70d16ac-135b-4631-90c6-d2e7dd985796/embargo_events/2026-08-30T00:00:00+00:00",
+    "id": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454/embargo_events/2026-08-30T00:00:00+00:00",
     "type": "EmbargoEvent",
-    "name": "Embargo for VendorCo Case #47073710",
-    "context": "urn:uuid:e70d16ac-135b-4631-90c6-d2e7dd985796",
-    "startTime": "2026-06-01T19:12:00+00:00",
-    "endTime": "2026-08-30T00:00:00+00:00",
-    "published": "2026-06-01T19:12:00+00:00",
-    "updated": "2026-06-01T19:12:00+00:00",
-    "content": "We propose to embargo VendorCo Case #47073710 for 90 days.",
+    "name": "Embargo for VendorCo Case #83288480",
+    "context": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
+    "startTime": "2026-06-01T19:12:00.000000+00:00",
+    "endTime": "2026-08-30T00:00:00.000000+00:00",
+    "published": "2026-06-01T19:12:00.000000+00:00",
+    "updated": "2026-06-01T19:12:00.000000+00:00",
+    "content": "We propose to embargo VendorCo Case #83288480 for 90 days.",
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }
 }

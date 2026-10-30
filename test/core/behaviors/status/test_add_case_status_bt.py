@@ -23,7 +23,7 @@ names another actor as its CASE_MANAGER — with the CASE_MANAGER as sender, and
 assert that the guards they target, not the sender guard, decided the verdict
 (``door_guards_admitted``).  A replica writes no case state on receipt
 (RSH-08-003); the CASE_MANAGER's adoption of a participant's P, X or A, its
-teardown gate and its CSB-18 note are tested on ``Add(ParticipantStatus)`` in
+teardown and its CSB-18 note are tested on ``Add(ParticipantStatus)`` in
 ``test_add_participant_status_bt.py``.
 
 Covers:
@@ -1042,7 +1042,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
 
 
 # ---------------------------------------------------------------------------
-# ThreatTerminationBranchNode (EmbargoTeardownAuthorizationGate, RSH-03-001 to RSH-03-003)
+# ThreatTerminationBranchNode (RSH-03-001 to RSH-03-003)
 # ---------------------------------------------------------------------------
 
 

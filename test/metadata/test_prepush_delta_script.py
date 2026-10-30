@@ -1,4 +1,4 @@
-"""`prepush-delta.sh` measures the delta on the branch's own lines (PAD-07-007/008)."""
+"""`prepush-delta.sh` measures the delta on the branch's own lines (PAD-07-008/012)."""
 
 import json
 import os

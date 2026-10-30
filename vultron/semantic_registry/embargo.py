@@ -266,11 +266,14 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} accepted the embargo",
         wire_activity_class=_EmAcceptEmbargoActivity,
         include_activity=True,
+        # A Participant's answer is its own consent and carries no shorthand
+        # (MSM-02-010, MSM-07-001): EA and EC are the Case Owner's decision.
         occasions=(
             Occasion(
                 when="a Participant agrees to proposed embargo terms",
-                anchor="embargo-proposal-acceptance",
+                anchor="agree-to-embargo-proposal",
                 addressee=AddresseeSide.CASE_MANAGER,
+                heading="Agree to proposed embargo terms",
                 description=(
                     "Records the sender's own consent to the proposed terms. "
                     "The embargo becomes active only when the Case Owner sends"
@@ -279,12 +282,12 @@ ENTRIES: list[SemanticEntry] = [
                 example="accept_embargo",
                 distinguisher=StateContext(machine=EM, states=(EM.PROPOSED,)),
                 howto=HowToGuide.ESTABLISH_EMBARGO,
-                shorthand=ProtocolShorthand.EA,
             ),
             Occasion(
                 when="a Participant agrees to a proposed embargo revision",
-                anchor="embargo-revision-acceptance",
+                anchor="agree-to-embargo-revision",
                 addressee=AddresseeSide.CASE_MANAGER,
+                heading="Agree to an embargo revision",
                 description=(
                     "Records the sender's own consent to the revision. The "
                     "revision replaces the active embargo only when the Case "
@@ -293,7 +296,6 @@ ENTRIES: list[SemanticEntry] = [
                 example="accept_embargo_revision",
                 distinguisher=StateContext(machine=EM, states=(EM.REVISE,)),
                 howto=HowToGuide.MANAGE_EMBARGO,
-                shorthand=ProtocolShorthand.EC,
             ),
         ),
         page=MessagePage.EM,
@@ -306,11 +308,15 @@ ENTRIES: list[SemanticEntry] = [
         phrase="{actor} declined the embargo",
         wire_activity_class=_EmRejectEmbargoActivity,
         include_activity=True,
+        # A Participant's Reject is its own consent and carries no shorthand
+        # (MSM-02-010, MSM-07-004); the CASE_MANAGER's Reject abandons the
+        # proposal and is ER (MSM-02-006, MSM-07-016, EMB-16-001).
         occasions=(
             Occasion(
                 when="a Participant refuses proposed embargo terms",
-                anchor="embargo-proposal-rejection",
+                anchor="refuse-embargo-proposal",
                 addressee=AddresseeSide.CASE_MANAGER,
+                heading="Refuse proposed embargo terms",
                 description=(
                     "Records the sender's own refusal of the proposed terms. "
                     "The proposal is rejected for the case only when the Case "
@@ -319,19 +325,12 @@ ENTRIES: list[SemanticEntry] = [
                 example="reject_embargo",
                 distinguisher=StateContext(machine=EM, states=(EM.PROPOSED,)),
                 howto=HowToGuide.ESTABLISH_EMBARGO,
-                shorthand=ProtocolShorthand.ER,
-                notes=(
-                    "The Case Manager sends the same activity when it "
-                    "abandons an open proposal once the case is public, an "
-                    "exploit is public or attacks are observed. Its Reject "
-                    "cancels the proposal, and each Invite it relayed for "
-                    "the proposal is then withdrawn."
-                ),
             ),
             Occasion(
                 when="a Participant refuses a proposed embargo revision",
-                anchor="embargo-revision-rejection",
+                anchor="refuse-embargo-revision",
                 addressee=AddresseeSide.CASE_MANAGER,
+                heading="Refuse an embargo revision",
                 description=(
                     "Records the sender's own refusal of the revision. The "
                     "Case Owner keeps the prior terms by sending its decision."
@@ -339,7 +338,27 @@ ENTRIES: list[SemanticEntry] = [
                 example="reject_embargo_revision",
                 distinguisher=StateContext(machine=EM, states=(EM.REVISE,)),
                 howto=HowToGuide.MANAGE_EMBARGO,
-                shorthand=ProtocolShorthand.EJ,
+            ),
+            Occasion(
+                when=(
+                    "the Case Manager abandons an open embargo proposal it "
+                    "received once the case is public, an exploit is public "
+                    "or attacks are observed"
+                ),
+                anchor="abandon-embargo-proposal",
+                addressee=AddresseeSide.PARTICIPANT,
+                heading="Abandon embargo proposal",
+                description=(
+                    "Cancels the proposal for the case. The Case Manager then "
+                    "withdraws each Invite it relayed for the proposal. This "
+                    "Reject is not the Case Manager's consent."
+                ),
+                example="abandon_embargo_proposal",
+                shorthand=ProtocolShorthand.ER,
+                notes=(
+                    "Each participant learns of it from the case ledger, "
+                    "so it is addressed to nobody."
+                ),
             ),
         ),
         page=MessagePage.EM,
@@ -384,7 +403,8 @@ ENTRIES: list[SemanticEntry] = [
         page=MessagePage.EM,
     ),
     # The case owner's decision for the case (ADR-0122): Accept/Reject of
-    # the EmbargoEvent itself, never of the Invite that proposed it.
+    # the EmbargoEvent itself, never of the Invite that proposed it.  It
+    # carries EA, EC, ER and EJ, told apart by the case's EM state (MSM-02).
     SemanticEntry(
         semantics=MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
         pattern=ActivateEmbargoOnCasePattern,
@@ -395,16 +415,36 @@ ENTRIES: list[SemanticEntry] = [
         include_activity=True,
         occasions=(
             Occasion(
-                when="the Case Owner decides to activate a proposed embargo",
-                anchor="activate-embargo",
+                when=(
+                    "the Case Owner decides to activate a proposed embargo "
+                    "for a case with no active embargo"
+                ),
+                anchor="embargo-proposal-acceptance",
                 addressee=AddresseeSide.CASE_MANAGER,
-                heading="Activate embargo",
                 description=(
-                    "Activates the proposal for the case. If an embargo is "
-                    "already active, the proposal replaces it."
+                    "Activates the proposal for the case. Any other open "
+                    "proposal stays open as a revision."
                 ),
                 example="activate_embargo",
+                distinguisher=StateContext(machine=EM, states=(EM.PROPOSED,)),
+                howto=HowToGuide.ESTABLISH_EMBARGO,
+                shorthand=ProtocolShorthand.EA,
+            ),
+            Occasion(
+                when=(
+                    "the Case Owner decides to replace the active embargo "
+                    "with a proposed revision"
+                ),
+                anchor="embargo-revision-acceptance",
+                addressee=AddresseeSide.CASE_MANAGER,
+                description=(
+                    "Activates the revision for the case. It replaces the "
+                    "active embargo in the same register step."
+                ),
+                example="activate_embargo_revision",
+                distinguisher=StateContext(machine=EM, states=(EM.REVISE,)),
                 howto=HowToGuide.MANAGE_EMBARGO,
+                shorthand=ProtocolShorthand.EC,
             ),
         ),
         page=MessagePage.EM,
@@ -418,17 +458,39 @@ ENTRIES: list[SemanticEntry] = [
         wire_activity_class=_RejectEmbargoProposalActivity,
         include_activity=True,
         occasions=(
+            # ER is also the CASE_MANAGER's abandoning Reject of the Invite,
+            # an expansion, so this section needs a heading (MSM-08-008).
             Occasion(
-                when="the Case Owner decides to reject a proposed embargo",
+                when=(
+                    "the Case Owner decides to reject a proposed embargo "
+                    "for a case with no active embargo"
+                ),
                 anchor="reject-embargo-proposal",
                 addressee=AddresseeSide.CASE_MANAGER,
                 heading="Reject embargo proposal",
                 description=(
-                    "Rejects the proposal for the case. An active embargo "
-                    "stays in force on its current terms."
+                    "Rejects the proposal for the case. The case has no "
+                    "embargo once no other proposal is open."
                 ),
                 example="reject_embargo_proposal",
+                distinguisher=StateContext(machine=EM, states=(EM.PROPOSED,)),
+                howto=HowToGuide.ESTABLISH_EMBARGO,
+                shorthand=ProtocolShorthand.ER,
+            ),
+            Occasion(
+                when="the Case Owner decides to reject a proposed revision",
+                anchor="embargo-revision-rejection",
+                addressee=AddresseeSide.CASE_MANAGER,
+                description=(
+                    "Rejects the revision for the case. The active embargo "
+                    "stays in force on its prior terms, unless the case is "
+                    "public, an exploit is public or attacks are observed, "
+                    "when the Case Manager also ends it."
+                ),
+                example="reject_embargo_revision_proposal",
+                distinguisher=StateContext(machine=EM, states=(EM.REVISE,)),
                 howto=HowToGuide.MANAGE_EMBARGO,
+                shorthand=ProtocolShorthand.EJ,
             ),
         ),
         page=MessagePage.EM,
