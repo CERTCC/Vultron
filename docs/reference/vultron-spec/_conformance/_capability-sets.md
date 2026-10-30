@@ -93,7 +93,7 @@ The Case Decision capability set provides what the Case Owner role needs.
 It is separable from the Case Hosting capability set.
 It adds these to the Case Observer capability set:
 
-- The Case Owner's own status reports are adopted without an approval step, because its updates are authoritative ([§11.3 Status Adoption: The Two-Seam Model](../interactions.md#113-status-adoption-the-two-seam-model)).
+- The Case Owner's own status reports are adopted without an approval step, because its updates are authoritative ([§11.3 Status Adoption: One Authorization Gate](../interactions.md#113-status-adoption-one-authorization-gate)).
 - The Case Owner decides the shared embargo: it activates and rejects embargo proposals for the case, and terminates the embargo in force.
 - The Case Owner can transfer case ownership, by a proposal to the CASE_MANAGER ([§12.3 Case Ownership Transfer](../interactions.md#123-case-ownership-transfer-n)).
 
@@ -127,7 +127,7 @@ It runs multi-party case management: participant invitation and acceptance, role
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-02-006", "PCR-08-008", "PCR-08-009"))
 ```
 
-It applies the two-seam status adoption model, including the canonical-write-before-side-effects ordering ([§11.3 Status Adoption: The Two-Seam Model](../interactions.md#113-status-adoption-the-two-seam-model)).
+It applies the status adoption model, including the canonical-write-before-side-effects ordering ([§11.3 Status Adoption: One Authorization Gate](../interactions.md#113-status-adoption-one-authorization-gate)).
 
 It delivers full case content only to a participant that passes the gate of [§9.7 Gating Full Case Delivery](../tracking-models.md#97-gating-full-case-delivery).
 

@@ -321,7 +321,7 @@ A history that breaks a conformance ordering shows a defect in an implementation
 | $\evF_i$ only once participant $i$'s RM state is Accepted, Deferred, or Closed | CSB-18-001 |
 | A report is never closed from Valid | VP-02-004, RMB-14-004 |
 | The case is initialized before anyone else is invited and before any embargo change | CM-14-007 |
-| An embargo end time is set before the case reaches RM Valid | DUR-07-004 |
+| An embargo end time is set before an embargo-eligible case reaches RM Valid | DUR-07-004 |
 | $\evS_k$ before any case content sent to $k$, while an embargo is active | CM-10-004, CM-10-005 |
 | The case owner does not close the case while an embargo is active | CM-23-011 |
 

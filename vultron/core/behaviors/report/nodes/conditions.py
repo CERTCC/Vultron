@@ -27,6 +27,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.predicates.embargo import pxa_is_embargo_eligible
 from vultron.core.states.rm import RM
 
 
@@ -209,13 +210,17 @@ class CheckParticipantRMState(_CheckParticipantRMStateBase):
 
 
 class EnsureEmbargoExists(CaseIdInputPortMixin, DataLayerConditionWithPorts):
-    """Check that the case for this report has an active embargo.
+    """Check that the case for this report may reach RM.VALID embargo-wise.
 
-    Returns SUCCESS if the case has a non-None ``active_embargo``, FAILURE
-    otherwise.
+    Returns SUCCESS if the case has a non-None ``active_embargo``, or if the
+    case is not embargo-eligible (any of P, X or A set).  Returns FAILURE for
+    an embargo-eligible case with no active embargo.
 
-    Implements DUR-07-004: an embargo end time MUST be established before the
-    case reaches RM.VALID.
+    Implements DUR-07-004: an embargo end time MUST be established before an
+    embargo-eligible case reaches RM.VALID.  A case that is not
+    embargo-eligible never receives an embargo (EP-04-008) and is validated
+    at its current EM state, typically ``EM.NONE``; eligibility is read with
+    :func:`~vultron.core.predicates.embargo.pxa_is_embargo_eligible`.
 
     The case comes from the ``/case_id`` blackboard key published upstream by
     :class:`~vultron.core.behaviors.case.nodes.case_lookup.RequireCaseForReport`
@@ -252,10 +257,21 @@ class EnsureEmbargoExists(CaseIdInputPortMixin, DataLayerConditionWithPorts):
         case, failure = self._require_case(case_id)
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
+        if case.active_embargo is None and not pxa_is_embargo_eligible(
+            case.current_status.pxa.state
+        ):
+            self.logger.debug(
+                "%s: Case for report %s is not embargo-eligible (P/X/A set)"
+                " — validation proceeds without an embargo (DUR-07-004,"
+                " EP-04-008)",
+                self.name,
+                self.report_id,
+            )
+            return Status.SUCCESS
         if case.active_embargo is None:
             self.logger.warning(
-                "%s: Case for report %s has no active embargo — "
-                "validation blocked (DUR-07-004)",
+                "%s: Case for report %s is embargo-eligible but has no"
+                " active embargo — validation blocked (DUR-07-004)",
                 self.name,
                 self.report_id,
             )

@@ -172,7 +172,7 @@ class CreateCaseProposalReceivedUseCase:
         self._trigger_activity = trigger_activity
         # Admission policy (CP-05-002).  The adapter chooses the bundle, the
         # same way it chooses STATUS_AUTHORIZATION_PERMISSIVE for the received-
-        # side status gates: a deployment with an admission policy injects its
+        # side status adoption gate: a deployment with an admission policy injects its
         # own here rather than editing the tree.  `None` means the core
         # DETERMINISTIC default, which admits (BT-23-001, BT-23-011).
         self._call_out = call_out

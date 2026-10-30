@@ -191,7 +191,11 @@ def em_accept_embargo_activity(
     context: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Accept:
-    """Build an Accept(_EmProposeEmbargoActivity) — the EA/EC message.
+    """Build an Accept(_EmProposeEmbargoActivity) — a Participant's consent.
+
+    The Accept is the sender's own consent to the proposed terms and carries
+    no protocol shorthand; EA and EC are the Case Owner's decision, built by
+    :func:`activate_embargo_activity` (MSM-02-010).
 
     Per ActivityStreams convention the actor accepts the proposal
     activity itself, not the ``as_EmbargoEvent`` being proposed.
@@ -233,7 +237,13 @@ def em_reject_embargo_activity(
     context: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Reject:
-    """Build a Reject(_EmProposeEmbargoActivity) — the ER/EJ message.
+    """Build a Reject(_EmProposeEmbargoActivity) — a refusal of the terms.
+
+    A Participant's Reject is its own consent, declining the terms, and
+    carries no protocol shorthand; ER and EJ are the Case Owner's decision,
+    built by :func:`reject_embargo_proposal_activity` (MSM-02-010).  The
+    CASE_MANAGER's own Reject abandons the proposal, and is ER (MSM-02-006,
+    EMB-16-001).
 
     Per ActivityStreams convention the actor rejects the proposal
     activity itself, not the ``as_EmbargoEvent`` being proposed.

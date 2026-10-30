@@ -190,7 +190,8 @@ No case exists yet, so both messages go directly between the two actors.
 
 A Vendor proposes embargo terms for a case with no active embargo, Embargo Proposal (`EP`).
 The CASE_MANAGER asks each other participant about the proposal, naming the proposer in `attributedTo` and the deadline for an answer in `endTime`.
-A Coordinator agrees, Embargo Proposal Acceptance (`EA`), by accepting the `Invite` it received.
+A Coordinator agrees by accepting the `Invite` it received.
+That answer is the Coordinator's own consent, so it carries no shorthand: Embargo Proposal Acceptance (`EA`) is the Case Owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]`.
 
 === "Notation"
 
@@ -198,7 +199,7 @@ A Coordinator agrees, Embargo Proposal Acceptance (`EA`), by accepting the `Invi
     |---|---|---|---|---|
     | 1 | Vendor | the case manager | `Invite(EmbargoEvent)[context=VulnerabilityCase]` | `EP` |
     | 2 | the case manager | Coordinator | `Invite(EmbargoEvent)[context=VulnerabilityCase]` | — |
-    | 3 | Coordinator | the case manager | `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])` | `EA` |
+    | 3 | Coordinator | the case manager | `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])` | — |
 
 === "Wire JSON"
 

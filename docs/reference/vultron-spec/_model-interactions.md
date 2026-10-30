@@ -144,17 +144,13 @@ A replica copies those rows and never decides a carry-over, an expiry or a lapse
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CLP-07-013", "CM-23-016"))
 ```
 
-### 11.3 Status Adoption: The Two-Seam Model
+### 11.3 Status Adoption: One Authorization Gate
 
-A participant's report does not become canonical case state on arrival. It
-passes two authorization points, which this specification calls **seams**. A
-seam is a place where the CASE_MANAGER makes an authorization decision that can
-be re-policied without affecting the other.
+A participant's report does not become canonical case state on arrival.
+It passes one authorization point, the **adoption gate**, where the CASE_MANAGER decides whether the claim becomes canonical case state.
+That one decision also authorizes what the adopted state calls for, such as ending an embargo, so the CASE_MANAGER asks no second approval.
 
-Two seams exist because "record what a participant claimed" and "act on that
-claim as truth" are separate decisions with separate authority.
-
-#### Seam 1 — Adoption
+#### Adoption
 
 A participant reports an observation by sending `Add(ParticipantStatus)` to the
 CASE_MANAGER. A participant does not send `Add(CaseStatus)`: writing canonical
@@ -188,7 +184,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 
 On adoption, the CASE_MANAGER commits the adopted status as its own `Add(CaseStatus)` case ledger entry, setting every public-state flag the report sets and clearing none.
 It writes the entry directly, never by sending an `Add(CaseStatus)` to itself, and a receiver refuses an `Add(CaseStatus)` from any other sender.
-Recording the claim executes no side-effect: side-effects belong to seam 2.
+Recording the claim executes no side-effect: side-effects follow the canonical write.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-01-003", "RSH-04-004", "RSH-04-005"))
@@ -199,41 +195,29 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
     That includes a hostile or malfunctioning participant admitted as an external monitor.
     A conservative default makes that a protocol guarantee rather than a deployment posture.
 
-#### Seam 2 — Side-effects
+#### Side-effects
 
-After the canonical write, the CASE_MANAGER evaluates what the new canonical
-state requires.
-When the adopted status sets Public Aware, Exploit Public, or Attacks Observed
-([§8.2 PXA — Public Aware, Exploit Public, Attacks Observed](tracking-models.md#82-pxa-public-aware-exploit-public-attacks-observed)),
-the CASE_MANAGER evaluates embargo teardown.
+After the canonical write, the CASE_MANAGER evaluates what the new canonical state requires.
+When the adopted status sets Public Aware, Exploit Public, or Attacks Observed ([§8.2 PXA — Public Aware, Exploit Public, Attacks Observed](tracking-models.md#82-pxa-public-aware-exploit-public-attacks-observed)), the CASE_MANAGER ends an active embargo in the same act.
 
 **The check follows the canonical write, never precedes it.**
 What is written is the `CaseStatus` record that holds the case's shared EM and PXA values.
 The check reads that written record, so the side-effect always follows from canonical state, not from an unadopted claim.
-Executing the teardown also requires Case Owner authorization by default.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-03-001", "RSH-07-002"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-03-001"))
 ```
 
-The two seams are independent. Seam 1 does not examine embargo teardown, and
-seam 2 cannot tell whether the canonical write came from an inbound message or
-from the CASE_MANAGER's own emission. Either seam can therefore change policy
-without a change to the other.
-
-!!! note "When teardown is required but not authorized"
-    Evaluating teardown is mandatory; executing it is authorized. If the
-    authorization is withheld, the case is left in a state where public
-    awareness coexists with an active embargo. That combination is a
-    contradiction: the cross-machine invariants of
-    [§8.3 Case State as a Compound Tuple](tracking-models.md#83-case-state-as-a-compound-tuple)
-    state that it cannot occur. The reference implementation records it as a
-    diagnostic note on the case rather than resolving it silently. This
-    version of the specification does not yet say how the teardown default
-    and those invariants are reconciled.
+!!! note "One authorization covers the teardown"
+    The adoption gate is the only authorization point.
+    The Case Owner's authorization of a non-owner's P, X or A value, or the Case Owner's own report of it, also authorizes the embargo teardown that the value calls for.
+    No second approval is asked, so the case never settles with public awareness, a public exploit or observed attacks beside an active embargo, which the cross-machine invariants of [§8.3 Case State as a Compound Tuple](tracking-models.md#83-case-state-as-a-compound-tuple) forbid.
+    The invariants are judged when each CASE_MANAGER act commits: inside the adopting act, the adopted status is recorded just before the termination.
+    A policy that must delay a teardown decides at adoption, by not adopting yet.
+    If the teardown fails for another reason, the reference implementation records the contradiction as a diagnostic note on the case rather than leaving it silent.
 
 !!! note "Where the gate model applies"
-    Seam 1 governs any reported status. Its authorization question matters most
+    The adoption gate governs any reported status. Its authorization question matters most
     for the participant-agnostic PXA values, which any participant may report
     ([§13.4.2 Participant-Agnostic CS Transitions (PXA)](conformance.md#1342-participant-agnostic-cs-transitions-pxa)) —
     including reports about other participants.
@@ -242,5 +226,6 @@ without a change to the other.
     - [ADR-0046: Received Status Authorization](../../adr/0046-received-status-authorization.md)
     - [ADR-0076: Security-Significant Gates Default to Require Case Owner Approval](../../adr/0076-security-significant-gates-default-require-case-owner-approval.md)
     - [ADR-0080: Protocol Asks, Not Suspended Behaviors](../../adr/0080-protocol-asks-not-suspended-behaviors.md)
+    - [ADR-0166: Adopting P, X or A and Ending the Embargo Are One Authorized Step](../../adr/0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md)
 
 ---

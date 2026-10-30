@@ -189,6 +189,10 @@ Starlette decodes `%2F` → `/` before route matching, so percent-encoding is
 not a client-side fix. Register `{param:path}` catch-all routes **last** so
 that specific literal routes (`/Offers/`, `/Actors/`) are matched first.
 
+Declaring it last is not enough when a route ahead of it takes two
+placeholders: `/{object_type}/{object_id}` claims any key holding one `/`
+(#5529).
+
 See
 [notes/codebase-structure.md](../../notes/codebase-structure.md)
 § "Starlette Path-Type Parameters for URL-Keyed Endpoints".
