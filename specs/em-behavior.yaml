@@ -1624,8 +1624,9 @@ groups:
     role: the factory's canonical case-state write (EM → EXITED, ledger commit,
     teardown announce) is gated on `CVDRole.CASE_MANAGER` (`terminate_embargo_bt`
     runs `ResolveCaseManagerNode` before the state mutation) and is authorised by
-    the Case Owner by default (CM-02-005; `EmbargoTeardownAuthorizationGate`
-    defaults to `RequireCaseOwnerApproval`, RSH-02-002). A non-manager Participant
+    the Case Owner by default (CM-02-005). A teardown that a received P, X or A
+    report calls for is authorised by the Case Owner's adoption of that value,
+    with no second gate (RSH-07-001, ADR-0166). A non-manager Participant
     that wishes to end an embargo does not run this trigger to write canonical
     state; it initiates termination by reporting the condition or notifying intent
     (VP-11-003, VP-13-017/018), and terminates only its own compliance. See
@@ -1895,7 +1896,7 @@ groups:
       The decision seam MUST include a CASE_OWNER hard-bypass arm ahead of the
       adjudication call-out point.
     rationale: >-
-      This mirrors the two-seam authorization model (ADR-0046) and the
+      This mirrors the status adoption gate's CASE_OWNER bypass (ADR-0046) and the
       case_proposal_received_tree pattern: the CASE_OWNER is the human
       decision-maker whose choice is gospel, while other actors need an
       adjudication seam that a UI or LLM agent can later fulfil. The distinction

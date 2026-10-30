@@ -257,6 +257,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0163 The Case Manager Resends an Unanswered Invite When Its Addressee States a Ledger Position](0163-the-case-manager-resends-an-unanswered-invite-when-its-addressee-states-a-ledger-position.md) *(revision 2)* *(provisional)*
 - [ADR-0164 Actors Sign Content with Object-Level Proofs from Seeded Keys](0164-actors-sign-content-with-object-level-proofs-from-seeded-keys.md) *(provisional)*
 - [ADR-0165 A Participant's Act on a Case Names the Case and Never Carries It](0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md) *(provisional)*
+- [ADR-0166 Adopting P, X or A and Ending the Embargo Are One Authorized Step](0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md) *(provisional)* — partially supersedes 0046-received-status-authorization.md
 - [ADR-0168 A Replay from the Start Is Asked Once per Wait and Answered Once per Need](0168-a-replay-from-the-start-is-asked-once-per-wait-and-answered-once-per-need.md) *(provisional)*
 
 ## Proposed ADRs
@@ -271,7 +272,6 @@ General information about architectural decision records is available at <https:
 - [ADR-0156 Every Case Activity States Its Sender's Ledger Position](0156-every-case-activity-states-its-senders-ledger-position.md) *(revision 3)*
 - [ADR-0158 The Occasion Is the Specification's Message Unit, and Case Coordination Is Its Own Normative Section](0158-the-occasion-is-the-specifications-message-unit-and-case-coordination-is-its-own-section.md)
 - [ADR-0162 Protocol Statecharts Are Projections of the Core Transition Tables, and Occasions Name Their Transitions](0162-protocol-statecharts-are-projections-of-the-core-transition-tables-and-occasions-name-their-transitions.md)
-- [ADR-0166 Adopting P, X or A and Ending the Embargo Are One Authorized Step](0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md) — partially supersedes 0046-received-status-authorization.md
 
 ## Rejected ADRs
 

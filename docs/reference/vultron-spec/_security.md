@@ -36,7 +36,7 @@ outside the protocol.
 
 **Defection.** If a participant discloses publicly while an embargo is `ACTIVE`,
 the `CP` (public awareness) message will trigger the embargo teardown cascade
-([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)). The teardown is a state machine consequence, not a penalty mechanism.
+([§11.3 Status Adoption: One Authorization Gate](interactions.md#113-status-adoption-one-authorization-gate)). The teardown is a state machine consequence, not a penalty mechanism.
 The protocol has no built-in penalty for defection; enforcement is an
 out-of-band organizational matter.
 

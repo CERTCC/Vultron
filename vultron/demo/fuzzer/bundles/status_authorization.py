@@ -18,9 +18,9 @@ The bundle dataclass and DETERMINISTIC default are core concerns
 (``vultron.core.behaviors.call_out.bundles.status_authorization``) and are
 re-exported here for backward-compatible import paths.
 
-Unlike the report-management domains, the two-seam status authorization pattern
-(ADR-0046) is production-only and has **no named simulator fuzzer nodes** to
-wire.  Both seams are approval-style Evaluator call-outs, so the STOCHASTIC
+Unlike the report-management domains, the status adoption gate (ADR-0046,
+ADR-0166) is production-only and has **no named simulator fuzzer nodes** to
+wire.  The gate is an approval-style Evaluator call-out, so the STOCHASTIC
 singleton uses the generic ``AlmostAlwaysSucceed`` (p=0.90) ``WeightedBehavior``
 from ``vultron.demo.fuzzer.base`` — matching the p=0.90 convention used by the
 other Evaluator call-outs (report credibility/validity) and occasionally
@@ -46,17 +46,10 @@ def _stochastic_status_adoption_gate(
     return AlmostAlwaysSucceed(name)
 
 
-def _stochastic_embargo_teardown_authorization_gate(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    return AlmostAlwaysSucceed(name)
-
-
 STATUS_AUTHORIZATION_STOCHASTIC = StatusAuthorizationCallOutBundle(
     status_adoption_gate_factory=_stochastic_status_adoption_gate,  # type: ignore[arg-type]
-    embargo_teardown_authorization_gate_factory=_stochastic_embargo_teardown_authorization_gate,  # type: ignore[arg-type]
 )
-"""Stochastic bundle: both gates use AlmostAlwaysSucceed (p=0.90)."""
+"""Stochastic bundle: the adoption gate uses AlmostAlwaysSucceed (p=0.90)."""
 
 __all__ = [
     "StatusAuthorizationCallOutBundle",

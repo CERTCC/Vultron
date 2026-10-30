@@ -674,8 +674,8 @@ def test_ledger_commit_is_not_gated_on_delivery_confirmation() -> None:
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "RSH-07-004: both gates are single-tick Evaluator call-outs whose "
-        "conservative default is RequireCaseOwnerApprovalNode, an "
+        "RSH-07-004: the adoption gate is a single-tick Evaluator call-out "
+        "whose conservative default is RequireCaseOwnerApprovalNode, an "
         "unconditional-FAILURE node. Tracked by #2885."
     ),
 )
@@ -695,12 +695,7 @@ def test_no_status_gate_default_is_an_unconditional_failure_node() -> None:
     )
 
     bundle = STATUS_AUTHORIZATION_DETERMINISTIC
-    nodes = [
-        bundle.status_adoption_gate_factory("StatusAdoptionGate"),
-        bundle.embargo_teardown_authorization_gate_factory(
-            "EmbargoTeardownAuthorizationGate"
-        ),
-    ]
+    nodes = [bundle.status_adoption_gate_factory("StatusAdoptionGate")]
     offenders = [
         type(unwrap_call_out(node)).__name__
         for node in nodes
@@ -712,6 +707,7 @@ def test_no_status_gate_default_is_an_unconditional_failure_node() -> None:
 
 
 @pytest.mark.spec("RSH-07-005")
+@pytest.mark.spec("RSH-07-007")
 def test_production_status_authorization_default_is_conservative() -> None:
     """A gate MUST NOT be relaxed to permissive to unblock a path (RSH-07-005).
 
@@ -729,10 +725,7 @@ def test_production_status_authorization_default_is_conservative() -> None:
     from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 
     default_bundle = StatusAuthorizationCallOutBundle()
-    for name in (
-        "status_adoption_gate_factory",
-        "embargo_teardown_authorization_gate_factory",
-    ):
+    for name in ("status_adoption_gate_factory",):
         node = getattr(default_bundle, name)(name)
         assert not isinstance(unwrap_call_out(node), AlwaysSucceed), (
             f"{name} defaults to a permissive backend; the conservative default "

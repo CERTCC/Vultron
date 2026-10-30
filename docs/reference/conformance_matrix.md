@@ -56,7 +56,7 @@ Which transitions a participant may drive depends on its roles ([§13.3.1 Proces
 | Case Owner | Shared EM transitions; authorizes status adoption; offers case ownership transfer |
 | Case Manager | Canonical ledger writes; case replica synchronization; roster operations on the Case Owner's behalf |
 
-Any participant may report a PXA observation ([§13.4.2 Participant-Agnostic CS Transitions (PXA)](vultron-spec/conformance.md#1342-participant-agnostic-cs-transitions-pxa)); reporting is not adoption, which the CASE_MANAGER decides ([§11.3 Status Adoption: The Two-Seam Model](vultron-spec/interactions.md#113-status-adoption-the-two-seam-model)).
+Any participant may report a PXA observation ([§13.4.2 Participant-Agnostic CS Transitions (PXA)](vultron-spec/conformance.md#1342-participant-agnostic-cs-transitions-pxa)); reporting is not adoption, which the CASE_MANAGER decides ([§11.3 Status Adoption: One Authorization Gate](vultron-spec/interactions.md#113-status-adoption-one-authorization-gate)).
 
 ## Named configurations
 

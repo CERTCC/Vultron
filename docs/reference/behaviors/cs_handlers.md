@@ -13,7 +13,6 @@ The behavioral requirements for these trees are specified in the
 [Requirements Catalog](../vultron-spec/requirements/index.md):
 
 - [RSH-01](../vultron-spec/requirements/message-processing.md#protocol-rsh-01) — StatusAdoptionGate (participant status adoption)
-- [RSH-02](../specs/project.md#rsh-02) — EmbargoTeardownAuthorizationGate
 - [RSH-03](../vultron-spec/requirements/message-processing.md#protocol-rsh-03) — ThreatTerminationBranchNode (embargo teardown)
 - [RSH-04](../vultron-spec/requirements/message-processing.md#protocol-rsh-04) — CaseStatus emission authority and outbound emit invariant
 - [RSH-09](../vultron-spec/requirements/message-processing.md#protocol-rsh-09) — Whole accept or reject of a received status
@@ -56,7 +55,7 @@ print("```")
 ## Add Participant Status Tree
 
 Handles receipt of an `Add(ParticipantStatus, CaseParticipant)` activity.
-Implements the StatusAdoptionGate workflow (ADR-0046, RSH-01): verifies the sender is a participant, appends the raw peer status, then gates adoption and optional embargo teardown through authorization call-outs.
+Implements the StatusAdoptionGate workflow (ADR-0046, RSH-01): verifies the sender is a participant, appends the raw peer status, then gates adoption through the adoption call-out; an adopted P, X or A ends an active embargo in the same act, because the adoption also authorizes the teardown (ADR-0166).
 An adopted P, X or A reaches the case status here, and nowhere else on the received side (RSH-01-003).
 Constructed from
 `vultron.core.behaviors.status.add_participant_status_tree.add_participant_status_tree`.

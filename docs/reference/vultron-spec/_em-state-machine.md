@@ -172,7 +172,7 @@ Exited means that the embargo has ended at the case level.
 A participant does not put the case into Exited by deciding to stop observing the embargo.
 A participant can instead withdraw its own consent, report that it intends to exit, propose a shorter embargo, or propose an earlier end date.
 The CASE_MANAGER then terminates the embargo and records the termination ([§11.2 Embargo Revision and Termination Cascades](interactions.md#112-embargo-revision-and-termination-cascades)).
-An early termination takes Case Owner authorization by default, on the same terms as any other change to canonical case state ([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)).
+An early termination takes Case Owner authorization by default, on the same terms as any other change to canonical case state ([§11.3 Status Adoption: One Authorization Gate](interactions.md#113-status-adoption-one-authorization-gate)).
 The one exception is an embargo whose end time has passed: the CASE_MANAGER itself terminates it, with the reason `END_TIME_REACHED`.
 
 ```python exec="true" idprefix=""

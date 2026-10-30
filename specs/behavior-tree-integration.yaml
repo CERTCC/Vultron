@@ -1907,8 +1907,8 @@ groups:
     - rel_type: refines
       spec_id: RSH-07-004
       note: >
-        RSH-07-004 replaced the two status gates' call-out mechanism with a
-        routing subtree; BT-18-014 generalises the criterion that forced it.
+        RSH-07-004 replaced the status adoption gate's call-out mechanism with
+        a routing subtree; BT-18-014 generalises the criterion that forced it.
     - rel_type: constrains
       spec_id: BT-18-005
       note: >
@@ -2783,7 +2783,7 @@ groups:
         rule; the same carve-out applies to BT-23-006 and BT-23-007.
     - rel_type: refines
       spec_id: RSH-07-001
-      note: Generalizes the two-gate conservative-default requirement.
+      note: Generalizes the status adoption gate's conservative-default requirement.
     - rel_type: refines
       spec_id: RSH-07-004
       note: >

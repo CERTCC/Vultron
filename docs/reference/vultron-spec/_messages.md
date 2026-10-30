@@ -244,7 +244,7 @@ A participant reports them as a claim in a `ParticipantStatus`, and the CASE_MAN
 
 The Vendor aware, Fix ready, fix Deployed (VFD) occasions report the sender's own progress, so receiving one updates the receiver's model of the sender rather than the receiver's own state ([§8.4 Receiving CS Messages: Own State vs. Model of Others](tracking-models.md#84-receiving-cs-messages-own-state-vs-model-of-others)).
 The Public aware, eXploit public, Attacks observed (PXA) occasions in a `ParticipantStatus` report a claim about the world.
-That claim becomes canonical case state only if the CASE_MANAGER adopts it ([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)).
+That claim becomes canonical case state only if the CASE_MANAGER adopts it ([§11.3 Status Adoption: One Authorization Gate](interactions.md#113-status-adoption-one-authorization-gate)).
 
 ### 4.10 General Messages
 
