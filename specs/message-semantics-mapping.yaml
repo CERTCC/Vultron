@@ -1741,8 +1741,8 @@ groups:
       An occasion is the bridge from a formal protocol message to its wire form, and
       without a link its effect is prose that can drift from the transition table
       actors' moves are held to (#5172). One occasion may carry several: a
-      participant's embargo acceptance moves its PEC consent row and can move the
-      case's EM. An occasion that moves no machine, such as a note, a ledger
+      Case Owner's embargo activation moves the case's EM and the owner's PEC
+      consent row (MSM-07-008). An occasion that moves no machine, such as a note, a ledger
       replication, an acknowledgment or an error, declares none.
     verification: >-
       A unit test asserts that every declared trigger is a member of its machine's

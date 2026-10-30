@@ -100,7 +100,7 @@ Standard AS2 objects appear too: a case note is an `as:Note`, and the actor invi
 An embargo is not one of them: it is sent with the Vultron `type` `EmbargoEvent`, never a plain `as:Event`.
 
 The same verb carries different protocol messages depending on its object.
-`Accept(Offer(VulnerabilityReport))` is Report Valid (RV); `Accept(Invite(EmbargoEvent))` is Embargo Proposal Acceptance (EA); `Accept(Invite(Actor))` is an actor joining a case.
+`Accept(Offer(VulnerabilityReport))` is Report Valid (RV); `Accept(Invite(EmbargoEvent))` is a participant's consent to embargo terms, while `Accept(EmbargoEvent)` is Embargo Proposal Acceptance (EA); `Accept(Invite(Actor))` is an actor joining a case.
 Read the object before the verb.
 
 <div class="grid cards" markdown>

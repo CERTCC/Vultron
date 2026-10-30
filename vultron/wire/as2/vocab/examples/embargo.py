@@ -224,6 +224,25 @@ def accept_embargo() -> as_Accept:
     return activity
 
 
+def abandon_embargo_proposal() -> as_Reject:
+    """The CASE_MANAGER's ER abandoning a proposal it received (EMB-16-001).
+
+    Once the case is public, an exploit is public or attacks are observed
+    while the proposal is open, the CASE_MANAGER rejects the proposal, which
+    cancels it (MSM-02-006).  Its Reject is not its consent (MSM-07-004).
+    It is addressed to nobody: each participant learns of it from the
+    ledger entry.
+    """
+    proposal = propose_embargo()
+    return em_reject_embargo_activity(
+        proposal,
+        id_=f"{proposal.id_}/abandon",
+        actor=case_actor().id_,
+        context=proposal.context,
+        published=EXAMPLE_TIMESTAMP,
+    )
+
+
 def reject_embargo() -> as_Reject:
     proposal = propose_embargo()
     _vendor = vendor()
@@ -254,7 +273,11 @@ def propose_embargo_revision() -> as_Invite:
 
 
 def accept_embargo_revision() -> as_Accept:
-    """EC: a participant's consent to a proposed revision."""
+    """A participant's consent to a proposed revision.
+
+    It carries no protocol shorthand: the revision replaces the active
+    embargo only by the Case Owner's EC (MSM-02-010).
+    """
     proposal = propose_embargo_revision()
     return em_accept_embargo_activity(
         proposal,
@@ -265,7 +288,11 @@ def accept_embargo_revision() -> as_Accept:
 
 
 def reject_embargo_revision() -> as_Reject:
-    """EJ: a participant's refusal of a proposed revision."""
+    """A participant's refusal of a proposed revision.
+
+    It carries no protocol shorthand: the Case Owner keeps the prior terms
+    with its EJ (MSM-02-010).
+    """
     proposal = propose_embargo_revision()
     return em_reject_embargo_activity(
         proposal,
@@ -276,7 +303,7 @@ def reject_embargo_revision() -> as_Reject:
 
 
 def activate_embargo() -> as_Accept:
-    """The case owner's activation of the proposed embargo (ADR-0122)."""
+    """EA: the case owner's activation of the proposed embargo (ADR-0122)."""
     _case = case()
     _vendor = vendor()
     activity = activate_embargo_activity(
@@ -289,7 +316,7 @@ def activate_embargo() -> as_Accept:
 
 
 def reject_embargo_proposal() -> as_Reject:
-    """The case owner's rejection of the proposed embargo (ADR-0122)."""
+    """ER: the case owner's rejection of the proposed embargo (ADR-0122)."""
     _case = case()
     _vendor = vendor()
     activity = reject_embargo_proposal_activity(
@@ -299,6 +326,35 @@ def reject_embargo_proposal() -> as_Reject:
         context=_case.id_,
     )
     return activity
+
+
+def activate_embargo_revision() -> as_Accept:
+    """EC: the case owner's activation of a proposed revision (MSM-02-005).
+
+    The revision replaces the active embargo in the same register step.
+    """
+    _case = case()
+    return activate_embargo_activity(
+        embargo_event(120),
+        actor=vendor().id_,
+        target=_case.id_,
+        context=_case.id_,
+    )
+
+
+def reject_embargo_revision_proposal() -> as_Reject:
+    """EJ: the case owner's rejection of a proposed revision (MSM-02-004).
+
+    The active embargo stays in force on its prior terms, unless P/X/A is
+    set when the last open revision is rejected (EMB-04-002).
+    """
+    _case = case()
+    return reject_embargo_proposal_activity(
+        embargo_event(120),
+        actor=vendor().id_,
+        target=_case.id_,
+        context=_case.id_,
+    )
 
 
 def withdraw_from_embargo() -> as_Leave:
