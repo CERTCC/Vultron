@@ -1831,7 +1831,7 @@ groups:
     - ADR-0097
     - ADR-0044
   - id: BT-18-013
-    priority: MUST
+    priority: MUST_NOT
     kind: project
     statement: >-
       There are exactly four call-out capability shapes: Evaluator, Retriever, Composer,
@@ -1884,7 +1884,7 @@ groups:
     adr:
     - ADR-0097
   - id: BT-18-014
-    priority: MUST
+    priority: MUST_NOT
     kind: project
     statement: >-
       A question requiring a decision from another actor in the case MUST NOT be
@@ -2464,7 +2464,7 @@ groups:
     of these rules create circular dependency risk, un-auditable call chains, and excessively large update() methods.
   specs:
   - id: BT-22-001
-    priority: MUST
+    priority: MUST_NOT
     kind: architecture
     verification_debt: '#2569'
     statement: >-

@@ -256,7 +256,7 @@ def remove_embargo_from_case_tree(
             the deadline of a re-issued stub Invite.  ``None`` applies the
             ``ActorConfig`` defaults.
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         Root node of the ``RemoveEmbargoFromCaseBT`` Sequence.
@@ -459,7 +459,7 @@ def invite_to_embargo_on_case_tree(
             replica (EP-09-003, PCR-08; ADR-0115).  Not ``proposer_id``, which
             a relay's ``attributedTo`` may name.
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
         embargo: The inline ``EmbargoEvent`` the message carries, persisted
             by an effect in whichever store receives the Invite (CLP-10-017);
             ``None`` when the message named its object by bare URI.

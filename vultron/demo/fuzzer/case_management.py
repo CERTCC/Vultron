@@ -20,8 +20,8 @@ case-management call-out points — currently the admission decision a case acto
 service makes on an inbound ``Create(as_CaseProposal)``.
 
 Nodes are built on the probabilistic base types in
-``vultron.demo.fuzzer.base`` and satisfy BT-16-003 (named integration-point
-nodes with semantic docstrings) and BT-16-005 (automation-potential
+``vultron.demo.fuzzer.base`` and satisfy BT-16-003 and BT-16-007 (named
+integration-point nodes with semantic docstrings) and BT-16-005 (automation-potential
 categorization).
 
 References

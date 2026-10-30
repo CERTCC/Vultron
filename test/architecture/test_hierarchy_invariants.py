@@ -45,7 +45,8 @@ is ever told to clean it up, and it gives no partial-progress signal along the w
 See ``test_validate_assignment_ratchet.py``, which uses the same three-part shape
 (exact backlog + strict goal + guard-the-guard).
 
-Spec: `specs/architecture.yaml` ARCH-12-003, ARCH-12-004, ARCH-12-007
+Spec: `specs/architecture.yaml` ARCH-12-003, ARCH-12-004, ARCH-12-007,
+ARCH-12-013, ARCH-12-014
 Reference: `docs/adr/archived/0017-domain-wire-object-separation.md` (superseded by ADR-0099)
 """
 
@@ -108,7 +109,7 @@ AS2_ACTIVITY_PROPERTIES = frozenset(
 
 # ---------------------------------------------------------------------------
 # Backlog: core-layer classes registered in the wire VOCABULARY registry,
-# violating ARCH-12-003 (issue #1992). All violations resolved — set is empty.
+# violating ARCH-12-014 (issue #1992). All violations resolved — set is empty.
 # ---------------------------------------------------------------------------
 _NON_AS_BASE_BACKLOG_1992: frozenset[str] = frozenset()
 
@@ -162,7 +163,7 @@ class TestCoreVocabularyHierarchy:
 
         #2288 and #2289 tracked the removal and are closed as superseded; their
         premise — render AS2 from the ``as_*`` classes — no longer holds, because
-        those classes are gone. #3578 owns the ARCH-12-003 annotation.
+        those classes are gone. #3578 owns the ARCH-12-013 annotation.
         """
         missing = sorted(
             name
@@ -199,13 +200,13 @@ class TestWireVocabularyHierarchy:
             f"  newly violating: {sorted(non_as_base - _NON_AS_BASE_BACKLOG_1992)}\n"
             f"  fixed but still listed: {sorted(_NON_AS_BASE_BACKLOG_1992 - non_as_base)}\n"
             "VOCABULARY must contain only wire-layer ActivityStreams classes"
-            " (ARCH-12-003, issue #1992)."
+            " (ARCH-12-014, issue #1992)."
         )
 
     def test_all_vocabulary_are_as_base_subclasses(self) -> None:
         """All VOCABULARY classes must be subclasses of as_Base.
 
-        Enforces ARCH-12-003: Wire-layer classes form a hierarchy rooted in
+        Enforces ARCH-12-014: Wire-layer classes form a hierarchy rooted in
         as_Base, separate from the core domain hierarchy.
 
         Note: VOCABULARY may be empty at module load time; importing wire

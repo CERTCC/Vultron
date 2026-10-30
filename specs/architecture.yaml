@@ -652,8 +652,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Each plain `BaseModel` subclass under `vultron/core/models/` MUST carry a
-      docstring that says why it does not inherit from the core object hierarchy.
+      Each plain `BaseModel` subclass under `vultron/core/` MUST carry a docstring that
+      says why it stays outside the core object hierarchy. A docstring inherited from a
+      plain core base counts.
     rationale: >-
       A plain `BaseModel` class is the exception, not the default. A stated reason
       shows that the choice was made on purpose, so a class does not leave the
@@ -661,8 +662,9 @@ groups:
     verification: >-
       `test_every_plain_core_model_has_a_docstring` in
       `test/architecture/test_core_plain_models_documented.py` asserts that each class
-      under `vultron/core/models/` that subclasses `BaseModel` but not `CoreRecord`
-      has a docstring. Review confirms that the docstring gives the reason.
+      under `vultron/core/` that subclasses `BaseModel` but not `CoreRecord` has a
+      docstring, its own or a plain core base's. Review confirms that the docstring
+      gives the reason.
 - id: ARCH-09
   title: Domain Model Richness Constraint
   specs:
@@ -770,12 +772,25 @@ groups:
     verification_debt: '#2569'
     statement: >-
       A layer-neutral domain helper, one with no dependency above `models/`, MUST live
-      in `vultron/core/models/_helpers.py`, and a use-case-specific helper in
-      `vultron/core/use_cases/_helpers.py`.
+      in `vultron/core/models/_helpers.py`.
     rationale: >-
       A fixed place for each kind of helper lets a developer find the existing copy
       before writing a new one. A layer-neutral helper in `models/` can serve every
       layer above it.
+    relationships:
+    - rel_type: implements
+      spec_id: ARCH-15-004
+    adr:
+    - ADR-0032
+  - id: ARCH-15-006
+    priority: SHOULD
+    kind: architecture
+    statement: >-
+      A use-case-specific domain helper SHOULD live in
+      `vultron/core/use_cases/_helpers.py`.
+    rationale: >-
+      A helper that only use cases need stays out of `models/`, where every layer could
+      reach it, and still has one place a developer looks before writing a new copy.
     relationships:
     - rel_type: implements
       spec_id: ARCH-15-004
@@ -1494,8 +1509,9 @@ groups:
     verification: >-
       `test_core_rebuilds_snapshots_only_through_the_projection` in
       `test/architecture/test_core_snapshot_rebuilds_are_projected.py` fails each
-      `model_validate` call in `vultron/core/` that validates a snapshot without
-      `project_wire_snapshot_to_core`.
+      `model_validate` call in `vultron/core/` whose value is neither a dict literal
+      nor `project_wire_snapshot_to_core`, outside a pinned list of calls that read no
+      snapshot.
     relationships:
     - rel_type: extends
       spec_id: ARCH-20-008
@@ -2421,7 +2437,7 @@ groups:
     adr:
     - ADR-0099
   - id: ARCH-25-004
-    priority: MUST
+    priority: MUST_NOT
     kind: project
     statement: >-
       The wire and core hierarchies MUST NOT share a root. ARCH-12-001 refines this.

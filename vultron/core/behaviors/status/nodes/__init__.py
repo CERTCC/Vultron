@@ -42,7 +42,7 @@ Submodules:
   workflow.  EmitCaseStatusUpdateNode (direct ledger
   writes after EM/PXA mutations, RSH-04-002/RSH-04-003) is shared with the
   embargo trees, so it lives in ``vultron.core.behaviors.case_status_snapshot``
-  (BTND-04-001)
+  (BTND-04-005)
 - ``cs_invariant_diagnostic``: Post-cascade PXA↔EM invariant check
   (PxaEmInvariantDiagnosticNode; CSB-18-002..004, CONCERN-3008)
 - ``cs_invariant_guards``: CS ordering invariant precondition guards

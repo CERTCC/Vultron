@@ -637,7 +637,8 @@ def test_debt_split_child_keeping_its_parents_marker_is_not_an_addition(
 
 
 @pytest.mark.spec("MS-10-016")
-def test_debt_split_grandchild_is_not_an_addition(debt_repo):
+def test_debt_grandchild_naming_only_a_new_child_is_added(debt_repo):
+    """The exemption needs a link to a requirement that had the marker."""
     _write_specs(
         debt_repo,
         _marked("TST-01-001"),
@@ -645,7 +646,7 @@ def test_debt_split_grandchild_is_not_an_addition(debt_repo):
         _split_off("TST-01-003", "TST-01-001"),
         _split_off("TST-01-004", "TST-01-003"),
     )
-    assert _debt(debt_repo).added == frozenset()
+    assert _debt(debt_repo).added == {"TST-01-004 verification_debt: '#1'"}
 
 
 @pytest.mark.spec("MS-10-016")

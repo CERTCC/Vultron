@@ -224,7 +224,7 @@ def add_participant_status_tree(
             Defaults to :data:`STATUS_AUTHORIZATION_DETERMINISTIC` which
             approves all non-CASE_OWNER updates (historical behavior).
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
         target_actor_id: The actor the receiver's stored record of the
             target participant names.  When it is not the sender, the
             status is an on-behalf assertion, and the tree admits only the

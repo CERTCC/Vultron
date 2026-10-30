@@ -51,7 +51,17 @@ _BLOCKING_MODULES = frozenset(
 )
 
 #: Calls that block: a sleep, a file open or an interactive prompt.
-_BLOCKING_CALLS = frozenset({"input", "open", "sleep"})
+_BLOCKING_CALLS = frozenset(
+    {
+        "input",
+        "open",
+        "read_bytes",
+        "read_text",
+        "sleep",
+        "write_bytes",
+        "write_text",
+    }
+)
 
 
 def _violations(path: Path, tree: ast.AST) -> list[str]:
@@ -96,6 +106,8 @@ def test_in_repo_call_out_backends_do_no_blocking_io() -> None:
         "from urllib.request import urlopen\n",
         "import time\ntime.sleep(1)\n",
         "open('x')\n",
+        "path.read_text()\n",
+        "path.write_bytes(b'')\n",
     ],
 )
 def test_detector_catches_blocking_io(source: str) -> None:

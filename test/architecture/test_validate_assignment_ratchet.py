@@ -42,7 +42,8 @@ marker to be deleted.  The pre-existing ``strict=False`` markers for #1991/#1992
 are what this pattern is correcting — a non-strict xfail keeps passing forever
 after the work is done, so nobody is ever told to clean it up.
 
-Spec: `specs/architecture.yaml` ARCH-21-001 through ARCH-21-005;
+Spec: `specs/architecture.yaml` ARCH-21-001 through ARCH-21-005 and
+ARCH-21-007 through ARCH-21-009;
 `specs/case-management.yaml` CM-27-001 through CM-27-003;
 `specs/participant-role-management.yaml` PRM-03-003.
 Reference: `docs/adr/0064-core-branch-validate-assignment.md`,

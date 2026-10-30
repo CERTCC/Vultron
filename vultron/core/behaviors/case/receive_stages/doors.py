@@ -193,7 +193,7 @@ def sender_guard_stage(
     sender_rule: SenderRule | None,
     sender_context: SenderContext | None,
 ) -> py_trees.behaviour.Behaviour | None:
-    """The tree's sender guard, composed from the declared rule (HP-01-008).
+    """The tree's sender guard, composed from the declared rule (HP-01-025).
 
     A tree that commits (``case_id`` set) must judge the sender against that
     case, and a tree that commits nothing but writes for a CASE_MANAGER

@@ -247,7 +247,7 @@ groups:
       silently. For example, an `Accept(Invite(...))` with one corrupt inner field can
       then parse as a bare `as_Link`. It gets the semantic type `UNKNOWN` and a 202
       status. A refusal is safe only when type resolution looks at wire classes alone.
-      If a lookup uses `CORE_TYPE_MAP` as a fallback (ARCH-12-003), it resolves the
+      If a lookup uses `CORE_TYPE_MAP` as a fallback (ARCH-12-014), it resolves the
       `inbox` of an inline actor to a core instance that its wire parent refuses
       (ARCH-22-001). The parser then refuses valid messages. The core fallback is opt-in
       (VM-06-008).

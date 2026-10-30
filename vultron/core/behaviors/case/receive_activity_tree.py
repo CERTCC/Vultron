@@ -389,7 +389,7 @@ def create_receive_activity_tree(
         closed_sender: The sender whose recorded closure stops the tree, for
             a tree whose act may close its sender (CM-23-018).
         sender_rule: The use case's declared sender rule; the factory
-            composes the guard from it (HP-01-008).
+            composes the guard from it (HP-01-025).
         sender_context: The sender and the records the rule's kinds are
             checked against; required with ``sender_rule``.  A
             :class:`~vultron.core.behaviors.sender_guard.LedgerActivityContext`

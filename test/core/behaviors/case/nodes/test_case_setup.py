@@ -26,7 +26,7 @@ in issue #4353 — the nodes they covered (RecordCaseCreationEvents,
 RecordCaseCreatedEventNode, RecordOfferReceivedEventNode, ProposeCaseToActorNode)
 were orphaned by create_create_case_tree's removal and have been deleted.
 
-Per specs/behavior-tree-node-design.yaml BTND-02-001, BTND-03-001, BTND-04-001
+Per specs/behavior-tree-node-design.yaml BTND-02-001, BTND-03-001, BTND-04-005
 and GitHub issue #401.
 """
 
@@ -47,7 +47,7 @@ from vultron.core.models.actor import CoreActor, VultronService
 
 
 class TestUpdateActorOutboxReExport:
-    """UpdateActorOutbox is the same object in all three modules (BTND-04-001)."""
+    """UpdateActorOutbox is the same object in all three modules (BTND-04-005)."""
 
     def test_case_nodes_re_exports_from_helpers(self) -> None:
         assert UpdateActorOutbox is UpdateActorOutboxHelper

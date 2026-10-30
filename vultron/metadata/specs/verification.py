@@ -209,32 +209,20 @@ def added_debt(base: DebtSnapshot, head: DebtSnapshot) -> frozenset[str]:
 
     A requirement split into several IDs keeps its debt: a new ID whose own
     ``relationships:`` name a requirement that carried the same marker at the
-    base, or that is itself such a split child, is not new debt. An ID the base
-    already had is never a split child, so a marker it gains is still added.
+    base is not new debt. An ID the base already had is never a split child,
+    so a marker it gains is still added.
     """
-    added = {
-        spec_id: marker
-        for spec_id, marker in head.markers.items()
-        if base.markers.get(spec_id) != marker
-    }
-    split: set[str] = set()
-    grew = True
-    while grew:
-        grew = False
-        for spec_id, marker in added.items():
-            if spec_id in split or spec_id in base.ids:
-                continue
-            if any(
-                base.markers.get(parent) == marker
-                or (parent in split and head.markers.get(parent) == marker)
-                for parent in head.links.get(spec_id, frozenset())
-            ):
-                split.add(spec_id)
-                grew = True
     return frozenset(
         _debt_item(spec_id, marker)
-        for spec_id, marker in added.items()
-        if spec_id not in split
+        for spec_id, marker in head.markers.items()
+        if base.markers.get(spec_id) != marker
+        and not (
+            spec_id not in base.ids
+            and any(
+                base.markers.get(parent) == marker
+                for parent in head.links.get(spec_id, frozenset())
+            )
+        )
     )
 
 
