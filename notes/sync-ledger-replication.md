@@ -477,8 +477,19 @@ case seed first (CP-09-009, CM-17-009), so this is recovery, not the steady stat
 - `ReconstructChainTailNode` writes sentinels (`tail_hash=""`, `tail_index=-1`)
   before FAILURE, and the `ReconstructOrRejectOnMissingCase` Selector in
   `announce_tree.py` falls back to `SendRejectLogEntryNode`, so a Reject with
-  `last_accepted_hash=""` ("replay from genesis") always goes out (SYNC-15-001/002).
+  `last_accepted_hash=""` ("replay from genesis") goes out (SYNC-15-001/002).
   Without it the CASE_MANAGER never learns of the failure.
+- **Ask once per wait, not once per held entry** (SYNC-15-016/017, ADR-0168). One
+  genesis Reject asks for the case and the whole ledger, and the held entries
+  drain on seed, so a Reject per early entry only draws duplicate full replays;
+  on a loaded host they delayed unrelated messages by about 20 s (#5552). The
+  participant records when it last asked about the case (SYNC-15-021) and asks
+  again only for an early entry after the interval, which is the replay
+  ceiling (SYNC-15-020).
+- **A re-ask is a new activity.** The entry-keyed Reject id repeats for a
+  replayed copy of an entry already rejected, and the CASE_MANAGER drops a known
+  id as a redelivery (ID-04-005), so a request after the interval must not reuse
+  an earlier Reject's id (SYNC-15-017).
 
 ### Pre-Genesis Buffering and Drain on Case Seed (SYNC-15-004/005)
 
@@ -516,6 +527,15 @@ peer. Three properties are load-bearing; tests are in
 - **Genesis gets a short cooldown (2 s), not an exemption.** A long cooldown
   starves bootstrap (SYNC-15-001/002 rely on the following replay); an exemption
   readmits the storm, since an unanchored peer reports genesis every time.
+- **A genesis Reject the last replay already answered sends nothing**
+  (SYNC-15-019/022). The 2 s base is shorter than a loaded host's handling gap
+  between queued Rejects, so the cooldown alone let each one through. Reject of an
+  entry at or below the last genesis replay's highest index, within the ceiling:
+  no replay, no case copy, record untouched. Reason: the CASE_MANAGER cannot
+  rely on a participant from another implementation to ask once.
+- **Every limit is a rate limit, never a stop** (SYNC-15-018). The protocol rules
+  are `SHOULD`/`MAY`; the numbers and records here are this codebase's
+  (`project`, SYNC-15-008 to SYNC-15-014, SYNC-15-020 to SYNC-15-022).
 
 ## A Participant Checks with Read(CaseLedgerEntry) (SYNC-17, ADR-0155)
 

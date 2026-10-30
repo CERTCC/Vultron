@@ -271,6 +271,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0158 The Occasion Is the Specification's Message Unit, and Case Coordination Is Its Own Normative Section](0158-the-occasion-is-the-specifications-message-unit-and-case-coordination-is-its-own-section.md)
 - [ADR-0162 Protocol Statecharts Are Projections of the Core Transition Tables, and Occasions Name Their Transitions](0162-protocol-statecharts-are-projections-of-the-core-transition-tables-and-occasions-name-their-transitions.md)
 - [ADR-0166 Adopting P, X or A and Ending the Embargo Are One Authorized Step](0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md) — partially supersedes 0046-received-status-authorization.md
+- [ADR-0168 A Replay from the Start Is Asked Once per Wait and Answered Once per Need](0168-a-replay-from-the-start-is-asked-once-per-wait-and-answered-once-per-need.md)
 
 ## Rejected ADRs
 

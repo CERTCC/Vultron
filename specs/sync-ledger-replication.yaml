@@ -1503,7 +1503,9 @@ groups:
     hash, making convergence independent of whether the case or its ledger entries arrive
     first (issue #2186, #2180).  A Reject is still sent as the loss backstop, triggering the
     same replay path as the hash-mismatch case (SYNC-08-005, SYNC-14-002) for an entry that is
-    genuinely lost rather than merely early.  The forward-gap hold of SYNC-14 alone
+    genuinely lost rather than merely early.  The backstop is asked once per wait, not once
+    per held entry, and the CASE_MANAGER answers once per need; both limits are rate limits,
+    never stops (SYNC-15-016 to SYNC-15-022, ADR-0168).  The forward-gap hold of SYNC-14 alone
     does not cover this window: it only holds entries for a case whose genesis
     anchor is already known, so a distinct pre-genesis hold and a drain triggered
     by the case seed are required.
@@ -1516,7 +1518,8 @@ groups:
     statement: >-
       When a participant receives an Announce(CaseLedgerEntry) but cannot reconstruct
       the per-case genesis hash because it does not yet hold the VulnerabilityCase
-      (CLP-08-005), the participant MUST NOT silently discard the entry; it MUST send a
+      (CLP-08-005), the participant MUST NOT silently discard the entry; unless an earlier
+      such Reject for the same case lets it withhold one (SYNC-15-016), it MUST send a
       Reject(CaseLedgerEntry) with last_accepted_hash="" to the CASE_MANAGER so that the
       CASE_MANAGER replays all entries from the beginning once the case is delivered.
     rationale: >-
@@ -1524,7 +1527,8 @@ groups:
       CASE_MANAGER's replay path (SYNC-03-002) replays every entry after the hash it
       receives. An empty string matches no entry, so it replays the full ledger.
       Without the Reject, the CASE_MANAGER never learns that the delivery failed, and
-      the replica stays without the entry permanently.
+      the replica stays without the entry permanently. One Reject asks for the whole
+      ledger, so a second one asks for nothing new (ADR-0168).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving a ledger entry before the
       VulnerabilityCase is present triggers a Reject(CaseLedgerEntry) with
@@ -1571,9 +1575,9 @@ groups:
       verified chain position; if the genesis hash later reveals the entry is a fork, already-applied effects
       cannot be rolled back.
   - id: SYNC-15-003
-    priority: MUST
+    priority: SHOULD
     kind: protocol
-    statement: The CASE_MANAGER MUST bound the rate at which it replays entries to a peer whose acknowledged
+    statement: The CASE_MANAGER SHOULD bound the rate at which it replays entries to a peer whose acknowledged
       replication position has not advanced.
     rationale: >-
       A peer that cannot anchor its hash chain rejects every entry replayed to it. Each
@@ -1618,7 +1622,7 @@ groups:
     - story_2022_088
   - id: SYNC-15-008
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The CASE_MANAGER MUST record, per peer, the position (the `entry_hash` a replay resumed
       from, or `""` for genesis) of the last replay in which at least one entry was actually
@@ -1633,8 +1637,8 @@ groups:
     - story_2022_088
   - id: SYNC-15-009
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification_debt: '#2575'
     statement: A Reject reporting an unchanged replication position within the cooldown MUST NOT trigger another
       replay.
     rationale: >-
@@ -1644,7 +1648,7 @@ groups:
       Reject after the cooldown still gets a replay, so a lost replay is repaired.
   - id: SYNC-15-010
     priority: MUST
-    kind: protocol
+    kind: project
     statement: A Reject reporting an advanced replication position MUST always trigger a replay.
     rationale: An advanced position means the peer successfully committed at least one entry since the last replay;
       withholding replay at that point would stall convergence.
@@ -1657,8 +1661,8 @@ groups:
     - story_2022_088
   - id: SYNC-15-011
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification_debt: '#2575'
     statement: A replay in which zero entries were sent MUST NOT update the recorded position, because no delivery
       was attempted at that position.
     rationale: >-
@@ -1747,7 +1751,7 @@ groups:
     - story_2022_088
   - id: SYNC-15-012
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: >-
       The CASE_MANAGER MUST NOT enqueue a replay `Announce(CaseLedgerEntry)` for an
       (entry, peer) pair while an earlier `Announce` of that same entry to that same peer
@@ -1774,7 +1778,7 @@ groups:
     - story_2022_088
   - id: SYNC-15-013
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Each consecutive non-empty replay the CASE_MANAGER sends to a peer from an unchanged
       replication position MUST lengthen the cooldown before the next one (doubling it, up
@@ -1804,7 +1808,7 @@ groups:
     - story_2022_088
   - id: SYNC-15-014
     priority: MUST_NOT
-    kind: protocol
+    kind: project
     statement: >-
       The CASE_MANAGER MUST NOT send the genesis `Announce(VulnerabilityCase)` pre-seed
       (SYNC-15-015) in answer to a genesis Reject whose replay the cooldown suppresses.
@@ -1846,6 +1850,152 @@ groups:
     stories:
     - story_2022_045
     - story_2022_088
+  - id: SYNC-15-016
+    priority: SHOULD_NOT
+    kind: protocol
+    statement: >-
+      A participant that has sent the CASE_MANAGER a `Reject(CaseLedgerEntry)` with
+      `last_accepted_hash=""` for a case it still does not hold SHOULD NOT send another
+      for that case until a bounded interval has passed since the last one.
+    rationale: >-
+      One genesis Reject asks for the case and the whole ledger. The participant holds
+      every early entry and drains them when the case arrives (SYNC-15-004,
+      SYNC-15-005), so a Reject for each further early entry asks for nothing the first
+      did not. On a loaded host the CASE_MANAGER answered each of them with a full
+      replay, and the duplicates delayed unrelated messages by about 20 seconds
+      (#5552).
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-15-001
+    adr:
+    - ADR-0168
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-15-017
+    priority: MUST
+    kind: protocol
+    verification_debt: '#3612'
+    statement: >-
+      A participant that withholds genesis Rejects under SYNC-15-016 MUST send one
+      for the first entry of the still-missing case it receives after the interval has
+      passed, as a new activity rather than a redelivery of an earlier Reject.
+    rationale: >-
+      The genesis Reject is the only recovery for a participant whose replay was lost,
+      so withholding it may delay recovery but never end it. A redelivery of an earlier
+      Reject carries that Reject's id, and the CASE_MANAGER drops a known id as a
+      repeat (ID-04-005), so a request after the interval must be its own activity.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-15-016
+    adr:
+    - ADR-0168
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-15-018
+    priority: MUST_NOT
+    kind: protocol
+    verification_debt: '#3612'
+    statement: >-
+      A rate limit an actor applies to replays or to replay requests about the same
+      case and position MUST NOT suppress one permanently; once a bounded interval has
+      passed, it MUST let the next one through.
+    rationale: >-
+      Every limit in this group trades recovery time for quiet. A limit that never
+      lets a later request or replay through would turn a lost replay into a replica
+      that never converges.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-15-003
+    adr:
+    - ADR-0168
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-15-019
+    priority: MAY
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MAY decline to answer a `Reject(CaseLedgerEntry)` with
+      `last_accepted_hash=""` whose rejected entry was included in a replay from genesis
+      it sent the same peer within a bounded interval; declining sends neither the case
+      nor any entry.
+    rationale: >-
+      A Reject the CASE_MANAGER handles after it already replayed that entry from
+      genesis to the same peer asks for a replay that is already on its way. The
+      CASE_MANAGER cannot rely on every participant to limit its own requests
+      (SYNC-15-016), because other implementations share the wire, so it may limit
+      them itself.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-15-003
+    adr:
+    - ADR-0168
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-15-020
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      The interval of SYNC-15-016 MUST be the replay cooldown's ceiling of SYNC-15-013,
+      600 seconds, read from the one constant that sets that ceiling.
+    rationale: >-
+      The participant's interval bounds the worst-case wait after a lost replay. Using
+      the ceiling the CASE_MANAGER already applies to a stuck peer keeps one number for
+      "how long a stuck replica may wait", and a shared constant keeps the two from
+      drifting apart.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-15-016
+    - rel_type: depends_on
+      spec_id: SYNC-15-013
+    adr:
+    - ADR-0168
+  - id: SYNC-15-021
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      A participant MUST record, per case it does not hold, the time it last sent a
+      genesis Reject for that case, in its own store as a record of its own kind, and
+      MUST delete that record when it seeds the case.
+    rationale: >-
+      The participant decides SYNC-15-016 when an early entry arrives, so it needs the
+      time of its last request then; no existing record carries it, since a held
+      Announce has no timestamp. Keeping it in the store survives a restart, and
+      deleting it on seed keeps a later genesis wait for the same case from inheriting
+      an old time.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-15-016
+    adr:
+    - ADR-0168
+  - id: SYNC-15-022
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      The CASE_MANAGER MUST record, per peer, the highest `log_index` its last non-empty
+      replay from genesis sent, and MUST decline under SYNC-15-019 a genesis Reject
+      whose rejected entry is at or below that index while less than the replay
+      cooldown's ceiling of SYNC-15-013 has passed since that replay; a declined Reject
+      MUST NOT update the recorded position or its replay count.
+    rationale: >-
+      The genesis cooldown starts at 2 seconds, so on a loaded host every queued genesis
+      Reject passed it and drew a full replay (#5552). A Reject of an entry the last
+      replay resent is answered by that replay. A later entry still replays under the
+      cooldown, and after the ceiling any Reject does (SYNC-15-018). An unchanged record
+      keeps a declined Reject from lengthening the next cooldown.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-15-019
+    - rel_type: depends_on
+      spec_id: SYNC-15-008
+    adr:
+    - ADR-0168
 - id: SYNC-16
   title: Divergence Recovery
   description: >-
