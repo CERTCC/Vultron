@@ -362,7 +362,7 @@ def test_render_for_kind_cross_links_resolve():
     the real ``specs/`` registry, every per-kind page and every Requirements
     Catalog page, and the catalog's copy on ``full.md``: each link must land
     on an id its target page defines. A per-kind page links a ``protocol`` or
-    ``foundation`` requirement on its catalog row (DF-12-002). Zero collected
+    ``foundation`` requirement on its catalog row (DF-12-010). Zero collected
     links is a failure, not a pass (DF-09-009).
     """
     registry = load_registry()

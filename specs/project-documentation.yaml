@@ -144,7 +144,8 @@ groups:
     # be split yet. The MUST fallback would become a new MUST that nothing
     # checks, and this SHOULD parent carries no verification_debt marker for it
     # to inherit, so the MS-10-016 guard would refuse its marker. Split it once
-    # the MUST half has a check, or once MS-10-016 lets such a child take debt.
+    # the MUST half has a check, or once MS-10-016 lets such a child take debt
+    # (#5570).
     - compound_statement
     statement: >-
       A workflow or tooling PR SHOULD update maintainer-facing documentation in the
