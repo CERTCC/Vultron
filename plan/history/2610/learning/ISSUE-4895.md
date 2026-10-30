@@ -28,3 +28,9 @@ informative, which is the other path `notes/rfc-spec-authoring.md` allows. If
 
 **Evidence.** PR #5173 § "Rules reworded as informative"; pre-push finding
 `phase8-normative-demotions-unrecorded-0`.
+
+**Resolved (tracked)**: 2026-10-30 — maintainer decided to add both requirements
+(receiver does not dereference the context; actor URI equality is identity, revisited
+with signing). They need new marker tests, so they are Task #5575 with drafted
+statements and the §14/§15.1 callouts.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/5581>.

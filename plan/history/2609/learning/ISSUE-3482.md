@@ -42,3 +42,7 @@ shares the query) found ignoring a spec-named authority already in force for its
 decision. Mirror image:
 [[20260916-3192-tightening-a-resolver-wakes-dormant-checks]], where a guard that
 existed never ran.
+
+**Unreproduced**: 2026-10-30 — single-witness theme-candidate older than 30 days with no
+independent corroboration (BW-07-007). Archived without promotion.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/5581>.

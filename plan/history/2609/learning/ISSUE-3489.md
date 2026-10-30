@@ -27,3 +27,9 @@ call, its dumped keys must be a subset of the keys the target accepts
 is waiting to confirm: when `extra="forbid"` is added or inherited, each
 cross-class `model_validate` into that model needs a structural test like this
 one, because example-based tests do not cover it. One instance so far.
+
+**Unreproduced**: 2026-10-30 — single-witness theme-candidate older than 30 days with no
+independent corroboration (BW-07-007). Checked against the code: the one core-to-wire
+revalidation (`ledger_entry_to_wire`) is same-class under ARCH-25-003, so no second
+instance. Archived without promotion.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/5581>.

@@ -47,3 +47,7 @@ codebase-side theme (a confident rationale suppresses scrutiny) is already
 tracked as #3535; this entry is the agent-behaviour side.
 
 Related: [[20260916-3192-tightening-a-resolver-wakes-dormant-checks]].
+
+**Unreproduced**: 2026-10-30 — single-witness theme-candidate older than 30 days with no
+independent corroboration (BW-07-007). Archived without promotion.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/5581>.

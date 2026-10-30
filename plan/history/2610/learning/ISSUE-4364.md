@@ -38,3 +38,9 @@ target=Case)`, with the Invite answer as each participant's consent? Or
 should they keep the shorthands as Invite answers and state that the
 EM-moving decision is a separate activity? Whichever it is, the docs
 table follows it.
+
+**Already closed**: 2026-10-30 — verified on main: MSM-02-004/005/006 map EJ, EC and ER
+to the owner's `Accept`/`Reject(EmbargoEvent)[target=VulnerabilityCase]` decision, and
+the docs table in `docs/topics/behavior_logic/use-cases/embargo-lifecycle.md` follows
+it. No promotion needed.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/5581>.

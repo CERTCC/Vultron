@@ -30,3 +30,9 @@ The stored-row refusal stayed in `RetiredFieldsRecord` because AC-3 names it.
 string matching, so it only works because the snake-case `event_type` key
 (core-side) is kept off `RETIRED_NAMES`. The pre-push review on PR #4909 flagged
 the conflict.
+
+**Promoted**: 2026-10-30 — MV-11-004 narrowed to received keys; the retired-list
+placement moved to MV-11-006, which allows the shared `RetiredFieldsRecord` for stored
+rows (`specs/message-validation.yaml`, `notes/wire-core-boundary.md`). Maintainer
+decided to drop retired-name tracking on both sides before 1.0: #5573.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/5581>.
