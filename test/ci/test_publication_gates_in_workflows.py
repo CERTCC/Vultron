@@ -41,6 +41,7 @@ from test.ci._workflows import (
     neutering,
     site_building_workflows,
     triggers,
+    workflow_files,
 )
 
 # Each built-site gate's command, and the requirement it implements.
@@ -344,7 +345,7 @@ def test_every_pull_request_to_publish_runs_the_step():
     if "workflow_call" in triggers(docs_build_check):
         candidates += [
             path
-            for path in sorted(WORKFLOWS_DIR.glob("*.yml"))
+            for path in workflow_files()
             if _runs_docs_build_check(load_workflow(path))
         ]
     assert any(

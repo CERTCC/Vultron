@@ -35,6 +35,7 @@ from test.ci._workflows import (
     local_action_steps,
     site_building_workflows,
     steps,
+    workflow_files,
 )
 
 ACTIONS_DIR = REPO_ROOT / ".github" / "actions"
@@ -158,9 +159,7 @@ def test_site_building_workflows_found():
 
 
 @pytest.mark.spec("DOCBW-06-006")
-@pytest.mark.parametrize(
-    "workflow", sorted(WORKFLOWS_DIR.glob("*.yml")), ids=lambda p: p.name
-)
+@pytest.mark.parametrize("workflow", workflow_files(), ids=lambda p: p.name)
 def test_no_workflow_runs_its_own_mkdocs_build(workflow: Path):
     builds = _own_builds(steps(load_workflow(workflow)))
     assert not builds, (
@@ -295,11 +294,7 @@ def test_publication_workflow_uploads_to_pages():
 @pytest.mark.spec("DOCBW-06-001")
 @pytest.mark.parametrize(
     "workflow",
-    [
-        path
-        for path in sorted(WORKFLOWS_DIR.glob("*.yml"))
-        if path != PUBLICATION_WORKFLOW
-    ],
+    [path for path in workflow_files() if path != PUBLICATION_WORKFLOW],
     ids=lambda p: p.name,
 )
 def test_no_other_workflow_uploads_to_pages(workflow: Path):

@@ -42,6 +42,10 @@ permissions:
 jobs:
   docs-build-check:
     runs-on: ubuntu-latest
+    # Observed: 1.5–4.5 min typical, one 16-min run, over the 15 latest successful
+    # runs (2026-10-30). Cap at 30 min so a hang fails fast instead of holding a
+    # runner until GitHub's 6-h limit (TB-14-006).
+    timeout-minutes: 30
     steps:
       # Only loads the local actions: build-site re-checks out the repository
       # with the history and tags the build needs (DOCBW-06-004).
