@@ -32,6 +32,8 @@ Submodules:
   every case activity stamps: lag, split, inert sender (SYNC-18)
 - ``position_statement``: the ``Read(CaseLedgerEntry)`` position check and
   the participant's position statements (SYNC-17)
+- ``invite_resend``: the resend of each Invite a participant that states its
+  position still owes an answer to (SYNC-20)
 - ``genesis_announce``: the genesis-Reject case pre-seed (SYNC-15-015)
 - ``reseed``: the rate-bounded re-seed of a diverged peer with a fresh case
   copy, and the log of a divergence a re-seed already covered: ERROR once the
@@ -116,6 +118,9 @@ from vultron.core.behaviors.sync.nodes.genesis_announce import (
 )
 from vultron.core.behaviors.sync.nodes.hash_mismatch import (
     ReportHashMismatchNode,
+)
+from vultron.core.behaviors.sync.nodes.invite_resend import (
+    ResendOwedInvitesNode,
 )
 from vultron.core.behaviors.sync.nodes.ledger_authority import (
     DeclineForeignLedgerCommitNode,
@@ -261,6 +266,8 @@ __all__ = [
     # position_statement (SYNC-17)
     "CheckStatedPositionInLedgerNode",
     "StateLedgerPositionsNode",
+    # invite_resend (SYNC-20)
+    "ResendOwedInvitesNode",
     # replay
     "AnnounceCaseOnGenesisRejectNode",
     # hash_mismatch (SYNC-03-010)

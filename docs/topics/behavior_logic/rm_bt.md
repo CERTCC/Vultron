@@ -8,12 +8,12 @@ stakeholder_type: [project-contributor]
 
 {% include-markdown "./_requirements_pointer.md" %}
 
-- [RMB-09](../../reference/specs/protocol.md#rmb-09) — Enter RM Received
-- [RMB-10](../../reference/specs/protocol.md#rmb-10) — Enter RM Valid
-- [RMB-11](../../reference/specs/protocol.md#rmb-11) — Enter RM Invalid
-- [RMB-12](../../reference/specs/protocol.md#rmb-12) — Enter RM Deferred
-- [RMB-13](../../reference/specs/protocol.md#rmb-13) — Enter RM Accepted
-- [RMB-14](../../reference/specs/protocol.md#rmb-14) — Enter RM Closed
+- [RMB-09](../../reference/vultron-spec/requirements/state-behavior.md#protocol-rmb-09) — Enter RM Received
+- [RMB-10](../../reference/vultron-spec/requirements/state-behavior.md#protocol-rmb-10) — Enter RM Valid
+- [RMB-11](../../reference/vultron-spec/requirements/state-behavior.md#protocol-rmb-11) — Enter RM Invalid
+- [RMB-12](../../reference/vultron-spec/requirements/state-behavior.md#protocol-rmb-12) — Enter RM Deferred
+- [RMB-13](../../reference/vultron-spec/requirements/state-behavior.md#protocol-rmb-13) — Enter RM Accepted
+- [RMB-14](../../reference/vultron-spec/requirements/state-behavior.md#protocol-rmb-14) — Enter RM Closed
 - [RMB-15](../../reference/specs/project.md#rmb-15) — RM Write-Boundary Transition Validation
 
 {% include-markdown "./_conformant_implementation_note.md" %}

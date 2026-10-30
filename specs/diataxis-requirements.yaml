@@ -1508,8 +1508,8 @@ groups:
       place by hand can stay on pages after those pages leave the normative set, so a
       page outside the set can call itself normative. A check against one declared list
       of normative pages finds each wrong banner and each missing banner. A failure on a
-      declared page that does not exist keeps the list current when pages move, for
-      example when the Requirements Catalog replaces the per-tier pages.
+      declared page that does not exist keeps the list current when pages move, as
+      they did when the Requirements Catalog replaced the per-tier pages.
     verification: >-
       A check over the `include-markdown` directives in `docs/` fails, naming
       `path:line`, when a declared page does not include the banner, when any other

@@ -8,8 +8,8 @@ stakeholder_type: [project-contributor]
 
 {% include-markdown "./_requirements_pointer.md" %}
 
-- [RMB-10](../../reference/specs/protocol.md#rmb-10) — Enter RM Valid
-- [RMB-11](../../reference/specs/protocol.md#rmb-11) — Enter RM Invalid
+- [RMB-10](../../reference/vultron-spec/requirements/state-behavior.md#protocol-rmb-10) — Enter RM Valid
+- [RMB-11](../../reference/vultron-spec/requirements/state-behavior.md#protocol-rmb-11) — Enter RM Invalid
 
 {% include-markdown "./_conformant_implementation_note.md" %}
 

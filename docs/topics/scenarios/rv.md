@@ -95,7 +95,7 @@ state to ACCEPTED and records an `engage_case` entry in the ledger.
 
 ### 4. Participant status records are created
 
-When the Case Actor records an engagement, it commits the RM status it wrote for the engaging actor as an `add_participant_status_to_participant` entry right after the `engage_case` entry ([CLP-07-013](../../reference/specs/protocol.md#clp-07-013)).
+When the Case Actor records an engagement, it commits the RM status it wrote for the engaging actor as an `add_participant_status_to_participant` entry right after the `engage_case` entry ([CLP-07-013](../../reference/vultron-spec/requirements/ledger-replication.md#clp-07-013)).
 Every replica copies that status, its id and time included.
 The records seated at case creation were ledgered earlier, each as a `create_case_participant` entry.
 

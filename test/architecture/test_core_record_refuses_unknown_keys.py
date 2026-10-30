@@ -83,6 +83,11 @@ _SAMPLES: dict[str, dict[str, Any]] = {
         "case_id": f"{_URI}/case",
         "use": "store",
     },
+    "InviteResendRecord": {
+        "invite_id": f"{_URI}/invite",
+        "peer_id": f"{_URI}/peer",
+        "last_resent_at": "2026-10-29T00:00:00Z",
+    },
     "ReceivedActivityRecord": {
         "activity_id": f"{_URI}/a-1",
         "received_body": "{}",

@@ -8,9 +8,9 @@ stakeholder_type: [project-contributor]
 
 {% include-markdown "./_requirements_pointer.md" %}
 
-- [CSB-12](../../reference/specs/protocol.md#csb-12) — Enter CS P (Public Aware)
-- [CSB-13](../../reference/specs/protocol.md#csb-13) — Enter CS X (Exploit Public)
-- [CSB-14](../../reference/specs/protocol.md#csb-14) — Enter CS A (Attacks Observed)
+- [CSB-12](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-12) — Enter CS P (Public Aware)
+- [CSB-13](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-13) — Enter CS X (Exploit Public)
+- [CSB-14](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-14) — Enter CS A (Attacks Observed)
 
 {% include-markdown "./_conformant_implementation_note.md" %}
 

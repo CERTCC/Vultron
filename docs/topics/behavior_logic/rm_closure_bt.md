@@ -8,7 +8,7 @@ stakeholder_type: [project-contributor]
 
 {% include-markdown "./_requirements_pointer.md" %}
 
-- [RMB-14](../../reference/specs/protocol.md#rmb-14) — Enter RM Closed
+- [RMB-14](../../reference/vultron-spec/requirements/state-behavior.md#protocol-rmb-14) — Enter RM Closed
 
 {% include-markdown "./_conformant_implementation_note.md" %}
 

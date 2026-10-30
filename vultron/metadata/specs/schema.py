@@ -29,6 +29,12 @@ _GROUP = r"\d{2}"
 _INDEX = r"\d{3}"
 _SUFFIX = r"[a-z]?"
 
+#: The ID grammar as pattern text, for a caller that composes it into a larger
+#: expression: a requirement ID with its optional sub-item letter, and a
+#: group ID (``PREFIX-NN``).
+SPEC_ID_PATTERN = rf"{_PREFIX}-{_GROUP}-{_INDEX}{_SUFFIX}"
+SPEC_GROUP_PATTERN = rf"{_PREFIX}-{_GROUP}"
+
 #: A fully-qualified requirement ID as it appears in prose — ``PREFIX-NN-NNN``
 #: (MS-04-001): 2–8 uppercase letters, two-digit group, three-digit index.
 #: ``\b`` on both sides keeps ``ADR-0001``, semantic versions, and a prefix

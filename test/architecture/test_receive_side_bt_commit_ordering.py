@@ -814,10 +814,11 @@ def test_only_permitted_stages_write_ahead_of_the_commit() -> None:
 
 @pytest.mark.spec("CLP-10-010")
 @pytest.mark.spec("SYNC-18-007")
+@pytest.mark.spec("SYNC-20-007")
 def test_the_ledger_position_answer_commits_nothing() -> None:
-    """It records replication state and may queue a replay or re-seed, but
-    no ledger entry: a position statement changes nothing in the case file
-    (SYNC-17-006)."""
+    """It records replication state and may resend owed Invites or queue a
+    replay or re-seed, but no ledger entry: a position statement changes
+    nothing in the case file (SYNC-17-006, SYNC-20-007)."""
     from test.architecture._received_tree_builds import built_received_trees
     from vultron.core.behaviors.sync.nodes.ledger_position import (
         LedgerPositionAnswer,
@@ -845,8 +846,10 @@ def test_the_ledger_position_answer_commits_nothing() -> None:
         if isinstance(n, _writer_types())
     }
     # The early-writer walk skips the answer, so its writes are pinned here:
-    # record replication state, replay a lag, re-seed a split (CLP-10-010).
+    # resend the Invites the sender owes (SYNC-20-001), record replication
+    # state, replay a lag, re-seed a split (CLP-10-010).
     assert writers == {
+        "ResendOwedInvitesNode",
         "UpdateReplicationStateNode",
         "SendMissingEntriesNode",
         "ReseedPeerNode",

@@ -19,11 +19,11 @@ You finish with the participant holding the role, or with the roster unchanged.
 {% include-markdown "./_demo_prerequisites.md" %}
 
 - An existing case on which you are the Case Owner.
-  The Case Manager acts on a role offer it receives only when the Case Owner sent it, and refuses one from anyone else ([CM-33-002](../../../reference/specs/protocol.md#cm-33-002)).
+  The Case Manager acts on a role offer it receives only when the Case Owner sent it, and refuses one from anyone else ([CM-33-002](../../../reference/vultron-spec/requirements/case-management.md#cm-33-002)).
 - The target participant's Uniform Resource Identifier (URI).
   The target must already be a participant in the case.
 - The specific `CVDRole` you intend to offer.
-  You cannot offer `CASE_OWNER` or `CASE_MANAGER`, and you cannot offer a role the target already holds ([CM-33-003](../../../reference/specs/protocol.md#cm-33-003)).
+  You cannot offer `CASE_OWNER` or `CASE_MANAGER`, and you cannot offer a role the target already holds ([CM-33-003](../../../reference/vultron-spec/requirements/case-management.md#cm-33-003)).
   Ownership moves through an [ownership transfer](../../../topics/case_lifecycle/ownership_transfer.md) instead.
 
 ---
@@ -63,7 +63,7 @@ sequenceDiagram
 
 ## Offer the role
 
-1. Send `Offer(CaseParticipantRole)` to the case's Case Manager only, with the Case Manager as the sole `to` recipient ([CM-33-001](../../../reference/specs/protocol.md#cm-33-001)).
+1. Send `Offer(CaseParticipantRole)` to the case's Case Manager only, with the Case Manager as the sole `to` recipient ([CM-33-001](../../../reference/vultron-spec/requirements/case-management.md#cm-33-001)).
 2. Carry the role in a `CaseParticipantRole` object, name the target participant in `target`, and name the case in `context`.
    `CaseParticipantRole` is a Vultron vocabulary type.
 
@@ -98,7 +98,7 @@ No `vultron-demo` scenario exercises role delegation yet; drive it through the [
 ## Answer a role offer
 
 Act only on a role offer the Case Manager sent you.
-A role offer from any other actor, the Case Owner included, is refused with no answer ([CM-33-004](../../../reference/specs/protocol.md#cm-33-004)).
+A role offer from any other actor, the Case Owner included, is refused with no answer ([CM-33-004](../../../reference/vultron-spec/requirements/case-management.md#cm-33-004)).
 
 Reply to the Case Manager only, never to the Case Owner, with the forwarded `Offer` as your `object`.
 
@@ -111,7 +111,7 @@ Reply to the Case Manager only, never to the Case Owner, with the forwarded `Off
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/reject-case-participant-role.md" %}
 
-The Case Manager acts on your answer only if you are the target of a role offer it recorded, and only while that offer is open ([CM-33-005](../../../reference/specs/protocol.md#cm-33-005)).
+The Case Manager acts on your answer only if you are the target of a role offer it recorded, and only while that offer is open ([CM-33-005](../../../reference/vultron-spec/requirements/case-management.md#cm-33-005)).
 The offer is open until the Case Manager records an `Accept` or `Reject` of it.
 An answer that names the forward is matched to the recorded offer through the forward's `inReplyTo`, never through the copy of the offer your answer carries.
 That copy must still name the offered role and you as the target, because every participant reads the grant from it.
@@ -127,7 +127,7 @@ It can refuse your own answer because the offer is no longer open or your copy d
 In that case, it sends you the [refusal notice](../../../reference/messages/faults_and_acknowledgements.md#refusal-notice): a `Reject` of your answer, with the reason in `summary`.
 If your answer is delivered again after the Case Manager recorded it, the Case Manager changes nothing.
 
-When it admits your answer, the Case Manager records it in the case ledger and announces the entry to every participant in the case ([CM-33-006](../../../reference/specs/protocol.md#cm-33-006)).
+When it admits your answer, the Case Manager records it in the case ledger and announces the entry to every participant in the case ([CM-33-006](../../../reference/vultron-spec/requirements/case-management.md#cm-33-006)).
 On an `Accept`, the Case Manager grants the role on its own copy of the case, and every other participant grants it when it replays the entry.
 You hold the role once the Case Manager records your `Accept` in the case ledger ([CM-02-016](../../../reference/specs/project.md#cm-02-016)).
 Consider what the role obliges you to do before accepting.

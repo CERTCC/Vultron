@@ -8,18 +8,18 @@ stakeholder_type: [project-contributor]
 
 {% include-markdown "./_requirements_pointer.md" %}
 
-- [CSB-01](../../reference/specs/protocol.md#csb-01) — Receive CV (Vendor Aware)
-- [CSB-02](../../reference/specs/protocol.md#csb-02) — Receive CF (Fix Ready)
-- [CSB-03](../../reference/specs/protocol.md#csb-03) — Receive CD (Fix Deployed)
-- [CSB-04](../../reference/specs/protocol.md#csb-04) — Receive CP (Public Aware)
-- [CSB-05](../../reference/specs/protocol.md#csb-05) — Receive CX (Exploit Public)
-- [CSB-06](../../reference/specs/protocol.md#csb-06) — Receive CA (Attacks Observed)
-- [CSB-07](../../reference/specs/protocol.md#csb-07) — Receive CE (CS Error)
-- [CSB-08](../../reference/specs/protocol.md#csb-08) — Receive CK (CS Acknowledgment)
-- [CSB-16](../../reference/specs/protocol.md#csb-16) — CS Write-Boundary Transition Validation
-- [CSB-17](../../reference/specs/protocol.md#csb-17) — CS Compound State and History Validity
-- [CSB-18](../../reference/specs/protocol.md#csb-18) — Cross-Machine State Entailments
-- [CSB-19](../../reference/specs/protocol.md#csb-19) — CS Ordering Invariants Under Out-of-Order Ledger Delivery
+- [CSB-01](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-01) — Receive CV (Vendor Aware)
+- [CSB-02](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-02) — Receive CF (Fix Ready)
+- [CSB-03](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-03) — Receive CD (Fix Deployed)
+- [CSB-04](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-04) — Receive CP (Public Aware)
+- [CSB-05](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-05) — Receive CX (Exploit Public)
+- [CSB-06](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-06) — Receive CA (Attacks Observed)
+- [CSB-07](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-07) — Receive CE (CS Error)
+- [CSB-08](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-08) — Receive CK (CS Acknowledgment)
+- [CSB-16](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-16) — CS Write-Boundary Transition Validation
+- [CSB-17](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-17) — CS Compound State and History Validity
+- [CSB-18](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-18) — Cross-Machine State Entailments
+- [CSB-19](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-19) — CS Ordering Invariants Under Out-of-Order Ledger Delivery
 
 {% include-markdown "./_conformant_implementation_note.md" %}
 

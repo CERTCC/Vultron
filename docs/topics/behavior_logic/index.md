@@ -44,11 +44,11 @@ The injection seam that lets a deployment answer a call-out point with a real se
 !!! info "Normative requirements for the behaviors described here"
 
     The machine-readable behavioral conformance requirements underlying the trees in this section
-    are located in the [Protocol Specifications](../../reference/specs/protocol.md):
+    are located in the [Requirements Catalog](../../reference/vultron-spec/requirements/index.md):
 
-    - [RMB — Report Management Behavioral Requirements](../../reference/specs/protocol.md#rmb)
-    - [EMB — Embargo Management Behavioral Requirements](../../reference/specs/protocol.md#emb)
-    - [CSB — CVD Case State Behavioral Requirements](../../reference/specs/protocol.md#csb)
+    - [RMB — Report Management Behavioral Requirements](../../reference/vultron-spec/requirements/state-behavior.md#protocol-rmb)
+    - [EMB — Embargo Management Behavioral Requirements](../../reference/vultron-spec/requirements/state-behavior.md#protocol-emb)
+    - [CSB — CVD Case State Behavioral Requirements](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb)
 
     Each page in this section lists the relevant spec group IDs in its **Requirements** section.
     The behavior tree diagrams illustrate one conformant implementation; implementations are not

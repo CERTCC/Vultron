@@ -425,20 +425,20 @@ Assignment through an existing instance always raises.
 
 | Requirement | Obligation |
 |---|---|
-| [EMB-01-002](../../../reference/specs/protocol.md#emb-01-002) | A proposal MUST be refused with ER when the case is public, exploited, or attacked |
-| [EMB-02-002](../../../reference/specs/protocol.md#emb-02-002) | An EA MUST NOT activate an embargo on a public case; emit ER |
-| [EMB-03-001](../../../reference/specs/protocol.md#emb-03-001) | An EV in `EM.ACTIVE` MUST move to `EM.REVISE`, leaving the active embargo in force |
-| [EMB-06-001](../../../reference/specs/protocol.md#emb-06-001) | An ER in `EM.PROPOSED` MUST return the case to `EM.NONE` when it rejects the last open proposal, and leave it `PROPOSED` while another is open |
-| [EMB-13-002](../../../reference/specs/protocol.md#emb-13-002) | An actor at `EM.EXITED` MUST NOT accept a new embargo for a public case |
+| [EMB-01-002](../../../reference/vultron-spec/requirements/state-behavior.md#emb-01-002) | A proposal MUST be refused with ER when the case is public, exploited, or attacked |
+| [EMB-02-002](../../../reference/vultron-spec/requirements/state-behavior.md#emb-02-002) | An EA MUST NOT activate an embargo on a public case; emit ER |
+| [EMB-03-001](../../../reference/vultron-spec/requirements/state-behavior.md#emb-03-001) | An EV in `EM.ACTIVE` MUST move to `EM.REVISE`, leaving the active embargo in force |
+| [EMB-06-001](../../../reference/vultron-spec/requirements/state-behavior.md#emb-06-001) | An ER in `EM.PROPOSED` MUST return the case to `EM.NONE` when it rejects the last open proposal, and leave it `PROPOSED` while another is open |
+| [EMB-13-002](../../../reference/vultron-spec/requirements/state-behavior.md#emb-13-002) | An actor at `EM.EXITED` MUST NOT accept a new embargo for a public case |
 | [EMB-15-002](../../../reference/specs/project.md#emb-15-002) | The response seam MUST bypass approval when the deciding actor is the case owner |
-| [EMB-16-001](../../../reference/specs/protocol.md#emb-16-001) | An actor at `EM.PROPOSED` observing the case go public MUST abandon the proposal and emit ER |
-| [EMB-16-002](../../../reference/specs/protocol.md#emb-16-002) | A participant that is not the case manager MUST NOT emit ER as that abandonment or write it itself; it still answers what it receives under EMB-01-002 |
-| [EMB-17-001](../../../reference/specs/protocol.md#emb-17-001) | A late `Accept` MUST NOT be refused solely because the deadline passed |
+| [EMB-16-001](../../../reference/vultron-spec/requirements/state-behavior.md#emb-16-001) | An actor at `EM.PROPOSED` observing the case go public MUST abandon the proposal and emit ER |
+| [EMB-16-002](../../../reference/vultron-spec/requirements/state-behavior.md#emb-16-002) | A participant that is not the case manager MUST NOT emit ER as that abandonment or write it itself; it still answers what it receives under EMB-01-002 |
+| [EMB-17-001](../../../reference/vultron-spec/requirements/state-behavior.md#emb-17-001) | A late `Accept` MUST NOT be refused solely because the deadline passed |
 | [EMB-18-001](../../../reference/specs/architecture.md#emb-18-001) | Every EM transition MUST route through the embargo lifecycle service or the function that applies a committed entry |
 | [EMB-18-003](../../../reference/specs/architecture.md#emb-18-003) | A case MUST NOT name an embargo whose record its store does not hold |
-| [EMB-19-001](../../../reference/specs/protocol.md#emb-19-001) | A teardown announcement MUST be authored by the case manager and exclude it from the recipients |
-| [EP-04-001](../../../reference/specs/protocol.md#ep-04-001) | A default embargo applied at case creation MUST produce `EM.ACTIVE`, not `EM.PROPOSED` |
-| [EP-07-003](../../../reference/specs/protocol.md#ep-07-003) | A sub-minimum RSVP deadline MUST be clamped up, not rejected |
+| [EMB-19-001](../../../reference/vultron-spec/requirements/state-behavior.md#emb-19-001) | A teardown announcement MUST be authored by the case manager and exclude it from the recipients |
+| [EP-04-001](../../../reference/vultron-spec/requirements/state-behavior.md#ep-04-001) | A default embargo applied at case creation MUST produce `EM.ACTIVE`, not `EM.PROPOSED` |
+| [EP-07-003](../../../reference/vultron-spec/requirements/state-behavior.md#ep-07-003) | A sub-minimum RSVP deadline MUST be clamped up, not rejected |
 
 ---
 
