@@ -6,13 +6,13 @@ stakeholder_type: [project-contributor]
 
 ## Requirements
 
-The [Protocol Specifications](../../reference/specs/protocol.md) and [Architecture Specifications](../../reference/specs/architecture.md) specify the behavioral requirements for this tree:
+The [Requirements Catalog](../../reference/vultron-spec/requirements/index.md) and [Architecture Specifications](../../reference/specs/architecture.md) specify the behavioral requirements for this tree:
 
-- [EMB-10](../../reference/specs/protocol.md#emb-10) — Enter EM Proposed
-- [EMB-11](../../reference/specs/protocol.md#emb-11) — Enter EM Active
-- [EMB-12](../../reference/specs/protocol.md#emb-12) — Enter EM Revise
-- [EMB-13](../../reference/specs/protocol.md#emb-13) — Enter EM Exited
-- [EMB-16](../../reference/specs/protocol.md#emb-16) — CS Public/Exploit/Attacks Detected While EM Proposed
+- [EMB-10](../../reference/vultron-spec/requirements/state-behavior.md#protocol-emb-10) — Enter EM Proposed
+- [EMB-11](../../reference/vultron-spec/requirements/state-behavior.md#protocol-emb-11) — Enter EM Active
+- [EMB-12](../../reference/vultron-spec/requirements/state-behavior.md#protocol-emb-12) — Enter EM Revise
+- [EMB-13](../../reference/vultron-spec/requirements/state-behavior.md#protocol-emb-13) — Enter EM Exited
+- [EMB-16](../../reference/vultron-spec/requirements/state-behavior.md#protocol-emb-16) — CS Public/Exploit/Attacks Detected While EM Proposed
 - [EMB-18](../../reference/specs/architecture.md#emb-18) — EM Write-Boundary Consolidation
 
 {% include-markdown "./_conformant_implementation_note.md" %}

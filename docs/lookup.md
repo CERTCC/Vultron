@@ -32,7 +32,6 @@ If this is your first visit, start from the [home page](index.md) instead: it se
 ## Implement the Protocol
 
 - [Protocol Specification](reference/vultron-spec/index.md) — The Vultron Protocol specification: its messages, their encoding and transport, and the state machines participants use to track a shared case.
-- [Protocol Requirements](reference/specs/index.md) — Structured requirements organized by portability tier: Protocol, Foundation, Architecture, Project, and Process.
 - [Messages](reference/messages/index.md) — How the formal message set relates to the ActivityStreams 2.0 (AS2) wire vocabulary the prototype sends and receives.
 - [Protocol Quick Reference](reference/quick_reference.md) — A single-page summary of the protocol's state machines, message types, and how they interact.
 - [Conformance Matrix](reference/conformance_matrix.md) — Which capability sets each Vultron role requires, which transitions each role may drive, and the named configurations a conformance claim can use, as tables checked against the specification.

@@ -46,7 +46,7 @@ So the creator that every replica records is the participant that really does ho
 A case comes into existence in one of two ways.
 The CASE_MANAGER accepts a proposal and creates the case, or an actor creates a case for itself and is then both its Case Owner and its CASE_MANAGER.
 Either way, the CASE_MANAGER commits the same ledger entries, in the same order, from the case file it has just written.
-These are the entries [CLP-07-013](../../reference/specs/protocol.md#clp-07-013) requires for a new case, in the shapes the table shows.
+These are the entries [CLP-07-013](../../reference/vultron-spec/requirements/ledger-replication.md#clp-07-013) requires for a new case, in the shapes the table shows.
 
 | Order | Entry (`semanticType`) | What it carries |
 |---|---|---|
@@ -62,13 +62,13 @@ Participants are taken in roster order.
 So a case created from a proposal has entries for the CASE_MANAGER, the Case Owner and the reporter.
 A case that an actor creates for itself has one participant entry, for the creator.
 
-Each commit sends its entry to the case's other participants, and a participant must hold the case before the first entry about it arrives ([CP-09-009](../../reference/specs/protocol.md#cp-09-009)).
+Each commit sends its entry to the case's other participants, and a participant must hold the case before the first entry about it arrives ([CP-09-009](../../reference/vultron-spec/requirements/case-management.md#cp-09-009)).
 The entries are committed after the `Create(VulnerabilityCase)` is queued, on both creation paths.
-That queued `Create` is the genesis entry itself, so the activity the case's first participant receives is the one every ledger records ([CLP-07-011](../../reference/specs/protocol.md#clp-07-011)).
-A ledger entry records a completed act, and a message is sent once it is in the sender's outbox ([SYNC-09-002](../../reference/specs/protocol.md#sync-09-002)).
+That queued `Create` is the genesis entry itself, so the activity the case's first participant receives is the one every ledger records ([CLP-07-011](../../reference/vultron-spec/requirements/ledger-replication.md#clp-07-011)).
+A ledger entry records a completed act, and a message is sent once it is in the sender's outbox ([SYNC-09-002](../../reference/vultron-spec/requirements/ledger-replication.md#sync-09-002)).
 When an actor creates a case for itself, it is the case's only participant, so the entries go to nobody.
 
-Every entry is required ([CLP-07-013](../../reference/specs/protocol.md#clp-07-013)).
+Every entry is required ([CLP-07-013](../../reference/vultron-spec/requirements/ledger-replication.md#clp-07-013)).
 The first entry that fails to commit stops the sequence, so no later entry is committed out of order, and the creation is reported as failed.
 On both paths the case, its records, the queued messages and the entries are written together, so an entry that fails removes all of them.
 Delivery learns of the queued messages only after they are written, so it never sends an `Accept` or a `Create` for a case that was then removed.

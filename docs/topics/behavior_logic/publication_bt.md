@@ -8,7 +8,7 @@ stakeholder_type: [project-contributor]
 
 {% include-markdown "./_requirements_pointer.md" %}
 
-- [CSB-12](../../reference/specs/protocol.md#csb-12) — Enter CS P (Public Aware)
+- [CSB-12](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-12) — Enter CS P (Public Aware)
 
 {% include-markdown "./_conformant_implementation_note.md" %}
 

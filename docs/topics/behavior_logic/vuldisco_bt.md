@@ -8,7 +8,7 @@ stakeholder_type: [project-contributor]
 
 {% include-markdown "./_requirements_pointer.md" %}
 
-- [CSB-09](../../reference/specs/protocol.md#csb-09) — Enter CS V (Vendor Aware)
+- [CSB-09](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-09) — Enter CS V (Vendor Aware)
 
 {% include-markdown "./_conformant_implementation_note.md" %}
 

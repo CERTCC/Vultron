@@ -237,6 +237,11 @@ _REPLICATION = (
     " position, last re-seed), not a record of the case (CM-10-005,"
     " SYNC-15-003, SYNC-16-004)"
 )
+_INVITE_RESEND = (
+    "requeues an Invite's sealed body and records the CASE_MANAGER's resend"
+    " cooldown for it, delivery bookkeeping that is not a record of the case"
+    " (SYNC-20-003, SYNC-20-005)"
+)
 _PROPOSAL_INDEX = (
     "records which Invite proposed an embargo to this replica, a per-replica"
     " correlation the replay never displaces (EP-09-003, EP-09-007)"
@@ -344,6 +349,10 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
     ): _HELD_ANNOUNCE,
     (f"{_B}.sync.nodes.replay", "SendMissingEntriesNode"): _REPLICATION,
     (f"{_B}.sync.nodes.reseed", "ReseedPeerNode"): _REPLICATION,
+    (
+        f"{_B}.sync.nodes.invite_resend",
+        "ResendOwedInvitesNode",
+    ): _INVITE_RESEND,
 }
 
 

@@ -36,6 +36,7 @@ from test.demo._helpers import (
     make_testclient_call,
     patch_chain_shared,
     stub_closure_gate,
+    stub_scenario_harness,
 )
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_of_type
@@ -376,6 +377,9 @@ class TestRvcvHandoffMilestoneAssertions:
             patch.object(demo, "_phase_publication"),
             patch.object(demo, "_phase_case_closure"),
             patch.object(demo, "_phase_dump_case_ledgers"),
+            # The phases are patched out, so no step is reached as declared
+            # and no store holds the deciders' roles (DEMOCI-11-013).
+            patch.object(demo, "scenario_harness", stub_scenario_harness),
             patch.object(demo, "get_actor_by_id", return_value=self._actor()),
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "verify_case_active") as mock_m1,
@@ -454,6 +458,9 @@ class TestRvcvHandoffMilestoneAssertions:
             patch.object(demo, "_phase_publication"),
             patch.object(demo, "_phase_case_closure"),
             patch.object(demo, "_phase_dump_case_ledgers"),
+            # The phases are patched out, so no step is reached as declared
+            # and no store holds the deciders' roles (DEMOCI-11-013).
+            patch.object(demo, "scenario_harness", stub_scenario_harness),
             patch.object(demo, "get_actor_by_id", return_value=self._actor()),
             patch.object(demo, "verify_case_active"),
             patch.object(

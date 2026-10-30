@@ -36,27 +36,28 @@ one place that decides where a row lives:
   ``#anchor``: the ``full.md`` link hook skips fenced code and never sees an
   exec block's output (``full_page_links.py``).
 
-Until the catalog publishes (#4901), :data:`CATALOG_PUBLISHED` is ``False`` and
-a requirement of either tier still links its row on its per-kind requirements
-page (``reference/specs/protocol.md`` or ``foundation.md``), which is where the
-row is in the built site today. Publishing flips the constant; no caller
-changes.
+* :func:`anchor_homes` maps each requirement, group and file ID to the
+  pages whose rendered rows or headings define its anchor, so a tool that
+  rewrites links (``scripts/relink_requirement_anchors.py``) and the gate
+  that holds ``docs/`` to them agree with the renderers.
+
+The two tiers have no per-kind requirements page: the catalog is where their
+rows are (SR-09-001), and the retired ``reference/specs/protocol.md`` and
+``foundation.md`` redirect to :data:`CATALOG_LANDING` (#4901).
 """
 
 from __future__ import annotations
 
 import os
 from collections import Counter
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 
 from vultron.metadata.docs.exec_page import EXEC_PAGE_ENV
 from vultron.metadata.docs.site_urls import relative_url
 from vultron.metadata.specs.registry import SpecRegistry
 from vultron.metadata.specs.schema import SpecKind
-
-CATALOG_PUBLISHED = False
-"""Whether the Requirements Catalog pages are in the built site (#4901)."""
 
 CATALOG_KINDS: frozenset[SpecKind] = frozenset(
     {SpecKind.PROTOCOL, SpecKind.FOUNDATION}
@@ -66,12 +67,39 @@ CATALOG_KINDS: frozenset[SpecKind] = frozenset(
 FULL_PAGE = "reference/vultron-spec/full.md"
 """The single-page edition, which includes the catalog in document order."""
 
-_CATALOG_PAGE = "reference/vultron-spec/requirements-{key}.md"
+CATALOG_DIR = "reference/vultron-spec/requirements"
+"""``docs/``-relative directory holding the Requirements Catalog pages."""
+
+CATALOG_LANDING = f"{CATALOG_DIR}/index.md"
+"""The catalog's routing landing page, which holds the §14 heading."""
+
+CATALOG_INTRO = "reference/vultron-spec/_catalog/_intro.md"
+"""The fragment holding the §14 heading and the catalog's framing."""
+
+_CATALOG_PAGE = CATALOG_DIR + "/{key}.md"
+_CATALOG_FRAGMENT = "reference/vultron-spec/_catalog/_{key}.md"
+_KIND_PAGE = "reference/specs/{kind}.md"
+
+RETIRED_KIND_PAGES: Mapping[str, SpecKind] = MappingProxyType(
+    {_KIND_PAGE.format(kind=kind.value): kind for kind in CATALOG_KINDS}
+)
+"""The per-kind pages of the two catalog tiers, retired into the catalog
+(#4901), each mapped to its tier. They redirect to :data:`CATALOG_LANDING`."""
 
 
 def kind_page(kind: SpecKind) -> str:
-    """Return the ``docs/``-relative source of *kind*'s requirements page."""
-    return f"reference/specs/{kind.value}.md"
+    """Return the ``docs/``-relative source of *kind*'s requirements page.
+
+    Raises:
+        ValueError: If *kind* is ``protocol`` or ``foundation``, whose rows are
+            in the Requirements Catalog instead (SR-09-001).
+    """
+    if kind in CATALOG_KINDS:
+        raise ValueError(
+            f"{kind.value} requirements have no per-kind page; they are in "
+            "the Requirements Catalog (SR-09-001, DF-12-001)"
+        )
+    return _KIND_PAGE.format(kind=kind.value)
 
 
 @dataclass(frozen=True)
@@ -79,7 +107,7 @@ class CatalogPage:
     """One Requirements Catalog page and the requirement files it holds.
 
     Attributes:
-        key: The page's key; its source is ``requirements-<key>.md``.
+        key: The page's key; its source is ``<key>.md`` in :data:`CATALOG_DIR`.
         title: The page's title.
         tier: The one requirement tier the page shows.
         files: The IDs of the requirement files whose ``tier`` items the page
@@ -95,6 +123,16 @@ class CatalogPage:
     def path(self) -> str:
         """The page's ``docs/``-relative source path."""
         return _CATALOG_PAGE.format(key=self.key)
+
+    @property
+    def fragment(self) -> str:
+        """The ``docs/``-relative fragment holding the page's subsection.
+
+        The page and ``full.md`` include it, and it alone calls
+        :func:`~vultron.metadata.specs.docs_render.render_catalog_page` for
+        this key, so the rows render on exactly those two pages (DF-12-002).
+        """
+        return _CATALOG_FRAGMENT.format(key=self.key)
 
 
 CATALOG_PAGES: tuple[CatalogPage, ...] = (
@@ -247,6 +285,11 @@ def _page_faults(pages: tuple[CatalogPage, ...]) -> list[str]:
         for page in pages
         if page.tier not in CATALOG_KINDS
     )
+    faults.extend(
+        f"catalog page key {page.key!r} would be the catalog landing page"
+        for page in pages
+        if page.path == CATALOG_LANDING
+    )
     foundation_pages = [p.key for p in pages if p.tier is SpecKind.FOUNDATION]
     if len(foundation_pages) != 1:
         faults.append(
@@ -348,24 +391,21 @@ def requirement_linker(
     page: str,
     *,
     pages: tuple[CatalogPage, ...] = CATALOG_PAGES,
-    published: bool | None = None,
 ) -> Callable[[str], str | None]:
     """Return a function giving the link target for a requirement ID on *page*.
 
     The returned function maps an ID to the URL of its row, relative to
-    *page*, or to ``None`` when the ID names no requirement. A ``protocol`` or
-    ``foundation`` requirement links its catalog row once the catalog is
-    *published* (default :data:`CATALOG_PUBLISHED`), in-page on ``full.md``
-    (DF-12-002), and its per-kind page row before then; any other kind links
-    its row on its per-kind requirements page.
+    *page*, or to ``None`` when the ID names no requirement or names one of
+    the two tiers whose file no catalog page places (a fault
+    :func:`placement_faults` reports). A ``protocol`` or ``foundation``
+    requirement links its catalog row, in-page on ``full.md`` (DF-12-002);
+    any other kind links its row on its per-kind requirements page.
 
     Args:
         registry: The loaded requirement registry.
         page: ``docs/``-relative source path of the page the link is on.
         pages: The placement table.
-        published: Whether the catalog is in the built site.
     """
-    is_published = CATALOG_PUBLISHED if published is None else published
     file_of = _file_of(registry)
 
     def href(spec_id: str) -> str | None:
@@ -374,25 +414,94 @@ def requirement_linker(
         except KeyError:
             return None
         anchor = requirement_anchor(spec_id)
-        if is_published and kind in CATALOG_KINDS:
-            target = _page_for(file_of[spec_id], kind, pages)
-            if target is not None:
-                if page == FULL_PAGE:
-                    return f"#{anchor}"
-                return site_href(page, target.path, anchor)
-        return site_href(page, kind_page(kind), anchor)
+        if kind not in CATALOG_KINDS:
+            return site_href(page, kind_page(kind), anchor)
+        target = _page_for(file_of[spec_id], kind, pages)
+        if target is None:
+            return None
+        if page == FULL_PAGE:
+            return f"#{anchor}"
+        return site_href(page, target.path, anchor)
 
     return href
 
 
+@dataclass(frozen=True)
+class AnchorHome:
+    """A page whose rendered requirements define an anchor.
+
+    Attributes:
+        page: The page's ``docs/``-relative source path.
+        fragment: The anchor's id on that page, without ``#``.
+        tier: The kind of the items the anchor stands for on that page.
+        items: How many of the ID's requirements the page shows there: one
+            for a requirement, the matching items for a group or file.
+    """
+
+    page: str
+    fragment: str
+    tier: SpecKind
+    items: int
+
+
+def anchor_homes(
+    registry: SpecRegistry,
+    pages: tuple[CatalogPage, ...] = CATALOG_PAGES,
+) -> dict[str, tuple[AnchorHome, ...]]:
+    """Map each requirement, group and file ID to the pages defining its anchor.
+
+    Keys are the lower-cased IDs (``vm-10-001``, ``vm-10``, ``vm``). A
+    requirement has one home. A group or file has one per page that shows
+    any of its items: its per-kind page, with the bare ID as the fragment,
+    or a catalog page, where the fragment carries the tier
+    (``protocol-vm-10``) so that ``full.md``, which holds both tiers, defines
+    no id twice. A requirement of the two tiers whose file no catalog page
+    places has no home. Homes are listed in :class:`SpecKind` order.
+    """
+    counts: Counter[tuple[str, str, str, SpecKind]] = Counter()
+    for spec_file in registry.files:
+        for group in spec_file.groups:
+            for spec in group.specs:
+                if spec.kind in CATALOG_KINDS:
+                    catalog = _page_for(spec_file.id, spec.kind, pages)
+                    if catalog is None:
+                        continue
+                    target, prefix = catalog.path, f"{spec.kind.value}-"
+                else:
+                    target, prefix = kind_page(spec.kind), ""
+                for key, fragment in (
+                    (spec_file.id, prefix + requirement_anchor(spec_file.id)),
+                    (group.id, prefix + requirement_anchor(group.id)),
+                    (spec.id, requirement_anchor(spec.id)),
+                ):
+                    counts[
+                        (requirement_anchor(key), target, fragment, spec.kind)
+                    ] += 1
+    order = list(SpecKind)
+    homes: dict[str, list[AnchorHome]] = {}
+    for (key, target, fragment, tier), items in counts.items():
+        homes.setdefault(key, []).append(
+            AnchorHome(target, fragment, tier, items)
+        )
+    return {
+        key: tuple(sorted(found, key=lambda h: order.index(h.tier)))
+        for key, found in homes.items()
+    }
+
+
 __all__ = [
+    "CATALOG_DIR",
+    "CATALOG_INTRO",
     "CATALOG_KINDS",
+    "CATALOG_LANDING",
     "CATALOG_PAGES",
-    "CATALOG_PUBLISHED",
     "FULL_PAGE",
+    "AnchorHome",
     "CatalogLocation",
     "CatalogPage",
+    "RETIRED_KIND_PAGES",
     "NotInCatalogError",
+    "anchor_homes",
     "catalog_location",
     "current_page",
     "kind_page",

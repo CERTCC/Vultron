@@ -76,6 +76,16 @@ nav:
       - Case Tracking Models: 'reference/vultron-spec/tracking-models.md'
       - Coordination, Interactions, and Lifecycle: 'reference/vultron-spec/interactions.md'
       - Conformance: 'reference/vultron-spec/conformance.md'
+      - Requirements Catalog:
+        - 'reference/vultron-spec/requirements/index.md'
+        - Vultron Protocol: 'reference/vultron-spec/requirements/vultron-protocol.md'
+        - Messages and Vocabulary: 'reference/vultron-spec/requirements/messages.md'
+        - Report, Embargo and Case State Behavior: 'reference/vultron-spec/requirements/state-behavior.md'
+        - Case Management: 'reference/vultron-spec/requirements/case-management.md'
+        - Case Ledger and Replication: 'reference/vultron-spec/requirements/ledger-replication.md'
+        - Message Processing: 'reference/vultron-spec/requirements/message-processing.md'
+        - Transport and Security: 'reference/vultron-spec/requirements/transport-security.md'
+        - Inherited Requirements: 'reference/vultron-spec/requirements/foundation.md'
       - Considerations and References: 'reference/vultron-spec/considerations.md'
       - Annexes:
         - 'Annex A Worked Example: Single-Vendor CVD': 'reference/vultron-spec/annex-a-single-vendor.md'
@@ -86,10 +96,7 @@ nav:
         - Annex F Behavior Trees as an Implementation Pattern: 'reference/vultron-spec/annex-f-behavior-trees.md'
         - Annex G Capability Shapes: 'reference/vultron-spec/annex-g-capability-shapes.md'
       - Open Questions: 'reference/vultron-spec/open-questions.md'
-    - Protocol Requirements:
-      - 'reference/specs/index.md'
-      - Protocol: 'reference/specs/protocol.md'
-      - Foundation: 'reference/specs/foundation.md'
+    - Protocol Requirements: 'reference/specs/index.md'
     - Messages:
       - 'reference/messages/index.md'
       - Report Management (RM): 'reference/messages/rm.md'
@@ -414,6 +421,11 @@ plugins:
         # Annex C of the Protocol Specification carries the notation; the older
         # page had no nav entry of its own (#5150).
         reference/notation.md: reference/vultron-spec/annex-c-notation.md
+        # The Protocol and Foundation tier pages were retired into the Protocol
+        # Specification's Requirements Catalog (#4901). An old deep link lands on
+        # the catalog landing, which routes to the row's page (ADR-0147).
+        reference/specs/foundation.md: reference/vultron-spec/requirements/index.md
+        reference/specs/protocol.md: reference/vultron-spec/requirements/index.md
         # The section 4 and 5 fragments were renamed with their sections (#5148).
         reference/vultron-spec/_semantic-layer.md: reference/vultron-spec/layers.md#4-messages-n
         reference/vultron-spec/_syntactic-layer.md: reference/vultron-spec/layers.md#5-encoding-and-transport-n

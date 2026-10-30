@@ -8,9 +8,9 @@ stakeholder_type: [project-contributor]
 
 {% include-markdown "./_requirements_pointer.md" %}
 
-- [CSB-09](../../reference/specs/protocol.md#csb-09) — Enter CS V (Vendor Aware)
-- [CSB-10](../../reference/specs/protocol.md#csb-10) — Enter CS F (Fix Ready)
-- [CSB-15](../../reference/specs/protocol.md#csb-15) — Trigger-Side VFD Role Preconditions
+- [CSB-09](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-09) — Enter CS V (Vendor Aware)
+- [CSB-10](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-10) — Enter CS F (Fix Ready)
+- [CSB-15](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb-15) — Trigger-Side VFD Role Preconditions
 
 {% include-markdown "./_conformant_implementation_note.md" %}
 

@@ -1,30 +1,14 @@
-"""Point docs citations of spec anchors at the kind page that renders them.
+"""Point every docs/ link to a requirement at the page that defines its anchor.
 
-Two passes over every ``docs/**/*.md``:
-
-1. **Requirement citations linking a group anchor.** Before the ``anchor_ids``
-   MkDocs hook (#3735), a ``<a id="mv-03-002">`` printed by the spec renderer's
-   exec block was invisible to ``mkdocs build --strict``, so every prose
-   citation of a single requirement linked its *group* heading instead:
-   ``[MV-03-002](../specs/protocol.md#mv-03)``. With the hook in place the
-   requirement's own anchor is a valid target, so each such link — link text a
-   single requirement ID, href a group anchor on a spec kind page — is
-   repointed at ``#mv-03-002``. A link whose text lists several IDs of that
-   group, ``[MV-10-004, MV-10-005](../specs/protocol.md#mv-10)``, is split into
-   one link per ID, each on its own kind's page: a relabel can move one ID off
-   the page while the group anchor still resolves there, so the build and
-   pass 2 both miss it (#4894).
-
-2. **Any link whose anchor does not render on the page it names.** A
-   requirement, group or file anchor appears only on the page(s) of the kinds
-   its items carry (SR-09-001, SR-09-002), so a ``kind:`` relabel (the MS-12
-   passes, #3600) silently moves the anchor to another page and every prose
-   link to it dangles. This pass rewrites the page slug to the one the anchor
-   renders on — for a group or file that straddles pages, the page holding the
-   most of its items.
-
-Both passes read the spec registry; an anchor the registry does not know is
-reported and left untouched.
+A requirement, group or file anchor is defined only where its items render: a
+``protocol`` or ``foundation`` item on its Requirements Catalog page in the
+Protocol Specification, any other kind on its per-kind page under
+``docs/reference/specs/`` (SR-09-001, SR-09-002, DF-12-002). A ``kind:``
+relabel, or a change to the catalog placement table, moves the anchor and
+every prose link to the old page dangles. This script rewrites those links;
+the rules are in :mod:`vultron.metadata.docs.requirement_links`, which the
+``test/metadata/docs/test_requirement_links.py`` gate also applies to the
+whole tree.
 
 Usage:
     uv run python scripts/relink_requirement_anchors.py [--check]
@@ -35,149 +19,32 @@ writing.
 
 from __future__ import annotations
 
-import re
 import sys
-from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS_DIR = ROOT / "docs"
 sys.path.insert(0, str(ROOT))
 
-from vultron.metadata.specs.registry import (  # noqa: E402
-    SpecRegistry,
-    load_registry,
+from vultron.metadata.docs.requirement_links import (  # noqa: E402
+    RelinkStats,
+    RequirementLinker,
 )
-from vultron.metadata.specs.schema import SpecKind  # noqa: E402
-
-#: Each kind's requirements page, ``docs/reference/specs/<slug>.md``.
-_KIND_SLUG = {kind: kind.value for kind in SpecKind}
-
-_SLUGS = "|".join(sorted(_KIND_SLUG.values()))
-
-_SPEC_ID = r"[A-Z][A-Z0-9]{1,7}-\d{2}-\d{3}[a-z]?"
-
-#: ``[XX-NN-NNN](<prefix>specs/<slug>.md#xx-nn)`` — one requirement ID, or a
-#: comma-separated list of them, as link text; a group anchor on a spec kind
-#: page as href.
-_GROUP_LINK_RE = re.compile(
-    r"\[(?P<ids>" + _SPEC_ID + r"(?:,\s*" + _SPEC_ID + r")*)\]"
-    r"\((?P<prefix>[^)#\s]*?)specs/(?P<slug>" + _SLUGS + r")\.md"
-    r"#(?P<group>[a-z0-9]+-\d{2})\)"
-)
-
-#: ``(<prefix>specs/<slug>.md#anchor)`` — any link into a spec kind page whose
-#: anchor is a file (``xx``), group (``xx-nn``) or requirement (``xx-nn-nnn``)
-#: ID, regardless of link text.
-_KIND_PAGE_LINK_RE = re.compile(
-    r"\((?P<prefix>[^)#\s]*?)specs/(?P<slug>" + _SLUGS + r")\.md"
-    r"#(?P<anchor>[a-z][a-z0-9]{1,7}(?:-\d{2}(?:-\d{3}[a-z]?)?)?)\)"
-)
-
-#: Tie-break for a group or file whose items are split evenly across pages.
-_KIND_ORDER = [_KIND_SLUG[k] for k in SpecKind]
-
-
-class _Repointer:
-    """Rewrite one matched group-anchor citation; keep the running tallies.
-
-    Every ID in the link text must belong to the anchored group, or the link
-    is left alone: a list that names another group's ID is not a citation of
-    this group's items.
-    """
-
-    def __init__(self, registry: SpecRegistry) -> None:
-        self._registry = registry
-        self.unknown: Counter[str] = Counter()
-        self.rewritten = 0
-        self.rerouted = 0
-
-    def __call__(self, match: re.Match[str]) -> str:
-        spec_ids = re.split(r",\s*", match.group("ids"))
-        group = match.group("group")
-        if any(group != _group_of(spec_id) for spec_id in spec_ids):
-            return match.group(0)  # not these requirements' group anchor
-        slugs: list[str] = []
-        unknown: list[str] = []
-        for spec_id in spec_ids:
-            try:
-                kind = self._registry.get_effective_kind(spec_id)
-            except KeyError:
-                unknown.append(spec_id)
-                continue
-            slugs.append(_KIND_SLUG[kind])
-        if unknown:
-            self.unknown.update(unknown)  # report every one, not the first
-            return match.group(0)
-        prefix = match.group("prefix")
-        links: list[str] = []
-        for spec_id, slug in zip(spec_ids, slugs, strict=True):
-            if slug != match.group("slug"):
-                self.rerouted += 1
-            self.rewritten += 1
-            links.append(
-                f"[{spec_id}]({prefix}specs/{slug}.md#{spec_id.lower()})"
-            )
-        return ", ".join(links)
-
-
-def _group_of(spec_id: str) -> str:
-    """The group anchor of *spec_id*: ``MV-10-004`` → ``mv-10``."""
-    return spec_id.lower().rsplit("-", 1)[0]
-
-
-class _Rerouter:
-    """Move a kind-page link to the page its anchor renders on (pass 2)."""
-
-    def __init__(self, registry: SpecRegistry) -> None:
-        # anchor -> {slug: item count} for every file, group and requirement ID
-        pages: dict[str, Counter[str]] = {}
-        for spec_file in registry.files:
-            for group in spec_file.groups:
-                for spec in group.specs:
-                    slug = _KIND_SLUG[spec.kind]
-                    for anchor in (
-                        spec_file.id.lower(),
-                        group.id.lower(),
-                        spec.id.lower(),
-                    ):
-                        pages.setdefault(anchor, Counter())[slug] += 1
-        self._pages = pages
-        self.unknown: Counter[str] = Counter()
-        self.rerouted = 0
-
-    def _page_for(self, anchor: str) -> str | None:
-        counts = self._pages.get(anchor)
-        if not counts:
-            return None
-        best = max(counts.values())
-        return next(s for s in _KIND_ORDER if counts.get(s) == best)
-
-    def __call__(self, match: re.Match[str]) -> str:
-        anchor = match.group("anchor")
-        counts = self._pages.get(anchor)
-        if counts is None:
-            self.unknown[anchor] += 1
-            return match.group(0)
-        slug = match.group("slug")
-        if slug in counts:
-            return match.group(0)
-        target = self._page_for(anchor)
-        self.rerouted += 1
-        return f"({match.group('prefix')}specs/{target}.md#{anchor})"
+from vultron.metadata.specs.registry import load_registry  # noqa: E402
 
 
 def main(argv: list[str]) -> int:
     check = "--check" in argv
-    registry = load_registry()
-    repoint = _Repointer(registry)
-    reroute = _Rerouter(registry)
+    linker = RequirementLinker(load_registry())
+    stats = RelinkStats()
     changed_files = 0
 
     for path in sorted(DOCS_DIR.rglob("*.md")):
         before = path.read_text(encoding="utf-8")
-        after = _GROUP_LINK_RE.sub(repoint, before)
-        after = _KIND_PAGE_LINK_RE.sub(reroute, after)
+        after, file_stats = linker.relink(
+            before, path.relative_to(DOCS_DIR).as_posix()
+        )
+        stats.add(file_stats)
         if after != before:
             changed_files += 1
             print(f"{path.relative_to(ROOT)}")
@@ -185,15 +52,14 @@ def main(argv: list[str]) -> int:
                 path.write_text(after, encoding="utf-8")
 
     print(
-        f"{repoint.rewritten} requirement link(s) repointed at their own "
-        f"anchor, {repoint.rerouted} of them moved to a different kind page; "
-        f"{reroute.rerouted} link(s) moved to the page their anchor renders "
-        f"on; {changed_files} file(s) changed"
+        f"{stats.repointed} requirement link(s) repointed at their own "
+        f"anchor; {stats.moved} link(s) moved to the page their anchor "
+        f"renders on; {changed_files} file(s) changed"
     )
-    for spec_id, count in sorted(repoint.unknown.items()):
+    for spec_id, count in sorted(stats.unknown_ids.items()):
         print(f"unknown requirement left as-is: {spec_id} ({count})")
-    for anchor, count in sorted(reroute.unknown.items()):
-        print(f"unknown anchor left as-is: #{anchor} ({count})")
+    for anchor, count in sorted(stats.unknown_anchors.items()):
+        print(f"unknown anchor left as-is: {anchor} ({count})")
     if check and changed_files:
         return 1
     return 0

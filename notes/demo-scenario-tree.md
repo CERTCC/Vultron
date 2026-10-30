@@ -128,12 +128,15 @@ DEMOCI-11-018). The test is `TestSharedPrefixes` in
   default case roles (CP-01-013), so a case owner must run in the same slot
   as in its siblings, or the first entry already differs.
 - The check reads where each branch point falls from the step marks. A
-  scenario calls `harness.reach_step(branch_point, choice)` where it makes the
-  decision, before another role's steps that run ahead of the choice's
-  trigger; inside a phase it calls the module-level `reach_step`. A shared
-  helper takes a hook instead (`before_answer=step_reporter(...)` on the
+  scenario calls `harness.reach_step(branch_point, choice, by=actor_id)` where
+  it makes the decision, before another role's steps that run ahead of the
+  choice's trigger; inside a phase it calls the module-level `reach_step`. A
+  shared helper takes a hook instead (`before_answer=step_reporter(...)` on the
   invite chain). The recorder commits the marks as `steps.json` beside each
   recording and refuses a run that leaves a declared step unmarked.
+- The harness also checks the `by` actor holds the branch point's role; the
+  rule is in [demo-scenario-registry.md](demo-scenario-registry.md) §
+  "The path and the branch-point table".
 
 ## Test starting points
 

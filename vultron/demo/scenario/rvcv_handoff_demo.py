@@ -275,6 +275,8 @@ def _phase_report_submission(
         coordinator_client, coordinator.id_
     )
 
+    # The Reporter's decision; its role comes from submitting the report.
+    reach_step("reporter-whom-to-tell", "vendor", by=reporter.id_)
     report, offer = reporter_submits_report(
         receiver_client=vendor_client,
         reporter=reporter,
@@ -380,7 +382,7 @@ def _phase_ownership_handoff(
         )
         logger.info("Coordinator has joined the case")
         # Vendor1, the case owner, decides once the Coordinator has joined.
-        reach_step("owner-keep-case", "offer-ownership")
+        reach_step("owner-keep-case", "offer-ownership", by=vendor.id_)
 
         # Vendor1 offers ownership transfer to Coordinator (TRIG-11-001).  The
         # delivery gate and the Coordinator's accept are nested inside the
@@ -1066,7 +1068,6 @@ def run_rvcv_handoff_demo(
 ) -> None:
     """Orchestrate the RVCV-handoff CVD workflow."""
     with scenario_harness("rvcv-handoff") as harness:
-        harness.reach_step("reporter-whom-to-tell", "vendor")
         logger.info("=" * 80)
         logger.info(
             "RVCV-HANDOFF DEMO: Reporter + Vendor1 → Coordinator (ownership) + Vendor2"
@@ -1141,7 +1142,9 @@ def run_rvcv_handoff_demo(
             vendor_in_vendor,
             case,
         )
-        harness.reach_step("vendor-after-answer", "invite-coordinator")
+        harness.reach_step(
+            "vendor-after-answer", "invite-coordinator", by=vendor.id_
+        )
 
         case = _phase_ownership_handoff(
             reporter_client=reporter_client,

@@ -98,6 +98,7 @@ PYTHONPATH= uv run spec-dump --topic CS --text
   - `VULTRON_DATABASE__DB_URL` — SQLite URL (tests force `sqlite:///:memory:`).
   - `VULTRON_MODE` — runtime mode.
   - `VULTRON_LEDGER__CLOCK_SKEW_TOLERANCE_SECONDS`, `VULTRON_LEDGER__FUTURE_TOLERANCE_SECONDS`, `VULTRON_LEDGER__STALENESS_WINDOW_DAYS` — ledger timestamp tolerances (`vultron/config/ledger.py`).
+  - `VULTRON_LEDGER__POSITION_STATEMENT_INTERVAL_SECONDS` (off by default), `VULTRON_LEDGER__INVITE_RESEND_COOLDOWN_SECONDS` (30 s), `VULTRON_LEDGER__INVITE_RESEND_MAX_COOLDOWN_SECONDS` (600 s) — the participant position-statement interval and the CASE_MANAGER unanswered-Invite resend cooldown (SYNC-17-007, SYNC-20-005).
 - `.env.example` documents only `PROJECT_NAME` (default `vultron`), which the Docker Compose files use for image names.
 - Deployment/runtime constraints: Python 3.12+; runs via uvicorn as the ASGI app `vultron.adapters.driving.fastapi.main:app`.
 - Containerized multi-actor demo: `docker/docker-compose.yml` and `docker/docker-compose-multi-actor.yml` (single Dockerfile at `docker/Dockerfile`, entrypoint `docker/demo-entrypoint.sh`, seed configs under `docker/seed-configs/`), used by the `demo-integration.yml` CI workflow.

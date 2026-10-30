@@ -74,7 +74,8 @@ def test_each_declared_step_is_reported_once(spec: ScenarioSpec) -> None:
     declared = Counter(spec.path)
     assert reported == declared, (
         f"{spec.demo_path} reports {dict(reported)}, but its path declares "
-        f"{dict(declared)}. Call harness.reach_step(branch_point, choice) "
-        "once per declared step, where the scenario makes the decision "
+        f"{dict(declared)}. Call harness.reach_step(branch_point, choice, "
+        "by=actor_id) once per declared step, where the scenario makes the "
+        "decision "
         "(notes/demo-scenario-tree.md § Shared-prefix check)."
     )

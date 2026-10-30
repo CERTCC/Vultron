@@ -8,9 +8,9 @@ stakeholder_type: [project-contributor]
 
 {% include-markdown "./_requirements_pointer.md" %}
 
-- [EMB-13](../../reference/specs/protocol.md#emb-13) — Enter EM Exited
-- [EMB-14](../../reference/specs/protocol.md#emb-14) — Actor-Voluntary Embargo Termination (Trigger Side)
-- [EMB-19](../../reference/specs/protocol.md#emb-19) — Embargo Teardown Announcement
+- [EMB-13](../../reference/vultron-spec/requirements/state-behavior.md#protocol-emb-13) — Enter EM Exited
+- [EMB-14](../../reference/vultron-spec/requirements/state-behavior.md#protocol-emb-14) — Actor-Voluntary Embargo Termination (Trigger Side)
+- [EMB-19](../../reference/vultron-spec/requirements/state-behavior.md#protocol-emb-19) — Embargo Teardown Announcement
 
 {% include-markdown "./_conformant_implementation_note.md" %}
 
