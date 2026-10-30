@@ -279,7 +279,7 @@ def nav_paths(root: Path | None = None) -> frozenset[str]:
 
     Shared by every consumer that checks nav placement rather than
     regenerating the nav: scenario narrative pages must be present
-    (DEMOCI-11-007), while ADR pages (MS-14-006) and other working-record pages
+    (DEMOCI-11-007), while ADR pages (MS-14-017) and other working-record pages
     (DF-11-003, ``docs-frontmatter``) must be absent. The nav's labels are
     hand-written prose, so only the *set* of files is derivable.
     """

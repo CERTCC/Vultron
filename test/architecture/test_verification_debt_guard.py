@@ -44,7 +44,7 @@ def test_no_pr_adds_a_verification_debt_marker():
         "verification_debt marker(s)",
         "Give each requirement a `verification:` criterion instead of a "
         "marker: new debt is not accepted, and a relabel replaces its marker "
-        "rather than re-pointing it at another kind's owner (MS-10-007, "
+        "rather than re-pointing it at another kind's owner (MS-10-016, "
         "MS-10-008). A new ID split off a marked requirement keeps its marker "
         "only when its own relationships: name that requirement.",
     )

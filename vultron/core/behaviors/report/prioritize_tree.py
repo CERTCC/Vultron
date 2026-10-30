@@ -123,7 +123,7 @@ def create_engage_case_tree(
         actor_id: The sender, whose declared RM state (ACCEPTED) is recorded
             (RSH-08-001)
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         Root node of the engage_case behavior tree (Sequence)
@@ -186,7 +186,7 @@ def create_defer_case_tree(
         actor_id: The sender, whose declared RM state (DEFERRED) is recorded
             (RSH-08-001)
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         Root node of the defer_case behavior tree (Sequence)

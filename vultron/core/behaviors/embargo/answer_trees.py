@@ -144,7 +144,7 @@ def accept_invite_to_embargo_tree(
         accepting_actor_id: Actor ID of the participant accepting.
         invite_id: ID of the InviteToEmbargoOnCase activity.
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
         now: The CASE_MANAGER's clock reading the RSVP deadline is compared
             against.
         accept_id: The Accept's own id; a re-invite's id derives from it,
@@ -296,7 +296,7 @@ def reject_invite_to_embargo_tree(
         embargo_id: ID of the EmbargoEvent the Reject names (required: which
             terms are refused decides the consent effect, MSM-07-004).
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         Root node of the ``RejectInviteToEmbargoBT`` Sequence.

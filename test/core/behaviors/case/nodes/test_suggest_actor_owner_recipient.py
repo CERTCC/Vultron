@@ -205,6 +205,7 @@ class TestOfferCaseParticipantAddressesTheCaseOwner:
         assert status == Status.SUCCESS
         assert _queued_recipients(case_actor_dl, "Offer") == [OWNER_ID]
 
+    @pytest.mark.spec("BT-17-016")
     @pytest.mark.spec("CM-16-004")
     def test_fails_when_the_only_candidate_is_the_emitting_actor(
         self, case_actor_dl

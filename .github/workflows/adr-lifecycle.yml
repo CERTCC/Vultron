@@ -1,17 +1,18 @@
 # A pull request that materially edits an ADR leaves its status on the epoch
-# ADR-0120 computes for that date (MS-14-007, MS-14-009), moves a status ahead
-# of its epoch only with a new status_override (MS-14-012), and one that gives
-# a proposed ADR its first test-verified dependent flips it to
-# accepted-provisional (MS-14-010). The dependent can arrive in a spec or a
+# ADR-0120 computes for that date (MS-14-019, MS-14-020), moves a status ahead
+# of its epoch only with a new status_override (MS-14-029, MS-14-030), and one
+# that gives a proposed ADR its first test-verified dependent flips it to
+# accepted-provisional (MS-14-010, MS-14-026). The dependent can arrive in a spec or a
 # test file alone, so the job runs on those paths too.
 #
 # The check compares the pull request with its merge base, so it can fail
-# only the pull request that made the change. The clock alone never fails a
-# merge-blocking check; drift on ADRs a pull request did not touch is
+# only the pull request that made the change (MS-14-025). The clock alone never
+# fails a merge-blocking check (MS-14-021); drift on ADRs a pull request did not touch is
 # reported by adr-status-drift.yml.
 #
 # The same job refuses an unresolvable path or code symbol that the pull
-# request adds to an ADR it edits (MS-15-006), against the same merge base.
+# request adds to an ADR it edits (MS-15-006, MS-15-009), against the same
+# merge base.
 
 name: ADR Lifecycle
 
@@ -55,10 +56,10 @@ jobs:
           base=$(git merge-base "origin/$BASE_REF" HEAD)
           mapfile -t adrs < <(git diff --name-only --diff-filter=AMR "$base" HEAD -- 'docs/adr/*.md')
           rc=0
-          # MS-14-007/009/012: edited ADRs keep their status on the epoch.
-          # MS-14-010: runs with no ADR changed, for a new dependent.
+          # MS-14-019/020/029/030: edited ADRs keep their status on the epoch.
+          # MS-14-010/026: runs with no ADR changed, for a new dependent.
           PYTHONPATH='' uv run python -m vultron.metadata.adr.lifecycle --base "$base" "${adrs[@]}" || rc=1
-          # MS-15-006: a reference the edit adds to an ADR resolves.
+          # MS-15-006/009: a reference the edit adds to an ADR resolves.
           if [ "${#adrs[@]}" -gt 0 ]; then
             PYTHONPATH='' uv run python -m vultron.metadata.adr.added_refs --base "$base" "${adrs[@]}" || rc=1
           fi

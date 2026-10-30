@@ -17,7 +17,7 @@ class TestFollowUpOnErrorMessage:
         assert isinstance(node, py_trees.behaviour.Behaviour)
 
     def test_has_docstring(self):
-        """Must have a non-empty docstring (BT-16-003)."""
+        """Must have a non-empty docstring (BT-16-007)."""
         assert FollowUpOnErrorMessage.__doc__
         assert FollowUpOnErrorMessage.__doc__.strip()
 

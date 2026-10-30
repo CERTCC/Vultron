@@ -15,7 +15,7 @@
 Some spec rules have a backlog in the corpus, so ``spec-lint`` cannot fail on
 them corpus-wide. Scoped to the branch, they hold for everything it touches:
 
-- **MS-10-011** — each requirement the branch adds or changes (any field, see
+- **MS-10-027** — each requirement the branch adds or changes (any field, see
   :func:`~vultron.metadata.specs.verification_refs.changed_requirement_ids`)
   whose ``verification:`` names test files has the requirement's marker in one
   of them, when its kind is ``protocol`` or ``foundation``.
@@ -31,7 +31,7 @@ first two rules and MS-03-007's one-obligation rule also run as growth guards
 under ``test/architecture/``, so CI holds them too. The base is required: a ref that
 does not resolve is an error (exit 2), never a pass.
 
-Requirements: specs/meta-specifications.yaml MS-10-011, MS-03-007;
+Requirements: specs/meta-specifications.yaml MS-10-011, MS-10-027, MS-03-007;
 specs/project-documentation.yaml PD-10-002;
 specs/parallel-development.yaml PAD-20-003.
 """

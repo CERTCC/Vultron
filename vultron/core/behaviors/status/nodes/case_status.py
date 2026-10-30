@@ -21,7 +21,7 @@ CASE_MANAGER's status from the ledger fan-out (RSH-04-005, RSH-08-003).
 
 :class:`~vultron.core.behaviors.case_status_snapshot.EmitCaseStatusUpdateNode`,
 which embargo and status trees both compose, lives in the shared
-:mod:`vultron.core.behaviors.case_status_snapshot` module (BTND-04-001).
+:mod:`vultron.core.behaviors.case_status_snapshot` module (BTND-04-005).
 
 The whole accept-or-reject guard (RSH-09-005) lives in
 :mod:`case_status_acceptance`.

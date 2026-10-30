@@ -37,7 +37,7 @@ SUPERSESSION_FIELDS: tuple[str, ...] = tuple(
 
 
 class AdrLintSuppressCode(StrEnum):
-    """Named ADR lint checks suppressible via ``lint_suppress`` (MS-14-002, MS-15-007).
+    """Named ADR lint checks suppressible via ``lint_suppress`` (MS-14-013, MS-15-007).
 
     Mirrors the spec-level ``LintWarningCode`` mechanism (SR-02-011).
     """
@@ -167,7 +167,7 @@ class AdrFrontmatter(BaseModel):
 
     @model_validator(mode="after")
     def superseded_by_required_when_retired(self) -> AdrFrontmatter:
-        """Require ``superseded_by`` when the ADR is retired (MS-14-004).
+        """Require ``superseded_by`` when the ADR is retired (MS-14-016).
 
         A ``superseded`` or ``deprecated`` ADR without a pointer to its
         replacement is a dead end for the agent that lands on it.

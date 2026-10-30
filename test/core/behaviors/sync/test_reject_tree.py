@@ -175,7 +175,7 @@ def test_create_reject_log_entry_tree_returns_sequence():
     )
     assert tree.name == "RejectLogEntryReceivedBT"
     # Intake first (CLP-10-017), the addressee door (HP-01-005), the sender
-    # guard the factory composes (HP-01-008, #4696), the case lookup, then
+    # guard the factory composes (HP-01-025, #4696), the case lookup, then
     # the CASE_MANAGER gate holding every effect (BT-17-008).
     assert [child.name for child in tree.children] == [
         "IntakeReceivedActivityNode",

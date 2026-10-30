@@ -16,9 +16,15 @@ from test.support.case_owner import (
     CONSTRUCTED_CASE_OWNERSHIP,
 )
 from test.support.embargo_register import register
+from test.support.inbox_replay import (
+    RecordingInboxReplay,
+    held_depth,
+    hold_received,
+    ledger_announce_event,
+)
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.create_case_received_tree import (
     create_create_case_received_tree,
 )
@@ -28,8 +34,10 @@ from vultron.core.behaviors.case.nodes.replica_bootstrap import (
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsExpectedCaseCreatorNode,
 )
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_register import carry_embargo_inline
 from vultron.core.models.events.case import CreateCaseReceivedEvent
@@ -346,6 +354,7 @@ def _run_at_owner(
     owner_dl: SqliteDataLayer | None = None,
     *,
     pending_link: bool = True,
+    inbox_replay: RecordingInboxReplay | None = None,
 ) -> tuple[SqliteDataLayer, Status]:
     """Run the bootstrap tree at the owner, which expects *sender*'s Create.
 
@@ -353,6 +362,25 @@ def _run_at_owner(
     tree takes the trusted route; without it a link the first run bound
     stays bound, so the tree takes the redelivery route.
     """
+    owner_dl, result = _run_at_owner_result(
+        case,
+        sender,
+        owner_dl,
+        pending_link=pending_link,
+        inbox_replay=inbox_replay,
+    )
+    return owner_dl, result.status
+
+
+def _run_at_owner_result(
+    case: as_VulnerabilityCase,
+    sender: str = _CREATOR,
+    owner_dl: SqliteDataLayer | None = None,
+    *,
+    pending_link: bool = True,
+    inbox_replay: RecordingInboxReplay | None = None,
+) -> tuple[SqliteDataLayer, BTExecutionResult]:
+    """:func:`_run_at_owner`, returning the whole bridge result."""
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
@@ -371,8 +399,13 @@ def _run_at_owner(
     )
     result = BTBridge(
         datalayer=owner_dl, trigger_activity=TriggerActivityAdapter(owner_dl)
-    ).execute_with_setup(tree=tree, actor_id=_OWNER, activity=event)
-    return owner_dl, result.status
+    ).execute_with_setup(
+        tree=tree,
+        actor_id=_OWNER,
+        activity=event,
+        inbox_replay=inbox_replay,
+    )
+    return owner_dl, result
 
 
 def _introductions(owner_dl: SqliteDataLayer) -> list[as_Create]:
@@ -644,3 +677,123 @@ def test_reporter_trusts_a_receiver_that_is_its_own_case_manager(
     assert bound.case_creator_id == _OWNER
     assert bound.case_manager_id == _OWNER
     assert dl.outbox_list() == []
+
+
+def _hold_pre_genesis_entries(
+    owner_dl: SqliteDataLayer, case: as_VulnerabilityCase, count: int
+) -> list[str]:
+    """Hold *count* of the CASE_MANAGER's entries at the owner, pre-genesis.
+
+    They are the fan-out that reached the owner before the case's Create
+    (SYNC-15-004); returns the held Announces' ids in chain order.
+    """
+    prev = case.genesis_hash
+    announce_ids: list[str] = []
+    for index in range(count):
+        entry = _to_persistable_entry(
+            HashChainLedgerRecord(
+                case_id=_CASE_ID,
+                log_index=index,
+                object_id=f"https://example.org/activities/held-{index}",
+                semantic_type="test_event",
+                payload_snapshot={"index": index},
+                prev_log_hash=prev,
+            )
+        )
+        event = ledger_announce_event(entry, actor=_CREATOR, to=_OWNER)
+        hold_received(owner_dl, event)
+        announce_ids.append(event.activity_id)
+        prev = entry.entry_hash
+    return announce_ids
+
+
+@pytest.mark.spec("SYNC-15-005")
+@pytest.mark.spec("SYNC-14-009")
+@pytest.mark.spec("CBT-01-001")
+def test_report_receiver_drains_the_held_entries_and_introduces():
+    """The trusted seed at the report receiver drains, then introduces.
+
+    The CASE_MANAGER's fan-out may reach the owner before its Create.  The
+    seed anchors the genesis hash, so the tree replays the held genesis
+    entry's Announce as a delivery of its own, then queues the
+    introduction (#5521).
+    """
+    case = _owned_case(extra=(_participant(_REPORTER, CVDRole.REPORTER),))
+    owner_dl = _owner_store()
+    held = _hold_pre_genesis_entries(owner_dl, case, 2)
+    replay = RecordingInboxReplay()
+
+    _, status = _run_at_owner(case, owner_dl=owner_dl, inbox_replay=replay)
+
+    assert status == Status.SUCCESS
+    assert len(_introductions(owner_dl)) == 1
+    # Only the genesis entry's Announce: its own delivery replays the next.
+    assert replay.replayed == [held[0]]
+    assert held_depth(owner_dl, _CASE_ID) == 1
+
+
+@pytest.mark.spec("SYNC-14-009")
+def test_held_entries_without_a_replay_port_are_a_wiring_fault():
+    """A missing port fails the tree, never applies inline; the seed stays."""
+    case = _owned_case(extra=(_participant(_REPORTER, CVDRole.REPORTER),))
+    owner_dl = _owner_store()
+    _hold_pre_genesis_entries(owner_dl, case, 1)
+
+    _, result = _run_at_owner_result(case, owner_dl=owner_dl)
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert "inbox_replay" in (result.feedback_message or "")
+    assert isinstance(owner_dl.read(_CASE_ID), VulnerabilityCase)
+    assert held_depth(owner_dl, _CASE_ID) == 1
+
+
+@pytest.mark.spec("SYNC-15-005")
+@pytest.mark.spec("CBT-01-006")
+def test_redelivery_drains_entries_the_first_delivery_left_held():
+    """A redelivered Create drains what a failed first drain left held.
+
+    The first delivery seeds the case and binds the link, then fails its
+    drain (no replay port).  The redelivery takes the redelivery route; it
+    still owes the drain, or the held entries wait for the CASE_MANAGER's
+    rate-limited replay (#5521).
+    """
+    case = _owned_case(extra=(_participant(_REPORTER, CVDRole.REPORTER),))
+    owner_dl = _owner_store()
+    held = _hold_pre_genesis_entries(owner_dl, case, 1)
+    _, status = _run_at_owner(case, owner_dl=owner_dl)
+    assert status == Status.FAILURE
+    assert isinstance(owner_dl.read(_CASE_ID), VulnerabilityCase)
+    assert held_depth(owner_dl, _CASE_ID) == 1
+    replay = RecordingInboxReplay()
+
+    _, status = _run_at_owner(
+        case, owner_dl=owner_dl, pending_link=False, inbox_replay=replay
+    )
+
+    assert status == Status.SUCCESS
+    assert replay.replayed == held
+    assert held_depth(owner_dl, _CASE_ID) == 0
+
+
+@pytest.mark.spec("SYNC-15-005")
+def test_a_failed_introduction_still_drains_the_held_entries(monkeypatch):
+    """The drain does not wait on the introduction to the reporter.
+
+    With the outbox down the introduction cannot be queued and the tree
+    fails, but the held genesis entry was already replayed (#5521).
+    """
+    case = _owned_case(extra=(_participant(_REPORTER, CVDRole.REPORTER),))
+    owner_dl = _owner_store()
+    held = _hold_pre_genesis_entries(owner_dl, case, 1)
+    replay = RecordingInboxReplay()
+
+    def _outbox_down(activity_id: str) -> bool:
+        raise RuntimeError("outbox unavailable")
+
+    monkeypatch.setattr(owner_dl, "outbox_append", _outbox_down)
+    _, status = _run_at_owner(case, owner_dl=owner_dl, inbox_replay=replay)
+
+    assert status == Status.FAILURE
+    assert owner_dl.outbox_list() == []
+    assert replay.replayed == held

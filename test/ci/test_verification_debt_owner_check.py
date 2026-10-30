@@ -37,7 +37,7 @@ def _job_running(command: str) -> tuple[dict[str, Any], dict[str, Any]]:
     return found[0]
 
 
-@pytest.mark.spec("MS-10-006")
+@pytest.mark.spec("MS-10-023")
 def test_closing_pr_check_fails_the_pr_on_every_pull_request():
     job, step = _job_running(_CLOSING)
     assert job["if"] == "github.event_name == 'pull_request'"

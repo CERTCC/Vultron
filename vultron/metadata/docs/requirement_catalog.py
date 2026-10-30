@@ -42,7 +42,7 @@ one place that decides where a row lives:
   that holds ``docs/`` to them agree with the renderers.
 
 The two tiers have no per-kind requirements page: the catalog is where their
-rows are (SR-09-001), and the retired ``reference/specs/protocol.md`` and
+rows are (SR-09-004), and the retired ``reference/specs/protocol.md`` and
 ``foundation.md`` redirect to :data:`CATALOG_LANDING` (#4901).
 """
 
@@ -92,12 +92,12 @@ def kind_page(kind: SpecKind) -> str:
 
     Raises:
         ValueError: If *kind* is ``protocol`` or ``foundation``, whose rows are
-            in the Requirements Catalog instead (SR-09-001).
+            in the Requirements Catalog instead (SR-09-004).
     """
     if kind in CATALOG_KINDS:
         raise ValueError(
             f"{kind.value} requirements have no per-kind page; they are in "
-            "the Requirements Catalog (SR-09-001, DF-12-001)"
+            "the Requirements Catalog (SR-09-004, DF-12-001)"
         )
     return _KIND_PAGE.format(kind=kind.value)
 

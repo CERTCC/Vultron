@@ -25,7 +25,7 @@ related_notes:
 # Specs vs. ADRs — Delineation Guidelines
 
 How to decide between a spec entry, an ADR, or both. The normative rules are
-MS-11-001 through MS-11-008 in `specs/meta-specifications.yaml`; the human-facing
+MS-11-001 through MS-11-014 in `specs/meta-specifications.yaml`; the human-facing
 version is `docs/adr/index.md`.
 
 ---
@@ -70,7 +70,7 @@ MS-04-001 (ID format) and CS-08-002 (non-empty strings), uncontested rules.
 
 Cite the ADR in the per-requirement `rationale` (not the group `description`)
 and in the `adr:` field; list the generated requirements in the ADR's "More
-Information" section (MS-11-004):
+Information" section (MS-11-004, MS-11-010):
 
 ```yaml
 rationale: >
@@ -101,9 +101,9 @@ does not. Consequences:
   a spec requirement when testable, or a `notes/` file when design insight, and
   cite the ADR as provenance (MS-11-004).
 - **A spec or note must not resolve its meaning by pointing into an ADR body.**
-  Cite the ADR for *why*; state the rule where the reader already is. MS-11-007
-  forbids citing any numbered part of a record (a detail, rule, step, option,
-  part, invariant or section number), and
+  Cite the ADR for *why*; state the rule where the reader already is
+  (MS-11-011). MS-11-007 forbids citing any numbered part of a record (a
+  detail, rule, step, option, part, invariant or section number), and
   `test/metadata/test_no_decision_record_part_citations.py` fails one under
   `specs/` or `notes/`.
 
@@ -267,7 +267,7 @@ A **test-verified dependent** is a requirement that cites the ADR in `adr:` and
 whose verification names a test file that exists (not one that passes). The PR
 that creates the first one sets the ADR to `accepted-provisional` in the same
 change (MS-14-010). Status only moves forward; a promotion ahead of the computed
-epoch needs a `status_override:` the PR adds or changes (MS-14-012). Agents
+epoch needs a `status_override:` the PR adds or changes (MS-14-029). Agents
 implement against `proposed` ADRs; the mandatory human touch is the epoch-2 ask.
 
 **Edit tiers.** Editorial fixes and append-only annotations are allowed in any
@@ -281,9 +281,9 @@ old one. Never rewrite an accepted ADR under its own number.
 **The clock never fails a merge-blocking check.** An ADR crossing a boundary
 changes no commit, so a check reading today's date would turn `main` red with
 no one to blame. A PR that materially edits or adds an ADR owns its status on
-that date (MS-14-007); every other status behind its epoch is reported by the
-hourly `adr-status-drift` workflow through one self-closing issue, and a human
-flips it. The `adr-lifecycle-check` hook and the `ADR Lifecycle` PR workflow
+that date (MS-14-019); every other status behind its epoch is reported by the
+hourly `adr-status-drift` workflow through one self-closing issue (MS-14-022),
+and a human flips it. The `adr-lifecycle-check` hook and the `ADR Lifecycle` PR workflow
 enforce MS-14-007, -009, -010 and -012 against `HEAD` and the merge base.
 `uv run adr-index --epochs` prints each live ADR's epoch, status and revision.
 

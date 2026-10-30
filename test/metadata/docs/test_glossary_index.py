@@ -95,7 +95,7 @@ def test_adjacent_headings_report_their_own_lines():
     ]
 
 
-@pytest.mark.spec("SR-07-016")
+@pytest.mark.spec("SR-07-025")
 def test_sections_sharing_a_heading_keep_their_own_terms():
     """Grouping tables by heading text gave each the other's terms."""
     text = (

@@ -2795,7 +2795,7 @@ groups:
           `create-pr`'s pre-push gate runs `spec-backstop --manifest`.
         relationships:
           - rel_type: depends_on
-            spec_id: SR-12-006
+            spec_id: SR-12-019
           - rel_type: extends
             spec_id: PAD-20-002
         tags:
@@ -2837,7 +2837,7 @@ groups:
           what the flag reports.
         relationships:
           - rel_type: depends_on
-            spec_id: MS-10-011
+            spec_id: MS-10-027
           - rel_type: depends_on
             spec_id: PD-10-005
         tags:

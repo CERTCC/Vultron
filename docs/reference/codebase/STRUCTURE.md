@@ -56,7 +56,7 @@ stakeholder_type: [project-contributor]
     An unverified `MUST`/`MUST_NOT` requirement without its own `verification_debt` marker is a hard error.
     The marked ones are printed as one line per kind, `--list-unverified` names the IDs, `--check-debt-owners` reports an owner issue that is closed, and `--check-closing-pr N` fails a PR that closes an owner still in use (both run in `verification-debt-owners.yml`).
     It also prints one `[INFO]` line per MS-12 `lint_suppress` code, giving the live total of specs that carry it.
-    `--changed-since REF` adds the checks scoped to what the branch changed (MS-10-011, PD-10-002, MS-03-007), which `create-pr` runs before the first push.
+    `--changed-since REF` adds the checks scoped to what the branch changed (MS-10-027, PD-10-002, MS-03-007), which `create-pr` runs before the first push.
     `--list-compound` prints only the compound-requirement backlog, by spec file (MS-03-001).
   - `spec-coverage` → `vultron.metadata.specs.coverage:main`
   - `spec-backstop` → `vultron.metadata.specs.backstop:main` (spec groups governing the changed code, checked against a Spec manifest)

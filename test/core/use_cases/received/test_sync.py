@@ -13,6 +13,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for LedgerFanout/LedgerReconciliation received use cases."""
 
+import logging
 from typing import cast
 from unittest.mock import MagicMock
 
@@ -852,6 +853,57 @@ class TestPreGenesisAnnounceBuffering:
         # Reject still queued as the backstop (SYNC-15-001).
         assert len(dl.outbox_list()) == 1
 
+    @pytest.mark.spec("SYNC-15-001")
+    def test_pre_genesis_entry_logs_no_error(self, dl, caplog):
+        """The pre-genesis window is self-healing, so it logs no ERROR.
+
+        A replica that does not hold the case cannot be its CASE_MANAGER
+        (ADR-0087 Regime 3): both role checks read the absence as "not the
+        CASE_MANAGER" at DEBUG, and the replay Reject repairs the replica
+        (#5513, SL-01-005).
+        """
+        case = _make_case()  # deliberately NOT saved — pre-genesis window
+        entry = _make_entry(CASE_URI, 0, case.genesis_hash)
+
+        with caplog.at_level(logging.DEBUG):
+            AnnounceLedgerEntryReceivedUseCase(
+                dl, _announce_event(entry), sync_port=SyncActivityAdapter(dl)
+            ).execute()
+
+        assert len(dl.outbox_list()) == 1  # the replay Reject still goes
+        errors = [
+            r.getMessage()
+            for r in caplog.records
+            if r.levelno >= logging.ERROR
+        ]
+        assert errors == []
+
+    @pytest.mark.spec("SYNC-15-001")
+    def test_own_echo_for_missing_case_logs_error(self, dl, caplog):
+        """The CASE_MANAGER's own echoed Announce still needs its case.
+
+        Its sender is the receiving actor, so the receiver is the case's
+        CASE_MANAGER, and a case it does not hold is a Regime 1 anomaly
+        (ADR-0087): both role checks log it at ERROR (#5513).
+        """
+        case = _make_case()  # deliberately NOT saved
+        entry = _make_entry(CASE_URI, 0, case.genesis_hash)
+
+        with caplog.at_level(logging.DEBUG):
+            AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                _announce_event(entry, actor=RECEIVER_URI),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
+
+        errors = [
+            r.getMessage()
+            for r in caplog.records
+            if r.levelno >= logging.ERROR
+        ]
+        assert any("CheckIsCaseManager:" in m for m in errors), errors
+        assert any("CheckIsCaseManagerInverse:" in m for m in errors), errors
+
     @pytest.mark.spec("SYNC-03-006")
     @pytest.mark.spec("SYNC-15-004")
     def test_pre_genesis_entry_with_bad_hash_is_not_held(self, dl):
@@ -1000,6 +1052,7 @@ class TestAnnounceLedgerEntryDisposition:
         assert stored is not None
         assert stored.payload_snapshot == genesis_entry.payload_snapshot
 
+    @pytest.mark.spec("HP-01-016")
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("SYNC-14-001")
     def test_forward_gap_entry_is_deferred(self, dl, case_with_genesis):

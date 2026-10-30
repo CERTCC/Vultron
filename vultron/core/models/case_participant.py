@@ -53,6 +53,7 @@ from vultron.core.models.participant_status import (
     coerce_cvd_roles,
     participant_status_rm_state,
 )
+from vultron.core.models.wire_keys import first_input, input_keys
 from vultron.core.states.embargo_register import (
     FINAL_REGISTER_STATUSES,
     EmbargoRegisterStatus,
@@ -155,11 +156,15 @@ class CaseParticipant(CoreObject):
     @model_validator(mode="before")
     @classmethod
     def _set_name_if_empty(cls, data: Any) -> Any:
-        """If ``name`` is unset, derive it from ``attributed_to``."""
+        """If ``name`` is unset, derive it from ``attributed_to``.
+
+        Reads every input spelling (ARCH-25-002), so AS2 input derives the
+        same name as its Python-named twin.
+        """
         if not isinstance(data, dict):
             return data
-        name = data.get("name")
-        attributed_to = data.get("attributed_to")
+        name = first_input(data, cls, "name")
+        attributed_to = first_input(data, cls, "attributed_to")
         if name is None and attributed_to is not None:
             data = dict(data)
             data["name"] = attributed_to
@@ -168,20 +173,29 @@ class CaseParticipant(CoreObject):
     @model_validator(mode="before")
     @classmethod
     def _init_participant_status_if_empty(cls, data: Any) -> Any:
-        """Seed ``participant_statuses`` with a default entry when empty."""
+        """Seed ``participant_statuses`` with a default entry when absent.
+
+        Reads every input spelling of each field it uses (ARCH-25-002,
+        ADR-0099).  An AS2 dump carries the statuses under their alias; seeding
+        beside them drew an id and read the clock for a status the alias then
+        discarded (#5510).  AS2 input seeds the same status as its
+        Python-named twin.
+        """
         if not isinstance(data, dict):
             return data
-        if "participant_statuses" in data:
+        if any(key in data for key in input_keys(cls, "participant_statuses")):
             return data
         data = dict(data)
-        if not data.get("id") and not data.get("id_"):
-            data["id"] = _new_urn()
-        id_val = data.get("id") or data.get("id_")
+        id_val = first_input(data, cls, "id_")
+        if not id_val:
+            id_val = data["id"] = _new_urn()
         data["participant_statuses"] = [
             ParticipantStatus(
-                context=data.get("context") or id_val,
-                attributed_to=data.get("attributed_to"),
-                cvd_role=coerce_cvd_roles(data.get("case_roles") or []),
+                context=first_input(data, cls, "context") or id_val,
+                attributed_to=first_input(data, cls, "attributed_to"),
+                cvd_role=coerce_cvd_roles(
+                    first_input(data, cls, "case_roles") or []
+                ),
             ),
         ]
         return data

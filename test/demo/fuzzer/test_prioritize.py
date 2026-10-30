@@ -35,7 +35,7 @@ def test_node_is_behaviour(node_cls):
 
 @pytest.mark.parametrize("node_cls", _ALL_NODES)
 def test_node_has_docstring(node_cls):
-    """Each node must have a non-empty docstring (BT-16-003)."""
+    """Each node must have a non-empty docstring (BT-16-007)."""
     assert node_cls.__doc__ and node_cls.__doc__.strip()
 
 

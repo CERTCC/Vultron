@@ -1,5 +1,5 @@
 # Report every ADR whose status disagrees with today's lifecycle epoch
-# (MS-14-007, ADR-0120). Reports through one tracking issue and never fails
+# (MS-14-022, ADR-0120). Reports through one tracking issue and never fails
 # the build: an ADR crossing an epoch boundary is caused by the clock, not by
 # a commit, so failing on it would turn main and every open pull request red
 # at an arbitrary time (ARCH-18-004). A human flips the status.

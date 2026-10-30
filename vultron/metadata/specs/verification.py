@@ -27,11 +27,11 @@ Per requirement, ``spec-lint`` fails when:
 - a marker names an issue that does not own the item's kind in
   :data:`VERIFICATION_DEBT_OWNERS`. That covers a relabel that kept the old
   kind's marker (MS-10-008) and a marker on a kind whose backlog is finished
-  and whose entry is gone (MS-10-007).
+  and whose entry is gone (MS-10-026).
 
 The owner table holds issue references only, never counts, so nothing in it
 moves when a requirement is verified. ``spec-lint`` prints one summary line
-per kind computed from the markers (MS-10-005).
+per kind computed from the markers (MS-10-005, MS-10-019).
 
 The per-item rule cannot by itself stop a new unverified MUST from arriving
 with a marker on it. The PR-only growth guard
@@ -95,7 +95,7 @@ from vultron.metadata.specs.schema import (
 #: owner of its item's kind. Remove an owner once no marker names it (spec-lint
 #: warns; the PR that closes the owner issue fails until it is removed), and
 #: the kind's entry with its last owner; from then on any marker of that kind is a hard
-#: error (MS-10-007). Never add an owner to admit new debt — the growth guard
+#: error (MS-10-026). Never add an owner to admit new debt — the growth guard
 #: (``test/architecture/test_verification_debt_guard.py``, MS-10-016) rejects
 #: a PR that adds a marker.
 VERIFICATION_DEBT_OWNERS: Mapping[SpecKind, frozenset[str]] = MappingProxyType(
@@ -176,13 +176,11 @@ class DebtSnapshot:
         markers: Each marked requirement's ID mapped to its marker.
         links: Each requirement's ID mapped to the IDs its own
             ``relationships:`` name.
-        statements: Each requirement's ID mapped to its ``statement:``.
     """
 
     ids: frozenset[str]
     markers: Mapping[str, str]
     links: Mapping[str, frozenset[str]]
-    statements: Mapping[str, str]
 
 
 def _debt_item(spec_id: str, marker: str) -> str:
@@ -191,20 +189,17 @@ def _debt_item(spec_id: str, marker: str) -> str:
 
 def debt_snapshot(repo_root: Path) -> DebtSnapshot:
     """The :class:`DebtSnapshot` of ``specs/`` under *repo_root*."""
-    specs = load_registry(repo_root / "specs").all_specs
+    registry = load_registry(repo_root / "specs")
+    specs = registry.all_specs
     return DebtSnapshot(
         ids=frozenset(specs),
         markers={
-            spec_id: spec.verification_debt
-            for spec_id, spec in specs.items()
-            if spec.verification_debt
+            spec_id: marker
+            for spec_id, _spec, marker in marked_specs(registry)
         },
         links={
             spec_id: frozenset(r.spec_id for r in spec.relationships or ())
             for spec_id, spec in specs.items()
-        },
-        statements={
-            spec_id: spec.statement for spec_id, spec in specs.items()
         },
     )
 
@@ -212,24 +207,16 @@ def debt_snapshot(repo_root: Path) -> DebtSnapshot:
 def added_debt(base: DebtSnapshot, head: DebtSnapshot) -> frozenset[str]:
     """Markers *head* has that *base* lacked, less those split off (MS-10-016).
 
-    A requirement split into several IDs keeps its debt. A new ID is a split
-    child, not new debt, when its own ``relationships:`` name a requirement
-    that carried the same marker at the base and whose statement the change
-    rewrote or removed, or name another split child with the same marker. A
-    split always trims its parent, so a link to an untouched requirement
-    cannot carry debt in. An ID the base already had is never a split child.
+    A requirement split into several IDs keeps its debt: a new ID whose own
+    ``relationships:`` name a requirement that carried the same marker at the
+    base, or that is itself such a split child, is not new debt. An ID the base
+    already had is never a split child, so a marker it gains is still added.
     """
     added = {
         spec_id: marker
         for spec_id, marker in head.markers.items()
         if base.markers.get(spec_id) != marker
     }
-
-    def split_parent(parent: str, marker: str) -> bool:
-        return base.markers.get(parent) == marker and head.statements.get(
-            parent
-        ) != base.statements.get(parent)
-
     split: set[str] = set()
     grew = True
     while grew:
@@ -238,7 +225,7 @@ def added_debt(base: DebtSnapshot, head: DebtSnapshot) -> frozenset[str]:
             if spec_id in split or spec_id in base.ids:
                 continue
             if any(
-                split_parent(parent, marker)
+                base.markers.get(parent) == marker
                 or (parent in split and head.markers.get(parent) == marker)
                 for parent in head.links.get(spec_id, frozenset())
             ):
@@ -313,7 +300,7 @@ def verification_problems(
         else:
             problems.append(
                 f"{spec_id}: kind={kind} has no verification backlog left, so "
-                f"verification_debt: '{marker}' is not accepted (MS-10-007); "
+                f"verification_debt: '{marker}' is not accepted (MS-10-026); "
                 f"add a verification: criterion"
             )
     return problems
@@ -339,7 +326,7 @@ def idle_owners(
     reports: Mapping[SpecKind, DebtReport],
     owners: Mapping[SpecKind, frozenset[str]],
 ) -> list[str]:
-    """Advisory lines for owner-table entries no marker names (MS-10-007).
+    """Advisory lines for owner-table entries no marker names (MS-10-025).
 
     Advisory, not a hard error: two PRs that each verify some of an owner's
     last markers are green alone and would be red merged — the race the

@@ -12,6 +12,7 @@ from __future__ import annotations
 import dataclasses
 import datetime
 import io
+import subprocess
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
@@ -195,6 +196,72 @@ class TestAppendHistoryReadmeRegeneration:
         readme_text = (month_dir / "README.md").read_text()
         assert "Time (UTC)" in readme_text
 
+    @pytest.mark.spec("HM-06-006")
+    def test_readme_has_date_and_time_columns(self, fake_repo: Path) -> None:
+        """Each row shows the timestamp's date and its HH:MM time (HM-06-006)."""
+        result = _run_append(
+            "implementation",
+            body=_IMPL_BODY,
+            title=_IMPL_TITLE,
+            source="TASK-DATED",
+            extra_args=["--timestamp", "2025-12-15T09:30:45+00:00"],
+            cwd=fake_repo,
+        )
+        assert result.returncode == 0
+        readme_text = (
+            fake_repo / "plan" / "history" / "2512" / "README.md"
+        ).read_text()
+        assert "| Date | Time (UTC) |" in readme_text
+        row = next(
+            line for line in readme_text.splitlines() if "TASK-DATED" in line
+        )
+        cells = [cell.strip() for cell in row.strip("|").split("|")]
+        assert "2025-12-15" in cells
+        assert "09:30" in cells
+
+    @pytest.mark.spec("HM-06-011")
+    def test_readme_sorted_newest_first(self, fake_repo: Path) -> None:
+        """The index lists the newest entry first, whatever the write order."""
+        for source, stamp in (
+            ("TASK-OLDER", "2025-12-01T08:00:00+00:00"),
+            ("TASK-NEWER", "2025-12-15T09:30:00+00:00"),
+            ("TASK-MIDDLE", "2025-12-10T12:00:00+00:00"),
+        ):
+            result = _run_append(
+                "implementation",
+                body=_IMPL_BODY,
+                title=_IMPL_TITLE,
+                source=source,
+                extra_args=["--timestamp", stamp],
+                cwd=fake_repo,
+            )
+            assert result.returncode == 0
+        readme_text = (
+            fake_repo / "plan" / "history" / "2512" / "README.md"
+        ).read_text()
+        positions = [
+            readme_text.index(source)
+            for source in ("TASK-NEWER", "TASK-MIDDLE", "TASK-OLDER")
+        ]
+        assert positions == sorted(positions)
+
+    @pytest.mark.spec("HM-02-007")
+    def test_hand_edit_replaced_on_next_run(self, fake_repo: Path) -> None:
+        """A hand edit to the index does not survive the next run."""
+        first = _run_append("idea", cwd=fake_repo)
+        assert first.returncode == 0
+        readme = Path(first.stdout.strip()).parent.parent / "README.md"
+        readme.write_text(readme.read_text() + "\nHAND-EDITED LINE\n")
+        second = _run_append(
+            "implementation",
+            body=_IMPL_BODY,
+            title=_IMPL_TITLE,
+            source=_IMPL_SOURCE,
+            cwd=fake_repo,
+        )
+        assert second.returncode == 0
+        assert "HAND-EDITED LINE" not in readme.read_text()
+
     def test_readme_updated_after_second_append(self, fake_repo: Path) -> None:
         _run_append("idea", cwd=fake_repo)
         result = _run_append(
@@ -290,7 +357,7 @@ class TestAppendHistoryInputModes:
 
 
 class TestAppendHistoryWriteOnce:
-    """HM-01-005: history entries are write-once; overwrite must be rejected."""
+    """HM-01-010: history entries are write-once; overwrite must be rejected."""
 
     def test_duplicate_write_exits_nonzero(self, fake_repo: Path) -> None:
         _run_append("idea", cwd=fake_repo)
@@ -960,3 +1027,21 @@ class TestGitHubCommentMode:
             list(history_dir.rglob("*.md")) if history_dir.exists() else []
         )
         assert not md_files, "No files should be written in comment mode"
+
+
+@pytest.mark.spec("HM-01-011")
+def test_monthly_readme_is_gitignored() -> None:
+    """Git ignores every monthly index, so none can be committed (HM-01-011)."""
+    repo_root = Path(__file__).resolve().parents[2]
+    result = subprocess.run(
+        [
+            "git",
+            "check-ignore",
+            "--quiet",
+            "--no-index",
+            "plan/history/2601/README.md",
+        ],
+        cwd=repo_root,
+        check=False,
+    )
+    assert result.returncode == 0

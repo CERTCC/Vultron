@@ -203,6 +203,7 @@ def test_seeded_embargo_records_the_owners_consent(
 
 
 @pytest.mark.spec("BT-10-002")
+@pytest.mark.spec("BT-10-007")
 def test_seeded_case_actor_is_a_plain_service_not_a_per_case_object(
     owner_and_dl: tuple[VultronService, SqliteDataLayer],
 ) -> None:

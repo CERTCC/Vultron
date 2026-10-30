@@ -183,7 +183,7 @@ class TestCheckCaseStatusIdempotencyNode:
 
 # ---------------------------------------------------------------------------
 # EmitCaseStatusUpdateNode — lives in vultron.core.behaviors.case_status_snapshot
-# (shared with the embargo trees, BTND-04-001); tested here beside the
+# (shared with the embargo trees, BTND-04-005); tested here beside the
 # AddCaseStatusToCase nodes it shares fixtures with.
 # ---------------------------------------------------------------------------
 

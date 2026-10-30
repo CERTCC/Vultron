@@ -508,7 +508,7 @@ groups:
     - rel_type: refines
       spec_id: CP-04-001
     - rel_type: refines
-      spec_id: BT-10-002
+      spec_id: BT-10-008
     verification: >-
       `test/core/behaviors/case/test_case_actor_identity.py`;
       `test/demo/test_rv_demo.py` exercises the full round-trip with no stand-in, which

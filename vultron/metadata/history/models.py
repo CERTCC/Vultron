@@ -76,7 +76,7 @@ class HistoryEntryFrontmatter(_HistoryEntryBase):
     """Read model: parses existing history entry files.
 
     ``timestamp`` is required; fails loudly if absent or malformed
-    (HM-06-002).  Does not supply a default so that corrupt files
+    (HM-06-002, HM-06-010).  Does not supply a default so that corrupt files
     are never silently accepted.
     """
 

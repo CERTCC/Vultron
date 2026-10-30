@@ -320,7 +320,14 @@ def test_active_participants_lists_the_active_records_in_roster_order() -> (
     assert case.active_participants == [last.id_, first.id_]
 
 
-@pytest.mark.spec("CM-31-003", "CM-31-014", "ARCH-12-003", "ARCH-23-005")
+@pytest.mark.spec(
+    "CM-31-003",
+    "CM-31-014",
+    "ARCH-12-003",
+    "ARCH-12-013",
+    "ARCH-23-005",
+    "ARCH-23-009",
+)
 def test_active_participants_is_published_by_alias_and_round_trips() -> None:
     """Serialized by alias, never stored, and read back despite forbid."""
     case = _carrying_case(

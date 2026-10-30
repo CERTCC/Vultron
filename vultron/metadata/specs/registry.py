@@ -217,7 +217,7 @@ def load_registry(
     Raises:
         MetadataLoadErrors: If any spec file fails to parse or validate. Every
             failing file is reported in the one error and kept on its
-            ``failures`` attribute (SR-03-008, SR-03-009). A ``ValueError``
+            ``failures`` attribute (SR-03-009, SR-03-011). A ``ValueError``
             subclass, so the documented contract holds.
         ValueError: If the corpus contains duplicate IDs.
         FileNotFoundError: If the repository root cannot be resolved.

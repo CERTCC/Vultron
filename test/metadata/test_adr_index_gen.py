@@ -131,6 +131,7 @@ class TestGenerateIndex:
         )
 
     @pytest.mark.spec("MS-14-011")
+    @pytest.mark.spec("MS-14-027")
     def test_list_valued_forward_pointers_are_joined(self, tmp_path):
         adr_dir = _scaffold(tmp_path)
         _write_adr(
@@ -212,6 +213,8 @@ _UNNAVVED = "not_in_nav: |\n  adr/*.md\n  adr/archived/*.md\n"
 
 
 @pytest.mark.spec("MS-14-006")
+@pytest.mark.spec("MS-14-017")
+@pytest.mark.spec("MS-14-018")
 @pytest.mark.spec("DF-11-003")
 class TestNavPlacementFaults:
     """ADRs are working record: out of the nav, matched by ``not_in_nav``."""
@@ -234,7 +237,7 @@ class TestNavPlacementFaults:
         faults = nav_placement_faults(tmp_path)
         assert len(faults) == 1
         assert faults[0].startswith("docs/adr/0001-stub.md is listed")
-        assert "MS-14-006" in faults[0]
+        assert "MS-14-017" in faults[0]
 
     def test_adr_matched_by_no_pattern_is_reported(self, tmp_path):
         """Absent from the nav is not enough: the build warns on the omission."""

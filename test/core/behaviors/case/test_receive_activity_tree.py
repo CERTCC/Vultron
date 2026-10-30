@@ -1050,14 +1050,14 @@ class TestClockDecisionStage:
         ]
         assert [c._case_id for c in checks] == [CASE_ID]
 
-    @pytest.mark.spec("HP-01-008")
+    @pytest.mark.spec("HP-01-025")
     def test_a_tree_with_no_commit_checks_its_sender_on_the_manager_case(
         self,
     ) -> None:
         """A tree that commits nothing at its own level (the close-case tree)
         still checks its sender on the case whose CASE_MANAGER it writes
         for; a context naming no case is a wiring fault there."""
-        with pytest.raises(VultronWiringError, match="HP-01-008"):
+        with pytest.raises(VultronWiringError, match="HP-01-025"):
             create_receive_activity_tree(
                 name="SampleBT",
                 case_id=None,

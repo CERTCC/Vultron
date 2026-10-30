@@ -79,7 +79,7 @@ def owner_for(kind: SpecKind, file_stem: str) -> str | None:
     """The issue a new marker on an item of *kind* in *file_stem* names.
 
     ``None`` when *kind* has no owner entry: its backlog is closed, so a
-    marker of that kind is a hard error (MS-10-007) and the item needs a
+    marker of that kind is a hard error (MS-10-026) and the item needs a
     ``verification:`` clause instead.
     """
     if kind is SpecKind.PROJECT:
@@ -230,7 +230,7 @@ def main(argv: list[str]) -> int:
     if tally.ownerless:
         print(
             "kind has no verification-debt owner, so no marker may be added "
-            f"(MS-10-007 — add a verification: clause): {sorted(tally.ownerless)}",
+            f"(MS-10-026 — add a verification: clause): {sorted(tally.ownerless)}",
             file=sys.stderr,
         )
         failed = True

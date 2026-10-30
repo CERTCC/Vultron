@@ -22,12 +22,12 @@ Enforces:
 3. Old node names no longer live in their former modules.
 4. No sender-entitlement condition node is composed outside the receive-tree
    factory's composer, except where an allow-list names it (HP-01-007,
-   HP-01-008, #4437): a guard not yet migrated names the open issue that
+   HP-01-025, #4437): a guard not yet migrated names the open issue that
    migrates it, and a standing read that decides an effect rather than
    admission names why it is not a sender guard.
 5. A ``SenderRule`` is built only as a use case's ``sender_entitlement``
    declaration, so the guard is composed from the declaration alone
-   (HP-01-008).
+   (HP-01-025).
 
 ``PERMANENT_EXEMPTIONS`` is a pinned exemption set (ARCH-18-005), not a
 ratchet: each use case in it is exempt by its declared reason, not awaiting a
@@ -232,7 +232,7 @@ def test_any_actor_is_declared_only_by_new_report_use_cases():
 
 
 # ---------------------------------------------------------------------------
-# HP-01-007 / HP-01-008: sender nodes are composed only by the factory
+# HP-01-007 / HP-01-025: sender nodes are composed only by the factory
 # ---------------------------------------------------------------------------
 
 _HOME = "vultron/core/behaviors/sender_entitlement.py"
@@ -522,7 +522,7 @@ def _site_lines(sites: dict[Site, int], listed: dict[Site, int]) -> str:
 
 
 @pytest.mark.spec("HP-01-007")
-@pytest.mark.spec("HP-01-008")
+@pytest.mark.spec("HP-01-025", "HP-01-026")
 def test_sender_nodes_are_composed_only_by_the_factory() -> None:
     """A sender node outside the factory's composer is allow-listed (AC-5)."""
     found = dict(_live_sites())
@@ -533,7 +533,7 @@ def test_sender_nodes_are_composed_only_by_the_factory() -> None:
     assert not new, (
         "These modules name a sender-entitlement node, or compose a sender"
         " guard, outside the receive-tree factory or more often than the"
-        " allow-list says (HP-01-007, HP-01-008).  Declare the standing in"
+        " allow-list says (HP-01-007, HP-01-025).  Declare the standing in"
         " the use case's SenderRule and pass it with a SenderCheckContext"
         " to the tree's factory:\n" + _site_lines(new, listed)
     )
@@ -740,7 +740,7 @@ def test_the_scan_scopes_a_site_by_its_class() -> None:
 
 
 # ---------------------------------------------------------------------------
-# HP-01-008: the guard is composed from the declaration alone
+# HP-01-025: the guard is composed from the declaration alone
 # ---------------------------------------------------------------------------
 
 _RULE_BUILDERS = frozenset({"SenderRule"})

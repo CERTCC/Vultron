@@ -123,6 +123,7 @@ def _redirect_spec_dir(monkeypatch, tmp_path, *, corpus_exists):
     return spec_dir
 
 
+@pytest.mark.spec("SR-05-011")
 @pytest.mark.spec("SR-05-006")
 class TestNoCorpusStaysSilent:
     """The two *silent* early returns must stay silent.
@@ -146,6 +147,7 @@ class TestNoCorpusStaysSilent:
             _run_gate([SpecMarkedItem("BOGUS-99-999")])
 
 
+@pytest.mark.spec("SR-05-012")
 @pytest.mark.spec("SR-05-006")
 class TestUnloadableCorpusIsVisible:
     """A corpus that exists but does not load MUST warn, not skip silently."""
@@ -251,6 +253,7 @@ class TestUnloadableCorpusIsVisible:
 class TestUnexpectedFailureStillSurfaces:
     """A bug in the loader is not a bad spec file and MUST NOT degrade."""
 
+    @pytest.mark.spec("SR-05-013")
     def test_unexpected_exception_type_propagates(self, monkeypatch):
         monkeypatch.setattr(
             root_conftest,
@@ -261,6 +264,7 @@ class TestUnexpectedFailureStillSurfaces:
         with pytest.raises(AttributeError, match="loader bug"):
             _run_gate()
 
+    @pytest.mark.spec("SR-05-014")
     def test_the_catch_is_not_blanket(self):
         """Bare ``Exception`` here is the defect; keep the tuple narrow.
 
@@ -333,12 +337,14 @@ class TestWarningIsNotEscalated:
     def test_unavailable_warning_has_an_always_entry(self, pytestconfig):
         assert self._ENTRY in self._filters(pytestconfig)
 
+    @pytest.mark.spec("SR-05-015")
     def test_the_always_entry_outranks_the_error_rule(self, pytestconfig):
         """Later entries win, so the exemption must come *after* ``error``."""
         filters = self._filters(pytestconfig)
 
         assert filters.index(self._ENTRY) > filters.index("error")
 
+    @pytest.mark.spec("SR-05-016")
     @pytest.mark.parametrize(
         "dotted_path",
         [
@@ -382,6 +388,7 @@ class TestWarningIsNotEscalated:
         assert "error" in self._filters(pytestconfig)
 
 
+@pytest.mark.spec("SR-05-012")
 @pytest.mark.spec("SR-05-006")
 class TestWarnSpecRegistryUnavailable:
     """Unit-level contract for the warning helper."""

@@ -272,8 +272,10 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   **Load when**: adding a scenario, declaring its path, or editing a scenario table
   or its generator.
 - **`demo-scenario-tree.md`** · `plan`
-  The rest of the scenario tree: names, tree index, prefix check, test starting points.
-  **Load when**: renaming a scenario, building the tree index, or the prefix check.
+  The rest of the scenario tree: names, tree index, prefix check, composition,
+  test starting points.
+  **Load when**: renaming a scenario, building the tree index, the prefix check, or
+  writing a scenario as composition.
 - **`demo-ci-invariants.md`** · `guidance`
   The demo CI case-ledger invariant harness and its expected semantic types.
   **Load when**: changing the demo CI workflow or a scenario's expected events.

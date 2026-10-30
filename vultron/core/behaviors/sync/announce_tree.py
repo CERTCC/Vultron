@@ -212,11 +212,21 @@ def create_announce_log_entry_tree(
     Args:
         sender_rule: The use case's declared sender rule (HP-01-008).
     """
+    # Both role checks read a case this actor does not hold as "not the
+    # CASE_MANAGER" (ADR-0087 Regime 3), so a participant in the pre-genesis
+    # window takes the participant arm, whose replay Reject repairs it
+    # (SYNC-15-001, #5513).  The CASE_MANAGER's own echoed Announce is the
+    # exception: its sender is the manager, so a case it does not hold is a
+    # Regime 1 anomaly and still fails at ERROR.
     case_actor_subtree = py_trees.composites.Sequence(
         name="CaseActorSubtree",
         memory=False,
         children=[
-            CheckIsCaseManagerNode(name=AT_CASE_MANAGER),
+            CheckIsCaseManagerNode(
+                name=AT_CASE_MANAGER,
+                case_may_be_absent=True,
+                own_activity_needs_case=True,
+            ),
             LogDeliveryConfirmationNode(name="LogDeliveryConfirmation"),
         ],
     )
@@ -474,7 +484,11 @@ def create_announce_log_entry_tree(
         children=[
             py_trees.decorators.Inverter(
                 name="CheckIsNotCaseManager",
-                child=CheckIsCaseManagerNode(name="CheckIsCaseManagerInverse"),
+                child=CheckIsCaseManagerNode(
+                    name="CheckIsCaseManagerInverse",
+                    case_may_be_absent=True,
+                    own_activity_needs_case=True,
+                ),
             ),
             # An entry that fails its own hash is refused before it can be
             # buffered, applied or stored, and before the already-stored

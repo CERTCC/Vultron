@@ -62,7 +62,9 @@ Each scenario declares its full path from the root of the scenario tree as
 entries of `BRANCH_POINTS` (`vultron/demo/scenario/branch_points.py`), which
 defines each decision once: the deciding `CVDRole`, the prompt, and the choices,
 each a label and one trigger verb (DEMOCI-11-013). The rest of the tree's design
-is in [demo-scenario-tree.md](demo-scenario-tree.md).
+is in [demo-scenario-tree.md](demo-scenario-tree.md). A scenario written as
+composition states no `path=`: its path is read off its story's choices
+(DEMOCI-11-019; that note's § "Composition").
 
 - **Prompts and choice labels live only in the table.** `@scenario` takes no
   prompt or choice label (its `label` is the scenario's display casing), and

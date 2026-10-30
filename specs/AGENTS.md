@@ -122,7 +122,7 @@ that bite most often:
   apply the MS-12 tree in MS-12-005's order (see
   `notes/spec-authoring-rules.md`), and do not infer a `kind` from the
   surrounding entries in the same file. A `foundation` spec carries the tag of
-  its standard: `as2`, `activitypub`, or `http` (MS-12-009).
+  its standard: `as2`, `activitypub`, or `http` (MS-12-018).
 - **`lint_suppress: [missing_story_reference]`** — a guarded escape hatch,
   not a free one. MS-12-007's PR-only growth guard
   (`test/architecture/test_spec_kind_ratchet.py`) fails any PR that adds the
@@ -148,9 +148,8 @@ that bite most often:
   to a new item — write the clause: MS-10-016's PR-only growth guard
   (`test/architecture/test_verification_debt_guard.py`) fails a PR that adds a
   marker or points one at a different issue. The one exception is a split
-  (MS-03-001): a new ID keeps the original's same marker when its own
-  `relationships:` name the original and the branch rewrote or removed the
-  original's statement. The retired
+  (MS-03-008): a new ID keeps the original's same marker when its own
+  `relationships:` name the original. The retired
   `lint_suppress: [must_without_verification]` no longer loads.
   `uv run spec-lint --list-unverified` names the marked IDs per kind.
 - **`rel_type:`** — one of the enumerated values; `related_to` is not among them.

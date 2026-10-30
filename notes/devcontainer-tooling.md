@@ -5,8 +5,9 @@ kind: guidance
 description: >
   Environment-level pitfalls specific to this devcontainer: why every tool must
   run under `uv run`, why `PYTHONPATH` must be cleared (pre-commit hooks in a
-  worktree inherit it too), the `UV_NO_SYNC=1` workaround for a root-owned
-  venv, running `ruff` bare, the hanging `actionlint` hook, pushing to `origin`
+  worktree inherit it too, as do test subprocesses), the `UV_NO_SYNC=1`
+  workaround for a root-owned venv, running `ruff` bare, the hanging
+  `actionlint` hook, pushing to `origin`
   with `-u` rather than a token URL, the HTTP/2 push that never gets a reply,
   the `.claude/skills` symlink to `.agents/skills`, and the CodeQL name
   patterns an agent may dismiss.
@@ -18,6 +19,7 @@ related_notes:
   - notes/case-bootstrap-trust.md
   - notes/structured-logging.md
   - notes/demo-scenario-authoring.md
+  - notes/testing-pitfalls.md
 related_specs:
   - specs/tech-stack.yaml
 ---
@@ -37,6 +39,9 @@ working tree's. Prefix it: `PYTHONPATH= uv run spec-dump`. A `git commit` in a
 worktree outside `/app` needs it too, because the pre-commit hooks inherit the
 variable and a sync hook such as `docs-site-sync` then checks the worktree against
 `/app`'s generator and fails spuriously: `PYTHONPATH= git commit …`.
+A test's child Python process has the same exposure; it takes its environment
+from `child_env()` ([testing-pitfalls](testing-pitfalls.md) § "A Child Python
+Process Gets Its Environment From `child_env()`").
 
 ## `uv run` Fails With "Permission Denied": Rebuild, or `UV_NO_SYNC=1`
 

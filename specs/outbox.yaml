@@ -680,6 +680,8 @@ groups:
       spec_id: ARCH-17-001
     - rel_type: supersedes
       spec_id: ARCH-17-002
+    - rel_type: supersedes
+      spec_id: ARCH-17-003
     - rel_type: implements
       spec_id: OX-12-006
     adr:

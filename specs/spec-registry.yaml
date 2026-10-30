@@ -39,24 +39,48 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2574'
-    statement: >-
-      Each YAML file MUST have `title` and `description` fields, and MUST NOT have a top-level
-      `version` field.
+    statement: A YAML spec file MUST NOT have a top-level `version` field.
     rationale: >-
-      A hand-maintained per-file version had no rule for when it changed and no check that it
-      did, so it was a published claim nothing could falsify (MS-16-002). The release tag pins
-      spec content and the requirement ID is the citation address (ADR-0106).
+      A hand-maintained per-file version had no rule for when it changed and no check
+      that it did, so it was a published claim nothing could falsify (MS-16-002). The
+      release tag pins spec content and the requirement ID is the citation address
+      (ADR-0106).
     adr:
     - ADR-0106
+  - id: SR-01-014
+    priority: MUST
+    kind: project
+    verification_debt: '#2574'
+    statement: Each YAML spec file MUST have a `title` field and a `description` field.
+    rationale: >-
+      The title names the topic in the docs and in `spec-dump` output. The description
+      tells a reader what the topic covers. Without them, a reader cannot tell what a
+      topic file is for.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-01-002
   - id: SR-01-004
     priority: MUST
     kind: project
     verification_debt: '#2574'
-    statement: Each YAML file MUST contain a `groups` list; each group MUST have `id`, `title`, and `specs` fields.
+    statement: Each YAML spec file MUST contain a `groups` list.
     rationale: >-
       Agents load requirements by group, and the spec backstop reports by group. Thus
-      every requirement must be in a group that has a title. Tools cannot select or cite
-      a file with no groups, or a group with no ID or title.
+      every requirement must be in a group. Tools cannot select or cite the
+      requirements of a file with no groups.
+  - id: SR-01-015
+    priority: MUST
+    kind: project
+    verification_debt: '#2574'
+    statement: >-
+      Each group in a YAML spec file MUST have `id`, `title` and `specs` fields.
+    rationale: >-
+      Tools select and cite a group by its ID, and the docs and the spec map show its
+      title. The `specs` field holds the requirements of the group. A group without one
+      of these fields cannot be selected, cited or shown.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-01-004
   - id: SR-01-005
     priority: MUST
     kind: project
@@ -125,12 +149,23 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2574'
-    statement: Spec entries SHOULD include a `relationships` list when cross-spec traceability is needed; each relationship
-      MUST have `rel_type` and `spec_id` fields.
+    statement: >-
+      Each relationship in a spec entry MUST have a `rel_type` field and a `spec_id`
+      field.
+    rationale: >-
+      Tools cannot orient or resolve a relationship with no type or no target. The
+      type gives the direction of the link (SR-13), and the target names the other
+      requirement.
+  - id: SR-01-016
+    priority: SHOULD
+    kind: project
+    statement: >-
+      A spec entry SHOULD include a `relationships` list when a reader needs to trace it
+      to another requirement.
     rationale: >-
       The edges graph comes from the recorded relationships, so a reader can trace a
-      change in one requirement to the requirements that it affects. Tools cannot orient
-      or resolve a relationship with no type or no target.
+      change in one requirement to the requirements that it affects. A requirement
+      with no recorded link is invisible to that trace.
   - id: SR-01-013
     priority: MUST
     kind: project
@@ -281,35 +316,94 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2574'
-    statement: '`SpecGroup` MUST have fields: `id` (`SpecIdStr`), `title`, `specs` (non-empty list), and optional `description`,
-      `scope`, `trigger`. `SpecGroup` MUST NOT have a `kind` field; kind is required on each individual spec item.'
+    statement: >-
+      `SpecGroup` MUST have the fields `id` (`SpecIdStr`), `title` and `specs` (a
+      non-empty list), and the optional fields `description`, `scope` and `trigger`.
+    rationale: >-
+      Every tool that reads a group needs its ID, its title and its requirements, so
+      the schema makes sure that each group has them when it loads. The optional fields
+      hold a description, a default scope and the trigger of a behavioral group.
+  - id: SR-02-023
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2574'
+    statement: '`SpecGroup` MUST NOT have a `kind` field.'
     rationale: >-
       Kind decides which checks apply to a requirement, so each item declares it where a
-      reader can see it. A kind on the group could give one item a wrong tier, and
-      nobody would see the mismatch.
+      reader can see it (SR-02-027). A kind on the group could give one item a wrong
+      tier, and nobody would see the mismatch.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-02-012
   - id: SR-02-013
     priority: MUST
     kind: project
     verification_debt: '#2574'
-    statement: '`SpecFile` MUST have fields: `id` (str), `title`, `description`, `scope` (required), `groups` (non-empty
-      list), and optional `tags`. `SpecFile` MUST NOT have a `kind` field; kind is required on each individual spec item.
-      `SpecFile` MUST NOT have a `version` field, so that its `extra="forbid"` configuration (SR-02-022) rejects a file
-      that declares one (SR-01-003).'
+    statement: >-
+      `SpecFile` MUST have the fields `id` (str), `title`, `description`, `scope`
+      (required) and `groups` (a non-empty list), and the optional field `tags`.
     rationale: >-
       These fields identify and describe a topic file, and scope sets the default for
-      the file. Kind and version are forbidden. Kind belongs on each item (SR-02-014),
-      and no check confirms a file version (SR-01-003).
+      the file. Every tool that reads a file needs them, so the schema makes sure that
+      each file has them when it loads.
+  - id: SR-02-024
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2574'
+    statement: '`SpecFile` MUST NOT have a `kind` field.'
+    rationale: >-
+      Kind belongs on each item (SR-02-027). A kind on the file could give an item a
+      wrong tier, and a reader of the item would not see it.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-02-013
+  - id: SR-02-025
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      `SpecFile` MUST NOT declare a `version` field, so that its `extra="forbid"`
+      configuration (SR-02-022) rejects a file that has one (SR-01-003).
+    rationale: >-
+      No check confirms a file version (SR-01-003). When the schema declares no such
+      field, the loader rejects a file that has one, and the rule needs no separate
+      check.
+    verification: >-
+      `test/metadata/specs/test_schema.py::test_spec_file_rejects_version_field` asserts
+      that `SpecFile` validation fails on a `version` key.
+    relationships:
+    - rel_type: implements
+      spec_id: SR-01-003
   - id: SR-02-014
     priority: MUST
     kind: project
     verification_debt: '#2574'
-    statement: '`scope` at `SpecFile` and `SpecGroup` level MUST serve as a default; individual specs MAY override it.
-      `kind` MUST be declared on every individual spec item and is not inheritable from file or group.'
+    statement: >-
+      A `scope` value at `SpecFile` or `SpecGroup` level MUST serve as the default for
+      the spec items under it.
     rationale: >-
-      A whole file usually has one scope, so a default prevents repetition and still
-      lets one requirement differ. Kind is not inherited, because a reader cannot see an
-      inherited tier at the item. Such a tier can put a requirement under the wrong
-      checks.
+      A whole file usually has one scope, so a default prevents repetition.
+  - id: SR-02-026
+    priority: MAY
+    kind: project
+    statement: >-
+      An individual spec item MAY set its own `scope`, which overrides the default.
+    rationale: >-
+      One requirement in a file can apply to a different target than the rest. An
+      override on the item lets that requirement differ without a change to the file or
+      group default (SR-02-014).
+  - id: SR-02-027
+    priority: MUST
+    kind: project
+    verification_debt: '#2574'
+    statement: >-
+      Every individual spec item MUST declare its own `kind`, which it does not inherit
+      from its file or group.
+    rationale: >-
+      A reader cannot see an inherited tier at the item. Such a tier can put a
+      requirement under the wrong checks.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-02-014
   - id: SR-02-015
     priority: SHOULD
     kind: project
@@ -363,20 +457,28 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A `Precondition` object MUST carry a `description` string summarising the
-      precondition in prose; MAY carry `rm_state` (list of RM states), `em_state`
-      (list of EM states), `role` (list of CVDRoles), and/or `cs_pattern` (a CS
-      hypercube pattern string) as typed fields enabling conformance tooling to
-      evaluate the precondition by matching against protocol state-machine enums
-      directly.
+      A `Precondition` object MUST carry a `description` string that states the
+      precondition in prose.
     rationale: >-
-      A prose description is for human readers. The optional typed state fields let
-      conformance tooling test a precondition directly against the RM, EM, role and CS
-      enums. A reader cannot understand a precondition with no description.
+      A prose description is for human readers. A reader cannot understand a
+      precondition with no description.
     verification: >-
       `Precondition` model in `vultron/metadata/specs/schema.py` has a required
-      `description: str` field and optional typed state fields `rm_state`, `em_state`,
-      `role`, and `cs_pattern`.
+      `description: str` field.
+  - id: SR-02-028
+    priority: MAY
+    kind: project
+    statement: >-
+      A `Precondition` object MAY carry the typed state fields `rm_state`, `em_state`,
+      `role` and `cs_pattern`. They hold a list of RM states, a list of EM states, a
+      list of CVDRoles and a CS hypercube pattern string.
+    rationale: >-
+      The optional typed state fields let conformance tooling test a precondition
+      directly against the RM, EM, role and CS enums, without parsing the prose
+      description.
+    verification: >-
+      `Precondition` model in `vultron/metadata/specs/schema.py` has optional typed
+      state fields `rm_state`, `em_state`, `role`, and `cs_pattern`.
   - id: SR-02-020
     priority: SHOULD
     kind: project
@@ -393,17 +495,20 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: >-
-      `StatementSpec` (and by inheritance `BehavioralSpec`) MUST support the following
-      optional fields in addition to the core set: `verification` (NonEmptyStr — machine-executable
-      or human-reviewable check that confirms the requirement is met), `note` (NonEmptyStr —
-      correction notice or clarifying annotation), `tracking_issue` (str — GitHub issue
-      reference(s) tracking planned implementation), `verification_debt` (`#N` — the issue
-      that owns verifying a MUST-tier requirement with no `verification`, MS-10-006),
-      `references` (list[str] — file paths or
-      URIs to supporting documents), `exceptions` (list[NonEmptyStr] — permitted exceptions
-      to the rule stated in the requirement), `trigger` (Trigger — activating event for a
-      behavioral spec item), `deprecated` (bool, default False), and `superseded_by`
-      (SpecIdStr | None — ID of the replacement requirement).
+      `StatementSpec` MUST support these optional fields beyond the core set, and
+      `BehavioralSpec` inherits them: `verification`, `note`, `tracking_issue`,
+      `verification_debt`, `references`, `exceptions`, `trigger`, `deprecated` and
+      `superseded_by`. The `verification` field (NonEmptyStr) is a machine-executable or
+      human-reviewable check that confirms the requirement is met. The `note` field
+      (NonEmptyStr) is a correction notice or clarifying annotation. The
+      `tracking_issue` field (str) holds the GitHub issue references that track planned
+      implementation. The `verification_debt` field (`#N`) names the issue that owns
+      verifying a `MUST`-tier requirement with no `verification` (MS-10-006). The
+      `references` field (list[str]) holds file paths or URIs to supporting documents.
+      The `exceptions` field (list[NonEmptyStr]) lists permitted exceptions to the rule
+      that the requirement states. The `trigger` field (Trigger) is the activating event
+      of a behavioral spec item. The `deprecated` field (bool) defaults to False. The
+      `superseded_by` field (SpecIdStr | None) is the ID of the replacement requirement.
     rationale: >-
       Without these fields in the schema, the loader would reject (SR-02-022) or ignore
       annotations that requirements need. These annotations tell how a requirement is
@@ -502,47 +607,77 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `load_registry` MUST attribute a failed file to its path per MS-17-001, and MUST obtain
-      that attribution from the shared helper named by MS-17-003 rather than its own wrapper.
-      This applies to both the YAML parse and the `SpecFile` validation of each file.
+      `load_registry` MUST attribute each file that fails its YAML parse or its
+      `SpecFile` validation to the path of that file (MS-17-001).
     rationale: >-
-      `load_registry` backs every spec consumer — the linter, the pre-commit hook, `spec-dump`,
-      the coverage report, the docs renderer, the pytest marker check — so an unattributed
-      failure here is the one an author is most likely to meet. Attributing the parse alone
-      would leave the more common fault unnamed: an invalid enum value (`kind`, `priority`,
-      `rel_type`) is reported as a positional path into the parsed structure, which locates a
-      requirement no better than a bare line number does.
+      `load_registry` backs every spec consumer — the linter, the pre-commit hook,
+      `spec-dump`, the coverage report, the docs renderer, the pytest marker check — so
+      an unattributed failure here is the one an author is most likely to meet.
+      Attributing the parse alone would leave the more common fault unnamed: an invalid
+      enum value (`kind`, `priority`, `rel_type`) is reported as a positional path into
+      the parsed structure, which locates a requirement no better than a bare line
+      number does.
     verification: >-
-      Unit tests corrupt a temporary spec directory two ways — a YAML syntax fault and an
-      invalid enum value — and assert each raised error names the offending file.
+      Unit tests corrupt a temporary spec directory two ways — a YAML syntax fault and
+      an invalid enum value — and assert each raised error names the offending file.
     relationships:
     - rel_type: implements
       spec_id: MS-17-001
+  - id: SR-03-010
+    priority: MUST
+    kind: project
+    statement: >-
+      `load_registry` MUST get that file attribution from the shared helper that
+      MS-17-003 names, not from a wrapper of its own.
+    rationale: >-
+      One helper gives every metadata loader the same attribution format. A private
+      wrapper in `load_registry` would drift from the other loaders, and an author would
+      meet two error formats for one kind of fault.
+    verification: >-
+      `test/architecture/test_metadata_loader_attribution.py::test_no_private_attribution_wrapper_outside_the_helper`
+      fails on a private attribution wrapper in any module under `vultron/metadata/`,
+      `load_registry` included.
+    relationships:
     - rel_type: implements
       spec_id: MS-17-003
   - id: SR-03-009
     priority: MUST
     kind: project
     statement: >-
-      When more than one file in `specs/` fails to load, `load_registry` MUST report every
-      failing file in a single error rather than stopping at the first, and MUST carry the
-      individual failures as structured data on the exception rather than only as a joined
-      message.
+      When more than one file in `specs/` fails to load, `load_registry` MUST report
+      every failing file in a single error, not only the first.
     rationale: >-
-      The loader rejects the corpus as a unit, so a caller told one reason at a time gains
-      nothing from the round trip — the principle EH-07-001 states for validation boundaries.
-      The linter that wraps this loader already collects and prints all of its own findings
-      together, so stopping at the first file makes the loader the one part of the tool that
-      reports less than it knows. The case that matters is a bulk spec edit breaking several
-      files at once.
+      The loader rejects the corpus as a unit, so a caller told one reason at a time
+      gains nothing from the round trip — the principle EH-07-001 states for validation
+      boundaries. The linter that wraps this loader already collects and prints all of
+      its own findings together, so stopping at the first file makes the loader the one
+      part of the tool that reports less than it knows. The case that matters is a bulk
+      spec edit breaking several files at once.
     verification: >-
-      A unit test corrupts two files in a temporary spec directory and asserts that both names
-      appear in the single raised error, and that the individual failures are recoverable from
-      the exception without parsing its message.
+      A unit test corrupts two files in a temporary spec directory and asserts that both
+      names appear in the single raised error.
     relationships:
     - rel_type: derives_from
       spec_id: EH-07-001
       note: applies the report-every-violation rule to a file-walking loader
+  - id: SR-03-011
+    priority: MUST
+    kind: project
+    statement: >-
+      `load_registry` MUST carry each individual failure as structured data on the
+      exception it raises, not only as a joined message.
+    rationale: >-
+      A caller that acts on each failing file needs the failures one by one. Without
+      structured data, it must parse the message text, which breaks when the message
+      format changes.
+    verification: >-
+      `test_every_failing_file_is_reported_structurally` in
+      `test/metadata/specs/test_registry_attribution.py` and `TestFailureCollector` in
+      `test/metadata/test_file_loading.py` assert that the individual failures can be
+      read from the exception without parsing its message.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-03-009
 - id: SR-04
   title: Linter
   specs:
@@ -716,37 +851,86 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: >-
-      Tests that verify a requirement every implementation must obey (spec items with kind equal to "protocol" or
-      "foundation") MUST carry `@pytest.mark.spec("<ID>")` linking the test to the requirement it exercises. Tests for
-      other requirement kinds SHOULD use the marker to enable coverage reporting by spec ID.
+      A test that verifies a `kind: protocol` or `kind: foundation` requirement MUST
+      carry `@pytest.mark.spec("<ID>")` naming that requirement.
     rationale: >-
-      Protocol- and foundation-kind requirements are conformance-critical. Without a marker, coverage for those
-      requirements is unverifiable and the CI coverage guard (SR-05-005) cannot enforce it. `foundation` is covered
-      with `protocol` because every rule an implementer must obey needs a test, whether Vultron defines it or inherits
-      it (ADR-0134). The SHOULD for other kinds preserves opt-in adoption for lower-stakes requirements.
+      Protocol- and foundation-kind requirements are conformance-critical. Without a
+      marker, coverage for those requirements is unverifiable and the CI coverage guard
+      (SR-05-005) cannot enforce it. `foundation` is covered with `protocol` because
+      every rule an implementer must obey needs a test, whether Vultron defines it or
+      inherits it (ADR-0134).
+    adr:
+    - ADR-0134
+  - id: SR-05-008
+    priority: SHOULD
+    kind: project
+    statement: >-
+      A test that verifies a requirement of any other kind SHOULD carry
+      `@pytest.mark.spec("<ID>")` naming that requirement, so that coverage can be
+      reported by spec ID.
+    rationale: >-
+      A marker lets `spec-coverage` and the spec backstop link a test to the requirement
+      it proves. For the lower-stakes kinds, a SHOULD keeps adoption opt-in, so no
+      guard blocks a change for a missing marker.
     adr:
     - ADR-0134
   - id: SR-05-005
     priority: MUST
     kind: project
     statement: >-
-      No pull request may add an uncovered `protocol` or `foundation` requirement: CI MUST fail a pull request when a
-      `kind: protocol` or `kind: foundation` ID that no `@pytest.mark.spec` marker covers at the PR head was covered,
-      or was of neither kind, at the merge base with the base branch, and MUST list each such ID. A requirement that
-      leaves both kinds or is retired is not an addition, and the check MUST NOT compare against a committed count.
+      CI MUST fail a pull request that adds an uncovered `protocol` or `foundation`
+      requirement. An ID is added when no `@pytest.mark.spec` marker covers it at the
+      head, but it was covered, or of neither kind, at the merge base. A requirement
+      that leaves both kinds, or is retired, is not an addition.
     rationale: >-
-      A SHOULD-only marker rule produced near-zero adoption with no enforcement signal. Markers record coverage per
-      item, so the check compares the uncovered set at the base with the set at the head and commits no number: a
-      one-sided ceiling collects silent slack and a two-sided pin races every concurrent PR
-      (`notes/testing-pitfalls.md`). `spec-coverage` prints the live uncovered total. `foundation` is guarded with
-      `protocol` because every rule an implementer must obey needs a test (ADR-0134), and treating the two as one
-      set means a relabel from `protocol` to `foundation` is not a way around the guard.
+      A SHOULD-only marker rule produced near-zero adoption with no enforcement signal.
+      `foundation` is guarded with `protocol` because every rule an implementer must
+      obey needs a test (ADR-0134). Treating the two as one set means that a relabel
+      from `protocol` to `foundation` is not a way around the guard.
     verification: >-
-      `test/architecture/test_spec_coverage_ratchet.py::test_no_pr_adds_an_uncovered_implementer_spec` fails on each ID
-      uncovered since the merge base and runs in CI with full history, and `test/metadata/specs/test_growth_guard.py`
-      exercises the guard on fixture repositories for a new unmarked protocol spec, a new unmarked foundation spec, a
-      removed last marker, an unchanged corpus, a relabel in and out, a relabel from protocol to foundation with and
-      without a marker, a retired spec, and the logged skip when no base ref is available.
+      `test/architecture/test_spec_coverage_ratchet.py::test_no_pr_adds_an_uncovered_implementer_spec`
+      fails on each ID uncovered since the merge base and runs in CI with full history,
+      and `test/metadata/specs/test_growth_guard.py` exercises the guard on fixture
+      repositories for a new unmarked protocol spec, a new unmarked foundation spec, a
+      removed last marker, an unchanged corpus, a relabel in and out, a relabel from
+      protocol to foundation with and without a marker, a retired spec, and the logged
+      skip when no base ref is available.
+    adr:
+    - ADR-0134
+  - id: SR-05-009
+    priority: MUST
+    kind: project
+    statement: >-
+      When the coverage check of SR-05-005 fails a pull request, it MUST list each added
+      uncovered ID.
+    rationale: >-
+      The author must add a marker for each added ID. A failure that names no ID makes
+      the author search the whole corpus for the cause.
+    verification: >-
+      `test/metadata/specs/test_growth_guard.py` asserts the exact set of added IDs for
+      a new unmarked spec and for a removed last marker.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-05-005
+    adr:
+    - ADR-0134
+  - id: SR-05-010
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The coverage check of SR-05-005 MUST NOT compare the uncovered set against a
+      committed count.
+    rationale: >-
+      Markers record coverage per item, so the check compares the uncovered set at the
+      base with the set at the head, and commits no number. A one-sided ceiling collects
+      silent slack, and a two-sided pin races every concurrent PR
+      (`notes/testing-pitfalls.md`). `spec-coverage` prints the live uncovered total.
+    verification: >-
+      `test/metadata/specs/test_growth_guard.py::test_coverage_committed_change_is_compared_from_merge_base`
+      asserts that the check compares the head with the merge base.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-05-005
     adr:
     - ADR-0134
   - id: SR-05-006
@@ -754,51 +938,138 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: >-
-      `pytest_collection_modifyitems` MUST distinguish three cases when resolving the registry, and MUST NOT conflate
-      them. (a) **No corpus** — `specs/` absent, or present with no spec files: return silently, because there is nothing
-      to validate against and nothing is wrong. (b) **Unloadable corpus** — the directory exists but `load_registry`
-      raises: emit `SpecRegistryUnavailableWarning` (non-blocking per SR-05-007) naming the spec directory, the
-      underlying cause, and the requirement whose gate is down, then return without validating markers. (c) **Unexpected
-      failure** — an exception type outside the documented load-failure set: do not catch it. The `except` clause MUST
-      name the narrowest concrete types that a corpus which exists but does not load can raise (CS-23-001); a blanket
-      `except Exception` is a defect.
+      `pytest_collection_modifyitems` MUST handle three registry cases apart: no corpus,
+      an unloadable corpus and an unexpected failure.
     rationale: >-
       A gate that silently skips reports the same clean pass as a corpus with no unknown
       IDs. Thus one malformed spec file could disable marker validation for a whole
-      session. The session must still run, because a malformed spec file must not block
-      the tests that diagnose it. For this reason, case (b) gives a warning and does not
-      raise. Case (a) is not a fault, so it stays silent. Case (c) is not caught: an
-      unexpected exception type shows a bug in the loader, not a bad spec file, and a
-      catch-all handler would hide it (CS-23-001).
+      session. Each case needs its own response, so the hook must tell them apart
+      (SR-05-011, SR-05-012, SR-05-013).
     relationships:
     - rel_type: refines
       spec_id: SR-05-002
-      note: SR-05-002 specifies the marker check; SR-05-006 specifies what happens when the registry it needs is unavailable
+      note: >-
+        SR-05-002 specifies the marker check; SR-05-006 specifies what happens when the
+        registry it needs is unavailable
+  - id: SR-05-011
+    priority: MUST
+    kind: project
+    statement: >-
+      When `specs/` is absent, or present with no spec files,
+      `pytest_collection_modifyitems` MUST return silently.
+    rationale: >-
+      With no corpus there is nothing to validate against and nothing is wrong, so a
+      warning would be a false alarm.
+    verification: >-
+      `test/metadata/specs/test_spec_marker_gate.py::TestNoCorpusStaysSilent` asserts no
+      warning and no validation for an absent and for an empty spec directory.
+    relationships:
+    - rel_type: part_of
+      spec_id: SR-05-006
+  - id: SR-05-012
+    priority: MUST
+    kind: project
+    statement: >-
+      When `specs/` exists but `load_registry` raises, `pytest_collection_modifyitems`
+      MUST emit a `SpecRegistryUnavailableWarning` and return without validating
+      markers. The warning names the spec directory, the underlying cause and the
+      requirement whose gate is down.
+    rationale: >-
+      The session must still run, because a malformed spec file must not block the tests
+      that diagnose it. For this reason, the hook gives a warning that is non-blocking
+      (SR-05-007) and does not raise. The warning keeps the disabled gate visible.
+    verification: >-
+      `test/metadata/specs/test_spec_marker_gate.py::TestUnloadableCorpusIsVisible` and
+      `::TestWarnSpecRegistryUnavailable` assert the warning, its content and that no
+      marker is validated.
+    relationships:
+    - rel_type: part_of
+      spec_id: SR-05-006
+  - id: SR-05-013
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      `pytest_collection_modifyitems` MUST NOT catch an exception type outside the
+      documented load-failure set.
+    rationale: >-
+      An unexpected exception type shows a bug in the loader, not a bad spec file. A
+      catch-all handler would hide that bug (CS-23-001).
+    verification: >-
+      `test/metadata/specs/test_spec_marker_gate.py::TestUnexpectedFailureStillSurfaces::test_unexpected_exception_type_propagates`
+      asserts that an unexpected exception type propagates.
+    relationships:
+    - rel_type: part_of
+      spec_id: SR-05-006
+  - id: SR-05-014
+    priority: MUST
+    kind: project
+    statement: >-
+      The `except` clause of `pytest_collection_modifyitems` MUST name only the
+      narrowest concrete types that a corpus which exists but does not load can raise
+      (CS-23-001).
+    rationale: >-
+      Narrow types are what keep an unexpected exception uncaught (SR-05-013). A blanket
+      `except Exception` is a defect, because it catches every bug in the loader.
+    verification: >-
+      `test/metadata/specs/test_spec_marker_gate.py::TestUnexpectedFailureStillSurfaces::test_the_catch_is_not_blanket`
+      asserts that the clause is not a blanket catch.
+    relationships:
+    - rel_type: implements
+      spec_id: SR-05-013
     - rel_type: refines
       spec_id: CS-23-001
-      note: applies the narrow-catch rule to the pytest collection hook, which sits outside CS-23-001's `vultron/` scope
+      note: >-
+        applies the narrow-catch rule to the pytest collection hook, which sits outside
+        CS-23-001's `vultron/` scope
   - id: SR-05-007
     priority: MUST
     kind: project
     verification_debt: '#2574'
     statement: >-
-      Every warning the pytest integration relies on being non-blocking MUST have a matching `always::` entry in
-      `pyproject.toml`'s `filterwarnings`, and that entry MUST be listed **after** the `"error"` entry. pytest applies
-      ini `filterwarnings` in list order via `warnings.filterwarnings()`, which inserts each filter at index 0, so a
-      later entry outranks an earlier one; an exemption placed before `"error"` is a no-op. Conformance MUST be verified
-      behaviourally — by emitting the warning under the project's real filter list in a sub-session — and not only by
-      asserting the entry's position in the ini list.
+      Every warning that the pytest integration relies on being non-blocking MUST have a
+      matching `always::` entry in the `filterwarnings` list of `pyproject.toml`.
     rationale: >-
-      pytest puts each ini filter at the front of the list. Thus a later entry wins, and
-      an `always::` entry before `"error"` has no effect. This order is the reverse of
-      what readers expect, and an error in it changes a non-blocking warning into a
-      collection abort. Only a behavioral check under the real filter list can find this
-      error. `pytest.warns` and `catch_warnings` replace the ini filters, and a position
-      assertion passes when the behavior is broken.
+      The `"error"` entry of `filterwarnings` turns every other warning into a failure.
+      Without an exemption, a non-blocking warning would change into a collection
+      abort.
     relationships:
     - rel_type: refines
       spec_id: SR-05-002
       note: supplies the "non-blocking" mechanism SR-05-002 and SR-05-006 both depend on
+  - id: SR-05-015
+    priority: MUST
+    kind: project
+    statement: >-
+      Each such `always::` entry MUST come after the `"error"` entry in
+      `filterwarnings`.
+    rationale: >-
+      pytest applies ini `filterwarnings` in list order through
+      `warnings.filterwarnings()`, which puts each filter at the front of the list. Thus
+      a later entry wins, and an `always::` entry before `"error"` has no effect. This
+      order is the reverse of what readers expect.
+    verification: >-
+      `test/metadata/specs/test_spec_marker_gate.py::TestWarningIsNotEscalated::test_the_always_entry_outranks_the_error_rule`
+      asserts the order of the two entries.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-05-007
+  - id: SR-05-016
+    priority: MUST
+    kind: project
+    statement: >-
+      A test MUST verify each such entry by emitting the warning in a sub-session under
+      the project's real filter list. A check of the position of the entry alone does
+      not verify it.
+    rationale: >-
+      Only a behavioral check under the real filter list can find an error in the
+      order. `pytest.warns` and `catch_warnings` replace the ini filters, and a position
+      assertion passes when the behavior is broken.
+    verification: >-
+      `test/metadata/specs/test_spec_marker_gate.py::TestWarningIsNotEscalated::test_the_error_rule_does_not_escalate_the_warning`
+      emits the warning in a sub-session under the real filter list.
+    relationships:
+    - rel_type: verifies
+      spec_id: SR-05-015
 - id: SR-06
   title: Pre-commit Hook
   specs:
@@ -879,15 +1150,25 @@ groups:
     priority: SHOULD
     kind: project
     statement: >-
-      The `spec-dump` CLI entry point SHOULD support a `--kind` flag accepting one or more
-      comma-separated `SpecKind` values, filtering the LLM-optimized JSON output to matching
-      requirements. An unknown kind value MUST produce a clear error message listing valid values
-      and exit with code 2.
+      The `spec-dump` CLI SHOULD support a `--kind` flag that takes comma-separated
+      `SpecKind` values. The flag filters the LLM-optimized JSON output to the matching
+      requirements.
     rationale: >-
       Different work must obey different tiers. Protocol work needs `protocol` and
       `foundation`, and tooling work needs `project`. A kind filter selects a tier
-      directly. An unknown value must fail and show the valid choices, because an empty
-      result would tell the reader that no requirements apply.
+      directly.
+  - id: SR-07-018
+    priority: MUST
+    kind: project
+    statement: >-
+      When `--kind` names an unknown kind, `spec-dump` MUST exit with code 2 and print
+      an error that lists the valid values.
+    rationale: >-
+      An empty result would tell the reader that no requirements apply. An error that
+      shows the valid choices tells the reader that the value was wrong.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_cli.py::test_cli_unknown_kind_lists_foundation_as_valid`
+      asserts the error and the list of valid values.
   - id: SR-07-007
     priority: MUST
     kind: project
@@ -905,15 +1186,29 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The `spec-dump` CLI MUST support the selectors `--topic`, `--group`, and `--ids` (each a
-      comma-separated list) and a `--deps` flag that adds the transitive dependencies of every
-      selected requirement; the selectors MUST combine as a union.
+      The `spec-dump` CLI MUST support the comma-separated selectors `--topic`,
+      `--group` and `--ids`, and a `--deps` flag that adds every selected requirement's
+      transitive dependencies.
     rationale: >-
-      Targeted loads replace the full dump. A union lets one call load a primary topic together
-      with specific groups or IDs from other topics.
+      Targeted loads replace the full dump.
     verification: >-
-      `test/metadata/specs/test_spec_dump_cli.py` asserts multi-topic, group, ID, dependency
-      expansion, and union selection through both `to_llm_json` and the CLI.
+      `test/metadata/specs/test_spec_dump_cli.py` asserts multi-topic, group, ID and
+      dependency expansion through both `to_llm_json` and the CLI.
+  - id: SR-07-019
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-dump` MUST combine the `--topic`, `--group` and `--ids` selectors as a
+      union.
+    rationale: >-
+      A union lets one call load a primary topic together with specific groups or IDs
+      from other topics.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_cli.py::TestToLlmJsonSelection::test_selectors_are_a_union`
+      asserts union selection.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-07-008
   - id: SR-07-009
     priority: SHOULD
     kind: project
@@ -929,16 +1224,30 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The `spec-dump` CLI MUST support a `--cross-cutting` flag that adds the topics in the
-      `CROSS_CUTTING_TOPICS` constant of `vultron.metadata.specs` to the selection; that constant
-      MUST be the single definition of the cross-cutting topic list.
+      The `spec-dump` CLI MUST support a `--cross-cutting` flag that adds the topics in
+      the `CROSS_CUTTING_TOPICS` constant of `vultron.metadata.specs` to the selection.
     rationale: >-
-      Several skills load the cross-cutting topics with every task. One constant behind
-      a flag gives every skill the same list. Copies that each skill keeps by hand
-      become different over time.
+      Several skills load the cross-cutting topics with every task. One flag gives every
+      skill the same list.
     verification: >-
-      `test/metadata/specs/test_spec_dump_cli.py` asserts the constant's value and that the flag
-      unions those topics with the other selectors.
+      `test/metadata/specs/test_spec_dump_cli.py` asserts that the flag unions those
+      topics with the other selectors.
+  - id: SR-07-020
+    priority: MUST
+    kind: project
+    statement: >-
+      The `CROSS_CUTTING_TOPICS` constant MUST be the single definition of the
+      cross-cutting topic list.
+    rationale: >-
+      Copies of the list that each skill keeps by hand become different over time. One
+      definition behind the flag keeps them the same.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_cli.py::TestCli::test_cross_cutting_constant_is_the_only_definition`
+      fails when a module under `vultron/` other than the constant's own spells out the
+      topic list.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-07-010
   - id: SR-07-011
     priority: MUST
     kind: project
@@ -969,51 +1278,108 @@ groups:
     priority: SHOULD
     kind: project
     statement: >-
-      When `spec-dump` is run without `--index` and without any selector or filter flag, it SHOULD
-      still print the full JSON dump to stdout and SHOULD write a one-line warning to stderr that
-      states the output size and suggests `--index` and the selector flags.
+      When `spec-dump` runs without `--index` and without any selector or filter flag,
+      it SHOULD still print the full JSON dump to stdout.
     rationale: >-
-      `spec-audit` needs the full corpus, but an agent that runs the bare command by habit needs to
-      learn that the output does not fit in its context.
+      `spec-audit` needs the full corpus.
     verification: >-
-      `test/metadata/specs/test_spec_dump_cli.py` asserts the full output, the single stderr line,
-      and that filtered and `--index` runs do not warn.
+      `test/metadata/specs/test_spec_dump_cli.py::TestCli::test_unfiltered_dump_warns_on_stderr`
+      asserts the full output.
+  - id: SR-07-021
+    priority: SHOULD
+    kind: project
+    statement: >-
+      On such a run, `spec-dump` SHOULD write one warning line to stderr that states the
+      output size and suggests `--index` and the selector flags.
+    rationale: >-
+      An agent that runs the bare command by habit needs to learn that the output does
+      not fit in its context.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_cli.py` asserts the single stderr line, and
+      that filtered and `--index` runs do not warn.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-07-013
   - id: SR-07-014
     priority: MUST
     kind: project
     statement: >-
-      The `spec-dump` CLI MUST support a `--text` flag that renders the selected requirements as
-      indented text — a topic header, a group header, then one `ID PRIORITY statement` line per
-      requirement — and MUST reject `--text` without a selector with exit status 2.
+      The `spec-dump` CLI MUST support a `--text` flag that renders the selected
+      requirements as indented text. The text holds a topic header, a group header, then
+      one `ID PRIORITY statement` line per requirement.
     rationale: >-
-      The JSON dump is a single line, so an agent that prints a load of any size sees a truncated
-      prefix of one unreadable token; observed agent runs piped every load through `jq` to read it
-      at all. One line per requirement truncates gracefully and costs fewer bytes than the JSON.
-      Requiring a selector keeps `--text` from reproducing the full-dump wall.
+      The JSON dump is a single line, so an agent that prints a load of any size sees a
+      truncated prefix of one unreadable token; observed agent runs piped every load
+      through `jq` to read it at all. One line per requirement truncates gracefully and
+      costs fewer bytes than the JSON.
     verification: >-
-      `test/metadata/specs/test_spec_dump_cli.py` asserts the header, topic, group, and requirement
-      line formats, that statements are collapsed to one line, and the exit-2 unselected case.
+      `test/metadata/specs/test_spec_dump_cli.py` asserts the header, topic, group, and
+      requirement line formats, and that statements are collapsed to one line.
+  - id: SR-07-022
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-dump` MUST reject `--text` without a selector, with exit status 2.
+    rationale: >-
+      A `--text` run without a selector would print the whole corpus as text. Requiring
+      a selector keeps `--text` from reproducing the full-dump wall.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_cli.py::TestRequirementsText::test_cli_text_without_a_selector_exits_2`
+      asserts the exit status.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-07-014
   - id: SR-07-015
     priority: MUST
     kind: project
     statement: >-
-      The selection that `--text` requires MUST be a set selector (`--topic`, `--group`, `--ids`,
-      `--adr`, or `--cross-cutting`) naming at least one value; an attribute filter such as `--kind` or
-      `--priority` MUST NOT satisfy it, and a set selector that names no values (`--topic ""`)
-      MUST exit with status 2.
+      The selection that `--text` requires MUST be a set selector (`--topic`, `--group`,
+      `--ids`, `--adr` or `--cross-cutting`) that names at least one value.
     rationale: >-
-      Attribute filters keep whole topics, so counting one as a selection let `--text --kind
-      protocol` print 285 KB — the wall SR-07-014's selector requirement exists to prevent. An
-      empty list is the opposite failure: it means "select nothing" to the exporter but "no
-      selection" to the size guard, so `--topic ""` printed an empty dump under a warning about an
-      unfiltered one. Both are typos, and both should say so.
+      Only a set selector bounds the output to the requirements that an agent asked for.
+      Without one, `--text` prints the wall that SR-07-022 exists to prevent.
     verification: >-
-      `test/metadata/specs/test_spec_dump_cli.py` asserts `--text` with only an attribute filter
-      exits 2, and that an empty set selector exits 2 in both text and JSON modes;
-      `test/metadata/specs/test_spec_dump_adr_selector.py` asserts the same for an empty `--adr`.
+      `test/metadata/specs/test_spec_dump_cli.py::TestRequirementsText::test_cli_text_flag`
+      and `test/metadata/specs/test_spec_dump_adr_selector.py::test_adr_counts_as_a_set_selector_for_text`
+      assert that a set selector satisfies `--text`.
     relationships:
     - rel_type: refines
-      spec_id: SR-07-014
+      spec_id: SR-07-022
+    tags:
+    - tooling
+  - id: SR-07-023
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      An attribute filter such as `--kind` or `--priority` MUST NOT satisfy the
+      selection that `--text` requires.
+    rationale: >-
+      Attribute filters keep whole topics, so counting one as a selection let `--text
+      --kind protocol` print 285 KB. That is the wall the selector requirement exists to
+      prevent.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_cli.py` asserts that `--text` with only an
+      attribute filter exits 2.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-07-015
+    tags:
+    - tooling
+  - id: SR-07-024
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-dump` MUST exit with status 2 when a set selector names no values, such as
+      `--topic ""`.
+    rationale: >-
+      An empty list means "select nothing" to the exporter but "no selection" to the
+      size guard, so `--topic ""` printed an empty dump under a warning about an
+      unfiltered one. The empty list is a typo, and the tool should say so.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_cli.py` asserts that an empty set selector
+      exits 2 in both text and JSON modes;
+      `test/metadata/specs/test_spec_dump_adr_selector.py` asserts the same for an empty
+      `--adr`.
     tags:
     - tooling
   - id: SR-07-016
@@ -1021,18 +1387,34 @@ groups:
     kind: project
     statement: >-
       The `glossary-index` entry point MUST render one line per `##` section of
-      `docs/reference/glossary.md` carrying that section's line range, its terms, and the aliases
-      to avoid for each term, and MUST attribute a term table to the section whose line range
-      contains it rather than to a section with a matching heading.
+      `docs/reference/glossary.md`. The line carries the line range and the terms of the
+      section, and the aliases to avoid for each term.
     rationale: >-
-      The glossary is ~82 KB, most of it definitions a given task never touches; the index is
-      ~12 KB and carries the naming guard, which is the part every session needs. Line ranges are
-      what let `deepen-context` read one section instead of the file. Matching on heading text
-      instead of position gave two sections sharing a title each other's terms.
+      The glossary is ~82 KB, most of it definitions a given task never touches; the
+      index is ~12 KB and carries the naming guard, which is the part every session
+      needs. Line ranges are what let `deepen-context` read one section instead of the
+      file.
     verification: >-
-      `test/metadata/docs/test_glossary_index.py` asserts the line format, the alias rendering,
-      that a section with a heading at end of file does not raise, and that duplicate headings keep
-      their own terms.
+      `test/metadata/docs/test_glossary_index.py` asserts the line format, the alias
+      rendering, and that a section with a heading at end of file does not raise.
+    tags:
+    - documentation
+    - tooling
+  - id: SR-07-025
+    priority: MUST
+    kind: project
+    statement: >-
+      `glossary-index` MUST attribute each term table to the section whose line range
+      contains it, not to a section with a matching heading.
+    rationale: >-
+      Two sections can share a heading. Matching on heading text instead of position
+      gave two such sections each other's terms.
+    verification: >-
+      `test/metadata/docs/test_glossary_index.py::test_sections_sharing_a_heading_keep_their_own_terms`
+      asserts that duplicate headings keep their own terms.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-07-016
     tags:
     - documentation
     - tooling
@@ -1040,28 +1422,82 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The `spec-dump` CLI MUST support an `--adr` set selector (a comma-separated list of
-      `ADR-NNNN` ids) that selects every requirement whose `adr:` field names one of them, and
-      that combines with the other selectors as a union. A value that is not an `ADR-NNNN` id,
-      or that names no record under the `docs/adr/` beside the spec directory (archived records
-      included), MUST exit with status 2 and name the value. For each named record that no
-      requirement cites in `adr:`, it MUST write a note to stderr that names the record and points
-      at its prose citations under `specs/` and `notes/`, and MUST still print the selection.
+      The `spec-dump` CLI MUST support an `--adr` set selector, a comma-separated list
+      of `ADR-NNNN` ids. It selects every requirement whose `adr:` field names one of
+      those ids, as a union with the other selectors.
     rationale: >-
-      `deepen-context` routes through decision records by reading the `adr:` edge backwards
-      instead of reading a record body (ADR-0127, MS-11-008), and agents do not read raw spec
-      YAML. Some live records are reached only by prose citation, so an empty selection for one
-      of them would read as "this record governs nothing"; the note says where its rule is stated
-      instead.
+      `deepen-context` routes through decision records by reading the `adr:` edge
+      backwards instead of reading a record body (ADR-0127, MS-11-008), and agents do
+      not read raw spec YAML.
     verification: >-
-      `test/metadata/specs/test_spec_dump_adr_selector.py` asserts selection by one and by two
-      records, the union with `--ids` and `--deps`, JSON and `--text` output, `--adr` alone
-      satisfying `--text`, the stderr note and non-empty output for an uncited record, and
-      exit 2 for each malformed value, for an id that names no record, and when no record
-      directory sits beside the spec directory.
+      `test/metadata/specs/test_spec_dump_adr_selector.py` asserts selection by one and
+      by two records, the union with `--ids` and `--deps`, JSON and `--text` output, and
+      `--adr` alone satisfying `--text`.
     relationships:
     - rel_type: refines
       spec_id: SR-07-008
+    adr:
+    - ADR-0127
+    tags:
+    - tooling
+  - id: SR-07-026
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-dump` MUST exit with status 2, naming the value, when an `--adr` value is
+      malformed or names no record. A value is malformed when it is not an `ADR-NNNN`
+      id. The record search covers the `docs/adr/` beside the spec directory, archived
+      records included.
+    rationale: >-
+      A typo in a record ID would otherwise give an empty selection, which reads as
+      "this record governs nothing". The error names the value, so the agent can correct
+      it.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_adr_selector.py` asserts exit 2 for each
+      malformed value, for an id that names no record, and when no record directory sits
+      beside the spec directory.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-07-017
+    adr:
+    - ADR-0127
+    tags:
+    - tooling
+  - id: SR-07-027
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-dump` MUST write a note to stderr for each named record that no requirement
+      cites in `adr:`. The note names the record and points at its prose citations under
+      `specs/` and `notes/`.
+    rationale: >-
+      Some live records are reached only by prose citation, so an empty selection for
+      one of them would read as "this record governs nothing". The note says where its
+      rule is stated instead.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_adr_selector.py::test_record_no_requirement_cites_is_noted_not_silent`
+      asserts the stderr note for an uncited record.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-07-017
+    adr:
+    - ADR-0127
+    tags:
+    - tooling
+  - id: SR-07-028
+    priority: MUST
+    kind: project
+    statement: >-
+      When `spec-dump` writes such a note, it MUST still print the selection.
+    rationale: >-
+      The note adds to the output and replaces nothing. A run that also names cited
+      records must still give their requirements.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_adr_selector.py::test_record_no_requirement_cites_is_noted_not_silent`
+      asserts non-empty output for an uncited record.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-07-027
     adr:
     - ADR-0127
     tags:
@@ -1075,15 +1511,38 @@ groups:
     verification_debt: '#2574'
     statement: >-
       The `render_for_kind(kind, registry)` function MUST route each spec item of kind
-      `architecture`, `project`, or `process` to the docs page matching its `kind`
-      field, and each item of kind `protocol` or `foundation` MUST render in the
-      Protocol Specification's Requirements Catalog instead (DF-12-001). There is no
-      inheritance from group or file; each item's `kind` is always explicit.
+      `architecture`, `project`, or `process` to the docs page that matches its `kind`
+      field.
     rationale: >-
-      Each item declares its own kind, so a requirement renders on the page for its own
-      tier. No group or file value can put it on the wrong page. Protocol and foundation
-      items apply to every implementation, so they render in the catalog of the Protocol
-      Specification, with the normative specification text (ADR-0147).
+      Each item declares its own kind, with no inheritance from group or file, so a
+      requirement renders on the page for its own tier. No group or file value can put
+      it on the wrong page.
+    adr:
+    - ADR-0147
+    tags:
+    - documentation
+    - tooling
+  - id: SR-09-004
+    priority: MUST
+    kind: project
+    statement: >-
+      The docs renderer MUST render each `protocol` or `foundation` spec item in the
+      Requirements Catalog of the Protocol Specification (DF-12-001), not on a kind
+      page.
+    rationale: >-
+      Protocol and foundation items apply to every implementation, so they render in the
+      catalog of the Protocol Specification, with the normative specification text
+      (ADR-0147).
+    verification: >-
+      `test_render_for_kind_refuses_the_catalog_tiers` in
+      `test/metadata/specs/test_docs_render.py` and
+      `test_catalog_tiers_have_no_per_kind_page` in
+      `test/metadata/docs/test_requirement_catalog.py` check that neither tier has a
+      kind page, and `test/metadata/specs/test_kind_page_coverage.py` checks each has
+      catalog pages.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-09-001
     adr:
     - ADR-0147
     tags:
@@ -1094,16 +1553,33 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: >-
-      When a group contains items of mixed kinds, the group MUST appear on each docs page for which
-      it has at least one item whose `kind` matches that page. Items whose `kind` does not match the
-      current page MUST be suppressed (not rendered) on that page. The Requirements Catalog's
-      `protocol` and `foundation` pages count as pages for this rule (DF-12-001).
+      A group with items of mixed kinds MUST appear on each docs page that matches the
+      `kind` of at least one of its items. The Requirements Catalog's `protocol` and
+      `foundation` pages count as pages for this rule (DF-12-001).
+    rationale: >-
+      A mixed group holds items for more than one page, so each of those pages needs the
+      group context. The protocol and foundation pages of the catalog use the same rule,
+      so a mixed group also splits there (ADR-0147).
+    adr:
+    - ADR-0147
+    tags:
+    - documentation
+    - tooling
+  - id: SR-09-005
+    priority: MUST
+    kind: project
+    verification_debt: '#2574'
+    statement: >-
+      On each docs page, the renderer MUST omit the items of a group whose `kind` does
+      not match that page. The Requirements Catalog's `protocol` and `foundation` pages
+      count as pages for this rule (DF-12-001).
     rationale: >-
       If a page rendered the whole group everywhere the group appears, items would
       repeat and some items would show the wrong portability tier. When each page hides
-      the items of other kinds, the page stays accurate and still shows the group
-      context. The protocol and foundation pages of the catalog use the same rule, so a
-      mixed group also splits there (ADR-0147).
+      the items of other kinds, the page stays accurate.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-09-002
     adr:
     - ADR-0147
     tags:
@@ -1204,15 +1680,29 @@ groups:
     kind: process
     verification_debt: '#2571'
     statement: >-
-      A spec statement MUST describe an invariant property of the finished system — what it
-      must always be true, always do, or never do. It MUST NOT describe a migration step,
-      a one-time task, or a before/after transition.
+      A spec statement MUST describe an invariant property of the finished system. Such
+      a property states what must always be true, what the system must always do, or
+      what it must never do.
     rationale: >-
-      Specs are transferable knowledge for any implementer. A statement like "X must be
-      replaced by Y" is meaningless once the replacement is done, and misleading before it
-      is. The correct home for migration tasks is an issue tracker. If a migration produces
-      a lasting architectural rule, that rule — not the migration instruction — belongs in
-      the spec.
+      Specs are transferable knowledge for any implementer. Only a property that always
+      holds stays true for every reader at every time.
+    tags:
+    - documentation
+  - id: SR-10-005
+    priority: MUST_NOT
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      A spec statement MUST NOT describe a migration step, a one-time task, or a
+      before-and-after transition.
+    rationale: >-
+      A statement like "X must be replaced by Y" is meaningless once the replacement is
+      done, and misleading before it is. The correct home for migration tasks is an
+      issue tracker. If a migration produces a lasting architectural rule, that rule,
+      not the migration instruction, belongs in the spec.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-10-001
     tags:
     - documentation
   - id: SR-10-002
@@ -1254,20 +1744,33 @@ groups:
     priority: SHOULD
     kind: process
     statement: >-
-      When a spec's statement has become vacuously satisfied (the migration it described is
-      complete and no ongoing constraint survives), the spec SHOULD be deleted. When a
-      residual constraint does survive, the statement SHOULD be rewritten to express only
-      that constraint, dropping all migration-task language.
+      A spec author SHOULD delete a spec whose statement has become vacuously satisfied.
+      A statement is vacuously satisfied when the migration it described is complete and
+      no ongoing constraint survives.
     rationale: >-
-      A vacuously satisfied spec creates false confidence: it always passes any check, so
-      it neither constrains nor informs. A partially-stale spec that mixes a completed
-      migration instruction with a surviving rule misleads readers about which clause is
-      still normative. Deletion or rewrite keeps the registry honest.
+      A vacuously satisfied spec creates false confidence: it always passes any check,
+      so it neither constrains nor informs. Deletion keeps the registry honest.
     tags:
     - documentation
     relationships:
     - rel_type: refines
       spec_id: SR-10-001
+  - id: SR-10-006
+    priority: SHOULD
+    kind: process
+    statement: >-
+      When a residual constraint survives the migration, the spec author SHOULD rewrite
+      the statement to express only that constraint, without any migration-task
+      language.
+    rationale: >-
+      A partially-stale spec that mixes a completed migration instruction with a
+      surviving rule misleads readers about which clause is still normative. A rewrite
+      keeps only the clause that still binds.
+    tags:
+    - documentation
+    relationships:
+    - rel_type: refines
+      spec_id: SR-10-005
 - id: SR-11
   title: Story Traceability
   specs:
@@ -1276,10 +1779,9 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: >-
-      `StatementSpec` MUST support an optional `stories` field containing a non-empty
-      list of `StoryIdStr` values (pattern `^story_\d{4}_\d{3}$`), identifying the
-      user stories that motivated the requirement. The field MUST be subject to the
-      `_nonempty_if_present` validator.
+      `StatementSpec` MUST support an optional `stories` field that holds a non-empty
+      list of `StoryIdStr` values (pattern `^story_\d{4}_\d{3}$`). The values name the
+      user stories that motivated the requirement.
     rationale: >-
       Bidirectional traceability between requirements and stakeholder user stories is a
       NASA systems engineering criterion. Without back-references in spec files, tracing
@@ -1292,15 +1794,31 @@ groups:
     - tooling
     adr:
     - ADR-0072
+  - id: SR-11-005
+    priority: MUST
+    kind: project
+    verification_debt: '#2574'
+    statement: >-
+      The schema MUST apply the `_nonempty_if_present` validator to the `stories` field.
+    rationale: >-
+      An empty `stories:` list would claim a trace to user stories and name none. The
+      validator rejects that list at load time, so a present field always names a
+      story.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-11-001
+    tags:
+    - documentation
+    - tooling
+    adr:
+    - ADR-0072
   - id: SR-11-002
     priority: MUST
     kind: project
     verification_debt: '#2574'
     statement: >-
-      Story ID strings used in `stories:` fields MUST conform to the pattern
-      `^story_\d{4}_\d{3}$` (e.g. `story_2022_001`). The `StoryIdStr` type in
-      `vultron/metadata/specs/schema.py` MUST enforce this constraint via Pydantic
-      `StringConstraints`.
+      Each story ID in a `stories:` field MUST match the pattern `^story_\d{4}_\d{3}$`,
+      such as `story_2022_001`.
     rationale: >-
       A fixed pattern lets the schema reject a malformed or misspelled story ID at load
       time. Thus each story reference resolves against the story catalog.
@@ -1312,13 +1830,30 @@ groups:
     - tooling
     adr:
     - ADR-0072
+  - id: SR-11-006
+    priority: MUST
+    kind: project
+    verification_debt: '#2574'
+    statement: >-
+      The `StoryIdStr` type in `vultron/metadata/specs/schema.py` MUST enforce that
+      pattern through Pydantic `StringConstraints`.
+    rationale: >-
+      A constrained type checks the pattern wherever a story ID is validated. A check in
+      each tool would be repeated, and one copy could differ from the others.
+    relationships:
+    - rel_type: implements
+      spec_id: SR-11-002
+    tags:
+    - documentation
+    - tooling
+    adr:
+    - ADR-0072
   - id: SR-11-003
     priority: MUST
     kind: process
     statement: >-
-      The spec linter MUST flag as a hard error any `kind: protocol` spec with
-      `priority: MUST` that has no `stories:` entry. This check MUST be suppressible
-      per-spec via `lint_suppress: [missing_story_reference]`.
+      The spec linter MUST report as a hard error each `kind: protocol` spec with
+      `priority: MUST` that has no `stories:` entry.
     note: >-
       Deliberately MUST-only for now, which is the one exception MS-02-003 records.
       #3601 adjudicated the protocol MUST_NOTs with no `stories:`; #2717 holds the
@@ -1326,15 +1861,12 @@ groups:
       closing step once their stories exist.
     tracking_issue: '#2717 (MUST_NOT extension)'
     verification: >-
-      `test/metadata/specs/test_lint.py::test_protocol_must_no_stories_is_hard_error`,
-      `::test_protocol_must_with_stories_passes`, and
-      `::test_protocol_must_suppress_missing_story_reference` cover the error, the pass,
-      and the suppression.
+      `test/metadata/specs/test_lint.py::test_protocol_must_no_stories_is_hard_error`
+      and `::test_protocol_must_with_stories_passes` cover the error and the pass.
     rationale: >-
       Protocol-level MUST requirements are the strongest obligations of an implementer.
       A hard-error gate makes each of them traceable to at least one stakeholder need.
-      The suppression gives an exception for implementation-detail MUSTs that have no
-      direct story. The gate covers only `protocol`, because no user stories exist yet
+      The gate covers only `protocol`, because no user stories exist yet
       for behavior that Vultron inherits from ActivityStreams, ActivityPub and HTTP
       (`kind: foundation`). The gate covers the kinds that the story catalog can support
       (ADR-0134).
@@ -1347,18 +1879,37 @@ groups:
     tags:
     - documentation
     - tooling
+  - id: SR-11-007
+    priority: MUST
+    kind: process
+    statement: >-
+      The spec linter MUST let a spec suppress that hard error with
+      `lint_suppress: [missing_story_reference]`.
+    rationale: >-
+      Some implementation-detail MUSTs have no direct story. The suppression gives them
+      an exception and records on the spec that the exception is deliberate.
+    verification: >-
+      `test/metadata/specs/test_lint.py::test_protocol_must_suppress_missing_story_reference`
+      covers the suppression.
+    adr:
+    - ADR-0072
+    relationships:
+    - rel_type: extends
+      spec_id: SR-11-003
+    tags:
+    - documentation
+    - tooling
   - id: SR-11-004
     priority: SHOULD
     kind: process
     statement: >-
-      The spec linter SHOULD emit an advisory warning for any `kind: protocol` spec
-      with `priority: SHOULD`, `priority: SHOULD_NOT`, or `priority: MAY` that has no
-      `stories:` entry. This
-      check SHOULD be suppressible per-spec via `lint_suppress: [missing_story_reference]`.
+      The spec linter SHOULD emit an advisory warning for each `kind: protocol` spec
+      with `priority: SHOULD`, `priority: SHOULD_NOT` or `priority: MAY` that has no
+      `stories:` entry.
     rationale: >-
       Lower-priority protocol requirements still apply to implementers who choose to
       follow them, so a missing story is worth a flag. A warning, not an error, matches
-      their weaker binding. The suppression records a deliberate exception.
+      their weaker binding.
     adr:
     - ADR-0072
     - ADR-0134
@@ -1376,6 +1927,26 @@ groups:
     tags:
     - documentation
     - tooling
+  - id: SR-11-008
+    priority: SHOULD
+    kind: process
+    statement: >-
+      The spec linter SHOULD let a spec suppress that warning with
+      `lint_suppress: [missing_story_reference]`.
+    rationale: >-
+      The suppression records a deliberate exception on the spec, so the warning does
+      not repeat for a requirement that has no story by design.
+    verification: >-
+      `test/metadata/specs/test_lint.py::test_protocol_should_suppress_advisory_story_warn`
+      covers the suppression.
+    adr:
+    - ADR-0072
+    relationships:
+    - rel_type: extends
+      spec_id: SR-11-004
+    tags:
+    - documentation
+    - tooling
 - id: SR-12
   title: Spec Selection Backstop
   specs:
@@ -1383,18 +1954,35 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The `spec-backstop` CLI MUST, by default, treat as changed every `.py` file in the
-      `git diff` between the merge-base of `--base` (default `origin/main`) and `HEAD` and the
-      working tree, plus every untracked `.py` file; the `--paths` flag MUST replace that set
-      with the named files, each treated as fully changed.
+      By default, `spec-backstop` MUST treat as changed each `.py` file that is
+      untracked or that differs from the merge base of `--base` and `HEAD`. The diff
+      runs to the working tree, and `--base` defaults to `origin/main`.
     rationale: >-
-      Agents choose which requirements to load by judgment. A check computed from the diff
-      catches under-selection without trusting that judgment. The working tree is included
-      because an agent runs the check before it commits.
+      Agents choose which requirements to load by judgment. A check computed from the
+      diff catches under-selection without trusting that judgment. The working tree is
+      included because an agent runs the check before it commits.
     verification: >-
-      `test/metadata/specs/test_backstop.py` asserts diff-hunk parsing, `--paths` handling,
-      and, in a temporary git repository, that committed, uncommitted, and untracked changes
-      are all collected.
+      `test/metadata/specs/test_backstop.py` asserts diff-hunk parsing and, in a
+      temporary git repository, that committed, uncommitted, and untracked changes are
+      all collected.
+    tags:
+    - tooling
+  - id: SR-12-014
+    priority: MUST
+    kind: project
+    statement: >-
+      When `--paths` is given, `spec-backstop` MUST use the named files as the changed
+      set, each treated as fully changed.
+    rationale: >-
+      Before any code exists, an agent names the files that the work will touch. The
+      check then runs on those files, while a missed requirement is still cheap to act
+      on.
+    verification: >-
+      `test/metadata/specs/test_backstop.py::test_cli_paths_json` asserts `--paths`
+      handling.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-12-001
     tags:
     - tooling
   - id: SR-12-002
@@ -1402,95 +1990,178 @@ groups:
     kind: project
     statement: >-
       `spec-backstop` MUST treat as a changed symbol each top-level function, class, or
-      assignment whose line span, decorators included, intersects a diff hunk; a changed
-      method MUST count as a change to its class, and a fully changed file MUST contribute all
-      of its top-level symbols.
+      assignment whose line span, decorators included, intersects a diff hunk.
     rationale: >-
-      Symbol-level matching is much narrower than module-level matching. A module such as
-      `vultron/core/behaviors/bridge.py` is imported by dozens of test files, but only the tests
-      that import the edited names govern the edit.
+      Symbol-level matching is much narrower than module-level matching. A module such
+      as `vultron/core/behaviors/bridge.py` is imported by dozens of test files, but
+      only the tests that import the edited names govern the edit.
     verification: >-
-      `test/metadata/specs/test_backstop.py` asserts method-to-class attribution, decorator
-      spans, module-level-only hunks, and whole-file mode.
+      `test/metadata/specs/test_backstop.py` asserts decorator spans and
+      module-level-only hunks.
+    tags:
+    - tooling
+  - id: SR-12-015
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-backstop` MUST count a changed method as a change to its class.
+    rationale: >-
+      Tests import a class, not its methods. A method change attributed to its class
+      reaches the tests that import that class.
+    verification: >-
+      `test/metadata/specs/test_backstop.py::test_changed_symbols` asserts
+      method-to-class attribution.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-12-002
+    tags:
+    - tooling
+  - id: SR-12-016
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-backstop` MUST count every top-level symbol of a fully changed file as
+      changed.
+    rationale: >-
+      A file named with `--paths`, or a new file, has no hunks to intersect. Every
+      symbol it defines is part of the change.
+    verification: >-
+      `test/metadata/specs/test_backstop.py::test_changed_symbols` asserts whole-file
+      mode.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-12-002
     tags:
     - tooling
   - id: SR-12-003
     priority: MUST
     kind: project
     statement: >-
-      `spec-backstop` MUST report as required (MUST tier) the spec groups of the
-      `@pytest.mark.spec` IDs in test files that import a changed symbol by name, in mirror-path
-      test files of a changed module, and in the changed parts of changed test files, together
-      with the groups of requirements whose statement names a changed module's path or dotted
-      name, or a changed symbol of six or more characters or in CamelCase, as a whole word.
+      `spec-backstop` MUST report as required, in its `MUST` tier, the spec groups that
+      each of four signals links to the change. The first signal is the
+      `@pytest.mark.spec` IDs in test files that import a changed symbol by name. The
+      second is those IDs in mirror-path test files of a changed module. The third is
+      those IDs in the changed parts of changed test files. The fourth is the
+      requirements whose statement names a changed module's path or dotted name, or a
+      long changed symbol, as a whole word. A changed symbol is long when it has six or
+      more characters or is in CamelCase.
     rationale: >-
-      Each signal is a deterministic link between the change and a requirement. Directory
-      prefixes and short symbol names are excluded because they match too many unrelated
-      statements.
+      Each signal is a deterministic link between the change and a requirement.
+      Directory prefixes and short symbol names are excluded because they match too many
+      unrelated statements.
     verification: >-
-      `test/metadata/specs/test_backstop.py` asserts each of the four signals, and that a
-      directory prefix and a short symbol name do not match.
+      `test/metadata/specs/test_backstop.py` asserts each of the four signals, and that
+      a directory prefix and a short symbol name do not match.
     tags:
     - tooling
   - id: SR-12-004
     priority: SHOULD
     kind: project
     statement: >-
-      `spec-backstop` SHOULD report as advisory (INFO tier) the spec groups of test files that
-      import a changed module by any name, and SHOULD omit from that tier every group that is
-      already in the MUST tier.
+      `spec-backstop` SHOULD report as advisory, in its INFO tier, the spec groups of
+      test files that import a changed module by any name.
     rationale: >-
-      A module import is weak evidence. Listing it without enforcing it gives the agent a place
-      to look without adding false alarms.
+      A module import is weak evidence. Listing it without enforcing it gives the agent
+      a place to look without adding false alarms.
     verification: >-
-      `test/metadata/specs/test_backstop.py` asserts that a module-only importer yields an INFO
-      group and that a group in both tiers appears only in MUST.
+      `test/metadata/specs/test_backstop.py` asserts that a module-only importer yields
+      an INFO group.
+    tags:
+    - tooling
+  - id: SR-12-017
+    priority: SHOULD
+    kind: project
+    statement: >-
+      `spec-backstop` SHOULD omit from the INFO tier every group that is already in the
+      `MUST` tier.
+    rationale: >-
+      A group listed in both tiers would be read twice and could look advisory. The
+      `MUST` tier already asks the agent to resolve it.
+    verification: >-
+      `test/metadata/specs/test_backstop.py::test_analyze_tiers` asserts that a group in
+      both tiers appears only in `MUST`.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-12-004
     tags:
     - tooling
   - id: SR-12-005
     priority: MUST
     kind: project
     statement: >-
-      `spec-backstop` MUST report each hit at the spec-group level, listing the requirement IDs
-      that matched and the deduplicated evidence for them, and MUST emit the same report as JSON
-      when `--json` is given.
+      `spec-backstop` MUST report each hit at the spec-group level, listing the
+      requirement IDs that matched and the deduplicated evidence for them.
     rationale: >-
-      Agents load specs by topic and group, so a group-level report maps directly onto the
-      manifest. The evidence lets the agent judge a hit instead of loading it blindly.
+      Agents load specs by topic and group, so a group-level report maps directly onto
+      the manifest. The evidence lets the agent judge a hit instead of loading it
+      blindly.
     verification: >-
-      `test/metadata/specs/test_backstop.py` asserts the human-readable MUST and INFO sections
-      and the JSON keys.
+      `test/metadata/specs/test_backstop.py` asserts the human-readable MUST and INFO
+      sections.
+    tags:
+    - tooling
+  - id: SR-12-018
+    priority: MUST
+    kind: project
+    statement: >-
+      When `--json` is given, `spec-backstop` MUST emit the same report as JSON.
+    rationale: >-
+      A calling script needs the report in a form that it can parse without reading the
+      text layout.
+    verification: >-
+      `test/metadata/specs/test_backstop.py::test_cli_paths_json` asserts the JSON keys.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-12-005
     tags:
     - tooling
   - id: SR-12-006
     priority: MUST
     kind: project
     statement: >-
-      When `--manifest` names a file, or `-` for stdin, `spec-backstop` MUST read the topic,
-      group, and requirement IDs on the manifest's `Loaded` lines as loaded and on its
-      `Considered, skipped` lines as dismissed, and MUST exit with code 1 and list every MUST-tier
-      group that is not resolved; a group is resolved when it or its topic is loaded, when it is
-      dismissed, or when each of its matched requirement IDs is listed.
+      When `--manifest` names a file, or `-` for stdin, `spec-backstop` MUST read the
+      topic, group and requirement IDs on its `Loaded` lines as loaded. It reads those
+      IDs on its `Considered, skipped` lines as dismissed.
     rationale: >-
-      A dismissal with a reason is an explicit judgment and satisfies the check; a group that
-      the manifest does not mention at all is the under-selection the check exists to catch.
+      A dismissal with a reason is an explicit judgment and satisfies the check, so the
+      tool must tell it apart from a load.
     verification: >-
-      `test/metadata/specs/test_backstop.py` asserts each resolution rule, that IDs in reason
-      text are not parsed, and the exit codes through the CLI.
+      `test/metadata/specs/test_backstop.py::test_parse_manifest` asserts the parse, and
+      that IDs in reason text are not parsed.
+    tags:
+    - tooling
+  - id: SR-12-019
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-backstop` MUST exit with code 1 and list every `MUST`-tier group that the
+      manifest does not resolve. A group is resolved when it or its topic is loaded,
+      when it is dismissed, or when each of its matched requirement IDs is listed.
+    rationale: >-
+      A group that the manifest does not mention at all is the under-selection the check
+      exists to catch. The exit code lets a caller gate on it.
+    verification: >-
+      `test/metadata/specs/test_backstop.py` asserts each resolution rule
+      (`test_unresolved_groups`) and the exit codes through the CLI
+      (`test_cli_manifest_exit_codes`).
+    relationships:
+    - rel_type: depends_on
+      spec_id: SR-12-006
     tags:
     - tooling
   - id: SR-12-007
     priority: MUST
     kind: project
     statement: >-
-      `spec-backstop` MUST write to stderr a note naming each changed source file that produced
-      no MUST-tier signal.
+      `spec-backstop` MUST write to stderr a note naming each changed source file that
+      produced no `MUST`-tier signal.
     rationale: >-
-      An empty MUST tier for a file with no tests and no spec mentions is not evidence that no
-      requirement applies. The note stops the agent from reading silence as coverage.
+      An empty MUST tier for a file with no tests and no spec mentions is not evidence
+      that no requirement applies. The note stops the agent from reading silence as
+      coverage.
     verification: >-
-      `test/metadata/specs/test_backstop.py` asserts the note for a file with no signal and its
-      absence for a file with one.
+      `test/metadata/specs/test_backstop.py` asserts the note for a file with no signal
+      and its absence for a file with one.
     tags:
     - tooling
   - id: SR-12-008
@@ -1512,37 +2183,71 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `spec-backstop` MUST move to the INFO tier the symbol-import hits of a changed symbol that
-      more than `--hub-threshold` test files import (default `HUB_THRESHOLD`, 10), MUST keep
-      mirror-path and statement-mention hits in the MUST tier regardless, and MUST print each
-      such hub symbol with its importer count in the report.
+      `spec-backstop` MUST move to the INFO tier the symbol-import hits of a changed
+      symbol that more than `--hub-threshold` test files import. The threshold defaults
+      to `HUB_THRESHOLD`, which is 10.
     rationale: >-
-      A hub such as `BTBridge` is imported by most behaviour tests, so symbol-import matching
-      on it puts about 75 groups in MUST and the check stops discriminating. Naming the hubs
-      keeps the demotion visible, so an agent does not read the shorter list as coverage.
+      A hub such as `BTBridge` is imported by most behaviour tests, so symbol-import
+      matching on it puts about 75 groups in MUST and the check stops discriminating.
     verification: >-
-      `test/metadata/specs/test_backstop.py` asserts the demotion above the threshold, no
-      demotion at it, that mirror and mention hits stay MUST, the hub line in the text output,
-      and the `--hub-threshold` flag and `hubs` key in the JSON output.
+      `test/metadata/specs/test_backstop.py` asserts the demotion above the threshold,
+      no demotion at it, and the `--hub-threshold` flag.
     relationships:
     - rel_type: refines
       spec_id: SR-12-003
+    tags:
+    - tooling
+  - id: SR-12-020
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-backstop` MUST keep the mirror-path and statement-mention hits of a hub
+      symbol in the `MUST` tier.
+    rationale: >-
+      A mirror-path test or a statement that names the symbol is a direct link to the
+      change, however many files import the symbol. Only the import signal loses its
+      meaning for a hub.
+    verification: >-
+      `test/metadata/specs/test_backstop.py::test_hub_symbol_import_hits_demoted_to_info`
+      asserts that mirror and mention hits stay in `MUST`.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-12-003
+    tags:
+    - tooling
+  - id: SR-12-021
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-backstop` MUST print each hub symbol with its importer count in the report.
+    rationale: >-
+      Naming the hubs keeps the demotion visible, so an agent does not read the shorter
+      list as coverage.
+    verification: >-
+      `test/metadata/specs/test_backstop.py` asserts the hub line in the text output
+      (`test_render_text_names_hubs`) and the `hubs` key in the JSON output
+      (`test_cli_hub_threshold_flag`).
+    relationships:
+    - rel_type: extends
+      spec_id: SR-12-009
     tags:
     - tooling
   - id: SR-12-010
     priority: MUST
     kind: project
     statement: >-
-      `spec-backstop` MUST tier a group by the priority of the requirements that matched: a group
-      whose matched requirements are all SHOULD, SHOULD_NOT, or MAY MUST go to the INFO tier, so
-      that only a MUST or MUST_NOT requirement can leave the manifest unresolved.
+      `spec-backstop` MUST tier a group by the priority of the requirements that
+      matched. A group whose matched requirements are all `SHOULD`, `SHOULD_NOT` or
+      `MAY` goes to the INFO tier. Thus only a `MUST` or `MUST_NOT` requirement can
+      leave the manifest unresolved.
     rationale: >-
-      An unresolved MUST group blocks the build, so the blocking set has to be requirements that
-      themselves bind. A SHOULD-only group such as TRIG-05 forced a spec load with no obligation
-      behind it.
+      An unresolved MUST group blocks the build, so the blocking set has to be
+      requirements that themselves bind. A SHOULD-only group such as TRIG-05 forced a
+      spec load with no obligation behind it.
     verification: >-
-      `test/metadata/specs/test_backstop.py` asserts a SHOULD-only group lands in INFO, a group
-      with one MUST among SHOULDs stays in MUST, and the advisory evidence wording.
+      `test/metadata/specs/test_backstop.py` asserts a SHOULD-only group lands in INFO,
+      a group with one MUST among SHOULDs stays in MUST, and the advisory evidence
+      wording.
     relationships:
     - rel_type: refines
       spec_id: SR-12-004
@@ -1552,66 +2257,130 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `spec-backstop` MUST move to the INFO tier the marker-derived hits of a test file whose spec
-      markers span more than `MONOLITH_GROUP_SPAN` requirement groups, MUST exclude module-level
-      boilerplate names (`logger`, `log`, and case variants) from the changed-symbol set, and MUST
-      report when a diff contains no Python source that a passing exit status is not coverage.
+      `spec-backstop` MUST move to the INFO tier the marker-derived hits of a test file
+      whose spec markers span more than `MONOLITH_GROUP_SPAN` requirement groups.
     rationale: >-
-      Three distinct false-positive sources measured on real diffs: a 17-group catch-all suite put
-      13 unrelated groups in MUST from one import; `logger` is assigned in nearly every module, so
-      it matched every requirement mentioning `logger.info`; and a docs-only diff exits 0 with no
-      signal at all, which reads as a pass. The median test file here spans 2 groups and the 90th
-      percentile spans 6, so a threshold of 8 demotes only genuine whole-subsystem suites.
+      A 17-group catch-all suite put 13 unrelated groups in MUST from one import. The
+      median test file here spans 2 groups and the 90th percentile spans 6, so a
+      threshold of 8 demotes only genuine whole-subsystem suites.
     verification: >-
-      `test/metadata/specs/test_backstop.py` asserts the marker demotion above the span, that a
-      file at the span still promotes, that `logger` is not a changed symbol, and the no-source
-      note in the text output.
+      `test/metadata/specs/test_backstop.py` asserts the marker demotion above the span,
+      and that a file at the span still promotes.
     relationships:
     - rel_type: refines
       spec_id: SR-12-003
+    tags:
+    - tooling
+  - id: SR-12-022
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-backstop` MUST exclude the module-level boilerplate names `logger` and
+      `log`, and their case variants, from the changed-symbol set.
+    rationale: >-
+      `logger` is assigned in nearly every module, so it matched every requirement that
+      mentions `logger.info`.
+    verification: >-
+      `test/metadata/specs/test_backstop.py::test_logger_is_not_a_changed_symbol`
+      asserts that `logger` is not a changed symbol.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-12-002
+    tags:
+    - tooling
+  - id: SR-12-023
+    priority: MUST
+    kind: project
+    statement: >-
+      When a diff contains no Python source, `spec-backstop` MUST report that a passing
+      exit status is not coverage.
+    rationale: >-
+      A docs-only diff exits 0 with no signal at all, which reads as a pass.
+    verification: >-
+      `test/metadata/specs/test_backstop.py::test_no_python_source_says_exit_zero_is_not_coverage`
+      asserts the no-source note in the text output.
     tags:
     - tooling
   - id: SR-12-012
     priority: MUST
     kind: project
     statement: >-
-      `spec-backstop` MUST pin the diff prefixes it parses by passing `--src-prefix=a/` and
-      `--dst-prefix=b/` to `git diff`, MUST accept a `--paths` entry that does not exist yet, and
-      MUST report any changed path it did not analyse because the path falls outside `vultron/` and
-      `test/`.
+      `spec-backstop` MUST pin the diff prefixes it parses by passing `--src-prefix=a/`
+      and `--dst-prefix=b/` to `git diff`.
     rationale: >-
-      Each of the three turns a real condition into a silent pass. `diff.mnemonicPrefix` renames the
-      prefixes and every file then parses as unchanged: measured, 6 changed files and 4 MUST groups
-      became 0 and 0, exit 0 against any manifest. `--paths` names files the work will create, so a
-      missing file cannot be a setup error. A path outside both trees was dropped without a word.
+      `diff.mnemonicPrefix` renames the prefixes, and every file then parses as
+      unchanged. Measured, 6 changed files and 4 MUST groups became 0 and 0, exit 0
+      against any manifest.
     verification: >-
-      `test/metadata/specs/test_backstop.py` asserts git mode finds the same changes under
-      `diff.mnemonicPrefix` and `diff.noprefix`, that a nonexistent `--paths` entry is analysed as
-      an empty file, and that an unanalysed path appears in the text and JSON reports.
+      `test/metadata/specs/test_backstop.py` asserts git mode finds the same changes
+      under `diff.mnemonicPrefix` and `diff.noprefix`.
     relationships:
     - rel_type: refines
       spec_id: SR-12-001
+    tags:
+    - tooling
+  - id: SR-12-024
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-backstop` MUST accept a `--paths` entry that does not exist yet.
+    rationale: >-
+      `--paths` names files the work will create, so a missing file cannot be a setup
+      error.
+    verification: >-
+      `test/metadata/specs/test_backstop.py::test_paths_accepts_a_file_that_does_not_exist_yet`
+      asserts that a nonexistent `--paths` entry is analysed as an empty file.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-12-014
+    tags:
+    - tooling
+  - id: SR-12-025
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-backstop` MUST report each changed path that it did not analyse because the
+      path is outside `vultron/` and `test/`.
+    rationale: >-
+      A path outside both trees was dropped without a word, so its change read as
+      covered.
+    verification: >-
+      `test/metadata/specs/test_backstop.py::test_unanalysed_path_is_reported` asserts
+      that an unanalysed path appears in the text and JSON reports.
     tags:
     - tooling
   - id: SR-12-013
     priority: MUST
     kind: project
     statement: >-
-      When `spec-backstop` reads a manifest entry, a free-text reason introduced by an em-dash MUST
-      run to the next `;` or to a sentence-ending `.` that a fresh ID begins, and a `,` inside that
-      reason MUST NOT start a new entry.
+      A free-text reason after an em-dash in a manifest entry MUST run to the next `;`,
+      or to a sentence-ending `.` before a fresh ID.
     rationale: >-
-      Splitting a reason on every comma read prose as a dismissal: `BT-01 — irrelevant, CM-02
-      covers it` marked CM-02 dismissed, so an unresolved MUST group for CM-02 passed the gate.
-      The asymmetry decides the rule — over-reading a reason costs a false alarm the author can
-      answer, while under-reading it silently drops the check.
+      The asymmetry decides the rule: over-reading a reason costs a false alarm the
+      author can answer, while under-reading it silently drops the check.
     verification: >-
-      `test/metadata/specs/test_backstop.py` asserts a comma inside a reason does not dismiss the
-      ID that follows it, and that `;`- and sentence-separated entries after a reason are still
-      read.
+      `test/metadata/specs/test_backstop.py::test_entries_after_a_reason_are_still_read`
+      asserts that `;`- and sentence-separated entries after a reason are still read.
     relationships:
     - rel_type: refines
       spec_id: SR-12-006
+    tags:
+    - tooling
+  - id: SR-12-026
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A `,` inside such a reason MUST NOT start a new manifest entry.
+    rationale: >-
+      Splitting a reason on every comma read prose as a dismissal: `BT-01 — irrelevant,
+      CM-02 covers it` marked CM-02 dismissed, so an unresolved MUST group for CM-02
+      passed the gate.
+    verification: >-
+      `test/metadata/specs/test_backstop.py::test_comma_in_a_reason_does_not_dismiss_the_next_id`
+      asserts that a comma inside a reason does not dismiss the ID that follows it.
+    relationships:
+    - rel_type: derives_from
+      spec_id: SR-12-013
     tags:
     - tooling
 
@@ -1845,15 +2614,16 @@ groups:
     tags:
     - documentation
     - tooling
+    lint_suppress:
+    - compound_statement  # one fact stated from its two ends
   - id: SR-13-014
     priority: MUST
     kind: project
     statement: >-
       spec-lint MUST report as a hard error each loop in the requirements graph whose
-      arcs run from each relationship's downstream end to its upstream end, that is
-      each strongly connected component of more than one requirement and each
-      requirement whose relationships name itself, and the error MUST name every
-      requirement in the loop.
+      arcs run from each relationship's downstream end to its upstream end. A loop is a
+      strongly connected component of more than one requirement, or a requirement whose
+      relationships name itself.
     rationale: >-
       "What does a change to this requirement affect?" walks the graph against its
       arrows, and a loop makes every member upstream of every other. Orienting by
@@ -1861,15 +2631,34 @@ groups:
       recorded backwards, which the recorded edges alone hide.
     verification: >-
       `test/metadata/specs/test_lint.py::test_lint_fails_on_a_relationship_loop` asserts
-      spec-lint exits 1 naming the loop, and `test/metadata/specs/test_relation_graph.py`
-      asserts that a two-node loop, a three-node loop and a self-loop each produce one
-      error naming every member, that a `constrains` recorded the wrong way closes a
-      loop, and that `test_real_specs_have_no_relationship_loops` finds none in `specs/`.
+      spec-lint exits 1 naming the loop, and
+      `test/metadata/specs/test_relation_graph.py` asserts that a two-node loop, a
+      three-node loop and a self-loop each produce one error, that a `constrains`
+      recorded the wrong way closes a loop, and that
+      `test_real_specs_have_no_relationship_loops` finds none in `specs/`.
     relationships:
     - rel_type: depends_on
       spec_id: SR-13-012
     - rel_type: refines
       spec_id: SR-04-002
+    tags:
+    - tooling
+  - id: SR-13-020
+    priority: MUST
+    kind: project
+    statement: >-
+      Each loop error that spec-lint reports MUST name every requirement in the loop.
+    rationale: >-
+      An author must break the loop at one of its links. An error that names only some
+      members hides the links that the author must check.
+    verification: >-
+      `test/metadata/specs/test_relation_graph.py` asserts that the two-node, three-node
+      and self-loop errors name every member
+      (`test_two_node_loop_is_reported_naming_both_members`,
+      `test_three_node_loop_is_reported_naming_every_member`).
+    relationships:
+    - rel_type: extends
+      spec_id: SR-13-014
     tags:
     - tooling
   - id: SR-13-015
@@ -1900,22 +2689,37 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The `RelationType` docstring MUST list each member's definition from one table
-      in `vultron/metadata/specs/schema.py` that also records each member's upstream
-      end, and a test MUST fail when that table and the definitions SR-13-001
-      through SR-13-011 and SR-13-017 differ.
+      The `RelationType` docstring MUST list each member's definition from one table in
+      `vultron/metadata/specs/schema.py` that also records each member's upstream end.
     rationale: >-
       The definitions are needed both by readers of the specs and by the code that
-      orients the graph. One table checked against the requirements keeps the two
-      from drifting, where a second prose copy would not.
+      orients the graph. One table keeps the two from drifting, where a second prose
+      copy would not.
     verification: >-
-      `test/metadata/specs/test_schema.py::test_relation_definitions_match_sr_13` and
-      `test_relation_type_docstring_lists_every_definition` fail on a missing,
-      extra or reworded definition, and `test_upstream_end_matches_the_end_sr_13_names`
-      fails when a table entry's upstream end is not the end its statement names.
+      `test/metadata/specs/test_schema.py::test_relation_type_docstring_lists_every_definition`
+      fails on a docstring that misses a definition.
     relationships:
     - rel_type: depends_on
       spec_id: SR-02-004
+    tags:
+    - tooling
+  - id: SR-13-021
+    priority: MUST
+    kind: project
+    statement: >-
+      A test MUST fail when that table and the definitions SR-13-001 through SR-13-011
+      and SR-13-017 differ.
+    rationale: >-
+      Checking the table against the requirements keeps the code's definitions the same
+      as the ones the specs state.
+    verification: >-
+      `test/metadata/specs/test_schema.py::test_relation_definitions_match_sr_13` fails
+      on a missing, extra or reworded definition, and
+      `test_upstream_end_matches_the_end_sr_13_names` fails when a table entry's
+      upstream end is not the end its statement names.
+    relationships:
+    - rel_type: extends
+      spec_id: SR-13-016
     tags:
     - tooling
   - id: SR-13-017

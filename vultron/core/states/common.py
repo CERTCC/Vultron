@@ -17,6 +17,12 @@ from vultron.core.models.base import NonEmptyString
 
 
 class TransitionBase(BaseModel):
+    """One row of a state machine's transition table: trigger, source, dest.
+
+    A plain ``BaseModel``, not a ``CoreRecord``: a transition is static
+    configuration of a state machine, never stored or sent (ARCH-12-019).
+    """
+
     trigger: NonEmptyString
     source: NonEmptyString | Enum
     dest: NonEmptyString | Enum

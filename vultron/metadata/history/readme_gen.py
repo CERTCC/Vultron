@@ -8,8 +8,8 @@ or printed to stdout (via :func:`format_month_index`).
 Monthly ``README.md`` files are **not committed to git** — they are local
 generated artifacts.  Use ``uv run show-history`` to view the index on demand.
 
-See ``specs/history-management.yaml`` HM-01-003, HM-02-004, HM-03-006,
-HM-06-006.
+See ``specs/history-management.yaml`` HM-01-003, HM-01-011, HM-02-004,
+HM-03-006, HM-06-006, HM-06-011.
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ def _parse_entry(path: Path) -> _EntryMeta:
 
     Raises:
         ValueError: If the frontmatter is malformed, missing, or fails
-            required-field validation (HM-02-001, HM-06-002).
+            required-field validation (HM-02-001, HM-06-002, HM-06-010).
     """
     # Callers hand in absolute month directories; show the entry relative to
     # its checkout (MS-17-001), or as given when it lies outside one.
@@ -129,7 +129,7 @@ def format_month_index(month_dir: Path) -> str:
     """
     entries = _collect_entries(month_dir)
 
-    # Sort by timestamp descending (HM-06-006).
+    # Sort by timestamp descending (HM-06-011).
     entries.sort(key=lambda e: e.timestamp, reverse=True)
 
     label = _month_label(month_dir.name)

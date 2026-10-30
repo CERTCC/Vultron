@@ -163,6 +163,7 @@ def test_coverage_unchanged_adds_nothing(coverage_repo):
     assert check.head_total == 1
 
 
+@pytest.mark.spec("SR-05-009")
 @pytest.mark.spec("SR-05-005")
 def test_coverage_new_protocol_spec_without_marker_is_added(coverage_repo):
     _write_specs(
@@ -175,6 +176,7 @@ def test_coverage_new_protocol_spec_without_marker_is_added(coverage_repo):
     assert _coverage(coverage_repo).added == {"TST-01-004"}
 
 
+@pytest.mark.spec("SR-05-009")
 @pytest.mark.spec("SR-05-005")
 def test_coverage_removing_last_marker_is_added(coverage_repo):
     _write_markers(coverage_repo)
@@ -266,6 +268,7 @@ def test_coverage_retired_spec_is_not_an_addition(coverage_repo):
     assert _coverage(coverage_repo).added == frozenset()
 
 
+@pytest.mark.spec("SR-05-010")
 @pytest.mark.spec("SR-05-005")
 def test_coverage_committed_change_is_compared_from_merge_base(coverage_repo):
     """A committed branch change is caught, not only an uncommitted one."""
@@ -398,7 +401,7 @@ def test_suppression_on_new_spec_is_added(suppression_repo):
     assert _suppressions(suppression_repo).added == {"TST-01-004"}
 
 
-@pytest.mark.spec("MS-12-007")
+@pytest.mark.spec("MS-12-016")
 def test_suppression_removed_is_not_an_addition(suppression_repo):
     _write_specs(
         suppression_repo,
@@ -422,7 +425,7 @@ def test_suppression_relabel_in_with_suppression_is_added(suppression_repo):
     assert _suppressions(suppression_repo).added == {"TST-01-003"}
 
 
-@pytest.mark.spec("MS-12-007")
+@pytest.mark.spec("MS-12-016")
 def test_suppression_relabel_out_is_not_an_addition(suppression_repo):
     """``relabel_spec_kinds.py`` strips the suppression with the old kind."""
     _write_specs(
@@ -505,11 +508,6 @@ def _verified(spec_id: str, kind: str = "project") -> dict:
 
 def _debt(repo: Path):
     return debt_added_since_base(repo)
-
-
-def _trimmed(spec_id: str, marker: str = "#1") -> dict:
-    """A marked requirement whose statement a split rewrote."""
-    return _marked(spec_id, marker, statement=f"{spec_id} MUST do part of it")
 
 
 def _split_off(
@@ -632,7 +630,7 @@ def test_debt_split_child_keeping_its_parents_marker_is_not_an_addition(
     """Splitting a compound requirement moves its debt, it adds none."""
     _write_specs(
         debt_repo,
-        _trimmed("TST-01-001"),
+        _marked("TST-01-001"),
         _verified("TST-01-002"),
         _split_off("TST-01-003", "TST-01-001"),
     )
@@ -643,13 +641,28 @@ def test_debt_split_child_keeping_its_parents_marker_is_not_an_addition(
 
 @pytest.mark.spec("MS-10-016")
 def test_debt_split_grandchild_is_not_an_addition(debt_repo):
-    """Listed before its parent, the grandchild settles on a second pass."""
     _write_specs(
         debt_repo,
-        _trimmed("TST-01-001"),
+        _marked("TST-01-001"),
         _verified("TST-01-002"),
-        _split_off("TST-01-004", "TST-01-003"),
         _split_off("TST-01-003", "TST-01-001"),
+        _split_off("TST-01-004", "TST-01-003"),
+    )
+    assert _debt(debt_repo).added == frozenset()
+
+
+@pytest.mark.spec("MS-10-016")
+def test_debt_split_grandchild_sorted_before_its_parent_is_not_an_addition(
+    debt_repo,
+):
+    # The grandchild's ID sorts first, so it is judged before the child it
+    # names is known to be a split child; the second pass must exempt it.
+    _write_specs(
+        debt_repo,
+        _marked("TST-01-001"),
+        _verified("TST-01-002"),
+        _split_off("TST-01-003", "TST-01-004"),
+        _split_off("TST-01-004", "TST-01-001"),
     )
     assert _debt(debt_repo).added == frozenset()
 
@@ -672,7 +685,7 @@ def test_debt_split_child_of_a_verified_parent_is_added(
 def test_debt_split_child_repointing_its_parents_marker_is_added(debt_repo):
     _write_specs(
         debt_repo,
-        _trimmed("TST-01-001"),
+        _marked("TST-01-001"),
         _verified("TST-01-002"),
         _split_off("TST-01-003", "TST-01-001", marker="#2"),
     )
@@ -712,49 +725,11 @@ def test_debt_split_child_of_a_parent_verified_in_the_same_change(
     debt_repo,
 ):
     """The parent's debt at the base is what the child inherits."""
-    verified = _verified("TST-01-001")
-    verified["statement"] = "TST-01-001 MUST do part of it"
     _write_specs(
         debt_repo,
-        verified,
+        _verified("TST-01-001"),
         _verified("TST-01-002"),
         _split_off("TST-01-003", "TST-01-001"),
-    )
-    assert _debt(debt_repo).added == frozenset()
-
-
-@pytest.mark.spec("MS-10-016")
-def test_debt_new_id_linking_to_an_untouched_marked_one_is_added(debt_repo):
-    """A split trims its parent; a link to an unchanged one carries no debt."""
-    _write_specs(
-        debt_repo,
-        _marked("TST-01-001"),
-        _verified("TST-01-002"),
-        _split_off("TST-01-003", "TST-01-001"),
-    )
-    assert _debt(debt_repo).added == {"TST-01-003 verification_debt: '#1'"}
-
-
-@pytest.mark.spec("MS-10-016")
-def test_debt_split_child_of_a_removed_parent_is_not_an_addition(debt_repo):
-    """A parent split wholly into children and removed passes its debt on."""
-    _write_specs(
-        debt_repo,
-        _verified("TST-01-002"),
-        _split_off("TST-01-003", "TST-01-001"),
-    )
-    assert _debt(debt_repo).added == frozenset()
-
-
-@pytest.mark.spec("MS-10-016")
-def test_debt_split_child_needs_only_one_qualifying_link(debt_repo):
-    """Extra links to verified or untouched requirements do not matter."""
-    child = _split_off("TST-01-003", "TST-01-001")
-    child["relationships"].append(
-        {"rel_type": "depends_on", "spec_id": "TST-01-002"}
-    )
-    _write_specs(
-        debt_repo, _trimmed("TST-01-001"), _verified("TST-01-002"), child
     )
     assert _debt(debt_repo).added == frozenset()
 

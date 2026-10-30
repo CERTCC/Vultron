@@ -41,8 +41,9 @@ revision: 1
 deciders: {list everyone involved in the decision}
 consulted: {list everyone whose opinions are sought (typically subject-matter experts); and with whom there is a two-way communication}
 informed: {list everyone who is kept up-to-date on progress; and with whom there is a one-way communication}
-# Supersession links (MS-14-011): each takes one ADR filename or a list. Record
-# every link on both ADRs; the loader fails a one-sided pair. A successor lists
+# Supersession links (MS-14-011, MS-14-027): each takes one ADR filename or a
+# list. Record every link on both ADRs; the loader fails a one-sided pair
+# (MS-14-028). A successor lists
 # what it replaced in supersedes (whole ADR) or partially_supersedes (one
 # decision inside a live ADR), and that ADR gets superseded_by or
 # partially_superseded_by naming this one.
@@ -125,7 +126,7 @@ Chosen option: "{title of option 1}", because
  how the decision is validated.
  Links to other decisions and resources might here appear as well.}
 
-<!-- MS-11-004: If this decision generated recurring testable requirements, list
+<!-- MS-11-010: If this decision generated recurring testable requirements, list
      the spec IDs here so traceability is bidirectional (ADR → spec and spec → ADR).
      Example: "Generated spec requirements: `architecture.yaml` ARCH-01 through ARCH-12."
      If this is a one-time structural choice with no per-change requirements, omit. -->

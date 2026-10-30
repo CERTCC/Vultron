@@ -308,8 +308,15 @@ Typical causal waits: `wait_for_participant_rm_state` before `engage-case`;
 `wait_for_replica_ledger_coverage` before any cross-replica comparison
 (`run_sync_verification_phase` composes both); every participant at
 `RM.CLOSED` in the CASE_MANAGER's store before the Case Owner's `Leave`
-(`close_case_owner_last`, CM-23-015). `wait_for_case_participants` is typically
-temporal.
+(`close_case_owner_last`, CM-23-015); the case replica in the receiver's own
+store (`wait_for_case_for_offer`) before it answers the report, since
+`validate-report` and `invalidate-report` address that case's CASE_MANAGER
+(#5464). `wait_for_case_participants` is typically temporal.
+
+The in-process TestClient drains every outbox before a request returns, so a
+demo test there never sees these races; a live server delivers on the outbox
+monitor's poll, and a missing gate shows up only there. Test the gate itself:
+make its wait fail and assert one `GATE FAILED` and no dependent call (#5464).
 
 ```python
 # Wrong: demo_check lets engage-case run on an uncommitted RM.VALID

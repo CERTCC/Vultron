@@ -31,7 +31,6 @@ what a trip costs under the configured ``timeout_method`` (#3603).
 """
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -42,6 +41,7 @@ from test.conftest import (
     INTEGRATION_TIMEOUT_SECONDS,
     apply_integration_timeout,
 )
+from test.support.child_env import child_env
 
 pytest_plugins = ["pytester"]
 
@@ -469,11 +469,7 @@ def demo_items(tmp_path_factory):
     probe_dir = tmp_path_factory.mktemp("tier_probe")
     (probe_dir / "tier_probe.py").write_text(_COLLECTION_PROBE)
     out = probe_dir / "resolved.json"
-    env = {
-        **os.environ,
-        "PYTHONPATH": str(probe_dir),
-        "TIER_PROBE_OUT": str(out),
-    }
+    env = {**child_env(probe_dir), "TIER_PROBE_OUT": str(out)}
 
     completed = subprocess.run(
         [

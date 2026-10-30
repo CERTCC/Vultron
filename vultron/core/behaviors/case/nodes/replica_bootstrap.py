@@ -26,7 +26,7 @@ so the tree picks one of two routes (CBT-01-005, CBT-01-006):
 
 A sender no anchor the receiver wrote names never reaches the routes: the
 sender guard the factory composes from the use case's declared rule refuses
-it first and nothing is stored (CBT-01-011, HP-01-008,
+it first and nothing is stored (CBT-01-011, HP-01-025,
 ``SenderIsExpectedCaseCreatorNode``).  A snapshot naming its sender
 CASE_MANAGER is not an anchor: the sender wrote it (ADR-0132).
 

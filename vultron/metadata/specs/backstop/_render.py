@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Text and JSON report rendering (SR-12-005)."""
+"""Text and JSON report rendering (SR-12-005, SR-12-018)."""
 
 from __future__ import annotations
 
