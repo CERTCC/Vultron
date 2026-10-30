@@ -33,6 +33,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.failed_teardown import fail_pxa_teardown
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
@@ -183,15 +184,19 @@ def test_rm_regression_note_reaches_the_declaring_participants_replica():
 
 
 @pytest.mark.spec("CSB-18-002", "SYNC-02-002", "CLP-10-001")
-def test_cs_diagnostic_note_reaches_the_declaring_participants_replica():
-    """P declared under an active embargo the gate keeps: the CSB-18 note
-    replicates to the participant that declared it.
+def test_cs_diagnostic_note_reaches_the_declaring_participants_replica(
+    monkeypatch,
+):
+    """P declared under an active embargo a failed teardown keeps: the
+    CSB-18 note replicates to the participant that declared it.
 
     The case owner declares it in its own participant status, which the
     CASE_MANAGER adopts without a call-out (RSH-01-002, RSH-04-001); the
-    default teardown gate waits for the owner's approval, so the embargo
-    stays in force beside the adopted P (CSB-18-002, #4829).
+    adoption authorizes the teardown (ADR-0166), which here fails for a
+    reason of its own, so the embargo stays in force beside the adopted P
+    (CSB-18-002, #4829).
     """
+    fail_pxa_teardown(monkeypatch)
     net = LedgerNetwork(
         "https://example.org/cases/manager-note-csb-18", em_state=EM.ACTIVE
     )

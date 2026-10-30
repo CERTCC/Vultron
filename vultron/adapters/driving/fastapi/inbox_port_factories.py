@@ -271,10 +271,10 @@ _EMBARGO_INVITE_SEMANTICS = frozenset(
 # carries none: it is admitted only at a participant replica, from the
 # CASE_MANAGER, and gates nothing (RSH-04-005).  The adapter
 # wires STATUS_AUTHORIZATION_PERMISSIVE (explicit trusted/demo configuration)
-# so the EmbargoTeardownAuthorizationGate and StatusAdoptionGate succeed
-# without a live Case Owner approval round-trip.  Production deployments that
-# implement the full Offer/Accept/Reject round-trip would inject a different
-# bundle here.
+# so the StatusAdoptionGate succeeds without a live Case Owner approval
+# round-trip; the adoption also authorizes the embargo teardown (ADR-0166).
+# Production deployments that implement the full Offer/Accept/Reject
+# round-trip would inject a different bundle here.
 _STATUS_AUTH_TRIGGER_SEMANTICS = frozenset(
     {
         # ADD_PARTICIPANT_STATUS_TO_PARTICIPANT triggers the downstream
@@ -313,9 +313,9 @@ def _status_auth_trigger_port_factory(dl: DataLayer) -> dict[str, Any]:
     """Inject trigger_activity + STATUS_AUTHORIZATION_PERMISSIVE.
 
     Used for ``ADD_PARTICIPANT_STATUS_TO_PARTICIPANT``.  Wires the permissive
-    authorization bundle (RSH-07-003, ADR-0076) so the
-    EmbargoTeardownAuthorizationGate and StatusAdoptionGate succeed in this
-    adapter's trusted/demo deployment context.
+    authorization bundle (RSH-07-003, ADR-0076) so the StatusAdoptionGate
+    succeeds in this adapter's trusted/demo deployment context; the adoption
+    also authorizes the embargo teardown (ADR-0166).
     """
     return {
         **_trigger_activity_port_factory(dl),

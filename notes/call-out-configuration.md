@@ -95,19 +95,23 @@ was reasoned.
 | Gate | Bundle field | Default |
 |---|---|---|
 | `StatusAdoptionGate` (`CaseOwnerApprovesStatusUpdate`) | `status_adoption_gate_factory` | `RequireCaseOwnerApprovalNode` (RSH-07-001) |
-| `EmbargoTeardownAuthorizationGate` | `embargo_teardown_authorization_gate_factory` | `RequireCaseOwnerApprovalNode` (RSH-07-002) |
+
+There is no teardown gate. Adopting a P, X or A value also authorizes the
+embargo teardown it calls for, which runs in the same act (ADR-0166). Do not add
+a second gate between adoption and teardown: its refusal would leave P, X or A
+beside an active embargo, which CSB-18-002 to CSB-18-004 forbid.
 
 `STATUS_AUTHORIZATION_PERMISSIVE` is the explicit opt-in override; the FastAPI
-inbox adapter wires it for the two inbound status semantics
+inbox adapter wires it for the inbound participant-status semantic
 (`vultron/adapters/driving/fastapi/inbox_port_factories.py`), so the
 trusted-deployment posture is visible in code (RSH-07-003).
 
-**Posture vs. mechanism.** The table fixes the *posture* (these gates default
+**Posture vs. mechanism.** The table fixes the *posture* (the gate defaults
 to the floor). The *mechanism*, `RequireCaseOwnerApprovalNode`, is an interim
 stub that returns `FAILURE` unconditionally; RSH-07-004 (ADR-0080) replaces it
 with a conversation-state routing subtree and forbids an unconditional-`FAILURE`
-default. When that lands, keep both rows and rewrite
-`test_status_gates_conservative_default_blocks` to assert the security property
+default. When that lands, keep the row and rewrite
+`test_status_adoption_gate_conservative_default_blocks` to assert the security property
 rather than the `FAILURE` tick.
 
 ### Look-alike gates that do NOT qualify (default stays permissive)
@@ -127,7 +131,7 @@ authorization-flavored gate:
   reason Selector (every `exit_embargo_*` reason factory defaults `AlwaysFail`),
   and EMB-14-002 frames it as an optional veto. A blocking default would kill
   EMB-14's voluntary-exit path. The received-side teardown path is covered by
-  `EmbargoTeardownAuthorizationGate`.
+  the adoption gate, whose authorization also covers the teardown (ADR-0166).
 - **`CaseProposalCallOutBundle.evaluate_proposal_factory`**
   (`EvaluateCaseProposal`, CP-05-002) — admitting a proposal creates a *new* case
   owned by the proposer; no existing case's state or embargo is touched. The

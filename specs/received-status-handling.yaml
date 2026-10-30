@@ -1,10 +1,11 @@
 id: RSH
 title: Received-Side Status Authorization
 description: >
-  Requirements for the two-gate authorization model governing how a CASE_MANAGER
+  Requirements for the authorization model governing how a CASE_MANAGER
   adopts an inbound participant's reported CaseStatus as canonical (StatusAdoptionGate)
-  and whether to execute embargo teardown side-effects (EmbargoTeardownAuthorizationGate).
-  Derived from ADR-0046 and IDEA-1836 planning session.
+  and runs the embargo teardown an adopted value calls for, which the adoption
+  also authorizes (ADR-0166). Derived from ADR-0046 and IDEA-1836 planning
+  session.
 scope:
 - prototype
 - production
@@ -86,67 +87,23 @@ groups:
     statement: >
       Embargo teardown and other canonical-state side-effects in
       `add_participant_status_tree` MUST run only after the canonical
-      `CaseStatus` ledger write of RSH-01-003, and MUST pass through
-      `EmbargoTeardownAuthorizationGate` before executing.
+      `CaseStatus` ledger write of RSH-01-003.
     rationale: >
-      Side-effects must run after the canonical write and behind their own
-      authorization gate (RSH-02-001, RSH-07-002), so that adopting a
-      participant's assertion and acting on it remain two separately
-      authorized steps.
-    verification: Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py` confirm the
-      `TeardownEffects` sequence is ordered after `EmitCaseStatusUpdateNode` and begins with
-      `EmbargoTeardownAuthorizationGate`.
+      Writing the adopted status first lets the termination name the adopted
+      signals as its cause, and lets every replica replay the cause before its
+      effect. The adoption also authorizes the teardown the adopted value calls
+      for, so no second gate sits between the write and the teardown, and both
+      run in one CASE_MANAGER act (ADR-0166).
+    verification: >-
+      Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py`
+      and `test/core/behaviors/status/test_status_authorization_bundle.py`
+      confirm that `ThreatTerminationBranchNode` follows
+      `EmitCaseStatusUpdateNode`, wrapped only in the `TeardownOrSkip`
+      `FailureIsSuccess` decorator, with no teardown authorization call-out.
     adr:
     - ADR-0046
     - ADR-0108
-
-- id: RSH-02
-  title: EmbargoTeardownAuthorizationGate
-  description: >
-    Controls whether embargo teardown or other side-effects execute after a
-    canonical CaseStatus write.
-  specs:
-  - id: RSH-02-001
-    priority: MUST
-    kind: project
-    statement: >
-      `add_participant_status_tree` MUST include a `EmbargoTeardownAuthorizationGate` Evaluator
-      call-out node positioned after `EmitCaseStatusUpdateNode` and before
-      `ThreatTerminationBranchNode`.
-    rationale: >
-      EmbargoTeardownAuthorizationGate of ADR-0046 — provides a hook to gate side-effect execution
-      independently of the canonical write authorization.
-      `add_participant_status_tree` is the received tree that adopts a
-      participant's P, X or A (RSH-01-003); a received `Add(CaseStatus)`
-      writes and tears down nothing (RSH-04-005).
-    verification: >-
-      `test/core/behaviors/status/test_status_authorization_bundle.py` confirms
-      `EmbargoTeardownAuthorizationGate` is positioned after
-      `EmitCaseStatusUpdateNode` and before `ThreatTerminationBranchNode` in
-      `add_participant_status_tree`.
-    stories:
-    - story_2022_023
-    - story_2022_026
-  - id: RSH-02-002
-    priority: MUST
-    kind: project
-    statement: >
-      The default backend for `EmbargoTeardownAuthorizationGate` MUST be
-      `RequireCaseOwnerApproval` — an Evaluator that performs an
-      Offer/Accept/Reject round-trip with the Case Owner before permitting
-      teardown side-effects. A permissive backend (e.g., `AlwaysSucceed`) MAY
-      be configured for trusted-participant or demo deployments but MUST be
-      explicitly configured. See RSH-07.
-    rationale: >
-      Conservative default for a security-significant gate per ADR-0025
-      (security-significant gate exception) and ADR-0076. The prior default
-      of `AlwaysSucceed` was a prototype-stage convenience; production-ready
-      posture requires explicit operator opt-in for permissive behavior.
-      Belt-and-suspenders: a Case Owner's report passes the adoption gate
-      without a call-out (RSH-01-002), so its teardown would otherwise
-      inherit a permissive teardown gate with no explicit opt-in.
-    verification: Inspection of `vultron/core/behaviors/status/` confirms the default backend for
-      `EmbargoTeardownAuthorizationGate` is `RequireCaseOwnerApproval`, not `AlwaysSucceed`.
+    - ADR-0166
 
 - id: RSH-03
   title: ThreatTerminationBranchNode
@@ -205,7 +162,7 @@ groups:
       `Add(CaseStatus)` writes none: it is admitted only at a participant
       replica, from the CASE_MANAGER, whose own teardown the replica leaves to
       the committed entry (RSH-04-005, RSH-03-004). `PublicDisclosureBranchNode`
-      covered only CS.P and predates the two-seam design (RSH-03-001).
+      covered only CS.P and predates the adoption-gate design (RSH-03-001).
     verification: >
       `PublicDisclosureBranchNode` is deleted (#4154);
       `test/core/behaviors/status/test_add_participant_status_bt.py` asserts no
@@ -277,7 +234,7 @@ groups:
       CaseStatus encodes shared EM and PXA state for the entire case. The
       CASE_MANAGER is the authoritative writer of
       canonical case state (ADR-0046, CLP-09). Allowing participants to emit
-      Add(CaseStatus) directly would bypass the two-seam authorization model.
+      Add(CaseStatus) directly would bypass the adoption authorization model.
     adr:
     - ADR-0046
     - ADR-0108
@@ -640,10 +597,10 @@ groups:
 - id: RSH-07
   title: Conservative Default Authorization Policy for Status Gates
   description: >
-    Adopting a non-owner's reported P, X or A value, and executing the embargo
-    teardown an adopted value calls for, each wait by default for the Case
-    Owner's authorization. A permissive policy is a deployment's explicit
-    choice. Derived from CONCERN-2092 and ADR-0076; the mechanism is amended by
+    Adopting a non-owner's reported P, X or A value waits by default for the
+    Case Owner's authorization, which also authorizes the embargo teardown the
+    adopted value calls for (ADR-0166). A permissive policy is a deployment's
+    explicit choice. Derived from CONCERN-2092 and ADR-0076; the mechanism is amended by
     ADR-0080 (CONCERN-2812, CONCERN-2809) — see RSH-07-004.
   specs:
   - id: RSH-07-001
@@ -657,39 +614,17 @@ groups:
       A permissive default lets any admitted participant, a hostile or defective
       sentinel included, force PXA adoption and start the embargo teardown with no
       Case Owner confirmation. So the default is conservative, and permissive
-      behavior needs an explicit opt-in (ADR-0076). The rule says what a receiver
-      does with a reported status, so every CASE_MANAGER obeys it. The Case
-      Owner's own report is RSH-07-006.
+      behavior needs an explicit opt-in (ADR-0076). The authorization also
+      covers the teardown the adopted value calls for (ADR-0166). The rule says
+      what a receiver does with a reported status, so every CASE_MANAGER obeys
+      it. The Case Owner's own report is RSH-07-006.
     verification: >
       With the default bundle and a non-owner sender, no `Add(CaseStatus)` is
       emitted until Case Owner authorization is recorded in the case ledger.
     adr:
     - ADR-0076
     - ADR-0080
-    stories:
-    - story_2022_081
-  - id: RSH-07-002
-    priority: MUST
-    kind: protocol
-    statement: >
-      Before it executes a teardown that an adopted P, X or A value calls for,
-      the CASE_MANAGER MUST by default get the Case Owner's approval.
-      RSH-03-001 says when a teardown is called for.
-    rationale: >
-      Belt-and-suspenders: adoption and teardown each default conservatively, so
-      an adopted claim cannot end an embargo with no Case Owner confirmation.
-      Every implementation holding the CASE_MANAGER role obeys this, because it
-      decides what the receiver does once canonical state calls for a teardown.
-      In this codebase the rule is the `EmbargoTeardownAuthorizationGate`
-      (RSH-02-002). See ADR-0076 for full justification. Amended by ADR-0080 for
-      the mechanism only; the conservative default is unchanged.
-    verification: >
-      With the default bundle, `ThreatTerminationBranchNode` does not execute until
-      Case Owner authorization is recorded in the case ledger
-      (`TestAdoptedThreatTeardown::test_a_refusing_teardown_gate_holds_the_embargo`).
-    adr:
-    - ADR-0076
-    - ADR-0080
+    - ADR-0166
     stories:
     - story_2022_081
   - id: RSH-07-006
@@ -758,20 +693,42 @@ groups:
     kind: project
     statement: >
       An implementation MAY configure a permissive backend (e.g.,
-      `AlwaysSucceed`) for `CaseOwnerApprovesStatusUpdate` or
-      `EmbargoTeardownAuthorizationGate` in deployments where all admitted
-      participants are trusted and the operational overhead of Case Owner
-      approval is unacceptable. Any such configuration MUST be explicit and
-      documented.
+      `AlwaysSucceed`) for `CaseOwnerApprovesStatusUpdate` where all admitted
+      participants are trusted and the cost of Case Owner approval is
+      unacceptable.
     rationale: >
       Demo and trusted-participant deployments legitimately need automated
       sentinel behavior without ceremony. The conservative posture applies by
       default; permissive is an explicit operator choice with documented
-      consequences. Other valid alternative backends include role-differentiated
-      policy, probabilistic approval, and any `CallOutBackendFactory`-conformant
-      implementation. See ADR-0076.
+      consequences (RSH-07-007). Other valid alternative backends include
+      role-differentiated policy, probabilistic approval, and any
+      `CallOutBackendFactory`-conformant implementation. See ADR-0076. It
+      relaxes the teardown too, which adoption authorizes (ADR-0166).
     adr:
     - ADR-0046
+    - ADR-0076
+  - id: RSH-07-007
+    priority: MUST
+    kind: project
+    statement: >
+      An implementation that configures a permissive backend for
+      `CaseOwnerApprovesStatusUpdate` MUST configure it explicitly and document
+      that choice.
+    rationale: >
+      A permissive backend lets any admitted participant change canonical case
+      state with no Case Owner confirmation. Making it explicit and documented
+      keeps that a visible operator decision, never a silent default
+      (ADR-0076). Split from RSH-07-003, which states the permission.
+    verification: >-
+      `test/architecture/test_protocol_asks_specs.py::test_production_status_authorization_default_is_conservative`
+      confirms the default bundle is conservative, so a permissive backend is
+      only ever an explicit choice, and
+      `vultron/adapters/driving/fastapi/inbox_port_factories.py` documents its
+      permissive injection site.
+    relationships:
+    - rel_type: refines
+      spec_id: RSH-07-003
+    adr:
     - ADR-0076
 - id: RSH-08
   title: One Move, One Mover — Received-Side Write Subject and Pipeline

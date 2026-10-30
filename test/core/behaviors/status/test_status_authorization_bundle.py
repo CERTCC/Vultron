@@ -13,14 +13,16 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for the StatusAuthorizationCallOutBundle (issue #1843, ADR-0046, ADR-0076).
 
-Covers the two-seam status-authorization call-out bundle:
+Covers the status-authorization call-out bundle, whose one field is the
+adoption gate; adoption also authorizes the embargo teardown (ADR-0166):
 
-- Core bundle dataclass + DETERMINISTIC singleton (both seams RequireCaseOwnerApprovalNode).
-- Core PERMISSIVE singleton (both seams AlwaysSucceed — explicit override only).
-- Demo STOCHASTIC singleton (both seams AlmostAlwaysSucceed, p=0.90).
+- Core bundle dataclass + DETERMINISTIC singleton (RequireCaseOwnerApprovalNode).
+- Core PERMISSIVE singleton (AlwaysSucceed — explicit override only).
+- Demo STOCHASTIC singleton (AlmostAlwaysSucceed, p=0.90).
 - Core / demo package re-exports (BT-23-005).
-- Both tree builders accept the ``call_out`` bundle in their signature and
-  default to the core DETERMINISTIC singleton (RSH-01 / RSH-02 injection seam).
+- The tree builder accepts the ``call_out`` bundle in its signature and
+  defaults to the core DETERMINISTIC singleton (RSH-01 injection seam), and
+  runs the teardown with no second gate (RSH-01-004).
 """
 
 import dataclasses
@@ -43,17 +45,17 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
 
 
 @pytest.mark.spec("RSH-01-002")
-@pytest.mark.spec("RSH-02-001")
-def test_bundle_is_frozen_dataclass_with_two_seam_fields():
-    """Bundle is a frozen dataclass exposing exactly the two seam factories."""
+def test_bundle_is_frozen_dataclass_with_only_the_adoption_gate():
+    """Bundle is a frozen dataclass exposing only the adoption gate factory.
+
+    Adoption also authorizes the embargo teardown, so the bundle has no
+    teardown gate (ADR-0166).
+    """
     assert dataclasses.is_dataclass(StatusAuthorizationCallOutBundle)
     field_names = {
         f.name for f in dataclasses.fields(StatusAuthorizationCallOutBundle)
     }
-    assert field_names == {
-        "status_adoption_gate_factory",
-        "embargo_teardown_authorization_gate_factory",
-    }
+    assert field_names == {"status_adoption_gate_factory"}
     # frozen=True → mutating a field raises FrozenInstanceError.
     with pytest.raises((dataclasses.FrozenInstanceError, AttributeError)):
         STATUS_AUTHORIZATION_DETERMINISTIC.status_adoption_gate_factory = None  # type: ignore[misc]
@@ -75,9 +77,8 @@ def test_deterministic_fields_satisfy_protocol():
 
 
 @pytest.mark.spec("RSH-07-001")
-@pytest.mark.spec("RSH-07-002")
-def test_deterministic_both_seams_require_case_owner_approval():
-    """DETERMINISTIC: both seam factories build RequireCaseOwnerApprovalNode nodes that tick FAILURE."""
+def test_deterministic_adoption_gate_requires_case_owner_approval():
+    """DETERMINISTIC: the adoption gate builds a RequireCaseOwnerApprovalNode that ticks FAILURE."""
     from vultron.core.behaviors.call_out.nodes import (
         RequireCaseOwnerApprovalNode,
     )
@@ -91,8 +92,8 @@ def test_deterministic_both_seams_require_case_owner_approval():
 
 
 @pytest.mark.spec("RSH-07-003")
-def test_permissive_both_seams_always_succeed():
-    """PERMISSIVE: both seam factories build nodes that tick SUCCESS (explicit override)."""
+def test_permissive_adoption_gate_always_succeeds():
+    """PERMISSIVE: the adoption gate builds a node that ticks SUCCESS (explicit override)."""
     for f in dataclasses.fields(STATUS_AUTHORIZATION_PERMISSIVE):
         factory = getattr(STATUS_AUTHORIZATION_PERMISSIVE, f.name)
         node = factory("probe")
@@ -155,8 +156,8 @@ def test_stochastic_is_instance_of_bundle():
     )
 
 
-def test_stochastic_seams_use_probabilistic_backend():
-    """STOCHASTIC seams build the p=0.90 AlmostAlwaysSucceed fuzzer node."""
+def test_stochastic_adoption_gate_uses_probabilistic_backend():
+    """The STOCHASTIC adoption gate builds the p=0.90 AlmostAlwaysSucceed fuzzer node."""
     from vultron.demo.fuzzer.base import AlmostAlwaysSucceed
     from vultron.demo.fuzzer.bundles.status_authorization import (
         STATUS_AUTHORIZATION_STOCHASTIC,
@@ -171,7 +172,7 @@ def test_stochastic_seams_use_probabilistic_backend():
 
 
 # ---------------------------------------------------------------------------
-# Tree-builder injection seam (RSH-01 / RSH-02)
+# Tree-builder injection seam (RSH-01)
 # ---------------------------------------------------------------------------
 
 
@@ -186,12 +187,13 @@ def test_add_participant_status_tree_accepts_call_out_bundle():
     assert param.default is STATUS_AUTHORIZATION_DETERMINISTIC
 
 
-@pytest.mark.spec("RSH-02-001")
-def test_teardown_gate_sits_between_the_canonical_write_and_the_teardown(
+@pytest.mark.spec("RSH-01-004")
+def test_teardown_follows_the_canonical_write_with_no_second_gate(
     make_payload,
 ):
-    """The EmbargoTeardownAuthorizationGate follows the post-adoption
-    CaseStatus write and precedes ThreatTerminationBranchNode (RSH-02-001)."""
+    """ThreatTerminationBranchNode runs directly after the post-adoption
+    CaseStatus write, with no teardown authorization call-out between them
+    (RSH-01-004, ADR-0166)."""
     from vultron.core.behaviors.status.add_participant_status_tree import (
         add_participant_status_tree,
     )
@@ -204,7 +206,7 @@ def test_teardown_gate_sits_between_the_canonical_write_and_the_teardown(
     )
     from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 
-    case_id = "https://example.org/cases/rsh-02-001"
+    case_id = "https://example.org/cases/rsh-01-004"
     actor_id = "https://example.org/actors/vendor"
     activity = add_status_to_participant_activity(
         status=as_ParticipantStatus(context=case_id),
@@ -224,11 +226,18 @@ def test_teardown_gate_sits_between_the_canonical_write_and_the_teardown(
     )
 
     names = [node.name for node in tree.iterate()]
-    assert (
-        names.index("EmitCaseStatusUpdate")
-        < names.index("EmbargoTeardownAuthorizationGate")
-        < names.index("ThreatTerminationBranch")
-    )
+    assert "EmbargoTeardownAuthorizationGate" not in names
+    adopt = next(node for node in tree.iterate() if node.name == "AdoptStatus")
+    children = [child.name for child in adopt.children]
+    # The teardown sits directly after the emit, inside only the
+    # FailureIsSuccess wrapper that keeps the act when the teardown fails.
+    teardown_or_skip = adopt.children[
+        children.index("EmitCaseStatusUpdate") + 1
+    ]
+    assert teardown_or_skip.name == "TeardownOrSkip"
+    assert [child.name for child in teardown_or_skip.children] == [
+        "ThreatTerminationBranch"
+    ]
 
 
 @pytest.mark.spec("RSH-04-005")

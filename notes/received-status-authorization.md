@@ -1,5 +1,5 @@
 ---
-title: "Received-Side Status Authorization: Two-Gate Design"
+title: "Received-Side Status Authorization: One Gate"
 status: active
 kind: guidance
 description: >
@@ -35,7 +35,7 @@ relevant_packages:
   - vultron/core/use_cases/received
 ---
 
-# Received-Side Status Authorization: Two-Gate Design
+# Received-Side Status Authorization: One Gate
 
 The tree shapes are in the module docstrings of
 `vultron/core/behaviors/status/add_participant_status_tree.py` and
@@ -74,39 +74,37 @@ property of the pipeline:
   function, ADR-0124) or revision (through `EmbargoLifecycle`), gated on
   `AwaitsEmbargoEndingNoticeNode` (CM-31-010).
 
-## Two independent gates (ADR-0046)
+## One authorization gate (ADR-0046, ADR-0166)
 
-A CASE_MANAGER receiving `Add(ParticipantStatus)` answers two separate
-questions, each behind its own seam:
+A CASE_MANAGER receiving `Add(ParticipantStatus)` answers one question, behind
+one seam: **adoption** — `StatusAdoptionGate`: is the sender's claimed
+`CaseStatus` canonical for the case? A Fallback whose first child,
+`SenderIsCaseOwnerNode`, is a hard bypass: the CASE_OWNER's updates are
+authoritative by definition, so asking them to approve their own update would
+be circular.
 
-1. **Adoption** — `StatusAdoptionGate`: is the sender's claimed `CaseStatus`
-   canonical for the case? A Fallback whose first child,
-   `SenderIsCaseOwnerNode`, is a hard bypass: the CASE_OWNER's updates are
-   authoritative by definition, so asking them to approve their own update would
-   be circular.
-2. **Side-effects** — `EmbargoTeardownAuthorizationGate`: may embargo teardown
-   run? It runs after the canonical write, inside a `FailureIsSuccess` wrapper so
-   a blocked teardown still leaves the tree `SUCCESS`.
+**Adoption authorizes the teardown (ADR-0166).** An adopted P, X or A value
+ends an active embargo in the same act, with no second gate: asking the Case
+Owner again about a value it already authorized, or reported itself, is
+circular, and a refusal would leave P, X or A beside an active embargo, which
+CSB-18-002 to CSB-18-004 forbid. Do not add an authorization step between
+adoption and teardown. A policy that must delay a teardown decides at
+adoption, by not adopting yet. The teardown runs inside a `FailureIsSuccess`
+wrapper, so a teardown that fails for another reason still leaves the tree
+`SUCCESS` and the CSB-18 diagnostic reports it.
 
-**Adoption authorizes the teardown (ADR-0166).** The teardown gate is being
-removed: it asks the Case Owner again about a value the owner already
-authorized, or reported itself, and its refusal leaves P, X or A beside an
-active embargo, which CSB-18-002 to CSB-18-004 forbid. Do not add an
-authorization step between adoption and teardown, and do not give the
-teardown gate a refusing backend. A policy that must delay a teardown decides
-at adoption, by not adopting yet.
-
-On the adoption path the gates run in one tree, in order, with no inbox
-round-trip (RSH-01-003, RSH-01-004). `add_case_status_tree` runs neither: it
-is admitted only at a participant replica, from the CASE_MANAGER, and writes
-nothing on receipt (RSH-04-005, RSH-08-003).
+On the adoption path the gate, the canonical write and the teardown run in one
+tree, in order, with no inbox round-trip (RSH-01-003, RSH-01-004).
+`add_case_status_tree` runs none of them: it is admitted only at a participant
+replica, from the CASE_MANAGER, and writes nothing on receipt (RSH-04-005,
+RSH-08-003).
 
 **Assert a P/X/A report against `case.current_status`, not the sender's
 record.** Teardown reads the report itself, so checks on the sender's record
 pass even when the adoption commit adopts nothing (#4956).
 
-**Both seams are call-outs that require Case Owner approval by default**
-(RSH-07-001, RSH-07-002, ADR-0076). A permissive backend
+**The adoption seam is a call-out that requires Case Owner approval by
+default** (RSH-07-001, ADR-0076). A permissive backend
 (`STATUS_AUTHORIZATION_PERMISSIVE` in
 `vultron/core/behaviors/call_out/bundles/status_authorization.py`) MAY be
 configured for trusted or demo deployments, but MUST be explicit (RSH-07-003)
@@ -166,7 +164,7 @@ sent or refuses all of it; `CheckCaseStatusAcceptableNode` does the same for
 
 `ThreatTerminationBranchNode` fires `terminate_embargo_bt` when the canonical
 `CaseStatus` carries CS.P, CS.X or CS.A (RSH-03-001 to RSH-03-003). It does no
-sender check: authorization happened at the gates.
+sender check: authorization happened at adoption (ADR-0166).
 
 - **Only the CASE_MANAGER runs the teardown.** The branch is built only by
   `add_participant_status_tree`, under its CASE_MANAGER gate
@@ -178,8 +176,10 @@ sender check: authorization happened at the gates.
   CSB-18-004, ADR-0166). The adopting act writes its case status snapshot
   before the teardown (RSH-01-004), so that one entry carries the value beside
   the active embargo; the act's last entry must not.
-- **A blocked teardown leaves the PXA↔EM entailment violated** (CSB-18-002 to
-  CSB-18-004). `PxaEmInvariantDiagnosticNode` detects it after the cascade in
+- **A failed teardown leaves the PXA↔EM entailment violated** (CSB-18-002 to
+  CSB-18-004). On the authorized path the teardown ends the embargo and no
+  violation remains; the check is a safety net (ADR-0166).
+  `PxaEmInvariantDiagnosticNode` detects it after the cascade in
   `add_participant_status_tree`, at the CASE_MANAGER only, and commits a note as
   its own `add_note_to_case` entry, so a lagging replica never reports the gap
   (RSH-06-004, #4829).
@@ -187,7 +187,7 @@ sender check: authorization happened at the gates.
 ## CaseStatus emission authority (RSH-04)
 
 - **Only the CASE_MANAGER emits `Add(CaseStatus)`.** Other participants embed a
-  suggested `CaseStatus` in `Add(ParticipantStatus)` and let the gates decide
+  suggested `CaseStatus` in `Add(ParticipantStatus)` and let the gate decide
   (RSH-04-001).
 - **Refuse `Add(CaseStatus)` from anyone else, and at the CASE_MANAGER.**
   `add_case_status_tree` has no adoption gate, so admitting it from a
