@@ -143,7 +143,7 @@ The receiving actor is one already entitled to the case's content and holding th
 An owner that means to transfer a case to any other actor invites that actor first.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-21-005", "CM-21-021"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-21-005", "CM-21-021", "CM-21-022"))
 ```
 
 On acceptance, the receiving actor acquires Case Owner authority and

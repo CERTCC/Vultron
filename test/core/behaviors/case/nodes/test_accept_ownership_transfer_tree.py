@@ -283,7 +283,7 @@ def test_open_offer_guard_raises_when_the_offer_is_not_recorded(
     )
 
 
-@pytest.mark.spec("CM-21-021")
+@pytest.mark.spec("CM-21-022")
 @pytest.mark.executes_as(CASE_ACTOR_ID)
 def test_active_transferee_guard_raises_when_the_offer_is_not_recorded(
     bt_scenario: BTTestScenario,

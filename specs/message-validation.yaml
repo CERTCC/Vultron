@@ -638,29 +638,21 @@ groups:
     priority: MUST
     kind: architecture
     statement: >-
-      Setting inbound unknown keys aside at the parse edge MUST NOT loosen `extra="forbid"` on
-      any core type (ARCH-12-003). The parse edge is the only door inbound data enters by, so a
-      core class never sees an inbound unknown key; an unknown key on in-process or stored data
-      remains a refusal. The retired-name list MV-11-002 consults MUST live in the wire layer
-      and be consulted only at the parse edge; core types MUST NOT carry a per-class
-      retired-key reject-guard (SDO-03-005).
+      Setting inbound unknown keys aside at the parse edge MUST NOT loosen
+      `extra="forbid"` on any core type (ARCH-12-003). The parse edge is the only door
+      inbound data enters by, so a core class never sees an inbound unknown key. An
+      unknown key on in-process or stored data remains a refusal.
     rationale: >-
-      The two rules answer different questions. `extra="forbid"` asks: "Did this process
-      build or store an object with a key that it does not know?" The answer yes is
-      always a bug. The parse edge asks: "Did a peer send a property that Vultron does
-      not read?" The answer yes is usually an extension. When the two rules stay
-      separate, the receive side can accept unknown properties and the stored side still
-      refuses each unknown key. Thus lenient intake cannot let a dropped or misspelled
-      field get to storage. A retired-key guard on a core class copies the wire-side
-      list into a second place, and the two lists can become different.
+      The two rules answer different questions. `extra="forbid"` asks: "Did this
+      process build or store an object with a key that it does not know?" The answer
+      yes is always a bug. The parse edge asks: "Did a peer send a property that
+      Vultron does not read?" The answer yes is usually an extension. When the two
+      rules stay separate, the receive side can accept unknown properties and the
+      stored side still refuses each unknown key. Thus lenient intake cannot let a
+      dropped or misspelled field get to storage.
     verification: >-
-      `test/architecture/test_core_extra_forbid.py` continues to assert every `CoreObject`
-      subclass forbids extras with no exemption list. A grep of `vultron/core/models/` finds no
-      `mode="before"` validator that rejects a retired key by name: #3921 deleted
-      `ParticipantStatus._reject_retired_vfd_keys`, and
-      `test_no_core_module_names_a_retired_key` (`test/wire/as2/test_unknown_key_disposition.py`)
-      fails if any string constant under `vultron/core/` names a key on the wire-side
-      `RETIRED_NAMES` list.
+      `test/architecture/test_core_extra_forbid.py` continues to assert every
+      `CoreObject` subclass forbids extras with no exemption list.
     relationships:
     - rel_type: derives_from
       spec_id: ARCH-12-003
@@ -695,5 +687,34 @@ groups:
       spec_id: MV-11-003
     - rel_type: depends_on
       spec_id: MV-04-003
+    adr:
+    - ADR-0099
+  - id: MV-11-006
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The retired-name list MV-11-002 consults MUST live in the wire layer and be
+      consulted only at the parse edge, never copied into a core type as a
+      received-key guard (SDO-03-005). A stored row's retired field is a different
+      question: the shared `RetiredFieldsRecord` base refuses it with a named reason,
+      which `extra="forbid"` alone does not give.
+    rationale: >-
+      A received key reaches core only through the parse edge, so a received-key guard
+      on a core class copies the wire-side list into a second place, and the two lists
+      can become different. A stored row never passes the parse edge. `extra="forbid"`
+      still refuses its retired key, but only as a bare "extra inputs" error that
+      never says a field was renamed, so the store reset it needs goes unexplained
+      (CLP-02-014). Before 1.0 only the current protocol version is supported, so
+      retired-name tracking is to be dropped on both sides (#5573); until then the two
+      lists answer these two questions.
+    verification: >-
+      `test_no_core_module_names_a_retired_key`
+      (`test/wire/as2/test_unknown_key_disposition.py`) fails if any string constant
+      under `vultron/core/` names a key on the wire-side `RETIRED_NAMES` list. #3921
+      deleted `ParticipantStatus._reject_retired_vfd_keys`, the last per-class
+      received-key guard.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-11-002
     adr:
     - ADR-0099

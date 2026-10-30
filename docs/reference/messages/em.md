@@ -262,7 +262,7 @@ Some deliveries get no notice:
 
 - A message that the sender has no standing to send is refused with no answer (HP-01-006).
 - A repeat of an answer already recorded, under a new id or the same one, is skipped and gets no notice (CM-13-005).
-- An `Invite` or `Accept` that arrives once the case is public, an exploit is public, or attacks are observed is answered with a `Reject` of the Invite instead (EMB-01-002, EMB-02-002).
+- An `Invite` or `Accept` that arrives once the case is public, an exploit is public, or attacks are observed is answered with a `Reject` of the Invite instead (EMB-01-007, EMB-02-002).
   The Case Manager's `Reject` of an `Accept` reaches the participant.
   The participant then closes its pending `Accept`.
 - A late `Accept` of the embargo in force is recorded in the same way as an on-time `Accept`.

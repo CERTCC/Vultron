@@ -250,7 +250,7 @@ If the vulnerability is public, an exploit is public, or attacks have been obser
 This condition is not a preference that the negotiation weighs.
 It is mandatory, and it applies at every point in the lifecycle:
 
-- A proposal MUST be refused with ER, regardless of any other assessment (EMB-01-002).
+- A proposal MUST be refused with ER, regardless of any other assessment (EMB-01-002, EMB-01-007).
 - An EA MUST NOT move the case to `ACTIVE`.
   The actor emits ER instead (EMB-02-002).
 - An EV arriving while the case is public MUST be refused, not adopted (EMB-03-003).
@@ -425,7 +425,8 @@ Assignment through an existing instance always raises.
 
 | Requirement | Obligation |
 |---|---|
-| [EMB-01-002](../../../reference/vultron-spec/requirements/state-behavior.md#emb-01-002) | A proposal MUST be refused with ER when the case is public, exploited, or attacked |
+| [EMB-01-002](../../../reference/vultron-spec/requirements/state-behavior.md#emb-01-002) | A proposal MUST NOT be accepted when the case is public, exploited, or attacked |
+| [EMB-01-007](../../../reference/vultron-spec/requirements/state-behavior.md#emb-01-007) | Its addressee MUST answer it with ER; an Invite naming its terms by URI only gets its ER once the terms are fetched |
 | [EMB-02-002](../../../reference/vultron-spec/requirements/state-behavior.md#emb-02-002) | An EA MUST NOT activate an embargo on a public case; emit ER |
 | [EMB-03-001](../../../reference/vultron-spec/requirements/state-behavior.md#emb-03-001) | An EV in `EM.ACTIVE` MUST move to `EM.REVISE`, leaving the active embargo in force |
 | [EMB-06-001](../../../reference/vultron-spec/requirements/state-behavior.md#emb-06-001) | An ER in `EM.PROPOSED` MUST return the case to `EM.NONE` when it rejects the last open proposal, and leave it `PROPOSED` while another is open |

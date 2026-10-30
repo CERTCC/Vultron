@@ -343,6 +343,7 @@ def test_a_participant_with_pxa_set_rejects_a_relayed_invite_to_the_case_manager
 
 @pytest.mark.spec("EMB-03-003")
 @pytest.mark.spec("EMB-01-002")
+@pytest.mark.spec("EMB-01-007")
 @pytest.mark.spec("TB-06-007")
 def test_a_participant_with_pxa_set_answers_a_revision_with_er_never_et():
     """A non-owner, non-manager answers a P/X/A revision with ER only.
@@ -417,6 +418,7 @@ def _receive_after_fetch(net: _Network, body: dict[str, Any]) -> Any:
 
 
 @pytest.mark.spec("EMB-01-002")
+@pytest.mark.spec("EMB-01-007")
 @pytest.mark.spec("MSM-05-001")
 @pytest.mark.spec("SE-01-006")
 @pytest.mark.spec("AKM-05-007")
@@ -519,6 +521,7 @@ def test_a_redelivered_invite_with_pxa_set_is_refused_once():
 
 
 @pytest.mark.spec("EMB-01-002")
+@pytest.mark.spec("EMB-01-007")
 @pytest.mark.spec("HP-01-003")
 def test_an_invite_answered_before_pxa_is_not_contradicted_on_redelivery():
     """An Invite accepted before the case went public gets no later ER."""
@@ -561,6 +564,7 @@ def test_a_participant_refuses_a_peers_invite_and_answers_nobody():
 
 
 @pytest.mark.spec("EMB-01-002")
+@pytest.mark.spec("EMB-01-007")
 @pytest.mark.spec("HP-01-005")
 def test_an_invite_with_pxa_set_addressed_to_another_actor_gets_no_er(caplog):
     """An unaddressed copy is refused at the door, and not answered.
@@ -616,6 +620,7 @@ def test_a_cc_copy_of_an_invite_with_pxa_set_gets_no_er(caplog):
 
 
 @pytest.mark.spec("EMB-01-002")
+@pytest.mark.spec("EMB-01-007")
 @pytest.mark.spec("TB-06-007")
 def test_a_case_manager_with_pxa_set_rejects_a_proposal_to_its_proposer():
     """The CASE_MANAGER answers the proposer that sent the Invite."""

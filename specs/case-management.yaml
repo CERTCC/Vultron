@@ -4118,39 +4118,60 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST admit an ownership-transfer proposal (CM-21-005) only when
-      the transferee its inner Offer names is an active participant of the case
-      (CM-10-004), and MUST otherwise refuse it with no ledger commit and no Offer
-      made. It MUST admit the transferee's `Accept(Offer(VulnerabilityCase))`
-      (CM-21-011) only when the transferee is still an active participant when the
-      Accept is processed, and MUST otherwise refuse it with the case's
-      `attributed_to` and every participant's `CASE_OWNER` role unchanged. An owner
-      that means to transfer a case to an actor not active in it invites that actor
-      first.
+      The CASE_MANAGER MUST refuse an ownership-transfer proposal (CM-21-005) whose
+      transferee may not act on the case, with no ledger commit and no Offer made. A
+      transferee may act when it is an active participant (CM-10-004) whose closure the
+      case's ledger does not record (CM-23-018). An owner that means to transfer a case
+      to an actor not active in it invites that actor first.
     rationale: >-
       The new owner administers the case, its active embargo included, so it must
       first have agreed to that embargo and be entitled to the case content, as joining
       requires. An active participant holds the case, which is also what lets the Offer
       name the case by reference rather than carry it (ADR-0165). `CASE_OWNER` is held
       on a participant record (CM-21-002), so only a transferee with one can end the
-      transfer as the single owner CM-21-001 requires. The second check covers a
-      participant removed, or lapsed by an embargo revision, between the Offer and its
-      answer.
+      transfer as the single owner CM-21-001 requires. A closed participant stays
+      active by CM-10-004, but it receives no further case content (CM-23-004) and may
+      not act on the case (CM-23-018), so it cannot take the case on. The test is the
+      one every sender guard and case-content selection uses, `may_act_on_case` in
+      `vultron/core/participants/recipients.py`.
     verification: >-
       Tests marked `CM-21-021` deliver to the CASE_MANAGER a proposal naming an actor
-      off the roster, an invitee that has not accepted, a removed participant and a
-      participant that is not a signatory to the active embargo, and assert each is
-      `REFUSED` with no ledger entry and no Offer made; a test lets the transferee
-      stop being an active participant between the Offer and its Accept and asserts
-      the Accept is `REFUSED` with the owner unchanged; a test asserts that no
-      admitted Accept leaves the case with no participant holding `CASE_OWNER`.
+      off the roster, an invitee that has not accepted, a removed participant, a
+      participant that is not a signatory to the active embargo and a closed
+      participant, and assert each is `REFUSED` with no ledger entry and no Offer made.
     relationships:
     - rel_type: refines
       spec_id: CM-21-005
-    - rel_type: refines
-      spec_id: CM-21-011
     - rel_type: depends_on
       spec_id: CM-10-004
+    adr:
+    - ADR-0148
+    stories:
+    - story_2022_050
+  - id: CM-21-022
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST refuse, with ownership unchanged, the transferee's
+      `Accept(Offer(VulnerabilityCase))` (CM-21-011) when the transferee may no longer
+      act on the case (CM-21-021) as the Accept is processed. Ownership unchanged means
+      the case's `attributed_to` and every participant's `CASE_OWNER` role stay as they
+      were.
+    rationale: >-
+      The proposal check (CM-21-021) runs when the Offer is made. A participant can be
+      removed, lapse by an embargo revision, or close between the Offer and its answer,
+      so the Accept is checked again with the same test, `may_act_on_case`. A closed
+      transferee's Accept is also refused by its sender check (CM-23-018).
+    verification: >-
+      Tests marked `CM-21-022` let the transferee stop being an active participant
+      between the Offer and its Accept and assert the Accept is `REFUSED` with the owner
+      unchanged; a test asserts that no admitted Accept leaves the case with no
+      participant holding `CASE_OWNER`.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-011
+    - rel_type: refines
+      spec_id: CM-21-021
     adr:
     - ADR-0148
     stories:

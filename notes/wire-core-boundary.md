@@ -193,7 +193,8 @@ disposition is stated once there (MV-11, ARCH-25-007/008):
    form, which `forbid` refuses.
 4. **Core `forbid` is unchanged** (MV-11-004). The retired-name list lives on the
    wire side (`unknown_keys.RETIRED_NAMES`), consulted only at the parse edge; no
-   core guard names a retired key.
+   core guard names a retired received key (MV-11-006). A *stored* row's retired
+   field is refused by the shared `RetiredFieldsRecord`, a different question.
    `RETIRED_NAMES` is for keys whose *field* is gone (`vfd_state`,
    `activeEmbargo`). A retired *spelling* of a live field needs no entry: once
    the class stops declaring it, it normalises to the live spelling, so rule 2

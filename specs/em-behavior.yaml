@@ -83,15 +83,9 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      A Participant MUST NOT accept a new embargo proposal (process EP) when information about the
-      vulnerability is public (q^cs ∈ ···P··), exploit is public (q^cs ∈ ····X·), or attacks have
-      been observed (q^cs ∈ ·····A). The Participant MUST respond with ER to reject the proposal.
-      The ER duty binds only the proposal's addressee: a receiver the proposal is not
-      addressed to (HP-01-012) holds an unaddressed copy, refuses it (HP-01-005) and answers
-      nothing (ADR-0118); `cc` addresses nobody (ADR-0109). The ER names the Invite by id
-      and needs no terms, so an Invite that
-      names its terms by URI only is answered too (ADR-0123). A re-delivery of an Invite already
-      answered with ER is a duplicate, and gets no second ER (HP-01-003).
+      A Participant MUST NOT accept a new embargo proposal (process EP) when
+      information about the vulnerability is public (q^cs ∈ ···P··), exploit is public
+      (q^cs ∈ ····X·), or attacks have been observed (q^cs ∈ ·····A).
     rationale: >-
       Embargo negotiation is not viable once public disclosure has occurred.
       VP-06-001 and VP-11-001 prohibit new embargo negotiations in these states.
@@ -128,6 +122,39 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-001
       note: 'EP shorthand wire-type mapping'
+  - id: EMB-01-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The addressee of an embargo proposal it may not accept (EMB-01-002) MUST answer
+      it with ER to reject the proposal. A receiver the proposal is not addressed to
+      (HP-01-012) holds an unaddressed copy, refuses it (HP-01-005) and answers
+      nothing (ADR-0118); `cc` addresses nobody (ADR-0109). The ER names the Invite by
+      id and carries no terms. An Invite that names its terms by URI only is
+      classified as an embargo Invite only once the receiver holds the terms
+      (SE-01-006). Its ER follows the fetch of those terms (AKM-05-007), and none is
+      sent when the fetch fails (AKM-05-015). A re-delivery of an Invite already
+      answered with ER is a duplicate, and gets no second ER (HP-01-003).
+    rationale: >-
+      ER signals the rejection to the proposer so it can update its own EM state. A
+      bare object URI matches no pattern's object type, so a receiver that lacks the
+      terms cannot tell an embargo Invite from an actor Invite until it fetches them;
+      answering at once would need a discriminator other than the object type (#5266).
+    verification: >-
+      Tests marked `EMB-01-007` in
+      `test/core/use_cases/received/test_embargo_relay_replay.py` and
+      `test_embargo_propose_accept_reject.py` assert that the addressee sends ER, that
+      an unaddressed copy and a re-delivery get none, and
+      (`test_a_bare_uri_invite_with_pxa_set_gets_an_er_once_its_terms_are_fetched`)
+      that a bare-URI Invite gets its ER only once its terms are fetched.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-01-002
+    adr:
+    - ADR-0118
+    - ADR-0123
+    stories:
+    - story_2022_014
 
   - id: EMB-01-003
     priority: MUST

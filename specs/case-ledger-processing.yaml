@@ -1477,23 +1477,15 @@ groups:
   - id: CLP-10-005
     priority: MUST
     kind: project
-    statement: 'A received-side use case MUST run exactly one BT per inbox delivery. Its
-      `execute()` method MUST do exactly three things: build one BT via a tree-factory
-      function in `vultron/core/behaviors/`, call `BTBridge.execute_with_setup()`
-      exactly once with `actor_id=resolve_receiving_actor_id(self._dl,
-      request.receiving_actor_id)` to run it, and handle the result (log/extract output
-      per the existing Procedural Glue Exception). A call that `execute()` reaches
-      through any function or method defined under `vultron/core/use_cases/`, resolved
-      transitively, counts as a call by `execute()`. Work that needs more than one tree,
-      including a door check, a clock decision (CLP-10-025), a refusal, or an
-      alternative branch, MUST be composed into the one tree by its factory; Python
-      control flow in the use case MUST NOT choose between trees or run one after
-      another. `execute()` MUST NOT perform any other domain-significant work — no
-      direct DataLayer mutation, no second `execute_with_setup()` call, and no direct
-      import or call of `create_guarded_commit_case_ledger_entry_tree` (or any other
-      guarded-commit factory). A buffered ledger entry that a commit or a case seed
-      makes appliable is its own delivery (SYNC-14-009), never a second run in this
-      one.'
+    statement: >-
+      A received-side use case MUST run exactly one BT per inbox delivery. A call that
+      `execute()` reaches through any function or method defined under
+      `vultron/core/use_cases/` or `vultron/core/services/`, resolved transitively,
+      counts as a call by `execute()`. The catch-all for unrecognized semantics
+      (`UnknownUseCase`) runs no tree. It is not a use case: it refuses the activity
+      before any case is known. A buffered ledger entry that a commit or a case
+      seed makes appliable is its own delivery (SYNC-14-009), never a second run in this
+      one.
     rationale: >-
       Behavior trees exist to compose steps, and the tree is where the guards, the stage
       order and the checks can see each step. Python code that runs a second tree, or
@@ -1526,6 +1518,76 @@ groups:
     - ADR-0021
     - ADR-0022
     - ADR-0135
+  - id: CLP-10-028
+    priority: MUST
+    kind: project
+    statement: >-
+      A received-side use case's `execute()` MUST do exactly three things: build one BT
+      via a tree-factory function in `vultron/core/behaviors/`, call
+      `BTBridge.execute_with_setup()` exactly once with
+      `actor_id=resolve_receiving_actor_id(self._dl, request.receiving_actor_id)` to run
+      it, and handle the result (log or extract output per the Procedural Glue
+      Exception).
+    rationale: >-
+      A fixed shape makes every received use case read the same way, so the one tree
+      CLP-10-005 requires is easy to find and the receiving actor is resolved in one
+      place for every delivery (ADR-0022).
+    verification: >-
+      `test/architecture/test_single_bt_execution_received_side.py` counts every
+      `execute_with_setup()` call a received `execute()` reaches and asserts at most one;
+      a reviewer confirms the rest of the shape when closing each migration.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-005
+    adr:
+    - ADR-0022
+  - id: CLP-10-029
+    priority: MUST
+    kind: project
+    statement: >-
+      Work that needs more than one tree MUST be composed into the one tree by its
+      factory, never chosen between or run in sequence by Python control flow in the use
+      case. Such work includes a door check, a clock decision (CLP-10-025), a refusal and
+      an alternative branch.
+    rationale: >-
+      Python code that runs a second tree, or that chooses between trees, puts a protocol
+      decision outside the tree, where the guards, the stage order and the architecture
+      tests cannot see it (ADR-0135).
+    verification: >-
+      `test/architecture/test_single_bt_execution_received_side.py` sums the
+      `execute_with_setup()` calls on alternative branches of a received `execute()` and
+      asserts at most one; its detector self-tests assert that two calls on alternative
+      branches are each counted.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-005
+    adr:
+    - ADR-0135
+  - id: CLP-10-030
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A received-side use case's `execute()` MUST NOT do domain-significant work beyond
+      running its one tree. That work includes a direct DataLayer mutation, a second
+      `execute_with_setup()` call, and a direct import or call of
+      `create_guarded_commit_case_ledger_entry_tree` or any other guarded-commit factory.
+    rationale: >-
+      Work done in `execute()` runs outside the tree's guards and stage order. A guarded
+      commit called from `execute()` lets procedural code decide whether the commit runs
+      (ADR-0021, ADR-0022).
+    verification: >-
+      `test/architecture/test_single_bt_execution_received_side.py` greps every module
+      under `vultron/core/use_cases/` for imports of
+      `create_guarded_commit_case_ledger_entry_tree` outside the factory's own module,
+      against a `KNOWN_VIOLATIONS` ratchet that must shrink to empty;
+      `test_no_dl_mutations_in_execute.py` fails on a DataLayer write reached from
+      `execute()` (CLP-10-020).
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-005
+    adr:
+    - ADR-0021
+    - ADR-0022
   - id: CLP-10-007
     priority: MUST
     kind: project
