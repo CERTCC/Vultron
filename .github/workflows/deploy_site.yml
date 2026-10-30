@@ -29,6 +29,10 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    # Observed: 2.1 min on its only successful run; it runs the docs-build-check
+    # build, seen at up to 16 min (2026-10-30). Cap at 30 min so a hang fails fast
+    # instead of holding a runner until GitHub's 6-h limit (TB-14-006).
+    timeout-minutes: 30
     steps:
       # Only loads the local actions: build-site re-checks out the repository
       # with the history and tags the build needs (DOCBW-06-004).
