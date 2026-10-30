@@ -333,14 +333,30 @@ groups:
   - id: DUR-07-004
     priority: MUST
     kind: protocol
-    statement: An embargo end time MUST be established before the case transitions to RM.VALID
+    statement: >-
+      An embargo end time MUST be established before an embargo-eligible case (none of
+      P, X or A set) transitions to RM.VALID. A case that is not embargo-eligible is
+      exempt: it MAY transition to RM.VALID with no embargo, which for a case created
+      with P, X or A set means at `EM.NONE`.
     rationale: >-
       Once a report is valid, coordination begins and other parties are brought into the
       case. An embargo end set before that point means every participant joins under a
       known disclosure date instead of sharing vul details with no agreed date in force.
+      A case with P, X or A set can never have an embargo (EP-04-008, VP-06-001), so
+      requiring one would leave it unable to reach RM.VALID at all.
+    note: >-
+      A placeholder embargo, terminated at case creation, is not a substitute for the
+      exemption: it would record register, ledger and consent entries for terms that
+      nobody proposed, and contradict EP-04-008.
     verification: >-
-      Integration tests in `test/demo/` confirm that no case successfully
-      transitions to `RM.VALID` unless an embargo end time has been established.
+      `test/core/behaviors/report/nodes/test_conditions.py` confirms that
+      `EnsureEmbargoExists` refuses an embargo-eligible case with no active embargo
+      and admits a case with P, X or A set that has none.
+      `test/core/use_cases/test_validate_report_ledger_routing.py`
+      (`test_ineligible_case_reaches_valid_at_em_none`,
+      `test_eligible_case_without_embargo_is_not_validated`) confirms that a case
+      created with P set reaches `RM.VALID` at `EM.NONE`, and an eligible case with no
+      embargo is refused.
     relationships:
     - rel_type: depends_on
       spec_id: DUR-07-002

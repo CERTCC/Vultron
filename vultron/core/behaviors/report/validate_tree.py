@@ -33,7 +33,9 @@ Structure:
        ├─ EvaluateReportCredibility          # call-out point
        ├─ EvaluateReportValidity             # call-out point
        ├─ RequireCaseForReport               # case must be in *this* store
-       ├─ EnsureEmbargoExists                # embargo present (DUR-07-004)
+       ├─ EnsureEmbargoExists                # embargo present, unless the
+       │                                     # case is not embargo-eligible
+       │                                     # (DUR-07-004, EP-04-008)
        └─ ValidationActions (Sequence, memory=False)
           ├─ TransitionRMtoValid             # write + RM latch (received) or
           │                                  # check only (trigger)
@@ -41,8 +43,9 @@ Structure:
 
 Why the guards precede the actions
 ----------------------------------
-``RM.VALID`` is case-scoped: DUR-07-004 requires an established embargo, and
-engage-case reads the participant's case-scoped RM state.  Both live on the
+``RM.VALID`` is case-scoped: DUR-07-004 requires an established embargo for
+an embargo-eligible case, and engage-case reads the participant's case-scoped
+RM state.  Both live on the
 ``VulnerabilityCase``, which reaches a non-CaseActor participant only as a
 ``Create(VulnerabilityCase)`` replica (ADR-0041, ADR-0073, PCR-01-003).  Every
 precondition that depends on that replica is therefore checked *before* the
