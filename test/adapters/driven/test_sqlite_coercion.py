@@ -445,3 +445,109 @@ class TestCoerceByReferenceFields:
         assert type(result).__name__ == "_RmInviteToFullCaseActivity"
         assert result.target == case.id_  # type: ignore[union-attr]
         assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+    def test_full_case_invite_reply_round_trips_without_warning(
+        self, dl, caplog
+    ):
+        """A stored Accept(full-case Invite) coerces its embedded Invite too.
+
+        The Invite rides inline in the reply, so rehydration expands the
+        Invite's ``target`` into the stored case; the reply's class embeds
+        the full-case Invite class, which takes the case by URI (#5513).
+        """
+        import logging
+
+        from vultron.core.models.ledger_position import LedgerPosition
+        from vultron.wire.as2.factories import (
+            rm_accept_full_case_invite_activity,
+            rm_invite_to_full_case_activity,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        position = LedgerPosition(log_index=0, entry_hash=_ZERO_HASH)
+        invite = rm_invite_to_full_case_activity(
+            "https://example.org/actors/vendor",
+            case,
+            position,
+            actor="https://example.org/actors/case-actor",
+        )
+        accept = rm_accept_full_case_invite_activity(
+            invite, position, actor="https://example.org/actors/vendor"
+        )
+        dl.save(case)
+        dl.save(invite)
+        dl.save(accept)
+
+        with caplog.at_level(logging.WARNING):
+            result = dl.read(accept.id_)
+
+        assert type(result).__name__ == "_RmAcceptFullCaseInviteActivity"
+        assert result.object_.target == case.id_  # type: ignore[union-attr]
+        assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+class TestCollapseByReferenceFields:
+    """Each branch of ``_collapse_by_reference_fields`` (#5513)."""
+
+    @staticmethod
+    def _invite(target: object) -> object:
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Invite,
+        )
+
+        return as_Invite.model_construct(
+            id_="https://example.org/activities/invite-5513",
+            actor="https://example.org/actors/case-actor",
+            object_="https://example.org/actors/vendor",
+            target=target,
+        )
+
+    @staticmethod
+    def _collapse(obj: object, cls_name: str) -> object:
+        from vultron.adapters.driven.datalayer_sqlite.hydration import (
+            _collapse_by_reference_fields,
+        )
+        from vultron.wire.as2.vocab.activities import case as case_vocab
+
+        return _collapse_by_reference_fields(
+            obj,  # type: ignore[arg-type]
+            getattr(case_vocab, cls_name),
+        )
+
+    def test_object_collapses_to_its_id(self):
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        result = self._collapse(
+            self._invite(case), "_RmInviteToFullCaseActivity"
+        )
+        assert result.target == case.id_  # type: ignore[attr-defined]
+
+    def test_bare_id_is_left_alone(self):
+        invite = self._invite("https://example.org/cases/case-5513")
+        assert self._collapse(invite, "_RmInviteToFullCaseActivity") is invite
+
+    def test_object_without_an_id_is_left_alone(self):
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        nameless = as_VulnerabilityCase.model_construct(id_=None)
+        invite = self._invite(nameless)
+        assert self._collapse(invite, "_RmInviteToFullCaseActivity") is invite
+
+    def test_field_that_admits_an_object_keeps_it(self):
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCaseStub,
+        )
+
+        stub = as_VulnerabilityCaseStub.model_construct(
+            id_="https://example.org/cases/case-5513/stub"
+        )
+        invite = self._invite(stub)
+        assert self._collapse(invite, "_RmInviteToCaseActivity") is invite

@@ -878,6 +878,32 @@ class TestPreGenesisAnnounceBuffering:
         ]
         assert errors == []
 
+    @pytest.mark.spec("SYNC-15-001")
+    def test_own_echo_for_missing_case_logs_error(self, dl, caplog):
+        """The CASE_MANAGER's own echoed Announce still needs its case.
+
+        Its sender is the receiving actor, so the receiver is the case's
+        CASE_MANAGER, and a case it does not hold is a Regime 1 anomaly
+        (ADR-0087): both role checks log it at ERROR (#5513).
+        """
+        case = _make_case()  # deliberately NOT saved
+        entry = _make_entry(CASE_URI, 0, case.genesis_hash)
+
+        with caplog.at_level(logging.DEBUG):
+            AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                _announce_event(entry, actor=RECEIVER_URI),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
+
+        errors = [
+            r.getMessage()
+            for r in caplog.records
+            if r.levelno >= logging.ERROR
+        ]
+        assert any("CheckIsCaseManager:" in m for m in errors), errors
+        assert any("CheckIsCaseManagerInverse:" in m for m in errors), errors
+
     @pytest.mark.spec("SYNC-03-006")
     @pytest.mark.spec("SYNC-15-004")
     def test_pre_genesis_entry_with_bad_hash_is_not_held(self, dl):
