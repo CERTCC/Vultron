@@ -614,7 +614,8 @@ groups:
       order. A UTC time column shows when each entry was written.
     verification: >-
       `test_readme_has_date_and_time_columns` in `test/metadata/test_append_history.py`
-      confirms that the index header carries the `Date` and `Time (UTC)` columns.
+      confirms that the index header carries the `Date` and `Time (UTC)` columns
+      and that an entry's row shows its timestamp's YYYY-MM-DD date and HH:MM time.
   - id: HM-06-011
     priority: MUST
     kind: project

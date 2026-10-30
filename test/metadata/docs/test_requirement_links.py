@@ -3,7 +3,7 @@
 A requirement's anchor is defined only where its row renders: a ``protocol``
 or ``foundation`` requirement on its Requirements Catalog page (and that
 page's copy on ``full.md``), any other kind on its per-kind page (SR-09-001,
-DF-12-002). The first tests are gates on the real ``docs/`` tree: every link
+SR-09-004, DF-12-002). The first tests are gates on the real ``docs/`` tree: every link
 to a requirement targets the page defining its anchor, no link names a
 retired tier page, and no page but the catalog and ``full.md`` defines a
 catalog anchor. The rest pin the rewrite rules and each fault on small trees.
@@ -42,7 +42,7 @@ def _docs_files() -> list[tuple[str, str]]:
     return files
 
 
-@pytest.mark.spec("DF-12-002", "SR-09-001", "SR-09-002")
+@pytest.mark.spec("DF-12-002", "SR-09-001", "SR-09-002", "SR-09-004")
 def test_every_requirement_link_targets_the_page_defining_it() -> None:
     """Run ``scripts/relink_requirement_anchors.py`` when this fails."""
     linker = RequirementLinker(load_registry())

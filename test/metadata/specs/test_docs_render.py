@@ -715,7 +715,7 @@ def test_render_for_kind_real_registry_produces_output(
 
 
 # ---------------------------------------------------------------------------
-# SR-09-001 / SR-09-002: effective-kind routing for mixed-kind files/groups
+# SR-09-001 / SR-09-002 / SR-09-005: effective-kind routing for mixed-kind files/groups
 # ---------------------------------------------------------------------------
 
 # A file-level kind=general file where one group has kind=project
@@ -837,10 +837,11 @@ def test_group_kind_override_appears_on_overridden_kind_page(
     )
 
 
+@pytest.mark.spec("SR-09-005")
 def test_group_kind_override_absent_from_wrong_kind_page(
     mixed_kind_file_registry,
 ):
-    """SR-09-002: a group with kind=project must NOT appear on the
+    """SR-09-005: a group with kind=project must NOT appear on the
     general page."""
     md = render_for_kind(_KIND, mixed_kind_file_registry)
     assert "MIX-02-001" not in md, (
@@ -870,10 +871,11 @@ def test_item_kind_override_appears_on_overridden_page(
     )
 
 
+@pytest.mark.spec("SR-09-005")
 def test_item_kind_override_suppressed_on_wrong_page(
     mixed_kind_group_registry,
 ):
-    """SR-09-002: an item with kind=project is suppressed on the
+    """SR-09-005: an item with kind=project is suppressed on the
     general page while the rest of the group still renders."""
     md = render_for_kind(_KIND, mixed_kind_group_registry)
     assert "MGR-01-001" in md, (
