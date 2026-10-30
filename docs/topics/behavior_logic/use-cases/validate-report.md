@@ -52,7 +52,7 @@ Five things are decided from recorded state alone.
 | Already valid? | The step is a no-op and returns success (ID-04-004) |
 | RM is `RECEIVED` or `INVALID` | The transition to `VALID` is legal from here |
 | A case for this report exists in *this* actor's store | The actor has the case replica the remaining work reads |
-| An embargo end time is established, if the case is embargo-eligible | `RM.VALID` requires one only for a case with none of P, X or A set; a case that is not embargo-eligible is validated with no embargo, at `EM.NONE` when P, X or A was set at creation (DUR-07-004, EP-04-008) |
+| An embargo end time is established, if the case is embargo-eligible | `RM.VALID` requires one only for an embargo-eligible case, where the public is not aware, no exploit is public, and no attacks are observed (none of P, X or A set). A case that is not embargo-eligible is validated with no embargo, at `EM.NONE` when P, X or A was already set at creation (DUR-07-004, EP-04-008) |
 | The RM transition is permitted | A write validates `(current → target)` before persisting (RMB-15-001) |
 
 Every one of those precedes the first write.
