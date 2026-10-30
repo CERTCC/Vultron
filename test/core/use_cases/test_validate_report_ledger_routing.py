@@ -67,7 +67,10 @@ from vultron.core.models.events.report import (
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -692,7 +695,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
             "(ADR-0022 single-BT migration)"
         )
 
-    def _validate(self, dl: SqliteDataLayer):
+    def _validate(self, dl: SqliteDataLayer) -> HandlerResult:
         return ValidateReportReceivedUseCase(
             dl,
             self._make_validate_event(),
