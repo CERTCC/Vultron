@@ -41,6 +41,7 @@ from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.base import as_Base
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.collections import (
@@ -73,29 +74,43 @@ admin_router = APIRouter(prefix="/admin/datalayer", tags=["datalayer"])
 _OFFER_TYPE = "Offer"
 
 
-def _read_offer(
+def _held_offer(
     datalayer: DataLayer, offer_id: str
-) -> PersistableModel | None:
-    """The Offer *offer_id* as this actor holds it, or ``None``.
+) -> as_Activity | PersistableModel:
+    """Whatever this actor holds under *offer_id*, read as an Offer read.
 
     Read as :func:`~vultron.adapters.received_archive.read_held_as_received`
-    reads any activity this actor holds: a received Offer parsed from the
-    body its archive record keeps, under a key the receiver derives from the
+    reads any activity this actor holds: a received one parsed from the body
+    its archive record keeps, under a key the receiver derives from the
     sender's id (CLP-10-017, ADR-0149), since a receiver holds no received
     activity under the sender's id (DL-06-006); otherwise the row under
-    *offer_id*, where an Offer the actor authored is stored.  *offer_id* may
-    be a bare UUID, as the store's own lookup allows.  Whatever is held under
-    the id must be an Offer: a received Invite is not served as one.
+    *offer_id*, where an Offer the actor authored is stored.  Both Offer reads
+    go through here, so a miss names an Offer as the missing resource.
+
+    Raises:
+        VultronNotFoundError: When this store holds no such activity.
+    """
+    return read_held_as_received(
+        cast(CasePersistence, datalayer), offer_id, _OFFER_TYPE
+    )
+
+
+def _read_offer(datalayer: DataLayer, offer_id: str) -> as_Offer | None:
+    """The Offer *offer_id* as this actor holds it, or ``None``.
+
+    *offer_id* may be a bare UUID, as the store's own lookup allows.
+    Whatever is held under the id must be an Offer: every Offer a store holds
+    is an ``as_Offer``, read back as its own class (ADR-0034) or parsed from
+    its archived body, and ``as_Invite`` subclasses ``as_Offer`` but types
+    itself ``Invite``, so a received Invite is not served as one.
     """
     try:
-        held = read_held_as_received(
-            cast(CasePersistence, datalayer),
-            full_object_id(offer_id),
-            _OFFER_TYPE,
-        )
+        held = _held_offer(datalayer, full_object_id(offer_id))
     except VultronNotFoundError:
         return None
-    return held if getattr(held, "type_", None) == _OFFER_TYPE else None
+    if not isinstance(held, as_Offer) or held.type_ != _OFFER_TYPE:
+        return None
+    return held
 
 
 def _received_offer_ids(datalayer: DataLayer) -> list[str]:
@@ -112,17 +127,15 @@ def _received_offer_ids(datalayer: DataLayer) -> list[str]:
     ]
 
 
-def _concerns_actor(offer: PersistableModel, actor_uri: str) -> bool:
+def _concerns_actor(offer: as_Offer, actor_uri: str) -> bool:
     """Whether *offer* is addressed to, or was sent by, *actor_uri*.
 
     Ids are compared whole: a recipient whose id merely ends with the actor's
     is a different actor.
     """
-    to = getattr(offer, "to", None)
-    recipients = to if isinstance(to, list) else [to]
+    recipients = offer.to if isinstance(offer.to, list) else [offer.to]
     addressed = {getattr(r, "id_", r) for r in recipients if r is not None}
-    actor = getattr(offer, "actor", None)
-    sender = getattr(actor, "id_", actor)
+    sender = getattr(offer.actor, "id_", offer.actor)
     return actor_uri in addressed or sender == actor_uri
 
 
@@ -294,13 +307,12 @@ def get_offers(
     offer_ids = dict.fromkeys(
         [*datalayer.by_type(_OFFER_TYPE), *_received_offer_ids(datalayer)]
     )
-    persistence = cast(CasePersistence, datalayer)
 
     return AS2JSONResponse(
         {
-            offer_id: read_held_as_received(
-                persistence, offer_id, _OFFER_TYPE
-            ).model_dump(mode="json", by_alias=True, exclude_none=True)
+            offer_id: _held_offer(datalayer, offer_id).model_dump(
+                mode="json", by_alias=True, exclude_none=True
+            )
             for offer_id in offer_ids
         }
     )

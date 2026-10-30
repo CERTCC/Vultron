@@ -445,6 +445,18 @@ def test_the_offers_route_refuses_an_offer_that_does_not_concern_the_actor(
     assert client.get(path).status_code == 404
 
 
+def test_an_offer_route_refuses_an_object_that_is_not_an_offer(
+    client: TestClient, stored: dict[str, str]
+) -> None:
+    """Only an Offer is served as one, whatever else the id names.
+
+    Serving the held object as stored keeps that refusal: the read admits
+    only an ``as_Offer`` that types itself ``Offer``.
+    """
+    for path, params in _offer_reads(stored["VulnerabilityReport"]):
+        assert client.get(path, params=params).status_code == 404, path
+
+
 def test_the_offers_list_serves_each_inline_object_whole(
     client: TestClient, role_offer: as_Offer
 ) -> None:
