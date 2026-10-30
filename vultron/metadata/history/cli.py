@@ -78,7 +78,7 @@ def _validate_frontmatter(content: str) -> HistoryEntryFrontmatter:
 
     Raises:
         ValueError: If the frontmatter is malformed, missing, or fails
-            required-field validation (HM-02-001, HM-06-002).
+            required-field validation (HM-02-001, HM-06-002, HM-06-010).
     """
     # The no-path form: the content has not been written anywhere yet.
     post = loads_frontmatter(content)

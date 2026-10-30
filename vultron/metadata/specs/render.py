@@ -494,7 +494,7 @@ _ADR_ID_RE = re.compile(r"ADR-\d{4}")
 
 
 def _malformed_adrs(args: argparse.Namespace) -> list[str]:
-    """Report ``--adr`` values that are not ``ADR-NNNN`` ids (SR-07-017)."""
+    """Report ``--adr`` values that are not ``ADR-NNNN`` ids (SR-07-026)."""
     bad = sorted(a for a in args.adr or [] if not _ADR_ID_RE.fullmatch(a))
     if not bad:
         return []
@@ -505,7 +505,7 @@ def _malformed_adrs(args: argparse.Namespace) -> list[str]:
 
 
 def _unknown_adrs(spec_dir: Path, adrs: list[str]) -> list[str]:
-    """Report ``--adr`` ids that name no decision record (SR-07-017).
+    """Report ``--adr`` ids that name no decision record (SR-07-026).
 
     Records live in ``docs/adr/`` beside the spec directory, archived ones
     included. A typo such as ``ADR-0172`` for ``ADR-0127`` would otherwise
@@ -535,7 +535,7 @@ def _note_uncited_adrs(registry: SpecRegistry, adrs: list[str]) -> None:
 
     Such a record is reached only by a prose citation, so ``--adr`` selects
     nothing for it. Saying so keeps an empty selection from reading as "this
-    record governs nothing" (SR-07-017).
+    record governs nothing" (SR-07-027).
     """
     for adr_id in uncited_adrs(registry, adrs):
         print(

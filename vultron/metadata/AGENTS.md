@@ -171,7 +171,7 @@ file, a `vultron/`, `test/` or `scripts/` path, or `pytest`, `pydantic` or
 `py_trees` is a hard error (MS-12-006; `verification:` is not scanned, #3943).
 Naming code does not decide a kind (MS-12-002): reword or split (MS-12-010),
 never relabel; suppress only a genuinely incidental reference. A `foundation`
-spec needs an `as2`/`activitypub`/`http` tag (MS-12-009).
+spec needs an `as2`/`activitypub`/`http` tag (MS-12-018).
 
 ## Changing a Linter Check
 
@@ -185,9 +185,10 @@ write-up: [`notes/spec-authoring-rules.md`](../../notes/spec-authoring-rules.md)
 
 A per-item advisory that is routinely true is not enforcement — mark each remaining hit
 with its owning issue and check items one at a time, printing a per-kind count computed
-from the markers (`specs/verification.py`, MS-10-005..008); never pin a committed count
-to its live value. Select by tier, never by keyword: `priority.is_must_tier`, not
-`== RFC2119Priority.MUST` (MS-02-004; `test_priority_tier_gate.py` fails it).
+from the markers (`specs/verification.py`, MS-10-005..008, MS-10-019, MS-10-022);
+never pin a committed count to its live value. Select by tier, never by keyword:
+`priority.is_must_tier`, not `== RFC2119Priority.MUST` (MS-02-004;
+`test_priority_tier_gate.py` fails it).
 
 ## Related
 

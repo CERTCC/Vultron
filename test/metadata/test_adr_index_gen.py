@@ -237,7 +237,7 @@ class TestNavPlacementFaults:
         faults = nav_placement_faults(tmp_path)
         assert len(faults) == 1
         assert faults[0].startswith("docs/adr/0001-stub.md is listed")
-        assert "MS-14-006" in faults[0]
+        assert "MS-14-017" in faults[0]
 
     def test_adr_matched_by_no_pattern_is_reported(self, tmp_path):
         """Absent from the nav is not enough: the build warns on the omission."""

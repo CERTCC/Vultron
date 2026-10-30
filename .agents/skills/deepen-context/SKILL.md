@@ -82,7 +82,7 @@ closed:
    reached only by a citation in `specs/` or `notes/`. For each one,
    `spec-dump` prints `note: no requirement names ADR-NNNN in adr:`. Run
    `grep -rn ADR-NNNN specs/ notes/` and read the files it names in Step 1
-   or Step 3. They state the rule in full (MS-11-007). A record with no
+   or Step 3. They state the rule in full (MS-11-011). A record with no
    citation at all is in `RECORD_ONLY_EXEMPTIONS`
    (`vultron/metadata/adr/back_edges.py`). Those records are about how
    decision records are kept, and routine work needs nothing from them.
@@ -106,7 +106,7 @@ full. Each one weighs what it reads by
 | `decision-audit` | It re-derives a record's premise adversarially, so the reasoning and the rejected options are the thing under audit. |
 | `create-architectural-decision-record` | It writes and revises records, and it must read the neighbouring records to avoid duplicates and to set `supersedes:` links. It lives outside this repository, in the user's skills. |
 | `domain-modeling` | It records and edits ADRs while sharpening the domain model, for the same reasons as record authoring. It lives outside this repository, in the user's skills. |
-| `learn` | It writes the "Generated spec requirements" line of a record's More Information section (MS-11-004), and decides whether a lesson is a spec or a record. |
+| `learn` | It writes the "Generated spec requirements" line of a record's More Information section (MS-11-010), and decides whether a lesson is a spec or a record. |
 | `plan-issue` | It decides whether a plan needs a new record, and drafts one. It must read an existing record's considered options before it re-proposes a choice that was already settled. |
 | `pr-triage` | Its ADR check fails a change that contradicts a record without an amendment. That verdict needs the record's decision outcome. |
 

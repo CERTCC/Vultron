@@ -287,7 +287,7 @@ choice also warrants a new ADR. Write an ADR when a meaningful alternative was
 evaluated and rejected; skip it for uncontested rules (MS-11-002, MS-11-005).
 When both are created, cross-reference them: cite the ADR in the spec's per-requirement
 `rationale` field (per MS-11-004 — not the spec-group `description`), and list the
-generated spec IDs in the ADR's "More Information" section (MS-11-004).
+generated spec IDs in the ADR's "More Information" section (MS-11-010).
 Read the body of every record you cross-reference before you edit it, and weigh
 it by `.agents/skills/shared/weighing-decision-records.md`.
 

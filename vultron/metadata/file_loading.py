@@ -22,7 +22,8 @@ Three traps this module absorbs so no caller has to:
 
 Loaders that reject a corpus as a unit report **every** failing file, not the
 first (SR-03-009): :class:`FailureCollector` gathers them and raises one
-:class:`MetadataLoadErrors` carrying each failure as structured data.
+:class:`MetadataLoadErrors` carrying each failure as structured data
+(SR-03-011).
 """
 
 from __future__ import annotations
@@ -125,7 +126,7 @@ class MetadataLoadError(ValueError):
 class MetadataLoadErrors(ValueError):
     """Several metadata files failed; each is kept as structured data.
 
-    SR-03-009 requires the individual failures to be recoverable without
+    SR-03-011 requires the individual failures to be recoverable without
     parsing the message, so a caller can count them, sort them, or render them
     in its own format.
 

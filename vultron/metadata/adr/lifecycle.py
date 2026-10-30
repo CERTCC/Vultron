@@ -1,7 +1,8 @@
 """ADR lifecycle epochs and the checks built on them (ADR-0120).
 
-Requirements: specs/meta-specifications.yaml MS-14-007 through MS-14-010 and
-MS-14-012.
+Requirements: specs/meta-specifications.yaml MS-14-007 through MS-14-010,
+MS-14-012, MS-14-019 through MS-14-022, MS-14-024 through MS-14-026,
+MS-14-029 and MS-14-030.
 
 An ADR's ``status`` tracks how settled the decision is. Two timers measured
 from the last *material* edit (``updated``) and one event decide its epoch:
@@ -374,7 +375,7 @@ def edit_faults(
     - A status change must move forward (MS-14-012). It must not move ahead
       of the epoch unless the edit adds or changes a ``status_override``.
     - Bumping ``updated`` on an ADR that was past epoch 1 needs a
-      ``status_override`` (MS-14-009).
+      ``status_override`` (MS-14-024).
     - Changing Decision Outcome or Considered Options of an epoch-3 ADR needs a
       new dated Amendment block (MS-14-009).
 
@@ -411,7 +412,7 @@ def edit_faults(
         faults.append(
             f"{name}: 'updated' moved {old_fm.updated} -> {new_fm.updated} "
             f"on an ADR in epoch {int(old_epoch)}; supersede it or amend it, "
-            f"or record a human's reason in 'status_override:' (MS-14-009)"
+            f"or record a human's reason in 'status_override:' (MS-14-024)"
         )
 
     if old_fm.status in _EPOCH_OF_STATUS and old_epoch is AdrEpoch.SETTLED:

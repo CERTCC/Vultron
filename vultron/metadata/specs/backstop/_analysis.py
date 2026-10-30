@@ -10,7 +10,10 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Statement mentions and tier analysis (SR-12-003, SR-12-004, SR-12-007)."""
+"""Statement mentions and tier analysis.
+
+Requirements: SR-12-003, SR-12-004, SR-12-007, SR-12-017.
+"""
 
 from __future__ import annotations
 

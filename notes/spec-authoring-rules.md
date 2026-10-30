@@ -75,7 +75,7 @@ The tiers are glossed on `SpecKind` in `vultron/metadata/specs/schema.py`:
   the state machines behind them (`RM.CLOSED` is a protocol construct).
 - **`foundation`** — rules inherited from ActivityStreams 2.0, ActivityPub or
   HTTP. It carries a tag naming the standard (`as2`, `activitypub`, `http`), and
-  spec-lint fails one without (MS-12-009).
+  spec-lint fails one without (MS-12-019).
 - **`architecture`** — recommended structure that carries over to other
   languages but is not required for compliance (behavior trees).
 - **`project`** — this codebase only: deployment choices, operating limits, how
@@ -92,9 +92,10 @@ purpose** (maintainer ruling, 2026-10-14, #4599). Forcing an object inline
 instead of by reference is a shortcut of this prototype, which dereferences
 only a few references (AKM-05-007); it is not a Vultron rule. ActivityStreams allows either
 form, and a receiver coping with both is `foundation` (SE-01-002). Split a
-protocol spec that demands inline (MS-12-010): the original ID keeps which object
-the message carries, its type and its meaning, worded "carried inline or by
-reference"; the inline demand moves to a new `project` ID (RF-02-004 / RF-02-006).
+protocol spec that demands inline (MS-12-010): the original ID keeps which
+object the message carries, its type and its meaning, worded "carried inline or
+by reference" (MS-12-020); the inline demand moves to a new `project` ID
+(MS-12-021; RF-02-004 / RF-02-006).
 An inline rule stays `protocol` only when inlining serves a protocol purpose the
 prototype does not explain, and its rationale names that purpose: ledger snapshot
 content the hash chain must cover is one (CLP-07-006). If no such purpose is
@@ -120,7 +121,7 @@ then ask in MS-12-005's order and stop at the first match:
 
 1. How the project is run? → `process` (MS-12-001)
 2. Only this codebase must obey it? → `project` (MS-12-012)
-3. Inherited from AS2, ActivityPub or HTTP? → `foundation`, tagged (MS-12-009)
+3. Inherited from AS2, ActivityPub, HTTP? → `foundation`, tagged (MS-12-009, MS-12-018)
 4. Every Vultron implementation must obey it? → `protocol` (MS-12-003)
 5. Otherwise, recommended structure → `architecture` (MS-12-004)
 
@@ -171,8 +172,8 @@ adoption reads as "no rule here", which is worse than one nobody has started.
 #### Relabeling a `kind:` moves more than the field
 
 - **Anchors move.** A spec's row is defined only where its kind renders it
-  (SR-09-001, DF-12-002): a `protocol` or `foundation` item on its catalog row
-  in the Protocol Specification's Requirements Catalog
+  (SR-09-001, SR-09-004, DF-12-002): a `protocol` or `foundation` item on its
+  catalog row in the Protocol Specification's Requirements Catalog
   (`docs/reference/vultron-spec/requirements/`, placed by `CATALOG_PAGES`), any
   other kind on `docs/reference/specs/<kind>.md`. A relabel across that line
   moves the row to another page, so every link to it dangles. Run
@@ -286,9 +287,9 @@ unless it excludes the negative form *and says why*.
 A per-item `[WARN]` that fires on most of the corpus is noise, and a new
 instance is invisible. When you add a per-item advisory, decide up front what
 happens when it is routinely true: collapse it to a count plus an opt-in
-listing and mark each hit with its owning issue (the shape of MS-10-005/006), or
-make it a hard error and dispose of every existing hit. Never ship it at partial
-adoption.
+listing and mark each hit with its owning issue (the shape of MS-10-005,
+MS-10-020 and MS-10-006), or make it a hard error and dispose of every existing
+hit. Never ship it at partial adoption.
 
 ### A Ratchet Needs an Owner and a Terminal State
 
@@ -302,8 +303,8 @@ The MS-10 verification rule is built so it can only end at zero:
    `VERIFICATION_DEBT_OWNERS`. A PR that closes an owner while a marker still
    names it fails; an owner closed by hand is reported by the
    `verification-debt-owners` workflow and never fails the build (ARCH-18-004).
-3. **Zero is terminal.** When a kind has no markers, delete its owner entry;
-   a marker of that kind is then a hard error (MS-10-007). While an entry
+3. **Zero is terminal.** When a kind has no markers, delete its owner entry
+   (MS-10-007); a marker of that kind is then a hard error (MS-10-026). While an entry
    exists, a PR-only growth guard fails any marker a branch adds or re-points
    (MS-10-016). A split moves debt, it adds none: a new ID keeps the original's
    same marker when its own `relationships:` name the original.
@@ -507,11 +508,11 @@ A removed requirement is removed, not deprecated (MS-09-001), and its ID is
 never reused (MS-09-004): CM-11-005 was reused with the opposite force, so every
 citation pointed at a rule it never meant. Retire with
 `uv run spec-retire <ID> --why ... --by '#N' [--replacement <ID>]` (MS-09-006):
-it parks the text in `plan/retired-specs/<ID>.md`, outside agent context
-(MS-09-005), writes the history entry, and lists the citations to repoint
-(MS-09-003). The archive takes the block at the merge base with
-`origin/$GITHUB_BASE_REF`, else `origin/main` (or `--base`), not the working
-tree, so editing a requirement and retiring it in one branch archives its
+it parks the text in `plan/retired-specs/<ID>.md` (MS-09-005), outside agent
+context (MS-09-009), writes the history entry (MS-09-010), and lists the
+citations to repoint (MS-09-003, MS-09-011). The archive takes the block at the
+merge base with `origin/$GITHUB_BASE_REF`, else `origin/main` (or `--base`), not
+the working tree, so editing a requirement and retiring it in one branch archives its
 published text; an ID absent at the base is refused — delete it instead
 (MS-09-008). `spec-lint` fails `deprecated:`/`superseded_by:` and a re-declared
 archived ID (MS-09-007). A spec-versus-code conflict found in an implementation

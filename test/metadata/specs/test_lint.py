@@ -2200,7 +2200,7 @@ def test_protocol_code_reference_in_statement_is_hard_error(tmp_path, capsys):
 
 
 def _foundation_lines(captured_err: str) -> list[str]:
-    return [line for line in captured_err.splitlines() if "MS-12-009" in line]
+    return [line for line in captured_err.splitlines() if "MS-12-018" in line]
 
 
 @pytest.mark.spec("MS-12-019")

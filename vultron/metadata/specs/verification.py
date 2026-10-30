@@ -31,7 +31,7 @@ Per requirement, ``spec-lint`` fails when:
 
 The owner table holds issue references only, never counts, so nothing in it
 moves when a requirement is verified. ``spec-lint`` prints one summary line
-per kind computed from the markers (MS-10-005).
+per kind computed from the markers (MS-10-005, MS-10-019).
 
 The per-item rule cannot by itself stop a new unverified MUST from arriving
 with a marker on it. The PR-only growth guard
@@ -326,7 +326,7 @@ def idle_owners(
     reports: Mapping[SpecKind, DebtReport],
     owners: Mapping[SpecKind, frozenset[str]],
 ) -> list[str]:
-    """Advisory lines for owner-table entries no marker names (MS-10-007).
+    """Advisory lines for owner-table entries no marker names (MS-10-025).
 
     Advisory, not a hard error: two PRs that each verify some of an owner's
     last markers are green alone and would be red merged — the race the

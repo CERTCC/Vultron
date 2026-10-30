@@ -72,7 +72,7 @@ def check_relationship_loops(registry: SpecRegistry) -> list[str]:
 
     A loop is a strongly connected component of more than one requirement, or
     a requirement whose relationships name itself. Each error names every
-    member and the relationships that close the loop.
+    member and the relationships that close the loop (SR-13-020).
     """
     graph = upstream_graph(registry)
     errors: list[str] = []

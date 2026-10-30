@@ -572,7 +572,7 @@ class StatementSpec(BaseModel):
 
 
 class Precondition(BaseModel):
-    """A precondition for a behavioral spec (SR-02-019).
+    """A precondition for a behavioral spec (SR-02-019, SR-02-028).
 
     Typed fields reference the stable protocol state-machine enums directly so
     conformance tooling can evaluate preconditions without parsing prose.
@@ -675,10 +675,11 @@ class SpecFile(BaseModel):
 
     ``scope`` is required at the file level and serves as the default for
     groups and specs that do not override it (SR-02-014).  ``kind`` is now
-    required on each individual spec item rather than at the file level.
+    required on each individual spec item rather than at the file level
+    (SR-02-027).
 
-    There is deliberately no ``version`` field (SR-01-003): the release tag
-    pins spec content and requirement IDs are the citation address.
+    There is deliberately no ``version`` field (SR-01-003, SR-02-025): the
+    release tag pins spec content and requirement IDs are the citation address.
     ``extra="forbid"`` makes a file that declares one fail to load.
     """
 

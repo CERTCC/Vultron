@@ -541,7 +541,7 @@ def test_bumping_updated_on_a_tested_adr_needs_override() -> None:
         "x", old, new, TODAY, tested_on_base=True, tested_on_head=True
     )
     assert len(faults) == 1
-    assert "MS-14-009" in faults[0]
+    assert "MS-14-024" in faults[0]
 
 
 # --- MS-14-012: status only moves forward ----------------------------------
