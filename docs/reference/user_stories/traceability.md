@@ -321,7 +321,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-11-002](../vultron-spec/requirements/vultron-protocol.md#vp-11-002)</td>
-<td markdown="span">If information about the vulnerability has been made public, initiate embargo termination.</td>
+<td markdown="span">If information about the vulnerability has been made public, the Case Owner holds the authority to terminate the embargo.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-06-001](../vultron-spec/requirements/vultron-protocol.md#vp-06-001)</td>
@@ -500,7 +500,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-14-007](../vultron-spec/requirements/vultron-protocol.md#vp-14-007)</td>
-<td markdown="span">Once Fix Ready, new embargoes have reduced scope — fix-ready transition.</td>
+<td markdown="span">Once Fix Ready, no new embargo negotiation SHOULD start, except a brief publication-prep embargo — fix-ready transition.</td>
 </tr>
 <tr markdown="1">
 <td rowspan="3" markdown="span">[story_2022_026](story_2022_026.md)</td>
@@ -1528,19 +1528,19 @@ Source specifications: `specs/*.yaml`
 <td rowspan="4" markdown="span">[story_2022_018](story_2022_018.md)</td>
 <td rowspan="4" markdown="span">As a Participant, aware of public exploit, tell others</td>
 <td markdown="span">[VP-09-003](../vultron-spec/requirements/vultron-protocol.md#vp-09-003)</td>
-<td markdown="span">Embargoes SHOULD terminate early when there is evidence of exploit availability.</td>
+<td markdown="span">Embargoes SHOULD terminate immediately when there is evidence of active exploitation.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-09-006](../vultron-spec/requirements/vultron-protocol.md#vp-09-006)</td>
 <td markdown="span">Embargoes MAY terminate early when evidence of exploit publication exists.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[VP-14-002](../vultron-spec/requirements/vultron-protocol.md#vp-14-002)</td>
-<td markdown="span">Once Exploit Publication has occurred, new embargoes have restricted scope.</td>
+<td markdown="span">[VP-06-001](../vultron-spec/requirements/vultron-protocol.md#vp-06-001)</td>
+<td markdown="span">Once an exploit is public, no new embargo is proposed or accepted.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-11-002](../vultron-spec/requirements/vultron-protocol.md#vp-11-002)</td>
-<td markdown="span">If information has been made public, participants should initiate embargo termination.</td>
+<td markdown="span">If information has been made public, the Case Owner holds the authority to terminate the embargo.</td>
 </tr>
 <tr markdown="1">
 <td rowspan="5" markdown="span">[story_2022_019](story_2022_019.md)</td>
@@ -1550,7 +1550,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-11-006](../vultron-spec/requirements/vultron-protocol.md#vp-11-006)</td>
-<td markdown="span">If attacks are known to have occurred, Participants SHOULD act accordingly.</td>
+<td markdown="span">If attacks are known to have occurred, the Case Owner holds the authority to terminate the embargo.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-11-007](../vultron-spec/requirements/vultron-protocol.md#vp-11-007)</td>
@@ -1561,12 +1561,12 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Once attacks observed, fix development SHOULD be accelerated.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[VP-14-003](../vultron-spec/requirements/vultron-protocol.md#vp-14-003)</td>
-<td markdown="span">Once attacks observed, new embargoes have restricted scope.</td>
+<td markdown="span">[VP-06-001](../vultron-spec/requirements/vultron-protocol.md#vp-06-001)</td>
+<td markdown="span">Once attacks observed, no new embargo is proposed or accepted.</td>
 </tr>
 <tr markdown="1">
-<td rowspan="4" markdown="span">[story_2022_020](story_2022_020.md)</td>
-<td rowspan="4" markdown="span">As a Participant, publish a vulnerability (external to protocol)</td>
+<td rowspan="3" markdown="span">[story_2022_020](story_2022_020.md)</td>
+<td rowspan="3" markdown="span">As a Participant, publish a vulnerability (external to protocol)</td>
 <td markdown="span">[VP-05-005](../vultron-spec/requirements/vultron-protocol.md#vp-05-005)</td>
 <td markdown="span">Embargo termination SHALL NOT be construed as an obligation to publish — no forced publication.</td>
 </tr>
@@ -1577,10 +1577,6 @@ Source specifications: `specs/*.yaml`
 <tr markdown="1">
 <td markdown="span">[VP-09-001](../vultron-spec/requirements/vultron-protocol.md#vp-09-001)</td>
 <td markdown="span">Embargoes SHALL terminate immediately when information is made public — publication triggers.</td>
-</tr>
-<tr markdown="1">
-<td markdown="span">[VP-14-001](../vultron-spec/requirements/vultron-protocol.md#vp-14-001)</td>
-<td markdown="span">Once Public Awareness has happened — implications for embargo state.</td>
 </tr>
 <tr markdown="1">
 <td rowspan="3" markdown="span">[story_2022_037](story_2022_037.md)</td>
@@ -1705,8 +1701,8 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Vendor Awareness messages SHOULD be sent only by Vendors — public status announcement.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[VP-14-001](../vultron-spec/requirements/vultron-protocol.md#vp-14-001)</td>
-<td markdown="span">Once Public Awareness has happened — implications for state.</td>
+<td markdown="span">[VP-09-001](../vultron-spec/requirements/vultron-protocol.md#vp-09-001)</td>
+<td markdown="span">Once Public Awareness has happened, the embargo terminates — implications for state.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[OX-01-001](../specs/project.md#ox-01-001)</td>

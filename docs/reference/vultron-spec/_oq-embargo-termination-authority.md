@@ -9,7 +9,7 @@
     What is **not** settled is whether the Case Owner retains any discretion once
     a termination condition has been adopted as canonical case state. When public
     awareness or exploit publication ($q^{cs} \in \{\cdots P \cdots, \cdots X
-    \cdot\}$) is canonical, VP-14-001/VP-14-002 read as a mandatory consequence —
+    \cdot\}$) is canonical, VP-09-001 reads as a mandatory consequence —
     the embargo no longer protects anything — and the working position of this
     specification is that teardown is then mandatory, with the Case Owner's
     authority exercised at the point the condition is *adopted* (guarding against
@@ -17,5 +17,5 @@
     embargo. This matches the automatic-teardown path (a canonical `CS.P` set by
     the Case Owner triggers teardown).
 
-    Open: whether the Case Owner may decline to tear down even after the condition is canonical; whether the "attacks" condition, which recommends termination (VP-11-006), differs in this respect from the "public/exploit" condition, which requires it (VP-14-001, VP-14-002); and how a deliberate decision to keep an otherwise-terminable embargo would be recorded.
-    This is expected to be a matter of discussion; once reached, the resolution will be reflected in this reference and in the VP-11 and VP-14 requirements.
+    Open: whether the Case Owner may decline to tear down even after the condition is canonical; whether the "attacks" condition, which recommends termination (VP-09-003), differs in this respect from the "public/exploit" condition, which requires it (VP-09-001); and how a deliberate decision to keep an otherwise-terminable embargo would be recorded.
+    This is expected to be a matter of discussion; once reached, the resolution will be reflected in this reference and in the VP-09 and VP-11 requirements.

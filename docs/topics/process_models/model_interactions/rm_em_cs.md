@@ -166,6 +166,8 @@ With respect to [EM](../em/index.md), when the case state is $q^{cs} \in VF\cdot
 
     - New embargo negotiations SHOULD NOT start.
     - Proposed but not-yet-agreed-to embargoes SHOULD be rejected.
+    - The one exception is a brief embargo to prepare for timely publication or deployment.
+      While the fix is not yet deployed ($q^{cs} \in VFdpxa$), Participants MAY propose or accept such an embargo.
     - Existing embargoes ($q^{em} \in \{Active,~Revise\}$) MAY continue but SHOULD prepare to _terminate_ soon.
 
 The diagram below shows the EM transitions that remain available once a fix is ready.

@@ -322,7 +322,7 @@ groups:
     - rationale_too_long
     relationships:
     - rel_type: implements
-      spec_id: VP-14-001
+      spec_id: VP-09-001
       note: exploit/attack public implies embargo termination, not just awareness
   - id: SM-09-002
     priority: MUST_NOT
