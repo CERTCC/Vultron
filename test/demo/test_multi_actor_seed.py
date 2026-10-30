@@ -11,327 +11,168 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for multi-actor seed configuration (D5-1-G3).
+"""Tests for the fixed cast's seed configuration (D5-1-G3, DEMOCI-11-020).
 
-Verifies that the pre-built seed config YAML files in docker/seed-configs/
-are valid SeedConfig schemas with deterministic actor IDs and correct peer
-registrations for the multi-container Docker Compose setup.
+Verifies that the pre-built seed config YAML files in docker/seed-configs/ are
+valid SeedConfig schemas, that each one seeds the actor its container hosts,
+and that together they describe a symmetric peer mesh.  Parametrized over the
+cast rather than written per file: every member's config has the same shape, so
+a per-file copy would be eleven ways to miss the same mistake.
 """
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 from click.testing import CliRunner
 
 from vultron.demo.cli import main
+from vultron.demo.helpers.cast import (
+    ALL_SLOTS,
+    CASE_ACTOR,
+    CAST,
+    ContainerSlot,
+)
 from vultron.demo.seed_config import SeedConfig
 from vultron.demo.utils import DataLayerClient
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-
-# ---------------------------------------------------------------------------
-# Constants: expected deterministic IDs from docker-compose-multi-actor.yml
-# ---------------------------------------------------------------------------
-
-REPORTER_ID = "http://reporter:7999/api/v2/actors/reporter"
-VENDOR_ID = "http://vendor:7999/api/v2/actors/vendor"
-COORDINATOR_ID = "http://coordinator:7999/api/v2/actors/coordinator"
-CASE_ACTOR_ID = "http://case-actor:7999/api/v2/actors/case-actor"
-VENDOR2_ID = "http://actor5:7999/api/v2/actors/vendor2"
-VENDOR_DEPLOYER_ID = "http://actor6:7999/api/v2/actors/vendor-deployer"
-COORDINATOR2_ID = "http://actor5:7999/api/v2/actors/coordinator2"
 
 # Path to the docker/seed-configs/ directory (relative to project root).
 _REPO_ROOT = Path(__file__).parents[2]
 _SEED_CONFIGS_DIR = _REPO_ROOT / "docker" / "seed-configs"
 
+#: The ActivityStreams actor type each container seeds itself as.  A character
+#: actor is an ``Organization`` because that is the neutral default; the type is
+#: not a CVD role, which comes from the act that seats the actor.
+_ACTOR_TYPES = {
+    CAST[0].name: "Person",
+    CAST[1].name: "Organization",
+    CAST[2].name: "Service",
+    CAST[3].name: "Organization",
+    CAST[4].name: "Organization",
+    CASE_ACTOR.name: "Service",
+}
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _load_seed_config(filename: str) -> SeedConfig:
-    """Load and validate one of the pre-built seed config YAML files."""
-    path = _SEED_CONFIGS_DIR / filename
-    return SeedConfig.from_file(str(path))
-
-
-def _all_expected_peer_ids(own_id: str) -> set[str]:
-    """Return the set of peer IDs expected for a given actor."""
-    all_ids = {
-        REPORTER_ID,
-        VENDOR_ID,
-        COORDINATOR_ID,
-        CASE_ACTOR_ID,
-        VENDOR2_ID,
-    }
-    return all_ids - {own_id}
+_SLOT_IDS = [slot.name for slot in ALL_SLOTS]
 
 
-# ---------------------------------------------------------------------------
-# Tests for seed-reporter.yaml
-# ---------------------------------------------------------------------------
+def _config_path(slot: ContainerSlot) -> Path:
+    return _SEED_CONFIGS_DIR / f"seed-{slot.name}.yaml"
 
 
-class TestSeedReporterConfig:
-    def test_file_exists(self):
-        assert (_SEED_CONFIGS_DIR / "seed-reporter.yaml").exists()
-
-    def test_valid_seed_config_schema(self):
-        cfg = _load_seed_config("seed-reporter.yaml")
-        assert isinstance(cfg, SeedConfig)
-
-    def test_local_actor_id_is_deterministic(self):
-        cfg = _load_seed_config("seed-reporter.yaml")
-        assert cfg.local_actor.id_ == REPORTER_ID
-
-    def test_local_actor_type_is_person(self):
-        cfg = _load_seed_config("seed-reporter.yaml")
-        assert cfg.local_actor.actor_type == "Person"
-
-    def test_local_actor_name(self):
-        cfg = _load_seed_config("seed-reporter.yaml")
-        assert cfg.local_actor.name == "Reporter"
-
-    def test_peers_include_vendor_and_case_actor(self):
-        cfg = _load_seed_config("seed-reporter.yaml")
-        peer_ids = {p.id_ for p in cfg.peers}
-        assert peer_ids == _all_expected_peer_ids(REPORTER_ID)
-
-    def test_peer_ids_are_deterministic(self):
-        cfg = _load_seed_config("seed-reporter.yaml")
-        peer_ids = {p.id_ for p in cfg.peers}
-        assert VENDOR_ID in peer_ids
-        assert CASE_ACTOR_ID in peer_ids
-        assert COORDINATOR_ID in peer_ids
-        assert VENDOR2_ID in peer_ids
+def _load_seed_config(slot: ContainerSlot) -> SeedConfig:
+    """Load and validate the pre-built seed config of one cast container."""
+    return SeedConfig.from_file(str(_config_path(slot)))
 
 
-# ---------------------------------------------------------------------------
-# Tests for seed-vendor.yaml
-# ---------------------------------------------------------------------------
+def _own_id(slot: ContainerSlot) -> str:
+    """The actor id the container at *slot* hosts on the compose network."""
+    return slot.actor_id(slot.compose_url)
 
 
-class TestSeedVendorConfig:
-    def test_file_exists(self):
-        assert (_SEED_CONFIGS_DIR / "seed-vendor.yaml").exists()
+class TestEachSeedConfig:
+    """One config per cast container, seeding that container's own actor."""
 
-    def test_valid_seed_config_schema(self):
-        cfg = _load_seed_config("seed-vendor.yaml")
-        assert isinstance(cfg, SeedConfig)
+    @pytest.mark.parametrize("slot", ALL_SLOTS, ids=_SLOT_IDS)
+    def test_file_exists_and_validates(self, slot: ContainerSlot) -> None:
+        assert _config_path(slot).exists()
+        assert isinstance(_load_seed_config(slot), SeedConfig)
 
-    def test_local_actor_id_is_deterministic(self):
-        cfg = _load_seed_config("seed-vendor.yaml")
-        assert cfg.local_actor.id_ == VENDOR_ID
+    @pytest.mark.parametrize("slot", ALL_SLOTS, ids=_SLOT_IDS)
+    def test_local_actor_id_is_the_slots(self, slot: ContainerSlot) -> None:
+        """One actor id per container, in every scenario (DEMOCI-11-020)."""
+        assert _load_seed_config(slot).local_actor.id_ == _own_id(slot)
 
-    def test_local_actor_type_is_organization(self):
-        cfg = _load_seed_config("seed-vendor.yaml")
-        assert cfg.local_actor.actor_type == "Organization"
+    @pytest.mark.parametrize("slot", ALL_SLOTS, ids=_SLOT_IDS)
+    def test_local_actor_type(self, slot: ContainerSlot) -> None:
+        cfg = _load_seed_config(slot)
+        assert cfg.local_actor.actor_type == _ACTOR_TYPES[slot.name]
 
-    def test_local_actor_name(self):
-        cfg = _load_seed_config("seed-vendor.yaml")
-        assert cfg.local_actor.name == "Vendor"
+    @pytest.mark.parametrize("slot", ALL_SLOTS, ids=_SLOT_IDS)
+    def test_peers_are_every_other_member(self, slot: ContainerSlot) -> None:
+        """Each container knows the rest of the cast and not itself.
 
-    def test_peers_include_reporter_and_case_actor(self):
-        cfg = _load_seed_config("seed-vendor.yaml")
-        peer_ids = {p.id_ for p in cfg.peers}
-        assert peer_ids == _all_expected_peer_ids(VENDOR_ID)
+        A missing peer is how a container ends up unable to address an actor it
+        has to message, with no discovery step to fall back on.
+        """
+        peer_ids = {peer.id_ for peer in _load_seed_config(slot).peers}
+        assert peer_ids == {
+            _own_id(other) for other in ALL_SLOTS if other is not slot
+        }
 
-    def test_peer_ids_are_deterministic(self):
-        cfg = _load_seed_config("seed-vendor.yaml")
-        peer_ids = {p.id_ for p in cfg.peers}
-        assert REPORTER_ID in peer_ids
-        assert CASE_ACTOR_ID in peer_ids
-        assert COORDINATOR_ID in peer_ids
-        assert VENDOR2_ID in peer_ids
-
-
-# ---------------------------------------------------------------------------
-# Tests for seed-case-actor.yaml
-# ---------------------------------------------------------------------------
-
-
-class TestSeedCaseActorConfig:
-    def test_file_exists(self):
-        assert (_SEED_CONFIGS_DIR / "seed-case-actor.yaml").exists()
-
-    def test_valid_seed_config_schema(self):
-        cfg = _load_seed_config("seed-case-actor.yaml")
-        assert isinstance(cfg, SeedConfig)
-
-    def test_local_actor_id_is_deterministic(self):
-        cfg = _load_seed_config("seed-case-actor.yaml")
-        assert cfg.local_actor.id_ == CASE_ACTOR_ID
-
-    def test_local_actor_type_is_service(self):
-        cfg = _load_seed_config("seed-case-actor.yaml")
-        assert cfg.local_actor.actor_type == "Service"
-
-    def test_local_actor_name(self):
-        cfg = _load_seed_config("seed-case-actor.yaml")
-        assert cfg.local_actor.name == "CaseActor"
-
-    def test_peers_include_reporter_and_vendor(self):
-        cfg = _load_seed_config("seed-case-actor.yaml")
-        peer_ids = {p.id_ for p in cfg.peers}
-        assert peer_ids == _all_expected_peer_ids(CASE_ACTOR_ID)
-
-    def test_peer_ids_are_deterministic(self):
-        cfg = _load_seed_config("seed-case-actor.yaml")
-        peer_ids = {p.id_ for p in cfg.peers}
-        assert REPORTER_ID in peer_ids
-        assert VENDOR_ID in peer_ids
-        assert COORDINATOR_ID in peer_ids
-        assert VENDOR2_ID in peer_ids
-
-
-# ---------------------------------------------------------------------------
-# Tests for seed-actor6.yaml (RCVCV VendorDeployer — DEMOMA-19-001)
-# ---------------------------------------------------------------------------
-
-
-class TestSeedActor6Config:
-    def test_file_exists(self):
-        assert (_SEED_CONFIGS_DIR / "seed-actor6.yaml").exists()
-
-    def test_valid_seed_config_schema(self):
-        cfg = _load_seed_config("seed-actor6.yaml")
-        assert isinstance(cfg, SeedConfig)
-
-    def test_local_actor_id_is_deterministic(self):
-        cfg = _load_seed_config("seed-actor6.yaml")
-        assert cfg.local_actor.id_ == VENDOR_DEPLOYER_ID
-
-    def test_local_actor_type_is_organization(self):
-        cfg = _load_seed_config("seed-actor6.yaml")
-        assert cfg.local_actor.actor_type == "Organization"
-
-    def test_local_actor_name(self):
-        cfg = _load_seed_config("seed-actor6.yaml")
-        assert cfg.local_actor.name == "VendorDeployer"
-
-    def test_peers_include_reporter_vendor_coordinator_coordinator2_case_actor(
-        self,
-    ):
-        cfg = _load_seed_config("seed-actor6.yaml")
-        peer_ids = {p.id_ for p in cfg.peers}
-        assert REPORTER_ID in peer_ids
-        assert VENDOR_ID in peer_ids
-        assert COORDINATOR_ID in peer_ids
-        assert COORDINATOR2_ID in peer_ids
-        assert CASE_ACTOR_ID in peer_ids
-
-    def test_does_not_list_itself_as_peer(self):
-        cfg = _load_seed_config("seed-actor6.yaml")
-        peer_ids = {p.id_ for p in cfg.peers}
-        assert VENDOR_DEPLOYER_ID not in peer_ids
-
-    def test_has_exactly_five_peers(self):
-        cfg = _load_seed_config("seed-actor6.yaml")
-        assert len(cfg.peers) == 5, f"expected 5 peers, got {len(cfg.peers)}"
-
-
-# ---------------------------------------------------------------------------
-# Cross-config consistency tests
-# ---------------------------------------------------------------------------
+    @pytest.mark.parametrize("slot", ALL_SLOTS, ids=_SLOT_IDS)
+    def test_every_id_is_a_full_actor_uri(self, slot: ContainerSlot) -> None:
+        cfg = _load_seed_config(slot)
+        ids = [cfg.local_actor.id_, *(peer.id_ for peer in cfg.peers)]
+        for actor_id in ids:
+            assert actor_id is not None
+            assert actor_id.startswith("http://")
+            assert "/actors/" in actor_id
 
 
 class TestSeedConfigCrossConsistency:
-    """All five original configs must describe a consistent peer mesh.
+    """The configs together must describe one consistent peer mesh."""
 
-    actor6 (seed-actor6.yaml) is excluded here: it has 5 peers (not 4) and the
-    other five actors do not yet list actor6 as a peer — that cross-registration
-    is deferred to DEMOMA-19-002 (seed_containers_rcvcv function).
-    """
-
-    def test_all_configs_load_successfully(self):
-        # actor6 excluded — see class docstring (DEMOMA-19-002 pending)
-        for filename in (
-            "seed-reporter.yaml",
-            "seed-vendor.yaml",
-            "seed-coordinator.yaml",
-            "seed-case-actor.yaml",
-            "seed-actor5.yaml",
-        ):
-            cfg = _load_seed_config(filename)
-            assert cfg is not None
-
-    def test_each_config_has_exactly_four_peers(self):
-        for filename in (
-            "seed-reporter.yaml",
-            "seed-vendor.yaml",
-            "seed-coordinator.yaml",
-            "seed-case-actor.yaml",
-            "seed-actor5.yaml",
-        ):
-            cfg = _load_seed_config(filename)
-            assert len(cfg.peers) == 4, (
-                f"{filename}: expected 4 peers, got {len(cfg.peers)}"
-            )
-
-    def test_no_config_lists_itself_as_peer(self):
-        for filename, own_id in [
-            ("seed-reporter.yaml", REPORTER_ID),
-            ("seed-vendor.yaml", VENDOR_ID),
-            ("seed-coordinator.yaml", COORDINATOR_ID),
-            ("seed-case-actor.yaml", CASE_ACTOR_ID),
-            ("seed-actor5.yaml", VENDOR2_ID),
-        ]:
-            cfg = _load_seed_config(filename)
-            peer_ids = {p.id_ for p in cfg.peers}
-            assert own_id not in peer_ids, (
-                f"{filename}: actor listed as its own peer"
-            )
-
-    def test_every_actor_appears_as_peer_in_others(self):
-        """Verify the peer mesh is symmetric: A knows B, B knows A."""
-        configs = {
-            REPORTER_ID: _load_seed_config("seed-reporter.yaml"),
-            VENDOR_ID: _load_seed_config("seed-vendor.yaml"),
-            COORDINATOR_ID: _load_seed_config("seed-coordinator.yaml"),
-            CASE_ACTOR_ID: _load_seed_config("seed-case-actor.yaml"),
-            VENDOR2_ID: _load_seed_config("seed-actor5.yaml"),
+    def test_the_mesh_is_symmetric(self) -> None:
+        """A knows B and B knows A, for every pair in the cast."""
+        peers = {
+            slot: {peer.id_ for peer in _load_seed_config(slot).peers}
+            for slot in ALL_SLOTS
         }
-        for own_id, _cfg in configs.items():
-            for other_id, other_cfg in configs.items():
-                if own_id == other_id:
+        for slot, known in peers.items():
+            for other in ALL_SLOTS:
+                if other is slot:
                     continue
-                other_peer_ids = {p.id_ for p in other_cfg.peers}
-                assert own_id in other_peer_ids, (
-                    f"Actor {own_id} is not listed as a peer in the "
-                    f"config for {other_id}"
-                )
+                assert _own_id(other) in known
+                assert _own_id(slot) in peers[other]
 
-    def test_all_deterministic_ids_are_full_http_uris(self):
-        all_ids = [
-            REPORTER_ID,
-            VENDOR_ID,
-            COORDINATOR_ID,
-            CASE_ACTOR_ID,
-            VENDOR2_ID,
-        ]
-        for aid in all_ids:
-            assert aid.startswith("http://"), (
-                f"Deterministic ID {aid!r} must be a full HTTP URI"
-            )
+    def test_no_seed_config_names_a_cvd_role(self) -> None:
+        """A role-named id would tie a role-neutral container to one part.
 
-    def test_all_deterministic_ids_include_actors_path(self):
-        all_ids = [
-            REPORTER_ID,
-            VENDOR_ID,
-            COORDINATOR_ID,
-            CASE_ACTOR_ID,
-            VENDOR2_ID,
-        ]
-        for aid in all_ids:
-            assert "/actors/" in aid, (
-                f"Deterministic ID {aid!r} must include '/actors/' path"
-            )
+        Over every CVD role rather than the three retired slugs, so a new
+        role-named id cannot slip in behind the list (DEMOCI-11-027).
+        """
+        for slot in ALL_SLOTS:
+            text = _config_path(slot).read_text(encoding="utf-8")
+            for role in CVDRole:
+                assert f"/actors/{role.value}" not in text
 
+    def test_every_config_calls_a_container_the_same_thing(self) -> None:
+        """One display name per container across the configs.
 
-# ---------------------------------------------------------------------------
-# CLI integration: seed command uses VULTRON_ACTOR_ID from config file
-# ---------------------------------------------------------------------------
+        The name is what the devlogs and the UI show, so one file calling
+        ``actor2`` the Coordinator while another calls it the Vendor would
+        label the same actor two ways with nothing to catch it.
+        """
+        claimed: dict[str, set[str]] = {slot.name: set() for slot in ALL_SLOTS}
+        by_id = {_own_id(slot): slot.name for slot in ALL_SLOTS}
+        for slot in ALL_SLOTS:
+            cfg = _load_seed_config(slot)
+            claimed[slot.name].add(cfg.local_actor.name)
+            for peer in cfg.peers:
+                claimed[by_id[peer.id_]].add(peer.name)
+        for name, names in claimed.items():
+            assert len(names) == 1, f"{name} is called {sorted(names)}"
+
+    def test_the_fixed_role_slots_are_named_for_their_role(self) -> None:
+        """Slots 0 to 2 play one part in every scenario, so they may say so.
+
+        A character actor may not: its name is the slot's, because its role
+        comes from the act that seats it (DEMOCI-11-021).
+        """
+        names = {
+            slot.name: _load_seed_config(slot).local_actor.name
+            for slot in ALL_SLOTS
+        }
+        assert names == {
+            CAST[0].name: "Reporter",
+            CAST[1].name: "Vendor",
+            CAST[2].name: "Coordinator",
+            CAST[3].name: "Actor3",
+            CAST[4].name: "Actor4",
+            CASE_ACTOR.name: "CaseActor",
+        }
 
 
 class TestSeedCLIWithDeterministicId:
@@ -396,80 +237,27 @@ class TestSeedCLIWithDeterministicId:
             )
         return calls, peer_calls, result.exit_code
 
-    def test_reporter_seed_uses_deterministic_id(self):
-        config_path = _SEED_CONFIGS_DIR / "seed-reporter.yaml"
-        calls, _peer_calls, exit_code = self._run_seed_with_config(config_path)
-        assert exit_code == 0
-        local_call = next((c for c in calls if c["name"] == "Reporter"), None)
-        assert local_call is not None
-        assert local_call["actor_id"] == REPORTER_ID
-
-    def test_vendor_seed_uses_deterministic_id(self):
-        config_path = _SEED_CONFIGS_DIR / "seed-vendor.yaml"
-        calls, _peer_calls, exit_code = self._run_seed_with_config(config_path)
-        assert exit_code == 0
-        local_call = next((c for c in calls if c["name"] == "Vendor"), None)
-        assert local_call is not None
-        assert local_call["actor_id"] == VENDOR_ID
-
-    def test_case_actor_seed_uses_deterministic_id(self):
-        config_path = _SEED_CONFIGS_DIR / "seed-case-actor.yaml"
-        calls, _peer_calls, exit_code = self._run_seed_with_config(config_path)
-        assert exit_code == 0
-        local_call = next((c for c in calls if c["name"] == "CaseActor"), None)
-        assert local_call is not None
-        assert local_call["actor_id"] == CASE_ACTOR_ID
-
-    def test_reporter_seed_registers_all_peers(self):
-        config_path = _SEED_CONFIGS_DIR / "seed-reporter.yaml"
-        _calls, peer_calls, exit_code = self._run_seed_with_config(config_path)
-        assert exit_code == 0
-        registered_peer_ids = {c["peer_id"] for c in peer_calls}
-        assert VENDOR_ID in registered_peer_ids
-        assert CASE_ACTOR_ID in registered_peer_ids
-
-    def test_seed_call_count_equals_one_local_plus_peers(self):
-        """Each seed run should call seed_actor once (local) and seed_peer once per peer."""
-        for filename in (
-            "seed-reporter.yaml",
-            "seed-vendor.yaml",
-            "seed-coordinator.yaml",
-            "seed-case-actor.yaml",
-            "seed-actor5.yaml",
-        ):
-            config_path = _SEED_CONFIGS_DIR / filename
-            calls, peer_calls, exit_code = self._run_seed_with_config(
-                config_path
-            )
-            assert exit_code == 0, f"{filename}: exit code {exit_code}"
-            assert len(calls) == 1, (
-                f"{filename}: expected 1 seed_actor call (local), got {len(calls)}"
-            )
-            assert len(peer_calls) == 4, (
-                f"{filename}: expected 4 seed_peer calls (4 peers), got {len(peer_calls)}"
-            )
-
-    def test_vendor_deployer_seed_uses_deterministic_id(self):
-        config_path = _SEED_CONFIGS_DIR / "seed-actor6.yaml"
-        calls, _peer_calls, exit_code = self._run_seed_with_config(config_path)
-        assert exit_code == 0
-        local_call = next(
-            (c for c in calls if c["name"] == "VendorDeployer"), None
+    @pytest.mark.parametrize("slot", ALL_SLOTS, ids=_SLOT_IDS)
+    def test_seed_uses_the_slots_actor_id(self, slot: ContainerSlot) -> None:
+        calls, _peer_calls, exit_code = self._run_seed_with_config(
+            _config_path(slot)
         )
-        assert local_call is not None
-        assert local_call["actor_id"] == VENDOR_DEPLOYER_ID
-
-    def test_actor6_seed_call_count_is_six(self):
-        """actor6 has 5 peers, so CLI must call seed_actor once and seed_peer 5 times."""
-        config_path = _SEED_CONFIGS_DIR / "seed-actor6.yaml"
-        calls, peer_calls, exit_code = self._run_seed_with_config(config_path)
         assert exit_code == 0
-        assert len(calls) == 1, (
-            f"seed-actor6.yaml: expected 1 seed_actor call (local), got {len(calls)}"
+        assert [call["actor_id"] for call in calls] == [_own_id(slot)]
+
+    @pytest.mark.parametrize("slot", ALL_SLOTS, ids=_SLOT_IDS)
+    def test_seed_registers_every_other_member_as_a_peer(
+        self, slot: ContainerSlot
+    ) -> None:
+        """One ``seed_actor`` call for the local actor, one per peer."""
+        calls, peer_calls, exit_code = self._run_seed_with_config(
+            _config_path(slot)
         )
-        assert len(peer_calls) == 5, (
-            f"seed-actor6.yaml: expected 5 seed_peer calls (5 peers), got {len(peer_calls)}"
-        )
+        assert exit_code == 0
+        assert len(calls) == 1
+        assert {call["peer_id"] for call in peer_calls} == {
+            _own_id(other) for other in ALL_SLOTS if other is not slot
+        }
 
 
 # ---------------------------------------------------------------------------

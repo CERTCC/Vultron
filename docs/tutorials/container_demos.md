@@ -80,6 +80,31 @@ Each scenario is self-contained.
 The demo runner resets every container's state, seeds the actor records and their peer registrations, runs the workflow, verifies the final state, and exits.
 The [Demo Scenario Narratives](../topics/scenarios/index.md) explain what each scenario demonstrates and why its steps happen in the order they do.
 
+### The cast
+
+Every scenario runs on the same containers, called the cast.
+Their names say nothing about CVD roles, because one container plays different parts in different scenarios.
+
+| Container | Part it plays |
+|:----------|:--------------|
+| `actor0` | The first Reporter the scenario seats, in every scenario |
+| `actor1` | The first Vendor the scenario seats, in every scenario |
+| `actor2` | The first Coordinator the scenario seats, in every scenario |
+| `actor3` | A second Vendor in `rvv`, `rvcv-*` and `rcvv-embargo`; a second Coordinator in `rccv-*` and `rcvcv` |
+| `actor4` | The Vendor that is also a Deployer, in `rcvcv` |
+| `case-actor` | The Case Actor, which manages each case and holds its canonical ledger |
+
+The first three containers always play the same part.
+`actor2` is the Coordinator that receives the report in `rcv`, and the one that owns the case in `rcvcv`.
+A scenario that seats no Coordinator leaves `actor2` idle: `rv` runs a Reporter and a Vendor only.
+
+`actor3` and `actor4` are character actors.
+Their CVD role comes from the act that brings them into the case — the role the invitation offers them — and not from any container setting.
+That is why one container can be a Vendor in one scenario and a Coordinator in another.
+
+Fixing the cast this way lets any pair of scenarios that start the same way record the same bytes for their shared opening.
+That is how the demo tooling proves a branch point is the only place a pair of them differ.
+
 ---
 
 ## Step 4 — Run the scenario
@@ -97,7 +122,7 @@ If you leave `DEMO` unset, the runner executes the `rv` scenario.
 {% include-markdown "./_first_run_build.md" %}
 Once the images exist, compose:
 
-1. starts the actor containers (`reporter`, `vendor`, `coordinator`, `case-actor`, `actor5`, and `actor6`), whether or not the chosen scenario uses them all,
+1. starts the whole cast (`actor0` through `actor4`, and `case-actor`), whether or not the chosen scenario uses every container,
 2. waits until every actor container passes its `/health/ready` probe,
 3. starts `demo-runner`, which resets state, seeds actors, drives the workflow, verifies each milestone, and exits, and
 4. stops the whole stack when `demo-runner` exits, propagating its exit code.
@@ -139,15 +164,15 @@ A gate waits for evidence that an earlier step's effect has been committed by th
 To examine the logs of one container after a run:
 
 ```bash
-docker compose -f docker/docker-compose-multi-actor.yml logs vendor
+docker compose -f docker/docker-compose-multi-actor.yml logs actor1
 ```
 
 To watch one actor's [case ledger](../reference/vultron-spec/introduction.md#23-protocol-objects-and-messages) while a scenario runs, tail its ledger stream.
 Look up the host port Docker assigned to the actor's container, then open the stream with the case's id:
 
 ```bash
-docker compose -f docker/docker-compose-multi-actor.yml port vendor 7999
-curl -N "http://localhost:<port>/api/v2/actors/vendor/demo/cases/<case-id>/log/stream"
+docker compose -f docker/docker-compose-multi-actor.yml port actor1 7999
+curl -N "http://localhost:<port>/api/v2/actors/actor1/demo/cases/<case-id>/log/stream"
 ```
 
 The stream first replays every ledger entry the actor holds for that case, then sends each new entry as the actor records it.

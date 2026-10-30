@@ -86,19 +86,28 @@ docker-compose run --rm demo
 
 ## Multi-Actor Demo Setup
 
-`docker-compose-multi-actor.yml` defines four isolated actor services
-(`reporter`, `vendor`, `coordinator`, `case-actor`) plus a `demo-runner` for
-multi-actor demo scenarios (D5-2 and later).
+`docker-compose-multi-actor.yml` defines the fixed cast every demo scenario
+runs on: five role-neutral actor services (`actor0` … `actor4`) and the
+dedicated `case-actor` service, plus a `demo-runner` that drives one scenario.
+
+The cast is the same in every scenario (DEMOCI-11-020). `actor0`, `actor1` and
+`actor2` always play the first Reporter, the first Vendor and the first
+Coordinator a scenario seats; `actor3` and `actor4` are character actors, and
+each scenario gives them their role through the act that seats them. A scenario
+that seats no Coordinator leaves `actor2` idle. The cast is declared once in
+`vultron/demo/helpers/cast.py`.
 
 ### Services and port mappings
 
-| Service       | Host port override      | Docker-internal URL                  |
-|:--------------|:------------------------|:-------------------------------------|
-| `reporter`      | `${REPORTER_HOST_PORT:-0}`     | `http://reporter:7999/api/v2/`    |
-| `vendor`      | `${VENDOR_HOST_PORT:-0}`     | `http://vendor:7999/api/v2/`    |
-| `coordinator` | `${COORDINATOR_HOST_PORT:-0}`| `http://coordinator:7999/api/v2/` |
-| `case-actor`  | `${CASE_ACTOR_HOST_PORT:-0}` | `http://case-actor:7999/api/v2/`|
-| `demo-runner` | —                       | (no host port; uses vultron-network) |
+| Service       | Host port override           | Docker-internal URL               |
+|:--------------|:-----------------------------|:----------------------------------|
+| `actor0`      | `${ACTOR0_HOST_PORT:-0}`     | `http://actor0:7999/api/v2/`      |
+| `actor1`      | `${ACTOR1_HOST_PORT:-0}`     | `http://actor1:7999/api/v2/`      |
+| `actor2`      | `${ACTOR2_HOST_PORT:-0}`     | `http://actor2:7999/api/v2/`      |
+| `actor3`      | `${ACTOR3_HOST_PORT:-0}`     | `http://actor3:7999/api/v2/`      |
+| `actor4`      | `${ACTOR4_HOST_PORT:-0}`     | `http://actor4:7999/api/v2/`      |
+| `case-actor`  | `${CASE_ACTOR_HOST_PORT:-0}` | `http://case-actor:7999/api/v2/`  |
+| `demo-runner` | —                            | (no host port; vultron-network)   |
 
 A default value of `0` means Docker will publish the container port on an
 ephemeral host port chosen at runtime. Set the corresponding environment
@@ -144,8 +153,8 @@ This is the canonical single-command acceptance run for the current
 
 ### Run the RVV scenario
 
-The RVV scenario (Reporter + Vendor + Vendor2, no Coordinator) runs the Reporter,
-both vendor containers and the `case-actor` container:
+The RVV scenario (Reporter + Vendor + Vendor2, no Coordinator) runs `actor0`,
+`actor1`, `actor3` and the `case-actor` container:
 
 ```bash
 # From the docker/ directory:
@@ -155,8 +164,8 @@ DEMO=rvv docker compose -f docker-compose-multi-actor.yml \
 
 ### Run the RVCV-extension or RVCV-handoff scenario
 
-The RVCV scenarios use all five actor services (Reporter, Vendor, Coordinator,
-Vendor2, CaseActor):
+The RVCV scenarios use `actor0`, `actor1`, `actor2`, `actor3` and the
+`case-actor` container:
 
 ```bash
 # From the docker/ directory:
@@ -197,11 +206,11 @@ See `integration_tests/README.md` for full usage notes and isolation tips.
 ```bash
 # From the docker/ directory:
 docker compose -f docker-compose-multi-actor.yml up -d \
-    reporter vendor coordinator case-actor
+    actor0 actor1 actor2 actor3 actor4 case-actor
 ```
 
-All three services expose `/api/v2/health/ready` and will be marked healthy
-once their DataLayer is reachable.
+Every service exposes `/api/v2/health/ready` and will be marked healthy
+once its DataLayer is reachable.
 
 ### Seed actor records
 
@@ -211,21 +220,11 @@ and register peer actors:
 
 ```bash
 # Seed each actor service from the demo-runner container:
-docker compose -f docker-compose-multi-actor.yml run --rm \
-    -e VULTRON_API_BASE_URL=http://reporter:7999/api/v2 demo-runner \
-    vultron-demo seed
-
-docker compose -f docker-compose-multi-actor.yml run --rm \
-    -e VULTRON_API_BASE_URL=http://vendor:7999/api/v2 demo-runner \
-    vultron-demo seed
-
-docker compose -f docker-compose-multi-actor.yml run --rm \
-    -e VULTRON_API_BASE_URL=http://coordinator:7999/api/v2 demo-runner \
-    vultron-demo seed
-
-docker compose -f docker-compose-multi-actor.yml run --rm \
-    -e VULTRON_API_BASE_URL=http://case-actor:7999/api/v2 demo-runner \
-    vultron-demo seed
+for slot in actor0 actor1 actor2 actor3 actor4 case-actor; do
+  docker compose -f docker-compose-multi-actor.yml run --rm \
+      -e "VULTRON_API_BASE_URL=http://${slot}:7999/api/v2" demo-runner \
+      vultron-demo seed
+done
 ```
 
 The current demo scenarios reset state and handle peer registration
@@ -234,7 +233,7 @@ scenarios that do not use the `demo-runner` workflow.
 
 ### Reset actor state between runs
 
-Named volumes (`reporter-data`, `vendor-data`, `case-actor-data`) persist the
+Named volumes (`actor0-data` … `actor4-data`, `case-actor-data`) persist the
 SQLite database files across container restarts.  To wipe all state and start fresh:
 
 ```bash
@@ -248,7 +247,7 @@ The containers communicate via a dedicated Docker bridge network
 service name `api-dev` as the hostname, which Docker resolves internally.
 
 For multi-actor setups, each container uses its service name as the hostname
-in `VULTRON_SERVER__BASE_URL` (e.g., `http://reporter:7999/api/v2/`) so that peer
+in `VULTRON_SERVER__BASE_URL` (e.g., `http://actor0:7999/api/v2/`) so that peer
 containers can derive inbox URLs that route correctly on the Docker network.
 
 ## Customizing the docker setup

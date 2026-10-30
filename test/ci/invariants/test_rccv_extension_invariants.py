@@ -4,14 +4,14 @@ Reads JSONL case-ledger replica files from ``devlogs/rccv-extension/`` and
 asserts universal invariants (via the shared ``common`` library) plus
 RCCV-extension-specific checks.
 
-Actor set: ``reporter``, ``vendor`` (C1/Coordinator1 on coordinator container),
-``coordinator`` (C2/Coordinator2 on actor5 container), ``vendor2`` (Vendor on
-vendor container), ``case-actor``.
+Actor set: ``reporter``, ``vendor`` (C1/Coordinator1 on cast slot 2),
+``coordinator`` (C2/Coordinator2 on cast slot 3), ``vendor2`` (Vendor on cast
+slot 1), ``case-actor``.
 
-Note on actor-name mapping: the devlog dump uses RVCV-style directory names to
-reuse the same docker-compose containers.  ``vendor`` == C1 (coordinator
-container); ``coordinator`` == C2 (actor5 container); ``vendor2`` == Vendor
-(vendor container).
+Note on actor-name mapping: the devlog dump uses RVCV-style directory names, so
+a dump directory names the part a cast member plays here rather than the member
+itself.  ``vendor`` == C1 (cast slot 2); ``coordinator`` == C2 (cast slot 3);
+``vendor2`` == Vendor (cast slot 1).
 
 RCCV-extension-specific invariants:
 - ``invite_actor_to_case`` appears at least twice (C2 invitation + Vendor
@@ -74,9 +74,9 @@ _RCCV_EXTENSION_EXPECTED_SEMANTIC_TYPES = [
 #: Directory names follow RVCV convention: vendor=C1, coordinator=C2, vendor2=Vendor.
 _CHAIN_ACTORS = [
     pytest.param("case-actor"),
-    pytest.param("vendor"),  # C1 (coordinator container)
-    pytest.param("coordinator"),  # C2 (actor5 container, coordinator2)
-    pytest.param("vendor2"),  # Vendor (vendor container)
+    pytest.param("vendor"),  # C1 (cast slot 2, the first Coordinator)
+    pytest.param("coordinator"),  # C2 (cast slot 3, a character actor)
+    pytest.param("vendor2"),  # Vendor (cast slot 1, the first Vendor)
     pytest.param("reporter"),
 ]
 

@@ -38,7 +38,11 @@ The devcontainer sets `PYTHONPATH=/app`, so any entry point that imports
 working tree's. Prefix it: `PYTHONPATH= uv run spec-dump`. A `git commit` in a
 worktree outside `/app` needs it too, because the pre-commit hooks inherit the
 variable and a sync hook such as `docs-site-sync` then checks the worktree against
-`/app`'s generator and fails spuriously: `PYTHONPATH= git commit …`.
+`/app`'s generator and fails spuriously: `PYTHONPATH= git commit …`. The failure
+wears two faces, and neither names the cause: a stale-artifact report for a file
+that is in sync, and a `ModuleNotFoundError` for a module the worktree has but
+`/app` does not. Re-run the hook's own command with `PYTHONPATH=` before
+believing either (#5532).
 A test's child Python process has the same exposure; it takes its environment
 from `child_env()` ([testing-pitfalls](testing-pitfalls.md) § "A Child Python
 Process Gets Its Environment From `child_env()`").

@@ -125,13 +125,13 @@ class SeedConfig(BaseSettings):
     The YAML schema uses top-level keys ``local_actor`` and ``peers``::
 
         local_actor:
-          name: Reporter
+          name: Actor0
           actor_type: Person
-          id: http://reporter:7999/api/v2/actors/reporter-uuid
+          id: http://actor0:7999/api/v2/actors/actor0
         peers:
-          - name: Vendor
+          - name: Actor1
             actor_type: Organization
-            id: http://vendor:7999/api/v2/actors/vendor-uuid
+            id: http://actor1:7999/api/v2/actors/actor1
 
     .. deprecated::
         ``from_env()`` and ``from_file()`` class methods are kept for

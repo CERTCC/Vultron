@@ -551,18 +551,18 @@ def dump_coordinated_case_ledgers(
         LedgerDumpTarget(
             reporter_name,
             reporter_client,
-            replica_route_key(reporter_client, reporter_name),
+            replica_route_key(reporter_client),
         ),
         LedgerDumpTarget(
             "coordinator",
             coordinator_client,
-            replica_route_key(coordinator_client, "coordinator"),
+            replica_route_key(coordinator_client),
         ),
         LedgerDumpTarget(
-            "vendor", vendor_client, replica_route_key(vendor_client, "vendor")
+            "vendor", vendor_client, replica_route_key(vendor_client)
         ),
         *(
-            LedgerDumpTarget(name, client, replica_route_key(client, name))
+            LedgerDumpTarget(name, client, replica_route_key(client))
             for name, client in later_vendors
         ),
         case_actor_dump_target(case_actor_client),

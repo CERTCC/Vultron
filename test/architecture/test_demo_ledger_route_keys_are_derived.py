@@ -39,11 +39,13 @@ Issue: #2484 (phase8-literal-ledger-keys-0)
 """
 
 import ast
+import logging
 from pathlib import Path
 
 import pytest
 
 from test.architecture import _corpus
+from vultron.demo.helpers.cast import REPORTER_SLOT
 from vultron.demo.helpers.ledger_dump import replica_route_key
 from vultron.demo.utils import DataLayerClient
 
@@ -108,7 +110,7 @@ def test_ledger_route_keys_are_not_literals(scenario: Path) -> None:
         f" {offenders} to LedgerDumpTarget. The route key selects the store"
         " (ADR-0073), so a literal reads whichever actor is hosted under that"
         " slug and the dump silently reports an empty ledger. Derive it:"
-        " replica_route_key(client, <fallback>)."
+        " replica_route_key(client)."
     )
 
 
@@ -128,7 +130,7 @@ def test_derived_and_allowed_keys_are_accepted() -> None:
     """A derived key, and the fixed ``case-actor`` slug, must not be flagged."""
     tree = _corpus.parse_inline(
         "targets = [\n"
-        '    LedgerDumpTarget("finder", c, replica_route_key(c, "finder")),\n'
+        '    LedgerDumpTarget("finder", c, replica_route_key(c)),\n'
         '    LedgerDumpTarget("case-actor", ca, "case-actor"),\n'
         '    LedgerDumpTarget("v", v, route_key=derived),\n'
         "]\n"
@@ -141,28 +143,64 @@ class TestReplicaRouteKey:
 
     def test_uses_the_clients_own_actor_id(self) -> None:
         client = DataLayerClient(
-            base_url="http://finder:7999/api/v2",
-            actor_id="http://finder:7999/api/v2/actors/finder-9f3a",
+            base_url="http://actor0:7999/api/v2",
+            actor_id="http://actor0:7999/api/v2/actors/actor0-9f3a",
         )
-        assert replica_route_key(client, "finder") == "finder-9f3a"
+        assert replica_route_key(client) == "actor0-9f3a"
 
-    def test_ignores_the_fallback_when_the_client_is_bound(self) -> None:
-        """The fallback must not win over a real, differing actor id.
+    def test_the_actor_id_wins_over_the_container_name(self) -> None:
+        """The id must win over the container's own slug when they differ.
 
-        This is the whole point: a generated id and a seed-name literal disagree,
-        and the id is the one whose store holds the ledger.
+        This is the whole point: a generated id and the container name
+        disagree, and the id is the one whose store holds the ledger.
         """
         client = DataLayerClient(
-            base_url="http://vendor:7999/api/v2",
-            actor_id="http://vendor:7999/api/v2/actors/vendor-2",
+            base_url="http://actor1:7999/api/v2",
+            actor_id="http://actor1:7999/api/v2/actors/vendor-2",
         )
-        assert replica_route_key(client, "vendor") == "vendor-2"
+        assert replica_route_key(client) == "vendor-2"
 
-    def test_falls_back_when_the_client_is_unbound(self) -> None:
-        """An unbound client keeps today's behaviour rather than raising.
+    def test_falls_back_to_the_container_host_when_unbound(self) -> None:
+        """An unbound client keeps a best-effort key rather than raising.
 
         The dump runs in scenario teardown, where the ledger is the last
-        evidence available; a best-effort read beats an exception.
+        evidence available; a best-effort read beats an exception.  The
+        container's host name is its actor slug under the fixed cast
+        (DEMOCI-11-020).
         """
-        client = DataLayerClient(base_url="http://finder:7999/api/v2")
-        assert replica_route_key(client, "finder") == "finder"
+        client = DataLayerClient(base_url="http://actor0:7999/api/v2")
+        assert replica_route_key(client) == "actor0"
+
+    def test_an_unbound_local_client_resolves_through_the_cast(self) -> None:
+        """The arm the host name cannot answer, and the reason for the cast
+        lookup: a local run addresses every container as ``localhost`` on its
+        own port, so the host name would key every actor as ``localhost``.
+        """
+        client = DataLayerClient(base_url=REPORTER_SLOT.default_url)
+        assert replica_route_key(client) == REPORTER_SLOT.name
+
+    def test_an_unbound_non_cast_client_warns_and_keeps_the_host(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Nothing says which actor a non-cast container hosts.
+
+        The key is still a guess rather than an exception, because teardown is
+        where the ledger is the last evidence; the WARNING is the only notice
+        before the dump reports an empty ledger.
+        """
+        client = DataLayerClient(base_url="http://somewhere:8000/api/v2")
+        with caplog.at_level(logging.WARNING):
+            assert replica_route_key(client) == "somewhere"
+        assert "addresses no cast container" in caplog.text
+
+    def test_an_unbound_client_never_keys_on_nothing(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """An address with no host name leaves nothing to guess.
+
+        An empty key would read as "no actor" and hide which client the dump
+        could not place, so the address itself is the key.
+        """
+        client = DataLayerClient(base_url="file:///tmp/store")
+        with caplog.at_level(logging.WARNING):
+            assert replica_route_key(client) == "file:///tmp/store"

@@ -41,11 +41,19 @@ from contextlib import ExitStack, contextmanager
 from datetime import UTC, datetime, timedelta, timezone
 from unittest.mock import patch
 
+import py_trees
+
 from vultron.core.models import _helpers
 
 #: The instant a recording's clock starts from.  Fixed so that a recording does
 #: not change when it is regenerated on a later day.
 RECORDING_EPOCH = datetime(2026, 1, 1, tzinfo=UTC)
+
+#: The seed every recording of the scenario tree is made with (DEMOCI-11-025).
+#: One seed for the whole tree, not one per scenario: two scenarios that tell
+#: the same opening draw the same ids for it, so their recordings can be
+#: byte-identical up to the branch point where they part (DEMOCI-11-018).
+TREE_RECORDING_SEED = "vultron-scenario-tree"
 
 #: How far the recording clock moves on each read.  Small enough that about
 #: one hundred reads fit in a second of recorded time.  A step of one second
@@ -53,6 +61,25 @@ RECORDING_EPOCH = datetime(2026, 1, 1, tzinfo=UTC)
 #: pre-bootstrap queue window after only 300 unrelated reads, which a real run
 #: of the same length never does.
 RECORDING_CLOCK_STEP = timedelta(milliseconds=10)
+
+
+def reset_blackboard() -> None:
+    """Drop everything the process-global py_trees blackboard holds.
+
+    Two kinds of leak outlive one tree, and a demo that runs several trees in
+    one process has to clear both:
+
+    * **keys.** ``BTBridge.execute_with_setup`` restores only the keys on its
+      ``managed_keys`` list, so any other key a node wrote outlives the run.
+    * **clients.** ``py_trees.blackboard.Client`` registers itself under a
+      ``uuid4`` that nothing unregisters, so a seeded id source
+      (:func:`deterministic_run`) redraws an id the registry already holds and
+      py_trees refuses the registration.
+
+    ``Blackboard.clear()`` drops both, and with them the metadata and the
+    activity stream, which is what a run that starts from nothing wants.
+    """
+    py_trees.blackboard.Blackboard.clear()
 
 
 class SteppingClock:
@@ -150,5 +177,7 @@ __all__ = [
     "RECORDING_EPOCH",
     "SeededUuid4",
     "SteppingClock",
+    "TREE_RECORDING_SEED",
     "deterministic_run",
+    "reset_blackboard",
 ]

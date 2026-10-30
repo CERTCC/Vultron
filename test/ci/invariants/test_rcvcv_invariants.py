@@ -6,13 +6,13 @@ checks.
 
 Actor set: ``reporter``, ``c1``, ``v1``, ``c2``, ``v2``, ``case-actor``.
 
-Container-to-role mapping (docker-compose-multi-actor.yml):
-  reporter      → Reporter container
-  c1          → C1/Coordinator1 (coordinator container) — CASE_OWNER
-  v1          → V1/Vendor1 (vendor container) — CVDRole.VENDOR only → VFd
-  c2          → C2/Coordinator2 (actor5 container) — CVDRole.COORDINATOR
-  v2          → V2/VendorDeployer (actor6 container) — VENDOR+DEPLOYER → VFD
-  case-actor  → CaseActor (coordinator container sub-actor)
+Cast-slot-to-part mapping (docker-compose-multi-actor.yml):
+  reporter    → Reporter (cast slot 0)
+  c1          → C1/Coordinator1 (cast slot 2) — CASE_OWNER
+  v1          → V1/Vendor1 (cast slot 1) — CVDRole.VENDOR only → VFd
+  c2          → C2/Coordinator2 (cast slot 3) — CVDRole.COORDINATOR
+  v2          → V2/VendorDeployer (cast slot 4) — VENDOR+DEPLOYER → VFD
+  case-actor  → CaseActor (the dedicated case-actor container)
 
 RCVCV-specific invariants:
 - ``invite_actor_to_case`` appears at least three times (C1 invites V1, C1

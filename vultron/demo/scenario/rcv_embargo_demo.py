@@ -47,7 +47,13 @@ from vultron.demo.exchange.embargo_lifecycle import (
 from vultron.demo.helpers.actor_roles import (
     ActorRole,
     case_actor_role,
+    resolved_actor_ids,
     role_map,
+)
+from vultron.demo.helpers.cast import (
+    COORDINATOR_SLOT,
+    REPORTER_SLOT,
+    VENDOR_SLOT,
 )
 from vultron.demo.helpers.coordinated_case import (
     dump_coordinated_case_ledgers,
@@ -91,36 +97,14 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 logger = logging.getLogger(__name__)
 
-# Default container base URLs — override via environment variables.
+# The scenario's actors in main() parameter order, each seated in a container of
+# the fixed cast (DEMOCI-11-020).  The demo CLI derives this scenario's
+# sub-command options from this list (DEMOCI-11-011).
 ROLES: list[ActorRole] = [
-    ActorRole(
-        name="reporter",
-        url_env="VULTRON_REPORTER_BASE_URL",
-        default_url="http://localhost:7901/api/v2",
-        url_help="Base URL of the Reporter container API "
-        "(env: VULTRON_REPORTER_BASE_URL).",
-        has_id=True,
-        id_help="Deterministic full URI for the Reporter actor (optional).",
-    ),
-    ActorRole(
-        name="coordinator",
-        url_env="VULTRON_COORDINATOR_BASE_URL",
-        default_url="http://localhost:7903/api/v2",
-        url_help="Base URL of the Coordinator container API "
-        "(env: VULTRON_COORDINATOR_BASE_URL).",
-        has_id=True,
-        id_help="Deterministic full URI for the Coordinator actor (optional).",
-    ),
-    ActorRole(
-        name="vendor",
-        url_env="VULTRON_VENDOR_BASE_URL",
-        default_url="http://localhost:7902/api/v2",
-        url_help="Base URL of the Vendor container API "
-        "(env: VULTRON_VENDOR_BASE_URL).",
-        has_id=True,
-        id_help="Deterministic full URI for the Vendor actor (optional).",
-    ),
-    case_actor_role("http://localhost:7905/api/v2"),
+    ActorRole("reporter", REPORTER_SLOT, "Reporter", has_id=True),
+    ActorRole("coordinator", COORDINATOR_SLOT, "Coordinator", has_id=True),
+    ActorRole("vendor", VENDOR_SLOT, "Vendor", has_id=True),
+    case_actor_role(),
 ]
 _ROLES = role_map(ROLES)
 
@@ -580,9 +564,12 @@ def main(
         coordinator_client=coordinator_client,
         vendor_client=vendor_client,
         case_actor_client=case_actor_client,
-        reporter_id=reporter_id,
-        coordinator_id=coordinator_id,
-        vendor_id=vendor_id,
+        **resolved_actor_ids(
+            _ROLES,
+            reporter=(reporter_client, reporter_id),
+            coordinator=(coordinator_client, coordinator_id),
+            vendor=(vendor_client, vendor_id),
+        ),
     )
 
 

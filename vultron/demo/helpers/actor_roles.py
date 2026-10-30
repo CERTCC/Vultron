@@ -10,27 +10,23 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Per-scenario actor role declarations (DEMOCI-11-011).
+"""Per-scenario actor role declarations (DEMOCI-11-011, DEMOCI-11-020).
 
-A demo scenario runs N actors, each in its own container.  Three facts about
-each of them are ad hoc per scenario and derivable from nothing:
+A demo scenario runs N actors, each in its own container of the fixed cast
+(:mod:`vultron.demo.helpers.cast`).  :class:`ActorRole` is where a scenario
+seats each of its actors, **once**: the actor's name in the scenario, the cast
+container it runs in, and whether it also takes a ``--<name>-id`` option.  The
+container's URL, env var, local port and actor id all come from the cast slot,
+so no scenario declares its own (DEMOCI-11-020).
 
-* which ``VULTRON_*_BASE_URL`` env var names that actor's container — the URL
-  options key to **physical container slots, not roles**, so ``rccv-handoff``'s
-  ``--c1-url`` reads ``VULTRON_VENDOR_BASE_URL`` while ``rccv-extension``'s
-  reads ``VULTRON_COORDINATOR_BASE_URL``;
-* the fallback port when that env var is unset;
-* whether the actor also takes a ``--<name>-id`` option, and whether *that*
-  option has an env binding (only ``rcvcv`` binds ids to env vars).
-
-:class:`ActorRole` is where a scenario declares them, **once**.  Both consumers
-read the same list:
+Both consumers read the same list:
 
 * ``vultron/demo/cli.py``'s command factory turns the list into that scenario's
   click options, so a registered scenario cannot be missing a sub-command and a
   sub-command cannot be hand-declared (DEMOCI-11-011);
-* the module's own ``*_BASE_URL`` constants are :attr:`ActorRole.url` values, so
-  the env-var/default pair is written in exactly one place.
+* the module's own ``*_BASE_URL`` constants are :attr:`ActorRole.url` values,
+  and its ``main()`` resolves each actor's id with
+  :meth:`ActorRole.resolve_id`.
 
 The declaration is deliberately **not** carried by the ``@scenario`` decorator:
 DEMOCI-11-001 confines that decorator to facts the registry can derive
@@ -44,63 +40,58 @@ Implementation guidance: ``notes/demo-scenario-registry.md``.
 
 from __future__ import annotations
 
-import os
-import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
+from vultron.demo.helpers.cast import (
+    CASE_ACTOR,
+    ROLE_OF_SLOT,
+    SLUG_RE,
+    ContainerSlot,
+)
+from vultron.demo.utils import DataLayerClient
+from vultron.enums.roles import CVDRole
 from vultron.errors import DemoActorRoleError
 
-#: Role name spelling: lowercase alphanumerics separated by single hyphens, with
-#: a leading letter.  ``name`` is the stem of both option flags and both
-#: ``main()`` parameters, so a name that cannot round-trip into a click flag
-#: *and* a Python identifier is rejected here rather than producing an
-#: unreachable option later.
-#:
-#: The leading letter is what makes the identifier half true: ``"2nd-vendor"`` is
-#: a fine click flag but yields ``2nd_vendor_url``, which no ``main()`` can
-#: declare — the failure would surface in the ratchet rather than at the
-#: declaration site this check exists to guard.
-#:
-#: Anchored with ``\Z`` rather than ``$``, which also matches before a trailing
-#: newline: ``"reporter\n"`` would pass and then yield a ``--reporter\n-url`` flag.
-_NAME_RE = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*\Z")
+# A role name uses the cast's slug spelling (`SLUG_RE`), shared rather than
+# restated here: `name` is the stem of both option flags and both `main()`
+# parameters, so a name that cannot round-trip into a click flag *and* a Python
+# identifier is rejected at the declaration site rather than producing an
+# unreachable option later.  The leading letter the shared pattern requires is
+# what makes the identifier half true: "2nd-vendor" is a fine click flag but
+# yields `2nd_vendor_url`, which no `main()` can declare, and that failure
+# would surface in the ratchet instead of here.
 
 
 @dataclass(frozen=True, slots=True)
 class ActorRole:
-    """One actor slot in a demo scenario, and the CLI options it contributes.
+    """One scenario actor, the cast container it runs in, and its CLI options.
 
     Frozen because the CLI reads ``url`` at decoration time and the scenario's
     ``main()`` reads the derived ``*_BASE_URL`` constant at call time; a role
-    whose binding could be mutated between those two reads would give the option
+    whose slot could be changed between those two reads would give the option
     default and the fallback different containers.
     """
 
     #: Flag stem, e.g. ``"reporter"``, ``"c1"``, ``"case-actor"``.  Yields
     #: ``--<name>-url`` / ``--<name>-id`` and ``<name_>_url`` / ``<name_>_id``.
     name: str
-    #: Env var naming this actor's container, e.g. ``"VULTRON_VENDOR_BASE_URL"``.
-    #: A *container slot*, not a role — two scenarios may map the same slot to
-    #: differently-named roles, which is why this cannot be derived from ``name``.
-    url_env: str
-    #: Base URL used when :attr:`url_env` is unset.
-    default_url: str
-    #: Verbatim ``--help`` text for the ``--<name>-url`` option.  Ad hoc per
-    #: scenario because it names the container slot, not the role.
-    url_help: str
-    #: Whether this actor also takes a ``--<name>-id`` option.  Only the handoff
-    #: scenarios pass a deterministic id for the CaseActor, for instance.
+    #: The cast container this actor runs in.  Its env var, local port and
+    #: actor id are the slot's, never the scenario's (DEMOCI-11-020).
+    slot: ContainerSlot
+    #: Who the actor is in this scenario, for ``--help`` text, e.g.
+    #: ``"C1 (Coordinator1)"``.
+    title: str
+    #: Whether this actor also takes a ``--<name>-id`` option, which overrides
+    #: the slot's actor id.
     has_id: bool = False
-    #: Verbatim ``--help`` text for the ``--<name>-id`` option.  Required when
-    #: :attr:`has_id`, forbidden otherwise.
-    id_help: str | None = None
-    #: Env var backing the ``--<name>-id`` option.  ``None`` for every scenario
-    #: but ``rcvcv``, whose actor ids are supplied by the compose environment.
-    id_env: str | None = None
 
     def __post_init__(self) -> None:
-        if not _NAME_RE.match(self.name) or not self.param_stem.isidentifier():
+        if (
+            not isinstance(self.name, str)
+            or not SLUG_RE.match(self.name)
+            or not self.param_stem.isidentifier()
+        ):
             raise DemoActorRoleError(
                 f"actor role name {self.name!r} is not a valid option stem; "
                 "expected lowercase alphanumerics separated by single hyphens "
@@ -108,51 +99,30 @@ class ActorRole:
                 "flags and both main() parameter names derive from it, and "
                 f"{self.param_stem!r} is not a Python identifier."
             )
-        for field_name in ("url_env", "default_url", "url_help"):
-            value = getattr(self, field_name)
-            if not isinstance(value, str) or not value.strip():
-                raise DemoActorRoleError(
-                    f"actor role {self.name!r} has an empty {field_name}; "
-                    "the CLI has nowhere else to get it."
-                )
-        if self.has_id:
-            # Without a help string the generated `--<name>-id` option is
-            # reachable but undocumented, which reads as an internal flag and
-            # is how a deterministic-id option goes unused in a new scenario.
-            if not (self.id_help and self.id_help.strip()):
-                raise DemoActorRoleError(
-                    f"actor role {self.name!r} declares has_id=True but no "
-                    "id_help; the generated --"
-                    f"{self.name}-id option would have no --help text."
-                )
-            # A blank `id_env` reads as an env binding and is not one: the
-            # factory would pass `envvar=""` to click, whose
-            # `resolve_envvar_value` does `os.environ.get("")` and always gets
-            # None. Same failure the `has_id`/`id_help` check above catches —
-            # metadata the author believes is live and the CLI silently drops.
-            if self.id_env is not None and not self.id_env.strip():
-                raise DemoActorRoleError(
-                    f"actor role {self.name!r} has a blank id_env; click reads "
-                    f"an empty envvar as unset, so the --{self.name}-id option "
-                    "would look env-bound and never resolve. Name the env var "
-                    "or drop id_env."
-                )
-        else:
-            # Set-but-ignored id metadata is the failure this catches: the
-            # author believes the scenario accepts `--<name>-id` and it does
-            # not, because the factory only emits the option when has_id.
-            extra = [
-                field_name
-                for field_name in ("id_help", "id_env")
-                if getattr(self, field_name) is not None
-            ]
-            if extra:
-                raise DemoActorRoleError(
-                    f"actor role {self.name!r} sets {sorted(extra)} but "
-                    "has_id is False, so no --"
-                    f"{self.name}-id option is generated and the value is "
-                    "silently ignored. Set has_id=True or drop them."
-                )
+        if not isinstance(self.slot, ContainerSlot):
+            raise DemoActorRoleError(
+                f"actor role {self.name!r} runs in {self.slot!r}, which is not "
+                "a ContainerSlot; seat it in a slot from "
+                "vultron.demo.helpers.cast (DEMOCI-11-020). Membership of the "
+                "cast is checked over every registered scenario by "
+                "test/demo_unit/test_cast.py, because a scenario may legally "
+                "build a slot of its own in a test."
+            )
+        if not isinstance(self.title, str) or not self.title.strip():
+            raise DemoActorRoleError(
+                f"actor role {self.name!r} has an empty title; its --help "
+                "text would name no one."
+            )
+
+    @property
+    def url_env(self) -> str:
+        """Env var naming this actor's container: the slot's."""
+        return self.slot.url_env
+
+    @property
+    def default_url(self) -> str:
+        """Base URL used when :attr:`url_env` is unset: the slot's local port."""
+        return self.slot.default_url
 
     @property
     def url(self) -> str:
@@ -160,10 +130,56 @@ class ActorRole:
 
         Read once per consumer — at click decoration time for the option
         default, and at module import time for the scenario's ``*_BASE_URL``
-        constant — which is the same env resolution each site did by hand
-        before.
+        constant.
         """
-        return os.environ.get(self.url_env, self.default_url)
+        return self.slot.url
+
+    @property
+    def plays(self) -> CVDRole | None:
+        """The role this actor holds from the start, or ``None``.
+
+        A cast member with a fixed role (slots 0 to 2) plays it in every
+        scenario.  A character actor returns ``None``: its role comes from the
+        act that seats it, not from its container (DEMOCI-11-021).
+        """
+        return ROLE_OF_SLOT.get(self.slot.name)
+
+    def resolve_id(self, base_url: str, override: str | None = None) -> str:
+        """This actor's id: *override*, or the one its container serves.
+
+        Args:
+            base_url: The container's resolved base URL.
+            override: A ``--<name>-id`` value, when the caller passed one.
+        """
+        return override or self.slot.actor_id(base_url)
+
+    @property
+    def url_help(self) -> str:
+        """``--help`` text for the ``--<name>-url`` option."""
+        return (
+            f"Base URL of the {self.title} container API "
+            f"(container {self.slot.name}; env: {self.url_env})."
+        )
+
+    @property
+    def id_env(self) -> str | None:
+        """Env var backing the ``--<name>-id`` option: the slot's.
+
+        DEMOMA-14-008 requires the id options to have env bindings, and the
+        binding names the container rather than the part it plays here, so two
+        scenarios that seat one container read one variable.
+        """
+        return self.slot.id_env if self.has_id else None
+
+    @property
+    def id_help(self) -> str | None:
+        """``--help`` text for the ``--<name>-id`` option, if it has one."""
+        if not self.has_id:
+            return None
+        return (
+            f"Full URI for the {self.title} actor (default: "
+            f"<url>/actors/{self.slot.name}; env: {self.id_env})."
+        )
 
     @property
     def url_option(self) -> str:
@@ -205,7 +221,7 @@ def role_map(roles: Sequence[ActorRole]) -> dict[str, ActorRole]:
 
     Raises:
         DemoActorRoleError: If *roles* is empty, if two roles share a name, or
-            if two roles name the same container env var.
+            if two roles run in the same cast container.
     """
     if not roles:
         raise DemoActorRoleError(
@@ -223,27 +239,20 @@ def role_map(roles: Sequence[ActorRole]) -> dict[str, ActorRole]:
             )
         by_name[role.name] = role
 
-    # The second half of "declared once": a role that reads another role's
-    # `url_env` was not really declared, it was copy-pasted and half-edited —
-    # the likeliest mistake when adding an actor to an existing scenario, since
-    # the slot names and the role names deliberately do not correspond.
-    #
-    # This catches the *declaration* mistake only. It says nothing about two
-    # roles whose distinct env vars happen to resolve to the same URL, which is
-    # normal for local development and a compose concern rather than a
-    # declaration one.
-    seen_env: dict[str, str] = {}
+    # One actor per container (ADR-0042): a second role in an occupied slot is
+    # a copy-pasted declaration that was half edited, the likeliest mistake
+    # when adding an actor to an existing scenario.
+    seen_slot: dict[str, str] = {}
     for role in roles:
-        owner = seen_env.get(role.url_env)
+        owner = seen_slot.get(role.slot.name)
         if owner is not None:
             raise DemoActorRoleError(
-                f"actor roles {owner!r} and {role.name!r} both declare "
-                f"{role.url_env}; one of them is reading the other's container "
-                "slot. Give each role its own VULTRON_*_BASE_URL slot (the slot "
-                "names do not track the role names — see "
-                "notes/demo-scenario-authoring.md)."
+                f"actor roles {owner!r} and {role.name!r} both run in cast "
+                f"container {role.slot.name!r}; one actor runs per container. "
+                "Seat the second one in a free member of the cast "
+                "(vultron.demo.helpers.cast)."
             )
-        seen_env[role.url_env] = role.name
+        seen_slot[role.slot.name] = role.name
 
     return by_name
 
@@ -268,42 +277,75 @@ def role_kwarg_names(roles: Sequence[ActorRole]) -> tuple[str, ...]:
     )
 
 
-__all__ = [
-    "ActorRole",
-    "role_kwarg_names",
-    "role_map",
-]
+def resolved_actor_ids(
+    roles: Mapping[str, ActorRole],
+    **seats: tuple[DataLayerClient, str | None],
+) -> dict[str, str]:
+    """Each seated actor's id, keyed by its ``run_*_demo`` keyword.
 
-
-#: Env var naming the dedicated case-actor container in every scenario.
-CASE_ACTOR_URL_ENV = "VULTRON_CASE_ACTOR_BASE_URL"
-
-
-def case_actor_role(default_url: str, *, has_id: bool = False) -> ActorRole:
-    """The ``case-actor`` slot every Docker scenario declares (#1876).
-
-    Every scenario proposes its cases to the dedicated case-actor container
-    (CP-08-008, DEMOMA-06-004), so each has this role and they differ only in
-    the local fallback port — which is whatever that scenario's other roles
-    leave free — and in whether the handoff scenarios take a deterministic
-    ``--case-actor-id``.
+    Every scenario's ``main()`` resolves the same way — the ``--<name>-id``
+    value if one was given, else the id the container it addresses hosts — so
+    the resolution is called once per scenario rather than once per actor
+    (DEMOMA-17-001).  The result splats straight into the ``run_*_demo`` call.
 
     Args:
-        default_url: Base URL used when :data:`CASE_ACTOR_URL_ENV` is unset.
+        roles: The scenario's :func:`role_map`.
+        seats: One ``<param stem>=(client, override)`` pair per actor whose id
+            the scenario passes on, e.g. ``reporter=(reporter_client,
+            reporter_id)``.
+
+    Returns:
+        ``{role.id_param: id}`` for every seat, in the order given.
+
+    Raises:
+        DemoActorRoleError: If a seat names no declared role, or names one that
+            declares no ``--<name>-id`` option — either is a ``main()`` that
+            has drifted from its ``ROLES``.
+    """
+    by_stem = {role.param_stem: role for role in roles.values()}
+    resolved: dict[str, str] = {}
+    for stem, (client, override) in seats.items():
+        role = by_stem.get(stem)
+        if role is None:
+            raise DemoActorRoleError(
+                f"main() resolves an id for {stem!r}, which no actor role "
+                "declares; the scenario's ROLES and its main() have drifted "
+                f"apart. Declared: {sorted(by_stem)}."
+            )
+        if not role.has_id:
+            raise DemoActorRoleError(
+                f"actor role {role.name!r} has has_id=False, so the CLI emits "
+                f"no --{role.name}-id option, yet main() resolves one; the "
+                "value could only ever be the slot's own id."
+            )
+        resolved[role.id_param] = role.resolve_id(client.base_url, override)
+    return resolved
+
+
+def case_actor_role(*, has_id: bool = False) -> ActorRole:
+    """The ``case-actor`` role every Docker scenario declares (#1876).
+
+    Every scenario proposes its cases to the dedicated case-actor container
+    (CP-08-008, DEMOMA-06-004), so each has this role, in the
+    :data:`~vultron.demo.helpers.cast.CASE_ACTOR` slot.  Scenarios differ only
+    in whether they take a ``--case-actor-id`` (the handoff scenarios do, per
+    DEMOMA-14-008).
+
+    Args:
         has_id: Whether the scenario also takes ``--case-actor-id``.
     """
     return ActorRole(
-        name="case-actor",
-        url_env=CASE_ACTOR_URL_ENV,
-        default_url=default_url,
-        url_help=(
-            "Base URL of the dedicated CaseActor container API "
-            f"(env: {CASE_ACTOR_URL_ENV})."
-        ),
+        name=CASE_ACTOR.name,
+        slot=CASE_ACTOR,
+        title="dedicated CaseActor",
         has_id=has_id,
-        id_help=(
-            "Deterministic full URI for the CaseActor actor (optional)."
-            if has_id
-            else None
-        ),
     )
+
+
+__all__ = [
+    "ActorRole",
+    "case_actor_role",
+    "resolved_actor_ids",
+    "role_kwarg_names",
+    "role_map",
+]

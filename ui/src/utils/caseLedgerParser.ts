@@ -128,15 +128,24 @@ export type LaneId = 'finder' | `vendor-${number}` | 'coordinator' | 'caseactor'
 /**
  * Map an actor URL to a demo lane id.
  *
- * The container demo gives each actor service a distinct hostname: `reporter:`,
- * `vendor:` (the first/primary vendor), `vendor2:`, `vendor3:`, `coordinator:`
- * (a dedicated coordinator container, 2026-07 scenarios), `actor5:` (the second
- * vendor in the coordinator scenarios — seeded as "vendor2", so it reuses the
- * vendor-N machinery as `vendor-2`), … and the Case Actor runs as a sub-actor
- * with a `case-actor-…` path segment on whichever host owns the case
- * (`//vendor:…/case-actor-<caseId>` in rv/rvv/rvcv-*; `//coordinator:…/
- * case-actor-<caseId>` in rcv/rccv-*). Current recordings name it
- * `//case-actor:…/actors/case-actor`, its own host).
+ * Every scenario runs on one fixed cast of role-neutral containers
+ * (DEMOCI-11-020): `actor0:` plays the first Reporter, `actor1:` the first
+ * Vendor, `actor2:` the first Coordinator, and `actor3:`/`actor4:` are
+ * character actors — `actor3:` is Vendor2 in the vendor scenarios and
+ * Coordinator2 in `rccv-*` and `rcvcv`, `actor4:` is the VendorDeployer in
+ * `rcvcv`. Both character slots keep the vendor-N machinery (`vendor-2`,
+ * `vendor-3`): lane identity is keyed on the host, and these are the hosts
+ * that run a second participant's steps, so `actor3:` renders as "Vendor 2"
+ * even where it plays a Coordinator. The Case Actor has its own host,
+ * `//case-actor:…/actors/case-actor`.
+ *
+ * The pre-cast hosts stay recognized for a log recorded before the rename.
+ * The committed logs in this tree carry two of them, `//finder:` and
+ * `//vendor:`; the rest (`//reporter:`, `//coordinator:`, `//vendorN:`,
+ * `//actor5:`, `//actor6:`) are there for a log a user uploads. Those logs
+ * also run the Case Actor as a sub-actor with a `case-actor-…` path segment on
+ * whichever host owns the case (`//vendor:…/case-actor-<caseId>` in
+ * rv/rvv/rvcv-*; `//coordinator:…/case-actor-<caseId>` in rcv/rccv-*).
  *
  * Order matters: the `case-actor` test MUST run FIRST — the recorder sub-actor's
  * URL is itself a `//vendor:` or `//coordinator:` URL, and it must resolve to the
@@ -152,13 +161,17 @@ export function actorUrlToLaneId(url?: string | null): LaneId {
   if (url.includes('case-actor')) return 'caseactor'
   // Recorded demos name the reporter host `reporter:`; the committed sample
   // logs still carry its earlier name, `finder:`.
+  // The fixed cast: slot 0 reports, slot 1 is the first Vendor, slot 2 the
+  // first Coordinator, slots 3 and 4 are character actors.
+  if (url.includes('//actor0:')) return 'finder'
+  if (url.includes('//actor1:')) return 'vendor-1'
+  if (url.includes('//actor2:')) return 'coordinator'
+  if (url.includes('//actor3:')) return 'vendor-2'
+  if (url.includes('//actor4:')) return 'vendor-3'
+  // Pre-cast hosts, kept for the committed sample and synthetic logs.
   if (url.includes('//reporter:') || url.includes('//finder:')) return 'finder'
   if (url.includes('//coordinator:')) return 'coordinator'
-  // `actor5:` hosts Vendor2 in the coordinator scenarios → reuse the vendor-2 lane.
   if (url.includes('//actor5:')) return 'vendor-2'
-  // `actor6:` hosts the VendorDeployer (V2/"vendor-deployer") in the rcvcv
-  // scenario → reuse the vendor-3 lane (same rationale as actor5→vendor-2: lane
-  // identity is keyed on the host, and this host runs the vendor fix lifecycle).
   if (url.includes('//actor6:')) return 'vendor-3'
   // `//vendorN:` (N ≥ 2) → vendor-N; the bare `//vendor:` host → vendor-1.
   const numberedVendor = url.match(/\/\/vendor(\d+):/)

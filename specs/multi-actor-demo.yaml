@@ -2060,9 +2060,10 @@ groups:
     rationale: >-
       RCCV-handoff demonstrates the case-ownership-transfer flow between two
       coordinators.  C1 starts as CASE_OWNER, then transfers ownership to C2
-      via TRIG-11-001/002.  The five-container topology (Reporter, C1, C2,
-      Vendor, CaseActor) reuses the existing docker-compose-multi-actor.yml
-      services (vendor→C1, coordinator→C2, vendor2→Vendor).
+      via TRIG-11-001/002.  Its five containers come from the fixed cast: C1
+      in the first Coordinator slot, the Vendor in the first Vendor slot, C2 in
+      a character-actor slot, plus the Reporter slot and the dedicated
+      CaseActor container (DEMOCI-11-020).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001
@@ -2941,23 +2942,44 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The RCVCV scenario MUST add an `actor6` service to
-      `docker/docker-compose-multi-actor.yml`, configured identically to
-      the existing `actor5` service (same `*actor-service` anchor, port
-      pattern, data volume) with `VULTRON_SERVER__BASE_URL=http://actor6:7999/api/v2/`,
-      `VULTRON_ACTOR_ID=http://actor6:7999/api/v2/actors/vendor-deployer`,
-      `VULTRON_ACTOR__DEFAULT_CASE_ROLES=["vendor","deployer"]`, and
-      `VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-actor6.yaml`.
+      The RCVCV scenario MUST seat V2 (VendorDeployer) in a character-actor
+      slot of the fixed cast (DEMOCI-11-020).
     rationale: >-
-      The RCVCV scenario requires five independent actor containers — one per
-      CVD-role actor — to force all inter-actor communication over the network
-      wire protocol (DEMOMA-01-001). The existing four non-CaseActor containers
-      are insufficient; a sixth container (`actor6`) carries V2 (VendorDeployer).
-      Keeping one actor per container preserves the architectural isolation
-      invariant that prevents intra-container data-layer shortcuts (ADR-0042).
+      The RCVCV scenario needs five independent actor containers — one per
+      scenario actor — to force all inter-actor communication over the network
+      wire protocol (DEMOMA-01-001). Keeping one actor per container preserves
+      the architectural isolation invariant that prevents intra-container
+      data-layer shortcuts (ADR-0042). V2 holds VENDOR and DEPLOYER from the
+      Invite that seats it, so its container declares no default case roles
+      (DEMOCI-11-021).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001
+    - rel_type: refines
+      spec_id: DEMOMA-02-001
+    - rel_type: refines
+      spec_id: DEMOCI-11-020
+
+  - id: DEMOMA-19-023
+    priority: MUST
+    kind: project
+    statement: >-
+      Each cast slot RCVCV seats MUST have a service built from the shared
+      `*actor-service` anchor, with its own volume, port variable and actor
+      id.
+    rationale: >-
+      One anchor for every actor service keeps the image build and the health
+      check identical across the cast, so a per-container stanza holds only
+      what actually differs. Its seed config is DEMOCI-11-028. One actor per
+      container preserves the isolation invariant that prevents
+      intra-container data-layer shortcuts (ADR-0042).
+    verification: >-
+      Tests assert, over every cast slot, that the compose file gives it its own
+      data volume, publishes it on its own host-port variable, and configures the
+      actor id its slot hosts. The shared anchor itself is the remaining debt.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-19-001
     - rel_type: refines
       spec_id: DEMOMA-02-001
 
@@ -3070,15 +3092,14 @@ groups:
     statement: >-
       The RCVCV scenario MUST be registered with the scenario registry
       (DEMOCI-11-001), so that its generated `.github/demo-scenarios.json`
-      entry (DEMOCI-11-004) adds it to the CI matrix, and `actor6` MUST be
-      defined in `docker/docker-compose-multi-actor.yml` alongside the existing
-      five actor services.
+      entry (DEMOCI-11-004) adds it to the CI matrix.
     rationale: >-
-      CI coverage of all demo scenarios is required by DEMOCI-04-001. The
-      RCVCV scenario introduces the actor6 container; CI starts the whole
-      multi-actor compose file, so defining the service there is what makes
-      it available to the run. Scenario-role names in devlogs match the names
-      used in scenario code, making log archaeology easier.
+      CI coverage of all demo scenarios is required by DEMOCI-04-001. RCVCV is
+      the widest scenario, so it is the one that sets the size of the cast.
+      DEMOMA-19-023 is what places each of those containers in the compose file
+      CI starts as a whole; this requirement no longer carries that half.
+      Scenario-role names in devlogs match the names used in scenario code,
+      making log archaeology easier.
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-04-001
@@ -3134,24 +3155,33 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      A `seed-actor6.yaml` seed config MUST be created in `docker/seed-configs/`
-      with `local_actor.id=http://actor6:7999/api/v2/actors/vendor-deployer`,
-      `local_actor.name=VendorDeployer`, and a peers list covering the five other
-      actors (reporter, vendor, coordinator, actor5, case-actor).
+      Every cast container the RCVCV scenario seats MUST have its own seed
+      config in `docker/seed-configs/`.
     rationale: >-
-      The seed config bootstraps actor6's identity and peer registry at container
-      startup, consistent with the pattern used by all other actor containers.
+      RCVCV is the widest scenario, so it is the first to need a seed config
+      for every cast container. The cast-wide shape of those configs is
+      DEMOCI-11-028 (the local actor), DEMOCI-11-029 (the peer mesh) and
+      DEMOCI-11-033 (the display name), which together replace the id, name
+      and peer list this requirement used to spell for one container.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-11-028
   - id: DEMOMA-19-011
     priority: MUST
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The `demo-runner` service MUST add `actor6` to its `depends_on` list and
-      expose `VULTRON_VENDOR_DEPLOYER_BASE_URL=http://actor6:7999/api/v2` in
-      its environment block.
+      The `demo-runner` service MUST wait for every cast container the RCVCV
+      scenario seats.
     rationale: >-
-      Without actor6 in depends_on, the demo runner may start before actor6 is
-      healthy; without the environment variable, the scenario cannot locate V2.
+      RCVCV seats every cast container, so its run is the one that waits for
+      all of them. The cast-wide form of the wait and of the matching
+      environment variables is DEMOCI-11-030 and DEMOCI-11-031.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-11-030
+    - rel_type: refines
+      spec_id: DEMOCI-11-031
   - id: DEMOMA-19-012
     priority: MUST
     kind: project
@@ -4699,9 +4729,9 @@ groups:
       Using the shared `case-actor` container for Vendor-owned cases matches the
       topology used by other scenarios where a non-Coordinator actor holds
       CASE_OWNER, keeps the CaseActor identity consistent across scenarios, and
-      exercises true multi-container message delivery. All three containers
-      (vendor, coordinator, case-actor) already exist in
-      `docker-compose-multi-actor.yml`; no new infrastructure is required.
+      exercises true multi-container message delivery. Every container it
+      needs is already in the fixed cast (DEMOCI-11-020); no new
+      infrastructure is required.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001

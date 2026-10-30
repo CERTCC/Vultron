@@ -3,7 +3,6 @@ title: Demo Scenario Tree — Names, Index, Prefix Check, Composition, Starting 
 status: active
 kind: plan
 tracks:
-  - "#1928"
   - "#4733"
   - "#4747"
   - "#5303"
@@ -14,7 +13,6 @@ tracks:
   - "#5347"
   - "#5348"
   - "#5349"
-  - "#5532"
   - "#5533"
   - "#5534"
   - "#5535"
@@ -85,6 +83,9 @@ branch-point table". Read the tree there, not from a copy here.
   without changing a verdict (DEMOMA-17-002), then regenerate the recordings.
   A shared step goes in one helper (`reporter_asks_vendor_timeline`,
   `vendor_answers_workaround`), so its siblings cannot drift apart.
+- **Regenerate every scenario together.** One seed and one cast mean a run
+  draws the same ids in every scenario, so a single fresh recording beside
+  stale siblings fails the pairwise check even when nothing drifted.
 
 ## Names
 
@@ -129,14 +130,15 @@ DEMOCI-11-018). The test is `TestSharedPrefixes` in
 - Each recording's ids are relabeled by first appearance and its timestamps
   dropped; the entries must then be equal up to the branch point, references
   between objects included.
-- Byte identity is not required yet: siblings seed different actor ids,
-  container slots and ports (`rcvcv` seeds named actor ids, its siblings UUIDs),
-  so ids differ even where logic matches. A composed family tightens to byte
-  identity, which then holds by construction; name it in `COMPOSED_FAMILIES`
-  (`vultron/demo/recordings/prefix.py`).
+- Byte identity is not required yet: siblings still place their shared steps
+  by hand, so the order can differ even where the logic matches. The addresses
+  no longer can — one cast and one seed (DEMOCI-11-020, DEMOCI-11-025). A
+  composed family tightens to byte identity, which then holds by construction;
+  name it in `COMPOSED_FAMILIES` (`vultron/demo/recordings/prefix.py`).
 - A container slot is not only an address. The proposer's container sets its
-  default case roles (CP-01-013), so a case owner must run in the same slot
-  as in its siblings, or the first entry already differs.
+  default case roles (CP-01-013), which is why only the three fixed-role slots
+  declare any: a case owner holds the same roles in every sibling, or the first
+  entry already differs.
 - The check reads where each branch point falls from the step marks. A
   scenario calls `harness.reach_step(branch_point, choice, by=actor_id)` where
   it makes the decision, before another role's steps that run ahead of the
@@ -170,14 +172,26 @@ continuation per choice (DEMOCI-11-019, ADR-0098). Rules for the work:
   so a composed scenario places no `reach_step` by hand. During migration the
   registry accepts either form; a composed scenario that also declares
   `path=` fails discovery (DEMOCI-11-024).
-- **One cast, one seed.** Role-neutral actor containers plus the Case Actor
-  (#1928). The first Reporter, first Vendor and first Coordinator a scenario
-  seats run in cast slots 0, 1 and 2; a scenario without one of these roles
-  (`rv` has no Coordinator) leaves its slot unused. Members 3 and up are
-  character actors whose role each scenario sets through the act that seats
-  them (DEMOCI-11-020, DEMOCI-11-021). Every recording uses one tree-wide
-  seed, so a shared prefix records the same bytes in every sibling
-  (DEMOCI-11-025, DEMOCI-11-018).
+- **A fragment takes the cast, not a container.** The cast and the tree-wide
+  seed are fixed (DEMOCI-11-020, DEMOCI-11-025), so a story fragment is handed
+  the cast's sessions and the case, and names no container of its own.
+- **Clear process-global registries between runs.** One seed means the second
+  scenario in a process redraws the first one's ids, so a runner that plays
+  more than one story must reset them — `reset_blackboard()` is the one that
+  bit, because py_trees refuses a blackboard client id it already holds.
+- **Byte identity needs one authored opening, not just one cast.** With the cast
+  and the tree-wide seed fixed, five of the twelve sibling pairs that share a
+  prefix are already byte-identical, where none was before (#5532). The seven
+  that are not all pair `rcvcv` or `rcvv-embargo` with a narrower sibling, and
+  the cause is setup length: those two read the stepping clock more times before
+  the case opens, so they stamp `create_case` a second later and the hash chain
+  carries the offset. Composing the opening is what closes it, so
+  `COMPOSED_FAMILIES` stays empty until a family is composed (DEMOCI-11-018).
+- **Key a composed view on the scenario and the case, never the case alone.**
+  One seed also means every scenario draws the *same* case id, which is what
+  lets siblings record identical bytes for a shared opening (DEMOCI-11-025) and
+  is why `scenario_tree.json` nests its `recordings` map under the scenario
+  name. A view that indexed recordings by case id would merge all eleven.
 - **Specs stay whole stories.** Each scenario's spec group and its DEMOMA-16
   list of required semantic types describe the whole story, written by hand,
   so the run is checked against the spec, not against the code. Each group
@@ -227,8 +241,8 @@ reports to the harness with `reach_step` for the shared-prefix check
 
 ## Task order
 
-1. Composition, one PR per step, in this order: the fixed cast (#5532); the
-   story runner, piloted on `rcv` and `rcv-reject` (#5533); the rest of the
+1. Composition, one PR per step, in this order: the story runner, piloted on
+   `rcv` and `rcv-reject` (#5533); the rest of the
    "Coordinator invites Vendor" subtree, `rcvcv`, `rcv-embargo` and
    `rcvv-embargo` (#5534); the two-coordinator subtree, `rccv-*` (#5535); the
    vendor-first half, `rv`, `rvv` and `rvcv-*` (#5536); then retiring `path=`

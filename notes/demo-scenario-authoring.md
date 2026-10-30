@@ -7,10 +7,10 @@ description: >
   puppeteer actors through trigger endpoints rather than spoofing via inbox
   injection, never carry one actor's mail to another's inbox, extract helpers
   before the second use, call triggers through `ActorSession`, keep
-  console-script entry points callable with no arguments, treat docker service
-  names as routing labels rather than actor identities, keep raising waits
-  inside a demo context, share the replica-sync phase, and close every case
-  with the Case Owner leaving last.
+  console-script entry points callable with no arguments, run every scenario on
+  one fixed cast of role-neutral container slots, keep raising waits inside a
+  demo context, share the replica-sync phase, and close every case with the
+  Case Owner leaving last.
 related_specs:
   - specs/case-bootstrap-trust.yaml
   - specs/demo-ci.yaml
@@ -155,20 +155,30 @@ every import-level test passes. Test the real console script with
 
 ---
 
-## Docker Compose Service Names Are Not Actor Names
+## Every Scenario Runs on the Fixed Cast
 
-The service names in `docker/docker-compose-multi-actor.yml` are routing labels
-for container slots. They need not match the CVD role of the actor a scenario
-puts in them.
+The containers in `docker/docker-compose-multi-actor.yml` are the cast:
+role-neutral slots declared once in `vultron/demo/helpers/cast.py`, with one
+address and one actor id per slot in every scenario (DEMOCI-11-020).
 
-- Reuse an existing service for a new role through its `VULTRON_*_BASE_URL`
-  binding; do not add a service to get a new actor name. That keeps the CI
-  startup count constant.
-- Name actors for their CVD role in the scenario, not for the slot.
-- A scenario's `ActorRole.url_env` therefore names the slot it reads, which is
-  why it cannot be derived from the role name (see
-  [demo-scenario-registry.md](demo-scenario-registry.md) § "The CLI is a
-  registry consumer").
+- **Seat an actor, do not add a container.** A new part takes a free cast slot
+  through its `ActorRole(name, slot, title)`; a new service would change the CI
+  startup count and give the tree a second set of addresses.
+- **Slots 0, 1 and 2 are the first Reporter, Vendor and Coordinator**, and a
+  scenario that seats none of one leaves that slot idle. Slots 3 and up are
+  character actors: their CVD role comes from the act that seats them, so their
+  container declares no `VULTRON_ACTOR__DEFAULT_CASE_ROLES` (DEMOCI-11-021).
+- **Name actors for the part they play here, not for the slot.** `rcv`'s
+  `coordinator` and `rcvcv`'s `c1` are the same container. A devlog directory
+  is a separate choice and not always the part: the `rccv-*` scenarios keep
+  RVCV-legacy directory names (`vendor` is C1, `coordinator` is C2), which the
+  invariant harness pins — see
+  [demo-ci-invariants.md](demo-ci-invariants.md) § "Harness File Conventions"
+  before renaming one.
+- **A scenario declares no URL, port or actor id.** They are the slot's; a
+  scenario that needs a different id passes `--<name>-id`. Growing the cast is
+  a `CAST_SIZE` change, and `test/demo_unit/test_cast.py` fails until the
+  compose file and seed configs follow.
 
 ---
 

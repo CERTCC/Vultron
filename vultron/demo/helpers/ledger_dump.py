@@ -45,10 +45,12 @@ import os
 import pathlib
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx2 as httpx
 
 from vultron.adapters.utils import strip_id_prefix
+from vultron.demo.helpers.cast import slot_for
 from vultron.demo.utils import CASE_ACTOR_SLUG, DataLayerClient, demo_step
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -224,40 +226,61 @@ def case_id_slug(case_id: str) -> str:
     )
 
 
-def replica_route_key(client: DataLayerClient, fallback: str) -> str:
-    """Return the route key naming *client*'s own actor, else *fallback*.
+def replica_route_key(client: DataLayerClient) -> str:
+    """Return the route key naming *client*'s own actor.
 
-    A route key now *selects the store* (ADR-0073) rather than decorating a path
-    into a store shared by everyone in the container.  A literal key therefore
-    reads whichever actor happens to be hosted under that slug — which is the
-    actor this run used only when the scenario seeded deterministic named ids.
-    The moment an id is generated, the literal names an actor with an empty
-    store and the dump reports "No case ledger entries" while the real store
-    holds the whole exchange.
+    A route key *selects the store* (ADR-0073) rather than decorating a path
+    into a store shared by everyone in the container.  A guessed key therefore
+    reads whichever actor happens to be hosted under that slug; the moment it
+    names the wrong one, the dump reports "No case ledger entries" while the
+    real store holds the whole exchange.
 
     The client already knows: :func:`vultron.demo.helpers.seeding._own_actor`
     binds ``client.actor_id`` as each container's own actor is created, so by
-    ledger-dump time every scenario client is bound.  *fallback* covers the
+    ledger-dump time every scenario client is bound.  The fallback covers the
     ordering exception — a client built for the pre-seed health check and dumped
-    without ever being bound — and preserves today's behaviour there rather than
-    raising during teardown, when the ledger is the only evidence left.
+    without ever being bound — and is the name of the cast container the URL
+    addresses, which is the slug of the one actor that container hosts
+    (DEMOCI-11-020).  It is read from the cast rather than from the URL's host
+    name, because a local run addresses every container as ``localhost`` on a
+    different port.  Guessing beats raising during teardown, when the ledger is
+    the only evidence left.
 
     Args:
         client: The container client whose own actor the dump is about.
-        fallback: Literal route key to use when *client* carries no ``actor_id``.
 
     Returns:
         The route key to read the ledger under.
     """
     if not client.actor_id:
+        slot = slot_for(client.base_url)
+        if slot is None:
+            # Not a cast container, so nothing says which actor it hosts.  The
+            # host name is the last guess available, and the WARNING is the
+            # only notice the dump will give before it reports an empty ledger.
+            # An address with no host name at all leaves nothing to guess, so
+            # the key is the address itself: an empty key would read as "no
+            # actor" and hide which client the dump could not place.
+            host = (
+                urlparse(client.base_url).hostname
+                or client.base_url
+                or "unresolved-actor"
+            )
+            logger.warning(
+                "ledger dump: client for %s is unbound and addresses no cast"
+                " container, so its route key falls back to the host name"
+                " %r, which may name no actor (ADR-0073, DEMOCI-11-020)",
+                client.base_url,
+                host,
+            )
+            return host
         logger.debug(
-            "ledger dump: client for %s is unbound, falling back to the"
-            " literal route key '%s'; it names whichever actor is hosted under"
-            " that slug (ADR-0073)",
+            "ledger dump: client for %s is unbound, falling back to the slug"
+            " of the actor cast container %r hosts (ADR-0073, DEMOCI-11-020)",
             client.base_url,
-            fallback,
+            slot.name,
         )
-        return fallback
+        return slot.name
     return strip_id_prefix(client.actor_id)
 
 
@@ -283,7 +306,7 @@ def case_actor_dump_target(
     return LedgerDumpTarget(
         CASE_ACTOR_SLUG,
         case_actor_client,
-        replica_route_key(case_actor_client, CASE_ACTOR_SLUG),
+        replica_route_key(case_actor_client),
     )
 
 
@@ -393,7 +416,7 @@ def case_ledger_length(
         httpx.HTTPStatusError: When the container answers with an error,
             a 404 included.
     """
-    route_key = replica_route_key(case_actor_client, CASE_ACTOR_SLUG)
+    route_key = replica_route_key(case_actor_client)
     return len(
         case_actor_client.get_list(
             f"/actors/{route_key}/demo/cases/{strip_id_prefix(case_id)}/log"

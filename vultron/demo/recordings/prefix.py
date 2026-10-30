@@ -46,11 +46,12 @@ from vultron.demo.scenario.tree import PathStep, TreeNode
 
 #: A string that names an object, wherever it occurs in an entry: an actor or
 #: other URL, a ``urn:uuid:`` id, a bare UUID, the actor part of a
-#: participant id (``<case>/participants/<uuid or actor slug>``: ``rcvcv``
-#: seeds named actor ids where its siblings seed UUIDs), or a SHA-256 hex
-#: digest (``entryHash``, ``prevLogHash``).  Each one is relabeled by first
-#: appearance, including inside a longer string such as an activity ``name``
-#: and in a mapping key such as an ``actorParticipantIndex`` entry.
+#: participant id (``<case>/participants/<uuid or actor slug>``, since the
+#: fixed cast seeds every container a slug rather than a UUID,
+#: DEMOCI-11-020), or a SHA-256 hex digest (``entryHash``, ``prevLogHash``).
+#: Each one is relabeled by first appearance, including inside a longer string
+#: such as an activity ``name`` and in a mapping key such as an
+#: ``actorParticipantIndex`` entry.
 _ID_RE = re.compile(
     r"https?://[^\s\"']+"
     r"|urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
@@ -71,8 +72,18 @@ _TIMESTAMP = "<timestamp>"
 #: Scenario families written as composition (#4733), each the names of its
 #: scenarios.  Every two scenarios in one family must be byte-identical up to
 #: the branch point where their paths part (DEMOCI-11-018).  Empty because no
-#: family is composed yet: until one is, every sibling pair seeds its own
-#: actor names, container slots and ports, so only isomorphism can hold.
+#: family is composed yet, and composition is what the byte check is for: a
+#: family is admitted here when its scenarios share one authored opening
+#: (#5533), not when two hand-placed openings happen to agree.
+#:
+#: They do now agree for some pairs, which they could not before the fixed cast
+#: and the tree-wide seed: five of the twelve sibling pairs with a shared prefix
+#: are byte-identical as of #5532, where none was before.  The seven that still
+#: differ all pair ``rcvcv`` or ``rcvv-embargo`` with a narrower sibling, and
+#: the cause is setup length, not protocol: those two read the stepping clock
+#: more times before the case opens, so they stamp ``create_case`` one second
+#: later and the hash chain carries the offset to the branch point.  Composing
+#: the opening is what removes that, which is why the check waits for it.
 COMPOSED_FAMILIES: tuple[frozenset[str], ...] = ()
 
 

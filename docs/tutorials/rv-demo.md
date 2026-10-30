@@ -87,7 +87,8 @@ The `rv` scenario is the **default**, so no `DEMO` environment variable is requi
 {% include-markdown "./_first_run_build.md" %}
 
 Once the images exist, the compose stack starts all of its actor containers and waits for each one to pass its health check.
-Three of them take part in this scenario: `reporter` plays the Reporter, `vendor` plays the Vendor, and `case-actor` hosts the **Case Actor**.
+Three of them take part in this scenario: `actor0` plays the Reporter, `actor1` plays the Vendor, and `case-actor` hosts the **Case Actor**.
+[The cast](container_demos.md#the-cast) lists what each container plays.
 The Case Actor is the actor that holds the CASE_MANAGER role for the case and writes its ledger; see [The CASE_MANAGER and the Case Ledger](../topics/case_lifecycle/case_manager_and_ledger.md) for what that role does.
 The other containers stay idle, and the demo runner confirms at the end of Phase 2 that the dedicated `case-actor` container holds the case.
 
@@ -228,7 +229,7 @@ Verify that every actor service is healthy:
 
 ```bash
 docker compose -f docker/docker-compose-multi-actor.yml \
-    ps reporter vendor coordinator case-actor actor5 actor6
+    ps actor0 actor1 actor2 actor3 actor4 case-actor
 ```
 
 All of them should show `healthy` status.
@@ -241,8 +242,8 @@ Then check the demo-runner and actor logs for errors:
 
 ```bash
 docker compose -f docker/docker-compose-multi-actor.yml logs demo-runner
-docker compose -f docker/docker-compose-multi-actor.yml logs vendor
-docker compose -f docker/docker-compose-multi-actor.yml logs reporter
+docker compose -f docker/docker-compose-multi-actor.yml logs actor0
+docker compose -f docker/docker-compose-multi-actor.yml logs actor1
 ```
 
 Look for `ERROR` or `500` status lines that correspond to the failing step.

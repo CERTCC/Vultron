@@ -92,8 +92,8 @@ def _colorize(line: str) -> str:
     m = _PREFIX_RE.match(line)
     if not m:
         return line
-    base_name = m.group(1)  # e.g. "reporter" from "reporter-1"
-    full_name = m.group(1) + (m.group(2) or "")  # e.g. "reporter-1"
+    base_name = m.group(1)  # e.g. "actor0" from "actor0-1"
+    full_name = m.group(1) + (m.group(2) or "")  # e.g. "actor0-1"
     ansi = _COLORS.get(full_name) or _COLORS.get(base_name)
     if not ansi:
         return line

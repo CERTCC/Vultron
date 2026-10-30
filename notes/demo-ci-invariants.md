@@ -148,8 +148,12 @@ Each scenario has one self-contained harness,
 `test/ci/invariants/test_<scenario>_invariants.py`, with no shared base class.
 Copy an existing one:
 
-1. Declare `_DEMO_NAME`, `_CHAIN_ACTORS` (scenario-role names, not docker service
-   names) and `_<SCENARIO>_EXPECTED_SEMANTIC_TYPES`.
+1. Declare `_DEMO_NAME`, `_CHAIN_ACTORS` (devlog directory names, not docker
+   service names) and `_<SCENARIO>_EXPECTED_SEMANTIC_TYPES`. A directory name is
+   usually the part the actor plays, but not always: the `rccv-*` scenarios keep
+   RVCV-legacy names, where `vendor` is C1, `coordinator` is C2 and `vendor2` is
+   the Vendor. Read the scenario's own dump call before assuming the name is the
+   part, and rename nothing here without renaming the dump with it.
 2. Define a module-scoped replicas fixture calling
    `load_devlogs(demo_name=_DEMO_NAME)`.
 3. Inject the universal invariants with

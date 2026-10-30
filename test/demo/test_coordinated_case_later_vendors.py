@@ -19,6 +19,7 @@ is invited, closed, covered and dumped like the first.
 """
 
 from unittest.mock import MagicMock, patch
+from urllib.parse import urlparse
 
 import pytest
 
@@ -45,6 +46,15 @@ def _client(name: str) -> MagicMock:
     client = MagicMock()
     client.base_url = f"http://{name}:7999/api/v2"
     return client
+
+
+def _host_of(client: MagicMock) -> str:
+    """Stand in for ``replica_route_key``: the client's container host.
+
+    A ``MagicMock`` client carries a truthy ``actor_id``, so the real helper
+    would derive a key from a mock.
+    """
+    return str(urlparse(client.base_url).hostname)
 
 
 @pytest.fixture
@@ -194,7 +204,7 @@ class TestDump:
         vendor2_client = _client("vendor2")
         with (
             patch.object(cc, "dump_case_ledgers") as dump,
-            patch.object(cc, "replica_route_key", side_effect=lambda c, n: n),
+            patch.object(cc, "replica_route_key", side_effect=_host_of),
         ):
             cc.dump_coordinated_case_ledgers(
                 demo_name="rcvv-embargo",
@@ -207,13 +217,22 @@ class TestDump:
                 later_vendors=[("vendor2", vendor2_client)],
             )
 
-        names = [t.actor_name for t in dump.call_args.kwargs["targets"]]
-        assert names == [
+        targets = dump.call_args.kwargs["targets"]
+        assert [t.actor_name for t in targets] == [
             "reporter",
             "coordinator",
             "vendor",
             "vendor2",
             "case-actor",
+        ]
+        # Each target's route key must come from its *own* client: the key
+        # selects the store (ADR-0073), so a mis-paired client reads another
+        # participant's replica and the dump reports an empty ledger.
+        assert [t.route_key for t in targets[:-1]] == [
+            "reporter",
+            "coordinator",
+            "vendor",
+            "vendor2",
         ]
 
 
@@ -272,7 +291,7 @@ class TestCaseManagerIsTheDedicatedContainer:
         case_actor_client = _client("case-actor")
         with (
             patch.object(cc, "dump_case_ledgers") as dump,
-            patch.object(cc, "replica_route_key", side_effect=lambda c, n: n),
+            patch.object(cc, "replica_route_key", side_effect=_host_of),
         ):
             cc.dump_coordinated_case_ledgers(
                 demo_name="rcv",

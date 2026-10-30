@@ -1049,8 +1049,9 @@ groups:
           The `rcv-embargo` scenario MUST be registered with
           `in_pr_set=True` (DEMOCI-11-001), so that its generated entry in
           `.github/demo-scenarios.json` (DEMOCI-11-004) carries
-          `"full_suite_only": false`. The scenario runs on the `reporter`
-          (reporter role), `coordinator`, `vendor`, and `case-actor` services.
+          `"full_suite_only": false`. The scenario runs on the first Reporter,
+          Coordinator and Vendor slots of the fixed cast (DEMOCI-11-021) and
+          the `case-actor` service.
         rationale: >-
           The embargo semantic types come only from the embargo scenarios
           (DEMOCI-06-002). In the PR set, `rcv-embargo` checks the embargo lifecycle on
@@ -1103,16 +1104,16 @@ groups:
           The `rcvv-embargo` scenario MUST be registered with
           `in_pr_set=True` (DEMOCI-11-001), so that its generated entry in
           `.github/demo-scenarios.json` (DEMOCI-11-004) carries
-          `"full_suite_only": false`. The scenario runs on the `reporter`
-          (reporter role), `coordinator`, `vendor`, `actor5` (seeded as
-          `vendor2`), and `case-actor` services.
+          `"full_suite_only": false`. The scenario runs on the first Reporter,
+          Coordinator and Vendor slots of the fixed cast (DEMOCI-11-021), one
+          character-actor slot for Vendor2, and the `case-actor` service.
         rationale: >-
           The rcvv-embargo scenario needs a fourth actor beyond the three used
-          by rcv-embargo; Vendor2 runs in the `actor5` slot of the multi-actor
-          compose file, which CI starts as a whole. Scenario-role names in
-          devlogs (`vendor2`, not `actor5`) match scenario code, making log
-          archaeology easier and consistent with the RCVCV pattern
-          (DEMOMA-19-007).
+          by rcv-embargo; Vendor2 takes a character-actor slot of the
+          multi-actor compose file, which CI starts as a whole. Devlog
+          directories keep the scenario's own names (`vendor2`, not the slot
+          name), so they name the part an actor plays here and make log
+          archaeology easier.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-04-001
@@ -2248,9 +2249,9 @@ groups:
           every reference between objects, with timestamps excluded.
         rationale: >-
           Byte identity cannot hold for scenarios that are still copies:
-          siblings seed different actor names, container slots and ports, so
-          their ids differ even when the logic matches. Isomorphism checks the
-          logic and the relationships without the literal addresses, much as
+          siblings place their shared steps by hand, so the order can differ
+          even where the logic matches. Isomorphism checks the logic and the
+          relationships without the literal addresses, much as
           position-independent code is compared, and still fails a declaration
           that misstates where two scenarios diverge.
         verification: >-
@@ -2364,6 +2365,170 @@ groups:
         relationships:
           - rel_type: depends_on
             spec_id: DEMOCI-11-018
+
+      - id: DEMOCI-11-026
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A cast container other than the first-Vendor and first-Coordinator
+          slots MUST NOT declare default case roles.
+        rationale: >-
+          A character actor's CVD role comes from the act that seats it, so a
+          container default would give it that role in every scenario and the
+          same container could not be a Vendor in one and a Coordinator in
+          another (DEMOCI-11-021). The first-Reporter slot and the CaseActor
+          container are covered for a different reason: neither owns a case, so
+          neither has a role to own one as. Only a container that can own a case
+          declares its role (DEMOCI-11-032).
+        verification: >-
+          A test reads the compose file and asserts that the first-Reporter
+          slot, every character-actor slot and the CaseActor service set no
+          default-case-roles variable.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-021
+
+      - id: DEMOCI-11-027
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A cast container's actor id MUST NOT name a CVD role.
+        rationale: >-
+          A role-named id reads as a claim about the part its actor plays, and
+          the cast's point is that the part changes between scenarios while the
+          container does not (DEMOCI-11-020).
+        verification: >-
+          A test asserts that the `/actors/` segment of every cast container's
+          configured actor id is not the name of any CVD role. The host half of
+          the id is pinned separately, to the container's own slot.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-020
+
+      - id: DEMOCI-11-028
+        priority: MUST
+        kind: project
+        statement: >-
+          Every cast container and the dedicated CaseActor container MUST have
+          a seed config whose local actor is the actor that container hosts.
+        rationale: >-
+          The seed config bootstraps a container's identity with no discovery
+          step to fall back on, so a config naming another container's actor
+          gives the demo two containers with one identity.
+        verification: >-
+          A test asserts that each container's configured seed config declares
+          the actor id that container hosts, and that no seed config is left
+          over from a retired container.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-020
+
+      - id: DEMOCI-11-029
+        priority: MUST
+        kind: project
+        statement: >-
+          Each cast container's seed config MUST list every other cast
+          container and the dedicated CaseActor container as a peer.
+        rationale: >-
+          A container cannot address an actor it does not know, and the demo
+          has no discovery step, so a missing peer stops a message that the
+          protocol requires.
+        verification: >-
+          A test asserts that the peer ids of every seed config are exactly the
+          other containers' actor ids.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-028
+
+      - id: DEMOCI-11-030
+        priority: MUST
+        kind: project
+        statement: >-
+          The demo runner service MUST wait for every cast container and the
+          dedicated CaseActor container to become healthy.
+        rationale: >-
+          A runner that starts before a container is healthy fails the
+          scenario's first call to it, which reads as a protocol failure.
+        verification: >-
+          A test asserts that the runner's dependency list is exactly the cast
+          and the CaseActor container, each with a health condition.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-020
+
+      - id: DEMOCI-11-031
+        priority: MUST
+        kind: project
+        statement: >-
+          The demo runner service MUST expose the base URL of every cast
+          container and of the dedicated CaseActor container.
+        rationale: >-
+          A scenario reads each container's address from its own environment
+          variable, so a missing one resolves to the local-development default
+          and the scenario cannot reach the actor at all.
+        verification: >-
+          A test asserts that the runner's environment sets each container's
+          base-URL variable to that container's address on the compose network.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-020
+
+      - id: DEMOCI-11-032
+        priority: MUST
+        kind: project
+        statement: >-
+          The first-Vendor and first-Coordinator cast slots MUST declare their
+          own CVD role as their container's default case roles.
+        rationale: >-
+          These are the only cast containers that own a case, and a case is
+          owned as a role (CP-01-013). Without the declaration a Coordinator
+          that owns the case holds only `case_owner`, and the harness then
+          fails every Coordinator step of the scenario (#5467, DEMOCI-11-013).
+          Every other cast container declares none (DEMOCI-11-026).
+        verification: >-
+          A test reads the compose file and asserts that the first-Vendor slot
+          declares the Vendor role and the first-Coordinator slot the
+          Coordinator role.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-021
+
+      - id: DEMOCI-11-033
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A character-actor container's seed config MUST NOT name its local
+          actor for a CVD role.
+        rationale: >-
+          The display name is what the devlogs and the UI show for that actor,
+          so a role name there makes the same claim a role-named actor id would
+          (DEMOCI-11-027), in the one place a reader looks to find out who an
+          actor is. A fixed-role slot may be named for its role, because it
+          plays that part in every scenario; a character actor takes the name
+          of its container.
+        verification: >-
+          A test asserts the display name each seed config declares, naming the
+          fixed-role slots for their role and each character-actor slot for its
+          container.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-021
 
       - id: DEMOCI-11-021
         priority: MUST
