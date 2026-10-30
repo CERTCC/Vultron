@@ -21,10 +21,11 @@ withdrawn, and nothing in the build said so.
 The evidence of what was live is the deployed site, and it is gone the moment
 the next deploy replaces it. So the evidence is committed: :data:`BASELINE`
 lists every ``docs/`` page any publish has built, and it only grows.
-``--snapshot <ref>`` adds the pages a ref builds. ``main`` deploys on every
-merge (ADR-0166), so a page is due the moment its pull request merges: a pull
-request that adds a page commits it, runs ``--snapshot HEAD``, and commits the
-grown baseline too. Recording each page as it merges covers every deploy.
+``--snapshot <ref>`` adds the pages a ref builds. A page goes live at the
+next deploy after it reaches ``main``, so it is recorded in the pull request
+that adds it: that pull request commits the page, runs ``--snapshot HEAD``, and
+commits the grown baseline too. Recording each page as it merges covers every
+deploy, whatever triggers it.
 
 ``--require-recorded`` enforces that (DOCBW-03-012): it fails when a page the
 checked-out commit builds is missing from the baseline, deciding "built" by
@@ -84,9 +85,9 @@ _HEADER = """\
 #
 # `uv run docs-legacy-urls` fails when the built site/ neither serves nor
 # redirects one of these URLs, unless a withheld declaration covers it. The list
-# only grows: a URL that was once published stays accounted for. main deploys
-# on every merge, so a pull request that adds a page commits it, runs `uv run
-# docs-legacy-urls --snapshot HEAD` and commits this file too;
+# only grows: a URL that was once published stays accounted for. A page goes
+# live at the next deploy, so a pull request that adds a page commits it, runs
+# `uv run docs-legacy-urls --snapshot HEAD` and commits this file too;
 # `--require-recorded` fails the pull request until it does.
 #
 # Seeded from origin/publish at ee5d96d3d (#3556)."""
@@ -105,8 +106,8 @@ _MAX_HOPS = 10
 # How to fix every --require-recorded failure, so each message names it.
 RECORD_HINT = (
     "Commit the page, run 'uv run docs-legacy-urls --snapshot HEAD', and "
-    "commit the updated baseline in the same pull request: main deploys on "
-    "every merge, so a page's URL is live once it merges."
+    "commit the updated baseline in the same pull request: a page's URL "
+    "goes live at the next deploy after it merges."
 )
 
 

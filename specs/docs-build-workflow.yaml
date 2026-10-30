@@ -172,10 +172,10 @@ groups:
           between the build step and the Pages artifact upload.
         rationale: >-
           `deploy_site.yml` is the workflow that actually publishes: it builds
-          `site/` on a push to `main` and uploads it to Pages. A gate present
+          `site/` on a push to `publish` and uploads it to Pages. A gate present
           only in the pull-request workflow does not bind the publishing path, so
-          a withheld artifact reintroduced by a merge the review's path filter
-          skipped, or by a manual run, would ship. Placing
+          a withheld artifact reintroduced by a direct push to `publish`, or by a
+          plugin or dependency change that alters the build, would ship. Placing
           the step before the upload means the deploy fails rather than
           publishing an artifact the project declared withheld.
         verification: >-
@@ -297,16 +297,18 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Every workflow that builds the site MUST fail when a page the
-          checked-out commit builds is absent from the DOCBW-03-008 record of
-          served URLs, deciding which pages are built by the same rule that
-          extends the record. The step MUST run after the Build Site step on
-          the same terms as DOCBW-03-006, and MUST fail when the commit builds
-          no pages.
+          Every workflow that builds the site MUST run, after the Build Site
+          step and on the same terms as DOCBW-03-006, a step that fails when a
+          page the checked-out commit builds is absent from the DOCBW-03-008
+          record of served URLs or when the commit builds no pages, deciding
+          which pages are built by the same rule that extends the record.
         rationale: >-
-          `main` deploys every merge (DOCBW-06-005), so a page ships when its pull
-          request merges and must be recorded by then. The deploy re-checks the
-          commit it ships, covering a change the review's path filter missed.
+          A page goes live at the next deploy after it reaches `main`, whatever
+          triggers that deploy, so it is recorded in the pull request that adds
+          it, while its author is at hand, instead of in a catch-up before a
+          release. Each docs pull request is checked at its merge result, and the
+          deploy re-checks the commit it ships, covering a change the review's
+          path filter missed.
           Every recorded page was live, so the record has one kind of entry: a
           page renamed after it merged needs a redirect like any other. See
           `notes/documentation-strategy.md`.
@@ -320,8 +322,6 @@ groups:
           site-building workflow runs the step after the build and cannot skip
           or swallow it, and that `deploy_site.yml` runs it before the Pages
           upload.
-        adr:
-          - ADR-0166
         relationships:
           - rel_type: depends_on
             spec_id: DOCBW-03-008
@@ -422,7 +422,9 @@ groups:
     description: >-
       Obligations of the publication workflow, `.github/workflows/deploy_site.yml`,
       beyond the build and gate obligations DOCBW-03 places on every site-building
-      workflow, including what triggers it (DOCBW-06-005).
+      workflow. What triggers publication (a push to a release branch, a cadence on
+      `main`, or both) is an open decision, tracked as Concern #3560, and is
+      deliberately not specified here.
     specs:
       - id: DOCBW-06-001
         priority: MUST
@@ -471,7 +473,7 @@ groups:
         verification: >-
           `test/ci/test_workflow_failure_notification.py` asserts the notify and
           close steps for every workflow that triggers on a push to `main` or
-          on a schedule, and `test_publication_workflow_qualifies`
+          `publish` or on a schedule, and `test_publication_workflow_qualifies`
           asserts `deploy_site.yml` is in that set.
         relationships:
           - rel_type: implements
@@ -500,23 +502,3 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DOCBW-03-009
-      - id: DOCBW-06-005
-        priority: MUST
-        kind: project
-        statement: >-
-          The publication workflow MUST deploy on every push to `main`, with no
-          path filter, and on a manual run, and on no other event. Its runs MUST
-          share one concurrency group that never cancels a run in progress.
-        rationale: >-
-          A deploy that waits for a human step lapses, and each release then puts
-          a large, unreviewed batch of pages live at once. Pages render from
-          `vultron/` and `specs/` as well as `docs/`, so a path filter would skip
-          some merges. A cancelled deploy can leave Pages half-updated, so a newer
-          merge queues instead. The `github-pages` environment's rules are the
-          brake, and a manual run from a release tag is the rollback.
-        verification: >-
-          `test_the_publication_workflow_deploys_every_push_to_main` and
-          `test_the_publication_workflow_never_cancels_a_running_deploy` in
-          `test/ci/test_publication_gates_in_workflows.py`.
-        adr:
-          - ADR-0166

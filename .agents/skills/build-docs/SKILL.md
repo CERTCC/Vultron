@@ -92,9 +92,9 @@ PYTHONPATH='' uv run docs-legacy-urls
    The same action also runs
    `PYTHONPATH='' uv run docs-legacy-urls --require-recorded` (DOCBW-03-012).
    It needs no `site/`: it fails when a page the checked-out commit builds is
-   missing from `vultron/metadata/docs/legacy_urls_baseline.txt`. `main`
-   deploys on every merge (ADR-0166), so a new page — `_`-prefixed fragments
-   included — is due in the baseline in the pull request that adds it. The fix
+   missing from `vultron/metadata/docs/legacy_urls_baseline.txt`. A new page
+   — `_`-prefixed fragments included — goes live at the next deploy, so it is
+   due in the baseline in the pull request that adds it. The fix
    is to commit the page, run `uv run docs-legacy-urls --snapshot HEAD`, and
    commit the updated baseline on the same branch.
 

@@ -1,20 +1,12 @@
-# Deploys the MkDocs site to GitHub Pages from main (ADR-0166, DOCBW-06-005).
+# Simple workflow for deploying static content to GitHub Pages
 name: Deploy static content to Pages
 
 on:
-  # Every merge to main deploys. The build and publication gates below are what
-  # stand between a merge and Pages: a failed gate stops the upload, and the
-  # live site stays at the last good deploy. No paths: filter, because pages
-  # render from vultron/ and specs/ as well as docs/. No debounce either: the
-  # pages concurrency group below already collapses a burst of merges into the
-  # running deploy plus the newest one queued.
+  # Runs on pushes targeting the default publish branch
   push:
-    branches: [main]
+    branches: [publish]
 
-  # Manual runs. To roll back, choose a release tag under "Use workflow from":
-  # that tag's own workflow, gates and baseline build that tag's site. The
-  # github-pages environment's deployment rules decide which branches and
-  # tags may deploy, and are the brake if deploys need stopping.
+  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages

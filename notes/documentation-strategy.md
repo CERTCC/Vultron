@@ -207,8 +207,8 @@ a URL an earlier build served and this one dropped. `uv run docs-legacy-urls`
 - **The evidence is committed before the deploy replaces it.**
   `vultron/metadata/docs/legacy_urls_baseline.txt` only grows (`--snapshot
   <ref>` adds a ref's pages, drops none): a URL cited once can be cited forever.
-- **Record a page in the pull request that adds it.** `main` deploys on every
-  merge (DOCBW-06-005, ADR-0166), so a page is live once it merges. Every
+- **Record a page in the pull request that adds it.** A page goes live at the
+  next deploy after it merges, whatever triggers that deploy. Every
   site-building workflow fails until each page the commit builds is recorded
   (DOCBW-03-012): commit the page, run `--snapshot HEAD`, commit the baseline.
   The check reuses the snapshot's definition of a built page, so the two cannot

@@ -61,8 +61,8 @@ runs:
 
     # DOCBW-03-012: every page the checked-out commit builds is in the
     # legacy-URL record, so the continuity check above knows its URL before it
-    # ships. main deploys on every merge (ADR-0166), so a page is due the
-    # moment its pull request merges: a pull request is checked at its merge
+    # ships. A page goes live at the next deploy after it merges, so it is due
+    # in the pull request that adds it: a pull request is checked at its merge
     # result, and the deploy re-checks the commit it ships.
     - name: Check every built page is recorded
       if: ${{ !cancelled() }}

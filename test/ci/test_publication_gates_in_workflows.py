@@ -1,13 +1,12 @@
 """CI verification test — the built-site gates run wherever the site builds.
 
-Implements DOCBW-03-005, DOCBW-03-006, DOCBW-03-007, DOCBW-03-008,
-DOCBW-03-012 and DOCBW-06-005 from ``specs/docs-build-workflow.yaml``. A
+Implements DOCBW-03-005, DOCBW-03-006, DOCBW-03-007, DOCBW-03-008 and
+DOCBW-03-012 from ``specs/docs-build-workflow.yaml``. A
 workflow that builds ``site/`` MUST run ``docs-withheld`` (the publication
 axis), ``docs-links`` (the reference axis), ``docs-legacy-urls`` (the continuity
 axis) and ``docs-legacy-urls --require-recorded`` (every built page recorded)
 against it, unconditionally, and in ``deploy_site.yml`` each MUST sit between
-the build and the Pages upload. ``deploy_site.yml`` deploys on every push to
-``main`` (DOCBW-06-005, ADR-0166).
+the build and the Pages upload.
 
 Ordering is the whole point, and it is why this is a test rather than a review
 habit. Both checks read the built tree, so a step placed before the build fails
@@ -42,7 +41,6 @@ from test.ci._workflows import (
     local_action_steps,
     neutering,
     site_building_workflows,
-    triggers,
 )
 
 # Each built-site gate's command, and the requirement it implements. Two share
@@ -306,44 +304,3 @@ def test_every_publication_check_runs_even_if_an_earlier_one_failed():
 def test_a_run_after_failure_condition_does_not_neuter_a_gate():
     step = {"if": "${{ !cancelled() }}", "run": "uv run docs-legacy-urls"}
     assert _neutering(Step(step, step)) == []
-
-
-# --- DOCBW-06-005: main deploys on every merge ------------------------------
-
-DEPLOY = WORKFLOWS_DIR / "deploy_site.yml"
-
-
-@pytest.mark.spec("DOCBW-06-005")
-def test_the_publication_workflow_deploys_every_push_to_main():
-    """A path filter would leave a page rendered from ``vultron/`` stale."""
-    on = triggers(load_workflow(DEPLOY))
-    assert set(on) == {"push", "workflow_dispatch"}, (
-        f"{DEPLOY.name} triggers on {sorted(on)}; it deploys on a push to main "
-        "and on a manual run only (DOCBW-06-005)."
-    )
-    push = on["push"]
-    assert isinstance(push, dict) and push.get("branches") == ["main"], (
-        f"{DEPLOY.name} must deploy on a push to main and no other branch."
-    )
-    filters = sorted(set(push) - {"branches"})
-    assert not filters, (
-        f"{DEPLOY.name}'s push trigger carries {filters}, so some merges to "
-        "main would not deploy (DOCBW-06-005)."
-    )
-
-
-@pytest.mark.spec("DOCBW-06-005")
-def test_the_publication_workflow_never_cancels_a_running_deploy():
-    """A newer merge queues behind a running deploy instead of cutting it off."""
-    concurrency = load_workflow(DEPLOY).get("concurrency")
-    assert isinstance(concurrency, dict), (
-        f"{DEPLOY.name} sets no concurrency group, so two deploys can race."
-    )
-    assert concurrency.get("group") == "pages", (
-        f"{DEPLOY.name} must use the fixed 'pages' concurrency group; a group "
-        "keyed on the ref or run would let two deploys race (DOCBW-06-005)."
-    )
-    assert concurrency.get("cancel-in-progress") is False, (
-        f"{DEPLOY.name} must set cancel-in-progress: false, so a merge never "
-        "cancels a deploy part-way through (DOCBW-06-005)."
-    )

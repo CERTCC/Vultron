@@ -5,8 +5,9 @@ Implements CISEC-05-004 from specs/ci-security.yaml: every qualifying workflow
 ``.github/actions/notify-failure`` composite action step.
 
 A qualifying workflow is one whose ``on:`` trigger includes:
-- ``push`` to the ``main`` branch, which includes the publication workflow
-  that DOCBW-06-003 binds to the same notify and close steps, OR
+- ``push`` to the ``main`` branch, OR
+- ``push`` to the ``publish`` branch — the publication workflow, which
+  DOCBW-06-003 binds to the same notify and close steps, OR
 - a ``schedule`` entry.
 
 For each qualifying workflow the test asserts that at least one step across all
@@ -37,10 +38,10 @@ NOTIFY_FAILURE_ACTION = (
 DEMO_WORKFLOW = WORKFLOWS_DIR / "demo-integration.yml"
 ENSURE_ISSUE_TYPE = REPO_ROOT / ".github" / "scripts" / "ensure-issue-type.sh"
 PUBLICATION_WORKFLOW = WORKFLOWS_DIR / "deploy_site.yml"
-# CISEC-05-001. The publication workflow deploys on a push to main
-# (DOCBW-06-005), and a failed run leaves the live site stale with no failing
-# pull request to notice it (DOCBW-06-003).
-QUALIFYING_PUSH_BRANCHES = frozenset({"main"})
+# ``main`` for CISEC-05-001; ``publish`` for the publication workflow, whose
+# failed run leaves the live site stale with no failing pull request to notice
+# it (DOCBW-06-003).
+QUALIFYING_PUSH_BRANCHES = frozenset({"main", "publish"})
 
 
 def _normalize_expr(expr: str) -> str:
@@ -118,8 +119,9 @@ def test_publication_workflow_qualifies(
 ) -> None:
     """The per-workflow checks below cover the publication workflow.
 
-    It qualifies through its push-to-``main`` trigger (DOCBW-06-005); should
-    that trigger move, its notify and close steps would silently go untested.
+    It triggers on a push to ``publish``, not ``main``, so without the
+    ``publish`` branch in the qualifying set its notify and close steps would
+    go untested.
     """
     assert PUBLICATION_WORKFLOW in qualifying_workflows, (
         f"{PUBLICATION_WORKFLOW.name} is not in the qualifying set, so nothing "

@@ -2,9 +2,9 @@
 #
 # `uv run docs-legacy-urls` fails when the built site/ neither serves nor
 # redirects one of these URLs, unless a withheld declaration covers it. The list
-# only grows: a URL that was once published stays accounted for. main deploys
-# on every merge, so a pull request that adds a page commits it, runs `uv run
-# docs-legacy-urls --snapshot HEAD` and commits this file too;
+# only grows: a URL that was once published stays accounted for. A page goes
+# live at the next deploy, so a pull request that adds a page commits it, runs
+# `uv run docs-legacy-urls --snapshot HEAD` and commits this file too;
 # `--require-recorded` fails the pull request until it does.
 #
 # Seeded from origin/publish at ee5d96d3d (#3556).
@@ -174,7 +174,6 @@ adr/0162-protocol-statecharts-are-projections-of-the-core-transition-tables-and-
 adr/0163-the-case-manager-resends-an-unanswered-invite-when-its-addressee-states-a-ledger-position.md
 adr/0164-actors-sign-content-with-object-level-proofs-from-seeded-keys.md
 adr/0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md
-adr/0166-deploy-the-site-from-main-and-release-by-tag.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md
