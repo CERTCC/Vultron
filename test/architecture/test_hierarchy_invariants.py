@@ -27,11 +27,11 @@ between the core (domain) and wire (ActivityStreams) layers:
 ARCH-25-002 inverted the third invariant here, and that is worth stating rather
 than quietly editing. It used to read "no CoreObject subclass uses
 alias_generator=to_camel", because AS2 spelling belonged to the wire layer
-(ARCH-12-003, ARCH-12-004) and a paired ``as_*`` class held it. ARCH-25-002
+(ARCH-12-004) and a paired ``as_*`` class held it. ARCH-25-002
 deletes those classes and puts the spelling on the core class, so there is no
 second class left to carry it. The #1991 backlog set that tracked the old
 direction is removed with it. #2288 and #2289, which described the old goal, are
-closed as superseded; #3578 owns reconciling ARCH-12-003 against ADR-0099.
+closed as superseded; #3578 owns reconciling ARCH-12-013 against ADR-0099.
 
 Invariant 2 is not met yet. Its known violations are **enumerated** in the backlog
 set below and asserted with ``==``, so the set fails if a new violation appears
@@ -45,8 +45,8 @@ is ever told to clean it up, and it gives no partial-progress signal along the w
 See ``test_validate_assignment_ratchet.py``, which uses the same three-part shape
 (exact backlog + strict goal + guard-the-guard).
 
-Spec: `specs/architecture.yaml` ARCH-12-003, ARCH-12-004, ARCH-12-007,
-ARCH-12-013, ARCH-12-014
+Spec: `specs/architecture.yaml` ARCH-12-001, ARCH-12-004, ARCH-12-007,
+ARCH-12-011, ARCH-12-013, ARCH-12-014
 Reference: `docs/adr/archived/0017-domain-wire-object-separation.md` (superseded by ADR-0099)
 """
 
@@ -120,7 +120,7 @@ class TestCoreVocabularyHierarchy:
     def test_all_core_vocabulary_are_core_object_subclasses(self) -> None:
         """All CORE_VOCABULARY classes must be subclasses of CoreObject.
 
-        Enforces ARCH-12-003: Core domain objects form an independent
+        Enforces ARCH-12-007: Core domain objects form an independent
         hierarchy rooted in CoreObject, separate from the wire layer.
         """
         assert CORE_VOCABULARY, "CORE_VOCABULARY is empty"
@@ -416,7 +416,7 @@ def test_every_wire_activity_class_lives_under_the_wire_package() -> None:
 
 
 class TestCoreTypeMapHierarchy:
-    """Tests for CORE_TYPE_MAP hierarchy invariants (ARCH-12-003, ARCH-12-004)."""
+    """Tests for CORE_TYPE_MAP hierarchy invariants (ARCH-12-004, ARCH-12-011)."""
 
     def test_no_wire_types_in_core_type_map(self) -> None:
         """CORE_TYPE_MAP must contain only core-branch types, never wire types.
@@ -425,9 +425,8 @@ class TestCoreTypeMapHierarchy:
         ``CoreRecord``, which no wire class inherits.  Kept as a regression
         guard for the #2416 contamination (ARCH-12-011).
 
-        Spec: ARCH-12-003 — core-branch types MUST NOT carry wire-specific
-        concerns; the converse also holds: CORE_TYPE_MAP must not be
-        contaminated with wire types.
+        Spec: ARCH-12-011 — wire-branch types MUST NOT register in either
+        core registry, so CORE_TYPE_MAP holds only core-branch types.
         """
         import vultron.wire.as2.vocab.activities
         import vultron.wire.as2.vocab.objects  # noqa: F401

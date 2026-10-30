@@ -464,7 +464,7 @@ def create_invalidate_report_received_tree(
             use case before the tree runs; ``None`` when it holds none.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it after the case is resolved
-            (HP-01-008).
+            (HP-01-025).
 
     Returns:
         Root node of the ``InvalidateReportReceivedBT`` Sequence.

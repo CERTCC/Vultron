@@ -58,7 +58,7 @@ def test_every_aliased_field_is_covered() -> None:
     assert aliased == set(_VALUES)
 
 
-@pytest.mark.spec("ARCH-12-013")
+@pytest.mark.spec("ARCH-12-003")
 @pytest.mark.parametrize("field", sorted(_VALUES))
 def test_alias_and_name_spellings_both_read(field: str) -> None:
     alias = VultronReplicationState.model_fields[field].validation_alias

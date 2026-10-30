@@ -313,7 +313,7 @@ def create_receive_activity_tree(
     With ``sender_rule`` the factory composes the guard from the declared
     rule and ``sender_context``, for the receiver's addressee side
     (:func:`~vultron.core.behaviors.sender_guard.compose_sender_guard`,
-    HP-01-008).  A tree has no way to pass a guard of its own; a sender
+    HP-01-025).  A tree has no way to pass a guard of its own; a sender
     check a tree places elsewhere must be on the allow-list in
     ``test/architecture/test_sender_entitlement_ratchet.py`` (HP-01-007,
     #4437).

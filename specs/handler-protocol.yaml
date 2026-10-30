@@ -414,12 +414,11 @@ groups:
       different form. Anything that comes from it, for example "Sent by" in the occasion
       table (MSM-08-005), then shows fewer senders than the receiver accepts (ADR-0129).
     verification: >-
-      `test/core/behaviors/test_sender_guard.py::test_any_of_rule_admits_a_sender_holding_any_one_kind`
-      and `::test_two_sided_rule_admits_exactly_each_sides_kinds` compose a guard
-      from an any-of declaration and from a two-sided declaration and assert each
-      side admits exactly its kinds;
       `test/architecture/test_sender_entitlement_ratchet.py::test_a_sender_rule_is_built_only_as_a_declaration`
-      fails on a sender rule built anywhere but a declaration.
+      fails on a sender rule built anywhere but a declaration, so no tree holds a part
+      of the rule that its declaration does not state; the `MSM-08-009`-marked tests in
+      `test/metadata/test_msm_mapping.py` fail on a declaration that states no side for
+      an addressee its use case's occasions name.
     lint_suppress:
     - phantom_path_ref
     relationships:
@@ -455,6 +454,10 @@ groups:
       Some messages have more than one sender with standing, for example the Case
       Owner or the CASE_MANAGER. An any-of rule states this in one declaration, so
       no tree needs its own second check (ADR-0129).
+    verification: >-
+      `test/core/behaviors/test_sender_guard.py::test_any_of_rule_admits_a_sender_holding_any_one_kind`
+      composes a guard from an any-of declaration and asserts that it admits a sender
+      holding any one of the declared kinds.
     relationships:
     - rel_type: extends
       spec_id: HP-01-008
@@ -690,8 +693,8 @@ groups:
     kind: architecture
     statement: >-
       The receive-tree factory MUST place the HP-01-005 addressee check in every
-      received tree it builds. The check runs after intake and the post-close
-      boundary, and before the sender guard.
+      received tree, after intake and the post-close boundary and before the sender
+      guard.
     rationale: >-
       HP-01-005 applies to every handler. If each tree must ask for the check, a tree
       can forget it. That tree then acts on copies addressed to a different party. A
@@ -1083,10 +1086,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The `AddNoteToCaseReceivedUseCase` handler MUST append the note's id to
-      `VulnerabilityCase.notes`, a list of note ids, and commit the attachment as a
-      ledger entry. Before it appends the id, it persists the Note object that the
-      `Add(Note)` carries.
+      The `AddNoteToCaseReceivedUseCase` handler MUST persist the carried Note, then
+      append its id to `VulnerabilityCase.notes` and commit the attachment as a ledger
+      entry.
     rationale: >-
       The handler stores each note and links it to its case, as the case management data
       model requires. The refusal uses only the id. The inbox routing rebuild gives the

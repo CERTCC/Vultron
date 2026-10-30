@@ -70,9 +70,8 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      This codebase MUST give each core file that imports wire its own narrow driven
-      port or a place under a wider shared port. A narrow port follows the
-      `SyncActivityPort` or `TriggerActivityPort` pattern.
+      This codebase MUST give each core file that imports wire a narrow driven port in
+      the `SyncActivityPort` or `TriggerActivityPort` pattern, or a wider shared port.
     rationale: >-
       A narrow port names only the calls that one file needs, so a test can replace it
       with a small mock adapter. A shared port serves several files that need the same
@@ -389,11 +388,11 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Core MUST have exactly two root classes, and every core model descends from one of
-      them. `CoreRecord` carries identity only (`id_`, `type_`, `name`). It is the base
-      for internal records never serialized as AS2, such as dead-letter and offer
-      records. `CoreObject(CoreRecord)` is the one AS2 object root. It declares every
-      AS2 Object field, unused ones included (ARCH-25-008).
+      Every core model MUST descend from one of exactly two root classes. `CoreRecord`
+      carries identity only (`id_`, `type_`, `name`). It is the base for internal
+      records never serialized as AS2, such as dead-letter and offer records.
+      `CoreObject(CoreRecord)` is the one AS2 object root. It declares every AS2 Object
+      field, unused ones included (ARCH-25-008).
     rationale: >-
       Some core types have an AS2 form, and others are internal records that never go on
       the wire. Two roots make this difference part of the type. The rendering port
@@ -623,18 +622,18 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Each core domain class that represents a protocol-significant entity, such as a
-      case, report, participant, actor, log entry or embargo policy, MUST inherit from
-      `CoreObject`. A class with no AS2 shape that needs no `CORE_VOCABULARY` entry
-      inherits from `CoreRecord` instead.
+      Each protocol-significant core class, such as a case, report, participant or
+      actor, MUST inherit from `CoreObject`, or from `CoreRecord` when it has no AS2
+      shape.
     rationale: >-
       Consistent use of the core object hierarchy ensures that all protocol-significant
       domain objects share aligned field names, are rendered to AS2 form by the
       rendering port (ARCH-20-001) without per-type projection code, and are
       discoverable via `CORE_VOCABULARY`.
-    verification: Static analysis or a test asserts that all classes in `vultron/core/models/` that contain protocol-significant
-      fields (`id_`, `type_`, `published`, `attributed_to`) inherit from `CoreObject` or `CoreRecord`. Intentional `BaseModel`
-      subclasses are listed in a registry or identified by a marker mixin/comment pattern.
+    verification: >-
+      `TestCoreVocabularyHierarchy::test_all_core_vocabulary_are_core_object_subclasses`
+      in `test/architecture/test_hierarchy_invariants.py` fails on a `CORE_VOCABULARY`
+      class that does not inherit from `CoreObject`.
   - id: ARCH-12-019
     priority: MAY
     kind: project
@@ -773,21 +772,8 @@ groups:
     rationale: >-
       A fixed place for each kind of helper lets a developer find the existing copy
       before writing a new one. A layer-neutral helper in `models/` can serve every
-      layer above it.
-    relationships:
-    - rel_type: implements
-      spec_id: ARCH-15-004
-    adr:
-    - ADR-0032
-  - id: ARCH-15-006
-    priority: SHOULD
-    kind: architecture
-    statement: >-
-      A use-case-specific domain helper SHOULD live in
+      layer above it. A use-case-specific helper belongs in
       `vultron/core/use_cases/_helpers.py`.
-    rationale: >-
-      A helper that only use cases need stays out of `models/`, where every layer could
-      reach it, and still has one place a developer looks before writing a new copy.
     relationships:
     - rel_type: implements
       spec_id: ARCH-15-004
@@ -1032,9 +1018,8 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      A baseline that is permanent by design MUST carry a `# permanent: <reference>`
-      comment in place of an owner comment. The comment cites the issue, ADR or spec
-      requirement that made the baseline permanent.
+      A permanent-by-design baseline MUST carry a `# permanent: <reference>` comment,
+      not an owner comment, citing the issue, ADR or spec requirement behind it.
     rationale: >-
       The permanent marker keeps a pinned exemption set from needing an invented owner.
       It also keeps the decision behind the set citable.
@@ -1138,8 +1123,8 @@ groups:
     kind: process
     verification_debt: '#2571'
     statement: >-
-      A pinned exemption set MUST hold only permanent entries. An entry that waits for
-      a fix goes in its own ratchet constant with an `# owner: #N` marker.
+      A pinned exemption set entry that waits for a fix MUST move to its own ratchet
+      constant with an `# owner: #N` marker.
     rationale: >-
       If a pinned set holds an entry that waits for a fix, that debt is hidden in a set
       that nobody plans to empty.
@@ -2021,9 +2006,9 @@ groups:
     kind: project
     statement: >-
       Each core class that a wire-branch annotation names for a protocol-significant
-      message slot MUST be exactly AS2-representable. Each field it carries has a valid
-      AS2 property spelling through the `alias_generator` it inherits from `CoreObject`
-      (ARCH-12-013). It carries no field that cannot go on the wire.
+      message slot MUST be exactly AS2-representable. That is, each field it carries has
+      a valid AS2 property spelling (ARCH-12-013), and it carries no field that cannot
+      go on the wire.
     rationale: >-
       A class in a message slot goes on the wire as part of the message. If it has a
       field with no valid AS2 spelling, its AS2 form shows a Python name that a peer

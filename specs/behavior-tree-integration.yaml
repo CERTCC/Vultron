@@ -1357,10 +1357,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `create_receive_activity_tree` MUST take the gated effects as `manager_effects`,
-      the ungated effects as `replica_effects`, and the effects owed on a refusal as
-      `refusal_effects`. It gates `refusal_effects` on the CASE_MANAGER the same way
-      (CLP-10-022).
+      `create_receive_activity_tree` MUST take gated effects as `manager_effects`,
+      ungated ones as `replica_effects`, and refusal effects as `refusal_effects`, gated
+      on the CASE_MANAGER (CLP-10-022).
     rationale: >-
       When each kind of effect has its own parameter, the factory can place it and gate
       it. No caller has to build the gate itself.
@@ -1451,10 +1450,10 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: >-
-      Each simulation fuzzer node MUST have a docstring that describes its semantic
-      function in the CVD process. The docstring also names the category of external
-      input the node simulates and its approximate success probability. The categories
-      are system integration, human decision and environmental check.
+      Each simulation fuzzer node MUST have a docstring naming its semantic function in
+      the CVD process, its external input category and its approximate success
+      probability. The categories are system integration, human decision and
+      environmental check.
     rationale: >-
       The person who replaces a stub with production logic needs to know what that logic
       must do, what kind of input it takes, and how often the stub succeeds. Without the
@@ -2285,9 +2284,9 @@ groups:
     kind: project
     statement: >-
       The production report-to-others workflow SHOULD be driven by an external call-in
-      monitor (the Sentinel pattern, BT-18-013, not a call-out capability). The monitor
-      queries the case for actors who are not yet participants but should be (party
-      discovery). It then fires `suggest-actor-to-case` for each candidate.
+      monitor (the Sentinel pattern, BT-18-013) that fires `suggest-actor-to-case` for
+      each missing party it finds. A missing party is an actor who is not yet a
+      participant but should be (party discovery).
     rationale: >-
       The tree has no source for party discovery. An external monitor examines the case
       on a schedule or on an event, so the identification occurs where the information
@@ -2304,10 +2303,10 @@ groups:
     priority: SHOULD
     kind: project
     statement: >-
-      Where an inline report-to-others subtree is required, it SHOULD consist of a
-      Retriever call-out and an Actuator per candidate. The Retriever returns candidate
-      (actor_id, role) pairs, and each Actuator fires `suggest-actor-to-case` with the
-      explicit `CVDRole` parameter.
+      Where one is required, an inline report-to-others subtree SHOULD pair a candidate
+      Retriever call-out with one `suggest-actor-to-case` Actuator per returned
+      (actor_id, role) pair. The pair's role is that Actuator's explicit `CVDRole`
+      parameter.
     rationale: >-
       A single-pass, trigger-driven run can need the work inline. A Retriever for the
       candidates and an Actuator for each send keep the two external seams separate, and
@@ -2323,10 +2322,10 @@ groups:
     kind: project
     statement: >-
       The production `create_publish_artifact_tree` factory SHOULD replace the single
-      `Publish` Actuator leaf with a multi-step pipeline of at least three steps. First
-      a Composer drafts the advisory artifact from case data, and then an Evaluator
-      reviews and approves the draft. Last, an Actuator submits the finalized artifact
-      to the external advisory platform.
+      `Publish` Actuator leaf with a pipeline of at least a Composer, then an Evaluator,
+      then an Actuator. The Composer drafts the advisory artifact from case data, and
+      the Evaluator reviews and approves the draft. The Actuator submits the finalized
+      artifact to the external advisory platform.
     rationale: >-
       The single `Publish` leaf of the simulator represents a full advisory publication
       workflow. In production, draft, review and submission are different operations,
@@ -2410,10 +2409,9 @@ groups:
     kind: process
     verification_debt: '#2571'
     statement: >-
-      Each fuzzer (simulator) BT node targeted for replacement by a production
-      implementation MUST have a corresponding tracking issue. The issue captures the
-      fuzzer node name, the production replacement design (as a BT-20 entry or
-      equivalent), and the blocking dependencies.
+      Each fuzzer BT node targeted for production replacement MUST have a tracking issue
+      that records the node name, the replacement design and the blocking dependencies.
+      The replacement design is a BT-20 entry or equivalent.
     rationale: Without a tracking issue per fuzzer node, the replacement backlog is invisible in the project board. The BT-20
       entries document the design; this entry mandates the process artefact (issue) that makes the work schedulable.
     relationships:

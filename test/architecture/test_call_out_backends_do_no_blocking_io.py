@@ -19,7 +19,9 @@ probabilistic ones in ``vultron/demo/fuzzer/`` (BT-16-001). Neither package may
 import a blocking-I/O module or call a blocking builtin.
 
 A backend injected from outside the repository (BT-23-004) is out of this
-scan's reach; the seam's runtime guard covers what it can see of it.
+scan's reach. Nothing polices its I/O at run time: the seam's runtime guard
+rejects only a ``RUNNING`` return (BT-18-011), not a call that blocks before
+it answers.
 """
 
 import ast
@@ -39,25 +41,33 @@ _BLOCKING_MODULES = frozenset(
     {
         "aiohttp",
         "ftplib",
+        "getpass",
         "http",
         "httpx",
         "requests",
+        "select",
         "smtplib",
         "socket",
+        "sqlite3",
+        "ssl",
         "subprocess",
         "urllib",
         "urllib3",
     }
 )
 
-#: Calls that block: a sleep, a file open or an interactive prompt.
+#: Calls that block: a sleep, a file read or write, a shell command or an
+#: interactive prompt.
 _BLOCKING_CALLS = frozenset(
     {
+        "getpass",
         "input",
         "open",
+        "popen",
         "read_bytes",
         "read_text",
         "sleep",
+        "system",
         "write_bytes",
         "write_text",
     }
@@ -108,6 +118,13 @@ def test_in_repo_call_out_backends_do_no_blocking_io() -> None:
         "open('x')\n",
         "path.read_text()\n",
         "path.write_bytes(b'')\n",
+        "import os\nos.system('x')\n",
+        "import os\nos.popen('x')\n",
+        "from getpass import getpass\n",
+        "import getpass\ngetpass.getpass()\n",
+        "import sqlite3\n",
+        "import ssl\n",
+        "import select\n",
     ],
 )
 def test_detector_catches_blocking_io(source: str) -> None:

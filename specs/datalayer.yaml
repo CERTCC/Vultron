@@ -145,9 +145,8 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `dl.save_if_unchanged(obj, expected)` MUST write *obj* only if the stored
-      record with that id still equals *expected* in stored form. It checks this
-      atomically with the write.
+      `dl.save_if_unchanged(obj, expected)` MUST write *obj*, atomically with the check,
+      only if the stored record with that id still equals *expected* in stored form.
     rationale: >-
       A read-modify-write through `dl.save()` overwrites any write that lands between
       the read and the save, and nothing reports the lost write. A compare-and-set

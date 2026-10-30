@@ -101,7 +101,7 @@ def add_case_status_tree(
         request: The parsed inbound domain event.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it, ahead of every guard listed
-            above (HP-01-008).
+            above (HP-01-025).
 
     Returns:
         Root node of the ``AddCaseStatusToCaseBT`` Sequence.

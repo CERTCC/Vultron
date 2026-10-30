@@ -523,11 +523,11 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The system MUST expose an `add-object-to-case` general trigger at
-      `POST /actors/{actor_id}/trigger/add-object-to-case`. It accepts any object type
-      that the protocol routes as `Add(object, target=VulnerabilityCase)`. The
-      exceptions are the types whose addition the protocol carries by its own flow:
-      `EmbargoEvent`, `CaseParticipant` and `CaseStatus`.
+      The system MUST expose an `add-object-to-case` general trigger at `POST
+      /actors/{actor_id}/trigger/add-object-to-case` that accepts any object type the
+      protocol routes as `Add(object, target=VulnerabilityCase)`. The exceptions are the
+      types whose addition the protocol carries by its own flow: `EmbargoEvent`,
+      `CaseParticipant` and `CaseStatus`.
     rationale: >-
       Adding content to a case is a legitimate operator action for more than one
       object type. A Note is the most common use, but not the only one. An embargo
@@ -593,9 +593,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The `add-object-to-case` trigger MUST refuse with HTTP 422, and queue nothing,
-      an object whose `Add` no receive-side pattern matches. It refuses an object
-      whose type is a TRIG-10-001 exception in the same way.
+      The `add-object-to-case` trigger MUST refuse with HTTP 422, queuing nothing, an
+      object whose `Add` no receive-side pattern matches or whose type TRIG-10-001
+      excepts.
     rationale: >-
       The `Add` is a participant's request to the CASE_MANAGER (PCR-08-005). An object
       type that the CASE_MANAGER cannot route would be dropped on arrival while the

@@ -128,7 +128,7 @@ def create_accept_case_proposal_received_tree(
             proposal (the ``actor`` of the inbound ``Accept`` activity).
         sender_rule: The use case's declared sender rule; the factory
             composes the guard from it, checking the sender against the
-            addressee the report case link records (CP-06-005, HP-01-008).
+            addressee the report case link records (CP-06-005, HP-01-025).
 
     Returns:
         A py_trees Sequence behaviour (sender guard, then the record)

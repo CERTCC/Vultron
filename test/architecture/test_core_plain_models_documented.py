@@ -29,6 +29,7 @@ Spec: ARCH-12-020.
 import importlib
 import inspect
 import pkgutil
+from typing import TypeGuard
 
 import pytest
 from pydantic import BaseModel
@@ -37,24 +38,31 @@ import vultron.core
 from vultron.core.models.base import CoreRecord
 
 
-def _plain_core_models() -> list[type[BaseModel]]:
-    """Each class defined under ``vultron/core/`` on ``BaseModel`` alone.
+def _is_written_plain_model(
+    cls: type, module_name: str
+) -> TypeGuard[type[BaseModel]]:
+    """Whether *cls* is a plain ``BaseModel`` class written in *module_name*.
 
     A parametrized generic such as ``TriggerRequest[CaseResult]`` is pydantic's
     product, not a class anyone wrote, so it is left out.
     """
+    return (
+        cls.__module__ == module_name
+        and issubclass(cls, BaseModel)
+        and not issubclass(cls, CoreRecord)
+        and cls.__pydantic_generic_metadata__["origin"] is None
+    )
+
+
+def _plain_core_models() -> list[type[BaseModel]]:
+    """Each class defined under ``vultron/core/`` on ``BaseModel`` alone."""
     found: list[type[BaseModel]] = []
     for info in pkgutil.walk_packages(
         vultron.core.__path__, vultron.core.__name__ + "."
     ):
         module = importlib.import_module(info.name)
         for _name, cls in inspect.getmembers(module, inspect.isclass):
-            if (
-                cls.__module__ == module.__name__
-                and issubclass(cls, BaseModel)
-                and not issubclass(cls, CoreRecord)
-                and cls.__pydantic_generic_metadata__["origin"] is None
-            ):
+            if _is_written_plain_model(cls, module.__name__):
                 found.append(cls)
     return found
 
@@ -68,6 +76,59 @@ def _reason_documented(cls: type[BaseModel]) -> bool:
         and issubclass(base, BaseModel)
         and base.__module__.startswith("vultron.core.")
     )
+
+
+_SYNTHETIC = "vultron.core.synthetic"
+
+
+def _synthetic(name: str, *bases: type, doc: str | None = None) -> type:
+    """A class built as if written in a core module, with *doc* or none."""
+    namespace: dict[str, object] = {"__module__": _SYNTHETIC}
+    if doc is not None:
+        namespace["__doc__"] = doc
+    return type(name, bases, namespace)
+
+
+class _Generic[T](BaseModel):
+    """A generic plain model; its parametrizations are pydantic's."""
+
+    value: T
+
+
+def test_an_undocumented_plain_model_is_flagged() -> None:
+    assert _reason_documented(_synthetic("Bare", BaseModel)) is False
+
+
+def test_a_blank_docstring_is_flagged() -> None:
+    assert (
+        _reason_documented(_synthetic("Blank", BaseModel, doc="  ")) is False
+    )
+
+
+def test_a_documented_plain_model_passes() -> None:
+    cls = _synthetic("Said", BaseModel, doc="Local configuration only.")
+    assert _reason_documented(cls) is True
+
+
+def test_a_subclass_inherits_its_plain_base_reason() -> None:
+    base = _synthetic("Base", BaseModel, doc="A transient dispatch envelope.")
+    assert _reason_documented(_synthetic("Child", base)) is True
+
+
+def test_a_docstring_outside_core_gives_no_reason() -> None:
+    outside = type("Outside", (BaseModel,), {"__doc__": "Not core."})
+    assert _reason_documented(_synthetic("Child", outside)) is False
+
+
+def test_the_scan_skips_a_parametrized_generic() -> None:
+    module_name = _Generic.__module__
+    assert _is_written_plain_model(_Generic, module_name) is True
+    assert _is_written_plain_model(_Generic[int], module_name) is False
+
+
+def test_the_scan_skips_core_records_and_imported_classes() -> None:
+    assert _is_written_plain_model(CoreRecord, CoreRecord.__module__) is False
+    assert _is_written_plain_model(BaseModel, _SYNTHETIC) is False
 
 
 def test_the_scan_finds_plain_core_models() -> None:

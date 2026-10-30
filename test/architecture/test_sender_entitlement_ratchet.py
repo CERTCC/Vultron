@@ -22,12 +22,12 @@ Enforces:
 3. Old node names no longer live in their former modules.
 4. No sender-entitlement condition node is composed outside the receive-tree
    factory's composer, except where an allow-list names it (HP-01-007,
-   HP-01-008, #4437): a guard not yet migrated names the open issue that
+   HP-01-025, #4437): a guard not yet migrated names the open issue that
    migrates it, and a standing read that decides an effect rather than
    admission names why it is not a sender guard.
 5. A ``SenderRule`` is built only as a use case's ``sender_entitlement``
    declaration, so the guard is composed from the declaration alone
-   (HP-01-008).
+   (HP-01-025).
 
 ``PERMANENT_EXEMPTIONS`` is a pinned exemption set (ARCH-18-005), not a
 ratchet: each use case in it is exempt by its declared reason, not awaiting a

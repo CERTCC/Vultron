@@ -189,7 +189,7 @@ def add_participant_status_tree(
     commit, a status whose ``context`` names another case or none
     (HP-08-007).  With no case known, the sender guard refuses, because the
     declared rule states no side for an activity outside any case
-    (HP-01-008).
+    (HP-01-024).
 
     After ``AppendParticipantStatusNode`` records the raw peer update, a
     ``StatusAdoptionGate`` (Selector/Fallback) decides whether the CaseActor
@@ -219,7 +219,7 @@ def add_participant_status_tree(
             (HP-08-008).  When provided, a guarded-commit subtree is
             inserted after precondition guards so the receiving CaseActor
             writes a canonical ledger entry (CLP-10-005).  ``None`` leaves
-            no case, and the sender guard refuses (HP-01-008).
+            no case, and the sender guard refuses (HP-01-024).
         call_out: Call-out backend bundle for ``StatusAdoptionGate``.
             Defaults to :data:`STATUS_AUTHORIZATION_DETERMINISTIC` which
             approves all non-CASE_OWNER updates (historical behavior).

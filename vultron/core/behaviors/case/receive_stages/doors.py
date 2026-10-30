@@ -143,7 +143,7 @@ def case_resolution_stage(
     *,
     sender_guarded: bool,
 ) -> list[py_trees.behaviour.Behaviour]:
-    """The steps that resolve the case the sender guard reads (HP-01-008).
+    """The steps that resolve the case the sender guard reads (HP-01-025).
 
     They run between the post-close guard and the sender guard, so they may
     only read: a sender with no standing must leave nothing behind
@@ -165,7 +165,7 @@ def case_resolution_stage(
     if not sender_guarded:
         raise VultronWiringError(
             f"{where}: case_resolution resolves the case the sender guard"
-            " reads; pass it only with a sender_rule (HP-01-008)"
+            " reads; pass it only with a sender_rule (HP-01-025)"
         )
     nodes = [n for root in steps for n in root.iterate()]
     refused = sorted(
@@ -211,7 +211,7 @@ def sender_guard_stage(
         return None
     if sender_context is None:
         raise VultronWiringError(
-            f"{name}: sender_rule needs a sender_context (HP-01-008)"
+            f"{name}: sender_rule needs a sender_context (HP-01-025)"
         )
     if isinstance(sender_context, LedgerActivityContext):
         context_case, tree_case = None, case_id
@@ -221,6 +221,6 @@ def sender_guard_stage(
     if tree_case is not None and context_case != tree_case:
         raise VultronWiringError(
             f"{name}: sender_context names case {context_case!r}"
-            f" but the tree's case is {tree_case!r} (HP-01-008)"
+            f" but the tree's case is {tree_case!r} (HP-01-025)"
         )
     return compose_sender_guard(sender_rule, sender_context)
