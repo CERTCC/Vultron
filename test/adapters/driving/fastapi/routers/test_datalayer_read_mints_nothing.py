@@ -43,7 +43,7 @@ from vultron.core.models import _helpers
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.demo.determinism import deterministic_run
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -60,6 +60,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 ACTOR_SEGMENT = "read-mints-nothing"
 ACTOR_ID = canonical_actor_uri(ACTOR_SEGMENT)
+_BASE = f"/api/v2/actors/{ACTOR_SEGMENT}/datalayer"
 READS = 5
 _SERVICE = as_Service(id_=ACTOR_ID, name="Read Mints Nothing")
 
@@ -124,13 +125,11 @@ def _as2_body(obj: _AS2Object) -> dict[str, Any]:
 
 
 def _by_key(object_type: str, object_id: str) -> str:
-    return f"/api/v2/actors/{ACTOR_SEGMENT}/datalayer/{object_id}"
+    return f"{_BASE}/{object_id}"
 
 
 def _by_type_and_id(object_type: str, object_id: str) -> str:
-    return (
-        f"/api/v2/actors/{ACTOR_SEGMENT}/datalayer/{object_type}/{object_id}"
-    )
+    return f"{_BASE}/{object_type}/{object_id}"
 
 
 #: The type-and-id route takes an id with no ``/``, so the actor (whose id is
@@ -393,32 +392,51 @@ def test_a_one_slash_path_that_names_no_key_is_not_found(
 
 @pytest.fixture
 def role_offer(datalayer: DataLayer) -> as_Offer:
-    """A stored ``Offer(CaseParticipantRole)`` the reading actor sent."""
-    offer = offer_case_participant_role().model_copy(
-        update={"actor": ACTOR_ID}
+    """A stored ``Offer(CaseParticipantRole)`` the reading actor sent.
+
+    Built through validation rather than ``model_copy(update=...)``, which
+    bypasses it (CM-27-001), so the fixture's own AS2 rendering is the one a
+    read of the store answers with.
+    """
+    built = offer_case_participant_role()
+    offer = type(built).model_validate(
+        built.model_dump(by_alias=True, serialize_as_any=True)
+        | {"actor": ACTOR_ID}
     )
     datalayer.create(offer)
     return offer
 
 
-def _offer_reads(offer_id: str) -> list[tuple[str, _Params | None]]:
-    base = f"/api/v2/actors/{ACTOR_SEGMENT}/datalayer"
-    return [
-        (f"{base}/Offers/{offer_id}", None),
-        (f"{base}/Offer/", _Params(object_id=offer_id)),
-    ]
+_OfferRead = tuple[str, _Params | None]
 
 
-@pytest.mark.parametrize("read", [0, 1], ids=["Offers-by-id", "Offer-query"])
+def _offers_by_id(offer_id: str) -> _OfferRead:
+    """``GET /datalayer/Offers/{offer_id}``."""
+    return f"{_BASE}/Offers/{offer_id}", None
+
+
+def _offer_by_query(offer_id: str) -> _OfferRead:
+    """``GET /datalayer/Offer/?object_id=``."""
+    return f"{_BASE}/Offer/", _Params(object_id=offer_id)
+
+
+#: Every read that serves one Offer.  Named routes, not positions: an id list
+#: kept beside the routes relabels every case when the routes are reordered.
+_OFFER_READS = [_offers_by_id, _offer_by_query]
+
+
+@pytest.mark.parametrize("read", _OFFER_READS, ids=lambda fn: fn.__name__)
 def test_an_offer_route_serves_the_inline_object_whole(
-    client: TestClient, role_offer: as_Offer, read: int
+    client: TestClient,
+    role_offer: as_Offer,
+    read: Callable[[str], _OfferRead],
 ) -> None:
     """The Offer routes keep every stored field of the inline object (#5540).
 
     Rebuilding the Offer as the base ``as_Offer`` narrowed its inline
     ``CaseParticipantRole`` and dropped its ``role``.
     """
-    path, params = _offer_reads(role_offer.id_)[read]
+    path, params = read(role_offer.id_)
 
     response = client.get(path, params=params)
 
@@ -426,9 +444,7 @@ def test_an_offer_route_serves_the_inline_object_whole(
     assert response.headers["content-type"] == "application/activity+json"
     body = response.json()
     assert body["object"]["role"] == _as2_body(role_offer)["object"]["role"]
-    by_id = client.get(
-        f"/api/v2/actors/{ACTOR_SEGMENT}/datalayer/{role_offer.id_}"
-    )
+    by_id = client.get(_by_key("Offer", role_offer.id_))
     assert by_id.status_code == 200, by_id.text
     assert body == by_id.json()
 
@@ -440,9 +456,9 @@ def test_the_offers_route_refuses_an_offer_that_does_not_concern_the_actor(
     offer = offer_case_participant_role()
     datalayer.create(offer)
 
-    path, _ = _offer_reads(offer.id_)[0]
+    path, params = _offers_by_id(offer.id_)
 
-    assert client.get(path).status_code == 404
+    assert client.get(path, params=params).status_code == 404
 
 
 def test_an_offer_route_refuses_an_object_that_is_not_an_offer(
@@ -453,7 +469,8 @@ def test_an_offer_route_refuses_an_object_that_is_not_an_offer(
     Serving the held object as stored keeps that refusal: the read admits
     only an ``as_Offer`` that types itself ``Offer``.
     """
-    for path, params in _offer_reads(stored["VulnerabilityReport"]):
+    for read in _OFFER_READS:
+        path, params = read(stored["VulnerabilityReport"])
         assert client.get(path, params=params).status_code == 404, path
 
 
@@ -465,12 +482,40 @@ def test_the_offers_list_serves_each_inline_object_whole(
     It rebuilt each Offer as the base ``as_Offer`` as the single-Offer routes
     did, and dropped the inline ``CaseParticipantRole``'s ``role`` (#5540).
     """
-    base = f"/api/v2/actors/{ACTOR_SEGMENT}/datalayer"
-
-    listed = client.get(f"{base}/Offers/")
-    by_id = client.get(f"{base}/{role_offer.id_}")
+    listed = client.get(f"{_BASE}/Offers/")
+    by_id = client.get(_by_key("Offer", role_offer.id_))
 
     assert listed.status_code == 200, listed.text
     assert by_id.status_code == 200, by_id.text
     assert listed.json()[role_offer.id_] == by_id.json()
     assert "role" in by_id.json()["object"]
+
+
+def test_the_offers_list_skips_a_row_the_store_reads_as_absent(
+    client: TestClient, datalayer: DataLayer, role_offer: as_Offer
+) -> None:
+    """An Offer row that does not reconstruct costs only its own entry.
+
+    ``by_type`` lists a row whose stored shape no longer validates, but
+    ``dl.read`` reports it absent (``from_row``, #2232/#4128). Reading the
+    list row by row therefore answered 500 for the whole list; the typed
+    listing skips that row and serves the rest.
+    """
+    broken = as_Offer(actor=ACTOR_ID, object_="urn:uuid:absent")
+    datalayer.create(broken)
+    assert datalayer.update(
+        broken.id_,
+        StorableRecord(
+            id_=broken.id_,
+            type_="Offer",
+            data_={"id": broken.id_, "type": "Offer", "actor": 7},
+        ),
+    )
+    assert datalayer.read(broken.id_) is None
+    assert broken.id_ in datalayer.by_type("Offer")
+
+    listed = client.get(f"{_BASE}/Offers/")
+
+    assert listed.status_code == 200, listed.text
+    assert role_offer.id_ in listed.json()
+    assert broken.id_ not in listed.json()

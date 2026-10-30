@@ -113,11 +113,14 @@ later literal route.
 
 Registering it last is not enough when a route ahead of it takes two placeholders.
 `/{object_type}/{object_id}` matches any key holding exactly one `/`, so it claimed
-a `VultronOfferRecord` id (`offer-record/urn:uuid:…`), read only the segment after
-the slash, and answered 404 for a row the store held (#5529). A key is one string:
-a route that splits one across placeholders falls back to the whole matched path as
-the key before it reports 404 — keep the route, so a URL that works today keeps
-working.
+a `VultronOfferRecord` id (`offer-record/urn%3Auuid%3A…` — `build_id`
+percent-quotes the suffix, and a server decodes the path once before it matches),
+read only the segment after the slash, and answered 404 for a row the store held
+(#5529). A key is one string: a route that splits one across placeholders falls
+back to the whole matched path as the key before it reports 404 — keep the route
+and read the suffix first, so a URL that works today keeps working. A key whose
+suffix also names a row stays shadowed by it; the quoting is what keeps the two
+sets apart.
 
 ---
 

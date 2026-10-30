@@ -24,11 +24,12 @@ manifest for PR #5548 had to record "issue #5529 names none"; its own
 "Expected" section states the rule ("every stored record can be read by its
 key") as a fresh judgment. #5510 established "a GET serves the stored object
 and mints nothing" the same way, and #5540 and #5547 are the two reads of one
-row disagreeing — three issues, one unstated contract.
+row disagreeing — one unstated contract behind each.
 
-**What would confirm it.** A fourth datalayer-read issue whose correct
-behaviour has to be argued from first principles, or a reviewer asking which
-requirement a datalayer read route is held to.
+**Confirmed once already.** The review of PR #5548 filed #5551, which asks
+what a read route's type segment means and has to argue the answer from first
+principles too, and whose recommended resolution is to write the rule into the
+route description because no requirement holds it.
 
 **How to apply it.** `learn` decides whether the inspection surface earns spec
 entries (an `HTTP-` group beside HTTP-09, or a `DL-` group, since the rules are

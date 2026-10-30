@@ -27,7 +27,10 @@ from vultron.adapters.driving.fastapi.deps import (
     get_hosted_actor_dls,
 )
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
-from vultron.adapters.received_archive import read_held_as_received
+from vultron.adapters.received_archive import (
+    read_held_as_received,
+    read_received_as_received,
+)
 from vultron.adapters.utils import full_object_id
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.base import CoreObject
@@ -74,38 +77,28 @@ admin_router = APIRouter(prefix="/admin/datalayer", tags=["datalayer"])
 _OFFER_TYPE = "Offer"
 
 
-def _held_offer(
-    datalayer: DataLayer, offer_id: str
-) -> as_Activity | PersistableModel:
-    """Whatever this actor holds under *offer_id*, read as an Offer read.
+def _read_offer(datalayer: DataLayer, offer_id: str) -> as_Offer | None:
+    """The Offer *offer_id* as this actor holds it, or ``None``.
 
     Read as :func:`~vultron.adapters.received_archive.read_held_as_received`
     reads any activity this actor holds: a received one parsed from the body
     its archive record keeps, under a key the receiver derives from the
     sender's id (CLP-10-017, ADR-0149), since a receiver holds no received
     activity under the sender's id (DL-06-006); otherwise the row under
-    *offer_id*, where an Offer the actor authored is stored.  Both Offer reads
-    go through here, so a miss names an Offer as the missing resource.
+    *offer_id*, where an Offer the actor authored is stored.  *offer_id* may
+    be a bare UUID, as the store's own lookup allows.
 
-    Raises:
-        VultronNotFoundError: When this store holds no such activity.
-    """
-    return read_held_as_received(
-        cast(CasePersistence, datalayer), offer_id, _OFFER_TYPE
-    )
-
-
-def _read_offer(datalayer: DataLayer, offer_id: str) -> as_Offer | None:
-    """The Offer *offer_id* as this actor holds it, or ``None``.
-
-    *offer_id* may be a bare UUID, as the store's own lookup allows.
     Whatever is held under the id must be an Offer: every Offer a store holds
     is an ``as_Offer``, read back as its own class (ADR-0034) or parsed from
     its archived body, and ``as_Invite`` subclasses ``as_Offer`` but types
     itself ``Invite``, so a received Invite is not served as one.
     """
     try:
-        held = _held_offer(datalayer, full_object_id(offer_id))
+        held = read_held_as_received(
+            cast(CasePersistence, datalayer),
+            full_object_id(offer_id),
+            _OFFER_TYPE,
+        )
     except VultronNotFoundError:
         return None
     if not isinstance(held, as_Offer) or held.type_ != _OFFER_TYPE:
@@ -113,18 +106,23 @@ def _read_offer(datalayer: DataLayer, offer_id: str) -> as_Offer | None:
     return held
 
 
-def _received_offer_ids(datalayer: DataLayer) -> list[str]:
-    """The sender's id for every Offer this actor received.
+def _received_offers(datalayer: DataLayer) -> dict[str, as_Activity]:
+    """Every Offer this actor received, keyed by the sender's id for it.
 
-    Read from the archive records, which keep each body as it arrived
-    (CLP-10-017, ADR-0149).
+    Each is parsed from the body its archive record keeps, through the seam
+    that reads a held body (:func:`read_received_as_received`), so the list
+    and the single-Offer reads answer one received Offer the same way
+    (CLP-10-017, ADR-0149).  The record is listed before it is read, so the
+    read cannot miss.
     """
-    return [
-        record.activity_id
+    return {
+        record.activity_id: read_received_as_received(
+            cast(CasePersistence, datalayer), record.activity_id, _OFFER_TYPE
+        )
         for record in datalayer.list_objects(ReceivedActivityRecord.__name__)
         if isinstance(record, ReceivedActivityRecord)
         and json.loads(record.received_body).get("type") == _OFFER_TYPE
-    ]
+    }
 
 
 def _concerns_actor(offer: as_Offer, actor_uri: str) -> bool:
@@ -169,7 +167,7 @@ def _serve_stored(obj: PersistableModel) -> AS2JSONResponse | dict[str, Any]:
 )
 def get_actor_offer(
     actor_id: str, offer_id: str, datalayer: DataLayer = Depends(get_actor_dl)
-) -> AS2JSONResponse | dict[str, Any]:
+) -> AS2JSONResponse:
     obj = _read_offer(datalayer, offer_id)
 
     if not obj:
@@ -180,11 +178,15 @@ def get_actor_offer(
     if not _concerns_actor(obj, actor_hosts.canonical_actor_uri(actor_id)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    # Served as held, as the by-id reads serve it (#5510): rebuilding it as
-    # the declared ``as_Offer`` narrowed a semantic Offer's inline object to
-    # the base type and dropped that object's own fields (#5540).
+    # Served as held, as the by-id reads serve it through ``_serve_stored``
+    # (#5510): rebuilding it as the declared ``as_Offer`` narrowed a semantic
+    # Offer's inline object to the base type and dropped that object's own
+    # fields (#5540).  An ``as_Offer`` always has an AS2 form, so this route
+    # returns the response class directly rather than through
+    # ``_serve_stored``: a plain dump would be filtered through
+    # ``response_model`` and narrowed again (HTTP-09-002).
     # ``response_model`` still documents the shape in the OpenAPI schema.
-    return _serve_stored(obj)
+    return AS2JSONResponse(obj)
 
 
 @router.get(
@@ -198,9 +200,14 @@ def get_object(
     datalayer: DataLayer = Depends(get_actor_dl),
 ):
     # A key that holds one ``/`` (a ``VultronOfferRecord`` id, say) also fits
-    # this pattern, and only the ``{key:path}`` route below reads it whole.
-    # When the part after the slash names nothing, read the whole path as the
-    # key, so every stored record stays readable by its key (#5529).
+    # this pattern, and the ``{key:path}`` route below never sees a two-segment
+    # path.  When the part after the slash names nothing, read the whole path
+    # as the key, so a record whose key holds one ``/`` is readable by it
+    # (#5529).  The suffix is still read first, so every URL that resolved
+    # before resolves to the same row; a key whose suffix also names a row is
+    # therefore still shadowed by it.  Every record keyed this way
+    # percent-quotes its suffix (``VultronOfferRecord.build_id``), so no stored
+    # key collides with a bare object id.
     obj = datalayer.read(object_id) or datalayer.read(
         f"{object_type}/{object_id}"
     )
@@ -218,12 +225,12 @@ def get_object(
 )
 def get_offer(
     object_id: str, datalayer: DataLayer = Depends(get_actor_dl)
-) -> AS2JSONResponse | dict[str, Any]:
+) -> AS2JSONResponse:
     obj = _read_offer(datalayer, object_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     # Served as held, as ``get_actor_offer`` serves it (#5540).
-    return _serve_stored(obj)
+    return AS2JSONResponse(obj)
 
 
 @router.get(
@@ -304,16 +311,23 @@ def get_offers(
     # served as held, as ``get_actor_offer`` serves it: rebuilding it as the
     # base ``as_Offer`` dropped the fields of a semantic Offer's inline
     # object (#5540).
-    offer_ids = dict.fromkeys(
-        [*datalayer.by_type(_OFFER_TYPE), *_received_offer_ids(datalayer)]
-    )
+    #
+    # The authored Offers come from one typed listing, not a read per row:
+    # ``list_objects`` reconstructs a row exactly as ``dl.read`` does, so the
+    # list and the by-id read still agree, while a read per row grew the cost
+    # of a poll with the store (#4600) and turned a row the store reads as
+    # absent into a 500 for the whole list.
+    offers: dict[str, PersistableModel | as_Activity] = {
+        obj.id_: obj for obj in datalayer.list_objects(_OFFER_TYPE)
+    }
+    offers |= _received_offers(datalayer)
 
     return AS2JSONResponse(
         {
-            offer_id: _held_offer(datalayer, offer_id).model_dump(
+            offer_id: offer.model_dump(
                 mode="json", by_alias=True, exclude_none=True
             )
-            for offer_id in offer_ids
+            for offer_id, offer in offers.items()
         }
     )
 
