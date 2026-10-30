@@ -2368,18 +2368,20 @@ groups:
         priority: MUST_NOT
         kind: project
         statement: >-
-          A character-actor container of the cast MUST NOT declare default case
-          roles.
+          A cast container other than the first-Vendor and first-Coordinator
+          slots MUST NOT declare default case roles.
         rationale: >-
           A character actor's CVD role comes from the act that seats it, so a
           container default would give it that role in every scenario and the
           same container could not be a Vendor in one and a Coordinator in
-          another (DEMOCI-11-021). A container that can own a case does declare
-          its role, because a case it owns has to be owned as that role
-          (CP-01-013).
+          another (DEMOCI-11-021). The first-Reporter slot and the CaseActor
+          container are covered for a different reason: neither owns a case, so
+          neither has a role to own one as. Only a container that can own a case
+          declares its role (DEMOCI-11-032).
         verification: >-
-          A test reads the compose file and asserts that no character-actor
-          service sets the default-case-roles variable.
+          A test reads the compose file and asserts that the first-Reporter
+          slot, every character-actor slot and the CaseActor service set no
+          default-case-roles variable.
         adr:
           - ADR-0098
         relationships:
@@ -2390,14 +2392,15 @@ groups:
         priority: MUST_NOT
         kind: project
         statement: >-
-          No cast container's actor id MUST name a CVD role.
+          A cast container's actor id MUST NOT name a CVD role.
         rationale: >-
           A role-named id reads as a claim about the part its actor plays, and
           the cast's point is that the part changes between scenarios while the
           container does not (DEMOCI-11-020).
         verification: >-
-          A test asserts that no cast container's configured actor id contains
-          the name of any CVD role.
+          A test asserts that the `/actors/` segment of every cast container's
+          configured actor id is not the name of any CVD role. The host half of
+          the id is pinned separately, to the container's own slot.
         adr:
           - ADR-0098
         relationships:
@@ -2428,8 +2431,8 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Each of those seed configs MUST list every other cast container and
-          the dedicated CaseActor container as a peer.
+          Each cast container's seed config MUST list every other cast
+          container and the dedicated CaseActor container as a peer.
         rationale: >-
           A container cannot address an actor it does not know, and the demo
           has no discovery step, so a missing peer stops a message that the
@@ -2479,6 +2482,51 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-020
+
+      - id: DEMOCI-11-032
+        priority: MUST
+        kind: project
+        statement: >-
+          The first-Vendor and first-Coordinator cast slots MUST declare their
+          own CVD role as their container's default case roles.
+        rationale: >-
+          These are the only cast containers that own a case, and a case is
+          owned as a role (CP-01-013). Without the declaration a Coordinator
+          that owns the case holds only `case_owner`, and the harness then
+          fails every Coordinator step of the scenario (#5467, DEMOCI-11-013).
+          Every other cast container declares none (DEMOCI-11-026).
+        verification: >-
+          A test reads the compose file and asserts that the first-Vendor slot
+          declares the Vendor role and the first-Coordinator slot the
+          Coordinator role.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-021
+
+      - id: DEMOCI-11-033
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A character-actor container's seed config MUST NOT name its local
+          actor for a CVD role.
+        rationale: >-
+          The display name is what the devlogs and the UI show for that actor,
+          so a role name there makes the same claim a role-named actor id would
+          (DEMOCI-11-027), in the one place a reader looks to find out who an
+          actor is. A fixed-role slot may be named for its role, because it
+          plays that part in every scenario; a character actor takes the name
+          of its container.
+        verification: >-
+          A test asserts the display name each seed config declares, naming the
+          fixed-role slots for their role and each character-actor slot for its
+          container.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-021
 
       - id: DEMOCI-11-021
         priority: MUST

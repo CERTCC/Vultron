@@ -65,10 +65,9 @@ A scenario module declares itself, and nothing else anywhere does:
   gets no option, keeps its default, and runs the scenario against the wrong
   container without failing.
 
-A scenario specified but not yet built goes in `notes/demo-future-ideas.md`, never the
-registry (DEMOCI-11-010). Its recording is generated, never hand-edited, and each
-role is seated in a cast slot the `demo-runner` names. Full write-up, recordings
-included: [demo-scenario-registry](../../notes/demo-scenario-registry.md). DEMOCI-11.
+A scenario specified but not yet built goes in `notes/demo-future-ideas.md`, never
+the registry (DEMOCI-11-010). Its recording is generated, never hand-edited. Full
+write-up: [demo-scenario-registry](../../notes/demo-scenario-registry.md). DEMOCI-11.
 
 ### Extract Before Reuse: No Copy-Paste from Existing Scenario Files
 
@@ -144,10 +143,11 @@ Display-layer code maps `MessageSemantics` → phrase via
 
 `vultron/demo/helpers/cast.py` declares one role-neutral container per cast slot,
 with one address and one actor id per slot in every scenario (DEMOCI-11-020).
-Slots 0–2 are the first Reporter, Vendor and Coordinator a scenario seats; 3 and
-up are character actors whose role comes from the act that seats them, so they
-declare no `VULTRON_ACTOR__DEFAULT_CASE_ROLES` (DEMOCI-11-021). Seat a new part in
-a free slot; a scenario wider than any built one grows `CAST_SIZE`. See
+Slots 0–2 are the first Reporter, Vendor and Coordinator a scenario seats; 3 and up
+take their role from the act that seats them (DEMOCI-11-021). Only slots 1 and 2
+declare `VULTRON_ACTOR__DEFAULT_CASE_ROLES`, because only they own a case and a case
+is owned as a role (CP-01-013, DEMOCI-11-032). Seat a new part in a free slot; a
+wider scenario grows `CAST_SIZE`. See
 [`notes/demo-scenario-authoring.md`](../../notes/demo-scenario-authoring.md)
 § "Every Scenario Runs on the Fixed Cast". (#5532)
 

@@ -97,8 +97,8 @@ composition states no `path=`: its path is read off its story's choices
   which the CASE_MANAGER seats on an inert participant (CM-17-003). So report
   the root step after seeding, just before the report is submitted. A case
   owner holds only `case_owner` unless its container states default case
-  roles (CP-01-013), which is why the coordinator container states
-  `["coordinator"]`.
+  roles (CP-01-013), which is why the first-Coordinator slot (`actor2`) states
+  `["coordinator"]` and the first-Vendor slot (`actor1`) states `["vendor"]`.
 - **Every choice is a mounted trigger and is taken.** The same file checks each
   choice's verb against the routes the prototype app mounts, and that some
   registered scenario takes every choice; an untaken choice is a dead end in

@@ -173,7 +173,8 @@ address and one actor id per slot in every scenario (DEMOCI-11-020).
   is a separate choice and not always the part: the `rccv-*` scenarios keep
   RVCV-legacy directory names (`vendor` is C1, `coordinator` is C2), which the
   invariant harness pins — see
-  [demo-ci-invariants.md](demo-ci-invariants.md) before renaming one.
+  [demo-ci-invariants.md](demo-ci-invariants.md) § "Harness File Conventions"
+  before renaming one.
 - **A scenario declares no URL, port or actor id.** They are the slot's; a
   scenario that needs a different id passes `--<name>-id`. Growing the cast is
   a `CAST_SIZE` change, and `test/demo_unit/test_cast.py` fails until the

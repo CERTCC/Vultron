@@ -42,7 +42,7 @@ variable and a sync hook such as `docs-site-sync` then checks the worktree again
 wears two faces, and neither names the cause: a stale-artifact report for a file
 that is in sync, and a `ModuleNotFoundError` for a module the worktree has but
 `/app` does not. Re-run the hook's own command with `PYTHONPATH=` before
-believing either.
+believing either (#5532).
 A test's child Python process has the same exposure; it takes its environment
 from `child_env()` ([testing-pitfalls](testing-pitfalls.md) § "A Child Python
 Process Gets Its Environment From `child_env()`").

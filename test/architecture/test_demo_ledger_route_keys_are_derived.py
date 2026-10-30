@@ -39,11 +39,13 @@ Issue: #2484 (phase8-literal-ledger-keys-0)
 """
 
 import ast
+import logging
 from pathlib import Path
 
 import pytest
 
 from test.architecture import _corpus
+from vultron.demo.helpers.cast import REPORTER_SLOT
 from vultron.demo.helpers.ledger_dump import replica_route_key
 from vultron.demo.utils import DataLayerClient
 
@@ -168,3 +170,37 @@ class TestReplicaRouteKey:
         """
         client = DataLayerClient(base_url="http://actor0:7999/api/v2")
         assert replica_route_key(client) == "actor0"
+
+    def test_an_unbound_local_client_resolves_through_the_cast(self) -> None:
+        """The arm the host name cannot answer, and the reason for the cast
+        lookup: a local run addresses every container as ``localhost`` on its
+        own port, so the host name would key every actor as ``localhost``.
+        """
+        client = DataLayerClient(base_url=REPORTER_SLOT.default_url)
+        assert replica_route_key(client) == REPORTER_SLOT.name
+
+    def test_an_unbound_non_cast_client_warns_and_keeps_the_host(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Nothing says which actor a non-cast container hosts.
+
+        The key is still a guess rather than an exception, because teardown is
+        where the ledger is the last evidence; the WARNING is the only notice
+        before the dump reports an empty ledger.
+        """
+        client = DataLayerClient(base_url="http://somewhere:8000/api/v2")
+        with caplog.at_level(logging.WARNING):
+            assert replica_route_key(client) == "somewhere"
+        assert "addresses no cast container" in caplog.text
+
+    def test_an_unbound_client_never_keys_on_nothing(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """An address with no host name leaves nothing to guess.
+
+        An empty key would read as "no actor" and hide which client the dump
+        could not place, so the address itself is the key.
+        """
+        client = DataLayerClient(base_url="file:///tmp/store")
+        with caplog.at_level(logging.WARNING):
+            assert replica_route_key(client) == "file:///tmp/store"

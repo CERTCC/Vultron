@@ -66,6 +66,18 @@ def _load_compose() -> dict[str, Any]:
         return result
 
 
+def _host_port_expr(data: dict[str, Any], service_name: str) -> str:
+    """The host side of *service_name*'s single port mapping.
+
+    Stated once because five checks read it and each one that spelled the
+    `ports[0]` lookup for itself was a place the shape could be read wrongly
+    (CS-22-001).
+    """
+    ports = data["services"][service_name].get("ports", [])
+    assert ports, f"Service '{service_name}' has no port mappings"
+    return str(ports[0]).rsplit(":", 1)[0]
+
+
 class TestMultiActorComposeHostPorts:
     """Host port bindings must be configurable via environment variables."""
 
@@ -95,11 +107,7 @@ class TestMultiActorComposeHostPorts:
         """
         data = _load_compose()
         for service_name in _EXPECTED_SERVICE_DEFAULTS:
-            svc = data["services"][service_name]
-            ports = svc.get("ports", [])
-            assert ports, f"Service '{service_name}' has no port mappings"
-            mapping = str(ports[0])
-            host_part, _container = mapping.rsplit(":", 1)
+            host_part = _host_port_expr(data, service_name)
             assert _ENV_VAR_PORT_RE.match(host_part), (
                 f"Service '{service_name}' host port {host_part!r} must use "
                 f"env-var substitution (e.g. '${{ACTOR0_HOST_PORT:-7901}}'), "
@@ -111,11 +119,7 @@ class TestMultiActorComposeHostPorts:
         """Default port values inside the env-var expressions must be correct."""
         data = _load_compose()
         for service_name, expected_port in _EXPECTED_SERVICE_DEFAULTS.items():
-            svc = data["services"][service_name]
-            ports = svc.get("ports", [])
-            assert ports, f"Service '{service_name}' has no port mappings"
-            mapping = str(ports[0])
-            host_part, _container = mapping.rsplit(":", 1)
+            host_part = _host_port_expr(data, service_name)
             # Extract the default from ${VAR:-NNNN}
             m = re.search(r":-(\d+)\}", host_part)
             assert m is not None, (
@@ -136,8 +140,7 @@ class TestMultiActorComposeHostPorts:
         """
         data = _load_compose()
         for slot in ALL_SLOTS:
-            mapping = str(data["services"][slot.name]["ports"][0])
-            host_part = mapping.rsplit(":", 1)[0]
+            host_part = _host_port_expr(data, slot.name)
             expected = f"{slot.name.upper().replace('-', '_')}_HOST_PORT"
             assert f"${{{expected}:-" in host_part, (
                 f"service {slot.name!r} publishes {host_part!r}, not "
@@ -148,11 +151,7 @@ class TestMultiActorComposeHostPorts:
         """Env var names must follow UPPER_SNAKE_CASE and end with _HOST_PORT."""
         data = _load_compose()
         for service_name in _EXPECTED_SERVICE_DEFAULTS:
-            svc = data["services"][service_name]
-            ports = svc.get("ports", [])
-            assert ports, f"Service '{service_name}' has no port mappings"
-            mapping = str(ports[0])
-            host_part, _container = mapping.rsplit(":", 1)
+            host_part = _host_port_expr(data, service_name)
             m = re.search(r"\$\{([A-Z0-9_]+):-", host_part)
             assert m is not None, (
                 f"Service '{service_name}': could not extract env var name "
@@ -259,13 +258,18 @@ class TestDefaultCaseRolesFollowTheCast:
         )
 
     @pytest.mark.parametrize(
-        "slot", [REPORTER_SLOT, *CHARACTER_SLOTS], ids=lambda s: s.name
+        "slot",
+        [REPORTER_SLOT, *CHARACTER_SLOTS, CASE_ACTOR],
+        ids=lambda s: s.name,
     )
     def test_no_other_slot_states_a_case_role(self, slot):
-        """The Reporter slot and every character actor declare none.
+        """The Reporter slot, every character actor and the CaseActor declare
+        none.
 
-        The Reporter's role comes from submitting the report, and this
-        container never owns a case.
+        The Reporter's role comes from submitting the report, and its container
+        never owns a case.  The CaseActor is here too, because it holds
+        CASE_MANAGER for every case and owns none of them (DEMOMA-06-004), so a
+        default case role on that container would be wrong in every scenario.
         """
         env = _env(_load_compose()["services"][slot.name])
         assert "VULTRON_ACTOR__DEFAULT_CASE_ROLES" not in env

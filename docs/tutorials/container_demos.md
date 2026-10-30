@@ -90,7 +90,7 @@ Their names say nothing about CVD roles, because one container plays different p
 | `actor0` | The first Reporter the scenario seats, in every scenario |
 | `actor1` | The first Vendor the scenario seats, in every scenario |
 | `actor2` | The first Coordinator the scenario seats, in every scenario |
-| `actor3` | A second Vendor in `rvv`, `rvcv-*` and `rcvv-embargo`; a second Coordinator in `rccv-*` |
+| `actor3` | A second Vendor in `rvv`, `rvcv-*` and `rcvv-embargo`; a second Coordinator in `rccv-*` and `rcvcv` |
 | `actor4` | The Vendor that is also a Deployer, in `rcvcv` |
 | `case-actor` | The Case Actor, which manages each case and holds its canonical ledger |
 

@@ -258,7 +258,14 @@ def replica_route_key(client: DataLayerClient) -> str:
             # Not a cast container, so nothing says which actor it hosts.  The
             # host name is the last guess available, and the WARNING is the
             # only notice the dump will give before it reports an empty ledger.
-            host = urlparse(client.base_url).hostname or ""
+            # An address with no host name at all leaves nothing to guess, so
+            # the key is the address itself: an empty key would read as "no
+            # actor" and hide which client the dump could not place.
+            host = (
+                urlparse(client.base_url).hostname
+                or client.base_url
+                or "unresolved-actor"
+            )
             logger.warning(
                 "ledger dump: client for %s is unbound and addresses no cast"
                 " container, so its route key falls back to the host name"

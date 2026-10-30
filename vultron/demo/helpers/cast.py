@@ -47,11 +47,17 @@ from vultron.demo.utils import CASE_ACTOR_SLUG
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoActorRoleError
 
-#: Compose service name spelling: lowercase alphanumerics separated by single
-#: hyphens.  The name is the container's host name, the slug of the one actor
-#: it hosts, and the stem of its ``VULTRON_*_BASE_URL`` env var, so anything
-#: else breaks one of the three.
-_SLOT_NAME_RE = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*\Z")
+#: Slug spelling for a cast container and for a scenario's name for an actor
+#: in it: lowercase alphanumerics separated by single hyphens, starting with a
+#: letter.  A container's name is its host name, the slug of the one actor it
+#: hosts, and the stem of its ``VULTRON_*_BASE_URL`` env var, so anything else
+#: breaks one of the three; an actor's name is the stem of a click flag and of
+#: a ``main()`` parameter, so the same spelling serves both.  Shared with
+#: :mod:`vultron.demo.helpers.actor_roles`, which checks the other half.
+#:
+#: Anchored with ``\Z`` rather than ``$``, which also matches before a trailing
+#: newline: ``"actor0\n"`` would pass and then name a host nothing resolves.
+SLUG_RE = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*\Z")
 
 #: The port every actor container serves on inside the compose network.
 CONTAINER_PORT = 7999
@@ -76,14 +82,16 @@ class ContainerSlot:
         # Every derivation below reads `name`, so an empty or malformed one
         # yields a legal-looking `VULTRON__BASE_URL` and an actor id ending in
         # a bare slash, both of which fail far from here.
-        if not _SLOT_NAME_RE.match(self.name):
+        if not isinstance(self.name, str) or not SLUG_RE.match(self.name):
             raise DemoActorRoleError(
                 f"cast container name {self.name!r} is not a usable compose "
                 "service name; expected lowercase alphanumerics separated by "
                 "single hyphens, because the name is the container's host "
                 "name, its actor slug and the stem of its env var."
             )
-        if not isinstance(self.port, int) or not 1 <= self.port <= 65535:
+        # `type(...) is not int` rather than `isinstance`: `bool` is an `int`,
+        # and `port=True` would yield `http://localhost:True/api/v2`.
+        if type(self.port) is not int or not 1 <= self.port <= 65535:
             raise DemoActorRoleError(
                 f"cast container {self.name!r} has port {self.port!r}, which "
                 "is not a TCP port; it is what the container publishes when it "
@@ -203,6 +211,7 @@ __all__ = [
     "FIRST_OF_ROLE",
     "REPORTER_SLOT",
     "ROLE_OF_SLOT",
+    "SLUG_RE",
     "slot_for",
     "VENDOR_SLOT",
 ]

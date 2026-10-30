@@ -29,7 +29,7 @@ from __future__ import annotations
 import importlib
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, NamedTuple, cast
 
 import pytest
 import yaml
@@ -44,9 +44,11 @@ from vultron.demo.helpers.cast import (
     FIRST_OF_ROLE,
     ROLE_OF_SLOT,
     ContainerSlot,
+    slot_for,
 )
 from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
 from vultron.enums.roles import CVDRole
+from vultron.errors import DemoActorRoleError
 
 _REPO_ROOT = Path(__file__).parents[2]
 _COMPOSE_FILE = _REPO_ROOT / "docker" / "docker-compose-multi-actor.yml"
@@ -100,6 +102,73 @@ _SCENARIOS = sorted(discover_scenarios(), key=lambda spec: spec.name)
 _SCENARIO_IDS = [spec.name for spec in _SCENARIOS]
 
 
+class _Address(NamedTuple):
+    """One cast container's addresses, written out rather than derived."""
+
+    slot: ContainerSlot
+    port: int
+    url_env: str
+    default_url: str
+    compose_url: str
+    actor_id: str
+
+
+#: Every cast container's address, spelled out.  A derivation checked against
+#: itself agrees with any value, so the one table the tree's byte identity
+#: rests on (DEMOCI-11-020) is written by hand here; growing the cast fails
+#: ``test_every_slot_has_an_expected_address`` until a row is added.
+_ADDRESSES: tuple[_Address, ...] = (
+    _Address(
+        CAST[0],
+        7901,
+        "VULTRON_ACTOR0_BASE_URL",
+        "http://localhost:7901/api/v2",
+        "http://actor0:7999/api/v2",
+        "http://actor0:7999/api/v2/actors/actor0",
+    ),
+    _Address(
+        CAST[1],
+        7902,
+        "VULTRON_ACTOR1_BASE_URL",
+        "http://localhost:7902/api/v2",
+        "http://actor1:7999/api/v2",
+        "http://actor1:7999/api/v2/actors/actor1",
+    ),
+    _Address(
+        CAST[2],
+        7903,
+        "VULTRON_ACTOR2_BASE_URL",
+        "http://localhost:7903/api/v2",
+        "http://actor2:7999/api/v2",
+        "http://actor2:7999/api/v2/actors/actor2",
+    ),
+    _Address(
+        CAST[3],
+        7904,
+        "VULTRON_ACTOR3_BASE_URL",
+        "http://localhost:7904/api/v2",
+        "http://actor3:7999/api/v2",
+        "http://actor3:7999/api/v2/actors/actor3",
+    ),
+    _Address(
+        CAST[4],
+        7905,
+        "VULTRON_ACTOR4_BASE_URL",
+        "http://localhost:7905/api/v2",
+        "http://actor4:7999/api/v2",
+        "http://actor4:7999/api/v2/actors/actor4",
+    ),
+    _Address(
+        CASE_ACTOR,
+        7906,
+        "VULTRON_CASE_ACTOR_BASE_URL",
+        "http://localhost:7906/api/v2",
+        "http://case-actor:7999/api/v2",
+        "http://case-actor:7999/api/v2/actors/case-actor",
+    ),
+)
+
+
 class TestCastShape:
     """The cast table itself: distinct containers, in a declared order."""
 
@@ -146,6 +215,102 @@ class TestCastShape:
     def test_a_hyphenated_slot_name_yields_a_legal_env_var(self) -> None:
         """``case-actor`` → ``VULTRON_CASE_ACTOR_BASE_URL``, not a hyphen."""
         assert CASE_ACTOR.url_env == "VULTRON_CASE_ACTOR_BASE_URL"
+
+    def test_every_slot_has_an_expected_address(self) -> None:
+        """A new cast member needs a hand-written row in :data:`_ADDRESSES`.
+
+        Without this, growing the cast would silently shrink what the
+        spelled-out address table covers.
+        """
+        assert tuple(entry.slot for entry in _ADDRESSES) == ALL_SLOTS
+
+    @pytest.mark.parametrize("expected", _ADDRESSES, ids=lambda e: e.slot.name)
+    def test_each_slot_serves_its_written_out_address(
+        self, expected: _Address
+    ) -> None:
+        """Each derivation agrees with the address written out by hand."""
+        slot = expected.slot
+        assert slot.port == expected.port
+        assert slot.url_env == expected.url_env
+        assert slot.id_env == expected.url_env.replace(
+            "_BASE_URL", "_ACTOR_ID"
+        )
+        assert slot.default_url == expected.default_url
+        assert slot.compose_url == expected.compose_url
+        assert slot.actor_id(expected.compose_url) == expected.actor_id
+
+
+class TestSlotConstruction:
+    """A slot refuses a name or a port that would fail far from here."""
+
+    @pytest.mark.parametrize(
+        "name",
+        ["", "Actor0", "actor_0", "-actor0", "actor0-", "0actor", "actor0\n"],
+        ids=repr,
+    )
+    def test_a_name_that_is_no_compose_service_is_refused(
+        self, name: str
+    ) -> None:
+        """The name is the host name, the actor slug and the env-var stem."""
+        with pytest.raises(DemoActorRoleError, match="compose service name"):
+            ContainerSlot(name=name, port=7901)
+
+    def test_a_non_string_name_is_refused_as_a_cast_error(self) -> None:
+        """Not a ``TypeError`` out of ``re.match``, which names no cast."""
+        with pytest.raises(DemoActorRoleError, match="compose service name"):
+            ContainerSlot(name=cast("str", None), port=7901)
+
+    @pytest.mark.parametrize(
+        "port", [0, -1, 65536, "7901", None, True], ids=repr
+    )
+    def test_a_port_that_is_no_tcp_port_is_refused(self, port: object) -> None:
+        """``port=True`` would yield ``http://localhost:True/api/v2``."""
+        with pytest.raises(DemoActorRoleError, match="TCP port"):
+            ContainerSlot(name="actor9", port=cast("int", port))
+
+
+class TestSlotForAnAddress:
+    """``slot_for`` names the actor a container hosts, from a URL alone."""
+
+    @pytest.mark.parametrize("expected", _ADDRESSES, ids=lambda e: e.slot.name)
+    def test_a_compose_url_resolves_to_its_slot(
+        self, expected: _Address
+    ) -> None:
+        assert slot_for(expected.compose_url) is expected.slot
+
+    @pytest.mark.parametrize("expected", _ADDRESSES, ids=lambda e: e.slot.name)
+    def test_a_local_url_resolves_to_its_slot(
+        self, expected: _Address
+    ) -> None:
+        """The arm the host name alone cannot give: every container is
+        ``localhost`` on a local run, on a different port."""
+        assert slot_for(expected.default_url) is expected.slot
+
+    def test_a_trailing_slash_resolves_the_same(self) -> None:
+        assert slot_for("http://actor0:7999/api/v2/") is CAST[0]
+
+    def test_the_env_overridden_url_resolves_to_its_slot(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A container reachable at neither canonical address still resolves."""
+        monkeypatch.setenv(CAST[0].url_env, "http://elsewhere:9999/api/v2")
+        assert slot_for("http://elsewhere:9999/api/v2") is CAST[0]
+
+    @pytest.mark.parametrize(
+        "address",
+        [
+            "http://localhost:7999/api/v2",
+            "http://somewhere:8000/api/v2",
+            "http://actor0:7999/other",
+            "",
+        ],
+        ids=repr,
+    )
+    def test_an_address_that_is_no_cast_container_resolves_to_nothing(
+        self, address: str
+    ) -> None:
+        """``None`` rather than a guess: the caller decides what to do."""
+        assert slot_for(address) is None
 
 
 class TestComposeMatchesTheCast:
@@ -329,14 +494,6 @@ class TestScenariosSeatTheCast:
                 actor for actor in _roles_of(spec) if actor.slot is slot
             ], f"{spec.name} seats an actor in the unused {role.value} slot"
 
-    @pytest.mark.parametrize("spec", _SCENARIOS, ids=_SCENARIO_IDS)
-    def test_the_fixed_role_actors_declare_their_role(
-        self, spec: ScenarioSpec
-    ):
-        """``plays`` agrees with the slot for every seated actor."""
-        for role in _roles_of(spec):
-            assert role.plays is ROLE_OF_SLOT.get(role.slot.name)
-
     def test_the_whole_cast_is_used_by_some_scenario(self) -> None:
         """A cast member no scenario seats is a container CI starts for nothing."""
         seated = {role.slot for spec in _SCENARIOS for role in _roles_of(spec)}
@@ -346,9 +503,9 @@ class TestScenariosSeatTheCast:
 class TestRolesAreSharedBetweenScenarios:
     """The point of the cast: one address per part, across the tree."""
 
-    @pytest.mark.parametrize("slot", ALL_SLOTS, ids=lambda s: s.name)
+    @pytest.mark.parametrize("expected", _ADDRESSES, ids=lambda e: e.slot.name)
     def test_one_slot_port_and_actor_id_per_part_across_the_tree(
-        self, slot: ContainerSlot
+        self, expected: _Address
     ):
         """``rcv``'s ``coordinator`` and ``rcvcv``'s ``c1`` are one actor.
 
@@ -356,7 +513,13 @@ class TestRolesAreSharedBetweenScenarios:
         container, port and id, which is what lets their shared opening record
         the same bytes (DEMOCI-11-018).  Over every slot, because a character
         actor's addresses have to be as fixed as a Reporter's.
+
+        The expected address is spelled out in :data:`_ADDRESSES` rather than
+        read back off the slot: an actor is selected here *because* its slot is
+        this one, so comparing its derived address against that same slot's
+        would hold whatever the derivations said.
         """
+        slot = expected.slot
         seated = [
             actor
             for spec in _SCENARIOS
@@ -364,8 +527,10 @@ class TestRolesAreSharedBetweenScenarios:
             if actor.slot is slot
         ]
         assert seated, f"no registered scenario seats {slot.name}"
-        assert {actor.slot.port for actor in seated} == {slot.port}
-        assert {actor.url_env for actor in seated} == {slot.url_env}
-        assert {actor.resolve_id(slot.compose_url) for actor in seated} == {
-            slot.actor_id(slot.compose_url)
-        }
+        for actor in seated:
+            assert actor.slot.port == expected.port
+            assert actor.url_env == expected.url_env
+            assert actor.default_url == expected.default_url
+            assert (
+                actor.resolve_id(expected.compose_url) == expected.actor_id
+            ), f"{actor.name} resolves to a different actor than {slot.name}"

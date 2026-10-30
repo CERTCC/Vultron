@@ -72,8 +72,8 @@ def reset_blackboard() -> None:
     * **keys.** ``BTBridge.execute_with_setup`` restores only the keys on its
       ``managed_keys`` list, so any other key a node wrote outlives the run.
     * **clients.** ``py_trees.blackboard.Client`` registers itself under a
-      ``uuid4`` that nothing unregisters, so a seeded id source (:func:
-      `deterministic_run`) redraws an id the registry already holds and
+      ``uuid4`` that nothing unregisters, so a seeded id source
+      (:func:`deterministic_run`) redraws an id the registry already holds and
       py_trees refuses the registration.
 
     ``Blackboard.clear()`` drops both, and with them the metadata and the
@@ -177,5 +177,7 @@ __all__ = [
     "RECORDING_EPOCH",
     "SeededUuid4",
     "SteppingClock",
+    "TREE_RECORDING_SEED",
     "deterministic_run",
+    "reset_blackboard",
 ]

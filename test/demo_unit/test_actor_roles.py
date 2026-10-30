@@ -26,6 +26,7 @@ import pytest
 from vultron.demo.helpers.actor_roles import (
     ActorRole,
     case_actor_role,
+    resolved_actor_ids,
     role_kwarg_names,
     role_map,
 )
@@ -36,6 +37,7 @@ from vultron.demo.helpers.cast import (
     REPORTER_SLOT,
     VENDOR_SLOT,
 )
+from vultron.demo.utils import DataLayerClient
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoActorRoleError
 
@@ -332,3 +334,64 @@ class TestRoleKwargNames:
             "reporter_id",
             "vendor_id",
         )
+
+
+class TestResolvedActorIds:
+    """The one statement of how a ``main()`` resolves its actors' ids."""
+
+    def test_an_override_wins_and_a_missing_one_falls_to_the_slot(
+        self,
+    ) -> None:
+        """The rule all 11 ``main()`` functions share (DEMOMA-17-001)."""
+        roles = role_map(
+            [
+                _role(has_id=True),
+                _role(
+                    name="vendor",
+                    slot=VENDOR_SLOT,
+                    title="Vendor",
+                    has_id=True,
+                ),
+            ]
+        )
+        resolved = resolved_actor_ids(
+            roles,
+            reporter=(
+                DataLayerClient(base_url=REPORTER_SLOT.compose_url),
+                None,
+            ),
+            vendor=(
+                DataLayerClient(base_url=VENDOR_SLOT.compose_url),
+                "http://elsewhere/api/v2/actors/given",
+            ),
+        )
+        assert resolved == {
+            "reporter_id": (
+                f"{REPORTER_SLOT.compose_url}/actors/{REPORTER_SLOT.name}"
+            ),
+            "vendor_id": "http://elsewhere/api/v2/actors/given",
+        }
+
+    def test_refuses_a_seat_no_role_declares(self) -> None:
+        """A ``main()`` that has drifted from its ``ROLES``."""
+        roles = role_map([_role(has_id=True)])
+        with pytest.raises(DemoActorRoleError, match="which no actor role"):
+            resolved_actor_ids(
+                roles,
+                vendor=(
+                    DataLayerClient(base_url=VENDOR_SLOT.compose_url),
+                    None,
+                ),
+            )
+
+    def test_refuses_a_seat_whose_role_has_no_id_option(self) -> None:
+        """Without ``--<name>-id`` the value could only be the slot's own."""
+        roles = role_map([_role()])
+        with pytest.raises(DemoActorRoleError, match="has_id=False"):
+            resolved_actor_ids(
+                roles,
+                reporter=(
+                    DataLayerClient(base_url=REPORTER_SLOT.compose_url),
+                    None,
+                ),
+            )

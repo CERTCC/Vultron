@@ -179,6 +179,19 @@ continuation per choice (DEMOCI-11-019, ADR-0098). Rules for the work:
   scenario in a process redraws the first one's ids, so a runner that plays
   more than one story must reset them — `reset_blackboard()` is the one that
   bit, because py_trees refuses a blackboard client id it already holds.
+- **Byte identity needs one authored opening, not just one cast.** With the cast
+  and the tree-wide seed fixed, five of the twelve sibling pairs that share a
+  prefix are already byte-identical, where none was before (#5532). The seven
+  that are not all pair `rcvcv` or `rcvv-embargo` with a narrower sibling, and
+  the cause is setup length: those two read the stepping clock more times before
+  the case opens, so they stamp `create_case` a second later and the hash chain
+  carries the offset. Composing the opening is what closes it, so
+  `COMPOSED_FAMILIES` stays empty until a family is composed (DEMOCI-11-018).
+- **Key a composed view on the scenario and the case, never the case alone.**
+  One seed also means every scenario draws the *same* case id, which is what
+  lets siblings record identical bytes for a shared opening (DEMOCI-11-025) and
+  is why `scenario_tree.json` nests its `recordings` map under the scenario
+  name. A view that indexed recordings by case id would merge all eleven.
 - **Specs stay whole stories.** Each scenario's spec group and its DEMOMA-16
   list of required semantic types describe the whole story, written by hand,
   so the run is checked against the spec, not against the code. Each group

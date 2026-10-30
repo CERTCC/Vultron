@@ -2964,7 +2964,6 @@ groups:
   - id: DEMOMA-19-023
     priority: MUST
     kind: project
-    verification_debt: '#2573'
     statement: >-
       Each cast slot RCVCV seats MUST have a service built from the shared
       `*actor-service` anchor, with its own volume, port variable and actor
@@ -2975,6 +2974,10 @@ groups:
       what actually differs. Its seed config is DEMOCI-11-028. One actor per
       container preserves the isolation invariant that prevents
       intra-container data-layer shortcuts (ADR-0042).
+    verification: >-
+      Tests assert, over every cast slot, that the compose file gives it its own
+      data volume, publishes it on its own host-port variable, and configures the
+      actor id its slot hosts. The shared anchor itself is the remaining debt.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-19-001
@@ -3093,10 +3096,11 @@ groups:
       entry (DEMOCI-11-004) adds it to the CI matrix.
     rationale: >-
       CI coverage of all demo scenarios is required by DEMOCI-04-001. RCVCV is
-      the widest scenario, so it is the one that sets the size of the cast,
-      which DEMOMA-19-001 and DEMOMA-19-011 place in the compose file CI starts
-      as a whole. Scenario-role names in devlogs match the names used in
-      scenario code, making log archaeology easier.
+      the widest scenario, so it is the one that sets the size of the cast.
+      DEMOMA-19-023 is what places each of those containers in the compose file
+      CI starts as a whole; this requirement no longer carries that half.
+      Scenario-role names in devlogs match the names used in scenario code,
+      making log archaeology easier.
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-04-001
@@ -3157,7 +3161,9 @@ groups:
     rationale: >-
       RCVCV is the widest scenario, so it is the first to need a seed config
       for every cast container. The cast-wide shape of those configs is
-      DEMOCI-11-028 and DEMOCI-11-029.
+      DEMOCI-11-028 (the local actor), DEMOCI-11-029 (the peer mesh) and
+      DEMOCI-11-033 (the display name), which together replace the id, name
+      and peer list this requirement used to spell for one container.
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-11-028
@@ -3175,6 +3181,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-11-030
+    - rel_type: refines
+      spec_id: DEMOCI-11-031
   - id: DEMOMA-19-012
     priority: MUST
     kind: project

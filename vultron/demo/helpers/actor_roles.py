@@ -40,33 +40,27 @@ Implementation guidance: ``notes/demo-scenario-registry.md``.
 
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from vultron.demo.helpers.cast import (
     CASE_ACTOR,
     ROLE_OF_SLOT,
+    SLUG_RE,
     ContainerSlot,
 )
 from vultron.demo.utils import DataLayerClient
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoActorRoleError
 
-#: Role name spelling: lowercase alphanumerics separated by single hyphens, with
-#: a leading letter.  ``name`` is the stem of both option flags and both
-#: ``main()`` parameters, so a name that cannot round-trip into a click flag
-#: *and* a Python identifier is rejected here rather than producing an
-#: unreachable option later.
-#:
-#: The leading letter is what makes the identifier half true: ``"2nd-vendor"`` is
-#: a fine click flag but yields ``2nd_vendor_url``, which no ``main()`` can
-#: declare — the failure would surface in the ratchet rather than at the
-#: declaration site this check exists to guard.
-#:
-#: Anchored with ``\Z`` rather than ``$``, which also matches before a trailing
-#: newline: ``"reporter\n"`` would pass and then yield a ``--reporter\n-url`` flag.
-_NAME_RE = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*\Z")
+# A role name uses the cast's slug spelling (`SLUG_RE`), shared rather than
+# restated here: `name` is the stem of both option flags and both `main()`
+# parameters, so a name that cannot round-trip into a click flag *and* a Python
+# identifier is rejected at the declaration site rather than producing an
+# unreachable option later.  The leading letter the shared pattern requires is
+# what makes the identifier half true: "2nd-vendor" is a fine click flag but
+# yields `2nd_vendor_url`, which no `main()` can declare, and that failure
+# would surface in the ratchet instead of here.
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,7 +87,11 @@ class ActorRole:
     has_id: bool = False
 
     def __post_init__(self) -> None:
-        if not _NAME_RE.match(self.name) or not self.param_stem.isidentifier():
+        if (
+            not isinstance(self.name, str)
+            or not SLUG_RE.match(self.name)
+            or not self.param_stem.isidentifier()
+        ):
             raise DemoActorRoleError(
                 f"actor role name {self.name!r} is not a valid option stem; "
                 "expected lowercase alphanumerics separated by single hyphens "

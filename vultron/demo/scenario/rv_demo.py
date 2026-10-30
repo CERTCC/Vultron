@@ -794,9 +794,11 @@ def _phase_dump_case_ledgers(
     # empty. The dump then reported "No case ledger entries for actor='reporter'"
     # while the reporter's real store held twelve.
     #
-    # The actor objects are in hand here, so they are the key's source;
-    # replica_route_key() is the same derivation the sibling scenarios use,
-    # keeping one derivation path across all of them.
+    # The actor objects are in hand here, so they are the key's source, with
+    # replica_route_key() only as the fallback.  That is one arm more than the
+    # ten sibling scenarios have, deliberately: they reach the dump with no
+    # actor object, and routing this one through the shared helper alone would
+    # discard the id this run actually seeded whenever the client is unbound.
     targets = [
         LedgerDumpTarget(
             "reporter",
