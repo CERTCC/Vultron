@@ -41,7 +41,7 @@ Implementation guidance: ``notes/demo-scenario-registry.md``.
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from vultron.demo.helpers.cast import (
@@ -49,6 +49,7 @@ from vultron.demo.helpers.cast import (
     ROLE_OF_SLOT,
     ContainerSlot,
 )
+from vultron.demo.utils import DataLayerClient
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoActorRoleError
 
@@ -103,8 +104,11 @@ class ActorRole:
         if not isinstance(self.slot, ContainerSlot):
             raise DemoActorRoleError(
                 f"actor role {self.name!r} runs in {self.slot!r}, which is not "
-                "a cast container; seat it in a slot from "
-                "vultron.demo.helpers.cast (DEMOCI-11-020)."
+                "a ContainerSlot; seat it in a slot from "
+                "vultron.demo.helpers.cast (DEMOCI-11-020). Membership of the "
+                "cast is checked over every registered scenario by "
+                "test/demo_unit/test_cast.py, because a scenario may legally "
+                "build a slot of its own in a test."
             )
         if not isinstance(self.title, str) or not self.title.strip():
             raise DemoActorRoleError(
@@ -160,13 +164,23 @@ class ActorRole:
         )
 
     @property
+    def id_env(self) -> str | None:
+        """Env var backing the ``--<name>-id`` option: the slot's.
+
+        DEMOMA-14-008 requires the id options to have env bindings, and the
+        binding names the container rather than the part it plays here, so two
+        scenarios that seat one container read one variable.
+        """
+        return self.slot.id_env if self.has_id else None
+
+    @property
     def id_help(self) -> str | None:
         """``--help`` text for the ``--<name>-id`` option, if it has one."""
         if not self.has_id:
             return None
         return (
             f"Full URI for the {self.title} actor (default: "
-            f"<url>/actors/{self.slot.name})."
+            f"<url>/actors/{self.slot.name}; env: {self.id_env})."
         )
 
     @property
@@ -265,6 +279,51 @@ def role_kwarg_names(roles: Sequence[ActorRole]) -> tuple[str, ...]:
     )
 
 
+def resolved_actor_ids(
+    roles: Mapping[str, ActorRole],
+    **seats: tuple[DataLayerClient, str | None],
+) -> dict[str, str]:
+    """Each seated actor's id, keyed by its ``run_*_demo`` keyword.
+
+    Every scenario's ``main()`` resolves the same way — the ``--<name>-id``
+    value if one was given, else the id the container it addresses hosts — so
+    the resolution is called once per scenario rather than once per actor
+    (DEMOMA-17-001).  The result splats straight into the ``run_*_demo`` call.
+
+    Args:
+        roles: The scenario's :func:`role_map`.
+        seats: One ``<param stem>=(client, override)`` pair per actor whose id
+            the scenario passes on, e.g. ``reporter=(reporter_client,
+            reporter_id)``.
+
+    Returns:
+        ``{role.id_param: id}`` for every seat, in the order given.
+
+    Raises:
+        DemoActorRoleError: If a seat names no declared role, or names one that
+            declares no ``--<name>-id`` option — either is a ``main()`` that
+            has drifted from its ``ROLES``.
+    """
+    by_stem = {role.param_stem: role for role in roles.values()}
+    resolved: dict[str, str] = {}
+    for stem, (client, override) in seats.items():
+        role = by_stem.get(stem)
+        if role is None:
+            raise DemoActorRoleError(
+                f"main() resolves an id for {stem!r}, which no actor role "
+                "declares; the scenario's ROLES and its main() have drifted "
+                f"apart. Declared: {sorted(by_stem)}."
+            )
+        if not role.has_id:
+            raise DemoActorRoleError(
+                f"actor role {role.name!r} has has_id=False, so the CLI emits "
+                f"no --{role.name}-id option, yet main() resolves one; the "
+                "value could only ever be the slot's own id."
+            )
+        resolved[role.id_param] = role.resolve_id(client.base_url, override)
+    return resolved
+
+
 def case_actor_role(*, has_id: bool = False) -> ActorRole:
     """The ``case-actor`` role every Docker scenario declares (#1876).
 
@@ -278,7 +337,7 @@ def case_actor_role(*, has_id: bool = False) -> ActorRole:
         has_id: Whether the scenario also takes ``--case-actor-id``.
     """
     return ActorRole(
-        name="case-actor",
+        name=CASE_ACTOR.name,
         slot=CASE_ACTOR,
         title="dedicated CaseActor",
         has_id=has_id,
@@ -288,6 +347,7 @@ def case_actor_role(*, has_id: bool = False) -> ActorRole:
 __all__ = [
     "ActorRole",
     "case_actor_role",
+    "resolved_actor_ids",
     "role_kwarg_names",
     "role_map",
 ]

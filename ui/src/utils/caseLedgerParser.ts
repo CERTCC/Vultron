@@ -132,15 +132,17 @@ export type LaneId = 'finder' | `vendor-${number}` | 'coordinator' | 'caseactor'
  * (DEMOCI-11-020): `actor0:` plays the first Reporter, `actor1:` the first
  * Vendor, `actor2:` the first Coordinator, and `actor3:`/`actor4:` are
  * character actors — `actor3:` is Vendor2 in the vendor scenarios and
- * Coordinator2 in `rccv-*`, `actor4:` is the VendorDeployer in `rcvcv`. Both
- * character slots keep the vendor-N machinery (`vendor-2`, `vendor-3`): lane
- * identity is keyed on the host, and these are the hosts that run a second
- * participant's steps. The Case Actor has its own host,
+ * Coordinator2 in `rccv-*` and `rcvcv`, `actor4:` is the VendorDeployer in
+ * `rcvcv`. Both character slots keep the vendor-N machinery (`vendor-2`,
+ * `vendor-3`): lane identity is keyed on the host, and these are the hosts
+ * that run a second participant's steps, so `actor3:` renders as "Vendor 2"
+ * even where it plays a Coordinator. The Case Actor has its own host,
  * `//case-actor:…/actors/case-actor`.
  *
- * The earlier role-named hosts are still recognized, because the committed
- * sample and synthetic logs carry them: `finder:`/`reporter:`, `vendor:`,
- * `vendor2:`, `vendor3:`, `coordinator:`, `actor5:` and `actor6:`. Those logs
+ * The pre-cast hosts stay recognized for a log recorded before the rename.
+ * The committed logs in this tree carry two of them, `//finder:` and
+ * `//vendor:`; the rest (`//reporter:`, `//coordinator:`, `//vendorN:`,
+ * `//actor5:`, `//actor6:`) are there for a log a user uploads. Those logs
  * also run the Case Actor as a sub-actor with a `case-actor-…` path segment on
  * whichever host owns the case (`//vendor:…/case-actor-<caseId>` in
  * rv/rvv/rvcv-*; `//coordinator:…/case-actor-<caseId>` in rcv/rccv-*).

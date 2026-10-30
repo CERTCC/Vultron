@@ -35,6 +35,7 @@ from vultron.demo.helpers.cast import (
 )
 from vultron.demo.seed_config import SeedConfig
 from vultron.demo.utils import DataLayerClient
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 # Path to the docker/seed-configs/ directory (relative to project root).
@@ -127,11 +128,51 @@ class TestSeedConfigCrossConsistency:
                 assert _own_id(slot) in peers[other]
 
     def test_no_seed_config_names_a_cvd_role(self) -> None:
-        """A role-named id would tie a role-neutral container to one part."""
+        """A role-named id would tie a role-neutral container to one part.
+
+        Over every CVD role rather than the three retired slugs, so a new
+        role-named id cannot slip in behind the list (DEMOCI-11-027).
+        """
         for slot in ALL_SLOTS:
             text = _config_path(slot).read_text(encoding="utf-8")
-            for name in ("vendor2", "vendor-deployer", "coordinator2"):
-                assert f"/actors/{name}" not in text
+            for role in CVDRole:
+                assert f"/actors/{role.value}" not in text
+
+    def test_every_config_calls_a_container_the_same_thing(self) -> None:
+        """One display name per container across the configs.
+
+        The name is what the devlogs and the UI show, so one file calling
+        ``actor2`` the Coordinator while another calls it the Vendor would
+        label the same actor two ways with nothing to catch it.
+        """
+        claimed: dict[str, set[str]] = {slot.name: set() for slot in ALL_SLOTS}
+        by_id = {_own_id(slot): slot.name for slot in ALL_SLOTS}
+        for slot in ALL_SLOTS:
+            cfg = _load_seed_config(slot)
+            claimed[slot.name].add(cfg.local_actor.name)
+            for peer in cfg.peers:
+                claimed[by_id[peer.id_]].add(peer.name)
+        for name, names in claimed.items():
+            assert len(names) == 1, f"{name} is called {sorted(names)}"
+
+    def test_the_fixed_role_slots_are_named_for_their_role(self) -> None:
+        """Slots 0 to 2 play one part in every scenario, so they may say so.
+
+        A character actor may not: its name is the slot's, because its role
+        comes from the act that seats it (DEMOCI-11-021).
+        """
+        names = {
+            slot.name: _load_seed_config(slot).local_actor.name
+            for slot in ALL_SLOTS
+        }
+        assert names == {
+            CAST[0].name: "Reporter",
+            CAST[1].name: "Vendor",
+            CAST[2].name: "Coordinator",
+            CAST[3].name: "Actor3",
+            CAST[4].name: "Actor4",
+            CASE_ACTOR.name: "CaseActor",
+        }
 
 
 class TestSeedCLIWithDeterministicId:

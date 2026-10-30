@@ -217,13 +217,22 @@ class TestDump:
                 later_vendors=[("vendor2", vendor2_client)],
             )
 
-        names = [t.actor_name for t in dump.call_args.kwargs["targets"]]
-        assert names == [
+        targets = dump.call_args.kwargs["targets"]
+        assert [t.actor_name for t in targets] == [
             "reporter",
             "coordinator",
             "vendor",
             "vendor2",
             "case-actor",
+        ]
+        # Each target's route key must come from its *own* client: the key
+        # selects the store (ADR-0073), so a mis-paired client reads another
+        # participant's replica and the dump reports an empty ledger.
+        assert [t.route_key for t in targets[:-1]] == [
+            "reporter",
+            "coordinator",
+            "vendor",
+            "vendor2",
         ]
 
 

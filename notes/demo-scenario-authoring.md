@@ -7,10 +7,10 @@ description: >
   puppeteer actors through trigger endpoints rather than spoofing via inbox
   injection, never carry one actor's mail to another's inbox, extract helpers
   before the second use, call triggers through `ActorSession`, keep
-  console-script entry points callable with no arguments, treat docker service
-  names as one fixed cast of role-neutral slots, keep raising waits
-  inside a demo context, share the replica-sync phase, and close every case
-  with the Case Owner leaving last.
+  console-script entry points callable with no arguments, run every scenario on
+  one fixed cast of role-neutral container slots, keep raising waits inside a
+  demo context, share the replica-sync phase, and close every case with the
+  Case Owner leaving last.
 related_specs:
   - specs/case-bootstrap-trust.yaml
   - specs/demo-ci.yaml
@@ -169,8 +169,11 @@ address and one actor id per slot in every scenario (DEMOCI-11-020).
   character actors: their CVD role comes from the act that seats them, so their
   container declares no `VULTRON_ACTOR__DEFAULT_CASE_ROLES` (DEMOCI-11-021).
 - **Name actors for the part they play here, not for the slot.** `rcv`'s
-  `coordinator` and `rcvcv`'s `c1` are the same container, and a devlog
-  directory keeps the scenario's own name so a dump says which part it holds.
+  `coordinator` and `rcvcv`'s `c1` are the same container. A devlog directory
+  is a separate choice and not always the part: the `rccv-*` scenarios keep
+  RVCV-legacy directory names (`vendor` is C1, `coordinator` is C2), which the
+  invariant harness pins — see
+  [demo-ci-invariants.md](demo-ci-invariants.md) before renaming one.
 - **A scenario declares no URL, port or actor id.** They are the slot's; a
   scenario that needs a different id passes `--<name>-id`. Growing the cast is
   a `CAST_SIZE` change, and `test/demo_unit/test_cast.py` fails until the

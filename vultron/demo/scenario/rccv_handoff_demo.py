@@ -42,6 +42,7 @@ from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.actor_roles import (
     ActorRole,
     case_actor_role,
+    resolved_actor_ids,
     role_map,
 )
 from vultron.demo.helpers.cast import (
@@ -901,7 +902,7 @@ def _phase_dump_case_ledgers(
             reporter_client,
             replica_route_key(reporter_client),
         ),
-        # C1 is on the coordinator container.
+        # C1 is the first Coordinator, on cast slot 2.
         LedgerDumpTarget("vendor", c1_client, replica_route_key(c1_client)),
         # C2 is a character actor, on cast slot 3.
         LedgerDumpTarget(
@@ -909,7 +910,7 @@ def _phase_dump_case_ledgers(
             c2_client,
             replica_route_key(c2_client),
         ),
-        # Vendor is on the vendor container.
+        # Vendor is the first Vendor, on cast slot 1.
         LedgerDumpTarget(
             "vendor2",
             vendor_client,
@@ -1205,15 +1206,14 @@ def main(
         c2_client=c2_client,
         case_actor_client=case_actor_client,
         vendor_client=vendor_client,
-        reporter_id=_ROLES["reporter"].resolve_id(
-            reporter_client.base_url, reporter_id
+        **resolved_actor_ids(
+            _ROLES,
+            reporter=(reporter_client, reporter_id),
+            c1=(c1_client, c1_id),
+            c2=(c2_client, c2_id),
+            vendor=(vendor_client, vendor_id),
         ),
-        c1_id=_ROLES["c1"].resolve_id(c1_client.base_url, c1_id),
-        c2_id=_ROLES["c2"].resolve_id(c2_client.base_url, c2_id),
         case_actor_id=case_actor_id,
-        vendor_id=_ROLES["vendor"].resolve_id(
-            vendor_client.base_url, vendor_id
-        ),
     )
 
 

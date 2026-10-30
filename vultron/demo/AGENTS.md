@@ -147,7 +147,7 @@ with one address and one actor id per slot in every scenario (DEMOCI-11-020).
 Slots 0–2 are the first Reporter, Vendor and Coordinator a scenario seats; 3 and
 up are character actors whose role comes from the act that seats them, so they
 declare no `VULTRON_ACTOR__DEFAULT_CASE_ROLES` (DEMOCI-11-021). Seat a new part in
-a free slot — never add a service. See
+a free slot; a scenario wider than any built one grows `CAST_SIZE`. See
 [`notes/demo-scenario-authoring.md`](../../notes/demo-scenario-authoring.md)
 § "Every Scenario Runs on the Fixed Cast". (#5532)
 

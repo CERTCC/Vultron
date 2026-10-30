@@ -21,7 +21,7 @@ Each actor service must publish its host port as an env-var interpolation
 (``${VAR:-default}`` syntax) rather than a hardcoded number.  Docker Compose
 resolves these at startup time, which allows callers to override them:
 
-    REPORTER_HOST_PORT=17901 ./integration_tests/demo/run_multi_actor_integration_test.sh
+    ACTOR0_HOST_PORT=17901 ./integration_tests/demo/run_multi_actor_integration_test.sh
 """
 
 import re
@@ -55,7 +55,7 @@ _EXPECTED_SERVICE_DEFAULTS: dict[str, int] = {
 }
 
 # Pattern that matches Docker Compose env-var substitution with a default,
-# e.g. "${REPORTER_HOST_PORT:-0}" as the left side of "HOST:CONTAINER".
+# e.g. "${ACTOR0_HOST_PORT:-0}" as the left side of "HOST:CONTAINER".
 _ENV_VAR_PORT_RE = re.compile(r"^\$\{[A-Z0-9_]+:-\d+\}$")
 
 
@@ -126,6 +126,22 @@ class TestMultiActorComposeHostPorts:
             assert actual_default == expected_port, (
                 f"Service '{service_name}' default host port should be "
                 f"{expected_port}, got {actual_default}."
+            )
+
+    def test_each_service_publishes_its_own_slots_variable(self):
+        """A copy-paste leaving actor3 on ${ACTOR2_HOST_PORT} must fail.
+
+        Derived from the slot name, which is the same half-edited-copy mistake
+        ``role_map`` refuses for two roles in one container.
+        """
+        data = _load_compose()
+        for slot in ALL_SLOTS:
+            mapping = str(data["services"][slot.name]["ports"][0])
+            host_part = mapping.rsplit(":", 1)[0]
+            expected = f"{slot.name.upper().replace('-', '_')}_HOST_PORT"
+            assert f"${{{expected}:-" in host_part, (
+                f"service {slot.name!r} publishes {host_part!r}, not "
+                f"${{{expected}:-0}}"
             )
 
     def test_env_var_names_follow_convention(self):

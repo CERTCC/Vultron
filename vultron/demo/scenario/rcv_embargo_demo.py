@@ -47,6 +47,7 @@ from vultron.demo.exchange.embargo_lifecycle import (
 from vultron.demo.helpers.actor_roles import (
     ActorRole,
     case_actor_role,
+    resolved_actor_ids,
     role_map,
 )
 from vultron.demo.helpers.cast import (
@@ -563,14 +564,11 @@ def main(
         coordinator_client=coordinator_client,
         vendor_client=vendor_client,
         case_actor_client=case_actor_client,
-        reporter_id=_ROLES["reporter"].resolve_id(
-            reporter_client.base_url, reporter_id
-        ),
-        coordinator_id=_ROLES["coordinator"].resolve_id(
-            coordinator_client.base_url, coordinator_id
-        ),
-        vendor_id=_ROLES["vendor"].resolve_id(
-            vendor_client.base_url, vendor_id
+        **resolved_actor_ids(
+            _ROLES,
+            reporter=(reporter_client, reporter_id),
+            coordinator=(coordinator_client, coordinator_id),
+            vendor=(vendor_client, vendor_id),
         ),
     )
 

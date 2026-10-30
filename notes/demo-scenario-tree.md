@@ -3,7 +3,6 @@ title: Demo Scenario Tree — Names, Index, Prefix Check, Composition, Starting 
 status: active
 kind: plan
 tracks:
-  - "#1928"
   - "#4733"
   - "#4747"
   - "#5303"
@@ -173,14 +172,13 @@ continuation per choice (DEMOCI-11-019, ADR-0098). Rules for the work:
   so a composed scenario places no `reach_step` by hand. During migration the
   registry accepts either form; a composed scenario that also declares
   `path=` fails discovery (DEMOCI-11-024).
-- **One cast, one seed** (built). `vultron/demo/helpers/cast.py` is the one
-  table of slots, ports and actor ids; `TREE_RECORDING_SEED` is the one seed
-  (DEMOCI-11-020, DEMOCI-11-025). Two consequences for the work ahead: a story
-  fragment takes the cast's sessions rather than naming a container, and a
-  process that records more than one scenario must clear process-global
-  registries between runs — with one seed the second run redraws the first
-  run's ids, and py_trees refuses a blackboard client it has already
-  registered.
+- **A fragment takes the cast, not a container.** The cast and the tree-wide
+  seed are fixed (DEMOCI-11-020, DEMOCI-11-025), so a story fragment is handed
+  the cast's sessions and the case, and names no container of its own.
+- **Clear process-global registries between runs.** One seed means the second
+  scenario in a process redraws the first one's ids, so a runner that plays
+  more than one story must reset them — `reset_blackboard()` is the one that
+  bit, because py_trees refuses a blackboard client id it already holds.
 - **Specs stay whole stories.** Each scenario's spec group and its DEMOMA-16
   list of required semantic types describe the whole story, written by hand,
   so the run is checked against the spec, not against the code. Each group

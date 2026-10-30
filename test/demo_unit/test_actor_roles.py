@@ -81,10 +81,20 @@ class TestSlotDerivations:
     """Everything about the container comes from the cast slot, not the role."""
 
     def test_url_env_and_default_url_are_the_slots(self) -> None:
-        """A role declares no env var and no port of its own (DEMOCI-11-020)."""
-        role = _role(name="c1", slot=COORDINATOR_SLOT, title="C1")
-        assert role.url_env == COORDINATOR_SLOT.url_env
-        assert role.default_url == COORDINATOR_SLOT.default_url
+        """A role declares no env var and no port of its own (DEMOCI-11-020).
+
+        Spelled out as literals: both properties return the slot's value
+        verbatim, so comparing them against the slot could not disagree.
+        """
+        role = _role(name="c1", slot=COORDINATOR_SLOT, title="C1", has_id=True)
+        assert role.url_env == "VULTRON_ACTOR2_BASE_URL"
+        assert role.default_url == "http://localhost:7903/api/v2"
+        assert role.id_env == "VULTRON_ACTOR2_ACTOR_ID"
+
+    def test_an_id_option_is_env_bound_to_its_container(self) -> None:
+        """DEMOMA-14-008 wants the id options env-bound; the slot names it."""
+        assert _role(has_id=True).id_env == "VULTRON_ACTOR0_ACTOR_ID"
+        assert _role().id_env is None
 
     def test_two_roles_in_one_slot_share_its_address(self) -> None:
         """Differently-named roles in one slot resolve to the same container.
@@ -94,7 +104,8 @@ class TestSlotDerivations:
         """
         coordinator = _role(name="coordinator", slot=COORDINATOR_SLOT)
         c1 = _role(name="c1", slot=COORDINATOR_SLOT)
-        assert coordinator.url_env == c1.url_env
+        assert coordinator.url_env == "VULTRON_ACTOR2_BASE_URL"
+        assert c1.url_env == "VULTRON_ACTOR2_BASE_URL"
         assert coordinator.resolve_id("http://x/api/v2") == c1.resolve_id(
             "http://x/api/v2"
         )
@@ -234,7 +245,7 @@ class TestMalformedDeclarations:
         A string slot would still produce flags and parameters, and fail only
         when the CLI reached for ``slot.url_env`` at decoration time.
         """
-        with pytest.raises(DemoActorRoleError, match="cast container"):
+        with pytest.raises(DemoActorRoleError, match="not a ContainerSlot"):
             _role(slot=slot)
 
     @pytest.mark.parametrize("title", ["", "   "])

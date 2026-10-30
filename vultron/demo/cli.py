@@ -238,7 +238,10 @@ def _role_option_decorators(
         )
         if role.has_id:
             options[role.id_param] = click.option(
-                role.id_option, default=None, help=role.id_help
+                role.id_option,
+                default=None,
+                envvar=role.id_env,
+                help=role.id_help,
             )
     return options
 

@@ -44,6 +44,7 @@ from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.actor_roles import (
     ActorRole,
     case_actor_role,
+    resolved_actor_ids,
     role_map,
 )
 from vultron.demo.helpers.cast import (
@@ -1317,13 +1318,14 @@ def main(
         c2_client=c2_client,
         v2_client=v2_client,
         case_actor_client=case_actor_client,
-        reporter_id=_ROLES["reporter"].resolve_id(
-            reporter_client.base_url, reporter_id
+        **resolved_actor_ids(
+            _ROLES,
+            reporter=(reporter_client, reporter_id),
+            c1=(c1_client, c1_id),
+            v1=(v1_client, v1_id),
+            c2=(c2_client, c2_id),
+            v2=(v2_client, v2_id),
         ),
-        c1_id=_ROLES["c1"].resolve_id(c1_client.base_url, c1_id),
-        v1_id=_ROLES["v1"].resolve_id(v1_client.base_url, v1_id),
-        c2_id=_ROLES["c2"].resolve_id(c2_client.base_url, c2_id),
-        v2_id=_ROLES["v2"].resolve_id(v2_client.base_url, v2_id),
     )
 
 

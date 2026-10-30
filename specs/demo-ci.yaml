@@ -1047,8 +1047,9 @@ groups:
           The `rcv-embargo` scenario MUST be registered with
           `in_pr_set=True` (DEMOCI-11-001), so that its generated entry in
           `.github/demo-scenarios.json` (DEMOCI-11-004) carries
-          `"full_suite_only": false`. The scenario runs on the `reporter`
-          (reporter role), `coordinator`, `vendor`, and `case-actor` services.
+          `"full_suite_only": false`. The scenario runs on the first Reporter,
+          Coordinator and Vendor slots of the fixed cast (DEMOCI-11-021) and
+          the `case-actor` service.
         rationale: >-
           The embargo semantic types come only from the embargo scenarios
           (DEMOCI-06-002). In the PR set, `rcv-embargo` checks the embargo lifecycle on
@@ -2246,9 +2247,9 @@ groups:
           every reference between objects, with timestamps excluded.
         rationale: >-
           Byte identity cannot hold for scenarios that are still copies:
-          siblings seed different actor names, container slots and ports, so
-          their ids differ even when the logic matches. Isomorphism checks the
-          logic and the relationships without the literal addresses, much as
+          siblings place their shared steps by hand, so the order can differ
+          even where the logic matches. Isomorphism checks the logic and the
+          relationships without the literal addresses, much as
           position-independent code is compared, and still fails a declaration
           that misstates where two scenarios diverge.
         verification: >-
@@ -2362,6 +2363,122 @@ groups:
         relationships:
           - rel_type: depends_on
             spec_id: DEMOCI-11-018
+
+      - id: DEMOCI-11-026
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A character-actor container of the cast MUST NOT declare default case
+          roles.
+        rationale: >-
+          A character actor's CVD role comes from the act that seats it, so a
+          container default would give it that role in every scenario and the
+          same container could not be a Vendor in one and a Coordinator in
+          another (DEMOCI-11-021). A container that can own a case does declare
+          its role, because a case it owns has to be owned as that role
+          (CP-01-013).
+        verification: >-
+          A test reads the compose file and asserts that no character-actor
+          service sets the default-case-roles variable.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-021
+
+      - id: DEMOCI-11-027
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          No cast container's actor id MUST name a CVD role.
+        rationale: >-
+          A role-named id reads as a claim about the part its actor plays, and
+          the cast's point is that the part changes between scenarios while the
+          container does not (DEMOCI-11-020).
+        verification: >-
+          A test asserts that no cast container's configured actor id contains
+          the name of any CVD role.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-020
+
+      - id: DEMOCI-11-028
+        priority: MUST
+        kind: project
+        statement: >-
+          Every cast container and the dedicated CaseActor container MUST have
+          a seed config whose local actor is the actor that container hosts.
+        rationale: >-
+          The seed config bootstraps a container's identity with no discovery
+          step to fall back on, so a config naming another container's actor
+          gives the demo two containers with one identity.
+        verification: >-
+          A test asserts that each container's configured seed config declares
+          the actor id that container hosts, and that no seed config is left
+          over from a retired container.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-020
+
+      - id: DEMOCI-11-029
+        priority: MUST
+        kind: project
+        statement: >-
+          Each of those seed configs MUST list every other cast container and
+          the dedicated CaseActor container as a peer.
+        rationale: >-
+          A container cannot address an actor it does not know, and the demo
+          has no discovery step, so a missing peer stops a message that the
+          protocol requires.
+        verification: >-
+          A test asserts that the peer ids of every seed config are exactly the
+          other containers' actor ids.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-028
+
+      - id: DEMOCI-11-030
+        priority: MUST
+        kind: project
+        statement: >-
+          The demo runner service MUST wait for every cast container and the
+          dedicated CaseActor container to become healthy.
+        rationale: >-
+          A runner that starts before a container is healthy fails the
+          scenario's first call to it, which reads as a protocol failure.
+        verification: >-
+          A test asserts that the runner's dependency list is exactly the cast
+          and the CaseActor container, each with a health condition.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-020
+
+      - id: DEMOCI-11-031
+        priority: MUST
+        kind: project
+        statement: >-
+          The demo runner service MUST expose the base URL of every cast
+          container and of the dedicated CaseActor container.
+        rationale: >-
+          A scenario reads each container's address from its own environment
+          variable, so a missing one resolves to the local-development default
+          and the scenario cannot reach the actor at all.
+        verification: >-
+          A test asserts that the runner's environment sets each container's
+          base-URL variable to that container's address on the compose network.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-020
 
       - id: DEMOCI-11-021
         priority: MUST

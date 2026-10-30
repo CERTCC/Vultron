@@ -2061,9 +2061,10 @@ groups:
     rationale: >-
       RCCV-handoff demonstrates the case-ownership-transfer flow between two
       coordinators.  C1 starts as CASE_OWNER, then transfers ownership to C2
-      via TRIG-11-001/002.  The five-container topology (Reporter, C1, C2,
-      Vendor, CaseActor) reuses the existing docker-compose-multi-actor.yml
-      services (vendor→C1, coordinator→C2, vendor2→Vendor).
+      via TRIG-11-001/002.  Its five containers come from the fixed cast: C1
+      in the first Coordinator slot, the Vendor in the first Vendor slot, C2 in
+      a character-actor slot, plus the Reporter slot and the dedicated
+      CaseActor container (DEMOCI-11-020).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001
@@ -2943,10 +2944,7 @@ groups:
     verification_debt: '#2573'
     statement: >-
       The RCVCV scenario MUST seat V2 (VendorDeployer) in a character-actor
-      slot of the fixed cast (DEMOCI-11-020), whose service in
-      `docker/docker-compose-multi-actor.yml` is configured from the shared
-      `*actor-service` anchor like every other cast member, with its own data
-      volume, host-port variable, actor id and seed config.
+      slot of the fixed cast (DEMOCI-11-020).
     rationale: >-
       The RCVCV scenario needs five independent actor containers — one per
       scenario actor — to force all inter-actor communication over the network
@@ -2962,6 +2960,26 @@ groups:
       spec_id: DEMOMA-02-001
     - rel_type: refines
       spec_id: DEMOCI-11-020
+
+  - id: DEMOMA-19-023
+    priority: MUST
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      Each cast slot RCVCV seats MUST have a service built from the shared
+      `*actor-service` anchor, with its own volume, port variable and actor
+      id.
+    rationale: >-
+      One anchor for every actor service keeps the image build and the health
+      check identical across the cast, so a per-container stanza holds only
+      what actually differs. Its seed config is DEMOCI-11-028. One actor per
+      container preserves the isolation invariant that prevents
+      intra-container data-layer shortcuts (ADR-0042).
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-19-001
+    - rel_type: refines
+      spec_id: DEMOMA-02-001
 
   - id: DEMOMA-19-002
     priority: MUST
@@ -3134,28 +3152,29 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      Every cast member MUST have a `seed-<slot>.yaml` seed config in
-      `docker/seed-configs/` whose `local_actor.id` is the actor id its
-      container hosts (DEMOCI-11-020) and whose peers list covers every other
-      cast member and the dedicated CaseActor.
+      Every cast container the RCVCV scenario seats MUST have its own seed
+      config in `docker/seed-configs/`.
     rationale: >-
-      The seed config bootstraps a container's identity and peer registry at
-      startup, with no discovery step to fall back on, so a member missing from
-      a peers list leaves one container unable to address an actor it has to
-      message.
+      RCVCV is the widest scenario, so it is the first to need a seed config
+      for every cast container. The cast-wide shape of those configs is
+      DEMOCI-11-028 and DEMOCI-11-029.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-11-028
   - id: DEMOMA-19-011
     priority: MUST
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The `demo-runner` service MUST list every cast member in its
-      `depends_on` and expose each member's base-URL environment variable in
-      its environment block.
+      The `demo-runner` service MUST wait for every cast container the RCVCV
+      scenario seats.
     rationale: >-
-      Without a member in depends_on, the demo runner may start before that
-      container is healthy; without its environment variable, a scenario
-      resolves the container to its local-development default and cannot reach
-      the actor at all.
+      RCVCV seats every cast container, so its run is the one that waits for
+      all of them. The cast-wide form of the wait and of the matching
+      environment variables is DEMOCI-11-030 and DEMOCI-11-031.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-11-030
   - id: DEMOMA-19-012
     priority: MUST
     kind: project
@@ -4702,9 +4721,9 @@ groups:
       Using the shared `case-actor` container for Vendor-owned cases matches the
       topology used by other scenarios where a non-Coordinator actor holds
       CASE_OWNER, keeps the CaseActor identity consistent across scenarios, and
-      exercises true multi-container message delivery. All three containers
-      (vendor, coordinator, case-actor) already exist in
-      `docker-compose-multi-actor.yml`; no new infrastructure is required.
+      exercises true multi-container message delivery. Every container it
+      needs is already in the fixed cast (DEMOCI-11-020); no new
+      infrastructure is required.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001

@@ -31,6 +31,7 @@ from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.actor_roles import (
     ActorRole,
     case_actor_role,
+    resolved_actor_ids,
     role_map,
 )
 from vultron.demo.helpers.cast import REPORTER_SLOT, VENDOR_SLOT
@@ -980,11 +981,10 @@ def main(
         reporter_client=reporter_client,
         vendor_client=vendor_client,
         case_actor_client=case_actor_client,
-        reporter_id=_ROLES["reporter"].resolve_id(
-            reporter_client.base_url, reporter_id
-        ),
-        vendor_id=_ROLES["vendor"].resolve_id(
-            vendor_client.base_url, vendor_id
+        **resolved_actor_ids(
+            _ROLES,
+            reporter=(reporter_client, reporter_id),
+            vendor=(vendor_client, vendor_id),
         ),
     )
 

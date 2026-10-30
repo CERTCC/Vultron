@@ -14,15 +14,16 @@
 #   actor1   the first Vendor a scenario seats
 #   actor2   the first Coordinator a scenario seats
 #   actor3   a character actor (Vendor2 in rvv/rvcv-*/rcvv-embargo,
-#            Coordinator2 in rccv-*)
+#            Coordinator2 in rccv-* and rcvcv)
 #   actor4   a character actor (the VendorDeployer in rcvcv)
 #
 # A scenario without one of the three fixed roles leaves that container unused
 # (rv has no Coordinator, so actor2 idles).  A character actor's CVD role comes
 # from the act that seats it — the role its Invite offers — so its container
 # declares no VULTRON_ACTOR__DEFAULT_CASE_ROLES and carries no role-named actor
-# id.  The three fixed-role containers do declare their role, because a case
-# they own has to be owned as that role (CP-01-013).
+# id.  A container that can own a case does declare its role, because a case it
+# owns has to be owned as that role (CP-01-013): that is actor1 and actor2.
+# actor0 never owns one, so it declares none either.
 #
 # DEMO-MA-02-001: Each actor service has a /health/ready healthcheck.
 # DEMO-MA-02-002: Dependent services (e.g., demo-runner) use
@@ -209,9 +210,9 @@ services:
       - "${ACTOR2_HOST_PORT:-0}:7999"
 
   # ── Cast slot 3 — a character actor ─────────────────────────────────────
-  # Vendor2 in rvv, rvcv-* and rcvv-embargo; Coordinator2 in rccv-*.  Its CVD
-  # role comes from the Invite that seats it (DEMOCI-11-021), so this stanza
-  # names no role: neither in its actor id nor in default case roles.
+  # Vendor2 in rvv, rvcv-* and rcvv-embargo; Coordinator2 in rccv-* and rcvcv.
+  # Its CVD role comes from the Invite that seats it (DEMOCI-11-021), so this
+  # stanza names no role: neither in its actor id nor in default case roles.
   actor3:
     <<: *actor-service
     environment:

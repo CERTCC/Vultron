@@ -41,6 +41,8 @@ from contextlib import ExitStack, contextmanager
 from datetime import UTC, datetime, timedelta, timezone
 from unittest.mock import patch
 
+import py_trees
+
 from vultron.core.models import _helpers
 
 #: The instant a recording's clock starts from.  Fixed so that a recording does
@@ -59,6 +61,25 @@ TREE_RECORDING_SEED = "vultron-scenario-tree"
 #: pre-bootstrap queue window after only 300 unrelated reads, which a real run
 #: of the same length never does.
 RECORDING_CLOCK_STEP = timedelta(milliseconds=10)
+
+
+def reset_blackboard() -> None:
+    """Drop everything the process-global py_trees blackboard holds.
+
+    Two kinds of leak outlive one tree, and a demo that runs several trees in
+    one process has to clear both:
+
+    * **keys.** ``BTBridge.execute_with_setup`` restores only the keys on its
+      ``managed_keys`` list, so any other key a node wrote outlives the run.
+    * **clients.** ``py_trees.blackboard.Client`` registers itself under a
+      ``uuid4`` that nothing unregisters, so a seeded id source (:func:
+      `deterministic_run`) redraws an id the registry already holds and
+      py_trees refuses the registration.
+
+    ``Blackboard.clear()`` drops both, and with them the metadata and the
+    activity stream, which is what a run that starts from nothing wants.
+    """
+    py_trees.blackboard.Blackboard.clear()
 
 
 class SteppingClock:

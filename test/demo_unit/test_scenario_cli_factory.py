@@ -24,11 +24,12 @@ they are separate tests rather than one "the CLI is right" assertion:
   against a literal table, because a literal table of nine scenarios' options
   would be a fresh hand-maintained copy of the inventory this consolidation
   deleted.
-* **The declared divergences.** ``ROLES`` being self-consistent does not make it
-  *right*: the checks above pass just as happily if a careless edit gives every
-  scenario the same options.  The asymmetries the scenarios actually have are
-  pinned by name in ``TestDeclaredDivergences``, because smoothing one of them
-  over is the likely mistake and nothing else would notice.
+* **Nothing per-scenario about a container.** ``ROLES`` being self-consistent
+  does not make it *right*: the checks above pass just as happily if a careless
+  edit derives an option's env var from the part an actor plays rather than from
+  the cast slot it runs in.  ``TestOptionsComeFromTheCast`` pins that over every
+  registered scenario, because that is the likely mistake and nothing else would
+  notice (DEMOCI-11-020).
 
 These read the CLI and the filesystem, never a running container, so they belong
 in the unit suite — see this package's docstring for why that means not
@@ -305,10 +306,10 @@ def test_generated_options_match_the_declared_roles(
         (
             role.id_option,
             role.id_param,
-            # No env binding: the cast fixes each container's actor id, and a
-            # scenario that wants another one is told on the command line
-            # (DEMOCI-11-020).
-            None,
+            # Env-bound to the container, not to the part it plays here, so
+            # two scenarios that seat one container read one variable
+            # (DEMOMA-14-008, DEMOCI-11-020).
+            role.id_env,
             None,
             role.id_help,
             False,
@@ -491,21 +492,44 @@ class TestFactoryRejectsABadModule:
 class TestOptionsComeFromTheCast:
     """No scenario declares a container address of its own (DEMOCI-11-020)."""
 
-    def test_every_url_option_is_its_slots_env_var(self) -> None:
-        """A role's option is bound to the cast slot's env var, nothing else.
+    def test_every_url_option_is_named_for_its_container(self) -> None:
+        """An option's env var is spelled from the container, not the part.
 
         The one thing a "tidy-up" could still get wrong: deriving the env var
         from the role's own name. ``rcvcv``'s ``c1`` reads
         ``VULTRON_ACTOR2_BASE_URL`` because it runs in the Coordinator slot, not
-        ``VULTRON_C1_BASE_URL``.
+        ``VULTRON_C1_BASE_URL``.  Spelled out from the slot name here rather
+        than read off ``role.slot.url_env``, which ``role.url_env`` returns
+        verbatim and so could not disagree with.
         """
-        divergent = {
-            (spec.name, role.name): (role.url_env, role.slot.url_env)
+        wrong = {
+            (spec.name, role.name): role.url_env
             for spec in discover_scenarios()
             for role in _roles_of(spec)
-            if role.url_env != role.slot.url_env
+            if role.url_env
+            != f"VULTRON_{role.slot.name.upper().replace('-', '_')}_BASE_URL"
         }
-        assert divergent == {}
+        assert wrong == {}
+
+    def test_some_option_is_not_named_for_its_role(self) -> None:
+        """Guards the guard above: the two spellings really do differ.
+
+        If every role happened to run in a slot named after it, the check
+        above would pass against either derivation and say nothing.
+        ``rcvcv``'s ``c1`` is the standing counter-example.
+        """
+        by_role_name = {
+            (spec.name, role.name)
+            for spec in discover_scenarios()
+            for role in _roles_of(spec)
+            if role.url_env == f"VULTRON_{role.param_stem.upper()}_BASE_URL"
+        }
+        everything = {
+            (spec.name, role.name)
+            for spec in discover_scenarios()
+            for role in _roles_of(spec)
+        }
+        assert by_role_name != everything
 
     def test_case_actor_id_only_on_the_handoff_scenarios(self) -> None:
         """Only the ownership-handoff scenarios take ``--case-actor-id``.

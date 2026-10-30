@@ -38,12 +38,20 @@ Design: ``notes/demo-scenario-tree.md`` § "Composition".
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 
 from vultron.demo.utils import CASE_ACTOR_SLUG
 from vultron.enums.roles import CVDRole
+from vultron.errors import DemoActorRoleError
+
+#: Compose service name spelling: lowercase alphanumerics separated by single
+#: hyphens.  The name is the container's host name, the slug of the one actor
+#: it hosts, and the stem of its ``VULTRON_*_BASE_URL`` env var, so anything
+#: else breaks one of the three.
+_SLOT_NAME_RE = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*\Z")
 
 #: The port every actor container serves on inside the compose network.
 CONTAINER_PORT = 7999
@@ -64,6 +72,24 @@ class ContainerSlot:
     #: Port of the container when it runs on the host rather than in compose.
     port: int
 
+    def __post_init__(self) -> None:
+        # Every derivation below reads `name`, so an empty or malformed one
+        # yields a legal-looking `VULTRON__BASE_URL` and an actor id ending in
+        # a bare slash, both of which fail far from here.
+        if not _SLOT_NAME_RE.match(self.name):
+            raise DemoActorRoleError(
+                f"cast container name {self.name!r} is not a usable compose "
+                "service name; expected lowercase alphanumerics separated by "
+                "single hyphens, because the name is the container's host "
+                "name, its actor slug and the stem of its env var."
+            )
+        if not isinstance(self.port, int) or not 1 <= self.port <= 65535:
+            raise DemoActorRoleError(
+                f"cast container {self.name!r} has port {self.port!r}, which "
+                "is not a TCP port; it is what the container publishes when it "
+                "runs on the host rather than in compose."
+            )
+
     @property
     def url_env(self) -> str:
         """Env var naming this container's base URL, e.g. ``VULTRON_ACTOR0_BASE_URL``."""
@@ -73,6 +99,16 @@ class ContainerSlot:
     def default_url(self) -> str:
         """Base URL when :attr:`url_env` is unset: the local port."""
         return f"http://localhost:{self.port}/api/v2"
+
+    @property
+    def id_env(self) -> str:
+        """Env var naming the actor this container hosts.
+
+        Backs each scenario's ``--<name>-id`` option, so the compose
+        environment can hand a container's actor id to the scenario that drives
+        it (DEMOMA-14-008) without the scenario naming either.
+        """
+        return f"VULTRON_{self.name.upper().replace('-', '_')}_ACTOR_ID"
 
     @property
     def compose_url(self) -> str:
@@ -135,6 +171,26 @@ CHARACTER_SLOTS: tuple[ContainerSlot, ...] = tuple(
 ALL_SLOTS: tuple[ContainerSlot, ...] = (*CAST, CASE_ACTOR)
 
 
+def slot_for(base_url: str) -> ContainerSlot | None:
+    """The cast container served at *base_url*, or ``None`` for none of them.
+
+    Matches the three addresses one container answers on — its compose URL, its
+    local URL and whatever :attr:`ContainerSlot.url_env` currently says — so a
+    caller holding only a base URL can name the actor that container hosts.
+    ``http://localhost:7901/api/v2`` is ``actor0``, which is the answer a
+    hostname alone cannot give.
+    """
+    wanted = base_url.rstrip("/")
+    for slot in ALL_SLOTS:
+        if wanted in {
+            slot.compose_url,
+            slot.default_url,
+            slot.url.rstrip("/"),
+        }:
+            return slot
+    return None
+
+
 __all__ = [
     "ALL_SLOTS",
     "CASE_ACTOR",
@@ -147,5 +203,6 @@ __all__ = [
     "FIRST_OF_ROLE",
     "REPORTER_SLOT",
     "ROLE_OF_SLOT",
+    "slot_for",
     "VENDOR_SLOT",
 ]

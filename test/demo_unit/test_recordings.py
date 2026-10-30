@@ -954,9 +954,10 @@ class TestComposedFamilies:
     """A composed family is byte-identical up to the branch point (DEMOCI-11-018)."""
 
     # Parametrizes over no pair until the first family is written as
-    # composition (#4733) and named in COMPOSED_FAMILIES: until then every
-    # sibling seeds its own actor ids, slots and ports, so only the
-    # isomorphism above can hold.  pytest reports the empty set as one skip.
+    # composition (#4733) and named in COMPOSED_FAMILIES: until then siblings
+    # place their shared steps by hand, so the order can still differ where the
+    # logic matches and only the isomorphism above can hold.  pytest reports
+    # the empty set as one skip.
     @pytest.mark.parametrize(
         "pair",
         prefix.composed_pairs(prefix.shared_prefixes(scenario_tree())),

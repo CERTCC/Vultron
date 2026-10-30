@@ -74,7 +74,7 @@ _RCCV_EXTENSION_EXPECTED_SEMANTIC_TYPES = [
 #: Directory names follow RVCV convention: vendor=C1, coordinator=C2, vendor2=Vendor.
 _CHAIN_ACTORS = [
     pytest.param("case-actor"),
-    pytest.param("vendor"),  # C1 (coordinator container)
+    pytest.param("vendor"),  # C1 (cast slot 2, the first Coordinator)
     pytest.param("coordinator"),  # C2 (cast slot 3, a character actor)
     pytest.param("vendor2"),  # Vendor (cast slot 1, the first Vendor)
     pytest.param("reporter"),
