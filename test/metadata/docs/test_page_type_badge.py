@@ -59,6 +59,7 @@ def test_each_rendered_type_shows_its_label(page_type, label):
     assert re.search(rf">\s*{re.escape(label)}\s*<", html)
 
 
+@pytest.mark.spec("DF-11-037")
 def test_every_type_but_routing_has_a_badge():
     assert set(PAGE_TYPE_BADGES) == set(PageType) - {PageType.ROUTING}
 
@@ -114,6 +115,7 @@ def test_each_rendered_type_has_an_icon_rule(page_type):
     assert "--page-type-color:" in rule[1]
 
 
+@pytest.mark.spec("DF-11-037")
 def test_routing_has_no_style_rule():
     css = (_STYLESHEETS / "page_type.css").read_text()
     assert ".page-type--routing" not in css
@@ -314,6 +316,7 @@ _HAND_BADGE = re.compile(
 )
 
 
+@pytest.mark.spec("DF-11-038")
 def test_no_page_writes_a_badge_by_hand():
     """Badges come only from frontmatter; no check compares a hand-written one."""
     sources = sorted((_ROOT / "docs").rglob("*.md"))
@@ -335,5 +338,6 @@ def test_no_page_writes_a_badge_by_hand():
     ],
     ids=["html", "attr-list"],
 )
+@pytest.mark.spec("DF-11-038")
 def test_the_hand_badge_pattern_catches_both_spellings(text):
     assert _HAND_BADGE.search(text)

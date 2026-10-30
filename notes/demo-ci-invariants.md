@@ -310,7 +310,7 @@ Every push-to-`main` or scheduled workflow wires `.github/actions/notify-failure
 once with `mode: notify` and once with `mode: close` (ADR-0055), both in one job.
 A single-job workflow keys them on `failure()` and `success()`; a workflow with
 several jobs runs them in a final `notify` job that `needs:` every other job and
-keys on `needs.*.result` (CISEC-05-003).
+keys on `needs.*.result` (CISEC-05-012, CISEC-05-013).
 `test/ci/test_workflow_failure_notification.py` enforces the wiring. The wiring
 rule is in [ci-workflow-authoring](ci-workflow-authoring.md).
 
@@ -324,18 +324,21 @@ rule is in [ci-workflow-authoring](ci-workflow-authoring.md).
 ### Cancellation Safety (CISEC-05-006)
 
 A run cancelled by the concurrency group is not a failure on that ground alone,
-but a genuine failure observed before the cancellation still files (#3294).
+but a genuine failure observed before the cancellation still files
+(CISEC-05-014, #3294).
 
 - A step keyed on **`failure()`** is already safe: it is false on cancellation.
 - A step keyed on **`needs.*.result`** uses `contains(needs.*.result,
-  'failure')` alone. Never add `|| contains(needs.*.result, 'cancelled')`, and
+  'failure')` alone (CISEC-05-015). Never add
+  `|| contains(needs.*.result, 'cancelled')`, and
   never add `&& !contains(needs.*.result, 'cancelled')`: the exclusion cannot
   tell a laundered failure from a real one, so it suppresses a real failure
   whenever a newer push cancels a sibling job afterwards.
 - Close the laundering path at its source instead: skip artifact-consuming jobs
-  when their producer was cancelled (see "Separate CI Job Pattern").
+  when their producer was cancelled (see "Separate CI Job Pattern";
+  CISEC-05-016).
 - **Only the `close` step keeps a cancellation exclusion**, because a superseded
-  run must not declare recovery either (CISEC-05-002,
+  run must not declare recovery either (CISEC-05-009,
   `test_close_step_does_not_close_on_cancellation`).
 
 ---

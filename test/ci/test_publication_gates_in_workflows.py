@@ -185,9 +185,9 @@ _CASES = [
 
 
 @pytest.mark.spec("DOCBW-03-006")
-@pytest.mark.spec("DOCBW-03-007")
-@pytest.mark.spec("DOCBW-03-008")
 @pytest.mark.spec("DOCBW-03-012")
+@pytest.mark.spec("DOCBW-03-020")
+@pytest.mark.spec("DOCBW-03-026")
 @pytest.mark.parametrize("workflow,command", _CASES)
 def test_site_building_workflow_runs_the_gate(workflow: Path, command: str):
     """Every workflow that builds the site runs every built-site gate."""
@@ -199,10 +199,11 @@ def test_site_building_workflow_runs_the_gate(workflow: Path, command: str):
     )
 
 
-@pytest.mark.spec("DOCBW-03-006")
-@pytest.mark.spec("DOCBW-03-007")
-@pytest.mark.spec("DOCBW-03-008")
+@pytest.mark.spec("DOCBW-03-005")
 @pytest.mark.spec("DOCBW-03-012")
+@pytest.mark.spec("DOCBW-03-017")
+@pytest.mark.spec("DOCBW-03-021")
+@pytest.mark.spec("DOCBW-06-002")
 @pytest.mark.parametrize("workflow,command", _CASES)
 def test_gate_runs_after_the_build(workflow: Path, command: str):
     """The checks read ``site/``, so they are meaningless before the build."""
@@ -221,6 +222,7 @@ def test_gate_runs_after_the_build(workflow: Path, command: str):
 @pytest.mark.spec("DOCBW-03-007")
 @pytest.mark.spec("DOCBW-03-008")
 @pytest.mark.spec("DOCBW-03-012")
+@pytest.mark.spec("DOCBW-03-017")
 @pytest.mark.parametrize("workflow,command", _CASES)
 def test_gate_is_not_neutered(workflow: Path, command: str):
     """The step must run on every trigger and be able to fail the workflow.
@@ -239,9 +241,7 @@ def test_gate_is_not_neutered(workflow: Path, command: str):
 
 
 @pytest.mark.spec("DOCBW-03-006")
-@pytest.mark.spec("DOCBW-03-007")
-@pytest.mark.spec("DOCBW-03-008")
-@pytest.mark.spec("DOCBW-03-012")
+@pytest.mark.spec("DOCBW-06-002")
 @pytest.mark.parametrize("command", GATE_COMMANDS)
 def test_gate_precedes_the_pages_upload(command: str):
     """In the publishing workflow each gate blocks the upload.

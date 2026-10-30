@@ -206,7 +206,8 @@ a URL an earlier build served and this one dropped. `uv run docs-legacy-urls`
 
 - **The evidence is committed before the deploy replaces it.**
   `vultron/metadata/docs/legacy_urls_baseline.txt` only grows (`--snapshot
-  <ref>` adds a ref's pages, drops none): a URL cited once can be cited forever.
+  <ref>` adds a ref's pages, drops none): a URL cited once can be cited forever
+  (DOCBW-03-022, DOCBW-03-023).
 - **Record a page in the pull request that adds it.** A page goes live at the
   next deploy after it merges, whatever triggers that deploy. Every
   site-building workflow fails until each page the commit builds is recorded
@@ -238,7 +239,8 @@ its command must match the whole command, or one step stands in for the other.
 
 `not_in_nav` (and the `_` prefix that keeps a file out of nav) answers "does
 this file get a nav entry", not "do prose rules apply to it". Prose delivered
-as fragments is still prose (DF-09-007 through DF-09-009, ADR-0092).
+as fragments is still prose (DF-09-007 to DF-09-009, DF-09-011, DF-09-012,
+ADR-0092).
 `lint-docs` § "Fragments and assembly units" implements the split below;
 collapsing it either way reintroduces false positives on every fragment or no
 coverage at all.

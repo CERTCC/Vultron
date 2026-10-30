@@ -24,7 +24,7 @@ summary; `uv run notes-tracks` lists plan notes whose tracked issues have all
 closed.
 
 Update this index in the same change that adds, archives, or re-scopes a note
-(PD-03-004).
+(PD-03-004, PD-03-010).
 
 ---
 

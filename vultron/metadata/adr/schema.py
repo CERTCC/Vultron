@@ -85,7 +85,7 @@ class AdrFrontmatter(BaseModel):
 
     ``stakeholder_type`` is declared for the same reason. A decision record is
     project working record, so it declares ``[project-contributor]`` and no
-    ``level`` (DF-11-012), and the value is checked by the same rule
+    ``level`` (DF-11-033), and the value is checked by the same rule
     ``docs-frontmatter`` applies. The field is optional here because
     ``docs-frontmatter`` (:mod:`vultron.metadata.docs.page_frontmatter`) is
     what requires every page to declare it: a misspelt ``stakeholder_types:``

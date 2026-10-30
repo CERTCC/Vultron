@@ -2,7 +2,7 @@
 
 Requirements: specs/diataxis-requirements.yaml DF-10-001 and DF-10-002 (shared
 content is sourced once, and a moved claim is verified), DF-09-007 (a block is
-judged in the source file that holds it), DF-11-007 (a page's own opening stays
+judged in the source file that holds it), DF-11-030 (a page's own opening stays
 on the page), DF-09-009 (an empty target set fails). The rule it feeds is SG-43
 in ``.agents/skills/shared/docs-style-guide.md``; ``lint-docs`` turns each
 cluster into a judgment finding.

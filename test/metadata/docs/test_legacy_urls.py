@@ -202,17 +202,20 @@ def test_a_withheld_url_is_accounted_for(tmp_path):
     assert [p.source for p in unmapped] == ["ontology/dfa2.md"]
 
 
+@pytest.mark.spec("DOCBW-03-025")
 def test_an_absent_site_raises(tmp_path):
     with pytest.raises(FileNotFoundError, match="absent or empty"):
         unmapped_pages(tmp_path, ["a.md"], NO_ARTIFACTS)
 
 
+@pytest.mark.spec("DOCBW-03-025")
 def test_an_empty_site_raises(tmp_path):
     (tmp_path / "site").mkdir()
     with pytest.raises(FileNotFoundError, match="absent or empty"):
         unmapped_pages(tmp_path, ["a.md"], NO_ARTIFACTS)
 
 
+@pytest.mark.spec("DOCBW-03-025")
 def test_an_empty_baseline_raises(tmp_path):
     _site(tmp_path, {"index.html": "<p>home</p>"})
     with pytest.raises(ValueError, match="baseline is empty"):
@@ -222,6 +225,7 @@ def test_an_empty_baseline_raises(tmp_path):
 # --- the committed baseline ----------------------------------------------
 
 
+@pytest.mark.spec("DOCBW-03-022")
 def test_the_committed_baseline_is_seeded():
     """The deployed evidence is gone once the next deploy replaces it; keep it here."""
     pages = load_baseline()
@@ -276,6 +280,7 @@ def _git_repo(
     )
 
 
+@pytest.mark.spec("DOCBW-03-023")
 def test_snapshot_extends_the_baseline_and_never_drops(tmp_path):
     repo = tmp_path / "repo"
     _git_repo(repo, ["docs/new.md", "docs/sub/index.md", "docs/img.png"])
@@ -440,7 +445,7 @@ def test_a_snapshot_clears_the_check(tmp_path):
     assert unrecorded_pages(load_baseline(baseline), "HEAD", repo) == []
 
 
-@pytest.mark.spec("DOCBW-03-012")
+@pytest.mark.spec("DOCBW-03-027")
 @pytest.mark.spec("DF-09-009")
 def test_a_commit_that_builds_no_pages_raises(tmp_path):
     repo = tmp_path / "repo"
@@ -497,6 +502,7 @@ def test_cli_require_recorded_passes_when_every_page_is_recorded(
 
 
 @pytest.mark.spec("DOCBW-03-012")
+@pytest.mark.spec("DOCBW-03-027")
 @pytest.mark.spec("DF-09-009")
 @pytest.mark.parametrize(
     "files,pages,message",

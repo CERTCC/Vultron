@@ -4,7 +4,8 @@ Requirements: DF-11-015 (one box per thread on every member page and start
 page: a start, previous, current and next table, the same for every reader),
 DF-11-022 (a section member's box names the section), DF-11-023 (each box is a
 committed fragment under ``docs/start/_paths/``, generated, check gated and
-excluded from the build), DF-11-009 (titled by situation, never by
+excluded from the build), DF-11-034 (the table's cells), DF-11-035 (the same
+for every reader), DF-11-044 (placed by hand), DF-11-009 (titled by situation, never by
 ``stakeholder_type``).
 """
 
@@ -119,7 +120,7 @@ def _box(root: Path, thread: str, target: str) -> str:
     return _boxes(root)[box_fragment_path(_thread(root, thread), target)]
 
 
-@pytest.mark.spec("DF-11-015")
+@pytest.mark.spec("DF-11-015", "DF-11-034")
 class TestBoxTable:
     def test_one_box_per_thread_and_target(self, two_threads):
         fragments = set(_boxes(two_threads))
@@ -200,6 +201,7 @@ class TestBoxTable:
         cells = _cells(_box(root, "start/s.md", "start/s.md"))
         assert "a.md" in cells["Next"] and "b.md" in cells["Next"]
 
+    @pytest.mark.spec("DF-11-035")
     def test_titled_by_situation_and_the_same_for_every_reader(
         self, two_threads
     ):
@@ -317,6 +319,7 @@ class TestFragments:
         excluded = excluded_docs_spec(mkdocs_config(repo_root()))
         assert excluded.match_file(f"{BOX_DIR}/coordinate-cases/a.md")
 
+    @pytest.mark.spec("DF-11-044")
     def test_the_build_adds_no_box(self):
         hooks = mkdocs_config(repo_root()).get("hooks") or []
         assert isinstance(hooks, list)

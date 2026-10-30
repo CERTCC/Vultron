@@ -172,6 +172,7 @@ class TestListing:
         assert _listed(root) == [("Tab", ["a.md"])]
 
 
+@pytest.mark.spec("DF-11-040")
 class TestSubgroups:
     def test_nested_group_is_one_entry_through_the_outermost_index(
         self, tmp_path
@@ -282,6 +283,7 @@ class TestSubgroups:
         )
 
 
+@pytest.mark.spec("DF-11-041")
 class TestOmittedPages:
     def test_page_is_placed_in_the_group_its_index_opens(self, tmp_path):
         root = _repo(
@@ -409,6 +411,7 @@ class TestFaults:
             lookup_sections(root)
 
 
+@pytest.mark.spec("DF-11-042", "DF-11-048")
 class TestLinks:
     def _hosts(self, tmp_path: Path, home: str, start: str) -> Path:
         return _repo(
@@ -492,6 +495,7 @@ def site(tmp_path: Path) -> Path:
     return root
 
 
+@pytest.mark.spec("DF-11-042", "DF-11-047")
 class TestLookupArtifact:
     def test_write_fills_the_listing_and_keeps_the_framing(self, site):
         text = (site / "docs" / LOOKUP_PATH).read_text()
@@ -615,6 +619,7 @@ class TestOneRunReportsEveryFault:
 
 
 class TestCommittedLookupPage:
+    @pytest.mark.spec("DF-11-040")
     def test_subgroups_are_one_entry_each(self):
         """The specification parts, the message pages, Formal Protocol, the
         scenario narratives and the crosswalks are one entry each (AC-3):

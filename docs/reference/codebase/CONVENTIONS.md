@@ -36,7 +36,7 @@ stakeholder_type: [project-contributor]
 - **Baselined findings**: residual findings are suppressed inline as `# noqa: <RULE>  # ruff-baseline #<issue>`, citing the issue that removes them; `per-file-ignores` is reserved for permanent, justified exemptions (`notes/lint-tooling.md`).
 - **Type checkers**: mypy (`.mypy.ini`, packages `vultron` and `test`) and pyright (`pyrightconfig.json`, `basic` mode, includes `vultron` and `test`); both run in CI and both must pass.
 - **Import ordering**: ruff's `I` rules (CS-02-001) with `combine-as-imports = true`, fixed by `ruff check --fix`
-- **Markdown**: markdownlint-cli2 via `mdlint.sh`, with `MD013` at 88 characters outside `docs/` and the archives (PD-10-001); codespell on docs via pre-commit
+- **Markdown**: markdownlint-cli2 via `mdlint.sh`, with `MD013` at 88 characters outside `docs/` and the archives (PD-10-001, PD-10-004); codespell on docs via pre-commit
 - **Most relevant enforced rules**: max cyclomatic complexity 10 (C901), unused imports allowed only in `__init__.py` (F401), unused `# noqa` directives are errors (RUF100), timezone-aware datetimes (DTZ, CS-13-001), no blind `except Exception` without a baseline marker (BLE, CS-23-001)
 - **Run commands**:
 

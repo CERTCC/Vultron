@@ -1,7 +1,7 @@
 """Generate and check the committed docs-site artifacts.
 
-Requirements: DF-11-005, DF-11-008, DF-11-011, DF-11-014, DF-11-021 and
-DF-11-023 in specs/diataxis-requirements.yaml.
+Requirements: DF-11-005, DF-11-008, DF-11-011, DF-11-014, DF-11-021, DF-11-028,
+DF-11-029, DF-11-042 and DF-11-023 in specs/diataxis-requirements.yaml.
 
 Six kinds of artifact are generated and committed:
 
@@ -26,9 +26,9 @@ Six kinds of artifact are generated and committed:
   (:mod:`~vultron.metadata.docs.coverage_matrix`).
 
 Two things are checked but never written: a section index that declares
-``contents: routing`` must link every member of its section (DF-11-005's
+``contents: routing`` must link every member of its section (DF-11-029's
 routing-page exemption), and the home page and every start page must link the
-lookup page (DF-11-021). A missing link is a fault the author fixes by hand
+lookup page (DF-11-042). A missing link is a fault the author fixes by hand
 in the page's framing, so both modes report it and neither "repairs" it.
 
 ``--check`` is wired into pre-commit as ``docs-site-sync`` and runs in
@@ -99,11 +99,11 @@ def desired_contents(root: Path) -> dict[str, str]:
             empty (DF-09-009).
         MetadataLoadErrors: If a routing index fails to link a member of its
             section, or the home page or a start page fails to link the
-            lookup page, every missing link listed (DF-11-005, DF-11-021); if
+            lookup page, every missing link listed (DF-11-029, DF-11-042); if
             a start page's thread is missing or does not validate
             (DF-11-013); or if the lookup page cannot be built: a
             reference page cannot be placed or its entry has no description
-            (DF-11-021), or any other fault ``lookup_sections`` raises,
+            (DF-11-041), or any other fault ``lookup_sections`` raises,
             reported with the missing links (EH-07-001).
         ValueError: If a landing, start or lookup page's markers are missing
             or malformed.
@@ -150,7 +150,7 @@ def desired_contents(root: Path) -> dict[str, str]:
             summary=(
                 f"{len(faults)} finding(s) to fix by hand; nothing is "
                 "generated for a missing link or an unplaceable page "
-                "(DF-11-005, DF-11-021):"
+                "(DF-11-029, DF-11-042):"
             ),
         )
     for page in indexes.generated:

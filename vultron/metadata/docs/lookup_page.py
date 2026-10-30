@@ -140,7 +140,7 @@ def _placements(
                 "is a page_type: reference page the mkdocs.yml nav omits, "
                 f"and the nav does not carry {index}, so the lookup page "
                 f"cannot place it; add the page or {index} to the nav "
-                "(DF-11-021)",
+                "(DF-11-041)",
                 path=f"docs/{page}",
             )
         )

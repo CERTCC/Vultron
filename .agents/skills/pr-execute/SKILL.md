@@ -26,9 +26,9 @@ therefore merges the base only when the PR conflicts with it (PAD-18-004,
 ADR-0138), gates a conflict merge with the tests for the conflicted files,
 and gates each fix push with the linters plus the targeted test set for the
 branch diff, not the full suite (PAD-18-002). A PR GitHub reports `BEHIND` is
-refreshed on GitHub with `gh pr update-branch`, which needs no local run. A PR
-that merely shares files with the base is left alone: whoever merges it
-refreshes it the same way first (PAD-18-009).
+refreshed on GitHub with `gh pr update-branch`, which needs no local run
+(PAD-18-014). A PR that merely shares files with the base is left alone:
+whoever merges it refreshes it the same way first (PAD-18-019).
 
 **One exception to "no new discovery"**: the CI loop (Phase 5) re-reads CI state
 and merge state from live sources rather than trusting triage's snapshots. CI
@@ -66,7 +66,7 @@ Run /pr-triage first (or /pr-ship to run the full pipeline).
 5. Note `pr_metadata.needs_integration_tests`. It is informational: Phase 5's
    gate does not read it: `targeted-tests` gates those paths by their
    importers, integration-marked ones included, and CI runs the rest
-   (PAD-18-003, ADR-0143).
+   (PAD-18-012, ADR-0143).
 6. Note `pr_metadata.base_ref` — Phase 5 syncs against this branch, not
    necessarily `main`.
 
@@ -137,8 +137,8 @@ finding is never deferred — fix it.
 4. **On silence**: record `outcome: halted`, mark the PR draft/blocked, and
    stop. An inversion is a circuit breaker.
 
-**Pre-existing findings are not exempt (BW-07-009).** A finding in a file this
-PR did not touch still gets an issue here, before the session ends — `Bug`,
+**Pre-existing findings are not exempt (BW-07-009, BW-07-010).** A finding in a
+file this PR did not touch still gets an issue here, before the session ends — `Bug`,
 `Task`, or `Concern` by the rule in `shared/issue-creation-requirements.md`
 § "Determining the right values". There is no advisory tier: posting it only as an
 `[ADVISORY]` PR comment, or describing it in a `plan/incoming/learnings/`
@@ -151,7 +151,7 @@ nothing but the rediscovery cost, and four findings fell through entirely.
 ### Phase 3b — Refresh the `Docs:` Line
 
 Execute's fix commits can change behavior that `docs/` describes, which makes
-the PR body's `Docs:` line stale (PD-03-007, PD-03-008). After Phases 2–3 and
+the PR body's `Docs:` line stale (PD-03-007, PD-03-013). After Phases 2–3 and
 before the CI loop:
 
 1. Diff the fix commits this run made, and answer `check-docs-sync` Q1 and
@@ -362,7 +362,7 @@ run by default. Which set depends on what this iteration changed:
   diff (PAD-18-002), escalating to the full suite only on PAD-18-003's
   shared test infrastructure.
 - **A Step 2 conflict merge and nothing else**: the tests for the conflicted
-  files only (PAD-18-004). Pass the paths Step 2 recorded in
+  files only (PAD-18-015). Pass the paths Step 2 recorded in
   `conflicts_resolved` as `targeted-tests --paths <file>...`. Each counts as
   wholly changed, and only shared test configuration (`conftest.py`,
   `pyproject.toml`, `uv.lock`, `vultron/__init__.py`) sends it to the full
@@ -413,7 +413,7 @@ gate=$(PYTHONPATH= uv run targeted-tests <scope> --pytest); rc=$?
 ```
 
 **Add the CI failure being fixed when it is outside the set.**
-`targeted-tests` cannot see CI (PAD-18-003). If the gate is a targeted set
+`targeted-tests` cannot see CI (PAD-18-013). If the gate is a targeted set
 (the first line of `"$logs-targeted.txt"` is a test path) and the
 iteration's input includes a CI test failure whose test file is not one of
 those paths (and is not under a listed directory), append that file to the
@@ -434,7 +434,7 @@ A piped form would report 0 for a killed run and this step would push it.
 — **do not re-run the test suite for more output**.
 
 **Count every gate run** for the execute summary's `Suite runs:` line
-(PAD-18-006): a run of the full suite (any escalation) adds one to
+(PAD-18-006, PAD-18-016): a run of the full suite (any escalation) adds one to
 `suite_runs.full`; a targeted run, of either scope, adds one to
 `suite_runs.targeted`. Single-test
 re-runs while debugging a failure are not gate runs and are not counted.
@@ -494,7 +494,7 @@ green run as a pass (#3902).
    **not** return to Step 2 because the base moved during the wait, even onto
    this PR's files: that loop is what ADR-0138 removed. A conflict that lands
    after this point is caught by `pr-verify`'s live merge-state gate or by the
-   merger's pre-merge check (PAD-18-009), which re-runs `pr-ship`.
+   merger's pre-merge check (PAD-18-009, PAD-18-018), which re-runs `pr-ship`.
 
 2. If the PR is a draft with a `needs-rebase` label, undraft it:
 
