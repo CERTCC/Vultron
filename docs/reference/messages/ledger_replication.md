@@ -200,6 +200,7 @@ It replays that `Announce` when it can compute the genesis hash from the seeded 
 A report submitter's replica is seeded by the report receiver's `Create(VulnerabilityCase)` instead (CBT-01-001), and that seed replays the held `Announce` the same way (SYNC-15-005).
 The receiver and the CASE_MANAGER are separate senders, so the CASE_MANAGER's entries often arrive before that `Create`.
 After an `Announce(VulnerabilityCase)` seed, the participant then states its position in the seeded case with `Read(CaseLedgerEntry)` ([Read case ledger entry](#read-case-ledger-entry), SYNC-17-008).
+A `Create(VulnerabilityCase)` seed sends no such statement, because SYNC-17-008 covers only the `Announce(VulnerabilityCase)` seed.
 
 - **Pattern:** `AnnounceVulnerabilityCasePattern` in
   `vultron/wire/as2/extractor/_instances.py`.
