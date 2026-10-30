@@ -35,7 +35,8 @@ Structure (after intake, which the shared factory supplies first)::
        │  └─ ReplayHeldPreGenesisEntry            # SYNC-15-005, SYNC-14-009
        ├─ RedeliveredBootstrap (Sequence)   # already accepted
        │  ├─ BootstrapRouteIs_redelivery
-       │  └─ IntroduceCaseManagerToReporterNode   # retry a failed introduction
+       │  ├─ IntroduceCaseManagerToReporterNode   # retry a failed introduction
+       │  └─ ReplayHeldPreGenesisEntry            # retry a failed drain
        └─ RefuseBootstrapNode               # carries the chosen route's reason
 
 The sender guard is composed by the factory from the use case's declared
@@ -61,7 +62,10 @@ it before that fan-out.  The trusted arm ends by replaying the held
 ``Announce`` that extends the new tail through this actor's inbox, as a
 delivery of its own (SYNC-15-005, SYNC-14-009), exactly as the
 ``Announce(VulnerabilityCase)`` seed does; without it the entries wait for the
-CASE_MANAGER's rate-limited replay (SYNC-15-003, #5521).
+CASE_MANAGER's rate-limited replay (SYNC-15-003, #5521).  The redelivery arm
+drains too, for the same reason it retries the introduction: when the first
+delivery seeded the replica but failed before or during the drain, the
+redelivered ``Create`` is the only later trigger for it.
 
 The route is chosen once by the classifier, not by re-testing a condition on
 each arm, because the trusted arm's own write changes what a re-test would see.
@@ -167,6 +171,10 @@ def create_create_case_received_tree(
             BootstrapRouteIsNode(route, "redelivery"),
             # Retries an introduction a first delivery failed to queue.
             IntroduceCaseManagerToReporterNode(case_id, retry=True),
+            # Retries a drain a first delivery did not finish (SYNC-15-005).
+            ReplayHeldSuccessorNode(
+                case_id=case_id, name="ReplayHeldPreGenesisEntry"
+            ),
         ],
     )
     arms: dict[BootstrapRouteName, py_trees.behaviour.Behaviour] = {
