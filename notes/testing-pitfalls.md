@@ -8,7 +8,8 @@ description: >
   timeout *method* matters more than the ceiling, profiling a near-ceiling test
   before re-tiering it, sizing the integration tier from measured load, the
   ledger-rebuild teardown error a timeout trip leaves behind, proving off-loop
-  work without a wall-clock window,
+  work without a wall-clock window, an in-process pass that hides what each node
+  holds on its own,
   measuring effective markers rather than declarations,
   `filterwarnings` precedence, `nproc` in a worktree slot, `xdist_group` for
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
@@ -498,6 +499,27 @@ so it cannot drift out of the branch. See
 - **Field-by-field copy functions rot silently.** A builder such as
   `_build_activity_snapshot` omits every field added since it was written. When a
   received-side read comes up empty, suspect the copy before the sender.
+
+### An In-Process Pass Is Not Evidence for What Each Node Holds on Its Own
+
+- **Rule.** When a change touches what an outbound payload carries, or what a
+  CASE_MANAGER path reads about *another* actor, reproduce it in a topology whose
+  participant node starts empty and is bootstrapped only by delivered activities
+  (`test/demo/conftest.py` supports this; `test_pcr_bootstrap.py` does it for a
+  two-node Announce). A green in-process suite does not count as coverage.
+- **Why.** In-process topologies share what Docker keeps apart. They seed the case,
+  its participants and its embargo into every node's store before one protocol
+  step runs, so a receiver never depends on what the wire carried. Every node also
+  reads one process-global `get_config()`, so a CaseActor that reads its own
+  configuration for another actor's facts gets the right answer. Only the Docker
+  demos bootstrap from delivered activities, with one configuration per container.
+- **Symptom.** The suite is green, and the Docker demo fails with a "missing
+  object" error on the receiving side (`no VulnerabilityCase for report`, `Invalid
+  RM transition START → …`, `no routable recipients`) or a role error from a
+  configuration read (`CVDRole.VENDOR required for VF state`). The sealed-body ratchet
+  (`test_sealed_body_audit.py`) covers the trigger port only, not the receive-side
+  projections. Witnesses: PR #3923 (payloads), #1876 / PR #4539 (configuration);
+  the per-node configuration fix is tracked in #4541.
 
 ## Test Layout and Markers
 

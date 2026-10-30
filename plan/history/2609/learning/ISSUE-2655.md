@@ -37,3 +37,8 @@ covers the trigger port, not the receive-side projections that consume it.
 
 **What would confirm it.** A second payload-shape change that passes in-process
 and fails only in the Docker demos.
+
+**Promoted**: 2026-10-30 — corroborated by Concern #4541 (process-global config, a
+second witness); captured in `notes/testing-pitfalls.md` § "An In-Process Pass Is Not
+Evidence for What Each Node Holds on Its Own" and the AGENTS.md Tests row.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/5581>.

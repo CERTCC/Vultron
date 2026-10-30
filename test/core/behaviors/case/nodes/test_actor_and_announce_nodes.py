@@ -204,7 +204,7 @@ class TestAcceptCaseOwnershipTransferNode:
 
     @pytest.mark.spec("CM-21-001")
     @pytest.mark.spec("CM-21-004")
-    @pytest.mark.spec("CM-21-021")
+    @pytest.mark.spec("CM-21-022")
     def test_raises_when_the_new_owner_has_no_participant_record(
         self, bridge, dl
     ) -> None:
@@ -243,7 +243,7 @@ class TestAcceptCaseOwnershipTransferNode:
         assert CVDRole.CASE_OWNER in stored_old_owner.case_roles
 
     @pytest.mark.spec("CM-21-002")
-    @pytest.mark.spec("CM-21-021")
+    @pytest.mark.spec("CM-21-022")
     def test_grants_the_role_to_a_new_owner_held_only_inline(
         self, bridge, dl
     ) -> None:

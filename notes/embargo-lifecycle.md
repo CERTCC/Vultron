@@ -282,7 +282,7 @@ catch-up path.
   `notes/participant-embargo-consent.md` § "Sweep due expiries before the owner
   decides".
 
-## Refusing an Invite at P/X/A (EMB-01-002)
+## Refusing an Invite at P/X/A (EMB-01-002, EMB-01-007)
 
 - The P/X/A refusal of a received Invite or Accept is a `RECEIVER`
   diversion of the received tree (`pxa_invite_refusal`, `pxa_accept_refusal`

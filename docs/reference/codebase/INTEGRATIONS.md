@@ -11,8 +11,9 @@ stakeholder_type: [project-contributor]
 | System | Type | Purpose | Auth model | Criticality | Evidence |
 |--------|------|---------|------------|-------------|----------|
 | SQLite (via SQLModel/SQLAlchemy) | Database | Persistent storage for domain objects, received-activity archive, inbox/outbox queues, and inbox/outbox dead-letter stores | None (local file or `:memory:`) | High | `vultron/adapters/driven/datalayer_sqlite/` |
-| Peer Vultron actors (HTTP/AS2) | Outbound HTTP API | ActivityStreams 2.0 message delivery to other actors' inboxes | HTTP Signatures (intended) — the production adapter docstring specifies signing with the local actor's private key (OX-10-004); that adapter is a `NotImplementedError` stub, so the demo path is unauthenticated | High | `vultron/adapters/driven/prod_http_delivery.py`, `vultron/adapters/driven/demo_http_delivery.py` |
-| ActivityPub / AS2 (inbound) | Inbound HTTP | Receive CVD coordination activities at `POST /actors/{actor_id}/inbox` | None implemented. Signature validation is planned for the shared-inbox adapter, which is a `NotImplementedError` stub (OX-11-001 to OX-11-004) | High | `vultron/adapters/driving/fastapi/routers/actors/_routes.py`, `vultron/adapters/driving/shared_inbox.py` |
+| Peer Vultron actors (HTTP/AS2) | Outbound HTTP API | ActivityStreams 2.0 message delivery to other actors' inboxes | None implemented. ADR-0164 (`accepted-provisional`) puts an object-level proof (FEP-8b32, `eddsa-jcs-2022`, seeded Ed25519 keys) inside every sent activity and defers HTTP Signatures to productionization (#1184); the `prod_http_delivery.py` stub docstring still describes HTTP Signatures (OX-10-004) | High | `vultron/adapters/driven/prod_http_delivery.py`, `vultron/adapters/driven/demo_http_delivery.py` |
+| ActivityPub / AS2 (inbound) | Inbound HTTP | Receive CVD coordination activities at `POST /actors/{actor_id}/inbox` | None implemented; the inbox accepts any well-formed body. ADR-0164 calls for strict proof verification with no switch, pinned by strict-`xfail` tests until it lands; the shared-inbox stub (OX-11-001 to OX-11-004) still plans signature validation | High | `vultron/adapters/driving/fastapi/routers/actors/_routes.py`, `vultron/adapters/driving/shared_inbox.py`, `test/adapters/driving/fastapi/test_signed_delivery_refusal.py` |
+| Dedicated CaseActor service | Outbound HTTP API | A case proposal goes to the CaseActor at `{case_actor_service_url}/actors/case-actor`, one per container (CP-04-005, CP-08-001) | None (as for peer actors) | High | `vultron/config/actor.py`, `docker/docker-compose-multi-actor.yml` |
 | Third-party trackers (Jira, VINCE) | Connector adapter | Translate external tracker events to/from Vultron domain; plugins are meant to be discovered via the `vultron.connectors` entry-point group | [ASK USER] — examples only; the plugin loader is a stub | Low | `vultron/adapters/connectors/example/`, `vultron/adapters/connectors/loader.py` |
 | Docker Compose (multi-actor demo) | Orchestration | Stands up multiple actor containers sharing an AS2 network for the end-to-end demo | None (local demo) | Low | `docker/docker-compose-multi-actor.yml`, `docker/demo-entrypoint.sh` |
 | GitHub Pages | Static hosting | Publishes the MkDocs site | GitHub Actions token | Low | `.github/workflows/deploy_site.yml` |
@@ -28,8 +29,9 @@ stakeholder_type: [project-contributor]
 
 - **Credential sources**: `VULTRON_CONFIG` YAML file and/or `VULTRON_`-prefixed environment variables; only `PROJECT_NAME` is documented in `.env.example`
 - **Hardcoding checks**: no hardcoded credentials observed in source; the database URL is injected via config
-- **Rotation or lifecycle notes**: [ASK USER] — no secrets manager integration observed, and the credential rotation strategy is unknown.
-  The outbound-delivery design anticipates a per-actor HTTP Signature private key (`prod_http_delivery.py` docstring, OX-10-004), but no key storage, loading, or rotation is implemented yet.
+- **Rotation or lifecycle notes**: no secrets manager integration observed.
+  ADR-0164 computes each prototype actor's signing key from a fixed seed, which makes no security claim; production key generation, private-key storage and rotation are deferred to #1184.
+  No signing key of either kind is implemented yet.
 
 ### 4) Reliability and Failure Behavior
 
@@ -69,3 +71,5 @@ stakeholder_type: [project-contributor]
 - `vultron/adapters/connectors/loader.py`
 - `.github/workflows/deploy_site.yml`
 - `.env.example`
+- `vultron/config/actor.py`
+- `docs/adr/0164-actors-sign-content-with-object-level-proofs-from-seeded-keys.md`

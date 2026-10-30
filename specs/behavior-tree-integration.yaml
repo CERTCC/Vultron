@@ -932,6 +932,36 @@ groups:
     statement: Peer broadcast fan-out paths SHOULD reuse a shared helper/subtree for recipient filtering, activity construction,
       and outbox enqueueing so the failure contract is consistent across workflow domains.
     rationale: Duplicated fan-out implementations drift over time and re-introduce silent-failure behavior in only some pathways.
+  - id: BT-14-003
+    priority: MUST
+    kind: project
+    statement: >-
+      When a fan-out's catch-up backfill of a let-back-in, paused peer is held back at
+      an older entry (SYNC-03-009), the fan-out MUST skip only that peer, keeping its
+      pause, and return SUCCESS. Every other hold-back, the join backfill and the
+      admission backfill node's included, is a failure under BT-14-001.
+    rationale: >-
+      The skipped peer keeps its pause, so the same hold-back recurs on every later
+      commit in the case. Failing the fan-out would refuse each of those acts whole
+      (CLP-07-015), so one broken old entry would stop the case from committing
+      anything. The peer could hold the new entry only as a forward gap (SYNC-14-001),
+      so skipping it loses nothing. The join and admission backfills keep failing, as
+      decided on #5120: while a broken old entry exists, every later Accept of an
+      Invite to the case is refused whole, so no one new can join until the entry is
+      repaired.
+    verification: >-
+      `test/core/behaviors/sync/nodes/test_send_side_hash_check_sites.py`:
+      `test_fanout_skips_a_peer_whose_catch_up_is_held_back_and_sends_the_rest` and
+      `test_a_commit_stands_when_a_peers_catch_up_is_held_back` assert the skip, the
+      kept pause and SUCCESS;
+      `test_admission_backfill_stops_at_a_broken_entry_and_keeps_the_pause` and
+      `test_join_backfill_stops_at_a_broken_entry_and_fails` assert the other sites
+      still fail.
+    relationships:
+    - rel_type: constrains
+      spec_id: BT-14-001
+    - rel_type: refines
+      spec_id: SYNC-03-009
 - id: BT-15
   title: Trigger-Side Use-Case Contract
   specs:

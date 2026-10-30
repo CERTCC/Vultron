@@ -169,6 +169,7 @@ class TestSendEmbargoProposalRefusalNodeRecipient:
 
     @pytest.mark.spec("EP-09-003")
     @pytest.mark.spec("EMB-01-002")
+    @pytest.mark.spec("EMB-01-007")
     def test_the_case_manager_answers_the_proposer(self) -> None:
         recipient = self._recipient(CASE_MANAGER_ACTOR, CASE_MANAGER_ACTOR)
         assert recipient == _PROPOSER

@@ -30,3 +30,8 @@ because a bare object was permissive.
 **How to apply.** Until this is settled, expect a bare-URI embargo Invite to be
 answered only after its terms are fetched. Do not loosen `object_` matching to
 restore the immediate answer.
+
+**Promoted**: 2026-10-30 — EMB-01-002 split; the answer duty is EMB-01-007, which
+names it `Reject(Invite(Event))` and says a bare-URI Invite is answered once its terms
+are fetched and not when the fetch fails (`specs/em-behavior.yaml`). Immediate classification stays #5266.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/5581>.

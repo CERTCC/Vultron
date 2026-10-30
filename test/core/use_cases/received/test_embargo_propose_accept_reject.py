@@ -959,6 +959,7 @@ class TestPxaRejectionAttribution:
         return SqliteDataLayer("sqlite:///:memory:", actor_id=self.RECEIVER_ID)
 
     @pytest.mark.spec("EMB-01-002")
+    @pytest.mark.spec("EMB-01-007")
     @pytest.mark.spec("PCR-08-001")
     def test_ep_rejection_is_sent_as_receiver_to_case_manager(
         self, make_payload
@@ -988,6 +989,7 @@ class TestPxaRejectionAttribution:
         assert [ref_id(r) for r in reject.to or []] == [self.SENDER_ID]
 
     @pytest.mark.spec("EMB-01-002")
+    @pytest.mark.spec("EMB-01-007")
     @pytest.mark.spec("HP-01-005")
     def test_ep_naming_another_invitee_gets_no_er(self, make_payload):
         """An EP addressed to another actor is refused at the door, unanswered.

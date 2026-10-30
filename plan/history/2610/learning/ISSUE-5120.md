@@ -31,3 +31,8 @@ and on #5120 (comment 6443457746); the pre-push finding
 **How to apply.** Before a new send path returns FAILURE on a hold-back inside
 an act, check whether the same hold-back recurs on every later act, as a kept
 pause makes it recur. If it does, skip the stalled peer instead.
+
+**Promoted**: 2026-10-30 — new BT-14-003 states the fan-out's held-back catch-up
+exception and that the join and admission backfills still fail
+(`specs/behavior-tree-integration.yaml`, `notes/peer-broadcast-failure-semantics.md`).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/5581>.
