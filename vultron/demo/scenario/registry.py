@@ -53,7 +53,7 @@ Two design rules are load-bearing and easy to undo by accident:
 branch-point table (:mod:`vultron.demo.scenario.branch_points`) and is checked
 against it when the spec is built; :func:`discover_scenarios` then merges every
 path into one tree (:mod:`vultron.demo.scenario.tree`) and fails unless each
-scenario is exactly one ending (DEMOCI-11-014).
+scenario is exactly one ending (DEMOCI-11-023).
 
 **Registration means built.** A scenario that has a spec group but no module
 is declared by the planned-scenario register in ``notes/demo-future-ideas.md``

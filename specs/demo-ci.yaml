@@ -2125,9 +2125,8 @@ groups:
           pointer to a parent scenario does not treat them the same. A full path treats
           siblings the same, and the tree is the merge of the paths.
         verification: >-
-          A registry test asserts that the committed registry builds one tree
-          from the declared paths, and that a path naming an unknown branch
-          point or choice fails discovery on a mutated fixture registry.
+          A registry test asserts that every registered scenario has a path
+          whose pairs each name an entry of the branch-point table.
         adr:
           - ADR-0098
         relationships:
@@ -2174,6 +2173,8 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-014
+          - rel_type: depends_on
+            spec_id: DEMOCI-11-013
 
       - id: DEMOCI-11-015
         priority: SHOULD
@@ -2296,30 +2297,66 @@ groups:
           the recordings all come from the code that runs.
         verification: >-
           A registry test builds the path of a composed fixture scenario from its
-          story and asserts it equals the path in the tree index, and a test
-          asserts discovery fails when a composed scenario also declares
-          `path=`.
+          story and asserts it equals that scenario's path in the tree built
+          from the fixture registry.
         adr:
           - ADR-0098
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-014
 
+      - id: DEMOCI-11-024
+        priority: MUST
+        kind: project
+        statement: >-
+          Discovery MUST fail when a scenario written as composition also
+          declares `path=` on `@scenario`.
+        rationale: >-
+          A composed scenario that also declares `path=` carries the second copy
+          that DEMOCI-11-019 removes, and nothing would keep the two copies the
+          same.
+        verification: >-
+          A registry test asserts discovery fails on a mutated fixture registry
+          in which a composed scenario also declares `path=`.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-019
+
       - id: DEMOCI-11-020
         priority: MUST
         kind: project
         statement: >-
-          Every scenario MUST run on one fixed cast: the same container slot,
-          port and actor id for each cast member in every scenario of the tree,
-          and the same recording seed for every recording.
+          Every registered scenario MUST run on one fixed cast: the same
+          container slot, port and actor id for each cast member in every
+          scenario of the tree.
         rationale: >-
           Byte identity of a shared prefix (DEMOCI-11-018) needs more than one
-          copy of the code. Two siblings that seed their ids with different
-          values, or put the same actor in different slots, record different
-          bytes for the same story. One cast and one seed remove both causes.
+          copy of the code. Two siblings that put the same actor in different
+          slots record different bytes for the same story.
         verification: >-
-          A test asserts every registered scenario names the same cast, and the
-          recorder test asserts every recording uses the tree-wide seed.
+          A test asserts that every registered scenario resolves each cast
+          member to the same container slot, port and actor id.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: depends_on
+            spec_id: DEMOCI-11-018
+
+      - id: DEMOCI-11-025
+        priority: MUST
+        kind: project
+        statement: >-
+          Every recording of a registered scenario MUST use the same tree-wide
+          recording seed.
+        rationale: >-
+          Two siblings that seed their ids with different values record
+          different bytes for the same story, so a shared prefix cannot be byte
+          identical (DEMOCI-11-018).
+        verification: >-
+          The recorder test asserts that every recording uses the tree-wide
+          seed.
         adr:
           - ADR-0098
         relationships:
@@ -2330,14 +2367,17 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          In every scenario, the first three cast members MUST play the first
-          Reporter, the first Vendor and the first Coordinator, in that order,
-          and every further cast member takes the role its scenario gives it.
+          When a registered scenario seats a Reporter, a Vendor or a
+          Coordinator, the first one of each role MUST run in the first, second
+          or third cast slot respectively.
         rationale: >-
-          A fixed role for the first members keeps a shared opening on the same
-          containers in every scenario that tells it. The other members are
-          character actors, so a scenario that needs a second Vendor, a second
-          Coordinator, a Deployer or a second Reporter adds no container.
+          A fixed slot for the first Reporter, Vendor and Coordinator keeps a
+          shared opening on the same containers in every scenario that tells
+          it. A scenario that lacks one of these roles, such as `rv` with no
+          Coordinator, leaves that slot unused. Every further cast member is a
+          character actor that takes the role its scenario gives it, so a
+          scenario that needs a second Vendor, a second Coordinator, a Deployer
+          or a second Reporter adds no container.
         verification: >-
           A test asserts that, in every registered scenario, the first Reporter,
           first Vendor and first Coordinator it seats run in the first, second

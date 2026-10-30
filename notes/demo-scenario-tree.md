@@ -50,7 +50,8 @@ relevant_packages:
 
 Vocabulary: the **Demo** section of `CONTEXT.md` (scenario tree, branch point,
 choice, ending, scenario, recording). Decision records: ADR-0098 and ADR-0104,
-both amended 2026-10-15. Requirements: DEMOCI-11-013 through DEMOCI-11-018.
+both amended 2026-10-15; ADR-0098 amended again 2026-10-30. Requirements:
+DEMOCI-11-013 through DEMOCI-11-025.
 Parent Epic: #4747.
 
 The `@scenario(path=...)` declarations are the interim form. Composition
@@ -167,14 +168,16 @@ continuation per choice (DEMOCI-11-019, ADR-0098). Rules for the work:
   the `choose` items, so the tree index (DEMOCI-11-016) follows the code with
   no new sync step. The runner records each step mark as it passes a `choose`,
   so a composed scenario places no `reach_step` by hand. During migration the
-  registry accepts either form; a composed scenario never also declares
-  `path=`.
-- **One cast, one seed.** About six role-neutral actor containers plus the
-  Case Actor (#1928). Cast members 0, 1 and 2 always play the first Reporter,
-  first Vendor and first Coordinator; members 3 and up are character actors
-  whose role each scenario sets through the act that seats them
-  (DEMOCI-11-020, DEMOCI-11-021). Every recording uses one tree-wide seed, so a
-  shared prefix records the same bytes in every sibling (DEMOCI-11-018).
+  registry accepts either form; a composed scenario that also declares
+  `path=` fails discovery (DEMOCI-11-024).
+- **One cast, one seed.** Role-neutral actor containers plus the Case Actor
+  (#1928). The first Reporter, first Vendor and first Coordinator a scenario
+  seats run in cast slots 0, 1 and 2; a scenario without one of these roles
+  (`rv` has no Coordinator) leaves its slot unused. Members 3 and up are
+  character actors whose role each scenario sets through the act that seats
+  them (DEMOCI-11-020, DEMOCI-11-021). Every recording uses one tree-wide
+  seed, so a shared prefix records the same bytes in every sibling
+  (DEMOCI-11-025, DEMOCI-11-018).
 - **Specs stay whole stories.** Each scenario's spec group and its DEMOMA-16
   list of required semantic types describe the whole story, written by hand,
   so the run is checked against the spec, not against the code. Each group
