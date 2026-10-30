@@ -7,6 +7,7 @@ updated: 2026-08-11
 deciders: Allen D. Householder
 consulted: Claude Sonnet 4.6
 informed: []
+partially_superseded_by: 0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md
 lint_suppress: [status_prose_contradiction]
 stakeholder_type: [project-contributor]
 ---
