@@ -47,10 +47,7 @@ DOCS_DIR = REPO_ROOT / "docs"
 REVIEW_WORKFLOW = WORKFLOWS_DIR / "docs-build-check.yml"
 # The steps that check the built site; the source gates run after them, so a
 # failed gate cannot skip one (DOCBW-03-014).
-BUILT_SITE_CHECKS = (
-    "./.github/actions/check-site-publication",
-    "docs-legacy-urls",
-)
+BUILT_SITE_CHECKS = ("./.github/actions/check-site-publication",)
 
 # A hook whose own command no workflow runs, and the command that checks the
 # same thing in CI. ``validate-adr-frontmatter`` only loads the ADR registry,

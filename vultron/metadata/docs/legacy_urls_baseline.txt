@@ -175,6 +175,7 @@ adr/0163-the-case-manager-resends-an-unanswered-invite-when-its-addressee-states
 adr/0164-actors-sign-content-with-object-level-proofs-from-seeded-keys.md
 adr/0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md
 adr/0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md
+adr/0168-a-replay-from-the-start-is-asked-once-per-wait-and-answered-once-per-need.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md

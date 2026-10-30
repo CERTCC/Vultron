@@ -143,8 +143,21 @@ def test_gate_lookup_tells_the_two_legacy_url_gates_apart():
         "echo PYTHONPATH='' uv run docs-links",
         "true || uv run docs-links",
         "uv run docs-links-other",
+        "uv run docs-links || true",
+        "uv run docs-links; true",
+        "uv run docs-links && echo ok",
+        "uv run docs-links | tee log",
     ],
-    ids=["commented-out", "echoed", "short-circuited", "other-command"],
+    ids=[
+        "commented-out",
+        "echoed",
+        "short-circuited",
+        "other-command",
+        "or-true",
+        "then-true",
+        "and-echo",
+        "piped",
+    ],
 )
 def test_gate_lookup_rejects_a_line_that_does_not_run_the_gate(run: str):
     step = {"run": run}

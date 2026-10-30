@@ -18,7 +18,7 @@ on:
       # reruns it.
       - 'vultron/**'
       - 'specs/**'
-      # Runs the built-site gates (DOCBW-03-005/007/008, DF-11-023).
+      # Runs the built-site gates (DOCBW-03-005/007/008/012, DF-11-023).
       - '.github/actions/check-site-publication/**'
       # The shared build (DOCBW-06-004) and the environment it installs.
       - '.github/actions/build-site/**'
@@ -28,7 +28,6 @@ on:
       - 'LICENSE.md'
       - 'Acknowledgements.md'
       - '.github/workflows/docs-build-check.yml'
-  workflow_call:
   workflow_dispatch:
 
 permissions:
