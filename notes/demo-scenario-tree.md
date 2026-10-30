@@ -14,6 +14,12 @@ tracks:
   - "#5347"
   - "#5348"
   - "#5349"
+  - "#5532"
+  - "#5533"
+  - "#5534"
+  - "#5535"
+  - "#5536"
+  - "#5537"
 description: >
   Design for the remaining scenario-tree work (#4726): the letter-grammar names
   and how a rename keeps old URLs, the generated tree index the demo UI reads,
@@ -218,12 +224,12 @@ reports to the harness with `reach_step` for the shared-prefix check
 
 ## Task order
 
-1. Composition, one PR per step, in this order: the fixed cast (#1928); the
-   story runner, piloted on `rcv` and `rcv-reject`; the rest of the
-   "Coordinator invites Vendor" subtree (`rcvcv`, `rcv-embargo`,
-   `rcvv-embargo`); the two-coordinator subtree (`rccv-*`); the vendor-first
-   half (`rv`, `rvv`, `rvcv-*`); then retiring `path=` and hand-placed
-   `reach_step`.
+1. Composition, one PR per step, in this order: the fixed cast (#5532); the
+   story runner, piloted on `rcv` and `rcv-reject` (#5533); the rest of the
+   "Coordinator invites Vendor" subtree, `rcvcv`, `rcv-embargo` and
+   `rcvv-embargo` (#5534); the two-coordinator subtree, `rccv-*` (#5535); the
+   vendor-first half, `rv`, `rvv` and `rvcv-*` (#5536); then retiring `path=`
+   and hand-placed `reach_step` (#5537).
 2. Test starting points: #5344 (one act cheap) and #5345 (the harness, which
    stops a run at a `reach_step` mark), then the pilot #5346, then the
    migrations #5347 and #5348, and last #5349.
