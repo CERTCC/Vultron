@@ -34,9 +34,12 @@ from vultron.adapters.driven.datalayer_sqlite import (
     reset_datalayer,
 )
 from vultron.adapters.driving.fastapi.main import app
+from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
+from vultron.adapters.driving.fastapi.routers.datalayer import _serve_stored
 from vultron.core.models import _helpers
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.ports.datalayer import DataLayer
 from vultron.demo.determinism import deterministic_run
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -257,3 +260,28 @@ def test_camel_case_participant_dump_revalidates_without_minting() -> None:
 
     assert rebuilt.participant_statuses == participant.participant_statuses
     assert next_id == mint_only()
+
+
+def test_a_bookkeeping_row_is_served_as_its_plain_dump() -> None:
+    """A row with no AS2 form is served as its dump, not as AS2 (ARCH-20-006).
+
+    Called directly: a bookkeeping row's id holds a ``/``, so no by-id route
+    path reaches it as one key.
+    """
+    record = VultronOfferRecord(
+        offer_id="urn:uuid:offer-1",
+        offer_actor_id=ACTOR_ID,
+        report_id="urn:uuid:report-1",
+    )
+
+    served = _serve_stored(record)
+
+    assert served == record.model_dump(by_alias=True, serialize_as_any=True)
+
+
+def test_an_as2_object_is_served_as_an_as2_document() -> None:
+    report = as_VulnerabilityReport(name="Report", content="content")
+
+    served = _serve_stored(report)
+
+    assert isinstance(served, AS2JSONResponse)
