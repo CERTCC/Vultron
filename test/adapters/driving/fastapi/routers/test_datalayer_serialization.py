@@ -334,6 +334,8 @@ def test_a_record_read_by_type_and_id_answers_in_the_fixed_form(
     )
 
     assert response.status_code == 200, response.text
+    # Not an AS2 document, so it is plain JSON (HTTP-04-002).
+    assert response.headers["content-type"].startswith("application/json")
     # A ``CoreRecord`` carries no camelCase alias generator (ARCH-25-002), so
     # the key is the field name.
     assert response.json()["last_resent_at"] == (
