@@ -94,7 +94,7 @@ groups:
       answered with ER is a duplicate, and gets no second ER (HP-01-003).
     rationale: >-
       Embargo negotiation is not viable once public disclosure has occurred.
-      VP-06-001 and VP-11-001 prohibit new embargo negotiations in these states.
+      VP-06-001 prohibits new embargo negotiations in these states.
       ER signals the rejection to the proposer so they can update their own EM
       state.
     adr:
@@ -120,11 +120,6 @@ groups:
     - rel_type: satisfies
       spec_id: VP-06-001
       note: MUST NOT propose or accept embargo when public/exploit/attacks
-    - rel_type: satisfies
-      spec_id: VP-11-001
-      note: >-
-        SHALL NOT negotiate embargoes where vulnerability or exploit is public
-        or attacks occurred
     - rel_type: satisfies
       spec_id: MSM-02-001
       note: 'EP shorthand wire-type mapping'
@@ -363,9 +358,6 @@ groups:
       spec_id: VP-06-001
       note: MUST NOT accept a new embargo when public/exploit/attacks
     - rel_type: satisfies
-      spec_id: VP-11-001
-      note: SHALL NOT negotiate embargoes where vulnerability or exploit is public
-    - rel_type: satisfies
       spec_id: MSM-02-002
       note: 'EA shorthand wire-type mapping'
 
@@ -533,8 +525,9 @@ groups:
       termination to someone proposing terms. Ending the embargo is the case
       owner's decision (or the delegated CASE_MANAGER's), and only the
       CASE_MANAGER writes shared EM state (EP-09-008, ADR-0113); a participant
-      answers only the Invite addressed to it (EP-09-003). VP-11-001 and VP-11-002
-      are met by the owner's or CASE_MANAGER's termination, which in the
+      answers only the Invite addressed to it (EP-09-003). VP-06-001 and VP-09-001
+      are met by the owner's or CASE_MANAGER's termination (VP-11-002, VP-11-011),
+      which in the
       CASE_MANAGER topology is the CS public-event cascade, not by each
       participant emitting ET (ADR-0118).
     adr:
@@ -583,8 +576,8 @@ groups:
         emits no ET and its EM state is unchanged
     relationships:
     - rel_type: satisfies
-      spec_id: VP-11-002
-      note: SHALL terminate embargo when public/exploit
+      spec_id: VP-09-001
+      note: Embargoes SHALL terminate immediately when public/exploit
     - rel_type: satisfies
       spec_id: MSM-02-003
       note: 'EV shorthand wire-type mapping'
@@ -666,7 +659,7 @@ groups:
       reverting to Active.
     rationale: >-
       Reverting to Active is not viable once public disclosure has occurred.
-      VP-11-002 requires termination in these states. "Rather than reverting"
+      VP-09-001 requires termination in these states. "Rather than reverting"
       describes where the act ends: EM ends EXITED, never back in Active. Inside
       the act, the CASE_MANAGER records the rejection as decided (the revision
       REJECTED) and then terminates the embargo, as two entries a replica copies
@@ -714,8 +707,8 @@ groups:
     - description: ET emitted; EM state is EXITED
     relationships:
     - rel_type: satisfies
-      spec_id: VP-11-002
-      note: SHALL terminate embargo when public/exploit
+      spec_id: VP-09-001
+      note: Embargoes SHALL terminate immediately when public/exploit
     - rel_type: satisfies
       spec_id: MSM-02-004
       note: 'EJ shorthand wire-type mapping'
@@ -802,7 +795,7 @@ groups:
       rather than accepting the revision.
     rationale: >-
       Accepting a revision is not viable once public disclosure has occurred.
-      VP-11-002 requires termination in these states.
+      VP-09-001 requires termination in these states.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EC in EM REVISE
       with a public/exploit/attack CS causes ET to be emitted and EM to transition
@@ -830,8 +823,8 @@ groups:
     - description: ET emitted; EM state is EXITED
     relationships:
     - rel_type: satisfies
-      spec_id: VP-11-002
-      note: SHALL terminate embargo when public/exploit
+      spec_id: VP-09-001
+      note: Embargoes SHALL terminate immediately when public/exploit
     - rel_type: satisfies
       spec_id: MSM-02-005
       note: 'EC shorthand wire-type mapping'
@@ -1129,7 +1122,9 @@ groups:
       note: Once proposed, an embargo MAY be accepted or rejected
     - rel_type: satisfies
       spec_id: VP-06-003
-      note: Receivers SHOULD accept any embargo proposed by Reporters
+      note: >-
+        A Receiver that cannot accept a Reporter's proposal as proposed SHOULD
+        counter-propose rather than reject it
     - rel_type: satisfies
       spec_id: VP-06-010
       note: Participants MAY accept or reject any proposed embargo as they see fit
@@ -1586,8 +1581,8 @@ groups:
       (q^cs ∈ ···P··), exploit-public (q^cs ∈ ····X·), or attacks-observed
       (q^cs ∈ ·····A).
     rationale: >-
-      VP-14-001 through VP-14-003 prohibit seeking new embargoes once public
-      disclosure, exploit publication, or attacks have occurred. The EXITED state
+      VP-06-001 prohibits seeking new embargoes once public disclosure, exploit
+      publication, or attacks have occurred. The EXITED state
       after any of these events is terminal for embargo negotiations on this case.
     testable: true
     preconditions:
@@ -1607,14 +1602,10 @@ groups:
     - testable_without_steps
     relationships:
     - rel_type: satisfies
-      spec_id: VP-14-001
-      note: Once Public Awareness, new embargoes SHALL NOT be sought
-    - rel_type: satisfies
-      spec_id: VP-14-002
-      note: Once Exploit Publication, new embargoes SHALL NOT be sought
-    - rel_type: satisfies
-      spec_id: VP-14-003
-      note: Once Attacks observed, new embargoes SHALL NOT be sought
+      spec_id: VP-06-001
+      note: >-
+        No new embargo once public awareness, exploit publication or attacks
+        have occurred
 
 - id: EMB-14
   title: Actor-Voluntary Embargo Termination (Trigger Side)

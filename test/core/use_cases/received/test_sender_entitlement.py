@@ -83,6 +83,7 @@ from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.participants.ownership_offer import ownership_offer_id
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
@@ -1303,12 +1304,23 @@ def test_owner_embargo_decision_from_a_non_owner_is_refused(
     assert cm_store.list_objects("CaseLedgerEntry") == []
 
 
+#: Termination authority stays with the Case Owner whether or not attacks are
+#: known (VP-11-006): a known attack does not open teardown to any participant.
+_ATTACKS_UNKNOWN_AND_KNOWN = pytest.mark.parametrize(
+    "pxa", [CS_pxa.pxa, CS_pxa.pxA], ids=["attacks-unknown", "attacks-known"]
+)
+
+
 @pytest.mark.spec("EP-09-005")
 @pytest.mark.spec("HP-01-006")
+@pytest.mark.spec("VP-11-006")
+@pytest.mark.spec("VP-11-012")
+@_ATTACKS_UNKNOWN_AND_KNOWN
 def test_embargo_remove_from_a_non_owner_is_refused(
-    cm_store, owned_case, make_payload
+    cm_store, owned_case, make_payload, pxa
 ):
     """A participant that is not the Case Owner cannot terminate the embargo."""
+    owned_case.current_status.pxa.state = pxa
     embargo = _embargo_case(
         cm_store, owned_case, em_state=EM.ACTIVE, active=True
     )
@@ -1341,10 +1353,14 @@ def test_embargo_remove_from_a_non_owner_is_refused(
 
 @pytest.mark.spec("EP-09-005")
 @pytest.mark.spec("HP-01-006")
+@pytest.mark.spec("VP-11-006")
+@pytest.mark.spec("VP-11-011")
+@_ATTACKS_UNKNOWN_AND_KNOWN
 def test_embargo_remove_from_the_owner_is_applied(
-    cm_store, owned_case, make_payload
+    cm_store, owned_case, make_payload, pxa
 ):
     """The Case Owner's termination still reaches the CASE_MANAGER's tree."""
+    owned_case.current_status.pxa.state = pxa
     embargo = _embargo_case(
         cm_store, owned_case, em_state=EM.ACTIVE, active=True
     )

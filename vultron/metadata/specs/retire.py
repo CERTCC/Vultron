@@ -50,6 +50,7 @@ from vultron.metadata.specs.growth_guard import (
     resolve_merge_base,
 )
 from vultron.metadata.specs.registry import load_registry
+from vultron.metadata.specs.schema import SPEC_ID_PATTERN
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,8 @@ logger = logging.getLogger(__name__)
 RETIRED_SPECS_RELPATH = Path("plan") / "retired-specs"
 
 _README = "README.md"
-_SPEC_ID_RE = re.compile(r"^[A-Z]{2,8}-\d{2}-\d{3}$")
+#: A whole requirement ID, with its optional sub-item letter (MS-04-001).
+_SPEC_ID_RE = re.compile(rf"^{SPEC_ID_PATTERN}$")
 
 #: Trees whose mentions of a retired ID are history or the archive itself and
 #: so are never repointed.
@@ -236,7 +238,9 @@ def find_cross_references(
         text=True,
         check=True,
     ).stdout
-    pattern = re.compile(rf"(?<![A-Za-z0-9-]){re.escape(spec_id)}(?!\d)")
+    # A trailing digit or sub-item letter makes another ID: retiring
+    # ``PREFIX-NN-NNN`` must not list a citation of ``PREFIX-NN-NNNb``.
+    pattern = re.compile(rf"(?<![A-Za-z0-9-]){re.escape(spec_id)}(?![0-9a-z])")
     hits: list[tuple[str, int, str]] = []
     for rel in listing.split("\0"):
         if not rel or rel.startswith(_XREF_EXCLUDED_PREFIXES):

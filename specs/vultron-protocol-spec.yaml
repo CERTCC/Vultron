@@ -1003,6 +1003,8 @@ groups:
       information. An embargo at that point only delays defenders.
     stories:
     - story_2022_007
+    - story_2022_018
+    - story_2022_019
   - id: VP-06-002
     priority: SHOULD_NOT
     kind: protocol
@@ -1016,11 +1018,18 @@ groups:
   - id: VP-06-003
     priority: SHOULD
     kind: protocol
-    statement: Receivers SHOULD accept any embargo proposed by Reporters
+    statement: >-
+      A Receiver that cannot accept a Reporter's proposed embargo as proposed SHOULD
+      propose terms it can accept (VP-06-011) rather than reject the proposal outright.
     rationale: >-
-      Reporters hold the vul and can disclose it on their own. Accepting their proposed
-      embargo keeps them in the coordinated process and secures time to fix; refusing
-      risks the reporter publishing without coordination.
+      Reporters hold the vul and can disclose it on their own. A counter-proposal keeps
+      them in the coordinated process and keeps the negotiation open; an outright
+      refusal risks the reporter publishing without coordination. The Receiver still
+      need not accept terms it cannot keep (VP-06-010), and VP-07-004 already answers a
+      proposal longer than its default with a counter-proposal of that default.
+    relationships:
+    - rel_type: refines
+      spec_id: VP-06-011
   - id: VP-06-004
     priority: SHOULD
     kind: protocol
@@ -1084,12 +1093,17 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      CVD Participants MAY propose or accept a new embargo when
-      $q^{cs} \in VFdpxa$.
+      When $q^{cs} \in VFdpxa$, CVD Participants MAY propose or accept a new embargo
+      that prepares for timely publication or deployment (VP-06-008b). This is the one
+      exception to VP-14-007.
     rationale: >-
       With a fix ready but not deployed, a short window can still help users by letting
-      participants line up publication and deployment. An embargo is therefore allowed
-      here, though not required.
+      participants line up publication and deployment. Fix Ready otherwise ends
+      embargo negotiation (VP-14-007), so this one purpose is named as the exception,
+      allowed here though not required.
+    relationships:
+    - rel_type: supersedes
+      spec_id: VP-14-007
   - id: VP-06-008b
     priority: SHOULD
     kind: protocol
@@ -1632,6 +1646,7 @@ groups:
     - story_2022_015
     - story_2022_020
     - story_2022_069
+    - story_2022_108
   - id: VP-09-002
     priority: SHOULD
     kind: protocol
@@ -1646,12 +1661,12 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      Embargoes SHOULD terminate early when there is evidence that the vulnerability is being
-      actively exploited by adversaries ($q^{cs} \in \{\cdots A\}$)
+      Embargoes SHOULD terminate immediately when there is evidence that the vulnerability
+      is being actively exploited by adversaries ($q^{cs} \in \{\cdots A\}$)
     rationale: >-
       Active exploitation means users are being harmed now and defenders need
-      information to respond. Keeping the embargo would only preserve the attackers'
-      advantage.
+      information to respond. Keeping the embargo, or delaying the teardown, would
+      only preserve the attackers' advantage.
     stories:
     - story_2022_018
   - id: VP-09-004
@@ -1805,47 +1820,26 @@ groups:
 - id: VP-11
   title: EM Messaging
   specs:
-  - id: VP-11-001
-    priority: MUST
-    kind: protocol
-    statement: >-
-      Participants SHALL NOT negotiate embargoes where the vulnerability or its exploit is
-      public or attacks are known to have occurred
-    rationale: >-
-      Once the vul or exploit is public, or attacks are known, secrecy stops protecting
-      users. Negotiating an embargo then would only delay defenders.
-    verification: >-
-      Inspection of `vultron/core/states/em.py` confirms that EM guard
-      conditions block new embargo proposals when the CS state includes
-      P, X, or A substates.
-    stories:
-    - story_2022_018
-    - story_2022_019
   - id: VP-11-002
     priority: MUST
     kind: protocol
     statement: >-
-      When information about the vulnerability or an exploit is publicly known
-      ($q^{cs} \in \{\cdots P \cdots, \cdots X \cdot\}$), the case-level embargo SHALL be
-      terminated. A Participant who becomes aware of the public condition SHALL initiate
-      termination by reporting it (VP-11-003); the authority to terminate the case-level
-      embargo belongs to the Case Owner (CM-02-005), and the CASE_MANAGER effects the
-      teardown as the single writer of canonical case state (EMB-19-001). A Participant
-      other than the authorising Case Owner does not itself terminate the case-level
-      embargo; it may only initiate termination and terminate its own compliance
-      (VP-13-017).
+      When the vulnerability or an exploit is public, the authority to terminate the
+      case-level embargo SHALL belong to the Case Owner (CM-02-005). Public here means
+      $q^{cs} \in \{\cdots P \cdots, \cdots X \cdot\}$.
     rationale: >-
-      Once the vul or an exploit is public, the embargo protects no one and only stops
-      participants from helping users. Separating who reports the condition from who
-      ends the embargo keeps one authoritative decision, made by the Case Owner and
-      recorded by the CASE_MANAGER, so participants never disagree about whether the
-      embargo still holds.
+      Once the vul or an exploit is public, the embargo must end (VP-09-001). Separating
+      who reports the condition (VP-11-003) from who ends the embargo keeps one
+      authoritative decision, made by the Case Owner and recorded by the CASE_MANAGER
+      (VP-11-011), so participants never disagree about whether the embargo still holds.
     note: >-
       Rephrased from the original "Participants SHALL terminate the embargo" (CONCERN-3280):
-      that wording conflated the obligation to *initiate* termination (any Participant) with
-      the authority to *effect* it (Case Owner, enacted by the CASE_MANAGER). Whether the
-      Case Owner retains any discretion to keep an embargo once the public/exploit condition
-      is canonical is an open question — see
+      that wording conflated the obligation to *initiate* termination (any Participant,
+      VP-11-003) with the authority to *effect* it (Case Owner, enacted by the CASE_MANAGER,
+      VP-11-011). The obligation to terminate itself is VP-09-001, and what a Participant
+      other than the Case Owner may do is VP-11-012. Whether the Case Owner retains any
+      discretion to keep an embargo once the public/exploit condition is canonical is an
+      open question — see
       `docs/reference/vultron-spec/_oq-embargo-termination-authority.md`; the working
       position is that teardown is mandatory once the condition is adopted as canonical case
       state (DEMOMA-07-003).
@@ -1893,22 +1887,30 @@ groups:
     stories:
     - story_2022_008
   - id: VP-11-006
-    priority: SHOULD
+    priority: MUST
     kind: protocol
     statement: >-
-      When attacks are known to have occurred ($q^{cs} \in \cdots A$), the case-level embargo
-      SHOULD be terminated. A Participant who becomes aware SHOULD initiate termination by
-      reporting the condition (VP-11-007); as with VP-11-002 the authority to terminate the
-      case-level embargo belongs to the Case Owner (CM-02-005) and the CASE_MANAGER effects
-      the teardown (EMB-19-001).
+      When attacks are known to have occurred ($q^{cs} \in \cdots A$), the authority to
+      terminate the case-level embargo SHALL belong to the Case Owner (CM-02-005).
     rationale: >-
-      Known attacks mean users are being harmed now and defenders need information.
-      Keeping the embargo would only slow their response; as with VP-11-002, one party
-      holds the authority to end it so participants never disagree about whether it
-      still holds.
+      Known attacks mean the embargo should end (VP-09-003). As with VP-11-002, one
+      party holds the authority to end it, so participants never disagree about whether
+      it still holds. The Case Owner may delegate this decision in advance, for example
+      by configuring `CaseOwnerApprovesStatusUpdate` to approve reported attacks
+      automatically (RSH-07-003), which then also ends the embargo (ADR-0166). The
+      decision is made ahead of time, and the authority stays with the Case Owner.
     note: >-
       Rephrased from "Participants SHOULD terminate the embargo" for the same reason as
-      VP-11-002 (CONCERN-3280).
+      VP-11-002 (CONCERN-3280). The SHOULD it carried is the recommendation to terminate,
+      whose home is VP-09-003; who initiates is VP-11-007. The authority sentence was
+      always unconditional, so the statement that keeps it carries MUST. This adds no
+      obligation: CM-02-005 already restricts terminating an active embargo to the Case
+      Owner as a MUST.
+    verification: >-
+      Tests marked `VP-11-006` deliver a `Remove(EmbargoEvent)` to the CASE_MANAGER with
+      attacks known ($q^{cs} \in \cdots A$) and with none. They assert that one from a
+      participant other than the Case Owner is `REFUSED` with the embargo still active,
+      and that the Case Owner's is applied and exits the embargo.
     stories:
     - story_2022_019
   - id: VP-11-007
@@ -1949,6 +1951,47 @@ groups:
     rationale: >-
       An embargo binds only those who agree. Participants must be free to refuse
       proposals or revisions they cannot keep.
+  - id: VP-11-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER SHALL effect the teardown of a case-level embargo that the Case
+      Owner terminates (VP-11-002, VP-11-006). It is the single writer of canonical
+      case state (EMB-19-001).
+    rationale: >-
+      One writer of case state means every participant sees the same teardown in the
+      same place in the ledger. The Case Owner decides; the CASE_MANAGER records and
+      announces the decision.
+    note: >-
+      Split from VP-11-002 and VP-11-006 (#5298, MS-03-001).
+    verification: >-
+      Tests marked `VP-11-011` assert that the CASE_MANAGER applies the Case Owner's
+      `Remove(EmbargoEvent)` and exits the embargo, and that a managing owner's
+      termination is committed to the ledger and fanned out to every other participant,
+      whose replica then exits the embargo.
+    stories:
+    - story_2022_018
+  - id: VP-11-012
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A Participant other than the authorising Case Owner SHALL NOT terminate the
+      case-level embargo itself. It can initiate termination (VP-11-003, VP-11-007) and
+      end its own compliance (VP-13-017).
+    rationale: >-
+      If any participant could end the case-level embargo, participants could disagree
+      about whether it still holds. Initiating termination and ending one's own
+      compliance let a participant act on what it knows without overriding the Case
+      Owner (VP-11-002).
+    note: >-
+      Split from VP-11-002 (#5298, MS-03-001).
+    verification: >-
+      Tests marked `VP-11-012` assert that a participant other than the Case Owner
+      leaves the case-level embargo active: its terminate trigger only asks the
+      CASE_MANAGER, its `Remove(EmbargoEvent)` is `REFUSED` by the CASE_MANAGER, and at
+      P/X/A it answers a revision with ER and never emits ET.
+    stories:
+    - story_2022_018
 - id: VP-12
   title: CVD Case State (CS) Messaging
   specs:
@@ -1982,18 +2025,6 @@ groups:
       shortens that harm.
     stories:
     - story_2022_019
-  - id: VP-12-002b
-    priority: SHOULD
-    kind: protocol
-    statement: >-
-      Once attacks are observed ($q^{cs} \in \cdots A$), the embargo teardown process
-      SHOULD begin immediately.
-    rationale: >-
-      Once attacks are seen, secrecy stops protecting users and defenders need
-      information. Starting the teardown at once avoids keeping them uninformed.
-    relationships:
-    - rel_type: refines
-      spec_id: VP-12-002
   - id: VP-12-002c
     priority: SHOULD
     kind: protocol
@@ -2202,43 +2233,6 @@ groups:
 - id: VP-14
   title: RM-EM-CS Interactions
   specs:
-  - id: VP-14-001
-    priority: MUST
-    kind: protocol
-    statement: >-
-      Once Public Awareness has happened ($q^{cs} \in \cdots P \cdots$), new embargoes SHALL
-      NOT be sought and any existing embargo SHALL terminate
-    rationale: >-
-      Once the public knows about the vul, secrecy protects no one and defenders need
-      information. Seeking or keeping an embargo would only delay them.
-    verification_debt: '#3612'
-    stories:
-    - story_2022_020
-    - story_2022_108
-  - id: VP-14-002
-    priority: MUST
-    kind: protocol
-    statement: >-
-      Once Exploit Publication has occurred ($q^{cs} \in \cdots X \cdot$), new embargoes SHALL
-      NOT be sought and any existing embargo SHALL terminate
-    rationale: >-
-      Once an exploit is published, anyone can attack and defenders need information at
-      once. Seeking or keeping an embargo would only delay them.
-    verification_debt: '#3612'
-    stories:
-    - story_2022_018
-  - id: VP-14-003
-    priority: MUST
-    kind: protocol
-    statement: >-
-      Once Attacks have been observed ($q^{cs} \in \cdots A$), new embargoes SHALL NOT be
-      sought
-    rationale: >-
-      With attacks under way, a new embargo would only keep defenders uninformed while
-      users are being harmed.
-    verification_debt: '#3612'
-    stories:
-    - story_2022_019
   - id: VP-14-004
     priority: MUST
     kind: protocol
@@ -2274,11 +2268,19 @@ groups:
     priority: SHOULD_NOT
     kind: protocol
     statement: >-
-      Once a case has reached Fix Ready ($q^{cs} \in VF\cdot pxa$), new embargo negotiations
-      SHOULD NOT start and proposed but not-yet-agreed-to embargoes SHOULD be rejected
+      Once a case reaches Fix Ready ($q^{cs} \in VF\cdot pxa$), Participants SHOULD NOT
+      start a new embargo negotiation and SHOULD reject a pending proposal. The
+      one exception is a brief embargo to prepare for publication or deployment
+      (VP-06-008, VP-06-008b).
     rationale: >-
       With a fix ready, the remaining work is release. A new or pending embargo would
-      only delay getting the fix to users.
+      only delay getting the fix to users, unless it is the short window that lines
+      that release up.
+    lint_suppress:
+    # compound_statement: both keywords apply one default, Fix Ready ends embargo
+    # negotiation whether new or pending, under one condition and one exception
+    # (#5298 AC-1 keeps them in one statement).
+    - compound_statement
     stories:
     - story_2022_025
   - id: VP-14-008
@@ -2332,15 +2334,6 @@ groups:
       embargo exposes users before fixes are ready.
     stories:
     - story_2022_080
-  - id: VP-14-013
-    priority: SHOULD
-    kind: protocol
-    statement: >-
-      Once Attacks have been observed ($q^{cs} \in \cdots A$), any existing embargo SHOULD
-      terminate
-    rationale: >-
-      Attacks mean users are being harmed now and defenders need information. Keeping
-      the embargo would only slow their response.
   - id: VP-14-014
     priority: MAY
     kind: protocol
