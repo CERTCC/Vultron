@@ -47,7 +47,13 @@ workflow. BT execution logging is available server-side:
 - DEBUG level: Detailed tree structure visualization and execution state
 
 To see BT execution details, run the API server with DEBUG logging enabled:
-  LOG_LEVEL=DEBUG uvicorn vultron.api.main:app --port 7999
+  VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://localhost:7999/api/v2 \
+  LOG_LEVEL=DEBUG uv run uvicorn vultron.adapters.driving.fastapi.main:app \
+  --host localhost --port 7999
+
+The server needs ``VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL``: the vendor proposes
+the case for each report to that CaseActor service, and with it unset the
+proposal fails and no case is opened (CP-08-001, CP-08-005).
 
 The BT logs will show tree structure before execution and final state after completion.
 """

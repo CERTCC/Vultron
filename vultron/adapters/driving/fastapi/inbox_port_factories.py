@@ -284,16 +284,17 @@ _STATUS_AUTH_TRIGGER_SEMANTICS = frozenset(
 )
 
 
-# ANNOUNCE_CASE_LEDGER_ENTRY commits a replica entry and ANNOUNCE_VULNERABILITY_CASE
-# seeds the case (anchoring its genesis hash); either can make a held
-# Announce(CaseLedgerEntry) appliable.  That Announce, as it was received, is
-# replayed through the receiving actor's own inbox as a delivery of its own,
+# ANNOUNCE_CASE_LEDGER_ENTRY commits a replica entry, and ANNOUNCE_VULNERABILITY_CASE
+# and CREATE_CASE seed the case (anchoring its genesis hash); any of them can
+# make a held Announce(CaseLedgerEntry) appliable.  That Announce, as it was
+# received, is replayed through the receiving actor's own inbox as a delivery of its own,
 # through the InboxReplayPort (SYNC-14-009, SYNC-15-005, ADR-0135).  See
 # _inbox_replay_port_factory.
 _LEDGER_REPLAY_SEMANTICS = frozenset(
     {
         MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
         MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
+        MessageSemantics.CREATE_CASE,
     }
 )
 

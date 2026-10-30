@@ -21,6 +21,7 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.ports.inbox_replay import InboxReplayPort
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
@@ -54,6 +55,13 @@ class CreateCaseReceivedUseCase:
     The report receiver that accepts a trusted bootstrap then introduces the
     CASE_MANAGER to the reporter with its own ``Create(VulnerabilityCase)``
     (CBT-01-001, ADR-0132), which it builds through *trigger_activity*.
+
+    Seeding the replica anchors the case's genesis hash, so an
+    ``Announce(CaseLedgerEntry)`` held during the pre-genesis window
+    (SYNC-15-004) may now extend the chain.  The tree replays it, as it was
+    received, through this actor's inbox via the injected
+    :class:`~vultron.core.ports.inbox_replay.InboxReplayPort`, as a delivery
+    of its own (SYNC-15-005, SYNC-14-009).
     """
 
     # The bootstrap reaches a participant that holds no case yet, so the
@@ -71,8 +79,10 @@ class CreateCaseReceivedUseCase:
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
         trigger_activity: "TriggerActivityPort | None" = None,
+        inbox_replay: InboxReplayPort | None = None,
     ) -> None:
         self._dl = dl
+        self._inbox_replay = inbox_replay
         self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
@@ -117,6 +127,7 @@ class CreateCaseReceivedUseCase:
                 self._dl, request.receiving_actor_id
             ),
             activity=request,
+            inbox_replay=self._inbox_replay,
         )
         verdict = verdict_from_bt(tree, result, label="CreateCaseReceivedBT")
         if verdict.disposition is not HandlerDisposition.APPLIED:

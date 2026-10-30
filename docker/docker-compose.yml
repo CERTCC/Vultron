@@ -66,6 +66,10 @@ services:
       - "/app/.venv"
     environment:
       - PYTHONPATH=/app
+      # The single server is its own CaseActor service: each vendor proposes
+      # the case for a report it receives here (CP-08-001). The host matches
+      # the server's default base URL, so the CaseActor's id is one it hosts.
+      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://localhost:7999/api/v2
     networks:
       - vultron-network
     healthcheck:
