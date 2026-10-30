@@ -401,7 +401,7 @@ class SpecKind(StrEnum):
                          delivery, HTTP status codes, and rules that only
                          restate ActivityStreams (every ID is an IRI). A tag
                          records the standard (``as2``, ``activitypub``,
-                         ``http``; MS-12-009).
+                         ``http``; MS-12-018).
     - ``architecture`` — Recommended structure that carries over to other
                          languages but is not required for compliance.
                          Behavior trees, and keeping protocol behavior inside
@@ -441,7 +441,7 @@ class SpecTag(StrEnum):
 
     Three tags name the standard a ``foundation`` rule is inherited from —
     ``as2``, ``activitypub`` and ``http`` (:data:`FOUNDATION_STANDARD_TAGS`,
-    MS-12-009). They may also mark a ``protocol`` rule that narrows that
+    MS-12-018). They may also mark a ``protocol`` rule that narrows that
     standard.
     """
 
@@ -482,7 +482,7 @@ IMPLEMENTER_KINDS: frozenset[SpecKind] = frozenset(
 
 
 #: The tags that name the standard a ``foundation`` rule is inherited from.
-#: Every ``foundation`` spec carries at least one (MS-12-009).
+#: Every ``foundation`` spec carries at least one (MS-12-018).
 FOUNDATION_STANDARD_TAGS: frozenset[SpecTag] = frozenset(
     {SpecTag.AS2, SpecTag.ACTIVITYPUB, SpecTag.HTTP}
 )

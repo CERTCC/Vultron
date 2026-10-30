@@ -92,18 +92,27 @@ class TestNotesFrontmatterSchema:
                     }
                 )
 
+    @pytest.mark.spec("NF-01-012")
     def test_empty_superseded_by_rejected(self):
-        """``superseded_by`` names a file, so an empty string fails (NF-01-012)."""
-        with pytest.raises(ValidationError, match="superseded_by"):
+        """``superseded_by`` names a file, so an empty string fails (NF-01-012).
+
+        The status is ``active`` so that only the field's own non-empty rule
+        can fail, not the NF-01-004 required-when-superseded check.
+        """
+        with pytest.raises(ValidationError) as excinfo:
             NotesFrontmatter.model_validate(
                 {
                     "title": "Old Note",
-                    "status": "superseded",
+                    "status": "active",
                     "kind": "guidance",
                     "superseded_by": "",
                 }
             )
+        assert [e["loc"] for e in excinfo.value.errors()] == [
+            ("superseded_by",)
+        ]
 
+    @pytest.mark.spec("NF-01-013")
     def test_empty_package_name_rejected(self):
         """Each ``relevant_packages`` entry is a non-empty string (NF-01-013)."""
         with pytest.raises(ValidationError, match="relevant_packages"):

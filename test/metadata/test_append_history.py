@@ -196,13 +196,28 @@ class TestAppendHistoryReadmeRegeneration:
         readme_text = (month_dir / "README.md").read_text()
         assert "Time (UTC)" in readme_text
 
+    @pytest.mark.spec("HM-06-006")
     def test_readme_has_date_and_time_columns(self, fake_repo: Path) -> None:
-        """The index header carries Date and Time (UTC) columns (HM-06-006)."""
-        result = _run_append("idea", cwd=fake_repo)
+        """Each row shows the timestamp's date and its HH:MM time (HM-06-006)."""
+        result = _run_append(
+            "implementation",
+            body=_IMPL_BODY,
+            title=_IMPL_TITLE,
+            source="TASK-DATED",
+            extra_args=["--timestamp", "2025-12-15T09:30:45+00:00"],
+            cwd=fake_repo,
+        )
         assert result.returncode == 0
-        month_dir = Path(result.stdout.strip()).parent.parent
-        readme_text = (month_dir / "README.md").read_text()
+        readme_text = (
+            fake_repo / "plan" / "history" / "2512" / "README.md"
+        ).read_text()
         assert "| Date | Time (UTC) |" in readme_text
+        row = next(
+            line for line in readme_text.splitlines() if "TASK-DATED" in line
+        )
+        cells = [cell.strip() for cell in row.strip("|").split("|")]
+        assert "2025-12-15" in cells
+        assert "09:30" in cells
 
     @pytest.mark.spec("HM-06-011")
     def test_readme_sorted_newest_first(self, fake_repo: Path) -> None:

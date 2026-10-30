@@ -865,7 +865,7 @@ def test_non_scenario_start_group_not_checked(tmp_path, capsys):
 
 
 # ---------------------------------------------------------------------------
-# ADR status frontmatter (MS-14-001 hard, MS-14-002 advisory) — ADR-0041
+# ADR status frontmatter (MS-14-001 hard, MS-14-013 advisory) — ADR-0041
 # ---------------------------------------------------------------------------
 
 
@@ -1013,7 +1013,7 @@ def test_lint_structured_adr_ref_resolves_to_archived(tmp_path):
 
 
 def test_lint_adr_status_prose_suppress(tmp_path, capsys):
-    """lint_suppress: [status_prose_contradiction] silences the MS-14-002 warn."""
+    """lint_suppress: [status_prose_contradiction] silences the MS-14-013 warn."""
     write_yaml(tmp_path, _minimal_spec())
     adr_dir = _make_adr_dir(tmp_path)
     (adr_dir / "0099-stub.md").write_text(
@@ -2195,7 +2195,7 @@ def test_protocol_code_reference_in_statement_is_hard_error(tmp_path, capsys):
 
 
 # ---------------------------------------------------------------------------
-# MS-12-009: a foundation spec names the standard it is inherited from
+# MS-12-018, MS-12-019: a foundation spec names the standard it is inherited from
 # ---------------------------------------------------------------------------
 
 
@@ -2217,7 +2217,7 @@ def test_foundation_without_standard_tag_is_hard_error(tmp_path, capsys):
 @pytest.mark.spec("MS-12-018")
 @pytest.mark.parametrize("tag", ["as2", "activitypub", "http"])
 def test_foundation_with_standard_tag_passes(tmp_path, capsys, tag):
-    """Any one source-standard tag satisfies MS-12-009; no story is needed."""
+    """Any one source-standard tag satisfies MS-12-018; no story is needed."""
     data = _minimal_spec_no_stories(kind="foundation")
     data["groups"][0]["specs"][0]["tags"] = ["messaging", tag]
     write_yaml(tmp_path, data)

@@ -1265,16 +1265,17 @@ groups:
       `verification_debt:` marker its merge-base version lacked. A marker naming a
       different issue there counts as a new marker. A marker removed, or moved with its
       requirement to another file, does not. Nor does the same marker on a new ID whose
-      own `relationships:` name a requirement that carried it at the merge base. The
-      guard lists each such requirement and compares against no committed count.
+      own `relationships:` name a requirement that carried it at the merge base. A new
+      ID whose own `relationships:` name such a new ID, with the same marker, is exempt
+      too. The guard lists each requirement it fails and compares against no committed
+      count.
     rationale: >-
-      spec-lint judges each marker alone, so it passes a new unverified requirement that
-      arrives with a marker. It also passes a relabel that re-points its marker at the
-      destination kind's owner, which MS-10-008 forbids. Either adds debt to a backlog
-      that may only shrink. Splitting a compound requirement (MS-03-001) adds none: it
-      moves one unverified obligation to a new ID, which links back to the original.
-      Comparing per-item sets with the merge base leaves no committed number for
-      concurrent pull requests to race on (#3984).
+      spec-lint judges each marker alone, so it passes a new unverified requirement
+      with a marker, and a relabel that re-points its marker at another kind's owner,
+      which MS-10-008 forbids. Either adds debt to a backlog that may only shrink. A
+      split (MS-03-001) adds none: it moves an unverified obligation to a new ID that
+      links back. Per-item sets compared with the merge base leave no committed number
+      for concurrent pull requests to race on (#3984).
     verification: >-
       `test/architecture/test_verification_debt_guard.py::test_no_pr_adds_a_verification_debt_marker`
       runs the guard on the live corpus, and the `test_debt_*` tests in
