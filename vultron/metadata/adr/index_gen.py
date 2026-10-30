@@ -1,7 +1,7 @@
 """Generate docs/adr/index.md and check that ADRs stay out of the mkdocs nav.
 
-Requirements: specs/meta-specifications.yaml MS-14-003, MS-14-006 (ADR-0043);
-specs/diataxis-requirements.yaml DF-11-003.
+Requirements: specs/meta-specifications.yaml MS-14-003, MS-14-006, MS-14-014,
+MS-14-017, MS-14-018 (ADR-0043); specs/diataxis-requirements.yaml DF-11-003.
 
 The ADR index drifted from the ADR corpus (ADR-0027 was filed under the wrong
 index section). This module makes it mechanical:
@@ -179,10 +179,10 @@ def nav_placement_faults(repo_root: Path | None = None) -> list[str]:
     """Return one message per ADR placed wrongly with respect to the nav.
 
     Every ADR, archived ones included, must be absent from the ``nav:`` tree
-    and matched by ``not_in_nav`` (MS-14-006, DF-11-003); ``docs/adr/index.md``
-    routes to it instead. The nav tree is parsed as YAML and walked
-    structurally, so a path that appears only in a comment or an unrelated key
-    is not mistaken for a nav entry.
+    and matched by ``not_in_nav`` (MS-14-017, MS-14-018, DF-11-003);
+    ``docs/adr/index.md`` routes to it instead. The nav tree is parsed as YAML
+    and walked structurally, so a path that appears only in a comment or an
+    unrelated key is not mistaken for a nav entry.
     """
     root = repo_root or _find_repo_root()
     docs_dir = root / "docs"
@@ -196,7 +196,7 @@ def nav_placement_faults(repo_root: Path | None = None) -> list[str]:
         if fault:
             faults.append(
                 f"docs/{rel_to_docs} {fault}; an ADR is reached through "
-                f"docs/adr/index.md, not the nav (MS-14-006)."
+                f"docs/adr/index.md, not the nav (MS-14-017)."
             )
     return faults
 

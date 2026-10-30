@@ -15,7 +15,7 @@
 A requirement, group or file anchor is defined only where its items render:
 a ``protocol`` or ``foundation`` item on its Requirements Catalog page, any
 other kind on its per-kind requirements page (SR-09-001, SR-09-002,
-DF-12-002). A ``kind:`` relabel or a catalog placement change moves the
+SR-09-004, DF-12-002). A ``kind:`` relabel or a catalog placement change moves the
 anchor, and every prose link to the old page then dangles. This module finds
 each Markdown link whose target is a requirements page and rewrites it to the
 page and fragment :func:`~vultron.metadata.docs.requirement_catalog.anchor_homes`

@@ -6,7 +6,7 @@ Mirrors ``vultron.metadata.notes.loader``. Discovers every ADR under
 ``docs/adr/`` (and ``docs/adr/archived/``), validates its frontmatter against
 :class:`~vultron.metadata.adr.schema.AdrFrontmatter`, checks that every
 supersession pointer resolves to a real ADR file, and checks that every
-supersession link is recorded on both ADRs it joins (MS-14-011).
+supersession link is recorded on both ADRs it joins (MS-14-011, MS-14-028).
 """
 
 from __future__ import annotations
@@ -114,12 +114,12 @@ def _check_supersession_links(
     """Resolve every supersession pointer and require each link two-way.
 
     Every entry of the four supersession fields must name a real ADR
-    (MS-14-005), and each ``superseded_by`` / ``partially_superseded_by``
+    (MS-14-016), and each ``superseded_by`` / ``partially_superseded_by``
     entry must be matched by a ``supersedes`` / ``partially_supersedes`` entry
-    on the ADR it names, and the reverse (MS-14-011). Pointers are compared by
-    ADR number, so a bare filename, a ``docs/adr/`` path and an ``ADR-NNNN``
-    reference to the same ADR are the same link. Every fault in the corpus is
-    reported in one error, not just the first.
+    on the ADR it names, and the reverse (MS-14-011, MS-14-028). Pointers are
+    compared by ADR number, so a bare filename, a ``docs/adr/`` path and an
+    ``ADR-NNNN`` reference to the same ADR are the same link. Every fault in the
+    corpus is reported in one error, not just the first.
 
     Raises:
         ValueError: Listing every dangling pointer and one-sided link.

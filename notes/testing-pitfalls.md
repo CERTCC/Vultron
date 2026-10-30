@@ -224,7 +224,7 @@ A test asserting the list position cannot catch this, because `pytest.warns` and
 `warnings.catch_warnings` replace the ini filters. Assert the behaviour in a
 `pytester` sub-session fed the project's real filter list, as
 `test/metadata/specs/test_spec_marker_gate.py::TestWarningIsNotEscalated` does
-(SR-05-007).
+(SR-05-016).
 
 ### `caplog` Captures Fixture-Setup-Phase Records
 

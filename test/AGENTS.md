@@ -155,9 +155,9 @@ autouse leak guard and its function-scope-only limitation:
 
 Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
 
-- **A `filterwarnings` exemption listed *before* `"error"` is a no-op** (SR-05-007)
+- **A `filterwarnings` exemption listed *before* `"error"` is a no-op** (SR-05-015)
   — later entries win, so the warning becomes a session-aborting exception. Verify
-  behaviourally in a `pytester` sub-session; `pytest.warns`/`catch_warnings`
+  behaviourally in a `pytester` sub-session (SR-05-016); `pytest.warns`/`catch_warnings`
   replace the ini filters and cannot see the escalation.
 - **Vacuous assertions** — broadcast guards need a third participant; hash-chain
   comparisons need presence checks before equality (`"" == ""` passes);

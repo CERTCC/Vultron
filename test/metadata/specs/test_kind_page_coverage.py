@@ -4,7 +4,7 @@ A kind outside the Requirements Catalog has a matching
 ``docs/reference/specs/<kind-slug>.md`` page, so a new kind fails here until
 its page exists ("new kind → new page"). The ``protocol`` and ``foundation``
 tiers render only in the Protocol Specification's Requirements Catalog
-(SR-09-001, DF-12-001), so they have no per-kind page; their old pages were
+(SR-09-004, DF-12-001), so they have no per-kind page; their old pages were
 retired behind redirects (#4901).
 """
 
@@ -35,7 +35,7 @@ def test_kind_has_docs_page(kind: SpecKind) -> None:
     )
 
 
-@pytest.mark.spec("SR-09-001", "DF-12-001")
+@pytest.mark.spec("SR-09-004", "DF-12-001")
 @pytest.mark.parametrize("kind", sorted(CATALOG_KINDS))
 def test_catalog_tier_has_catalog_pages_and_no_kind_page(
     kind: SpecKind,

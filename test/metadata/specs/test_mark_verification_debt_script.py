@@ -186,7 +186,7 @@ def test_other_kinds_take_their_single_owner(kind):
     "kind", [k for k in SpecKind if k not in VERIFICATION_DEBT_OWNERS]
 )
 def test_a_kind_with_no_owner_has_no_marker_to_add(kind):
-    """A kind with no owner entry admits no marker (MS-10-007)."""
+    """A kind with no owner entry admits no marker (MS-10-026)."""
     assert mark.owner_for(kind, "anything") is None
 
 
@@ -194,7 +194,7 @@ def test_ownerless_kind_is_reported_not_marked(tmp_path, capsys):
     """An unverified MUST of a kind with no owner fails and stays unmarked.
 
     ``foundation`` starts with no owner entry (ADR-0134), so the script can
-    only send the item to a ``verification:`` clause (MS-10-007).
+    only send the item to a ``verification:`` clause (MS-10-026).
     """
     assert SpecKind.FOUNDATION not in VERIFICATION_DEBT_OWNERS
     text = _FIXTURE.replace(
@@ -205,7 +205,7 @@ def test_ownerless_kind_is_reported_not_marked(tmp_path, capsys):
     assert code == 1
     assert "kind: foundation\n    statement: TST-01-001" in after
     err = capsys.readouterr().err
-    assert "MS-10-007" in err and "TST-01-001" in err
+    assert "MS-10-026" in err and "TST-01-001" in err
 
 
 def test_every_project_owner_is_in_the_owner_table():

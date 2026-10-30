@@ -91,6 +91,7 @@ class TestLoadRegistry:
         assert "specs/ts.yaml — " in str(info.value)
         assert "priority" in str(info.value)
 
+    @pytest.mark.spec("SR-03-011")
     @pytest.mark.spec("SR-03-009")
     def test_every_failing_file_is_reported_structurally(self, tmp_path):
         _write(tmp_path / "specs" / "a.yaml", "a: 1\n" + _UNQUOTED_COLON)

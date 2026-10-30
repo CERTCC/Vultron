@@ -130,7 +130,7 @@ class TestAdrFrontmatterSchema:
             )
 
 
-@pytest.mark.spec("MS-14-011")
+@pytest.mark.spec("MS-14-027")
 class TestSupersessionFieldsAreLists:
     """All four supersession fields hold lists; a scalar is a one-item list."""
 
@@ -293,6 +293,7 @@ _RETIRED_POINTER_FORMS = {
 
 
 @pytest.mark.spec("MS-14-011")
+@pytest.mark.spec("MS-14-028")
 class TestTwoWaySupersession:
     @pytest.mark.parametrize("fwd_form", _POINTER_FORMS)
     @pytest.mark.parametrize("back_form", _RETIRED_POINTER_FORMS)

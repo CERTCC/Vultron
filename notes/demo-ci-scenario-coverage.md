@@ -26,7 +26,7 @@ related_notes:
 Spec: DEMOCI-06. Every scenario table here is checked in place against the
 scenario registry (row set and name order) and against each scenario's
 `_XXX_EXPECTED_SEMANTIC_TYPES` harness constant, which is what Invariant 5 asserts
-(DEMOCI-11-007, MS-16-002). Adding a scenario, or a semantic type to a harness
+(DEMOCI-11-007, MS-16-003). Adding a scenario, or a semantic type to a harness
 constant, fails the check until the tables follow — see
 [demo-scenario-registry.md](demo-scenario-registry.md) § "The generate-vs-check
 split".

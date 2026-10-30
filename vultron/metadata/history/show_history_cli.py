@@ -13,7 +13,7 @@ Monthly ``plan/history/YYMM/README.md`` files are gitignored generated
 artifacts.  This command is the canonical way to view the history index
 without relying on a committed file.
 
-See ``specs/history-management.yaml`` HM-01-003, HM-03-006.
+See ``specs/history-management.yaml`` HM-01-003, HM-01-011, HM-03-006.
 """
 
 from __future__ import annotations

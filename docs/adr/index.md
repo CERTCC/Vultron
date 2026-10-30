@@ -58,7 +58,7 @@ When an ADR names a function, a module path, or a class that was later renamed o
 **A refactor is never responsible for updating an ADR.**
 Renaming a symbol or splitting a module does not oblige you to touch any ADR that mentions it.
 If a decision has consequences that future code must obey, those belong in a spec requirement or a `notes/` file, which carry an obligation to stay current that an ADR does not.
-Record them there and cite the ADR as provenance — see `notes/specs-vs-adrs.md` for the delineation and MS-11-004 for the bidirectional citation pattern.
+Record them there and cite the ADR as provenance — see `notes/specs-vs-adrs.md` for the delineation and MS-11-004 and MS-11-010 for the bidirectional citation pattern.
 A spec or note MUST NOT resolve its own meaning by pointing into an ADR body; cite the ADR for *why*, and state the rule where the reader already is.
 MS-11-007 makes that normative for any numbered part of a body, whether a detail, rule, step, option, part, invariant or section number, and a test fails any such citation under `specs/` or `notes/`.
 An ADR citing a numbered part of another ADR is fine — that is history citing history.
@@ -66,7 +66,7 @@ An ADR citing a numbered part of another ADR is fine — that is history citing 
 **An aged code reference in an ADR body is not a defect.**
 Per [ADR-0127](0127-decision-records-leave-routine-agent-context.md), the existing stale paths and symbols across the corpus are not a backlog and no scrub is owed: a reference in a record's context or validation prose is an accurate account of the code as it then stood.
 Enforcement is forward-only — a reference newly written into an ADR should resolve on the day it is written.
-The `adr-added-reference-check` pre-commit hook and its pull-request twin fail a backticked path or code symbol that an edit adds and that resolves nowhere, and never judge a reference already on the merge base (MS-15-006).
+The `adr-added-reference-check` pre-commit hook and its pull-request twin fail a backticked path or code symbol that an edit adds and that resolves nowhere, and never judge a reference already on the merge base (MS-15-006, MS-15-008, MS-15-009).
 A record that deliberately names a removed symbol opts out with `lint_suppress: [phantom_symbol_ref]`, or `[phantom_path_ref]` for a path (MS-15-007).
 
 **How to edit an ADR**: follow the edit tiers in [ADR-0120](0120-adr-lifecycle-epochs-and-edit-tiers.md), which key off the ADR's epoch: how long ago it was last materially changed, and whether a tested spec requirement depends on it yet.
@@ -77,7 +77,7 @@ On an `accepted` ADR, a material change to one detail with the chosen option int
 A change of the chosen option is a new ADR that supersedes the old one; the old one is restored to its original text, marked `superseded`, and moved to `archived/` (MS-14-004).
 Never rewrite an accepted ADR under its own number.
 The `adr-lifecycle-check` pre-commit hook holds one part of this mechanically: on an ADR that is `accepted`, or was last changed 28 or more days ago, it refuses a changed `## Decision Outcome` or `## Considered Options` section that adds no new dated Amendment heading (MS-14-009).
-It also refuses an `updated` bump that carries no `status_override` on an ADR past its first epoch (MS-14-009).
+It also refuses an `updated` bump that carries no `status_override` on an ADR past its first epoch (MS-14-024).
 It reads no other section and does not check that an Amendment quotes what it replaces, so the remaining tiers are yours to honour.
 
 **What not to write into an ADR body.**

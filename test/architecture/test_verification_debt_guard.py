@@ -20,8 +20,9 @@ months. This guard can: a marker at the PR head that the requirement did not
 carry at the merge base, or that names a different issue there, fails. A
 re-pointed marker is the relabel MS-10-008 forbids — swapping in the
 destination kind's owner — which spec-lint alone passes. A marker removed, or
-moved with its requirement to another file, is not an addition. No count is
-committed (#3984).
+moved with its requirement to another file, is not an addition, nor is the
+marker of a new ID split off a requirement that carried it (MS-03-001). No
+count is committed (#3984).
 
 Spec: MS-10-016.
 """
@@ -29,25 +30,21 @@ Spec: MS-10-016.
 import pytest
 
 from test.architecture import _corpus
-from vultron.metadata.specs.growth_guard import added_since_base
-from vultron.metadata.specs.verification import verification_debt_items
+from vultron.metadata.specs.verification import debt_added_since_base
 
 
 @pytest.mark.spec_corpus
 @pytest.mark.spec("MS-10-016")
 def test_no_pr_adds_a_verification_debt_marker():
     """No marker in HEAD that the merge base lacks."""
-    check = added_since_base(
-        verification_debt_items,
-        repo_root=_corpus.REPO_ROOT,
-        paths=("specs",),
-    )
+    check = debt_added_since_base(_corpus.REPO_ROOT)
     if check.skipped:
         pytest.skip(check.skipped)
     assert not check.added, check.failure_message(
         "verification_debt marker(s)",
         "Give each requirement a `verification:` criterion instead of a "
         "marker: new debt is not accepted, and a relabel replaces its marker "
-        "rather than re-pointing it at another kind's owner (MS-10-007, "
-        "MS-10-008).",
+        "rather than re-pointing it at another kind's owner (MS-10-016, "
+        "MS-10-008). A new ID split off a marked requirement keeps its marker "
+        "only when its own relationships: name that requirement.",
     )

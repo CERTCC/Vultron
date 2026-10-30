@@ -137,6 +137,7 @@ def test_drift_fault_is_one_sided(
     ],
 )
 @pytest.mark.spec("MS-14-007")
+@pytest.mark.spec("MS-14-022")
 def test_drift_report_credits_dependent_only_when_it_decided_the_epoch(
     status: str, age_days: int, credited: bool
 ) -> None:
@@ -520,6 +521,7 @@ def test_material_edit_counts_the_dependent_on_the_head() -> None:
 
 
 @pytest.mark.spec("MS-14-007")
+@pytest.mark.spec("MS-14-019")
 def test_new_adr_with_a_dependent_must_be_provisional() -> None:
     proposed = _adr("proposed", "2026-10-20")
     provisional = _adr("accepted-provisional", "2026-10-20")
@@ -530,7 +532,7 @@ def test_new_adr_with_a_dependent_must_be_provisional() -> None:
     )
 
 
-@pytest.mark.spec("MS-14-009")
+@pytest.mark.spec("MS-14-024")
 def test_bumping_updated_on_a_tested_adr_needs_override() -> None:
     """A dependent on the base put the ADR past epoch 1 whatever its age."""
     old = _adr("accepted-provisional", "2026-10-19")
@@ -539,7 +541,7 @@ def test_bumping_updated_on_a_tested_adr_needs_override() -> None:
         "x", old, new, TODAY, tested_on_base=True, tested_on_head=True
     )
     assert len(faults) == 1
-    assert "MS-14-009" in faults[0]
+    assert "MS-14-024" in faults[0]
 
 
 # --- MS-14-012: status only moves forward ----------------------------------
@@ -552,7 +554,8 @@ def test_status_ahead_carried_on_the_base_passes_the_edit_check() -> None:
     assert edit_faults("x", old, new, TODAY) == []
 
 
-@pytest.mark.spec("MS-14-012")
+@pytest.mark.spec("MS-14-029")
+@pytest.mark.spec("MS-14-030")
 def test_promotion_ahead_of_the_epoch_needs_an_override() -> None:
     old = _adr("proposed", "2026-10-15")
     new = _adr("accepted-provisional", "2026-10-15")
@@ -561,7 +564,8 @@ def test_promotion_ahead_of_the_epoch_needs_an_override() -> None:
     assert "ahead of epoch 1" in fault
 
 
-@pytest.mark.spec("MS-14-012")
+@pytest.mark.spec("MS-14-029")
+@pytest.mark.spec("MS-14-030")
 def test_override_already_on_the_base_does_not_cover_a_promotion() -> None:
     held = "status_override: an earlier reason\n"
     old = _adr("proposed", "2026-10-15", extra_fm=held)
@@ -570,7 +574,7 @@ def test_override_already_on_the_base_does_not_cover_a_promotion() -> None:
     assert "already on the base" in fault
 
 
-@pytest.mark.spec("MS-14-012")
+@pytest.mark.spec("MS-14-029")
 @pytest.mark.parametrize(
     "old_override", ["", "status_override: an earlier reason\n"]
 )
@@ -586,7 +590,7 @@ def test_promotion_with_an_added_or_changed_override_passes(
     assert edit_faults("x", old, new, TODAY) == []
 
 
-@pytest.mark.spec("MS-14-012")
+@pytest.mark.spec("MS-14-029")
 def test_promotion_onto_the_epoch_needs_no_override() -> None:
     by_clock = _adr("proposed", "2026-10-01")  # 19 days: epoch 2
     by_dependent = _adr("proposed", "2026-10-15")
@@ -624,7 +628,7 @@ def test_moving_a_status_back_is_refused_even_with_an_override() -> None:
     assert "moved back" in fault
 
 
-@pytest.mark.spec("MS-14-012")
+@pytest.mark.spec("MS-14-029")
 @pytest.mark.parametrize(
     "retired, extra_fm",
     [("rejected", ""), ("deprecated", "superseded_by: 0002-y.md\n")],
@@ -765,6 +769,7 @@ def test_dependents_are_read_from_the_base_and_the_tree(
 
 
 @pytest.mark.spec("MS-14-010")
+@pytest.mark.spec("MS-14-026")
 def test_adding_a_requirement_that_tests_a_proposed_adr_needs_the_flip(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -790,6 +795,7 @@ def test_adding_a_requirement_that_tests_a_proposed_adr_needs_the_flip(
 
 
 @pytest.mark.spec("MS-14-010")
+@pytest.mark.spec("MS-14-026")
 @pytest.mark.parametrize(
     "spec_on_base",
     [
@@ -809,6 +815,7 @@ def test_editing_a_requirement_into_a_dependent_needs_the_flip(
 
 
 @pytest.mark.spec("MS-14-010")
+@pytest.mark.spec("MS-14-026")
 def test_adding_the_named_test_file_needs_the_flip(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -966,6 +973,7 @@ def test_a_dependent_already_on_the_base_is_not_the_first(
 
 
 @pytest.mark.spec("MS-14-010")
+@pytest.mark.spec("MS-14-026")
 def test_main_fails_a_first_dependent_with_no_adr_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1030,6 +1038,7 @@ def test_an_accepted_adr_is_frozen_however_recently_updated() -> None:
 
 
 @pytest.mark.spec("MS-14-012")
+@pytest.mark.spec("MS-14-030")
 def test_a_material_promotion_ahead_reports_both_faults() -> None:
     """Every violation is reported, not only the first (EH-07-001)."""
     old = _adr("proposed", "2026-10-19")

@@ -5,7 +5,7 @@ A requirement is removed from ``specs/`` rather than marked deprecated
 Its last published text is kept, one file per ID, in
 ``plan/retired-specs/`` (MS-09-005) so a citation of the ID still resolves to
 something, while the retired text stays out of every spec loader and out of
-agent context.
+agent context (MS-09-009).
 An ID in the archive is never reused (MS-09-004).
 
 Usage::
@@ -340,7 +340,7 @@ def retire_spec(
                 root, spec_id, path, why, retired_by, replacement, today
             )
     except BaseException:
-        # Whole retirement, or none (MS-09-006): undo the spec edit and the
+        # Whole retirement, or none (MS-09-012): undo the spec edit and the
         # archive entry on any failure.
         path.write_text(original, encoding="utf-8")
         archive_file.unlink(missing_ok=True)

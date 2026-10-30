@@ -110,16 +110,16 @@ def _check_adr_status(
     adr_dir: Path | None,
     registry: SpecRegistry | None = None,
 ) -> tuple[list[str], list[str]]:
-    """Validate ADR frontmatter (MS-14-001 hard, MS-14-002 advisory).
+    """Validate ADR frontmatter (MS-14-001 hard, MS-14-013 advisory).
 
     Returns ``(hard_errors, warnings)``:
 
-    - **Hard (MS-14-001, MS-14-004)**: every ADR frontmatter MUST satisfy the
+    - **Hard (MS-14-001, MS-14-016)**: every ADR frontmatter MUST satisfy the
       :class:`~vultron.metadata.adr.schema.AdrFrontmatter` schema — a valid
       ``AdrStatus`` value, and a ``superseded_by`` link when retired. This
       delegates to :func:`~vultron.metadata.adr.loader.load_adr_registry`, so
       the schema is the single source of truth (no duplicated parsing).
-    - **Advisory (MS-14-002)**: an ADR whose prose carries a provisional marker
+    - **Advisory (MS-14-013)**: an ADR whose prose carries a provisional marker
       SHOULD NOT be ``status: accepted``. This is a heuristic body scan and can
       false-positive (e.g. an ADR that *discusses* provisional-ness), so it
       surfaces ``decision-audit`` candidates rather than blocking CI; an ADR may
@@ -168,7 +168,7 @@ def _check_adr_status(
         if hit is not None:
             warnings.append(
                 f"[WARN] {name}: status is 'accepted' but prose contains "
-                f"provisional marker '{hit}' (MS-14-002); if the design is "
+                f"provisional marker '{hit}' (MS-14-013); if the design is "
                 f"genuinely unvalidated use 'accepted-provisional' — else "
                 f"this is a decision-audit candidate (see ADR-0043). "
                 f"Suppress on an ADR that legitimately discusses "
@@ -769,7 +769,7 @@ def _check_per_spec_advisory_warnings(registry: SpecRegistry) -> list[str]:
     via ``lint_suppress``. Unverified MUST-tier requirements are checked per
     item, against their ``verification_debt`` markers, by
     :func:`~vultron.metadata.specs.verification.check_verification_coverage`
-    (MS-10-006).
+    (MS-10-006, MS-10-022).
     """
     warnings: list[str] = []
     for spec_id, spec in registry.all_specs.items():
@@ -1022,24 +1022,24 @@ def lint(
             the ``load_registry(spec_dir)`` call is skipped, avoiding
             redundant I/O in callers that already hold a loaded registry.
         list_unverified: Print the ID and marker of every unverified
-            MUST-tier requirement under its kind's summary line (MS-10-005
-            opt-in; ``--list-unverified`` on the CLI).
+            MUST-tier requirement under its kind's summary line
+            (MS-10-020; ``--list-unverified`` on the CLI).
         debt_owners: The issues that own each kind's verification backlog.
             Defaults to the live
             :data:`~vultron.metadata.specs.verification.VERIFICATION_DEBT_OWNERS`;
             tests pass a fixture table.
         check_debt_owners: Run only the open-owner check: fail on any
             ``verification_debt`` marker or owner entry naming a closed issue
-            (MS-10-006; ``--check-debt-owners`` on the CLI), and on nothing
+            (MS-10-024; ``--check-debt-owners`` on the CLI), and on nothing
             else, so an unrelated lint error cannot file the owners-closed
             tracking issue (ARCH-18-004). Needs the ``gh`` CLI and a token, so
             CI runs it and the pre-commit hook does not.
         closing_pr: Also fail when this pull request closes an owner issue
-            that a marker or owner entry still names (MS-10-006;
+            that a marker or owner entry still names (MS-10-023;
             ``--check-closing-pr N`` on the CLI). Needs ``gh`` and a token.
         changed_since: Also run the branch-scoped checks against the merge
             base with this ref (``--changed-since REF`` on the CLI): the
-            MS-10-011 marker check on each requirement the branch changed,
+            MS-10-027 marker check on each requirement the branch changed,
             the PD-10-002 limit on each spec YAML line it added, and the
             MS-03-007 statement check on each requirement whose statement it
             added or changed. See :mod:`vultron.metadata.specs.branch_checks`.
@@ -1153,7 +1153,7 @@ def main() -> None:
         help=(
             "List the ID and verification_debt marker of every MUST or "
             "MUST_NOT requirement with no verification: field under its "
-            "kind's summary line (MS-10-005)"
+            "kind's summary line (MS-10-020)"
         ),
     )
     parser.add_argument(
@@ -1161,7 +1161,7 @@ def main() -> None:
         action="store_true",
         help=(
             "Run only the owner check: fail when a verification_debt marker "
-            "or owner entry names a closed issue (MS-10-006); needs the gh "
+            "or owner entry names a closed issue (MS-10-024); needs the gh "
             "CLI and a token"
         ),
     )
@@ -1172,7 +1172,7 @@ def main() -> None:
         help=(
             "Fail when pull request N closes an owner issue that a "
             "verification_debt marker or owner entry still names "
-            "(MS-10-006); needs the gh CLI and a token"
+            "(MS-10-023); needs the gh CLI and a token"
         ),
     )
     parser.add_argument(

@@ -448,7 +448,7 @@ def test_spec_file_no_file_level_kind():
     assert not hasattr(sf, "kind")
 
 
-@pytest.mark.spec("SR-02-013")
+@pytest.mark.spec("SR-02-025")
 def test_spec_file_rejects_version_field():
     with pytest.raises(ValidationError, match="version"):
         SpecFile.model_validate(
@@ -814,15 +814,15 @@ def _end_named_by(statement: str) -> RelationEnd:
     return RelationEnd.NEITHER
 
 
+@pytest.mark.spec("SR-13-021")
 @pytest.mark.spec_corpus
-@pytest.mark.spec("SR-13-016")
 def test_upstream_end_matches_the_end_sr_13_names(real_registry):
     for value, statement in _sr_13_definitions(real_registry).items():
         assert RelationType(value).upstream_end is _end_named_by(statement)
 
 
+@pytest.mark.spec("SR-13-021")
 @pytest.mark.spec_corpus
-@pytest.mark.spec("SR-13-016")
 def test_relation_definitions_match_sr_13(real_registry):
     assert _sr_13_definitions(real_registry) == {
         member.value: member.definition for member in RelationType

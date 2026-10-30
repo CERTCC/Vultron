@@ -237,7 +237,7 @@ When archiving:
 - set the file's `status: superseded` with a `superseded_by:` field (or
   `deprecated` with a rationale);
 - add the retired ADR to the successor's `supersedes:` list — the loader fails
-  a link recorded on only one side (MS-14-011);
+  a link recorded on only one side (MS-14-028);
 - update `docs/adr/index.md`: remove it from the active list and add it under
   the **Superseded / Archived** section with a forward link to the replacement.
 
