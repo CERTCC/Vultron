@@ -1,10 +1,10 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Invite",
-  "id": "urn:uuid:d13040de-2684-4ec7-9af9-dfd0977ea60b/embargo_proposals/1/invites/coordinator",
-  "name": "https://vultron.example/case-actors/vendorco-case-actor Invite Embargo for VendorCo Case #82259432",
-  "context": "urn:uuid:d13040de-2684-4ec7-9af9-dfd0977ea60b",
-  "endTime": "2026-06-08T19:12:00+00:00",
+  "id": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454/embargo_proposals/1/invites/coordinator",
+  "name": "https://vultron.example/case-actors/vendorco-case-actor Invite Embargo for VendorCo Case #83288480",
+  "context": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
+  "endTime": "2026-06-08T19:12:00.000000+00:00",
   "summary": "The vendor proposes to embargo case 1 for 90 days.",
   "to": [
     "https://vultron.example/organizations/coordinator"
@@ -12,15 +12,15 @@
   "attributedTo": "https://vultron.example/organizations/vendorco",
   "actor": "https://vultron.example/case-actors/vendorco-case-actor",
   "object": {
-    "id": "urn:uuid:d13040de-2684-4ec7-9af9-dfd0977ea60b/embargo_events/2026-08-30T00:00:00+00:00",
+    "id": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454/embargo_events/2026-08-30T00:00:00+00:00",
     "type": "EmbargoEvent",
-    "name": "Embargo for VendorCo Case #82259432",
-    "context": "urn:uuid:d13040de-2684-4ec7-9af9-dfd0977ea60b",
-    "startTime": "2026-06-01T19:12:00+00:00",
-    "endTime": "2026-08-30T00:00:00+00:00",
-    "published": "2026-06-01T19:12:00+00:00",
-    "updated": "2026-06-01T19:12:00+00:00",
-    "content": "We propose to embargo VendorCo Case #82259432 for 90 days.",
+    "name": "Embargo for VendorCo Case #83288480",
+    "context": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
+    "startTime": "2026-06-01T19:12:00.000000+00:00",
+    "endTime": "2026-08-30T00:00:00.000000+00:00",
+    "published": "2026-06-01T19:12:00.000000+00:00",
+    "updated": "2026-06-01T19:12:00.000000+00:00",
+    "content": "We propose to embargo VendorCo Case #83288480 for 90 days.",
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }
 }

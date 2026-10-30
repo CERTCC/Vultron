@@ -1,13 +1,13 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Join",
-  "id": "urn:uuid:a96415bd-ad73-4e44-bd3b-44654626b860",
-  "name": "https://vultron.example/organizations/vendorco Join urn:uuid:2ff77bba-c8e8-4b48-b1d5-6c21657f66ae",
+  "id": "urn:uuid:55357613-411d-4187-bfbb-463b3336a2d5",
+  "name": "https://vultron.example/organizations/vendorco Join urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
   "content": "We're reengaging this case.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "VulnerabilityCase",
-    "id": "urn:uuid:2ff77bba-c8e8-4b48-b1d5-6c21657f66ae"
+    "id": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454"
   }
 }

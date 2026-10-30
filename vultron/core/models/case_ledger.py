@@ -66,13 +66,21 @@ import logging
 from datetime import datetime
 from typing import Any, Self
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, TypeAdapter, model_validator
 
-from vultron.core.models._helpers import now_utc
+from vultron.core.models._helpers import (
+    format_timestamp,
+    now_utc,
+    timestamp_serializer,
+)
 from vultron.core.models.base import NonEmptyString, ValidatedAssignmentMixin
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
 logger = logging.getLogger(__name__)
+
+#: Reads a ``received_at`` the way the field does, so the hash input accepts
+#: every spelling the stored field accepts.
+_RECEIVED_AT: TypeAdapter[datetime] = TypeAdapter(datetime)
 
 # ---------------------------------------------------------------------------
 # Per-case genesis hash (CLP-08-001, CLP-08-002)
@@ -84,7 +92,7 @@ def compute_genesis_hash(
 ) -> str:
     """Return the per-case genesis hash for a case ledger.
 
-    Derived as ``SHA-256(case_id + "|" + created_at.isoformat() + "|" +
+    Derived as ``SHA-256(case_id + "|" + format_timestamp(created_at) + "|" +
     owner_actor_id)``, where ``case_id`` is the canonical case URI,
     ``created_at`` is the case creation UTC timestamp, and
     ``owner_actor_id`` is the case owner's actor id
@@ -116,7 +124,7 @@ def compute_genesis_hash(
 
     Spec: CLP-08-001, CLP-08-002.
     """
-    raw = f"{case_id}|{created_at.isoformat()}|{owner_actor_id}"
+    raw = f"{case_id}|{format_timestamp(created_at)}|{owner_actor_id}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -130,8 +138,9 @@ def _canonical_bytes(data: dict[str, Any]) -> bytes:
 
     Uses ``sort_keys=True`` and compact separators to produce a
     RFC 8785 JCS-compatible canonical form suitable for cryptographic hashing.
-    ``datetime`` objects and other non-JSON-native types are coerced to
-    strings via ``default=str``.
+    A ``datetime`` is written in the fixed form of :func:`format_timestamp`
+    (CS-13-007); any other non-JSON-native value is refused.  Snapshots
+    reach here as JSON-mode dumps, so neither normally occurs.
 
     Args:
         data: A dict whose values are JSON-serialisable.
@@ -143,8 +152,17 @@ def _canonical_bytes(data: dict[str, Any]) -> bytes:
         data,
         sort_keys=True,
         separators=(",", ":"),
-        default=str,
+        default=_canonical_default,
     ).encode("utf-8")
+
+
+def _canonical_default(value: Any) -> str:
+    """Write a ``datetime`` in the fixed form; refuse anything else."""
+    if isinstance(value, datetime):
+        return format_timestamp(value)
+    raise TypeError(
+        f"Object of type {type(value).__name__} has no canonical JSON form"
+    )
 
 
 def _sha256_hex(data: dict[str, Any]) -> str:
@@ -235,6 +253,7 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
         default_factory=now_utc,
         description="Server-generated TZ-aware UTC timestamp at receipt",
     )
+    _serialize_received_at = timestamp_serializer("received_at")
 
     @model_validator(mode="before")
     @classmethod
@@ -248,10 +267,8 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
         if "received_at" not in data:
             data["received_at"] = now_utc()
         received_val = data["received_at"]
-        received_iso = (
-            received_val.isoformat()
-            if hasattr(received_val, "isoformat")
-            else str(received_val)
+        received_iso = format_timestamp(
+            _RECEIVED_AT.validate_python(received_val)
         )
         hashable = {
             "case_id": data.get("case_id", ""),
@@ -270,7 +287,9 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
         """Return the canonical dict used for hash computation.
 
         Excludes ``entry_hash`` to avoid a self-referential dependency.
-        All datetime values are serialised to ISO 8601 strings.
+        All datetime values are serialised in the fixed form of
+        :func:`format_timestamp` (CS-13-007), so one instant hashes the same
+        whether or not its microseconds are zero.
 
         ``received_at`` is the CaseActor's server-generated UTC timestamp,
         set once at append time and never modified.  Replicas receive this
@@ -292,7 +311,7 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
             "semantic_type": self.semantic_type,
             "payload_snapshot": self.payload_snapshot,
             "prev_log_hash": self.prev_log_hash,
-            "received_at": self.received_at.isoformat(),
+            "received_at": format_timestamp(self.received_at),
         }
 
     def _hash_content(self) -> str:
@@ -388,7 +407,7 @@ class CaseLedger:
 
     Usage example::
 
-        from vultron.core.models._helpers import now_utc
+        from vultron.core.models._helpers import format_timestamp, now_utc
         case_id = "https://example.org/cases/abc123"
         owner_id = "https://example.org/actors/vendor"
         created_at = now_utc()

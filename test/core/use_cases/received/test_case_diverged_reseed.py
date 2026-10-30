@@ -319,7 +319,7 @@ def test_a_repeat_fault_sent_by_the_acknowledgement_is_a_warning(
     fault arrives after that acknowledgement (SYNC-19).  Its claimed time is
     at or before the acknowledgement's, both on the peer's own clock, so it
     is stale recovery: a WARNING, never an ERROR.  A tie counts as stale
-    because ``published`` has whole-second precision.
+    because a peer may claim ``published`` at whole seconds.
     """
     net, announce_id = _diverged(f"reseed-repeat-stale-{fault_published}")
     _report(net)

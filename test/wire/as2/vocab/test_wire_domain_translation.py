@@ -171,7 +171,7 @@ def test_case_participant_round_trips_between_core_and_wire():
     )
     # The invitation's RSVP deadline travels on its INVITED row (CM-28-013).
     assert wire_dump["embargoConsents"][1]["rsvpDeadline"] == (
-        "2030-01-02T03:04:05Z"
+        "2030-01-02T03:04:05.000000+00:00"
     )
     assert round_tripped.participant_statuses[0].rm.state == RM.ACCEPTED
 

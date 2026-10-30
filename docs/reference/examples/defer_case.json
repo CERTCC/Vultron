@@ -1,13 +1,13 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Ignore",
-  "id": "urn:uuid:83dc7819-2fe1-4257-b482-5337864b33c6",
-  "name": "https://vultron.example/organizations/vendorco Ignore urn:uuid:2ff77bba-c8e8-4b48-b1d5-6c21657f66ae",
+  "id": "urn:uuid:8cf19060-b7b2-4420-8535-cedff3455aaf",
+  "name": "https://vultron.example/organizations/vendorco Ignore urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
   "content": "We're deferring this case.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "VulnerabilityCase",
-    "id": "urn:uuid:2ff77bba-c8e8-4b48-b1d5-6c21657f66ae"
+    "id": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454"
   }
 }
