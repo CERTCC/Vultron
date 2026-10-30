@@ -116,6 +116,7 @@ To keep the current terms, send Embargo Revision Rejection (EJ), `Reject(Embargo
 The case returns to `EM.ACTIVE` under the original terms.
 The consent of every participant stays the same.
 The embargo does not lapse because a revision failed.
+One exception applies: if the case is public, an exploit is public, or attacks are observed when you reject the last open revision, the CASE_MANAGER also ends the embargo in the same act (EMB-04-002).
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-revision-rejection.md" %}
 

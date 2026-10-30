@@ -2,7 +2,7 @@
 
 ## Embargo Revision Rejection (EJ) { #embargo-revision-rejection }
 
-Rejects the revision for the case. The active embargo stays in force on its prior terms.
+Rejects the revision for the case. The active embargo stays in force on its prior terms, unless the case is public, an exploit is public or attacks are observed, when the Case Manager also ends it.
 
 === "Details"
 

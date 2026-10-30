@@ -483,7 +483,9 @@ ENTRIES: list[SemanticEntry] = [
                 addressee=AddresseeSide.CASE_MANAGER,
                 description=(
                     "Rejects the revision for the case. The active embargo "
-                    "stays in force on its prior terms."
+                    "stays in force on its prior terms, unless the case is "
+                    "public, an exploit is public or attacks are observed, "
+                    "when the Case Manager also ends it."
                 ),
                 example="reject_embargo_revision_proposal",
                 distinguisher=StateContext(machine=EM, states=(EM.REVISE,)),

@@ -345,7 +345,8 @@ def activate_embargo_revision() -> as_Accept:
 def reject_embargo_revision_proposal() -> as_Reject:
     """EJ: the case owner's rejection of a proposed revision (MSM-02-004).
 
-    The active embargo stays in force on its prior terms.
+    The active embargo stays in force on its prior terms, unless P/X/A is
+    set when the last open revision is rejected (EMB-04-002).
     """
     _case = case()
     return reject_embargo_proposal_activity(

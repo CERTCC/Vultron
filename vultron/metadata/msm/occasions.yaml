@@ -773,7 +773,8 @@ groups:
     shorthand: EJ
     status: collapse
     description: Rejects the revision for the case. The active embargo stays in force on its
-      prior terms.
+      prior terms, unless the case is public, an exploit is public or attacks are observed,
+      when the Case Manager also ends it.
     seen_in:
     - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo

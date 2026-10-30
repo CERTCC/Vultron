@@ -37,6 +37,7 @@ from vultron.core.behaviors.sender_entitlement import (
 )
 from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
 from vultron.metadata.msm._mapping import (
     CASE_MANAGER_INTERNAL,
@@ -56,6 +57,7 @@ from vultron.semantic_registry._occasion import (
     Occasion,
     ProtocolShorthand,
     SenderStanding,
+    StateContext,
 )
 from vultron.wire.as2.enums import (
     as_ObjectType,
@@ -273,7 +275,7 @@ def _occasions_carrying(
             },
         ),
     ],
-    ids=str,
+    ids=["EA", "EC", "ER", "EJ"],
 )
 def test_em_decision_shorthands_are_carried_by_the_owner_decision(
     shorthand: ProtocolShorthand, expected: set[tuple[MessageSemantics, str]]
@@ -281,6 +283,30 @@ def test_em_decision_shorthands_are_carried_by_the_owner_decision(
     """EA, EC, ER and EJ tag the Case Owner's decision, plus the CASE_MANAGER's
     abandoning Reject for ER, never a Participant's Invite answer."""
     assert _occasions_carrying(shorthand) == expected
+
+
+@pytest.mark.spec("MSM-02-002")
+@pytest.mark.spec("MSM-02-004")
+@pytest.mark.spec("MSM-02-005")
+@pytest.mark.spec("MSM-02-006")
+@pytest.mark.parametrize(
+    ("anchor", "shorthand", "state"),
+    [
+        ("embargo-proposal-acceptance", ProtocolShorthand.EA, EM.PROPOSED),
+        ("embargo-revision-acceptance", ProtocolShorthand.EC, EM.REVISE),
+        ("reject-embargo-proposal", ProtocolShorthand.ER, EM.PROPOSED),
+        ("embargo-revision-rejection", ProtocolShorthand.EJ, EM.REVISE),
+    ],
+)
+def test_the_case_em_state_tells_a_decision_on_a_revision_apart(
+    anchor: str, shorthand: ProtocolShorthand, state: EM
+):
+    """EA/ER apply to a case with no active embargo, EC/EJ to a revision."""
+    occasion = next(
+        o for e in SEMANTIC_REGISTRY for o in e.occasions if o.anchor == anchor
+    )
+    assert occasion.shorthand is shorthand
+    assert occasion.distinguisher == StateContext(machine=EM, states=(state,))
 
 
 @pytest.mark.spec("MSM-02-010")

@@ -50,16 +50,16 @@ A revision that ends later causes no such notice, because those participants nev
 
 {% include-markdown "./_occasions/sections/refuse-embargo-proposal.md" %}
 
-- **Triggering transition:** none.
+- **Triggering transition:** none in EM.
   The sender's consent to those terms moves to `DECLINED` (MSM-07-004).
 - **Who decides:** a participant's `Reject` of the Invite is its own refusal of those terms, the Case Owner's included.
   This `Reject` changes no embargo on the case (see [The Case Owner's Decision](#the-case-owners-decision)).
-- **Refusal on a public case:** a receiver answers an `EP` with `ER` when the case is public, an exploit is public, or attacks are observed.
-  The `ER` names the Invite by id.
-  The receiver therefore sends the `ER` even when the Invite named its terms only by URI.
-  A receiver sends one `ER` per Invite and skips a re-delivered Invite.
+- **Refusal on a public case:** a receiver answers an `EP` with a `Reject` of the Invite when the case is public, an exploit is public, or attacks are observed (EMB-01-002).
+  The `Reject` names the Invite by id.
+  The receiver therefore sends the `Reject` even when the Invite named its terms only by URI.
+  A receiver sends one `Reject` per Invite and skips a re-delivered Invite.
 - **Malformed Invite:** an `EP` that names no `to` recipient, or several.
-  The receiver does not answer such an `EP` with `ER`.
+  The receiver does not answer such an `EP` with a `Reject`.
   The `EP` is received but not understood, so the receiver sends `Create(ProcessingFault)` to the sender.
 
 {% include-markdown "./_occasions/sections/abandon-embargo-proposal.md" %}
@@ -110,10 +110,10 @@ A revision that ends later causes no such notice, because those participants nev
 
 {% include-markdown "./_occasions/sections/agree-to-embargo-proposal.md" %}
 
-- **Triggering transition:** none.
+- **Triggering transition:** none in EM.
   The sender's consent to those terms moves to `AGREED` (MSM-07-003).
 - **Who decides:** an `Accept` of the Invite is always the sender's own consent to those terms, the Case Owner's included.
-  This `Accept` moves the sender's consent to that embargo to `AGREED` and changes no embargo on the case (see [The Case Owner's Decision](#the-case-owners-decision), MSM-07-003).
+  This `Accept` changes no embargo on the case (see [The Case Owner's Decision](#the-case-owners-decision), MSM-07-003).
 - **The embargo in force:** an `Accept` or `Reject` may answer an Invite for the embargo already in force, while the sender's consent to that embargo is `INVITED` or `TIMED_OUT` (EP-09-012).
   Examples are a proposal that was activated before the sender answered it, an invitation whose deadline has passed, and a re-invitation after a lapse.
   The answer names that Invite by id.
@@ -124,13 +124,13 @@ A revision that ends later causes no such notice, because those participants nev
 
 {% include-markdown "./_occasions/sections/refuse-embargo-revision.md" %}
 
-- **Triggering transition:** none.
+- **Triggering transition:** none in EM.
   The sender's consent to the revision moves to `DECLINED`, and its consent to the embargo in force does not change (MSM-07-004).
 - **Who decides:** as for proposed terms, the `Reject` is the sender's own refusal (see [The Case Owner's Decision](#the-case-owners-decision)).
 
 {% include-markdown "./_occasions/sections/agree-to-embargo-revision.md" %}
 
-- **Triggering transition:** none.
+- **Triggering transition:** none in EM.
   The sender's consent to the revision moves to `AGREED`, which binds the sender to nothing new until the Case Owner activates the revision (MSM-07-003).
 - **Who decides:** as for proposed terms, the `Accept` is the sender's own consent (see [The Case Owner's Decision](#the-case-owners-decision)).
 
@@ -177,8 +177,9 @@ It also refuses an activation whose `EmbargoEvent` is not an open proposal of th
 {% include-markdown "./_occasions/sections/embargo-revision-rejection.md" heading-offset=1 %}
 
 - **Triggering transition:** Revise → Active (R → A), or Revise → Revise (R → R) while another proposal is open (EMB-18-005).
+  On a public case it is Revise → eXited (R → X) instead, as described below (EMB-04-002).
 
-After a rejection, an active embargo stays in force on its current terms (`EJ`).
+After a rejection, an active embargo stays in force on its current terms (`EJ`), except as described below for a public case.
 If no embargo was active, the case has no embargo (`ER`).
 While another proposal is still open, the case stays in negotiation.
 No participant's consent changes, the Case Owner's included.
@@ -261,8 +262,8 @@ Some deliveries get no notice:
 
 - A message that the sender has no standing to send is refused with no answer (HP-01-006).
 - A repeat of an answer already recorded, under a new id or the same one, is skipped and gets no notice (CM-13-005).
-- An `Invite` or `Accept` that arrives once the case is public, an exploit is public, or attacks are observed is answered with `ER` instead (EMB-01-002, EMB-02-002).
-  The Case Manager's `ER` to an `Accept` reaches the participant.
+- An `Invite` or `Accept` that arrives once the case is public, an exploit is public, or attacks are observed is answered with a `Reject` of the Invite instead (EMB-01-002, EMB-02-002).
+  The Case Manager's `Reject` of an `Accept` reaches the participant.
   The participant then closes its pending `Accept`.
 - A late `Accept` of the embargo in force is recorded in the same way as an on-time `Accept`.
   A late `Accept` of replaced terms is answered with a relayed invitation to the current terms (EMB-17).
