@@ -897,7 +897,7 @@ class TestSiteSync:
         assert exc.value.code == 1
         assert "DF-09-009" in capsys.readouterr().err
 
-    @pytest.mark.spec("DF-11-042")
+    @pytest.mark.spec("DF-11-042", "DF-11-046")
     def test_committed_site_artifacts_are_in_sync(self):
         """The CI check for the ``docs-site-sync`` hook on a ``vultron/`` change.
 

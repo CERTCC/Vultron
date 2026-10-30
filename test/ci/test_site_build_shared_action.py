@@ -197,7 +197,7 @@ def test_site_building_workflow_uses_the_shared_build(workflow: Path):
 
 
 @pytest.mark.spec("DOCBW-06-004")
-@pytest.mark.spec("DOCBW-06-005")
+@pytest.mark.spec("DOCBW-06-004")
 @pytest.mark.parametrize(
     "workflow", site_building_workflows(), ids=lambda p: p.name
 )

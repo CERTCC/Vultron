@@ -21,7 +21,7 @@ groups:
       changes touch it, so parallel changes to it conflict more often. Small modules
       that each have one purpose keep each change small and easy to review.
   - id: PD-01-002
-    priority: SHOULD
+    priority: SHOULD_NOT
     kind: project
     statement: >-
       A `notes/*.md` file SHOULD NOT exceed 500 lines.
@@ -188,8 +188,8 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      An agent MUST NOT end the session until the PR body's `Docs:` field records
-      the outcome, replacing the placeholder that `create-pr` writes.
+      An agent MUST NOT end the session until its PR's `Docs:` line names updated
+      pages, "no docs impact" with a reason, or the deferred issue.
     verification: >-
       `create-pr` writes the placeholder into every implementation and bug-fix PR
       body; `build` and `bugfix` finalize edit the PR body to replace it; no merged
@@ -197,9 +197,9 @@ groups:
       `test/metadata/test_pr_body_lint.py::TestDocsLine` covers the PR body check.
     rationale: >-
       A step that leaves no record can be skipped with no trace, and then a page that
-      is not correct merges without notice. The outcome is the pages updated, "no docs
-      impact" with a reason, or the deferred issue. A placeholder that stays in the
-      field shows an unfinished check on the PR, where PD-03-009 enforces it.
+      is not correct merges without notice. The final line replaces the placeholder
+      that `create-pr` writes. A placeholder that stays in the field shows an
+      unfinished check on the PR, where PD-03-009 enforces it.
     relationships:
     - rel_type: extends
       spec_id: PD-03-008
@@ -551,7 +551,7 @@ groups:
       `test/metadata/specs/test_branch_checks.py::TestAddedYamlLines` covers the
       flag.
     relationships:
-    - rel_type: depends_on
+    - rel_type: implements
       spec_id: PD-10-002
     tags:
     - documentation

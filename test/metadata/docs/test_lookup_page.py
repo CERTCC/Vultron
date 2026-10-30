@@ -411,7 +411,7 @@ class TestFaults:
             lookup_sections(root)
 
 
-@pytest.mark.spec("DF-11-042")
+@pytest.mark.spec("DF-11-042", "DF-11-048")
 class TestLinks:
     def _hosts(self, tmp_path: Path, home: str, start: str) -> Path:
         return _repo(
@@ -495,7 +495,7 @@ def site(tmp_path: Path) -> Path:
     return root
 
 
-@pytest.mark.spec("DF-11-042")
+@pytest.mark.spec("DF-11-042", "DF-11-047")
 class TestLookupArtifact:
     def test_write_fills_the_listing_and_keeps_the_framing(self, site):
         text = (site / "docs" / LOOKUP_PATH).read_text()

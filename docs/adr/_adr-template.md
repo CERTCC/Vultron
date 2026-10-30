@@ -49,7 +49,7 @@ informed: {list everyone who is kept up-to-date on progress; and with whom there
 # supersedes: [{NNNN-retired-adr.md}]
 # partially_supersedes: [{NNNN-partly-replaced-adr.md}]
 # stakeholder_type: fixed. Every ADR is project working record: it declares
-# [project-contributor] and never a level (DF-11-012).
+# [project-contributor] and never a level (DF-11-033).
 stakeholder_type: [project-contributor]
 ---
 

@@ -162,8 +162,6 @@ def test_gate_is_not_neutered(workflow: Path, command: str):
 
 
 @pytest.mark.spec("DOCBW-03-006")
-@pytest.mark.spec("DOCBW-03-020")
-@pytest.mark.spec("DOCBW-03-026")
 @pytest.mark.spec("DOCBW-06-002")
 @pytest.mark.parametrize("command", GATE_COMMANDS)
 def test_gate_precedes_the_pages_upload(command: str):

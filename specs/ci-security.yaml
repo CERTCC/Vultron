@@ -162,7 +162,7 @@ groups:
     adr:
     - ADR-0055
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: CISEC-05-001
   - id: CISEC-05-002
     priority: MUST
@@ -190,7 +190,7 @@ groups:
       but a `cancelled` result proves nothing about the commit, because the
       cancelled job might have failed had it run to completion. A step keyed on
       the `success()` status function already meets this rule. This is the mirror
-      image of CISEC-05-006, where the notify step drops the same exclusion
+      image of CISEC-05-015, where the notify step drops the same exclusion
       because a genuine `failure` beside a `cancelled` sibling is still genuine.
     verification: >-
       `test_close_step_does_not_close_on_cancellation` in
@@ -231,14 +231,20 @@ groups:
   - id: CISEC-05-011
     priority: MUST
     kind: process
-    verification_debt: '#2571'
     statement: >-
-      The two labels together MUST identify exactly one open failure issue for each
-      workflow.
+      The two labels of CISEC-05-003 together MUST identify exactly one open failure
+      issue for each workflow.
     rationale: >-
       The composite action uses the label pair to find and update the open issue,
       not to file a duplicate. If two workflows share a pair, one workflow updates
       or closes the issue of the other.
+    verification: >-
+      In `test/ci/test_workflow_failure_notification.py`,
+      `test_notify_action_finds_existing_issue_without_search_index`,
+      `test_notify_action_closes_duplicate_trackers` and
+      `test_notify_action_fails_when_the_lookup_fails` assert that the action
+      finds the one open tracker by its label pair, closes duplicates and never
+      files a second issue.
     relationships:
     - rel_type: depends_on
       spec_id: CISEC-05-003
@@ -269,14 +275,14 @@ groups:
     rationale: >-
       One final job that reads the result of every other job makes one decision for
       each run. Its notify and close steps then key on the aggregate as
-      CISEC-05-002 and CISEC-05-006 require.
+      CISEC-05-010 and CISEC-05-015 require.
     verification: >-
       `test_one_job_reports_each_workflow_label` in
       `test/ci/test_workflow_failure_notification.py` asserts that, when other
       jobs can run in the same run, the reporting job is a final aggregate job
       that `needs:` all of them.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CISEC-05-012
   - id: CISEC-05-004
     priority: SHOULD
@@ -306,7 +312,7 @@ groups:
       is corrupted — the action may comment on an unrelated issue or fail to file
       a new one. Bot-only enforcement keeps the alerting signal reliable.
   - id: CISEC-05-006
-    priority: MUST
+    priority: MUST_NOT
     kind: process
     statement: >-
       The failure-conditioned notify step (CISEC-05-001) MUST NOT file a failure
@@ -371,8 +377,8 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      A CI workflow MUST skip every job that consumes another job's artifact when
-      the producer job was cancelled.
+      A qualifying workflow (CISEC-05-001) MUST skip every job that consumes
+      another job's artifact when the producer job was cancelled.
     rationale: >-
       A cancelled job can make a job that needs its artifact fail. That failure
       then shows in the `needs.*.result` aggregate, and the notify step files an
@@ -413,18 +419,32 @@ groups:
       the issue.
     rationale: >-
       `gh issue create` cannot set an issue type, so a separate mutation is
-      necessary. The action sets the type itself, not through a `bug` label. The
-      label-to-issue-type workflow cannot convert that label, because an event
-      that a workflow causes with its own `GITHUB_TOKEN` does not start other
-      workflows. A lookup by name still works when someone creates the type again.
+      necessary. A lookup by name still works when someone creates the type again.
     verification: >-
       In `test/ci/test_workflow_failure_notification.py`,
       `test_issue_type_helper_resolves_the_type_by_name` asserts the helper
       resolves the type by name and applies it via `updateIssue` with
       `issueTypeId`, and `test_notify_action_sets_bug_issue_type` asserts the
-      create arm calls the helper and applies no `bug` label.
+      create arm calls the helper.
     relationships:
       - rel_type: implements
+        spec_id: CISEC-05-007
+  - id: CISEC-05-020
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      The composite action MUST NOT rely on a `bug` label for the
+      label-to-issue-type workflow to convert into the `Bug` type.
+    rationale: >-
+      An event that a workflow causes with its own `GITHUB_TOKEN` does not start
+      other workflows, so the label-to-issue-type workflow never sees that label.
+      An issue that relies on it stays untyped.
+    verification: >-
+      `test_notify_action_sets_bug_issue_type` in
+      `test/ci/test_workflow_failure_notification.py` asserts the create arm
+      applies no `bug` label.
+    relationships:
+      - rel_type: extends
         spec_id: CISEC-05-007
   - id: CISEC-05-018
     priority: MUST
@@ -456,5 +476,5 @@ groups:
       `test/ci/test_workflow_failure_notification.py` asserts the helper's no-type
       guard exits non-zero with an `::error::` annotation.
     relationships:
-      - rel_type: refines
+      - rel_type: extends
         spec_id: CISEC-05-017

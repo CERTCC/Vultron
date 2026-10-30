@@ -301,8 +301,8 @@ and the specification renders them in two forms:
 - **The Requirements Catalog**, a body section after §13 Conformance: every
   requirement of the two tiers, once, one subsection per requirement file,
   files grouped onto themed pages, `foundation` rows on a page of their own
-  (DF-12-001). The catalog row is the requirement's only anchor, apart from its
-  in-page copy in `full.md` (DF-12-002).
+  (DF-12-001, DF-12-008, DF-12-009). The catalog row is the requirement's only
+  anchor, apart from its in-page copy in `full.md` (DF-12-002).
 
 Rules for the narrative around them:
 

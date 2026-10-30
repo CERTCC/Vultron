@@ -106,9 +106,6 @@ groups:
         rationale: >-
           One session can find several unrelated observations. Each one needs its own
           file, so that `learn` can promote, archive or reject each one separately.
-        relationships:
-          - rel_type: extends
-            spec_id: BW-01-003
       - id: BW-01-010
         priority: MUST
         kind: process
@@ -121,7 +118,7 @@ groups:
           file overwrites the first, and the first observation is lost. This can occur
           when one work item produces several learnings on one day (BW-01-009).
         relationships:
-          - rel_type: refines
+          - rel_type: extends
             spec_id: BW-01-003
           - rel_type: derives_from
             spec_id: BW-01-009
@@ -469,7 +466,7 @@ groups:
           `test/metadata/test_append_history.py` assert a non-zero exit and an error
           that names the conflicting argument.
         relationships:
-          - rel_type: implements
+          - rel_type: extends
             spec_id: BW-05-002
       - id: BW-05-003
         priority: MUST
@@ -638,7 +635,7 @@ groups:
         adr:
           - ADR-0054
       - id: BW-07-005
-        priority: MUST
+        priority: MUST_NOT
         kind: process
         verification_debt: '#2571'
         statement: >-

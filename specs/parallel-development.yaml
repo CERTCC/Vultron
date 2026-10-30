@@ -131,7 +131,7 @@ groups:
     title: Label Taxonomy
     specs:
       - id: PAD-02-001
-        priority: MUST
+        priority: MUST_NOT
         kind: process
         verification_debt: '#2571'
         statement: >-
@@ -664,7 +664,9 @@ groups:
         verification: >-
           `test/metadata/test_claim_scripts.py`: a successful claim comments
           with the branch name through `announce-claim.sh`, and a claim on an
-          Epic comments too.
+          Epic comments too. Nothing yet checks that the comment identifies the
+          agent session: the comment `announce-claim.sh` posts names only the
+          branch.
         relationships:
         - rel_type: extends
           spec_id: PAD-04-002
@@ -1073,8 +1075,8 @@ groups:
         kind: process
         statement: >-
           In the triage that PAD-07-007 describes, `pr-triage` MUST confirm each
-          pre-push finding's recorded resolution on the PR head. It re-emits
-          each finding whose fix is absent.
+          pre-push finding's recorded resolution on the PR head, re-emitting each
+          finding whose fix is absent.
         rationale: >-
           A recorded resolution is a claim by the author. A fix that did not reach the
           PR head leaves the defect in the change that merges.
@@ -1251,8 +1253,8 @@ groups:
           Planning and building are separate steps, so a human can review the plan and
           its docs PR before code depends on them. Implementation work begins only when
           the Issue is Ready (PAD-16-004) and is selected under its Epic's `Schedule`
-          tier on GitHub Project #24. If planning starts the build at once, it skips the
-          Epic tier that decides when the work is worth doing.
+          tier on GitHub Project #24 (PAD-15-003). If planning starts the build at
+          once, it skips the Epic tier that decides when the work is worth doing.
       - id: PAD-09-005
         priority: MUST
         kind: process
@@ -1328,7 +1330,7 @@ groups:
         priority: MUST_NOT
         kind: process
         statement: >-
-          An agent MUST NOT rebase a branch that has an open PR.
+          The agent syncing an open PR MUST NOT rebase its branch.
         rationale: >-
           Rebasing a pushed branch rewrites the commits reviewers commented on
           and the `commit_ref` values the triage and execute artifacts
@@ -1427,9 +1429,8 @@ groups:
         kind: process
         verification_debt: '#2571'
         statement: >-
-          For each unparented non-Epic Issue surfaced in triage, the
-          `review-priorities` skill MUST ask which Epic the Issue belongs
-          under.
+          For each unparented non-Epic Issue, the `review-priorities` skill
+          MUST ask which Epic the Issue belongs under.
         rationale: >-
           An Issue with no Epic has no tier at all, so the question for it is where it
           belongs. The skill asks rather than guesses a parent, because placement is a
@@ -1590,8 +1591,9 @@ groups:
           stage, selection takes candidates in sub-issue order and can propose an Idea,
           a `Someday` Concern and two `size:L` Tasks as equal members of one bundle.
         verification: >-
-          Every class in `test/metadata/test_bundle_fit.py` except
-          `TestEligibility` covers a fit rule applied after eligibility.
+          In `test/metadata/test_bundle_fit.py`, `TestWorkflowPartition`,
+          `TestScheduleTier`, `TestSizeBudget`, `TestReviewCeiling` and
+          `TestCoherenceHints` cover the fit rules applied after eligibility.
         relationships:
         - rel_type: derives_from
           spec_id: PAD-15-001
@@ -1638,10 +1640,13 @@ groups:
           Only Epics carry `Schedule` (PAD-02-001), so a value on a leaf is always
           drift.
         verification: >-
-          A leaf's own `Schedule` value does not change the rank or the
-          exclusion of that candidate in `select_bundle`.
+          Not met today: `effective_schedule` in
+          `vultron/metadata/planning/bundle_fit/select.py` lets an explicit leaf
+          tier win, and `test_bundle_fit.py` asserts it. #3710 owns the fix,
+          which adds a test that a leaf's own `Schedule` changes no rank or
+          exclusion.
         relationships:
-        - rel_type: refines
+        - rel_type: extends
           spec_id: PAD-15-003
       - id: PAD-15-014
         priority: MUST
@@ -1657,7 +1662,7 @@ groups:
           `test/metadata/test_bundle_fit.py` asserts that ties fall back to
           list order.
         relationships:
-        - rel_type: refines
+        - rel_type: extends
           spec_id: PAD-15-003
       - id: PAD-15-004
         priority: MUST_NOT
@@ -1748,8 +1753,8 @@ groups:
         priority: MAY
         kind: process
         statement: >-
-          Bundle selection MAY surface mechanical overlap signals as evidence
-          of coherence.
+          The agent proposing a bundle MAY surface mechanical overlap signals as
+          evidence of coherence.
         rationale: >-
           A shared spec ID, label or file path can point a person to a design idea that
           members share, even though it cannot prove one.
@@ -1760,8 +1765,8 @@ groups:
         priority: MUST_NOT
         kind: process
         statement: >-
-          Bundle selection MUST NOT treat mechanical overlap signals as the
-          coherence verdict.
+          The agent proposing a bundle MUST NOT treat mechanical overlap signals
+          as the coherence verdict.
         rationale: >-
           A shared keyword is a superficial match, not design grain. A verdict taken
           from it gives the same wrong work units that PAD-15-007 exists to stop.
@@ -1831,7 +1836,7 @@ groups:
           acceptance criteria.
         relationships:
         - rel_type: extends
-          spec_id: PAD-15-008
+          spec_id: PAD-15-009
 
   - id: PAD-16
     title: Project Board Status Path
@@ -2289,9 +2294,9 @@ groups:
         - rel_type: extends
           spec_id: PAD-11-001
           note: >-
-            PAD-11-001 says how a conflicted PR is synced (merge, never
-            rebase); this adds when a pushed PR is synced at all (on
-            conflict only).
+            PAD-11-001 and PAD-11-006 say how a conflicted PR is synced
+            (merge, never rebase); this adds when a pushed PR is synced at
+            all (on conflict only).
       - id: PAD-18-014
         adr:
         - ADR-0126
@@ -2535,7 +2540,7 @@ groups:
           Inspection: `work-epic-tasks` step 4 has no post-merge sweep of other
           Pull Requests.
         relationships:
-        - rel_type: refines
+        - rel_type: extends
           spec_id: PAD-18-009
 
   - id: PAD-19
@@ -2575,7 +2580,7 @@ groups:
           `test/metadata/test_claim_scripts.py::TestEpicClaim`: `claim-epic.sh`
           claims without setting `Status` or creating a branch.
         relationships:
-        - rel_type: refines
+        - rel_type: extends
           spec_id: PAD-19-001
       - id: PAD-19-008
         priority: MUST
@@ -2611,8 +2616,8 @@ groups:
         priority: MUST_NOT
         kind: process
         statement: >-
-          Selection MUST NOT hold a Bug, Idea, or Concern under an assigned
-          Epic.
+          The epic-run hold (PAD-19-002) MUST NOT apply to a Bug, Idea, or
+          Concern under an assigned Epic.
         rationale: >-
           Bugs, Ideas, and Concerns are left open on purpose so other agents
           can keep fixing and planning while the run builds.
@@ -2694,7 +2699,7 @@ groups:
         - rel_type: refines
           spec_id: PAD-10-001
       - id: PAD-19-006
-        priority: MUST
+        priority: MUST_NOT
         kind: process
         statement: >-
           An epic run MUST NOT hold the Bugs it plans.
@@ -2755,7 +2760,7 @@ groups:
           fails when the guide's rule table and `RULES` disagree in either
           direction.
         relationships:
-          - rel_type: depends_on
+          - rel_type: extends
             spec_id: PAD-20-001
         tags:
           - tooling
@@ -2858,8 +2863,8 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          In its body phase, `pr-triage` MUST judge by hand each body rule that
-          `pr-body-lint` does not check, and no other body rule.
+          In its body phase, `pr-triage` MUST judge by hand only the body rules
+          that `pr-body-lint` does not check.
         rationale: >-
           Triage keeps every check, but a rule that a tool checks is not a judgment.
         verification: >-
@@ -2874,9 +2879,9 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          Once the `Docs:` line is recorded (PD-03-013), the session that opened
-          the Pull Request MUST run `pr-body-lint --stage final` on its body and
-          fix every finding before it ends.
+          After it records the `Docs:` line (PD-03-013), the session that opened
+          a PR MUST run `pr-body-lint --stage final` on the body and fix every
+          finding.
         rationale: >-
           The placeholder `create-pr` writes is legal before the push and a FAIL
           after it. The final stage is the point where the placeholder must be

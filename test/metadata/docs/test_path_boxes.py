@@ -162,7 +162,7 @@ def _faults(root: Path) -> list[str]:
     return check_boxes(root).faults
 
 
-@pytest.mark.spec("DF-11-045")
+@pytest.mark.spec("DF-11-045", "DF-11-049", "DF-11-050", "DF-11-051")
 class TestBuiltSiteCheck:
     def test_every_box_in_place_passes(self, site):
         report = check_boxes(site)

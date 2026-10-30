@@ -643,7 +643,7 @@ groups:
         statement: >-
           The publication workflow MUST notify on failure and close the failure
           notice on a later success, through the `notify-failure` composite action
-          (CISEC-05-001).
+          (CISEC-05-001, CISEC-05-002, CISEC-05-008).
         rationale: >-
           A failed publish leaves the live site stale with no failing pull request
           to notice it, so the failure has to be reported by the run itself.
@@ -670,7 +670,8 @@ groups:
           site builds.
         verification: >-
           `test/ci/test_site_build_shared_action.py` fails when a site-building
-          workflow does not use `.github/actions/build-site`, and when the
+          workflow does not use `.github/actions/build-site`, when it runs a
+          step other than its checkout before the shared build, and when the
           action takes inputs or stops fixing the checkout, the dependency set
           or the single build.
         relationships:
@@ -685,13 +686,6 @@ groups:
           The review workflow and the publication workflow need different
           checks and uploads after the build. Steps after the shared build
           cannot change the site it built, so both still build the same site.
-        verification: >-
-          `test/ci/test_site_build_shared_action.py::test_workflow_steps_follow_the_shared_build`
-          fails when a site-building workflow runs a step other than its
-          checkout before the shared build.
-        relationships:
-          - rel_type: refines
-            spec_id: DOCBW-06-004
       - id: DOCBW-06-006
         priority: MUST_NOT
         kind: project

@@ -49,13 +49,16 @@ groups:
       `--source` resolves to a GitHub issue number use the GitHub comment output mode (HM-08) instead.
     rationale: >-
       `<entry-id>` comes from `source`, and `source` is not unique: one work item can
-      produce several learnings. BW-01-003 gives incoming files `YYYYMMDD-SLUG` names so
-      that they do not collide. If the archive path used only `source`, the tool could
-      not archive the second learning of a work item. A taken path thus needs a
+      produce several learnings (BW-01-009). BW-01-003 and BW-01-010 give incoming files
+      distinct `YYYYMMDD-SLUG` names so that they do not collide. If the archive path
+      used only `source`, the tool could not archive the second learning of a work
+      item. A taken path thus needs a
       different fallback name, and the write-once rule keeps the existing record.
     relationships:
     - rel_type: depends_on
       spec_id: BW-01-003
+    - rel_type: depends_on
+      spec_id: BW-01-010
   - id: HM-01-003
     priority: MUST
     kind: process
