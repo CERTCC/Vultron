@@ -8,8 +8,9 @@ description: >
   the sync-port wiring rule, fan-out recipients and the embargo pause, ingress
   never writing the ledger, the held out-of-order Announce, arrival-order
   independence (SYNC-19), divergence recovery,
-  the sender's ledger position on every case activity, replay rate limiting, and
-  SYNC test patterns.
+  the sender's ledger position on every case activity, replay rate limiting, the
+  resend of unanswered Invites on a position statement (SYNC-20), and SYNC test
+  patterns.
 related_specs:
   - specs/sync-ledger-replication.yaml
   - specs/case-ledger-processing.yaml
@@ -525,7 +526,9 @@ before a quiet period leaves the replica behind with no signal on either side.
   position or a `Reject`, so comparing it with the tail on a timer or on commit
   reads every quiet peer as behind; and a paused peer lags on purpose.
 - **Active senders only** (SYNC-17-002): a removed, unconsented or closed peer's
-  `Read` is `REFUSED` and answered with nothing; its catch-up is CM-10-006's backfill.
+  `Read` is `REFUSED`, with no replication state and no replay; its catch-up is
+  CM-10-006's backfill. The Invite resend below is the one exception, so the
+  `Read` use case declares `PARTICIPANT` and checks "active" after the resend.
 - **Same replay guard.** A `Read` replay goes through `should_replay()` /
   `record_replay()` and the outbox de-duplication, like a `Reject` replay. A `Read`
   can predate entries already in flight, so only the rate bound limits the
@@ -543,6 +546,30 @@ before a quiet period leaves the replica behind with no signal on either side.
 - **The restart round waits for the startup inbox replay** (IE-06-006), so the
   stated tail includes every entry the queue held; a shutdown during that wait
   states nothing (`ledger_position_statements.py`).
+
+## A Position Statement Resends Unanswered Invites (SYNC-20, ADR-0163)
+
+A held position from any roster participant, not removed or closed, has the
+CASE_MANAGER resend each Invite it still owes an answer to. Reason: the statement
+is the first sign its replica holds the case, so a dropped Invite can now be
+answered (CBT-03-003).
+
+- **Runs apart from the active check** (SYNC-20-001). An inert joiner whose Invite
+  to the embargo now in force was dropped is the one to ask again; a resent Invite
+  is not case content (CM-10-007). Put `ResendOwedInvitesNode` before
+  `PeerActiveParticipantNode`, in the `Read` tree and in the stamp stage.
+- **Owed is read from the ledger** (SYNC-20-002, `owed_invites`): the last
+  `invite_to_embargo_on_case` entry per embargo whose row is `INVITED`, embargo
+  `PROPOSED` or `ACTIVE`, deadline not passed; the full-case Invite until a reply
+  entry names it. Exclude the Invite the stating activity answers: the stamp is
+  read before that activity's commit, so its row still says `INVITED`.
+- **Requeue, never rebuild** (SYNC-20-003): `SyncActivityPort.resend_sealed_activity`
+  queues the sealed body under its first id; `PENDING` is the outbox refusing a
+  second row (OX-06-002) and is not counted (SYNC-20-004).
+- **The cooldown is not replication state.** `InviteResendRecord` per (Invite,
+  participant), so an inert sender gets a cooldown without SYNC-17-002's forbidden
+  replication record. The doubling is `doubling_cooldown_seconds`, shared with the
+  replay bound (SYNC-15-013, SYNC-20-005).
 
 ## Document Boundary: Internal Spec vs. External Companion
 

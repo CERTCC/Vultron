@@ -235,6 +235,8 @@ def _phase_report_submission(
             case_actor_client=case_actor_client,
         )
 
+    # The Reporter's decision; its role comes from submitting the report.
+    reach_step("reporter-whom-to-tell", "coordinator", by=reporter.id_)
     opened = open_coordinated_case(
         reporter_client=reporter_client,
         coordinator_client=coordinator_client,
@@ -288,7 +290,7 @@ def _phase_invite_vendor(
         case_actor_client=case_actor_client,
         vendor=vendor,
         vendor_client=vendor_client,
-        before_answer=step_reporter("vendor-join", "accept"),
+        before_answer=step_reporter("vendor-join", "accept", by=vendor.id_),
     )
 
 
@@ -352,7 +354,11 @@ def _phase_notes_exchange(
         ),
     )
     # The Coordinator decides once the thread is answered.
-    reach_step("coordinator-after-answer", "publish")
+    reach_step(
+        "coordinator-after-answer",
+        "publish",
+        by=coordinator_in_coordinator.id_,
+    )
 
     logger.info(
         "✓ Notes exchange complete (three notes committed to case ledger)"
@@ -483,7 +489,6 @@ def run_rcv_demo(
     logger.info("CaseActor container:   %s", case_actor_client.base_url)
 
     with scenario_harness("rcv") as harness:
-        harness.reach_step("reporter-whom-to-tell", "coordinator")
         (
             reporter,
             reporter_in_reporter,
@@ -517,7 +522,9 @@ def run_rcv_demo(
         )
         harness.follow_ledger(case_actor_client, case.id_)
 
-        harness.reach_step("coordinator-invite-whom", "vendor")
+        harness.reach_step(
+            "coordinator-invite-whom", "vendor", by=coordinator.id_
+        )
         vendor_in_vendor = _phase_invite_vendor(
             coordinator_client=coordinator_client,
             case_actor_client=case_actor_client,
@@ -541,7 +548,9 @@ def run_rcv_demo(
             vendor=vendor_obj,
         )
 
-        harness.reach_step("reporter-after-join", "ask-vendor")
+        harness.reach_step(
+            "reporter-after-join", "ask-vendor", by=reporter.id_
+        )
         _phase_notes_exchange(
             reporter_client=reporter_client,
             coordinator_client=coordinator_client,

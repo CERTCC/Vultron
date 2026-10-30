@@ -106,9 +106,10 @@ repos:
         language: system
         # Every docs page and fragment, any of which can gain or lose a
         # banner or change its subject (DF-12-006, DF-12-007), plus the check,
-        # which declares both page sets, and the include-directive, schema and
+        # which declares both page sets, the catalog placement table it reads
+        # the catalog pages from, and the include-directive, schema and
         # failure readers it uses.
-        files: ^(docs/.*\.md|vultron/metadata/docs/(normative_banner|page_frontmatter|page_schema)\.py|vultron/metadata/(base|file_loading)\.py)$
+        files: ^(docs/.*\.md|vultron/metadata/docs/(normative_banner|page_frontmatter|page_schema|requirement_catalog)\.py|vultron/metadata/(base|file_loading)\.py)$
         pass_filenames: false
 
       - id: docs-nav-subjects

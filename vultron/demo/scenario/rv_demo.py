@@ -34,7 +34,7 @@ from vultron.demo.helpers.actor_roles import (
     role_map,
 )
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
-from vultron.demo.helpers.harness import scenario_harness
+from vultron.demo.helpers.harness import reach_step, scenario_harness
 from vultron.demo.helpers.ledger_commit import trigger_log_commit  # noqa: F401
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
@@ -451,6 +451,8 @@ def _phase_report_submission(
         )
 
     vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
+    # The Reporter's decision; its role comes from submitting the report.
+    reach_step("reporter-whom-to-tell", "vendor", by=reporter.id_)
     report, offer = reporter_submits_report(
         receiver_client=vendor_client,
         reporter=reporter,
@@ -849,7 +851,6 @@ def run_rv_demo(
     logger.info("CaseActor container: %s", case_actor_client.base_url)
 
     with scenario_harness("rv") as harness:
-        harness.reach_step("reporter-whom-to-tell", "vendor")
         reporter, vendor, vendor_in_vendor, report, _offer, case = (
             _phase_report_submission(
                 reporter_client,
@@ -893,7 +894,9 @@ def run_rv_demo(
             report,
         )
         # The Vendor decides once it has answered the Reporter's question.
-        harness.reach_step("vendor-after-answer", "report-fix-ready")
+        harness.reach_step(
+            "vendor-after-answer", "report-fix-ready", by=vendor.id_
+        )
         _phase_fix_lifecycle(
             reporter_client,
             vendor_client,

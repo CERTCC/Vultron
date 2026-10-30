@@ -300,6 +300,8 @@ def _phase_report_submission(
     c1_in_c1 = get_actor_by_id(c1_client, c1.id_)
     c2_in_c2 = get_actor_by_id(c2_client, c2.id_)
 
+    # The Reporter's decision; its role comes from submitting the report.
+    reach_step("reporter-whom-to-tell", "coordinator", by=reporter.id_)
     report, offer = reporter_submits_report(
         receiver_client=c1_client,
         reporter=reporter,
@@ -360,7 +362,7 @@ def _phase_ownership_handoff(
     logger.info("─" * 80)
 
     follow_ledger(case_actor_client, case.id_)
-    reach_step("coordinator-invite-whom", "coordinator")
+    reach_step("coordinator-invite-whom", "coordinator", by=c1.id_)
 
     # C1 invites C2 with COORDINATOR role; the chain nests the delivery gate,
     # the accept and the replica wait (ADR-0058, EDF-06-005, #3038).
@@ -395,7 +397,7 @@ def _phase_ownership_handoff(
         )
         logger.info("C2 has joined the case")
         # C1, the case owner, decides once C2 has joined.
-        reach_step("owner-keep-case", "offer-ownership")
+        reach_step("owner-keep-case", "offer-ownership", by=c1.id_)
 
         # C1 offers ownership transfer to C2 (TRIG-11-001).  The delivery
         # gate and C2's accept are nested inside the offer step so a failed
@@ -978,7 +980,6 @@ def run_rccv_handoff_demo(
 ) -> None:
     """Orchestrate the RCCV-handoff CVD workflow."""
     with scenario_harness("rccv-handoff") as harness:
-        harness.reach_step("reporter-whom-to-tell", "coordinator")
         logger.info("=" * 80)
         logger.info(
             "RCCV-HANDOFF DEMO: Reporter + C1 → C2 (ownership) + Vendor"

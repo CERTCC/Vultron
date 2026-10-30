@@ -327,6 +327,8 @@ def _phase_report_submission(
     v1_in_v1 = get_actor_by_id(v1_client, v1.id_)
     c2_in_c2 = get_actor_by_id(c2_client, c2.id_)
 
+    # The Reporter's decision; its role comes from submitting the report.
+    reach_step("reporter-whom-to-tell", "coordinator", by=reporter.id_)
     report, offer = reporter_submits_report(
         receiver_client=c1_client,
         reporter=reporter,
@@ -361,7 +363,7 @@ def _phase_report_submission(
             )
 
         follow_ledger(case_actor_client, case.id_)
-        reach_step("coordinator-invite-whom", "vendor")
+        reach_step("coordinator-invite-whom", "vendor", by=c1.id_)
 
         # C1 invites V1 with CVDRole.VENDOR.  Everything that depends on the
         # invite — the delivery gate, V1's accept, the replica waits and V1's
@@ -403,13 +405,13 @@ def _phase_report_submission(
                 role=CVDRole.VENDOR,
             ),
             then=_v1_rm_triage,
-            before_answer=step_reporter("vendor-join", "accept"),
+            before_answer=step_reporter("vendor-join", "accept", by=v1.id_),
         )
 
         # The Reporter asks and V1 answers before C1 decides to invite a
         # second Coordinator: on the scenario tree that invite is C1's choice
         # after V1's answer.
-        reach_step("reporter-after-join", "ask-vendor")
+        reach_step("reporter-after-join", "ask-vendor", by=reporter.id_)
         v1_note = _phase_notes_exchange(
             reporter_client=reporter_client,
             c1_client=c1_client,
@@ -707,7 +709,9 @@ def _phase_notes_exchange(
         ),
     )
     # C1 decides once the thread is answered.
-    reach_step("coordinator-after-answer", "invite-coordinator")
+    reach_step(
+        "coordinator-after-answer", "invite-coordinator", by=c1_in_c1.id_
+    )
     return c1_note
 
 
@@ -1138,7 +1142,6 @@ def run_rcvcv_demo(
     logger.info("CaseActor container: %s", case_actor_client.base_url)
 
     with scenario_harness("rcvcv") as harness:
-        harness.reach_step("reporter-whom-to-tell", "coordinator")
         (
             reporter,
             c1,

@@ -39,6 +39,7 @@ from vultron.adapters.driven.ledger_position_stamp import (
     with_sender_ledger_position,
 )
 from vultron.adapters.outbox_sealed_body import (
+    is_sealed,
     read_sealed_body_dict,
     requeue_if_sealed,
     seal_outbound_body,
@@ -47,6 +48,7 @@ from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.sync_activity import ResendOutcome
 from vultron.core.sync_helpers import ledger_tail_position
 from vultron.core.use_cases._helpers import add_activity_to_outbox
 from vultron.wire.as2.factories import (
@@ -264,6 +266,28 @@ class SyncActivityAdapter:
             read.object_,
             to,
         )
+
+    def resend_sealed_activity(self, activity_id: str) -> ResendOutcome:
+        """Queue *activity_id*'s sealed body again, under its first id.
+
+        The outbox relays the body sealed at first emission (OX-07-001), so
+        the resend is the activity as first sent (SYNC-18-002).  The queue
+        holds one pending row per id and says whether it added one
+        (OX-06-002), which tells a pending send from a queued resend
+        (SYNC-20-004).
+
+        Spec: SYNC-20-003, SYNC-20-004.
+        """
+        if not is_sealed(self._dl, activity_id):
+            logger.warning(
+                "sync adapter: no sealed body for '%s'; nothing to resend",
+                activity_id,
+            )
+            return ResendOutcome.NOT_SEALED
+        if not self._dl.outbox_append(activity_id):
+            return ResendOutcome.PENDING
+        logger.info("sync adapter: resent '%s' as first sent", activity_id)
+        return ResendOutcome.QUEUED
 
     def _queue_reject(
         self,

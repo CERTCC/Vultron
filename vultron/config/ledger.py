@@ -26,12 +26,13 @@ the ``timedelta`` properties are what the commit-boundary guard consumes.
 Per ``specs/case-ledger-processing.yaml`` CLP-14-007, CLP-14-008, CLP-14-009.
 
 It also holds the participant's ledger position statement interval
-(``specs/sync-ledger-replication.yaml`` SYNC-17-007).
+(``specs/sync-ledger-replication.yaml`` SYNC-17-007) and the CASE_MANAGER's
+unanswered-Invite resend cooldown (SYNC-20-005, SYNC-20-006).
 """
 
 from datetime import timedelta
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class LedgerConfig(BaseModel):
@@ -58,6 +59,16 @@ class LedgerConfig(BaseModel):
             a periodic check costs traffic a deployment should choose.
             Override via
             ``VULTRON_LEDGER__POSITION_STATEMENT_INTERVAL_SECONDS``.
+        invite_resend_cooldown_seconds: The base cooldown between two resends
+            of one unanswered Invite to one participant (SYNC-20-005).  Each
+            consecutive resend doubles it.  Default 30 s, the base of the
+            ledger replay cooldown (SYNC-15-013).  Override via
+            ``VULTRON_LEDGER__INVITE_RESEND_COOLDOWN_SECONDS``.
+        invite_resend_max_cooldown_seconds: The ceiling the doubled resend
+            cooldown stops at, so an unanswered Invite is still resent at a
+            fixed interval until its deadline (SYNC-20-005).  Default 600 s,
+            the replay cooldown's ceiling.  Override via
+            ``VULTRON_LEDGER__INVITE_RESEND_MAX_COOLDOWN_SECONDS``.
     """
 
     clock_skew_tolerance_seconds: int = Field(
@@ -95,6 +106,35 @@ class LedgerConfig(BaseModel):
             "Default: None (off)."
         ),
     )
+    invite_resend_cooldown_seconds: float = Field(
+        default=30.0,
+        gt=0,
+        description=(
+            "SYNC-20-005 base cooldown between two resends of one unanswered "
+            "Invite to one participant; each consecutive resend doubles it. "
+            "Default: 30 s."
+        ),
+    )
+    invite_resend_max_cooldown_seconds: float = Field(
+        default=600.0,
+        gt=0,
+        description=(
+            "SYNC-20-005 ceiling on the doubled resend cooldown. Default: 600 s."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _resend_ceiling_not_below_base(self) -> "LedgerConfig":
+        """Refuse a resend ceiling below its base: the cooldown only grows."""
+        if (
+            self.invite_resend_max_cooldown_seconds
+            < self.invite_resend_cooldown_seconds
+        ):
+            raise ValueError(
+                "invite_resend_max_cooldown_seconds must not be below"
+                " invite_resend_cooldown_seconds (SYNC-20-005)"
+            )
+        return self
 
     @property
     def clock_skew_tolerance(self) -> timedelta:

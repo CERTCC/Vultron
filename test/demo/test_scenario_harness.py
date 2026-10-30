@@ -22,7 +22,9 @@ raises.
 
 import json
 from collections.abc import Iterator
+from typing import cast
 from unittest.mock import MagicMock
+from urllib.parse import unquote
 
 import pytest
 
@@ -39,7 +41,12 @@ from vultron.demo.helpers.ledger_dump import (
     STEP_MARKS_FILENAME,
 )
 from vultron.demo.scenario.registry import discover_scenarios
-from vultron.demo.utils import demo_check, reset_demo_failures
+from vultron.demo.utils import (
+    DataLayerClient,
+    demo_check,
+    demo_step,
+    reset_demo_failures,
+)
 from vultron.errors import DemoFailureError, DemoScenarioStepError
 
 
@@ -232,6 +239,54 @@ class TestFailureAccumulatorReset:
             harness.dump_with(MagicMock())
 
 
+#: The actors of the fake ``rv`` case: the report's author, the case owner,
+#: and an actor the case does not seat.
+REPORTER = "urn:actor:reporter"
+VENDOR = "urn:actor:vendor"
+STRANGER = "urn:actor:stranger"
+
+
+class _CaseActorStore(DataLayerClient):
+    """A CaseActor client reading a fixed store of JSON records.
+
+    The deciding-role checks read the canonical case, a participant record,
+    and (when the case names its report by id) the report.
+    """
+
+    records: dict[str, object]
+
+    def dl_path(self, key: str = "", actor_id: str | None = None) -> str:
+        return key
+
+    def get(self, path: str, **kwargs: object) -> dict:
+        # A malformed record may be any JSON value; the check must refuse it.
+        return cast(dict, self.records[unquote(path)])
+
+
+def _rv_store(
+    *, reports: list[object] | None = None, vendor_roles=("vendor",)
+) -> _CaseActorStore:
+    """The ``rv`` case: the Reporter and the Vendor, each seated."""
+    return _CaseActorStore(
+        records={
+            "urn:case": {
+                "actorParticipantIndex": {
+                    REPORTER: "urn:participant:reporter",
+                    VENDOR: "urn:participant:vendor",
+                },
+                "vulnerabilityReports": (
+                    [{"id": "urn:report", "attributedTo": REPORTER}]
+                    if reports is None
+                    else reports
+                ),
+            },
+            "urn:participant:reporter": {"caseRoles": ["reporter"]},
+            "urn:participant:vendor": {"caseRoles": list(vendor_roles)},
+            "urn:report": {"id": "urn:report", "attributedTo": REPORTER},
+        }
+    )
+
+
 class TestStepMarks:
     """A scenario reports each declared step; the harness marks the ledger tail.
 
@@ -269,11 +324,13 @@ class TestStepMarks:
     def test_each_step_marks_the_ledger_tail_there(
         self, _devlogs, tails
     ) -> None:
-        client = MagicMock()
+        client = _rv_store()
         with scenario_harness("rv") as harness:
-            harness.reach_step("reporter-whom-to-tell", "vendor")
+            harness.reach_step("reporter-whom-to-tell", "vendor", by=REPORTER)
             harness.follow_ledger(client, "urn:case")
-            harness.reach_step("vendor-after-answer", "report-fix-ready")
+            harness.reach_step(
+                "vendor-after-answer", "report-fix-ready", by=VENDOR
+            )
         assert harness.marks == [
             StepMark("reporter-whom-to-tell", "vendor", 0),
             StepMark("vendor-after-answer", "report-fix-ready", 7),
@@ -297,7 +354,9 @@ class TestStepMarks:
     ) -> None:
         with pytest.raises(RuntimeError, match="later phase"):
             with scenario_harness("rv") as harness:
-                harness.reach_step("reporter-whom-to-tell", "vendor")
+                harness.reach_step(
+                    "reporter-whom-to-tell", "vendor", by=REPORTER
+                )
                 raise RuntimeError("later phase")
         assert [step["branchPoint"] for step in self._marks(_devlogs)] == [
             "reporter-whom-to-tell"
@@ -315,44 +374,56 @@ class TestStepMarks:
     ) -> None:
         with pytest.raises(DemoScenarioStepError, match="declared path"):
             with scenario_harness("rv") as harness:
-                harness.reach_step(*step)
+                harness.reach_step(*step, by=REPORTER)
 
     def test_a_step_past_the_end_of_the_path_is_refused(
         self, _devlogs, tails
     ) -> None:
         with pytest.raises(DemoScenarioStepError, match="already reached"):
             with scenario_harness("rv") as harness:
-                harness.reach_step("reporter-whom-to-tell", "vendor")
-                harness.follow_ledger(MagicMock(), "urn:case")
-                harness.reach_step("vendor-after-answer", "report-fix-ready")
-                harness.reach_step("vendor-after-answer", "report-fix-ready")
+                harness.reach_step(
+                    "reporter-whom-to-tell", "vendor", by=REPORTER
+                )
+                harness.follow_ledger(_rv_store(), "urn:case")
+                harness.reach_step(
+                    "vendor-after-answer", "report-fix-ready", by=VENDOR
+                )
+                harness.reach_step(
+                    "vendor-after-answer", "report-fix-ready", by=VENDOR
+                )
 
     def test_a_later_step_needs_a_followed_ledger(self, _devlogs) -> None:
         with pytest.raises(DemoScenarioStepError, match="follow_ledger"):
             with scenario_harness("rv") as harness:
-                harness.reach_step("reporter-whom-to-tell", "vendor")
-                harness.reach_step("vendor-after-answer", "report-fix-ready")
+                harness.reach_step(
+                    "reporter-whom-to-tell", "vendor", by=REPORTER
+                )
+                harness.reach_step(
+                    "vendor-after-answer", "report-fix-ready", by=VENDOR
+                )
 
     def test_an_unregistered_scenario_has_no_path(self, _devlogs) -> None:
         with pytest.raises(DemoScenarioStepError, match="no registered"):
             with scenario_harness("unit") as harness:
-                harness.reach_step("reporter-whom-to-tell", "vendor")
+                harness.reach_step(
+                    "reporter-whom-to-tell", "vendor", by=REPORTER
+                )
 
     def test_module_functions_report_to_the_running_harness(
         self, _devlogs, tails
     ) -> None:
         with scenario_harness("rv") as harness:
-            step_reporter("reporter-whom-to-tell", "vendor")()
-            follow_ledger(MagicMock(), "urn:case")
-            reach_step("vendor-after-answer", "report-fix-ready")
+            step_reporter("reporter-whom-to-tell", "vendor", by=REPORTER)()
+            follow_ledger(_rv_store(), "urn:case")
+            reach_step("vendor-after-answer", "report-fix-ready", by=VENDOR)
         assert [mark.ledger_tail for mark in harness.marks] == [0, 7]
 
     def test_module_functions_do_nothing_outside_a_harness(
         self, tails
     ) -> None:
         follow_ledger(MagicMock(), "urn:case")
-        reach_step("vendor-after-answer", "report-fix-ready")
-        step_reporter("reporter-whom-to-tell", "vendor")()
+        reach_step("vendor-after-answer", "report-fix-ready", by=VENDOR)
+        step_reporter("reporter-whom-to-tell", "vendor", by=REPORTER)()
         assert tails == []
 
     def test_the_running_harness_is_cleared_on_exit(self, _devlogs) -> None:
@@ -360,4 +431,180 @@ class TestStepMarks:
             with scenario_harness("rv"):
                 raise RuntimeError("boom")
         # A step after the run is not recorded anywhere, nor refused.
-        reach_step("vendor-after-answer", "report-fix-ready")
+        reach_step("vendor-after-answer", "report-fix-ready", by=VENDOR)
+
+
+@pytest.mark.spec("DEMOCI-11-013")
+class TestDecidingRole:
+    """The harness fails a step whose caller lacks the role (DEMOCI-11-013).
+
+    A participant's role is read from its record in the canonical case; the
+    Reporter's, before any case exists, from submitting the report.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _registered(self, monkeypatch):
+        discover_scenarios()
+        monkeypatch.setattr(harness_module, "case_ledger_length", lambda *_: 7)
+
+    @staticmethod
+    def _run(client, *, root_by=REPORTER, step_by=VENDOR) -> None:
+        with scenario_harness("rv") as harness:
+            harness.reach_step("reporter-whom-to-tell", "vendor", by=root_by)
+            harness.follow_ledger(client, "urn:case")
+            harness.reach_step(
+                "vendor-after-answer", "report-fix-ready", by=step_by
+            )
+
+    def test_a_participant_without_the_role_fails_the_step(
+        self, _devlogs
+    ) -> None:
+        with pytest.raises(
+            DemoScenarioStepError, match="not the branch point's role 'vendor'"
+        ):
+            self._run(_rv_store(vendor_roles=("case_owner",)))
+
+    def test_another_participant_fails_the_step(self, _devlogs) -> None:
+        # The Reporter is seated, but as the Reporter, not the Vendor.
+        with pytest.raises(
+            DemoScenarioStepError, match="holds \\['reporter'\\]"
+        ):
+            self._run(_rv_store(), step_by=REPORTER)
+
+    def test_an_actor_the_case_does_not_seat_fails_the_step(
+        self, _devlogs
+    ) -> None:
+        with pytest.raises(DemoScenarioStepError, match="not a participant"):
+            self._run(_rv_store(), step_by=STRANGER)
+
+    def test_an_owner_holding_the_role_beside_case_owner_passes(
+        self, _devlogs
+    ) -> None:
+        self._run(_rv_store(vendor_roles=("case_owner", "vendor")))
+
+    def test_the_root_step_fails_when_its_actor_did_not_submit_the_report(
+        self, _devlogs
+    ) -> None:
+        with pytest.raises(
+            DemoScenarioStepError, match="the actor that submits the report"
+        ):
+            self._run(_rv_store(), root_by=STRANGER)
+
+    def test_the_root_step_reads_a_report_named_by_id(self, _devlogs) -> None:
+        self._run(_rv_store(reports=["urn:report"]))
+
+    def test_a_case_with_no_report_fails_the_root_step(self, _devlogs) -> None:
+        with pytest.raises(DemoScenarioStepError, match="are by \\[\\]"):
+            self._run(_rv_store(reports=[]))
+
+    def test_only_the_reporter_decides_before_the_case(
+        self, _devlogs, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(
+            harness_module,
+            "_declared_path",
+            lambda _name: (("vendor-after-answer", "report-fix-ready"),),
+        )
+        with pytest.raises(DemoScenarioStepError, match="before any case"):
+            with scenario_harness("rv") as harness:
+                harness.reach_step(
+                    "vendor-after-answer", "report-fix-ready", by=VENDOR
+                )
+
+    def test_records_stored_under_field_names_are_read_too(
+        self, _devlogs
+    ) -> None:
+        client = _CaseActorStore(
+            records={
+                "urn:case": {
+                    "actor_participant_index": {
+                        VENDOR: "urn:participant:vendor"
+                    },
+                    "vulnerability_reports": [
+                        {"id": "urn:report", "attributed_to": REPORTER}
+                    ],
+                },
+                "urn:participant:vendor": {"case_roles": ["vendor"]},
+            }
+        )
+        self._run(client)
+
+    def test_an_inline_report_without_an_author_is_read_by_id(
+        self, _devlogs
+    ) -> None:
+        self._run(_rv_store(reports=[{"id": "urn:report"}]))
+
+    @pytest.mark.parametrize("report", [42, {"attributedTo": 42}])
+    def test_a_report_naming_no_author_fails_the_root_step(
+        self, _devlogs, report
+    ) -> None:
+        with pytest.raises(DemoScenarioStepError, match="are by \\[None\\]"):
+            self._run(_rv_store(reports=[report]))
+
+    def test_a_report_author_given_as_an_object_is_read(
+        self, _devlogs
+    ) -> None:
+        self._run(_rv_store(reports=[{"attributedTo": {"id": REPORTER}}]))
+
+    def test_the_root_step_is_checked_when_no_ledger_is_followed(
+        self, _devlogs
+    ) -> None:
+        with pytest.raises(DemoScenarioStepError, match="without following"):
+            with scenario_harness("rv") as harness:
+                harness.reach_step(
+                    "reporter-whom-to-tell", "vendor", by=REPORTER
+                )
+
+    def test_an_unchecked_root_keeps_the_failure_that_stopped_the_run(
+        self, _devlogs
+    ) -> None:
+        """A soft failure before the case is the cause; it is not lost."""
+        with pytest.raises(
+            DemoScenarioStepError, match="without following"
+        ) as exc_info:
+            with scenario_harness("rv") as harness:
+                harness.reach_step(
+                    "reporter-whom-to-tell", "vendor", by=REPORTER
+                )
+                with demo_step("submit the report"):
+                    raise RuntimeError("the report was refused")
+
+        notes = getattr(exc_info.value, "__notes__", [])
+        assert any("submit the report" in note for note in notes)
+
+    @pytest.mark.parametrize(
+        ("key", "value", "match"),
+        [
+            # The root check reads the reports first; keep them readable.
+            (
+                "urn:case",
+                {"vulnerabilityReports": [{"attributedTo": REPORTER}]},
+                "no participant index",
+            ),
+            ("urn:participant:vendor", {}, "no list of case roles"),
+            ("urn:participant:vendor", {"caseRoles": "vendor"}, "no list"),
+        ],
+    )
+    def test_a_record_missing_the_field_fails_the_step(
+        self, _devlogs, key, value, match
+    ) -> None:
+        client = _rv_store()
+        client.records[key] = value
+        with pytest.raises(DemoScenarioStepError, match=match):
+            self._run(client)
+
+    def test_a_case_with_no_report_list_fails_the_root_step(
+        self, _devlogs
+    ) -> None:
+        client = _rv_store()
+        client.records["urn:case"] = {"actorParticipantIndex": {}}
+        with pytest.raises(DemoScenarioStepError, match="no list of reports"):
+            self._run(client)
+
+    def test_a_store_that_returns_no_record_fails_the_step(
+        self, _devlogs
+    ) -> None:
+        client = _rv_store()
+        client.records["urn:participant:vendor"] = []
+        with pytest.raises(DemoScenarioStepError, match="not a record"):
+            self._run(client)

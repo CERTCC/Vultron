@@ -269,6 +269,8 @@ def _phase_report_submission(
     vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
     vendor2_in_vendor2 = get_actor_by_id(vendor2_client, vendor2.id_)
 
+    # The Reporter's decision; its role comes from submitting the report.
+    reach_step("reporter-whom-to-tell", "vendor", by=reporter.id_)
     report, offer = reporter_submits_report(
         receiver_client=vendor_client,
         reporter=reporter,
@@ -314,7 +316,7 @@ def _phase_report_submission(
             case=case,
         )
         follow_ledger(case_actor_client, case.id_)
-        reach_step("vendor-after-answer", "invite-vendor")
+        reach_step("vendor-after-answer", "invite-vendor", by=vendor.id_)
 
         # Vendor1 invites Vendor2 to the case; the chain nests the delivery
         # gate, the accept and the replica wait (ADR-0058, EDF-06-005, #3038).
@@ -780,7 +782,6 @@ def run_rvv_demo(
     logger.info("CaseActor container: %s", case_actor_client.base_url)
 
     with scenario_harness("rvv") as harness:
-        harness.reach_step("reporter-whom-to-tell", "vendor")
         (
             reporter,
             vendor,

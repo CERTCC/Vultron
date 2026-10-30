@@ -251,8 +251,12 @@ def _phase_report_submission(
             )
         )
         harness.follow_ledger(case_actor_client, opened_case.id_)
-        harness.reach_step("coordinator-invite-whom", "vendor")
+        harness.reach_step(
+            "coordinator-invite-whom", "vendor", by=coordinator.id_
+        )
 
+    # The Reporter's decision; its role comes from submitting the report.
+    harness.reach_step("reporter-whom-to-tell", "coordinator", by=reporter.id_)
     opened, vendor_in_vendor = open_case_with_vendor(
         reporter_client=reporter_client,
         coordinator_client=coordinator_client,
@@ -262,7 +266,7 @@ def _phase_report_submission(
         coordinator=coordinator,
         vendor=vendor,
         on_case_opened=on_case_opened,
-        before_answer=step_reporter("vendor-join", "accept"),
+        before_answer=step_reporter("vendor-join", "accept", by=vendor.id_),
     )
     case = opened.case
 
@@ -466,7 +470,6 @@ def run_rcv_embargo_demo(
     # way out whether or not a phase failed, and asserts success last
     # (ISSUE-2239).
     with scenario_harness(DEMO_NAME) as harness:
-        harness.reach_step("reporter-whom-to-tell", "coordinator")
         cast, case = _phase_report_submission(
             harness=harness,
             reporter_client=reporter_client,
@@ -477,13 +480,21 @@ def run_rcv_embargo_demo(
             coordinator_id=coordinator_id,
             vendor_id=vendor_id,
         )
-        harness.reach_step("reporter-after-join", "propose-embargo")
+        harness.reach_step(
+            "reporter-after-join",
+            "propose-embargo",
+            by=cast.reporter.actor.id_,
+        )
         revised_embargo_id = _phase_embargo_proposal(cast, case)
         # The Reporter proposed rather than asked first (its branch point on
         # the scenario tree), so the shared notes exchange follows the
         # proposal and comes before the Vendor's own next decision.
         _notes_exchange(cast, case)
-        harness.reach_step("vendor-after-embargo", "report-fix-ready")
+        harness.reach_step(
+            "vendor-after-embargo",
+            "report-fix-ready",
+            by=cast.vendor.actor.id_,
+        )
         _phase_fix_lifecycle(cast, case)
         # Termination, publication and closure all presuppose the revised
         # embargo of phase 2, so they run only while it is in force.

@@ -17,7 +17,7 @@ unimplemented; both are shaped differently.
 
 This page is the primary reference for `Create(ProcessingFault)` and the refusal notice.
 It is the second home of two activities documented elsewhere: the ledger negative acknowledgment, [Reject case ledger entry](ledger_replication.md#reject-case-ledger-entry), and [Close report](rm.md#report-closed) as an ordinary `as:Reject` on the fault axis.
-The normative mapping is the [Fault and Acknowledgment Mechanism Evolution](../specs/protocol.md#msm-05) requirements group; the design rationale is in [ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md) and [Activity Vocabulary Design](../../topics/activity_vocabulary_design.md).
+The normative mapping is the [Fault and Acknowledgment Mechanism Evolution](../vultron-spec/requirements/messages.md#protocol-msm-05) requirements group; the design rationale is in [ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md) and [Activity Vocabulary Design](../../topics/activity_vocabulary_design.md).
 
 ## Occasions
 
@@ -41,18 +41,18 @@ in a way that state-machine origin is not.
 
 {% include-markdown "./_occasions/sections/create-processing-fault.md" heading-offset=1 %}
 
-In the example, a Vendor cannot apply a ledger entry from the CASE_MANAGER whose participant status names an impossible state, and reports the fault to the CASE_MANAGER ([RSH-09-006](../specs/protocol.md#rsh-09-006)).
+In the example, a Vendor cannot apply a ledger entry from the CASE_MANAGER whose participant status names an impossible state, and reports the fault to the CASE_MANAGER ([RSH-09-006](../vultron-spec/requirements/message-processing.md#rsh-09-006)).
 A participant reports two other refused ledger entries the same way, each with a `LedgerEntryRefused` failure class.
-An entry whose content does not reproduce its hash takes `LedgerEntryRefused/HashMismatch` ([SYNC-03-007](../specs/protocol.md#sync-03-007)).
-An entry that extends the participant's chain but does not apply to its case takes `LedgerEntryRefused/CaseDiverged`, because the participant's case has diverged from the CASE_MANAGER's ([SYNC-16-001](../specs/protocol.md#sync-16-001)).
-The participant sends either fault only to the actor it knows as the case's CASE_MANAGER, and neither side commits it to the case ledger ([SYNC-16-002](../specs/protocol.md#sync-16-002)).
-The CASE_MANAGER answers a case-diverged fault from an active participant with a fresh `Announce(VulnerabilityCase)` of its current case, at most once per cooldown for each participant ([SYNC-16-003](../specs/protocol.md#sync-16-003), [SYNC-16-004](../specs/protocol.md#sync-16-004)).
-A hash-mismatch fault from an active participant changes nothing: the CASE_MANAGER sends nothing for it, not even a fresh case copy, and records nothing, because a replay or a fresh copy would resend the same content ([SYNC-03-008](../specs/protocol.md#sync-03-008)).
+An entry whose content does not reproduce its hash takes `LedgerEntryRefused/HashMismatch` ([SYNC-03-007](../vultron-spec/requirements/ledger-replication.md#sync-03-007)).
+An entry that extends the participant's chain but does not apply to its case takes `LedgerEntryRefused/CaseDiverged`, because the participant's case has diverged from the CASE_MANAGER's ([SYNC-16-001](../vultron-spec/requirements/ledger-replication.md#sync-16-001)).
+The participant sends either fault only to the actor it knows as the case's CASE_MANAGER, and neither side commits it to the case ledger ([SYNC-16-002](../vultron-spec/requirements/ledger-replication.md#sync-16-002)).
+The CASE_MANAGER answers a case-diverged fault from an active participant with a fresh `Announce(VulnerabilityCase)` of its current case, at most once per cooldown for each participant ([SYNC-16-003](../vultron-spec/requirements/ledger-replication.md#sync-16-003), [SYNC-16-004](../vultron-spec/requirements/ledger-replication.md#sync-16-004)).
+A hash-mismatch fault from an active participant changes nothing: the CASE_MANAGER sends nothing for it, not even a fresh case copy, and records nothing, because a replay or a fresh copy would resend the same content ([SYNC-03-008](../vultron-spec/requirements/ledger-replication.md#sync-03-008)).
 The CASE_MANAGER refuses either fault from any other sender.
 
 A fault also answers a message that the receiver understood but failed to process.
-When the use case that processes a received activity fails on the receiver's own internal error, the receiver keeps nothing of the act and its inbox sends the sender one `Create(ProcessingFault)` ([ASK-07-010](../specs/protocol.md#ask-07-010), [ASK-07-011](../specs/project.md#ask-07-011)).
-Its failure class is `https://certcc.github.io/Vultron/ns/errors/InternalProcessingError`, and it names the failed activity in `inReplyTo` and nothing else, with no cause and no diagnostics ([ASK-07-006](../specs/protocol.md#ask-07-006)).
+When the use case that processes a received activity fails on the receiver's own internal error, the receiver keeps nothing of the act and its inbox sends the sender one `Create(ProcessingFault)` ([ASK-07-010](../vultron-spec/requirements/case-management.md#ask-07-010), [ASK-07-011](../specs/project.md#ask-07-011)).
+Its failure class is `https://certcc.github.io/Vultron/ns/errors/InternalProcessingError`, and it names the failed activity in `inReplyTo` and nothing else, with no cause and no diagnostics ([ASK-07-006](../vultron-spec/requirements/case-management.md#ask-07-006)).
 The receiver sends it after the act is rolled back, so the rollback does not remove it.
 The inbox retries an activity it holds and replays later, such as one deferred until its case arrived, a bounded number of times ([IE-06-004](../specs/project.md#ie-06-004)).
 For such an activity, the fault goes out only when the inbox stops retrying: when it moves the activity to its dead-letter store, or when it drops the activity at once because processing raised a protocol violation.
@@ -60,26 +60,26 @@ The fault is a notice, not a recovery: the sender decides whether to send the ac
 Its id is derived from the failed activity and the failure class, so a second failure of the same activity builds no second fault.
 The receiver may send the same fault again, with the same id and body, and the sender discards the repeat.
 This internal-error fault answers only a use case that failed: a body the inbox could not parse into an activity that names its sender never reaches one, and a processing fault that fails is not answered with another, so two receivers never answer each other's faults.
-The prototype inbox does not yet authenticate a sender, so it answers the actor the activity names; a fault to an unauthenticated sender is not allowed ([ASK-07-002](../specs/protocol.md#ask-07-002)).
+The prototype inbox does not yet authenticate a sender, so it answers the actor the activity names; a fault to an unauthenticated sender is not allowed ([ASK-07-002](../vultron-spec/requirements/case-management.md#ask-07-002)).
 An activity the receiver will try again later is answered only when it stops trying, so a later success never follows a fault.
-This implementation does not ledger the fault, as it ledgers no processing fault; whether a case-attributable fault belongs in the ledger is not yet decided ([ASK-07-008](../specs/protocol.md#ask-07-008)).
+This implementation does not ledger the fault, as it ledgers no processing fault; whether a case-attributable fault belongs in the ledger is not yet decided ([ASK-07-008](../vultron-spec/requirements/case-management.md#ask-07-008)).
 
-The formal fault shorthands have no dedicated wire counterpart ([MSM-05-001](../specs/protocol.md#msm-05-001)).
+The formal fault shorthands have no dedicated wire counterpart ([MSM-05-001](../vultron-spec/requirements/messages.md#msm-05-001)).
 
 {% include-markdown "./_occasions/sections/refusal-notice.md" heading-offset=1 %}
 
 In the example, the CASE_MANAGER refuses a Vendor's status assertion because a precondition did not hold.
 
-The refusal notice is the one answer a precondition guard's refusal owes the asserting participant ([CLP-05-001](../specs/protocol.md#clp-05-001)).
+The refusal notice is the one answer a precondition guard's refusal owes the asserting participant ([CLP-05-001](../vultron-spec/requirements/ledger-replication.md#clp-05-001)).
 Its `object` is the refused activity, inline, and `inReplyTo` names that activity's id.
 It goes to the asserting participant alone, and its `summary` gives the refusing guard's reason.
 Its id is derived from the CASE_MANAGER and the refused activity, so a refused activity is answered once.
 
 The CASE_MANAGER sends it only when a precondition guard refuses the assertion.
-It sends none when the sender guard refuses the sender, when the activity repeats one whose effect is already in place, when the activity is a redelivery, or when the case is fully closed ([CLP-02-005](../specs/protocol.md#clp-02-005)).
+It sends none when the sender guard refuses the sender, when the activity repeats one whose effect is already in place, when the activity is a redelivery, or when the case is fully closed ([CLP-02-005](../vultron-spec/requirements/ledger-replication.md#clp-02-005)).
 It sends none for a delivery that an answer of its own replaces, such as the `ER` to an embargo `Invite` or `Accept` once the case is public, an exploit is public, or attacks are observed, because that answer already tells the sender ([CLP-10-026](../specs/project.md#clp-10-026)).
 It sends none for a failure inside the CASE_MANAGER, which is not a refusal: the internal-error fault above answers that.
-A refusal is not a case event, so the notice is not ledgered ([CLP-05-002](../specs/protocol.md#clp-05-002)).
+A refusal is not a case event, so the notice is not ledgered ([CLP-05-002](../vultron-spec/requirements/ledger-replication.md#clp-05-002)).
 
 The participant closes the pending assertion it recorded for the refused activity ([CLP-06-006](../specs/project.md#clp-06-006)).
 It writes no case state and does not send the assertion again.
@@ -95,7 +95,7 @@ The participant reads it with the use case that reads the decline, which closes 
 `reject_invite_actor_to_case`, `reject_case_proposal`,
 `reject_case_ownership_transfer`). A receiver cannot infer "error" from the
 verb alone. The `reject_case_ledger_entry` semantic is also an `as:Reject` but
-it is the ledger NAK described below — not an ordinary refusal ([MSM-05-003](../specs/protocol.md#msm-05-003)).
+it is the ledger NAK described below — not an ordinary refusal ([MSM-05-003](../vultron-spec/requirements/messages.md#msm-05-003)).
 
 ---
 
@@ -111,7 +111,7 @@ vocabulary splits them into two mechanisms.
 (`MessageSemantics.ACK_REPORT`). Report submission is not ledger-replicated, so
 an explicit per-message acknowledgment is the correct mechanism here.
 
-Status: **direct** mapping — see [MSM-01-008](../specs/protocol.md#msm-01-008).
+Status: **direct** mapping — see [MSM-01-008](../vultron-spec/requirements/messages.md#msm-01-008).
 
 ### EK / CK / GK — cumulative and implicit via hash-chain
 
@@ -129,7 +129,7 @@ This is negative acknowledgment with gap-fill replay — structurally closer to
 TCP cumulative ACK/SACK than to per-message positive acknowledgment. A matching
 hash proves receipt of the *entire* log prefix, not only one message.
 
-Status: **evolved** — see [MSM-05-002](../specs/protocol.md#msm-05-002).
+Status: **evolved** — see [MSM-05-002](../vultron-spec/requirements/messages.md#msm-05-002).
 
 #### Liveness
 
@@ -137,15 +137,15 @@ Between `Announce(CaseLedgerEntry)` deliveries, silence and unreachability are
 observationally indistinguishable. A participant that has received all entries
 and a participant that is unreachable look identical until a new entry arrives.
 Implementations MAY rely solely on `Announce` deliveries for liveness inference
-without emitting a dedicated periodic heartbeat ([MSM-05-006](../specs/protocol.md#msm-05-006)).
+without emitting a dedicated periodic heartbeat ([MSM-05-006](../vultron-spec/requirements/messages.md#msm-05-006)).
 
 A participant can still state how far it has got.
-`Read(CaseLedgerEntry)` names the last entry it applied, and the CASE_MANAGER replays any entries after it ([SYNC-17-004](../specs/protocol.md#sync-17-004)).
+`Read(CaseLedgerEntry)` names the last entry it applied, and the CASE_MANAGER replays any entries after it ([SYNC-17-004](../vultron-spec/requirements/ledger-replication.md#sync-17-004)).
 It is a statement of position, not an acknowledgment of a received entry: a participant sends it on its own policy, such as after a restart, so a lost last entry before a quiet period is recovered without waiting for a new one.
 
 #### NAK path bounding
 
-The replay triggered by `Reject(CaseLedgerEntry)` or `Read(CaseLedgerEntry)` is rate-limited per peer to prevent amplification; see [SYNC-15-003](../specs/protocol.md#sync-15-003).
+The replay triggered by `Reject(CaseLedgerEntry)` or `Read(CaseLedgerEntry)` is rate-limited per peer to prevent amplification; see [SYNC-15-003](../vultron-spec/requirements/ledger-replication.md#sync-15-003).
 The outbox delivery budget ([ADR-0066](../../adr/0066-outbox-terminal-state.md)) provides a finite total-attempt bound independent of the replay rate limit.
 
 ---

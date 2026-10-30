@@ -127,7 +127,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 The hash-chaining of the ledger lets the joiner verify it received an unbroken history.
 This is a check against tampering and omission, not a second source of trust.
 
-The threat model, identity verification, and the limits of this trust chain are covered at [§15.1 Trust Model](considerations.md#151-trust-model).
+The threat model, identity verification, and the limits of this trust chain are covered at [§16.1 Trust Model](considerations.md#161-trust-model).
 
 ### 10.4 Ledger Replication and Case Delivery
 

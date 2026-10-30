@@ -18,13 +18,13 @@ running stack: the registration, the phase order, and the EM state each phase
 asserts before the next begins.
 """
 
-import contextlib
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 import vultron.demo.helpers.embargo_phases as phases
 import vultron.demo.scenario.rcv_embargo_demo as demo
+from test.demo._helpers import stub_scenario_harness
 from vultron.core.states.em import EM
 from vultron.demo.scenario.registry import discover_scenarios
 from vultron.demo.utils import _demo_failures, reset_demo_failures
@@ -76,11 +76,6 @@ def _states_asserted(wait: MagicMock) -> list[EM]:
     return [c.args[2] for c in wait.call_args_list]
 
 
-@contextlib.contextmanager
-def _stub_harness(_demo_name: str):
-    yield MagicMock()
-
-
 class TestRegistration:
     @pytest.mark.spec("DEMOMA-20-004")
     def test_registered_as_rcv_embargo_in_the_pr_set(self):
@@ -120,7 +115,7 @@ class TestPhaseOrder:
         with (
             # The real harness writes a dump manifest under devlogs/ on exit,
             # which the invariant harness would then read as an aborted run.
-            patch.object(demo, "scenario_harness", _stub_harness),
+            patch.object(demo, "scenario_harness", stub_scenario_harness),
             patch.object(
                 demo,
                 "_phase_report_submission",

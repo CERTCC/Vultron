@@ -8,9 +8,9 @@ stakeholder_type: [project-contributor]
 
 {% include-markdown "./_requirements_pointer.md" %}
 
-- [EMB-11](../../reference/specs/protocol.md#emb-11) — Enter EM Active
-- [EMB-15](../../reference/specs/protocol.md#emb-15) — Inbound Embargo-Response Decision (Received Side)
-- [EMB-17](../../reference/specs/protocol.md#emb-17) — Late Accept of an Expired Embargo Invitation
+- [EMB-11](../../reference/vultron-spec/requirements/state-behavior.md#protocol-emb-11) — Enter EM Active
+- [EMB-15](../../reference/vultron-spec/requirements/state-behavior.md#protocol-emb-15) — Inbound Embargo-Response Decision (Received Side)
+- [EMB-17](../../reference/vultron-spec/requirements/state-behavior.md#protocol-emb-17) — Late Accept of an Expired Embargo Invitation
 
 {% include-markdown "./_conformant_implementation_note.md" %}
 

@@ -154,8 +154,10 @@ ENTRIES: list[SemanticEntry] = [
                 heading="Read case ledger entry",
                 description=(
                     "States the last ledger entry the sender has applied. The "
-                    "Case Manager records it as the sender's acknowledged "
-                    "position and replays every entry after it."
+                    "Case Manager resends every Invite the sender has not "
+                    "answered and, for an active participant, records the "
+                    "position as the sender's acknowledged position and "
+                    "replays every entry after it."
                 ),
                 example="read_case_ledger_entry",
             ),

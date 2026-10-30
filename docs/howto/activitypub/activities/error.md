@@ -64,7 +64,7 @@ Read the object and the context before treating a `Reject` as an error.
 
 A `Reject` from the CASE_MANAGER whose object is an activity you sent, carried inline, is a refusal notice.
 It tells you a precondition did not hold, so your assertion had no effect, and its `summary` gives the reason.
-Close the pending assertion you recorded for that activity, and do not send it again because of the notice ([CLP-05-001](../../../reference/specs/protocol.md#clp-05-001)).
+Close the pending assertion you recorded for that activity, and do not send it again because of the notice ([CLP-05-001](../../../reference/vultron-spec/requirements/ledger-replication.md#clp-05-001)).
 A refusal notice of an `Invite` or an `Offer` you sent reads as the decline of that request.
 
 A `Reject(CaseLedgerEntry)` is a third thing again: it is the ledger negative acknowledgment, and it asks the CASE_MANAGER to replay a missing prefix rather than reporting a fault.
