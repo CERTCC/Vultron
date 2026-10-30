@@ -228,7 +228,7 @@ Verify that every actor service is healthy:
 
 ```bash
 docker compose -f docker/docker-compose-multi-actor.yml \
-    ps reporter vendor coordinator case-actor actor5 actor6
+    ps actor0 actor1 actor2 actor3 actor4 case-actor
 ```
 
 All of them should show `healthy` status.

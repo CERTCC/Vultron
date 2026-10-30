@@ -237,11 +237,8 @@ def _role_option_decorators(
             help=role.url_help,
         )
         if role.has_id:
-            id_kwargs: dict[str, Any] = {}
-            if role.id_env is not None:
-                id_kwargs["envvar"] = role.id_env
             options[role.id_param] = click.option(
-                role.id_option, default=None, help=role.id_help, **id_kwargs
+                role.id_option, default=None, help=role.id_help
             )
     return options
 

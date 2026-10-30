@@ -230,11 +230,11 @@ Actor containers may not have finished starting. Verify all services are healthy
 
 ```bash
 docker compose -f docker/docker-compose-multi-actor.yml \
-    ps reporter vendor actor5 case-actor
+    ps actor0 actor1 actor3 case-actor
 ```
 
 All of them should show `healthy` status.
-The `actor5` service plays Vendor2 in this scenario.
+`rvv` runs on cast containers `actor0` (the Reporter), `actor1` (Vendor1) and `actor3` (Vendor2).
 
 ### A milestone check fails with `❌`
 
@@ -242,9 +242,9 @@ Read the failure message and check the logs:
 
 ```bash
 docker compose -f docker/docker-compose-multi-actor.yml logs demo-runner
-docker compose -f docker/docker-compose-multi-actor.yml logs vendor
-docker compose -f docker/docker-compose-multi-actor.yml logs reporter
-docker compose -f docker/docker-compose-multi-actor.yml logs actor5
+docker compose -f docker/docker-compose-multi-actor.yml logs actor0
+docker compose -f docker/docker-compose-multi-actor.yml logs actor1
+docker compose -f docker/docker-compose-multi-actor.yml logs actor3
 ```
 
 Look for `ERROR` or `500` status lines corresponding to the failing step.

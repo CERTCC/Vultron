@@ -14,7 +14,6 @@ tracks:
   - "#5347"
   - "#5348"
   - "#5349"
-  - "#5532"
   - "#5533"
   - "#5534"
   - "#5535"
@@ -85,6 +84,9 @@ branch-point table". Read the tree there, not from a copy here.
   without changing a verdict (DEMOMA-17-002), then regenerate the recordings.
   A shared step goes in one helper (`reporter_asks_vendor_timeline`,
   `vendor_answers_workaround`), so its siblings cannot drift apart.
+- **Regenerate every scenario together.** One seed and one cast mean a run
+  draws the same ids in every scenario, so a single fresh recording beside
+  stale siblings fails the pairwise check even when nothing drifted.
 
 ## Names
 
@@ -129,14 +131,15 @@ DEMOCI-11-018). The test is `TestSharedPrefixes` in
 - Each recording's ids are relabeled by first appearance and its timestamps
   dropped; the entries must then be equal up to the branch point, references
   between objects included.
-- Byte identity is not required yet: siblings seed different actor ids,
-  container slots and ports (`rcvcv` seeds named actor ids, its siblings UUIDs),
-  so ids differ even where logic matches. A composed family tightens to byte
-  identity, which then holds by construction; name it in `COMPOSED_FAMILIES`
-  (`vultron/demo/recordings/prefix.py`).
+- Byte identity is not required yet: siblings still place their shared steps
+  by hand, so the order can differ even where the logic matches. The addresses
+  no longer can — one cast and one seed (DEMOCI-11-020, DEMOCI-11-025). A
+  composed family tightens to byte identity, which then holds by construction;
+  name it in `COMPOSED_FAMILIES` (`vultron/demo/recordings/prefix.py`).
 - A container slot is not only an address. The proposer's container sets its
-  default case roles (CP-01-013), so a case owner must run in the same slot
-  as in its siblings, or the first entry already differs.
+  default case roles (CP-01-013), which is why only the three fixed-role slots
+  declare any: a case owner holds the same roles in every sibling, or the first
+  entry already differs.
 - The check reads where each branch point falls from the step marks. A
   scenario calls `harness.reach_step(branch_point, choice, by=actor_id)` where
   it makes the decision, before another role's steps that run ahead of the
@@ -170,14 +173,14 @@ continuation per choice (DEMOCI-11-019, ADR-0098). Rules for the work:
   so a composed scenario places no `reach_step` by hand. During migration the
   registry accepts either form; a composed scenario that also declares
   `path=` fails discovery (DEMOCI-11-024).
-- **One cast, one seed.** Role-neutral actor containers plus the Case Actor
-  (#1928). The first Reporter, first Vendor and first Coordinator a scenario
-  seats run in cast slots 0, 1 and 2; a scenario without one of these roles
-  (`rv` has no Coordinator) leaves its slot unused. Members 3 and up are
-  character actors whose role each scenario sets through the act that seats
-  them (DEMOCI-11-020, DEMOCI-11-021). Every recording uses one tree-wide
-  seed, so a shared prefix records the same bytes in every sibling
-  (DEMOCI-11-025, DEMOCI-11-018).
+- **One cast, one seed** (built). `vultron/demo/helpers/cast.py` is the one
+  table of slots, ports and actor ids; `TREE_RECORDING_SEED` is the one seed
+  (DEMOCI-11-020, DEMOCI-11-025). Two consequences for the work ahead: a story
+  fragment takes the cast's sessions rather than naming a container, and a
+  process that records more than one scenario must clear process-global
+  registries between runs — with one seed the second run redraws the first
+  run's ids, and py_trees refuses a blackboard client it has already
+  registered.
 - **Specs stay whole stories.** Each scenario's spec group and its DEMOMA-16
   list of required semantic types describe the whole story, written by hand,
   so the run is checked against the spec, not against the code. Each group
@@ -227,8 +230,8 @@ reports to the harness with `reach_step` for the shared-prefix check
 
 ## Task order
 
-1. Composition, one PR per step, in this order: the fixed cast (#5532); the
-   story runner, piloted on `rcv` and `rcv-reject` (#5533); the rest of the
+1. Composition, one PR per step, in this order: the story runner, piloted on
+   `rcv` and `rcv-reject` (#5533); the rest of the
    "Coordinator invites Vendor" subtree, `rcvcv`, `rcv-embargo` and
    `rcvv-embargo` (#5534); the two-coordinator subtree, `rccv-*` (#5535); the
    vendor-first half, `rv`, `rvv` and `rvcv-*` (#5536); then retiring `path=`

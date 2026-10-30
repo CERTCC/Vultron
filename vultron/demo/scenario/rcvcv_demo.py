@@ -18,20 +18,19 @@
 Orchestrates the full CVD lifecycle across five actor containers plus a
 dedicated CaseActor:
   - Reporter: the report submitter
-  - C1 (coordinator container): CASE_OWNER throughout; receives the report
-  - V1 (vendor container): CVDRole.VENDOR only; advances to VFd (fix-ready,
-    no deploy step)
-  - C2 (actor5 container): CVDRole.COORDINATOR participant; suggests V2
-    via the ADR-0026 suggest-actor flow
-  - V2 (actor6 container): CVDRole.VENDOR + CVDRole.DEPLOYER; advances to
-    VFD (fix-ready then fix-deployed)
+  - C1 (cast slot 2, the first Coordinator): CASE_OWNER throughout; receives
+    the report
+  - V1 (cast slot 1, the first Vendor): CVDRole.VENDOR only; advances to VFd
+    (fix-ready, no deploy step)
+  - C2 (cast slot 3, a character actor): CVDRole.COORDINATOR participant;
+    suggests V2 via the ADR-0026 suggest-actor flow
+  - V2 (cast slot 4, a character actor): CVDRole.VENDOR + CVDRole.DEPLOYER;
+    advances to VFD (fix-ready then fix-deployed).  Both roles come from the
+    Invite that seats it, not from its container (DEMOCI-11-021).
 
-Container mapping (docker-compose-multi-actor.yml services):
-  VULTRON_REPORTER_BASE_URL           → Reporter container
-  VULTRON_COORDINATOR_BASE_URL      → C1 container (coordinator)
-  VULTRON_VENDOR_BASE_URL           → V1 container (vendor)
-  VULTRON_VENDOR2_BASE_URL          → C2 container (actor5)
-  VULTRON_VENDOR_DEPLOYER_BASE_URL  → V2 container (actor6)
+Cast (DEMOCI-11-020): every scenario runs the same containers, so a role's
+address and actor id are the same here as in its siblings.  ``ROLES`` below
+seats each actor; the cast table is ``vultron/demo/helpers/cast.py``.
 
 Spec: DEMOMA-19 (GitHub issue #1925).
 """
@@ -46,6 +45,12 @@ from vultron.demo.helpers.actor_roles import (
     ActorRole,
     case_actor_role,
     role_map,
+)
+from vultron.demo.helpers.cast import (
+    CAST,
+    COORDINATOR_SLOT,
+    REPORTER_SLOT,
+    VENDOR_SLOT,
 )
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.harness import (
@@ -137,57 +142,18 @@ logger = logging.getLogger(__name__)
 # buffer Announce(CaseLedgerEntry) entries, not VulnerabilityCase objects, so
 # all wait_for_case_on_container calls here remain necessary.
 
-# Default container base URLs — override via environment variables.
-# C1 uses the "coordinator" container, V1 uses "vendor", C2 uses "actor5",
-# and V2 (VendorDeployer) uses "actor6".
+# The scenario's actors in main() parameter order, each seated in a container of
+# the fixed cast (DEMOCI-11-020).  The demo CLI derives this scenario's
+# sub-command options from this list (DEMOCI-11-011).
 ROLES: list[ActorRole] = [
+    ActorRole("reporter", REPORTER_SLOT, "Reporter", has_id=True),
     ActorRole(
-        name="reporter",
-        url_env="VULTRON_REPORTER_BASE_URL",
-        default_url="http://localhost:7901/api/v2",
-        url_help="Base URL for the Reporter actor container.",
-        has_id=True,
-        id_help="Deterministic URI for the Reporter actor.",
-        id_env="VULTRON_REPORTER_ACTOR_ID",
+        "c1", COORDINATOR_SLOT, "C1 (Coordinator1/CASE_OWNER)", has_id=True
     ),
-    ActorRole(
-        name="c1",
-        url_env="VULTRON_COORDINATOR_BASE_URL",
-        default_url="http://localhost:7903/api/v2",
-        url_help="Base URL for the C1 (Coordinator1/CASE_OWNER) actor "
-        "container.",
-        has_id=True,
-        id_help="Deterministic URI for the C1 actor.",
-        id_env="VULTRON_COORDINATOR_ACTOR_ID",
-    ),
-    ActorRole(
-        name="v1",
-        url_env="VULTRON_VENDOR_BASE_URL",
-        default_url="http://localhost:7902/api/v2",
-        url_help="Base URL for the V1 (Vendor1) actor container.",
-        has_id=True,
-        id_help="Deterministic URI for the V1 actor.",
-        id_env="VULTRON_VENDOR_ACTOR_ID",
-    ),
-    ActorRole(
-        name="c2",
-        url_env="VULTRON_VENDOR2_BASE_URL",
-        default_url="http://localhost:7904/api/v2",
-        url_help="Base URL for the C2 (Coordinator2) actor container.",
-        has_id=True,
-        id_help="Deterministic URI for the C2 actor.",
-        id_env="VULTRON_VENDOR2_ACTOR_ID",
-    ),
-    ActorRole(
-        name="v2",
-        url_env="VULTRON_VENDOR_DEPLOYER_BASE_URL",
-        default_url="http://localhost:7905/api/v2",
-        url_help="Base URL for the V2 (VendorDeployer) actor container.",
-        has_id=True,
-        id_help="Deterministic URI for the V2 (VendorDeployer) actor.",
-        id_env="VULTRON_VENDOR_DEPLOYER_ACTOR_ID",
-    ),
-    case_actor_role("http://localhost:7906/api/v2"),
+    ActorRole("v1", VENDOR_SLOT, "V1 (Vendor1)", has_id=True),
+    ActorRole("c2", CAST[3], "C2 (Coordinator2)", has_id=True),
+    ActorRole("v2", CAST[4], "V2 (VendorDeployer)", has_id=True),
+    case_actor_role(),
 ]
 _ROLES = role_map(ROLES)
 
@@ -221,13 +187,6 @@ Workflow:
   9. All actors close the case.
  10. Export case ledger JSONL for each actor (devlogs).
 """
-
-# Deterministic actor IDs — match docker-compose-multi-actor.yml service names.
-REPORTER_ACTOR_ID = "http://reporter:7999/api/v2/actors/reporter"
-C1_ACTOR_ID = "http://coordinator:7999/api/v2/actors/coordinator"
-V1_ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor"
-C2_ACTOR_ID = "http://actor5:7999/api/v2/actors/vendor2"
-V2_ACTOR_ID = "http://actor6:7999/api/v2/actors/vendor-deployer"
 
 
 def reset_containers(
@@ -1082,32 +1041,22 @@ def _phase_dump_case_ledgers(
     # Devlog directory names use scenario-role names (DEMOMA-19-007):
     # reporter, c1, v1, c2, v2, case-actor.
     # Route keys come from each client's own actor id, not its display name:
-    # the key selects the store (ADR-0073), so a literal is right only while
-    # the scenario seeds deterministic named ids. The literal passed to
-    # replica_route_key() is the docker-compose seed name, kept as the fallback
-    # for a client that was never bound.
+    # the key selects the store (ADR-0073), and the display name is the part
+    # the actor plays here rather than the actor it is.
     targets = [
         LedgerDumpTarget(
             "reporter",
             reporter_client,
-            replica_route_key(reporter_client, "reporter"),
+            replica_route_key(reporter_client),
         ),
-        # C1 is on the coordinator container.
-        LedgerDumpTarget(
-            "c1", c1_client, replica_route_key(c1_client, "coordinator")
-        ),
-        # V1 is on the vendor container.
-        LedgerDumpTarget(
-            "v1", v1_client, replica_route_key(v1_client, "vendor")
-        ),
-        # C2 is on actor5 (seeded as "vendor2").
-        LedgerDumpTarget(
-            "c2", c2_client, replica_route_key(c2_client, "vendor2")
-        ),
-        # V2 is on actor6 (seeded as "vendor-deployer").
-        LedgerDumpTarget(
-            "v2", v2_client, replica_route_key(v2_client, "vendor-deployer")
-        ),
+        # C1 is the first Coordinator, on cast slot 2.
+        LedgerDumpTarget("c1", c1_client, replica_route_key(c1_client)),
+        # V1 is the first Vendor, on cast slot 1.
+        LedgerDumpTarget("v1", v1_client, replica_route_key(v1_client)),
+        # C2 is a character actor, on cast slot 3.
+        LedgerDumpTarget("c2", c2_client, replica_route_key(c2_client)),
+        # V2 is a character actor, on cast slot 4.
+        LedgerDumpTarget("v2", v2_client, replica_route_key(v2_client)),
         # The canonical ledger lives on the dedicated case-actor container.
         case_actor_dump_target(case_actor_client),
     ]
@@ -1368,11 +1317,13 @@ def main(
         c2_client=c2_client,
         v2_client=v2_client,
         case_actor_client=case_actor_client,
-        reporter_id=reporter_id or REPORTER_ACTOR_ID,
-        c1_id=c1_id or C1_ACTOR_ID,
-        v1_id=v1_id or V1_ACTOR_ID,
-        c2_id=c2_id or C2_ACTOR_ID,
-        v2_id=v2_id or V2_ACTOR_ID,
+        reporter_id=_ROLES["reporter"].resolve_id(
+            reporter_client.base_url, reporter_id
+        ),
+        c1_id=_ROLES["c1"].resolve_id(c1_client.base_url, c1_id),
+        v1_id=_ROLES["v1"].resolve_id(v1_client.base_url, v1_id),
+        c2_id=_ROLES["c2"].resolve_id(c2_client.base_url, c2_id),
+        v2_id=_ROLES["v2"].resolve_id(v2_client.base_url, v2_id),
     )
 
 

@@ -32,6 +32,15 @@ import pytest
 import yaml
 
 # Path to the compose file under test.
+from vultron.demo.helpers.cast import (
+    ALL_SLOTS,
+    CASE_ACTOR,
+    CHARACTER_SLOTS,
+    COORDINATOR_SLOT,
+    REPORTER_SLOT,
+    VENDOR_SLOT,
+)
+
 _REPO_ROOT = Path(__file__).parents[2]
 _COMPOSE_FILE = _REPO_ROOT / "docker" / "docker-compose-multi-actor.yml"
 
@@ -39,13 +48,10 @@ _COMPOSE_FILE = _REPO_ROOT / "docker" / "docker-compose-multi-actor.yml"
 # the *default* value inside the ${VAR:-NNNN} expression.
 # Default is 0 (ephemeral) so concurrent test runs don't collide on the host;
 # callers that need a fixed port set the env var explicitly (e.g.
-# REPORTER_HOST_PORT=17901).
+# ACTOR0_HOST_PORT=17901).  Derived from the cast so a new cast member cannot
+# ship without a configurable host port (DEMOCI-11-020).
 _EXPECTED_SERVICE_DEFAULTS: dict[str, int] = {
-    "reporter": 0,
-    "vendor": 0,
-    "case-actor": 0,
-    "coordinator": 0,
-    "actor5": 0,
+    slot.name: 0 for slot in ALL_SLOTS
 }
 
 # Pattern that matches Docker Compose env-var substitution with a default,
@@ -96,7 +102,7 @@ class TestMultiActorComposeHostPorts:
             host_part, _container = mapping.rsplit(":", 1)
             assert _ENV_VAR_PORT_RE.match(host_part), (
                 f"Service '{service_name}' host port {host_part!r} must use "
-                f"env-var substitution (e.g. '${{REPORTER_HOST_PORT:-7901}}'), "
+                f"env-var substitution (e.g. '${{ACTOR0_HOST_PORT:-7901}}'), "
                 f"not a hardcoded value.  Hardcoded ports prevent concurrent "
                 f"runs and cause 'port is already allocated' errors."
             )
@@ -139,7 +145,7 @@ class TestMultiActorComposeHostPorts:
             var_name = m.group(1)
             assert var_name.endswith("_HOST_PORT"), (
                 f"Service '{service_name}' env var {var_name!r} should end "
-                f"with '_HOST_PORT' (e.g. REPORTER_HOST_PORT)."
+                f"with '_HOST_PORT' (e.g. ACTOR0_HOST_PORT)."
             )
 
     def test_container_port_is_always_7999(self):
@@ -158,18 +164,11 @@ class TestMultiActorComposeHostPorts:
 
 
 #: The dedicated CaseActor container every actor container proposes to.
-_DEDICATED_CASE_ACTOR_URL = "http://case-actor:7999/api/v2"
+_DEDICATED_CASE_ACTOR_URL = CASE_ACTOR.compose_url
 
 #: Every service that runs a Vultron API server, the case-actor container
 #: included (it points at itself).
-_API_SERVICES = (
-    "reporter",
-    "vendor",
-    "coordinator",
-    "case-actor",
-    "actor5",
-    "actor6",
-)
+_API_SERVICES = tuple(slot.name for slot in ALL_SLOTS)
 
 
 def _env(service: dict[str, Any]) -> dict[str, str]:
@@ -221,20 +220,39 @@ class TestDedicatedCaseActorTopology:
         )
 
 
-class TestCoordinatorCaseRoles:
-    """The Coordinator container owns its cases as a Coordinator (#5467).
+class TestDefaultCaseRolesFollowTheCast:
+    """Only a fixed-role cast slot declares default case roles.
 
     A report receiver seats itself with its configured default case roles
-    (CP-01-013).  Without ``coordinator`` there, a Coordinator that owns the
-    case holds only ``case_owner``, and the harness fails every Coordinator
-    step of its scenario (DEMOCI-11-013).
+    (CP-01-013).  The Coordinator slot needs ``coordinator`` there: without it
+    a Coordinator that owns the case holds only ``case_owner``, and the harness
+    fails every Coordinator step of its scenario (#5467, DEMOCI-11-013).  A
+    character actor must *not* declare one — its role comes from the act that
+    seats it (DEMOCI-11-021), and a container default would give it that role
+    in every scenario.
     """
 
-    def test_coordinator_states_the_coordinator_role(self):
-        env = _env(_load_compose()["services"]["coordinator"])
+    def test_the_vendor_slot_states_the_vendor_role(self):
+        env = _env(_load_compose()["services"][VENDOR_SLOT.name])
+        assert env.get("VULTRON_ACTOR__DEFAULT_CASE_ROLES") == '["vendor"]'
+
+    def test_the_coordinator_slot_states_the_coordinator_role(self):
+        env = _env(_load_compose()["services"][COORDINATOR_SLOT.name])
         assert env.get("VULTRON_ACTOR__DEFAULT_CASE_ROLES") == (
             '["coordinator"]'
         )
+
+    @pytest.mark.parametrize(
+        "slot", [REPORTER_SLOT, *CHARACTER_SLOTS], ids=lambda s: s.name
+    )
+    def test_no_other_slot_states_a_case_role(self, slot):
+        """The Reporter slot and every character actor declare none.
+
+        The Reporter's role comes from submitting the report, and this
+        container never owns a case.
+        """
+        env = _env(_load_compose()["services"][slot.name])
+        assert "VULTRON_ACTOR__DEFAULT_CASE_ROLES" not in env
 
 
 _DURATION_RE = re.compile(r"(?:\d+(?:\.\d+)?(?:ms|s|m|h))+")
@@ -256,14 +274,7 @@ _SLOWEST_OBSERVED_COLD_START_SECONDS = 31.0
 
 #: Every compose file that starts an actor, with the actor services in it.
 _ACTOR_COMPOSE_FILES: dict[str, tuple[str, ...]] = {
-    "docker-compose-multi-actor.yml": (
-        "reporter",
-        "vendor",
-        "coordinator",
-        "case-actor",
-        "actor5",
-        "actor6",
-    ),
+    "docker-compose-multi-actor.yml": tuple(slot.name for slot in ALL_SLOTS),
     "docker-compose.yml": ("api-dev",),
 }
 

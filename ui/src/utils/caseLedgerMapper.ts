@@ -950,7 +950,7 @@ function handleReport(
 
 /**
  * First leg of the extension flow's suggest-actor handshake: a participant (the
- * Coordinator in rvcv-extension; the actor5/vendor-2 host in rccv-extension)
+ * Coordinator in rvcv-extension; the actor3/vendor-2 host in rccv-extension)
  * recommends a new actor to the case. The CaseActor then forwards it to the Case
  * Owner (`offer_case_participant`) who approves it (`accept_offer_case_participant`)
  * — both folded into this single node as log lines — after which the regular

@@ -20,16 +20,15 @@ Reporter, Coordinator1 (C1, initial CASE_OWNER), Coordinator2 (C2, new
 CASE_OWNER after handoff), and Vendor.  C1 transfers case ownership to C2 via
 the trigger endpoints (TRIG-11-001/TRIG-11-002), then C2 invites Vendor.
 
-Container mapping (reuses docker-compose-multi-actor.yml services, as
-``rccv-extension`` does):
-  VULTRON_COORDINATOR_BASE_URL → C1 container
-  VULTRON_VENDOR2_BASE_URL     → C2 container (actor5)
-  VULTRON_VENDOR_BASE_URL      → Vendor container
+Cast (DEMOCI-11-020): every scenario runs the same containers, so a role's
+address and actor id are the same here as in its siblings.  ``ROLES`` below
+seats each actor; the cast table is ``vultron/demo/helpers/cast.py``.
 
-C1 proposes the case, so its container's default case roles become C1's
-roles in the case (CP-01-013).  C1 runs in the coordinator container, which
-sets none, so C1 holds the same roles here as in ``rccv-extension``, and the
-two scenarios' ledgers match up to the owner's decision (DEMOCI-11-017).
+C1 is the first Coordinator, so it runs in cast slot 2 and C2 takes a
+character slot.  C1 proposes the case, so that container's default case roles
+become C1's roles in the case (CP-01-013); they are the same in every
+scenario, which is why ``rccv-handoff``'s and ``rccv-extension``'s ledgers
+match up to the owner's decision (DEMOCI-11-017).
 
 Spec: GitHub issue #1216 (DEMOMA-14).
 """
@@ -44,6 +43,12 @@ from vultron.demo.helpers.actor_roles import (
     ActorRole,
     case_actor_role,
     role_map,
+)
+from vultron.demo.helpers.cast import (
+    CAST,
+    COORDINATOR_SLOT,
+    REPORTER_SLOT,
+    VENDOR_SLOT,
 )
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.harness import (
@@ -132,49 +137,15 @@ logger = logging.getLogger(__name__)
 # buffer Announce(CaseLedgerEntry) entries, not VulnerabilityCase objects, so
 # all wait_for_case_on_container calls here remain necessary.
 
-# Default container base URLs.
-# C1 uses the docker-compose "coordinator" container; C2 uses "actor5";
-# Vendor uses "vendor".  Override via environment variables.
+# The scenario's actors in main() parameter order, each seated in a container of
+# the fixed cast (DEMOCI-11-020).  The demo CLI derives this scenario's
+# sub-command options from this list (DEMOCI-11-011).
 ROLES: list[ActorRole] = [
-    ActorRole(
-        name="reporter",
-        url_env="VULTRON_REPORTER_BASE_URL",
-        default_url="http://localhost:7901/api/v2",
-        url_help="Base URL of the Reporter container API "
-        "(env: VULTRON_REPORTER_BASE_URL).",
-        has_id=True,
-        id_help="Deterministic full URI for the Reporter actor (optional).",
-    ),
-    ActorRole(
-        name="c1",
-        url_env="VULTRON_COORDINATOR_BASE_URL",
-        default_url="http://localhost:7903/api/v2",
-        url_help="Base URL of the C1 (Coordinator1) container API "
-        "(env: VULTRON_COORDINATOR_BASE_URL).",
-        has_id=True,
-        id_help="Deterministic full URI for the C1 (Coordinator1) actor "
-        "(optional).",
-    ),
-    ActorRole(
-        name="c2",
-        url_env="VULTRON_VENDOR2_BASE_URL",
-        default_url="http://localhost:7904/api/v2",
-        url_help="Base URL of the C2 (Coordinator2/actor5) container API "
-        "(env: VULTRON_VENDOR2_BASE_URL).",
-        has_id=True,
-        id_help="Deterministic full URI for the C2 (Coordinator2) actor "
-        "(optional).",
-    ),
-    case_actor_role("http://localhost:7905/api/v2", has_id=True),
-    ActorRole(
-        name="vendor",
-        url_env="VULTRON_VENDOR_BASE_URL",
-        default_url="http://localhost:7902/api/v2",
-        url_help="Base URL of the Vendor container API "
-        "(env: VULTRON_VENDOR_BASE_URL).",
-        has_id=True,
-        id_help="Deterministic full URI for the Vendor actor (optional).",
-    ),
+    ActorRole("reporter", REPORTER_SLOT, "Reporter", has_id=True),
+    ActorRole("c1", COORDINATOR_SLOT, "C1 (Coordinator1)", has_id=True),
+    ActorRole("c2", CAST[3], "C2 (Coordinator2)", has_id=True),
+    case_actor_role(has_id=True),
+    ActorRole("vendor", VENDOR_SLOT, "Vendor", has_id=True),
 ]
 _ROLES = role_map(ROLES)
 
@@ -209,14 +180,6 @@ Workflow:
  11. All participants report publication; embargo terminates.
  12. All participants close the case.
 """
-
-# Deterministic actor IDs — match docker-compose-multi-actor.yml service names
-# (D5-1-G3) remapped for RCCV roles.
-REPORTER_ACTOR_ID = "http://reporter:7999/api/v2/actors/reporter"
-C1_ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor"
-C2_ACTOR_ID = "http://coordinator:7999/api/v2/actors/coordinator"
-CASE_ACTOR_ACTOR_ID = "http://case-actor:7999/api/v2/actors/case-actor"
-VENDOR_ACTOR_ID = "http://actor5:7999/api/v2/actors/vendor2"
 
 
 def reset_containers(
@@ -936,23 +899,21 @@ def _phase_dump_case_ledgers(
         LedgerDumpTarget(
             "reporter",
             reporter_client,
-            replica_route_key(reporter_client, "reporter"),
+            replica_route_key(reporter_client),
         ),
         # C1 is on the coordinator container.
-        LedgerDumpTarget(
-            "vendor", c1_client, replica_route_key(c1_client, "coordinator")
-        ),
-        # C2 is on actor5.
+        LedgerDumpTarget("vendor", c1_client, replica_route_key(c1_client)),
+        # C2 is a character actor, on cast slot 3.
         LedgerDumpTarget(
             "coordinator",
             c2_client,
-            replica_route_key(c2_client, "coordinator2"),
+            replica_route_key(c2_client),
         ),
         # Vendor is on the vendor container.
         LedgerDumpTarget(
             "vendor2",
             vendor_client,
-            replica_route_key(vendor_client, "vendor"),
+            replica_route_key(vendor_client),
         ),
         # The canonical ledger lives on the dedicated case-actor container.
         case_actor_dump_target(case_actor_client),
@@ -1244,11 +1205,15 @@ def main(
         c2_client=c2_client,
         case_actor_client=case_actor_client,
         vendor_client=vendor_client,
-        reporter_id=reporter_id,
-        c1_id=c1_id,
-        c2_id=c2_id,
+        reporter_id=_ROLES["reporter"].resolve_id(
+            reporter_client.base_url, reporter_id
+        ),
+        c1_id=_ROLES["c1"].resolve_id(c1_client.base_url, c1_id),
+        c2_id=_ROLES["c2"].resolve_id(c2_client.base_url, c2_id),
         case_actor_id=case_actor_id,
-        vendor_id=vendor_id,
+        vendor_id=_ROLES["vendor"].resolve_id(
+            vendor_client.base_url, vendor_id
+        ),
     )
 
 

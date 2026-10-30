@@ -108,7 +108,7 @@ def test_ledger_route_keys_are_not_literals(scenario: Path) -> None:
         f" {offenders} to LedgerDumpTarget. The route key selects the store"
         " (ADR-0073), so a literal reads whichever actor is hosted under that"
         " slug and the dump silently reports an empty ledger. Derive it:"
-        " replica_route_key(client, <fallback>)."
+        " replica_route_key(client)."
     )
 
 
@@ -128,7 +128,7 @@ def test_derived_and_allowed_keys_are_accepted() -> None:
     """A derived key, and the fixed ``case-actor`` slug, must not be flagged."""
     tree = _corpus.parse_inline(
         "targets = [\n"
-        '    LedgerDumpTarget("finder", c, replica_route_key(c, "finder")),\n'
+        '    LedgerDumpTarget("finder", c, replica_route_key(c)),\n'
         '    LedgerDumpTarget("case-actor", ca, "case-actor"),\n'
         '    LedgerDumpTarget("v", v, route_key=derived),\n'
         "]\n"
@@ -141,28 +141,30 @@ class TestReplicaRouteKey:
 
     def test_uses_the_clients_own_actor_id(self) -> None:
         client = DataLayerClient(
-            base_url="http://finder:7999/api/v2",
-            actor_id="http://finder:7999/api/v2/actors/finder-9f3a",
+            base_url="http://actor0:7999/api/v2",
+            actor_id="http://actor0:7999/api/v2/actors/actor0-9f3a",
         )
-        assert replica_route_key(client, "finder") == "finder-9f3a"
+        assert replica_route_key(client) == "actor0-9f3a"
 
-    def test_ignores_the_fallback_when_the_client_is_bound(self) -> None:
-        """The fallback must not win over a real, differing actor id.
+    def test_the_actor_id_wins_over_the_container_name(self) -> None:
+        """The id must win over the container's own slug when they differ.
 
-        This is the whole point: a generated id and a seed-name literal disagree,
-        and the id is the one whose store holds the ledger.
+        This is the whole point: a generated id and the container name
+        disagree, and the id is the one whose store holds the ledger.
         """
         client = DataLayerClient(
-            base_url="http://vendor:7999/api/v2",
-            actor_id="http://vendor:7999/api/v2/actors/vendor-2",
+            base_url="http://actor1:7999/api/v2",
+            actor_id="http://actor1:7999/api/v2/actors/vendor-2",
         )
-        assert replica_route_key(client, "vendor") == "vendor-2"
+        assert replica_route_key(client) == "vendor-2"
 
-    def test_falls_back_when_the_client_is_unbound(self) -> None:
-        """An unbound client keeps today's behaviour rather than raising.
+    def test_falls_back_to_the_container_host_when_unbound(self) -> None:
+        """An unbound client keeps a best-effort key rather than raising.
 
         The dump runs in scenario teardown, where the ledger is the last
-        evidence available; a best-effort read beats an exception.
+        evidence available; a best-effort read beats an exception.  The
+        container's host name is its actor slug under the fixed cast
+        (DEMOCI-11-020).
         """
-        client = DataLayerClient(base_url="http://finder:7999/api/v2")
-        assert replica_route_key(client, "finder") == "finder"
+        client = DataLayerClient(base_url="http://actor0:7999/api/v2")
+        assert replica_route_key(client) == "actor0"

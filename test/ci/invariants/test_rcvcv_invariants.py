@@ -10,8 +10,8 @@ Container-to-role mapping (docker-compose-multi-actor.yml):
   reporter      → Reporter container
   c1          → C1/Coordinator1 (coordinator container) — CASE_OWNER
   v1          → V1/Vendor1 (vendor container) — CVDRole.VENDOR only → VFd
-  c2          → C2/Coordinator2 (actor5 container) — CVDRole.COORDINATOR
-  v2          → V2/VendorDeployer (actor6 container) — VENDOR+DEPLOYER → VFD
+  c2          → C2/Coordinator2 (cast slot 3) — CVDRole.COORDINATOR
+  v2          → V2/VendorDeployer (cast slot 4) — VENDOR+DEPLOYER → VFD
   case-actor  → CaseActor (coordinator container sub-actor)
 
 RCVCV-specific invariants:

@@ -206,10 +206,10 @@ so unpack it there, not at the repository root.
 Regenerate in the PR only when the change needs current recordings (a UI change,
 or a new scenario, which the `--check` hook requires). Then run
 `uv run export-demo-tree`: the tree index lists each recording's case ids, so a
-new or refreshed recording leaves it stale. Each role's `url_env` must
-name a container slot the `demo-runner` service in
-`docker/docker-compose-multi-actor.yml` sets: the recorder reads the container
-layout from there and refuses a role it cannot place (#3901).
+new or refreshed recording leaves it stale. The `demo-runner` service in
+`docker/docker-compose-multi-actor.yml` must set every cast slot's base-URL
+env var: the recorder reads the container layout from there and refuses a role
+it cannot place (#3901).
 
 **The mkdocs-tree boundary is load-bearing.** `include-markdown` expands only at
 build time and only under `docs/`; in `notes/` or `test/ci/` it renders as
@@ -226,19 +226,18 @@ not a page, so the check skips it (DEMOCI-11-012, DF-09-007).
 ## The CLI is a registry consumer, and `ActorRole` is what lets it be one
 
 `vultron/demo/cli.py` builds one sub-command per discovered scenario
-(DEMOCI-11-011). The options are not derivable from the name: URL options key to
-container slots rather than roles (see
-[demo-scenario-authoring.md](demo-scenario-authoring.md) § "Docker Compose
-Service Names Are Not Actor Names"), and which actors take an id varies by
-scenario.
+(DEMOCI-11-011). The options are not derivable from the scenario name: each
+actor's flag stem is the part it plays while its container is a cast slot (see
+[demo-scenario-authoring.md](demo-scenario-authoring.md) § "Every Scenario Runs
+on the Fixed Cast"), and which actors take an id varies by scenario.
 
 **Do not move option metadata onto `@scenario`.** DEMOCI-11-001 confines the
 decorator to facts every derived artifact uses. Each scenario module declares
 instead:
 
 - `ROLES: list[ActorRole]` (`vultron/demo/helpers/actor_roles.py`), in `main()`
-  parameter order. It also defines the module's `*_BASE_URL` constants, so each
-  env-var/default pair is written once.
+  parameter order, each actor seated in a cast slot. It also defines the
+  module's `*_BASE_URL` constants, so the address is read from the slot once.
 - `CLI_HELP: str`, the sub-command's `--help` body.
 
 Load-bearing details:
@@ -253,9 +252,10 @@ Load-bearing details:
   shadow the generated one with every runtime check green;
   `test_no_scenario_subcommand_is_hand_declared` checks the AST, and a sibling
   test asserts `cli.py` imports no `*_demo` module by name.
-- **Per-scenario asymmetries are pinned by name** in
-  `test/demo_unit/test_scenario_cli_factory.py` § `TestDeclaredDivergences`, so
-  "regularising" them fails a test.
+- **Nothing about a container is per-scenario.** Every option's env var is its
+  slot's, and `test/demo_unit/test_scenario_cli_factory.py` §
+  `TestOptionsComeFromTheCast` fails a scenario that derives one from a role
+  name instead.
 
 ## Name order is the canonical order, everywhere
 

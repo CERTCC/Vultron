@@ -35,6 +35,7 @@ from vultron.demo.helpers.actor_roles import (
     case_actor_role,
     role_map,
 )
+from vultron.demo.helpers.cast import CAST, REPORTER_SLOT, VENDOR_SLOT
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.harness import (
     follow_ledger,
@@ -115,39 +116,14 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 logger = logging.getLogger(__name__)
 
-# The scenario's actor slots, in main() parameter order. The demo CLI derives
-# this scenario's sub-command options from this list (DEMOCI-11-011); the base
-# URL constants below are its resolved values, so each env-var/default pair is
-# declared once.
+# The scenario's actors in main() parameter order, each seated in a container of
+# the fixed cast (DEMOCI-11-020).  The demo CLI derives this scenario's
+# sub-command options from this list (DEMOCI-11-011).
 ROLES: list[ActorRole] = [
-    ActorRole(
-        name="reporter",
-        url_env="VULTRON_REPORTER_BASE_URL",
-        default_url="http://localhost:7901/api/v2",
-        url_help="Base URL of the Reporter container API "
-        "(env: VULTRON_REPORTER_BASE_URL).",
-        has_id=True,
-        id_help="Deterministic full URI for the Reporter actor (optional).",
-    ),
-    ActorRole(
-        name="vendor",
-        url_env="VULTRON_VENDOR_BASE_URL",
-        default_url="http://localhost:7902/api/v2",
-        url_help="Base URL of the Vendor1 container API "
-        "(env: VULTRON_VENDOR_BASE_URL).",
-        has_id=True,
-        id_help="Deterministic full URI for the Vendor1 actor (optional).",
-    ),
-    ActorRole(
-        name="vendor2",
-        url_env="VULTRON_VENDOR2_BASE_URL",
-        default_url="http://localhost:7904/api/v2",
-        url_help="Base URL of the Vendor2 container API "
-        "(env: VULTRON_VENDOR2_BASE_URL).",
-        has_id=True,
-        id_help="Deterministic full URI for the Vendor2 actor (optional).",
-    ),
-    case_actor_role("http://localhost:7905/api/v2"),
+    ActorRole("reporter", REPORTER_SLOT, "Reporter", has_id=True),
+    ActorRole("vendor", VENDOR_SLOT, "Vendor1", has_id=True),
+    ActorRole("vendor2", CAST[3], "Vendor2", has_id=True),
+    case_actor_role(),
 ]
 _ROLES = role_map(ROLES)
 
@@ -178,11 +154,6 @@ Workflow:
   7. All participants report publication; embargo terminates.
   8. All participants close the case.
 """
-
-# Deterministic actor IDs from docker-compose-multi-actor.yml (D5-1-G3).
-REPORTER_ACTOR_ID = "http://reporter:7999/api/v2/actors/reporter"
-VENDOR_ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor"
-VENDOR2_ACTOR_ID = "http://actor5:7999/api/v2/actors/vendor2"
 
 
 def reset_containers(
@@ -746,15 +717,15 @@ def _phase_dump_case_ledgers(
         LedgerDumpTarget(
             "reporter",
             reporter_client,
-            replica_route_key(reporter_client, "reporter"),
+            replica_route_key(reporter_client),
         ),
         LedgerDumpTarget(
-            "vendor", vendor_client, replica_route_key(vendor_client, "vendor")
+            "vendor", vendor_client, replica_route_key(vendor_client)
         ),
         LedgerDumpTarget(
             "vendor2",
             vendor2_client,
-            replica_route_key(vendor2_client, "vendor2"),
+            replica_route_key(vendor2_client),
         ),
         # The canonical ledger, from the dedicated case-actor container.
         case_actor_dump_target(case_actor_client),
@@ -956,9 +927,15 @@ def main(
         vendor_client=vendor_client,
         vendor2_client=vendor2_client,
         case_actor_client=case_actor_client,
-        reporter_id=reporter_id,
-        vendor_id=vendor_id,
-        vendor2_id=vendor2_id,
+        reporter_id=_ROLES["reporter"].resolve_id(
+            reporter_client.base_url, reporter_id
+        ),
+        vendor_id=_ROLES["vendor"].resolve_id(
+            vendor_client.base_url, vendor_id
+        ),
+        vendor2_id=_ROLES["vendor2"].resolve_id(
+            vendor2_client.base_url, vendor2_id
+        ),
     )
 
 

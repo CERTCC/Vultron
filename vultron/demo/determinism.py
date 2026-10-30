@@ -47,6 +47,12 @@ from vultron.core.models import _helpers
 #: not change when it is regenerated on a later day.
 RECORDING_EPOCH = datetime(2026, 1, 1, tzinfo=UTC)
 
+#: The seed every recording of the scenario tree is made with (DEMOCI-11-025).
+#: One seed for the whole tree, not one per scenario: two scenarios that tell
+#: the same opening draw the same ids for it, so their recordings can be
+#: byte-identical up to the branch point where they part (DEMOCI-11-018).
+TREE_RECORDING_SEED = "vultron-scenario-tree"
+
 #: How far the recording clock moves on each read.  ``now_utc()`` keeps whole
 #: seconds, so about one hundred reads share a second.  A step of one second
 #: would age a held record past a timeout such as the 300-second

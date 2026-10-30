@@ -53,6 +53,11 @@ from click.testing import CliRunner
 
 from vultron.demo import cli
 from vultron.demo.helpers.actor_roles import ActorRole
+from vultron.demo.helpers.cast import (
+    CASE_ACTOR,
+    REPORTER_SLOT,
+    VENDOR_SLOT,
+)
 from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
 from vultron.errors import DemoActorRoleError, DemoScenarioRegistryError
 
@@ -66,12 +71,7 @@ _OptionTuple = tuple[
 
 #: A well-formed role, used to build the malformed module declarations in
 #: ``TestFactoryRejectsABadModule`` by changing one field at a time.
-_ROLE = ActorRole(
-    name="reporter",
-    url_env="VULTRON_REPORTER_BASE_URL",
-    default_url="http://localhost:7901/api/v2",
-    url_help="Base URL of the Reporter container API.",
-)
+_ROLE = ActorRole(name="reporter", slot=REPORTER_SLOT, title="Reporter")
 
 #: Sub-commands on ``vultron-demo`` that are deliberately not scenarios: the
 #: exchange demos (``cli.DEMOS``) plus the three standing commands. Needed
@@ -80,49 +80,6 @@ _ROLE = ActorRole(
 _NON_SCENARIO_COMMANDS = frozenset(
     {name for name, _ in cli.DEMOS} | {"all", "seed", "vultrabot"}
 )
-
-#: A role whose ``url_env`` does not name its own role — the asymmetry that makes
-#: the bindings undeclarable from the registry. The ``rccv`` scenarios put C1 in
-#: the Coordinator container slot and C2 in the Vendor2 slot, because compose
-#: service names are routing labels (DEMOMA, ISSUE-1786).  Both use the same
-#: slots: the proposer's container sets its case roles, so their ledgers match
-#: up to the owner's decision only that way (DEMOCI-11-017, #4727).
-_SLOT_NOT_ROLE_BINDINGS = {
-    ("rccv-handoff", "c1"): "VULTRON_COORDINATOR_BASE_URL",
-    ("rccv-handoff", "c2"): "VULTRON_VENDOR2_BASE_URL",
-    ("rccv-extension", "c1"): "VULTRON_COORDINATOR_BASE_URL",
-    ("rccv-extension", "c2"): "VULTRON_VENDOR2_BASE_URL",
-    ("rcvcv", "c1"): "VULTRON_COORDINATOR_BASE_URL",
-    ("rcvcv", "c2"): "VULTRON_VENDOR2_BASE_URL",
-    ("rcvcv", "v1"): "VULTRON_VENDOR_BASE_URL",
-    ("rcvcv", "v2"): "VULTRON_VENDOR_DEPLOYER_BASE_URL",
-}
-
-#: Scenarios that hand a deterministic ``--case-actor-id`` to the CaseActor.
-#: Only the two ownership-handoff scenarios do: they assert on the CaseActor's
-#: own replica after the transfer, so its id has to be predictable.
-_CASE_ACTOR_ID_SCENARIOS = frozenset({"rvcv-handoff", "rccv-handoff"})
-
-#: The only scenario whose ``--*-id`` options are env-bound. Its five actor ids
-#: come from the compose environment rather than being left to the demo.
-_ID_ENVVAR_SCENARIO = "rcvcv"
-
-#: Every scenario names the dedicated CaseActor container (#1876).  Its local
-#: default is 7905, except where that port is already another role's: ``rv``
-#: has only three containers and keeps 7903, and ``rcvcv`` gives 7905 to V2.
-_CASE_ACTOR_PORTS = {
-    "rv": "http://localhost:7903/api/v2",
-    "rvv": "http://localhost:7905/api/v2",
-    "rcv": "http://localhost:7905/api/v2",
-    "rcv-reject": "http://localhost:7905/api/v2",
-    "rcvcv": "http://localhost:7906/api/v2",
-    "rvcv-extension": "http://localhost:7905/api/v2",
-    "rvcv-handoff": "http://localhost:7905/api/v2",
-    "rccv-extension": "http://localhost:7905/api/v2",
-    "rccv-handoff": "http://localhost:7905/api/v2",
-    "rcv-embargo": "http://localhost:7905/api/v2",
-    "rcvv-embargo": "http://localhost:7905/api/v2",
-}
 
 
 def _roles_of(spec: ScenarioSpec) -> Sequence[ActorRole]:
@@ -348,7 +305,10 @@ def test_generated_options_match_the_declared_roles(
         (
             role.id_option,
             role.id_param,
-            role.id_env,
+            # No env binding: the cast fixes each container's actor id, and a
+            # scenario that wants another one is told on the command line
+            # (DEMOCI-11-020).
+            None,
             None,
             role.id_help,
             False,
@@ -514,70 +474,65 @@ class TestFactoryRejectsABadModule:
         carrying the *second* role's env var and default — the first binding is
         dropped with no error and the scenario runs against the wrong container.
         """
-        other = replace(
-            _ROLE,
-            url_env="VULTRON_VENDOR_BASE_URL",
-            default_url="http://localhost:7902/api/v2",
-        )
+        other = replace(_ROLE, slot=VENDOR_SLOT, title="Vendor")
         module = SimpleNamespace(ROLES=[_ROLE, other], CLI_HELP="Run it.")
         with pytest.raises(DemoActorRoleError, match="declared twice"):
             self._build(module)
 
     def test_rejects_two_roles_sharing_a_container_slot(self) -> None:
-        """One ``url_env`` claimed by two roles is a half-edited copy-paste."""
+        """One cast container claimed by two roles is a half-edited copy-paste."""
         module = SimpleNamespace(
             ROLES=[_ROLE, replace(_ROLE, name="vendor")], CLI_HELP="Run it."
         )
-        with pytest.raises(DemoActorRoleError, match="one of them is reading"):
+        with pytest.raises(DemoActorRoleError, match="one actor runs per"):
             self._build(module)
 
 
-class TestDeclaredDivergences:
-    """The asymmetries a uniform ``ROLES`` edit would smooth over."""
+class TestOptionsComeFromTheCast:
+    """No scenario declares a container address of its own (DEMOCI-11-020)."""
 
-    def test_url_env_names_a_container_slot_not_the_role(self) -> None:
-        """Roles whose ``url_env`` does not match their own name keep that binding.
+    def test_every_url_option_is_its_slots_env_var(self) -> None:
+        """A role's option is bound to the cast slot's env var, nothing else.
 
-        This is the asymmetry the whole `ActorRole` declaration exists for: if
-        every role read `VULTRON_<NAME>_BASE_URL` the bindings would derive from
-        the role name and belong on the `@scenario` decorator. Pinned so a
-        "tidy-up" that regularises these cannot pass — it would point C1 at the
-        wrong container and the scenario would still run.
+        The one thing a "tidy-up" could still get wrong: deriving the env var
+        from the role's own name. ``rcvcv``'s ``c1`` reads
+        ``VULTRON_ACTOR2_BASE_URL`` because it runs in the Coordinator slot, not
+        ``VULTRON_C1_BASE_URL``.
         """
-        actual = {
-            (spec.name, role.name): role.url_env
+        divergent = {
+            (spec.name, role.name): (role.url_env, role.slot.url_env)
             for spec in discover_scenarios()
             for role in _roles_of(spec)
-            if role.url_env != f"VULTRON_{role.param_stem.upper()}_BASE_URL"
+            if role.url_env != role.slot.url_env
         }
-        assert actual == _SLOT_NOT_ROLE_BINDINGS
+        assert divergent == {}
 
     def test_case_actor_id_only_on_the_handoff_scenarios(self) -> None:
-        """Only the ownership-handoff scenarios take ``--case-actor-id``."""
+        """Only the ownership-handoff scenarios take ``--case-actor-id``.
+
+        Required by DEMOMA-14-008; the cast fixes the id every other scenario
+        uses, so none of them offers an override.
+        """
         with_id = {
             spec.name
             for spec in discover_scenarios()
             for role in _roles_of(spec)
             if role.name == "case-actor" and role.has_id
         }
-        assert with_id == _CASE_ACTOR_ID_SCENARIOS
-
-    def test_id_options_are_env_bound_only_for_rcvcv(self) -> None:
-        """Only ``rcvcv`` binds its ``--*-id`` options to env vars."""
-        with_env = {
-            spec.name
-            for spec in discover_scenarios()
-            for role in _roles_of(spec)
-            if role.id_env is not None
-        }
-        assert with_env == {_ID_ENVVAR_SCENARIO}
+        assert with_id == {"rvcv-handoff", "rccv-handoff"}
 
     def test_every_scenario_declares_the_case_actor(self) -> None:
-        """Each scenario has a ``case-actor`` role, at its declared default."""
+        """Each scenario names the dedicated CaseActor container (#1876).
+
+        At the same address in every scenario: a per-scenario fallback port was
+        what made two siblings' first ledger entries differ.
+        """
         actual = {
             spec.name: role.default_url
             for spec in discover_scenarios()
             for role in _roles_of(spec)
             if role.name == "case-actor"
         }
-        assert actual == _CASE_ACTOR_PORTS
+        assert actual == {
+            spec.name: CASE_ACTOR.default_url for spec in discover_scenarios()
+        }

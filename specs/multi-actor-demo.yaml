@@ -2942,25 +2942,26 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The RCVCV scenario MUST add an `actor6` service to
-      `docker/docker-compose-multi-actor.yml`, configured identically to
-      the existing `actor5` service (same `*actor-service` anchor, port
-      pattern, data volume) with `VULTRON_SERVER__BASE_URL=http://actor6:7999/api/v2/`,
-      `VULTRON_ACTOR_ID=http://actor6:7999/api/v2/actors/vendor-deployer`,
-      `VULTRON_ACTOR__DEFAULT_CASE_ROLES=["vendor","deployer"]`, and
-      `VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-actor6.yaml`.
+      The RCVCV scenario MUST seat V2 (VendorDeployer) in a character-actor
+      slot of the fixed cast (DEMOCI-11-020), whose service in
+      `docker/docker-compose-multi-actor.yml` is configured from the shared
+      `*actor-service` anchor like every other cast member, with its own data
+      volume, host-port variable, actor id and seed config.
     rationale: >-
-      The RCVCV scenario requires five independent actor containers — one per
-      CVD-role actor — to force all inter-actor communication over the network
-      wire protocol (DEMOMA-01-001). The existing four non-CaseActor containers
-      are insufficient; a sixth container (`actor6`) carries V2 (VendorDeployer).
-      Keeping one actor per container preserves the architectural isolation
-      invariant that prevents intra-container data-layer shortcuts (ADR-0042).
+      The RCVCV scenario needs five independent actor containers — one per
+      scenario actor — to force all inter-actor communication over the network
+      wire protocol (DEMOMA-01-001). Keeping one actor per container preserves
+      the architectural isolation invariant that prevents intra-container
+      data-layer shortcuts (ADR-0042). V2 holds VENDOR and DEPLOYER from the
+      Invite that seats it, so its container declares no default case roles
+      (DEMOCI-11-021).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001
     - rel_type: refines
       spec_id: DEMOMA-02-001
+    - rel_type: refines
+      spec_id: DEMOCI-11-020
 
   - id: DEMOMA-19-002
     priority: MUST
@@ -3071,15 +3072,13 @@ groups:
     statement: >-
       The RCVCV scenario MUST be registered with the scenario registry
       (DEMOCI-11-001), so that its generated `.github/demo-scenarios.json`
-      entry (DEMOCI-11-004) adds it to the CI matrix, and `actor6` MUST be
-      defined in `docker/docker-compose-multi-actor.yml` alongside the existing
-      five actor services.
+      entry (DEMOCI-11-004) adds it to the CI matrix.
     rationale: >-
-      CI coverage of all demo scenarios is required by DEMOCI-04-001. The
-      RCVCV scenario introduces the actor6 container; CI starts the whole
-      multi-actor compose file, so defining the service there is what makes
-      it available to the run. Scenario-role names in devlogs match the names
-      used in scenario code, making log archaeology easier.
+      CI coverage of all demo scenarios is required by DEMOCI-04-001. RCVCV is
+      the widest scenario, so it is the one that sets the size of the cast,
+      which DEMOMA-19-001 and DEMOMA-19-011 place in the compose file CI starts
+      as a whole. Scenario-role names in devlogs match the names used in
+      scenario code, making log archaeology easier.
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-04-001
@@ -3135,24 +3134,28 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      A `seed-actor6.yaml` seed config MUST be created in `docker/seed-configs/`
-      with `local_actor.id=http://actor6:7999/api/v2/actors/vendor-deployer`,
-      `local_actor.name=VendorDeployer`, and a peers list covering the five other
-      actors (reporter, vendor, coordinator, actor5, case-actor).
+      Every cast member MUST have a `seed-<slot>.yaml` seed config in
+      `docker/seed-configs/` whose `local_actor.id` is the actor id its
+      container hosts (DEMOCI-11-020) and whose peers list covers every other
+      cast member and the dedicated CaseActor.
     rationale: >-
-      The seed config bootstraps actor6's identity and peer registry at container
-      startup, consistent with the pattern used by all other actor containers.
+      The seed config bootstraps a container's identity and peer registry at
+      startup, with no discovery step to fall back on, so a member missing from
+      a peers list leaves one container unable to address an actor it has to
+      message.
   - id: DEMOMA-19-011
     priority: MUST
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The `demo-runner` service MUST add `actor6` to its `depends_on` list and
-      expose `VULTRON_VENDOR_DEPLOYER_BASE_URL=http://actor6:7999/api/v2` in
+      The `demo-runner` service MUST list every cast member in its
+      `depends_on` and expose each member's base-URL environment variable in
       its environment block.
     rationale: >-
-      Without actor6 in depends_on, the demo runner may start before actor6 is
-      healthy; without the environment variable, the scenario cannot locate V2.
+      Without a member in depends_on, the demo runner may start before that
+      container is healthy; without its environment variable, a scenario
+      resolves the container to its local-development default and cannot reach
+      the actor at all.
   - id: DEMOMA-19-012
     priority: MUST
     kind: project

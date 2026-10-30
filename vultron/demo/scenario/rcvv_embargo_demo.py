@@ -52,6 +52,12 @@ from vultron.demo.helpers.actor_roles import (
     case_actor_role,
     role_map,
 )
+from vultron.demo.helpers.cast import (
+    CAST,
+    COORDINATOR_SLOT,
+    REPORTER_SLOT,
+    VENDOR_SLOT,
+)
 from vultron.demo.helpers.coordinated_case import (
     CoordinatedCase,
     dump_coordinated_case_ledgers,
@@ -99,47 +105,15 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 logger = logging.getLogger(__name__)
 
-# Default container base URLs — override via environment variables.  Vendor2
-# runs in the ``actor5`` container slot: compose service names are routing
-# labels, not CVD roles (vultron/demo/AGENTS.md).
+# The scenario's actors in main() parameter order, each seated in a container of
+# the fixed cast (DEMOCI-11-020).  The demo CLI derives this scenario's
+# sub-command options from this list (DEMOCI-11-011).
 ROLES: list[ActorRole] = [
-    ActorRole(
-        name="reporter",
-        url_env="VULTRON_REPORTER_BASE_URL",
-        default_url="http://localhost:7901/api/v2",
-        url_help="Base URL of the Reporter container API "
-        "(env: VULTRON_REPORTER_BASE_URL).",
-        has_id=True,
-        id_help="Deterministic full URI for the Reporter actor (optional).",
-    ),
-    ActorRole(
-        name="coordinator",
-        url_env="VULTRON_COORDINATOR_BASE_URL",
-        default_url="http://localhost:7903/api/v2",
-        url_help="Base URL of the Coordinator container API "
-        "(env: VULTRON_COORDINATOR_BASE_URL).",
-        has_id=True,
-        id_help="Deterministic full URI for the Coordinator actor (optional).",
-    ),
-    ActorRole(
-        name="vendor",
-        url_env="VULTRON_VENDOR_BASE_URL",
-        default_url="http://localhost:7902/api/v2",
-        url_help="Base URL of the Vendor1 container API "
-        "(env: VULTRON_VENDOR_BASE_URL).",
-        has_id=True,
-        id_help="Deterministic full URI for the Vendor1 actor (optional).",
-    ),
-    ActorRole(
-        name="vendor2",
-        url_env="VULTRON_VENDOR2_BASE_URL",
-        default_url="http://localhost:7904/api/v2",
-        url_help="Base URL of the Vendor2 container API "
-        "(env: VULTRON_VENDOR2_BASE_URL).",
-        has_id=True,
-        id_help="Deterministic full URI for the Vendor2 actor (optional).",
-    ),
-    case_actor_role("http://localhost:7905/api/v2"),
+    ActorRole("reporter", REPORTER_SLOT, "Reporter", has_id=True),
+    ActorRole("coordinator", COORDINATOR_SLOT, "Coordinator", has_id=True),
+    ActorRole("vendor", VENDOR_SLOT, "Vendor1", has_id=True),
+    ActorRole("vendor2", CAST[3], "Vendor2", has_id=True),
+    case_actor_role(),
 ]
 _ROLES = role_map(ROLES)
 
@@ -729,10 +703,18 @@ def main(
         vendor_client=vendor_client,
         vendor2_client=vendor2_client,
         case_actor_client=case_actor_client,
-        reporter_id=reporter_id,
-        coordinator_id=coordinator_id,
-        vendor_id=vendor_id,
-        vendor2_id=vendor2_id,
+        reporter_id=_ROLES["reporter"].resolve_id(
+            reporter_client.base_url, reporter_id
+        ),
+        coordinator_id=_ROLES["coordinator"].resolve_id(
+            coordinator_client.base_url, coordinator_id
+        ),
+        vendor_id=_ROLES["vendor"].resolve_id(
+            vendor_client.base_url, vendor_id
+        ),
+        vendor2_id=_ROLES["vendor2"].resolve_id(
+            vendor2_client.base_url, vendor2_id
+        ),
     )
 
 

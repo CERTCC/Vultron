@@ -20,11 +20,13 @@ The checks here read only committed files or stub the run.
 """
 
 import asyncio
+import contextlib
 import importlib
 import json
 from pathlib import Path
 
 import httpx2 as httpx
+import py_trees
 import pytest
 from click.testing import CliRunner
 from fastapi import FastAPI
@@ -38,7 +40,16 @@ from vultron.adapters.driving.fastapi.outbox_lanes import (
     deliver_batch,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.demo.determinism import TREE_RECORDING_SEED
 from vultron.demo.helpers.actor_roles import ActorRole
+from vultron.demo.helpers.cast import (
+    CASE_ACTOR,
+    CHARACTER_SLOTS,
+    COORDINATOR_SLOT,
+    REPORTER_SLOT,
+    VENDOR_SLOT,
+    ContainerSlot,
+)
 from vultron.demo.helpers.harness import StepMark
 from vultron.demo.in_process import InProcessRouter
 from vultron.demo.recordings import (
@@ -128,28 +139,32 @@ class TestLoadTopology:
                 assert topology.url_for(role).startswith("http://")
 
     def test_container_case_roles_come_from_the_compose_file(self):
+        """Only the fixed-role cast slots declare default case roles.
+
+        A character actor takes its role from the act that seats it, so its
+        container names none (DEMOCI-11-021); a Reporter's comes from
+        submitting the report.
+        """
         topology = load_topology()
-        assert topology.case_roles["vendor"] == [CVDRole.VENDOR]
-        assert topology.case_roles["actor6"] == [
-            CVDRole.VENDOR,
-            CVDRole.DEPLOYER,
+        assert topology.case_roles[VENDOR_SLOT.name] == [CVDRole.VENDOR]
+        assert topology.case_roles[COORDINATOR_SLOT.name] == [
+            CVDRole.COORDINATOR
         ]
-        assert topology.case_roles["coordinator"] == [CVDRole.COORDINATOR]
-        assert "reporter" not in topology.case_roles
-        assert topology.case_actor_service_url == (
-            "http://case-actor:7999/api/v2"
-        )
+        assert REPORTER_SLOT.name not in topology.case_roles
+        for slot in CHARACTER_SLOTS:
+            assert slot.name not in topology.case_roles
+        assert topology.case_actor_service_url == CASE_ACTOR.compose_url
 
     def test_case_roles_are_looked_up_by_the_actors_host(self):
         topology = load_topology()
         assert topology.case_roles_for(
-            "http://vendor:7999/api/v2/actors/abc"
+            f"{VENDOR_SLOT.compose_url}/actors/abc"
         ) == [CVDRole.VENDOR]
         assert topology.case_roles_for(
-            "http://coordinator:7999/api/v2/actors/abc"
+            f"{COORDINATOR_SLOT.compose_url}/actors/abc"
         ) == [CVDRole.COORDINATOR]
         assert (
-            topology.case_roles_for("http://reporter:7999/api/v2/actors/abc")
+            topology.case_roles_for(f"{REPORTER_SLOT.compose_url}/actors/abc")
             == []
         )
 
@@ -159,9 +174,8 @@ class TestLoadTopology:
         )
         role = ActorRole(
             name="reporter",
-            url_env="VULTRON_NOWHERE_BASE_URL",
-            default_url="http://localhost:1/api/v2",
-            url_help="Nowhere.",
+            slot=ContainerSlot(name="nowhere", port=1),
+            title="Nobody",
         )
         with pytest.raises(DemoRecordingError, match="VULTRON_NOWHERE"):
             topology.url_for(role)
@@ -221,6 +235,53 @@ class TestLoadTopology:
         )
         with pytest.raises(DemoRecordingError, match="wizard"):
             load_topology(compose)
+
+
+class _StopBeforeTheRun(Exception):
+    """Raised in place of entering the recorder's deterministic context."""
+
+
+class TestRecordingSeed:
+    """One seed for the whole tree (DEMOCI-11-025)."""
+
+    @staticmethod
+    def _seeds_used(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+        """The seed ``record_scenario`` asks for, once per registered scenario.
+
+        Captured by replacing ``deterministic_run`` with a context manager that
+        raises on entry: the seed is chosen before the scenario runs, so this
+        reads the real call without paying two minutes per scenario.
+        """
+        seeds: list[str] = []
+
+        @contextlib.contextmanager
+        def capture(seed: str, **kwargs: object):
+            seeds.append(seed)
+            raise _StopBeforeTheRun
+            yield  # pragma: no cover - unreachable, keeps this a generator
+
+        monkeypatch.setattr(runner, "deterministic_run", capture)
+        for spec in discover_scenarios():
+            with pytest.raises(_StopBeforeTheRun):
+                runner.record_scenario(spec)
+        return seeds
+
+    def test_every_scenario_records_with_the_same_seed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A per-scenario seed gave siblings different ids for a shared step."""
+        seeds = self._seeds_used(monkeypatch)
+        assert seeds, "no scenario was recorded"
+        assert set(seeds) == {TREE_RECORDING_SEED}
+
+    def test_the_seed_is_not_a_scenario_name(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Guards the guard: a name-shaped seed would pass the check above
+        only if every scenario shared one name, but a future refactor could
+        reintroduce ``seed=spec.name`` for a single-scenario tree."""
+        names = {spec.name for spec in discover_scenarios()}
+        assert TREE_RECORDING_SEED not in names
 
 
 class TestLayoutProblems:
@@ -500,6 +561,33 @@ class TestScenarioNodes:
             raise RuntimeError("scenario failed")
         assert slot.value is before
 
+    def test_the_blackboard_registry_is_cleared_around_a_run(self):
+        """A second run must not meet the first run's py_trees clients.
+
+        The registry is process-global and keyed by a uuid4 that nothing
+        unregisters, so with one tree-wide seed (DEMOCI-11-025) the second run
+        redraws the first run's client ids and py_trees refuses them.
+        """
+        registry = py_trees.blackboard.Blackboard.clients
+        py_trees.blackboard.Client(name="left over by an earlier run")
+        assert registry
+        with runner._scenario_nodes([], load_topology()):
+            assert not registry
+            py_trees.blackboard.Client(name="drawn during the run")
+            assert registry
+        assert not registry
+
+    def test_the_blackboard_registry_is_cleared_when_the_run_raises(self):
+        """A failed scenario must not leave its clients for the next one."""
+        registry = py_trees.blackboard.Blackboard.clients
+        with (
+            pytest.raises(RuntimeError),
+            runner._scenario_nodes([], load_topology()),
+        ):
+            py_trees.blackboard.Client(name="drawn before the failure")
+            raise RuntimeError("scenario failed")
+        assert not registry
+
 
 class TestCli:
     def test_an_unregistered_scenario_is_refused(self):
@@ -677,14 +765,16 @@ def _entry(index: int, actor: str, obj: str, kind: str = "Add") -> dict:
     }
 
 
-#: Two sets of addresses for the same three objects, as two sibling scenarios
-#: seeded with different slots and ids would give them.
+#: Two unrelated sets of addresses for the same three objects.  The comparison
+#: is address-independent on purpose (DEMOCI-11-017): the fixed cast makes
+#: siblings agree on addresses, and byte identity is the stronger check that
+#: then applies to a composed family (DEMOCI-11-018).
 _FIRST = (
-    "http://vendor:7999/api/v2/actors/a",
+    "http://one.test/api/v2/actors/a",
     "urn:uuid:" + "1" * 8 + "-1111-4111-8111-" + "1" * 12,
 )
 _SECOND = (
-    "http://actor5:7999/api/v2/actors/b",
+    "http://two.test/api/v2/actors/b",
     "urn:uuid:" + "2" * 8 + "-2222-4222-8222-" + "2" * 12,
 )
 

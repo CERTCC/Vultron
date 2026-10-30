@@ -33,6 +33,7 @@ from vultron.demo.helpers.actor_roles import (
     case_actor_role,
     role_map,
 )
+from vultron.demo.helpers.cast import REPORTER_SLOT, VENDOR_SLOT
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.harness import reach_step, scenario_harness
 from vultron.demo.helpers.ledger_commit import trigger_log_commit  # noqa: F401
@@ -127,30 +128,13 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 logger = logging.getLogger(__name__)
 
-# The scenario's actor slots, in main() parameter order. The demo CLI derives
-# this scenario's sub-command options from this list (DEMOCI-11-011); the base
-# URL constants below are its resolved values, so each env-var/default pair is
-# declared once.
+# The scenario's actors in main() parameter order, each seated in a container of
+# the fixed cast (DEMOCI-11-020).  The demo CLI derives this scenario's
+# sub-command options from this list (DEMOCI-11-011).
 ROLES: list[ActorRole] = [
-    ActorRole(
-        name="reporter",
-        url_env="VULTRON_REPORTER_BASE_URL",
-        default_url="http://localhost:7901/api/v2",
-        url_help="Base URL of the Reporter container API "
-        "(env: VULTRON_REPORTER_BASE_URL).",
-        has_id=True,
-        id_help="Deterministic full URI for the Reporter actor (optional).",
-    ),
-    ActorRole(
-        name="vendor",
-        url_env="VULTRON_VENDOR_BASE_URL",
-        default_url="http://localhost:7902/api/v2",
-        url_help="Base URL of the Vendor container API "
-        "(env: VULTRON_VENDOR_BASE_URL).",
-        has_id=True,
-        id_help="Deterministic full URI for the Vendor actor (optional).",
-    ),
-    case_actor_role("http://localhost:7903/api/v2"),
+    ActorRole("reporter", REPORTER_SLOT, "Reporter", has_id=True),
+    ActorRole("vendor", VENDOR_SLOT, "Vendor", has_id=True),
+    case_actor_role(),
 ]
 _ROLES = role_map(ROLES)
 
@@ -168,8 +152,8 @@ Orchestrates a complete CVD workflow across two separate API server
 containers.  Requires both containers to be running and reachable at
 the configured base URLs.
 
-Use ``--reporter-url`` / ``--vendor-url`` (or env vars
-``VULTRON_REPORTER_BASE_URL`` / ``VULTRON_VENDOR_BASE_URL``) to point
+Use ``--reporter-url`` / ``--vendor-url`` (or the cast's env vars,
+``VULTRON_ACTOR0_BASE_URL`` / ``VULTRON_ACTOR1_BASE_URL``) to point
 the demo at running containers.
 
 \b
@@ -191,9 +175,6 @@ Workflow (six phases; titles match docs/tutorials/rv-demo.md):
      Case Owner, closes it last (every RM.CLOSED in the Case Actor's store).
 """
 
-# Deterministic actor IDs from docker-compose-multi-actor.yml (D5-1-G3).
-REPORTER_ACTOR_ID = "http://reporter:7999/api/v2/actors/reporter"
-VENDOR_ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor"
 
 _load_vendor_case = _load_case_from_datalayer
 
@@ -812,22 +793,21 @@ def _phase_dump_case_ledgers(
     # empty. The dump then reported "No case ledger entries for actor='reporter'"
     # while the reporter's real store held twelve.
     #
-    # The actor objects are in hand here, so they are the key's source; the
-    # literal is passed to replica_route_key() only as the last-resort fallback
-    # the sibling scenarios also use, keeping one derivation path across all of
-    # them.
+    # The actor objects are in hand here, so they are the key's source;
+    # replica_route_key() is the same derivation the sibling scenarios use,
+    # keeping one derivation path across all of them.
     targets = [
         LedgerDumpTarget(
             "reporter",
             reporter_client,
             strip_id_prefix(reporter.id_ or "")
-            or replica_route_key(reporter_client, "reporter"),
+            or replica_route_key(reporter_client),
         ),
         LedgerDumpTarget(
             "vendor",
             vendor_client,
             strip_id_prefix(vendor.id_ or "")
-            or replica_route_key(vendor_client, "vendor"),
+            or replica_route_key(vendor_client),
         ),
         case_actor_dump_target(case_actor_client),
     ]
@@ -1000,8 +980,12 @@ def main(
         reporter_client=reporter_client,
         vendor_client=vendor_client,
         case_actor_client=case_actor_client,
-        reporter_id=reporter_id,
-        vendor_id=vendor_id,
+        reporter_id=_ROLES["reporter"].resolve_id(
+            reporter_client.base_url, reporter_id
+        ),
+        vendor_id=_ROLES["vendor"].resolve_id(
+            vendor_client.base_url, vendor_id
+        ),
     )
 
 

@@ -1101,16 +1101,16 @@ groups:
           The `rcvv-embargo` scenario MUST be registered with
           `in_pr_set=True` (DEMOCI-11-001), so that its generated entry in
           `.github/demo-scenarios.json` (DEMOCI-11-004) carries
-          `"full_suite_only": false`. The scenario runs on the `reporter`
-          (reporter role), `coordinator`, `vendor`, `actor5` (seeded as
-          `vendor2`), and `case-actor` services.
+          `"full_suite_only": false`. The scenario runs on the first Reporter,
+          Coordinator and Vendor slots of the fixed cast (DEMOCI-11-021), one
+          character-actor slot for Vendor2, and the `case-actor` service.
         rationale: >-
           The rcvv-embargo scenario needs a fourth actor beyond the three used
-          by rcv-embargo; Vendor2 runs in the `actor5` slot of the multi-actor
-          compose file, which CI starts as a whole. Scenario-role names in
-          devlogs (`vendor2`, not `actor5`) match scenario code, making log
-          archaeology easier and consistent with the RCVCV pattern
-          (DEMOMA-19-007).
+          by rcv-embargo; Vendor2 takes a character-actor slot of the
+          multi-actor compose file, which CI starts as a whole. Devlog
+          directories keep the scenario's own names (`vendor2`, not the slot
+          name), so they name the part an actor plays here and make log
+          archaeology easier.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-04-001
