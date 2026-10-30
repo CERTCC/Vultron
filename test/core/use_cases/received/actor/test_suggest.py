@@ -419,6 +419,7 @@ class TestOfferActorToCaseAtNonCaseManager:
         )
         return make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
 
+    @pytest.mark.spec("HP-01-017")
     @pytest.mark.spec("BT-17-001")
     @pytest.mark.spec("HP-01-005")
     def test_offer_actor_to_case_refused_when_receiver_is_not_case_manager(

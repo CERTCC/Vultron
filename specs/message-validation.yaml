@@ -669,7 +669,7 @@ groups:
     - rel_type: refines
       spec_id: SDO-03-005
     - rel_type: refines
-      spec_id: ARCH-25-007
+      spec_id: ARCH-25-025
     adr:
     - ADR-0099
   - id: MV-11-005

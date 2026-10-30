@@ -195,6 +195,7 @@ class TestCreateReportSenderEntitlement:
     STRANGER_ID = "https://example.org/users/stranger"
 
     @pytest.mark.spec("HP-01-010")
+    @pytest.mark.spec("HP-01-030")
     def test_sender_outside_the_receivers_case_is_applied(self):
         """A sender in none of the receiver's cases still has its report kept."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER_ID)

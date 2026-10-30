@@ -52,25 +52,39 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      All handler use-case classes MUST accept `(dl, request)` as `__init__`
-      parameters — `dl` a narrow persistence port (`CasePersistence` or
-      `CaseOutboxPersistence`, DL-07) and `request` the handler's concrete
-      `VultronEvent` subclass — and their `execute()` method MUST take no arguments
+      Each handler use-case class MUST accept `(dl, request)` as its `__init__`
+      parameters. Here `dl` is a narrow persistence port (`CasePersistence` or
+      `CaseOutboxPersistence`, DL-07), and `request` is the handler's concrete
+      `VultronEvent` subclass.
     rationale: >-
       The dispatcher builds each handler the same way from a registry entry. Each
       handler gets the same two positional arguments, and the dispatcher passes any
       driven ports by keyword. A narrow port limits what a handler can write (DL-07). A
       typed request shows that its fields were validated before dispatch.
     verification: >-
-      `test/architecture/test_use_case_execute_returns_result.py` reads every
-      `execute()` under `vultron/core/use_cases/` (outside `triggers/`) and
-      fails on one that takes any parameter beyond `self` or lacks a
-      `UseCaseResult` return annotation;
       `test/test_semantic_registry.py::test_each_use_case_accepts_the_event_class_its_semantics_route`
       checks that each handler's `__init__` annotates `request` as the
       `VultronEvent` subclass its `SEMANTIC_REGISTRY` entry pairs it with. The
       `(dl, request)` constructor shape is declared by the `UseCase` Protocol in
       `vultron/core/ports/use_case.py`.
+  - id: HP-01-013
+    priority: MUST
+    kind: project
+    statement: >-
+      The `execute()` method of each handler use-case class MUST take no arguments.
+    rationale: >-
+      The dispatcher calls `execute()` the same way for every handler. All input
+      comes through the constructor, so a handler cannot depend on an argument
+      that one caller passes and another caller does not.
+    verification: >-
+      `test/architecture/test_use_case_execute_returns_result.py::test_every_use_case_execute_returns_a_use_case_result`
+      reads every `execute()` under `vultron/core/use_cases/` (outside
+      `triggers/`) and fails on one that takes any parameter beyond `self`;
+      `test_detector_flags_an_execute_that_takes_arguments` in the same file
+      proves the detector sees such a parameter.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-001
   - id: HP-01-002
     priority: MUST
     kind: project
@@ -97,10 +111,8 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A handler MUST report a `HandlerDisposition` of `REFUSED` only when it rejected the
-      inbound assertion; it MUST report `SKIPPED` for a legitimate no-op such as a duplicate
-      or already-present record, and `DEFERRED` when it parked the item for later replay
-      rather than declining it. A benign skip or a deferral MUST NOT be reported as `REFUSED`
+      A handler MUST report a `HandlerDisposition` of `REFUSED` only when it rejected
+      the inbound assertion.
     rationale: >-
       A behavior-tree FAILURE is not always a refusal, and a SUCCESS is not always
       applied work. An idempotent skip ends in SUCCESS, for example a status that is
@@ -112,11 +124,69 @@ groups:
     verification: >-
       `test/core/ports/test_use_case.py::TestUnknownUseCase::test_execute_refuses_unrecognized_activity`
       and the `HP-01-003`-marked tests under `test/core/use_cases/received/` drive each
-      handler through its skip, defer, and refuse exits and assert the disposition each one
-      earns — a redelivered duplicate is `SKIPPED`, a parked item is `DEFERRED`, and only a
-      refused assertion is `REFUSED`;
-      `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` carries each disposition
-      through the dispatcher to `InboxOutcome`.
+      handler through its refuse exit and assert that only a refused assertion is
+      `REFUSED`; `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` carries
+      each disposition through the dispatcher to `InboxOutcome`.
+    adr:
+    - ADR-0095
+  - id: HP-01-014
+    priority: MUST
+    kind: project
+    statement: >-
+      A handler MUST report `SKIPPED` for a legitimate no-op, such as a duplicate or
+      an already-present record.
+    rationale: >-
+      An idempotent skip ends in a behavior-tree SUCCESS, but it changes nothing.
+      `SKIPPED` tells the pipeline that the message was handled without new work, so
+      a redelivery does not read as applied work or as a refusal (ADR-0095).
+    verification: >-
+      The `HP-01-003`-marked tests under `test/core/use_cases/received/` drive each
+      handler through its skip exit and assert that a redelivered duplicate is
+      `SKIPPED`; `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` carries
+      the disposition through the dispatcher to `InboxOutcome`.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-003
+    adr:
+    - ADR-0095
+  - id: HP-01-015
+    priority: MUST
+    kind: project
+    statement: >-
+      A handler MUST report `DEFERRED` when it parked the item for later replay and
+      did not decline it.
+    rationale: >-
+      An entry that the ledger-sync buffer holds for later ends in a behavior-tree
+      SUCCESS, but its work is still pending. If a handler reported it as `APPLIED`
+      or `SKIPPED`, nobody could see that a replay is pending (ADR-0095).
+    verification: >-
+      The `HP-01-003`-marked tests under `test/core/use_cases/received/` drive each
+      handler through its defer exit and assert that a parked item is `DEFERRED`;
+      `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` carries the
+      disposition through the dispatcher to `InboxOutcome`.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-003
+    adr:
+    - ADR-0095
+  - id: HP-01-016
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A handler MUST NOT report a benign skip or a deferral as `REFUSED`.
+    rationale: >-
+      The pipeline maps `REFUSED` onto `InboxOutcome.status == "rejected"`. A skip or
+      a deferral reported as a refusal would then raise a false alarm for a message
+      that the handler handled correctly (ADR-0095).
+    verification: >-
+      `test_invite_actor_to_case_redelivery_is_skipped_not_refused` in
+      `test/core/use_cases/received/actor/test_invite.py` asserts a redelivered Invite
+      reports `SKIPPED`, and `test_forward_gap_entry_is_deferred` in
+      `test/core/use_cases/received/test_sync.py` asserts a parked ledger entry reports
+      `DEFERRED`.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-003
     adr:
     - ADR-0095
   - id: HP-01-004
@@ -145,32 +215,21 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A handler that receives a message it holds no role or addressing to act on MUST report
-      `REFUSED` with a reason naming the missing role or addressing. That covers a
-      CASE_MANAGER-addressed message at an actor that is not the case's CASE_MANAGER, and a copy
-      of an activity whose `to` does not name the receiving actor. `cc`, `bto` and `bcc` address
-      no Vultron recipient (OX-08-001, ADR-0109), so a `cc`-only receiver is such a copy, of an
-      `Offer(Report)` (HP-09-001, HP-09-002, HP-10-001) as of any other. Such a receipt is not a
-      legitimate no-op and MUST NOT be reported as `SKIPPED`; `SKIPPED` is reserved for a
-      duplicate or otherwise idempotent re-delivery of a message the receiver was entitled to
-      act on
+      A handler MUST report `REFUSED` for a message it has no role or addressing to
+      act on, with a reason that names what is missing. One such message is a
+      CASE_MANAGER-addressed message at an actor that is not the case's CASE_MANAGER.
+      Another is a copy of an activity whose `to` does not name the receiving actor.
+      `cc`, `bto` and `bcc` address no Vultron recipient (OX-08-001, ADR-0109). A
+      `cc`-only receiver thus holds such a copy, of an `Offer(Report)` (HP-09-001,
+      HP-09-002, HP-10-001) as of any other activity.
     rationale: >-
-      A role gate returns SUCCESS when it skips, so that a failure of the CASE_MANAGER
-      stays different from a no-op of a non-manager (BT-17-001). If a handler read that
-      skip as "not my job" and reported `SKIPPED`, `DispatchNode` would record it as
-      `processed`. The inbox of the receiver would then show a misaddressed message as a
-      successful receipt. The disposition is the report of the receiver on its own
-      handling (HP-01-004). It never says anything about a different actor. If the
-      receiver cannot act on a message, the sender addressed it to the wrong party. A
-      courtesy copy also gives the receiver no standing to act, because it asks nothing
-      of the receiver. In both situations, `REFUSED` with a reason records this.
-      `SKIPPED` means only a re-delivery. Thus the first receipt of a message that now
-      waits for the receiver's own decision is `APPLIED`. An example is the first
-      `Offer(CaseParticipant)` that the Case Owner receives. That message is not a
-      duplicate and not a refusal. The same applies when a participant first receives
-      the direct notice from the CASE_MANAGER of its removal or reinstatement
-      (CM-31-006, CM-31-011). The participant is the correct addressee of the notice. It
-      stores the notice and applies the move from its ledger entry (CM-31-007).
+      The disposition is the receiver's report on its own handling (HP-01-004). If
+      the receiver cannot act on a message, the sender addressed it to the wrong
+      party. A courtesy copy gives no standing to act. `REFUSED` with a reason
+      records both cases. The first receipt of a
+      message that waits for the receiver's own decision is `APPLIED`: the first
+      `Offer(CaseParticipant)` at the Case Owner, or a participant's first notice of
+      its removal or reinstatement (CM-31-006, CM-31-011).
     verification: >-
       The `HP-01-005`-marked tests under `test/core/use_cases/received/` drive each affected
       handler at a receiver that is not the CASE_MANAGER, or not an entitled addressee, and
@@ -188,17 +247,39 @@ groups:
       spec_id: HP-01-010
     - rel_type: constrains
       spec_id: HP-10-001
+  - id: HP-01-017
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A handler MUST NOT report a receipt that HP-01-005 refuses as `SKIPPED`. That
+      disposition is only for a duplicate or other idempotent re-delivery of a
+      message that the receiver was entitled to act on.
+    rationale: >-
+      A role gate returns SUCCESS when it skips (BT-17-001). If a handler reported
+      that skip as `SKIPPED`, `DispatchNode` would record it as `processed`. The
+      inbox would then show a misaddressed message as a successful receipt.
+    verification: >-
+      `test_a_copy_not_addressed_to_the_receiver_is_refused` in
+      `test/core/use_cases/received/actor/test_role_offer_routing.py` and
+      `test_offer_actor_to_case_refused_when_receiver_is_not_case_manager` in
+      `test/core/use_cases/received/actor/test_suggest.py` assert `REFUSED`, not
+      `SKIPPED`, for a misaddressed copy and for a receiver that is not the
+      CASE_MANAGER.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-005
+    adr:
+    - ADR-0095
   - id: HP-01-006
     priority: MUST
     kind: protocol
     statement: >-
       A receiver MUST establish that the sender of a received activity is entitled to
-      make its assertion before any write, outbound activity or ledger commit, and MUST
-      refuse the activity, with a reason naming the missing entitlement, when it cannot.
-      Entitlement is the sender's standing, not the receiver's: the governing group's
+      make its assertion before any write, outbound activity or ledger commit.
+      Entitlement is the sender's standing, not the receiver's. The governing group's
       sender clause names it per message (CM-11-017, CM-16-019, CM-21-011, CM-30-001,
       CM-30-002, CM-33-002, CM-33-004, CM-33-005, CP-06-005, HP-01-010, RMB-08-004,
-      SYNC-03-005), and a receiver role check such as the CASE_MANAGER gate (BT-17-001)
+      SYNC-03-005). A receiver role check, such as the CASE_MANAGER gate (BT-17-001),
       never satisfies it.
     rationale: >-
       A received activity is an assertion about the state of the sender (HP-00-001).
@@ -218,15 +299,36 @@ groups:
       spec_id: HP-00-001
     adr:
     - ADR-0115
+  - id: HP-01-018
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST refuse a received activity whose sender it cannot establish as
+      entitled (HP-01-006), with a reason that names the missing entitlement.
+    rationale: >-
+      A refusal with a reason tells the sender what standing it lacks. Without the
+      refusal, the activity could still change the case. Without the reason, the
+      sender and an operator cannot tell a missing entitlement from any other fault.
+    verification: >-
+      `test/core/behaviors/test_sender_guard.py::test_factory_refusal_names_the_missing_standing`
+      and
+      `test/core/use_cases/received/test_sender_entitlement.py::test_ownership_accept_from_non_transferee_is_refused`,
+      both marked `HP-01-018`, assert `REFUSED` with a reason that names the missing
+      standing.
+    stories:
+    - story_2022_035
+    - story_2022_036
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-006
+    adr:
+    - ADR-0115
   - id: HP-01-007
     priority: MUST
     kind: architecture
     statement: >-
-      Every received use case MUST declare its sender entitlement exactly once, as either a
-      sender rule (HP-01-008) or an exemption carrying a reason, and the receive-tree
-      factory MUST compose the matching guard from the single sender-entitlement module into
-      the tree's guard stage. A handler MUST NOT implement its own sender predicate, and the module
-      MUST NOT have a twin.
+      Every received use case MUST declare its sender entitlement exactly once, as
+      either a sender rule (HP-01-008) or an exemption that carries a reason.
     rationale: >-
       When each handler has its own sender check, the check gets copied in slightly
       different forms. Some handlers do not get it at all. Only an audit finds the
@@ -234,24 +336,77 @@ groups:
       is a test failure. The declaration also shows the remaining gaps as a visible
       exemption list (ADR-0115).
     verification: >-
-      An architecture test under `test/architecture/` walks `SEMANTIC_REGISTRY`, fails on a
-      received use case with no entitlement declaration, and fails on a sender predicate
-      defined outside the sender-entitlement module.
+      `test/architecture/test_sender_entitlement_ratchet.py::test_use_case_has_sender_entitlement_declared`
+      walks `SEMANTIC_REGISTRY` and fails on a received use case with no
+      entitlement declaration;
+      `::test_every_exemption_names_an_open_issue_or_no_check_applies` fails on an
+      exemption without its reason.
     relationships:
     - rel_type: implements
       spec_id: HP-01-006
+    adr:
+    - ADR-0115
+  - id: HP-01-019
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The receive-tree factory MUST compose the guard that matches each declaration
+      (HP-01-007) from the single sender-entitlement module into the tree's guard
+      stage.
+    rationale: >-
+      When the factory composes every sender guard from one module, no tree can
+      forget its check or carry a different form of it. A missing guard is then a
+      test failure and not a finding of an audit (ADR-0115).
+    verification: >-
+      `test/architecture/test_sender_entitlement_ratchet.py::test_sender_nodes_are_composed_only_by_the_factory`
+      fails on a sender-entitlement node composed anywhere but the factory;
+      `test/core/behaviors/test_sender_guard.py::test_factory_takes_no_sender_guard_built_by_a_tree`
+      asserts the factory builds the guard itself.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-007
+    adr:
+    - ADR-0115
+  - id: HP-01-020
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      A handler MUST NOT implement its own sender predicate.
+    rationale: >-
+      A sender check in a handler is a second copy of the rule. The copies drift
+      apart, and a test that reads the declarations cannot see the handler's copy
+      (ADR-0115).
+    verification: >-
+      `test/architecture/test_sender_entitlement_ratchet.py::test_no_sender_condition_node_outside_sender_entitlement_module`
+      fails on a sender predicate defined outside the sender-entitlement module.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-007
+    adr:
+    - ADR-0115
+  - id: HP-01-021
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      The sender-entitlement module MUST NOT have a twin.
+    rationale: >-
+      A second module with sender checks would split the vocabulary in two. The
+      factory and the tests read one module, so checks in a twin would escape both
+      (ADR-0115).
+    verification: >-
+      `test/architecture/test_sender_entitlement_ratchet.py::test_no_sender_check_is_defined_outside_its_module`
+      fails on a sender check defined in any other module.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-007
     adr:
     - ADR-0115
   - id: HP-01-008
     priority: MUST
     kind: architecture
     statement: >-
-      A declared sender entitlement MUST state the full rule the receiver applies: it MUST
-      be composed of entitlement kinds, MAY require any one of several kinds, and MUST state
-      the standing required for each addressee the activity is sent to: the CASE_MANAGER, a
-      participant, or, for an activity sent before a case exists, an actor outside any
-      case. The receive-tree factory MUST compose the guard from the declaration alone, and a tree
-      MUST NOT add a sender check narrower than its declaration.
+      A declared sender entitlement MUST state the full rule that the receiver
+      applies.
     rationale: >-
       If the full rule were inside the trees, a declaration could state less than the
       receiver enforces. For example, it could state one kind for a check that has two
@@ -259,11 +414,12 @@ groups:
       different form. Anything that comes from it, for example "Sent by" in the occasion
       table (MSM-08-005), then shows fewer senders than the receiver accepts (ADR-0129).
     verification: >-
-      A unit test composes a guard from an any-of declaration and from a two-sided
-      declaration and asserts each side admits exactly its kinds. The HP-01-007 ratchet also
-      fails on a sender-entitlement condition node composed inside a tree rather than by the
-      factory from the declaration, and on a non-exempt declaration that states no side for
-      an addressee one of its use case's occasions names (MSM-08-009).
+      `test/core/behaviors/test_sender_guard.py::test_any_of_rule_admits_a_sender_holding_any_one_kind`
+      and `::test_two_sided_rule_admits_exactly_each_sides_kinds` compose a guard
+      from an any-of declaration and from a two-sided declaration and assert each
+      side admits exactly its kinds;
+      `test/architecture/test_sender_entitlement_ratchet.py::test_a_sender_rule_is_built_only_as_a_declaration`
+      fails on a sender rule built anywhere but a declaration.
     lint_suppress:
     - phantom_path_ref
     relationships:
@@ -272,30 +428,113 @@ groups:
     adr:
     - ADR-0115
     - ADR-0129
+  - id: HP-01-022
+    priority: MUST
+    kind: architecture
+    statement: >-
+      A declared sender entitlement MUST be composed of entitlement kinds
+      (HP-01-009).
+    rationale: >-
+      Each kind has one guard and one name. A rule built from kinds can therefore
+      be composed into a guard and shown in the docs without a second description
+      of the sender (ADR-0129).
+    verification: >-
+      `test/core/behaviors/test_sender_guard.py::test_side_must_hold_kinds` asserts
+      that a rule whose side holds anything but entitlement kinds is rejected.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-008
+    adr:
+    - ADR-0129
+  - id: HP-01-023
+    priority: MAY
+    kind: architecture
+    statement: >-
+      A declared sender entitlement MAY require any one of several entitlement kinds.
+    rationale: >-
+      Some messages have more than one sender with standing, for example the Case
+      Owner or the CASE_MANAGER. An any-of rule states this in one declaration, so
+      no tree needs its own second check (ADR-0129).
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-008
+    adr:
+    - ADR-0129
+  - id: HP-01-024
+    priority: MUST
+    kind: architecture
+    statement: >-
+      A declared sender entitlement MUST state the standing it requires for each
+      addressee of the activity. The addressee is the CASE_MANAGER, a participant,
+      or, for an activity sent before a case exists, an actor outside any case.
+    rationale: >-
+      The same message can need different senders at different addressees. A rule
+      with only one side would state less than the receiver enforces, and the
+      occasion table would show fewer senders than the receiver accepts (ADR-0129).
+    verification: >-
+      `test/core/behaviors/test_sender_guard.py::test_two_sided_rule_admits_exactly_each_sides_kinds`
+      asserts each side admits exactly its kinds, and
+      `::test_rule_with_no_side_is_rejected` rejects a rule with no side; the
+      `MSM-08-009`-marked tests in `test/metadata/test_msm_mapping.py` fail on a
+      non-exempt declaration that states no side for an addressee one of its use
+      case's occasions names.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-008
+    adr:
+    - ADR-0129
+  - id: HP-01-025
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The receive-tree factory MUST compose each sender guard from its declaration
+      alone.
+    rationale: >-
+      If the factory read anything but the declaration, the declaration would not
+      be the full rule. The docs and the tests that read the declaration would then
+      show a rule that the receiver does not apply (ADR-0129).
+    verification: >-
+      `test/architecture/test_sender_entitlement_ratchet.py::test_sender_nodes_are_composed_only_by_the_factory`
+      fails on a sender-entitlement condition node composed inside a tree rather
+      than by the factory from the declaration.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-008
+    adr:
+    - ADR-0129
+  - id: HP-01-026
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      A received tree MUST NOT add a sender check narrower than its declaration.
+    rationale: >-
+      A narrower check in a tree is a second sender predicate in a different form.
+      The declaration then shows more senders than the receiver accepts (ADR-0129).
+    verification: >-
+      `test/architecture/test_sender_entitlement_ratchet.py::test_sender_nodes_are_composed_only_by_the_factory`
+      fails on a sender-entitlement condition node that a tree composes itself.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-008
+    adr:
+    - ADR-0129
   - id: HP-01-009
     priority: MUST
     kind: architecture
     statement: >-
-      The entitlement kinds MUST be the closed vocabulary of sender standings, covering both
-      roles a participant holds and positions held within one exchange (such as the invitee,
-      the addressee of a request and the author of an object). A position MUST NOT be added
-      to `CVDRole`, and a position a new rule needs MUST be added as an entitlement kind.
-      The addressee of a request MUST be one kind whatever the request, except that the
-      invitee of a recorded Invite is its own kind.
+      The entitlement kinds MUST be the closed vocabulary of sender standings. They
+      cover both the roles that a participant holds and the positions held within one
+      exchange. The invitee, the addressee of a request and the author of an object
+      are such positions.
     rationale: >-
-      A `CVDRole` value is a durable fact stored on a participant record, while a position
-      is held relative to one exchange; the same coordinator receives one report and sends
-      the next, and a report precedes any case. Keeping positions as kinds means a position
-      named in the docs is always one a receiver enforces. One addressee kind keeps one
-      guard per check mechanism; the request it names is supplied when it is worded
-      (MSM-08-010). The invitee is checked against the recorded Invite itself rather than
-      against an addressee the receiver recorded, and is the protocol's established term
-      (EP-09-010), so it stays a kind of its own. See ADR-0129.
+      A closed vocabulary means each standing that a declaration names has exactly
+      one guard. Keeping positions as kinds means a position named in the docs is
+      always one that a receiver enforces (ADR-0129).
     verification: >-
-      A unit test asserts that no position kind's name is a `CVDRole` member (the role
-      kinds, `CASE_MANAGER` and `CASE_OWNER`, are named for the roles they check), and that
-      every sender-entitlement condition node in the sender-entitlement module is the guard
-      of exactly one declared kind, so a position checked by a node no kind names fails.
+      `test/core/behaviors/test_sender_guard.py::test_every_sender_condition_node_guards_exactly_one_kind`
+      asserts that every sender-entitlement condition node in the sender-entitlement
+      module is the guard of exactly one declared kind, and
+      `::test_every_kind_but_any_actor_has_a_guard` asserts that each kind has one.
     lint_suppress:
     - phantom_path_ref
     relationships:
@@ -303,14 +542,70 @@ groups:
       spec_id: HP-01-007
     adr:
     - ADR-0129
+  - id: HP-01-027
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      This codebase MUST NOT add a position to `CVDRole`.
+    rationale: >-
+      A `CVDRole` value is a durable fact stored on a participant record. A position
+      is held relative to one exchange: the same coordinator receives one report and
+      sends the next, and a report precedes any case (ADR-0129).
+    verification: >-
+      `test/core/behaviors/test_sender_guard.py::test_no_position_kind_is_a_cvd_role`
+      asserts that no position kind's name is a `CVDRole` member. The role kinds,
+      `CASE_MANAGER` and `CASE_OWNER`, are named for the roles they check.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-009
+    adr:
+    - ADR-0129
+  - id: HP-01-028
+    priority: MUST
+    kind: architecture
+    statement: >-
+      This codebase MUST add a position that a new sender rule needs as an
+      entitlement kind.
+    rationale: >-
+      When every position is a kind, each position named in the docs is one that a
+      receiver enforces. A position checked by a node outside the vocabulary would
+      have no name in the declarations (ADR-0129).
+    verification: >-
+      `test/core/behaviors/test_sender_guard.py::test_every_sender_condition_node_guards_exactly_one_kind`
+      fails on a position checked by a node that no kind names.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-009
+    adr:
+    - ADR-0129
+  - id: HP-01-029
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The addressee of a request MUST be one entitlement kind, whatever the request.
+      The invitee of a recorded Invite is the one exception and is its own kind.
+    rationale: >-
+      One addressee kind keeps one guard per check mechanism. The request it names
+      is supplied when the rule is worded (MSM-08-010). The invitee is checked
+      against the recorded Invite itself, and it is the protocol's established term
+      (EP-09-010), so it stays a kind of its own (ADR-0129).
+    verification: >-
+      `test/core/behaviors/test_sender_guard.py::test_addressee_checks_compare_and_refuse_the_same_way`
+      runs the one addressee check over two different request records and asserts it
+      compares and refuses the same way for each.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-009
+    adr:
+    - ADR-0129
   - id: HP-01-010
     priority: MUST
     kind: protocol
     statement: >-
-      A receiver MUST accept a new report, sent as `Offer(VulnerabilityReport)` (`RS`) or
-      `Create(VulnerabilityReport)`, from any actor, whether or not that actor takes part
-      in any case, and MUST NOT refuse it on the sender's standing. Only the addressing
-      rules apply to it (HP-01-005, HP-09-001).
+      A receiver MUST accept a new report from any actor, whether or not that actor
+      takes part in any case. A new report is sent as `Offer(VulnerabilityReport)`
+      (`RS`) or `Create(VulnerabilityReport)`. Only the addressing rules apply to it
+      (HP-01-005, HP-09-001).
     rationale: >-
       A report comes before any case. Thus the sender has no participant record or role.
       Any person who finds a vulnerability must be able to report it.
@@ -326,13 +621,35 @@ groups:
       spec_id: HP-01-006
     adr:
     - ADR-0115
+  - id: HP-01-030
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A receiver MUST NOT refuse a new report (HP-01-010) on the sender's standing.
+    rationale: >-
+      A report comes before any case, so its sender has no participant record or
+      role to check. A refusal on standing would stop a finder outside every case
+      from reporting a vulnerability.
+    verification: >-
+      Tests marked `HP-01-030` in
+      `test/core/use_cases/received/test_create_report_received.py` and
+      `test/core/use_cases/received/test_submit_report_received.py` drive each
+      handler with a sender that is not a participant of the receiver's case and
+      assert the handler reports `APPLIED`, not `REFUSED`.
+    stories:
+    - story_2022_012
+    - story_2022_038
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-010
+    adr:
+    - ADR-0115
   - id: HP-01-011
     priority: MUST
     kind: project
     statement: >-
       `CreateReportReceivedUseCase` and `SubmitReportReceivedUseCase` MUST declare the
-      `ANY_ACTOR` entitlement kind for HP-01-010, not an exemption, and no other received
-      use case MAY declare it.
+      `ANY_ACTOR` entitlement kind for HP-01-010, not an exemption.
     rationale: >-
       `ANY_ACTOR` states a decided rule with no guard to compose, so it is a kind rather
       than an exemption: the occasion table's "Sent by" can render it (MSM-08-005), and the
@@ -350,18 +667,31 @@ groups:
     adr:
     - ADR-0115
     - ADR-0129
+  - id: HP-01-031
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A received use case other than the two that HP-01-011 names MUST NOT declare
+      `ANY_ACTOR`.
+    rationale: >-
+      `ANY_ACTOR` composes no guard. If any other use case could declare it, it would
+      become an exemption under another name, and the exemption list would no longer
+      show every missing check.
+    verification: >-
+      `test/architecture/test_sender_entitlement_ratchet.py::test_any_actor_is_declared_only_by_new_report_use_cases`
+      asserts that exactly the two new-report use cases declare `ANY_ACTOR`.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-011
+    adr:
+    - ADR-0129
   - id: HP-01-012
     priority: MUST
     kind: architecture
     statement: >-
-      The receive-tree factory MUST place the HP-01-005 addressee check in every received
-      tree it builds, after intake and the post-close boundary and before the sender guard,
-      and every check of whether an activity is addressed to the receiver MUST read one
-      shared definition: the receiver sent it, is named in `to`, or is an active
-      participant (CM-10-004) of a case whose participants collection `to` names. An
-      `Offer(Report)`'s case-creation check reads its `to` part alone (HP-09-001). A tree
-      MAY leave the check out only by naming a registered exemption that states why, and
-      MUST NOT write its own copy of the check.
+      The receive-tree factory MUST place the HP-01-005 addressee check in every
+      received tree it builds. The check runs after intake and the post-close
+      boundary, and before the sender guard.
     rationale: >-
       HP-01-005 applies to every handler. If each tree must ask for the check, a tree
       can forget it. That tree then acts on copies addressed to a different party. A
@@ -369,22 +699,71 @@ groups:
       list, with a reason for each entry, makes each tree that is different a visible
       decision (CS-22-001).
     verification: >-
-      `test/architecture/test_received_tree_addressee_guard.py` builds every received tree,
-      fails on one without the guard whose site is not a pinned exemption, holds the
-      exemption uses equal to the registry, and fails on a received-side `to` comparison
-      outside the shared definition's module; `test/core/behaviors/case/nodes/test_addressee.py`
-      covers the shared definition; `test/adapters/driving/fastapi/test_unaddressed_copy_sweep.py`
-      delivers every example activity to a store it was not addressed to and asserts it is
-      refused, archived, and acts on nothing.
+      `test/architecture/test_received_tree_addressee_guard.py::test_every_received_tree_carries_the_guard_unless_exempt`
+      builds every received tree and fails on one without the guard whose site is
+      not a pinned exemption;
+      `test/adapters/driving/fastapi/test_unaddressed_copy_sweep.py` delivers every
+      example activity to a store it was not addressed to and asserts it is refused,
+      archived, and acts on nothing.
     relationships:
     - rel_type: implements
       spec_id: HP-01-005
     - rel_type: refines
       spec_id: CLP-10-010
+  - id: HP-01-032
+    priority: MUST
+    kind: architecture
+    statement: >-
+      Every check of whether an activity is addressed to the receiver MUST read one
+      shared definition. Under it, the receiver sent the activity, is named in `to`,
+      or is an active participant (CM-10-004) of a case whose participants
+      collection `to` names. An `Offer(Report)`'s case-creation check reads its `to`
+      part alone (HP-09-001).
+    rationale: >-
+      Two definitions of "addressed to me" would let one tree act on a copy that a
+      different tree refuses. One shared definition gives every received tree the
+      same answer (CS-22-001).
+    verification: >-
+      `test/core/behaviors/case/nodes/test_addressee.py` covers the shared
+      definition;
+      `test/architecture/test_received_tree_addressee_guard.py::test_no_received_side_code_writes_its_own_addressee_check`
+      fails on a received-side `to` comparison outside the shared definition's
+      module.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-012
     - rel_type: uses_definition
       spec_id: CM-10-004
     - rel_type: constrains
       spec_id: HP-09-001
+  - id: HP-01-033
+    priority: MAY
+    kind: architecture
+    statement: >-
+      A received tree MAY leave out the addressee check (HP-01-012) only by naming a
+      registered exemption that states why.
+    rationale: >-
+      Some trees have a reason to run without the check. A closed exemption list,
+      with a reason for each entry, makes each such tree a visible decision and not
+      a forgotten check (CS-22-001).
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-012
+  - id: HP-01-034
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      A received tree MUST NOT write its own copy of the addressee check.
+    rationale: >-
+      A copy in a tree can drift from the factory's check. The tree would then act
+      on copies that every other tree refuses (CS-22-001).
+    verification: >-
+      `test/architecture/test_received_tree_addressee_guard.py::test_no_received_side_code_writes_its_own_addressee_check`
+      fails on a received-side `to` comparison outside the shared definition's
+      module.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-01-012
 - id: HP-02
   title: Semantic Verification
   specs:
@@ -452,11 +831,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Handlers MUST read activity data as typed fields of their `VultronEvent`
-      subclass — including the core `VultronActivity` carried on `activity` when
-      the semantic entry sets `include_activity` — and MUST NOT re-parse,
-      re-extract, or otherwise re-read the inbound wire activity. Extraction and
-      validation happen once, in the wire layer, before dispatch.
+      A handler MUST read activity data as typed fields of its `VultronEvent`
+      subclass. These fields include the core `VultronActivity` on `activity` when
+      the semantic entry sets `include_activity`.
     rationale: >-
       The dispatcher hands a handler a fully validated domain event, so every
       field the handler needs is already typed, and required where the subclass
@@ -465,11 +842,8 @@ groups:
       optional-field guards that validate-at-edge removed (ADR-0032); core does
       not re-read wire activities for semantics (ADR-0035).
     verification: >-
-      `test/architecture/test_core_no_wire_imports.py` (ARCH-01-001) confirms no
-      module under `vultron/core/` imports the wire layer, so a handler cannot
-      reach the AS2 parser or the semantic extractor; its
-      `test_vultron_event_activity_is_the_core_activity_type` and
-      `test_every_event_subclass_carries_a_core_activity` resolve the `activity`
+      `test/architecture/test_core_no_wire_imports.py::test_vultron_event_activity_is_the_core_activity_type`
+      and `::test_every_event_subclass_carries_a_core_activity` resolve the `activity`
       annotation of `VultronEvent` (`vultron/core/models/events/base.py`) and of
       every subclass and fail unless it is the core `VultronActivity` (optional
       on the base, narrowed to required by subclasses that always carry one),
@@ -482,6 +856,28 @@ groups:
       spec_id: ARCH-07-001
     - rel_type: depends_on
       spec_id: ARCH-08-002
+  - id: HP-04-002
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A handler MUST NOT re-parse, re-extract or otherwise re-read the inbound wire
+      activity. Extraction and validation happen once, in the wire layer, before
+      dispatch.
+    rationale: >-
+      A second read of the wire payload would duplicate the single extraction seam
+      (ARCH-03-001, ARCH-07-001). It would also bring back the optional-field guards
+      that validate-at-edge removed (ADR-0032). Core does not re-read wire activities
+      for semantics (ADR-0035).
+    verification: >-
+      `test/architecture/test_core_no_wire_imports.py::test_core_does_not_import_wire`
+      (ARCH-01-001) confirms no module under `vultron/core/` imports the wire layer,
+      so a handler cannot reach the AS2 parser or the semantic extractor.
+    adr:
+    - ADR-0032
+    - ADR-0035
+    relationships:
+    - rel_type: extends
+      spec_id: HP-04-001
 - id: HP-05
   title: Error Handling
   specs:
@@ -598,12 +994,10 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Persistence writes made on a handler's behalf MUST go through the
-      persistence port's typed object methods — `dl.save(obj)` (upsert) or
-      `dl.create(obj)` (insert) with a domain object — which validate and
-      dehydrate the model; they MUST NOT build records by hand
-      (`object_to_record()`) or call the record-level `update(id_, record)`
-      compatibility method.
+      A persistence write made on a handler's behalf MUST go through the persistence
+      port's typed object methods. These are `dl.save(obj)` (upsert) and
+      `dl.create(obj)` (insert) with a domain object, which validate and dehydrate
+      the model.
     rationale: >-
       `save()` and `create()` are the write paths that keep the stored record
       consistent with the domain model and that `dl.read()` can rehydrate
@@ -690,14 +1084,9 @@ groups:
     kind: project
     statement: >-
       The `AddNoteToCaseReceivedUseCase` handler MUST append the note's id to
-      `VulnerabilityCase.notes` (a list of note ids) and commit the attachment as a
-      ledger entry, persisting the Note object the `Add(Note)` carries before it
-      appends the id. An `Add(Note)` introduces a new note: when a note is already
-      stored under the note's id, the handler MUST refuse the `Add` before the
-      commit, whatever the carried note says, unless the case's ledger already
-      records that same `Add`, which it MUST report as a `SKIPPED` redelivery. It
-      MUST NOT replace a stored note; a change to one would be an `Update(Note)`,
-      which this implementation does not route.
+      `VulnerabilityCase.notes`, a list of note ids, and commit the attachment as a
+      ledger entry. Before it appends the id, it persists the Note object that the
+      `Add(Note)` carries.
     rationale: >-
       The handler stores each note and links it to its case, as the case management data
       model requires. The refusal uses only the id. The inbox routing rebuild gives the
@@ -713,16 +1102,7 @@ groups:
       `test_add_note_to_case_appends_note` runs the handler at the CASE_MANAGER and
       asserts the note id is in the re-read case's `notes`;
       `test_add_note_to_case_stores_the_inline_note` asserts an `Add(Note)` carrying
-      a note the CASE_MANAGER has never seen persists that note;
-      `test_redelivered_add_note_is_skipped` asserts a redelivery is `SKIPPED` and
-      appends the note once; `test_new_add_naming_an_attached_note_is_refused`
-      asserts a second `Add` naming the same note is refused;
-      `test_add_note_to_case_refuses_to_overwrite_a_different_note` and
-      `test_add_note_through_ingress_with_a_taken_id_is_refused` assert a
-      different note under a stored id is refused with no entry and no overwrite,
-      directly and through the inbox ingress;
-      `test_add_note_through_ingress_naming_another_cases_note_is_refused` asserts
-      the same through the ingress for a note stored for another case.
+      a note the CASE_MANAGER has never seen persists that note.
   - id: HP-08-007
     priority: MUST
     kind: project
@@ -750,13 +1130,8 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A received `Add(ParticipantStatus)` MUST act on the case named by the
-      `context` of the receiver's stored record of the target participant, never
-      on a case the status's `context` or the activity's `context` names. A
-      status whose `context` is not that case MUST be refused before the commit,
-      as HP-08-007 refuses an object of another case. When the receiver holds no
-      record of the target participant, or the record names no case, the `Add`
-      has no case and MUST be refused before the commit.
+      A receiver MUST apply a received `Add(ParticipantStatus)` to the case its record
+      of the target participant names, never to one a `context` field names.
     rationale: >-
       The receiver appends the status to the participant record that it holds. Thus the
       case that owns that record is the case that changes. Suppose that the status of
@@ -770,10 +1145,127 @@ groups:
       `test/core/use_cases/received/test_status.py::TestStatusUseCases::test_add_participant_status_through_ingress_naming_another_case_is_refused`
       drives, through the inbox ingress, an `Add` whose status names case B and
       whose target is case A's participant, sent by a participant of both, and
-      asserts it is refused with no entry and no appended status;
-      `::test_add_participant_status_to_an_unheld_participant_is_refused` asserts
-      an `Add` targeting a participant the receiver does not hold is refused with
-      no entry.
+      asserts that case B gains no entry and no appended status.
+  - id: HP-08-009
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A persistence write made on a handler's behalf MUST NOT build a record by hand
+      (`object_to_record()`) or call the record-level `update(id_, record)`
+      compatibility method.
+    rationale: >-
+      A hand-built record skips the validation and dehydration that `save()` and
+      `create()` apply. `dl.read()` may then fail to rehydrate it (ADR-0034). The
+      record-level method stays only as a compatibility shim for the adapter layer
+      and the legacy generic BT nodes.
+    verification: >-
+      `test/architecture/test_no_record_level_persistence_in_core.py` scans
+      `vultron/core/use_cases/` and `vultron/core/behaviors/` for a reference to
+      `object_to_record`, a hand-built `StorableRecord(...)`, or a record-level
+      `.update(id_, record)` call and pins the one legacy site
+      (`vultron/core/behaviors/helpers.py`) in an exact `KNOWN_VIOLATIONS` set
+      (ARCH-18-001).
+    relationships:
+    - rel_type: extends
+      spec_id: HP-08-001
+  - id: HP-08-010
+    priority: MUST
+    kind: project
+    statement: >-
+      The `AddNoteToCaseReceivedUseCase` handler MUST refuse an `Add(Note)` before the
+      commit when a note is already stored under the carried note's id. It does so
+      whatever the carried note says. The exception is a redelivery that HP-08-011
+      covers.
+    rationale: >-
+      An `Add(Note)` introduces a new note. The inbox routing rebuild gives the
+      handler the stored note, not the carried note (IO-03-004), so only the id can
+      show the clash. Without the refusal, an `Add` that names a note of a different
+      case would attach it, and its content would go to the wrong participants.
+    verification: >-
+      In `test/core/use_cases/received/test_note.py::TestNoteUseCases`,
+      `test_new_add_naming_an_attached_note_is_refused` asserts a second `Add`
+      naming the same note is refused;
+      `test_add_note_to_case_refuses_to_overwrite_a_different_note` and
+      `test_add_note_through_ingress_with_a_taken_id_is_refused` assert a
+      different note under a stored id is refused with no entry, directly and
+      through the inbox ingress;
+      `test_add_note_through_ingress_naming_another_cases_note_is_refused` asserts
+      the same through the ingress for a note stored for another case.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-08-006
+    - rel_type: depends_on
+      spec_id: IO-03-004
+  - id: HP-08-011
+    priority: MUST
+    kind: project
+    statement: >-
+      When the case's ledger already records the same `Add(Note)`, the
+      `AddNoteToCaseReceivedUseCase` handler MUST report it as a `SKIPPED`
+      redelivery.
+    rationale: >-
+      A redelivery of an `Add` that the ledger holds is not a new note and not a
+      clash. Reporting it as `SKIPPED` keeps a sender retry from reading as a
+      refusal, and the note is attached only once (HP-01-014).
+    verification: >-
+      `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_redelivered_add_note_is_skipped`
+      asserts a redelivery is `SKIPPED` and appends the note once.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-08-006
+  - id: HP-08-012
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The `AddNoteToCaseReceivedUseCase` handler MUST NOT replace a stored note. A
+      change to a note would be an `Update(Note)`, which this implementation does not
+      route.
+    rationale: >-
+      A replaced note would change content that the case's participants already
+      received under that id. An `Add` only introduces a note, so it must never
+      overwrite one.
+    verification: >-
+      `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_to_case_refuses_to_overwrite_a_different_note`
+      and `::test_add_note_through_ingress_with_a_taken_id_is_refused` assert a
+      different note under a stored id is refused with no overwrite.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-08-006
+  - id: HP-08-013
+    priority: MUST
+    kind: project
+    statement: >-
+      The receiver MUST refuse, before the commit, an `Add(ParticipantStatus)` whose
+      status `context` is not the case that HP-08-008 names. HP-08-007 refuses an
+      object of another case in the same way.
+    rationale: >-
+      The status would otherwise go to a participant of one case while the sender
+      guard, the commit and the case-status update ran on another.
+    verification: >-
+      `test/core/use_cases/received/test_status.py::TestStatusUseCases::test_add_participant_status_through_ingress_naming_another_case_is_refused`
+      drives, through the inbox ingress, an `Add` whose status names case B and
+      whose target is case A's participant, and asserts it is refused with no entry
+      and no appended status.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-08-008
+  - id: HP-08-014
+    priority: MUST
+    kind: project
+    statement: >-
+      The receiver MUST refuse an `Add(ParticipantStatus)` before the commit when it
+      holds no record of the target participant, or when that record names no case.
+    rationale: >-
+      Without a stored record of the target participant, the `Add` has no case to
+      act on. A commit on some other case would change a case that the status does
+      not belong to.
+    verification: >-
+      `test/core/use_cases/received/test_status.py::TestStatusUseCases::test_add_participant_status_to_an_unheld_participant_is_refused`
+      asserts an `Add` targeting a participant the receiver does not hold is refused
+      with no entry.
+    relationships:
+    - rel_type: extends
+      spec_id: HP-08-008
 - id: HP-09
   title: Offer Recipient Addressing
   specs:

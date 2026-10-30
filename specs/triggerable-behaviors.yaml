@@ -53,8 +53,8 @@ groups:
     priority: MUST_NOT
     kind: project
     verification_debt: '#2575'
-    statement: Trigger endpoint processing MUST NOT block the HTTP response; long-running behavior execution MUST run as a
-      background task
+    statement: >-
+      Trigger endpoint processing MUST NOT block the HTTP response.
     rationale: >-
       A behavior tree run and its outbox delivery can take much longer than an HTTP
       client waits. If the server held the response, each call would use a server worker
@@ -64,6 +64,20 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: IE-03-001
+  - id: TRIG-01-005
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      A trigger endpoint MUST run long-running behavior execution as a background
+      task.
+    rationale: >-
+      A background task lets the endpoint answer before the behavior tree and its
+      outbox delivery finish. The server worker is then free, and a caller timeout
+      does not look like a failed behavior (IE-05-002).
+    relationships:
+    - rel_type: extends
+      spec_id: TRIG-01-004
 - id: TRIG-02
   title: Candidate RM Behaviors
   specs:
@@ -208,14 +222,26 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: The `reject-report` trigger request body MUST include a `note` field (reason required); the `note` value SHOULD
-      be non-empty
+    statement: >-
+      The `reject-report` trigger request body MUST include a `note` field that
+      gives the reason.
     rationale: Hard-close decisions are irreversible and warrant documented justification for audit purposes
     relationships:
     - rel_type: refines
       spec_id: TRIG-03-003
     - rel_type: depends_on
       spec_id: CS-08-001
+  - id: TRIG-03-005
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The `note` value of a `reject-report` trigger request SHOULD be non-empty.
+    rationale: >-
+      An empty note satisfies the field but records no reason. A hard close cannot be
+      undone, so an audit needs the reason the note gives.
+    relationships:
+    - rel_type: extends
+      spec_id: TRIG-03-004
 - id: TRIG-04
   title: Response Body
   specs:
@@ -441,8 +467,9 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: 'The demo router MUST be conditionally mounted: it MUST be included in the FastAPI application only when `get_config().server.run_mode
-      == RunMode.PROTOTYPE`'
+    statement: >-
+      The FastAPI application MUST include the demo router only when
+      `get_config().server.run_mode == RunMode.PROTOTYPE`.
     rationale: >-
       Demo-only verbs move an actor through steps that it would do by itself. If a
       production server mounted them, any caller could make an actor do a step in place
@@ -497,24 +524,20 @@ groups:
     kind: project
     statement: >-
       The system MUST expose an `add-object-to-case` general trigger at
-      `POST /actors/{actor_id}/trigger/add-object-to-case` that accepts any object type the protocol
-      routes as `Add(object, target=VulnerabilityCase)`, except a type whose addition the protocol
-      carries by its own flow (`EmbargoEvent`, `CaseParticipant`, `CaseStatus`). It MUST refuse with
-      HTTP 422, queuing nothing, an object whose `Add` no receive-side pattern matches or whose type is
-      one of those exceptions.
+      `POST /actors/{actor_id}/trigger/add-object-to-case`. It accepts any object type
+      that the protocol routes as `Add(object, target=VulnerabilityCase)`. The
+      exceptions are the types whose addition the protocol carries by its own flow:
+      `EmbargoEvent`, `CaseParticipant` and `CaseStatus`.
     rationale: >-
-      Adding content to a case is a legitimate operator action for more than one object type; a Note
-      is the most common use but not the only one. The `Add` is a participant's request to the
-      CASE_MANAGER (PCR-08-005), so an object type the CASE_MANAGER cannot route would be delivered and
-      dropped on arrival while the caller was told 202. Refusing it at the trigger keeps the response
-      truthful. An embargo proposal is an `Invite` relayed by the CASE_MANAGER (EP-09-001), and
-      participants and status changes have role-gated flows of their own, so a general `Add` of those
-      types would bypass the gates that govern them.
+      Adding content to a case is a legitimate operator action for more than one
+      object type. A Note is the most common use, but not the only one. An embargo
+      proposal is an `Invite` relayed by the CASE_MANAGER (EP-09-001), and
+      participants and status changes have role-gated flows of their own, so those
+      types are not part of this trigger.
     verification: >-
-      Router tests under `test/adapters/driving/fastapi/routers/` confirm that a POST with a routable
-      non-Note object returns 202 and queues an `Add` addressed to the CASE_MANAGER, and that a POST
-      with an object type no `Add`-to-case pattern matches, or with an `EmbargoEvent`, returns 422 and
-      leaves the outbox unchanged.
+      `test_trigger_add_object_to_case_addresses_add_to_case_manager` in
+      `test/adapters/driving/fastapi/routers/test_trigger_case.py` posts a routable
+      object and asserts the queued `Add` is addressed to the CASE_MANAGER.
     stories:
     - story_2022_074
     - story_2022_102
@@ -538,8 +561,9 @@ groups:
     verification: >-
       `test/adapters/driving/fastapi/routers/test_demo_triggers.py::TestDemoAddNoteToCaseNotAtTriggerPrefix`
       confirms add-note-to-case is absent from the `/trigger/` path.
-    statement: '`add-note-to-case` MUST NOT be exposed as a general `/trigger/` endpoint; it MUST be moved to `/demo/add-note-to-case`
-      as a demo-only convenience wrapper around `add-object-to-case`'
+    statement: >-
+      This codebase MUST NOT expose `add-note-to-case` as a general `/trigger/`
+      endpoint.
     rationale: >-
       `add-object-to-case` already adds a Note to a case. A second production path for
       the same act would need its own checks. These checks must stay the same as the
@@ -552,10 +576,12 @@ groups:
     priority: MUST_NOT
     kind: project
     verification: >-
-      `test/adapters/driving/fastapi/routers/test_demo_triggers.py::TestDemoSyncLogEntry::test_returns_202_with_the_entry_identity`
-      confirms sync-log-entry is served under `/demo/`; inspection of the trigger router
-      confirms it is not mounted under `/trigger/`.
-    statement: '`sync-log-entry` MUST NOT be exposed as a general `/trigger/` endpoint; it MUST be moved to `/demo/sync-log-entry`'
+      `test/adapters/driving/fastapi/test_trigger_registry_routes.py::test_every_row_is_mounted_under_its_exposures_prefix`
+      asserts each demo-only row, `sync-log-entry` among them, is mounted under
+      `/demo/` and not under `/trigger/`.
+    statement: >-
+      This codebase MUST NOT expose `sync-log-entry` as a general `/trigger/`
+      endpoint.
     rationale: In a correct implementation, SYNC log entries are committed automatically as a cascade effect of every state-changing
       operation. An explicit trigger exists only to let the demo script inject entries manually. A future production "force-sync"
       recovery operation would require a protocol-level mechanism for a peer to advertise its current log tail hash before
@@ -563,6 +589,60 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: TRIG-08-004
+  - id: TRIG-10-005
+    priority: MUST
+    kind: project
+    statement: >-
+      The `add-object-to-case` trigger MUST refuse with HTTP 422, and queue nothing,
+      an object whose `Add` no receive-side pattern matches. It refuses an object
+      whose type is a TRIG-10-001 exception in the same way.
+    rationale: >-
+      The `Add` is a participant's request to the CASE_MANAGER (PCR-08-005). An object
+      type that the CASE_MANAGER cannot route would be dropped on arrival while the
+      caller was told 202. An `EmbargoEvent`, a participant or a status has a
+      role-gated flow of its own, and a general `Add` would bypass its gates.
+    verification: >-
+      `test_trigger_add_object_to_case_refused_type_returns_422` in
+      `test/adapters/driving/fastapi/routers/test_trigger_case.py` posts an object no
+      `Add` pattern matches and each own-flow type, and asserts 422 with the outbox
+      unchanged.
+    stories:
+    - story_2022_074
+    - story_2022_102
+    relationships:
+    - rel_type: extends
+      spec_id: TRIG-10-001
+  - id: TRIG-10-006
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST serve `add-note-to-case` at `/demo/add-note-to-case`, as a
+      demo-only convenience wrapper around `add-object-to-case`.
+    rationale: >-
+      Demo scripts use the note shortcut, so it needs a route. Under `/demo/` it is
+      not mounted in production (TRIG-09-002), and as a wrapper it reuses the checks
+      of `add-object-to-case` (TRIG-10-002).
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_demo_triggers.py::TestDemoAddNoteToCase::test_returns_202_on_success`
+      posts to `/demo/add-note-to-case` and asserts 202.
+    relationships:
+    - rel_type: extends
+      spec_id: TRIG-10-003
+  - id: TRIG-10-007
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST serve `sync-log-entry` at `/demo/sync-log-entry`.
+    rationale: >-
+      Demo scripts use the route to inject SYNC log entries by hand. Under `/demo/`
+      it is not mounted in production (TRIG-09-002), where entries commit as a
+      cascade effect of each state change.
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_demo_triggers.py::TestDemoSyncLogEntry::test_returns_202_with_the_entry_identity`
+      confirms sync-log-entry is served under `/demo/`.
+    relationships:
+    - rel_type: extends
+      spec_id: TRIG-10-004
 - id: TRIG-11
   title: Case Ownership Transfer Triggers
   specs:
@@ -737,30 +817,26 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The response body of every trigger verb MUST be pinned to an exact key
-      set by a test parametrized over the trigger registry (TRIG-12-004), and
-      `response_model` serialization MUST keep FastAPI's defaults for
-      `response_model_exclude_none`, `_exclude_unset`, `_exclude_defaults`, and
-      `_by_alias`, so a key whose value is `null` is still emitted.
+      A test parametrized over the trigger registry (TRIG-12-004) MUST pin the
+      response body of every trigger verb to an exact key set.
     rationale: >-
       `activity` is `null` whenever the BT captured nothing; excluding `None`
       would silently drop a key clients receive today. Pinning the exact set,
       rather than asserting one key is present, is what turns a body change
       into a failing test.
     verification: >-
-      The parametrized test asserts `set(response.json()) == expected_keys` for
-      each registry row; a route that adds or drops a key fails it.
+      `test/adapters/driving/fastapi/test_trigger_routes_contract.py::test_route_answers_202_with_exactly_the_rows_keys`
+      asserts `set(response.json()) == expected_keys` for each registry row; a route
+      that adds or drops a key fails it.
     adr:
     - ADR-0110
   - id: TRIG-12-003
     priority: MUST_NOT
     kind: project
     statement: >-
-      The trigger API contract — paths, `operation_id`s, status codes, summaries,
-      descriptions, and request schemas — MUST NOT change without a deliberate
-      update to a committed golden OpenAPI snapshot. The snapshot MUST be
-      captured before any trigger route is rewritten, so it freezes the shipped
-      contract rather than whatever a rewrite happened to emit.
+      The trigger API contract MUST NOT change without a deliberate update to a
+      committed golden OpenAPI snapshot. The contract is the paths, `operation_id`s,
+      status codes, summaries, descriptions and request schemas.
     rationale: >-
       Some changes touch all trigger routes at one time, for example a new
       `response_model` on each route. Such a change needs mechanical evidence that the
@@ -768,22 +844,18 @@ groups:
       change gives this evidence. A snapshot taken after the change records the change
       as the baseline.
     verification: >-
-      A test compares `app.openapi()` for the trigger and demo paths against
-      the committed snapshot and fails on any difference; the snapshot's commit
-      predates the first route change in history.
+      `test/adapters/driving/fastapi/test_openapi_trigger_snapshot.py::test_trigger_openapi_contract_matches_committed_snapshot`
+      compares `app.openapi()` for the trigger and demo paths against the committed
+      snapshot and fails on any difference.
     adr:
     - ADR-0110
   - id: TRIG-12-004
     priority: MUST
     kind: project
     statement: >-
-      A single verb-keyed trigger registry MUST be the sole source mapping each
-      trigger verb to its request model, use-case class, result type, and
-      exposure (general-purpose or demo-only). Every trigger route MUST
-      correspond to exactly one registry row and every row to exactly one
-      route; every `Svc*UseCase` class under `vultron/core/use_cases/triggers/`
-      MUST appear in exactly one row. The registry holds data and a lookup
-      only; it MUST NOT contain per-verb behavior.
+      A single verb-keyed trigger registry MUST be the sole source that maps each
+      trigger verb to its request model, use-case class, result type and exposure.
+      The exposure is general-purpose or demo-only.
     rationale: >-
       The registry is for enumeration, not for routing, because a route already knows
       its verb. With enumeration, tests can assert TRIG-08-003/004, TRIG-12-001, and
@@ -791,8 +863,11 @@ groups:
       that no route reaches. When the registry holds no behavior, it cannot become a
       second layer of code for each verb (ADR-0110).
     verification: >-
-      Architecture tests assert the route-to-registry bijection and the
-      use-case-to-row bijection, both as exact set equalities (ARCH-18-001).
+      `test/test_trigger_registry.py::test_entries_is_the_assembled_immutable_table`
+      and `::test_lookup_entry_returns_the_enumerated_row` assert the one assembled
+      table is what every lookup reads;
+      `test/adapters/driving/fastapi/test_trigger_routes_contract.py::test_dispatcher_receives_the_rows_request_over_the_addressed_store`
+      asserts each route dispatches its row's request model.
     relationships:
     - rel_type: refines
       spec_id: TRIG-08-003
@@ -800,6 +875,100 @@ groups:
       spec_id: TRIG-08-004
     adr:
     - ADR-0110
+  - id: TRIG-12-005
+    priority: MUST
+    kind: project
+    statement: >-
+      Trigger `response_model` serialization MUST keep FastAPI's defaults for
+      `response_model_exclude_none`, `_exclude_unset`, `_exclude_defaults` and
+      `_by_alias`, so that a key whose value is `null` is still emitted.
+    rationale: >-
+      `activity` is `null` whenever the BT captured nothing. If serialization
+      excluded `None`, it would drop a key that clients receive today, and no client
+      would be told.
+    verification: >-
+      `test/adapters/driving/fastapi/test_trigger_routes_contract.py::test_null_valued_keys_are_still_emitted`
+      asserts that a response whose `activity` is `null` still carries the key.
+    adr:
+    - ADR-0110
+    relationships:
+    - rel_type: extends
+      spec_id: TRIG-12-002
+  - id: TRIG-12-006
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST capture the golden OpenAPI snapshot (TRIG-12-003) before it
+      rewrites any trigger route.
+    rationale: >-
+      Only a snapshot taken before the routes change shows that the contract did not
+      change. A snapshot taken after a rewrite records whatever the rewrite emitted
+      as the baseline.
+    verification: >-
+      The snapshot's commit predates the first route change in history;
+      `test/adapters/driving/fastapi/test_openapi_trigger_snapshot.py::test_committed_snapshot_is_canonical`
+      pins the committed bytes, so a regenerated snapshot cannot replace it
+      unseen.
+    adr:
+    - ADR-0110
+    relationships:
+    - rel_type: extends
+      spec_id: TRIG-12-003
+  - id: TRIG-12-007
+    priority: MUST
+    kind: project
+    statement: >-
+      Every trigger route MUST correspond to exactly one registry row, and every row
+      to exactly one route.
+    rationale: >-
+      A route with no row escapes every test that enumerates the registry. A row
+      with no route names a verb that no caller can reach (ADR-0110).
+    verification: >-
+      `test/adapters/driving/fastapi/test_trigger_registry_routes.py::test_trigger_routes_and_registry_rows_are_in_bijection`
+      asserts the route-to-registry bijection as an exact set equality
+      (ARCH-18-001).
+    adr:
+    - ADR-0110
+    relationships:
+    - rel_type: extends
+      spec_id: TRIG-12-004
+  - id: TRIG-12-008
+    priority: MUST
+    kind: project
+    statement: >-
+      Every `Svc*UseCase` class under `vultron/core/use_cases/triggers/` MUST appear
+      in exactly one registry row.
+    rationale: >-
+      A trigger use case with no row is code that no route reaches. The registry is
+      for enumeration, so a test can find such a use case only through its row
+      (ADR-0110).
+    verification: >-
+      `test/architecture/test_trigger_registry_ratchets.py::test_every_svc_use_case_has_exactly_one_row_and_vice_versa`
+      asserts the use-case-to-row bijection as an exact set equality
+      (ARCH-18-001).
+    adr:
+    - ADR-0110
+    relationships:
+    - rel_type: extends
+      spec_id: TRIG-12-004
+  - id: TRIG-12-009
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The trigger registry MUST NOT contain per-verb behavior. It holds data and a
+      lookup only.
+    rationale: >-
+      A route already knows its verb, so the registry does not route. Behavior in
+      the registry would make it a second layer of code for each verb (ADR-0110).
+    verification: >-
+      `test/test_trigger_registry.py::test_row_is_frozen` asserts a registry row is
+      frozen data, and `::test_lookup_entry_returns_the_enumerated_row` asserts the
+      lookup returns the stored row unchanged.
+    adr:
+    - ADR-0110
+    relationships:
+    - rel_type: extends
+      spec_id: TRIG-12-004
 - id: TRIG-13
   title: Leaving a Case
   specs:
@@ -842,13 +1011,11 @@ groups:
     kind: project
     statement: >-
       The `leave-case` trigger MUST run the pre-close Actuator call-out
-      (`PreCloseAction`) for every caller before it sends the Leave. When the
-      call-out fails, the trigger MUST fail with nothing sent.
+      (`PreCloseAction`) for every caller before it sends the Leave.
     verification: >-
       Trigger tests in `test/core/use_cases/triggers/case/test_leave.py` with a
       recording `PreCloseAction` backend assert it ran before the Leave was queued,
-      for a participant that is not the owner and for the Case Owner; one with a
-      failing backend asserts the trigger fails with nothing queued.
+      for a participant that is not the owner and for the Case Owner.
     rationale: >-
       The pre-close step is the leaving actor's own integration work, such as
       closing its ticket, so it runs where that actor decides to leave. Running it
@@ -885,3 +1052,21 @@ groups:
       spec_id: CM-23-011
     adr:
     - ADR-0145
+  - id: TRIG-13-004
+    priority: MUST
+    kind: project
+    statement: >-
+      When the pre-close call-out (TRIG-13-002) fails, the `leave-case` trigger MUST
+      fail with nothing sent.
+    rationale: >-
+      A Leave sent after a failed pre-close step would close the actor's part in the
+      case while its own integration work stayed undone. Failing first lets the
+      actor fix that work and leave again.
+    verification: >-
+      `test/core/use_cases/triggers/case/test_leave.py::TestLeaveCaseTrigger::test_failing_pre_close_action_fails_the_trigger_with_nothing_queued`
+      runs a failing backend and asserts the trigger fails with nothing queued.
+    adr:
+    - ADR-0145
+    relationships:
+    - rel_type: extends
+      spec_id: TRIG-13-002

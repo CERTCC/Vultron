@@ -1000,6 +1000,7 @@ class TestAnnounceLedgerEntryDisposition:
         assert stored is not None
         assert stored.payload_snapshot == genesis_entry.payload_snapshot
 
+    @pytest.mark.spec("HP-01-016")
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("SYNC-14-001")
     def test_forward_gap_entry_is_deferred(self, dl, case_with_genesis):

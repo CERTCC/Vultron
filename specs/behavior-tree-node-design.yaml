@@ -16,8 +16,9 @@ groups:
     priority: MUST_NOT
     kind: project
     verification_debt: '#2574'
-    statement: BT nodes MUST NOT hard-code actor identities, CVD roles, case IDs, or any context that varies by usage site;
-      these values MUST be constructor parameters.
+    statement: >-
+      A BT node MUST NOT hard-code an actor identity, a CVD role, a case ID or any other
+      value that varies by usage site.
     rationale: Hard-coded context values prevent reuse across actors or scenarios and couple the node to a single workflow.
     relationships:
     - rel_type: refines
@@ -26,9 +27,9 @@ groups:
     priority: MUST_NOT
     kind: project
     verification_debt: '#2574'
-    statement: BT nodes MUST NOT read actor identity, case ID, or CVD role from environment variables, module-level globals,
-      or any implicit ambient context. All variable inputs MUST arrive via constructor parameters or the documented blackboard
-      interface.
+    statement: >-
+      A BT node MUST NOT read its actor identity, case ID or CVD role from implicit
+      ambient context. Environment variables and module-level globals are such context.
     rationale: >-
       A value that a node reads from the environment or from a global is a hidden input.
       Several actors can run in one process. Thus ambient context can give the identity
@@ -48,6 +49,33 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BT-06-004
+  - id: BTND-01-004
+    priority: MUST
+    kind: project
+    verification_debt: '#2574'
+    statement: >-
+      A BT node MUST take each value that varies by usage site as a constructor
+      parameter. Such values include an actor identity, a CVD role and a case ID.
+    rationale: >-
+      A constructor parameter makes each such value an explicit input. The caller that
+      builds the tree then decides the value, so one node class serves every actor and
+      every case.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-01-001
+  - id: BTND-01-005
+    priority: MUST
+    kind: project
+    verification_debt: '#2574'
+    statement: >-
+      A BT node MUST receive each variable input through a constructor parameter or
+      the documented blackboard interface.
+    rationale: >-
+      These two channels are the inputs that a tree and its tests can see and set. An
+      input that arrives any other way is hidden, and a test cannot control it.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-01-002
 - id: BTND-02
   title: Composability and Reuse
   specs:
@@ -55,8 +83,10 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2574'
-    statement: Logic that appears in two or more BT nodes or subtrees MUST be extracted into a shared, parameterized node
-      or factory function in a neutral shared module (see `BTND-04-001`).
+    statement: >-
+      This codebase MUST extract logic that appears in two or more BT nodes or
+      subtrees into one shared, parameterized node or factory function. It goes in a
+      neutral shared module (BTND-04-005).
     rationale: >-
       Copies of the same logic drift apart, because each copy gets its own fixes. Then
       two trees enforce different rules for the same protocol step. One shared node
@@ -135,11 +165,13 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2574'
-    statement: A BT node that writes an inter-node handoff key (a blackboard key written by one node and consumed by a downstream
-      sibling within the same tree) MUST namespace the key by the execution-scoped correlation ID of the tree instance, using
-      the `{noun}_{id_segment}` convention (`id_segment` = `recommendation_id.split('/')[-1]` for HTTP URIs, or the last colon-delimited
-      segment for URN IDs). The same namespaced key MUST be used consistently by all nodes in the tree that read or write
-      that value.
+    statement: >-
+      A BT node that writes an inter-node handoff key MUST namespace it by the
+      execution-scoped correlation ID of its tree instance, as `{noun}_{id_segment}`.
+      An inter-node handoff key is a blackboard key that one node writes and a
+      downstream sibling in the same tree reads. For an HTTP URI, `id_segment` is
+      `recommendation_id.split('/')[-1]`. For a URN ID, it is the last colon-delimited
+      segment.
     rationale: >-
       The py_trees blackboard is global to the process. A tree factory can run
       concurrently, for example for two `Offer(Actor, Case)` messages that the actor
@@ -178,9 +210,9 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2574'
-    statement: A decomposed BT leaf node that encounters a domain-layer error MUST write the error to the `result_out["error"]`
-      blackboard key before returning `FAILURE`, and MUST re-raise the original exception in `execute()` after the write so
-      that the bridge layer can map it to the corresponding HTTP error response.
+    statement: >-
+      A decomposed BT leaf node that meets a domain-layer error MUST write the error to
+      the `result_out["error"]` blackboard key before it returns `FAILURE`.
     rationale: Without a written error key the bridge layer sees only `FAILURE` with no diagnostic context; the error is silently
       swallowed. Writing to `result_out["error"]` ensures the error propagates to the caller via the result channel even when
       the BT stops traversal at the failing leaf.
@@ -191,9 +223,10 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2574'
-    statement: A decomposed BT leaf node MUST convert `KeyError` (missing blackboard key) to a `FAILURE` status and MUST NOT
-      allow the `KeyError` to propagate uncaught to the bridge layer. The leaf is responsible for catching `KeyError` in its
-      `update()` method and returning `FAILURE` with a diagnostic message naming the missing key.
+    statement: >-
+      A decomposed BT leaf node MUST catch a `KeyError` for a missing blackboard key in
+      its `update()` method and return `FAILURE`. The `KeyError` then never reaches the
+      bridge layer.
     rationale: A `KeyError` propagating to the bridge results in an unhandled 500-level error for the caller. At the leaf
       level the semantics of "key not present" are known — this is a precondition failure, not an unexpected crash, so `FAILURE`
       is the correct BT response.
@@ -204,11 +237,10 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2574'
-    statement: New BT nodes in `vultron/core/behaviors/` MUST subclass `DataLayerConditionWithPorts` or
-      `DataLayerActionWithPorts` (from `helpers.py`) rather than `DataLayerCondition` / `DataLayerAction`. The typed
-      `INPUT_PORTS` / `OUTPUT_PORTS` class attributes constitute the node's formal blackboard contract and MUST declare
-      every port the node reads or writes. A subclass extends its parent's ports by spreading the parent attribute
-      (`{**Parent.INPUT_PORTS, ...}`) and MUST NOT override the `input_ports()` / `output_ports()` accessors.
+    statement: >-
+      A new BT node in `vultron/core/behaviors/` MUST subclass
+      `DataLayerConditionWithPorts` or `DataLayerActionWithPorts` from `helpers.py`,
+      not `DataLayerCondition` or `DataLayerAction`.
     rationale: >-
       Typed port declarations are machine-readable and are at the class level. They are
       the one source of truth for the data-flow contract of a node. The imperative
@@ -262,11 +294,10 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2574'
-    statement: >
-      A `DataLayerActionWithPorts` subclass that writes an inter-node handoff key MUST declare that key as an
-      output port in `OUTPUT_PORTS` and write values via `self._set_output(port_name, value)` rather than via
-      direct `self.blackboard.<key> = value` attribute assignment. Output port remappings MUST be included in the
-      `port_remappings` dict passed to `setup_ports()` (typically via `_domain_port_remappings()`).
+    statement: >-
+      A `DataLayerActionWithPorts` subclass MUST declare each handoff key it writes in
+      `OUTPUT_PORTS` and write it with `self._set_output()`, never by direct blackboard
+      assignment.
     rationale: >
       Declaring output ports in `OUTPUT_PORTS` makes the node's write contract explicit and machine-readable,
       consistent with the input-port convention from BTND-03-009/BTND-03-011. Using `_set_output()` routes writes
@@ -279,11 +310,11 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: >
-      Where the physical blackboard key for an output port is execution-scoped (computed from constructor
-      parameters per BTND-03-004, e.g. `suggested_roles_abc123`), the node MUST declare a stable logical port
-      name in `OUTPUT_PORTS` using only the `{noun}` part (no `_{id_segment}` suffix), and MUST bind the
-      physical execution-scoped key by overriding `setup()` to pass `port_remappings={"logical_name": physical_key}`
-      to `setup_ports()`. The logical name is the public contract; the physical key is the per-execution wire-up.
+      Where an output port has an execution-scoped physical blackboard key
+      (BTND-03-004), the node MUST declare a stable logical port name in
+      `OUTPUT_PORTS`. Such a key, as `suggested_roles_abc123`, is computed from
+      constructor parameters. The logical name is only the `{noun}` part, with no
+      `_{id_segment}` suffix.
     rationale: >
       `OUTPUT_PORTS` is a class attribute with no access to instance state, so execution-scoped physical keys
       (computed in `__init__`) cannot be declared there directly. Declaring a stable logical name and binding the
@@ -295,6 +326,109 @@ groups:
       spec_id: BTND-03-012
     - rel_type: refines
       spec_id: BTND-03-004
+  - id: BTND-03-014
+    priority: MUST
+    kind: project
+    verification_debt: '#2574'
+    statement: >-
+      Every node in a tree that reads or writes an inter-node handoff value MUST use
+      the same namespaced key for that value.
+    rationale: >-
+      A namespaced key protects a handoff only when the writer and every reader agree
+      on it. If one node uses a different key, the reader finds no value, or it finds
+      the value of another execution.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-03-004
+  - id: BTND-03-015
+    priority: MUST
+    kind: project
+    verification_debt: '#2574'
+    statement: >-
+      After a decomposed BT leaf node writes a domain-layer error to
+      `result_out["error"]`, `execute()` MUST re-raise the original exception.
+    rationale: >-
+      The bridge layer maps the original exception to the matching HTTP error
+      response. If `execute()` does not re-raise it, the caller gets a generic failure
+      and loses the error type.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-03-006
+  - id: BTND-03-016
+    priority: MUST
+    kind: project
+    verification_debt: '#2574'
+    statement: >-
+      The `FAILURE` that a decomposed BT leaf node returns for a missing blackboard key
+      MUST carry a diagnostic message that names the missing key.
+    rationale: >-
+      A bare `FAILURE` does not tell a reader which precondition was absent. The key
+      name points the reader to the node that should have written it.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-03-007
+  - id: BTND-03-017
+    priority: MUST
+    kind: project
+    verification_debt: '#2574'
+    statement: >-
+      The `INPUT_PORTS` and `OUTPUT_PORTS` class attributes of a BT node in
+      `vultron/core/behaviors/` MUST declare every port that the node reads or writes.
+    rationale: >-
+      These typed class attributes are the formal blackboard contract of the node. A
+      port that they do not declare is a hidden input or output, which a reader and a
+      tool cannot see.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-03-009
+    adr:
+    - ADR-0044
+  - id: BTND-03-018
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2574'
+    statement: >-
+      A ports node subclass extends the ports of its parent by spreading the parent
+      attribute, as in `{**Parent.INPUT_PORTS, ...}`. It MUST NOT override the
+      `input_ports()` or `output_ports()` accessors.
+    rationale: >-
+      py_trees 2.6 and later treats a ports class without both attributes as abstract,
+      and does not instantiate it. Thus an accessor override is not a valid port
+      declaration (ADR-0044).
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-03-009
+    adr:
+    - ADR-0044
+  - id: BTND-03-019
+    priority: MUST
+    kind: project
+    verification_debt: '#2574'
+    statement: >-
+      A `DataLayerActionWithPorts` subclass MUST include its output port remappings in
+      the `port_remappings` dict that it passes to `setup_ports()`, usually through
+      `_domain_port_remappings()`.
+    rationale: >-
+      A declared output port reaches its blackboard key only through a remapping. Without
+      it, `_set_output()` writes to a key that no downstream reader looks at.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-03-012
+  - id: BTND-03-020
+    priority: MUST
+    kind: project
+    verification_debt: '#2574'
+    statement: >-
+      A node whose output port has an execution-scoped physical key MUST bind that key
+      by overriding `setup()` to pass `port_remappings={"logical_name": physical_key}`
+      to `setup_ports()`.
+    rationale: >-
+      `OUTPUT_PORTS` is a class attribute with no access to instance state, so it
+      cannot name a key computed in `__init__`. The binding in `setup()` connects the
+      stable logical name, which is the public contract, to the key of each execution.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-03-013
 - id: BTND-04
   title: Module Ownership
   specs:
@@ -302,9 +436,9 @@ groups:
     priority: MUST_NOT
     kind: project
     verification_debt: '#2574'
-    statement: BT nodes or subtrees that are used by more than one domain module (e.g., by both `case/` and `report/`) MUST
-      be defined in the shared `vultron/core/behaviors/helpers.py` module or a purpose-built shared module within `vultron/core/behaviors/`.
-      Domain-specific modules MUST NOT import BT nodes from sibling domain modules.
+    statement: >-
+      A domain-specific module in `vultron/core/behaviors/` MUST NOT import BT nodes
+      from a sibling domain module.
     rationale: Cross-domain node imports create tight coupling and circular-import risk. Neutral shared ownership makes the
       dependency structure explicit.
     relationships:
@@ -324,8 +458,8 @@ groups:
     priority: MUST_NOT
     kind: project
     verification_debt: '#2574'
-    statement: '`behaviors/` modules MUST NOT import from `use_cases/` modules. BT nodes MUST NOT import use-case classes
-      or functions.'
+    statement: >-
+      A `behaviors/` module MUST NOT import from a `use_cases/` module.
     rationale: Importing use-cases from behaviors inverts the composition hierarchy (behaviors are the implementation layer
       of use-cases, not their consumers) and introduces circular imports when use-cases inject behaviors via factories.
     relationships:
@@ -344,6 +478,34 @@ groups:
       layers need must be in a location that both layers can import. Without that
       location, only two choices remain: an import that breaks the layering, or a second
       copy that drifts.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-04-003
+  - id: BTND-04-005
+    priority: MUST
+    kind: project
+    verification_debt: '#2574'
+    statement: >-
+      A BT node or subtree that more than one domain module uses MUST be defined in
+      `helpers.py` or another purpose-built shared module in `vultron/core/behaviors/`.
+      Two such domain modules are `case/` and `report/`.
+    rationale: >-
+      A neutral shared module gives each domain module a place to import from that is
+      not a sibling. The dependency structure then stays explicit, with no
+      cross-domain imports and no circular-import risk.
+    relationships:
+    - rel_type: implements
+      spec_id: BTND-04-001
+  - id: BTND-04-006
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2574'
+    statement: >-
+      A BT node MUST NOT import a use-case class or function.
+    rationale: >-
+      Behaviors implement use cases, so a node that imports a use case inverts the
+      composition hierarchy. It also makes a circular import when the use case injects
+      the behavior through a factory.
     relationships:
     - rel_type: refines
       spec_id: BTND-04-003
@@ -661,12 +823,12 @@ groups:
   - id: BTND-07-003
     priority: MUST
     kind: project
-    statement: 'Each BT-bearing process area directory under `vultron/core/behaviors/` MUST maintain a clear structural split
-      between tree factory modules and leaf node modules. Tree factory modules (files named `*_tree.py` at the area root)
-      define BT composition and structure. Leaf node modules (files in the `nodes/` subpackage) define BT `Behaviour` subclasses.
-      Supporting files (e.g., `policy.py`, `update_support.py`) MAY exist at the area root alongside tree modules. This two-level
-      hierarchy MAY be deepened further: a `nodes/` subpackage MAY itself contain sub-subpackages when a semantic concern
-      grows large, following the same split pattern recursively.'
+    statement: >-
+      Each BT-bearing process area directory under `vultron/core/behaviors/` MUST keep
+      its tree factory modules apart from its leaf node modules. Tree factory modules
+      are the `*_tree.py` files at the area root, and they define BT composition and
+      structure. Leaf node modules are the files in the `nodes/` subpackage, and they
+      define BT `Behaviour` subclasses.
     rationale: 'Mixing tree factory functions and leaf node class definitions in the same module conflates two separate concerns:
       composition/structure (how the tree is assembled) and implementation/detail (what each leaf node does). Keeping them
       in separate modules makes the tree structure immediately readable without navigating past implementation details, and
@@ -680,8 +842,9 @@ groups:
   - id: BTND-07-004
     priority: MUST
     kind: project
-    statement: BT leaf node modules under `vultron/core/behaviors/**/nodes/` MUST stay under 500 lines each. A leaf module
-      that exceeds 500 lines MUST be further decomposed into concern-focused modules or subpackages.
+    statement: >-
+      Each BT leaf node module under `vultron/core/behaviors/**/nodes/` MUST stay under
+      500 lines.
     rationale: Subpackage splits fail when they recreate the same god-module risk in a new file. A hard per-module cap keeps
       decomposition recursive and auditable.
     relationships:
@@ -743,13 +906,59 @@ groups:
     rationale: >-
       Extracting the pattern prevents future copy-paste proliferation and makes the shared
       abstraction explicit and discoverable.
+  - id: BTND-07-011
+    priority: MAY
+    kind: project
+    statement: >-
+      A BT-bearing process area MAY keep supporting files, such as `policy.py` or
+      `update_support.py`, at its root beside its tree modules.
+    rationale: >-
+      Some area code is neither tree composition nor a leaf node, such as a policy
+      table. A place at the area root keeps that code out of both kinds of module.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-07-003
+  - id: BTND-07-012
+    priority: MAY
+    kind: project
+    statement: >-
+      A `nodes/` subpackage MAY contain sub-subpackages when a semantic concern grows
+      large, and each one follows the same split recursively.
+    rationale: >-
+      One level of `nodes/` can grow into a new god module. A deeper split by concern
+      keeps each module small, and the same pattern at each depth keeps the layout
+      predictable.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-07-003
+  - id: BTND-07-013
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST decompose a BT leaf node module that exceeds 500 lines into
+      concern-focused modules or subpackages.
+    rationale: >-
+      A cap with no remedy leaves an oversized module in place. Decomposition by concern
+      keeps each split module small, and it does not move the same risk into one new
+      file.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-07-004
+    verification: >-
+      `test_leaf_module_line_count` in `test/core/behaviors/test_btnd07_structure.py`
+      fails each `nodes/` leaf module over 500 lines that its oversize ratchet does not
+      list.
 - id: BTND-08
   title: Positive-Precondition Condition Node Naming
   specs:
   - id: BTND-08-001
     priority: SHOULD
     kind: project
-    statement: 'Condition nodes used as type-dispatch guards in a `Selector(Sequence(Condition, Action), AlwaysSuccess)` composite SHOULD use positive names (e.g., `IsFooEventNode`) that return SUCCESS when the condition is true and FAILURE otherwise. Negative-guard names (e.g., `IsNotFooEventNode`) that return SUCCESS to skip an effect and FAILURE to trigger it are a readability anti-pattern and SHOULD NOT be introduced in new code.'
+    statement: >-
+      A condition node that guards type dispatch in a
+      `Selector(Sequence(Condition, Action), AlwaysSuccess)` composite SHOULD have a
+      positive name, such as `IsFooEventNode`. It returns SUCCESS when the condition
+      holds and FAILURE otherwise.
     rationale: 'The `Selector(IsNotFoo, ApplyFoo)` pattern requires readers to mentally invert the condition to understand
       when the effect fires, and the `IsNotFoo` naming implies a guard against `Foo` when the intent is to *apply* `Foo`.  Positive-precondition
       Sequences make intent immediately readable: "if this IS a remove-embargo entry, apply embargo teardown; otherwise skip".'
@@ -770,6 +979,23 @@ groups:
       spec_id: BTND-08-001
     verification: In each `Selector(Sequence(IsFoo, ApplyFoo), AlwaysSuccess)` composite, confirm the `AlwaysSuccess` node's
       `name` ends with `"Skipped"`.
+  - id: BTND-08-003
+    priority: SHOULD_NOT
+    kind: project
+    statement: >-
+      New code SHOULD NOT introduce a negative-guard condition node, such as
+      `IsNotFooEventNode`, that returns SUCCESS to skip an effect and FAILURE to
+      trigger it.
+    rationale: >-
+      A negative guard makes a reader invert the condition to see when the effect
+      fires. Its name also suggests a guard against `Foo` when the intent is to apply
+      `Foo`.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-08-001
+    verification: >-
+      Search `vultron/core/behaviors/` for `IsNot*Node` class definitions used as the
+      first child of a `Selector` composite; flag any found.
 - id: BTND-09
   title: BT Error Handling Contract
   specs:
@@ -777,9 +1003,8 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2574'
-    statement: 'BT helper functions MUST raise exceptions on error — they MUST NOT catch exceptions and return a sentinel
-      value. The `update()` method of the owning leaf node is the sole try/except boundary: it calls helpers, catches any
-      exceptions they raise, writes to the error result channel (BTND-03-006), and returns `FAILURE`.'
+    statement: >-
+      A BT helper function MUST raise an exception on error.
     rationale: If helpers catch their own errors and return sentinels (e.g., `None`, `False`), the leaf's `update()` method
       cannot distinguish a legitimate `None` return from a hidden failure. All error information travels via Python's exception
       mechanism so that the single boundary point (`update()`) has complete diagnostic context.
@@ -788,6 +1013,34 @@ groups:
       spec_id: BTND-03-006
     - rel_type: implements
       spec_id: EH-02-001
+  - id: BTND-09-002
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2574'
+    statement: >-
+      A BT helper function MUST NOT catch an exception and return a sentinel value,
+      such as `None` or `False`, in its place.
+    rationale: >-
+      A sentinel hides the failure. The caller cannot tell a legitimate `None` from a
+      failed call, and the error details are lost.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-09-001
+  - id: BTND-09-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2574'
+    statement: >-
+      The `update()` method of the owning leaf node MUST be the sole try/except
+      boundary for its helpers. It catches what they raise, writes the error result
+      channel (BTND-03-006) and returns `FAILURE`.
+    rationale: >-
+      One boundary gives one place with full diagnostic context, which writes the
+      error and sets the node status. Nested handlers split that work and can swallow
+      an error.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-09-001
 
 - id: BTND-10
   title: BT Status-Write Node Transition Validation
@@ -796,17 +1049,11 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A BT node that persists a ParticipantStatus snapshot containing a non-None
-      VFD, RM, or PXA state MUST validate that (current_state → target_state) is
-      a permitted transition before constructing or saving the new dimension object.
-      A same-state write (target == current) is permitted as a status confirmation.
-      An illegal jump (e.g. vfd → VFD, skipping Vfd) or a backward move MUST cause
-      the node to return Status.FAILURE with a descriptive feedback_message.
-      Exception: on the receive side, a dimension the CASE_MANAGER has already
-      accepted under RSH-09 / RSH-06 (including a
-      non-adjacent forward RM move, RSH-06-006) MAY reach the write node with
-      adjacency validation relaxed for that dimension; a backward move is still
-      refused at the write boundary.
+      A BT node MUST validate that a ParticipantStatus transition
+      (current_state → target_state) is permitted before it constructs or saves the new
+      dimension object. This applies to a snapshot with a non-None VFD, RM or PXA
+      state. A same-state write (target == current) is permitted as a status
+      confirmation.
     rationale: >-
       The `transition()` methods of the dimension objects (SDO-02-002) and the
       `is_valid_*_transition()` helpers in `vultron/core/states/` enforce forward-only
@@ -847,9 +1094,8 @@ groups:
       spec_id: BTND-09-001
       note: Validation failure returns FAILURE from update(), consistent with error handling contract
     verification: >-
-      Unit tests: (1) invalid backward/skip jump returns Status.FAILURE and sets
-      feedback_message; (2) valid forward transition succeeds; (3) same-state write
-      succeeds; (4) None target skips validation.
+      Unit tests: (1) valid forward transition succeeds; (2) same-state write
+      succeeds; (3) None target skips validation.
     stories:
     - story_2022_088
     - story_2022_107
@@ -857,24 +1103,15 @@ groups:
     priority: MUST
     kind: architecture
     statement: >-
-      The per-dimension transition rules, the role gates and the cross-machine
-      entailments applied to a ParticipantStatus write MUST be composed into a single
-      evaluator that returns every violated rule. Every **writer** of such a status —
-      not only every node that validates one — MUST call that evaluator rather than
-      invoking the individual `is_valid_*_transition()` or `violation_*` predicates
-      directly, and MUST report every violation the evaluator returns.
+      The per-dimension transition rules, role gates and cross-machine entailments of
+      a ParticipantStatus write MUST be composed into one evaluator that returns every
+      violated rule.
     rationale: >-
       Two paths that each have their own copy of the transition checks and role gates
       drift apart. Each path enforces some rules that the other path does not, and their
       messages diverge (ARCH-15-004). When the rule set is composed one time, as
       `composite_state_violations()` does, all paths use the same rules. Shared
-      individual predicates do not give that result. The rule applies to every writer,
-      not to every validator (ADR-0089). Otherwise a writer that validates nothing, or a
-      writer that is not a node, is not covered. Thus the check finds each place that
-      constructs a dimension, not each call to a named predicate. A writer that
-      validates less cannot avoid the check. This check does not find the wire
-      projection (`as_CaseParticipant.append_rm_state`), which builds
-      `as_ParticipantStatus` from flat fields. That code needs its own check.
+      individual predicates do not give that result.
     relationships:
     - rel_type: refines
       spec_id: BTND-10-001
@@ -888,16 +1125,15 @@ groups:
     - ADR-0086
     - ADR-0089
     verification: >-
-      An architecture ratchet asserts that no node validating a ParticipantStatus
-      write calls the individual transition or entailment predicates directly. A unit
-      test asserts a request invalid in two dimensions reports both.
+      `test_shared_entry_point_delegates_to_the_evaluator` in
+      `test/architecture/test_participant_status_validation.py` asserts that the shared
+      entry point delegates to the one composed evaluator.
   - id: BTND-10-003
     priority: MUST
     kind: architecture
     statement: >-
-      A ParticipantStatus write node MUST retain its own call to the shared evaluator
-      even when an upstream guard node validates the same write. It MUST NOT be
-      reduced to a delegate that relies on the guard having run.
+      A ParticipantStatus write node MUST keep its own call to the shared evaluator,
+      even when an upstream guard node validates the same write.
     rationale: >-
       BTND-10-001's fail-closed-regardless-of-guard-coverage rule is not hypothetical
       here: `CreateParticipantStatusNode` is reached from `develop_fix.py`,
@@ -920,9 +1156,8 @@ groups:
     priority: MUST
     kind: architecture
     statement: >-
-      The ParticipantStatus write node MUST be reached as a child of a behavior tree.
-      A node MUST NOT construct the write node inside its own `update()` and invoke
-      that node's `update()` directly.
+      The ParticipantStatus write node MUST run only as a child of a behavior tree,
+      never built and ticked inside another node's `update()`.
     rationale: >-
       Five sites did exactly that (`develop_fix.py`, `deploy_fix.py`,
       `close_case_effect.py` and twice in `leave.py`), producing six nested
@@ -954,19 +1189,13 @@ groups:
     kind: architecture
     statement: >-
       The ParticipantStatus write node MUST obtain `case_id` from its declared
-      blackboard port and MUST NOT accept it as a constructor argument. It MUST
-      obtain the subject actor as an explicit argument, and MUST NOT fall back to the
-      executing actor on the blackboard when that argument is absent.
+      blackboard port, never from a constructor argument.
     rationale: >-
       A port is the only way to supply `case_id` that works in all trees. In received
       trees, the tree finds the case at tick time from the report, so the case is not
       known at build time. Trees that know the case at build time seed `/case_id`
       through `BTBridge.execute_with_setup(**context_data)`. Thus one mechanism serves
-      both. The subject actor is different. The blackboard `actor_id` is the executing
-      actor, and the subject of the write is often a different actor, such as the
-      deferring actor, the sender or the leaver. A fallback from the subject to the
-      executing actor writes the status onto the wrong participant, and no error shows.
-      The fallback also gives the node two paths, and each path needs its own tests.
+      both.
     relationships:
     - rel_type: depends_on
       spec_id: BTND-10-004
@@ -974,15 +1203,16 @@ groups:
     - ADR-0089
     testable: true
     verification: >-
-      An architecture ratchet asserts the write node declares a `case_id` input port,
-      exposes no `case_id` constructor parameter, and that no participant-status
-      writer resolves its subject actor by falling back to the blackboard `actor_id`.
+      `test_create_participant_status_node_has_no_case_id_constructor` in
+      `test/architecture/test_participant_status_validation.py` asserts that the write
+      node takes `case_id` from its `CaseIdInputPortMixin` port, with no `case_id`
+      constructor parameter.
   - id: BTND-10-006
     priority: MUST_NOT
     kind: project
     statement: >-
-      Report-scoped RM state recorded before a case exists MUST NOT be persisted as a
-      ParticipantStatus. It MUST be recorded on the report's `ReportCaseLink`.
+      This codebase MUST NOT persist report-scoped RM state from before a case exists
+      as a ParticipantStatus.
     rationale: >-
       RM state begins at report receipt, and the case may never exist: a receiver may
       declare a bare report INVALID or CLOSED and never propose a case. That state was
@@ -1005,5 +1235,130 @@ groups:
     verification: >-
       A ratchet asserts `_report_phase_status_id`, `report_phase_context` and
       `_current_report_phase_rm_state` are absent from the tree, and a unit test
-      asserts a receiver that declares a bare report INVALID records that state on the
-      ReportCaseLink with no ParticipantStatus written.
+      asserts that a receiver that declares a bare report INVALID writes no
+      ParticipantStatus.
+  - id: BTND-10-007
+    priority: MUST
+    kind: project
+    statement: >-
+      When that validation finds an illegal jump or a backward move, the write node
+      MUST return Status.FAILURE with a descriptive feedback_message. An example
+      illegal jump is vfd → VFD, which skips Vfd.
+    rationale: >-
+      A failed write must fail closed and say why. The feedback_message names the
+      illegal source and target pair, so a reader can find the bad request without a
+      debugger.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-10-001
+    verification: >-
+      `test_write_node_validates_without_the_trigger_guard` in
+      `test/core/use_cases/triggers/case/test_add_participant_status.py` asserts that
+      skip jumps make the write node return `FAILURE` and name each in its
+      `feedback_message`; `test_backwards_rm_transition_fails` in
+      `test/core/behaviors/status/test_add_participant_status_bt.py` asserts `FAILURE`
+      for a backward RM move.
+  - id: BTND-10-008
+    priority: MAY
+    kind: project
+    statement: >-
+      On the receive side, a dimension MAY reach the write node with adjacency
+      validation relaxed when the CASE_MANAGER already accepted it under RSH-09 or
+      RSH-06. This includes a non-adjacent forward RM move (RSH-06-006). The write
+      boundary still refuses a backward move.
+    rationale: >-
+      The CASE_MANAGER admits any forward move that a participant reports (RSH-09).
+      A write node that applied adjacency again would refuse a move that the case
+      already accepted. The forward-only rule still holds at the write boundary.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-10-001
+  - id: BTND-10-009
+    priority: MUST
+    kind: architecture
+    statement: >-
+      Every writer of a ParticipantStatus, not only every node that validates one,
+      MUST call that evaluator instead of the individual `is_valid_*_transition()` or
+      `violation_*` predicates.
+    rationale: >-
+      Two paths that each have their own copy of the transition checks and role gates
+      drift apart (ARCH-15-004). The rule applies to every writer, not to every
+      validator (ADR-0089). Otherwise a writer that validates nothing, or a writer that
+      is not a node, is not covered. This check does not find the wire projection
+      (`as_CaseParticipant.append_rm_state`), which builds `as_ParticipantStatus` from
+      flat fields. That code needs its own check.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-10-002
+    adr:
+    - ADR-0086
+    - ADR-0089
+    verification: >-
+      `test_validating_nodes_do_not_call_individual_predicates` and
+      `test_validating_nodes_call_the_shared_entry_point` in
+      `test/architecture/test_participant_status_validation.py` assert that no node
+      that validates a ParticipantStatus write calls the individual predicates.
+  - id: BTND-10-010
+    priority: MUST
+    kind: architecture
+    statement: >-
+      Every writer of a ParticipantStatus MUST report every violation that the
+      evaluator returns.
+    rationale: >-
+      A writer that reports only the first violation hides the rest. The sender then
+      fixes one problem, retries, and meets the next one (EH-07-001).
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-10-002
+    - rel_type: implements
+      spec_id: EH-07-001
+    adr:
+    - ADR-0086
+    verification: >-
+      `test_write_node_validates_without_the_trigger_guard` (the write node) and
+      `test_trigger_path_reports_every_violation_and_persists_nothing` (the trigger
+      guard), both in
+      `test/core/use_cases/triggers/case/test_add_participant_status.py`, assert that a
+      request invalid in RM and PXA reports both violations.
+  - id: BTND-10-011
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      The ParticipantStatus write node takes the subject actor as an explicit argument.
+      It MUST NOT fall back to the executing actor on the blackboard when that argument
+      is absent.
+    rationale: >-
+      The blackboard `actor_id` is the executing actor, and the subject of the write is
+      often a different actor, such as the deferring actor, the sender or the leaver. A
+      fallback writes the status onto the wrong participant, and no error shows. It
+      also gives the node two paths, and each path needs its own tests.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-10-005
+    adr:
+    - ADR-0089
+    verification: >-
+      `test_report_phase_rm_transition_has_no_blackboard_actor_fallback` in
+      `test/architecture/test_participant_status_validation.py` asserts that the
+      report-phase RM writer has no fallback from its subject actor to the blackboard
+      `actor_id`.
+  - id: BTND-10-012
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST record report-scoped RM state from before a case exists on the
+      report's `ReportCaseLink`.
+    rationale: >-
+      RM state begins at report receipt, and the case may never exist.
+      `ReportCaseLink` is the report-scoped record for that window (ADR-0041). With the
+      state there, ParticipantStatus holds only the case ladder, and its writer always
+      has a case.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-10-006
+    adr:
+    - ADR-0041
+    verification: >-
+      `test_transition_rm_to_invalid_sets_link_rm_state` in
+      `test/core/behaviors/report/nodes/test_rm_transitions.py` asserts that declaring
+      a bare report INVALID records that state on its ReportCaseLink.

@@ -58,7 +58,9 @@ import ast
 import importlib
 import pkgutil
 import re
+import time
 
+import pytest
 from pydantic import BaseModel
 
 import vultron.core.models
@@ -266,6 +268,28 @@ def test_detectors_are_not_vacuous():
         "core tree not found"
     )
     assert len(_core_model_classes()) > 50, "core models did not import"
+
+
+#: The most CPU time one source scan may take (ARCH-21-009).
+_SCAN_CPU_SECONDS = 1.0
+
+
+@pytest.mark.parametrize(
+    "scan",
+    [_find_self_assigning_after_validators, _find_collection_mutation_modules],
+)
+def test_each_source_scan_completes_within_one_second(scan):
+    """Each scan stays cheap enough to run in every test run (ARCH-21-009).
+
+    CPU time, not wall time, so a busy xdist worker does not trip it.
+    """
+    start = time.process_time()
+    scan()
+    elapsed = time.process_time() - start
+    assert elapsed < _SCAN_CPU_SECONDS, (
+        f"{scan.__name__} took {elapsed:.2f}s of CPU, over the "
+        f"{_SCAN_CPU_SECONDS:.0f}s budget ARCH-21-009 sets"
+    )
 
 
 # ---------------------------------------------------------------------------

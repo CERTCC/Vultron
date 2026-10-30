@@ -472,6 +472,7 @@ def test_a_repeated_forward_is_answered_under_the_same_id_at_the_target(
     assert dl.outbox_list() == [answer_id], "only the same answer again"
 
 
+@pytest.mark.spec("HP-01-017")
 @pytest.mark.spec("HP-01-005")
 def test_a_copy_not_addressed_to_the_receiver_is_refused(make_payload):
     """The CASE_MANAGER holds a copy of an Offer sent to someone else."""
@@ -485,6 +486,7 @@ def test_a_copy_not_addressed_to_the_receiver_is_refused(make_payload):
     assert dl.read(_OFFER_ID) is None
 
 
+@pytest.mark.spec("BT-17-016")
 @pytest.mark.spec("CM-33-003")
 @pytest.mark.spec("BT-17-008")
 @pytest.mark.spec("CLP-02-005")

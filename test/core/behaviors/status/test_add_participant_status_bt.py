@@ -622,6 +622,7 @@ class TestAppendParticipantStatusSubtree:
         result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
+    @pytest.mark.spec("BTND-10-007")
     def test_backwards_rm_transition_fails(
         self, populated_dl, populated_bridge, participant
     ):

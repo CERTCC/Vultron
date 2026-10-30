@@ -259,6 +259,7 @@ def _reject_ownership_offer(cm_store, make_payload, offer, sender):
 
 @pytest.mark.spec("CM-21-011")
 @pytest.mark.spec("HP-01-006")
+@pytest.mark.spec("HP-01-018")
 def test_ownership_accept_from_non_transferee_is_refused(
     cm_store, owned_case, make_payload
 ):

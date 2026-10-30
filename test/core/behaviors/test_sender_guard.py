@@ -926,6 +926,7 @@ def test_every_kind_but_any_actor_has_a_guard() -> None:
 
 
 @pytest.mark.spec("HP-01-006")
+@pytest.mark.spec("HP-01-018")
 def test_factory_refusal_names_the_missing_standing() -> None:
     tree = create_receive_activity_tree(
         name="RuleTreeBT",

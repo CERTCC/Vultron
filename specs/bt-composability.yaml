@@ -179,7 +179,9 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2574'
-    statement: 'Reusable protocol behaviors MUST be implemented as BT subtrees in core/behaviors/ and reused across all call sites; inline duplication of equivalent logic MUST NOT occur. The extraction depth SHOULD be the deepest level at which more than one call site requires the same subtree — not forced uniformly to the top level.'
+    statement: >-
+      A reusable protocol behavior MUST be one BT subtree in `core/behaviors/`, reused
+      at every call site with no inline duplicate of equivalent logic.
     rationale: >-
       Copies of one protocol behavior drift apart. Then actors act differently on the
       same event. Extraction at the deepest shared level gives one implementation for
@@ -200,3 +202,15 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BTND-02-002
+  - id: BTC-04-005
+    priority: SHOULD
+    kind: project
+    statement: >-
+      An implementer SHOULD extract a shared subtree at the deepest level that more
+      than one call site needs. That level is not the top level by default.
+    rationale: >-
+      Extraction at the deepest shared level gives one implementation for each
+      behavior. It does not force large subtrees on call sites that share only a part.
+    relationships:
+    - rel_type: extends
+      spec_id: BTC-04-003
