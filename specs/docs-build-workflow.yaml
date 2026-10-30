@@ -323,8 +323,8 @@ groups:
           This codebase MUST commit the record of URLs that earlier publishes
           served.
         rationale: >-
-          The evidence of what a publish served, the `publish` branch, is gone
-          when `publish` advances, so only a committed copy keeps it.
+          The evidence of what a publish served, the deployed site, is gone
+          when the next deploy replaces it, so only a committed copy keeps it.
         verification: >-
           `test/metadata/docs/test_legacy_urls.py::test_the_committed_baseline_is_seeded`
           reads the committed record in
@@ -480,7 +480,8 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          The DOCBW-03-012 step MUST fail when the merge result builds no pages.
+          The DOCBW-03-012 step MUST fail when the checked-out commit builds no
+          pages.
         rationale: >-
           With no built page the step checks nothing and would pass. A gate
           that finds no targets and passes is worse than no gate (DF-09-009).
@@ -489,22 +490,6 @@ groups:
           empty built-page set, covered by
           `test/metadata/docs/test_legacy_urls.py::test_a_commit_that_builds_no_pages_raises`
           and `test_cli_require_recorded_fails_when_it_would_check_nothing`.
-        relationships:
-          - rel_type: extends
-            spec_id: DOCBW-03-012
-      - id: DOCBW-03-028
-        priority: MUST_NOT
-        kind: project
-        statement: >-
-          The DOCBW-03-012 step MUST NOT run on pull requests to any base branch
-          other than `publish`.
-        rationale: >-
-          On a pull request to `main` a new page is not yet due, so the step
-          would fail every page addition.
-        verification: >-
-          `test/ci/test_publication_gates_in_workflows.py` asserts that the step
-          is conditioned on a `publish` base branch and is absent from the
-          shared publication action that pull requests to `main` run.
         relationships:
           - rel_type: extends
             spec_id: DOCBW-03-012
