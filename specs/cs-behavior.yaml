@@ -2608,43 +2608,51 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      A participant's composite state MUST NOT have the PXA P-bit set
-      (q^cs ∈ ···P··) while an active embargo exists (q^em ∈ {ACTIVE,
-      REVISE}). Public awareness of a vulnerability while an embargo is
-      active is causally impossible in a well-functioning coordination — the
-      P event causes embargo termination, so EM cannot remain ACTIVE once P
-      has occurred.
+      Once a CASE_MANAGER act commits, a participant's composite state MUST
+      NOT have the PXA P-bit set (q^cs ∈ ···P··) while an active embargo
+      exists (q^em ∈ {ACTIVE, REVISE}). Public awareness of a vulnerability
+      while an embargo is active is causally impossible in a well-functioning
+      coordination — the P event causes embargo termination, so EM cannot
+      remain ACTIVE once P has occurred.
     rationale: >-
       The P event (public awareness) makes the embargo end. An embargo that stays ACTIVE
       or REVISE after P is recorded is therefore a causal contradiction, and it
       misstates the case to every participant that reads it. The emit path does not
       refuse a P report while an embargo is active, because that report is what causes
-      the embargo to end.
+      the embargo to end. The rule is judged per act, not per entry
+      (ADR-0166): the adopting act writes its snapshot before the teardown
+      (RSH-01-004).
     testable: true
     preconditions:
     - description: A PXA state and an EM state are both available for the same case
     verification: >-
       Call violation_pxa_em_entailment(pxa, em) for each participant; assert
       None is returned for all valid combined states.
+    adr:
+    - ADR-0166
   - id: CSB-18-003
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      A participant's composite state MUST NOT have the PXA X-bit set
-      (q^cs ∈ ···X·) while an active embargo exists (q^em ∈ {ACTIVE,
-      REVISE}). Public exploit availability while an embargo is active is
-      causally impossible — the X event entails embargo termination.
+      Once a CASE_MANAGER act commits, a participant's composite state MUST
+      NOT have the PXA X-bit set (q^cs ∈ ···X·) while an active embargo
+      exists (q^em ∈ {ACTIVE, REVISE}). Public exploit availability while an
+      embargo is active is causally impossible — the X event entails embargo
+      termination.
     rationale: >-
       A public exploit lets attackers use the vulnerability, so secrecy no longer
       protects users. An embargo that stays ACTIVE or REVISE after X tells participants
       to keep a secret that attackers already have. It also holds back information that
       defenders need now, and it misstates the case to every participant that reads it.
+      It is judged when an act commits, as CSB-18-002 is (ADR-0166).
     testable: true
     preconditions:
     - description: A PXA state and an EM state are both available for the same case
     verification: >-
       Call violation_pxa_em_entailment(pxa, em) for each participant; assert
       None is returned for all valid combined states.
+    adr:
+    - ADR-0166
     relationships:
     - rel_type: refines
       spec_id: CSB-18-002
@@ -2652,21 +2660,24 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      A participant's composite state MUST NOT have the PXA A-bit set
-      (q^cs ∈ ···A) while an active embargo exists (q^em ∈ {ACTIVE,
-      REVISE}). Observed attacks while an embargo is active is causally
-      impossible — the A event entails embargo termination.
+      Once a CASE_MANAGER act commits, a participant's composite state MUST
+      NOT have the PXA A-bit set (q^cs ∈ ···A) while an active embargo
+      exists (q^em ∈ {ACTIVE, REVISE}). Observed attacks while an embargo is
+      active is causally impossible — the A event entails embargo termination.
     rationale: >-
       Observed attacks show that the vulnerability is in use. An embargo that stays
       ACTIVE or REVISE after A holds back the information that defenders need to protect
       themselves while the attacks go on. It also misstates the case to every
-      participant that reads it.
+      participant that reads it. It is judged when an act commits, as CSB-18-002
+      is (ADR-0166).
     testable: true
     preconditions:
     - description: A PXA state and an EM state are both available for the same case
     verification: >-
       Call violation_pxa_em_entailment(pxa, em) for each participant; assert
       None is returned for all valid combined states.
+    adr:
+    - ADR-0166
     relationships:
     - rel_type: refines
       spec_id: CSB-18-002

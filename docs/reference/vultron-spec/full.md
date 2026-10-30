@@ -52,6 +52,24 @@ The [parts and annexes](index.md#parts) publish the same text one part per page,
 
 {% include-markdown "./_conformance/_conformance-testing.md" %}
 
+{% include-markdown "./_catalog/_intro.md" %}
+
+{% include-markdown "./_catalog/_vultron-protocol.md" %}
+
+{% include-markdown "./_catalog/_messages.md" %}
+
+{% include-markdown "./_catalog/_state-behavior.md" %}
+
+{% include-markdown "./_catalog/_case-management.md" %}
+
+{% include-markdown "./_catalog/_ledger-replication.md" %}
+
+{% include-markdown "./_catalog/_message-processing.md" %}
+
+{% include-markdown "./_catalog/_transport-security.md" %}
+
+{% include-markdown "./_catalog/_foundation.md" %}
+
 {% include-markdown "./_iana.md" %}
 
 {% include-markdown "./_security.md" %}

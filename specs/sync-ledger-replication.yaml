@@ -2182,10 +2182,13 @@ groups:
       participant in the case (CM-10-004). From any other sender it MUST record no
       replication state for the sender, send nothing in answer, and report `REFUSED`.
     rationale: >-
-      A removed, unconsented or closed participant's replica stops on purpose, so its
-      stated position always lags. Answering it would send withheld case content, as an
-      unchecked `Reject` would (SYNC-03-005). Catch-up for a participant that becomes
-      active again is CM-10-006's backfill.
+      An inert or closed participant's replica stops on purpose, so its stated position
+      always lags, and answering it would send withheld case content (SYNC-03-005).
+      CM-10-006's backfill catches up a participant that becomes active again. The
+      Invite resend is no answer to the position and runs apart from this check
+      (SYNC-20-001, ADR-0163): an unconsented participant on the roster is resent the
+      Invites it was already sent, which carry no withheld content, and its statement
+      is otherwise refused.
     relationships:
     - rel_type: refines
       spec_id: CM-10-004
@@ -2657,5 +2660,224 @@ groups:
       that relied on per-recipient order, or a sender whose messages are correct only
       when delivered in its own order, fails that test, so the one check covers both
       clauses.
+    stories:
+    - story_2022_045
+- id: SYNC-20
+  title: Resending Unanswered Invites
+  description: >-
+    An Invite can be lost before its addressee can answer it. A joiner's relayed
+    `Invite(EmbargoEvent)` or full-case Invite that arrives before its case copy waits
+    in the pre-bootstrap queue, and is dropped when the queue's window ends
+    (CBT-03-003); any Invite can be lost in delivery. A participant that states its
+    ledger position tells the CASE_MANAGER its replica holds the case, which is the
+    moment a resent Invite can be answered. So the CASE_MANAGER resends each Invite the
+    participant still owes an answer to, as first sent and rate-bounded per Invite and
+    participant. Rationale: ADR-0163.
+  specs:
+  - id: SYNC-20-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a participant on the case's roster that is not removed (CM-31-001) and whose
+      closure is not recorded states a ledger position that names an entry in the
+      CASE_MANAGER's ledger, in `Read(CaseLedgerEntry)` (SYNC-17-001) or as an
+      activity's `ledgerPosition` (SYNC-18-001), the CASE_MANAGER MUST resend each
+      Invite that participant owes an answer to (SYNC-20-002), whether or not the
+      participant is active (CM-10-004).
+    rationale: >-
+      A position statement is the first sign that the replica holds the case, so a
+      resent Invite can now be answered (ADR-0163). The resend is not an answer to the
+      position, so it runs apart from SYNC-17-002 and SYNC-18-007: a joiner that lost
+      its Invite to the embargo in force has not consented, so it is inert, and is the
+      one to ask again. A resent Invite was already sent and is not case content
+      (CM-10-007), so nothing withheld leaks.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-17-002
+    - rel_type: refines
+      spec_id: SYNC-18-007
+    - rel_type: depends_on
+      spec_id: CM-10-007
+    adr:
+    - ADR-0163
+    verification: >-
+      `test/core/use_cases/received/test_invite_resend.py` delivers
+      `Read(CaseLedgerEntry)` from an active joiner, from an inert joiner and from a
+      removed participant, and a stamped `Accept` from a joiner, and asserts the owed
+      Invites are queued for the first two and the last, and nothing for the removed
+      one. `test/adapters/driving/fastapi/test_invite_resend_after_queue_expiry.py`
+      drives the inert joiner's recovery through both actors' inbox pipelines.
+    stories:
+    - story_2022_045
+  - id: SYNC-20-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An Invite the CASE_MANAGER sent a participant MUST be treated as owed an answer
+      while that answer can still count, and at no other time: an
+      `Invite(EmbargoEvent)` whose embargo is still a proposal or is the embargo in
+      force, whose consent row for the participant is `INVITED` (CM-18-001), and whose
+      RSVP deadline has not passed (CM-28-001); and the full-case Invite (CM-11-010)
+      until the CASE_MANAGER's ledger records the participant's reply to it. Of several
+      Invites for one embargo, only the last one sent is owed, and the Invite that the
+      activity stating the position answers is not owed.
+    rationale: >-
+      Only an answer that can still change something is worth asking for again; an
+      answered Invite, a decided or withdrawn proposal and a passed deadline cannot. An
+      Invite for the embargo in force is still owed: a reinstated participant
+      (CM-31-013), or a joiner whose proposal was activated first, is asked to sign it.
+      The stating activity may be the answer itself, committed after its position is
+      read, so its Invite is excluded by name.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-20-001
+    adr:
+    - ADR-0163
+    verification: >-
+      `test/core/use_cases/received/test_invite_resend.py` asserts that an answered
+      embargo Invite, one for a rejected or withdrawn proposal, one past its RSVP
+      deadline and a replied full-case Invite are not resent, and that the Invite a
+      stamped `Accept` answers is not resent with it.
+    stories:
+    - story_2022_045
+  - id: SYNC-20-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A resent Invite MUST be the activity as first sent: the same id, `ledgerPosition`
+      and RSVP deadline (SYNC-18-002), delivered from the body sealed when it was first
+      sent (OX-07-001), never a new Invite built for the resend. So an Invite whose
+      sealed body the CASE_MANAGER does not hold is not resent.
+    rationale: >-
+      A receiver that already handled the Invite treats a redelivery as a no-op
+      (IE-10-001), and one that dropped it handles it as new. Resending never extends a
+      deadline, so silence before the deadline is still a pocket veto, and the
+      full-case Invite's ledger floor (CM-11-012) is unchanged.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-18-002
+    - rel_type: depends_on
+      spec_id: OX-07-001
+    adr:
+    - ADR-0163
+    verification: >-
+      `test/core/use_cases/received/test_invite_resend.py` asserts a resent Invite is
+      queued under its first id with its sealed body unchanged, that a full-case reply
+      at the resent Invite's floor is accepted, and that an Invite with no sealed body
+      is logged and not sent.
+    stories:
+    - story_2022_045
+  - id: SYNC-20-004
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST NOT resend an Invite to a participant while an earlier send
+      of that Invite is still pending in its outbox; such a skipped resend does not count
+      toward its cooldown (SYNC-20-005).
+    rationale: >-
+      An Invite still waiting in the outbox has not been lost, so a second copy would
+      only queue behind it. Not counting the skip keeps a later, real resend from
+      waiting out a cooldown no delivery started. This is the replay's rule for a pending
+      `Announce` (SYNC-15-012).
+    relationships:
+    - rel_type: refines
+      spec_id: OX-06-002
+    adr:
+    - ADR-0163
+    verification: >-
+      `test/core/use_cases/received/test_invite_resend.py` states a position while the
+      Invite's first send is pending and asserts one queued row and no resend record.
+    stories:
+    - story_2022_045
+  - id: SYNC-20-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Each consecutive resend of one Invite to one participant MUST double the cooldown
+      before the next resend of that Invite to that participant, from a base value up to
+      a fixed ceiling; a position stated inside the cooldown resends nothing.
+    rationale: >-
+      A participant that leaves an Invite unanswered on purpose states its position
+      again and again. A doubling cooldown soon makes the resends rare, and the ceiling
+      still resends at a fixed interval until the deadline passes, as the replay bound
+      does (SYNC-15-013).
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-15-013
+    adr:
+    - ADR-0163
+    verification: >-
+      `test/core/use_cases/received/test_invite_resend.py` states a position repeatedly
+      and asserts no resend inside the base cooldown, a resend after it, no resend after
+      the base once two were sent, a resend after twice the base, and that the cooldown
+      stops at its ceiling.
+    stories:
+    - story_2022_045
+  - id: SYNC-20-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The resend cooldown's base and ceiling (SYNC-20-005) MUST be configurable, with
+      their defaults documented beside the retry defaults (SYNC-05-003).
+    rationale: >-
+      How often to ask again is a deployment trade-off between recovery time and
+      traffic, and an operator must know the defaults to change them.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-05-003
+    adr:
+    - ADR-0163
+    verification: >-
+      `test/core/use_cases/received/test_invite_resend.py` asserts the defaults, that
+      they equal the replay cooldown's base and ceiling, and that a ceiling below its
+      base is refused. The documented defaults are a review check of
+      `docs/reference/draft-vultron-replication-spec.md` §10.
+  - id: SYNC-20-007
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A resent Invite MUST NOT be committed as a ledger entry, nor change the outcome of
+      the activity that stated the position.
+    rationale: >-
+      The Invite's emission was ledgered when it was first sent, so a resend changes
+      nothing in the case file and is not a case event (ADR-0152). The activity that
+      stated the position is judged on its own merits, as SYNC-18-007 requires of the
+      rest of the answer to its position.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-17-006
+    adr:
+    - ADR-0163
+    - ADR-0152
+    verification: >-
+      `test/core/use_cases/received/test_invite_resend.py` asserts a resend leaves the
+      ledger unchanged, and that a stamped `Accept` that triggers one is applied with
+      only its own entries committed.
+    stories:
+    - story_2022_045
+  - id: SYNC-20-008
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST NOT resend an Invite to a sender that is not on the case's
+      roster, that was removed (CM-31-001), or whose closure the case records.
+    rationale: >-
+      A removed participant was taken out by the Case Owner's decision, and inviting it
+      again would undo that decision (CM-31-013). A closed participant may act on
+      nothing further (CM-23-018), and an actor off the roster was never sent an Invite
+      to answer.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-20-001
+    - rel_type: depends_on
+      spec_id: CM-31-013
+    adr:
+    - ADR-0163
+    verification: >-
+      `test/core/use_cases/received/test_invite_resend.py` states a removed
+      participant's position and asserts nothing is queued, and asserts that a
+      participant owing two Invites owes none once it is closed and that an actor
+      off the roster owes none; `test/core/behaviors/sync/test_position_statements.py`
+      asserts a closed participant's `Read(CaseLedgerEntry)` is refused at the door.
     stories:
     - story_2022_045

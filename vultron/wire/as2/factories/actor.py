@@ -293,9 +293,12 @@ def reject_case_participant_offer_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
+    # Re-validated and embedded as received, as the Accept does
+    # (accept_case_participant_offer_activity, DL-06-004).
     try:
+        typed_offer = validated_as(_OfferCaseParticipantActivity, offer)
         return _RejectCaseParticipantOfferActivity(
-            object_=cast(_OfferCaseParticipantActivity, offer),
+            object_=embedded_as_received(typed_offer, offer),
             target=case_target_ref(target),
             **with_case_context(kwargs, target),
         )

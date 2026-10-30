@@ -29,6 +29,12 @@ _GROUP = r"\d{2}"
 _INDEX = r"\d{3}"
 _SUFFIX = r"[a-z]?"
 
+#: The ID grammar as pattern text, for a caller that composes it into a larger
+#: expression: a requirement ID with its optional sub-item letter, and a
+#: group ID (``PREFIX-NN``).
+SPEC_ID_PATTERN = rf"{_PREFIX}-{_GROUP}-{_INDEX}{_SUFFIX}"
+SPEC_GROUP_PATTERN = rf"{_PREFIX}-{_GROUP}"
+
 #: A fully-qualified requirement ID as it appears in prose — ``PREFIX-NN-NNN``
 #: (MS-04-001): 2–8 uppercase letters, two-digit group, three-digit index.
 #: ``\b`` on both sides keeps ``ADR-0001``, semantic versions, and a prefix
@@ -395,7 +401,7 @@ class SpecKind(StrEnum):
                          delivery, HTTP status codes, and rules that only
                          restate ActivityStreams (every ID is an IRI). A tag
                          records the standard (``as2``, ``activitypub``,
-                         ``http``; MS-12-009).
+                         ``http``; MS-12-018).
     - ``architecture`` — Recommended structure that carries over to other
                          languages but is not required for compliance.
                          Behavior trees, and keeping protocol behavior inside
@@ -435,7 +441,7 @@ class SpecTag(StrEnum):
 
     Three tags name the standard a ``foundation`` rule is inherited from —
     ``as2``, ``activitypub`` and ``http`` (:data:`FOUNDATION_STANDARD_TAGS`,
-    MS-12-009). They may also mark a ``protocol`` rule that narrows that
+    MS-12-018). They may also mark a ``protocol`` rule that narrows that
     standard.
     """
 
@@ -476,7 +482,7 @@ IMPLEMENTER_KINDS: frozenset[SpecKind] = frozenset(
 
 
 #: The tags that name the standard a ``foundation`` rule is inherited from.
-#: Every ``foundation`` spec carries at least one (MS-12-009).
+#: Every ``foundation`` spec carries at least one (MS-12-018).
 FOUNDATION_STANDARD_TAGS: frozenset[SpecTag] = frozenset(
     {SpecTag.AS2, SpecTag.ACTIVITYPUB, SpecTag.HTTP}
 )
@@ -566,7 +572,7 @@ class StatementSpec(BaseModel):
 
 
 class Precondition(BaseModel):
-    """A precondition for a behavioral spec (SR-02-019).
+    """A precondition for a behavioral spec (SR-02-019, SR-02-028).
 
     Typed fields reference the stable protocol state-machine enums directly so
     conformance tooling can evaluate preconditions without parsing prose.
@@ -669,10 +675,11 @@ class SpecFile(BaseModel):
 
     ``scope`` is required at the file level and serves as the default for
     groups and specs that do not override it (SR-02-014).  ``kind`` is now
-    required on each individual spec item rather than at the file level.
+    required on each individual spec item rather than at the file level
+    (SR-02-027).
 
-    There is deliberately no ``version`` field (SR-01-003): the release tag
-    pins spec content and requirement IDs are the citation address.
+    There is deliberately no ``version`` field (SR-01-003, SR-02-025): the
+    release tag pins spec content and requirement IDs are the citation address.
     ``extra="forbid"`` makes a file that declares one fail to load.
     """
 

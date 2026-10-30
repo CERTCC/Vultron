@@ -171,7 +171,7 @@ def test_step2_routes_by_title_index_and_adr_edges() -> None:
     assert "RECORD_ONLY_EXEMPTIONS" in step2
 
 
-@pytest.mark.spec("MS-11-008")
+@pytest.mark.spec("MS-11-012")
 def test_exception_list_names_each_required_skill_with_a_reason() -> None:
     table = exception_table(_deepen_text())
     missing = sorted(_REQUIRED_EXCEPTIONS - table.keys())
@@ -182,7 +182,7 @@ def test_exception_list_names_each_required_skill_with_a_reason() -> None:
     assert not unexplained, f"exception rows give no reason: {unexplained}"
 
 
-@pytest.mark.spec("MS-11-008")
+@pytest.mark.spec("MS-11-013")
 def test_no_routine_skill_instructs_reading_a_record_body() -> None:
     text = _deepen_text()
     exceptions = set(exception_table(text))
@@ -204,7 +204,7 @@ def test_no_routine_skill_instructs_reading_a_record_body() -> None:
     )
 
 
-@pytest.mark.spec("MS-11-008")
+@pytest.mark.spec("MS-11-014")
 def test_each_in_repo_exception_skill_weighs_what_it_reads() -> None:
     """The weighting guidance survives wherever bodies are still read."""
     weighing = _WEIGHING.read_text(encoding="utf-8")

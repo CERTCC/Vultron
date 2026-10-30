@@ -286,6 +286,7 @@ def test_check_reports_a_malformed_yaml_with_its_position(
 
 @pytest.mark.spec("MS-17-001")
 @pytest.mark.spec("MS-17-002")
+@pytest.mark.spec("MS-17-005")
 def test_loader_names_path_line_and_column_of_a_parse_error(tmp_path):
     path = tmp_path / "occasions.yaml"
     path.write_text("format_version: 1\ngroups: [\n  - a: b: c\n")

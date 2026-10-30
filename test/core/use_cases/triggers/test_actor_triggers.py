@@ -17,7 +17,7 @@
 Unit tests for actor-level trigger use cases.
 Covers SvcInviteActorToCaseUseCase, SvcSuggestActorToCaseUseCase,
 SvcAcceptCaseInviteUseCase, SvcRejectCaseInviteUseCase,
-and SvcAcceptActorRecommendationUseCase.
+SvcAcceptActorRecommendationUseCase and SvcRejectActorRecommendationUseCase.
 Includes DR-09 regression tests verifying that short UUIDs in actor_id
 are normalised to full URIs before use.
 """
@@ -67,6 +67,7 @@ from vultron.core.use_cases.triggers.actor import (
     SvcAcceptCaseInviteUseCase,
     SvcInviteActorToCaseUseCase,
     SvcOfferCaseParticipantRoleUseCase,
+    SvcRejectActorRecommendationUseCase,
     SvcRejectCaseInviteUseCase,
     SvcSuggestActorToCaseUseCase,
 )
@@ -75,6 +76,7 @@ from vultron.core.use_cases.triggers.requests import (
     AcceptCaseInviteTriggerRequest,
     InviteActorToCaseTriggerRequest,
     OfferCaseParticipantRoleTriggerRequest,
+    RejectActorRecommendationTriggerRequest,
     RejectCaseInviteTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
@@ -1383,8 +1385,33 @@ class TestSvcRejectCaseInviteUseCase:
         assert activity_of(result)["actor"] == _HTTP_ACTOR_ID
 
 
-class TestSvcAcceptActorRecommendationUseCase:
-    """Tests for the accept-actor-recommendation trigger use case."""
+_RECOMMENDATION_ANSWERS = pytest.mark.parametrize(
+    ("use_case_cls", "request_cls", "wire_type"),
+    [
+        (
+            SvcAcceptActorRecommendationUseCase,
+            AcceptActorRecommendationTriggerRequest,
+            "Accept",
+        ),
+        (
+            SvcRejectActorRecommendationUseCase,
+            RejectActorRecommendationTriggerRequest,
+            "Reject",
+        ),
+    ],
+    ids=["accept", "reject"],
+)
+
+
+@_RECOMMENDATION_ANSWERS
+class TestSvcActorRecommendationAnswerUseCases:
+    """Tests for the accept- and reject-actor-recommendation trigger use cases.
+
+    The Case Owner answers the Offer(CaseParticipant) the CaseActor forwarded
+    (CM-16-006, CM-16-007).
+    """
+
+    _CASE_ID = "https://example.org/cases/recommendation"
 
     def _make_cp_offer(
         self, dl: SqliteDataLayer, vendor_id: str, case_actor_id: str
@@ -1392,7 +1419,7 @@ class TestSvcAcceptActorRecommendationUseCase:
         vendor = as_Service(id_=vendor_id, name="Vendor")
         offer = offer_case_participant_activity(
             recommended=vendor,
-            target="https://example.org/cases/recommendation",
+            target=self._CASE_ID,
             actor=case_actor_id,
             to=["http://owner:7999/api/v2/actors/owner"],
         )
@@ -1401,21 +1428,8 @@ class TestSvcAcceptActorRecommendationUseCase:
         archive_received(dl, offer)
         return offer
 
-    def test_accept_creates_accept_activity(self):
-        owner, dl = _make_actor_dl("Owner")
-        case_actor = as_Service(name="CaseActor")
-        vendor = as_Service(name="Vendor")
-        dl.create(case_actor)
-        dl.create(vendor)
-
-        offer = self._make_cp_offer(dl, vendor.id_, case_actor.id_)
-
-        request = AcceptActorRecommendationTriggerRequest(
-            actor_id=owner.id_,
-            cp_offer_id=offer.id_,
-            case_actor_id=case_actor.id_,
-        )
-        result = SvcAcceptActorRecommendationUseCase(
+    def _execute(self, use_case_cls, dl, request):
+        return use_case_cls(
             dl,
             request,
             trigger_activity=TriggerActivityAdapter(dl),
@@ -1423,30 +1437,53 @@ class TestSvcAcceptActorRecommendationUseCase:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
+    def test_answer_names_the_offer_and_its_case(
+        self, use_case_cls, request_cls, wire_type
+    ):
+        """The answer embeds the forwarded Offer and names its case.
+
+        The CASE_MANAGER refuses an answer that names no case (#5459).
+        """
+        owner, dl = _make_actor_dl("Owner")
+        case_actor = as_Service(name="CaseActor")
+        vendor = as_Service(name="Vendor")
+        dl.create(case_actor)
+        dl.create(vendor)
+
+        offer = self._make_cp_offer(dl, vendor.id_, case_actor.id_)
+
+        request = request_cls(
+            actor_id=owner.id_,
+            cp_offer_id=offer.id_,
+            case_actor_id=case_actor.id_,
+        )
+        result = self._execute(use_case_cls, dl, request)
+
         assert result.activity is not None
         activity = activity_of(result)
-        assert activity["type"] == "Accept"
+        assert activity["type"] == wire_type
+        assert activity["object"]["id"] == offer.id_
+        assert activity["target"] == self._CASE_ID
+        assert activity["to"] == [case_actor.id_]
 
-    def test_accept_raises_when_offer_not_found(self):
+    def test_answer_raises_when_offer_not_found(
+        self, use_case_cls, request_cls, wire_type
+    ):
         owner, dl = _make_actor_dl("Owner")
         case_actor = as_Service(name="CaseActor")
         dl.create(case_actor)
 
-        request = AcceptActorRecommendationTriggerRequest(
+        request = request_cls(
             actor_id=owner.id_,
             cp_offer_id="https://example.org/activities/no-such-offer",
             case_actor_id=case_actor.id_,
         )
         with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
-            SvcAcceptActorRecommendationUseCase(
-                dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(dl),
-                sync_port=SyncActivityAdapter(dl),
-                wire_render_port=As2WireRenderAdapter(),
-            ).execute()
+            self._execute(use_case_cls, dl, request)
 
-    def test_accept_raises_when_actor_not_found(self):
+    def test_answer_raises_when_actor_not_found(
+        self, use_case_cls, request_cls, wire_type
+    ):
         _, dl = _make_actor_dl("Owner")
         case_actor = as_Service(name="CaseActor")
         vendor = as_Service(name="Vendor")
@@ -1454,19 +1491,13 @@ class TestSvcAcceptActorRecommendationUseCase:
         dl.create(vendor)
         offer = self._make_cp_offer(dl, vendor.id_, case_actor.id_)
 
-        request = AcceptActorRecommendationTriggerRequest(
+        request = request_cls(
             actor_id="https://example.org/actors/ghost",
             cp_offer_id=offer.id_,
             case_actor_id=case_actor.id_,
         )
         with pytest.raises(VultronNotFoundError):
-            SvcAcceptActorRecommendationUseCase(
-                dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(dl),
-                sync_port=SyncActivityAdapter(dl),
-                wire_render_port=As2WireRenderAdapter(),
-            ).execute()
+            self._execute(use_case_cls, dl, request)
 
 
 def _seed_managed_case(owner, dl, *peers, participant_ids=()):

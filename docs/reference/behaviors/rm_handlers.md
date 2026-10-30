@@ -10,15 +10,15 @@ in `vultron/core/behaviors/report/`.
 ## Requirements
 
 The behavioral requirements for these trees are specified in the
-[Protocol Specifications](../specs/protocol.md):
+[Requirements Catalog](../vultron-spec/requirements/index.md):
 
-- [RMB-01](../specs/protocol.md#rmb-01) — Receive RS (Report Submission)
-- [RMB-09](../specs/protocol.md#rmb-09) — Enter RM Received
-- [RMB-10](../specs/protocol.md#rmb-10) — Enter RM Valid
-- [RMB-11](../specs/protocol.md#rmb-11) — Enter RM Invalid
-- [RMB-12](../specs/protocol.md#rmb-12) — Enter RM Deferred
-- [RMB-13](../specs/protocol.md#rmb-13) — Enter RM Accepted
-- [RMB-14](../specs/protocol.md#rmb-14) — Enter RM Closed
+- [RMB-01](../vultron-spec/requirements/state-behavior.md#protocol-rmb-01) — Receive RS (Report Submission)
+- [RMB-09](../vultron-spec/requirements/state-behavior.md#protocol-rmb-09) — Enter RM Received
+- [RMB-10](../vultron-spec/requirements/state-behavior.md#protocol-rmb-10) — Enter RM Valid
+- [RMB-11](../vultron-spec/requirements/state-behavior.md#protocol-rmb-11) — Enter RM Invalid
+- [RMB-12](../vultron-spec/requirements/state-behavior.md#protocol-rmb-12) — Enter RM Deferred
+- [RMB-13](../vultron-spec/requirements/state-behavior.md#protocol-rmb-13) — Enter RM Accepted
+- [RMB-14](../vultron-spec/requirements/state-behavior.md#protocol-rmb-14) — Enter RM Closed
 - [RMB-15](../specs/project.md#rmb-15) — RM Write-Boundary Transition Validation
 
 ## Report Received Tree

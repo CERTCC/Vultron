@@ -108,7 +108,7 @@ def build_scenario_tree(specs: Iterable[ScenarioSpec]) -> TreeNode:
                     f"scenario {node.scenario!r} ends at "
                     f"{_describe(node.prefix)}, a strict prefix of "
                     f"{spec.name!r}'s path; a scenario cannot be both an "
-                    "interior node and an ending (DEMOCI-11-014)."
+                    "interior node and an ending (DEMOCI-11-023)."
                 )
             if node.branch_point is None:
                 node.branch_point = branch_point_id
@@ -127,13 +127,13 @@ def build_scenario_tree(specs: Iterable[ScenarioSpec]) -> TreeNode:
             raise DemoScenarioRegistryError(
                 f"scenarios {node.scenario!r} and {spec.name!r} declare the "
                 f"same path ({_describe(node.prefix)}); every scenario is "
-                "its own ending (DEMOCI-11-014)."
+                "its own ending (DEMOCI-11-023)."
             )
         if node.children:
             raise DemoScenarioRegistryError(
                 f"scenario {spec.name!r} ends at {_describe(node.prefix)}, a "
                 "strict prefix of another scenario's path; a scenario cannot "
-                "be both an interior node and an ending (DEMOCI-11-014)."
+                "be both an interior node and an ending (DEMOCI-11-023)."
             )
         node.scenario = spec.name
     return root

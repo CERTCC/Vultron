@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from test.support.child_env import child_env
 from vultron.metadata.file_loading import MetadataLoadErrors
 from vultron.metadata.specs.registry import load_registry
 
@@ -90,6 +91,7 @@ class TestLoadRegistry:
         assert "specs/ts.yaml — " in str(info.value)
         assert "priority" in str(info.value)
 
+    @pytest.mark.spec("SR-03-011")
     @pytest.mark.spec("SR-03-009")
     def test_every_failing_file_is_reported_structurally(self, tmp_path):
         _write(tmp_path / "specs" / "a.yaml", "a: 1\n" + _UNQUOTED_COLON)
@@ -119,6 +121,7 @@ def test_spec_lint_reports_a_syntax_fault_without_a_traceback(tmp_path):
     # of tripping the ``thread``-method ceiling, which kills the session (#4868).
     result = subprocess.run(
         [sys.executable, "-m", "vultron.metadata.specs.lint", str(spec_dir)],
+        env=child_env(),
         capture_output=True,
         text=True,
         timeout=25,

@@ -423,6 +423,7 @@ class TestDisplayPath:
         assert display_path(outside, tmp_path) == str(outside)
 
 
+@pytest.mark.spec("SR-03-011")
 @pytest.mark.spec("SR-03-009")
 class TestFailureCollector:
     def test_collects_every_failure_as_structured_data(self):
@@ -457,6 +458,7 @@ class TestFailureCollector:
 
 @pytest.mark.spec("NF-03-006")
 class TestNotesLoader:
+    @pytest.mark.spec("NF-03-008")
     def test_parse_fault_names_the_file(self, tmp_path):
         _write(
             tmp_path / "notes" / "n.md", "---\n" + _UNQUOTED_COLON + "---\n"

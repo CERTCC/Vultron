@@ -37,10 +37,10 @@ class SpecRegistryUnavailableWarning(UserWarning):
 
     Non-blocking by design, which requires a matching ``always::`` entry in
     ``filterwarnings`` **listed after** ``pyproject.toml``'s ``"error"`` entry
-    (SR-05-007) — pytest inserts ini filters at index 0 in list order, so a later
-    entry outranks an earlier one and an exemption placed *before* ``"error"`` is
-    a no-op. A malformed spec file must not abort the session, or the tests that
-    diagnose it could not be run.
+    (SR-05-007, SR-05-015) — pytest inserts ini filters at index 0 in list
+    order, so a later entry outranks an earlier one and an exemption placed
+    *before* ``"error"`` is a no-op. A malformed spec file must not abort the
+    session, or the tests that diagnose it could not be run.
     """
 
 

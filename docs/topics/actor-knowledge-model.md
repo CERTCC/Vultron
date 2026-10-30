@@ -164,4 +164,4 @@ A receiver cannot tell an invented value from an asserted one.
 
 - [Protocol Event Flow](protocol_flow.md) — the actor model that the AKM extends
 - [Formal Protocol](../reference/formal_protocol/index.md) — normative protocol requirements
-- [Actor Knowledge Model spec](../reference/specs/protocol.md#akm) — the normative AKM requirements (AKM-01 through AKM-05)
+- [Actor Knowledge Model spec](../reference/vultron-spec/requirements/messages.md#protocol-akm) — the normative AKM requirements (AKM-01 through AKM-05)

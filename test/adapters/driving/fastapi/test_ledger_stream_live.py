@@ -22,7 +22,6 @@ socket (ADR-0104 § Validation, #3641 AC-4).
 
 import json
 import logging
-import os
 import signal
 import socket
 import subprocess
@@ -39,6 +38,7 @@ import uvicorn
 
 from test.adapters.driving.fastapi import ledger_stream_server as srv
 from test.adapters.driving.fastapi.sse_helpers import read_sse_event
+from test.support.child_env import child_env
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -156,8 +156,9 @@ def test_connect_replay_commit_receive_disconnect(base_url: str, caplog):
 
 
 # The waits below can add up to ~115s (60s readiness, 10s per stream read, 15s
-# exit), past the 60s integration ceiling; this ceiling stays above them so an
-# overrun fails this test by name instead of killing the session (#4868).
+# exit), too close to the 120s integration ceiling; this ceiling keeps headroom
+# above them so an overrun fails this test by name instead of killing the
+# session (#4868).
 # Readiness gets 60s because the child's start-up passes 30s on a machine
 # saturated by a full xdist run (#5468).
 @pytest.mark.timeout(180)
@@ -174,10 +175,9 @@ def test_sigterm_sends_close_and_lets_the_server_exit(tmp_path: Path):
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]
     env = {
-        **os.environ,
+        **child_env(),
         "VULTRON_MODE": "prototype",
         "VULTRON_SERVER__LEDGER_STREAM_POLL_SECONDS": "0.05",
-        "PYTHONPATH": str(REPO_ROOT),
     }
     log_path = tmp_path / "uvicorn.log"
     with log_path.open("wb") as log:

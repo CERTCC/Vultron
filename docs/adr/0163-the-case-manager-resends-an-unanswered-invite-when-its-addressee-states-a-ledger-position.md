@@ -1,9 +1,9 @@
 ---
-status: proposed
+status: accepted-provisional
 date: 2026-10-28
 created: 2026-10-28
-updated: 2026-10-28
-revision: 1
+updated: 2026-10-29
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0065, ADR-0155, ADR-0156, ADR-0161;
@@ -53,9 +53,14 @@ How does an Invite dropped before the case copy reach its addressee again?
 
 Chosen option: "The CASE_MANAGER resends each Invite a participant owes an answer to whenever that participant states its ledger position", because a position statement is the first sign the CASE_MANAGER gets that the replica holds the case, it reuses an answer path that exists, and it needs neither a scheduler nor the receiver's lazy queue expiry.
 
-- **The trigger is a position statement.** When the CASE_MANAGER acts on a ledger position stated by an active participant, in `Read(CaseLedgerEntry)` or in an activity's `ledgerPosition` (SYNC-17-002, SYNC-18-007), it resends each Invite that participant owes an answer to.
+- **The trigger is a position statement.** When a participant states a ledger position the CASE_MANAGER's ledger holds, in `Read(CaseLedgerEntry)` or in an activity's `ledgerPosition` (SYNC-17-001, SYNC-18-001), the CASE_MANAGER resends each Invite that participant owes an answer to.
+- **The resend runs apart from the active-participant check.** Any participant still on the roster, not removed and not closed, is resent the Invites it owes, even when it is inert (it has not consented to the embargo in force).
+  A joiner whose Invite to the embargo now in force was dropped is exactly such a participant.
+  A resent Invite is one the participant was already sent, so no withheld case content leaks.
+  For an inert sender the position statement is otherwise refused as before: nothing is replayed, no replication state is recorded, and a `Read(CaseLedgerEntry)` is still `REFUSED` (SYNC-17-002).
+  A removed or closed participant is sent nothing.
 - **An Invite is owed while its answer can still count.** That is:
-  - an `Invite(EmbargoEvent)` to the participant whose consent row is still `INVITED`, for a proposal that is still open and whose RSVP deadline has not passed (EP-09-002, EP-09-011, CM-31-013);
+  - an `Invite(EmbargoEvent)` to the participant whose consent row is still `INVITED`, for an embargo that is still proposed or is the one in force, and whose RSVP deadline has not passed (EP-09-002, EP-09-011, CM-31-013);
   - the full-case Invite, until the participant replies to it (CM-11-010).
     It has no RSVP deadline yet; #5320 proposes one, and the resend stops at that deadline once it exists.
 - **A resend is the activity as first sent.** It has the same id, `ledgerPosition` and RSVP deadline (SYNC-18-002).
@@ -112,4 +117,4 @@ A participant that already answered, or whose proposal was decided, is sent noth
 
 ## More Information
 
-Generated spec requirements: none yet; the implementation issues that build this decision add them.
+Generated spec requirements: `sync-ledger-replication.yaml` SYNC-20-001 through SYNC-20-008.

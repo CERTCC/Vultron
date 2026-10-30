@@ -81,6 +81,7 @@ def _path_prefixed_reraises(tree: ast.AST) -> list[int]:
     return lines
 
 
+@pytest.mark.spec("SR-03-010")
 @pytest.mark.spec("MS-17-003")
 def test_no_private_attribution_wrapper_outside_the_helper():
     """Every loader obtains file attribution from ``file_loading.py``."""
@@ -128,7 +129,7 @@ def test_the_ratchet_ignores_context_added_by_a_caller():
     assert _path_prefixed_reraises(_corpus.parse_inline(source)) == []
 
 
-@pytest.mark.spec("MS-17-004")
+@pytest.mark.spec("MS-17-006")
 def test_metadata_does_not_import_the_protocol_error_hierarchy():
     """``vultron/errors.py`` belongs to the protocol domain, not tooling."""
     violations: list[str] = []

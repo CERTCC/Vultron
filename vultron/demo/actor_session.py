@@ -382,6 +382,15 @@ class ActorSession:
             {"cp_offer_id": cp_offer_id, "case_actor_id": case_actor_id},
         )
 
+    def reject_actor_recommendation(
+        self, *, cp_offer_id: str, case_actor_id: str
+    ) -> WireTriggerResult:
+        """Reject a forwarded Offer(CaseParticipant) (reject-actor-recommendation)."""
+        return self._post(
+            "reject-actor-recommendation",
+            {"cp_offer_id": cp_offer_id, "case_actor_id": case_actor_id},
+        )
+
     def offer_case_ownership_transfer(
         self,
         *,

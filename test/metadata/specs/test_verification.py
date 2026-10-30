@@ -101,6 +101,7 @@ def test_clean_fixture_has_no_problems():
 
 @pytest.mark.spec("MS-10-003")
 @pytest.mark.spec("MS-10-006")
+@pytest.mark.spec("MS-10-022")
 @pytest.mark.parametrize("priority", ["MUST", "MUST_NOT"])
 def test_must_tier_with_neither_field_fails(priority):
     problems = verification_problems(
@@ -111,7 +112,7 @@ def test_must_tier_with_neither_field_fails(priority):
     assert "MS-10-003" in problems[0]
 
 
-@pytest.mark.spec("MS-10-006")
+@pytest.mark.spec("MS-10-022")
 def test_must_tier_with_both_fields_fails_as_stale():
     """A sibling PR verified it; the marker is now a lie."""
     items = [
@@ -128,7 +129,7 @@ def test_must_tier_with_both_fields_fails_as_stale():
     assert "TST-01-001" in problems[0]
 
 
-@pytest.mark.spec("MS-10-006")
+@pytest.mark.spec("MS-10-022")
 @pytest.mark.parametrize("priority", ["SHOULD", "SHOULD_NOT", "MAY"])
 def test_marker_below_the_must_tier_fails(priority):
     items = [("TST-01-001", priority, "protocol", {"verification_debt": "#1"})]
@@ -148,7 +149,7 @@ def test_relabel_that_keeps_the_old_kinds_marker_fails():
     assert "MS-10-008" in problems[0]
 
 
-@pytest.mark.spec("MS-10-007")
+@pytest.mark.spec("MS-10-026")
 @pytest.mark.parametrize("priority", ["MUST", "MUST_NOT"])
 def test_marker_on_a_kind_with_no_owner_entry_fails(priority):
     items = [
@@ -157,10 +158,10 @@ def test_marker_on_a_kind_with_no_owner_entry_fails(priority):
     problems = verification_problems(_registry(items), _OWNERS)
     assert len(problems) == 1
     assert "kind=architecture has no verification backlog left" in problems[0]
-    assert "MS-10-007" in problems[0]
+    assert "MS-10-026" in problems[0]
 
 
-@pytest.mark.spec("MS-10-007")
+@pytest.mark.spec("MS-10-026")
 def test_verified_items_of_a_finished_kind_pass():
     items = [
         ("TST-01-001", "MUST", "architecture", {"verification": "A test."}),
@@ -259,7 +260,7 @@ def test_summary_names_every_owner_including_those_at_zero():
     assert not any("kind=architecture" in ln for ln in lines)
 
 
-@pytest.mark.spec("MS-10-005")
+@pytest.mark.spec("MS-10-020")
 def test_listing_is_opt_in_and_names_each_marker():
     registry = _registry(_CLEAN_ITEMS)
     _, default = check_verification_coverage(registry, _OWNERS)
@@ -271,7 +272,7 @@ def test_listing_is_opt_in_and_names_each_marker():
     assert "    TST-01-005  #3" in listed
 
 
-@pytest.mark.spec("MS-10-005")
+@pytest.mark.spec("MS-10-019")
 def test_summary_does_not_depend_on_any_committed_count():
     """Verifying one item lowers the printed number with no other edit."""
     registry = _registry(_CLEAN_ITEMS)
@@ -284,7 +285,7 @@ def test_summary_does_not_depend_on_any_committed_count():
     assert any("kind=protocol: 1 MUST-tier" in ln for ln in after)
 
 
-@pytest.mark.spec("MS-10-007")
+@pytest.mark.spec("MS-10-025")
 def test_owner_no_marker_names_is_reported_not_failed():
     """#2 owns process but no marker names it: a warning, never an error, so
     two PRs finishing one owner's backlog cannot turn main red merged."""
@@ -326,7 +327,7 @@ def test_debt_owner_refs_covers_markers_and_table_entries():
     }
 
 
-@pytest.mark.spec("MS-10-006")
+@pytest.mark.spec("MS-10-024")
 def test_closed_owner_fails_and_open_owner_passes():
     states = {"#1": "OPEN", "#2": "CLOSED", "#10": "OPEN"}
     errors = closed_debt_owners(states, states.__getitem__)
@@ -338,7 +339,7 @@ def test_closed_owner_fails_and_open_owner_passes():
     ]
 
 
-@pytest.mark.spec("MS-10-006")
+@pytest.mark.spec("MS-10-024")
 @pytest.mark.parametrize(
     "exc",
     [
@@ -369,7 +370,7 @@ def test_closed_debt_owners_defaults_to_the_gh_lookup(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("MS-10-006")
+@pytest.mark.spec("MS-10-023")
 def test_pr_closing_an_owner_that_markers_still_name_fails():
     errors = closing_pr_problems(_registry(_CLEAN_ITEMS), _OWNERS, {"#1"})
     assert len(errors) == 1
@@ -395,7 +396,7 @@ def test_pr_closing_unrelated_issues_passes():
     assert closing_pr_problems(registry, _OWNERS, set()) == []
 
 
-@pytest.mark.spec("MS-10-006")
+@pytest.mark.spec("MS-10-023")
 @pytest.mark.parametrize(
     "exc",
     [FileNotFoundError("gh"), subprocess.CalledProcessError(1, ["gh"])],

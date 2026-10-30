@@ -93,6 +93,8 @@ SOURCE = textwrap.dedent("""\
     """)
 
 
+@pytest.mark.spec("SR-12-015")
+@pytest.mark.spec("SR-12-016")
 @pytest.mark.spec("SR-12-002")
 @pytest.mark.parametrize(
     ("lines", "expected"),
@@ -256,6 +258,7 @@ def _change(lines=None):
     return FileChange("vultron/a/mod.py", SOURCE, lines)
 
 
+@pytest.mark.spec("SR-12-017")
 @pytest.mark.spec("SR-12-003")
 @pytest.mark.spec("SR-12-004")
 def test_analyze_tiers():
@@ -268,6 +271,7 @@ def test_analyze_tiers():
     assert report.no_signal == []
 
 
+@pytest.mark.spec("SR-12-020")
 @pytest.mark.spec("SR-12-009")
 def test_hub_symbol_import_hits_demoted_to_info():
     report = analyze([_change({13})], _tests(), REQS, hub_threshold=0)
@@ -284,7 +288,7 @@ def test_hub_threshold_not_exceeded_keeps_must():
     assert "AA-01" in report.must
 
 
-@pytest.mark.spec("SR-12-009")
+@pytest.mark.spec("SR-12-021")
 def test_render_text_names_hubs():
     report = analyze([_change({13})], _tests(), REQS, hub_threshold=0)
     assert (
@@ -353,7 +357,7 @@ def _hit(group, *reqs):
     return GroupHit(group, group[:2], set(reqs), set())
 
 
-@pytest.mark.spec("SR-12-006")
+@pytest.mark.spec("SR-12-019")
 def test_unresolved_groups():
     manifest = parse_manifest(MANIFEST, {"ARCH", "CS", "BB", "AA"})
     must = {
@@ -433,6 +437,8 @@ def _main(monkeypatch, *argv, stdin=None):
     return backstop.main()
 
 
+@pytest.mark.spec("SR-12-014")
+@pytest.mark.spec("SR-12-018")
 @pytest.mark.spec("SR-12-001")
 @pytest.mark.spec("SR-12-005")
 def test_cli_paths_json(repo, monkeypatch, capsys):
@@ -442,6 +448,7 @@ def test_cli_paths_json(repo, monkeypatch, capsys):
     assert set(data) >= {"changed", "must", "info", "no_signal"}
 
 
+@pytest.mark.spec("SR-12-021")
 @pytest.mark.spec("SR-12-009")
 def test_cli_hub_threshold_flag(repo, monkeypatch, capsys):
     (repo / "test" / "a" / "test_mod.py").write_text(
@@ -455,7 +462,7 @@ def test_cli_hub_threshold_flag(repo, monkeypatch, capsys):
     assert data["hub_threshold"] == 0
 
 
-@pytest.mark.spec("SR-12-006")
+@pytest.mark.spec("SR-12-019")
 def test_cli_manifest_exit_codes(repo, monkeypatch, capsys):
     manifest = "Loaded (selected): AA-01\n"
     code = _main(
@@ -582,7 +589,7 @@ def test_one_must_among_shoulds_keeps_the_group_blocking():
     assert "EE-01" not in report.info
 
 
-@pytest.mark.spec("SR-12-011")
+@pytest.mark.spec("SR-12-022")
 def test_logger_is_not_a_changed_symbol():
     """`logger` is module boilerplate, and matched every `logger.info` spec."""
     tree = ast.parse("import logging\nlogger = logging.getLogger(__name__)\n")
@@ -624,7 +631,7 @@ def test_suite_at_the_span_still_promotes():
     assert not report.monoliths
 
 
-@pytest.mark.spec("SR-12-011")
+@pytest.mark.spec("SR-12-023")
 def test_no_python_source_says_exit_zero_is_not_coverage():
     """A docs-only diff has no signal, and silence read as a pass."""
     report = analyze([], {}, REQS)
@@ -657,7 +664,7 @@ def test_git_config_cannot_rename_the_diff_prefixes(
     assert [g["group"] for g in data["must"]] == ["AA-01", "AA-02"]
 
 
-@pytest.mark.spec("SR-12-012")
+@pytest.mark.spec("SR-12-024")
 def test_paths_accepts_a_file_that_does_not_exist_yet(
     repo, monkeypatch, capsys
 ):
@@ -673,7 +680,7 @@ def test_paths_outside_the_repo_is_still_an_error(repo, monkeypatch, capsys):
     assert "outside" in capsys.readouterr().err
 
 
-@pytest.mark.spec("SR-12-012")
+@pytest.mark.spec("SR-12-025")
 def test_unanalysed_path_is_reported(repo, monkeypatch, capsys):
     """A docs path reported 0 files and exit 0 with nothing read and no note."""
     (repo / "docs").mkdir()
@@ -685,7 +692,7 @@ def test_unanalysed_path_is_reported(repo, monkeypatch, capsys):
     assert "not analysed (outside vultron/ and test/)" in render_text(report)
 
 
-@pytest.mark.spec("SR-12-013")
+@pytest.mark.spec("SR-12-026")
 def test_comma_in_a_reason_does_not_dismiss_the_next_id():
     """`BT-01 — irrelevant, CM-02 covers it` dismissed CM-02 and passed it."""
     manifest = parse_manifest(

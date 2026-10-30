@@ -71,7 +71,7 @@ def _errors(root: Path) -> list[str]:
     return check_branch(load_registry(root / "specs"), root, "base").errors
 
 
-@pytest.mark.spec("MS-10-011")
+@pytest.mark.spec("MS-10-027")
 class TestChangedMarkers:
     def test_an_untouched_requirement_is_not_reported(self, repo):
         assert _errors(repo) == []

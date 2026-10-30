@@ -1,1 +1,1 @@
-The behavioral requirements for this tree are specified in the [Protocol Specifications](../../reference/specs/protocol.md):
+The behavioral requirements for this tree are specified in the [Requirements Catalog](../../reference/vultron-spec/requirements/index.md):

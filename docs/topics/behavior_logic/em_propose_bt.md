@@ -8,8 +8,8 @@ stakeholder_type: [project-contributor]
 
 {% include-markdown "./_requirements_pointer.md" %}
 
-- [EMB-10](../../reference/specs/protocol.md#emb-10) — Enter EM Proposed
-- [EMB-12](../../reference/specs/protocol.md#emb-12) — Enter EM Revise
+- [EMB-10](../../reference/vultron-spec/requirements/state-behavior.md#protocol-emb-10) — Enter EM Proposed
+- [EMB-12](../../reference/vultron-spec/requirements/state-behavior.md#protocol-emb-12) — Enter EM Revise
 
 {% include-markdown "./_conformant_implementation_note.md" %}
 

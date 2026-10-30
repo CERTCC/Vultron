@@ -1,3 +1,3 @@
-- [RMB](../../reference/specs/protocol.md#rmb) — Report Management behavioral requirements
-- [EMB](../../reference/specs/protocol.md#emb) — Embargo Management behavioral requirements
-- [CSB](../../reference/specs/protocol.md#csb) — Case State behavioral requirements
+- [RMB](../../reference/vultron-spec/requirements/state-behavior.md#protocol-rmb) — Report Management behavioral requirements
+- [EMB](../../reference/vultron-spec/requirements/state-behavior.md#protocol-emb) — Embargo Management behavioral requirements
+- [CSB](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb) — Case State behavioral requirements

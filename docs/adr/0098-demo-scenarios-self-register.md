@@ -271,11 +271,19 @@ That still holds, and a scenario's place in the scenario tree is now part of wha
 - Planning of #4726 (the same day) replaced "its parent, the branch point, and the choice it takes" with the scenario's full path from the root, as (branch point, choice) pairs naming one branch-point table, because siblings such as `fv` and `fvv` are neither a prefix of the other.
   The shared-prefix check accordingly compares any two scenarios whose paths share a prefix, not a parent and a child.
   See DEMOCI-11-013 through DEMOCI-11-018.
+- Planning of #4733 (2026-10-30) chose the composition model.
+  Each scenario assembles its story from shared story fragments and named shared prefixes, with a choice item at each branch point.
+  The registry reads the path from those choice items, and the runner records the step marks.
+  A plain set of shared functions with a hand-typed path was rejected, because the path would stay a second copy of the story.
+  Byte identity also needs one fixed cast and one recording seed for the whole tree: the first Reporter, Vendor and Coordinator a scenario seats always run in the first three cast slots, and the others are character actors whose role each scenario sets.
+  Per-scenario specs stay whole stories.
+  See DEMOCI-11-019 through DEMOCI-11-025.
 
 Why: sibling scenarios are today full copies of one another up to the point where they differ, and nothing records that they are one story.
-The demo UI's offline mode replays the tree ([ADR-0104](0104-interactive-demo-ui-live-ledger-watcher.md) amendment of the same date), so the tree must be stated by the code, not inferred from scenario names.
+The demo UI's offline mode replays the tree ([ADR-0104](0104-interactive-demo-ui-live-ledger-watcher.md) amendment of 2026-10-15), so the tree must be stated by the code, not inferred from scenario names.
 
 - Source: the 2026-10-15 demo UI planning session; #4726, #4727, #4733, #4736
+- Source: the 2026-10-30 planning of #4733
 
 ## More Information
 

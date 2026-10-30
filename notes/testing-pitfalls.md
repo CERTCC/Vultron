@@ -6,7 +6,9 @@ description: >
   Full write-ups for pytest pitfalls in this repo: reading a killed run, a dead
   xdist worker hanging the run, the two-tier timeout guardrail and why the
   timeout *method* matters more than the ceiling, profiling a near-ceiling test
-  before re-tiering it, proving off-loop work without a wall-clock window,
+  before re-tiering it, sizing the integration tier from measured load, the
+  ledger-rebuild teardown error a timeout trip leaves behind, proving off-loop
+  work without a wall-clock window,
   measuring effective markers rather than declarations,
   `filterwarnings` precedence, `nproc` in a worktree slot, `xdist_group` for
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
@@ -15,7 +17,8 @@ description: >
   MagicMock), test layout rules for module splits, why a two-sided count pin
   races concurrent PRs (keep a per-item record and a PR-only growth guard
   instead), why a schema change that the merge base fails breaks every growth
-  guard, and when to delete a migration check.
+  guard, when to delete a migration check, and why a child Python process
+  must get its environment from `child_env()`.
   `test/AGENTS.md` keeps the short index and the rules you need on every run.
 related_specs:
   - specs/testability.yaml
@@ -39,6 +42,7 @@ related_notes:
   - notes/architecture-ratchet-corpus.md
   - notes/outbox-delivery-reliability.md
   - notes/sync-ledger-replication.md
+  - notes/devcontainer-tooling.md
 relevant_packages:
   - pytest
   - pytest-xdist
@@ -103,7 +107,7 @@ Timeouts are **two-tier** (`pytest-timeout`):
 | Tier | Ceiling | Set in |
 |---|---|---|
 | Unit (default) | 30s | `timeout = 30`, `pyproject.toml` |
-| `@pytest.mark.integration` | 60s | `INTEGRATION_TIMEOUT_SECONDS`, `test/conftest.py` |
+| `@pytest.mark.integration` | 120s | `INTEGRATION_TIMEOUT_SECONDS`, `test/conftest.py` |
 
 `apply_integration_timeout` in `test/conftest.py` widens the ceiling for
 integration-marked tests at collection time; an explicit
@@ -128,6 +132,19 @@ corpus once per sub-check, or an adapter that re-reads the whole outbox on every
 send. Removing the repeat also speeds up every other test on that path
 (#5341, #4906). Also look for a second test that runs the same expensive fixture
 only to inspect what the first test's run already recorded (#5227).
+
+Size the integration tier from the slowest test's quiet cost times the load
+stretch it meets, not from the typical test. The exchange demos are CPU-bound
+(wall time equals CPU time), so host load stretches them in proportion (#5188).
+`test/test_integration_timeout_tier.py` records the measured inputs and pins
+their product as the tier's floor.
+
+A demo test that trips its timeout also fails at teardown with a ledger-rebuild
+error (`… rebuilt from its ledger differs …`, or a case naming a `log_index`
+past its chain's end). The trip stopped the demo between a ledger commit and the
+case update that follows it, and the rebuild check in
+`test/demo/_helpers.py` runs on the half-finished case. Diagnose the timeout;
+the rebuild error is its consequence, not a second defect (#5188).
 
 #### A Count of Events in a Wall-Clock Window Is Not a Concurrency Proof
 
@@ -207,7 +224,7 @@ A test asserting the list position cannot catch this, because `pytest.warns` and
 `warnings.catch_warnings` replace the ini filters. Assert the behaviour in a
 `pytester` sub-session fed the project's real filter list, as
 `test/metadata/specs/test_spec_marker_gate.py::TestWarningIsNotEscalated` does
-(SR-05-007).
+(SR-05-016).
 
 ### `caplog` Captures Fixture-Setup-Phase Records
 
@@ -279,6 +296,17 @@ path misses deliveries from the other: set `configure_default_emitter(router)`
 Prefer `config_override()` over `monkeypatch` + `reload_config()`, and if you
 cannot, get the teardown order right. Both rules are in
 [notes/configuration.md](configuration.md) § "Testing Pattern".
+
+### A Child Python Process Gets Its Environment From `child_env()`
+
+A test that runs `sys.executable` on code importing `vultron` MUST pass
+`env=child_env()` (`test/support/child_env.py`). pytest puts the repository
+root first only on its own `sys.path`; a child inherits just `PYTHONPATH`, and
+in a worktree that can name another checkout. A script child's `sys.path[0]` is
+the script's directory, so the other checkout's `vultron` wins and a module it
+lacks fails to import (#5456). The devcontainer's `PYTHONPATH=/app` is the usual
+source ([devcontainer-tooling](devcontainer-tooling.md) § "Clear `PYTHONPATH`
+Before Every `uv run` and Worktree Commit").
 
 ### Store Scoping
 

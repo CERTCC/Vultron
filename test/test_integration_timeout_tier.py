@@ -31,7 +31,6 @@ what a trip costs under the configured ``timeout_method`` (#3603).
 """
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -42,8 +41,18 @@ from test.conftest import (
     INTEGRATION_TIMEOUT_SECONDS,
     apply_integration_timeout,
 )
+from test.support.child_env import child_env
 
 pytest_plugins = ["pytester"]
+
+#: Slowest integration test under ``-n auto`` on a quiet host, in seconds
+#: (``test_rvcv_extension_demo.py``, 30.05 s; #5188).
+_SLOWEST_QUIET_INTEGRATION_SECONDS = 30
+
+#: How far host contention stretched the CPU-bound demos over their quiet
+#: time (#5188): 2-3x at ``-n 0`` under host load ~30 on 16 cores, and about
+#: 4x under a loaded ``-n auto`` run, where the 60 s tier tripped.
+_MEASURED_LOAD_INFLATION = 4
 
 
 class FakeItem:
@@ -220,13 +229,23 @@ class TestResolvedTimeoutsUnderRealPytest:
 
 
 class TestIntegrationTimeoutValue:
-    def test_is_comfortably_above_the_slowest_honest_integration_test(self):
-        """The slowest honest integration test measured ~4.3s (issue #2270).
+    @pytest.mark.spec("TB-14-003")
+    def test_clears_the_slowest_quiet_demo_under_measured_load(self):
+        """The tier covers the slowest demo at the load the suite meets.
 
-        A ceiling that is merely a little above that is what caused the
-        original spurious aborts, so require real headroom.
+        The exchange demos are CPU-bound, so load stretches them in
+        proportion. The slowest integration test measured
+        :data:`_SLOWEST_QUIET_INTEGRATION_SECONDS` under ``-n auto`` on a
+        quiet host, and contention stretched the demos about
+        :data:`_MEASURED_LOAD_INFLATION` times, which tripped the embargo
+        demos at a 60 s tier (#5188).
+
+        The inputs are measured constants, so this pins a floor against a
+        revert; it does not re-measure the suite.
         """
-        assert INTEGRATION_TIMEOUT_SECONDS >= 30
+        assert INTEGRATION_TIMEOUT_SECONDS >= (
+            _SLOWEST_QUIET_INTEGRATION_SECONDS * _MEASURED_LOAD_INFLATION
+        )
 
     def test_is_still_a_bounded_hang_detector(self):
         assert INTEGRATION_TIMEOUT_SECONDS <= 300
@@ -450,11 +469,7 @@ def demo_items(tmp_path_factory):
     probe_dir = tmp_path_factory.mktemp("tier_probe")
     (probe_dir / "tier_probe.py").write_text(_COLLECTION_PROBE)
     out = probe_dir / "resolved.json"
-    env = {
-        **os.environ,
-        "PYTHONPATH": str(probe_dir),
-        "TIER_PROBE_OUT": str(out),
-    }
+    env = {**child_env(probe_dir), "TIER_PROBE_OUT": str(out)}
 
     completed = subprocess.run(
         [

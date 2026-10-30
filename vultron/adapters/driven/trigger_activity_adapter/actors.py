@@ -47,6 +47,7 @@ from vultron.wire.as2.factories import (
     offer_case_participant_activity,
     recommend_actor_activity,
     reject_actor_recommendation_activity,
+    reject_case_participant_offer_activity,
     remove_participant_from_case_activity,
     rm_accept_full_case_invite_activity,
     rm_accept_invite_to_case_activity,
@@ -377,6 +378,31 @@ class _ActorsMixin:
             ),
         )
 
+    def _answer_case_participant_offer(
+        self,
+        build: Callable[..., as_Accept | as_Reject],
+        label: str,
+        cp_offer_id: str,
+        actor: str,
+        to: list[str] | None,
+    ) -> tuple[str, str]:
+        """Build, persist and seal the Case Owner's answer to a forwarded Offer.
+
+        Shared by the Accept (CM-16-006) and the Reject (CM-16-007).  The
+        Offer is read as received: parsed from the body intake archived,
+        which holds the participant inline (#3763).  The answer embeds it
+        verbatim, and addresses the case as the Offer did (AKM-02-002).
+        """
+        cp_offer = cast(
+            as_Offer,
+            read_received_as_received(
+                self._dl, cp_offer_id, "Offer(CaseParticipant)"
+            ),
+        )
+        target = _as_id(getattr(cp_offer, "target", None))
+        activity = build(offer=cp_offer, actor=actor, to=to, target=target)
+        return _create_and_seal(self._dl, activity, label)
+
     def accept_case_participant_offer(
         self,
         cp_offer_id: str,
@@ -390,21 +416,33 @@ class _ActorsMixin:
         The ``to:`` list should contain the CaseActor URI so the Accept routes
         back to CaseActor for processing.
         """
-        # Read as received: parsed from the body intake archived, which
-        # holds the participant inline (#3763).  The Accept embeds it
-        # verbatim, and addresses the case as the Offer did (AKM-02-002).
-        cp_offer = cast(
-            as_Offer,
-            read_received_as_received(
-                self._dl, cp_offer_id, "Offer(CaseParticipant)"
-            ),
+        return self._answer_case_participant_offer(
+            accept_case_participant_offer_activity,
+            "accept_case_participant_offer",
+            cp_offer_id,
+            actor,
+            to,
         )
-        target = _as_id(getattr(cp_offer, "target", None))
-        activity = accept_case_participant_offer_activity(
-            offer=cp_offer, actor=actor, to=to, target=target
-        )
-        return _create_and_seal(
-            self._dl, activity, "accept_case_participant_offer"
+
+    def reject_case_participant_offer(
+        self,
+        cp_offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(Offer(CaseParticipant))`` activity.
+
+        Sent by the Case Owner to the CASE_MANAGER after reviewing the
+        Offer(CaseParticipant) forwarded per ADR-0026 (CM-16-007).
+        The ``to:`` list should contain the CASE_MANAGER URI so the Reject
+        routes back to it for processing.
+        """
+        return self._answer_case_participant_offer(
+            reject_case_participant_offer_activity,
+            "reject_case_participant_offer",
+            cp_offer_id,
+            actor,
+            to,
         )
 
     def suggest_actor_to_case(

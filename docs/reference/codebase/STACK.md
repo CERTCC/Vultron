@@ -51,7 +51,7 @@ The docs toolchain is declared as a production dependency, not a dev group.
 | pre-commit | Git hook runner (>=4.6.2); hooks include codespell, actionlint, markdownlint-cli2, frontmatter validators, generated-artifact sync checks, ruff and spec-lint | `.pre-commit-config.yaml`, `[dependency-groups].dev` |
 | codespell | Spelling floor for docs (en-GB to en-US only) | `pyproject.toml` `[tool.codespell]`, `.pre-commit-config.yaml` |
 | pytest | Test runner (>=9.1.1) | `pyproject.toml` `[dependency-groups].dev` |
-| pytest-timeout | Per-test timeout (30 s unit tier, raised from 5 s in #2270; 60 s integration tier) | `pyproject.toml` `[tool.pytest.ini_options]`, `test/conftest.py` |
+| pytest-timeout | Per-test timeout (30 s unit tier, raised from 5 s in #2270; 120 s integration tier, #5188) | `pyproject.toml` `[tool.pytest.ini_options]`, `test/conftest.py` |
 | pytest-xdist | Parallel test execution (>=3.8.0) | `[dependency-groups].dev` |
 | pandas-stubs / types-networkx / types-pyyaml | Type stubs for third-party deps | `[dependency-groups].dev` |
 | graphifyy | Codebase knowledge-graph tooling (>=0.9.43) | `[dependency-groups].dev` |
@@ -98,6 +98,7 @@ PYTHONPATH= uv run spec-dump --topic CS --text
   - `VULTRON_DATABASE__DB_URL` — SQLite URL (tests force `sqlite:///:memory:`).
   - `VULTRON_MODE` — runtime mode.
   - `VULTRON_LEDGER__CLOCK_SKEW_TOLERANCE_SECONDS`, `VULTRON_LEDGER__FUTURE_TOLERANCE_SECONDS`, `VULTRON_LEDGER__STALENESS_WINDOW_DAYS` — ledger timestamp tolerances (`vultron/config/ledger.py`).
+  - `VULTRON_LEDGER__POSITION_STATEMENT_INTERVAL_SECONDS` (off by default), `VULTRON_LEDGER__INVITE_RESEND_COOLDOWN_SECONDS` (30 s), `VULTRON_LEDGER__INVITE_RESEND_MAX_COOLDOWN_SECONDS` (600 s) — the participant position-statement interval and the CASE_MANAGER unanswered-Invite resend cooldown (SYNC-17-007, SYNC-20-005).
 - `.env.example` documents only `PROJECT_NAME` (default `vultron`), which the Docker Compose files use for image names.
 - Deployment/runtime constraints: Python 3.12+; runs via uvicorn as the ASGI app `vultron.adapters.driving.fastapi.main:app`.
 - Containerized multi-actor demo: `docker/docker-compose.yml` and `docker/docker-compose-multi-actor.yml` (single Dockerfile at `docker/Dockerfile`, entrypoint `docker/demo-entrypoint.sh`, seed configs under `docker/seed-configs/`), used by the `demo-integration.yml` CI workflow.

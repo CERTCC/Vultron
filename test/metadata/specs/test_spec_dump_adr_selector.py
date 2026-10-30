@@ -146,6 +146,7 @@ def test_cli_adr_flag_selects_by_two_records(dump_dir, monkeypatch, capsys):
     assert _ids(out) == {"MS-01-001", "MS-01-002"}
 
 
+@pytest.mark.spec("SR-07-015")
 @pytest.mark.spec("SR-07-017")
 def test_adr_counts_as_a_set_selector_for_text(dump_dir, monkeypatch, capsys):
     """``--text`` accepts ``--adr`` alone; it needs no other selector."""
@@ -155,7 +156,8 @@ def test_adr_counts_as_a_set_selector_for_text(dump_dir, monkeypatch, capsys):
     assert "MS-01-002 SHOULD" in result.out
 
 
-@pytest.mark.spec("SR-07-017")
+@pytest.mark.spec("SR-07-027")
+@pytest.mark.spec("SR-07-028")
 def test_record_no_requirement_cites_is_noted_not_silent(
     dump_dir, monkeypatch, capsys
 ):
@@ -171,7 +173,7 @@ def test_record_no_requirement_cites_is_noted_not_silent(
     ]
 
 
-@pytest.mark.spec("SR-07-017")
+@pytest.mark.spec("SR-07-026")
 @pytest.mark.parametrize("value", ["adr-0001", "ADR-1", "0127", "ADR-00012"])
 def test_malformed_adr_value_exits_2(dump_dir, monkeypatch, capsys, value):
     code, err = _exit(
@@ -182,7 +184,7 @@ def test_malformed_adr_value_exits_2(dump_dir, monkeypatch, capsys, value):
     assert "Expected ADR-NNNN" in err
 
 
-@pytest.mark.spec("SR-07-017")
+@pytest.mark.spec("SR-07-026")
 def test_adr_naming_no_record_exits_2(dump_dir, monkeypatch, capsys):
     """A typo is refused, not read as a record that governs nothing."""
     code, err = _exit(
@@ -193,7 +195,7 @@ def test_adr_naming_no_record_exits_2(dump_dir, monkeypatch, capsys):
     assert "ADR-0001" not in err
 
 
-@pytest.mark.spec("SR-07-017")
+@pytest.mark.spec("SR-07-026")
 def test_adr_without_a_record_directory_exits_2(tmp_path, monkeypatch, capsys):
     (tmp_path / "ms.yaml").write_text(yaml.dump(FIXTURE_YAML))
     code, err = _exit(monkeypatch, capsys, "--adr", "ADR-0001", str(tmp_path))
@@ -201,7 +203,7 @@ def test_adr_without_a_record_directory_exits_2(tmp_path, monkeypatch, capsys):
     assert "decision records beside the spec directory" in err
 
 
-@pytest.mark.spec("SR-07-015")
+@pytest.mark.spec("SR-07-024")
 @pytest.mark.parametrize("mode", [[], ["--text"]], ids=["json", "text"])
 def test_empty_adr_selector_exits_2(dump_dir, monkeypatch, capsys, mode):
     code, err = _exit(monkeypatch, capsys, "--adr", "", *mode, str(dump_dir))

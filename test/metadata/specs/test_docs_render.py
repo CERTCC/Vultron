@@ -1,12 +1,17 @@
-"""Tests for vultron.metadata.specs.docs_render.render_for_kind (AC-1).
+"""Tests for vultron.metadata.specs.docs_render.
 
-Covers: priority badges, group/file headers, behavioral ECA blocks,
-cross-kind relationship links, ValueError for an unknown kind, the notice
-for a kind no spec carries yet,
-and SpecTag.BEHAVIORAL detection.
+The per-kind pages (render_for_kind) cover: priority badges, group/file
+headers, behavioral ECA blocks, cross-kind relationship links, ValueError for
+an unknown kind and for the two Requirements Catalog tiers, the notice for a
+kind no spec carries yet, and SpecTag.BEHAVIORAL detection. The fixtures are
+written as ``protocol`` requirements, the tier the catalog tests need; the
+per-kind tests retag them to ``process`` with :func:`_as_kind`, because a
+``protocol`` or ``foundation`` requirement has no per-kind page (SR-09-004).
+The shared row renderer, the catalog pages and the callouts follow.
 """
 
 import ast
+import copy
 import posixpath
 import re
 from pathlib import Path
@@ -16,7 +21,10 @@ import yaml
 
 from vultron.metadata.docs.anchor_ids import anchor_ids_in
 from vultron.metadata.docs.exec_page import EXEC_PAGE_ENV
+from vultron.metadata.docs.level_order import fragment_hosts
+from vultron.metadata.docs.page_frontmatter import classify_docs_tree
 from vultron.metadata.docs.requirement_catalog import (
+    CATALOG_KINDS,
     CATALOG_PAGES,
     FULL_PAGE,
     CatalogPage,
@@ -24,6 +32,7 @@ from vultron.metadata.docs.requirement_catalog import (
     kind_page,
 )
 from vultron.metadata.docs.site_urls import url_path
+from vultron.metadata.markdown_tables import exec_blocks
 from vultron.metadata.specs.docs_render import (
     _REL_LABEL,
     render_catalog_page,
@@ -168,15 +177,28 @@ BEHAVIORAL_YAML = {
 }
 
 
+#: The kind the per-kind page tests render: any kind with a per-kind page.
+_KIND = "process"
+
+
+def _as_kind(data: dict, kind: str = _KIND) -> dict:
+    """Return a copy of spec file *data* with every item's kind set to *kind*."""
+    data = copy.deepcopy(data)
+    for group in data["groups"]:
+        for spec in group["specs"]:
+            spec["kind"] = kind
+    return data
+
+
 @pytest.fixture
 def general_registry(tmp_path):
-    (tmp_path / "gen.yaml").write_text(yaml.dump(GENERAL_YAML))
+    (tmp_path / "gen.yaml").write_text(yaml.dump(_as_kind(GENERAL_YAML)))
     return load_registry(tmp_path)
 
 
 @pytest.fixture
 def cross_kind_registry(tmp_path):
-    (tmp_path / "gen.yaml").write_text(yaml.dump(GENERAL_YAML))
+    (tmp_path / "gen.yaml").write_text(yaml.dump(_as_kind(GENERAL_YAML)))
     (tmp_path / "dom.yaml").write_text(yaml.dump(DOMAIN_YAML))
     return load_registry(tmp_path)
 
@@ -184,7 +206,7 @@ def cross_kind_registry(tmp_path):
 @pytest.fixture
 def behavioral_registry(tmp_path):
     (tmp_path / "dom.yaml").write_text(yaml.dump(DOMAIN_YAML))
-    (tmp_path / "bhv.yaml").write_text(yaml.dump(BEHAVIORAL_YAML))
+    (tmp_path / "bhv.yaml").write_text(yaml.dump(_as_kind(BEHAVIORAL_YAML)))
     return load_registry(tmp_path)
 
 
@@ -201,14 +223,23 @@ def test_render_for_kind_unknown_raises(general_registry):
 def test_render_for_kind_with_no_specs_renders_a_notice(general_registry):
     """A valid kind no spec carries renders a notice, not an error.
 
-    Every kind has a page (test_kind_page_coverage.py), and a new kind such as
-    ``foundation`` has no specs until the corpus is swept (ADR-0134), so the
-    docs build must not fail on it.
+    Every kind outside the Requirements Catalog has a page
+    (test_kind_page_coverage.py), and a new kind has no specs until the
+    corpus is swept (ADR-0134), so the docs build must not fail on it.
     """
-    output = render_for_kind("process", general_registry)
+    output = render_for_kind("project", general_registry)
     assert "No requirements yet" in output
-    assert "`kind: process`" in output
+    assert "`kind: project`" in output
     assert "<h2" not in output and "##" not in output
+
+
+@pytest.mark.spec("SR-09-004", "DF-12-002")
+@pytest.mark.parametrize("kind", ["protocol", "foundation"])
+def test_render_for_kind_refuses_the_catalog_tiers(general_registry, kind):
+    """The two tiers render only in the Requirements Catalog, whose rows are
+    their only anchors; a per-kind page of them would define a second."""
+    with pytest.raises(ValueError, match="Requirements Catalog"):
+        render_for_kind(kind, general_registry)
 
 
 # ---------------------------------------------------------------------------
@@ -217,27 +248,27 @@ def test_render_for_kind_with_no_specs_renders_a_notice(general_registry):
 
 
 def test_render_for_kind_must_badge(general_registry):
-    md = render_for_kind("protocol", general_registry)
+    md = render_for_kind(_KIND, general_registry)
     assert "**MUST**" in md
 
 
 def test_render_for_kind_should_badge(general_registry):
-    md = render_for_kind("protocol", general_registry)
+    md = render_for_kind(_KIND, general_registry)
     assert "**SHOULD**" in md
 
 
 def test_render_for_kind_may_badge(general_registry):
-    md = render_for_kind("protocol", general_registry)
+    md = render_for_kind(_KIND, general_registry)
     assert "**MAY**" in md
 
 
 def test_render_for_kind_must_not_badge(general_registry):
-    md = render_for_kind("protocol", general_registry)
+    md = render_for_kind(_KIND, general_registry)
     assert "**MUST NOT**" in md
 
 
 def test_render_for_kind_should_not_badge(general_registry):
-    md = render_for_kind("protocol", general_registry)
+    md = render_for_kind(_KIND, general_registry)
     assert "**SHOULD NOT**" in md
 
 
@@ -247,39 +278,39 @@ def test_render_for_kind_should_not_badge(general_registry):
 
 
 def test_render_for_kind_file_title_h2(general_registry):
-    md = render_for_kind("protocol", general_registry)
+    md = render_for_kind(_KIND, general_registry)
     assert "## General Test Specs" in md
 
 
 @pytest.mark.spec("SR-01-003")
 def test_render_for_kind_prints_file_id_without_version(general_registry):
-    md = render_for_kind("protocol", general_registry)
+    md = render_for_kind(_KIND, general_registry)
     assert "*File ID*: `GEN`" in md
     assert "Version" not in md
 
 
 def test_render_for_kind_group_title_h3(general_registry):
-    md = render_for_kind("protocol", general_registry)
+    md = render_for_kind(_KIND, general_registry)
     assert "### General Group" in md
 
 
 def test_render_for_kind_spec_id_in_output(general_registry):
-    md = render_for_kind("protocol", general_registry)
+    md = render_for_kind(_KIND, general_registry)
     assert "GEN-01-001" in md
 
 
 def test_render_for_kind_statement_in_output(general_registry):
-    md = render_for_kind("protocol", general_registry)
+    md = render_for_kind(_KIND, general_registry)
     assert "MUST render correctly" in md
 
 
 def test_render_for_kind_rationale_in_output(general_registry):
-    md = render_for_kind("protocol", general_registry)
+    md = render_for_kind(_KIND, general_registry)
     assert "Required for docs coverage" in md
 
 
 def test_render_for_kind_anchors_present(general_registry):
-    md = render_for_kind("protocol", general_registry)
+    md = render_for_kind(_KIND, general_registry)
     assert 'id="gen-01-001"' in md
 
 
@@ -295,7 +326,32 @@ _CROSS_LINK_RE = re.compile(
     r"\((?:\.\./(?P<slug>[a-z]+)/)?#(?P<fragment>[a-z0-9-]+)\)"
 )
 
+#: Any Related-cell link: ``[ID](<url>#id)``, the URL relative to the page.
+_RELATED_LINK_RE = re.compile(
+    r"\[[A-Z][A-Z0-9]{1,7}-\d{2}-\d{3}[a-z]?\]\((?P<href>[^)\s]*#[^)\s]+)\)"
+)
 
+
+def _requirement_pages(registry) -> dict[str, str]:
+    """Each requirements page's ``docs/`` path, mapped to its rendered text."""
+    pages = {
+        kind_page(kind): render_for_kind(kind.value, registry)
+        for kind in _KIND_PAGE_KINDS
+    }
+    pages.update(
+        {
+            page.path: render_catalog_page(page.key, registry, page=page.path)
+            for page in CATALOG_PAGES
+        }
+    )
+    pages[FULL_PAGE] = "\n".join(
+        render_catalog_page(page.key, registry, page=FULL_PAGE)
+        for page in CATALOG_PAGES
+    )
+    return pages
+
+
+@pytest.mark.spec("DF-12-002")
 def test_render_for_kind_cross_links_resolve():
     """Every ``#fragment`` the Related column prints exists on its target page.
 
@@ -303,31 +359,32 @@ def test_render_for_kind_cross_links_resolve():
     never sees a link an exec block prints, so nothing in the build validates
     the Related column (``notes/documentation-strategy.md`` § "Exec-Block
     Anchors Are Invisible to --strict, Too"). This test is that check, over
-    the real ``specs/`` registry and every kind page. SR-09-002 routes a
-    requirement to its own kind's page only, so a same-page ``#x`` must be an
-    id on this page and a ``../slug/#x`` an id on that slug's page. Zero
-    collected links is a failure, not a pass (DF-09-009).
+    the real ``specs/`` registry, every per-kind page and every Requirements
+    Catalog page, and the catalog's copy on ``full.md``: each link must land
+    on an id its target page defines. A per-kind page links a ``protocol`` or
+    ``foundation`` requirement on its catalog row (DF-12-002). Zero collected
+    links is a failure, not a pass (DF-09-009).
     """
     registry = load_registry()
-    pages = {
-        kind.value: render_for_kind(kind.value, registry) for kind in SpecKind
-    }
+    pages = _requirement_pages(registry)
     # The hook's own collector, so the test and the build agree on what an
     # id is; ids here are raw HTML in the markdown the exec block prints.
-    ids = {slug: anchor_ids_in(md) for slug, md in pages.items()}
+    ids = {page: anchor_ids_in(md) for page, md in pages.items()}
 
     links = 0
     dangling: list[str] = []
-    for slug, md in pages.items():
-        for match in _CROSS_LINK_RE.finditer(md):
+    for page, md in pages.items():
+        for match in _RELATED_LINK_RE.finditer(md):
             links += 1
-            target = match.group("slug") or slug
-            fragment = match.group("fragment")
-            if target not in ids:
-                dangling.append(f"{slug}: {match.group(0)} -> unknown page")
-            elif fragment not in ids[target]:
+            link, _, fragment = match.group("href").partition("#")
+            target = (
+                f"{posixpath.normpath(posixpath.join(url_path(page), link))}.md"
+                if link
+                else page
+            )
+            if fragment not in ids.get(target, frozenset()):
                 dangling.append(
-                    f"{slug}: {match.group(0)} -> no id on {target}"
+                    f"{page}: {match.group(0)} -> no id on {target}"
                 )
 
     assert links > 0, "no Related-cell links collected; the pattern is stale"
@@ -336,7 +393,7 @@ def test_render_for_kind_cross_links_resolve():
 
 def test_cross_link_pattern_matches_both_forms(cross_kind_registry):
     """Guard the regex above against drift in the Related-cell link output."""
-    same = render_for_kind("protocol", cross_kind_registry)
+    same = render_for_kind(_KIND, cross_kind_registry)
     other = render_for_kind("architecture", cross_kind_registry)
     same_hits = [m.groupdict() for m in _CROSS_LINK_RE.finditer(same)]
     other_hits = [m.groupdict() for m in _CROSS_LINK_RE.finditer(other)]
@@ -345,21 +402,21 @@ def test_cross_link_pattern_matches_both_forms(cross_kind_registry):
     )
     assert {
         "id": "GEN-01-001",
-        "slug": "protocol",
+        "slug": _KIND,
         "fragment": "gen-01-001",
     } in other_hits
 
 
 def test_render_for_kind_same_kind_link(cross_kind_registry):
     """Relationship to a spec on the same kind page uses a bare anchor."""
-    md = render_for_kind("protocol", cross_kind_registry)
+    md = render_for_kind(_KIND, cross_kind_registry)
     assert "#gen-01-001" in md
 
 
 def test_render_for_kind_cross_kind_link(cross_kind_registry):
     """Relationship to a spec on a different kind page uses a relative URL."""
     md = render_for_kind("architecture", cross_kind_registry)
-    assert "../protocol/#gen-01-001" in md
+    assert f"../{_KIND}/#gen-01-001" in md
 
 
 def test_render_for_kind_relationship_label(cross_kind_registry):
@@ -383,47 +440,47 @@ def test_render_for_kind_relationship_note(cross_kind_registry):
 
 
 def test_render_for_kind_behavioral_section_header(behavioral_registry):
-    md = render_for_kind("protocol", behavioral_registry)
+    md = render_for_kind(_KIND, behavioral_registry)
     assert "## Behavioral Specifications" in md
 
 
 def test_render_for_kind_eca_details_block(behavioral_registry):
-    md = render_for_kind("protocol", behavioral_registry)
+    md = render_for_kind(_KIND, behavioral_registry)
     assert "<details><summary>ECA Details</summary>" in md
 
 
 def test_render_for_kind_precondition_text(behavioral_registry):
-    md = render_for_kind("protocol", behavioral_registry)
+    md = render_for_kind(_KIND, behavioral_registry)
     assert "Actor is in RM Accepted" in md
 
 
 def test_render_for_kind_precondition_rm_state(behavioral_registry):
-    md = render_for_kind("protocol", behavioral_registry)
+    md = render_for_kind(_KIND, behavioral_registry)
     assert "RM state: `ACCEPTED`" in md
 
 
 def test_render_for_kind_precondition_cs_pattern(behavioral_registry):
-    md = render_for_kind("protocol", behavioral_registry)
+    md = render_for_kind(_KIND, behavioral_registry)
     assert "CS pattern: `vfd...`" in md
 
 
 def test_render_for_kind_step_text(behavioral_registry):
-    md = render_for_kind("protocol", behavioral_registry)
+    md = render_for_kind(_KIND, behavioral_registry)
     assert "Propose embargo" in md
 
 
 def test_render_for_kind_step_expected(behavioral_registry):
-    md = render_for_kind("protocol", behavioral_registry)
+    md = render_for_kind(_KIND, behavioral_registry)
     assert "EM transitions to PROPOSED" in md
 
 
 def test_render_for_kind_postcondition_text(behavioral_registry):
-    md = render_for_kind("protocol", behavioral_registry)
+    md = render_for_kind(_KIND, behavioral_registry)
     assert "EM state is PROPOSED" in md
 
 
 def test_render_for_kind_trigger_line(behavioral_registry):
-    md = render_for_kind("protocol", behavioral_registry)
+    md = render_for_kind(_KIND, behavioral_registry)
     assert "Message Received" in md
     assert "`EP`" in md
 
@@ -503,12 +560,12 @@ def test_behavioral_spec_empty_preconditions_raises():
 
 
 def test_render_for_kind_table_header_present(general_registry):
-    md = render_for_kind("protocol", general_registry)
+    md = render_for_kind(_KIND, general_registry)
     assert "| ID | Priority | Requirement | Related |" in md
 
 
 def test_render_for_kind_table_separator_present(general_registry):
-    md = render_for_kind("protocol", general_registry)
+    md = render_for_kind(_KIND, general_registry)
     assert "|---|---|---|---|" in md
 
 
@@ -541,12 +598,12 @@ PIPE_YAML = {
 
 @pytest.fixture
 def pipe_registry(tmp_path):
-    (tmp_path / "pip.yaml").write_text(__import__("yaml").dump(PIPE_YAML))
+    (tmp_path / "pip.yaml").write_text(yaml.dump(_as_kind(PIPE_YAML)))
     return load_registry(tmp_path)
 
 
 def test_render_for_kind_pipe_char_escaped(pipe_registry):
-    md = render_for_kind("protocol", pipe_registry)
+    md = render_for_kind(_KIND, pipe_registry)
     assert "&#124;" in md
     assert "Do A | B" not in md
 
@@ -591,12 +648,12 @@ MULTI_REL_YAML = {
 
 @pytest.fixture
 def multi_rel_registry(tmp_path):
-    (tmp_path / "mrl.yaml").write_text(__import__("yaml").dump(MULTI_REL_YAML))
+    (tmp_path / "mrl.yaml").write_text(yaml.dump(_as_kind(MULTI_REL_YAML)))
     return load_registry(tmp_path)
 
 
 def test_render_for_kind_multi_relationship_br_separator(multi_rel_registry):
-    md = render_for_kind("protocol", multi_rel_registry)
+    md = render_for_kind(_KIND, multi_rel_registry)
     # Two relationships in one cell must be joined with <br>
     assert "<br>" in md
 
@@ -607,27 +664,27 @@ def test_render_for_kind_multi_relationship_br_separator(multi_rel_registry):
 
 
 def test_render_for_kind_must_material_icon(general_registry):
-    md = render_for_kind("protocol", general_registry)
+    md = render_for_kind(_KIND, general_registry)
     assert ":material-check-all:" in md
 
 
 def test_render_for_kind_must_not_material_icon(general_registry):
-    md = render_for_kind("protocol", general_registry)
+    md = render_for_kind(_KIND, general_registry)
     assert ":material-cancel:" in md
 
 
 def test_render_for_kind_should_material_icon(general_registry):
-    md = render_for_kind("protocol", general_registry)
+    md = render_for_kind(_KIND, general_registry)
     assert ":material-check:" in md
 
 
 def test_render_for_kind_should_not_material_icon(general_registry):
-    md = render_for_kind("protocol", general_registry)
+    md = render_for_kind(_KIND, general_registry)
     assert ":material-alert-outline:" in md
 
 
 def test_render_for_kind_may_material_icon(general_registry):
-    md = render_for_kind("protocol", general_registry)
+    md = render_for_kind(_KIND, general_registry)
     assert ":material-information-outline:" in md
 
 
@@ -640,8 +697,11 @@ def _carried_kinds(registry) -> set[SpecKind]:
     return {spec.kind for spec in registry.all_specs.values()}
 
 
+_KIND_PAGE_KINDS = [k for k in SpecKind if k not in CATALOG_KINDS]
+
+
 @pytest.mark.spec_corpus
-@pytest.mark.parametrize("kind", list(SpecKind))
+@pytest.mark.parametrize("kind", _KIND_PAGE_KINDS)
 def test_render_for_kind_real_registry_produces_output(
     kind: SpecKind, real_registry
 ):
@@ -654,23 +714,8 @@ def test_render_for_kind_real_registry_produces_output(
     )
 
 
-@pytest.mark.spec_corpus
-@pytest.mark.parametrize("kind", list(SpecKind))
-def test_render_for_kind_real_registry_empty_kind_shows_notice(
-    kind: SpecKind, real_registry
-):
-    """A SpecKind no spec carries yet renders the notice, so its page builds.
-
-    ``foundation`` carries no spec until the corpus sweep relabels the
-    inherited-standard rules (ADR-0134).
-    """
-    if kind in _carried_kinds(real_registry):
-        pytest.skip(f"kind {kind.value!r} has specs")
-    assert "No requirements yet" in render_for_kind(kind.value, real_registry)
-
-
 # ---------------------------------------------------------------------------
-# SR-09-001 / SR-09-002: effective-kind routing for mixed-kind files/groups
+# SR-09-001 / SR-09-002 / SR-09-005: effective-kind routing for mixed-kind files/groups
 # ---------------------------------------------------------------------------
 
 # A file-level kind=general file where one group has kind=project
@@ -690,7 +735,7 @@ MIXED_KIND_FILE_YAML = {
                 {
                     "id": "MIX-01-001",
                     "priority": "MUST",
-                    "kind": "protocol",
+                    "kind": "process",
                     "statement": "MIX-01-001 is general",
                     "rationale": "Because testing.",
                 },
@@ -726,7 +771,7 @@ MIXED_KIND_GROUP_YAML = {
                 {
                     "id": "MGR-01-001",
                     "priority": "MUST",
-                    "kind": "protocol",
+                    "kind": "process",
                     "statement": "MGR-01-001 is general",
                     "rationale": "Because testing.",
                 },
@@ -792,12 +837,13 @@ def test_group_kind_override_appears_on_overridden_kind_page(
     )
 
 
+@pytest.mark.spec("SR-09-005")
 def test_group_kind_override_absent_from_wrong_kind_page(
     mixed_kind_file_registry,
 ):
-    """SR-09-002: a group with kind=project must NOT appear on the
+    """SR-09-005: a group with kind=project must NOT appear on the
     general page."""
-    md = render_for_kind("protocol", mixed_kind_file_registry)
+    md = render_for_kind(_KIND, mixed_kind_file_registry)
     assert "MIX-02-001" not in md, (
         "Item from group with kind=project should NOT appear on general page"
     )
@@ -808,7 +854,7 @@ def test_inherited_kind_group_appears_on_file_kind_page(
 ):
     """SR-09-001: a group that inherits file kind=general appears on the
     general page."""
-    md = render_for_kind("protocol", mixed_kind_file_registry)
+    md = render_for_kind(_KIND, mixed_kind_file_registry)
     assert "MIX-01-001" in md, (
         "Item inheriting file kind=general should appear on general page"
     )
@@ -825,12 +871,13 @@ def test_item_kind_override_appears_on_overridden_page(
     )
 
 
+@pytest.mark.spec("SR-09-005")
 def test_item_kind_override_suppressed_on_wrong_page(
     mixed_kind_group_registry,
 ):
-    """SR-09-002: an item with kind=project is suppressed on the
+    """SR-09-005: an item with kind=project is suppressed on the
     general page while the rest of the group still renders."""
-    md = render_for_kind("protocol", mixed_kind_group_registry)
+    md = render_for_kind(_KIND, mixed_kind_group_registry)
     assert "MGR-01-001" in md, (
         "General item should still appear on general page"
     )
@@ -842,7 +889,7 @@ def test_item_kind_override_suppressed_on_wrong_page(
 def test_mixed_group_appears_on_both_kind_pages(mixed_kind_group_registry):
     """SR-09-002: a group with mixed-kind items appears on both the general
     and project pages (with different items visible on each)."""
-    gen_md = render_for_kind("protocol", mixed_kind_group_registry)
+    gen_md = render_for_kind(_KIND, mixed_kind_group_registry)
     impl_md = render_for_kind("project", mixed_kind_group_registry)
     # The group heading must appear on both pages
     assert "MGR-01" in gen_md
@@ -897,20 +944,24 @@ def test_row_without_link_target_shows_plain_id(cross_kind_registry):
     assert "*Satisfies*: GEN-01-001" in row
 
 
-def test_per_kind_and_catalog_rows_are_one_format(catalog_registry):
+def test_per_kind_and_catalog_rows_are_one_format(
+    catalog_registry, general_registry
+):
     """The per-kind page and the catalog print the same row (AC-1)."""
-    kind_md = render_for_kind("protocol", catalog_registry)
+    kind_md = render_for_kind(_KIND, general_registry)
     catalog_md = render_catalog_page(
         "general",
         catalog_registry,
-        page="reference/specs/protocol.md",
+        page=_CATALOG_PAGES[0].path,
         pages=_CATALOG_PAGES,
     )
     kind_rows = {
         line for line in kind_md.splitlines() if line.startswith("| <a")
     }
     catalog_rows = {
-        line for line in catalog_md.splitlines() if line.startswith("| <a")
+        line
+        for line in catalog_md.splitlines()
+        if line.startswith('| <a id="gen-')
     }
     assert kind_rows and kind_rows == catalog_rows
 
@@ -920,9 +971,8 @@ def test_catalog_page_has_one_subsection_per_file(catalog_registry):
     md = render_catalog_page(
         "general",
         catalog_registry,
-        page="reference/vultron-spec/requirements-general.md",
+        page=_CATALOG_PAGES[0].path,
         pages=_CATALOG_PAGES,
-        published=True,
     )
     assert "### General Test Specs {#protocol-gen}" in md
     assert "#### General Group {#protocol-gen-01}" in md
@@ -931,7 +981,7 @@ def test_catalog_page_has_one_subsection_per_file(catalog_registry):
     assert '<a id="gen-01-001"></a>' in md
     assert "*Trigger*: Message Received — `EP`" in md
     assert "ECA Details" in md
-    # A same-page relationship is in-page once the catalog is published.
+    # A same-page relationship is in-page.
     assert "[GEN-01-001](#gen-01-001)" in md
     # The architecture file is placed on no catalog page.
     assert "DOM-01-001" not in md
@@ -996,18 +1046,36 @@ def test_catalog_page_on_full_page_links_in_page(catalog_registry):
         catalog_registry,
         page=FULL_PAGE,
         pages=_CATALOG_PAGES,
-        published=True,
     )
     assert "[GEN-01-001](#gen-01-001)" in md
+
+
+def test_catalog_page_nests_one_level_deeper_on_the_full_page(
+    catalog_registry,
+):
+    """On a catalog page a file heading is ``###`` under the page's
+    ``## 14.N``; on ``full.md`` the subsection is ``### 14.N`` under
+    ``## 14.``, so the file heading is ``####`` and a group ``#####``."""
+    on_page = render_catalog_page(
+        "general",
+        catalog_registry,
+        page=_CATALOG_PAGES[0].path,
+        pages=_CATALOG_PAGES,
+    )
+    on_full = render_catalog_page(
+        "general", catalog_registry, page=FULL_PAGE, pages=_CATALOG_PAGES
+    )
+    assert "\n### General Test Specs {#protocol-gen}" in "\n" + on_page
+    assert "#### General Group {#protocol-gen-01}" in on_page
+    assert "\n#### General Test Specs {#protocol-gen}" in "\n" + on_full
+    assert "##### General Group {#protocol-gen-01}" in on_full
 
 
 def test_catalog_page_defaults_to_the_page_being_built(
     catalog_registry, monkeypatch
 ):
     monkeypatch.setenv(EXEC_PAGE_ENV, FULL_PAGE)
-    md = render_catalog_page(
-        "general", catalog_registry, pages=_CATALOG_PAGES, published=True
-    )
+    md = render_catalog_page("general", catalog_registry, pages=_CATALOG_PAGES)
     assert "[GEN-01-001](#gen-01-001)" in md
 
 
@@ -1019,17 +1087,16 @@ def test_callout_is_an_info_admonition_linking_rows(catalog_registry):
         registry=catalog_registry,
         page=_CALLOUT_PAGE,
         pages=_CATALOG_PAGES,
-        published=True,
     )
     lines = md.splitlines()
     assert lines[0] == '!!! info "Requirements"'
     assert lines[1] == ""
     assert lines[2] == "    | ID | Priority | Requirement | Related |"
     assert lines[4].startswith(
-        "    | [`GEN-01-002`](../requirements-general/#gen-01-002) |"
+        "    | [`GEN-01-002`](../requirements/general/#gen-01-002) |"
     )
     assert lines[5].startswith(
-        "    | [`GEN-01-001`](../requirements-general/#gen-01-001) |"
+        "    | [`GEN-01-001`](../requirements/general/#gen-01-001) |"
     )
     assert "<a id=" not in md
 
@@ -1045,17 +1112,6 @@ def test_callout_title(catalog_registry):
     assert md.startswith('!!! info "Context"\n')
 
 
-def test_callout_before_publishing_links_the_per_kind_row(catalog_registry):
-    md = requirement_callout(
-        "GEN-01-001",
-        registry=catalog_registry,
-        page=_CALLOUT_PAGE,
-        pages=_CATALOG_PAGES,
-        published=False,
-    )
-    assert "[`GEN-01-001`](../../specs/protocol/#gen-01-001)" in md
-
-
 @pytest.mark.spec("DF-12-002")
 def test_callout_on_full_page_links_in_page(catalog_registry, monkeypatch):
     monkeypatch.setenv(EXEC_PAGE_ENV, FULL_PAGE)
@@ -1063,7 +1119,6 @@ def test_callout_on_full_page_links_in_page(catalog_registry, monkeypatch):
         "GEN-01-002",
         registry=catalog_registry,
         pages=_CATALOG_PAGES,
-        published=True,
     )
     assert "[`GEN-01-002`](#gen-01-002)" in md
     assert "[GEN-01-001](#gen-01-001)" in md
@@ -1107,39 +1162,7 @@ def test_callout_refuses_a_repeated_id(catalog_registry):
 
 
 _DOCS = Path(__file__).resolve().parents[3] / "docs"
-_EXEC_FENCE_RE = re.compile(
-    r'^(?P<indent>\s*)(?P<fence>`{3,}|~{3,})python\b[^\n]*\bexec="true"'
-)
-_INCLUDE_RE = re.compile(r'\{%\s*include-markdown\s+"([^"]+)"')
 _CALLOUT_LINK_RE = re.compile(r"\]\((?P<href>[^)\s]+)\)")
-
-
-def _exec_blocks(text: str) -> list[str]:
-    """Return the code of each ``markdown-exec`` Python block in *text*.
-
-    Only an exec block prints a callout, so prose or a plain code fence that
-    names the helper is not one, and a block may spread a call over several
-    lines.
-    """
-    blocks: list[str] = []
-    lines = text.splitlines()
-    i = 0
-    while i < len(lines):
-        opener = _EXEC_FENCE_RE.match(lines[i])
-        i += 1
-        if opener is None:
-            continue
-        fence, indent = opener.group("fence"), len(opener.group("indent"))
-        body: list[str] = []
-        while i < len(lines) and not (
-            lines[i].strip().startswith(fence[0] * len(fence))
-            and set(lines[i].strip()) == {fence[0]}
-        ):
-            body.append(lines[i][indent:])
-            i += 1
-        i += 1
-        blocks.append("\n".join(body))
-    return blocks
 
 
 def _callout_ids(code: str) -> list[list[str]]:
@@ -1162,33 +1185,21 @@ def _callout_ids(code: str) -> list[list[str]]:
 def _hosts() -> dict[str, set[str]]:
     """Map each ``docs/`` file to the pages that render it.
 
-    A page renders itself and, transitively, every file it includes. A
-    fragment's exec block runs once per page that includes it, so its links
-    are relative to each of those pages, not to the fragment's own path.
+    A page renders itself and, through the docs-tree classification the
+    other checks use (``classify_docs_tree``, ``fragment_hosts``), every
+    fragment it includes whole, nested includes too. A fragment's exec block
+    runs once per page that includes it, so its links are relative to each of
+    those pages, not to the fragment's own path. That classification does not
+    count a ``start=``/``end=`` slice or an ``auto_append`` fragment as an
+    include, so a callout in one is checked on its own page only.
     """
-    includes: dict[str, set[str]] = {}
-    for source in _DOCS.rglob("*.md"):
-        path = source.relative_to(_DOCS).as_posix()
-        includes[path] = {
-            posixpath.normpath(posixpath.join(posixpath.dirname(path), target))
-            for target in _INCLUDE_RE.findall(
-                source.read_text(encoding="utf-8")
-            )
-        }
-    hosts: dict[str, set[str]] = {}
-    for page in includes:
-        if posixpath.basename(page).startswith("_"):
-            continue
-        seen: set[str] = set()
-        todo = [page]
-        while todo:
-            current = todo.pop()
-            if current in seen:
-                continue
-            seen.add(current)
-            todo.extend(includes.get(current, ()))
-        for rendered in seen:
-            hosts.setdefault(rendered, set()).add(page)
+    tree = classify_docs_tree(_DOCS.parent)
+    pages = frozenset(tree.pages)
+    hosts: dict[str, set[str]] = {page: {page} for page in pages}
+    for fragment in tree.fragments:
+        hosts[fragment] = set(
+            fragment_hosts(fragment, tree, pages, frozenset())
+        )
     return hosts
 
 
@@ -1200,8 +1211,12 @@ def _dangling_links(
     for match in _CALLOUT_LINK_RE.finditer(md):
         href = match.group("href")
         link, _, fragment = href.partition("#")
-        target = posixpath.normpath(posixpath.join(url_path(page), link))
-        if fragment not in target_ids.get(f"{target}.md", frozenset()):
+        target = (
+            f"{posixpath.normpath(posixpath.join(url_path(page), link))}.md"
+            if link
+            else page
+        )
+        if fragment not in target_ids.get(target, frozenset()):
             dangling.append(href)
     return dangling
 
@@ -1214,14 +1229,13 @@ def test_docs_callouts_link_existing_rows():
     MkDocs never sees a link an exec block prints, so this is the check that
     the callouts link real rows (``anchor_ids.py``). Each callout is
     rendered for each page that includes its fragment, and each link is
-    resolved against the rendered ids of the per-kind and catalog pages, so
-    the test holds before and after the catalog publishes. Zero callouts is
-    a failure (DF-09-009).
+    resolved against the rendered ids of the per-kind pages, the catalog
+    pages and ``full.md``. Zero callouts is a failure (DF-09-009).
     """
     registry = load_registry()
     target_ids = {
         kind_page(kind): anchor_ids_in(render_for_kind(kind.value, registry))
-        for kind in SpecKind
+        for kind in _KIND_PAGE_KINDS
     }
     target_ids.update(
         {
@@ -1231,14 +1245,22 @@ def test_docs_callouts_link_existing_rows():
             for page in CATALOG_PAGES
         }
     )
+    target_ids[FULL_PAGE] = frozenset().union(
+        *(
+            anchor_ids_in(
+                render_catalog_page(page.key, registry, page=FULL_PAGE)
+            )
+            for page in CATALOG_PAGES
+        )
+    )
     hosts = _hosts()
     rendered = 0
     dangling: list[str] = []
     for source in sorted(_DOCS.rglob("*.md")):
         path = source.relative_to(_DOCS).as_posix()
         text = source.read_text(encoding="utf-8")
-        for code in _exec_blocks(text):
-            callouts = _callout_ids(code)
+        for block in exec_blocks(text):
+            callouts = _callout_ids(block.code)
             assert not callouts or hosts.get(path), (
                 f"docs/{path}: no page renders this callout"
             )
@@ -1305,7 +1327,9 @@ def test_exec_blocks_find_callouts_only_where_they_print():
             "    ````",
         ]
     )
-    found = [ids for code in _exec_blocks(text) for ids in _callout_ids(code)]
+    found = [
+        ids for block in exec_blocks(text) for ids in _callout_ids(block.code)
+    ]
     assert found == [["VM-10-001"], ["ID-01-001", "SYNC-03-003"]]
 
 
@@ -1317,7 +1341,7 @@ def test_renderers_default_to_the_repository_registry(monkeypatch):
     monkeypatch.setenv(EXEC_PAGE_ENV, _CALLOUT_PAGE)
     monkeypatch.setattr(docs_render, "_registry_cache", {})
     md = requirement_callout("VM-10-001")
-    assert "[`VM-10-001`](../../specs/protocol/#vm-10-001)" in md
+    assert "[`VM-10-001`](../requirements/messages/#vm-10-001)" in md
     [cached] = docs_render._registry_cache.values()
     assert docs_render._docs_registry() is cached
     page = render_catalog_page("foundation")
@@ -1347,8 +1371,15 @@ def test_repository_registry_reloads_when_specs_change(tmp_path, monkeypatch):
 
 def test_dangling_links_flags_a_missing_id():
     """Guard the link test above against passing vacuously."""
-    ids = {"reference/specs/protocol.md": frozenset({"vm-10-001"})}
-    md = "[a](../../specs/protocol/#vm-10-001) [b](../../specs/protocol/#nope)"
+    ids = {
+        "reference/specs/project.md": frozenset({"vm-10-001"}),
+        "reference/vultron-spec/x.md": frozenset({"id-01-001"}),
+    }
+    md = (
+        "[a](../../specs/project/#vm-10-001) [b](../../specs/project/#nope) "
+        "[c](#id-01-001) [d](#vm-10-001)"
+    )
     assert _dangling_links(md, "reference/vultron-spec/x.md", ids) == [
-        "../../specs/protocol/#nope"
+        "../../specs/project/#nope",
+        "#vm-10-001",
     ]

@@ -72,6 +72,19 @@ def patch_chain_shared(
             yield mock
 
 
+@contextlib.contextmanager
+def stub_scenario_harness(_demo_name: str) -> Iterator[MagicMock]:
+    """Stand in for ``scenario_harness`` in a test that patches out phases.
+
+    The real harness checks each reported step against the declared path and
+    reads the deciding actor's role from the CaseActor's store
+    (DEMOCI-11-013), and it writes a dump manifest under ``devlogs/`` on exit,
+    which the invariant harness would read as an aborted run.  A test of a
+    scenario's phase order has neither the steps nor the store.
+    """
+    yield MagicMock()
+
+
 def mock_actor(id_: str = "urn:test:actor") -> MagicMock:
     """A stand-in actor whose only observed attribute is ``id_``."""
     actor = MagicMock()
@@ -826,16 +839,3 @@ def expect_no_inbox_refusals(
     assert not refusals, "an actor's inbox refused an activity:\n" + (
         "\n".join(refusals)
     )
-
-
-@pytest.fixture(name="stub_full_case_reply", autouse=True)
-def run_real_full_case_reply() -> Iterator[None]:
-    """Override the conftest stub: the reporter answers the full-case Invite.
-
-    Import this into a real-app demo test module whose setup seats the
-    reporter through the invite chain.  The chain's last step waits for the
-    full-case Invite and accepts it (CM-11-010, CM-11-011); with the stub
-    lifted it runs for real, so a refused Invite fails the run instead of
-    passing silently (#4970).
-    """
-    yield

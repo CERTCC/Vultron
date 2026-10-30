@@ -25,17 +25,16 @@ This demo script showcases two suggestion paths per ADR-0026 (CaseActor-routed):
      (``accept-actor-recommendation``)
    - CASE_MANAGER → Coordinator: Invite(CaseStub+embargo+roles)
 
-2. Reject path:
-   - Reporter → CaseActor inbox: Offer(Actor, Case)
-   - CaseActor → Case Owner inbox: Offer(as_CaseParticipant{actor, roles}, Case)
-   - Case Owner → CaseActor inbox: Reject(Offer(as_CaseParticipant))
-   - CaseActor → Reporter inbox: RejectActorRecommendation
+2. Reject path, each act through its actor's trigger (#5459):
+   - Reporter → CASE_MANAGER: Offer(Actor, Case) (``suggest-actor-to-case``)
+   - CASE_MANAGER → Case Owner: Offer(as_CaseParticipant{actor, roles}, Case)
+   - Case Owner → CASE_MANAGER: Reject(Offer(as_CaseParticipant))
+     (``reject-actor-recommendation``)
+   - CASE_MANAGER → Reporter: RejectActorRecommendation
 
 The vendor mints the case through ``create-case``, so it holds both
 CASE_OWNER and CASE_MANAGER and the recommendation routes through its inbox
-in both roles.  The reject path still builds its activities by hand and posts
-them into the vendor's inbox, which refuses the Case Owner's Reject: no
-trigger sends it yet (#5459).
+in both roles.
 
 Each demo starts from an initialized case (report submitted and validated,
 case created, reporter participant added) so that the suggestion workflow can
@@ -46,10 +45,11 @@ be demonstrated in isolation.
 import logging
 from collections.abc import Callable, Sequence
 
-from vultron.demo.actor_session import ActorSession
+from vultron.demo.actor_session import ActorSession, WireTriggerResult
 from vultron.demo.helpers.polling import (
     find_case_invite_for_actor,
     find_cp_offer_for_case,
+    wait_for_semantic_type_in_ledger,
 )
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import setup_initialized_case
@@ -60,22 +60,78 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     demo_gate,
     demo_step,
     log_case_state,
-    logfmt,
-    post_to_inbox_and_wait,
     setup_demo_logging,
-    verify_received_activity_stored,
 )
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.factories import (
-    offer_case_participant_activity,
-    recommend_actor_activity,
-    reject_case_participant_offer_activity,
-)
 
 # Vultron imports
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _suggest_coordinator(
+    client: DataLayerClient,
+    reporter: as_Actor,
+    case: as_VulnerabilityCase,
+    coordinator: as_Actor,
+) -> None:
+    """Step 2: the reporter recommends the coordinator (suggest-actor-to-case).
+
+    The reporter's trigger sends Offer(Actor, Case) to the case's
+    CASE_MANAGER (CM-16-001), which forwards it to the Case Owner as
+    Offer(CaseParticipant) and records that it did (CM-16-004).  The demo
+    builds and posts neither: the Case Owner's answer to an Offer the
+    CASE_MANAGER never recorded is refused (#5438, #5459).
+    """
+    with demo_step(
+        "Step 2: Reporter recommends the coordinator (suggest-actor-to-case)"
+    ):
+        ActorSession(client=client, actor=reporter).with_case(
+            case
+        ).quiet().suggest_actor_to_case(
+            suggested_actor_id=coordinator.id_, roles=[CVDRole.VENDOR]
+        )
+
+
+def _owner_answers_forwarded_offer(
+    client: DataLayerClient,
+    vendor: as_Actor,
+    case: as_VulnerabilityCase,
+    *,
+    verb: str,
+    answer: Callable[..., WireTriggerResult],
+    then: Callable[[], None],
+) -> None:
+    """Steps 3 and 4: the Case Owner answers the forwarded Offer.
+
+    Gated on the CASE_MANAGER having forwarded ``Offer(CaseParticipant)``
+    (CM-16-004).  The Case Owner then answers it through *answer*, an
+    ``ActorSession`` trigger method (``accept_actor_recommendation`` or
+    ``reject_actor_recommendation``), and *then* runs the path's own check
+    inside the same gate (EDF-06).  The vendor holds both CASE_OWNER and
+    CASE_MANAGER, so the answer is addressed to the vendor.
+    """
+    with demo_gate(
+        "Step 3: CASE_MANAGER forwarded Offer(CaseParticipant) to the Case Owner"
+    ):
+        cp_offer_id = find_cp_offer_for_case(client, case.id_)
+        logger.info("Forwarded Offer(CaseParticipant): %s", cp_offer_id)
+
+        with demo_step(
+            f"Step 4: Case Owner {verb}s the recommendation"
+            f" ({verb}-actor-recommendation)"
+        ):
+            answer(
+                ActorSession(client=client, actor=vendor).quiet(),
+                cp_offer_id=cp_offer_id,
+                case_actor_id=vendor.id_,
+            )
+
+        then()
 
 
 def demo_suggest_actor_accept(
@@ -101,38 +157,9 @@ def demo_suggest_actor_accept(
     logger.info("=" * 80)
 
     case = setup_initialized_case(client, reporter, vendor)
+    _suggest_coordinator(client, reporter, case, coordinator)
 
-    # The reporter's suggest-actor-to-case trigger sends Offer(Actor, Case) to
-    # the case's CASE_MANAGER (CM-16-001), which forwards it to the Case Owner
-    # as Offer(CaseParticipant) and records that it did (CM-16-004).  The demo
-    # builds and posts neither: the Case Owner's Accept of an Offer the
-    # CASE_MANAGER never recorded is refused (#5438).
-    with demo_step(
-        "Step 2: Reporter recommends the coordinator (suggest-actor-to-case)"
-    ):
-        ActorSession(client=client, actor=reporter).with_case(
-            case
-        ).quiet().suggest_actor_to_case(
-            suggested_actor_id=coordinator.id_, roles=[CVDRole.VENDOR]
-        )
-
-    cp_offer_id = None
-    with demo_gate(
-        "Step 3: CASE_MANAGER forwarded Offer(CaseParticipant) to the Case Owner"
-    ):
-        cp_offer_id = find_cp_offer_for_case(client, case.id_)
-        logger.info("Forwarded Offer(CaseParticipant): %s", cp_offer_id)
-
-        with demo_step(
-            "Step 4: Case Owner accepts the recommendation"
-            " (accept-actor-recommendation)"
-        ):
-            ActorSession(
-                client=client, actor=vendor
-            ).quiet().accept_actor_recommendation(
-                cp_offer_id=cp_offer_id, case_actor_id=vendor.id_
-            )
-
+    def _coordinator_invited() -> None:
         with demo_check("Step 5: CASE_MANAGER invited the coordinator"):
             # Read through a client bound to the coordinator's own store; the
             # shared client is bound to the vendor.
@@ -142,6 +169,15 @@ def demo_suggest_actor_accept(
                 coordinator.id_,
             )
             logger.info("Coordinator received Invite %s", invite_id)
+
+    _owner_answers_forwarded_offer(
+        client,
+        vendor,
+        case,
+        verb="accept",
+        answer=ActorSession.accept_actor_recommendation,
+        then=_coordinator_invited,
+    )
 
     logger.info(
         "✅ DEMO COMPLETE (accept path): the CASE_MANAGER invited the"
@@ -157,13 +193,16 @@ def demo_suggest_actor_reject(
 ) -> None:
     """Demonstrates the reject path of the suggest-actor-to-case workflow.
 
-    ADR-0026 CaseActor-routed protocol:
+    ADR-0026 CaseActor-routed protocol, each act through its actor's trigger:
 
     1. Setup: initialize case
-    2. Reporter → CaseActor inbox: Offer(Actor, Case)
-    3. CaseActor → Case Owner inbox: Offer(as_CaseParticipant{actor,roles}, Case)
-    4. Case Owner → CaseActor inbox: Reject(Offer(as_CaseParticipant))
-    5. Verify no new participant was added
+    2. Reporter → CASE_MANAGER: Offer(Actor, Case)
+    3. CASE_MANAGER → Case Owner: Offer(as_CaseParticipant{actor,roles}, Case)
+    4. Case Owner → CASE_MANAGER: Reject(Offer(as_CaseParticipant))
+    5. CASE_MANAGER ledgers the Reject (CM-16-007)
+    6. Verify no new participant was added
+
+    The vendor minted the case, so it holds both CASE_OWNER and CASE_MANAGER.
     """
     logger.info("=" * 80)
     logger.info("DEMO: Suggest Actor — Reject Path (ADR-0026)")
@@ -174,62 +213,24 @@ def demo_suggest_actor_reject(
     initial_case = log_case_state(client, case.id_, "initial")
     initial_count = len(initial_case.case_participants) if initial_case else 0
 
-    recommendation = cp_offer = None
-    with demo_step(
-        "Step 2: Reporter sends Offer(Actor, Case) to CaseActor inbox"
-    ):
-        recommendation = recommend_actor_activity(
-            coordinator,
-            actor=reporter.id_,
-            target=case.id_,
-            to=[vendor.id_],
-            content=(
-                f"I suggest inviting {coordinator.id_} to participate in "
-                f"{case.name}."
-            ),
-        )
-        logger.info("Sending Offer(Actor,Case): %s", logfmt(recommendation))
-        post_to_inbox_and_wait(client, vendor.id_, recommendation)
-        with demo_check("Offer(Actor,Case) stored in data layer"):
-            verify_received_activity_stored(client, recommendation.id_)
+    _suggest_coordinator(client, reporter, case, coordinator)
 
-    with demo_step(
-        "Step 3: CaseActor transforms to Offer(as_CaseParticipant) → Case Owner"
-    ):
-        cp_offer = offer_case_participant_activity(
-            coordinator,
-            target=case.id_,
-            actor=vendor.id_,
-            to=[vendor.id_],
-            origin=recommendation.id_,
-            content=(
-                f"Recommending {coordinator.id_} for case participation "
-                f"(roles: VENDOR). Origin: {recommendation.id_}"
-            ),
-        )
-        logger.info("Sending Offer(as_CaseParticipant): %s", logfmt(cp_offer))
-        post_to_inbox_and_wait(client, vendor.id_, cp_offer)
-        with demo_check("Offer(as_CaseParticipant) stored in data layer"):
-            verify_received_activity_stored(client, cp_offer.id_)
+    def _reject_ledgered() -> None:
+        with demo_check("Step 5: CASE_MANAGER ledgered the Reject"):
+            wait_for_semantic_type_in_ledger(
+                client, case.id_, "reject_offer_case_participant"
+            )
 
-    with demo_step(
-        "Step 4: Case Owner sends Reject(Offer(as_CaseParticipant)) to CaseActor"
-    ):
-        reject = reject_case_participant_offer_activity(
-            cp_offer,
-            actor=vendor.id_,
-            to=[vendor.id_],
-            content=(
-                f"Declining recommendation to add "
-                f"{coordinator.id_} to {case.name}."
-            ),
-        )
-        logger.info(
-            "Sending Reject(Offer(as_CaseParticipant)): %s", logfmt(reject)
-        )
-        post_to_inbox_and_wait(client, vendor.id_, reject)
+    _owner_answers_forwarded_offer(
+        client,
+        vendor,
+        case,
+        verb="reject",
+        answer=ActorSession.reject_actor_recommendation,
+        then=_reject_ledgered,
+    )
 
-    with demo_step("Step 5: Verify coordinator not added as participant"):
+    with demo_step("Step 6: Verify coordinator not added as participant"):
         with demo_check("Participant count unchanged after reject"):
             final_case = log_case_state(client, case.id_, "after reject")
             if final_case is None:

@@ -337,7 +337,7 @@ def validate_path(
 ) -> tuple[tuple[str, str], ...]:
     """Check *path* names only branch points and choices in *table*.
 
-    A branch point may occur more than once on one path (DEMOCI-11-014).
+    A branch point may occur more than once on one path (DEMOCI-11-022).
 
     Args:
         path: Ordered ``(branch point id, choice id)`` pairs from the root.

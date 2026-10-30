@@ -29,6 +29,7 @@ whatever the act's merits (CLP-10-005)::
              ├─ LedgerPositionIs[none]         # nothing to answer
              ├─ AnswerHeldPosition (Sequence)
              │  ├─ LedgerPositionIs[lag|tail]
+             │  ├─ ResendOwedInvites           # SYNC-20-001, inert too
              │  └─ RecordAndReplayIfActive (Selector)
              │     ├─ PeerNotActiveParticipant # inert: nothing written
              │     └─ RecordAndReplay (Sequence)
@@ -42,8 +43,11 @@ whatever the act's merits (CLP-10-005)::
 
 The record and the replay are the nodes ``Read(CaseLedgerEntry)`` answers
 with (SYNC-18-007), and the re-seed is the one rate-bounded re-seed send
-(SYNC-18-005).  The stage commits no ledger entry: a position statement
-changes nothing in the case file (SYNC-17-006).
+(SYNC-18-005).  A held position also has the CASE_MANAGER resend each Invite
+the sender still owes an answer to, before the active check, so an inert
+sender is resent its Invites too (SYNC-20-001, ADR-0163).  The stage commits
+no ledger entry: a position statement changes nothing in the case file
+(SYNC-17-006, SYNC-20-007).
 """
 
 from collections.abc import Callable
@@ -55,6 +59,9 @@ from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
 from vultron.core.behaviors.sync.nodes.chain import UpdateReplicationStateNode
+from vultron.core.behaviors.sync.nodes.invite_resend import (
+    ResendOwedInvitesNode,
+)
 from vultron.core.behaviors.sync.nodes.ledger_position import (
     HELD,
     ClassifyLedgerPositionNode,
@@ -95,7 +102,9 @@ def create_ledger_position_stage(
     skips it at ``debug`` level.  A held position from an active participant
     is recorded, and a lagging one also has the entries after it replayed
     under the replay rate bound and outbox de-duplication; at the tail
-    nothing is sent (SYNC-18-007).  A split position is logged at ERROR and
+    nothing is sent (SYNC-18-007).  A held position from any sender the
+    CASE_MANAGER may still invite, active or inert, has each Invite it owes
+    an answer to resent (SYNC-20-001).  A split position is logged at ERROR and
     an active participant re-seeded under the SYNC-16-004 bound
     (SYNC-18-005).  An inert sender's position is neither recorded nor
     answered.  Whatever the answer does, the received activity is judged as
@@ -149,6 +158,11 @@ def create_ledger_position_stage(
                 memory=False,
                 children=[
                     LedgerPositionIsNode(expect=HELD),
+                    ResendOwedInvitesNode(
+                        case_id=case_id,
+                        sender_id=sender_id,
+                        name="ResendOwedInvites",
+                    ),
                     py_trees.composites.Selector(
                         name="RecordAndReplayIfActive",
                         memory=False,

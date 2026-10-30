@@ -17,6 +17,8 @@ related_specs:
   - specs/multi-actor-demo.yaml
   - specs/meta-specifications.yaml
   - specs/diataxis-requirements.yaml
+  - specs/case-proposal.yaml
+  - specs/case-management.yaml
 related_notes:
   - notes/demo-interactive-ui.md
   - notes/demo-scenario-tree.md
@@ -60,7 +62,9 @@ Each scenario declares its full path from the root of the scenario tree as
 entries of `BRANCH_POINTS` (`vultron/demo/scenario/branch_points.py`), which
 defines each decision once: the deciding `CVDRole`, the prompt, and the choices,
 each a label and one trigger verb (DEMOCI-11-013). The rest of the tree's design
-is in [demo-scenario-tree.md](demo-scenario-tree.md).
+is in [demo-scenario-tree.md](demo-scenario-tree.md). A scenario written as
+composition states no `path=`: its path is read off its story's choices
+(DEMOCI-11-019; that note's § "Composition").
 
 - **Prompts and choice labels live only in the table.** `@scenario` takes no
   prompt or choice label (its `label` is the scenario's display casing), and
@@ -84,6 +88,17 @@ is in [demo-scenario-tree.md](demo-scenario-tree.md).
   another scenario already declares, a path that is a strict prefix of another,
   and paths that decide different branch points at one node. Each has a test on a
   mutated registry in `test/demo_unit/test_scenario_tree.py`.
+- **The deciding actor must hold the branch point's role.** A scenario names
+  it in `reach_step(..., by=actor_id)`, and the harness reads its role from
+  its participant in the canonical case (DEMOCI-11-013,
+  `vultron/demo/helpers/deciding_role.py`). Before an actor is a participant,
+  its role comes from the act that brings it in: the root step's actor must
+  be the report's author, and an invitee holds the role its Invite offers,
+  which the CASE_MANAGER seats on an inert participant (CM-17-003). So report
+  the root step after seeding, just before the report is submitted. A case
+  owner holds only `case_owner` unless its container states default case
+  roles (CP-01-013), which is why the coordinator container states
+  `["coordinator"]`.
 - **Every choice is a mounted trigger and is taken.** The same file checks each
   choice's verb against the routes the prototype app mounts, and that some
   registered scenario takes every choice; an untaken choice is a dead end in
@@ -184,7 +199,10 @@ the ledger tail at each declared step the scenario reports to its harness
 (`reach_step`). The shared-prefix test compares the committed recordings
 pairwise (DEMOCI-11-017), so regenerate a scenario's siblings with it: one fresh
 recording beside stale siblings can fail that test. A PR need not regenerate:
-the daily `demo-recordings` workflow files a refresh Task when one lags `main`.
+the daily `demo-recordings` workflow regenerates the tree index alongside the
+recordings and files a refresh Task when recordings lag `main` (#5462). Its
+artifact is rooted at `ui/src/` (`recordings/` and `data/scenario_tree.json`),
+so unpack it there, not at the repository root.
 Regenerate in the PR only when the change needs current recordings (a UI change,
 or a new scenario, which the `--check` hook requires). Then run
 `uv run export-demo-tree`: the tree index lists each recording's case ids, so a

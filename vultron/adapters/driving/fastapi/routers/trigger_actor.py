@@ -43,6 +43,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     InviteActorToCaseRequest,
     OfferCaseOwnershipTransferRequest,
     OfferCaseParticipantRoleRequest,
+    RejectActorRecommendationRequest,
     RejectCaseInviteRequest,
     RejectCaseOwnershipTransferRequest,
     SuggestActorToCaseRequest,
@@ -56,6 +57,7 @@ from vultron.core.use_cases.triggers.requests import (
     InviteActorToCaseTriggerRequest,
     OfferCaseOwnershipTransferTriggerRequest,
     OfferCaseParticipantRoleTriggerRequest,
+    RejectActorRecommendationTriggerRequest,
     RejectCaseInviteTriggerRequest,
     RejectCaseOwnershipTransferTriggerRequest,
     RejectFullCaseInviteTriggerRequest,
@@ -356,6 +358,45 @@ def trigger_accept_actor_recommendation(
     """
     return run_trigger(
         AcceptActorRecommendationTriggerRequest(
+            actor_id=actor_id,
+            cp_offer_id=body.cp_offer_id,
+            case_actor_id=body.case_actor_id,
+        ),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
+
+
+@router.post(
+    "/{actor_id}/trigger/reject-actor-recommendation",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Reject an actor recommendation as Case Owner.",
+    description=(
+        "Emits a Reject(Offer(CaseParticipant)) from the Case Owner's identity "
+        "addressed to the CaseActor, which ledgers it and answers the "
+        "original recommender (ADR-0026, CM-16-007).  The "
+        "Offer(CaseParticipant) must already exist in the actor's DataLayer "
+        "(delivered by the CaseActor)."
+    ),
+    operation_id="actors_trigger_reject_actor_recommendation",
+    response_model=ActivityResult,
+)
+def trigger_reject_actor_recommendation(
+    actor_id: str,
+    body: RejectActorRecommendationRequest,
+    background_tasks: BackgroundTasks,
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
+    """
+    Trigger the reject-actor-recommendation behavior for the given actor.
+
+    Implements: ADR-0026 (CM-16-007); TRIG-01-001, TRIG-01-002, HTTP-03-005,
+        TRIG-02-005, TRIG-03-001, TRIG-03-002, TRIG-04-001, TRIG-12-001
+    """
+    return run_trigger(
+        RejectActorRecommendationTriggerRequest(
             actor_id=actor_id,
             cp_offer_id=body.cp_offer_id,
             case_actor_id=body.case_actor_id,

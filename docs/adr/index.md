@@ -58,7 +58,7 @@ When an ADR names a function, a module path, or a class that was later renamed o
 **A refactor is never responsible for updating an ADR.**
 Renaming a symbol or splitting a module does not oblige you to touch any ADR that mentions it.
 If a decision has consequences that future code must obey, those belong in a spec requirement or a `notes/` file, which carry an obligation to stay current that an ADR does not.
-Record them there and cite the ADR as provenance — see `notes/specs-vs-adrs.md` for the delineation and MS-11-004 for the bidirectional citation pattern.
+Record them there and cite the ADR as provenance — see `notes/specs-vs-adrs.md` for the delineation and MS-11-004 and MS-11-010 for the bidirectional citation pattern.
 A spec or note MUST NOT resolve its own meaning by pointing into an ADR body; cite the ADR for *why*, and state the rule where the reader already is.
 MS-11-007 makes that normative for any numbered part of a body, whether a detail, rule, step, option, part, invariant or section number, and a test fails any such citation under `specs/` or `notes/`.
 An ADR citing a numbered part of another ADR is fine — that is history citing history.
@@ -66,7 +66,7 @@ An ADR citing a numbered part of another ADR is fine — that is history citing 
 **An aged code reference in an ADR body is not a defect.**
 Per [ADR-0127](0127-decision-records-leave-routine-agent-context.md), the existing stale paths and symbols across the corpus are not a backlog and no scrub is owed: a reference in a record's context or validation prose is an accurate account of the code as it then stood.
 Enforcement is forward-only — a reference newly written into an ADR should resolve on the day it is written.
-The `adr-added-reference-check` pre-commit hook and its pull-request twin fail a backticked path or code symbol that an edit adds and that resolves nowhere, and never judge a reference already on the merge base (MS-15-006).
+The `adr-added-reference-check` pre-commit hook and its pull-request twin fail a backticked path or code symbol that an edit adds and that resolves nowhere, and never judge a reference already on the merge base (MS-15-006, MS-15-008, MS-15-009).
 A record that deliberately names a removed symbol opts out with `lint_suppress: [phantom_symbol_ref]`, or `[phantom_path_ref]` for a path (MS-15-007).
 
 **How to edit an ADR**: follow the edit tiers in [ADR-0120](0120-adr-lifecycle-epochs-and-edit-tiers.md), which key off the ADR's epoch: how long ago it was last materially changed, and whether a tested spec requirement depends on it yet.
@@ -77,7 +77,7 @@ On an `accepted` ADR, a material change to one detail with the chosen option int
 A change of the chosen option is a new ADR that supersedes the old one; the old one is restored to its original text, marked `superseded`, and moved to `archived/` (MS-14-004).
 Never rewrite an accepted ADR under its own number.
 The `adr-lifecycle-check` pre-commit hook holds one part of this mechanically: on an ADR that is `accepted`, or was last changed 28 or more days ago, it refuses a changed `## Decision Outcome` or `## Considered Options` section that adds no new dated Amendment heading (MS-14-009).
-It also refuses an `updated` bump that carries no `status_override` on an ADR past its first epoch (MS-14-009).
+It also refuses an `updated` bump that carries no `status_override` on an ADR past its first epoch (MS-14-024).
 It reads no other section and does not check that an Amendment quotes what it replaces, so the remaining tiers are yours to honour.
 
 **What not to write into an ADR body.**
@@ -153,7 +153,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0043 Use the ADR `status` Field as the Confidence Signal (Extend Its Vocabulary Rather Than Add a New Field)](0043-adr-status-as-confidence-signal.md)
 - [ADR-0044 Adopt py_trees Typed Ports for BT Node Blackboard Contracts](0044-py-trees-typed-ports-adoption.md)
 - [ADR-0045 Correct Field Assignment on `Create(VulnerabilityCase)` — `context` to Case URI, `inReplyTo` to Accept URI](0045-create-vulnerability-case-field-assignment.md)
-- [ADR-0046 Two-Gate Authorization Model for Received-Side CaseStatus Canonicalization](0046-received-status-authorization.md)
+- [ADR-0046 Two-Gate Authorization Model for Received-Side CaseStatus Canonicalization](0046-received-status-authorization.md) — partially superseded by 0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md
 - [ADR-0047 Report-to-Others Party Discovery: Sentinel Over Inline BT Loop](0047-report-to-others-sentinel-over-inline-bt.md)
 - [ADR-0048 PEC `NO_EMBARGO` Means Absence of Embargo, Not Pre-Consent](0048-pec-no-embargo-is-absence-not-pre-consent.md) — partially superseded by docs/adr/0122-per-embargo-participant-consent.md
 - [ADR-0049 Core Does Not Model Inbound Protocol Error Message Types; No `create_inbound_error_followup_tree`](0049-core-does-not-model-error-message-types.md)
@@ -254,6 +254,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0159 An Actor Known Only by URI Travels as an Id-and-Type Reference, and No One Invents a Value They Do Not Know](0159-an-actor-known-only-by-uri-travels-as-an-id-and-type-reference.md) *(provisional)*
 - [ADR-0160 A Requirement That Uses a Term Another Requirement Defines Records `uses_definition`, and a Link No Type Fits Is Not Recorded](0160-a-requirement-that-uses-a-term-another-defines-records-uses-definition.md) *(provisional)*
 - [ADR-0161 Eventual Consistency Is the Protocol's Ordering Guarantee](0161-eventual-consistency-is-the-protocols-ordering-guarantee.md) *(provisional)*
+- [ADR-0163 The Case Manager Resends an Unanswered Invite When Its Addressee States a Ledger Position](0163-the-case-manager-resends-an-unanswered-invite-when-its-addressee-states-a-ledger-position.md) *(revision 2)* *(provisional)*
 - [ADR-0164 Actors Sign Content with Object-Level Proofs from Seeded Keys](0164-actors-sign-content-with-object-level-proofs-from-seeded-keys.md) *(provisional)*
 - [ADR-0165 A Participant's Act on a Case Names the Case and Never Carries It](0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md) *(provisional)*
 - [ADR-0166 Deploy the Site from Main, and Make a Release Only a Tag](0166-deploy-the-site-from-main-and-release-by-tag.md) *(provisional)*
@@ -270,7 +271,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0156 Every Case Activity States Its Sender's Ledger Position](0156-every-case-activity-states-its-senders-ledger-position.md) *(revision 3)*
 - [ADR-0158 The Occasion Is the Specification's Message Unit, and Case Coordination Is Its Own Normative Section](0158-the-occasion-is-the-specifications-message-unit-and-case-coordination-is-its-own-section.md)
 - [ADR-0162 Protocol Statecharts Are Projections of the Core Transition Tables, and Occasions Name Their Transitions](0162-protocol-statecharts-are-projections-of-the-core-transition-tables-and-occasions-name-their-transitions.md)
-- [ADR-0163 The Case Manager Resends an Unanswered Invite When Its Addressee States a Ledger Position](0163-the-case-manager-resends-an-unanswered-invite-when-its-addressee-states-a-ledger-position.md)
+- [ADR-0166 Adopting P, X or A and Ending the Embargo Are One Authorized Step](0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md) — partially supersedes 0046-received-status-authorization.md
 
 ## Rejected ADRs
 
