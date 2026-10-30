@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Compose a sender guard from a declared :class:`SenderRule` (HP-01-008).
+"""Compose a sender guard from a declared :class:`SenderRule` (HP-01-025).
 
 The receive-tree factory calls :func:`compose_sender_guard` with the use
 case's declared rule and a :class:`SenderCheckContext` naming the records the
@@ -175,7 +175,7 @@ def sender_guard_refused(root: py_trees.behaviour.Behaviour) -> bool:
     """True when a received tree's run ended at its composed sender guard.
 
     The factory places the guard as one child of the tree's root Sequence
-    (HP-01-008); the run ended there when the first child that failed is
+    (HP-01-025); the run ended there when the first child that failed is
     that guard.  A sender node deeper in the tree, which picks an effect
     after admission, is not it.  A handler that answers a refused assertion
     (a processing fault, say) asks this first: a sender with no standing is
@@ -323,7 +323,7 @@ def _case_of(ctx: SenderCheckContext, what: str) -> str:
     if ctx.case_id is None:
         raise VultronWiringError(
             f"compose_sender_guard: checking a sender against {what} needs"
-            " SenderCheckContext.case_id (HP-01-008)"
+            " SenderCheckContext.case_id (HP-01-025)"
         )
     return ctx.case_id
 
@@ -417,7 +417,7 @@ def _kind_node(
         if ctx.invite_id is None:
             raise VultronWiringError(
                 "compose_sender_guard: an INVITEE kind needs the recorded"
-                " Invite's id in SenderCheckContext.invite_id (HP-01-008)"
+                " Invite's id in SenderCheckContext.invite_id (HP-01-025)"
             )
         return SenderIsInviteeNode(
             invite_id=ctx.invite_id,
@@ -448,7 +448,7 @@ def _ledger_kind_node(
     raise VultronWiringError(
         f"compose_sender_guard: {kind.name} cannot be checked against a case"
         " read from a ledger activity at run time; only CASE_MANAGER and"
-        " LEDGER_PEER can (HP-01-008)"
+        " LEDGER_PEER can (HP-01-025)"
     )
 
 
@@ -489,7 +489,7 @@ def _ledger_guard(rule: SenderRule) -> py_trees.behaviour.Behaviour | None:
         raise VultronWiringError(
             "compose_sender_guard: a ledger activity's case is read at run"
             " time, so its rule must state the same kinds at the CASE_MANAGER"
-            " and at a participant (HP-01-008)"
+            " and at a participant (HP-01-024)"
         )
     return _any_of(rule.at_case_manager, _ledger_kind_node, "a case actor")
 

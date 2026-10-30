@@ -32,7 +32,7 @@ _LOGGER = logging.getLogger("vultron.test.refusal_matchers")
         "Sender 'a' is not the CASE_MANAGER for case 'c' — REFUSED (HP-01-006)",
         "No CASE_MANAGER is known — REFUSED (HP-01-006, PCR-03-004)",
         "No sender is entitled to send this activity to the CASE_MANAGER"
-        " — REFUSED (HP-01-006, HP-01-008)",
+        " — REFUSED (HP-01-006, HP-01-024)",
         "Invite 'i' was never recorded here — REFUSED (EP-09-010, HP-01-006)",
     ],
 )

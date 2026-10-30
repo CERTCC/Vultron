@@ -126,7 +126,7 @@ def create_add_case_participant_received_tree(
         activity_id: The ``Add``'s id; the embargo Invite's id is derived
             from it, so a redelivery rebuilds the same Invite (OX-06-002).
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         The root ``Sequence``, ready for ``BTBridge.execute_with_setup()``.
@@ -223,7 +223,7 @@ def create_remove_case_participant_received_tree(
             when it names one; it must match the stored record's actor
             (CM-31-004), because a replica resolves the record by it.
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         The root ``Sequence``, ready for ``BTBridge.execute_with_setup()``.

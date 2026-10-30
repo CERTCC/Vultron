@@ -798,7 +798,7 @@ def expect_no_sender_refusals(
     gate's ID: ``REFUSED (HP-01-006)``, the refusal of a sender check such as
     the anchored CASE_MANAGER check, ``REFUSED (HP-01-006, PCR-03-004)``, the
     anchored check finding no trusted CASE_MANAGER, or ``REFUSED (HP-01-006,
-    HP-01-008)``, no sender being entitled at all.  A receiver refusing the
+    HP-01-024)``, no sender being entitled at all.  A receiver refusing the
     full-case Invite from its real CASE_MANAGER logged only the first, at
     WARNING, while the demo passed (#4970); the suggest-actor demo's own-inbox
     Accept logged the last (#5438).  The caller's ``caplog`` level must let

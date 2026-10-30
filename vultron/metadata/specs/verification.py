@@ -189,13 +189,13 @@ def _debt_item(spec_id: str, marker: str) -> str:
 
 def debt_snapshot(repo_root: Path) -> DebtSnapshot:
     """The :class:`DebtSnapshot` of ``specs/`` under *repo_root*."""
-    specs = load_registry(repo_root / "specs").all_specs
+    registry = load_registry(repo_root / "specs")
+    specs = registry.all_specs
     return DebtSnapshot(
         ids=frozenset(specs),
         markers={
-            spec_id: spec.verification_debt
-            for spec_id, spec in specs.items()
-            if spec.verification_debt
+            spec_id: marker
+            for spec_id, _spec, marker in marked_specs(registry)
         },
         links={
             spec_id: frozenset(r.spec_id for r in spec.relationships or ())

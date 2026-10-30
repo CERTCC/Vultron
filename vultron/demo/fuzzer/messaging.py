@@ -19,8 +19,8 @@ represents an external-dependency touchpoint that will eventually be replaced
 by production logic.
 
 Nodes are built on the probabilistic base types in
-``vultron.demo.fuzzer.base`` and satisfy BT-16-003 (named integration-point
-nodes with semantic docstrings) and BT-16-005 (automation-potential
+``vultron.demo.fuzzer.base`` and satisfy BT-16-003 and BT-16-007 (named
+integration-point nodes with semantic docstrings) and BT-16-005 (automation-potential
 categorization).
 
 References

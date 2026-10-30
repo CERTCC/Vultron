@@ -19,7 +19,7 @@
 EM or PXA lifecycle node mutates the case (RSH-04-002, RSH-04-003).  The
 embargo trigger trees and the status trees both compose it, so it lives in this
 purpose-built shared module rather than in either domain's ``nodes`` package
-(BTND-04-001).  It cannot live in ``status.nodes``: that package re-exports the
+(BTND-04-005).  It cannot live in ``status.nodes``: that package re-exports the
 lifecycle nodes that compose the embargo trigger trees, so an embargo tree
 importing from it would close an import cycle (CS-05-003).
 

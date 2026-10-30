@@ -21,7 +21,7 @@ announced ``VulnerabilityCase``, stores embedded participants, and links any
 matching report-case associations.  The guard that judges a copy of a held
 case by its ledger position, and the node that asks for the entries it is ahead
 by, are in :mod:`.case_copy`.  The sender check is not here: the received
-tree's factory composes it from the use case's declared rule (HP-01-008).
+tree's factory composes it from the use case's declared rule (HP-01-025).
 
 Per ``specs/mpcvd-cases.yaml`` MV-10-003 (create if absent),
 ``specs/participant-case-replica.yaml`` PCR-02-003 and PCR-02-004 (an

@@ -244,7 +244,7 @@ class TestDynamicDiscovery:
 
 
 class TestCoreTypeMapFallback:
-    """Regression tests for ARCH-12-003 / issue #1992 and VM-06-008.
+    """Regression tests for ARCH-12-014 / issue #1992 and VM-06-008.
 
     Core-layer types must NOT appear in VOCABULARY directly.  A caller that
     asks for the CORE_TYPE_MAP fallback (``include_core=True``) still finds
@@ -282,7 +282,7 @@ class TestCoreTypeMapFallback:
         """None of the formerly-misregistered core types should be in VOCABULARY."""
         for name in self._CORE_TYPE_NAMES:
             assert name not in VOCABULARY, (
-                f"ARCH-12-003 violation: {name!r} must not be in wire VOCABULARY"
+                f"ARCH-12-014 violation: {name!r} must not be in wire VOCABULARY"
             )
 
     def test_actor_key_is_wire_type(self):

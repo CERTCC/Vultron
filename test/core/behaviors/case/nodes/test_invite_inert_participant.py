@@ -109,6 +109,7 @@ def _seed_existing(
 
 class TestSeating:
     @pytest.mark.spec("CM-11-006")
+    @pytest.mark.spec("BT-10-005")
     def test_seats_inert_vendor_invitee_at_rm_received(
         self, scenario: BTTestScenario
     ) -> None:

@@ -161,7 +161,7 @@ def create_accept_ownership_transfer_tree(
             the open-Offer guard; an Accept at or after it is refused
             (CM-21-016).  ``None`` reads the clock when the guard runs.
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
@@ -240,7 +240,7 @@ def create_reject_ownership_transfer_tree(
         answer_id: The Reject's own id, so a redelivery is recognised.
         now: As for the Accept: a Reject after the deadline is refused.
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
@@ -306,7 +306,7 @@ def create_undo_ownership_transfer_tree(
         undo_id: The Undo's own id, so a redelivery is recognised.
         now: As for the Accept: an expired Offer cannot be withdrawn.
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
@@ -403,7 +403,7 @@ def create_propose_ownership_transfer_tree(
             (CM-21-014, CM-21-017).  ``None`` reads the clock when the guard
             runs.
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (CM-21-019, HP-01-008).
+            composes the sender guard from it (CM-21-019, HP-01-025).
         sender_id: The proposal's sender, which the guard checks
             (:func:`proposal_sender_context`).
 

@@ -20,6 +20,7 @@ def test_actor_is_the_doing_actor() -> None:
     assert result.actor == MANAGER
 
 
+@pytest.mark.spec("BT-17-015")
 @pytest.mark.spec("CM-24-002")
 def test_attributed_to_is_the_requesting_actor() -> None:
     result = delegated_authorship(

@@ -137,6 +137,7 @@ def _violations(path: Path, tree: ast.AST) -> list[str]:
     return found
 
 
+@pytest.mark.spec("BT-17-015")
 @pytest.mark.spec("CM-24-005")
 def test_attributed_to_on_factory_calls_comes_from_the_helper() -> None:
     violations: list[str] = []

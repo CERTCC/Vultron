@@ -90,7 +90,7 @@ def withdraw_from_embargo_on_case_tree(
         activity_id: The Leave's own id; a Leave the ledger already records
             is a redelivery, reported ``SKIPPED`` (HP-01-003).
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         Root node of the ``WithdrawFromEmbargoOnCaseBT`` Sequence.
