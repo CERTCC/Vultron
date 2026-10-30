@@ -115,6 +115,13 @@ class TestSetNameIfEmpty:
         p = CaseParticipant()
         assert p.name is None
 
+    def test_name_derived_from_the_as2_spelling(self):
+        """An AS2 input (``attributedTo``) derives the name the same way."""
+        p = CaseParticipant.model_validate(
+            {"attributedTo": _ACTOR, "context": _CONTEXT}
+        )
+        assert p.name == _ACTOR
+
 
 # ---------------------------------------------------------------------------
 # _init_participant_status_if_empty validator
@@ -149,6 +156,28 @@ class TestInitParticipantStatusIfEmpty:
         p = _make(participant_statuses=[existing])
         assert len(p.participant_statuses) == 1
         assert p.participant_statuses[0].rm.state == RM.ACCEPTED
+
+    def test_seed_reads_the_as2_spellings(self):
+        """An AS2 input seeds the same status as its Python-named twin."""
+        snake = CaseParticipant.model_validate(
+            {
+                "attributed_to": _ACTOR,
+                "context": _CONTEXT,
+                "case_roles": ["vendor"],
+            }
+        )
+        camel = CaseParticipant.model_validate(
+            {
+                "attributedTo": _ACTOR,
+                "context": _CONTEXT,
+                "caseRoles": ["vendor"],
+            }
+        )
+
+        seeded = camel.participant_statuses[0]
+        assert seeded.attributed_to == _ACTOR
+        assert seeded.cvd_role == [CVDRole.VENDOR]
+        assert seeded.cvd_role == snake.participant_statuses[0].cvd_role
 
 
 # ---------------------------------------------------------------------------

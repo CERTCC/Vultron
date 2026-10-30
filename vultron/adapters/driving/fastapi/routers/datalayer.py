@@ -17,7 +17,6 @@ Provides a backend API router for basic Vultron data layer operations.
 """
 
 import json
-import logging
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -57,8 +56,6 @@ from vultron.wire.as2.vocab.objects.vultron_actor import (
     as_VultronPerson,
     as_VultronService,
 )
-
-logger = logging.getLogger(__name__)
 
 # Debug/inspection views are actor-scoped: under ADR-0073 there is no "the"
 # store to inspect, and a node may host several actors (a vendor plus the
@@ -167,9 +164,11 @@ def get_actor_offer(
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    # Unlike the by-id reads, this rebuild is the response shape: it narrows a
-    # semantic Offer subtype to the declared ``as_Offer``, whose inline object
-    # renders as its base fields.  It mints no id and reads no clock (#5510).
+    # This route still rebuilds the Offer as the declared ``as_Offer``, so a
+    # semantic Offer subtype's inline object renders with its base fields
+    # only, while the by-id reads serve the stored object whole (#5510).
+    # #5540 tracks serving it as stored here too.  The rebuild mints no id
+    # and reads no clock.
     offer = as_Offer.model_validate(
         obj.model_dump(by_alias=True, serialize_as_any=True)
     )

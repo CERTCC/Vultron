@@ -21,9 +21,11 @@ behaviour (#5510).
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import json
 import uuid
 from collections.abc import Callable, Iterator
 from datetime import datetime
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -42,8 +44,10 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.ports.datalayer import DataLayer
 from vultron.demo.determinism import deterministic_run
+from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.examples.participant import accept_invite_to_case
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -55,6 +59,10 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 ACTOR_SEGMENT = "read-mints-nothing"
 ACTOR_ID = canonical_actor_uri(ACTOR_SEGMENT)
 READS = 5
+_SERVICE = as_Service(id_=ACTOR_ID, name="Read Mints Nothing")
+
+#: Anything that renders as an AS2 document.
+_AS2Object = as_Base | CoreObject
 
 
 @pytest.fixture
@@ -62,7 +70,7 @@ def datalayer() -> Iterator[DataLayer]:
     reset_datalayer(ACTOR_ID)
     dl = get_datalayer(ACTOR_ID, db_url="sqlite:///:memory:")
     dl.clear_all()
-    dl.create(as_Service(id_=ACTOR_ID, name="Read Mints Nothing"))
+    dl.create(_SERVICE)
     yield dl
     dl.clear_all()
     reset_datalayer(ACTOR_ID)
@@ -80,8 +88,8 @@ def client(datalayer: DataLayer) -> TestClient:
 
 
 @pytest.fixture
-def stored(datalayer: DataLayer) -> dict[str, str]:
-    """One stored object of each kind a demo reads back, keyed by type."""
+def built() -> dict[str, _AS2Object]:
+    """One object of each kind a demo reads back, keyed by type, as built."""
     report = as_VulnerabilityReport(name="Report", content="content")
     case = as_VulnerabilityCase(
         name="Case",
@@ -89,14 +97,28 @@ def stored(datalayer: DataLayer) -> dict[str, str]:
         attributed_to=ACTOR_ID,
     )
     participant = as_CaseParticipant(attributed_to=ACTOR_ID, context=case.id_)
-    for obj in (report, case, participant):
-        datalayer.create(obj)
     return {
-        "Service": ACTOR_ID,
-        "VulnerabilityReport": report.id_,
-        "VulnerabilityCase": case.id_,
-        "CaseParticipant": participant.id_,
+        "Service": _SERVICE,
+        "VulnerabilityReport": report,
+        "VulnerabilityCase": case,
+        "CaseParticipant": participant,
     }
+
+
+@pytest.fixture
+def stored(
+    datalayer: DataLayer, built: dict[str, _AS2Object]
+) -> dict[str, str]:
+    """The ids of *built*, each stored (the Service by the datalayer fixture)."""
+    for object_type, obj in built.items():
+        if object_type != "Service":
+            datalayer.create(obj)
+    return {object_type: obj.id_ for object_type, obj in built.items()}
+
+
+def _as2_body(obj: _AS2Object) -> dict[str, Any]:
+    """The AS2 document *obj* renders as, built from the object itself."""
+    return obj.model_dump(mode="json", by_alias=True, exclude_none=True)
 
 
 def _by_key(object_type: str, object_id: str) -> str:
@@ -188,19 +210,15 @@ def test_other_read_routes_mint_no_id_and_read_no_clock(
 
 
 def test_get_report_serves_the_stored_report(
-    client: TestClient, datalayer: DataLayer, stored: dict[str, str]
+    client: TestClient, built: dict[str, _AS2Object], stored: dict[str, str]
 ) -> None:
-    held = datalayer.read(stored["VulnerabilityReport"])
-    assert held is not None
-
     response = client.get(
         f"/api/v2/actors/{ACTOR_SEGMENT}/datalayer/Report/",
-        params={"id": held.id_},
+        params={"id": stored["VulnerabilityReport"]},
     )
 
-    assert response.json() == held.model_dump(
-        mode="json", by_alias=True, exclude_none=True
-    )
+    assert response.status_code == 200
+    assert response.json() == _as2_body(built["VulnerabilityReport"])
 
 
 def test_get_report_refuses_an_object_that_is_not_a_report(
@@ -217,21 +235,45 @@ def test_get_report_refuses_an_object_that_is_not_a_report(
 @pytest.mark.parametrize(("route", "object_type"), _READS)
 def test_get_object_serves_the_stored_object(
     client: TestClient,
-    datalayer: DataLayer,
+    built: dict[str, _AS2Object],
     stored: dict[str, str],
     route: Callable[[str, str], str],
     object_type: str,
 ) -> None:
-    """The body is the stored object's AS2 rendering, field for field."""
-    held = datalayer.read(stored[object_type])
-    assert held is not None
-
+    """The body is the AS2 rendering of the object as built, field for field."""
     response = client.get(route(object_type, stored[object_type]))
 
+    assert response.status_code == 200
     assert response.headers["content-type"] == "application/activity+json"
-    assert response.json() == held.model_dump(
-        mode="json", by_alias=True, exclude_none=True
+    assert response.json() == _as2_body(built[object_type])
+
+
+@pytest.mark.parametrize("route", [_by_key, _by_type_and_id])
+def test_an_activity_is_served_with_its_full_inline_object(
+    client: TestClient,
+    datalayer: DataLayer,
+    route: Callable[[str, str], str],
+) -> None:
+    """A stored ``Accept(Invite)`` is served with the whole Invite it holds.
+
+    The old rebuild narrowed a semantic activity to its base wire class, so
+    the inline Invite lost its ``actor``, ``object`` and ``target`` (#5510).
+    """
+    accept = accept_invite_to_case()
+    datalayer.create(accept)
+
+    response = client.get(route("Accept", accept.id_))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body == _as2_body(accept)
+    invite = body["object"]
+    assert invite["type"] == "Invite"
+    assert invite["actor"] == "https://vultron.example/organizations/vendorco"
+    assert invite["object"]["id"] == (
+        "https://vultron.example/organizations/coordinator"
     )
+    assert invite["target"]["type"] == "VulnerabilityCaseStub"
 
 
 def test_camel_case_participant_dump_revalidates_without_minting() -> None:
@@ -276,12 +318,29 @@ def test_a_bookkeeping_row_is_served_as_its_plain_dump() -> None:
 
     served = _serve_stored(record)
 
-    assert served == record.model_dump(by_alias=True, serialize_as_any=True)
+    assert not isinstance(served, AS2JSONResponse)
+    assert isinstance(served, dict)
+    assert served["type"] == "OfferRecord"
+    assert served["offer_id"] == "urn:uuid:offer-1"
+    assert served["offer_actor_id"] == ACTOR_ID
+    assert served["report_id"] == "urn:uuid:report-1"
 
 
 def test_an_as2_object_is_served_as_an_as2_document() -> None:
     report = as_VulnerabilityReport(name="Report", content="content")
 
+    assert report.published is not None and report.updated is not None
+
     served = _serve_stored(report)
 
     assert isinstance(served, AS2JSONResponse)
+    assert served.media_type == "application/activity+json"
+    assert json.loads(bytes(served.body)) == {
+        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+        "type": "VulnerabilityReport",
+        "id": report.id_,
+        "name": "Report",
+        "content": "content",
+        "published": report.published.isoformat(),
+        "updated": report.updated.isoformat(),
+    }
