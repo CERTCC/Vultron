@@ -2,6 +2,7 @@
 """Integration tests for RejectLogEntryReceivedBT."""
 
 import logging
+from datetime import UTC, datetime, timedelta
 from typing import cast
 from unittest.mock import MagicMock
 
@@ -15,9 +16,13 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
+from vultron.core.behaviors.sync.nodes.replay_guard import (
+    MAX_REPLAY_COOLDOWN_SECONDS,
+)
 from vultron.core.behaviors.sync.reject_tree import (
     create_reject_log_entry_tree,
 )
+from vultron.core.models import _helpers
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -30,6 +35,7 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.sync import (
     RejectLedgerEntryReceivedUseCase,
 )
+from vultron.demo.determinism import SteppingClock
 from vultron.errors import VultronError, VultronValidationError
 from vultron.wire.as2.factories import reject_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
@@ -647,6 +653,173 @@ def test_reject_at_tail_then_growth_replays_the_new_suffix(
     )
     assert result.status == Status.SUCCESS
     assert sync_port.send_announce_log_entry.call_count == 3
+
+
+# ---------------------------------------------------------------------------
+# Declining a genesis Reject the last genesis replay answered (SYNC-15-019–025)
+# ---------------------------------------------------------------------------
+
+_REPLAY_START = datetime(2026, 1, 1, tzinfo=UTC)
+
+
+def _set_clock(monkeypatch: pytest.MonkeyPatch, seconds: float) -> None:
+    """Freeze ``now_utc()`` *seconds* after :data:`_REPLAY_START`."""
+    monkeypatch.setattr(
+        _helpers,
+        "datetime",
+        SteppingClock(
+            _REPLAY_START + timedelta(seconds=seconds), step=timedelta(0)
+        ),
+    )
+
+
+def _five_entry_ledger(datalayer) -> list[CaseLedgerEntry]:
+    entries = [_make_entry(0)]
+    for index in range(1, 5):
+        entries.append(_make_entry(index, entries[-1].entry_hash))
+    for entry in entries:
+        datalayer.save(entry)
+    return entries
+
+
+def _replay_bridge(datalayer) -> tuple[BTBridge, MagicMock, MagicMock]:
+    """A bridge with mocked sync and trigger ports, returned with both."""
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+    sync_port = MagicMock(spec=SyncActivityPort)
+    trigger_activity = MagicMock(spec=TriggerActivityPort)
+    trigger_activity.announce_vulnerability_case.return_value = (
+        "https://example.org/activities/announce-case-1"
+    )
+    bridge = BTBridge(
+        datalayer=datalayer,
+        sync_port=sync_port,
+        trigger_activity=trigger_activity,
+    )
+    return bridge, sync_port, trigger_activity
+
+
+def _receive_reject(
+    bridge: BTBridge,
+    sync_port: MagicMock,
+    entry: CaseLedgerEntry,
+    tail_hash: str,
+) -> None:
+    py_trees.blackboard.Blackboard.storage.clear()
+    result = bridge.execute_with_setup(
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        activity=_make_event(entry, tail_hash=tail_hash),
+        sync_port=sync_port,
+    )
+    assert result.status == Status.SUCCESS
+
+
+def _replay_record(datalayer) -> tuple[str | None, datetime | None, int]:
+    state = datalayer.read(
+        VultronReplicationState(case_id=CASE_ID, peer_id=PEER_ID).id_
+    )
+    assert isinstance(state, VultronReplicationState)
+    return (
+        state.last_replayed_from_hash,
+        state.last_replayed_at,
+        state.replays_at_position,
+    )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="SYNC-15-024: decline a genesis Reject the last genesis replay"
+    " answered. Tracked by #5556.",
+)
+@pytest.mark.spec("SYNC-15-019")
+@pytest.mark.spec("SYNC-15-022")
+@pytest.mark.spec("SYNC-15-024")
+def test_genesis_reject_for_an_entry_the_last_genesis_replay_sent_is_declined(
+    datalayer, case_manager_case, monkeypatch
+):
+    """Past the 2 s base cooldown but under the ceiling: no replay, no case."""
+    entries = _five_entry_ledger(datalayer)
+    bridge, sync_port, trigger_activity = _replay_bridge(datalayer)
+
+    _set_clock(monkeypatch, 0)
+    _receive_reject(bridge, sync_port, entries[0], tail_hash="")
+    assert sync_port.send_announce_log_entry.call_count == 5
+    trigger_activity.announce_vulnerability_case.assert_called_once()
+
+    _set_clock(monkeypatch, 30)
+    _receive_reject(bridge, sync_port, entries[2], tail_hash="")
+
+    assert sync_port.send_announce_log_entry.call_count == 5
+    trigger_activity.announce_vulnerability_case.assert_called_once()
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="SYNC-15-025: a declined genesis Reject leaves the replay record"
+    " unchanged. Tracked by #5556.",
+)
+@pytest.mark.spec("SYNC-15-025")
+def test_declined_genesis_reject_leaves_the_replication_record_unchanged(
+    datalayer, case_manager_case, monkeypatch
+):
+    """The declined Reject moves no replay position, time or count."""
+    entries = _five_entry_ledger(datalayer)
+    bridge, sync_port, _ = _replay_bridge(datalayer)
+
+    _set_clock(monkeypatch, 0)
+    _receive_reject(bridge, sync_port, entries[0], tail_hash="")
+    before = _replay_record(datalayer)
+
+    _set_clock(monkeypatch, 30)
+    _receive_reject(bridge, sync_port, entries[2], tail_hash="")
+
+    assert _replay_record(datalayer) == before
+
+
+@pytest.mark.spec("SYNC-15-024")
+def test_genesis_reject_after_a_replay_from_another_position_is_not_declined(
+    datalayer, case_manager_case, monkeypatch
+):
+    """The skip holds only while the recorded replay position is genesis."""
+    entries = _five_entry_ledger(datalayer)
+    bridge, sync_port, _ = _replay_bridge(datalayer)
+
+    _set_clock(monkeypatch, 0)
+    _receive_reject(bridge, sync_port, entries[0], tail_hash="")
+    _set_clock(monkeypatch, 30)
+    _receive_reject(
+        bridge, sync_port, entries[4], tail_hash=entries[2].entry_hash
+    )
+    replayed = sync_port.send_announce_log_entry.call_count
+    assert replayed == 5 + 2
+
+    # The peer lost its copy: genesis again, for an entry already sent.
+    _set_clock(monkeypatch, 60)
+    _receive_reject(bridge, sync_port, entries[1], tail_hash="")
+
+    assert sync_port.send_announce_log_entry.call_count > replayed
+
+
+@pytest.mark.spec("SYNC-15-018")
+def test_genesis_reject_after_the_ceiling_replays_again(
+    datalayer, case_manager_case, monkeypatch
+):
+    """Past the ceiling, a genesis Reject for an entry already sent replays."""
+    entries = _five_entry_ledger(datalayer)
+    bridge, sync_port, _ = _replay_bridge(datalayer)
+
+    _set_clock(monkeypatch, 0)
+    _receive_reject(bridge, sync_port, entries[0], tail_hash="")
+    assert sync_port.send_announce_log_entry.call_count == 5
+
+    _set_clock(monkeypatch, MAX_REPLAY_COOLDOWN_SECONDS + 1)
+    _receive_reject(bridge, sync_port, entries[2], tail_hash="")
+
+    assert sync_port.send_announce_log_entry.call_count == 10
 
 
 def _sender_refused(datalayer, event) -> Status:

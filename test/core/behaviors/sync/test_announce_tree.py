@@ -2,7 +2,7 @@
 """Integration tests for AnnounceLogEntryReceivedBT."""
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import cast
 from unittest.mock import MagicMock
 
@@ -18,6 +18,7 @@ from test.support.embargo_register import (
 )
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -33,6 +34,10 @@ from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
+from vultron.core.behaviors.sync.nodes.replay_guard import (
+    MAX_REPLAY_COOLDOWN_SECONDS,
+)
+from vultron.core.models import _helpers
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
@@ -44,6 +49,9 @@ from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_consent_semantic_types import (
     UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
+from vultron.core.models.events.actor import (
+    AnnounceVulnerabilityCaseReceivedEvent,
+)
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.participant_semantic_types import (
     CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
@@ -51,9 +59,11 @@ from vultron.core.models.participant_semantic_types import (
     UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.services.held_ledger_announces import held_ledger_announces
 from vultron.core.states.cs import CS_vf
@@ -62,12 +72,17 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.core.states.rm import RM
+from vultron.core.use_cases.received.actor.announce import (
+    AnnounceVulnerabilityCaseReceivedUseCase,
+)
 from vultron.core.use_cases.received.sync import (
     AnnounceLedgerEntryReceivedUseCase,
 )
+from vultron.demo.determinism import SteppingClock
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     announce_log_entry_activity,
+    announce_vulnerability_case_activity,
     create_participant_activity,
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
@@ -2164,3 +2179,159 @@ class TestAnnounceTreeEmitImpossibleStateFault:
         assert body["object"]["inReplyTo"] == event.activity_id
         assert datalayer.read(entry.id_) is None
         assert list(datalayer.list_objects("CaseLedgerEntry")) == []
+
+
+# ---------------------------------------------------------------------------
+# Genesis Reject limit at the participant (SYNC-15-016–023, #5555)
+# ---------------------------------------------------------------------------
+
+_GENESIS_WAIT_START = datetime(2026, 1, 1, tzinfo=UTC)
+
+
+def _set_clock(monkeypatch: pytest.MonkeyPatch, at: datetime) -> None:
+    """Freeze ``now_utc()`` at *at*."""
+    monkeypatch.setattr(
+        _helpers, "datetime", SteppingClock(at, step=timedelta(0))
+    )
+
+
+def _deliver_early_entry(
+    datalayer: SqliteDataLayer, entry: CaseLedgerEntry
+) -> None:
+    """Deliver *entry* for the missing case through a fresh bridge and tree.
+
+    A fresh bridge on the same store stands in for a restart: whatever the
+    limit remembers must be in the store (SYNC-15-021).
+    """
+    py_trees.blackboard.Blackboard.storage.clear()
+    BTBridge(datalayer=datalayer).execute_with_setup(
+        tree=create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        ),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=_make_event(entry, actor_id=CASE_ACTOR_ACTOR_ID),
+        sync_port=SyncActivityAdapter(datalayer),
+    )
+
+
+def _queued_rejects(datalayer: SqliteDataLayer) -> list[str]:
+    """The ids of the Rejects in the participant's outbox, in queue order."""
+    return [
+        activity_id
+        for activity_id in datalayer.outbox_list()
+        if (read_sealed_body_dict(datalayer, activity_id) or {}).get("type")
+        == "Reject"
+    ]
+
+
+def _early_entries(count: int) -> list[CaseLedgerEntry]:
+    entries = [_make_entry(0)]
+    for index in range(1, count):
+        entries.append(_make_entry(index, entries[-1].entry_hash))
+    return entries
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="SYNC-15-016: one genesis Reject per interval per missing case."
+    " Tracked by #5555.",
+)
+@pytest.mark.spec("SYNC-15-001")
+@pytest.mark.spec("SYNC-15-016")
+@pytest.mark.spec("SYNC-15-020")
+@pytest.mark.spec("SYNC-15-021")
+def test_early_entries_within_the_interval_send_one_genesis_reject(
+    datalayer, monkeypatch
+):
+    """Early entries just under the ceiling apart draw one genesis Reject."""
+    just_under = timedelta(seconds=MAX_REPLAY_COOLDOWN_SECONDS - 1)
+    times = [
+        _GENESIS_WAIT_START,
+        _GENESIS_WAIT_START + just_under / 2,
+        _GENESIS_WAIT_START + just_under,
+    ]
+    for entry, at in zip(_early_entries(3), times, strict=True):
+        _set_clock(monkeypatch, at)
+        _deliver_early_entry(datalayer, entry)
+
+    assert len(held_ledger_announces(datalayer, CASE_ID)) == 3
+    assert len(_queued_rejects(datalayer)) == 1
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="SYNC-15-017: a genesis Reject after the interval is a new"
+    " activity. Tracked by #5555.",
+)
+@pytest.mark.spec("SYNC-15-001")
+@pytest.mark.spec("SYNC-15-017")
+@pytest.mark.spec("SYNC-15-018")
+def test_early_entry_after_the_interval_sends_a_new_genesis_reject(
+    datalayer, monkeypatch
+):
+    """A redelivered early entry past the ceiling draws a second Reject."""
+    (entry,) = _early_entries(1)
+    _set_clock(monkeypatch, _GENESIS_WAIT_START)
+    _deliver_early_entry(datalayer, entry)
+    _set_clock(
+        monkeypatch,
+        _GENESIS_WAIT_START
+        + timedelta(seconds=MAX_REPLAY_COOLDOWN_SECONDS + 1),
+    )
+    _deliver_early_entry(datalayer, entry)
+
+    rejects = _queued_rejects(datalayer)
+    assert len(rejects) == 2
+    assert rejects[0] != rejects[1]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="SYNC-15-023: seeding the case deletes the genesis Reject"
+    " record. Tracked by #5555.",
+)
+@pytest.mark.spec("SYNC-15-023")
+def test_seeding_the_case_clears_the_genesis_reject_record(
+    datalayer, monkeypatch
+):
+    """A genesis wait after the case was seeded and lost asks again at once."""
+    first, second, third = _early_entries(3)
+    _set_clock(monkeypatch, _GENESIS_WAIT_START)
+    _deliver_early_entry(datalayer, first)
+    assert len(_queued_rejects(datalayer)) == 1
+
+    datalayer.save(
+        VultronPendingCaseInbox(
+            case_id=CASE_ID,
+            case_actor_id=CASE_ACTOR_ACTOR_ID,
+            invite_anchored=True,
+        )
+    )
+    seed = cast(
+        AnnounceVulnerabilityCaseReceivedEvent,
+        received_event(
+            announce_vulnerability_case_activity(
+                as_VulnerabilityCase(
+                    id_=CASE_ID, attributed_to=OWNER_ACTOR_ID
+                ),
+                actor=CASE_ACTOR_ACTOR_ID,
+                context=CASE_ID,
+                to=[PARTICIPANT_ACTOR_ID],
+            )
+        ),
+    )
+    py_trees.blackboard.Blackboard.storage.clear()
+    seeded = AnnounceVulnerabilityCaseReceivedUseCase(
+        datalayer, seed, sync_port=SyncActivityAdapter(datalayer)
+    ).execute()
+    assert seeded.disposition == HandlerDisposition.APPLIED
+    assert datalayer.read(CASE_ID) is not None
+
+    # The case leaves the store, so a new genesis wait begins, well inside
+    # the interval of the first one.
+    datalayer.delete("VulnerabilityCase", CASE_ID)
+    _set_clock(monkeypatch, _GENESIS_WAIT_START + timedelta(seconds=10))
+    _deliver_early_entry(datalayer, second)
+    _deliver_early_entry(datalayer, third)
+
+    assert len(_queued_rejects(datalayer)) == 2

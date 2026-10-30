@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted-provisional
 date: 2026-10-30
 created: 2026-10-30
 updated: 2026-10-30
@@ -63,7 +63,8 @@ The specs carry the current values.
 - Good, because the CASE_MANAGER's bound protects it from a participant that does not limit itself.
 - Bad, because a participant whose one replay is lost waits up to the participant's interval before its next request can go out.
 - Bad, because the participant needs a new stored record per waiting case, and the CASE_MANAGER needs one more field in its per-peer replication state.
-- Neutral, because the participant still asks only when an entry for the missing case arrives, as it does today, so a lost replay with no later entry stays unrecovered until the next one, as before.
+- Bad, because the participant asks only when an entry for the missing case arrives, and the replayed entries that reach it inside the interval are withheld, so a participant whose case copy is lost recovers only when a further entry arrives after the interval.
+- Bad, because the participant's interval starts when it asks and the CASE_MANAGER's starts at its later replay, so a request for an old entry just after the participant's interval can still be declined, and the participant then waits up to one more interval.
 
 ## Validation
 
@@ -101,4 +102,4 @@ The specs carry the current values.
 This decision refines the loss backstop that ADR-0059 kept.
 ADR-0059's hold and drain are unchanged.
 
-Generated spec requirements: `sync-ledger-replication.yaml` SYNC-15-001, SYNC-15-003, SYNC-15-016 through SYNC-15-022.
+Generated spec requirements: `sync-ledger-replication.yaml` SYNC-15-001, SYNC-15-003, SYNC-15-016 through SYNC-15-025.

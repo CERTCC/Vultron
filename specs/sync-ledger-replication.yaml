@@ -1504,8 +1504,9 @@ groups:
     first (issue #2186, #2180).  A Reject is still sent as the loss backstop, triggering the
     same replay path as the hash-mismatch case (SYNC-08-005, SYNC-14-002) for an entry that is
     genuinely lost rather than merely early.  The backstop is asked once per wait, not once
-    per held entry, and the CASE_MANAGER answers once per need; both limits are rate limits,
-    never stops (SYNC-15-016 to SYNC-15-022, ADR-0168).  The forward-gap hold of SYNC-14 alone
+    per held entry, and the CASE_MANAGER answers once per need; both limits are rate
+    limits, never stops (SYNC-15-016 to SYNC-15-025, ADR-0168).  The forward-gap hold of
+    SYNC-14 alone
     does not cover this window: it only holds entries for a case whose genesis
     anchor is already known, so a distinct pre-genesis hold and a drain triggered
     by the case seed are required.
@@ -1518,10 +1519,10 @@ groups:
     statement: >-
       When a participant receives an Announce(CaseLedgerEntry) but cannot reconstruct
       the per-case genesis hash because it does not yet hold the VulnerabilityCase
-      (CLP-08-005), the participant MUST NOT silently discard the entry; unless an earlier
-      such Reject for the same case lets it withhold one (SYNC-15-016), it MUST send a
-      Reject(CaseLedgerEntry) with last_accepted_hash="" to the CASE_MANAGER so that the
-      CASE_MANAGER replays all entries from the beginning once the case is delivered.
+      (CLP-08-005), the participant MUST tell the CASE_MANAGER by sending it a
+      Reject(CaseLedgerEntry) with last_accepted_hash="", so that the CASE_MANAGER replays
+      all entries from the beginning once the case is delivered, unless an earlier such
+      Reject for the same case lets it withhold one (SYNC-15-016).
     rationale: >-
       An empty `last_accepted_hash` means "I hold no entries; replay from genesis." The
       CASE_MANAGER's replay path (SYNC-03-002) replays every entry after the hash it
@@ -1532,7 +1533,12 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that receiving a ledger entry before the
       VulnerabilityCase is present triggers a Reject(CaseLedgerEntry) with
-      last_accepted_hash="" to the CASE_MANAGER.
+      last_accepted_hash="" to the CASE_MANAGER;
+      `test/core/behaviors/sync/test_announce_tree.py`
+      (`test_early_entries_within_the_interval_send_one_genesis_reject` and
+      `test_early_entry_after_the_interval_sends_a_new_genesis_reject`, strict xfails
+      until #5555 lands) confirm the withheld Reject and the request after the
+      interval.
     relationships:
     - rel_type: depends_on
       spec_id: CLP-08-005
@@ -1577,8 +1583,9 @@ groups:
   - id: SYNC-15-003
     priority: SHOULD
     kind: protocol
-    statement: The CASE_MANAGER SHOULD bound the rate at which it replays entries to a peer whose acknowledged
-      replication position has not advanced.
+    statement: >-
+      The CASE_MANAGER SHOULD bound the rate at which it replays entries to a peer whose
+      acknowledged replication position has not advanced.
     rationale: >-
       A peer that cannot anchor its hash chain rejects every entry replayed to it. Each
       Reject causes a replay, and each replayed entry causes another Reject. Without a
@@ -1638,7 +1645,6 @@ groups:
   - id: SYNC-15-009
     priority: MUST_NOT
     kind: project
-    verification_debt: '#2575'
     statement: A Reject reporting an unchanged replication position within the cooldown MUST NOT trigger another
       replay.
     rationale: >-
@@ -1646,6 +1652,10 @@ groups:
       which makes a loop that sustains itself. A Reject at the same position inside the
       cooldown carries no new information, so suppressing its replay breaks the loop. A
       Reject after the cooldown still gets a replay, so a lost replay is repaired.
+    verification: >-
+      `test/core/behaviors/sync/test_reject_tree.py`
+      (`test_repeated_reject_at_same_hash_does_not_replay_unboundedly`) confirms that
+      repeated Rejects at one position inside the cooldown draw no further replay.
   - id: SYNC-15-010
     priority: MUST
     kind: project
@@ -1662,13 +1672,18 @@ groups:
   - id: SYNC-15-011
     priority: MUST_NOT
     kind: project
-    verification_debt: '#2575'
     statement: A replay in which zero entries were sent MUST NOT update the recorded position, because no delivery
       was attempted at that position.
     rationale: >-
       A replay that sent nothing gave the peer nothing to act on. Recording its
       position would start a cooldown, and that cooldown would suppress the first
       replay the peer actually needs when the ledger grows.
+    verification: >-
+      `test/core/behaviors/sync/test_reject_tree.py`
+      (`test_reject_at_tail_then_growth_replays_the_new_suffix`) and
+      `test/core/behaviors/sync/nodes/test_replay.py`
+      (`test_replay_that_is_wholly_pending_queues_nothing_and_records_no_position`)
+      confirm that a replay sending nothing records no position.
   - id: SYNC-15-004
     priority: MUST
     kind: protocol
@@ -1875,7 +1890,6 @@ groups:
   - id: SYNC-15-017
     priority: MUST
     kind: protocol
-    verification_debt: '#3612'
     statement: >-
       A participant that withholds genesis Rejects under SYNC-15-016 MUST send one
       for the first entry of the still-missing case it receives after the interval has
@@ -1884,7 +1898,12 @@ groups:
       The genesis Reject is the only recovery for a participant whose replay was lost,
       so withholding it may delay recovery but never end it. A redelivery of an earlier
       Reject carries that Reject's id, and the CASE_MANAGER drops a known id as a
-      repeat (ID-04-005), so a request after the interval must be its own activity.
+      duplicate (ID-02-001), so a request after the interval must be its own activity.
+    verification: >-
+      `test/core/behaviors/sync/test_announce_tree.py`
+      (`test_early_entry_after_the_interval_sends_a_new_genesis_reject`, a strict
+      xfail until #5555 lands) confirms that an entry redelivered after the interval
+      draws a second genesis Reject whose id differs from the first.
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-016
@@ -1894,17 +1913,24 @@ groups:
     - story_2022_045
     - story_2022_088
   - id: SYNC-15-018
-    priority: MUST_NOT
+    priority: MUST
     kind: protocol
-    verification_debt: '#3612'
     statement: >-
-      A rate limit an actor applies to replays or to replay requests about the same
-      case and position MUST NOT suppress one permanently; once a bounded interval has
-      passed, it MUST let the next one through.
+      Once a bounded interval has passed since an actor's rate limit last let through a
+      replay, or a replay request, about the same case and position, that limit MUST let
+      the next one through.
     rationale: >-
       Every limit in this group trades recovery time for quiet. A limit that never
       lets a later request or replay through would turn a lost replay into a replica
       that never converges.
+    verification: >-
+      `test/core/behaviors/sync/test_reject_tree.py`
+      (`test_genesis_reject_after_the_ceiling_replays_again`) confirms the
+      CASE_MANAGER replays again after the ceiling;
+      `test/core/behaviors/sync/test_announce_tree.py`
+      (`test_early_entry_after_the_interval_sends_a_new_genesis_reject`, a strict
+      xfail until #5555 lands) confirms the participant asks again after its
+      interval.
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-003
@@ -1938,15 +1964,21 @@ groups:
   - id: SYNC-15-020
     priority: MUST
     kind: project
-    verification_debt: '#2575'
     statement: >-
       The interval of SYNC-15-016 MUST be the replay cooldown's ceiling of SYNC-15-013,
       600 seconds, read from the one constant that sets that ceiling.
     rationale: >-
-      The participant's interval bounds the worst-case wait after a lost replay. Using
-      the ceiling the CASE_MANAGER already applies to a stuck peer keeps one number for
-      "how long a stuck replica may wait", and a shared constant keeps the two from
-      drifting apart.
+      The participant's interval sets how long a participant waits before it asks
+      again after a lost replay, once a further entry for the missing case arrives.
+      Using the ceiling the CASE_MANAGER already applies to a stuck peer keeps one
+      number for "how long a stuck replica may wait", and a shared constant keeps the
+      two from drifting apart.
+    verification: >-
+      `test/core/behaviors/sync/test_announce_tree.py`
+      (`test_early_entries_within_the_interval_send_one_genesis_reject` and
+      `test_early_entry_after_the_interval_sends_a_new_genesis_reject`, strict xfails
+      until #5555 lands) confirm that a participant withholds a genesis Reject just
+      under the ceiling and sends one just over it.
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-016
@@ -1957,17 +1989,18 @@ groups:
   - id: SYNC-15-021
     priority: MUST
     kind: project
-    verification_debt: '#2575'
     statement: >-
       A participant MUST record, per case it does not hold, the time it last sent a
-      genesis Reject for that case, in its own store as a record of its own kind, and
-      MUST delete that record when it seeds the case.
+      genesis Reject for that case, in its own store as a record of its own kind.
     rationale: >-
       The participant decides SYNC-15-016 when an early entry arrives, so it needs the
       time of its last request then; no existing record carries it, since a held
-      Announce has no timestamp. Keeping it in the store survives a restart, and
-      deleting it on seed keeps a later genesis wait for the same case from inheriting
-      an old time.
+      Announce has no timestamp. Keeping it in the store survives a restart.
+    verification: >-
+      `test/core/behaviors/sync/test_announce_tree.py`
+      (`test_early_entries_within_the_interval_send_one_genesis_reject`, a strict
+      xfail until #5555 lands) confirms that the limit holds across fresh trees on
+      one store.
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-016
@@ -1976,24 +2009,90 @@ groups:
   - id: SYNC-15-022
     priority: MUST
     kind: project
-    verification_debt: '#2575'
     statement: >-
       The CASE_MANAGER MUST record, per peer, the highest `log_index` its last non-empty
-      replay from genesis sent, and MUST decline under SYNC-15-019 a genesis Reject
-      whose rejected entry is at or below that index while less than the replay
-      cooldown's ceiling of SYNC-15-013 has passed since that replay; a declined Reject
-      MUST NOT update the recorded position or its replay count.
+      replay from genesis sent.
     rationale: >-
-      The genesis cooldown starts at 2 seconds, so on a loaded host every queued genesis
-      Reject passed it and drew a full replay (#5552). A Reject of an entry the last
-      replay resent is answered by that replay. A later entry still replays under the
-      cooldown, and after the ceiling any Reject does (SYNC-15-018). An unchanged record
-      keeps a declined Reject from lengthening the next cooldown.
+      The CASE_MANAGER decides SYNC-15-019 when a genesis Reject arrives, so it needs to
+      know which entries its last replay from genesis already resent. The position
+      record of SYNC-15-008 names only where a replay started, not how far it reached.
+    verification: >-
+      `test/core/behaviors/sync/test_reject_tree.py`
+      (`test_genesis_reject_for_an_entry_the_last_genesis_replay_sent_is_declined`, a
+      strict xfail until #5556 lands) confirms that a Reject of an entry the last
+      replay sent is told apart from one it did not.
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-019
     - rel_type: depends_on
       spec_id: SYNC-15-008
+    adr:
+    - ADR-0168
+  - id: SYNC-15-023
+    priority: MUST
+    kind: project
+    statement: >-
+      A participant MUST delete its record of SYNC-15-021 for a case when it seeds that
+      case.
+    rationale: >-
+      A record left behind after the seed would make a later genesis wait for the same
+      case inherit an old time, so the participant could withhold that wait's first
+      request.
+    verification: >-
+      `test/core/behaviors/sync/test_announce_tree.py`
+      (`test_seeding_the_case_clears_the_genesis_reject_record`, a strict xfail until
+      #5555 lands) confirms that a new wait after the seed asks at once.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-15-021
+    adr:
+    - ADR-0168
+  - id: SYNC-15-024
+    priority: MUST
+    kind: project
+    statement: >-
+      While the peer's recorded replay position (SYNC-15-008) is genesis and less than
+      the replay cooldown's ceiling of SYNC-15-013 has passed since that replay, the
+      CASE_MANAGER MUST decline under SYNC-15-019 a genesis Reject whose rejected entry
+      is at or below the index of SYNC-15-022.
+    rationale: >-
+      The genesis cooldown starts at 2 seconds, so on a loaded host every queued genesis
+      Reject passed it and drew a full replay (#5552). A Reject of an entry the last
+      replay resent is answered by that replay. A later entry still replays under the
+      cooldown, and after the ceiling any Reject does (SYNC-15-018). A peer whose
+      position moved past genesis and then reports genesis again has lost its copy, so
+      the skip applies only while the recorded position is still genesis.
+    verification: >-
+      `test/core/behaviors/sync/test_reject_tree.py`
+      (`test_genesis_reject_for_an_entry_the_last_genesis_replay_sent_is_declined`, a
+      strict xfail until #5556 lands) confirms that such a Reject sends no replay and no
+      case; `test_genesis_reject_after_a_replay_from_another_position_is_not_declined`
+      and `test_genesis_reject_after_the_ceiling_replays_again` confirm the two
+      bounds of the skip.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-15-019
+    - rel_type: depends_on
+      spec_id: SYNC-15-022
+    adr:
+    - ADR-0168
+  - id: SYNC-15-025
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A genesis Reject the CASE_MANAGER declines under SYNC-15-024 MUST NOT update the
+      peer's recorded replay position, its time or its replay count.
+    rationale: >-
+      A declined Reject sent nothing, so recording it would start or lengthen a
+      cooldown against a replay that never happened, as SYNC-15-011 rules out for an
+      empty replay.
+    verification: >-
+      `test/core/behaviors/sync/test_reject_tree.py`
+      (`test_declined_genesis_reject_leaves_the_replication_record_unchanged`, a strict
+      xfail until #5556 lands) confirms that the per-peer record is unchanged.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-15-024
     adr:
     - ADR-0168
 - id: SYNC-16
