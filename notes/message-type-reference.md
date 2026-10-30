@@ -39,7 +39,8 @@ ADR: [ADR-0083](../docs/adr/0083-formal-message-set-and-as2-vocabulary-are-diffe
 The mapping itself — collapses, expansions, and the evolved fault and
 acknowledgement mechanisms — is documented in `docs/reference/messages/` and
 explained in `docs/topics/activity_vocabulary_design.md`; do not restate it here.
-The occasion table's remaining plan is `notes/message-occasion-table.md`.
+The occasion table's derivation and row rules are in
+`notes/message-occasion-table.md`.
 
 ## The two message sets are different shapes
 

@@ -48,7 +48,6 @@ related_notes:
   - notes/domain-validation.md
   - notes/protocol-asks.md
   - notes/structured-logging.md
-  - notes/ownership-transfer-close-paths.md
 relevant_packages:
   - py_trees
   - vultron/bt
