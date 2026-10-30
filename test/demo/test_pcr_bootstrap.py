@@ -340,7 +340,8 @@ def _bootstrap_case_for_participant(
     # on the validate path (ISSUE-2548), where the checks moved upstream of every
     # write instead of running after the RM.VALID latch had already been written:
     #
-    #   - an active embargo, without which RM.VALID is refused (DUR-07-004);
+    #   - an active embargo, without which RM.VALID is refused for an
+    #     embargo-eligible case (DUR-07-004);
     #   - a CaseParticipant for the owner, reachable through
     #     actor_participant_index (CM-19-003), without which the case-scoped half
     #     of the RM.VALID transition has nothing to advance.

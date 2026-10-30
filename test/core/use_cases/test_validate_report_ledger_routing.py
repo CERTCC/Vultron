@@ -67,7 +67,12 @@ from vultron.core.models.events.report import (
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
+from vultron.core.states.cs import CS_pxa
+from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.core.use_cases.received.report import (
@@ -378,11 +383,18 @@ class TestCaseActorReceivedWritesLedgerEntry:
     PARTICIPANT_ID = "https://example.org/actors/participant-ledger"
 
     def _make_case_actor_dl(
-        self, owner_id: str | None = None
+        self,
+        owner_id: str | None = None,
+        *,
+        embargoed: bool = True,
+        pxa: CS_pxa = CS_pxa.pxa,
     ) -> SqliteDataLayer:
         """DataLayer as seen by the CaseActor: case + CASE_MANAGER + Service link.
 
         With *owner_id* the same case is that participant's replica instead.
+        With ``embargoed=False`` the case carries no embargo and stays at
+        ``EM.NONE``; *pxa* sets its P/X/A state, so a case with P set and no
+        embargo is the one EP-04-008 creates.
         """
         from vultron.core.models.actor import VultronService
 
@@ -399,18 +411,22 @@ class TestCaseActorReceivedWritesLedgerEntry:
         # An embargo is part of what a delivered Create(VulnerabilityCase)
         # replica carries, alongside the participant index (ADR-0041,
         # CBT-01-002).  ValidateReportBT now resolves the case *before* it
-        # writes anything, so a replica missing the embargo blocks the
-        # RM.VALID transition outright rather than latching a phantom
+        # writes anything, so an embargo-eligible replica missing the embargo
+        # blocks the RM.VALID transition outright rather than latching a phantom
         # report-phase record (DUR-07-004, ISSUE-2548).
         case = as_VulnerabilityCase(
             id_=self.CASE_ID,
             name="Ledger Routing Test Case",
             attributed_to=self.CASE_ACTOR_ID,
-            embargo_register=register(
-                active=f"{self.CASE_ID}/embargoes/ledger-test"
+            embargo_register=(
+                register(active=f"{self.CASE_ID}/embargoes/ledger-test")
+                if embargoed
+                else []
             ),
         )
         case.vulnerability_reports.append(self.REPORT_ID)
+        if pxa is not CS_pxa.pxa:
+            case.append_case_status(pxa=pxa)
 
         cm_participant = as_CaseParticipant(
             attributed_to=self.CASE_ACTOR_ID,
@@ -430,7 +446,8 @@ class TestCaseActorReceivedWritesLedgerEntry:
             _add_participant_at_received(dl, case, owner_id)
         dl.save(case)
         write_consent_rows(dl, case)
-        agree_to_active_embargo(dl, case, self.VENDOR_ID)
+        if embargoed:
+            agree_to_active_embargo(dl, case, self.VENDOR_ID)
         dl.create(
             VultronReportCaseLink(
                 report_id=self.REPORT_ID, rm_state=RM.RECEIVED
@@ -677,6 +694,57 @@ class TestCaseActorReceivedWritesLedgerEntry:
             "after validate-report; sender_actor_id threading may be broken "
             "(ADR-0022 single-BT migration)"
         )
+
+    def _validate(self, dl: SqliteDataLayer) -> HandlerResult:
+        return ValidateReportReceivedUseCase(
+            dl,
+            self._make_validate_event(),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+    @pytest.mark.spec("DUR-07-004")
+    @pytest.mark.spec("EP-04-008")
+    def test_ineligible_case_reaches_valid_at_em_none(self):
+        """A case created with P set is validated at ``EM.NONE``.
+
+        EP-04-008 leaves such a case with no embargo, so DUR-07-004 does not
+        apply to it: the CASE_MANAGER records the sender's RM.VALID and the
+        case stays at ``EM.NONE`` with no embargo created.
+        """
+        dl = self._make_case_actor_dl(embargoed=False, pxa=CS_pxa.Pxa)
+
+        result = self._validate(dl)
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
+        assert isinstance(link, VultronReportCaseLink)
+        assert link.rm_state == RM.VALID
+        case = dl.read(self.CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        assert case.current_status.em.state == EM.NONE
+        assert case.active_embargo is None
+        assert list(dl.list_objects("EmbargoEvent")) == []
+        assert "validate_report" in _ledger_semantic_types(dl)
+
+    @pytest.mark.spec("DUR-07-004")
+    def test_eligible_case_without_embargo_is_not_validated(self):
+        """The control: an embargo-eligible case with no embargo is refused.
+
+        None of P, X or A is set, so the case must have an embargo end time
+        before RM.VALID; the sender's report stays at RM.RECEIVED.
+        """
+        dl = self._make_case_actor_dl(embargoed=False)
+
+        result = self._validate(dl)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "EnsureEmbargoExists" in result.reason
+        link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
+        assert isinstance(link, VultronReportCaseLink)
+        assert link.rm_state == RM.RECEIVED
 
 
 class TestFullValidateReportLedgerChain:

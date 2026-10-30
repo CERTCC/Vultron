@@ -960,7 +960,8 @@ def _setup_case_with_3_participants(base: str):
     )
     # ADR-0041: no case after validate-report; create one directly for setup.
     # validate-report requires a live case (EnsureEmbargoExists needs an active
-    # embargo), so create the case first, then run the RM triage sequence.
+    # embargo for an embargo-eligible case), so create the case first, then run
+    # the RM triage sequence.
     case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
     # Advance vendor RM: RECEIVED → VALID (validate-report) → ACCEPTED (engage-case).
     # CSB-18-001: VFd (F bit set) requires RM ∈ {ACCEPTED, DEFERRED, CLOSED}.

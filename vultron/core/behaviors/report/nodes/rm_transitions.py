@@ -27,8 +27,10 @@ current RM state on the report's ``VultronReportCaseLink`` record
 **Case-scoped transitions** advance the actor's RM state on
 its ``CaseParticipant`` inside a ``VulnerabilityCase``.
 
-``RM.VALID`` is *both*: DUR-07-004 requires an established embargo, which only
-exists on a case, and engage-case reads the participant's case-scoped state.  So
+``RM.VALID`` is *both*: DUR-07-004 requires an established embargo for an
+embargo-eligible case (EP-04-008 exempts one with P, X or A set), the embargo
+and the P/X/A state exist only on a case, and engage-case reads the
+participant's case-scoped state.  So
 ``TransitionRMtoValid`` requires the case and performs the case-scoped half
 *before* updating the ReportCaseLink field (ID-04-005).  ``RM.INVALID`` and
 ``RM.CLOSED`` in report phase do not: a receiver may declare a bare report
