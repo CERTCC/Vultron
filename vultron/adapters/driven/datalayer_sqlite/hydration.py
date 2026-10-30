@@ -78,23 +78,40 @@ def field_admits_object(obj: Any, field_name: str) -> bool:
     Unknown fields are treated as expandable, preserving the previous behaviour
     for models that do not declare the field at all.
     """
+    return class_field_admits_object(type(obj), field_name)
+
+
+def class_field_admits_object(cls: type, field_name: str) -> bool:
+    """:func:`field_admits_object` for a class rather than an instance.
+
+    :func:`coerce_to_semantic_class` asks it of the semantic class it is
+    about to validate into, which may declare a field a plain URI that the
+    stored base class declared a reference (#5513).
+    """
+    models = _field_model_classes(cls, field_name)
+    return models is None or bool(models)
+
+
+def _field_model_classes(cls: type, field_name: str) -> list[type] | None:
+    """The model classes *cls*'s annotation of *field_name* names.
+
+    ``None`` when *cls* does not declare the field, or declares it with no
+    annotation; an empty list when the field holds no model at all (a plain
+    URI).
+    """
     # ``PersistableModel`` is a Protocol, so ``model_fields`` is reached
     # defensively rather than assumed.
-    model_fields = getattr(type(obj), "model_fields", None)
+    model_fields = getattr(cls, "model_fields", None)
     field = model_fields.get(field_name) if model_fields else None
-    if field is None:
-        return True
-    annotation = field.annotation
-    if annotation is None:
-        return True
-    candidates = list(get_args(annotation)) or [annotation]
-    for candidate in candidates:
+    if field is None or field.annotation is None:
+        return None
+    models: list[type] = []
+    for candidate in get_args(field.annotation) or (field.annotation,):
         # Unwrap one more level for containers such as ``Ref[as_Foo]``.
-        parts = list(get_args(candidate)) or [candidate]
-        for part in parts:
+        for part in get_args(candidate) or (candidate,):
             if isinstance(part, type) and issubclass(part, BaseModel):
-                return True
-    return False
+                models.append(part)
+    return models
 
 
 def to_row(obj: PersistableModel) -> VultronObjectRecord:
@@ -498,6 +515,49 @@ def hydrate(dl: "SqliteDataLayer", obj: PersistableModel) -> PersistableModel:
     return obj
 
 
+def _declared_model_class(cls: type, field_name: str) -> type | None:
+    """The one model class *cls* declares *field_name* as, else ``None``."""
+    models = _field_model_classes(cls, field_name)
+    return models[0] if models is not None and len(models) == 1 else None
+
+
+def _collapse_by_reference_fields(
+    obj: BaseModel, model_cls: type
+) -> BaseModel:
+    """Return *obj* with each field *model_cls* takes by reference as an id.
+
+    :func:`rehydrate_fields` expands a reference by the *stored* class's
+    declared type, and the pattern match needs that expansion to confirm the
+    referent's type.  The semantic class may still declare the field a plain
+    URI — ``_ReadLogEntryActivity.object_`` (SYNC-17-001),
+    ``_RmInviteToFullCaseActivity.target`` (AKM-02-003) — so the expanded
+    object goes back to its id before validation (#5513).
+
+    A field *model_cls* declares as one model class is walked into with that
+    class, so an embedded activity is collapsed too: the full-case Invite
+    inside ``_RmAcceptFullCaseInviteActivity.object_`` hands over its
+    ``target`` as the case id.  A referent with no string id is left as it
+    is, and validation reports it as before.
+    """
+    updates: dict[str, object] = {}
+    for field_name in object_ref_fields(type(obj)):
+        value = getattr(obj, field_name, None)
+        if not isinstance(value, BaseModel):
+            continue
+        if not class_field_admits_object(model_cls, field_name):
+            ref_id = getattr(value, "id_", None)
+            if isinstance(ref_id, str) and ref_id:
+                updates[field_name] = ref_id
+            continue
+        nested_cls = _declared_model_class(model_cls, field_name)
+        if nested_cls is None or isinstance(value, nested_cls):
+            continue
+        collapsed = _collapse_by_reference_fields(value, nested_cls)
+        if collapsed is not value:
+            updates[field_name] = collapsed
+    return obj.model_copy(update=updates) if updates else obj
+
+
 def coerce_to_semantic_class(obj: PersistableModel) -> PersistableModel:
     """Coerce a base-vocabulary activity to its semantic subtype.
 
@@ -505,8 +565,11 @@ def coerce_to_semantic_class(obj: PersistableModel) -> PersistableModel:
     typed as a base vocabulary class (e.g. ``as_Offer``).  This function
     uses :func:`find_matching_semantics` to identify the semantic intent
     and, when a more specific class is registered in the semantic registry,
-    coerces via ``model_validate``.  An activity whose ``object_`` stayed a
-    bare id matches no pattern (SE-01-006), so it keeps its base class.
+    coerces via ``model_validate``.  A field the semantic class takes by
+    reference is handed over as its id, however rehydration expanded it
+    (:func:`_collapse_by_reference_fields`).  An activity whose ``object_``
+    stayed a bare id matches no pattern (SE-01-006), so it keeps its base
+    class.
     Coercion failures are logged as warnings and the original object is
     returned unchanged.
     """
@@ -525,7 +588,9 @@ def coerce_to_semantic_class(obj: PersistableModel) -> PersistableModel:
         return cast(
             PersistableModel,
             activity_cls.model_validate(
-                obj.model_dump(by_alias=True, serialize_as_any=True)
+                _collapse_by_reference_fields(obj, activity_cls).model_dump(
+                    by_alias=True, serialize_as_any=True
+                )
             ),
         )
     except (ValidationError, VultronValidationError, TypeError) as exc:
