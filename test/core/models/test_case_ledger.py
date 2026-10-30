@@ -284,6 +284,36 @@ class TestCaseLedgerEntry:
             "received_at or payload_snapshot was not preserved (ISSUE-2252 AC-4)"
         )
 
+    @pytest.mark.spec("CS-13-007")
+    @pytest.mark.parametrize(
+        "received_at",
+        [
+            _FIXED_CREATED_AT,
+            "2024-01-01T00:00:00Z",
+            "2024-01-01T00:00:00.000000+00:00",
+        ],
+        ids=["datetime", "whole-second-text", "fixed-form-text"],
+    )
+    def test_one_receipt_instant_hashes_alike_in_any_spelling(
+        self, received_at: object
+    ):
+        """The hash input writes ``received_at`` in the fixed form, so a
+        replica's spelling of the instant does not change the hash."""
+        entry = HashChainLedgerRecord.model_validate(
+            {
+                "case_id": CASE_ID,
+                "log_index": 0,
+                "object_id": OBJECT_ID,
+                "semantic_type": "test",
+                "prev_log_hash": _ZERO_HASH,
+                "received_at": received_at,
+            }
+        )
+        assert entry._hashable_dict()["received_at"] == (
+            "2024-01-01T00:00:00.000000+00:00"
+        )
+        assert entry.verify_hash()
+
     def test_term_defaults_to_none(self):
         entry = HashChainLedgerRecord(
             case_id=CASE_ID,
