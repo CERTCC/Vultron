@@ -63,7 +63,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 Every timestamp is an RFC 3339 date-time with an explicit offset, as AS2 requires.
 A Vultron node writes exactly six fractional-second digits, even when they are all zero, so one instant at one offset always has one string.
 The case ledger hashes and compares that text, so a second spelling would read as a different record.
-A receiver still accepts a timestamp written with fewer digits.
+The fixed form is what a Vultron node writes, not what it requires to receive: a timestamp written with fewer digits still parses, and a peer may send one.
 A timestamp it carries from a peer keeps the offset that peer sent, so the same instant at another offset stays another string.
 
 ```python exec="true" idprefix=""
@@ -325,6 +325,7 @@ The CASE_MANAGER has committed a case event to the case ledger and sends the ent
 Each participant checks that the entry's `prevLogHash` matches the `entryHash` of the last entry it holds ([§4.12 Ledger Replication Messages](layers.md#412-ledger-replication-messages)).
 The entry shown is the first in its case's ledger, so its `prevLogHash` is the case's own genesis hash ([CLP-08-001](requirements/ledger-replication.md#clp-08-001)).
 Its `published` is the CASE_MANAGER's commit stamp ([CLP-14-002](requirements/ledger-replication.md#clp-14-002)).
+The two digests below are illustrative: they show the fields' shape and are not computed over the example's own values, so recomputing them from what is shown will not reproduce them.
 
 === "Notation"
 

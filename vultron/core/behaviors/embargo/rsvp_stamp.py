@@ -72,7 +72,9 @@ class InviteRsvpStamp(ValidatedAssignmentMixin):
 
     published: datetime
     rsvp_deadline: datetime
-    _serialize_timestamps = timestamp_serializer("published", "rsvp_deadline")
+    _serialize_rsvp_stamp_times = timestamp_serializer(
+        "published", "rsvp_deadline"
+    )
     min_rsvp_window: timedelta
 
 

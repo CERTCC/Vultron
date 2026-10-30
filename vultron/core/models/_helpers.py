@@ -81,10 +81,11 @@ def format_timestamp(value: datetime) -> str:
     has one string; the case ledger hashes and compares that text
     (ADR-0167).  A carried time keeps its own offset (CS-13-005), so the
     same instant at ``+02:00`` is a different string, as it was received.
-    A naive value is read as UTC (CS-13-001), so no time reaches the wire
-    without an offset (CS-13-006).
+    A value with no usable offset -- naive, or carrying a ``tzinfo`` whose
+    ``utcoffset()`` is ``None`` -- is read as UTC (CS-13-001), so no time
+    reaches the wire without an offset (CS-13-006).
     """
-    if value.tzinfo is None:
+    if value.tzinfo is None or value.utcoffset() is None:
         value = value.replace(tzinfo=UTC)
     return value.isoformat(timespec="microseconds")
 
@@ -98,6 +99,17 @@ def timestamp_serializer(*fields: str) -> Any:
 
         received_at: datetime = Field(default_factory=now_utc)
         _serialize_received_at = timestamp_serializer("received_at")
+
+    This factory is not the only route to the form.  The four AS2 timestamps
+    every object inherits (``start_time``, ``end_time``, ``published``,
+    ``updated``) are covered by hand-written ``field_serializer`` methods on
+    the two roots instead -- ``CoreObject._serialize_datetime`` and
+    ``as_Object.serialize_datetime`` -- which call :func:`format_timestamp`
+    directly and account for most of the fields the ratchet walks.  What
+    CS-13-007 rests on is that *every* ``datetime`` field has a serializer
+    routing through :func:`format_timestamp`, not that each one uses this
+    factory; ``test_every_model_datetime_field_serializes_in_the_fixed_form``
+    is what holds that line.
 
     A decorator, not an ``Annotated`` serializer, because ``serialize_as_any``
     dumps (outbox delivery uses one) skip an ``Annotated`` serializer and fall

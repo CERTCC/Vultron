@@ -224,6 +224,12 @@ def test_get_actor_outbox_returns_empty_items_when_queue_is_empty(
     body = response.json()
     assert body.get("type") == "OrderedCollection"
     assert body.get("orderedItems", body.get("items", None)) == []
+    # The collection is a view the read synthesises, so it has no time of its
+    # own: the route passes ``published``/``updated`` as ``None`` and
+    # ``AS2JSONResponse`` excludes them, rather than stamping the clock
+    # (#5510, #5452).
+    assert "published" not in body
+    assert "updated" not in body
 
 
 def test_get_actor_outbox_returns_queued_activity_ids(

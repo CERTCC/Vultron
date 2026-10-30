@@ -387,16 +387,23 @@ groups:
     rationale: >-
       UTC is the form every node can write without configuration. A carried timestamp
       is part of an activity that the case ledger records verbatim (CLP-07-011). A
-      change from `+05:00` to `Z` keeps the instant but changes the recorded text, so
-      replicas then hold different records. This rule picks the offset only;
+      change from `+05:00` to `+00:00` keeps the instant but changes the offset, so
+      replicas then hold different records. What this rule keeps is the offset value,
+      not the spelling a peer chose for it: `Z` and `+00:00` are one offset, and a
+      carried `Z` serializes as `+00:00` because that is the only form
+      `format_timestamp` writes. This rule picks the offset only;
       CS-13-006 holds the separate rule that every wire timestamp has an explicit
       offset, and CS-13-007 fixes its fractional-second digits, which a carried
       timestamp takes like any other.
     verification: >-
+      In `test/wire/as2/test_timestamp_offsets.py`,
       `test_carried_non_utc_offset_round_trips_through_storage` asserts that an
       inbound `+05:00` `endTime` keeps that offset through parse, storage and
       serialization, and `test_minted_timestamp_serialises_with_a_utc_offset`
-      asserts a time this node mints serializes with `Z` or `+00:00`.
+      asserts a time this node mints serializes with `Z` or `+00:00`. In
+      `test/core/models/test_helpers.py`,
+      `test_one_instant_serializes_to_one_string` asserts that a carried `Z`
+      serializes as `+00:00` and a carried `+05:00` keeps its own offset.
     relationships:
     - rel_type: depends_on
       spec_id: CLP-15-007
@@ -457,6 +464,12 @@ groups:
     - rel_type: refines
       spec_id: CS-13-006
       note: fixes the fractional-second digits of the RFC 3339 form
+    - rel_type: constrains
+      spec_id: CLP-15-007
+      note: >-
+        A receiver carries a nested inbound timestamp as received, including at
+        rendering, but writes its fractional digits in this node's one form. The
+        instant and the offset are the peer's; the number of digits is not.
   - id: CS-13-008
     priority: MUST
     kind: project

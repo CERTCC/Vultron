@@ -71,7 +71,7 @@ class RsvpDeadline(ValidatedAssignmentMixin):
     computed: datetime
     minimum: datetime
     effective: datetime
-    _serialize_timestamps = timestamp_serializer(
+    _serialize_rsvp_deadline_times = timestamp_serializer(
         "requested", "computed", "minimum", "effective"
     )
     clamp: RsvpDeadlineClamp

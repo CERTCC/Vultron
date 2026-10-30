@@ -162,7 +162,7 @@ class VultronReplicationState(RetiredFieldsRecord):
         validation_alias="lastReseededAt",
         serialization_alias="lastReseededAt",
     )
-    _serialize_timestamps = timestamp_serializer(
+    _serialize_replication_times = timestamp_serializer(
         "last_acknowledged_published",
         "updated_at",
         "last_replayed_at",

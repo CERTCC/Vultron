@@ -434,13 +434,28 @@ def test_now_utc_keeps_microseconds(_frozen_clock: None) -> None:
             datetime(2026, 10, 30, 12, 0, 0),  # noqa: DTZ001
             "2026-10-30T12:00:00.000000+00:00",
         ),
+        (
+            datetime.fromisoformat("2026-10-30T12:00:00Z"),
+            "2026-10-30T12:00:00.000000+00:00",
+        ),
     ],
-    ids=["whole-second", "fractional", "carried-offset", "naive-read-as-utc"],
+    ids=[
+        "whole-second",
+        "fractional",
+        "carried-offset",
+        "naive-read-as-utc",
+        "carried-z-written-as-plus-zero",
+    ],
 )
 def test_one_instant_serializes_to_one_string(
     instant: datetime, expected: str
 ) -> None:
-    """Six digits whether or not the microseconds are zero; offset kept."""
+    """Six digits whether or not the microseconds are zero; offset kept.
+
+    A carried ``Z`` is written as ``+00:00``: CS-13-005 keeps the offset a
+    peer sent as an offset *value*, and ``Z`` and ``+00:00`` are one offset.
+    A carried ``+05:00`` is a different offset and keeps its own text.
+    """
     assert format_timestamp(instant) == expected
     reparsed = datetime.fromisoformat(expected)
     assert format_timestamp(reparsed) == expected

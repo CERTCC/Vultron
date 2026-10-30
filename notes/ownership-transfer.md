@@ -139,8 +139,9 @@ before the Offer's state is read (#4437).
   PCR-03-001).
 - **An answer names the CASE_MANAGER's Offer by its id.** The ledgered Offer is the
   one the transferee holds, so `recorded_ownership_offer()` reads the entry by its
-  `log_object_id` and follows no link (ADR-0148). Never match by time: two Offers
-  can share a stamp, and a late answer then closes the newer one (#4565).
+  `log_object_id` and follows no link (ADR-0148). Never match by time: a peer may
+  claim `published` at whole seconds (ADR-0167), so two Offers can share a stamp
+  and a late answer then closes the newer one (#4565).
 - **Either answer closes the Offer for the other.** The Accept and the Reject share
   `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, so an Accept after a Reject (or the
   reverse) is refused as "already answered".

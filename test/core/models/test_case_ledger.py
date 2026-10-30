@@ -317,7 +317,15 @@ class TestCaseLedgerEntry:
 
     @pytest.mark.parametrize("received_at", ["not a time", 12.5j])
     def test_an_unreadable_receipt_time_is_refused(self, received_at: object):
-        with pytest.raises(ValidationError):
+        """The hash input itself refuses a ``received_at`` it cannot read.
+
+        Both values would also be refused by ordinary field validation, so a
+        bare ``pytest.raises`` could not fail for the branch this names.  The
+        locus tells them apart: the model-level validator that builds the hash
+        input reports an empty ``loc``, while field validation reports
+        ``("received_at",)``.
+        """
+        with pytest.raises(ValidationError) as exc_info:
             HashChainLedgerRecord.model_validate(
                 {
                     "case_id": CASE_ID,
@@ -328,6 +336,7 @@ class TestCaseLedgerEntry:
                     "received_at": received_at,
                 }
             )
+        assert [e["loc"] for e in exc_info.value.errors()] == [()]
 
     def test_a_raw_datetime_in_a_snapshot_hashes_in_the_fixed_form(self):
         """``_canonical_bytes`` writes a stray ``datetime`` in the fixed form."""

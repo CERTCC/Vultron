@@ -6,7 +6,7 @@ updated: 2026-10-30
 revision: 1
 deciders: Allen D. Householder
 consulted: >-
-  Claude Opus 5.5; issues #5452, #5253; PR #5447;
+  Claude Opus 5.5; issues #5452, #5253; PR #5447; ADR-0103;
   specs/code-style.yaml CS-13; specs/sync-ledger-replication.yaml SYNC-16-008
 informed: []
 stakeholder_type: [project-contributor]
@@ -25,7 +25,7 @@ Whole seconds cost the order of acts.
 Two activities that one actor sends within the same second carry equal `published` times.
 The divergence-recovery rule had to treat an equal fault and acknowledgement time as a tie (#5253, PR #5447), and a helper exists only to bump a same-second stamp to the next second.
 
-How does this node keep one string per instant without losing the order of acts inside one second?
+How does this node keep one string per instant at one offset without losing the order of acts inside one second?
 
 ## Decision Drivers
 
@@ -53,6 +53,8 @@ The decision has three parts:
   A time this node creates carries a UTC offset, and a naive value is read as UTC before it is written (CS-13-001, CS-13-006).
   A carried time keeps the offset it arrived with (CS-13-005); only its fraction is written in the fixed form.
   Two spellings of one instant at different offsets therefore remain two strings, and two different records: that is CLP-15-007's "carry as received", not a gap in this decision.
+  This narrows the wording of ADR-0103, which takes a carried `published` or `updated` as received at every boundary, rendering included: the instant and the offset are still the peer's, and only the number of fractional digits is this node's.
+  ADR-0103's drivers hold unchanged — nothing is minted where a peer made no claim, and rendering one stored object twice still gives equal dicts — so that decision stands rather than being superseded.
 - **One place.** One formatting function writes the form, and every serialization path uses it: model JSON dumps, the case ledger's hash input, the genesis hash and the storage encoder.
 
 A peer may still send times at whole seconds.
@@ -67,7 +69,7 @@ The fixed form is what this node writes, not what it requires to receive.
 
 ## Validation
 
-- One instant serializes to one string whether or not its microseconds are zero.
+- One instant at one offset serializes to one string whether or not its microseconds are zero.
 - Every datetime field on a model serializes in the fixed form.
 - Two clock reads inside one second compare in order.
 - A carried time with a non-UTC offset keeps that offset in the fixed form.
