@@ -94,7 +94,8 @@ Their names say nothing about CVD roles, because one container plays different p
 | `actor4` | The Vendor that is also a Deployer, in `rcvcv` |
 | `case-actor` | The Case Actor, which manages each case and holds its canonical ledger |
 
-The first three containers always play the same part, so `actor2` is the Coordinator that receives the report in `rcv` and the Coordinator that owns the case in `rcvcv`.
+The first three containers always play the same part.
+`actor2` is the Coordinator that receives the report in `rcv`, and the one that owns the case in `rcvcv`.
 A scenario that seats no Coordinator leaves `actor2` idle: `rv` runs a Reporter and a Vendor only.
 
 `actor3` and `actor4` are character actors.

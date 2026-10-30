@@ -290,6 +290,19 @@ One path through the scenario tree from its root to an ending, registered as a
 `vultron-demo` sub-command.
 *Avoid*: demo (the whole demo program), story (the tree as a whole)
 
+**Cast**:
+The one set of actor containers every scenario of the tree runs on, with the same
+container, port and actor id for each member in every scenario. Its members are
+numbered, not named for a CVD role, because one container plays different parts in
+different scenarios.
+*Avoid*: actor slots, the topology, the compose services
+
+**Character actor**:
+A cast member with no fixed role, which takes the CVD role the act that seats it gives
+it — the role its Invite offers. The first Reporter, Vendor and Coordinator a scenario
+seats are not character actors: they always run in the first three cast members.
+*Avoid*: extra actor, neutral actor
+
 **Recording**:
 The canonical case ledger a scenario writes when it runs, captured deterministically so
 that replaying it shows exactly what Vultron did. Each replica is checked against it,

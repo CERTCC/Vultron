@@ -234,7 +234,7 @@ docker compose -f docker/docker-compose-multi-actor.yml \
 ```
 
 All of them should show `healthy` status.
-`rvv` runs on cast containers `actor0` (the Reporter), `actor1` (Vendor1) and `actor3` (Vendor2).
+`rvv` runs on [the cast](../../tutorials/container_demos.md#the-cast) containers `actor0` (the Reporter), `actor1` (Vendor1) and `actor3` (Vendor2).
 
 ### A milestone check fails with `❌`
 
