@@ -63,7 +63,8 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 Every timestamp is an RFC 3339 date-time with an explicit offset, as AS2 requires.
 A Vultron node writes exactly six fractional-second digits, even when they are all zero, so one instant at one offset always has one string.
 The case ledger hashes and compares that text, so a second spelling would read as a different record.
-A receiver still accepts a timestamp written with fewer digits, and a timestamp it carries from a peer keeps the offset that peer sent, so the same instant at another offset stays another string.
+A receiver still accepts a timestamp written with fewer digits.
+A timestamp it carries from a peer keeps the offset that peer sent, so the same instant at another offset stays another string.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CS-13-006", "CS-13-007", "CS-13-005"))
