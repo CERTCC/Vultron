@@ -140,10 +140,11 @@ groups:
     priority: SHOULD
     kind: project
     lint_suppress:
-    # compound_statement: one duty to keep maintainer docs in step with the
-    # change. The SHOULD names the preferred form and the MUST its minimum when
-    # the preferred form is not feasible; a split would create a MUST with no
-    # check to verify it and no parent marker to inherit.
+    # compound_statement: two obligations, held whole only because they cannot
+    # be split yet. The MUST fallback would become a new MUST that nothing
+    # checks, and this SHOULD parent carries no verification_debt marker for it
+    # to inherit, so the MS-10-016 guard would refuse its marker. Split it once
+    # the MUST half has a check, or once MS-10-016 lets such a child take debt.
     - compound_statement
     statement: >-
       A workflow or tooling PR SHOULD update maintainer-facing documentation in the
