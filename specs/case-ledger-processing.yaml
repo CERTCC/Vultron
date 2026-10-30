@@ -2129,7 +2129,8 @@ groups:
       A receive-side tree some of whose deliveries are answered by an act of the
       receiver's own instead of committing the received activity, such as the
       CASE_MANAGER's answer to a late embargo `Accept` (EMB-17) or a receiver's
-      ER once P/X/A is set (EMB-01-002, EMB-02-002), MUST pass each such answer
+      `Reject` of the Invite once P/X/A is set (EMB-01-002, EMB-02-004, EMB-03-004),
+      MUST pass each such answer
       to `create_receive_activity_tree` as a diversion among its precondition
       guards, so the tree, not the use case, chooses the answer (CLP-10-005).
       A diversion MUST have a read-only condition; when the condition holds,
@@ -2150,10 +2151,10 @@ groups:
       Some deliveries get an answer from the receiver in place of the admitted path. If
       the use case chooses between trees to give that answer, the choice is outside the
       tree, which the one-tree rule forbids (ADR-0135). These answers are not refusal
-      effects. The late-Accept answer commits and writes consent. The P/X/A ER is owed
-      by a participant too, and its derived id lets a redelivery find it already sent
-      (HP-01-003). A diversion keeps each answer in the one tree, where tests and
-      readers can see it.
+      effects. The late-Accept answer commits and writes consent. The P/X/A `Reject` of
+      the Invite is owed by a participant too, and its derived id lets a redelivery
+      find it already sent (HP-01-003). A diversion keeps each answer in the one tree,
+      where tests and readers can see it.
     verification: >-
       `test/core/behaviors/case/nodes/test_diversion_stage.py` asserts a
       diversion that does not hold lets the tree continue, one that holds runs
@@ -2166,7 +2167,7 @@ groups:
       clock-decision stage or a CASE_MANAGER diversion; the embargo Accept and
       Invite handler tests assert each diverted delivery's verdict and
       effects, and `test_embargo_refusal_notice.py` that an Accept answered
-      with ER gets no refusal notice.
+      with a `Reject` of the Invite gets no refusal notice.
     relationships:
     - rel_type: refines
       spec_id: CLP-10-005
@@ -2174,6 +2175,10 @@ groups:
       spec_id: CLP-10-010
     adr:
     - ADR-0135
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5310, which only reworded the stale
+    # ER example; the split into one obligation per ID belongs to #5218 (ledger slice).
+    - compound_statement
   - id: CLP-10-027
     priority: MUST
     kind: project

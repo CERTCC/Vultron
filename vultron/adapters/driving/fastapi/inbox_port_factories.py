@@ -240,10 +240,10 @@ _CLOSE_CASE_SEMANTICS = frozenset({MessageSemantics.CLOSE_CASE})
 # _case_proposal_port_factory.  Separate set for the same reason as above.
 _CASE_PROPOSAL_SEMANTICS = frozenset({MessageSemantics.CREATE_CASE_PROPOSAL})
 
-# INVITE_TO_EMBARGO_ON_CASE and ACCEPT_INVITE_TO_EMBARGO_ON_CASE emit ER when
-# P/X/A is set (EMB-01-002, EMB-02-002), so they need the trigger port; the
-# CASE_MANAGER's relay and EMB-17-003 re-invite also stamp the RSVP deadline
-# from the local ActorConfig (CM-28-012).  See
+# INVITE_TO_EMBARGO_ON_CASE and ACCEPT_INVITE_TO_EMBARGO_ON_CASE emit a Reject
+# of the Invite when P/X/A is set (EMB-01-002, EMB-02-004), so they need the
+# trigger port; the CASE_MANAGER's relay and EMB-17-003 re-invite also stamp
+# the RSVP deadline from the local ActorConfig (CM-28-012).  See
 # _trigger_activity_with_actor_config_port_factory.
 _EMBARGO_INVITE_SEMANTICS = frozenset(
     {

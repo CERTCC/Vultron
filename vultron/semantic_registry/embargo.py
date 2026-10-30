@@ -310,7 +310,7 @@ ENTRIES: list[SemanticEntry] = [
         include_activity=True,
         # A Participant's Reject is its own consent and carries no shorthand
         # (MSM-02-010, MSM-07-004); the CASE_MANAGER's Reject abandons the
-        # proposal and is ER (MSM-02-006, EMB-16-001).
+        # proposal and is ER (MSM-02-006, MSM-07-016, EMB-16-001).
         occasions=(
             Occasion(
                 when="a Participant refuses proposed embargo terms",

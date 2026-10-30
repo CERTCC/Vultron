@@ -100,6 +100,8 @@ def _case_managed_by_someone_else(
 
 @pytest.mark.spec("EP-09-008")
 @pytest.mark.spec("EP-09-014")
+@pytest.mark.spec("EP-09-017")
+@pytest.mark.spec("EP-09-018")
 def test_non_manager_trigger_asks_and_writes_no_em_state(
     finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:

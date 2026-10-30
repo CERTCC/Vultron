@@ -204,7 +204,7 @@ class TestRejectEmbargoTriggerBt:
             activity_builder=activity_builder,
         )
         # The CASE_MANAGER's own Reject is its row's Update, never a Reject
-        # (MSM-07-004, ADR-0152).
+        # (MSM-07-017, ADR-0152).
         _assert_manager_arm_order(
             tree,
             RejectEmbargoLifecycleNode,

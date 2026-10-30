@@ -457,7 +457,7 @@ def reject_embargo_trigger_bt(
     has a stake in (EP-09-002), sends no ``Reject``: the CASE_MANAGER's
     ``Reject`` of a proposal is its abandonment of it (EMB-16-001,
     ADR-0152), so its own consent is committed as its ``Update(EmbargoConsent)``
-    of the row (:class:`CommitOwnConsentDecisionNode`, MSM-07-004), whose
+    of the row (:class:`CommitOwnConsentDecisionNode`, MSM-07-017), whose
     snapshot it writes to ``own_consent_out["activity"]`` when given.
     """
     return py_trees.composites.Sequence(
@@ -618,11 +618,11 @@ def reject_proposed_embargo_bt(
        ``Add(CaseStatus)`` declaration.
     4. As any other participant: no EM write and no ask (EMB-16-002,
        #4148).  The manager has the P/X/A signal from the status
-       declaration and abandons on its own detection; an ER sent on the
-       case's behalf would read as this participant's DECLINE.  A
+       declaration and abandons on its own detection; a ``Reject`` sent on
+       the case's behalf would read as this participant's DECLINE.  A
        proposal, Invite or revision the participant *receives* while the
-       case is at P/X/A is a different matter: it answers that with ER
-       (EMB-01-002) on the received path, not here.
+       case is at P/X/A is a different matter: it answers that with its
+       own ``Reject`` of the Invite (EMB-01-002) on the received path, not here.
     """
     return py_trees.composites.Sequence(
         name="RejectProposedEmbargoBT",

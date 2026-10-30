@@ -412,8 +412,8 @@ def invite_to_embargo_on_case_tree(
 
     **The door guards and the P/X/A refusal precede both arms**: a copy not
     addressed to this receiver is refused (HP-01-005), then a sender without
-    standing (HP-01-006).  Once P/X/A is set, the Invite is refused with ER
-    (EMB-01-002, EMB-03-003) by a diversion of the tree
+    standing (HP-01-006).  Once P/X/A is set, the Invite is refused with a
+    ``Reject`` of it (EMB-01-002, EMB-03-004) by a diversion of the tree
     (:func:`~vultron.core.behaviors.embargo.refusal_tree.pxa_invite_refusal`,
     CLP-10-026): its invitee answers the CASE_MANAGER, the CASE_MANAGER the
     proposer, and neither arm runs.
@@ -522,7 +522,7 @@ def invite_to_embargo_on_case_tree(
             EmbargoProposalNotYetRecordedNode(
                 case_id=case_id, embargo_id=embargo_id, invite_id=invite_id
             ),
-            # EMB-01-002: with P/X/A set the Invite is answered with ER and
+            # EMB-01-002: with P/X/A set the Invite is answered with a Reject and
             # moves nothing, at the CASE_MANAGER and at a participant alike.
             pxa_invite_refusal(
                 case_id=case_id,

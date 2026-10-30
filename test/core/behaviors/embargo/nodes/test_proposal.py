@@ -106,7 +106,7 @@ class TestRecordParticipantRejectionNode:
             participant.consent_for(embargo_id) is EmbargoConsentState.DECLINED
         )
 
-    @pytest.mark.spec("MSM-07-004")
+    @pytest.mark.spec("MSM-07-014")
     def test_a_signatorys_reject_of_the_embargo_in_force_fails(
         self, dl: SqliteDataLayer
     ):
@@ -229,6 +229,7 @@ class TestRecordParticipantAcceptanceNode:
         return case, active.id_, revision.id_, owner_p.id_
 
     @pytest.mark.spec("MSM-07-003")
+    @pytest.mark.spec("MSM-07-011")
     def test_owners_accept_of_a_revision_is_consent_and_reads_no_embargo(
         self, dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
     ):

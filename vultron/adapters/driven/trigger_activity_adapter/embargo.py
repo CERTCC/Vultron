@@ -264,8 +264,8 @@ class _EmbargoMixin:
         a sealed ``Reject`` that is no longer pending may have been delivered
         or may never have been queued; the queue cannot say which.  It is
         queued again under the same id and body, which the receiver
-        deduplicates, so a failure between the two writes never loses the ER
-        (ID-04-005).  A ``Reject`` still pending is left alone.
+        deduplicates, so a failure between the two writes never loses the
+        refusal (ID-04-005).  A ``Reject`` still pending is left alone.
         """
         return requeue_if_sealed(self._dl, _reject_id(actor, proposal_id))
 

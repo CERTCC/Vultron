@@ -47,7 +47,7 @@ class CanAnswerEmbargoInviteNode(DataLayerConditionWithPorts):
     missing either is a partial replica (Regime 2, ADR-0087): it keeps the
     Invite and answers nothing, and the WARNING says so.  This is the accept
     path: the P/X/A refusal, which runs before it, answers an Invite whose
-    terms it does not hold too, since the ER names the Invite by id
+    terms it does not hold too, since the ``Reject`` names the Invite by id
     (ADR-0123).
 
     A copy whose ``to`` does not name this actor never gets here: the
@@ -175,7 +175,7 @@ class SendEmbargoInviteAnswerNode(_SendEmbargoActivityBase):
     Addressed to the case's CASE_MANAGER (EP-09-003, PCR-08-001) and built by
     the trigger-activity port from the stored Invite.  A ``recipient_id``
     overrides the CASE_MANAGER for an answer that goes elsewhere: the
-    CASE_MANAGER's ER to the actor whose proposal or Accept it refuses.
+    CASE_MANAGER's ``Reject`` to the actor whose proposal or Accept it refuses.
 
     **Fails by raising, never by returning FAILURE.**  The node is the action
     of an arm in the EMB-15 response Selector, so a FAILURE from the accept

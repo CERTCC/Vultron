@@ -1184,8 +1184,8 @@ groups:
     statement: >-
       `UPDATE_EMBARGO_CONSENT` MUST be represented as `Update(EmbargoConsent)`,
       carrying the changed consent row in full. Only the CASE_MANAGER sends it, as its
-      own act when it changes a consent row, its own consent included (MSM-07-004,
-      CLP-07-013), and it is not handled on receipt (SE-05-002, ADR-0140).
+      own act when it changes a consent row, its own consent included (MSM-07-017,
+      CLP-07-013). It is not handled on receipt (SE-05-002, ADR-0140).
     rationale: >-
       An entry's semantic type is the registry's label for its payload (ADR-0140).
       An expired invitation is this `Update` carrying the invitee's `TIMED_OUT` row
@@ -1196,7 +1196,7 @@ groups:
       `update_embargo_consent` example maps to `UPDATE_EMBARGO_CONSENT`.
     relationships:
     - rel_type: refines
-      spec_id: MSM-07-004
+      spec_id: MSM-07-017
     adr:
     - ADR-0140
     stories:

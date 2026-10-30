@@ -232,7 +232,7 @@ The trigger refuses the withdrawal in three cases:
     `Reject(Invite(EmbargoEvent))` refuses terms.
     It is not a way to leave an embargo that you agreed to.
     A `Reject` of the embargo in force from an `AGREED` row is refused.
-    A `reject-embargo` with no `proposal_id` rejects an open revision, and your consent to the embargo in force stays `AGREED` (MSM-07-004).
+    A `reject-embargo` with no `proposal_id` rejects an open revision, and your consent to the embargo in force stays `AGREED` (MSM-07-015).
 
 ---
 

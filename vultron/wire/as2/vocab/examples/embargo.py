@@ -195,7 +195,7 @@ def update_embargo_consent() -> as_Update:
     CASE_MANAGER moves the invitee's row to ``TIMED_OUT`` and commits the
     changed row in full as its own ``update_embargo_consent`` entry
     (CM-28-009, ADR-0140).  It records a change of its own consent the same
-    way (MSM-07-004).
+    way (MSM-07-017).
     """
     _case = case()
     row = EmbargoConsent(
@@ -229,7 +229,7 @@ def abandon_embargo_proposal() -> as_Reject:
 
     Once the case is public, an exploit is public or attacks are observed
     while the proposal is open, the CASE_MANAGER rejects the proposal, which
-    cancels it (MSM-02-006).  Its Reject is not its consent (MSM-07-004).
+    cancels it (MSM-02-006).  Its Reject is not its consent (MSM-07-016).
     It is addressed to nobody: each participant learns of it from the
     ledger entry.
     """

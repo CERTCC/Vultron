@@ -200,8 +200,8 @@ once (CLP-11-001). It is the interim per-request read; the ask-kind registry
 
 **The pending-assertion store has a second client.** Embargo triggers that do
 not hold the CASE_MANAGER role emit their proposal, answer or termination to the
-manager, write no EM state (EP-09-008), and record it in the pending-assertion
-store (EP-09-014). Every asker records through `record_pending_assertion()` and checks
+manager, write no EM state (EP-09-017), and record it in the pending-assertion
+store (EP-09-018). Every asker records through `record_pending_assertion()` and checks
 repeats through `suppressed_repeat_reason()`
 (`vultron/core/models/pending_assertion.py`, ASK-04-008), including the P/X/A
 cascade's teardown ask. An embargo repeat carries a fresh activity id, so its
@@ -209,8 +209,9 @@ entry carries a `subject_id` (the offered terms, the answered proposal, or the
 ended embargo) and a repeat inside the window queues nothing. The store stays a
 duplicate suppressor that never holds case state (CLP-06-002). An announced commit
 clears the entry (SYNC-11-003); a refused proposal is never committed, so only
-the CASE_MANAGER's received `Reject` of it closes the entry, as its ER does a
-refused `Accept` (`close_refused_embargo_ask`, `received/_pending_refusal.py`).
+the CASE_MANAGER's received `Reject` of it closes the entry, as its `Reject` of
+the Invite does a refused `Accept` (EP-09-019, `close_refused_embargo_ask`,
+`received/_pending_refusal.py`).
 
 **Asks are visible to the whole case.** An ask is an ordinary recorded entry and
 replicates normally (ASK-06-001), so a stalled decision is visible to participants.
