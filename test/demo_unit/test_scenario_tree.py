@@ -211,7 +211,7 @@ def test_every_choice_is_taken_by_a_registered_scenario() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("DEMOCI-11-014")
+@pytest.mark.spec("DEMOCI-11-014", "DEMOCI-11-023")
 @pytest.mark.parametrize(
     ("path", "match"),
     [
@@ -227,7 +227,7 @@ def test_a_malformed_path_is_refused(path: Any, match: str) -> None:
         validate_path(path)
 
 
-@pytest.mark.spec("DEMOCI-11-014")
+@pytest.mark.spec("DEMOCI-11-023")
 def test_spec_refuses_an_unknown_branch_point() -> None:
     spec = _specs_by_name()["rv"]
     with pytest.raises(DemoScenarioRegistryError, match="invalid path"):
@@ -241,7 +241,7 @@ def test_spec_refuses_a_mutable_path() -> None:
         replace(spec, path=list(spec.path))  # type: ignore[arg-type]
 
 
-@pytest.mark.spec("DEMOCI-11-014")
+@pytest.mark.spec("DEMOCI-11-022")
 def test_a_branch_point_may_recur_on_one_path() -> None:
     """A node is keyed by its prefix, so a repeated decision is two nodes."""
     rv = _specs_by_name()["rv"]
@@ -260,11 +260,11 @@ def test_a_branch_point_may_recur_on_one_path() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Tree well-formedness on mutated fixture registries (DEMOCI-11-014)
+# Tree well-formedness on mutated fixture registries (DEMOCI-11-023)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("DEMOCI-11-014")
+@pytest.mark.spec("DEMOCI-11-023")
 def test_two_scenarios_with_the_same_path_fail_discovery(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -278,7 +278,7 @@ def test_two_scenarios_with_the_same_path_fail_discovery(
         discover_scenarios()
 
 
-@pytest.mark.spec("DEMOCI-11-014")
+@pytest.mark.spec("DEMOCI-11-023")
 @pytest.mark.parametrize("shorter", ["rvcv-extension", "rvcv-handoff"])
 def test_a_path_that_is_a_strict_prefix_of_another_fails_discovery(
     monkeypatch: pytest.MonkeyPatch, shorter: str
@@ -298,7 +298,7 @@ def test_a_path_that_is_a_strict_prefix_of_another_fails_discovery(
         discover_scenarios()
 
 
-@pytest.mark.spec("DEMOCI-11-014")
+@pytest.mark.spec("DEMOCI-11-023")
 def test_two_decisions_at_one_node_fail_discovery(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -319,7 +319,7 @@ def test_two_decisions_at_one_node_fail_discovery(
         discover_scenarios()
 
 
-@pytest.mark.spec("DEMOCI-11-014")
+@pytest.mark.spec("DEMOCI-11-014", "DEMOCI-11-023")
 def test_committed_registry_is_one_tree_with_every_scenario_one_ending() -> (
     None
 ):
