@@ -66,7 +66,7 @@ import logging
 from datetime import datetime
 from typing import Any, Self
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, TypeAdapter, model_validator
 
 from vultron.core.models._helpers import (
     format_timestamp,
@@ -77,6 +77,10 @@ from vultron.core.models.base import NonEmptyString, ValidatedAssignmentMixin
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
 logger = logging.getLogger(__name__)
+
+#: Reads a ``received_at`` the way the field does, so the hash input accepts
+#: every spelling the stored field accepts.
+_RECEIVED_AT: TypeAdapter[datetime] = TypeAdapter(datetime)
 
 # ---------------------------------------------------------------------------
 # Per-case genesis hash (CLP-08-001, CLP-08-002)
@@ -134,8 +138,9 @@ def _canonical_bytes(data: dict[str, Any]) -> bytes:
 
     Uses ``sort_keys=True`` and compact separators to produce a
     RFC 8785 JCS-compatible canonical form suitable for cryptographic hashing.
-    ``datetime`` objects and other non-JSON-native types are coerced to
-    strings via ``default=str``.
+    A ``datetime`` is written in the fixed form of :func:`format_timestamp`
+    (CS-13-007); any other non-JSON-native value is refused.  Snapshots
+    reach here as JSON-mode dumps, so neither normally occurs.
 
     Args:
         data: A dict whose values are JSON-serialisable.
@@ -147,8 +152,17 @@ def _canonical_bytes(data: dict[str, Any]) -> bytes:
         data,
         sort_keys=True,
         separators=(",", ":"),
-        default=str,
+        default=_canonical_default,
     ).encode("utf-8")
+
+
+def _canonical_default(value: Any) -> str:
+    """Write a ``datetime`` in the fixed form; refuse anything else."""
+    if isinstance(value, datetime):
+        return format_timestamp(value)
+    raise TypeError(
+        f"Object of type {type(value).__name__} has no canonical JSON form"
+    )
 
 
 def _sha256_hex(data: dict[str, Any]) -> str:
@@ -254,9 +268,7 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
             data["received_at"] = now_utc()
         received_val = data["received_at"]
         received_iso = format_timestamp(
-            received_val
-            if isinstance(received_val, datetime)
-            else datetime.fromisoformat(str(received_val))
+            _RECEIVED_AT.validate_python(received_val)
         )
         hashable = {
             "case_id": data.get("case_id", ""),

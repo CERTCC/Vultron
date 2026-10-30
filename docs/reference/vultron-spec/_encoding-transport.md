@@ -61,9 +61,9 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 
 **Timestamps have one written form.**
 Every timestamp is an RFC 3339 date-time with an explicit offset, as AS2 requires.
-A Vultron node writes exactly six fractional-second digits, even when they are all zero, so one instant always has one string.
-The case ledger hashes and compares that text, so a second spelling of the same instant would read as a different record.
-A receiver still accepts a timestamp written with fewer digits, and keeps the offset a carried timestamp arrived with.
+A Vultron node writes exactly six fractional-second digits, even when they are all zero, so one instant at one offset always has one string.
+The case ledger hashes and compares that text, so a second spelling would read as a different record.
+A receiver still accepts a timestamp written with fewer digits, and a timestamp it carries from a peer keeps the offset that peer sent, so the same instant at another offset stays another string.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CS-13-006", "CS-13-007", "CS-13-005"))
@@ -352,7 +352,7 @@ Its `published` is the CASE_MANAGER's commit stamp ([CLP-14-002](requirements/le
         "payloadSnapshot": {},
         "prevLogHash": "17334082900cbfad3b45787a0ef507390580bdf1508d78e3597435d79339ab3d",
         "entryHash": "0dabc4e69c51c1fa7e30595ff3357fdcb1fbe4581aed3534bec1e92c30e84549",
-        "receivedAt": "2026-05-31T12:00:00Z"
+        "receivedAt": "2026-05-31T12:00:00.000000+00:00"
       }
     }
     ```

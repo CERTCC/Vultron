@@ -39,6 +39,7 @@ from unittest.mock import MagicMock
 
 import py_trees
 import pytest
+from pydantic import ValidationError
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case_ledger import (
@@ -313,6 +314,29 @@ class TestCaseLedgerEntry:
             "2024-01-01T00:00:00.000000+00:00"
         )
         assert entry.verify_hash()
+
+    @pytest.mark.parametrize("received_at", ["not a time", 12.5j])
+    def test_an_unreadable_receipt_time_is_refused(self, received_at: object):
+        with pytest.raises(ValidationError):
+            HashChainLedgerRecord.model_validate(
+                {
+                    "case_id": CASE_ID,
+                    "log_index": 0,
+                    "object_id": OBJECT_ID,
+                    "semantic_type": "test",
+                    "prev_log_hash": _ZERO_HASH,
+                    "received_at": received_at,
+                }
+            )
+
+    def test_a_raw_datetime_in_a_snapshot_hashes_in_the_fixed_form(self):
+        """``_canonical_bytes`` writes a stray ``datetime`` in the fixed form."""
+        stamp = datetime(2024, 1, 1, tzinfo=UTC)
+        assert _canonical_bytes({"at": stamp}) == (
+            b'{"at":"2024-01-01T00:00:00.000000+00:00"}'
+        )
+        with pytest.raises(TypeError, match="no canonical JSON form"):
+            _canonical_bytes({"x": object()})
 
     def test_term_defaults_to_none(self):
         entry = HashChainLedgerRecord(

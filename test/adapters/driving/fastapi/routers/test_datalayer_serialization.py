@@ -306,3 +306,36 @@ def test_datalayer_contents_type_filter_accepts_several_types(
 
     assert response.status_code == 200, response.text
     assert set(response.json()) == {report.id_, record.id_}
+
+
+@pytest.mark.spec("CS-13-007")
+def test_a_record_read_by_type_and_id_answers_in_the_fixed_form(
+    client, datalayer
+):
+    """The by-type read writes a record's times with six digits.
+
+    A ``CoreRecord`` has no wire class, so the route answers with its own
+    dump; that dump is JSON mode, so the record's serializers run.
+    """
+    from datetime import UTC, datetime
+
+    from vultron.core.models.invite_resend_record import InviteResendRecord
+
+    record = InviteResendRecord(
+        invite_id="https://example.org/activities/invite-1",
+        peer_id="https://example.org/actors/peer",
+        last_resent_at=datetime(2026, 10, 30, 12, 0, tzinfo=UTC),
+    )
+    datalayer.create(record)
+
+    response = client.get(
+        f"/api/v2/actors/{ACTOR_SEGMENT}/datalayer/InviteResendRecord/"
+        f"{record.id_}"
+    )
+
+    assert response.status_code == 200, response.text
+    # A ``CoreRecord`` carries no camelCase alias generator (ARCH-25-002), so
+    # the key is the field name.
+    assert response.json()["last_resent_at"] == (
+        "2026-10-30T12:00:00.000000+00:00"
+    )

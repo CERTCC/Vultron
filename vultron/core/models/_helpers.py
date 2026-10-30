@@ -77,10 +77,15 @@ def format_timestamp(value: datetime) -> str:
 
     RFC 3339 with exactly six fractional-second digits and the offset the
     value carries: ``2026-10-30T12:00:00.000000+00:00``.  The digits are
-    written even when the microseconds are zero, so one instant has one
-    string; the case ledger hashes and compares that text (ADR-0167).  A
-    carried time keeps its own offset (CS-13-005).
+    written even when the microseconds are zero, so one instant at one offset
+    has one string; the case ledger hashes and compares that text
+    (ADR-0167).  A carried time keeps its own offset (CS-13-005), so the
+    same instant at ``+02:00`` is a different string, as it was received.
+    A naive value is read as UTC (CS-13-001), so no time reaches the wire
+    without an offset (CS-13-006).
     """
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
     return value.isoformat(timespec="microseconds")
 
 

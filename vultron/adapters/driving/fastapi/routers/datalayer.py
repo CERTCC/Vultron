@@ -141,7 +141,9 @@ def _serve_stored(obj: PersistableModel) -> AS2JSONResponse | dict[str, Any]:
     """
     if isinstance(obj, (as_Base, CoreObject)):
         return AS2JSONResponse(obj)
-    return obj.model_dump(by_alias=True, serialize_as_any=True)
+    # JSON mode, so a bookkeeping row's own serializers run and every time it
+    # carries is answered in the fixed form (CS-13-007).
+    return obj.model_dump(mode="json", by_alias=True, serialize_as_any=True)
 
 
 # Declared ahead of ``/{object_type}/{object_id}``: routes match in

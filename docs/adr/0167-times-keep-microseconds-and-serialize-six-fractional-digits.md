@@ -29,7 +29,7 @@ How does this node keep one string per instant without losing the order of acts 
 
 ## Decision Drivers
 
-- One instant must have one serialized form, because the ledger hashes and compares the text.
+- One instant, written by one node at one offset, must have one serialized form, because the ledger hashes and compares the text.
 - Acts that one actor sends in order must carry times in that order where the clock can show it.
 - A time carried from a peer keeps the offset it arrived with (CS-13-005), because a changed offset changes the recorded text.
 - No backward compatibility is owed to stored or replicated data from before the change.
@@ -50,8 +50,9 @@ The decision has three parts:
 
 - **Precision.** A time this node creates keeps its microseconds.
 - **One form.** Every time this node serializes, whether it created the time or carries it from a peer, is written as an RFC 3339 date-time with exactly six fractional digits and an explicit offset.
-  A time this node creates carries a UTC offset.
+  A time this node creates carries a UTC offset, and a naive value is read as UTC before it is written (CS-13-001, CS-13-006).
   A carried time keeps the offset it arrived with (CS-13-005); only its fraction is written in the fixed form.
+  Two spellings of one instant at different offsets therefore remain two strings, and two different records: that is CLP-15-007's "carry as received", not a gap in this decision.
 - **One place.** One formatting function writes the form, and every serialization path uses it: model JSON dumps, the case ledger's hash input, the genesis hash and the storage encoder.
 
 A peer may still send times at whole seconds.
@@ -60,7 +61,7 @@ The fixed form is what this node writes, not what it requires to receive.
 ### Consequences
 
 - Good: two acts one actor sends inside one second carry ordered times, so a same-second tie is rare rather than routine.
-- Good: one instant has one string, whether or not its microseconds are zero.
+- Good: one instant written at one offset has one string, whether or not its microseconds are zero.
 - Neutral: a rule that compares times a peer claimed must still treat a tie with care, because a peer may write whole seconds.
 - Bad: every stored ledger hash and every wire example that pins a whole-second string changes; stores written before the change are reset rather than migrated.
 

@@ -430,8 +430,12 @@ def test_now_utc_keeps_microseconds(_frozen_clock: None) -> None:
             ),
             "2026-10-30T17:00:00.000000+05:00",
         ),
+        (
+            datetime(2026, 10, 30, 12, 0, 0),  # noqa: DTZ001
+            "2026-10-30T12:00:00.000000+00:00",
+        ),
     ],
-    ids=["whole-second", "fractional", "carried-offset"],
+    ids=["whole-second", "fractional", "carried-offset", "naive-read-as-utc"],
 )
 def test_one_instant_serializes_to_one_string(
     instant: datetime, expected: str

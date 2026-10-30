@@ -388,12 +388,14 @@ groups:
       UTC is the form every node can write without configuration. A carried timestamp
       is part of an activity that the case ledger records verbatim (CLP-07-011). A
       change from `+05:00` to `Z` keeps the instant but changes the recorded text, so
-      replicas then hold different records. CS-13-006 holds the separate rule that
-      every wire timestamp has an explicit offset.
+      replicas then hold different records. This rule picks the offset only;
+      CS-13-006 holds the separate rule that every wire timestamp has an explicit
+      offset, and CS-13-007 fixes its fractional-second digits, which a carried
+      timestamp takes like any other.
     verification: >-
       `test_carried_non_utc_offset_round_trips_through_storage` asserts that an
-      inbound `+05:00` `endTime` round-trips through parse, storage and
-      serialization unchanged, and `test_minted_timestamp_serialises_with_a_utc_offset`
+      inbound `+05:00` `endTime` keeps that offset through parse, storage and
+      serialization, and `test_minted_timestamp_serialises_with_a_utc_offset`
       asserts a time this node mints serializes with `Z` or `+00:00`.
     relationships:
     - rel_type: depends_on
@@ -432,11 +434,14 @@ groups:
       with exactly six fractional-second digits, whether or not its microseconds are
       zero.
     rationale: >-
-      The case ledger hashes and compares timestamp text, so one instant needs one
-      string. Whole seconds gave one string but made two acts one actor sends in the
-      same second carry equal times; the fixed six-digit form keeps one string per
-      instant and keeps that order. The form is what this node writes, not what it
-      requires to receive: a peer may send whole seconds (ADR-0167).
+      The case ledger hashes and compares timestamp text, so one instant at one
+      offset needs one string. Whole seconds gave one string but made two acts one
+      actor sends in the same second carry equal times; the fixed six-digit form
+      keeps that one string and keeps the order. It fixes the fraction only: a
+      carried timestamp keeps its own offset (CS-13-005, CLP-15-007), so the same
+      instant at another offset is still another string. The form is what this node
+      writes, not what it requires to receive: a peer may send whole seconds
+      (ADR-0167).
     verification: >-
       `test_one_instant_serializes_to_one_string` in `test/core/models/test_helpers.py`
       asserts the fixed form with and without microseconds, and
