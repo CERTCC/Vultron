@@ -266,6 +266,7 @@ def test_manager_teardown_is_queued_before_it_is_committed(
 
 
 @pytest.mark.spec("EP-09-008")
+@pytest.mark.spec("VP-11-012")
 def test_non_manager_terminate_asks_the_case_manager(
     finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:

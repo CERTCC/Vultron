@@ -1895,7 +1895,10 @@ groups:
     rationale: >-
       Known attacks mean the embargo should end (VP-09-003). As with VP-11-002, one
       party holds the authority to end it, so participants never disagree about whether
-      it still holds.
+      it still holds. The Case Owner may delegate this decision in advance, for example
+      by configuring `CaseOwnerApprovesStatusUpdate` to approve reported attacks
+      automatically (RSH-07-003), which then also ends the embargo (ADR-0166). The
+      decision is made ahead of time, and the authority stays with the Case Owner.
     note: >-
       Rephrased from "Participants SHOULD terminate the embargo" for the same reason as
       VP-11-002 (CONCERN-3280). The SHOULD it carried is the recommendation to terminate,
@@ -1903,7 +1906,11 @@ groups:
       always unconditional, so the statement that keeps it carries MUST. This adds no
       obligation: CM-02-005 already restricts terminating an active embargo to the Case
       Owner as a MUST.
-    verification_debt: '#3612'
+    verification: >-
+      Tests marked `VP-11-006` deliver a `Remove(EmbargoEvent)` to the CASE_MANAGER with
+      attacks known ($q^{cs} \in \cdots A$) and with none. They assert that one from a
+      participant other than the Case Owner is `REFUSED` with the embargo still active,
+      and that the Case Owner's is applied and exits the embargo.
     stories:
     - story_2022_019
   - id: VP-11-007
@@ -1957,7 +1964,11 @@ groups:
       announces the decision.
     note: >-
       Split from VP-11-002 and VP-11-006 (#5298, MS-03-001).
-    verification_debt: '#3612'
+    verification: >-
+      Tests marked `VP-11-011` assert that the CASE_MANAGER applies the Case Owner's
+      `Remove(EmbargoEvent)` and exits the embargo, and that a managing owner's
+      termination is committed to the ledger and fanned out to every other participant,
+      whose replica then exits the embargo.
     stories:
     - story_2022_018
   - id: VP-11-012
@@ -1974,7 +1985,11 @@ groups:
       Owner (VP-11-002).
     note: >-
       Split from VP-11-002 (#5298, MS-03-001).
-    verification_debt: '#3612'
+    verification: >-
+      Tests marked `VP-11-012` assert that a participant other than the Case Owner
+      leaves the case-level embargo active: its terminate trigger only asks the
+      CASE_MANAGER, its `Remove(EmbargoEvent)` is `REFUSED` by the CASE_MANAGER, and at
+      P/X/A it answers a revision with ER and never emits ET.
     stories:
     - story_2022_018
 - id: VP-12
