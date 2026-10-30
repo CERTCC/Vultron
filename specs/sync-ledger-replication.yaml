@@ -2113,11 +2113,12 @@ groups:
       copy may have been lost in transit, or the entry replayed before the copy
       arrived. A fault the peer sent before acknowledging is recovery too: a replay
       refused before the copy arrived, delivered late because arrival order is not
-      guaranteed (SYNC-19). A tie counts as recovery: `published` has whole-second
-      precision, so a refusal and the acknowledgement that follows it can share a
+      guaranteed (SYNC-19). A tie counts as recovery: a Vultron peer writes
+      microseconds (CS-13-007), so its refusal and the acknowledgement that follows
+      it rarely tie, but a peer may claim whole seconds, and then the two can share a
       second; a defect fault sent in that same second reads as recovery once. The
-      two times compared are both the peer's own claims, so
-      they share its clock and no skew between machines enters the comparison. The
+      two times compared are both the peer's own claims, so they share its clock
+      and no skew between machines enters the comparison. The
       acknowledgement's time is the peer's first statement of that position, so a
       later restatement cannot hide a fault sent after it; a peer that moves on to a
       later position takes that statement's time, so a defect fault sent in between

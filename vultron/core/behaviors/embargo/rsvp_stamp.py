@@ -33,7 +33,11 @@ from typing import Any
 from pydantic import ConfigDict
 
 from vultron.config.actor import ActorConfig
-from vultron.core.models._helpers import now_utc, parse_published
+from vultron.core.models._helpers import (
+    now_utc,
+    parse_published,
+    timestamp_serializer,
+)
 from vultron.core.models.base import ValidatedAssignmentMixin
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.rsvp_deadline import resolve_rsvp_deadline
@@ -68,6 +72,7 @@ class InviteRsvpStamp(ValidatedAssignmentMixin):
 
     published: datetime
     rsvp_deadline: datetime
+    _serialize_timestamps = timestamp_serializer("published", "rsvp_deadline")
     min_rsvp_window: timedelta
 
 

@@ -25,7 +25,7 @@ from typing import Any, ClassVar, Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models._helpers import now_utc
+from vultron.core.models._helpers import now_utc, timestamp_serializer
 from vultron.core.models.base import NonEmptyString, with_record_id
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.retired_stored_fields import (
@@ -161,6 +161,12 @@ class VultronReplicationState(RetiredFieldsRecord):
         ),
         validation_alias="lastReseededAt",
         serialization_alias="lastReseededAt",
+    )
+    _serialize_timestamps = timestamp_serializer(
+        "last_acknowledged_published",
+        "updated_at",
+        "last_replayed_at",
+        "last_reseeded_at",
     )
     last_reseed_position: LedgerPosition | None = Field(
         default=None,

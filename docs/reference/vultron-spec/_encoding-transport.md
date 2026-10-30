@@ -59,6 +59,16 @@ An implementation therefore cites only the Vultron URI and does not need to decl
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VM-10-001"))
 ```
 
+**Timestamps have one written form.**
+Every timestamp is an RFC 3339 date-time with an explicit offset, as AS2 requires.
+A Vultron node writes exactly six fractional-second digits, even when they are all zero, so one instant always has one string.
+The case ledger hashes and compares that text, so a second spelling of the same instant would read as a different record.
+A receiver still accepts a timestamp written with fewer digits, and keeps the offset a carried timestamp arrived with.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CS-13-006", "CS-13-007", "CS-13-005"))
+```
+
 **Objects travel inline or by reference.**
 As AS2 allows, an Activity carries an object inline or names it by URI, and a receiver copes with either form.
 An object the recipient cannot be expected to hold is carried inline, or named by a reference the recipient can dereference ([§4.2 Knowledge Model and Actor Isolation](layers.md#42-knowledge-model-and-actor-isolation)).
@@ -149,7 +159,7 @@ No case exists yet, so both messages go directly between the two actors.
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Offer",
       "id": "https://vultron.example/users/finndervul/activities/offer-1",
-      "published": "2026-05-30T10:00:00+00:00",
+      "published": "2026-05-30T10:00:00.000000+00:00",
       "actor": "https://vultron.example/users/finndervul",
       "to": ["https://vultron.example/organizations/vendorco"],
       "object": {
@@ -166,14 +176,14 @@ No case exists yet, so both messages go directly between the two actors.
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Read",
       "id": "https://vultron.example/organizations/vendorco/activities/read-1",
-      "published": "2026-05-30T11:00:00+00:00",
+      "published": "2026-05-30T11:00:00.000000+00:00",
       "actor": "https://vultron.example/organizations/vendorco",
       "to": ["https://vultron.example/users/finndervul"],
       "content": "We have received the report. We will get back to you soon.",
       "object": {
         "type": "Offer",
         "id": "https://vultron.example/users/finndervul/activities/offer-1",
-        "published": "2026-05-30T10:00:00+00:00",
+        "published": "2026-05-30T10:00:00.000000+00:00",
         "actor": "https://vultron.example/users/finndervul",
         "to": ["https://vultron.example/organizations/vendorco"],
         "object": {
@@ -207,7 +217,7 @@ A Coordinator agrees, Embargo Proposal Acceptance (`EA`), by accepting the `Invi
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Invite",
       "id": "https://vultron.example/cases/1/embargo_proposals/1",
-      "published": "2026-06-01T18:00:00+00:00",
+      "published": "2026-06-01T18:00:00.000000+00:00",
       "actor": "https://vultron.example/organizations/vendorco",
       "to": ["https://vultron.example/case-actors/vendorco-case-actor"],
       "context": "https://vultron.example/cases/1",
@@ -216,8 +226,8 @@ A Coordinator agrees, Embargo Proposal Acceptance (`EA`), by accepting the `Invi
         "type": "EmbargoEvent",
         "id": "https://vultron.example/cases/1/embargo_events/2026-08-30T00:00:00+00:00",
         "context": "https://vultron.example/cases/1",
-        "startTime": "2026-06-01T19:12:00+00:00",
-        "endTime": "2026-08-30T00:00:00+00:00"
+        "startTime": "2026-06-01T19:12:00.000000+00:00",
+        "endTime": "2026-08-30T00:00:00.000000+00:00"
       }
     }
     ```
@@ -231,15 +241,15 @@ A Coordinator agrees, Embargo Proposal Acceptance (`EA`), by accepting the `Invi
       "attributedTo": "https://vultron.example/organizations/vendorco",
       "to": ["https://vultron.example/organizations/coordinator"],
       "context": "https://vultron.example/cases/1",
-      "published": "2026-06-01T19:12:00+00:00",
-      "endTime": "2026-06-08T19:12:00+00:00",
+      "published": "2026-06-01T19:12:00.000000+00:00",
+      "endTime": "2026-06-08T19:12:00.000000+00:00",
       "summary": "The vendor proposes to embargo case 1 for 90 days.",
       "object": {
         "type": "EmbargoEvent",
         "id": "https://vultron.example/cases/1/embargo_events/2026-08-30T00:00:00+00:00",
         "context": "https://vultron.example/cases/1",
-        "startTime": "2026-06-01T19:12:00+00:00",
-        "endTime": "2026-08-30T00:00:00+00:00"
+        "startTime": "2026-06-01T19:12:00.000000+00:00",
+        "endTime": "2026-08-30T00:00:00.000000+00:00"
       }
     }
     ```
@@ -249,7 +259,7 @@ A Coordinator agrees, Embargo Proposal Acceptance (`EA`), by accepting the `Invi
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Accept",
       "id": "https://vultron.example/organizations/coordinator/activities/accept-1",
-      "published": "2026-06-02T09:00:00+00:00",
+      "published": "2026-06-02T09:00:00.000000+00:00",
       "actor": "https://vultron.example/organizations/coordinator",
       "to": ["https://vultron.example/case-actors/vendorco-case-actor"],
       "context": "https://vultron.example/cases/1",
@@ -260,14 +270,14 @@ A Coordinator agrees, Embargo Proposal Acceptance (`EA`), by accepting the `Invi
         "attributedTo": "https://vultron.example/organizations/vendorco",
         "to": ["https://vultron.example/organizations/coordinator"],
         "context": "https://vultron.example/cases/1",
-        "published": "2026-06-01T19:12:00+00:00",
-        "endTime": "2026-06-08T19:12:00+00:00",
+        "published": "2026-06-01T19:12:00.000000+00:00",
+        "endTime": "2026-06-08T19:12:00.000000+00:00",
         "object": {
           "type": "EmbargoEvent",
           "id": "https://vultron.example/cases/1/embargo_events/2026-08-30T00:00:00+00:00",
           "context": "https://vultron.example/cases/1",
-          "startTime": "2026-06-01T19:12:00+00:00",
-          "endTime": "2026-08-30T00:00:00+00:00"
+          "startTime": "2026-06-01T19:12:00.000000+00:00",
+          "endTime": "2026-08-30T00:00:00.000000+00:00"
         }
       }
     }
@@ -291,7 +301,7 @@ The `vfState` value `VF` is what distinguishes this occasion from the other clai
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Add",
       "id": "https://vultron.example/organizations/vendorco/activities/add-status-3",
-      "published": "2026-07-15T14:00:00+00:00",
+      "published": "2026-07-15T14:00:00.000000+00:00",
       "actor": "https://vultron.example/organizations/vendorco",
       "to": ["https://vultron.example/case-actors/vendorco-case-actor"],
       "target": "https://vultron.example/cases/1/participants/vendorco",
@@ -328,13 +338,13 @@ Its `published` is the CASE_MANAGER's commit stamp ([CLP-14-002](requirements/le
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Announce",
       "id": "https://vultron.example/case-actors/vendorco-case-actor/activities/announce-0",
-      "published": "2026-05-31T12:00:01+00:00",
+      "published": "2026-05-31T12:00:01.000000+00:00",
       "actor": "https://vultron.example/case-actors/vendorco-case-actor",
       "to": ["https://vultron.example/organizations/coordinator"],
       "object": {
         "type": "CaseLedgerEntry",
         "id": "https://vultron.example/cases/1/log/0",
-        "published": "2026-05-31T12:00:00+00:00",
+        "published": "2026-05-31T12:00:00.000000+00:00",
         "caseId": "https://vultron.example/cases/1",
         "logIndex": 0,
         "logObjectId": "https://vultron.example/activities/00000000-0000-0000-0000-000000000001",

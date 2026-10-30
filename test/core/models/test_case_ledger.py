@@ -142,8 +142,11 @@ class TestComputeGenesisHash:
     @pytest.mark.spec("CLP-08-002")
     def test_digest_is_sha256_of_the_pipe_joined_owner_anchored_inputs(self):
         owner = "https://example.org/actors/vendor"
+        # The time takes the fixed six-digit form (CS-13-007), even at a
+        # whole second.
+        stamp = "2024-01-01T00:00:00.000000+00:00"
         expected = hashlib.sha256(
-            f"{CASE_ID}|{_FIXED_CREATED_AT.isoformat()}|{owner}".encode()
+            f"{CASE_ID}|{stamp}|{owner}".encode()
         ).hexdigest()
         assert (
             compute_genesis_hash(

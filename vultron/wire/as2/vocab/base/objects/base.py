@@ -20,7 +20,7 @@ from typing import Any, TypeAlias, cast
 import isodate  # type: ignore[import-untyped]
 from pydantic import ConfigDict, Field, field_serializer, field_validator
 
-from vultron.core.models._helpers import as_utc, now_utc
+from vultron.core.models._helpers import as_utc, format_timestamp, now_utc
 from vultron.core.models.base import CoreObject
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.links import (
@@ -101,7 +101,7 @@ class as_Object(as_Base):
     def serialize_datetime(self, value: datetime | None) -> str | None:
         if value is None:
             return None
-        return value.isoformat()
+        return format_timestamp(value)
 
     @field_validator(
         "start_time", "end_time", "published", "updated", mode="before"

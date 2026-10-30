@@ -100,7 +100,10 @@ def test_factory_carries_the_proposal_under_its_wire_name() -> None:
     body = _wire(offer)
     assert body["proposedEmbargo"]["type"] == "EmbargoEvent"
     assert body["proposedEmbargo"]["context"] == _report().id_
-    assert body["proposedEmbargo"]["endTime"] == "2099-06-01T00:00:00+00:00"
+    assert (
+        body["proposedEmbargo"]["endTime"]
+        == "2099-06-01T00:00:00.000000+00:00"
+    )
 
 
 @pytest.mark.spec("EP-04-009")

@@ -30,6 +30,8 @@ from sqlalchemy import Engine, event
 from sqlalchemy.pool import NullPool, StaticPool
 from sqlmodel import create_engine
 
+from vultron.core.models._helpers import format_timestamp
+
 logger = logging.getLogger(__name__)
 
 #: Characters permitted in a per-actor filename slug.  Everything else is
@@ -223,8 +225,14 @@ def scratch_memory_url(db_url: str, purpose: str) -> str:
 
 
 def json_default(obj: Any) -> Any:
-    """JSON encoder fallback that serializes ``datetime`` / ``date`` objects."""
-    if isinstance(obj, (datetime, date)):
+    """JSON encoder fallback that serializes ``datetime`` / ``date`` objects.
+
+    A ``datetime`` takes the one fixed form :func:`format_timestamp` writes
+    (CS-13-007), as every model dump does.
+    """
+    if isinstance(obj, datetime):
+        return format_timestamp(obj)
+    if isinstance(obj, date):
         return obj.isoformat()
     raise TypeError(
         f"Object of type {type(obj).__name__} is not JSON serializable"

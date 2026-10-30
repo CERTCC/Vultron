@@ -363,18 +363,9 @@ groups:
     statement: All datetime values MUST be created via the `now_utc()` helper in `vultron.core.models._helpers`
     rationale: >-
       One clock function gives every time the application creates the same form:
-      timezone-aware, in UTC and at second precision (CS-13-001, CS-13-003). A direct
-      `datetime.now()` call can give a naive or local time. Tests can also replace the
-      clock in one place to control time.
-  - id: CS-13-003
-    priority: SHOULD
-    kind: architecture
-    statement: All datetime values SHOULD be stored at second precision (microseconds set to zero)
-    rationale: >-
-      A value with microseconds serializes with a fractional second, and a value
-      without them does not. Two stores or peers can then hold different strings for
-      the same instant, and an exact comparison fails. `now_utc()` drops microseconds,
-      so every time the application creates has one form.
+      timezone-aware, in UTC and at microsecond precision (CS-13-001, CS-13-008). A
+      direct `datetime.now()` call can give a naive or local time. Tests can also
+      replace the clock in one place to control time.
   - id: CS-13-004
     priority: MUST
     kind: project
@@ -383,7 +374,7 @@ groups:
     rationale: >-
       An embargo deadline is a protocol commitment that every Participant compares
       with its own clock. The helpers build each deadline from `now_utc()`, so it is
-      timezone-aware, in UTC and at second precision. Inline arithmetic can start from
+      timezone-aware and in UTC. Inline arithmetic can start from
       a naive or local time and give a deadline that peers read as a different
       instant.
   - id: CS-13-005
@@ -433,6 +424,54 @@ groups:
       normalized to UTC before it can reach the wire.
     tags:
     - as2
+  - id: CS-13-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Every datetime this node serializes MUST be written as an RFC 3339 date-time
+      with exactly six fractional-second digits, whether or not its microseconds are
+      zero.
+    rationale: >-
+      The case ledger hashes and compares timestamp text, so one instant needs one
+      string. Whole seconds gave one string but made two acts one actor sends in the
+      same second carry equal times; the fixed six-digit form keeps one string per
+      instant and keeps that order. The form is what this node writes, not what it
+      requires to receive: a peer may send whole seconds (ADR-0167).
+    verification: >-
+      `test_one_instant_serializes_to_one_string` in `test/core/models/test_helpers.py`
+      asserts the fixed form with and without microseconds, and
+      `test_every_model_datetime_field_serializes_in_the_fixed_form` in
+      `test/architecture/test_timestamp_form.py` dumps every datetime field of every
+      model in the fixed form.
+    adr:
+    - ADR-0167
+    stories:
+    - story_2022_045
+    - story_2022_089
+    relationships:
+    - rel_type: refines
+      spec_id: CS-13-006
+      note: fixes the fractional-second digits of the RFC 3339 form
+  - id: CS-13-008
+    priority: MUST
+    kind: project
+    statement: >-
+      The `now_utc()` helper in `vultron.core.models._helpers` MUST keep the
+      microseconds of the instant it reads.
+    rationale: >-
+      Two acts one actor sends inside one second then carry ordered times, so a
+      same-second tie is rare rather than routine (ADR-0167). The fixed form of
+      CS-13-007 writes the microseconds, so keeping them costs no second string
+      for one instant.
+    verification: >-
+      `test_now_utc_keeps_microseconds` in `test/core/models/test_helpers.py`
+      asserts a pinned clock's microseconds survive `now_utc()`.
+    adr:
+    - ADR-0167
+    relationships:
+    - rel_type: refines
+      spec_id: CS-13-007
+      note: the clock half of the fixed-form decision
 - id: CS-14
   title: Wire Model Configuration
   specs:

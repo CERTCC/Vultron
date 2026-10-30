@@ -257,6 +257,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0163 The Case Manager Resends an Unanswered Invite When Its Addressee States a Ledger Position](0163-the-case-manager-resends-an-unanswered-invite-when-its-addressee-states-a-ledger-position.md) *(revision 2)* *(provisional)*
 - [ADR-0164 Actors Sign Content with Object-Level Proofs from Seeded Keys](0164-actors-sign-content-with-object-level-proofs-from-seeded-keys.md) *(provisional)*
 - [ADR-0165 A Participant's Act on a Case Names the Case and Never Carries It](0165-a-participants-act-on-a-case-names-the-case-and-never-carries-it.md) *(provisional)*
+- [ADR-0167 Times Keep Microseconds and Always Serialize Six Fractional Digits](0167-times-keep-microseconds-and-serialize-six-fractional-digits.md) *(provisional)*
 
 ## Proposed ADRs
 

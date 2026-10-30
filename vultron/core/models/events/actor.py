@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Literal, cast
 
 from pydantic import field_validator
 
-from vultron.core.models._helpers import _as_id
+from vultron.core.models._helpers import _as_id, timestamp_serializer
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_stub import stub_case_id
 from vultron.core.models.events.base import (
@@ -125,6 +125,9 @@ class ProposeCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
     ] = MessageSemantics.PROPOSE_CASE_OWNERSHIP_TRANSFER
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
     proposed_answer_deadline: datetime | None = None
+    _serialize_proposed_answer_deadline = timestamp_serializer(
+        "proposed_answer_deadline"
+    )
 
     @field_validator("proposed_answer_deadline")
     @classmethod
@@ -164,6 +167,7 @@ class OfferCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
     answer_deadline: datetime | None = None
+    _serialize_answer_deadline = timestamp_serializer("answer_deadline")
 
     @field_validator("answer_deadline")
     @classmethod
