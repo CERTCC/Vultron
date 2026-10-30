@@ -227,7 +227,7 @@ If a peer keeps rejecting from the same position, the CASE_MANAGER waits out a s
 Without that bound, a peer that cannot anchor its chain rejects every entry it is sent.
 Each reject triggers another full replay, and the two feed each other into a storm.
 
-Each further replay from that same position doubles the wait, up to a ceiling, so a peer that never catches up is retried less and less often ([SYNC-15-013](../../reference/vultron-spec/requirements/ledger-replication.md#sync-15-013)).
+Each further replay from that same position doubles the wait, up to a ceiling, so a peer that never catches up is retried less and less often ([SYNC-15-018](../../reference/vultron-spec/requirements/ledger-replication.md#sync-15-018)).
 A reject from a position that *has* advanced always triggers a replay, so a peer making progress is never held back.
 
 The holding area should also be bounded, so that a hostile or broken peer streaming far-future entries cannot exhaust the replica's storage.

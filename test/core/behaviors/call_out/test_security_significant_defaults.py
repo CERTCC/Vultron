@@ -19,8 +19,10 @@ other than the Case Owner *unilaterally* cause canonical case-state adoption or
 embargo teardown on the received side MUST default to the conservative (floor)
 backend regardless of its stochastic ``p`` (BT-23-012). Issue #2676 audited
 every ``CallOutBackendFactory`` field across all core bundles against that
-criterion and found exactly two qualifying gates — both already flipped under
-ADR-0076 (RSH-07-001, RSH-07-002).
+criterion and found two qualifying gates, both flipped under ADR-0076. ADR-0166
+since removed the teardown gate, because adopting a P, X or A value also
+authorizes the teardown it calls for, so one qualifying gate remains: the
+status adoption gate (RSH-07-001).
 
 This module is the regression guard for that audit. It fails in **both**
 directions:
@@ -42,7 +44,7 @@ does not "harden" them (see ``notes/call-out-configuration.md`` §
    "no ``CallOutBackendFactory`` returns an unconditional ``FAILURE`` node as the
    conservative default." The conservative-default *posture* asserted here is
    unchanged, but when the routing subtree lands
-   ``test_status_gates_conservative_default_blocks`` (which asserts the
+   ``test_status_adoption_gate_conservative_default_blocks`` (which asserts the
    ``FAILURE`` tick) and the :class:`RequireCaseOwnerApprovalNode` membership in
    ``EXPECTED_CONSERVATIVE_GATES`` must be revised to check the security
    *property* rather than the interim mechanism. See
@@ -70,14 +72,10 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
 from vultron.core.behaviors.call_out.nodes import RequireCaseOwnerApprovalNode
 
 # The exact set of (singleton, field) pairs whose DETERMINISTIC default is the
-# conservative blocking backend. Per the #2676 audit this is the two
-# received-side status gates and nothing else (RSH-07-001, RSH-07-002).
+# conservative blocking backend. Per the #2676 audit, as narrowed by ADR-0166,
+# this is the received-side status adoption gate and nothing else (RSH-07-001).
 EXPECTED_CONSERVATIVE_GATES = {
     ("STATUS_AUTHORIZATION_DETERMINISTIC", "status_adoption_gate_factory"),
-    (
-        "STATUS_AUTHORIZATION_DETERMINISTIC",
-        "embargo_teardown_authorization_gate_factory",
-    ),
 }
 
 # Look-alike embargo gates that share surface structure with the qualifying set
@@ -125,10 +123,9 @@ def test_at_least_the_known_bundles_are_discovered():
 
 
 @pytest.mark.spec("RSH-07-001")
-@pytest.mark.spec("RSH-07-002")
 @pytest.mark.spec("BT-23-012")
-def test_conservative_default_set_is_exactly_the_two_status_gates():
-    """Only the two received-side status gates default to RequireCaseOwnerApproval.
+def test_conservative_default_set_is_exactly_the_status_adoption_gate():
+    """Only the received-side status adoption gate defaults to RequireCaseOwnerApproval.
 
     Polices the security-significant conservative default specifically —
     :class:`RequireCaseOwnerApprovalNode` — not ``AlwaysFail``, which is a
@@ -148,9 +145,8 @@ def test_conservative_default_set_is_exactly_the_two_status_gates():
 
 
 @pytest.mark.spec("RSH-07-001")
-@pytest.mark.spec("RSH-07-002")
-def test_status_gates_conservative_default_blocks():
-    """Conservative path: both status gates tick FAILURE by default (block).
+def test_status_adoption_gate_conservative_default_blocks():
+    """Conservative path: the status adoption gate ticks FAILURE by default (block).
 
     Pins the *interim* blocking-stub mechanism. RSH-07-004 (ADR-0080) replaces
     it with a routing subtree and forbids a ``CallOutBackendFactory`` that

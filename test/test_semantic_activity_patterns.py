@@ -1107,8 +1107,20 @@ def test_accept_case_participant_role_not_confused_with_other_accepts():
             "reject_embargo_proposal",
             MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
         ),
+        (
+            "activate_embargo_revision",
+            MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
+        ),
+        (
+            "reject_embargo_revision_proposal",
+            MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
+        ),
         ("accept_embargo", MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE),
         ("reject_embargo", MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE),
+        (
+            "abandon_embargo_proposal",
+            MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
+        ),
     ],
 )
 def test_owner_embargo_decisions_are_distinct_from_invite_answers(

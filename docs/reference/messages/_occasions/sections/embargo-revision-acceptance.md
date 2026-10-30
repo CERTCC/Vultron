@@ -2,14 +2,14 @@
 
 ## Embargo Revision Acceptance (EC) { #embargo-revision-acceptance }
 
-Records the sender's own consent to the revision. The revision replaces the active embargo only when the Case Owner sends its decision.
+Activates the revision for the case. It replaces the active embargo in the same register step.
 
 === "Details"
 
-    - **When…** a Participant agrees to a proposed embargo revision
-    - **Send:** `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])`
+    - **When…** the Case Owner decides to replace the active embargo with a proposed revision
+    - **Send:** `Accept(EmbargoEvent)[target=VulnerabilityCase]`
     - **Send to:** the case manager
-    - **Sent by:** the invitee
+    - **Sent by:** the case owner
     - **Distinguished by:** EM state `REVISE`
     - **Seen in:** [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)
     - **Formal definition:** [Embargo Revision Acceptance (EC)](../../../formal_protocol/messages.md#em-message-types)
@@ -19,9 +19,9 @@ Records the sender's own consent to the revision. The revision replaces the acti
 
     ```python exec="true" idprefix=""
     from vultron.wire.as2.vocab.examples.vocab_examples import (
-        accept_embargo_revision,
+        activate_embargo_revision,
         json2md,
     )
 
-    print(json2md(accept_embargo_revision()))
+    print(json2md(activate_embargo_revision()))
     ```

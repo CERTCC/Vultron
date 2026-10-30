@@ -99,9 +99,8 @@ class RequireCaseOwnerApprovalNode(py_trees.behaviour.Behaviour):
     """Conservative approval gate: blocking stub pending full round-trip.
 
     This is the DETERMINISTIC default for security-significant authorization
-    gates (RSH-07-001, RSH-07-002, ADR-0076). Always returns ``FAILURE`` to
-    block any downstream state adoption or side-effect execution until the
-    Case Owner explicitly approves.
+    gates (RSH-07-001, ADR-0076). Always returns ``FAILURE`` to block any
+    downstream state adoption until the Case Owner explicitly approves.
 
     .. note::
         This is a **blocking stub**. ADR-0076 specifies that the full

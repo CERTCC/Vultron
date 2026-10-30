@@ -547,12 +547,11 @@ groups:
         If the new CaseStatus (derived from the participant status update) indicates
         at least one of CS.P, CS.X, or CS.A and an active embargo exists, trigger
         embargo teardown automatically via ThreatTerminationBranchNode (RSH-03-001).
-        An EmbargoTeardownAuthorizationGate call-out (RSH-02-001) precedes the teardown node;
-        it defaults to AlwaysSucceed (auto-approve) but is designed to accommodate
-        a future "ask CASE_OWNER to confirm" policy. The CASE_OWNER gate previously
-        stated here is incorrect — the code fires teardown for any participant's
-        CS.P/X/A, not only the Case Owner's. See ThreatTerminationBranchNode
-        (RSH-03-002: no sender-role gate) and ADR-0046.
+        The teardown runs in the act that adopts the value, with no separate
+        teardown gate: the adoption also authorizes it (RSH-07-001, ADR-0166).
+        The teardown fires for any adopted participant's CS.P/X/A, not only the
+        Case Owner's. See ThreatTerminationBranchNode (RSH-03-002: no
+        sender-role gate) and ADR-0046.
       expected: >-
         Embargo teardown triggered (EM.EXITED) when any participant's CaseStatus
         carries CS.P, CS.X, or CS.A and an active embargo is present

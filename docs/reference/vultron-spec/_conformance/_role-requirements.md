@@ -74,12 +74,12 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 
 Reporting is not adoption.
 A reported observation is a claim.
-Whether it becomes canonical case state, and whether it triggers embargo teardown, is decided by the **CASE_MANAGER**, following the two-seam model of [§11.3 Status Adoption: The Two-Seam Model](../interactions.md#113-status-adoption-the-two-seam-model) and subject to Case Owner authorization by default.
+Whether it becomes canonical case state, and whether it triggers embargo teardown, is decided by the **CASE_MANAGER**, following [§11.3 Status Adoption: One Authorization Gate](../interactions.md#113-status-adoption-one-authorization-gate) and subject to Case Owner authorization by default.
 The role rule here — *who can report* — is deliberately separate from the authorization rules there — *what the CASE_MANAGER does with a report*.
 
 !!! note "Informative: automated observers"
     An actor can be an automated service that monitors external sources — threat feeds, public disclosures, vulnerability databases — and reports what it finds into a case.
-    Such a service is not a distinct protocol role: it reports PXA observations on the same terms as any other participant, and its reports are adopted through the same authorization as theirs ([§11.3 Status Adoption: The Two-Seam Model](../interactions.md#113-status-adoption-the-two-seam-model)).
+    Such a service is not a distinct protocol role: it reports PXA observations on the same terms as any other participant, and its reports are adopted through the same authorization as theirs ([§11.3 Status Adoption: One Authorization Gate](../interactions.md#113-status-adoption-one-authorization-gate)).
 
 #### 13.4.3 CVE ID Assignment
 
@@ -110,4 +110,4 @@ By default the CASE_MANAGER therefore asks for the Case Owner's authorization be
 One case is exempt.
 Where the Case Owner is itself the sender, the CASE_MANAGER adopts the status without asking: asking the Case Owner to approve its own report would be circular.
 
-[§11.3 Status Adoption: The Two-Seam Model](../interactions.md#113-status-adoption-the-two-seam-model) states both rules and the permissive configuration an implementation can choose instead.
+[§11.3 Status Adoption: One Authorization Gate](../interactions.md#113-status-adoption-one-authorization-gate) states both rules and the permissive configuration an implementation can choose instead.

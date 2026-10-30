@@ -32,6 +32,7 @@ from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.rm import RM
 
 # ---------------------------------------------------------------------------
@@ -219,12 +220,17 @@ def test_ensure_embargo_exists_fails_without_case_id(
     bt_scenario.assert_failure(result)
 
 
+@pytest.mark.spec("DUR-07-004")
 def test_ensure_embargo_exists_fails_without_active_embargo(
     bt_scenario: BTTestScenario,
     actor: VultronService,
     report: VulnerabilityReport,
 ) -> None:
-    """EnsureEmbargoExists returns FAILURE when linked case has no embargo."""
+    """An embargo-eligible case with no embargo is refused (DUR-07-004).
+
+    The case has none of P, X or A set, so it could carry an embargo and
+    must have one before RM.VALID.
+    """
     case = VulnerabilityCase(
         name="No Embargo Case",
         vulnerability_reports=[report.id_],
@@ -238,6 +244,40 @@ def test_ensure_embargo_exists_fails_without_active_embargo(
         case_id=case.id_,
     )
     bt_scenario.assert_failure(result)
+
+
+@pytest.mark.spec("DUR-07-004")
+@pytest.mark.spec("EP-04-008")
+@pytest.mark.parametrize(
+    "pxa_state",
+    [CS_pxa.Pxa, CS_pxa.pXa, CS_pxa.pxA, CS_pxa.PXA],
+    ids=lambda state: state.name,
+)
+def test_ensure_embargo_exists_succeeds_for_ineligible_case_without_embargo(
+    bt_scenario: BTTestScenario,
+    actor: VultronService,
+    report: VulnerabilityReport,
+    pxa_state: CS_pxa,
+) -> None:
+    """A case that is not embargo-eligible passes with no embargo.
+
+    With P, X or A set the case never receives an embargo (EP-04-008), so
+    DUR-07-004 does not apply and validation proceeds at ``EM.NONE``.
+    """
+    case = VulnerabilityCase(
+        name="Public Case",
+        vulnerability_reports=[report.id_],
+        attributed_to=actor.id_,
+    )
+    case.append_case_status(pxa=pxa_state)
+    bt_scenario.seed(case)
+
+    result = bt_scenario.run(
+        EnsureEmbargoExists(report_id=report.id_),
+        actor_id=actor.id_,
+        case_id=case.id_,
+    )
+    bt_scenario.assert_success(result)
 
 
 @pytest.mark.spec("RMB-09-001")
