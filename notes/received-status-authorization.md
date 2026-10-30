@@ -6,8 +6,8 @@ description: >
   How a CASE_MANAGER turns an inbound status claim into case state: the
   one-move-one-mover pipeline (ADR-0108), the adoption gate whose
   authorization also covers the embargo teardown (ADR-0046, ADR-0166), whole
-  accept or reject of a
-  received status (ADR-0107), and CaseStatus emission authority.
+  accept or reject of a received status (ADR-0107), and CaseStatus emission
+  authority.
 related_specs:
   - specs/behavior-tree-node-design.yaml
   - specs/received-status-handling.yaml

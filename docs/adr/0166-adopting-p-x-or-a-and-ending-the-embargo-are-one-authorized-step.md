@@ -34,14 +34,19 @@ Which rule gives way: the invariant, or the separate teardown authorization?
 
 - The protocol requirements must not contradict each other.
 - A hostile or defective participant must not be able to end an embargo without the Case Owner's confirmation (ADR-0076).
-- A gate must have a question of its own to answer. Asking the Case Owner to confirm a value it already authorized, or reported itself, is circular, for the same reason ADR-0046 gives the Case Owner's report a bypass at adoption.
-- P, X and A are facts about the world. Once the case accepts one as true, the secrecy the embargo protects is gone or no longer protects users.
+- A gate must have a question of its own to answer.
+  Asking the Case Owner to confirm a value it already authorized, or reported itself, is circular, for the same reason ADR-0046 gives the Case Owner's report a bypass at adoption.
+- P, X and A are facts about the world.
+  Once the case accepts one as true, the secrecy the embargo protects is gone or no longer protects users.
 
 ## Considered Options
 
-1. **The invariant wins.** The adoption decision is the one authorization. Adopting a P, X or A value and ending the embargo it calls for happen in one CASE_MANAGER act, and the teardown gate is removed.
-2. **The authorization wins.** The invariants are restated to hold only for a case whose teardown is authorized. The window between adoption and an authorized teardown becomes a named, recorded state, and the receive rules for CP, CX and CA name the authorization step.
-3. **Keep the teardown hook, never refusing.** The teardown seam stays as a policy hook with an always-allow default and a name that no longer reads as an authorization. A refusing backend would bring the contradiction back, so one must be forbidden.
+1. **The invariant wins.** The adoption decision is the one authorization.
+   Adopting a P, X or A value and ending the embargo it calls for happen in one CASE_MANAGER act, and the teardown gate is removed.
+2. **The authorization wins.** The invariants are restated to hold only for a case whose teardown is authorized.
+   The window between adoption and an authorized teardown becomes a named, recorded state, and the receive rules for CP, CX and CA name the authorization step.
+3. **Keep the teardown hook, never refusing.** The teardown seam stays as a policy hook with an always-allow default and a name that no longer reads as an authorization.
+   A refusing backend would bring the contradiction back, so one must be forbidden.
 
 ## Decision Outcome
 
@@ -51,13 +56,18 @@ Option 2 makes a causal contradiction a supported case state, so every participa
 Option 3 keeps a seam that must never refuse, which invites a later backend that refuses and returns the contradiction.
 
 ADR-0046 weighed a single seam and chose two because the gates then ran in different trees, joined by a self-addressed `Add(CaseStatus)`.
-ADR-0108 put both gates in one tree, so that reason no longer holds, and the invariant conflict was not weighed then.
+ADR-0108 put both gates in one tree, so that reason no longer holds.
+ADR-0046 accepted the invariant violation that a blocked teardown leaves and only detected it, with `PxaEmInvariantDiagnosticNode` (CONCERN-3008); preventing the violation was not weighed.
 
 The decision has three parts:
 
-- **One authorization.** The Case Owner's authorization of a non-owner's P, X or A value, or the Case Owner's own report of it, is also the authorization of the teardown the value calls for. No second approval is asked.
+- **One authorization.** The Case Owner's authorization of a non-owner's P, X or A value, or the Case Owner's own report of it, is also the authorization of the teardown the value calls for.
+  No second approval is asked.
 - **One act.** The CASE_MANAGER act that adopts the value also ends the embargo.
-- **Judged at act boundaries.** The invariants hold for the state each committed CASE_MANAGER act leaves. Inside the act, the adoption's case status snapshot is still written before the teardown, so the termination can name the adopted signals as its cause (RSH-01-004). That snapshot may carry the value beside an active embargo, and the invariants do not forbid it.
+- **Judged at act boundaries.** The invariants hold for the state each committed CASE_MANAGER act leaves.
+  Inside the act, the adoption's case status snapshot is still written before the teardown (RSH-01-004).
+  This record keeps that order so the termination can name the adopted signals as its cause.
+  That snapshot may carry the value beside an active embargo, and the invariants do not forbid it.
 
 The conservative default of ADR-0076 is unchanged for the adoption gate.
 The post-act invariant check stays as a safety net for a teardown that fails for another reason.
