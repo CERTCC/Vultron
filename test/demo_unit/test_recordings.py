@@ -134,7 +134,8 @@ class TestLoadTopology:
             CVDRole.VENDOR,
             CVDRole.DEPLOYER,
         ]
-        assert "coordinator" not in topology.case_roles
+        assert topology.case_roles["coordinator"] == [CVDRole.COORDINATOR]
+        assert "reporter" not in topology.case_roles
         assert topology.case_actor_service_url == (
             "http://case-actor:7999/api/v2"
         )
@@ -144,10 +145,11 @@ class TestLoadTopology:
         assert topology.case_roles_for(
             "http://vendor:7999/api/v2/actors/abc"
         ) == [CVDRole.VENDOR]
+        assert topology.case_roles_for(
+            "http://coordinator:7999/api/v2/actors/abc"
+        ) == [CVDRole.COORDINATOR]
         assert (
-            topology.case_roles_for(
-                "http://coordinator:7999/api/v2/actors/abc"
-            )
+            topology.case_roles_for("http://reporter:7999/api/v2/actors/abc")
             == []
         )
 

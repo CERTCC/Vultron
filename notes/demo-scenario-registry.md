@@ -17,6 +17,8 @@ related_specs:
   - specs/multi-actor-demo.yaml
   - specs/meta-specifications.yaml
   - specs/diataxis-requirements.yaml
+  - specs/case-proposal.yaml
+  - specs/case-management.yaml
 related_notes:
   - notes/demo-interactive-ui.md
   - notes/demo-scenario-tree.md
@@ -84,6 +86,17 @@ is in [demo-scenario-tree.md](demo-scenario-tree.md).
   another scenario already declares, a path that is a strict prefix of another,
   and paths that decide different branch points at one node. Each has a test on a
   mutated registry in `test/demo_unit/test_scenario_tree.py`.
+- **The deciding actor must hold the branch point's role.** A scenario names
+  it in `reach_step(..., by=actor_id)`, and the harness reads its role from
+  its participant in the canonical case (DEMOCI-11-013,
+  `vultron/demo/helpers/deciding_role.py`). Before an actor is a participant,
+  its role comes from the act that brings it in: the root step's actor must
+  be the report's author, and an invitee holds the role its Invite offers,
+  which the CASE_MANAGER seats on an inert participant (CM-17-003). So report
+  the root step after seeding, just before the report is submitted. A case
+  owner holds only `case_owner` unless its container states default case
+  roles (CP-01-013), which is why the coordinator container states
+  `["coordinator"]`.
 - **Every choice is a mounted trigger and is taken.** The same file checks each
   choice's verb against the routes the prototype app mounts, and that some
   registered scenario takes every choice; an untaken choice is a dead end in

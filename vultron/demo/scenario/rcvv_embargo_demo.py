@@ -278,8 +278,12 @@ def _phase_report_submission(
             )
         )
         harness.follow_ledger(case_actor_client, opened_case.id_)
-        harness.reach_step("coordinator-invite-whom", "vendor")
+        harness.reach_step(
+            "coordinator-invite-whom", "vendor", by=coordinator.id_
+        )
 
+    # The Reporter's decision; its role comes from submitting the report.
+    harness.reach_step("reporter-whom-to-tell", "coordinator", by=reporter.id_)
     opened, vendor_in_vendor = open_case_with_vendor(
         reporter_client=reporter_client,
         coordinator_client=coordinator_client,
@@ -289,7 +293,7 @@ def _phase_report_submission(
         coordinator=coordinator,
         vendor=vendor,
         on_case_opened=on_case_opened,
-        before_answer=step_reporter("vendor-join", "accept"),
+        before_answer=step_reporter("vendor-join", "accept", by=vendor.id_),
     )
     case = opened.case
 
@@ -590,7 +594,6 @@ def run_rcvv_embargo_demo(
     # way out whether or not a phase failed, and asserts success last
     # (ISSUE-2239).
     with scenario_harness(DEMO_NAME) as harness:
-        harness.reach_step("reporter-whom-to-tell", "coordinator")
         cast, case, opened = _phase_report_submission(
             harness=harness,
             reporter_client=reporter_client,
@@ -603,7 +606,11 @@ def run_rcvv_embargo_demo(
             vendor_id=vendor_id,
             vendor2_id=vendor2_id,
         )
-        harness.reach_step("reporter-after-join", "propose-embargo")
+        harness.reach_step(
+            "reporter-after-join",
+            "propose-embargo",
+            by=cast.reporter.actor.id_,
+        )
         proposed_embargo_id = _phase_embargo_proposal(cast, case)
         # The Reporter proposed rather than asked first (its branch point on
         # the scenario tree), so the shared note exchange follows the
@@ -613,7 +620,11 @@ def run_rcvv_embargo_demo(
         reporter_asks_vendor_answers(
             cast.reporter, cast.vendor, cast.coordinator.client, case
         )
-        harness.reach_step("vendor-after-embargo", "propose-revision")
+        harness.reach_step(
+            "vendor-after-embargo",
+            "propose-revision",
+            by=cast.vendor.actor.id_,
+        )
         # The revision cycle revises the embargo phase 2 put in force; without
         # one, phases 3-7 would only pile secondary failures on the first.
         with demo_gate("Phase 2 put the revised embargo in force"):
