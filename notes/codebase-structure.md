@@ -111,6 +111,14 @@ percent-encoding is no client-side workaround. Register a `/{param:path}` catch-
 **last**: Starlette matches in registration order, and an early catch-all shadows every
 later literal route.
 
+Registering it last is not enough when a route ahead of it takes two placeholders.
+`/{object_type}/{object_id}` matches any key holding exactly one `/`, so it claimed
+a `VultronOfferRecord` id (`offer-record/urn:uuid:…`), read only the segment after
+the slash, and answered 404 for a row the store held (#5529). A key is one string:
+a route that splits one across placeholders falls back to the whole matched path as
+the key before it reports 404 — keep the route, so a URL that works today keeps
+working.
+
 ---
 
 ## FastAPI response_model Filtering

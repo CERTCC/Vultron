@@ -189,14 +189,9 @@ Starlette decodes `%2F` → `/` before route matching, so percent-encoding is
 not a client-side fix. Register `{param:path}` catch-all routes **last** so
 that specific literal routes (`/Offers/`, `/Actors/`) are matched first.
 
-**Declaring last is not enough when a route ahead of it takes two
-placeholders.** `GET /datalayer/{object_type}/{object_id}` matches any key
-that holds exactly one `/`, so it claimed `offer-record/urn:uuid:…` — a
-`VultronOfferRecord` id — and read only the segment after the slash, which
-named nothing, and answered 404 for a row the store held (#5529). A key is
-one string: a route that splits one across placeholders must fall back to the
-whole matched path as the key before it reports 404. Prefer the fallback over
-dropping the route — a URL that works today keeps working.
+Declaring it last is not enough when a route ahead of it takes two
+placeholders: `/{object_type}/{object_id}` claims any key holding one `/`
+(#5529).
 
 See
 [notes/codebase-structure.md](../../notes/codebase-structure.md)
