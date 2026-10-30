@@ -6,11 +6,19 @@
 #
 # - exit 0: every recording is current; close the refresh Task if one is open.
 # - exit 3: a recording changed; file or update one "Refresh the demo
-#   recordings" Task and attach the fresh recordings as an artifact. A stale
-#   recording is work to schedule, not a red main, so it never fails the job.
+#   recordings" Task and attach the fresh recordings and the scenario-tree
+#   index as an artifact. A stale recording is work to schedule, not a red
+#   main, so it never fails the job.
 # - any other exit: the recorder broke (a scenario failed, or a replica
 #   disagreed with the canonical ledger); notify-failure files a CI failure
 #   (CISEC-05).
+#
+# On exit 0 or 3 the job then regenerates ui/src/data/scenario_tree.json, which
+# lists each recording's case ids (#5462). If that fails, the job fails and
+# notify-failure files a CI failure; nothing is uploaded.
+#
+# The artifact has two paths, so upload-artifact roots it at their common
+# parent, ui/src/: it holds recordings/ and data/scenario_tree.json.
 
 name: Demo Recordings
 
@@ -54,12 +62,15 @@ jobs:
           if [ "$status" -ne 0 ] && [ "$status" -ne 3 ]; then
             exit "$status"
           fi
+          PYTHONPATH='' uv run export-demo-tree
       - name: Upload the fresh recordings
         if: steps.record.outputs.status == '3'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: demo-recordings
-          path: ui/src/recordings/
+          path: |
+            ui/src/recordings/
+            ui/src/data/scenario_tree.json
           retention-days: 30
       - name: File or update the refresh Task
         if: steps.record.outputs.status == '3'
@@ -100,7 +111,7 @@ jobs:
           body=$(printf '%s\n' \
             "The committed demo recordings in \`ui/src/recordings/\` differ from a fresh run on \`main\` for: ${changed}." \
             "" \
-            "Refresh them in a PR: run \`uv run export-demo-recordings\` and commit \`ui/src/recordings/\`, or download the \`demo-recordings\` artifact of [this run]($RUN_URL) and commit it." \
+            "Refresh them in a PR: run \`uv run export-demo-recordings\` then \`uv run export-demo-tree\` and commit \`ui/src/recordings/\` and \`ui/src/data/scenario_tree.json\`, or download the \`demo-recordings\` artifact of [this run]($RUN_URL), unpack it into \`ui/src/\` (it holds \`recordings/\` and \`data/scenario_tree.json\`) and commit both." \
             "" \
             "No PR is blocked by this: a few days of lag is expected (#3901). The daily \`Demo Recordings\` workflow closes this Task once the recordings on \`main\` are current.")
           url=$(gh issue create --repo "$REPO" \
