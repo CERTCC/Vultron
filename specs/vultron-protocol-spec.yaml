@@ -1095,7 +1095,7 @@ groups:
     statement: >-
       When $q^{cs} \in VFdpxa$, CVD Participants MAY propose or accept a new embargo
       that prepares for timely publication or deployment (VP-06-008b). This is the one
-      exception to VP-14-007 and VP-14-015.
+      exception to VP-14-007.
     rationale: >-
       With a fix ready but not deployed, a short window can still help users by letting
       participants line up publication and deployment. Fix Ready otherwise ends
@@ -1104,8 +1104,6 @@ groups:
     relationships:
     - rel_type: supersedes
       spec_id: VP-14-007
-    - rel_type: supersedes
-      spec_id: VP-14-015
   - id: VP-06-008b
     priority: SHOULD
     kind: protocol
@@ -1826,9 +1824,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When information about the vulnerability or an exploit is publicly known
-      ($q^{cs} \in \{\cdots P \cdots, \cdots X \cdot\}$), the authority to terminate
-      the case-level embargo SHALL belong to the Case Owner (CM-02-005).
+      When the vulnerability or an exploit is public, the authority to terminate the
+      case-level embargo SHALL belong to the Case Owner (CM-02-005). Public here means
+      $q^{cs} \in \{\cdots P \cdots, \cdots X \cdot\}$.
     rationale: >-
       Once the vul or an exploit is public, the embargo must end (VP-09-001). Separating
       who reports the condition (VP-11-003) from who ends the embargo keeps one
@@ -1893,8 +1891,7 @@ groups:
     kind: protocol
     statement: >-
       When attacks are known to have occurred ($q^{cs} \in \cdots A$), the authority to
-      terminate the case-level embargo SHALL belong to the Case Owner (CM-02-005), as
-      with VP-11-002.
+      terminate the case-level embargo SHALL belong to the Case Owner (CM-02-005).
     rationale: >-
       Known attacks mean the embargo should end (VP-09-003). As with VP-11-002, one
       party holds the authority to end it, so participants never disagree about whether
@@ -1903,7 +1900,9 @@ groups:
       Rephrased from "Participants SHOULD terminate the embargo" for the same reason as
       VP-11-002 (CONCERN-3280). The SHOULD it carried is the recommendation to terminate,
       whose home is VP-09-003; who initiates is VP-11-007. The authority sentence was
-      always unconditional, so the statement that keeps it carries MUST.
+      always unconditional, so the statement that keeps it carries MUST. This adds no
+      obligation: CM-02-005 already restricts terminating an active embargo to the Case
+      Owner as a MUST.
     verification_debt: '#3612'
     stories:
     - story_2022_019
@@ -1950,8 +1949,8 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER SHALL effect the teardown of a case-level embargo that the Case
-      Owner terminates (VP-11-002, VP-11-006), as the single writer of canonical case
-      state (EMB-19-001).
+      Owner terminates (VP-11-002, VP-11-006). It is the single writer of canonical
+      case state (EMB-19-001).
     rationale: >-
       One writer of case state means every participant sees the same teardown in the
       same place in the ledger. The Case Owner decides; the CASE_MANAGER records and
@@ -1960,7 +1959,6 @@ groups:
       Split from VP-11-002 and VP-11-006 (#5298, MS-03-001).
     verification_debt: '#3612'
     stories:
-    - story_2022_007
     - story_2022_018
   - id: VP-11-012
     priority: MUST_NOT
@@ -1978,7 +1976,6 @@ groups:
       Split from VP-11-002 (#5298, MS-03-001).
     verification_debt: '#3612'
     stories:
-    - story_2022_007
     - story_2022_018
 - id: VP-12
   title: CVD Case State (CS) Messaging
@@ -2256,13 +2253,19 @@ groups:
     priority: SHOULD_NOT
     kind: protocol
     statement: >-
-      Once a case has reached Fix Ready ($q^{cs} \in VF\cdot pxa$), Participants SHOULD NOT
-      start a new embargo negotiation. The one exception is a brief embargo to prepare
-      for publication or deployment (VP-06-008, VP-06-008b).
+      Once a case reaches Fix Ready ($q^{cs} \in VF\cdot pxa$), Participants SHOULD NOT
+      start a new embargo negotiation and SHOULD reject a pending proposal. The
+      one exception is a brief embargo to prepare for publication or deployment
+      (VP-06-008, VP-06-008b).
     rationale: >-
-      With a fix ready, the remaining work is release. A new embargo would only delay
-      getting the fix to users, unless it is the short window that lines that release
-      up.
+      With a fix ready, the remaining work is release. A new or pending embargo would
+      only delay getting the fix to users, unless it is the short window that lines
+      that release up.
+    lint_suppress:
+    # compound_statement: both keywords apply one default, Fix Ready ends embargo
+    # negotiation whether new or pending, under one condition and one exception
+    # (#5298 AC-1 keeps them in one statement).
+    - compound_statement
     stories:
     - story_2022_025
   - id: VP-14-008
@@ -2329,22 +2332,6 @@ groups:
     stories:
     - story_2022_080
     - story_2022_105
-  - id: VP-14-015
-    priority: SHOULD
-    kind: protocol
-    statement: >-
-      Once a case has reached Fix Ready ($q^{cs} \in VF\cdot pxa$), Participants SHOULD
-      reject a pending embargo proposal ($q^{em} \in P$) unless VP-06-008 allows it.
-    rationale: >-
-      With a fix ready, a proposal that is still open would only delay release. The
-      exception is the same as for starting a negotiation (VP-14-007).
-    note: >-
-      Split from VP-14-007 (#5298, MS-03-001).
-    relationships:
-    - rel_type: derives_from
-      spec_id: VP-14-007
-    stories:
-    - story_2022_025
 - id: VP-15
   title: Implementation Guidance
   specs:

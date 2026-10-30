@@ -343,6 +343,7 @@ def test_a_participant_with_pxa_set_rejects_a_relayed_invite_to_the_case_manager
 
 @pytest.mark.spec("EMB-03-003")
 @pytest.mark.spec("EMB-01-002")
+@pytest.mark.spec("VP-11-012")
 @pytest.mark.spec("TB-06-007")
 def test_a_participant_with_pxa_set_answers_a_revision_with_er_never_et():
     """A non-owner, non-manager answers a P/X/A revision with ER only.
@@ -825,6 +826,7 @@ def test_a_replica_follows_the_managing_owners_rejection_by_trigger():
 @pytest.mark.spec("EP-09-007")
 @pytest.mark.spec("EP-09-008")
 @pytest.mark.spec("EMB-19-001")
+@pytest.mark.spec("VP-11-011")
 @pytest.mark.spec("VM-08-003")
 @pytest.mark.spec("TB-06-007")
 def test_a_replica_follows_the_managing_owners_termination_by_trigger():

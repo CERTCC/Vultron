@@ -1282,55 +1282,29 @@ groups:
     kind: protocol
     statement: >-
       A Participant entering CS Fix Ready (q^cs ∈ VFd···) SHOULD NOT start new
-      embargo negotiations, except for the brief publication or deployment
-      embargo of VP-06-008.
+      embargo negotiations. If an embargo proposal is pending (q^em ∈ P), the
+      Participant SHOULD reject it. The one exception is the brief publication
+      or deployment embargo of VP-06-008.
     rationale: >-
-      VP-14-007 discourages starting new embargo negotiations once a fix is
-      ready, and VP-06-008 names its one exception. Constraint C-34: fix
-      readiness is late in the process for beginning embargo negotiations.
-    verification: >-
-      Integration tests in `test/demo/` confirm that a participant entering CS Fix
-      Ready does not start new embargo negotiations.
+      VP-14-007 discourages starting or completing new embargo negotiations once
+      a fix is ready, and VP-06-008 names its one exception. Constraint C-34:
+      fix readiness is late in the process for beginning embargo negotiations.
     testable: false
     preconditions:
     - cs_pattern: "VFd..."
       description: CS matches pattern VFd...
     lint_suppress:
     - testable_without_steps
+    # compound_statement: it mirrors VP-14-007, whose two keywords apply one
+    # Fix Ready default with one exception (#5298 AC-1).
+    - compound_statement
     relationships:
     - rel_type: satisfies
       spec_id: VP-14-007
       note: >-
         Once a case has reached Fix Ready, new embargo negotiations SHOULD NOT
-        start, except for the VP-06-008 publication or deployment embargo
-    stories:
-    - story_2022_014
-
-  - id: CSB-10-003
-    priority: SHOULD
-    kind: protocol
-    statement: >-
-      A Participant entering CS Fix Ready (q^cs ∈ VFd···) with an embargo
-      proposal pending (q^em ∈ P) SHOULD reject it, unless it is the brief
-      publication or deployment embargo of VP-06-008.
-    rationale: >-
-      VP-14-015 recommends rejecting a pending proposal once a fix is ready,
-      with the same one exception as VP-14-007. Split from CSB-10-001 (#5298,
-      MS-03-001).
-    testable: false
-    preconditions:
-    - cs_pattern: "VFd..."
-      em_state:
-        - PROPOSED
-      description: EM state is Proposed; CS matches pattern VFd...
-    lint_suppress:
-    - testable_without_steps
-    relationships:
-    - rel_type: satisfies
-      spec_id: VP-14-015
-      note: >-
-        Once a case has reached Fix Ready, a pending embargo proposal SHOULD be
-        rejected, except for the VP-06-008 publication or deployment embargo
+        start and pending embargoes SHOULD be rejected, except for the VP-06-008
+        publication or deployment embargo
     stories:
     - story_2022_014
 

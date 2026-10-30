@@ -1525,8 +1525,8 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Each actor MUST have an outbox collection — delivery mechanism.</td>
 </tr>
 <tr markdown="1">
-<td rowspan="4" markdown="span">[story_2022_018](story_2022_018.md)</td>
-<td rowspan="4" markdown="span">As a Participant, aware of public exploit, tell others</td>
+<td rowspan="6" markdown="span">[story_2022_018](story_2022_018.md)</td>
+<td rowspan="6" markdown="span">As a Participant, aware of public exploit, tell others</td>
 <td markdown="span">[VP-09-003](../vultron-spec/requirements/vultron-protocol.md#vp-09-003)</td>
 <td markdown="span">Embargoes SHOULD terminate immediately when there is evidence of active exploitation.</td>
 </tr>
@@ -1541,6 +1541,14 @@ Source specifications: `specs/*.yaml`
 <tr markdown="1">
 <td markdown="span">[VP-11-002](../vultron-spec/requirements/vultron-protocol.md#vp-11-002)</td>
 <td markdown="span">If information has been made public, the Case Owner holds the authority to terminate the embargo.</td>
+</tr>
+<tr markdown="1">
+<td markdown="span">[VP-11-011](../vultron-spec/requirements/vultron-protocol.md#vp-11-011)</td>
+<td markdown="span">The CASE_MANAGER effects the teardown the Case Owner decides.</td>
+</tr>
+<tr markdown="1">
+<td markdown="span">[VP-11-012](../vultron-spec/requirements/vultron-protocol.md#vp-11-012)</td>
+<td markdown="span">A Participant other than the Case Owner reports the condition but does not end the case-level embargo itself.</td>
 </tr>
 <tr markdown="1">
 <td rowspan="5" markdown="span">[story_2022_019](story_2022_019.md)</td>
