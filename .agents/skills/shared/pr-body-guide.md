@@ -143,7 +143,13 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
   One `### <ID>` block each, with **Before**, **After** and **Reason**. On a
   sweep large enough to break GitHub's body limit (PRB-11), show a long
   statement as its changed span with a few words of context either side,
-  `…` marking each cut, and say so at the top of the section. The
+  `…` marking each cut, and say so at the top of the section. A Reason that
+  every block shares may be stated once at the top instead (PRB-09 checks only
+  the `### <ID>` headings). When the trimmed section would still hide what a
+  reviewer must check, such as a split's full old-to-new mapping, write the
+  untrimmed record with `uv run append-history implementation --source
+  ISSUE-<N>-<slug>` and link it from the section. Use a distinct source so it
+  does not collide with the completion entry. Never split the PR to fit. The
   section is the single place a reviewer sees spec text moved to fit code; the
   material test in `notes/agentic-workflow.md` § "Spec Text Conflicts With Code"
   decides whether the Reason is a clarification (allowed in the PR) or an
