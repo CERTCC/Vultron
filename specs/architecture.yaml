@@ -570,7 +570,7 @@ groups:
     rationale: >-
       Contaminating either core registry with wire types would allow wire-shaped objects to be
       reconstructed via `find_in_vocabulary()`, bypassing the `CORE_VOCABULARY` primary path and
-      contradicting ARCH-12-003.
+      contradicting ARCH-12-014.
   - id: ARCH-12-006
     priority: MUST
     kind: project
@@ -2583,9 +2583,9 @@ groups:
     kind: project
     statement: >-
       This codebase MUST decide each unrecognised key on inbound data at the parse edge,
-      `parse_activity`, by one rule for every object at every depth. The class an object
-      happens to resolve to never decides it. A near miss for a declared spelling, or a
-      retired name, refuses the whole activity and names both spellings. Any other
+      `parse_activity`, by one rule for every object at every depth. A near miss for a
+      declared spelling, or a retired name, refuses the whole activity and names both
+      spellings. Any other
       unknown key is set aside and reported once at `INFO` (MV-11-001 to MV-11-003). The
       report carries `activity_id`, the sender's `actor_id`, the field path and the key,
       and the activity proceeds on its declared fields.
@@ -2603,6 +2603,26 @@ groups:
       reported once, and a near-miss matrix asserting a near miss is refused naming both
       spellings. `test/architecture/test_no_receive_path_reparse.py` asserts nothing on
       the receive path re-validates from the raw body.
+    adr:
+    - ADR-0099
+  - id: ARCH-25-033
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The class an object happens to resolve to MUST NOT decide an unrecognised key on
+      it.
+    rationale: >-
+      One rule in `parse_activity` gives the same result whatever class an object
+      resolves to. Were the class to decide, the same key would be set aside in one
+      position and refuse the activity in another, and a peer could not predict either.
+    verification: >-
+      The foreign-key matrix in `test/wire/as2/test_unknown_key_disposition.py` arrives
+      at the same disposition from every position an unknown key can reach (envelope,
+      generic AS2 object, `Link`, untyped inline dict, inline domain object), so a
+      class-dependent decision fails it.
+    relationships:
+    - rel_type: extends
+      spec_id: ARCH-25-007
     adr:
     - ADR-0099
   - id: ARCH-25-024
