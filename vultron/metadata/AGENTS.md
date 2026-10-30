@@ -183,12 +183,11 @@ directly, and prefer file-scoped exclusions over package-scoped ones. Full
 write-up: [`notes/spec-authoring-rules.md`](../../notes/spec-authoring-rules.md)
 § "A Grep-Corpus Guard Can Resolve Its Own Documentation".
 
-A per-item advisory that is routinely true is not enforcement — mark each remaining hit
-with its owning issue and check items one at a time, printing a per-kind count computed
-from the markers (`specs/verification.py`, MS-10-005..008, MS-10-019, MS-10-022);
-never pin a committed count to its live value. Select by tier, never by keyword:
-`priority.is_must_tier`, not `== RFC2119Priority.MUST` (MS-02-004;
-`test_priority_tier_gate.py` fails it).
+A routinely true per-item advisory is not enforcement — mark each hit with its owning
+issue, check items one at a time, print a per-kind count from the markers
+(`specs/verification.py`, MS-10-005..008, MS-10-019, MS-10-022); never pin a committed
+count. Select by tier, not keyword: `priority.is_must_tier`, not `== RFC2119Priority.MUST`
+(MS-02-004; `test_priority_tier_gate.py` fails it).
 
 ## Related
 
