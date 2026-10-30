@@ -78,7 +78,8 @@ def test_deterministic_fields_satisfy_protocol():
 
 @pytest.mark.spec("RSH-07-001")
 def test_deterministic_adoption_gate_requires_case_owner_approval():
-    """DETERMINISTIC: the adoption gate builds a RequireCaseOwnerApprovalNode that ticks FAILURE."""
+    """DETERMINISTIC: the adoption gate builds a RequireCaseOwnerApprovalNode
+    that ticks FAILURE."""
     from vultron.core.behaviors.call_out.nodes import (
         RequireCaseOwnerApprovalNode,
     )

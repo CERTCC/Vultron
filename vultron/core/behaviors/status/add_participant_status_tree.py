@@ -28,9 +28,9 @@ clearing none, directly to the case ledger without routing through the inbox
 seam (RSH-01-003, RSH-04-006).  The embargo teardown and the CSB-18 diagnostic follow it
 (RSH-01-004).  The adoption is the one authorization: it also authorizes the
 teardown an adopted P, X or A value calls for, so the teardown runs in the
-same act with no second gate (ADR-0166).  This tree is the only received path by which a participant's
-P, X or A report reaches the case status: ``Add(CaseStatus)`` is the
-CASE_MANAGER's alone (RSH-04-001, RSH-04-005).
+same act with no second gate (ADR-0166).  This tree is the only received
+path by which a participant's P, X or A report reaches the case status:
+``Add(CaseStatus)`` is the CASE_MANAGER's alone (RSH-04-001, RSH-04-005).
 
     AddParticipantStatusBT (Sequence)
     ├─ [IntakeReceivedActivityNode]           # Always first (CLP-10-017)

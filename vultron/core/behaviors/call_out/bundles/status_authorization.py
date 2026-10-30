@@ -101,7 +101,8 @@ class StatusAuthorizationCallOutBundle(CallOutBundle):
 
 
 STATUS_AUTHORIZATION_DETERMINISTIC = StatusAuthorizationCallOutBundle()
-"""Conservative deterministic bundle: the adoption gate uses RequireCaseOwnerApprovalNode (ADR-0076, RSH-07-001)."""
+"""Conservative deterministic bundle: the adoption gate uses
+RequireCaseOwnerApprovalNode (ADR-0076, RSH-07-001)."""
 
 STATUS_AUTHORIZATION_PERMISSIVE = StatusAuthorizationCallOutBundle(
     status_adoption_gate_factory=_always_succeed,  # type: ignore[arg-type]
