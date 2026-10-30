@@ -24,7 +24,7 @@ from test.support.inbox_replay import (
 )
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.create_case_received_tree import (
     create_create_case_received_tree,
 )
@@ -362,6 +362,25 @@ def _run_at_owner(
     tree takes the trusted route; without it a link the first run bound
     stays bound, so the tree takes the redelivery route.
     """
+    owner_dl, result = _run_at_owner_result(
+        case,
+        sender,
+        owner_dl,
+        pending_link=pending_link,
+        inbox_replay=inbox_replay,
+    )
+    return owner_dl, result.status
+
+
+def _run_at_owner_result(
+    case: as_VulnerabilityCase,
+    sender: str = _CREATOR,
+    owner_dl: SqliteDataLayer | None = None,
+    *,
+    pending_link: bool = True,
+    inbox_replay: RecordingInboxReplay | None = None,
+) -> tuple[SqliteDataLayer, BTExecutionResult]:
+    """:func:`_run_at_owner`, returning the whole bridge result."""
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
@@ -386,7 +405,7 @@ def _run_at_owner(
         activity=event,
         inbox_replay=inbox_replay,
     )
-    return owner_dl, result.status
+    return owner_dl, result
 
 
 def _introductions(owner_dl: SqliteDataLayer) -> list[as_Create]:
@@ -691,12 +710,12 @@ def _hold_pre_genesis_entries(
 @pytest.mark.spec("SYNC-15-005")
 @pytest.mark.spec("SYNC-14-009")
 @pytest.mark.spec("CBT-01-001")
-def test_report_receiver_introduces_then_drains_the_held_entries():
-    """The trusted seed at the report receiver introduces, then drains.
+def test_report_receiver_drains_the_held_entries_and_introduces():
+    """The trusted seed at the report receiver drains, then introduces.
 
     The CASE_MANAGER's fan-out may reach the owner before its Create.  The
     seed anchors the genesis hash, so the tree replays the held genesis
-    entry's Announce as a delivery of its own, after queuing the
+    entry's Announce as a delivery of its own, then queues the
     introduction (#5521).
     """
     case = _owned_case(extra=(_participant(_REPORTER, CVDRole.REPORTER),))
@@ -719,23 +738,8 @@ def test_held_entries_without_a_replay_port_are_a_wiring_fault():
     case = _owned_case(extra=(_participant(_REPORTER, CVDRole.REPORTER),))
     owner_dl = _owner_store()
     _hold_pre_genesis_entries(owner_dl, case, 1)
-    activity = create_case_activity(case, actor=_CREATOR, to=[_OWNER])
-    owner_dl.save(_link(creator=_CREATOR))
-    event = cast(CreateCaseReceivedEvent, received_event(activity))
-    tree = create_create_case_received_tree(
-        event.case,
-        _CASE_ID,
-        _CREATOR,
-        sender_rule=CreateCaseReceivedUseCase.sender_entitlement,
-    )
 
-    from vultron.adapters.driven.trigger_activity_adapter import (
-        TriggerActivityAdapter,
-    )
-
-    result = BTBridge(
-        datalayer=owner_dl, trigger_activity=TriggerActivityAdapter(owner_dl)
-    ).execute_with_setup(tree=tree, actor_id=_OWNER, activity=event)
+    _, result = _run_at_owner_result(case, owner_dl=owner_dl)
 
     assert result.status == Status.FAILURE
     assert result.internal_error is True
@@ -749,15 +753,18 @@ def test_held_entries_without_a_replay_port_are_a_wiring_fault():
 def test_redelivery_drains_entries_the_first_delivery_left_held():
     """A redelivered Create drains what a failed first drain left held.
 
-    The first delivery seeded the case and bound the link, so the
-    redelivery takes the redelivery route; it still owes the drain, or the
-    held entries wait for the CASE_MANAGER's rate-limited replay (#5521).
+    The first delivery seeds the case and binds the link, then fails its
+    drain (no replay port).  The redelivery takes the redelivery route; it
+    still owes the drain, or the held entries wait for the CASE_MANAGER's
+    rate-limited replay (#5521).
     """
     case = _owned_case(extra=(_participant(_REPORTER, CVDRole.REPORTER),))
     owner_dl = _owner_store()
-    _, status = _run_at_owner(case, owner_dl=owner_dl)
-    assert status == Status.SUCCESS
     held = _hold_pre_genesis_entries(owner_dl, case, 1)
+    _, status = _run_at_owner(case, owner_dl=owner_dl)
+    assert status == Status.FAILURE
+    assert isinstance(owner_dl.read(_CASE_ID), VulnerabilityCase)
+    assert held_depth(owner_dl, _CASE_ID) == 1
     replay = RecordingInboxReplay()
 
     _, status = _run_at_owner(
@@ -767,3 +774,26 @@ def test_redelivery_drains_entries_the_first_delivery_left_held():
     assert status == Status.SUCCESS
     assert replay.replayed == held
     assert held_depth(owner_dl, _CASE_ID) == 0
+
+
+@pytest.mark.spec("SYNC-15-005")
+def test_a_failed_introduction_still_drains_the_held_entries(monkeypatch):
+    """The drain does not wait on the introduction to the reporter.
+
+    With the outbox down the introduction cannot be queued and the tree
+    fails, but the held genesis entry was already replayed (#5521).
+    """
+    case = _owned_case(extra=(_participant(_REPORTER, CVDRole.REPORTER),))
+    owner_dl = _owner_store()
+    held = _hold_pre_genesis_entries(owner_dl, case, 1)
+    replay = RecordingInboxReplay()
+
+    def _outbox_down(activity_id: str) -> bool:
+        raise RuntimeError("outbox unavailable")
+
+    monkeypatch.setattr(owner_dl, "outbox_append", _outbox_down)
+    _, status = _run_at_owner(case, owner_dl=owner_dl, inbox_replay=replay)
+
+    assert status == Status.FAILURE
+    assert owner_dl.outbox_list() == []
+    assert replay.replayed == held

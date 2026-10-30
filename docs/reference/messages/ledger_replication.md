@@ -198,8 +198,9 @@ This happens after it accepts an `Invite`, or after a `Create(CaseProposal)` is 
 The participant holds any `Announce(CaseLedgerEntry)` that arrives before the seed as a `HeldLedgerAnnounce`, keyed by `prev_log_hash`.
 It replays that `Announce` when it can compute the genesis hash from the seeded case (ADR-0059).
 A report submitter's replica is seeded by the report receiver's `Create(VulnerabilityCase)` instead (CBT-01-001), and that seed replays the held `Announce` the same way (SYNC-15-005).
+The report receiver's own seed, the CASE_MANAGER's `Create(VulnerabilityCase)`, replays held entries the same way too.
 The receiver and the CASE_MANAGER are separate senders, so the CASE_MANAGER's entries often arrive before that `Create`.
-After an `Announce(VulnerabilityCase)` seed, the participant then states its position in the seeded case with `Read(CaseLedgerEntry)` ([Read case ledger entry](#read-case-ledger-entry), SYNC-17-008).
+After an `Announce(VulnerabilityCase)` seed, the participant states its position in the seeded case with `Read(CaseLedgerEntry)` ([Read case ledger entry](#read-case-ledger-entry), SYNC-17-008).
 A `Create(VulnerabilityCase)` seed sends no such statement, because SYNC-17-008 covers only the `Announce(VulnerabilityCase)` seed.
 
 - **Pattern:** `AnnounceVulnerabilityCasePattern` in

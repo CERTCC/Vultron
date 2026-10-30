@@ -31,12 +31,12 @@ Structure (after intake, which the shared factory supplies first)::
        │  ├─ SeedCaseReplicaNode
        │  ├─ BindReportCaseLinkNode
        │  ├─ StoreEmbeddedParticipantsNode
-       │  ├─ IntroduceCaseManagerToReporterNode   # CBT-01-001, ADR-0132
-       │  └─ ReplayHeldPreGenesisEntry            # SYNC-15-005, SYNC-14-009
+       │  ├─ ReplayHeldPreGenesisEntry            # SYNC-15-005, SYNC-14-009
+       │  └─ IntroduceCaseManagerToReporterNode   # CBT-01-001, ADR-0132
        ├─ RedeliveredBootstrap (Sequence)   # already accepted
        │  ├─ BootstrapRouteIs_redelivery
-       │  ├─ IntroduceCaseManagerToReporterNode   # retry a failed introduction
-       │  └─ ReplayHeldPreGenesisEntry            # retry a failed drain
+       │  ├─ ReplayHeldPreGenesisEntry            # retry a failed drain
+       │  └─ IntroduceCaseManagerToReporterNode   # retry a failed introduction
        └─ RefuseBootstrapNode               # carries the chosen route's reason
 
 The sender guard is composed by the factory from the use case's declared
@@ -58,14 +58,16 @@ Seeding the replica anchors the case's genesis hash, so an
 ``Announce(CaseLedgerEntry)`` the CASE_MANAGER's fan-out delivered before the
 case is now appliable.  The introduction to the reporter comes from the
 report receiver, a different sender than the CASE_MANAGER, so nothing orders
-it before that fan-out.  The trusted arm ends by replaying the held
-``Announce`` that extends the new tail through this actor's inbox, as a
-delivery of its own (SYNC-15-005, SYNC-14-009), exactly as the
+it before that fan-out.  Once the seed is stored the trusted arm replays
+the held ``Announce`` that extends the new tail through this actor's inbox,
+as a delivery of its own (SYNC-15-005, SYNC-14-009), exactly as the
 ``Announce(VulnerabilityCase)`` seed does; without it the entries wait for the
-CASE_MANAGER's rate-limited replay (SYNC-15-003, #5521).  The redelivery arm
-drains too, for the same reason it retries the introduction: when the first
-delivery seeded the replica but failed before or during the drain, the
-redelivered ``Create`` is the only later trigger for it.
+CASE_MANAGER's rate-limited replay (SYNC-15-003, #5521).  The drain comes
+before the introduction because it does not depend on it: a failed
+introduction must not leave the entries held.  The redelivery arm drains too,
+for the same reason it retries the introduction: when the first delivery
+seeded the replica but failed before or during the drain, a redelivered
+``Create`` is the next trigger for it.
 
 The route is chosen once by the classifier, not by re-testing a condition on
 each arm, because the trusted arm's own write changes what a re-test would see.
@@ -155,13 +157,14 @@ def create_create_case_received_tree(
             SeedCaseReplicaNode(route, case_obj, case_id),
             BindReportCaseLinkNode(route, case_obj, case_id),
             StoreEmbeddedParticipantsNode(case_obj, case_id),
-            IntroduceCaseManagerToReporterNode(case_id),
-            # Last: the seed anchored the genesis hash, so an Announce held
-            # in the pre-genesis window may now extend the chain; replay it
-            # as a delivery of its own (SYNC-15-005, SYNC-14-009).
+            # The seed anchored the genesis hash, so an Announce held in the
+            # pre-genesis window may now extend the chain; replay it as a
+            # delivery of its own (SYNC-15-005, SYNC-14-009).  Before the
+            # introduction, which it does not depend on.
             ReplayHeldSuccessorNode(
                 case_id=case_id, name="ReplayHeldPreGenesisEntry"
             ),
+            IntroduceCaseManagerToReporterNode(case_id),
         ],
     )
     redelivered = py_trees.composites.Sequence(
@@ -169,12 +172,12 @@ def create_create_case_received_tree(
         memory=False,
         children=[
             BootstrapRouteIsNode(route, "redelivery"),
-            # Retries an introduction a first delivery failed to queue.
-            IntroduceCaseManagerToReporterNode(case_id, retry=True),
             # Retries a drain a first delivery did not finish (SYNC-15-005).
             ReplayHeldSuccessorNode(
                 case_id=case_id, name="ReplayHeldPreGenesisEntry"
             ),
+            # Retries an introduction a first delivery failed to queue.
+            IntroduceCaseManagerToReporterNode(case_id, retry=True),
         ],
     )
     arms: dict[BootstrapRouteName, py_trees.behaviour.Behaviour] = {

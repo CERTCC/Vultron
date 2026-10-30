@@ -972,7 +972,7 @@ def test_prepare_for_dispatch_applies_configured_rsvp_window(monkeypatch):
 def test_make_dispatcher_gives_ledger_replay_semantics_the_inbox_port(
     monkeypatch,
 ):
-    """The three received paths that can make a held Announce appliable get an
+    """The received paths that can make a held Announce appliable get an
     ``InboxReplayPort`` queueing to the receiving actor's own store, and no
     other semantic does: the port is not part of every use case's signature
     (SYNC-14-009, SYNC-15-005)."""

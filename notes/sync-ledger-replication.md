@@ -319,8 +319,8 @@ does not re-queue an `Announce` the outbox already holds for that peer
   and a `Reject(CaseLedgerEntry)` is **still always sent** as the loss backstop.
   At-or-behind-tail entries go straight to the reject.
 - **On commit**, `ReplayHeldSuccessorNode` (`sync/nodes/replay_held.py`, last in
-  the participant arm, and after the seed in both seed trees: the case
-  Announce and the trusted `Create(VulnerabilityCase)` bootstrap) asks
+  the participant arm, and after the seed in every seed tree: the case
+  Announce, and both arms of the `Create(VulnerabilityCase)` bootstrap) asks
   `InboxReplayPort` to replay the one held Announce that extends the new tail,
   by its own id (SYNC-14-009). That delivery's tree replays the next, so the
   cascade needs no loop and runs the in-order path by construction
