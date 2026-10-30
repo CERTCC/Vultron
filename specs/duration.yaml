@@ -335,15 +335,14 @@ groups:
     kind: protocol
     statement: >-
       An embargo end time MUST be established before an embargo-eligible case (none of
-      P, X or A set) transitions to RM.VALID. A case that is not embargo-eligible is
-      exempt: it MAY transition to RM.VALID with no embargo, which for a case created
-      with P, X or A set means at `EM.NONE`.
+      P, X or A set) transitions to RM.VALID.
     rationale: >-
       Once a report is valid, coordination begins and other parties are brought into the
       case. An embargo end set before that point means every participant joins under a
       known disclosure date instead of sharing vul details with no agreed date in force.
-      A case with P, X or A set can never have an embargo (EP-04-008, VP-06-001), so
-      requiring one would leave it unable to reach RM.VALID at all.
+      A case with P, X or A set is exempt and is validated with no embargo, at
+      `EM.NONE` when P, X or A was set at creation. It can never receive a new
+      embargo (EP-04-008, VP-06-001), so requiring one would block RM.VALID.
     note: >-
       A placeholder embargo, terminated at case creation, is not a substitute for the
       exemption: it would record register, ledger and consent entries for terms that

@@ -408,8 +408,8 @@ class TestCaseActorReceivedWritesLedgerEntry:
         # An embargo is part of what a delivered Create(VulnerabilityCase)
         # replica carries, alongside the participant index (ADR-0041,
         # CBT-01-002).  ValidateReportBT now resolves the case *before* it
-        # writes anything, so a replica missing the embargo blocks the
-        # RM.VALID transition outright rather than latching a phantom
+        # writes anything, so an embargo-eligible replica missing the embargo
+        # blocks the RM.VALID transition outright rather than latching a phantom
         # report-phase record (DUR-07-004, ISSUE-2548).
         case = as_VulnerabilityCase(
             id_=self.CASE_ID,
@@ -723,6 +723,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
         assert case.current_status.em.state == EM.NONE
         assert case.active_embargo is None
         assert list(dl.list_objects("EmbargoEvent")) == []
+        assert "validate_report" in _ledger_semantic_types(dl)
 
     @pytest.mark.spec("DUR-07-004")
     def test_eligible_case_without_embargo_is_not_validated(self):
