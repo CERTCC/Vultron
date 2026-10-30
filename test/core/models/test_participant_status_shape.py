@@ -46,11 +46,11 @@ so there is no mismatch left to raise about. The tests assert the values *arrive
 which is stronger than asserting a refusal — a refusal is also consistent with the
 data being unusable.
 
-ARCH-12-003's prohibition on ``alias_generator`` in core-branch types is what
-ADR-0099 overturns: with the paired class deleted, there is nowhere else for the
-spelling to live. The helper guards in failure mode 2 still hold for an object
-that genuinely cannot supply a dimension.  Related: #2264 (RM.START substitution
-sites).
+The old prohibition on ``alias_generator`` in core-branch types is what
+ADR-0099 overturns (ARCH-12-013 now requires it): with the paired class
+deleted, there is nowhere else for the spelling to live. The helper guards in
+failure mode 2 still hold for an object that genuinely cannot supply a
+dimension.  Related: #2264 (RM.START substitution sites).
 """
 
 import pytest

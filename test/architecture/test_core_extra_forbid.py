@@ -370,7 +370,9 @@ def test_retired_wire_normalisation_mechanisms_are_not_reintroduced() -> None:
 
     ``extra="forbid"`` replaces the per-class camelCase reject-guard and the
     persistence-boundary wire→core normalisation gate (AC-5/AC-6); a grep guard
-    keeps them from creeping back into the shipped source.
+    keeps them from creeping back into the shipped source, together with the
+    deferral list and the ratchet test that served the gate (DL-05-008,
+    DL-05-013).
     """
     banned = [
         "_NORMALIZE_WIRE" + "_TO_CORE",
@@ -378,6 +380,7 @@ def test_retired_wire_normalisation_mechanisms_are_not_reintroduced() -> None:
         "_project_shadowing" + "_wire_obj",
         "_wire" + "_spelling",
         "reject_wire" + "_spelled_keys",
+        "_NOT_YET" + "_NORMALIZED",
     ]
     vultron_root = repo_root() / "vultron"
     offenders: list[str] = []
@@ -387,6 +390,12 @@ def test_retired_wire_normalisation_mechanisms_are_not_reintroduced() -> None:
         for token in banned:
             if token in source:
                 offenders.append(f"{path.relative_to(repo_root())}: {token}")
+    ratchet = "test_normalize_wire_to_core" + "_ratchet.py"
+    offenders.extend(
+        str(path.relative_to(repo_root()))
+        for path in _corpus.paths_under(repo_root() / "test")
+        if path.name == ratchet
+    )
     assert not offenders, (
         "retired wire-normalisation mechanisms reappeared; extra='forbid' "
         f"is the boundary contract now (#2940): {offenders}"

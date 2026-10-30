@@ -1315,7 +1315,7 @@ class UpdateActorOutbox(DataLayerActionWithPorts, EmitCapable):
     actor's outbox.  Also queues the activity for delivery via
     ``outbox_append``.
 
-    Per BTND-04-001: defined here as shared logic used by both
+    Per BTND-04-005: defined here as shared logic used by both
     ``vultron/core/behaviors/report/nodes.py`` and
     ``vultron/core/behaviors/case/nodes.py``.
     """

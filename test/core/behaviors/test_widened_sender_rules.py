@@ -17,7 +17,7 @@
 
 Each declaration below used to be a floor, with the real rule in a
 tree-local guard.  The rule is now the declaration, and the receive-tree
-factory composes the guard from it (HP-01-008).  For every declaration and
+factory composes the guard from it (HP-01-025).  For every declaration and
 each addressee side, an entitled sender is admitted and an unentitled one is
 refused.
 """

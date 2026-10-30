@@ -105,7 +105,7 @@ def create_add_note_to_case_received_tree(
     distinguish "not the case manager" from "am the case manager and the
     attach failed" (BTND-07-005; cf. the fake-SUCCESS rule in ``AGENTS.md``).
 
-    The factory composes the sender guard from *sender_rule* (HP-01-008):
+    The factory composes the sender guard from *sender_rule* (HP-01-025):
     at the CASE_MANAGER the sender must be an active participant whose
     closure the case does not record (CM-23-018), and a replica takes the
     attachment from the CASE_MANAGER alone (PCR-03-001).

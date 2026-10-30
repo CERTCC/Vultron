@@ -243,14 +243,12 @@ groups:
       wire-branch classes; an unresolved type leaves the object for its parent
       field to validate.
     rationale: >-
-      If the parser uses a weaker type in place of the correct type, it loses data
-      silently. For example, an `Accept(Invite(...))` with one corrupt inner field can
-      then parse as a bare `as_Link`. It gets the semantic type `UNKNOWN` and a 202
-      status. A refusal is safe only when type resolution looks at wire classes alone.
-      If a lookup uses `CORE_TYPE_MAP` as a fallback (ARCH-12-003), it resolves the
-      `inbox` of an inline actor to a core instance that its wire parent refuses
-      (ARCH-22-001). The parser then refuses valid messages. The core fallback is opt-in
-      (VM-06-008).
+      If the parser uses a weaker type in place of the correct one, it loses data
+      silently: an `Accept(Invite(...))` with one corrupt inner field can parse as a
+      bare `as_Link`, get the semantic type `UNKNOWN` and a 202 status. A refusal is
+      safe only when resolution looks at wire classes alone. A `CORE_TYPE_MAP` fallback
+      (ARCH-12-014) resolves an inline actor's `inbox` to a core instance its wire
+      parent refuses (ARCH-22-001). The core fallback is opt-in (VM-06-008).
     verification: >-
       Unit tests in `test/wire/as2/test_parser.py` confirm that an
       `Accept(Invite(...))` whose inner object carries an unparseable timestamp is
@@ -669,7 +667,7 @@ groups:
     - rel_type: refines
       spec_id: SDO-03-005
     - rel_type: refines
-      spec_id: ARCH-25-007
+      spec_id: ARCH-25-025
     adr:
     - ADR-0099
   - id: MV-11-005

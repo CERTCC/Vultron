@@ -329,7 +329,7 @@ class TestExplicitNullIsRefused:
 
     The removed ``_migrate_flat_fields`` before-validator guarded on
     ``raw is not None`` and fell back to the field default, so
-    ``{"rmState": None}`` quietly produced ``RM.START``. ARCH-25-007 (ADR-0099)'s
+    ``{"rmState": None}`` quietly produced ``RM.START``. ARCH-25-024 (ADR-0099)'s
     fail-loudly rule refuses it instead: naming a dimension and supplying no
     state is a statement the caller cannot back, and it is a different input from
     not naming it at all.

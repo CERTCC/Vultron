@@ -188,7 +188,7 @@ class TestVultronActorTypePreservation(unittest.TestCase):
 
 class TestWireActorVocabularyAndRoundTrip(unittest.TestCase):
     def test_vocabulary_points_to_wire_actor_types(self):
-        # ARCH-12-003: WIRE_TYPE_MAP["Actor"] must be the wire as_Actor, not CoreActor.
+        # ARCH-12-014: WIRE_TYPE_MAP["Actor"] must be the wire as_Actor, not CoreActor.
         # CoreActor was removed from VOCABULARY in issue #1992.
         # ARCH-23-002: actor type_ value keys live in WIRE_TYPE_MAP, not VOCABULARY.
         self.assertIs(WIRE_TYPE_MAP["Actor"], as_Actor)

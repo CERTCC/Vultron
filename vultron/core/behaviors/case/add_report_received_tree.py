@@ -62,7 +62,7 @@ def create_add_report_to_case_received_tree(
         case_id: ID of the case receiving the report.
         sender_id: The activity's sender.
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
     """
     return create_receive_activity_tree(
         name="GuardedAttachReportAndCommitBT",

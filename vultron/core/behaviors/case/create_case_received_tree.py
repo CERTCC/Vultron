@@ -115,7 +115,7 @@ def create_create_case_received_tree(
         case_id: Its id.
         sender_id: The actor that sent the Create.
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).  The receiver
+            composes the sender guard from it (HP-01-025).  The receiver
             holds no case yet, so the guard is the rule's side for an
             activity that names no case this store holds.
 

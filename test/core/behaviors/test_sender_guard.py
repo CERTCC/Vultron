@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""A sender guard composed from a declared :class:`SenderRule` (HP-01-008).
+"""A sender guard composed from a declared :class:`SenderRule` (HP-01-025).
 
 An any-of rule admits a sender holding any one of its kinds, and a two-sided
 rule admits, on each side, exactly the kinds that side names.
@@ -187,13 +187,13 @@ def test_rule_is_frozen() -> None:
 
 
 # ---------------------------------------------------------------------------
-# HP-01-008: an any-of rule and a two-sided rule
+# HP-01-023, HP-01-024: an any-of rule and a two-sided rule
 # ---------------------------------------------------------------------------
 
 ANY_OF = SenderRule.in_case(Kind.CASE_OWNER, Kind.CASE_MANAGER)
 
 
-@pytest.mark.spec("HP-01-008")
+@pytest.mark.spec("HP-01-008", "HP-01-023")
 @pytest.mark.parametrize(
     ("sender", "admitted"),
     [(OWNER, True), (MANAGER, True), (VENDOR, False), (STRANGER, False)],
@@ -211,7 +211,7 @@ TWO_SIDED = SenderRule(
 )
 
 
-@pytest.mark.spec("HP-01-008")
+@pytest.mark.spec("HP-01-008", "HP-01-024")
 @pytest.mark.parametrize(
     ("receiver", "sender", "admitted"),
     [
@@ -247,7 +247,7 @@ def test_any_of_refusal_names_every_kind_the_side_accepts() -> None:
     assert "CASE_MANAGER, CASE_OWNER" in reason
 
 
-@pytest.mark.spec("HP-01-008")
+@pytest.mark.spec("HP-01-008", "HP-01-024")
 def test_an_empty_side_admits_no_one() -> None:
     rule = SenderRule(at_case_manager=any_of(Kind.CASE_OWNER))
     assert _admits(rule, MANAGER, OWNER) is True
@@ -926,6 +926,7 @@ def test_every_kind_but_any_actor_has_a_guard() -> None:
 
 
 @pytest.mark.spec("HP-01-006")
+@pytest.mark.spec("HP-01-018")
 def test_factory_refusal_names_the_missing_standing() -> None:
     tree = create_receive_activity_tree(
         name="RuleTreeBT",
@@ -959,7 +960,7 @@ def test_factory_rejects_a_rule_without_a_context() -> None:
 
 @pytest.mark.spec("HP-01-007")
 def test_factory_takes_no_sender_guard_built_by_a_tree() -> None:
-    """The guard comes from the declared rule alone (HP-01-008, #4437)."""
+    """The guard comes from the declared rule alone (HP-01-025, #4437)."""
     parameters = inspect.signature(create_receive_activity_tree).parameters
     assert "sender_guard" not in parameters
 

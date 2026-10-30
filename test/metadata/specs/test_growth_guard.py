@@ -652,6 +652,22 @@ def test_debt_split_grandchild_is_not_an_addition(debt_repo):
 
 
 @pytest.mark.spec("MS-10-016")
+def test_debt_split_grandchild_sorted_before_its_parent_is_not_an_addition(
+    debt_repo,
+):
+    # The grandchild's ID sorts first, so it is judged before the child it
+    # names is known to be a split child; the second pass must exempt it.
+    _write_specs(
+        debt_repo,
+        _marked("TST-01-001"),
+        _verified("TST-01-002"),
+        _split_off("TST-01-003", "TST-01-004"),
+        _split_off("TST-01-004", "TST-01-001"),
+    )
+    assert _debt(debt_repo).added == frozenset()
+
+
+@pytest.mark.spec("MS-10-016")
 def test_debt_split_child_of_a_verified_parent_is_added(
     debt_repo,
 ):

@@ -37,6 +37,8 @@ Issue: #2881 (consolidate outbound emit path).
 import ast
 from pathlib import Path
 
+import pytest
+
 from test.architecture import _corpus
 
 _BEHAVIORS_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
@@ -106,6 +108,7 @@ def _collect_violations() -> frozenset[str]:
 KNOWN_VIOLATIONS: frozenset[str] = frozenset()
 
 
+@pytest.mark.spec("BT-19-006")
 def test_no_direct_outbox_append_in_bt_node_update():
     """BT node update() methods must not call outbox_append() directly.
 

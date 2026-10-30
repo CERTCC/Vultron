@@ -82,7 +82,7 @@ class TestCreateFixIsWeightedBehavior:
 
 
 # ---------------------------------------------------------------------------
-# AC-2: Docstring covers required fields per BT-16-003 / BT-16-005
+# AC-2: Docstring covers required fields per BT-16-007 / BT-16-005
 # ---------------------------------------------------------------------------
 
 

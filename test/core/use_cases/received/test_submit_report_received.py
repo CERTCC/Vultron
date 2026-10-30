@@ -865,6 +865,7 @@ class TestSubmitReportDisposition:
         assert result.reason and "cc" in result.reason
 
     @pytest.mark.spec("HP-01-010")
+    @pytest.mark.spec("HP-01-030")
     def test_sender_outside_the_receivers_case_is_applied(self):
         """Any actor may submit a report; no case standing is checked."""
         from vultron.core.models.actor import VultronService

@@ -17,7 +17,7 @@
 
 The Engage, Invalidate(Report), Announce(CaseLedgerEntry) and
 Reject(CaseLedgerEntry) trees take their sender guard from the receive-tree
-factory, composed from the use case's declared rule (HP-01-008).  Each case
+factory, composed from the use case's declared rule (HP-01-025).  Each case
 below builds the real tree, finds the guard the factory placed in it, and
 runs that guard at a store holding the case, once for a sender the rule
 entitles and once for one it does not.

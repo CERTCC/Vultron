@@ -33,7 +33,7 @@ class VulnerabilityReport(CoreObject):
     and validity.  The wire name ``as_VulnerabilityReport`` in
     ``vultron.wire.as2.vocab.objects.vulnerability_report`` is an alias of
     this class (ARCH-25-003, ADR-0099): a ``by_alias`` dump is its AS2 form
-    (ARCH-12-003), and there is no separate wire class or projection step.
+    (ARCH-12-013), and there is no separate wire class or projection step.
     """
 
     type_: Literal["VulnerabilityReport"] = Field(

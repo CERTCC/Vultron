@@ -51,7 +51,7 @@ Call-Out"; all four shapes live on the call-out surface.
 
 ## Which Surface a Question Belongs On
 
-The discriminator is **who can answer, and when** (BT-18-014):
+The discriminator is **who can answer, and when** (BT-18-014, BT-18-023):
 
 | The question… | Surface | Mechanism |
 |---|---|---|

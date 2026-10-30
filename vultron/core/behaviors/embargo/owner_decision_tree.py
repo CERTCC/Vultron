@@ -113,7 +113,7 @@ def activate_embargo_on_case_tree(
         actor_config: The CASE_MANAGER's configuration; its RSVP windows set
             the deadline of a stub Invite the activation re-issues.
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         Root node of the ``ActivateEmbargoOnCaseBT`` Sequence.
@@ -210,7 +210,7 @@ def reject_embargo_proposal_on_case_tree(
         actor_config: The CASE_MANAGER's configuration; its RSVP windows set
             the deadline of a stub Invite a termination re-issues.
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         Root node of the ``RejectEmbargoProposalOnCaseBT`` Sequence.

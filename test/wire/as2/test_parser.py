@@ -453,7 +453,7 @@ def test_refusal_of_malformed_inline_object_names_the_field_path():
 def test_inline_ordered_collection_resolves_to_the_wire_class():
     """An inline ``OrderedCollection`` must resolve to the wire class.
 
-    ``find_in_vocabulary`` falls back to the core map (ARCH-12-003), where
+    ``find_in_vocabulary`` falls back to the core map (ARCH-12-014), where
     ``OrderedCollection`` was once registered alone, so resolving it placed a
     core instance in a wire tree and the whole object degraded (ISSUE-3217).
     The wire class now declares the ``type`` it presents (VM-03-002), so the

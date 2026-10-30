@@ -6,7 +6,8 @@ description: >
   Pitfalls when writing or reading GitHub Actions workflows and the YAML that
   drives them: PyYAML's bare `on:` key, matrix booleans coerced to strings,
   `actionlint` and block-scalar indentation, single-quoted apostrophes, the
-  mandatory `notify-failure` wiring and its one-job-per-label rule, why an
+  mandatory `notify-failure` wiring and its one-job-per-label rule, the
+  `timeout-minutes` every job needs and the reusable-workflow exemption, why an
   automated find-or-file lookup must not go through the search index, why a
   `GITHUB_TOKEN`-raised event never triggers another workflow, why a bot-filed
   issue gets a theme but no Epic parent, why an artifact name needs the run
@@ -22,6 +23,7 @@ related_specs:
   - specs/ci-security.yaml
   - specs/demo-ci.yaml
   - specs/parallel-development.yaml
+  - specs/testability.yaml
 ---
 
 # CI and GitHub Actions Workflow Authoring Pitfalls
@@ -54,6 +56,18 @@ The job that runs the pair MUST hold `issues: write` (CISEC-02-002), or the
 action's issue calls fail with 403. Grant it on the aggregate `notify` job and
 keep the root at `contents: read`, as `python-app.yml` does; a single-job
 workflow may grant it at the root instead.
+
+## Every Job Needs `timeout-minutes`, Except a Reusable-Workflow Call
+
+Every job in every workflow MUST declare `timeout-minutes`, set well above its
+observed run time (TB-14-006). An uncapped job that hangs holds a runner for
+GitHub's six-hour default and reads as `cancelled`, not failed; a scheduled or
+issue-triggered job hangs unseen. A step-level cap does not cover the job's
+other steps, so a capped step still needs a job cap.
+
+A job that calls a reusable workflow (`uses: ./.github/workflows/...`) cannot
+carry `timeout-minutes`; GitHub rejects the key there. Cap the called
+workflow's jobs instead. `test/metadata/test_gate_ceiling.py` enforces both.
 
 ## A Find-or-File Lookup Must Not Use the Search Index
 

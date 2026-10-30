@@ -15,7 +15,7 @@
 
 Tests cover:
   - AC-1: All nodes use correct py_trees WeightedBehavior base types (BT-16-004)
-  - AC-2: All nodes have docstrings with required sections (BT-16-003)
+  - AC-2: All nodes have docstrings with required sections (BT-16-007)
   - AC-3: Unit tests cover each node's success_rate and status distribution
 """
 
@@ -119,7 +119,7 @@ class TestNodeIsWeightedBehavior:
 
 
 # ---------------------------------------------------------------------------
-# AC-2: Docstring completeness (BT-16-003, BT-16-005)
+# AC-2: Docstring completeness (BT-16-007, BT-16-005)
 # ---------------------------------------------------------------------------
 
 _REQUIRED_SECTIONS = [

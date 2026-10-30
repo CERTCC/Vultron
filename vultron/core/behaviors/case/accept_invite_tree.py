@@ -211,7 +211,7 @@ def create_accept_invite_actor_to_case_tree(
         invite_id: ID of the recorded stub Invite being accepted; its roles,
             not the reply's embedded copy, become the participant's.
         sender_rule: The use case's declared sender rule; the factory
-            composes the sender guard from it (HP-01-008).
+            composes the sender guard from it (HP-01-025).
 
     Returns:
         Configured ``Sequence`` ready for execution via

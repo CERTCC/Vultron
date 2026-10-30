@@ -1675,7 +1675,7 @@ groups:
     - phantom_path_ref
     relationships:
     - rel_type: depends_on
-      spec_id: HP-01-008
+      spec_id: HP-01-024
     adr:
     - ADR-0129
   - id: MSM-08-010

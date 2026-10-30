@@ -1346,6 +1346,8 @@ class TestCreateParticipantStatusNode:
     # #3050 AC-3: the write node does not assume the guard ran (BTND-10-003)
     # ------------------------------------------------------------------
 
+    @pytest.mark.spec("BTND-10-010")
+    @pytest.mark.spec("BTND-10-007")
     def test_write_node_validates_without_the_trigger_guard(self):
         """AC-3: constructed directly, the write node still refuses and reports.
 
@@ -1684,6 +1686,7 @@ class TestValidateTriggerTransitions:
     # #3050 — report every violation, reject the batch (ADR-0086)
     # ------------------------------------------------------------------
 
+    @pytest.mark.spec("BTND-10-010")
     def test_trigger_path_reports_every_violation_and_persists_nothing(self):
         """AC-4/AC-10: two illegal dimensions, both reported, nothing written.
 
