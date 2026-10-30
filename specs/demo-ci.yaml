@@ -2116,22 +2116,55 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Each registered scenario MUST declare its full path on `@scenario`: the
-          ordered sequence of (branch point, choice) pairs from the tree's root to
-          its ending, each naming an entry of the branch-point table
-          (DEMOCI-11-013). A branch point MAY occur more than once on one path.
+          Each registered scenario MUST declare its full path: the ordered
+          sequence of (branch point, choice) pairs from the tree's root to its
+          ending, each naming an entry of the branch-point table
+          (DEMOCI-11-013).
+        rationale: >-
+          Sibling scenarios such as `rv` and `rvv` are not a prefix of each other, so a
+          pointer to a parent scenario does not treat them the same. A full path treats
+          siblings the same, and the tree is the merge of the paths.
+        verification: >-
+          A registry test asserts that the committed registry builds one tree
+          from the declared paths, and that a path naming an unknown branch
+          point or choice fails discovery on a mutated fixture registry.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-001
+          - rel_type: depends_on
+            spec_id: DEMOCI-11-013
+
+      - id: DEMOCI-11-022
+        priority: MAY
+        kind: project
+        statement: >-
+          A branch point MAY occur more than once on one scenario's path
+          (DEMOCI-11-014).
+        rationale: >-
+          A tree node is a path prefix, not a branch-point identity, because the same
+          decision can occur again on one path (a report can be invalidated and later
+          validated).
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-014
+
+      - id: DEMOCI-11-023
+        priority: MUST
+        kind: project
+        statement: >-
           Discovery MUST fail when a path names an unknown branch point or
           choice, when two scenarios declare the same path, or when one
           scenario's path is a strict prefix of another's, so that every
           registered scenario is exactly one ending of the tree.
         rationale: >-
-          Sibling scenarios such as `rv` and `rvv` are not a prefix of each other, so a
-          pointer to a parent scenario does not treat them the same. A full path treats
-          siblings the same, and the tree is the merge of the paths. A tree node is a
-          path prefix, not a branch-point identity, because the same decision can occur
-          again on one path (a report can be invalidated and later validated). A path
-          that is a prefix of another path would make one scenario both an interior
-          node and an ending.
+          A path that is a prefix of another path would make one scenario both an
+          interior node and an ending, and two scenarios on one path would be one
+          ending with two names. Failing at discovery stops a malformed tree before
+          the index, the recordings or the UI read it.
         verification: >-
           A registry test asserts each failure on a mutated fixture registry, and
           that the committed registry builds one tree in which every registered
@@ -2140,9 +2173,7 @@ groups:
           - ADR-0098
         relationships:
           - rel_type: refines
-            spec_id: DEMOCI-11-001
-          - rel_type: depends_on
-            spec_id: DEMOCI-11-013
+            spec_id: DEMOCI-11-014
 
       - id: DEMOCI-11-015
         priority: SHOULD
@@ -2250,3 +2281,69 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-017
+
+      - id: DEMOCI-11-019
+        priority: MUST
+        kind: project
+        statement: >-
+          The path of a scenario written as composition MUST be read from the
+          choices in its assembled story, and not from a `path=` declaration on
+          `@scenario`.
+        rationale: >-
+          A path that is typed by hand beside the story is a second copy of the
+          same fact, and the two copies can disagree. When the path is read from
+          the story, the registry, the scenario-tree index and the step marks in
+          the recordings all come from the code that runs.
+        verification: >-
+          A registry test builds the path of a composed fixture scenario from its
+          story and asserts it equals the path in the tree index, and a test
+          asserts discovery fails when a composed scenario also declares
+          `path=`.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-014
+
+      - id: DEMOCI-11-020
+        priority: MUST
+        kind: project
+        statement: >-
+          Every scenario MUST run on one fixed cast: the same container slot,
+          port and actor id for each cast member in every scenario of the tree,
+          and the same recording seed for every recording.
+        rationale: >-
+          Byte identity of a shared prefix (DEMOCI-11-018) needs more than one
+          copy of the code. Two siblings that seed their ids with different
+          values, or put the same actor in different slots, record different
+          bytes for the same story. One cast and one seed remove both causes.
+        verification: >-
+          A test asserts every registered scenario names the same cast, and the
+          recorder test asserts every recording uses the tree-wide seed.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: depends_on
+            spec_id: DEMOCI-11-018
+
+      - id: DEMOCI-11-021
+        priority: MUST
+        kind: project
+        statement: >-
+          In every scenario, the first three cast members MUST play the first
+          Reporter, the first Vendor and the first Coordinator, in that order,
+          and every further cast member takes the role its scenario gives it.
+        rationale: >-
+          A fixed role for the first members keeps a shared opening on the same
+          containers in every scenario that tells it. The other members are
+          character actors, so a scenario that needs a second Vendor, a second
+          Coordinator, a Deployer or a second Reporter adds no container.
+        verification: >-
+          A test asserts that, in every registered scenario, the first Reporter,
+          first Vendor and first Coordinator it seats run in the first, second
+          and third cast slots.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-020

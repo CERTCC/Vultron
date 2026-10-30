@@ -268,6 +268,13 @@ That still holds, and a scenario's place in the scenario tree is now part of wha
   The scenario-tree index that the demo UI reads is a derived artifact of those declarations, like every other table here, and a check proves each declared branch by comparing the parent's and the child's recorded ledgers up to the branch point.
 - The target form is **composition**: a branching story written once, as shared steps up to a branch point, then one continuation per choice.
   Ancestry then follows from the code itself, and each family's declarations are retired as it is composed.
+- Planning of #4733 (2026-10-30) chose the composition model.
+  Each scenario assembles its story from shared story fragments and named shared prefixes, with a choice item at each branch point.
+  The registry reads the path from those choice items, and the runner records the step marks.
+  A plain set of shared functions with a hand-typed path was rejected, because the path would stay a second copy of the story.
+  Byte identity also needs one fixed cast and one recording seed for the whole tree: the first three cast members always play the first Reporter, Vendor and Coordinator, and the others are character actors whose role each scenario sets.
+  Per-scenario specs stay whole stories.
+  See DEMOCI-11-019 through DEMOCI-11-021.
 - Planning of #4726 (the same day) replaced "its parent, the branch point, and the choice it takes" with the scenario's full path from the root, as (branch point, choice) pairs naming one branch-point table, because siblings such as `fv` and `fvv` are neither a prefix of the other.
   The shared-prefix check accordingly compares any two scenarios whose paths share a prefix, not a parent and a child.
   See DEMOCI-11-013 through DEMOCI-11-018.

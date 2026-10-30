@@ -1,8 +1,9 @@
 ---
-title: Demo Scenario Tree — Names, the Tree Index, the Prefix Check, and Test Starting Points
+title: Demo Scenario Tree — Names, Index, Prefix Check, Composition, Starting Points
 status: active
 kind: plan
 tracks:
+  - "#1928"
   - "#4733"
   - "#4747"
   - "#5303"
@@ -17,7 +18,8 @@ description: >
   Design for the remaining scenario-tree work (#4726): the letter-grammar names
   and how a rename keeps old URLs, the generated tree index the demo UI reads,
   the isomorphic shared-prefix check over recordings, how integration tests
-  start from named points on the tree, and the Task order. The branch-point
+  start from named points on the tree, how a branching story is written as
+  composition on one fixed cast, and the Task order. The branch-point
   table and the `@scenario` path declarations are built; their rules live in
   demo-scenario-registry.md.
 related_specs:
@@ -38,15 +40,16 @@ relevant_packages:
   - ui/src/data
 ---
 
-# Demo Scenario Tree — Names, the Tree Index, the Prefix Check, and Test Starting Points
+# Demo Scenario Tree — Names, Index, Prefix Check, Composition, Starting Points
 
 Vocabulary: the **Demo** section of `CONTEXT.md` (scenario tree, branch point,
 choice, ending, scenario, recording). Decision records: ADR-0098 and ADR-0104,
 both amended 2026-10-15. Requirements: DEMOCI-11-013 through DEMOCI-11-018.
 Parent Epic: #4747.
 
-This is the interim form. Composition (#4733) writes a branching story once and
-retires each family's declarations as it lands.
+The `@scenario(path=...)` declarations are the interim form. Composition
+(§ "Composition") writes a branching story once and retires each family's
+declarations as it lands.
 
 ---
 
@@ -138,6 +141,44 @@ DEMOCI-11-018). The test is `TestSharedPrefixes` in
   rule is in [demo-scenario-registry.md](demo-scenario-registry.md) §
   "The path and the branch-point table".
 
+## Composition
+
+A branching story is written once: shared steps up to a branch point, then one
+continuation per choice (DEMOCI-11-019, ADR-0098). Rules for the work:
+
+- **Fragments and named prefixes.** A story fragment is one step of a story,
+  run against the story's state (the cast's sessions and the case). A named
+  prefix is a fixed sequence of fragments and choices that several scenarios
+  start with ("the Coordinator invites the Vendor"). Both live in
+  `vultron/demo/helpers/`. Name a prefix for every shared stretch: assembling
+  siblings from fragments alone lets one of them slip in a step before the
+  branch point.
+- **A scenario assembles its story.** Its module keeps its name-derived file
+  (DEMOCI-11-003) and its `main()`, and states its story as one sequence: a
+  named prefix, then `choose(branch point, choice)` items and fragments. The
+  whole story reads top to bottom in one file.
+- **The path is read off the choices.** The registry derives the path from
+  the `choose` items, so the tree index (DEMOCI-11-016) follows the code with
+  no new sync step. The runner records each step mark as it passes a `choose`,
+  so a composed scenario places no `reach_step` by hand. During migration the
+  registry accepts either form; a composed scenario never also declares
+  `path=`.
+- **One cast, one seed.** About six role-neutral actor containers plus the
+  Case Actor (#1928). Cast members 0, 1 and 2 always play the first Reporter,
+  first Vendor and first Coordinator; members 3 and up are character actors
+  whose role each scenario sets through the act that seats them
+  (DEMOCI-11-020, DEMOCI-11-021). Every recording uses one tree-wide seed, so a
+  shared prefix records the same bytes in every sibling (DEMOCI-11-018).
+- **Specs stay whole stories.** Each scenario's spec group and its DEMOMA-16
+  list of required semantic types describe the whole story, written by hand,
+  so the run is checked against the spec, not against the code. Each group
+  names the shared opening its story starts with in one line. Give a shared
+  stretch its own spec group only when one change to it must be edited in
+  several scenario groups.
+- **Verdicts do not move.** Every migration is a consolidation, so no
+  scenario's pass or fail may change in it (DEMOMA-17-002). A migrated family
+  is named in `COMPOSED_FAMILIES`, which turns on its byte-identity check.
+
 ## Test starting points
 
 The multi-actor integration tests start from the same tree (TB-15). A **named
@@ -177,7 +218,12 @@ reports to the harness with `reach_step` for the shared-prefix check
 
 ## Task order
 
-1. #4733 — composition, family by family.
+1. Composition, one PR per step, in this order: the fixed cast (#1928); the
+   story runner, piloted on `rcv` and `rcv-reject`; the rest of the
+   "Coordinator invites Vendor" subtree (`rcvcv`, `rcv-embargo`,
+   `rcvv-embargo`); the two-coordinator subtree (`rccv-*`); the vendor-first
+   half (`rv`, `rvv`, `rvcv-*`); then retiring `path=` and hand-placed
+   `reach_step`.
 2. Test starting points: #5344 (one act cheap) and #5345 (the harness, which
    stops a run at a `reach_step` mark), then the pilot #5346, then the
    migrations #5347 and #5348, and last #5349.
