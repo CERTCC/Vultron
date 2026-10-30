@@ -506,15 +506,16 @@ class TestCollapseByReferenceFields:
         )
 
     @staticmethod
-    def _collapse(obj: object, cls_name: str) -> object:
+    def _collapse(obj: object, semantics: str) -> object:
         from vultron.adapters.driven.datalayer_sqlite.hydration import (
             _collapse_by_reference_fields,
         )
-        from vultron.wire.as2.vocab.activities import case as case_vocab
+        from vultron.core.models.events import MessageSemantics
+        from vultron.semantic_registry import semantics_to_activity_class
 
         return _collapse_by_reference_fields(
             obj,  # type: ignore[arg-type]
-            getattr(case_vocab, cls_name),
+            semantics_to_activity_class()[MessageSemantics[semantics]],
         )
 
     def test_object_collapses_to_its_id(self):
@@ -524,13 +525,13 @@ class TestCollapseByReferenceFields:
 
         case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
         result = self._collapse(
-            self._invite(case), "_RmInviteToFullCaseActivity"
+            self._invite(case), "INVITE_ACTOR_TO_FULL_CASE"
         )
         assert result.target == case.id_  # type: ignore[attr-defined]
 
     def test_bare_id_is_left_alone(self):
         invite = self._invite("https://example.org/cases/case-5513")
-        assert self._collapse(invite, "_RmInviteToFullCaseActivity") is invite
+        assert self._collapse(invite, "INVITE_ACTOR_TO_FULL_CASE") is invite
 
     def test_object_without_an_id_is_left_alone(self):
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -539,7 +540,7 @@ class TestCollapseByReferenceFields:
 
         nameless = as_VulnerabilityCase.model_construct(id_=None)
         invite = self._invite(nameless)
-        assert self._collapse(invite, "_RmInviteToFullCaseActivity") is invite
+        assert self._collapse(invite, "INVITE_ACTOR_TO_FULL_CASE") is invite
 
     def test_field_that_admits_an_object_keeps_it(self):
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -550,4 +551,4 @@ class TestCollapseByReferenceFields:
             id_="https://example.org/cases/case-5513/stub"
         )
         invite = self._invite(stub)
-        assert self._collapse(invite, "_RmInviteToCaseActivity") is invite
+        assert self._collapse(invite, "INVITE_ACTOR_TO_CASE") is invite
