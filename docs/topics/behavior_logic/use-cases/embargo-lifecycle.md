@@ -426,7 +426,7 @@ Assignment through an existing instance always raises.
 | Requirement | Obligation |
 |---|---|
 | [EMB-01-002](../../../reference/vultron-spec/requirements/state-behavior.md#emb-01-002) | A proposal MUST NOT be accepted when the case is public, exploited, or attacked |
-| [EMB-01-007](../../../reference/vultron-spec/requirements/state-behavior.md#emb-01-007) | Its addressee MUST answer it with ER; an Invite naming its terms by URI only gets its ER once the terms are fetched |
+| [EMB-01-007](../../../reference/vultron-spec/requirements/state-behavior.md#emb-01-007) | Its addressee MUST answer it with a `Reject` of the Invite; an Invite naming its terms by URI only is answered once the terms are fetched |
 | [EMB-02-002](../../../reference/vultron-spec/requirements/state-behavior.md#emb-02-002) | An EA MUST NOT activate an embargo on a public case; emit ER |
 | [EMB-03-001](../../../reference/vultron-spec/requirements/state-behavior.md#emb-03-001) | An EV in `EM.ACTIVE` MUST move to `EM.REVISE`, leaving the active embargo in force |
 | [EMB-06-001](../../../reference/vultron-spec/requirements/state-behavior.md#emb-06-001) | An ER in `EM.PROPOSED` MUST return the case to `EM.NONE` when it rejects the last open proposal, and leave it `PROPOSED` while another is open |
