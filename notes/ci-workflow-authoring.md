@@ -23,6 +23,7 @@ related_specs:
   - specs/ci-security.yaml
   - specs/demo-ci.yaml
   - specs/parallel-development.yaml
+  - specs/testability.yaml
 ---
 
 # CI and GitHub Actions Workflow Authoring Pitfalls
