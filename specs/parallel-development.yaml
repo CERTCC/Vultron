@@ -1825,8 +1825,10 @@ groups:
           A bundle saves the cost of loading context once per Issue. It does not
           lower the rigor that each Issue needs.
         verification: >-
-          A bundle PR adds, for each member, the tests and acceptance-criteria
-          checks that the member's Issue would get in a PR of its own.
+          Inspection: `.agents/skills/shared/bundling.md` § "Executing a bundle"
+          and the `build` skill's Constraints require each member to be built to
+          the standard it would get alone, with its own tests and its own
+          acceptance criteria.
         relationships:
         - rel_type: extends
           spec_id: PAD-15-008
