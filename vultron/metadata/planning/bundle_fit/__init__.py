@@ -46,7 +46,7 @@ vultron.metadata.planning.bundle_fit import select_bundle`` and the
 ``bundle-fit = vultron.metadata.planning.bundle_fit:main`` entry point both keep
 working (CS-18-003).
 
-CLI (``PYTHONPATH`` must be cleared in this devcontainer — see AGENTS.md)::
+CLI (clear ``PYTHONPATH`` in a devcontainer built before #5571 — see AGENTS.md)::
 
     bash .agents/skills/shared/query-epic-subissues.sh <EPIC> \\
       | PYTHONPATH= uv run bundle-fit

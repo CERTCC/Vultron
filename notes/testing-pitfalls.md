@@ -304,9 +304,9 @@ A test that runs `sys.executable` on code importing `vultron` MUST pass
 root first only on its own `sys.path`; a child inherits just `PYTHONPATH`, and
 in a worktree that can name another checkout. A script child's `sys.path[0]` is
 the script's directory, so the other checkout's `vultron` wins and a module it
-lacks fails to import (#5456). The devcontainer's `PYTHONPATH=/app` is the usual
-source ([devcontainer-tooling](devcontainer-tooling.md) § "Clear `PYTHONPATH`
-Before Every `uv run` and Worktree Commit").
+lacks fails to import (#5456). A devcontainer built before #5571 exports
+`PYTHONPATH=/app` ([devcontainer-tooling](devcontainer-tooling.md) § "The Image
+Exports No `PYTHONPATH`; Rebuild if `$PYTHONPATH` Is `/app`").
 
 ### Store Scoping
 

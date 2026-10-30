@@ -304,7 +304,7 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   The shared corpus behind `test/architecture/` ratchets, and baseline rules.
   **Load when**: adding or changing an architecture ratchet test.
 - **`devcontainer-tooling.md`** · `guidance`
-  `uv run`, cleared `PYTHONPATH`, bare `ruff`, hanging hooks, pushing to origin.
+  `uv run`, no image `PYTHONPATH`, bare `ruff`, hanging hooks, pushing to origin.
   **Load when**: a tool fails to start, `git push` fails, or editing a skill file.
 - **`lint-tooling.md`** · `guidance`
   Ruff policy: bare-invocation gates, annotated `ignore` entries, `RUF100` baselines.
