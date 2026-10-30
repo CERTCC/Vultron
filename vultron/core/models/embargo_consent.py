@@ -41,14 +41,10 @@ from pydantic import Field, field_validator, model_validator
 from vultron.core.models._helpers import as_utc
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.base import CoreObject, NonEmptyString
-from vultron.core.models.wire_keys import input_keys, wire_key
+from vultron.core.models.wire_keys import first_input, wire_key
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
-
-
-def _first(data: dict[str, Any], keys: tuple[str, ...]) -> Any:
-    return next((data[k] for k in keys if data.get(k) is not None), None)
 
 
 class EmbargoConsent(CoreObject):
@@ -94,16 +90,16 @@ class EmbargoConsent(CoreObject):
         carries (CM-23-016).
         """
         if not isinstance(data, dict) or (
-            _first(data, input_keys(cls, "id_")) is not None
+            first_input(data, cls, "id_") is not None
         ):
             return data
-        embargo_id = _first(data, input_keys(cls, "embargo_id"))
+        embargo_id = first_input(data, cls, "embargo_id")
         if embargo_id is None:
             return data  # the missing embargo_id is reported by its field
         return {
             **data,
             wire_key("id_", cls): cls.build_id(
-                embargo_id, _first(data, input_keys(cls, "attributed_to"))
+                embargo_id, first_input(data, cls, "attributed_to")
             ),
         }
 

@@ -43,7 +43,8 @@ Spec: ARCH-20-001 (core MUST NOT produce a wire shape for a core object);
 CLP-07-011; ARCH-25-002, ARCH-25-005 (ADR-0099).
 """
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 from pydantic import AliasChoices, BaseModel
 from pydantic.alias_generators import to_camel
@@ -123,3 +124,29 @@ def input_keys(model: type[BaseModel], field_name: str) -> tuple[str, ...]:
     if field_name not in keys:
         keys.append(field_name)
     return tuple(keys)
+
+
+def first_input(
+    data: Mapping[str, Any], model: type[BaseModel], field_name: str
+) -> Any:
+    """Return the first non-``None`` value *data* holds for *field_name*.
+
+    *data* is raw ``mode="before"`` input, so the field may arrive under any
+    of its :func:`input_keys` spellings.  A validator that reads only the
+    Python name sees AS2 input as missing the field.
+
+    Returns:
+        The value, or ``None`` when no spelling holds one.
+
+    Raises:
+        KeyError: If *model* does not declare *field_name* (see
+            :func:`input_keys`).
+    """
+    return next(
+        (
+            data[key]
+            for key in input_keys(model, field_name)
+            if data.get(key) is not None
+        ),
+        None,
+    )
