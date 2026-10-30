@@ -125,7 +125,7 @@ class TestCaseParticipantEmbargoConsents(unittest.TestCase):
                     "attributedTo": self.actor_id,
                     "embargoId": self.embargo_id_2,
                     "state": "INVITED",
-                    "rsvpDeadline": "2030-01-02T03:04:05Z",
+                    "rsvpDeadline": "2030-01-02T03:04:05.000000+00:00",
                 },
             ],
             [

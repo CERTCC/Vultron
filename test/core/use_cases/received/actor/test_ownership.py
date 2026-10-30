@@ -961,12 +961,7 @@ def _ownership_offer_harness(make_payload, case_id: str):
 
 
 def _deadline_shortly() -> datetime:
-    """A deadline a second away, at the second precision of the clock.
-
-    The CASE_MANAGER reads ``now_utc()``, which drops microseconds, so a
-    deadline with a fraction of a second could still read as not passed
-    just after it.
-    """
+    """A deadline a second away on the clock the CASE_MANAGER reads."""
     return now_utc() + timedelta(seconds=1)
 
 

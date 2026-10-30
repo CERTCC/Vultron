@@ -29,6 +29,7 @@ from typing import ClassVar, cast
 import py_trees.behaviour
 
 from vultron.core.behaviors.embargo.nodes import EMBARGO_INVITE_SEMANTIC_TYPE
+from vultron.core.models._helpers import format_timestamp
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.use_cases.triggers._base import SvcEmbargoTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
@@ -68,7 +69,7 @@ class SvcOfferEmbargoTermsBase(SvcEmbargoTriggerBase):
     def _assertion_subject(self) -> str:
         # A new EmbargoEvent id is minted per call, so the terms are what a
         # repeated proposal repeats.
-        return self._embargo.end_time.isoformat()
+        return format_timestamp(self._embargo.end_time)
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         def _build_activity(to: list[str] | None) -> tuple[str, str]:

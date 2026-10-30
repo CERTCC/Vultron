@@ -38,7 +38,7 @@ from typing import Any, Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from vultron.core.models._helpers import as_utc
+from vultron.core.models._helpers import as_utc, timestamp_serializer
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.wire_keys import first_input, wire_key
@@ -70,6 +70,7 @@ class EmbargoConsent(CoreObject):
     embargo_id: NonEmptyString
     state: EmbargoConsentState
     rsvp_deadline: datetime | None = None
+    _serialize_rsvp_deadline = timestamp_serializer("rsvp_deadline")
     # A row is copied, never stamped: no clock is read to build one.
     published: datetime | None = None
     updated: datetime | None = None

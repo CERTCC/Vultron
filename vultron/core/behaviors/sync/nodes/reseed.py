@@ -297,8 +297,9 @@ class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
       before the time it claimed for that acknowledgement
       (``last_acknowledged_published``), the fault is a stale repeat sent
       before the copy arrived and delivered late: ordinary recovery, logged
-      at WARNING (``stale``).  A tie counts as stale because ``published``
-      has whole-second precision, so the two can share a second.  Both times
+      at WARNING (``stale``).  A tie counts as stale because a peer may
+      claim whole seconds, so the two can share a second (CS-13-007 binds
+      only what this node writes).  Both times
       are the peer's own clock, so no skew between machines enters the
       comparison.
     - Otherwise, when the fault's time is after that acknowledgement's, the
@@ -417,8 +418,8 @@ def _sent_by(
     """True when the fault's claimed time is at or before the acknowledgement's.
 
     Both are times the same peer claimed, so they share its clock.  A tie is
-    not after: ``published`` has whole-second precision, so a fault and the
-    acknowledgement that followed it can share a second.  A time missing on
+    not after: a peer may claim ``published`` at whole seconds, so a fault
+    and the acknowledgement that followed it can share a second.  A time missing on
     either side shows no order, so it is never "at or before".
     """
     acknowledged = as_utc(acknowledged_at)

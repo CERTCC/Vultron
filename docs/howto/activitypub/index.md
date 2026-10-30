@@ -55,7 +55,7 @@ It was produced by the reference implementation; the identifiers and timestamps 
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Offer",
   "id": "urn:uuid:70f657e8-8640-414f-9b1a-2512f9664e3a",
-  "published": "2026-09-28T17:38:03+00:00",
+  "published": "2026-09-28T17:38:03.000000+00:00",
   "to": ["https://vendor.example/actors/psirt"],
   "actor": "https://reporter.example/actors/finder",
   "object": {

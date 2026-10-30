@@ -382,9 +382,9 @@ class TestEquivalentRecordedEntry:
     def test_a_rebuilt_snapshot_still_matches(self, dl):
         """The regression: a retry re-stamps only the snapshot's build time.
 
-        ``now_utc`` truncates to whole seconds, so byte equality made this a
-        coin flip on whether the retry landed in the same second as the
-        original — passing locally and failing on slower CI.
+        Byte equality made this a coin flip on whether the retry read the
+        same clock tick as the original — passing locally and failing on
+        slower CI.
         """
         self._record(dl, self._snapshot("2026-01-01T00:00:00+00:00"))
 

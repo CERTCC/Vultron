@@ -43,7 +43,7 @@ from typing import Any, ClassVar, Literal, cast
 
 from pydantic import Field, model_validator
 
-from vultron.core.models._helpers import now_utc
+from vultron.core.models._helpers import now_utc, timestamp_serializer
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.retired_stored_fields import (
     RetiredFieldsRecord,
@@ -153,6 +153,7 @@ class CaseLedgerEntry(RetiredFieldsRecord, CoreObject):
         validation_alias="receivedAt",
         serialization_alias="receivedAt",
     )
+    _serialize_received_at = timestamp_serializer("received_at")
 
     @model_validator(mode="before")
     @classmethod

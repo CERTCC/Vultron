@@ -25,8 +25,9 @@ deleted (#3563), actors derived an absent inbox/outbox from their id
 (#3616), a participant carries its ``joined`` fact (#4046), and a case's
 embargoes live in its ``embargoRegister`` (ADR-0122, #4290), a consent row
 is an AS2 object of its own (ADR-0122, #4713), a case always names its
-owner, so it carries its seeded status and genesis hash (#5092), and an actor
-no longer derives the inbox/outbox its profile does not state (#5177).
+owner, so it carries its seeded status and genesis hash (#5092), an actor
+no longer derives the inbox/outbox its profile does not state (#5177), and
+every timestamp takes the fixed six-digit form (ADR-0167, #5452).
 
 Two value classes are generated afresh on every construction by nested
 defaults and are normalised before comparison: minted ``urn:uuid:`` ids and
