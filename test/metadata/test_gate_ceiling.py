@@ -161,12 +161,14 @@ def test_detector_flags_an_uncapped_job_and_skips_a_reusable_call() -> None:
             "zero": {"runs-on": "ubuntu-latest", "timeout-minutes": 0},
             "boolean": {"runs-on": "ubuntu-latest", "timeout-minutes": True},
             "call": {"uses": "./.github/workflows/docs-build-check.yml"},
+            "null": None,
         }
     }
     assert _uncapped_jobs("x.yml", wf_data) == [
         "x.yml:uncapped",
         "x.yml:zero",
         "x.yml:boolean",
+        "x.yml:null",
     ]
 
 

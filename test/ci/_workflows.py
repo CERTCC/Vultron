@@ -1,4 +1,4 @@
-"""Shared helpers for tests that read ``.github/workflows/*.yml``.
+"""Shared helpers for tests that read ``.github/workflows/*.yml`` and ``*.yaml``.
 
 The docs-gate ratchets (DOCBW-03) all ask the same questions of a workflow:
 which steps does it run, in what order, and which workflows build the site at
@@ -123,7 +123,7 @@ def site_building_workflows() -> list[Path]:
     """
     return sorted(
         path
-        for path in WORKFLOWS_DIR.glob("*.yml")
+        for path in workflow_files()
         if BUILD_SITE_ACTION in (text := path.read_text(encoding="utf-8"))
         or MKDOCS_SITE_BUILD.search(text)
     )
