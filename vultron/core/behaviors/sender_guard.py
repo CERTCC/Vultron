@@ -323,7 +323,7 @@ def _case_of(ctx: SenderCheckContext, what: str) -> str:
     if ctx.case_id is None:
         raise VultronWiringError(
             f"compose_sender_guard: checking a sender against {what} needs"
-            " SenderCheckContext.case_id (HP-01-008)"
+            " SenderCheckContext.case_id (HP-01-025)"
         )
     return ctx.case_id
 
