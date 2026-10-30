@@ -278,12 +278,12 @@ research, routing, project pages) sits anywhere; it is not an escape hatch for
 a page that fails the check.
 
 **The normative protocol is the Protocol Specification plus the Protocol and
-Foundation requirement tiers**, all on Engineering; *Protocol Requirements* there
-labels the specification's Requirements Catalog, which replaces the per-kind
-pages (ADR-0147). The YAML is the source of truth: the specification
-renders both tiers in its Requirements Catalog body section and shows rules in
-its narrative only as rendered callouts, so the two cannot drift (DF-12,
-ADR-0147). In the basement, the Architecture,
+Foundation requirement tiers**, all on Engineering. Both tiers are published in
+the specification's §14 Requirements Catalog, and *Protocol Requirements* there
+is a routing page that sends a reader to it (ADR-0147). The YAML is the source
+of truth: the specification renders both tiers in its Requirements Catalog body
+section and shows rules in its narrative only as rendered callouts, so the two
+cannot drift (DF-12, ADR-0147). In the basement, the Architecture,
 Project and Process tiers are *Implementation Requirements*: how we build ours,
 not how others must build theirs. Messages, the Conformance Matrix, the Quick
 Reference and Formal Protocol are companions that never add to the normative
@@ -293,7 +293,7 @@ set. Normative status is not a `page_type`.
 
 | Banner | Carried by |
 |---|---|
-| `normative.md` | exactly the normative set: the specification's body pages and the two tier pages, never its annexes or open questions (DF-12-006, DF-12-016) |
+| `normative.md` | exactly the normative set: the specification's body pages, the Requirements Catalog pages among them, never its annexes or open questions (DF-12-006, DF-12-016) |
 | `specification_governs.md` | informative pages that explain the protocol's design, such as Formal Protocol and the RM, EM and CS process models (DF-12-007) |
 | `not_normative.md` | every other informative page, including the protocol-floor companions (Messages, the Conformance Matrix, the Quick Reference); a page with no requirement-like statements may omit it |
 
@@ -303,12 +303,12 @@ the design and they may lag it, so they name the tiebreaker rather than claim or
 disclaim standing. The normative set is declared once, in `NORMATIVE_PAGES` in
 `vultron/metadata/docs/normative_banner.py` (`docs-normative-banner`), not in
 frontmatter: it is a short fixed list, and a key on hundreds of pages would be
-one more thing to drift (#4945). When the Requirements Catalog replaces the two
-tier pages (ADR-0147), the check fails on the missing pages until the list is
-updated. The protocol-design pages that carry `specification_governs.md` are
-declared the same way, in `SPECIFICATION_GOVERNS_PAGES`: `subject: protocol`
-does not single them out from the protocol-floor companions, which carry
-`not_normative.md`.
+one more thing to drift (#4945). The catalog's pages in it are read from the
+placement table, so a catalog page added there joins the set, and a declared
+page that is missing fails the check. The protocol-design pages that carry
+`specification_governs.md` are declared the same way, in
+`SPECIFICATION_GOVERNS_PAGES`: `subject: protocol` does not single them out from
+the protocol-floor companions, which carry `not_normative.md`.
 
 **Edge placements decided so far:** Behavior Logic and Federation
 (`platform-developer`) are Engineering; the Concept Taxonomy, the Glossary and

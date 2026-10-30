@@ -6,11 +6,11 @@ DF-12-018, DF-12-007, DF-11-025, DF-09-009; attribution per MS-17 via
 
 The banner ``docs/includes/normative.md`` says "This page is normative". It is
 true of the **normative set** only: the Protocol Specification's body section
-pages and the ``protocol`` and ``foundation`` requirement-tier pages
-(ADR-0136, ADR-0147). The specification's landing page, its single-page
-edition, its annexes and its open-questions page are not in the set. The set is
-declared once, here, in :data:`NORMATIVE_PAGES`; no page frontmatter key
-carries it.
+pages, including the Requirements Catalog pages that render the ``protocol``
+and ``foundation`` requirement tiers (ADR-0136, ADR-0147). The
+specification's landing page, its single-page edition, its annexes and its
+open-questions page are not in the set. The set is declared once, here, in
+:data:`NORMATIVE_PAGES`; no page frontmatter key carries it.
 
 The banner ``docs/includes/specification_governs.md`` says a page is
 informative and that the specification governs where they differ. It marks
@@ -24,7 +24,8 @@ of a file, and reports, for each banner, each as ``path:line`` where it has
 one:
 
 * a declared page that does not exist, so a list follows the pages when they
-  move (the Requirements Catalog replacing the per-tier pages, ADR-0147);
+  move (as when the Requirements Catalog replaced the per-tier pages,
+  ADR-0147);
 * a declared page that does not include the banner in the page itself — a
   banner that arrives through a shared fragment is not counted;
 * any other page or shared fragment that includes it, except the pages in
@@ -56,6 +57,10 @@ from vultron.metadata.docs.page_frontmatter import (
     include_directives,
 )
 from vultron.metadata.docs.page_schema import Subject, declared_subject
+from vultron.metadata.docs.requirement_catalog import (
+    CATALOG_LANDING,
+    CATALOG_PAGES,
+)
 from vultron.metadata.file_loading import (
     FailureCollector,
     MetadataLoadError,
@@ -72,17 +77,18 @@ GOVERNS_BANNER = "includes/specification_governs.md"
 #: :data:`GOVERNS_BANNER` carries instead of (DF-12-007).
 NOT_NORMATIVE_BANNER = "includes/not_normative.md"
 
-#: The normative set, ``docs/``-relative (DF-12-017). Replace the two tier
-#: pages with the Requirements Catalog pages when the catalog lands (ADR-0147).
+#: The normative set, ``docs/``-relative (DF-12-017): the body section pages,
+#: the Requirements Catalog's among them. The catalog's landing and themed
+#: pages come from its placement table, so a page added there joins the set.
 NORMATIVE_PAGES: tuple[str, ...] = (
     "reference/vultron-spec/introduction.md",
     "reference/vultron-spec/layers.md",
     "reference/vultron-spec/tracking-models.md",
     "reference/vultron-spec/interactions.md",
     "reference/vultron-spec/conformance.md",
+    CATALOG_LANDING,
+    *(page.path for page in CATALOG_PAGES),
     "reference/vultron-spec/considerations.md",
-    "reference/specs/protocol.md",
-    "reference/specs/foundation.md",
 )
 
 #: The informative pages that explain the protocol's design, ``docs/``-relative

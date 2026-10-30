@@ -2101,8 +2101,12 @@ groups:
           trigger router (`/actors/{id}/demo/{behavior}`); and that `@scenario`
           accepts no prompt or label argument. When a scenario reports reaching
           a declared step, the harness fails it if the calling actor does not
-          hold the branch point's role. The UI's copy of the labels is the
-          generated index, whose drift test (DEMOCI-11-016) fails a hand edit.
+          hold the branch point's role
+          (`test/demo/test_scenario_harness.py::TestDecidingRole`). Before an
+          actor is a participant, its role comes from the act that brings it
+          in: submitting the report, or the Invite it answers. The UI's copy
+          of the labels is the generated index, whose drift test
+          (DEMOCI-11-016) fails a hand edit.
         adr:
           - ADR-0098
           - ADR-0104

@@ -36,7 +36,7 @@ There the case manager records the sender's RM state, and every other replica co
 
 On the deciding side, the mechanics are thin.
 The actor checks that its RM state may make the move and sends the corresponding message to the case manager.
-It does not write the move into its own replica: the case manager records it, and the actor's replica copies that record from the ledger like every other replica ([RSH-08-006](../../../reference/specs/protocol.md#rsh-08-006)).
+It does not write the move into its own replica: the case manager records it, and the actor's replica copies that record from the ledger like every other replica ([RSH-08-006](../../../reference/vultron-spec/requirements/message-processing.md#rsh-08-006)).
 There is nothing to compute, because the decision has already been made by the time this path runs.
 
 On the receiving side the mechanics carry more weight, and their ordering is fixed.
@@ -46,7 +46,7 @@ On the receiving side the mechanics carry more weight, and their ordering is fix
 | The sending actor has a participant record in this case | An RM state with no participant to hold it is not a state the case can record |
 | Commit the canonical ledger entry | The arrival is recorded before anything acts on it (CLP-10-006) |
 | Transition that participant's RM state | Idempotent — a repeated message finds the state already set and succeeds |
-| Commit the new status as its own ledger entry | Replicas copy the status the case manager wrote, its id and time included, rather than building their own ([CLP-07-013](../../../reference/specs/protocol.md#clp-07-013)) |
+| Commit the new status as its own ledger entry | Replicas copy the status the case manager wrote, its id and time included, rather than building their own ([CLP-07-013](../../../reference/vultron-spec/requirements/ledger-replication.md#clp-07-013)) |
 | Resolve who may receive the case update | Embargo consent decides who is eligible |
 | Broadcast the updated case | Participants learn the new roster state |
 
@@ -98,13 +98,13 @@ Departing a case is a different step with a different message.
 
 | Requirement | Obligation |
 |---|---|
-| [RMB-10-001](../../../reference/specs/protocol.md#rmb-10-001) | A Participant entering `RM.VALID` MUST start a prioritization evaluation |
-| [RMB-12-001](../../../reference/specs/protocol.md#rmb-12-001) | A Participant entering `RM.DEFERRED` SHOULD emit RD |
-| [RMB-12-002](../../../reference/specs/protocol.md#rmb-12-002) | A Participant in `RM.DEFERRED` SHOULD watch for information justifying reprioritization |
-| [RMB-12-003](../../../reference/specs/protocol.md#rmb-12-003) | A Participant in `RM.DEFERRED` MAY close the report after a policy period of inactivity |
-| [RMB-13-001](../../../reference/specs/protocol.md#rmb-13-001) | A Participant MUST be in `RM.ACCEPTED` before sending Report Status (RS) to another Participant |
-| [RMB-13-002](../../../reference/specs/protocol.md#rmb-13-002) | A Participant entering `RM.ACCEPTED` SHOULD emit RA |
-| [RMB-13-003](../../../reference/specs/protocol.md#rmb-13-003) | A Participant in `RM.ACCEPTED` SHOULD perform active work on the report |
+| [RMB-10-001](../../../reference/vultron-spec/requirements/state-behavior.md#rmb-10-001) | A Participant entering `RM.VALID` MUST start a prioritization evaluation |
+| [RMB-12-001](../../../reference/vultron-spec/requirements/state-behavior.md#rmb-12-001) | A Participant entering `RM.DEFERRED` SHOULD emit RD |
+| [RMB-12-002](../../../reference/vultron-spec/requirements/state-behavior.md#rmb-12-002) | A Participant in `RM.DEFERRED` SHOULD watch for information justifying reprioritization |
+| [RMB-12-003](../../../reference/vultron-spec/requirements/state-behavior.md#rmb-12-003) | A Participant in `RM.DEFERRED` MAY close the report after a policy period of inactivity |
+| [RMB-13-001](../../../reference/vultron-spec/requirements/state-behavior.md#rmb-13-001) | A Participant MUST be in `RM.ACCEPTED` before sending Report Status (RS) to another Participant |
+| [RMB-13-002](../../../reference/vultron-spec/requirements/state-behavior.md#rmb-13-002) | A Participant entering `RM.ACCEPTED` SHOULD emit RA |
+| [RMB-13-003](../../../reference/vultron-spec/requirements/state-behavior.md#rmb-13-003) | A Participant in `RM.ACCEPTED` SHOULD perform active work on the report |
 | [RMB-15-001](../../../reference/specs/project.md#rmb-15-001) | An RM write MUST validate the transition before persisting |
 
 RMB-13-001 is the constraint with the longest reach.

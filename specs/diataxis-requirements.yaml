@@ -1982,11 +1982,10 @@ groups:
       and links written against either can disagree. One home also lets the
       retired per-kind pages for the two tiers redirect to a single place.
     verification: >-
-      A test fails when a rendered page other than a catalog page or the single-page
-      edition defines a requirement anchor. The test reads the rendered output,
-      because anchors printed by an exec block are invisible to the strict build. Not
-      yet written; owned by #4901.
-    tracking_issue: '#4901'
+      In `test/metadata/docs/test_requirement_links.py`,
+      `test_only_the_catalog_defines_catalog_anchors` fails when a `docs/` page other
+      than a catalog page or the single-page edition defines a catalog anchor, and
+      the anchor-fault tests pin each fault on small trees.
   - id: DF-12-010
     priority: MUST
     kind: process
@@ -2002,16 +2001,14 @@ groups:
       requirement pointing at the same place, so no page can send a reader to a stale
       or second copy.
     verification: >-
-      A test fails when a rendered requirement link on any page does not resolve to
-      its catalog row. The test reads the rendered output, because links printed by an
-      exec block are invisible to the strict build. Not yet written; owned by #4901.
-      In `test/metadata/docs/test_requirement_catalog.py`,
-      `test_published_catalog_links_the_catalog_row` covers only the link the
-      renderer prints.
+      In `test/metadata/docs/test_requirement_links.py`,
+      `test_every_requirement_link_targets_the_page_defining_it` fails when a link in
+      a `docs/` source page misses the row that defines its anchor. In
+      `test/metadata/docs/test_requirement_catalog.py`,
+      `test_catalog_tiers_link_the_catalog_row` covers the link the renderer prints.
     relationships:
     - rel_type: depends_on
       spec_id: DF-12-002
-    tracking_issue: '#4901'
   - id: DF-12-011
     priority: MUST
     kind: process
@@ -2025,17 +2022,15 @@ groups:
       page would take a reader of the one-page view away from the text they are
       reading.
     verification: >-
-      A test fails when a rendered requirement link on the single-page edition does not
-      resolve to the in-page copy. Not yet written; owned by #4901.
       In `test/metadata/docs/test_requirement_catalog.py`,
       `test_full_page_links_the_in_page_catalog_copy` covers only the link the
       renderer prints, and in `test/metadata/specs/test_docs_render.py`,
       `test_catalog_page_on_full_page_links_in_page` and
       `test_callout_on_full_page_links_in_page` cover the catalog page and callout.
+      No test yet reads the rendered single-page edition.
     relationships:
     - rel_type: refines
       spec_id: DF-12-010
-    tracking_issue: '#4901'
   - id: DF-12-003
     priority: MUST
     kind: process
@@ -2242,7 +2237,7 @@ groups:
       (DF-12-017) does not exist.
     rationale: >-
       A failure on a declared page that does not exist keeps the list current when
-      pages move, for example when the Requirements Catalog replaces the per-tier pages.
+      pages move, as they did when the Requirements Catalog replaced the per-tier pages.
     verification: >-
       In `test/metadata/docs/test_normative_banner.py`,
       `TestNormativeSet::test_missing_declared_page_fails` fails

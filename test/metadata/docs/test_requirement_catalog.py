@@ -22,10 +22,13 @@ from vultron.metadata.docs.requirement_catalog import (
     CATALOG_KINDS,
     CATALOG_PAGES,
     FULL_PAGE,
+    AnchorHome,
     CatalogPage,
     NotInCatalogError,
+    anchor_homes,
     catalog_location,
     current_page,
+    kind_page,
     placement_faults,
     requirement_linker,
     site_href,
@@ -113,9 +116,7 @@ def test_real_catalog_renders_every_requirement_exactly_once() -> None:
     registry = load_registry()
     counts: Counter[str] = Counter()
     for page in CATALOG_PAGES:
-        md = render_catalog_page(
-            page.key, registry, page=page.path, published=True
-        )
+        md = render_catalog_page(page.key, registry, page=page.path)
         counts.update(_ANCHOR_RE.findall(md))
     expected = {
         spec_id.lower()
@@ -224,6 +225,13 @@ def test_foundation_needs_exactly_one_page(
     assert any("exactly one catalog page" in f for f in faults)
 
 
+def test_page_keyed_as_the_landing_page_fails(registry: SpecRegistry) -> None:
+    pages = (*PAGES, CatalogPage("index", "I", SpecKind.PROTOCOL, ()))
+    assert placement_faults(registry, pages) == [
+        "catalog page key 'index' would be the catalog landing page"
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Lookup
 # ---------------------------------------------------------------------------
@@ -235,7 +243,7 @@ def test_catalog_location_of_protocol_requirement(
 ) -> None:
     location = catalog_location(_rid("BBB", 1), registry, PAGES)
     assert location.page.key == "two"
-    assert location.page.path == "reference/vultron-spec/requirements-two.md"
+    assert location.page.path == "reference/vultron-spec/requirements/two.md"
     assert location.anchor == "bbb-01-001"
 
 
@@ -274,16 +282,21 @@ def test_catalog_location_refuses_unplaced_file(
     [
         ("a/b.md", "a/b.md", "#x"),
         (
-            "reference/specs/protocol.md",
+            "reference/specs/process.md",
             "reference/specs/project.md",
             "../project/#x",
         ),
-        (FULL_PAGE, "reference/specs/protocol.md", "../../specs/protocol/#x"),
-        ("reference/specs/protocol.md", "reference/specs/index.md", "../#x"),
+        (FULL_PAGE, "reference/specs/project.md", "../../specs/project/#x"),
+        ("reference/specs/project.md", "reference/specs/index.md", "../#x"),
         (
             "index.md",
-            "reference/specs/protocol.md",
-            "reference/specs/protocol/#x",
+            "reference/specs/project.md",
+            "reference/specs/project/#x",
+        ),
+        (
+            FULL_PAGE,
+            "reference/vultron-spec/requirements/messages.md",
+            "../requirements/messages/#x",
         ),
     ],
 )
@@ -291,60 +304,59 @@ def test_site_href(from_page: str, to_page: str, expected: str) -> None:
     assert site_href(from_page, to_page, "x") == expected
 
 
-def test_unpublished_catalog_links_the_per_kind_row(
-    registry: SpecRegistry,
-) -> None:
-    href = requirement_linker(
-        registry, _SPEC_PAGE, pages=PAGES, published=False
-    )
-    assert href(_rid("AAA", 1)) == "../../specs/protocol/#aaa-01-001"
-    assert href(_rid("BBB", 2)) == "../../specs/foundation/#bbb-01-002"
-
-
 @pytest.mark.spec("DF-12-010")
-def test_published_catalog_links_the_catalog_row(
-    registry: SpecRegistry,
-) -> None:
-    href = requirement_linker(
-        registry, _SPEC_PAGE, pages=PAGES, published=True
-    )
-    assert href(_rid("AAA", 1)) == "../requirements-one/#aaa-01-001"
-    assert href(_rid("BBB", 2)) == "../requirements-foundation/#bbb-01-002"
+def test_catalog_tiers_link_the_catalog_row(registry: SpecRegistry) -> None:
+    href = requirement_linker(registry, _SPEC_PAGE, pages=PAGES)
+    assert href(_rid("AAA", 1)) == "../requirements/one/#aaa-01-001"
+    assert href(_rid("BBB", 2)) == "../requirements/foundation/#bbb-01-002"
 
 
-def test_published_catalog_row_on_its_own_page_is_in_page(
+def test_catalog_row_on_its_own_page_is_in_page(
     registry: SpecRegistry,
 ) -> None:
-    href = requirement_linker(
-        registry, PAGES[0].path, pages=PAGES, published=True
-    )
+    href = requirement_linker(registry, PAGES[0].path, pages=PAGES)
     assert href(_rid("AAA", 1)) == "#aaa-01-001"
+
+
+def test_catalog_row_from_a_sibling_catalog_page(
+    registry: SpecRegistry,
+) -> None:
+    href = requirement_linker(registry, PAGES[0].path, pages=PAGES)
+    assert href(_rid("BBB", 1)) == "../two/#bbb-01-001"
 
 
 @pytest.mark.spec("DF-12-011")
 def test_full_page_links_the_in_page_catalog_copy(
     registry: SpecRegistry,
 ) -> None:
-    href = requirement_linker(registry, FULL_PAGE, pages=PAGES, published=True)
+    href = requirement_linker(registry, FULL_PAGE, pages=PAGES)
     assert href(_rid("AAA", 1)) == "#aaa-01-001"
     assert href(_rid("BBB", 2)) == "#bbb-01-002"
 
 
-def test_full_page_before_publishing_links_the_per_kind_row(
+def test_other_kinds_link_their_per_kind_row(registry: SpecRegistry) -> None:
+    href = requirement_linker(registry, FULL_PAGE, pages=PAGES)
+    assert href(_rid("CCC", 1)) == "../../specs/architecture/#ccc-01-001"
+
+
+def test_tier_file_without_a_page_has_no_link(
     registry: SpecRegistry,
 ) -> None:
-    href = requirement_linker(
-        registry, FULL_PAGE, pages=PAGES, published=False
-    )
-    assert href(_rid("AAA", 1)) == "../../specs/protocol/#aaa-01-001"
+    """An unplaced file is a placement fault, and the retired per-kind page
+    is gone, so its rows show a plain ID rather than a dead link."""
+    href = requirement_linker(registry, _SPEC_PAGE, pages=PAGES[1:])
+    assert href(_rid("AAA", 1)) is None
 
 
-def test_other_kinds_link_their_per_kind_row(registry: SpecRegistry) -> None:
-    for published in (False, True):
-        href = requirement_linker(
-            registry, FULL_PAGE, pages=PAGES, published=published
-        )
-        assert href(_rid("CCC", 1)) == "../../specs/architecture/#ccc-01-001"
+@pytest.mark.spec("SR-09-001")
+@pytest.mark.parametrize("kind", sorted(CATALOG_KINDS))
+def test_catalog_tiers_have_no_per_kind_page(kind: SpecKind) -> None:
+    with pytest.raises(ValueError, match="Requirements Catalog"):
+        kind_page(kind)
+
+
+def test_other_kinds_keep_their_per_kind_page() -> None:
+    assert kind_page(SpecKind.PROJECT) == "reference/specs/project.md"
 
 
 def test_unknown_id_has_no_link(registry: SpecRegistry) -> None:
@@ -396,20 +408,51 @@ def test_exec_page_hook_is_registered() -> None:
     assert "vultron/metadata/docs/exec_page.py" in mkdocs_yml.read_text()
 
 
-def test_published_tier_file_without_a_page_links_its_per_kind_row(
-    registry: SpecRegistry,
-) -> None:
-    """An unplaced file is a placement fault; its rows still get a live link
-    rather than none while the fault stands."""
-    href = requirement_linker(
-        registry, _SPEC_PAGE, pages=PAGES[1:], published=True
-    )
-    assert href(_rid("AAA", 1)) == "../../specs/protocol/#aaa-01-001"
-
-
 def test_exec_page_hook_forgets_the_page_after_a_failed_build(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv(exec_page.EXEC_PAGE_ENV, FULL_PAGE)
     exec_page.on_build_error(error=RuntimeError("build failed"))
     assert exec_page.EXEC_PAGE_ENV not in os.environ
+
+
+# ---------------------------------------------------------------------------
+# Anchor homes
+# ---------------------------------------------------------------------------
+
+
+def test_requirement_has_one_home(registry: SpecRegistry) -> None:
+    homes = anchor_homes(registry, PAGES)
+    assert homes["aaa-01-001"] == (
+        AnchorHome(PAGES[0].path, "aaa-01-001", SpecKind.PROTOCOL, 1),
+    )
+    assert homes["ccc-01-001"] == (
+        AnchorHome(
+            "reference/specs/architecture.md",
+            "ccc-01-001",
+            SpecKind.ARCHITECTURE,
+            1,
+        ),
+    )
+
+
+@pytest.mark.spec("DF-12-002")
+def test_group_and_file_of_both_tiers_have_a_tier_prefixed_home_each(
+    registry: SpecRegistry,
+) -> None:
+    homes = anchor_homes(registry, PAGES)
+    assert homes["bbb-01"] == (
+        AnchorHome(PAGES[1].path, "protocol-bbb-01", SpecKind.PROTOCOL, 1),
+        AnchorHome(PAGES[2].path, "foundation-bbb-01", SpecKind.FOUNDATION, 1),
+    )
+    assert [h.fragment for h in homes["bbb"]] == [
+        "protocol-bbb",
+        "foundation-bbb",
+    ]
+    assert homes["aaa"][0].items == 2
+
+
+def test_unplaced_tier_file_has_no_home(registry: SpecRegistry) -> None:
+    homes = anchor_homes(registry, PAGES[1:])
+    assert "aaa-01-001" not in homes
+    assert "aaa" not in homes

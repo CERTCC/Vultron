@@ -937,6 +937,7 @@ class TestSiteSync:
             "howto/activitypub/activities/index.md",
             "reference/specs/index.md",
             "reference/vultron-spec/index.md",
+            "reference/vultron-spec/requirements/index.md",
         }
         assert set(indexes.rendered) == {"topics/scenarios/index.md"}
 

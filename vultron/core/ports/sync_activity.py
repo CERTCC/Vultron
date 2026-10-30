@@ -26,10 +26,24 @@ See also:
     - ``vultron/wire/as2/factories/AGENTS.md`` — Architecture Violation section
 """
 
+from enum import StrEnum
 from typing import Protocol
 
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_position import LedgerPosition
+
+
+class ResendOutcome(StrEnum):
+    """What :meth:`SyncActivityPort.resend_sealed_activity` did."""
+
+    QUEUED = "queued"
+    """The activity's sealed body was queued again, under its first id."""
+    PENDING = "pending"
+    """An earlier send of the activity is still pending in the outbox, so
+    nothing was queued (OX-06-002, SYNC-20-004)."""
+    NOT_SEALED = "not-sealed"
+    """This store holds no sealed body for the id, so there is nothing to
+    resend as first sent (OX-07-001, SYNC-20-003)."""
 
 
 class SyncActivityPort(Protocol):
@@ -115,6 +129,24 @@ class SyncActivityPort(Protocol):
                 ``log_index`` is not the empty ledger's.
             actor_id: URI of the participant stating its position.
             to: List of recipient actor URIs (the case's CASE_MANAGER).
+        """
+        ...
+
+    def resend_sealed_activity(self, activity_id: str) -> ResendOutcome:
+        """Queue *activity_id* again, exactly as it was first sent.
+
+        The outbox delivers the body sealed when the activity was first
+        emitted (OX-07-001), so the resend keeps its id, its
+        ``ledgerPosition`` and every other field (SYNC-18-002, SYNC-20-003).
+        Nothing is built, stored or ledgered.
+
+        Returns:
+            :attr:`ResendOutcome.QUEUED` when a row was queued,
+            :attr:`ResendOutcome.PENDING` when an earlier send is still
+            pending (SYNC-20-004), and :attr:`ResendOutcome.NOT_SEALED`
+            when the store holds no sealed body for the id.
+
+        Spec: SYNC-20-003, SYNC-20-004.
         """
         ...
 

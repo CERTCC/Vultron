@@ -5,8 +5,8 @@ documentation site, unlike ``render.py`` (agent/LLM export). One row renderer,
 :func:`render_requirement_row`, produces every requirement table row the site
 shows, in three places:
 
-* the per-kind requirement pages under ``docs/reference/specs/``
-  (:func:`render_for_kind`);
+* the per-kind requirement pages under ``docs/reference/specs/``, for the
+  ``architecture``, ``project`` and ``process`` kinds (:func:`render_for_kind`);
 * the Protocol Specification's Requirements Catalog pages
   (:func:`render_catalog_page`, DF-12-001);
 * the requirement callouts in the specification's narrative
@@ -23,7 +23,7 @@ Usage (in a markdown-exec Python block)::
     from vultron.metadata.specs.docs_render import render_for_kind
 
     registry = load_registry()
-    print(render_for_kind("protocol", registry))
+    print(render_for_kind("architecture", registry))
 
 A callout is one line::
 
@@ -39,6 +39,7 @@ from vultron.metadata.base import repo_root
 from vultron.metadata.docs.requirement_catalog import (
     CATALOG_KINDS,
     CATALOG_PAGES,
+    FULL_PAGE,
     CatalogPage,
     NotInCatalogError,
     catalog_location,
@@ -322,21 +323,29 @@ def render_for_kind(kind: str, registry: SpecRegistry) -> str:
     """Render all spec files matching *kind* as rich MkDocs Material markdown.
 
     Args:
-        kind: A :class:`SpecKind` string value (e.g. ``"protocol"``).
+        kind: A :class:`SpecKind` string value (e.g. ``"architecture"``).
         registry: A loaded :class:`SpecRegistry`.
 
     Returns:
         A markdown string ready for embedding via markdown-exec.
 
     Raises:
-        ValueError: If *kind* is not a :class:`SpecKind` value. A valid kind
-            that no spec carries renders a notice saying so.
+        ValueError: If *kind* is not a :class:`SpecKind` value, or is
+            ``protocol`` or ``foundation``, whose rows only the Requirements
+            Catalog defines (:func:`render_catalog_page`, DF-12-002). A valid
+            kind that no spec carries renders a notice saying so.
     """
     try:
         target_kind = SpecKind(kind)
     except ValueError:
         valid = [k.value for k in SpecKind]
         raise ValueError(f"Unknown SpecKind: {kind!r}. Valid values: {valid}")  # noqa: B904  # ruff-baseline #3353
+    if target_kind in CATALOG_KINDS:
+        raise ValueError(
+            f"{target_kind.value} requirements render in the Requirements "
+            "Catalog, not on a per-kind page; use render_catalog_page "
+            "(SR-09-001, DF-12-002)"
+        )
 
     # Route by effective kind: a file contributes to this page when it has at
     # least one item whose effective kind matches target_kind (SR-09-001).
@@ -420,8 +429,7 @@ def render_catalog_page(
     *,
     page: str | None = None,
     pages: tuple[CatalogPage, ...] = CATALOG_PAGES,
-    published: bool | None = None,
-    heading: str = "###",
+    heading: str | None = None,
 ) -> str:
     """Render the Requirements Catalog page *key* (DF-12-001).
 
@@ -438,10 +446,10 @@ def render_catalog_page(
         page: ``docs/``-relative path of the page the output is printed on;
             the page being built when ``None``.
         pages: The placement table.
-        published: Whether the catalog is in the built site; see
-            :func:`~vultron.metadata.docs.requirement_catalog.requirement_linker`.
         heading: The Markdown heading of a file subsection; a group heading
-            is one level below it.
+            is one level below it. By default ``###`` under the page's
+            ``## 14.N`` heading, and ``####`` on ``full.md``, where the
+            subsection sits one level deeper, under ``## 14.``.
 
     Raises:
         KeyError: If *pages* has no page *key*.
@@ -449,12 +457,10 @@ def render_catalog_page(
     """
     registry = registry if registry is not None else _docs_registry()
     catalog = _catalog_page(key, pages)
-    href = requirement_linker(
-        registry,
-        page if page is not None else current_page(),
-        pages=pages,
-        published=published,
-    )
+    on_page = page if page is not None else current_page()
+    if heading is None:
+        heading = "####" if on_page == FULL_PAGE else "###"
+    href = requirement_linker(registry, on_page, pages=pages)
     files = {spec_file.id: spec_file for spec_file in registry.files}
     lines: list[str] = []
     for file_id in catalog.files:
@@ -481,7 +487,6 @@ def requirement_callout(
     registry: SpecRegistry | None = None,
     page: str | None = None,
     pages: tuple[CatalogPage, ...] = CATALOG_PAGES,
-    published: bool | None = None,
 ) -> str:
     """Render an ``info`` admonition showing the requirements *spec_ids*.
 
@@ -497,7 +502,6 @@ def requirement_callout(
         page: ``docs/``-relative path of the page the callout is printed on;
             the page being built when ``None``.
         pages: The placement table.
-        published: Whether the catalog is in the built site.
 
     Raises:
         ValueError: If no ID is given, an ID is given twice, or an ID names no
@@ -517,7 +521,6 @@ def requirement_callout(
         registry,
         page if page is not None else current_page(),
         pages=pages,
-        published=published,
     )
     rows = [
         render_requirement_row(registry.get(i), href, define_anchor=False)

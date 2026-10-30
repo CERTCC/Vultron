@@ -74,7 +74,7 @@ Two systems that agree at this level can exchange structured data, even if they 
 ### 2. Procedural: behavior logic
 
 Beyond the wire format, Vultron specifies *behavioral requirements*: given a case state and a received message, what a well-behaved Participant does next.
-The requirements are machine-readable specifications in the Report Management Behavioral ([RMB](../../reference/specs/protocol.md#rmb)), Embargo Management Behavioral ([EMB](../../reference/specs/protocol.md#emb)), and CVD Case State Behavioral ([CSB](../../reference/specs/protocol.md#csb)) families.
+The requirements are machine-readable specifications in the Report Management Behavioral ([RMB](../../reference/vultron-spec/requirements/state-behavior.md#protocol-rmb)), Embargo Management Behavioral ([EMB](../../reference/vultron-spec/requirements/state-behavior.md#protocol-emb)), and CVD Case State Behavioral ([CSB](../../reference/vultron-spec/requirements/state-behavior.md#protocol-csb)) families.
 The [Behavior Logic](../behavior_logic/index.md) section illustrates them as behavior trees.
 
 !!! note "Syntax describes meaning; behavior specifies timing"

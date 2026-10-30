@@ -1178,10 +1178,11 @@ groups:
     when: a Participant checks that its ledger is current, such as after a restart
     send: Read(CaseLedgerEntry)
     send_to: the case manager
-    sent_by: an active participant
+    sent_by: a participant
     semantics: read_case_ledger_entry
     status: none
-    description: States the last ledger entry the sender has applied. The Case Manager records
-      it as the sender's acknowledged position and replays every entry after it.
+    description: States the last ledger entry the sender has applied. The Case Manager resends
+      every Invite the sender has not answered and, for an active participant, records the
+      position as the sender's acknowledged position and replays every entry after it.
     seen_in: []
     example: read_case_ledger_entry

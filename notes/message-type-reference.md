@@ -152,8 +152,10 @@ how-to tree.
   `vultron.wire.as2.vocab.examples.vocab_examples`; follow the generated sections
   under `docs/reference/messages/_occasions/sections/` and
   `docs/reference/activitypub/objects.md`.
-  `docs/reference/specs/protocol.md` is the exemplar for **mapping tables**
-  (`render_for_kind`), not for examples. Tables are committed `include-markdown`
+  A Requirements Catalog page (`docs/reference/vultron-spec/requirements/`,
+  `render_catalog_page`) is the exemplar for **mapping tables**: each catalog
+  row is the one anchor of its requirement. It is not the exemplar for
+  examples. Tables are committed `include-markdown`
   fragments instead (ADR-0128, § Occasions), because MkDocs does not rewrite links
   printed from an exec block; an example carries no link, so it stays an exec block.
 - A new example function needs a matching `obj_to_file` call in

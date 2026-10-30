@@ -170,9 +170,14 @@ adoption reads as "no rule here", which is worse than one nobody has started.
 
 #### Relabeling a `kind:` moves more than the field
 
-- **Anchors move.** A spec renders only on its own kind's docs page (SR-09-002),
-  so `specs/protocol.md#…` links dangle after a relabel. Run
-  `uv run python scripts/relink_requirement_anchors.py` afterwards.
+- **Anchors move.** A spec's row is defined only where its kind renders it
+  (SR-09-001, DF-12-002): a `protocol` or `foundation` item on its catalog row
+  in the Protocol Specification's Requirements Catalog
+  (`docs/reference/vultron-spec/requirements/`, placed by `CATALOG_PAGES`), any
+  other kind on `docs/reference/specs/<kind>.md`. A relabel across that line
+  moves the row to another page, so every link to it dangles. Run
+  `uv run python scripts/relink_requirement_anchors.py` afterwards;
+  `test/metadata/docs/test_requirement_links.py` fails until you do.
 - **Verification travels with the spec (MS-10-008).** An unverified MUST-tier
   item that changes kind gains its `verification:` in the same change; its
   `verification_debt` marker names the old kind's owner and fails.

@@ -327,9 +327,10 @@ Acknowledgment of the ledger is cumulative and implicit.
 A participant whose local tail matches a received entry's previous-entry hash sends nothing, because the match is the acknowledgment.
 On a mismatch it sends `Reject(CaseLedgerEntry)`, and the CASE_MANAGER replays every entry after the last one the participant accepted.
 A participant that wants to check its replica is current, after a restart for example, states its position with `Read(CaseLedgerEntry)` naming the last entry it applied, and the CASE_MANAGER answers a lag the same way.
+Whenever a participant states a position, the CASE_MANAGER also resends each Invite that participant still owes an answer to, as first sent, so an Invite lost before the participant could answer it reaches it again.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MSM-05-002", "SYNC-17-001", "SYNC-17-004"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MSM-05-002", "SYNC-17-001", "SYNC-17-004", "SYNC-20-001"))
 ```
 
 ### 4.13 Formal Message Set

@@ -17,7 +17,7 @@ machines, message types, and their interactions. It is intended for
 implementers who want a consolidated view before diving into the
 detailed, normative pages.
 
-The authoritative source for everything summarized here is the [Vultron Protocol Specification](vultron-spec/index.md), with the [Formal Protocol](formal_protocol/index.md) pages — [States](formal_protocol/states.md), [Messages](formal_protocol/messages.md), and [Transitions](formal_protocol/transitions.md) — carrying the formal treatment and the [protocol requirements](specs/protocol.md) the normative statements.
+The authoritative source for everything summarized here is the [Vultron Protocol Specification](vultron-spec/index.md), with the [Formal Protocol](formal_protocol/index.md) pages — [States](formal_protocol/states.md), [Messages](formal_protocol/messages.md), and [Transitions](formal_protocol/transitions.md) — carrying the formal treatment and the [Requirements Catalog](vultron-spec/requirements/index.md) the normative statements.
 Where this page and any of those disagree, the specification wins.
 
 ## State Machines at a Glance
@@ -166,7 +166,7 @@ Finder is not a protocol role: an actor that discovers a vulnerability and repor
   and cross-model interactions.
 - **[Protocol Summary](formal_protocol/conclusion.md)** — the formal
   protocol tuple pulled together.
-- **[Protocol Specification](specs/protocol.md)** — the normative
+- **[Report, Embargo and Case State Behavior](vultron-spec/requirements/state-behavior.md)** — the normative
   RMB/EMB/CSB requirements referenced throughout the transition tables.
 
 {% include-markdown "../start/_paths/connect-your-tracker/reference__quick_reference.md" %}
