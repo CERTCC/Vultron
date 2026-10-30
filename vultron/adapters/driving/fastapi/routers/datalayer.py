@@ -98,33 +98,31 @@ def _read_offer(
     return held if getattr(held, "type_", None) == _OFFER_TYPE else None
 
 
-def _received_offers(datalayer: DataLayer) -> dict[str, dict[str, Any]]:
-    """Every Offer this actor received, keyed by the sender's id for it.
+def _received_offer_ids(datalayer: DataLayer) -> list[str]:
+    """The sender's id for every Offer this actor received.
 
-    Each is served as the body that arrived, as its archive record keeps it
+    Read from the archive records, which keep each body as it arrived
     (CLP-10-017, ADR-0149).
     """
-    bodies = (
-        (record.activity_id, json.loads(record.received_body))
+    return [
+        record.activity_id
         for record in datalayer.list_objects(ReceivedActivityRecord.__name__)
         if isinstance(record, ReceivedActivityRecord)
-    )
-    return {
-        activity_id: body
-        for activity_id, body in bodies
-        if body.get("type") == _OFFER_TYPE
-    }
+        and json.loads(record.received_body).get("type") == _OFFER_TYPE
+    ]
 
 
-def _concerns_actor(offer: as_Offer, actor_uri: str) -> bool:
+def _concerns_actor(offer: PersistableModel, actor_uri: str) -> bool:
     """Whether *offer* is addressed to, or was sent by, *actor_uri*.
 
     Ids are compared whole: a recipient whose id merely ends with the actor's
     is a different actor.
     """
-    recipients = offer.to if isinstance(offer.to, list) else [offer.to]
+    to = getattr(offer, "to", None)
+    recipients = to if isinstance(to, list) else [to]
     addressed = {getattr(r, "id_", r) for r in recipients if r is not None}
-    sender = getattr(offer.actor, "id_", offer.actor)
+    actor = getattr(offer, "actor", None)
+    sender = getattr(actor, "id_", actor)
     return actor_uri in addressed or sender == actor_uri
 
 
@@ -158,27 +156,22 @@ def _serve_stored(obj: PersistableModel) -> AS2JSONResponse | dict[str, Any]:
 )
 def get_actor_offer(
     actor_id: str, offer_id: str, datalayer: DataLayer = Depends(get_actor_dl)
-) -> AS2JSONResponse:
+) -> AS2JSONResponse | dict[str, Any]:
     obj = _read_offer(datalayer, offer_id)
 
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    # This route still rebuilds the Offer as the declared ``as_Offer``, so a
-    # semantic Offer subtype's inline object renders with its base fields
-    # only, while the by-id reads serve the stored object whole (#5510).
-    # #5540 tracks serving it as stored here too.  The rebuild mints no id
-    # and reads no clock.
-    offer = as_Offer.model_validate(
-        obj.model_dump(by_alias=True, serialize_as_any=True)
-    )
-
     # ``actor_id`` is the raw path segment; compare the canonical URI the
     # store was opened for (ADR-0073), as ``get_actor_outbox`` does.
-    if not _concerns_actor(offer, actor_hosts.canonical_actor_uri(actor_id)):
+    if not _concerns_actor(obj, actor_hosts.canonical_actor_uri(actor_id)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    return AS2JSONResponse(offer)
+    # Served as held, as the by-id reads serve it (#5510): rebuilding it as
+    # the declared ``as_Offer`` narrowed a semantic Offer's inline object to
+    # the base type and dropped that object's own fields (#5540).
+    # ``response_model`` still documents the shape in the OpenAPI schema.
+    return _serve_stored(obj)
 
 
 @router.get(
@@ -191,7 +184,13 @@ def get_object(
     object_id: str,
     datalayer: DataLayer = Depends(get_actor_dl),
 ):
-    obj = datalayer.read(object_id)
+    # A key that holds one ``/`` (a ``VultronOfferRecord`` id, say) also fits
+    # this pattern, and only the ``{key:path}`` route below reads it whole.
+    # When the part after the slash names nothing, read the whole path as the
+    # key, so every stored record stays readable by its key (#5529).
+    obj = datalayer.read(object_id) or datalayer.read(
+        f"{object_type}/{object_id}"
+    )
 
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
@@ -206,15 +205,12 @@ def get_object(
 )
 def get_offer(
     object_id: str, datalayer: DataLayer = Depends(get_actor_dl)
-) -> AS2JSONResponse:
+) -> AS2JSONResponse | dict[str, Any]:
     obj = _read_offer(datalayer, object_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    return AS2JSONResponse(
-        as_Offer.model_validate(
-            obj.model_dump(by_alias=True, serialize_as_any=True)
-        )
-    )
+    # Served as held, as ``get_actor_offer`` serves it (#5540).
+    return _serve_stored(obj)
 
 
 @router.get(
@@ -291,15 +287,21 @@ def get_offers(
     datalayer: DataLayer = Depends(get_actor_dl),
 ) -> AS2JSONResponse:
     # A received Offer is served from its archive record, which replaces any
-    # row held under the sender's id for the same Offer (DL-06-006).
-    results = datalayer.by_type(_OFFER_TYPE) | _received_offers(datalayer)
+    # row held under the sender's id for the same Offer (DL-06-006).  Each is
+    # served as held, as ``get_actor_offer`` serves it: rebuilding it as the
+    # base ``as_Offer`` dropped the fields of a semantic Offer's inline
+    # object (#5540).
+    offer_ids = dict.fromkeys(
+        [*datalayer.by_type(_OFFER_TYPE), *_received_offer_ids(datalayer)]
+    )
+    persistence = cast(CasePersistence, datalayer)
 
     return AS2JSONResponse(
         {
-            k: as_Offer.model_validate(v).model_dump(
-                mode="json", by_alias=True, exclude_none=True
-            )
-            for k, v in results.items()
+            offer_id: read_held_as_received(
+                persistence, offer_id, _OFFER_TYPE
+            ).model_dump(mode="json", by_alias=True, exclude_none=True)
+            for offer_id in offer_ids
         }
     )
 

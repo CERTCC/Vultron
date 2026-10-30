@@ -22,6 +22,7 @@ behaviour (#5510).
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import json
+import urllib.parse
 import uuid
 from collections.abc import Callable, Iterator
 from datetime import datetime
@@ -47,6 +48,7 @@ from vultron.demo.determinism import deterministic_run
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.examples.case import offer_case_participant_role
 from vultron.wire.as2.vocab.examples.participant import accept_invite_to_case
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -307,8 +309,8 @@ def test_camel_case_participant_dump_revalidates_without_minting() -> None:
 def test_a_bookkeeping_row_is_served_as_its_plain_dump() -> None:
     """A row with no AS2 form is served as its dump, not as AS2 (ARCH-20-006).
 
-    Called directly: a bookkeeping row's id holds a ``/``, so no by-id route
-    path reaches it as one key.
+    Called directly, so the check holds whichever route serves the row; a
+    route-level read of one is below.
     """
     record = VultronOfferRecord(
         offer_id="urn:uuid:offer-1",
@@ -344,3 +346,119 @@ def test_an_as2_object_is_served_as_an_as2_document() -> None:
         "published": report.published.isoformat(),
         "updated": report.updated.isoformat(),
     }
+
+
+def test_a_key_with_one_slash_is_readable_by_its_key(
+    client: TestClient, datalayer: DataLayer
+) -> None:
+    """A record whose key holds one ``/`` is served by a GET of that key.
+
+    Such a path also fits ``/{object_type}/{object_id}``, which reads only the
+    part after the slash; that read misses, so the route reads the whole path
+    as the key (#5529).
+
+    The record's key holds ``%3A``, and a server decodes the request path
+    once before it matches a route, so a client sends the key quoted once.
+    ``TestClient`` decodes the path twice (``httpx``'s ``URL.path``, then
+    ``unquote``), so here it is quoted once more.
+    """
+    record = VultronOfferRecord(
+        offer_id="urn:uuid:offer-1",
+        offer_actor_id=ACTOR_ID,
+        report_id="urn:uuid:report-1",
+    )
+    datalayer.save(record)
+    assert record.id_.count("/") == 1
+
+    response = client.get(
+        f"/api/v2/actors/{ACTOR_SEGMENT}/datalayer/"
+        f"{urllib.parse.quote(urllib.parse.quote(record.id_, safe=''))}"
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == record.model_dump(
+        mode="json", by_alias=True, serialize_as_any=True
+    )
+
+
+def test_a_one_slash_path_that_names_no_key_is_not_found(
+    client: TestClient,
+) -> None:
+    response = client.get(
+        f"/api/v2/actors/{ACTOR_SEGMENT}/datalayer/offer-record/urn:uuid:absent"
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.fixture
+def role_offer(datalayer: DataLayer) -> as_Offer:
+    """A stored ``Offer(CaseParticipantRole)`` the reading actor sent."""
+    offer = offer_case_participant_role().model_copy(
+        update={"actor": ACTOR_ID}
+    )
+    datalayer.create(offer)
+    return offer
+
+
+def _offer_reads(offer_id: str) -> list[tuple[str, _Params | None]]:
+    base = f"/api/v2/actors/{ACTOR_SEGMENT}/datalayer"
+    return [
+        (f"{base}/Offers/{offer_id}", None),
+        (f"{base}/Offer/", _Params(object_id=offer_id)),
+    ]
+
+
+@pytest.mark.parametrize("read", [0, 1], ids=["Offers-by-id", "Offer-query"])
+def test_an_offer_route_serves_the_inline_object_whole(
+    client: TestClient, role_offer: as_Offer, read: int
+) -> None:
+    """The Offer routes keep every stored field of the inline object (#5540).
+
+    Rebuilding the Offer as the base ``as_Offer`` narrowed its inline
+    ``CaseParticipantRole`` and dropped its ``role``.
+    """
+    path, params = _offer_reads(role_offer.id_)[read]
+
+    response = client.get(path, params=params)
+
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"] == "application/activity+json"
+    body = response.json()
+    assert body["object"]["role"] == _as2_body(role_offer)["object"]["role"]
+    by_id = client.get(
+        f"/api/v2/actors/{ACTOR_SEGMENT}/datalayer/{role_offer.id_}"
+    )
+    assert by_id.status_code == 200, by_id.text
+    assert body == by_id.json()
+
+
+def test_the_offers_route_refuses_an_offer_that_does_not_concern_the_actor(
+    client: TestClient, datalayer: DataLayer
+) -> None:
+    """Serving the Offer as stored keeps the route's sender/addressee check."""
+    offer = offer_case_participant_role()
+    datalayer.create(offer)
+
+    path, _ = _offer_reads(offer.id_)[0]
+
+    assert client.get(path).status_code == 404
+
+
+def test_the_offers_list_serves_each_inline_object_whole(
+    client: TestClient, role_offer: as_Offer
+) -> None:
+    """The Offer list keeps every stored field of an inline object too.
+
+    It rebuilt each Offer as the base ``as_Offer`` as the single-Offer routes
+    did, and dropped the inline ``CaseParticipantRole``'s ``role`` (#5540).
+    """
+    base = f"/api/v2/actors/{ACTOR_SEGMENT}/datalayer"
+
+    listed = client.get(f"{base}/Offers/")
+    by_id = client.get(f"{base}/{role_offer.id_}")
+
+    assert listed.status_code == 200, listed.text
+    assert by_id.status_code == 200, by_id.text
+    assert listed.json()[role_offer.id_] == by_id.json()
+    assert "role" in by_id.json()["object"]
