@@ -348,7 +348,7 @@ def test_tier_file_without_a_page_has_no_link(
     assert href(_rid("AAA", 1)) is None
 
 
-@pytest.mark.spec("SR-09-001")
+@pytest.mark.spec("SR-09-004")
 @pytest.mark.parametrize("kind", sorted(CATALOG_KINDS))
 def test_catalog_tiers_have_no_per_kind_page(kind: SpecKind) -> None:
     with pytest.raises(ValueError, match="Requirements Catalog"):

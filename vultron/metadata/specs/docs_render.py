@@ -344,7 +344,7 @@ def render_for_kind(kind: str, registry: SpecRegistry) -> str:
         raise ValueError(
             f"{target_kind.value} requirements render in the Requirements "
             "Catalog, not on a per-kind page; use render_catalog_page "
-            "(SR-09-001, DF-12-002)"
+            "(SR-09-004, DF-12-002)"
         )
 
     # Route by effective kind: a file contributes to this page when it has at

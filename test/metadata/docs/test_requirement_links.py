@@ -420,7 +420,7 @@ def test_per_kind_render_of_another_kind_is_allowed(
     assert anchor_definition_faults(root, registry, _PAGES) == []
 
 
-@pytest.mark.spec("SR-09-001")
+@pytest.mark.spec("SR-09-004")
 def test_per_kind_render_of_a_catalog_tier_fails(tmp_path, registry) -> None:
     files = _sound_catalog()
     files["reference/specs/protocol.md"] = _EXEC.format(

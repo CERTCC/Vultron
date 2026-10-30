@@ -1525,7 +1525,6 @@ groups:
   - id: SR-09-004
     priority: MUST
     kind: project
-    verification_debt: '#2574'
     statement: >-
       The docs renderer MUST render each `protocol` or `foundation` spec item in the
       Requirements Catalog of the Protocol Specification (DF-12-001), not on a kind
@@ -1534,6 +1533,13 @@ groups:
       Protocol and foundation items apply to every implementation, so they render in the
       catalog of the Protocol Specification, with the normative specification text
       (ADR-0147).
+    verification: >-
+      `test_render_for_kind_refuses_the_catalog_tiers` in
+      `test/metadata/specs/test_docs_render.py` and
+      `test_catalog_tiers_have_no_per_kind_page` in
+      `test/metadata/docs/test_requirement_catalog.py` check that neither tier has a
+      kind page, and `test/metadata/specs/test_kind_page_coverage.py` checks each has
+      catalog pages.
     relationships:
     - rel_type: extends
       spec_id: SR-09-001

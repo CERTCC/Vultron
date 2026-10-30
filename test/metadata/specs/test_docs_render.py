@@ -6,7 +6,7 @@ an unknown kind and for the two Requirements Catalog tiers, the notice for a
 kind no spec carries yet, and SpecTag.BEHAVIORAL detection. The fixtures are
 written as ``protocol`` requirements, the tier the catalog tests need; the
 per-kind tests retag them to ``process`` with :func:`_as_kind`, because a
-``protocol`` or ``foundation`` requirement has no per-kind page (SR-09-001).
+``protocol`` or ``foundation`` requirement has no per-kind page (SR-09-004).
 The shared row renderer, the catalog pages and the callouts follow.
 """
 
@@ -233,7 +233,7 @@ def test_render_for_kind_with_no_specs_renders_a_notice(general_registry):
     assert "<h2" not in output and "##" not in output
 
 
-@pytest.mark.spec("SR-09-001", "DF-12-002")
+@pytest.mark.spec("SR-09-004", "DF-12-002")
 @pytest.mark.parametrize("kind", ["protocol", "foundation"])
 def test_render_for_kind_refuses_the_catalog_tiers(general_registry, kind):
     """The two tiers render only in the Requirements Catalog, whose rows are
