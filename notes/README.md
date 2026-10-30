@@ -226,8 +226,8 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   The CaseParticipant role API, participant lookup, and the RM terminal guard.
   **Load when**: changing participant roles or RM mutation on a participant.
 - **`received-status-authorization.md`** · `guidance`
-  How a CASE_MANAGER turns an inbound status claim into case state: two gates.
-  **Load when**: changing received-side status handling or its gates.
+  How a CASE_MANAGER turns an inbound status claim into case state: one gate.
+  **Load when**: changing received-side status handling or its gate.
 - **`ownership-transfer.md`** · `guidance`
   Transfer Offer and Accept route through the CASE_MANAGER and the ledger (ADR-0053).
   **Load when**: changing ownership-transfer routing or its demo.

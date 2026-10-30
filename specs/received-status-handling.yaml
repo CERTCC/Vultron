@@ -95,11 +95,14 @@ groups:
       for, so no second gate sits between the write and the teardown, and both
       run in one CASE_MANAGER act (ADR-0166).
     verification: >-
-      Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py`
-      and `test/core/behaviors/status/test_status_authorization_bundle.py`
-      confirm that `ThreatTerminationBranchNode` follows
+      `test/core/behaviors/status/test_status_authorization_bundle.py`
+      (`test_teardown_follows_the_canonical_write_with_no_second_gate`)
+      confirms that `ThreatTerminationBranchNode` directly follows
       `EmitCaseStatusUpdateNode`, wrapped only in the `TeardownOrSkip`
-      `FailureIsSuccess` decorator, with no teardown authorization call-out.
+      `FailureIsSuccess` decorator, with no teardown authorization call-out;
+      `test/core/behaviors/status/test_add_participant_status_bt.py`
+      (`TestAdoptedThreatTeardown`) confirms the adopted status is committed
+      before the teardown.
     adr:
     - ADR-0046
     - ADR-0108
@@ -722,9 +725,10 @@ groups:
     verification: >-
       `test/architecture/test_protocol_asks_specs.py::test_production_status_authorization_default_is_conservative`
       confirms the default bundle is conservative, so a permissive backend is
-      only ever an explicit choice, and
-      `vultron/adapters/driving/fastapi/inbox_port_factories.py` documents its
-      permissive injection site.
+      only ever an explicit choice. That the choice is documented is checked by
+      inspection: each permissive injection site, such as the one in
+      `vultron/adapters/driving/fastapi/inbox_port_factories.py`, carries a
+      comment that names the trusted or demo deployment it serves.
     relationships:
     - rel_type: refines
       spec_id: RSH-07-003

@@ -89,9 +89,10 @@ Owner again about a value it already authorized, or reported itself, is
 circular, and a refusal would leave P, X or A beside an active embargo, which
 CSB-18-002 to CSB-18-004 forbid. Do not add an authorization step between
 adoption and teardown. A policy that must delay a teardown decides at
-adoption, by not adopting yet. The teardown runs inside a `FailureIsSuccess`
-wrapper, so a teardown that fails for another reason still leaves the tree
-`SUCCESS` and the CSB-18 diagnostic reports it.
+adoption, by not adopting yet. The teardown runs inside `TeardownOrSkip`, a
+`FailureIsSuccess` that logs each absorbed failure at WARNING, so a teardown
+that fails for another reason still leaves the tree `SUCCESS` and is never
+silent; the CSB-18 diagnostic also reports an embargo it leaves in force.
 
 On the adoption path the gate, the canonical write and the teardown run in one
 tree, in order, with no inbox round-trip (RSH-01-003, RSH-01-004).

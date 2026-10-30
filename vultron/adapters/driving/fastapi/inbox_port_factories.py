@@ -209,7 +209,8 @@ def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
     proposal — the behaviour the service had before the seam existed
     (BT-23-001, BT-23-011).  A deployment with an admission policy substitutes
     its own bundle here, the same way this module wires
-    ``STATUS_AUTHORIZATION_PERMISSIVE`` for the received-side status gates.
+    ``STATUS_AUTHORIZATION_PERMISSIVE`` for the received-side status adoption
+    gate.
     """
     return _with_actor_config(
         {

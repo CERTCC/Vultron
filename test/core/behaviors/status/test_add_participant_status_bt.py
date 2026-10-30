@@ -32,6 +32,7 @@ Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005.
 Per specs/received-status-handling.yaml RSH-01-001 to RSH-01-004.
 """
 
+import logging
 from typing import cast
 
 import py_trees
@@ -1875,38 +1876,6 @@ class TestAddParticipantStatusTeardownWiring:
             " add_participant_status_tree (RSH-03-001 to RSH-03-003)"
         )
 
-    @pytest.mark.spec("RSH-01-004")
-    def test_no_embargo_teardown_gate(self, make_payload):
-        """add_participant_status_tree has no teardown authorization call-out.
-
-        The adoption authorizes the teardown the adopted P, X or A value
-        calls for, so no second gate asks again (ADR-0166).
-        """
-        activity = add_status_to_participant_activity(
-            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
-            target=as_CaseParticipant(
-                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
-            ),
-            actor=ACTOR_ID,
-            context=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
-            ),
-        )
-        event = make_payload(activity)
-        tree = add_participant_status_tree(
-            request=event,
-            case_id=CASE_ID,
-            sender_rule=_STATUS_RULE,
-        )
-
-        all_nodes = self._collect_nodes(tree)
-        node_names = [n.name for n in all_nodes]
-
-        assert "EmbargoTeardownAuthorizationGate" not in node_names, (
-            "the adoption authorizes the teardown; no second gate (ADR-0166)"
-        )
-        assert "TeardownEffects" not in node_names
-
     @pytest.mark.spec("RSH-03-001")
     @pytest.mark.spec("RSH-04-004")
     @pytest.mark.spec("RSH-04-006")
@@ -1966,47 +1935,13 @@ class TestAddParticipantStatusTeardownWiring:
 
         all_nodes = self._collect_nodes(tree)
         node_names = [n.name for n in all_nodes]
-        node_types_map = {n.name: type(n).__name__ for n in all_nodes}
 
         assert "TeardownOrSkip" in node_names, (
             "TeardownOrSkip wrapper must be present (RSH-04-004)"
         )
-        assert node_types_map["TeardownOrSkip"] == "FailureIsSuccess", (
+        wrapper = next(n for n in all_nodes if n.name == "TeardownOrSkip")
+        assert isinstance(wrapper, py_trees.decorators.FailureIsSuccess), (
             "TeardownOrSkip must be a FailureIsSuccess decorator"
-        )
-
-    @pytest.mark.spec("RSH-01-004")
-    def test_teardown_runs_directly_under_its_wrapper(self, make_payload):
-        """``TeardownOrSkip`` wraps ``ThreatTerminationBranchNode`` directly.
-
-        RSH-01-004: side-effects run only after the canonical write.  The
-        adoption authorizes the teardown, so no gate sits between the wrapper
-        and the teardown (ADR-0166).
-        """
-        activity = add_status_to_participant_activity(
-            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
-            target=as_CaseParticipant(
-                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
-            ),
-            actor=ACTOR_ID,
-            context=as_VulnerabilityCase(
-                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
-            ),
-        )
-        event = make_payload(activity)
-        tree = add_participant_status_tree(
-            request=event,
-            case_id=CASE_ID,
-            sender_rule=_STATUS_RULE,
-        )
-
-        all_nodes = self._collect_nodes(tree)
-        wrapper = [n for n in all_nodes if n.name == "TeardownOrSkip"]
-        assert len(wrapper) == 1, "exactly one TeardownOrSkip wrapper"
-        children = list(getattr(wrapper[0], "children", []))
-        assert [type(c) for c in children] == [ThreatTerminationBranchNode], (
-            "TeardownOrSkip must wrap ThreatTerminationBranchNode directly"
-            " (RSH-01-004, ADR-0166)"
         )
 
 
@@ -2412,10 +2347,13 @@ def _cm_store_with_active_embargo() -> SqliteDataLayer:
     return _cm_store_with_embargo(EM.ACTIVE)
 
 
-def _cm_store_with_embargo(em: EM) -> SqliteDataLayer:
+def _cm_store_with_embargo(
+    em: EM, *, with_reporter: bool = False
+) -> SqliteDataLayer:
     """The CASE_MANAGER's store: the vendor (Case Owner) and the CASE_MANAGER
     seated on a case whose embargo is proposed, active, or active under an
-    open revision (REVISE).
+    open revision (REVISE).  *with_reporter* also seats a non-owner reporter,
+    a signatory like the others.
 
     The participants are attached before the embargo is registered, so each
     holds a consent row for it (ADR-0122).
@@ -2447,6 +2385,15 @@ def _cm_store_with_embargo(em: EM) -> SqliteDataLayer:
     )
     case.add_participant(vendor)
     case.add_participant(manager)
+    seated = [vendor, manager]
+    if with_reporter:
+        reporter = as_CaseParticipant(
+            id_=REPORTER_PARTICIPANT_ID,
+            context=CASE_ID,
+            attributed_to=REPORTER_ID,
+        )
+        case.add_participant(reporter)
+        seated.append(reporter)
     embargo = as_EmbargoEvent(
         id_=f"{CASE_ID}/embargo_events/e1",
         context=CASE_ID,
@@ -2466,15 +2413,18 @@ def _cm_store_with_embargo(em: EM) -> SqliteDataLayer:
         propose(case, revision.id_)
         embargoes.append(revision)
     dl.create(case)
-    dl.create(vendor)
-    dl.create(manager)
+    for participant in seated:
+        dl.create(participant)
     for event in embargoes:
         dl.create(event)
     write_consent_rows(dl, case)
     if em in (EM.ACTIVE, EM.REVISE):
         # Both are signatories, so the vendor's report is an active
         # participant's (CM-10-004) and every commit can address it.
-        agree_to_active_embargo(dl, case, ACTOR_ID, CASE_MANAGER_ID)
+        signatories = [ACTOR_ID, CASE_MANAGER_ID]
+        if with_reporter:
+            signatories.append(REPORTER_ID)
+        agree_to_active_embargo(dl, case, *signatories)
     assert case.em_state is em
     return dl
 
@@ -2507,7 +2457,7 @@ class TestAdoptedThreatTeardown:
     )
     @pytest.mark.parametrize("em", [EM.ACTIVE, EM.REVISE])
     def test_an_owners_adopted_threat_ends_the_embargo_in_the_same_act(
-        self, make_payload, reported, em
+        self, make_payload, reported, em, caplog
     ):
         """With the default (conservative) bundle, the Case Owner's own P, X
         or A report is adopted without approval (RSH-07-006), and the same
@@ -2517,8 +2467,13 @@ class TestAdoptedThreatTeardown:
         """
         populated_dl = _cm_store_with_embargo(em)
 
-        result = _run_at_case_manager(
-            populated_dl, make_payload(_pxa_report(reported))
+        with caplog.at_level(logging.WARNING):
+            result = _run_at_case_manager(
+                populated_dl, make_payload(_pxa_report(reported))
+            )
+
+        assert not any(
+            "embargo teardown failed" in r.getMessage() for r in caplog.records
         )
 
         assert result.status == Status.SUCCESS, result.feedback_message
@@ -2533,22 +2488,32 @@ class TestAdoptedThreatTeardown:
         assert case.proposed_embargo_ids == []
         assert case.notes == []
 
+    @pytest.mark.spec("RSH-07-001")
     @pytest.mark.spec("RSH-07-003")
     @pytest.mark.spec("CSB-18-002")
-    def test_permissive_bundle_teardown_fires_no_note_posted(
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
+    def test_a_non_owners_authorized_report_ends_the_embargo(
         self, make_payload
     ):
-        """PERMISSIVE bundle — the teardown fires as with the default, EM=EXITED
+        """A non-owner's P report, adopted because the call-out authorizes
+        it (here the PERMISSIVE bundle), ends the embargo in the same act:
+        that authorization also covers the teardown (ADR-0166).  EM=EXITED
         → no violation, no note."""
         from vultron.core.behaviors.call_out.bundles.status_authorization import (
             STATUS_AUTHORIZATION_PERMISSIVE,
         )
 
-        populated_dl = _cm_store_with_active_embargo()
+        populated_dl = _cm_store_with_embargo(EM.ACTIVE, with_reporter=True)
 
         result = _run_at_case_manager(
             populated_dl,
-            make_payload(_pxa_report(CS_pxa.Pxa)),
+            make_payload(
+                _pxa_report(
+                    CS_pxa.Pxa,
+                    sender=REPORTER_ID,
+                    participant_id=REPORTER_PARTICIPANT_ID,
+                )
+            ),
             call_out=STATUS_AUTHORIZATION_PERMISSIVE,
         )
 
@@ -2559,22 +2524,57 @@ class TestAdoptedThreatTeardown:
         assert case.current_status.pxa.state == CS_pxa.Pxa
         assert case.notes == []
 
+    @pytest.mark.spec("RSH-07-001")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
+    def test_a_non_owners_unauthorized_report_ends_nothing(self, make_payload):
+        """With the default bundle, a non-owner's P report waits for the Case
+        Owner's authorization: nothing is adopted, so no teardown runs and the
+        embargo stays in force with P unset, which is no CSB-18 violation."""
+        populated_dl = _cm_store_with_embargo(EM.ACTIVE, with_reporter=True)
+
+        result = _run_at_case_manager(
+            populated_dl,
+            make_payload(
+                _pxa_report(
+                    CS_pxa.Pxa,
+                    sender=REPORTER_ID,
+                    participant_id=REPORTER_PARTICIPANT_ID,
+                )
+            ),
+        )
+
+        assert result.status == Status.SUCCESS, result.feedback_message
+        case = populated_dl.read(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        assert case.current_status.pxa.state == CS_pxa.pxa
+        assert case.current_status.em.state == EM.ACTIVE
+        assert case.notes == []
+
     @pytest.mark.spec("CSB-18-002")
     @pytest.mark.spec("CSB-18-003")
     @pytest.mark.spec("CSB-18-004")
     @pytest.mark.spec("VAM-01-010")
     def test_a_failed_teardown_is_reported_in_a_note(
-        self, make_payload, monkeypatch
+        self, make_payload, monkeypatch, caplog
     ):
         """A teardown that fails for a reason of its own leaves EM ACTIVE
-        beside the adopted P → the CASE_MANAGER still keeps the act and
-        commits a CSB-18 note (ADR-0166 safety net, #4829)."""
+        beside the adopted P → the CASE_MANAGER still keeps the act, logs the
+        absorbed failure at WARNING, and commits a CSB-18 note (ADR-0166
+        safety net, #4829)."""
         fail_pxa_teardown(monkeypatch)
         populated_dl = _cm_store_with_active_embargo()
 
-        result = _run_at_case_manager(
-            populated_dl, make_payload(_pxa_report(CS_pxa.Pxa))
-        )
+        with caplog.at_level(logging.WARNING):
+            result = _run_at_case_manager(
+                populated_dl, make_payload(_pxa_report(CS_pxa.Pxa))
+            )
+
+        assert any(
+            r.levelno == logging.WARNING
+            and "embargo teardown failed" in r.getMessage()
+            and CASE_ID in r.getMessage()
+            for r in caplog.records
+        ), [r.getMessage() for r in caplog.records]
 
         assert result.status == Status.SUCCESS, result.feedback_message
         case = populated_dl.read(CASE_ID)

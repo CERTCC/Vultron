@@ -97,6 +97,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
 )
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseOwnerNode,
     SenderRule,
@@ -127,6 +128,39 @@ from vultron.core.models.events.status import (
 from vultron.primitives import same_actor_id
 
 logger = logging.getLogger(__name__)
+
+
+class TeardownOrSkip(py_trees.decorators.FailureIsSuccess):
+    """Keep the adopting act when the P, X or A teardown fails, and say so.
+
+    The adoption authorizes the teardown, so a ``FAILURE`` here is never a
+    refusal: it is a teardown that failed for a reason of its own (ADR-0166).
+    The act still commits its adoption, and ``PxaEmInvariantDiagnosticNode``
+    reports an embargo left in force beside the adopted value (CSB-18-002 to
+    CSB-18-004).  Not every failure leaves that gap (a failed proposal
+    abandonment while EM is ``PROPOSED`` does not), so the decorator logs
+    every absorbed failure at WARNING, rather than leaving it silent.
+    """
+
+    def __init__(
+        self,
+        child: py_trees.behaviour.Behaviour,
+        case_id: str | None,
+        name: str = "TeardownOrSkip",
+    ) -> None:
+        super().__init__(name=name, child=child)
+        self._case_id = case_id
+
+    def update(self) -> py_trees.common.Status:
+        if self.decorated.status == py_trees.common.Status.FAILURE:
+            node_logger(self).warning(
+                "%s: P/X/A embargo teardown failed for case '%s' (%s);"
+                " the adoption is kept (ADR-0166)",
+                self.name,
+                self._case_id,
+                self.decorated.feedback_message or "no feedback",
+            )
+        return super().update()
 
 
 def _adopt_or_withhold(
@@ -348,8 +382,8 @@ def add_participant_status_tree(
                     # calls for, so it runs here with no second gate (ADR-0166).
                     # A failed teardown keeps the act, so the diagnostic below
                     # still reports the gap it leaves (CSB-18-002..004).
-                    py_trees.decorators.FailureIsSuccess(
-                        name="TeardownOrSkip",
+                    TeardownOrSkip(
+                        case_id=tree_case_id,
                         child=ThreatTerminationBranchNode(
                             # Prefer the peer's embedded CaseStatus for the
                             # PXA check: it was accepted whole, so it is the
