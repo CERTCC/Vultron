@@ -20,7 +20,7 @@ stakeholder_type: [project-contributor]
 | `vultron/config/` | Layer-neutral configuration models and loading logic | `vultron/config/app.py`, `vultron/config/actor.py`, `vultron/config/ledger.py` |
 | `vultron/enums/` | Shared CVD-domain enums (roles, object types) imported by config and core | `vultron/enums/roles.py`, `vultron/enums/object_types.py` |
 | `vultron/errors.py`, `vultron/primitives.py`, `vultron/logging_setup.py`, `vultron/subclasses.py` | Shared exception hierarchy, shared type aliases (`NonEmptyString`), logging configuration, the one subclass-tree walk (`all_subclasses`) | `vultron/errors.py`, `vultron/primitives.py` |
-| `vultron/demo/` | Demo CLI, scenario registry, multi-actor scenarios (`scenario/`), single-exchange demos (`exchange/`), shared helpers (`helpers/`), stochastic fuzzers (`fuzzer/`) | `vultron/demo/AGENTS.md`, `vultron/demo/cli.py` |
+| `vultron/demo/` | Demo CLI, scenario registry, multi-actor scenarios (`scenario/`), single-exchange demos (`exchange/`), shared helpers (`helpers/`), stochastic fuzzers (`fuzzer/`), and the in-process recorder of each scenario's canonical case ledger for the UI's Log Replay (`recordings/`, `in_process.py`) | `vultron/demo/AGENTS.md`, `vultron/demo/cli.py`, `vultron/demo/recordings/__init__.py` |
 | `vultron/metadata/` | Project tooling: spec registry, history CLI, notes and ADR metadata, docs-site validators, demo-scenario sync, JSON-LD context generation (`wire_context/`), planning helpers (`planning/`), message-semantics mapping renderer; `file_loading.py` attributes every loader failure to its file (MS-17) | `vultron/metadata/AGENTS.md`, `vultron/metadata/file_loading.py` |
 | `test/` | Pytest test suite (mirrors `vultron/` layout) | `pyproject.toml` `[tool.pytest.ini_options]` |
 | `test/architecture/` | Architecture-boundary and ratchet tests | `test/architecture/test_core_no_adapter_imports.py` |
@@ -39,6 +39,7 @@ stakeholder_type: [project-contributor]
 | `.devcontainer/` | Dev container configuration | `.devcontainer/Dockerfile` |
 | `docker/` | Containerized multi-actor demo (Dockerfile, two compose files, seed configs, entrypoint) | `docker/docker-compose-multi-actor.yml` |
 | `integration_tests/demo/` | Shell drivers for the Docker-based demo integration runs, invoked by the `Makefile` `integration-test*` targets; not a pytest suite | `integration_tests/README.md`, `integration_tests/demo/run_multi_actor_integration_test.sh` |
+| `ui/` | React/TypeScript swimlane-timeline demo of the protocol (Multi-Vendor simulation and Log Replay modes), with its own Node toolchain and `ui/AGENTS.md`; not part of the Python package (ADR-0104) | `ui/AGENTS.md`, `ui/package.json` |
 | `overrides/` | MkDocs Material theme overrides | `overrides/partials/copyright.html` |
 | `help/` | Declared as a `uv` workspace member, but no `help/` directory exists in the tree | `pyproject.toml` `[tool.uv.workspace]` |
 
@@ -106,9 +107,15 @@ stakeholder_type: [project-contributor]
   - `bundle-fit` → `vultron.metadata.planning.bundle_fit:main` (two-stage issue-bundle selection for the `propose-bundle` skill); `pr-size` → `vultron.metadata.planning.size_bands:main` (the `size:` label band table); `targeted-tests` → `vultron.metadata.planning.targeted_tests:main` (the post-first-push local test gate derived from the branch diff, the gate for the conflicted files after a conflict merge, and the base-overlap check, PAD-18); `theme-labels` → `vultron.metadata.planning.theme_labels:main` (reports drift between GitHub's `theme:` labels and the catalog block in `notes/epic-themes.md`, and creates or edits labels with `--apply`; never deletes, PAD-02-019 to PAD-02-021); `theme-fit` → `vultron.metadata.planning.theme_fit:main` (read-only structural theme check over every open Issue, with coherence per Schedule tier and a Markdown report body; PAD-01-002, PAD-01-007, PAD-02-008, PAD-02-014, PAD-02-015, PAD-02-017, PAD-02-018 and PAD-02-028; lists parentless non-Epics as untriaged rather than as findings); `theme-gate` → `vultron.metadata.planning.theme_fit.gate:main` (the create-time check `manage_github_issue.sh` and `create_epic.sh` run: one active theme, a `Theme:` line, and a same-theme parent; PAD-02-023, PAD-02-025)
   - `learnings-index` → `vultron.metadata.history.incoming:main` (validates and indexes `plan/incoming/learnings/`)
   - `notes-tracks` → `vultron.metadata.notes.tracks:main` (lists `plan` notes whose tracked issues are all closed, NF-09; advisory, never archives)
+  - `export-demo-states` → `vultron.metadata.demo_scenarios.export_states:main`, `export-demo-semantics` → `vultron.metadata.demo_scenarios.export_semantics:main`, `export-demo-tree` → `vultron.metadata.demo_scenarios.export_tree:main` (the protocol state machines, the semantic registry and the scenario tree as JSON under `ui/src/data/`); `export-demo-recordings` → `vultron.demo.recordings.cli:main` (records every scenario's canonical case ledger for `ui/`, run on main by `demo-recordings.yml`)
+  - `spec-retire` → `vultron.metadata.specs.retire:main` (removes a requirement and archives its last text under `plan/retired-specs/`, MS-09-005)
+  - `adr-lifecycle-check` → `vultron.metadata.adr.lifecycle:main` (ADR lifecycle epochs, ADR-0120, MS-14)
+  - `msm-occasions` → `vultron.metadata.msm.occasions:main` (generates and checks the occasion table and its fragments, ADR-0128, MSM-06-001)
+  - `nav-usability` → `vultron.metadata.docs.nav_usability:main` (the scripted stages of the navigation usability test, ADR-0136)
+  - `ratchet-owners` → `vultron.metadata.ratchet_owners:main` (ratchet baselines whose `# owner: #N` issue is not open, ARCH-18-004)
   - `append-history` → `vultron.metadata.history.cli:main`; `show-history` → `vultron.metadata.history.show_history_cli:main`; `backfill-implementation-history` → `vultron.metadata.history.backfill_implementation:main`
 - **How entry is selected**: via `[project.scripts]` in `pyproject.toml`; uvicorn deployment (`docker/Dockerfile`) uses `vultron.adapters.driving.fastapi.main:app`.
-  The `Makefile` `api_dev` target still names `vultron.api:app`, which does not exist (see `CONCERNS.md`).
+  The `Makefile` `api_dev` target runs the same app with `--reload` on port 7999 and sets `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` to that server.
 
 ### 3) Module Boundaries
 
@@ -171,5 +178,6 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
 - `notes/bt-composability.md`
 - `AGENTS.md`
 - `Makefile`
+- `ui/AGENTS.md`
 - `test/architecture/test_core_no_adapter_imports.py`
 - `test/architecture/test_wire_core_import_allowlist.py`

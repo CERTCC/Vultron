@@ -39,6 +39,7 @@ timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&
   Beyond the core/wire/demo import-boundary tests it includes, e.g., `test_no_bare_register_key_datalayer_nodes.py` (BTND-03-009), `test_no_dl_mutations_in_execute.py` (CLP-10-020), `test_receive_side_intake_first.py` and `test_receive_side_bt_commit_ordering.py` (ADR-0111), `test_trigger_registry_ratchets.py` and `test_trigger_port_single_method.py` (ADR-0110), `test_vocab_examples_dispatchable.py`, `test_role_authority_resolver.py`, `test_spec_coverage_ratchet.py`, `test_spec_kind_ratchet.py`, `test_codebase_docs_paths.py` (validates path references in these very docs), and `test_ratchet_hygiene.py`.
 - **API contract snapshot**: `test/adapters/driving/fastapi/openapi_trigger_snapshot.json`, checked by `test_openapi_trigger_snapshot.py`, freezes the trigger and demo OpenAPI contract (TRIG-12-003); regenerate it deliberately when a request or response model changes.
 - **Demo tests**: `test/demo/` holds the integration-tier demo and scenario tests (marked `integration` by `test/demo/conftest.py`); `test/demo_unit/` holds unit-tier tests of demo code (scenario registry, CLI factory, actor roles, polling helpers).
+- **Demo recordings**: `test/demo_recordings/` smoke-tests the in-process recorder behind `export-demo-recordings` (`vultron/demo/recordings/`).
 - **CI tests**: `test/ci/` checks workflow files (SHA pinning, path filters, failure notification, publication gates).
 - **CI invariant harness**: `test/ci/invariants/universal_harness.py` — factory for the universal ledger-invariant test functions injected into each scenario module via `globals().update(make_universal_invariant_tests(...))` (ISSUE-2007).
   Read the inventory from the factory's `result` dict, not a count quoted here.
@@ -57,6 +58,7 @@ timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&
 | Spec compliance | Yes | Any test with `@pytest.mark.spec("ID")` | Spec IDs validated against `SpecRegistry` at collection |
 | API contract | Yes | Trigger/demo OpenAPI document | Golden snapshot (TRIG-12-003) |
 | E2E (demo CI) | Yes | Multi-actor demo via Docker Compose | `.github/workflows/demo-integration.yml`, matrix from `.github/demo-scenarios.json`; separate from the pytest suite |
+| Demo UI (`ui/`) | Lint and build only | ESLint and `tsc -b && vite build` | `.github/workflows/ui.yml`; `ui/package.json` declares no test script |
 | Docker config | Yes | Compose file validity + env-var wiring | `test/docker/test_compose_env_vars.py`, `test/docker/test_docker_compose_config.sh`, `test/demo/test_multi_actor_compose.py` |
 
 ### 4) Mocking and Isolation Strategy
@@ -82,12 +84,14 @@ timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&
     The structural ratchets in the same directory (`test_universal_semantic_types.py`, `test_diagnostic_map_sync.py`) and the `test_common.py` helper tests carry no marker and run everywhere.
     The `_AllSkipGuard` in that directory's `conftest.py` (DEMOCI-10-005) fails a session in which every test skipped, so CI invokes one harness file at a time rather than the whole directory.
   - Demo CI integration tests run against Docker Compose and are not part of `uv run pytest`.
+  - Content signing (ADR-0164) is pinned by strict-`xfail` tests that turn green when signing and verification land: `test/adapters/driving/fastapi/test_signed_delivery_refusal.py` and `test/core/use_cases/received/test_signed_ledger_entries.py`.
+  - TB-14-006 requires a `timeout-minutes` cap on every job in every workflow, but `test/metadata/test_gate_ceiling.py` still checks only `python-app.yml`, and most other workflows have uncapped jobs (see `CONCERNS.md`).
   - The pytest-timeout unit tier is 30 s (raised from 5 s in #2270; integration tier 120 s, sized in #5188).
     `timeout_method = "signal"` fails only the test that trips, and the run goes on to its summary.
     `--max-worker-restart=0` in `addopts` fails the run when an xdist worker dies, instead of hanging it.
     Run with `--timeout=0` to disable when diagnosing suite-level hangs.
   - `caplog` captures log records emitted during fixture setup, not just the test body; set `caplog.set_level()` inside the test, not in a fixture.
-  - Test-only TODO: `test/core/use_cases/test_reporting_workflow.py:111` asks whether dispatcher routing to the right handler should be tested there.
+  - Test-only TODO: `test/core/use_cases/test_reporting_workflow.py:116` asks whether dispatcher routing to the right handler should be tested there.
 
 ### 6) Evidence
 
@@ -108,3 +112,6 @@ timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&
 - `test/ci/invariants/test_diagnostic_map_sync.py`
 - `.github/workflows/python-app.yml`
 - `.github/workflows/demo-integration.yml`
+- `.github/workflows/ui.yml`
+- `test/metadata/test_gate_ceiling.py`
+- `test/demo_recordings/test_recorder_smoke.py`

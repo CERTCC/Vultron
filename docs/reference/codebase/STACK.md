@@ -41,6 +41,10 @@ stakeholder_type: [project-contributor]
 
 The docs toolchain is declared as a production dependency, not a dev group.
 
+The `ui/` visualization demo is a separate Node toolchain (ADR-0104): React 19, TypeScript and Vite, with `@xyflow/react`, locked by `ui/package-lock.json`.
+CI lints and builds it on Node 22 in `.github/workflows/ui.yml`, path-filtered to `ui/**`.
+It has no backend; it reads JSON exported from the Python side (`export-demo-states`, `export-demo-semantics`, `export-demo-tree`, `export-demo-recordings`) under `ui/src/data/` and `ui/src/recordings/`.
+
 ### 3) Development Toolchain
 
 | Tool | Purpose | Evidence |
@@ -92,11 +96,13 @@ PYTHONPATH= uv run spec-dump --topic CS --text
 
 - Config sources, in precedence order: the YAML file named by `VULTRON_CONFIG` (default `config.yaml`), then `VULTRON_`-prefixed environment variables with `__` as the nested delimiter, then Pydantic defaults.
   `config.example.yaml` is the committed example.
-- Environment variables documented in `vultron/config/__init__.py`:
+- Environment variables (most are documented in the `vultron/config/__init__.py` docstring; the rest are read from the field docstrings in `vultron/config/app.py`, `vultron/config/actor.py` and `vultron/config/ledger.py`):
   - `VULTRON_CONFIG` — path to the YAML config file; a set-but-missing path raises an error.
   - `VULTRON_SERVER__BASE_URL`, `VULTRON_SERVER__LOG_LEVEL`, `VULTRON_SERVER__LEDGER_STREAM_POLL_SECONDS` — server settings.
   - `VULTRON_DATABASE__DB_URL` — SQLite URL (tests force `sqlite:///:memory:`).
   - `VULTRON_MODE` — runtime mode.
+  - `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` — base URL of the dedicated CaseActor service; unset by default, and the nodes that send a case proposal fail rather than guess one (CP-08-001, `vultron/config/actor.py`).
+    The `Makefile` `api_dev` target and `docker/docker-compose.yml` set it to the server's own `http://localhost:7999/api/v2`; `docker/docker-compose-multi-actor.yml` points it at the `case-actor` container.
   - `VULTRON_LEDGER__CLOCK_SKEW_TOLERANCE_SECONDS`, `VULTRON_LEDGER__FUTURE_TOLERANCE_SECONDS`, `VULTRON_LEDGER__STALENESS_WINDOW_DAYS` — ledger timestamp tolerances (`vultron/config/ledger.py`).
   - `VULTRON_LEDGER__POSITION_STATEMENT_INTERVAL_SECONDS` (off by default), `VULTRON_LEDGER__INVITE_RESEND_COOLDOWN_SECONDS` (30 s), `VULTRON_LEDGER__INVITE_RESEND_MAX_COOLDOWN_SECONDS` (600 s) — the participant position-statement interval and the CASE_MANAGER unanswered-Invite resend cooldown (SYNC-17-007, SYNC-20-005).
 - `.env.example` documents only `PROJECT_NAME` (default `vultron`), which the Docker Compose files use for image names.
@@ -115,6 +121,9 @@ PYTHONPATH= uv run spec-dump --topic CS --text
 - `config.example.yaml`
 - `vultron/config/__init__.py`
 - `vultron/config/app.py`
+- `vultron/config/actor.py`
+- `ui/package.json`
+- `.github/workflows/ui.yml`
 - `.github/actions/setup-python-uv/action.yml`
 - `.github/workflows/python-app.yml`
 - `docker/Dockerfile`
