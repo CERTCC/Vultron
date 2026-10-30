@@ -539,12 +539,12 @@ def test_a_joined_invitee_is_not_reissued_on_an_embargo_change(
 
     _terminate(dl, owner.id_, case.id_)
 
-    # Joining sent the invitee its full-case Invite (CM-11-010); no stub
-    # Invite was re-issued.
+    # Joining sent the invitee its full-case Invite (CM-11-010), whose
+    # target is the case URI (AKM-02-003); no stub Invite was re-issued.
     stub_invites = [
         i
         for i in _invites_to(dl, invitee.id_)
-        if getattr(i.target, "type_", None) != "VulnerabilityCase"
+        if getattr(i.target, "type_", None) == "VulnerabilityCaseStub"
     ]
     assert [i.id_ for i in stub_invites] == [original["id"]]
 
