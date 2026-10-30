@@ -425,15 +425,12 @@ groups:
       that an unknown key is refused and a dump round-trips, for every stored
       `CoreRecord`. Neither may be marked `xfail`.
     rationale: >-
-      Pydantic v2 ignores unknown keys by default. Without
-      `extra="forbid"`, a payload with an unknown key loses that key and gives no error,
-      and a participant's RM state can then reset with no trace. A ban on unknown keys
-      also catches typos, renamed fields and stale keys from an older schema. A reader
-      that accepts two spellings for the same field, as `ParticipantStatus.rm` does,
-      still knows what the data means, so it does not cause this problem (ARCH-25-007).
+      Pydantic v2 ignores unknown keys by default. Without `extra="forbid"`, a payload
+      with an unknown key loses it with no error, and a participant's RM state can
+      reset with no trace. The ban also catches typos, renamed fields and stale keys.
       A received activity reaches a core class only after `parse_activity` has handled
-      its unknown keys (MV-11). On that path, `extra="forbid"` does not decide what
-      happens to an extension property of a peer (MV-11-004).
+      its unknown keys, so the ban does not decide a peer's extension property
+      (MV-11-004).
     relationships:
     - rel_type: depends_on
       spec_id: ARCH-23-005
