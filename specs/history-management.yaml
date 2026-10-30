@@ -40,50 +40,105 @@ groups:
     priority: MUST
     kind: process
     verification_debt: '#2571'
-    statement: Each `learning` or `priority` history entry MUST be stored as an individual write-once file at the path
-      `plan/history/YYMM/<type>/<entry-id>.md`, where `YYMM` is the two-digit year and two-digit month when the entry
-      was created, `<type>` is the entry type (see HM-02-002), and `<entry-id>` is the originating task or idea identifier
-      (e.g., `TASK-BTND5`). When that path is already taken — one work item may produce several learnings — the entry
-      MUST be written to `<entry-id>-<slug>.md`, where `<slug>` is the incoming file's `YYYYMMDD-SLUG` stem (BW-01-003).
-      An existing entry file MUST NOT be overwritten in either case. `implementation` and `idea` entries whose
-      `--source` resolves to a GitHub issue number use the GitHub comment output mode (HM-08) instead.
+    statement: >-
+      The `append-history` tool MUST store each `learning` or `priority` history entry
+      as one write-once file at `plan/history/YYMM/<type>/<entry-id>.md`. In that path,
+      `YYMM` is the two-digit year and two-digit month when the entry was created. The
+      `<type>` part is the entry type (HM-02-002). The `<entry-id>` part is the
+      originating task or idea identifier, such as `TASK-BTND5`.
+    rationale: >-
+      Readers and tools find an entry by its month, its type and its source. One file
+      per entry lets concurrent branches each add an entry without a merge conflict on a
+      shared file.
+  - id: HM-01-009
+    priority: MUST
+    kind: process
+    statement: >-
+      When the path that HM-01-002 names is already taken, the `append-history` tool
+      MUST write the entry to `<entry-id>-<slug>.md` instead. The `<slug>` part is the
+      `YYYYMMDD-SLUG` stem of the incoming file (BW-01-003).
     rationale: >-
       `<entry-id>` comes from `source`, and `source` is not unique: one work item can
       produce several learnings. BW-01-003 gives incoming files `YYYYMMDD-SLUG` names so
-      that they do not collide. If the archive path used only `source`, the tool could
-      not archive the second learning of a work item. A taken path thus needs a
-      different fallback name, and the write-once rule keeps the existing record.
+      that they do not collide. Without a fallback name, the tool could not archive the
+      second learning of a work item.
+    verification: >-
+      `test_second_entry_for_same_source_gets_discriminated_path` in
+      `test/metadata/test_append_history.py` confirms that a second learning with the
+      same source goes to the slug-suffixed path.
     relationships:
     - rel_type: depends_on
       spec_id: BW-01-003
+    - rel_type: extends
+      spec_id: HM-01-002
+  - id: HM-01-010
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      The `append-history` tool MUST NOT overwrite an existing entry file, at the
+      HM-01-002 path or at the HM-01-009 fallback path.
+    rationale: >-
+      An entry is the record of finished work. If the tool overwrote a file, a second
+      archive under the same name would remove the first record without a trace.
+    verification: >-
+      `test_rejects_existing_target_file` and
+      `test_duplicate_source_and_slug_exits_nonzero` in
+      `test/metadata/test_append_history.py` confirm that a write to a taken path fails
+      with an `already exists` error.
+      `test_second_entry_for_same_source_gets_discriminated_path` in the same file
+      confirms that the first entry keeps its content.
+    relationships:
+    - rel_type: refines
+      spec_id: HM-01-002
   - id: HM-01-003
     priority: MUST
     kind: process
     verification_debt: '#2571'
-    statement: After each `append-history` invocation, the tool MUST regenerate a local `plan/history/YYMM/README.md` index
-      from entry frontmatter (see HM-03-006). This file is a **gitignored local cache** — it MUST NOT be committed to the
-      repository. To view the history index, use `uv run show-history [--month YYMM | --all]`.
+    statement: >-
+      After each `append-history` run, the tool MUST regenerate the local
+      `plan/history/YYMM/README.md` index from entry frontmatter (HM-03-006).
+    rationale: >-
+      The index gives a quick local view of the entries of a month. The tool derives the
+      index fully from entry frontmatter, so a local regeneration can rebuild it at any
+      time.
+    note: To view the history index, use `uv run show-history [--month YYMM | --all]`.
+  - id: HM-01-011
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      A contributor MUST NOT commit the `plan/history/YYMM/README.md` index to the
+      repository. The index is a gitignored local cache.
     rationale: >-
       Each branch that archives an entry changes the index. A committed index would thus
-      cause a conflict on almost every concurrent merge. The tool derives the index
-      fully from entry frontmatter, so a local regeneration can rebuild it at any time.
-      Version control adds no value to it.
+      cause a conflict on almost every concurrent merge. A local regeneration rebuilds
+      the index at any time, so version control adds no value to it.
+    verification: >-
+      `test_monthly_readme_is_gitignored` in `test/metadata/test_append_history.py`
+      confirms that git ignores a monthly index path, so `git add` does not stage it.
   - id: HM-01-005
     priority: MUST_NOT
     kind: process
     verification_debt: '#2571'
-    statement: Once an entry file has been merged to `main`, it MUST NOT be modified. History entries are immutable records.
-      An entry MAY still be corrected while it remains unmerged on the branch that created it, because until then no record
-      has been published. The `plan/history/YYMM/README.md` index may be regenerated locally but is gitignored.
+    statement: >-
+      A contributor MUST NOT modify an entry file once it has merged to `main`. History
+      entries are immutable records.
     rationale: >-
       History entries are evidence of what the project did and decided, so no one may
-      rewrite a published record later. Before the merge to `main`, the record is not
-      published. A branch whose plan changes during review can then correct its entry.
-      It does not have to choose between a wrong record and a broken rule. Immutability
-      starts at the merge, so the rule gives both results.
+      rewrite a published record later. Immutability starts at the merge, because the
+      merge publishes the record.
     note: 'One-time exception: the IDEA-26043001/2/3 migration (2026-05) rewrote all existing merged entries to replace the
       legacy `date:` field with a tz-aware `timestamp:` field. That migration is the only authorised exception for entries
       already on `main`.'
+  - id: HM-01-012
+    priority: MAY
+    kind: process
+    statement: >-
+      A contributor MAY correct an entry while it is still unmerged on the branch that
+      created it.
+    rationale: >-
+      Until the merge to `main`, no record has been published. A branch whose plan
+      changes during review can then correct its entry. It does not have to choose
+      between a wrong record and a broken rule.
   - id: HM-01-007
     priority: MUST
     kind: process
@@ -117,11 +172,13 @@ groups:
   - id: HM-02-001
     priority: MUST
     kind: process
-    statement: 'Every history entry file MUST begin with a YAML frontmatter block containing at least the following fields:
-      `title` (human-readable summary), `type` (one of the valid HistoryEntryType values), `timestamp` (tz-aware ISO 8601
-      datetime string in UTC, e.g., `"2026-05-01T15:30:00+00:00"`), and `source` (the originating identifier such as an IDEA-ID
-      or TASK-ID). The legacy `date` field (ISO 8601 date string) is accepted for reading pre-migration entries but MUST NOT
-      be written by the tool for new entries.'
+    statement: >-
+      Every history entry file MUST begin with a YAML frontmatter block that holds at
+      least the `title`, `type`, `timestamp` and `source` fields. The `title` field is a
+      human-readable summary. The `type` field is one of the valid `HistoryEntryType`
+      values. The `timestamp` field is a tz-aware ISO 8601 datetime string in UTC, such
+      as `"2026-05-01T15:30:00+00:00"`. The `source` field is the originating
+      identifier, such as an IDEA-ID or TASK-ID.
     rationale: >-
       The indexes, `show-history` and the archiver read these four fields from each
       entry. An entry without one of the fields thus breaks every reader. A tz-aware
@@ -131,6 +188,21 @@ groups:
       A unit test in `test/metadata/test_history_models.py` confirms that
       `HistoryEntryFrontmatter` raises `ValidationError` when any of `title`, `type`,
       `timestamp`, or `source` is absent.
+  - id: HM-02-006
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      The `append-history` tool MUST NOT write the legacy `date` field in a new entry.
+    rationale: >-
+      The `timestamp` field replaces `date`, and `HistoryEntryFrontmatter` rejects an
+      entry that carries `date`. A new entry with `date` would thus fail validation when
+      a reader loads it.
+    verification: >-
+      `test_entry_has_timestamp_not_date` in `test/metadata/test_append_history.py`
+      confirms that a new entry holds `timestamp` and no `date` field.
+    relationships:
+    - rel_type: extends
+      spec_id: HM-02-001
   - id: HM-02-002
     priority: MUST
     kind: project
@@ -173,17 +245,32 @@ groups:
   - id: HM-02-004
     priority: MUST
     kind: process
-    statement: The `plan/history/YYMM/README.md` index MUST be auto-generated by the `append-history` tool (see HM-03-006)
-      and MUST NOT be manually edited. Its content is derived exclusively from the frontmatter of entry files in the same
-      monthly directory. The file is gitignored and serves only as a local convenience cache.
+    statement: >-
+      The `append-history` tool MUST generate the `plan/history/YYMM/README.md` index
+      (HM-03-006) only from the frontmatter of the entry files in the same monthly
+      directory.
     rationale: >-
-      The index is derived data. The next regeneration removes a manual edit, and until
-      then the edit can show content that no entry file supports. The tool builds the
-      index only from frontmatter, so the index always agrees with the entries.
+      The index is derived data. The tool builds it only from frontmatter, so the index
+      always agrees with the entries.
     verification: >-
-      Inspection of `vultron/metadata/history/cli.py` confirms the README is written by
-      the tool after each `append-history` run, and the `plan/history/` README pattern is
-      listed in `.gitignore`.
+      `test_readme_created_after_append` and
+      `test_readme_updated_after_second_append` in
+      `test/metadata/test_append_history.py` confirm that each run writes the index and
+      lists the entries of the month.
+  - id: HM-02-007
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      A contributor MUST NOT edit the `plan/history/YYMM/README.md` index by hand.
+    rationale: >-
+      The next regeneration removes a manual edit. Until then, the edit can show content
+      that no entry file supports.
+    verification: >-
+      `test_hand_edit_replaced_on_next_run` in `test/metadata/test_append_history.py`
+      confirms that the next run removes a hand edit to the index.
+    relationships:
+    - rel_type: depends_on
+      spec_id: HM-02-004
 - id: HM-03
   title: append-history CLI Tool
   specs:
@@ -335,8 +422,9 @@ groups:
     priority: MUST_NOT
     kind: process
     verification_debt: '#2571'
-    statement: '`plan/history/` MUST NOT be included in the default "read plan context" step that agents perform at the start
-      of every workflow. Agents MUST read only `plan/*.md` (excluding `plan/history/`) during their standard orientation phase.'
+    statement: >-
+      Agents MUST NOT read `plan/history/` in the default plan-context step of the
+      standard orientation that starts every workflow.
     rationale: >-
       `plan/history/` grows without limit. If orientation read it, the agent would use
       its context budget on finished work that the current task seldom needs.
@@ -354,8 +442,9 @@ groups:
     priority: MUST
     kind: process
     verification_debt: '#2571'
-    statement: The `orient-agent` skill documentation MUST explicitly state that its plan-context reading covers `plan/*.md`
-      but NOT `plan/history/`. Agents following this skill MUST NOT recursively read `plan/history/` during orientation.
+    statement: >-
+      The `orient-agent` skill documentation MUST state that its plan-context reading
+      covers `plan/*.md` and not `plan/history/`.
     rationale: >-
       Agents do the steps of `orient-agent` exactly as written, so the skill must state
       the history boundary. If the skill does not state it, an agent that reads all of
@@ -385,12 +474,25 @@ groups:
     priority: MUST
     kind: process
     verification_debt: '#2571'
-    statement: The `learn` skill MUST NOT read `plan/*HISTORY.md` files directly. When historical context is needed, the `learn`
-      skill MUST invoke `deepen-context` and let that skill mediate which plan files are relevant to load.
+    statement: >-
+      When the `learn` skill needs historical context, it MUST invoke `deepen-context`
+      and let that skill choose which plan files to load.
+    rationale: >-
+      `deepen-context` selects the plan files that bear on the task. Thus `learn` gets
+      the history it needs and does not read the full history by default.
+  - id: HM-05-004
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      The `learn` skill MUST NOT read `plan/*HISTORY.md` files directly.
     rationale: >-
       Legacy history files are large, and most of their content is not related to a
-      given learning batch. `deepen-context` selects what to load, so `learn` does not
-      read the full history by default.
+      given learning batch. A direct read puts all of that content into the context of
+      the session.
+    verification: >-
+      `test_learn_skill_reads_no_legacy_history_file` in
+      `test/metadata/test_history_skill_guidance.py` confirms that the `learn` skill
+      names no `HISTORY.md` file.
 - id: HM-06
   title: Timestamp Field and Future-Date Rejection
   specs:
@@ -421,16 +523,32 @@ groups:
   - id: HM-06-002
     priority: MUST
     kind: project
-    statement: '`HistoryEntryFrontmatter` MUST require a `timestamp` field (timezone-aware ISO 8601 datetime in UTC). Validation
-      MUST fail with a clear error if `timestamp` is absent or malformed.'
+    statement: >-
+      `HistoryEntryFrontmatter` MUST require a `timestamp` field that holds a
+      timezone-aware ISO 8601 datetime in UTC.
     rationale: >-
       Readers sort and file entries by `timestamp`. They cannot place an entry with a
-      missing or unparseable timestamp. Validation finds the problem when the entry is
-      written.
+      missing or unparseable timestamp.
     verification: >-
-      A unit test in `test/metadata/test_history_models.py` confirms that absent,
-      naive-datetime, and malformed `timestamp` values each raise `ValidationError` with
-      a descriptive error message.
+      `test_missing_timestamp_rejected` in `test/metadata/test_history_models.py`
+      confirms that an entry without `timestamp` raises `ValidationError`.
+  - id: HM-06-010
+    priority: MUST
+    kind: project
+    statement: >-
+      `HistoryEntryFrontmatter` validation MUST fail with a clear error when `timestamp`
+      is absent or malformed.
+    rationale: >-
+      Validation finds a bad timestamp when the entry is written. A clear error names
+      the `timestamp` problem, so the writer can correct the value.
+    verification: >-
+      `test_missing_timestamp_rejected`, `test_naive_timestamp_rejected` and
+      `test_bare_date_string_timestamp_rejected` in
+      `test/metadata/test_history_models.py` confirm that an absent, naive or malformed
+      `timestamp` raises `ValidationError`.
+    relationships:
+    - rel_type: refines
+      spec_id: HM-06-002
   - id: HM-06-004
     priority: MUST
     kind: project
@@ -487,16 +605,28 @@ groups:
   - id: HM-06-006
     priority: MUST
     kind: project
-    statement: The `plan/history/YYMM/README.md` index MUST display both a `Date` column (YYYY-MM-DD extracted from `timestamp`)
-      and a `Time (UTC)` column (HH:MM extracted from `timestamp`). Entries MUST be sorted by `timestamp` in descending order.
+    statement: >-
+      The `plan/history/YYMM/README.md` index MUST display a `Date` column, the
+      YYYY-MM-DD part of `timestamp`, and a `Time (UTC)` column, the HH:MM part of
+      `timestamp`.
     rationale: >-
       Agents often write several entries on one day, so the date alone cannot show their
-      order. A UTC time column and a newest-first sort show the most recent work first,
-      in the sequence it occurred.
+      order. A UTC time column shows when each entry was written.
     verification: >-
-      A unit test in `test/metadata/test_append_history.py` confirms that the generated
-      `README.md` contains `Date` and `Time (UTC)` column headers and that entries are
-      sorted newest-first by `timestamp`.
+      `test_readme_has_date_and_time_columns` in `test/metadata/test_append_history.py`
+      confirms that the index header carries the `Date` and `Time (UTC)` columns
+      and that an entry's row shows its timestamp's YYYY-MM-DD date and HH:MM time.
+  - id: HM-06-011
+    priority: MUST
+    kind: project
+    statement: >-
+      The `append-history` tool MUST sort the entries of the
+      `plan/history/YYMM/README.md` index by `timestamp` in descending order.
+    rationale: >-
+      A newest-first sort shows the most recent work first, in the sequence it occurred.
+    verification: >-
+      `test_readme_sorted_newest_first` in `test/metadata/test_append_history.py` writes
+      three entries out of order and confirms that the index lists them newest first.
 - id: HM-07
   title: CLI Interface for Frontmatter Construction
   specs:
@@ -512,8 +642,9 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: The tool MUST construct the YAML frontmatter block internally from the `--title`, `--source`, and auto-generated
-      `timestamp` arguments; callers MUST NOT supply frontmatter content.
+    statement: >-
+      The tool MUST build the YAML frontmatter block itself, from the `--title` and
+      `--source` arguments and the auto-generated `timestamp`.
     rationale: >-
       When callers write frontmatter by hand, its format becomes different from the
       model, and the entries fail validation later. The tool builds the frontmatter from
@@ -572,11 +703,26 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: Skill documentation (`plan-issue`, `build`, `learn`) and `notes/history-management.md` MUST use the `--title`/`--source`
-      interface for `append-history`. The frontmatter-in-stdin pattern MUST NOT be used.
+    statement: >-
+      Skill documentation (`plan-issue`, `build`, `learn`) and
+      `notes/history-management.md` MUST use the `--title`/`--source` interface for
+      `append-history`.
+    rationale: >-
+      Agents copy the command that skills and notes show, so the documentation must show
+      the interface that the tool accepts.
+  - id: HM-07-008
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      Skill documentation and `notes/history-management.md` MUST NOT use the
+      frontmatter-in-stdin pattern for `append-history`.
     rationale: >-
       Agents copy the command that skills and notes show. If the documentation shows the
-      frontmatter-in-stdin pattern, agents learn a form that the tool rejects.
+      frontmatter-in-stdin pattern, agents learn a form that HM-07-002 forbids.
+    verification: >-
+      `test_guidance_shows_no_frontmatter_in_stdin` in
+      `test/metadata/test_history_skill_guidance.py` confirms that no `append-history`
+      example in a skill or in `notes/history-management.md` writes a frontmatter key.
 - id: HM-08
   title: GitHub Comment Output Mode
   specs:

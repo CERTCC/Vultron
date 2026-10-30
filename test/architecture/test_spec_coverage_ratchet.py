@@ -123,7 +123,7 @@ def test_no_pr_drops_a_marker_while_changing_a_kind():
 
 
 @pytest.mark.spec_corpus
-@pytest.mark.spec("MS-10-011")
+@pytest.mark.spec("MS-10-028")
 def test_no_pr_adds_a_named_test_without_its_marker():
     """No implementer-kind ID names unmarked test files new since the base."""
     roots = tuple(r for r in TEST_ROOTS if (_corpus.REPO_ROOT / r).is_dir())

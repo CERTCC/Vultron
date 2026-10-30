@@ -254,6 +254,7 @@ def _run(monkeypatch, root: Path, *args: str) -> int:
 
 
 @pytest.mark.spec("MS-03-001")
+@pytest.mark.spec("MS-03-008")
 class TestListCompound:
     def test_lists_compound_requirements_by_file(self, tmp_path):
         _write_specs(

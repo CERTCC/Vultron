@@ -180,6 +180,11 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
     announced (MV-10-004) — and the node then reads that absence as "not the
     CASE_MANAGER" at ``debug`` level: the manager always holds the case it
     manages, so an actor without it cannot be the manager (ADR-0087 Regime 3).
+
+    Pass ``own_activity_needs_case=True`` as well where the activity can be
+    the executing actor's own, echoed back: an actor that sent an activity
+    about the case is its CASE_MANAGER, so a missing case is Regime 1 again
+    for that activity, and fails at ``error`` level (#5513).
     """
 
     def __init__(
@@ -187,10 +192,12 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
         case_id: str | None = None,
         name: str | None = None,
         case_may_be_absent: bool = False,
+        own_activity_needs_case: bool = False,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
         self._case_may_be_absent = case_may_be_absent
+        self._own_activity_needs_case = own_activity_needs_case
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerConditionWithPorts.INPUT_PORTS,
@@ -246,6 +253,7 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
 
         if (
             self._case_may_be_absent
+            and not self._is_own_activity()
             and self.datalayer.read_case(case_id) is None
         ):
             # Regime 3: no replica yet, so this actor is not the manager.
@@ -286,6 +294,13 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
             manager_id,
         )
         return Status.FAILURE
+
+    def _is_own_activity(self) -> bool:
+        """True when the activity must find its case: the actor sent it."""
+        return (
+            self._own_activity_needs_case
+            and getattr(self._activity, "actor_id", None) == self.actor_id
+        )
 
 
 class CheckProposalAlreadySentForReport(DataLayerConditionWithPorts):

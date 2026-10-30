@@ -10,7 +10,10 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Changed symbols, spec markers, and the test index (SR-12-002, SR-12-003)."""
+"""Changed symbols, spec markers, and the test index.
+
+Requirements: SR-12-002, SR-12-003, SR-12-015, SR-12-016.
+"""
 
 from __future__ import annotations
 
@@ -71,7 +74,7 @@ def changed_nodes(
 def changed_symbols(
     tree: ast.Module, lines: frozenset[int] | set[int] | None
 ) -> set[str]:
-    """Names of the top-level symbols changed by *lines* (SR-12-002)."""
+    """Names of the top-level symbols changed by *lines* (SR-12-002, SR-12-016)."""
     return {
         n for node in changed_nodes(tree, lines) for n in symbol_names(node)
     }

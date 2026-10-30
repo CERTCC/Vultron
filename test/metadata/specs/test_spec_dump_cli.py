@@ -3,12 +3,15 @@
 Requirements: specs/spec-registry.yaml SR-07-007 through SR-07-013.
 """
 
+import ast
 import json
 import sys
+from pathlib import Path
 
 import pytest
 import yaml
 
+import vultron
 from vultron.metadata.specs import CROSS_CUTTING_TOPICS
 from vultron.metadata.specs.llm_export import (
     to_index_text,
@@ -141,7 +144,7 @@ class TestToLlmJsonSelection:
         data = json.loads(to_llm_json(registry, groups=["CM-02"]))
         assert {r["id"] for r in data["requirements"]} == {"CM-02-001"}
 
-    @pytest.mark.spec("SR-07-008")
+    @pytest.mark.spec("SR-07-019")
     def test_selectors_are_a_union(self, registry):
         data = json.loads(
             to_llm_json(registry, topic=["ARCH"], spec_ids=["CM-02-001"])
@@ -277,6 +280,20 @@ class TestCli:
     def test_cross_cutting_constant(self):
         assert CROSS_CUTTING_TOPICS == ("ARCH", "CS", "TB", "HP", "SL", "EH")
 
+    @pytest.mark.spec("SR-07-020")
+    def test_cross_cutting_constant_is_the_only_definition(self):
+        """No other module under ``vultron/`` spells out the topic list."""
+        root = Path(vultron.__file__).parent
+        topics = list(CROSS_CUTTING_TOPICS)
+        definitions = [
+            path.relative_to(root).as_posix()
+            for path in sorted(root.rglob("*.py"))
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+            if isinstance(node, (ast.Tuple, ast.List))
+            and [getattr(e, "value", None) for e in node.elts] == topics
+        ]
+        assert definitions == ["metadata/specs/llm_export.py"]
+
     @pytest.mark.spec("SR-07-012")
     def test_slim_flag(self, dump_dir, monkeypatch, capsys):
         out = _run(
@@ -310,6 +327,7 @@ class TestCli:
         assert _exit_code(monkeypatch, "--topic") == 2
         assert "--topic requires a value" in capsys.readouterr().err
 
+    @pytest.mark.spec("SR-07-021")
     @pytest.mark.spec("SR-07-013")
     def test_unfiltered_dump_warns_on_stderr(
         self, dump_dir, monkeypatch, capsys
@@ -320,12 +338,12 @@ class TestCli:
         assert len(err_lines) == 1
         assert "--index" in err_lines[0]
 
-    @pytest.mark.spec("SR-07-013")
+    @pytest.mark.spec("SR-07-021")
     def test_filtered_dump_does_not_warn(self, dump_dir, monkeypatch, capsys):
         captured = _run(monkeypatch, capsys, "--topic", "CM", str(dump_dir))
         assert captured.err == ""
 
-    @pytest.mark.spec("SR-07-013")
+    @pytest.mark.spec("SR-07-021")
     def test_index_does_not_warn(self, dump_dir, monkeypatch, capsys):
         assert _run(monkeypatch, capsys, "--index", str(dump_dir)).err == ""
 
@@ -385,6 +403,7 @@ class TestRequirementsText:
         assert "ARCH-01-002" not in out
 
     @pytest.mark.spec("SR-07-014")
+    @pytest.mark.spec("SR-07-015")
     def test_cli_text_flag(self, monkeypatch, capsys, dump_dir):
         captured = _run(
             monkeypatch, capsys, "--text", "--topic", "CM", str(dump_dir)
@@ -393,11 +412,11 @@ class TestRequirementsText:
         assert "CM-01-001 MUST" in captured.out
         assert not captured.err
 
-    @pytest.mark.spec("SR-07-014")
+    @pytest.mark.spec("SR-07-022")
     def test_cli_text_without_a_selector_exits_2(self, monkeypatch, dump_dir):
         assert _exit_code(monkeypatch, "--text", str(dump_dir)) == 2
 
-    @pytest.mark.spec("SR-07-015")
+    @pytest.mark.spec("SR-07-023")
     @pytest.mark.parametrize(
         "argv",
         [
@@ -414,7 +433,7 @@ class TestRequirementsText:
         assert code == 2
         assert "needs a non-empty selection" in capsys.readouterr().err
 
-    @pytest.mark.spec("SR-07-015")
+    @pytest.mark.spec("SR-07-024")
     @pytest.mark.parametrize("flag", ["--topic", "--group", "--ids"])
     def test_cli_empty_selector_exits_2(
         self, monkeypatch, capsys, dump_dir, flag
@@ -424,7 +443,7 @@ class TestRequirementsText:
         assert code == 2
         assert "names no values" in capsys.readouterr().err
 
-    @pytest.mark.spec("SR-07-015")
+    @pytest.mark.spec("SR-07-024")
     def test_cli_empty_selector_exits_2_in_text_mode(
         self, monkeypatch, dump_dir
     ):
@@ -484,6 +503,7 @@ def test_cli_kind_filter_selects_foundation(monkeypatch, capsys, dump_dir):
     assert _ids(captured.out) == {"FND-01-001"}
 
 
+@pytest.mark.spec("SR-07-018")
 def test_cli_unknown_kind_lists_foundation_as_valid(
     monkeypatch, capsys, dump_dir
 ):

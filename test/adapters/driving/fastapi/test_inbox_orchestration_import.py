@@ -26,6 +26,8 @@ import sys
 
 import pytest
 
+from test.support.child_env import child_env
+
 
 # Integration tier: a cold interpreter import can take tens of seconds on a
 # loaded machine (#4802), past the unit tier's 30s ceiling; the CI full suite
@@ -43,6 +45,7 @@ import pytest
 def test_module_imports_first_in_a_fresh_interpreter(module: str) -> None:
     result = subprocess.run(
         [sys.executable, "-c", f"import {module}"],
+        env=child_env(),
         capture_output=True,
         text=True,
         timeout=45,

@@ -29,7 +29,6 @@ The driver needs the import graph; this module builds it from ``_corpus``.
 
 import ast
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -38,6 +37,7 @@ import pytest
 
 from test.architecture import _corpus
 from test.architecture._fresh_import_driver import _components
+from test.support.child_env import child_env
 
 _VULTRON = _corpus.REPO_ROOT / "vultron"
 _DRIVER = Path(__file__).with_name("_fresh_import_driver.py")
@@ -141,18 +141,14 @@ def _run_driver(
     graph: dict[str, list[str]], extra_path: Path | None = None
 ) -> dict[str, str]:
     """Run the driver on *graph* and return its failures."""
-    env = dict(os.environ)
-    if extra_path is not None:
-        env["PYTHONPATH"] = os.pathsep.join(
-            p for p in (str(extra_path), env.get("PYTHONPATH", "")) if p
-        )
+    extra = () if extra_path is None else (extra_path,)
     proc = subprocess.run(
         [sys.executable, str(_DRIVER)],
         input=json.dumps(graph),
         capture_output=True,
         text=True,
         cwd=_corpus.REPO_ROOT,
-        env=env,
+        env=child_env(*extra),
         check=False,
     )
     assert proc.returncode == 0, proc.stderr
@@ -210,6 +206,25 @@ def test_driver_still_checks_a_cycle_an_unseen_edge_preloaded(tmp_path):
     failures = _run_driver(graph, extra_path=tmp_path)
 
     assert set(failures) == {"cyc.b"}
+
+
+def test_driver_imports_this_checkouts_vultron_whatever_pythonpath_names(
+    tmp_path, monkeypatch
+):
+    """An inherited ``PYTHONPATH`` naming another checkout never wins (#5456).
+
+    The driver runs as a script, so its first ``sys.path`` entry is its own
+    directory, not the repository root; a ``vultron`` on the inherited path
+    would shadow this checkout's and fail every module the other one lacks.
+    """
+    other = tmp_path / "other-checkout" / "vultron"
+    other.mkdir(parents=True)
+    (other / "__init__.py").write_text(
+        "raise ImportError('imported another checkout')\n"
+    )
+    monkeypatch.setenv("PYTHONPATH", str(other.parent))
+
+    assert _run_driver({"vultron": []}) == {}
 
 
 # Integration tier: one fork per member of every import cycle in vultron/

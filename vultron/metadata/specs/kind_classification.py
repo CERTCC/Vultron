@@ -10,7 +10,7 @@ mechanical checks back it:
 - :func:`check_implementer_kind_code_references` — MS-12-006. A ``kind:
   protocol`` or ``kind: foundation`` spec that traces to no user story and
   whose ``statement`` names an unambiguous codebase construct is a hard error.
-- :func:`check_foundation_standard_tags` — MS-12-009. A ``kind: foundation``
+- :func:`check_foundation_standard_tags` — MS-12-019. A ``kind: foundation``
   spec names the standard it inherits from with one of
   :data:`~vultron.metadata.specs.schema.FOUNDATION_STANDARD_TAGS`.
 - :func:`suppression_carriers` — the specs carrying a ``lint_suppress`` code.
@@ -154,7 +154,7 @@ def check_implementer_kind_code_references(
 
 
 def check_foundation_standard_tags(registry: SpecRegistry) -> list[str]:
-    """Hard errors for ``foundation`` specs that name no standard (MS-12-009).
+    """Hard errors for ``foundation`` specs that name no standard (MS-12-019).
 
     A ``foundation`` rule is inherited from a standard beneath Vultron, and its
     effective tags (its own, or its file's when it has none of its own) MUST
@@ -165,7 +165,7 @@ def check_foundation_standard_tags(registry: SpecRegistry) -> list[str]:
     wanted = ", ".join(sorted(tag.value for tag in FOUNDATION_STANDARD_TAGS))
     return [
         f"{spec_id}: kind=foundation but no tag names the standard it is "
-        f"inherited from (MS-12-009); add one of: {wanted}"
+        f"inherited from (MS-12-018); add one of: {wanted}"
         for spec_id, spec in registry.all_specs.items()
         if spec.kind == SpecKind.FOUNDATION
         and not FOUNDATION_STANDARD_TAGS.intersection(

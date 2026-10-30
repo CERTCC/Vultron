@@ -241,7 +241,7 @@ def _render_group(
     """Render *group* to *lines*, each row defining its requirement's anchor.
 
     When *specs* is provided only those specs are rendered (used to suppress
-    items whose effective kind does not match the page — SR-09-002).
+    items whose effective kind does not match the page — SR-09-005).
     When *specs* is ``None`` all items in the group are rendered. *anchor*
     overrides the heading's id, which defaults to the group ID's.
     """
@@ -273,7 +273,7 @@ def _render_file(
     show_file_id: bool = True,
 ) -> None:
     """Render *spec_file* groups that have at least one item matching
-    *current_kind* (SR-09-001, SR-09-002).
+    *current_kind* (SR-09-001, SR-09-002, SR-09-005).
 
     Groups appear here only when they contain at least one item whose
     ``kind`` matches *current_kind*; non-matching items are suppressed.
@@ -344,7 +344,7 @@ def render_for_kind(kind: str, registry: SpecRegistry) -> str:
         raise ValueError(
             f"{target_kind.value} requirements render in the Requirements "
             "Catalog, not on a per-kind page; use render_catalog_page "
-            "(SR-09-001, DF-12-002)"
+            "(SR-09-004, DF-12-002)"
         )
 
     # Route by effective kind: a file contributes to this page when it has at

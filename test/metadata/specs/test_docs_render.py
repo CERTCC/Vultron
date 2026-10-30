@@ -6,7 +6,7 @@ an unknown kind and for the two Requirements Catalog tiers, the notice for a
 kind no spec carries yet, and SpecTag.BEHAVIORAL detection. The fixtures are
 written as ``protocol`` requirements, the tier the catalog tests need; the
 per-kind tests retag them to ``process`` with :func:`_as_kind`, because a
-``protocol`` or ``foundation`` requirement has no per-kind page (SR-09-001).
+``protocol`` or ``foundation`` requirement has no per-kind page (SR-09-004).
 The shared row renderer, the catalog pages and the callouts follow.
 """
 
@@ -233,7 +233,7 @@ def test_render_for_kind_with_no_specs_renders_a_notice(general_registry):
     assert "<h2" not in output and "##" not in output
 
 
-@pytest.mark.spec("SR-09-001", "DF-12-002")
+@pytest.mark.spec("SR-09-004", "DF-12-002")
 @pytest.mark.parametrize("kind", ["protocol", "foundation"])
 def test_render_for_kind_refuses_the_catalog_tiers(general_registry, kind):
     """The two tiers render only in the Requirements Catalog, whose rows are
@@ -715,7 +715,7 @@ def test_render_for_kind_real_registry_produces_output(
 
 
 # ---------------------------------------------------------------------------
-# SR-09-001 / SR-09-002: effective-kind routing for mixed-kind files/groups
+# SR-09-001 / SR-09-002 / SR-09-005: effective-kind routing for mixed-kind files/groups
 # ---------------------------------------------------------------------------
 
 # A file-level kind=general file where one group has kind=project
@@ -837,10 +837,11 @@ def test_group_kind_override_appears_on_overridden_kind_page(
     )
 
 
+@pytest.mark.spec("SR-09-005")
 def test_group_kind_override_absent_from_wrong_kind_page(
     mixed_kind_file_registry,
 ):
-    """SR-09-002: a group with kind=project must NOT appear on the
+    """SR-09-005: a group with kind=project must NOT appear on the
     general page."""
     md = render_for_kind(_KIND, mixed_kind_file_registry)
     assert "MIX-02-001" not in md, (
@@ -870,10 +871,11 @@ def test_item_kind_override_appears_on_overridden_page(
     )
 
 
+@pytest.mark.spec("SR-09-005")
 def test_item_kind_override_suppressed_on_wrong_page(
     mixed_kind_group_registry,
 ):
-    """SR-09-002: an item with kind=project is suppressed on the
+    """SR-09-005: an item with kind=project is suppressed on the
     general page while the rest of the group still renders."""
     md = render_for_kind(_KIND, mixed_kind_group_registry)
     assert "MGR-01-001" in md, (

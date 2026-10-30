@@ -273,7 +273,7 @@ opens the PR from that same file.
 # RFC 2119 keyword (MS-03-007). Every PR type.
 PYTHONPATH= uv run spec-lint --changed-since origin/main
 
-# Implementation PRs: the manifest must resolve against the diff (SR-12-006).
+# Implementation PRs: the manifest must resolve against the diff (SR-12-019).
 PYTHONPATH= uv run spec-backstop --manifest <manifest>
 
 # The composed body against pr-body-guide.md's mechanical rules.

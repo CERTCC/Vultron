@@ -3,12 +3,12 @@
 A requirement, group or file anchor is defined only where its items render: a
 ``protocol`` or ``foundation`` item on its Requirements Catalog page in the
 Protocol Specification, any other kind on its per-kind page under
-``docs/reference/specs/`` (SR-09-001, SR-09-002, DF-12-002). A ``kind:``
-relabel, or a change to the catalog placement table, moves the anchor and
-every prose link to the old page dangles. This script rewrites those links;
-the rules are in :mod:`vultron.metadata.docs.requirement_links`, which the
-``test/metadata/docs/test_requirement_links.py`` gate also applies to the
-whole tree.
+``docs/reference/specs/`` (SR-09-001, SR-09-002, SR-09-004, DF-12-002).
+A ``kind:`` relabel, or a change to the catalog placement table, moves the
+anchor and every prose link to the old page dangles. This script rewrites
+those links; the rules are in :mod:`vultron.metadata.docs.requirement_links`,
+which the ``test/metadata/docs/test_requirement_links.py`` gate also applies
+to the whole tree.
 
 Usage:
     uv run python scripts/relink_requirement_anchors.py [--check]

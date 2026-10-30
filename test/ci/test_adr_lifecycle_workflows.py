@@ -39,7 +39,8 @@ def _step_running(path: Path, command: str) -> dict[str, Any]:
     return step
 
 
-@pytest.mark.spec("MS-14-009")
+@pytest.mark.spec("MS-14-025")
+@pytest.mark.spec("MS-14-020")
 def test_edit_check_runs_on_pull_requests_against_the_merge_base():
     step = _step_running(_EDIT, _LIFECYCLE)
     assert "git merge-base" in step["run"]
@@ -49,6 +50,7 @@ def test_edit_check_runs_on_pull_requests_against_the_merge_base():
 
 
 @pytest.mark.spec("MS-14-010")
+@pytest.mark.spec("MS-14-026")
 def test_edit_check_runs_when_only_a_spec_or_test_changes():
     """The first dependent can arrive in a spec or a test file alone."""
     paths = triggers(load_workflow(_EDIT))["pull_request"]["paths"]
@@ -60,7 +62,7 @@ def test_edit_check_runs_when_only_a_spec_or_test_changes():
     assert not line.startswith((" ", "\t"))
 
 
-@pytest.mark.spec("MS-14-009")
+@pytest.mark.spec("MS-14-025")
 def test_edit_check_has_the_history_it_needs_and_no_write_scope():
     workflow = load_workflow(_EDIT)
     assert "issues" not in workflow["permissions"]
@@ -73,7 +75,7 @@ def test_edit_check_has_the_history_it_needs_and_no_write_scope():
     assert checkout["with"]["fetch-depth"] == 0
 
 
-@pytest.mark.spec("MS-14-007")
+@pytest.mark.spec("MS-14-022")
 def test_drift_report_reports_and_never_fails_the_build():
     step = _step_running(_DRIFT, f"{_LIFECYCLE} --report-drift")
     assert step["continue-on-error"] is True
@@ -90,7 +92,7 @@ def test_drift_report_reports_and_never_fails_the_build():
     }
 
 
-@pytest.mark.spec("MS-14-007")
+@pytest.mark.spec("MS-14-022")
 def test_drift_report_runs_at_least_hourly():
     """A boundary crossed overnight must surface within the hour."""
     (entry,) = triggers(load_workflow(_DRIFT))["schedule"]
@@ -102,7 +104,7 @@ def test_drift_report_runs_at_least_hourly():
 _ADDED_REFS = "vultron.metadata.adr.added_refs"
 
 
-@pytest.mark.spec("MS-15-006")
+@pytest.mark.spec("MS-15-009")
 def test_added_reference_check_runs_on_pull_requests_against_the_merge_base():
     step = _step_running(_EDIT, _ADDED_REFS)
     assert "git merge-base" in step["run"]
@@ -113,7 +115,7 @@ def test_added_reference_check_runs_on_pull_requests_against_the_merge_base():
     assert step["run"].count("|| rc=1") == 2
 
 
-@pytest.mark.spec("MS-15-006")
+@pytest.mark.spec("MS-15-008")
 def test_added_reference_check_runs_as_a_pre_commit_hook_on_adrs():
     config = yaml.safe_load(
         (repo_root() / ".pre-commit-config.yaml").read_text(encoding="utf-8")

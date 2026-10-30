@@ -32,6 +32,7 @@ def _registry(*links: tuple[str, str, str]) -> SpecRegistry:
 A, B, C = "TST-01-001", "TST-01-002", "TST-01-003"
 
 
+@pytest.mark.spec("SR-13-020")
 @pytest.mark.spec("SR-13-014")
 def test_two_node_loop_is_reported_naming_both_members():
     registry = _registry((A, "depends_on", B), (B, "depends_on", A))
@@ -42,6 +43,7 @@ def test_two_node_loop_is_reported_naming_both_members():
     assert f"loop among {A}, {B}:" in errors[0]
 
 
+@pytest.mark.spec("SR-13-020")
 @pytest.mark.spec("SR-13-014")
 def test_three_node_loop_is_reported_naming_every_member():
     registry = _registry(

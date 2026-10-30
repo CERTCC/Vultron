@@ -22,7 +22,6 @@ socket (ADR-0104 § Validation, #3641 AC-4).
 
 import json
 import logging
-import os
 import signal
 import socket
 import subprocess
@@ -39,6 +38,7 @@ import uvicorn
 
 from test.adapters.driving.fastapi import ledger_stream_server as srv
 from test.adapters.driving.fastapi.sse_helpers import read_sse_event
+from test.support.child_env import child_env
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -175,10 +175,9 @@ def test_sigterm_sends_close_and_lets_the_server_exit(tmp_path: Path):
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]
     env = {
-        **os.environ,
+        **child_env(),
         "VULTRON_MODE": "prototype",
         "VULTRON_SERVER__LEDGER_STREAM_POLL_SECONDS": "0.05",
-        "PYTHONPATH": str(REPO_ROOT),
     }
     log_path = tmp_path / "uvicorn.log"
     with log_path.open("wb") as log:

@@ -374,3 +374,181 @@ class TestCoerceToSemanticClass:
         result = dl.read(report.id_)
 
         assert isinstance(result, VulnerabilityReport)
+
+
+class TestCoerceByReferenceFields:
+    """A by-reference field rehydration expanded coerces by id (#5513).
+
+    The stored row's base class (``as_Read``, ``as_Invite``) admits an
+    object in the field, so :func:`rehydrate_fields` expands it, and the
+    pattern match needs the expanded type.  The semantic class declares the
+    field a plain URI, so coercion must hand it the object's id, not the
+    object: a correct dispatch logs no WARNING (SL-01-005).
+    """
+
+    def test_read_log_entry_round_trips_without_warning(self, dl, caplog):
+        """A stored Read(CaseLedgerEntry) reads back as _ReadLogEntryActivity."""
+        import logging
+
+        from vultron.core.behaviors.sync.nodes.chain import (
+            _to_persistable_entry,
+        )
+        from vultron.core.models.case_ledger import HashChainLedgerRecord
+        from vultron.wire.as2.factories import read_ledger_entry_activity
+
+        entry = _to_persistable_entry(
+            HashChainLedgerRecord(
+                case_id="https://example.org/cases/case-read-5513",
+                log_index=0,
+                object_id="https://example.org/activities/logged-5513",
+                semantic_type="log_entry_committed",
+                payload_snapshot={"status": "ok"},
+                prev_log_hash=_ZERO_HASH,
+            )
+        )
+        read = read_ledger_entry_activity(
+            entry, actor="https://example.org/actors/reporter"
+        )
+        dl.save(entry)
+        dl.save(read)
+
+        with caplog.at_level(logging.WARNING):
+            result = dl.read(read.id_)
+
+        assert type(result).__name__ == "_ReadLogEntryActivity"
+        assert result.object_ == entry.id_  # type: ignore[union-attr]
+        assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+    def test_full_case_invite_round_trips_without_warning(self, dl, caplog):
+        """A stored full-case Invite reads back as _RmInviteToFullCaseActivity."""
+        import logging
+
+        from vultron.core.models.ledger_position import LedgerPosition
+        from vultron.wire.as2.factories import rm_invite_to_full_case_activity
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        invite = rm_invite_to_full_case_activity(
+            "https://example.org/actors/vendor",
+            case,
+            LedgerPosition(log_index=0, entry_hash=_ZERO_HASH),
+            actor="https://example.org/actors/case-actor",
+        )
+        dl.save(case)
+        dl.save(invite)
+
+        with caplog.at_level(logging.WARNING):
+            result = dl.read(invite.id_)
+
+        assert type(result).__name__ == "_RmInviteToFullCaseActivity"
+        assert result.target == case.id_  # type: ignore[union-attr]
+        assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+    def test_full_case_invite_reply_round_trips_without_warning(
+        self, dl, caplog
+    ):
+        """A stored Accept(full-case Invite) coerces its embedded Invite too.
+
+        The Invite rides inline in the reply, so rehydration expands the
+        Invite's ``target`` into the stored case; the reply's class embeds
+        the full-case Invite class, which takes the case by URI (#5513).
+        """
+        import logging
+
+        from vultron.core.models.ledger_position import LedgerPosition
+        from vultron.wire.as2.factories import (
+            rm_accept_full_case_invite_activity,
+            rm_invite_to_full_case_activity,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        position = LedgerPosition(log_index=0, entry_hash=_ZERO_HASH)
+        invite = rm_invite_to_full_case_activity(
+            "https://example.org/actors/vendor",
+            case,
+            position,
+            actor="https://example.org/actors/case-actor",
+        )
+        accept = rm_accept_full_case_invite_activity(
+            invite, position, actor="https://example.org/actors/vendor"
+        )
+        dl.save(case)
+        dl.save(invite)
+        dl.save(accept)
+
+        with caplog.at_level(logging.WARNING):
+            result = dl.read(accept.id_)
+
+        assert type(result).__name__ == "_RmAcceptFullCaseInviteActivity"
+        assert result.object_.target == case.id_  # type: ignore[union-attr]
+        assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+class TestCollapseByReferenceFields:
+    """Each branch of ``_collapse_by_reference_fields`` (#5513)."""
+
+    @staticmethod
+    def _invite(target: object) -> object:
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Invite,
+        )
+
+        return as_Invite.model_construct(
+            id_="https://example.org/activities/invite-5513",
+            actor="https://example.org/actors/case-actor",
+            object_="https://example.org/actors/vendor",
+            target=target,
+        )
+
+    @staticmethod
+    def _collapse(obj: object, semantics: str) -> object:
+        from vultron.adapters.driven.datalayer_sqlite.hydration import (
+            _collapse_by_reference_fields,
+        )
+        from vultron.core.models.events import MessageSemantics
+        from vultron.semantic_registry import semantics_to_activity_class
+
+        return _collapse_by_reference_fields(
+            obj,  # type: ignore[arg-type]
+            semantics_to_activity_class()[MessageSemantics[semantics]],
+        )
+
+    def test_object_collapses_to_its_id(self):
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        result = self._collapse(
+            self._invite(case), "INVITE_ACTOR_TO_FULL_CASE"
+        )
+        assert result.target == case.id_  # type: ignore[attr-defined]
+
+    def test_bare_id_is_left_alone(self):
+        invite = self._invite("https://example.org/cases/case-5513")
+        assert self._collapse(invite, "INVITE_ACTOR_TO_FULL_CASE") is invite
+
+    def test_object_without_an_id_is_left_alone(self):
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        nameless = as_VulnerabilityCase.model_construct(id_=None)
+        invite = self._invite(nameless)
+        assert self._collapse(invite, "INVITE_ACTOR_TO_FULL_CASE") is invite
+
+    def test_field_that_admits_an_object_keeps_it(self):
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCaseStub,
+        )
+
+        stub = as_VulnerabilityCaseStub.model_construct(
+            id_="https://example.org/cases/case-5513/stub"
+        )
+        invite = self._invite(stub)
+        assert self._collapse(invite, "INVITE_ACTOR_TO_CASE") is invite
