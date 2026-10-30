@@ -401,11 +401,11 @@ def _receiver_answers_report(
             result = answer(
                 ActorSession(client=receiver_client, actor=receiver).quiet()
             ).model_dump(exclude_none=True)
-    logger.info(
-        "Receiver %s report: trigger result for actor %s",
-        verb,
-        parse_id(receiver.id_)["object_id"],
-    )
+            logger.info(
+                "Receiver %s report: trigger result for actor %s",
+                verb,
+                parse_id(receiver.id_)["object_id"],
+            )
     return result
 
 

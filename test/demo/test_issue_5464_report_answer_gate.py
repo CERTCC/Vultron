@@ -135,3 +135,54 @@ def test_answer_without_case_replica_records_gate_and_posts_nothing(
     failures = getattr(excinfo.value, "failures", [])
     assert len(failures) == 1
     assert failures[0].startswith("GATE FAILED")
+
+
+@pytest.mark.parametrize(
+    ("demo_name", "posted"),
+    [
+        ("demo_validate_and_engage", ["validate_report", "with_case"]),
+        ("demo_invalidate_and_close", ["invalidate_report", "with_case"]),
+    ],
+    ids=["validate_and_engage", "invalidate_and_close"],
+)
+def test_trigger_demo_without_case_replica_records_one_gate(demo_name, posted):
+    """trigger_demo skips every case-dependent step when the copy never lands.
+
+    Each trigger demo answers the report and then acts on the case, so one
+    missing replica must record one ``GATE FAILED`` and post no trigger,
+    not a cascade of secondary failures (ADR-0058, DEMOCI-01-007).
+    """
+    from vultron.demo.exchange import trigger_demo
+
+    session = MagicMock(name="ActorSession")
+    quiet = session.return_value.quiet.return_value
+    terminate = MagicMock(name="demo_terminate_embargo")
+
+    with (
+        patch.object(
+            trigger_demo,
+            "reporter_submits_report",
+            return_value=(MagicMock(), MagicMock()),
+        ),
+        patch.object(trigger_demo, "get_offer_from_datalayer"),
+        patch.object(
+            trigger_demo,
+            "wait_for_case_for_offer",
+            side_effect=AssertionError("no case replica"),
+        ),
+        patch.object(trigger_demo, "verify_reporter_trusts_introduction"),
+        patch.object(trigger_demo, "ActorSession", session),
+        patch.object(trigger_demo, "demo_terminate_embargo", terminate),
+    ):
+        getattr(trigger_demo, demo_name)(
+            MagicMock(name="client"), MagicMock(), MagicMock()
+        )
+
+    for trigger in posted:
+        getattr(quiet, trigger).assert_not_called()
+    terminate.assert_not_called()
+    with pytest.raises(Exception) as excinfo:
+        demo_utils.assert_demo_success()
+    failures = getattr(excinfo.value, "failures", [])
+    assert len(failures) == 1
+    assert failures[0].startswith("GATE FAILED")
