@@ -168,6 +168,18 @@ TIMELINE_ANSWER: StoryProp[as_Note] = StoryProp(
     "answered timeline note thread", as_Note
 )
 
+#: The case whose roster the Coordinator has confirmed, as its id.  Read by
+#: :func:`coordinator_invites_vendor`, which is the causal dependent: the
+#: Reporter and the Coordinator must both be seated before anyone else is
+#: invited, so a roster that never arrived skips the invite and the admit
+#: chain behind it rather than adding secondary failures to the first
+#: (DEMOCI-01-011, ``vultron/demo/AGENTS.md`` § "Never Wrap a Causal Wait in
+#: demo_check").  A flat story cannot nest the invite inside the roster's
+#: gate, so the gate keeps this and the invite reads it.
+ENGAGED_CASE: StoryProp[str] = StoryProp(
+    "case whose roster the Coordinator confirmed", str
+)
+
 
 # ---------------------------------------------------------------------------
 # Containers and cast
@@ -208,7 +220,7 @@ def coordinated_clients(
     declare no ``*_BASE_URL`` constants of their own (DEMOCI-11-020).
 
     Args:
-        roles: The scenario's :func:`~vultron.demo.helpers.actor_roles
+        roles: The scenario's :func:`~vultron.demo.helpers.actor_roles\
             .role_map`, which names the cast slot each actor sits in.
         members: The scenario's actor containers, in ``ROLES`` order.
         skip_health_check: Skip the server availability check.
@@ -271,7 +283,7 @@ def open_coordinated_cast(
     opening must match byte for byte (DEMOCI-11-018, #5532).
 
     Args:
-        harness: The run's :class:`~vultron.demo.helpers.harness
+        harness: The run's :class:`~vultron.demo.helpers.harness\
             .ScenarioHarness`.
         reporter_client: Client for the Reporter's container.
         coordinator_client: Client for the Coordinator's container.
@@ -347,31 +359,74 @@ def open_coordinated_cast(
     )
 
 
-def seat_character_actor(
-    state: StoryState, name: str, actor_id: str
-) -> ActorSession:
-    """Seat the actor just seeded in the container waiting for *name*.
+def coordinated_open_cast(
+    *,
+    reporter_client: DataLayerClient,
+    coordinator_client: DataLayerClient,
+    vendor_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
+    dump: Fragment,
+    reporter_id: str | None = None,
+    coordinator_id: str | None = None,
+    vendor_id: str | None = None,
+    unseated: Mapping[str, UnseatedContainer] | None = None,
+) -> Callable[[ScenarioHarness], StoryState]:
+    """The ``open_cast`` callable :func:`~.story.run_story` takes.
 
-    The second half of bringing a character actor in: the fragment seeded the
-    actor on the container :meth:`StoryState.container` named, and this binds
-    the session the story's later fragments reach it through.  The actor is
+    Every scenario of the family hands ``run_story`` the same closure over
+    :func:`open_coordinated_cast`, so it is built here rather than written out
+    once per scenario module (DEMOMA-17-001).  The arguments are
+    :func:`open_coordinated_cast`'s; the harness is the one ``run_story``
+    enters, which is what puts a seeding failure inside the harness that dumps
+    and reports it.
+    """
+
+    def open_cast(harness: ScenarioHarness) -> StoryState:
+        return open_coordinated_cast(
+            harness,
+            reporter_client=reporter_client,
+            coordinator_client=coordinator_client,
+            vendor_client=vendor_client,
+            case_actor_client=case_actor_client,
+            dump=dump,
+            reporter_id=reporter_id,
+            coordinator_id=coordinator_id,
+            vendor_id=vendor_id,
+            unseated=unseated,
+        )
+
+    return open_cast
+
+
+def seat_character_actors(
+    state: StoryState, joining: Mapping[str, str]
+) -> None:
+    """Read every named actor back from its container, then seat them all.
+
+    The second half of bringing character actors in: the fragment seeded them
+    on the containers :meth:`StoryState.container` named, and this binds the
+    sessions the story's later fragments reach them through.  Each actor is
     read back from its own container, which is the form a trigger session
     binds to.
 
+    The two halves are separated so a failed read-back leaves *none* of them
+    seated: a partly seated cast lets the fragment that reaches for the seated
+    one run a real protocol act before the next one stops the story
+    (#2308, EDF-06-005).
+
     Args:
         state: The running story's state.
-        name: The name this story's fragments call it.
-        actor_id: Its actor URI, as the seeding returned it.
-
-    Returns:
-        The seated session.
+        joining: The actor id to seat under each cast name, in seating order.
     """
-    client = state.container(name).client
-    session = ActorSession(
-        client=client, actor=get_actor_by_id(client, actor_id)
-    )
-    state.seat(name, session)
-    return session
+    sessions = {
+        name: ActorSession(
+            client=state.container(name).client,
+            actor=get_actor_by_id(state.container(name).client, actor_id),
+        )
+        for name, actor_id in joining.items()
+    }
+    for name, session in sessions.items():
+        state.seat(name, session)
 
 
 def dump_coordinated_ledgers(
@@ -439,54 +494,65 @@ def reporter_tells_coordinator(state: StoryState) -> None:
     The Coordinator validates the report and engages the case (RM→ACCEPTED),
     holding CASE_OWNER; each step is gated on its own RM state.  The Reporter
     is seated when the case is created (CM-22-002), so it is never invited
-    (DEMOMA-12-003).  The fragment ends by recording the case as the
-    Coordinator stores it, which arms the ledger dump: the first point at
-    which there is anything to dump, so every later fragment can fail without
-    costing the ledgers (DEMOMA-23-003, ISSUE-2239).
+    (DEMOMA-12-003).
+
+    The case is recorded as soon as the triage returns it, which arms the
+    ledger dump at the first instant there is anything to dump, so every step
+    below can fail without costing the ledgers (DEMOMA-23-003, ISSUE-2239).
+    Then the roster wait is a ``demo_gate``: the Reporter and the Coordinator
+    both being seated is the precondition for inviting anyone else, so a
+    timeout skips the M1 check, the re-read and :data:`ENGAGED_CASE`, and
+    :func:`coordinator_invites_vendor` stops the story rather than inviting
+    into a case the owner cannot vouch for (DEMOCI-01-011).
     """
     reporter = state.actor(REPORTER).actor
     coordinator = state.actor(COORDINATOR).actor
+    owner_client = state.client(COORDINATOR)
     report, offer = reporter_submits_report(
-        receiver_client=state.client(COORDINATOR),
+        receiver_client=owner_client,
         reporter=reporter,
         receiver=coordinator,
         reporter_client=state.client(REPORTER),
     )
     case = run_direct_path_rm_triage(
-        receiver_client=state.client(COORDINATOR),
+        receiver_client=owner_client,
         receiver=coordinator,
         offer=offer,
         timeout_seconds=OWNER_TRIAGE_TIMEOUT,
     )
+    # Recorded here, at the first instant there is anything to dump, so every
+    # step below can fail without costing the ledgers (DEMOMA-23-003,
+    # ISSUE-2239) — including the gate that follows.
+    state.open_case(case=case, report=report, offer=offer)
 
-    with demo_check(
+    with demo_gate(
         "Coordinator case reflects Reporter + Coordinator participants"
     ):
         wait_for_case_participants(
-            vendor_client=state.client(COORDINATOR),
+            vendor_client=owner_client,
             case_id=case.id_,
             expected_actor_ids={reporter.id_, coordinator.id_},
         )
 
-    with demo_check("M1: ≥3 participants, EM.ACTIVE, Reporter has replica"):
-        verify_case_active(
-            receiver_client=state.client(COORDINATOR),
-            reporter_client=state.client(REPORTER),
-            case_id=case.id_,
-            receiver_actor_id=coordinator.id_,
-            reporter_actor_id=reporter.id_,
-        )
+        with demo_check(
+            "M1: ≥3 participants, EM.ACTIVE, Reporter has replica"
+        ):
+            verify_case_active(
+                receiver_client=owner_client,
+                reporter_client=state.client(REPORTER),
+                case_id=case.id_,
+                receiver_actor_id=coordinator.id_,
+                reporter_actor_id=reporter.id_,
+            )
 
-    # Re-read the case as the Coordinator now stores it: the triage and the
-    # participant seating have moved on since the trigger returned it.
-    owner_client = state.client(COORDINATOR)
-    state.open_case(
-        case=as_VulnerabilityCase.model_validate(
-            owner_client.get(owner_client.dl_path(case.id_))
-        ),
-        report=report,
-        offer=offer,
-    )
+        # Re-read the case as the Coordinator now stores it: the triage and
+        # the participant seating have moved on since the trigger returned it.
+        state.restate_case(
+            as_VulnerabilityCase.model_validate(
+                owner_client.get(owner_client.dl_path(case.id_))
+            )
+        )
+        state.keep(ENGAGED_CASE, str(case.id_))
 
 
 def coordinator_invites_vendor(state: StoryState) -> None:
@@ -495,7 +561,13 @@ def coordinator_invites_vendor(state: StoryState) -> None:
     The Coordinator is CASE_OWNER, so it invites directly rather than through
     the ADR-0026 suggest/approve chain (DEMOMA-12-004).  The fragment stops at
     delivery: the Vendor's answer is the next branch point's choice.
+
+    Reads :data:`ENGAGED_CASE` first: the Reporter and the Coordinator being
+    seated is this invite's causal precondition, so a roster that never
+    arrived stops the story here instead of inviting into a case the owner
+    cannot vouch for (DEMOCI-01-011).
     """
+    state.kept(ENGAGED_CASE)
     state.invited(
         VENDOR,
         invite_and_await_delivery(
@@ -650,7 +722,7 @@ def invitee_joins_the_case(
 
     The whole invite chain in one step, for an invitee whose decision is no
     branch point of the tree: the Invite, the Accept, the case replica, the
-    reply to the full-case Invite (:func:`~vultron.demo.helpers.invite_chain
+    reply to the full-case Invite (:func:`~vultron.demo.helpers.invite_chain\
     .run_case_invite_chain`) and then its RM triage.  The Vendor's own join is
     the two-halved form instead, because the story's ``choose`` falls between
     the Invite and the answer.
@@ -1050,14 +1122,7 @@ def everyone_publishes(state: StoryState) -> None:
     termination fragment already established; in ``rcv`` they check the
     embargo ending at publication.
     """
-    reports_published(state, COORDINATOR)
-
-    with demo_check(
-        "Embargo terminated (EM.EXITED) after Coordinator reports published"
-    ):
-        wait_for_case_em_terminated(
-            client=state.client(COORDINATOR), case_id=state.case.id_
-        )
+    the_coordinator_publishes_and_the_embargo_ends(state)
 
     reports_published(state, VENDOR)
     reports_published(state, REPORTER)
@@ -1083,6 +1148,25 @@ def everyone_publishes(state: StoryState) -> None:
         )
 
 
+def the_coordinator_publishes_and_the_embargo_ends(state: StoryState) -> None:
+    """The Coordinator, as CASE_OWNER, triggers CS.P; the embargo exits.
+
+    Per DEMOMA-07-003(4) the Coordinator reports first, and the embargo reads
+    ``EM.EXITED`` once it has: in ``rcv`` that is the embargo ending at
+    publication, and in ``rcv-embargo`` it confirms the termination the
+    scenario already asserted.  One copy for every continuation that starts
+    this way, whether the Vendor joined or declined.
+    """
+    reports_published(state, COORDINATOR)
+
+    with demo_check(
+        "Embargo terminated (EM.EXITED) after Coordinator reports published"
+    ):
+        wait_for_case_em_terminated(
+            client=state.client(COORDINATOR), case_id=state.case.id_
+        )
+
+
 def reports_published(state: StoryState, name: str) -> None:
     """*name* triggers CS.P from its own container.
 
@@ -1104,14 +1188,7 @@ def coordinator_and_reporter_publish(state: StoryState) -> None:
     declined: the Coordinator, as CASE_OWNER, triggers CS.P (DEMOMA-07-003(4))
     and the embargo terminates (EM.EXITED).
     """
-    reports_published(state, COORDINATOR)
-
-    with demo_check(
-        "Embargo terminated (EM.EXITED) after Coordinator reports published"
-    ):
-        wait_for_case_em_terminated(
-            client=state.client(COORDINATOR), case_id=state.case.id_
-        )
+    the_coordinator_publishes_and_the_embargo_ends(state)
 
     reports_published(state, REPORTER)
 
@@ -1179,6 +1256,7 @@ def reporter_then_coordinator_close(state: StoryState) -> None:
 
 __all__ = [
     "CASE_ACTOR_NAME",
+    "ENGAGED_CASE",
     "COORDINATOR",
     "COORDINATOR_INVITES_VENDOR",
     "COORDINATOR_LABEL",
@@ -1195,6 +1273,7 @@ __all__ = [
     "await_reporter_case_replica",
     "close_the_case",
     "coordinated_clients",
+    "coordinated_open_cast",
     "coordinator_and_reporter_publish",
     "coordinator_invites_vendor",
     "dump_coordinated_ledgers",
@@ -1207,12 +1286,13 @@ __all__ = [
     "vendor_notifies_fix_ready",
     "reporter_asks_about_the_rejection",
     "reports_published",
+    "the_coordinator_publishes_and_the_embargo_ends",
     "reporter_asks_about_the_timeline",
     "reporter_replica_converges",
     "reporter_tells_coordinator",
     "reporter_then_coordinator_close",
     "replicas_converge_with_vendor",
-    "seat_character_actor",
+    "seat_character_actors",
     "vendor_accepts_and_joins",
     "vendor_rejects_invite",
     "vendor_reports_the_fix_ready",

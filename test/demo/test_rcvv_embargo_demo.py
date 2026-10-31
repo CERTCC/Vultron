@@ -48,7 +48,12 @@ from click.testing import CliRunner
 import vultron.demo.helpers.coordinated_embargo_story as embargo_story
 import vultron.demo.scenario.rcv_embargo_demo as sibling
 import vultron.demo.scenario.rcvv_embargo_demo as demo
-from test.demo._helpers import mock_actor, mock_case, story_state
+from test.demo._helpers import (
+    functions_referencing,
+    mock_actor,
+    mock_case,
+    story_state,
+)
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.actor_session import ActorSession
@@ -363,6 +368,21 @@ class TestTheSharedOpeningSeedsOnlyTheThree:
         # The four-container seeding belongs to the fragment that brings
         # Vendor2 in, not to the opening.
         mocks.seed_four.assert_not_called()
+
+    @pytest.mark.spec("DEMOMA-21-016")
+    def test_the_joining_fragment_is_the_only_caller_of_the_seeding(self):
+        """Nothing else in the module may seed the four containers.
+
+        The run above proves the opening does not reach the four-container
+        seeding on the one path it takes; this proves no other call site
+        exists at all, which is what DEMOMA-21-016's verification claims.  A
+        second caller — in particular one the shared opening could reach — is
+        how this scenario's first ledger entry would drift from
+        ``rcv-embargo``'s again (#5532).
+        """
+        assert functions_referencing(demo, "seed_containers_rcvv") == [
+            "vendor2_joins_under_the_revision"
+        ]
 
     @pytest.mark.spec("DEMOMA-01-003")
     def test_vendor2s_container_is_still_reset_with_the_rest(self):
@@ -829,3 +849,70 @@ class TestClosure:
             state.client(VENDOR2),
         ]
         assert kwargs["owner"].client is state.client(COORDINATOR)
+
+
+# ---------------------------------------------------------------------------
+# The ledger dump the invariant harness reads (DEMOMA-21-008, ISSUE-2239)
+# ---------------------------------------------------------------------------
+
+
+class TestRcvvEmbargoLedgerDump:
+    """Each seated replica is dumped, and an unseated Vendor2 is left out.
+
+    The dump runs on the way out whether or not an earlier step failed
+    (DEMOMA-23-003), and ``dump_coordinated_ledgers`` *raises* on a cast name
+    the run never seated, because there is no client to read that replica's
+    ledger through (``test_later_vendors.py``).  So a run that failed before
+    Vendor2 joined would lose every ledger — the artifacts the dump exists to
+    preserve (ISSUE-2239) — unless this wrapper filters its replica list by
+    ``state.cast``.
+    """
+
+    @staticmethod
+    def _dump(state: StoryState):
+        """Run the scenario's wrapper; return the dump targets it declared.
+
+        Each client is bound to its own actor, as the seeding binds it: a
+        route key selects the store, so the dump reads it off the client
+        rather than off the cast name (ADR-0073).
+        """
+        for name in state.cast:
+            state.client(name).actor_id = f"https://example.org/actors/{name}"
+        state.case_actor_client.actor_id = (
+            "https://example.org/actors/case-actor"
+        )
+        with patch.object(coordinated_story, "dump_case_ledgers") as dump:
+            demo._dump_ledgers(state)
+        return dump.call_args.kwargs["targets"]
+
+    @pytest.mark.spec("DEMOMA-21-008")
+    def test_every_seated_replica_is_dumped_plus_the_canonical_ledger(self):
+        """Four replicas in story order, then the canonical ledger."""
+        targets = self._dump(_state_after_vendor2_joined())
+
+        assert [t.actor_name for t in targets] == [
+            REPORTER,
+            COORDINATOR,
+            VENDOR1,
+            VENDOR2,
+            "case-actor",
+        ]
+        # The canonical ledger is read on the dedicated case-actor container,
+        # never from a participant's replica (DEMOMA-06-005).
+        assert targets[-1].route_key == "case-actor"
+
+    @pytest.mark.spec("DEMOMA-23-003")
+    def test_a_vendor2_the_run_never_seated_is_left_out(self):
+        """A failure before Vendor2's seeding must not cost the other ledgers.
+
+        Its container is waiting rather than seated, which is how every run
+        that failed before the late invite presents (DEMOCI-11-018).
+        """
+        targets = self._dump(_opened_state(vendor2_waiting=True))
+
+        assert [t.actor_name for t in targets] == [
+            REPORTER,
+            COORDINATOR,
+            VENDOR1,
+            "case-actor",
+        ]

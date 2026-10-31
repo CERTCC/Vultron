@@ -35,6 +35,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from test.demo._helpers import mock_case, story_state, stub_closure_gate
+from test.demo.test_coordinated_story import _bind_container_actors
 from vultron.demo.helpers import closure, coordinated_story
 from vultron.demo.helpers.coordinated_story import (
     CASE_ACTOR_NAME,
@@ -198,14 +199,26 @@ class TestALaterVendorsLedgerIsDumped:
         The invariant harness identifies a replica by that directory name
         (DEMOMA-19-020), and the canonical ledger is read on the dedicated
         case-actor container after the replicas (DEMOMA-06-005).
+
+        The route key is asserted beside the name because it is the half that
+        selects the store (ADR-0073): a target carrying Vendor1's key would
+        export Vendor1's ledger into Vendor2's directory, and the names would
+        still read correctly.  A later vendor is where that mis-pairing is
+        most likely — the family's own Vendor is the one the shared opening
+        seats, Vendor2 the one a continuation seeds and seats — so the
+        container actors are bound as seeding binds them and the real
+        ``replica_route_key`` runs, rather than keying the dump on a
+        ``MagicMock`` attribute that happens to differ per client.
         """
         state = story_state(*_FOUR, case=mock_case())
+        _bind_container_actors(state, *_FOUR)
 
         with patch.object(coordinated_story, "dump_case_ledgers") as dump:
             dump_coordinated_ledgers(state, replicas=list(_FOUR))
 
         targets = dump.call_args.kwargs["targets"]
         assert [t.actor_name for t in targets] == [*_FOUR, CASE_ACTOR_NAME]
+        assert [t.route_key for t in targets] == [*_FOUR, CASE_ACTOR_NAME]
         by_name = {t.actor_name: t for t in targets}
         assert by_name[VENDOR2].client is state.client(VENDOR2)
         assert by_name[VENDOR1].client is state.client(VENDOR1)

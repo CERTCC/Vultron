@@ -492,6 +492,31 @@ class StoryState:
         self.harness.dump_with(lambda: self.dump(self))
         self.harness.follow_ledger(self.case_actor_client, case.id_)
 
+    def restate_case(self, case: as_VulnerabilityCase) -> None:
+        """Replace the case this story holds, the ledger dump already armed.
+
+        For a step that reads the case back after an act changed it: the
+        opening re-reads it once the Coordinator's triage and the participant
+        seating have moved on, and an ownership transfer changes who owns it
+        (#5535).  Separate from :meth:`open_case` because that one also arms
+        the dump and starts following the ledger, which must happen at the
+        first instant there is anything to dump and exactly once
+        (DEMOMA-23-003, ISSUE-2239).
+
+        Args:
+            case: The case as its container now stores it.
+
+        Raises:
+            DemoStoryError: Before :meth:`open_case`.  Restating a case the
+                story never opened would arm no dump and follow no ledger.
+        """
+        if self._case is None:
+            raise DemoStoryError(
+                "the story has no case to restate yet; the fragment that "
+                "opens one calls open_case, which also arms the ledger dump."
+            )
+        self._case = case
+
     def invited(self, name: str, invite_id: str | None) -> None:
         """Record the Invite delivered to the cast member called *name*.
 

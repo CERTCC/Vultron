@@ -1722,30 +1722,50 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The RCV story MUST start with the shared "the Reporter asks the Vendor"
-      opening and continue from the Coordinator's decision to publish after the
-      Vendor's fix.
+      The RCV story MUST start with the shared "the Coordinator invites the
+      Vendor" opening and continue from the Vendor's acceptance.
     rationale: >-
-      That opening nests the shorter one RCV-reject also starts with — the
-      Reporter telling the Coordinator, the Coordinator engaging the case and
-      inviting the Vendor — and carries on through the Vendor's acceptance, the
-      replica convergence and the answered note thread, which RCVCV tells
-      identically (DEMOMA-19-024). Each shared stretch is one copy of the code,
-      so every two recordings of the family are byte-identical up to the branch
-      point where their paths part (DEMOCI-11-018). Naming it here keeps this
-      group a whole story: a reader sees where RCV's own telling begins without
-      reading a sibling's group.
+      The opening is the Reporter telling the Coordinator, the Coordinator
+      engaging the case, and the Coordinator inviting the Vendor. RCV tells it
+      identically to RCV-reject, so it is one copy of the code and the
+      recordings of the two are byte-identical up to the Vendor's decision
+      (DEMOCI-11-018). Naming it here keeps this group a whole story: a reader
+      sees where RCV's own telling begins without reading the sibling's group.
     verification: >-
       `test/demo_unit/test_story.py::test_the_two_composed_scenarios_share_one_opening`
       asserts that `rcv`'s story begins with the items of
-      `COORDINATOR_INVITES_VENDOR`, `test/demo/test_rcvcv_demo.py` asserts that
-      `rcv` and `rcvcv` begin with the items of `REPORTER_ASKS_THE_VENDOR`, and
-      `TestComposedFamilies` in `test/demo_unit/test_recordings.py` compares
-      every pair of the family's recordings byte for byte up to the branch
-      point where that pair's paths part.
+      `COORDINATOR_INVITES_VENDOR`, and `TestComposedFamilies` in
+      `test/demo_unit/test_recordings.py` compares the `rcv` and `rcv-reject`
+      recordings byte for byte up to the `vendor-join` branch point.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
+    - rel_type: depends_on
+      spec_id: DEMOCI-11-019
+    tags:
+    - demo
+  - id: DEMOMA-12-018
+    priority: MUST
+    kind: project
+    statement: >-
+      The RCV story MUST carry on from that opening through the Vendor's
+      acceptance, the replica convergence and the answered note thread.
+    rationale: >-
+      Those three steps are told identically by RCVCV (DEMOMA-19-024), so they
+      are one further stretch of shared code and the two recordings are
+      byte-identical to the `coordinator-after-answer` branch point
+      (DEMOCI-11-018). Naming the longer stretch as its own requirement leaves
+      DEMOMA-12-017's shorter opening, which RCV-reject also starts with
+      (DEMOMA-27-004), obliging exactly what it always did.
+    verification: >-
+      `test/demo/test_rcvcv_demo.py` asserts that `rcv`'s and `rcvcv`'s
+      stories begin with the items of `REPORTER_ASKS_THE_VENDOR`, and
+      `TestComposedFamilies` in `test/demo_unit/test_recordings.py` compares
+      the pairs of the family named in `COMPOSED_FAMILIES` byte for byte up to
+      the branch point where each pair's paths part.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-12-017
     - rel_type: depends_on
       spec_id: DEMOCI-11-019
     tags:
@@ -3424,15 +3444,15 @@ groups:
       second Coordinator.
     rationale: >-
       Everything up to C1's decision is told identically to RCV, so it is one
-      copy of the code and the two recordings are byte-identical up to the
-      `coordinator-after-answer` branch point (DEMOCI-11-018). Naming the
-      opening here keeps this group a whole story: a reader sees where RCVCV's
-      own telling begins without reading RCV's group.
+      copy of the code and the two recordings are byte-identical to the
+      `coordinator-after-answer` branch point (DEMOCI-11-018). Naming it here
+      keeps this group a whole story.
     verification: >-
-      `test/demo_unit/test_recordings.py::TestComposedFamilies` compares every
-      pair of the family's recordings byte for byte up to the branch point
-      where that pair's paths part, and the scenario's own test module asserts
-      that its story begins with the items of the named prefix.
+      `test/demo_unit/test_recordings.py::TestComposedFamilies` compares the
+      pairs of the family named in `COMPOSED_FAMILIES` byte for byte up to the
+      branch point where each pair's paths part — `{rcv, rcvcv}` among them —
+      and the scenario's own test module asserts that its story begins with
+      the items of the named prefix.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
@@ -3450,21 +3470,18 @@ groups:
       (DEMOMA-19-024).
     rationale: >-
       The shared opening writes the same records in every scenario that starts
-      with it, which is what makes their recordings byte-identical up to the
-      branch point they part at (DEMOCI-11-018). Every actor and peer record
-      written before the case exists is one more read of the recording clock,
-      so seeding five containers in the opening stamped RCVCV's first
-      ledger entry a third of a second after RCV's and the hash chain carried
-      the offset to the branch point (#5532). A character actor takes no part
-      in the case until it is invited, so seeding it where it is invited costs
-      the story nothing.
+      with it, which is what makes their recordings byte-identical
+      (DEMOCI-11-018). Each actor and peer record written before the case
+      exists is one more read of the recording clock, so seeding five
+      containers in the opening stamped RCVCV's first ledger entry a third of
+      a second after RCV's (#5532). A character actor takes no part until it
+      is invited, so seeding it there costs the story nothing.
     verification: >-
       `test/demo/test_rcvcv_demo.py` asserts, in
-      `TestCharacterActorsSeededAfterTheBranchPoint`, that the
-      scenario's cast opening seeds only the three fixed-role containers and
-      leaves the rest waiting, and that the step that brings each character
-      actor in is the only caller of the scenario's own
-      `seed_containers_*` function.
+      `TestCharacterActorsSeededAfterTheBranchPoint`, that the scenario's cast
+      opening seeds only the three fixed-role containers and leaves C2's and
+      V2's waiting, and that the step that brings them in is the only caller
+      of `seed_containers_rcvcv`.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-19-024
@@ -3782,19 +3799,21 @@ groups:
       an embargo" opening and continue from the Vendor's decision to report the
       fix ready.
     rationale: >-
-      That opening nests the openings RCV and RCV-reject start with and carries
-      on through the Vendor's acceptance, the default embargo's confirmation,
-      the Reporter's revision of it and the note thread that follows, which
+      That opening nests the one RCV and RCV-reject start with and carries on
+      through the Vendor's acceptance, the default embargo's confirmation, the
+      Reporter's revision of it and the note thread that follows, which
       rcvv-embargo tells identically (DEMOMA-21-015). Each shared stretch is
-      one copy of the code, so the two recordings are byte-identical up to the
-      `vendor-after-embargo` branch point (DEMOCI-11-018). Naming it here keeps
-      this group a whole story: a reader sees where this scenario's own telling
-      begins without reading the sibling's group.
+      one copy of the code, so the two recordings agree to the
+      `vendor-after-embargo` branch point — isomorphically today
+      (DEMOCI-11-017), byte for byte once #5591 lands.
     verification: >-
-      `test/demo_unit/test_recordings.py::TestComposedFamilies` compares every
-      pair of the family's recordings byte for byte up to the branch point
-      where that pair's paths part, and the scenario's own test module asserts
-      that its story begins with the items of the named prefix.
+      The scenario's own test module asserts that its story begins with the
+      items of `REPORTER_PROPOSES_EMBARGO`, which is what carries this clause
+      while the byte comparison is held open: `COMPOSED_FAMILIES` does not
+      name `{rcv-embargo, rcvv-embargo}` in one family, because their shared
+      prefix runs past the embargo activation and #5591 is the read that moves
+      it. `TestComposedFamilies` does compare each of the two against the
+      narrower siblings it is in a family with.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
@@ -4166,20 +4185,22 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The rcvv-embargo story MUST start with the same shared "the Reporter
-      proposes an embargo" opening as rcv-embargo (DEMOMA-20-013) and continue
-      from Vendor1's decision to propose a revision.
+      The rcvv-embargo story MUST start with the shared "the Reporter proposes
+      an embargo" opening (DEMOMA-20-013) and continue from Vendor1's revision.
     rationale: >-
       The revision cycle is the first thing this scenario tells differently, so
-      everything before it is one copy of the code shared with rcv-embargo and
-      the two recordings are byte-identical up to the `vendor-after-embargo`
-      branch point (DEMOCI-11-018). Naming the opening here keeps this group a
-      whole story.
+      everything before it is one copy of the code shared with rcv-embargo, so
+      the two recordings agree up to the `vendor-after-embargo` branch point —
+      isomorphically today (DEMOCI-11-017), and byte for byte once #5591
+      lands. Naming the opening here keeps this group a whole story.
     verification: >-
-      `test/demo_unit/test_recordings.py::TestComposedFamilies` compares every
-      pair of the family's recordings byte for byte up to the branch point
-      where that pair's paths part, and the scenario's own test module asserts
-      that its story begins with the items of the named prefix.
+      The scenario's own test module asserts that its story begins with the
+      items of `REPORTER_PROPOSES_EMBARGO`, which is what carries this clause
+      while the byte comparison is held open: `COMPOSED_FAMILIES` does not
+      name `{rcv-embargo, rcvv-embargo}` in one family, because their shared
+      prefix runs past the embargo activation and #5591 is the read that moves
+      it. `TestComposedFamilies` does compare each of the two against the
+      narrower siblings it is in a family with.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
@@ -4196,21 +4217,18 @@ groups:
       not by the shared opening (DEMOMA-21-015).
     rationale: >-
       The shared opening writes the same records in every scenario that starts
-      with it, which is what makes their recordings byte-identical up to the
-      branch point they part at (DEMOCI-11-018). Every actor and peer record
-      written before the case exists is one more read of the recording clock,
-      so seeding four containers in the opening stamped this scenario's
-      first ledger entry a sixth of a second after rcv-embargo's and the
-      hash chain carried the offset to the branch point (#5532). A character
-      actor takes no part in the case until it is invited, so seeding it where
-      it is invited costs the story nothing.
+      with it, which is what makes their recordings agree (DEMOCI-11-018).
+      Each actor and peer record written before the case exists is one more
+      read of the recording clock, so seeding four containers in the opening
+      stamped this scenario's first ledger entry a sixth of a second after
+      rcv-embargo's (#5532). Vendor2 takes no part until it is invited, so
+      seeding it there costs the story nothing.
     verification: >-
       `test/demo/test_rcvv_embargo_demo.py` asserts, in
-      `TestTheSharedOpeningSeedsOnlyTheThree`, that the
-      scenario's cast opening seeds only the three fixed-role containers and
-      leaves the rest waiting, and that the step that brings each character
-      actor in is the only caller of the scenario's own
-      `seed_containers_*` function.
+      `TestTheSharedOpeningSeedsOnlyTheThree`, that the scenario's cast
+      opening seeds only the three fixed-role containers and leaves Vendor2's
+      waiting, and that the step that invites Vendor2 is the only caller of
+      `seed_containers_rcvv`.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-21-015
@@ -4433,19 +4451,33 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      A scenario's `_phase_dump_case_ledgers()` MUST be a thin wrapper over
+      A scenario's dump step MUST be a thin wrapper over
       `vultron.demo.helpers.ledger_dump.dump_case_ledgers()`, declaring only that
       scenario's dump targets (actor name, client, route key, and any fallback).
-      Per-actor fetching, 404 handling, JSONL writing, and manifest writing MUST
-      live in the shared helper, not in the scenario module.
     rationale: >-
       The export loop is the same for every scenario. A copy of it in each scenario
-      module is the duplication that DEMOMA-17-001 forbids, and a defect in it must
-      then be fixed in each copy. The scenario keeps only its own participant map, and
-      the helper keeps the mechanics, so each fact is in one place.
+      module is the duplication that DEMOMA-17-001 forbids. The step is a
+      `_phase_dump_case_ledgers()` in a scenario written as phases and a `dump=`
+      story fragment in one written as composition (DEMOCI-11-019).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
+    tags:
+    - demo
+  - id: DEMOMA-23-009
+    priority: MUST
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      Per-actor fetching, 404 handling, JSONL writing and manifest writing MUST
+      live in the shared dump helper, not in a scenario module.
+    rationale: >-
+      The scenario keeps only its own participant map and the helper keeps the
+      mechanics, so each fact is in one place and a defect in the export is
+      fixed once (DEMOMA-23-002).
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-23-002
     tags:
     - demo
   - id: DEMOMA-23-003
@@ -4453,14 +4485,16 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      A scenario MUST register its dump with `harness.dump_with(...)` as soon as
-      a case exists — immediately after the report-submission phase returns —
-      rather than at the end of the run.
+      A scenario MUST register its dump with the harness as soon as a case
+      exists — at the first instant there is anything to dump — rather than at
+      the end of the run.
     rationale: >-
       The harness can only dump what it has been given. Registering the dump at
-      the first point where a case exists is what makes every later phase failure
+      the first point where a case exists is what makes every later failure
       survivable: the ledgers that existed at the moment of failure are still
-      exported.
+      exported. A scenario written as phases calls `harness.dump_with(...)`
+      itself; one written as composition calls `state.open_case(...)`, which
+      arms the `dump=` fragment it was built with (DEMOCI-11-019).
     relationships:
     - rel_type: implements
       spec_id: DEMOCI-10-001
@@ -4567,8 +4601,8 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A scenario's replica sync-verification phase MUST be a thin call to a
-      shared phase helper in `vultron/demo/helpers/sync.py`, declaring only the
+      A scenario's replica sync-verification step MUST be a thin call to a
+      shared helper in `vultron/demo/helpers/sync.py`, declaring only the
       scenario's authority, replicas, late joiners, expected participant set, and
       the replica pairs to state-check.
     rationale: >-
@@ -4576,8 +4610,9 @@ groups:
       helper puts each fact in one place, exactly as DEMOMA-23-002 does for the
       ledger dump. A scenario-specific extra — the rv scenario's check that its
       dedicated case-actor container holds the case — follows the helper call as
-      a separate step rather than becoming a per-scenario variant of the phase
-      body.
+      a separate step rather than becoming a per-scenario variant of the step's
+      body. The step is a `_phase_sync_verification()` in a scenario written as
+      phases and a story fragment in one written as composition.
     verification: >-
       Unit tests for the shared phase helper assert that it composes the
       Reporter-case gate, the coverage wait (DEMOMA-23-005), the participant-index

@@ -71,6 +71,8 @@ from vultron.demo.helpers.cast import (
 from vultron.demo.helpers.coordinated_story import (
     CASE_ACTOR_NAME,
     COORDINATOR,
+    ENGAGED_CASE,
+    OWNER_TRIAGE_TIMEOUT,
     REPORTER,
     VENDOR,
     CastContainer,
@@ -409,7 +411,17 @@ class TestCoordinatedMilestones:
     @pytest.mark.spec("CM-12-001")
     @pytest.mark.spec("VP-02-015")
     def test_reporter_tells_coordinator_calls_verify_case_active(self):
-        """M1 runs when the Coordinator engages the case."""
+        """M1 runs when the Coordinator engages the case, on one budget.
+
+        The fragment's own triage budget is pinned here because this is the
+        only place left that can pin it: the opening is one copy of the code,
+        so the five scenarios that share it share the one
+        :data:`OWNER_TRIAGE_TIMEOUT` and none of them passes a budget of its
+        own.  ``rcvcv`` is what set the value — 60 s for a run that brings
+        five actor containers up under CI load (ISSUE-2811) — and a budget
+        only bounds how long a wait may take, so the narrower siblings
+        inherit it without admitting or refusing anything differently.
+        """
         state = story_state(*_CAST)
         case = mock_case()
 
@@ -423,7 +435,7 @@ class TestCoordinatedMilestones:
                 coordinated_story,
                 "run_direct_path_rm_triage",
                 return_value=case,
-            ),
+            ) as triage,
             patch.object(coordinated_story, "wait_for_case_participants"),
             patch.object(coordinated_story, "as_VulnerabilityCase") as mock_vc,
             patch.object(coordinated_story, "verify_case_active") as mock_m1,
@@ -437,6 +449,12 @@ class TestCoordinatedMilestones:
             reporter_tells_coordinator(state)
 
         mock_m1.assert_called_once()
+        assert (
+            triage.call_args.kwargs["timeout_seconds"] == OWNER_TRIAGE_TIMEOUT
+        ), (
+            "the Coordinator's RM triage runs on the family's one budget"
+            f" (ISSUE-2811); got {triage.call_args.kwargs!r}"
+        )
         # The fragment hands the case to the state, which arms the dump as
         # soon as there is something to dump (DEMOMA-23-003).
         assert state.case is case
@@ -884,6 +902,10 @@ class TestInviteChainSkipsDependents:
 
     def _invite(self, *, invite_trigger, invite_lookup):
         state = story_state(*_CAST, case=mock_case())
+        # The roster the opening confirmed is this invite's precondition
+        # (ENGAGED_CASE); the tests below are about what happens *after* it
+        # held, so they stand in for the opening that keeps it.
+        state.keep(ENGAGED_CASE, str(state.case.id_))
         with (
             patch.object(
                 ActorSession, "invite_actor_to_case", **invite_trigger
@@ -920,6 +942,28 @@ class TestInviteChainSkipsDependents:
             vendor_accepts_and_joins(state)
         accept.assert_not_called()
 
+    @pytest.mark.spec("DEMOCI-01-011")
+    def test_a_roster_the_opening_never_confirmed_skips_the_invite(self):
+        """The roster is this invite's causal precondition, so it gates it.
+
+        A flat story cannot nest the invite inside the roster wait's gate, so
+        the gate keeps ``ENGAGED_CASE`` and the invite reads it: a roster that
+        never arrived stops the story here instead of inviting into a case the
+        owner cannot vouch for, which is what the hand-placed scenarios got
+        from nesting the whole invite/admit chain inside that gate.
+        """
+        state = story_state(*_CAST, case=mock_case())
+
+        with (
+            patch.object(ActorSession, "invite_actor_to_case") as invite,
+            patch.object(invite_chain, "find_case_invite_for_actor") as find,
+            pytest.raises(DemoStoryError, match="roster"),
+        ):
+            coordinator_invites_vendor(state)
+
+        invite.assert_not_called()
+        find.assert_not_called()
+
     def test_invite_lookup_failure_skips_the_answer(self):
         state, _ = self._invite(
             invite_trigger={
@@ -951,6 +995,7 @@ class TestInviteChainSkipsDependents:
     def test_the_invite_names_the_case_manager_so_the_stub_is_seeded(self):
         """#4285: the family's first chain seeds ``stub_summary``."""
         state = story_state(*_CAST, case=mock_case())
+        state.keep(ENGAGED_CASE, str(state.case.id_))
         with (
             patch.object(invite_chain, "_seed_stub_summary") as seed,
             patch.object(

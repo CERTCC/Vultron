@@ -183,9 +183,18 @@ groups:
           Then the other failures of the run are not reported, and the one failure that
           is reported can point at the wrong cause. Many scenario phases call these
           waits, and a bare call looks correct in a review. Thus an architecture test
-          checks the scenario phases. When the shared helper
+          checks every piece of scenario-level code. When the shared helper
           does the wrap itself, as `wait_for_participants_on_replicas` and
           `wait_for_replica_ledger_coverage` do, every caller is safe.
+        verification: >-
+          An architecture test scans every module under `vultron/demo/` for the
+          two shapes scenario-level code takes — a `_phase_*` function, and a
+          story fragment, which is a module-level function taking a
+          `StoryState` wherever it lives (DEMOCI-11-019) — and reports every
+          raising `wait_for_*` call that sits in neither a `demo_step`, a
+          `demo_check` nor a `demo_gate`. It fails when it resolves no subject
+          of either shape, so a migration that moved the last one would not
+          leave it passing over an empty set.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-01-003
@@ -2280,7 +2289,14 @@ groups:
           each family marked as composed, and fails on a fixture pair of a
           marked family that differs in one byte before the branch point. It
           parametrizes over the families named in `COMPOSED_FAMILIES`, which a
-          family joins when its scenarios share one authored opening.
+          family joins when its scenarios share one authored opening. One pair
+          of the Reporter → Coordinator → Vendor family is held open:
+          `{rcv-embargo, rcvv-embargo}` share four steps, so their prefix runs
+          past the embargo activation, where a read advances the recording
+          clock and the two came out 80 ms apart in a whole-tree run. The table
+          names the subtree as two overlapping families until #5591 takes the
+          clock out of that read path; collapsing them is its acceptance
+          criterion.
         adr:
           - ADR-0098
         relationships:

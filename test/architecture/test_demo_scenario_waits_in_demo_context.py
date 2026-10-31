@@ -73,7 +73,6 @@ from test.architecture import _corpus
 
 _DEMO_DIR = _corpus.REPO_ROOT / "vultron" / "demo"
 _HELPERS_DIR = _DEMO_DIR / "helpers"
-_SCENARIO_DIR = _DEMO_DIR / "scenario"
 _POLLING = _HELPERS_DIR / "polling.py"
 _SYNC = _HELPERS_DIR / "sync.py"
 

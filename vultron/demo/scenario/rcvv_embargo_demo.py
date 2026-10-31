@@ -31,7 +31,7 @@ ready the Reporter reports public disclosure: CS.P ends the embargo
 automatically (``ACTIVE → EXITED``), and nobody terminates it.
 
 The story is assembled, not written out: it starts with
-:data:`~vultron.demo.helpers.coordinated_embargo_story
+:data:`~vultron.demo.helpers.coordinated_embargo_story\
 .REPORTER_PROPOSES_EMBARGO`, the opening it shares with ``rcv-embargo``, and
 continues with Vendor1's revision (:data:`STORY`, DEMOCI-11-019).  Its steps
 run in the order DEMOMA-21-008 gives, and the revision, the late invite and
@@ -87,14 +87,13 @@ from vultron.demo.helpers.coordinated_story import (
     CastContainer,
     close_the_case,
     coordinated_clients,
+    coordinated_open_cast,
     dump_coordinated_ledgers,
     invitee_joins_the_case,
-    open_coordinated_cast,
     report_fix_ready,
     reports_published,
-    seat_character_actor,
+    seat_character_actors,
 )
-from vultron.demo.helpers.harness import ScenarioHarness
 from vultron.demo.helpers.polling import (
     wait_for_case_em_state,
     wait_for_participant_embargo_consent,
@@ -247,7 +246,7 @@ def vendor2_joins_under_the_revision(state: StoryState) -> None:
         # Seated inside the step that seeded it: a seeding failure then leaves
         # the cast short, and the fragments that reach for Vendor2 stop the
         # story rather than acting on a stand-in (#2308).
-        seat_character_actor(state, VENDOR2, seeded[3].id_)
+        seat_character_actors(state, {VENDOR2: seeded[3].id_})
 
     invitee_joins_the_case(
         state,
@@ -371,23 +370,21 @@ def run_rcvv_embargo_demo(
     logger.info("Vendor2 container:     %s", vendor2_client.base_url)
     logger.info("CaseActor container:   %s", case_actor_client.base_url)
 
-    def open_cast(harness: ScenarioHarness) -> StoryState:
-        return open_coordinated_cast(
-            harness,
-            reporter_client=reporter_client,
-            coordinator_client=coordinator_client,
-            vendor_client=vendor_client,
-            case_actor_client=case_actor_client,
-            dump=_dump_ledgers,
-            reporter_id=reporter_id,
-            coordinator_id=coordinator_id,
-            vendor_id=vendor_id,
-            unseated={
-                VENDOR2: UnseatedContainer(
-                    VENDOR2_LABEL, vendor2_client, vendor2_id
-                )
-            },
-        )
+    open_cast = coordinated_open_cast(
+        reporter_client=reporter_client,
+        coordinator_client=coordinator_client,
+        vendor_client=vendor_client,
+        case_actor_client=case_actor_client,
+        dump=_dump_ledgers,
+        reporter_id=reporter_id,
+        coordinator_id=coordinator_id,
+        vendor_id=vendor_id,
+        unseated={
+            VENDOR2: UnseatedContainer(
+                VENDOR2_LABEL, vendor2_client, vendor2_id
+            )
+        },
+    )
 
     # run_story() owns the failure accumulator through scenario_harness: it
     # resets it, always dumps the case ledgers, and asserts success — so a

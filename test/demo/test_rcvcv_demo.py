@@ -36,9 +36,7 @@ stubbed to ``nullcontext`` only where it is about call shape
 (``test_demo_context_managers.py`` owns their behaviour).
 """
 
-import ast
 import contextlib
-import inspect
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -47,6 +45,7 @@ from click.testing import CliRunner
 import vultron.demo.scenario.rcvcv_demo as demo
 import vultron.demo.utils as demo_utils
 from test.demo._helpers import (
+    functions_referencing,
     mock_actor,
     mock_case,
     mock_client,
@@ -165,12 +164,15 @@ class TestRcvcvStoryShape:
             == REPORTER_ASKS_THE_VENDOR.items
         )
         # Every item of the prefix is the same object in both stories.
+        # Identity only: ``Choose`` is a frozen dataclass, so a hand-copied
+        # duplicate compares equal and an ``or mine == theirs`` arm would make
+        # this loop a second spelling of the tuple equality above.
         for mine, theirs in zip(
             demo.STORY.items[:_PREFIX_LEN],
             rcv_demo.STORY.items[:_PREFIX_LEN],
             strict=True,
         ):
-            assert mine is theirs or mine == theirs
+            assert mine is theirs
 
     def test_the_siblings_part_at_the_coordinators_decision(self):
         """The first item after the prefix is the choice, and it differs."""
@@ -230,20 +232,6 @@ class TestRcvcvStoryShape:
 # ---------------------------------------------------------------------------
 # The character actors are seeded after the branch point (DEMOCI-11-018)
 # ---------------------------------------------------------------------------
-
-
-def _functions_referencing(module, name: str) -> list[str]:
-    """The names of *module*'s functions whose body mentions *name*."""
-    tree = ast.parse(inspect.getsource(module))
-    return [
-        node.name
-        for node in ast.walk(tree)
-        if isinstance(node, ast.FunctionDef)
-        and any(
-            isinstance(child, ast.Name) and child.id == name
-            for child in ast.walk(node)
-        )
-    ]
 
 
 class TestCharacterActorsSeededAfterTheBranchPoint:
@@ -337,7 +325,7 @@ class TestCharacterActorsSeededAfterTheBranchPoint:
         A second call site — in particular one reachable from the shared
         opening — is how the recording would drift from ``rcv``'s again.
         """
-        assert _functions_referencing(demo, "seed_containers_rcvcv") == [
+        assert functions_referencing(demo, "seed_containers_rcvcv") == [
             "seed_the_second_coordinator_and_vendor"
         ]
 
@@ -1575,11 +1563,17 @@ class TestRcvcvUnseatedContainers:
     """C2 and V2 are declared as containers, not as cast members."""
 
     def test_run_rcvcv_demo_declares_both_character_actors_unseated(self):
-        """``open_coordinated_cast`` is told which containers to wait on."""
+        """The cast opening is told which containers to wait on.
+
+        Patched on ``coordinated_story``, where the shared
+        ``coordinated_open_cast`` factory looks the opening up: this scenario
+        builds its ``open_cast`` callable through that factory rather than
+        writing the closure out, so a patch on this module would not reach it.
+        """
         with (
             patch.object(demo, "run_story") as run_story,
             patch.object(
-                demo, "open_coordinated_cast"
+                coordinated_story, "open_coordinated_cast"
             ) as open_coordinated_cast,
         ):
             demo.run_rcvcv_demo(

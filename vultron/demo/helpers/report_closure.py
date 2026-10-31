@@ -15,8 +15,9 @@
 
 Kept out of :mod:`vultron.demo.helpers` (the package does not re-export it)
 because it composes :mod:`vultron.demo.exchange.embargo_lifecycle`, which
-imports the helpers package; :mod:`~vultron.demo.helpers
-.coordinated_embargo_story` stands apart for the same reason.
+imports the helpers package;
+:mod:`~vultron.demo.helpers.coordinated_embargo_story` stands apart for the
+same reason.
 """
 
 from vultron.core.states.rm import RM

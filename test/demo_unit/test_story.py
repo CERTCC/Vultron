@@ -111,6 +111,81 @@ def _state(
 _KEPT_ID: StoryProp[str] = StoryProp("embargo in force", str)
 
 
+def _story_prop_declarations() -> dict[str, dict[int, str]]:
+    """Every :class:`StoryProp` the demo helper and scenario packages declare.
+
+    ``{prop name: {id(prop): where it is declared}}``.  Keyed on the object's
+    identity inside each name, so a prop a second module imports is the one
+    declaration it is, and two separate ``StoryProp(...)`` calls spelling one
+    name are two.  Both packages are walked with ``pkgutil`` rather than
+    listed, for the reason :func:`~vultron.demo.scenario.registry.
+    scenario_module_stems` enumerates its own (DEMOCI-11-002): a listed module
+    is checked only while someone remembers to add it.
+    """
+    import importlib
+    import pkgutil
+
+    found: dict[str, dict[int, str]] = {}
+    for package_name in ("vultron.demo.helpers", "vultron.demo.scenario"):
+        package = importlib.import_module(package_name)
+        for info in pkgutil.iter_modules(package.__path__):
+            if info.ispkg:
+                continue
+            module = importlib.import_module(f"{package_name}.{info.name}")
+            for attr, value in vars(module).items():
+                if isinstance(value, StoryProp):
+                    where = found.setdefault(value.name, {})
+                    # setdefault, so an object's site is the first module
+                    # walked that holds it rather than the last to import it.
+                    where.setdefault(id(value), f"{module.__name__}.{attr}")
+    return found
+
+
+def _named_prefixes() -> dict[str, Story]:
+    """Every named prefix the family's two story modules declare.
+
+    ``{module.ATTRIBUTE: the prefix}``, deduplicated by the prefix object, so
+    a prefix the embargo module imports to nest keeps the name of the module
+    that declares it.  Derived rather than listed: a prefix is added each time
+    a branch point of the family grows a second scenario, and a listed one
+    would be checked only when a human remembered the row (#5534).
+    """
+    from vultron.demo.helpers import (
+        coordinated_embargo_story,
+        coordinated_story,
+    )
+
+    prefixes: dict[str, Story] = {}
+    seen: set[int] = set()
+    for module in (coordinated_story, coordinated_embargo_story):
+        stem = module.__name__.rsplit(".", 1)[1]
+        for attr, value in vars(module).items():
+            if isinstance(value, Story) and id(value) not in seen:
+                seen.add(id(value))
+                prefixes[f"{stem}.{attr}"] = value
+    return prefixes
+
+
+def _registered_stories() -> dict[str, Story]:
+    """``{scenario name: its story}`` for every composed registered scenario.
+
+    Read from the registry rather than from a list of module names, so a
+    scenario composed onto one of these prefixes counts towards it the moment
+    it is registered (DEMOCI-11-002).  A scenario still written as phases
+    declares no ``STORY`` and is simply absent.
+    """
+    import importlib
+
+    stories: dict[str, Story] = {}
+    for spec in registry.discover_scenarios():
+        plot = getattr(
+            importlib.import_module(spec.module_name), "STORY", None
+        )
+        if isinstance(plot, Story):
+            stories[spec.name] = plot
+    return stories
+
+
 def _rv_story(log: list[str] | None = None) -> Story:
     """A composed fixture story walking ``rv``'s path."""
     entries = log if log is not None else []
@@ -307,6 +382,39 @@ class TestStoryProps:
         assert (state.kept(_KEPT_ID), state.kept(revised)) == (
             "first",
             "second",
+        )
+
+    def test_every_story_prop_name_is_unique(self) -> None:
+        """One name, one declaration: the state keys the artifact on the name.
+
+        ``StoryState._props`` is one dictionary per run, keyed on the declared
+        name, and a composed scenario draws fragments from more than one
+        family's module.  Nothing in :class:`StoryProp` reserves a name, so a
+        second declaration spelling an existing one would have the two
+        families overwrite each other's artifact.  Worse when their types
+        differ: ``kept()`` checks the type it got back, so the cross-type
+        collision is reported as "the story has no X yet" — the message for a
+        fragment placed before the one that makes what it reads, which is a
+        different defect with a different fix.
+
+        The sibling above covers the other half, that two *different* names do
+        not collide.
+        """
+        declarations = _story_prop_declarations()
+        assert declarations, (
+            "no StoryProp was collected, so this check proves nothing; the "
+            "declarations have moved out of vultron/demo/helpers/ and "
+            "vultron/demo/scenario/ and the walk needs the new location"
+        )
+        collisions = {
+            name: sorted(where.values())
+            for name, where in declarations.items()
+            if len(where) > 1
+        }
+        assert not collisions, (
+            f"these story prop names are declared more than once: "
+            f"{collisions}. The name is the key StoryState keeps the artifact "
+            "under, so each family would read the other's."
         )
 
 
@@ -934,50 +1042,88 @@ def test_the_two_composed_scenarios_share_one_opening() -> None:
     assert isinstance(rcv_reject.STORY.items[shared], Choose)
 
 
-#: Each stretch the Reporter → Coordinator → Vendor family shares, with the
-#: scenarios that start from it.  One named prefix per branch point the family
-#: parts at, each nesting the one before (#5534).
-_FAMILY_PREFIXES = [
+#: Every named prefix the family declares, read off the two story modules.
+_NAMED_PREFIXES = _named_prefixes()
+
+#: Which named prefix nests which, outer first.  This is the content the
+#: retired per-prefix scenario lists carried: the family parts at one branch
+#: point per prefix, so each prefix beyond the opening carries an earlier one
+#: whole rather than restating its steps (#5534).  Which *scenarios* start
+#: from each prefix is no longer listed — it is read off the registry by
+#: :func:`test_every_named_prefix_opens_at_least_two_scenarios`, so a fourth
+#: prefix is checked without a human adding a row.
+_PREFIX_NESTING = [
     (
-        "COORDINATOR_INVITES_VENDOR",
-        ("rcv", "rcv_reject", "rcvcv", "rcv_embargo", "rcvv_embargo"),
+        "coordinated_story.COORDINATOR_INVITES_VENDOR",
+        "coordinated_story.VENDOR_JOINS_THE_CASE",
     ),
     (
-        "VENDOR_JOINS_THE_CASE",
-        ("rcv", "rcvcv", "rcv_embargo", "rcvv_embargo"),
+        "coordinated_story.VENDOR_JOINS_THE_CASE",
+        "coordinated_story.REPORTER_ASKS_THE_VENDOR",
     ),
-    ("REPORTER_ASKS_THE_VENDOR", ("rcv", "rcvcv")),
+    (
+        "coordinated_story.VENDOR_JOINS_THE_CASE",
+        "coordinated_embargo_story.REPORTER_PROPOSES_EMBARGO",
+    ),
 ]
 
 
 @pytest.mark.spec("DEMOMA-17-001")
 @pytest.mark.spec("DEMOCI-11-018")
-@pytest.mark.parametrize(("prefix_name", "scenarios"), _FAMILY_PREFIXES)
-def test_every_shared_stretch_of_the_family_is_one_named_prefix(
-    prefix_name: str, scenarios: tuple[str, ...]
+@pytest.mark.parametrize("prefix_name", sorted(_NAMED_PREFIXES))
+def test_every_named_prefix_opens_at_least_two_scenarios(
+    prefix_name: str,
 ) -> None:
-    """Each scenario starts from the prefix object's own items, not a copy.
+    """A named prefix is a stretch that is *shared*, or it is not one.
 
-    Assembling siblings from fragments alone lets one of them slip a step in
-    before the branch point, which the byte-identity check would then catch
-    only after a regeneration.  Comparing against the prefix's items pins it
-    where the story is written.  The item right after the prefix must be a
-    choice: that is the branch point the scenarios part at.
+    One scenario's opening needs no name: the fragments read top to bottom in
+    its own module.  A prefix earns its name by being the opening two or more
+    siblings start from, which is what keeps them from drifting
+    (DEMOMA-17-001).  Each sibling is compared against the prefix object's own
+    items rather than against a copy of the steps: assembling siblings from
+    fragments alone lets one slip a step in before the branch point, which the
+    byte-identity check would catch only after a regeneration.  The item right
+    after the prefix must be a choice — that is the branch point they part at.
     """
-    import importlib
-
-    from vultron.demo.helpers import coordinated_story
-
-    prefix: Story = getattr(coordinated_story, prefix_name)
+    prefix = _NAMED_PREFIXES[prefix_name]
     shared = len(prefix.items)
-    for stem in scenarios:
-        module = importlib.import_module(f"vultron.demo.scenario.{stem}_demo")
-        assert module.STORY.items[:shared] == prefix.items, (
-            f"{stem} does not start from {prefix_name}"
+    opened = {
+        name: plot
+        for name, plot in _registered_stories().items()
+        if plot.items[:shared] == prefix.items
+    }
+    assert len(opened) >= 2, (
+        f"{prefix_name} opens {sorted(opened)}; a named prefix is the opening "
+        "at least two scenarios share, and a stretch only one walks belongs "
+        "in that scenario's own module"
+    )
+    for name, plot in opened.items():
+        assert len(plot.items) > shared, (
+            f"{name} is {prefix_name} and nothing else, so the prefix is its "
+            "whole story rather than an opening it parts from"
         )
-        assert isinstance(module.STORY.items[shared], Choose), (
-            f"{stem} places a step before the branch point it parts at"
+        assert isinstance(plot.items[shared], Choose), (
+            f"{name} places a step before the branch point it parts at"
         )
+
+
+@pytest.mark.spec("DEMOMA-17-001")
+@pytest.mark.spec("DEMOCI-11-018")
+@pytest.mark.parametrize(("outer", "inner"), _PREFIX_NESTING)
+def test_a_named_prefix_nests_the_shorter_one_it_carries(
+    outer: str, inner: str
+) -> None:
+    """``inner`` opens with ``outer``'s own items, not a second copy of them.
+
+    The nesting is why one correction to the family's opening reaches every
+    scenario: the longer prefix splices the shorter (``story()`` flattens), so
+    a step added to the opening cannot reach four siblings and miss the fifth.
+    """
+    assert _NAMED_PREFIXES[inner].items[
+        : len(_NAMED_PREFIXES[outer].items)
+    ] == (_NAMED_PREFIXES[outer].items), (
+        f"{inner} restates {outer}'s steps instead of nesting it"
+    )
 
 
 @pytest.mark.spec("DEMOMA-20-013")
@@ -985,20 +1131,16 @@ def test_every_shared_stretch_of_the_family_is_one_named_prefix(
 def test_the_embargo_pair_shares_the_proposal_opening() -> None:
     """Both embargo scenarios start from ``REPORTER_PROPOSES_EMBARGO``.
 
-    The pair's own prefix nests ``VENDOR_JOINS_THE_CASE`` and carries on
-    through the default embargo's confirmation, the Reporter's revision of it
-    and the note thread that follows.
+    Which two they are, where the derived check above only knows there are at
+    least two.  The pair's own prefix nests ``VENDOR_JOINS_THE_CASE``
+    (``_PREFIX_NESTING``) and carries on through the default embargo's
+    confirmation, the Reporter's revision of it and the note thread that
+    follows.
     """
     import importlib
 
     from vultron.demo.helpers.coordinated_embargo_story import (
         REPORTER_PROPOSES_EMBARGO,
-    )
-    from vultron.demo.helpers.coordinated_story import VENDOR_JOINS_THE_CASE
-
-    joined = len(VENDOR_JOINS_THE_CASE.items)
-    assert (
-        REPORTER_PROPOSES_EMBARGO.items[:joined] == VENDOR_JOINS_THE_CASE.items
     )
 
     shared = len(REPORTER_PROPOSES_EMBARGO.items)

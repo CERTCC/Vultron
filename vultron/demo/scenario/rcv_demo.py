@@ -28,9 +28,10 @@ to fix ready (VFd; Vendor stops at VFd), and all three participants
 coordinate to VFdPxa closure.
 
 The story is assembled, not written out: it starts with
-:data:`~vultron.demo.helpers.coordinated_story.COORDINATOR_INVITES_VENDOR`,
-the opening it shares with ``rcv-reject``, and continues with the Vendor's
-acceptance (:data:`STORY`, DEMOCI-11-019).
+:data:`~vultron.demo.helpers.coordinated_story.REPORTER_ASKS_THE_VENDOR` —
+the opening it shares with ``rcvcv``, which nests the shorter one
+``rcv-reject`` starts with — and continues from the Coordinator's decision to
+publish (:data:`STORY`, DEMOCI-11-019).
 
 Spec: DEMOMA-12 (GitHub issue #1593).
 """
@@ -59,13 +60,12 @@ from vultron.demo.helpers.coordinated_story import (
     VENDOR_LABEL,
     CastContainer,
     coordinated_clients,
+    coordinated_open_cast,
     dump_coordinated_ledgers,
     everyone_closes,
     everyone_publishes,
-    open_coordinated_cast,
     vendor_reports_the_fix_ready,
 )
-from vultron.demo.helpers.harness import ScenarioHarness
 from vultron.demo.helpers.story import StoryState, choose, run_story, story
 from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import DataLayerClient, setup_demo_logging
@@ -153,18 +153,16 @@ def run_rcv_demo(
     logger.info("Vendor container:      %s", vendor_client.base_url)
     logger.info("CaseActor container:   %s", case_actor_client.base_url)
 
-    def open_cast(harness: ScenarioHarness) -> StoryState:
-        return open_coordinated_cast(
-            harness,
-            reporter_client=reporter_client,
-            coordinator_client=coordinator_client,
-            vendor_client=vendor_client,
-            case_actor_client=case_actor_client,
-            dump=_dump_ledgers,
-            reporter_id=reporter_id,
-            coordinator_id=coordinator_id,
-            vendor_id=vendor_id,
-        )
+    open_cast = coordinated_open_cast(
+        reporter_client=reporter_client,
+        coordinator_client=coordinator_client,
+        vendor_client=vendor_client,
+        case_actor_client=case_actor_client,
+        dump=_dump_ledgers,
+        reporter_id=reporter_id,
+        coordinator_id=coordinator_id,
+        vendor_id=vendor_id,
+    )
 
     # run_story() owns the failure accumulator through scenario_harness: it
     # resets it, always dumps the case ledgers, and asserts success — so a

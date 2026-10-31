@@ -57,15 +57,14 @@ from vultron.demo.helpers.coordinated_story import (
     VENDOR_LABEL,
     CastContainer,
     coordinated_clients,
+    coordinated_open_cast,
     coordinator_and_reporter_publish,
     dump_coordinated_ledgers,
-    open_coordinated_cast,
     reporter_asks_about_the_rejection,
     reporter_replica_converges,
     reporter_then_coordinator_close,
     vendor_rejects_invite,
 )
-from vultron.demo.helpers.harness import ScenarioHarness
 from vultron.demo.helpers.story import StoryState, choose, run_story, story
 from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import DataLayerClient, setup_demo_logging
@@ -162,18 +161,16 @@ def run_rcv_reject_demo(
     logger.info("Vendor container:      %s", vendor_client.base_url)
     logger.info("CaseActor container:   %s", case_actor_client.base_url)
 
-    def open_cast(harness: ScenarioHarness) -> StoryState:
-        return open_coordinated_cast(
-            harness,
-            reporter_client=reporter_client,
-            coordinator_client=coordinator_client,
-            vendor_client=vendor_client,
-            case_actor_client=case_actor_client,
-            dump=_dump_ledgers,
-            reporter_id=reporter_id,
-            coordinator_id=coordinator_id,
-            vendor_id=vendor_id,
-        )
+    open_cast = coordinated_open_cast(
+        reporter_client=reporter_client,
+        coordinator_client=coordinator_client,
+        vendor_client=vendor_client,
+        case_actor_client=case_actor_client,
+        dump=_dump_ledgers,
+        reporter_id=reporter_id,
+        coordinator_id=coordinator_id,
+        vendor_id=vendor_id,
+    )
 
     # run_story() owns the failure accumulator through scenario_harness: it
     # resets it, always dumps the case ledgers, and asserts success — so a

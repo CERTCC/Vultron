@@ -76,15 +76,14 @@ from vultron.demo.helpers.coordinated_story import (
     await_reporter_case_replica,
     close_the_case,
     coordinated_clients,
+    coordinated_open_cast,
     dump_coordinated_ledgers,
     invitee_joins_the_case,
     invitee_triages_after_joining,
-    open_coordinated_cast,
     reports_published,
-    seat_character_actor,
+    seat_character_actors,
     vendor_notifies_fix_ready,
 )
-from vultron.demo.helpers.harness import ScenarioHarness
 from vultron.demo.helpers.invite_chain import run_case_invite_chain
 from vultron.demo.helpers.milestones import (
     verify_case_active,
@@ -257,11 +256,10 @@ def seed_the_second_coordinator_and_vendor(state: StoryState) -> None:
             v2_actor_id=v2_container.actor_id,
             case_actor_client=state.case_actor_client,
         )
-        # Seated inside the step that seeded them: a seeding failure then
-        # leaves the cast short, and the fragments that reach for C2 or V2
-        # stop the story rather than acting on a stand-in (#2308).
-        seat_character_actor(state, C2, seeded[3].id_)
-        seat_character_actor(state, V2, seeded[4].id_)
+        # Seated inside the step that seeded them, and neither seated until
+        # both read back: a partly seated cast would let C2's invite run
+        # before V2's absence stopped the story (#2308, EDF-06-005).
+        seat_character_actors(state, {C2: seeded[3].id_, V2: seeded[4].id_})
 
 
 def c1_invites_the_second_coordinator(state: StoryState) -> None:
@@ -630,22 +628,20 @@ def run_rcvcv_demo(
     logger.info("V2 container:     %s", v2_client.base_url)
     logger.info("CaseActor container: %s", case_actor_client.base_url)
 
-    def open_cast(harness: ScenarioHarness) -> StoryState:
-        return open_coordinated_cast(
-            harness,
-            reporter_client=reporter_client,
-            coordinator_client=c1_client,
-            vendor_client=v1_client,
-            case_actor_client=case_actor_client,
-            dump=_dump_ledgers,
-            reporter_id=reporter_id,
-            coordinator_id=c1_id,
-            vendor_id=v1_id,
-            unseated={
-                C2: UnseatedContainer(C2_LABEL, c2_client, c2_id),
-                V2: UnseatedContainer(V2_LABEL, v2_client, v2_id),
-            },
-        )
+    open_cast = coordinated_open_cast(
+        reporter_client=reporter_client,
+        coordinator_client=c1_client,
+        vendor_client=v1_client,
+        case_actor_client=case_actor_client,
+        dump=_dump_ledgers,
+        reporter_id=reporter_id,
+        coordinator_id=c1_id,
+        vendor_id=v1_id,
+        unseated={
+            C2: UnseatedContainer(C2_LABEL, c2_client, c2_id),
+            V2: UnseatedContainer(V2_LABEL, v2_client, v2_id),
+        },
+    )
 
     # run_story() owns the failure accumulator through scenario_harness: it
     # resets it, always dumps the case ledgers, and asserts success — so a

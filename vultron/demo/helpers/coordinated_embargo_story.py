@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Story fragments of the embargo pair, ``rcv-embargo`` and ``rcvv-embargo``.
 
-Both continue :data:`~vultron.demo.helpers.coordinated_story
+Both continue :data:`~vultron.demo.helpers.coordinated_story\
 .VENDOR_JOINS_THE_CASE` by taking the Reporter's ``propose-embargo`` choice,
 and both open it the same way: case creation activated the default embargo
 (EP-04-001), so the Reporter's proposal **revises** it — the CASE_MANAGER
@@ -78,18 +78,16 @@ PROPOSED_EMBARGO: StoryProp[str] = StoryProp(
 )
 
 
-def canonical_case(
-    state: StoryState, through: str = COORDINATOR
-) -> as_VulnerabilityCase:
+def canonical_case(state: StoryState) -> as_VulnerabilityCase:
     """The case as the CASE_MANAGER holds it.
 
     Read on the dedicated case-actor container, where the CaseActor's own
-    store lives (DEMOMA-06-004); *through* names the participant session the
-    read falls back to when the CaseActor shares a container
+    store lives (DEMOMA-06-004), falling back to the Coordinator's session
+    when the CaseActor shares a container
     (:func:`~vultron.demo.helpers.polling.case_manager_store`).
     """
     client, dl_actor_id = case_manager_store(
-        state.client(through), state.case.id_, state.case_actor_client
+        state.client(COORDINATOR), state.case.id_, state.case_actor_client
     )
     return as_VulnerabilityCase.model_validate(
         client.get(client.dl_path(state.case.id_, actor_id=dl_actor_id))
