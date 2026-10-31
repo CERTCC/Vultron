@@ -88,6 +88,25 @@ every caller of the class match. Then parse only the candidate modules
 class name instead parses every module that imports one.
 `_ledger_commit_inventory.py` is the worked example.
 
+## Key a Ratchet on the Act, Not on the Name of What Performs It
+
+A ratchet that selects its subjects by an implementation name — a
+`_phase_<x>` function, a class, a module — covers only the code that still
+carries that name, so refactoring the name away removes subjects silently:
+the non-empty guard still passes on whatever is left. Select on the act
+instead, the call or the state the requirement is actually about, which
+survives every rename and reaches a second shape of the same code. The
+ADR-0053 non-party-broadcast ratchet selected on `def _phase_ownership_handoff(`
+and would have narrowed from two scenarios to one the moment one of them was
+written as a story fragment; keyed on the offer trigger it covers both
+(#5535, `test/architecture/test_handoff_scenarios_verify_broadcast.py`).
+
+A guard on "the subject set is non-empty" is not enough for the same reason:
+it cannot tell one subject from two. A ratchet whose subjects come in known
+shapes asserts that **each shape is still found** — as
+`test_demo_scenario_waits_in_demo_context.py` does for its `_phase_*` and
+story-fragment arms — so retiring an arm is a deliberate edit (#5535).
+
 ## Check a Ratchet's Goal State Against the Spec Corpus Before Adding the `xfail`
 
 A goal state that MUST-level requirements make impossible is a test that can

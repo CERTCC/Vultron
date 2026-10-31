@@ -96,7 +96,7 @@ SCENARIOS: list[tuple[str, str, str, str]] = [
         "vultron.demo.scenario.rccv_extension_demo",
         "run_rccv_extension_demo",
         "rccv-extension",
-        _PHASE_ONE,
+        _CAST_ONE,
     ),
     (
         "vultron.demo.scenario.rvcv_extension_demo",
@@ -108,7 +108,7 @@ SCENARIOS: list[tuple[str, str, str, str]] = [
         "vultron.demo.scenario.rccv_handoff_demo",
         "run_rccv_handoff_demo",
         "rccv-handoff",
-        _PHASE_ONE,
+        _CAST_ONE,
     ),
     (
         "vultron.demo.scenario.rvcv_handoff_demo",

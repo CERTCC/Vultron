@@ -23,6 +23,11 @@ hand (DEMOMA-17-001, DEMOCI-11-018).
 The prefixes nest, one per shared stretch, so a sibling cannot slip a step in
 before a branch point (``notes/demo-scenario-tree.md`` § "Composition"):
 
+* :data:`REPORTER_TELLS_THE_COORDINATOR` stops where the Coordinator's
+  decision falls: the Reporter has told it and it has engaged the case, and it
+  has invited nobody yet.  The two-coordinator pair parts here
+  (``coordinator-invite-whom:coordinator``,
+  :mod:`vultron.demo.helpers.two_coordinator_story`).
 * :data:`COORDINATOR_INVITES_VENDOR` stops where the Vendor's decision falls.
   The Invite has been delivered, so the CASE_MANAGER has seated the Vendor's
   inert participant with the role the Invite offers and the harness can read
@@ -623,14 +628,25 @@ def coordinator_invites_vendor(state: StoryState) -> None:
     )
 
 
+#: The opening every coordinator-first scenario shares, whoever the
+#: Coordinator invites next: the Reporter tells the Coordinator and the
+#: Coordinator engages the case.  It stops where the Coordinator's decision
+#: falls — invite the Vendor (:data:`COORDINATOR_INVITES_VENDOR` and its
+#: siblings) or invite a second Coordinator
+#: (:mod:`vultron.demo.helpers.two_coordinator_story`, #5535).
+REPORTER_TELLS_THE_COORDINATOR = story(
+    choose("reporter-whom-to-tell", "coordinator", by=REPORTER),
+    reporter_tells_coordinator,
+)
+
+
 #: The opening every Reporter → Coordinator → Vendor scenario shares: the
 #: Reporter tells the Coordinator, and the Coordinator invites the Vendor.
 #: Named rather than assembled from the fragments at each call site, because
 #: assembling siblings from fragments alone lets one of them slip a step in
 #: before the branch point (``notes/demo-scenario-tree.md`` § "Composition").
 COORDINATOR_INVITES_VENDOR = story(
-    choose("reporter-whom-to-tell", "coordinator", by=REPORTER),
-    reporter_tells_coordinator,
+    REPORTER_TELLS_THE_COORDINATOR,
     choose("coordinator-invite-whom", "vendor", by=COORDINATOR),
     coordinator_invites_vendor,
 )
@@ -668,6 +684,8 @@ def invitee_triages_after_joining(
     label: str,
     *,
     seated: Sequence[str],
+    owner: str = COORDINATOR,
+    owner_label: str = COORDINATOR_LABEL,
     join_timeout: float = PARTICIPANT_JOIN_TIMEOUT,
     triage_timeout: float = CROSS_CONTAINER_TIMEOUT,
 ) -> None:
@@ -686,15 +704,19 @@ def invitee_triages_after_joining(
         label: What this scenario calls it in gate labels.
         seated: Every cast name the roster must hold by now, the invitee
             included.
+        owner: The Case Owner's cast name, whose replica the roster is read
+            from.  The family's Coordinator by default; a story whose owner
+            changed mid-run names the owner as of this step (#5535).
+        owner_label: What this scenario calls that owner in gate labels.
         join_timeout: Seconds to wait for the roster.  A joiner reached
             through a multi-hop path needs the late-joiner budget rather than
             the default one.
         triage_timeout: Seconds each wait of the triage itself may take.
     """
     invitee = state.actor(name).actor
-    with demo_gate(f"Coordinator case has {label} before {label} RM triage"):
+    with demo_gate(f"{owner_label} case has {label} before {label} RM triage"):
         wait_for_case_participants(
-            vendor_client=state.client(COORDINATOR),
+            vendor_client=state.client(owner),
             case_id=state.case.id_,
             expected_actor_ids={state.actor_id(who) for who in seated},
             timeout_seconds=join_timeout,
@@ -751,6 +773,7 @@ def invitee_joins_the_case(
     role: CVDRole,
     seated: Sequence[str],
     triages: bool = True,
+    joined: StoryProp[str] | None = None,
     join_timeout: float = PARTICIPANT_JOIN_TIMEOUT,
     cross_container_timeout: float = CROSS_CONTAINER_TIMEOUT,
 ) -> None:
@@ -777,15 +800,42 @@ def invitee_joins_the_case(
             semantic-type list does not claim (DEMOMA-17-002).  When it does
             not triage, the roster check runs inside the chain's own gate
             instead, so a failed invite skips it.
+        joined: When given, the roster is this join's causal gate rather than
+            a check, and the case id is kept under this prop once the roster
+            holds *seated*.  For a non-triaging joiner the next act depends
+            on: the two-coordinator pair decides the case's ownership once its
+            second Coordinator is a participant (DEMOMA-13-003,
+            DEMOMA-14-010), so a roster that never arrived must stop the story
+            there rather than offer or suggest into a case the joiner is not
+            in (DEMOCI-01-011, #5535).  A flat story cannot nest the next
+            fragment inside this gate, so the gate keeps the prop and that
+            fragment reads it.  Only the non-triaging path keeps one, so
+            passing both this and ``triages=True`` raises rather than leaving
+            a prop no step ever keeps.
         join_timeout: Seconds to wait for the roster.
         cross_container_timeout: Seconds each cross-container wait of the
             chain may take.
+
+    Raises:
+        DemoStoryError: When *joined* is given with ``triages=True``.
     """
+    if triages and joined is not None:
+        raise DemoStoryError(
+            f"the join of {name!r} was given both triages=True and a prop to "
+            "keep, and only the non-triaging path keeps one: a triaging "
+            "invitee's roster is already the gate inside "
+            "invitee_triages_after_joining, so the prop would never be kept "
+            "and every fragment that read it would stop the story."
+        )
     invitee = state.actor(name).actor
     await_reporter_case_replica(state, cross_container_timeout)
 
     def confirm_joined() -> None:
-        with demo_check(
+        # A gate when the next fragment depends on the roster, a check when
+        # nothing does.  One wait either way, so it cannot be wrapped one way
+        # and left bare the other (DEMOCI-01-011).
+        context = demo_check if joined is None else demo_gate
+        with context(
             f"Coordinator case reflects {len(seated)} participants after "
             f"{label} joined"
         ):
@@ -795,6 +845,8 @@ def invitee_joins_the_case(
                 expected_actor_ids={state.actor_id(who) for who in seated},
                 timeout_seconds=join_timeout,
             )
+            if joined is not None:
+                state.keep(joined, str(state.case.id_))
 
     run_case_invite_chain(
         case=state.case,
@@ -1301,6 +1353,7 @@ __all__ = [
     "REPORTER",
     "REPORTER_ASKS_THE_VENDOR",
     "REPORTER_LABEL",
+    "REPORTER_TELLS_THE_COORDINATOR",
     "TIMELINE_ANSWER",
     "VENDOR",
     "VENDOR_JOINS_THE_CASE",

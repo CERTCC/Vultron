@@ -153,11 +153,18 @@ def _named_prefixes() -> dict[str, Story]:
     from vultron.demo.helpers import (
         coordinated_embargo_story,
         coordinated_story,
+        two_coordinator_story,
     )
 
     prefixes: dict[str, Story] = {}
     seen: set[int] = set()
-    for module in (coordinated_story, coordinated_embargo_story):
+    # In declaration order, so a prefix a later module imports to nest keeps
+    # the name of the module that declares it.
+    for module in (
+        coordinated_story,
+        coordinated_embargo_story,
+        two_coordinator_story,
+    ):
         stem = module.__name__.rsplit(".", 1)[1]
         for attr, value in vars(module).items():
             if isinstance(value, Story) and id(value) not in seen:
@@ -326,6 +333,28 @@ class TestStoryState:
         """Restating first would arm no dump and follow no ledger."""
         with pytest.raises(DemoStoryError, match="no case to restate"):
             _state().restate_case(MagicMock(id_="urn:test:case"))
+
+    @pytest.mark.spec("DEMOMA-23-003")
+    def test_restating_a_different_case_is_refused(self) -> None:
+        """A restate is about the case the story opened, never another one.
+
+        No act of a scenario changes a case's id — an ownership transfer moves
+        ``attributed_to`` and leaves the id alone (CM-21-002) — so a different
+        id means the fragment read the wrong record.  Taking it would leave
+        every later fragment acting on one case while the armed dump and the
+        followed ledger still belong to the first (#5535).
+        """
+        state = _state()
+        state.open_case(
+            case=MagicMock(id_="urn:test:case"),
+            report=MagicMock(),
+            offer=MagicMock(),
+        )
+
+        with pytest.raises(DemoStoryError, match="asked to restate it as"):
+            state.restate_case(MagicMock(id_="urn:test:other-case"))
+
+        assert state.case.id_ == "urn:test:case"
 
     @pytest.mark.spec("DEMOMA-23-003")
     def test_opening_a_second_case_is_refused(self) -> None:
@@ -1052,6 +1081,22 @@ class TestRegisteringAStory:
                 ("vendor-after-embargo", "propose-revision"),
             ),
         ),
+        (
+            "vultron.demo.scenario.rccv_extension_demo",
+            (
+                ("reporter-whom-to-tell", "coordinator"),
+                ("coordinator-invite-whom", "coordinator"),
+                ("owner-keep-case", "keep"),
+            ),
+        ),
+        (
+            "vultron.demo.scenario.rccv_handoff_demo",
+            (
+                ("reporter-whom-to-tell", "coordinator"),
+                ("coordinator-invite-whom", "coordinator"),
+                ("owner-keep-case", "offer-ownership"),
+            ),
+        ),
     ],
 )
 def test_a_composed_scenario_keeps_the_path_it_declared(
@@ -1099,6 +1144,14 @@ _NAMED_PREFIXES = _named_prefixes()
 #: :func:`test_every_named_prefix_opens_at_least_two_scenarios`, so a fourth
 #: prefix is checked without a human adding a row.
 _PREFIX_NESTING = [
+    (
+        "coordinated_story.REPORTER_TELLS_THE_COORDINATOR",
+        "coordinated_story.COORDINATOR_INVITES_VENDOR",
+    ),
+    (
+        "coordinated_story.REPORTER_TELLS_THE_COORDINATOR",
+        "two_coordinator_story.C1_INVITES_C2",
+    ),
     (
         "coordinated_story.COORDINATOR_INVITES_VENDOR",
         "coordinated_story.VENDOR_JOINS_THE_CASE",
@@ -1186,6 +1239,66 @@ def test_a_named_prefix_nests_the_shorter_one_it_carries(
     ] == (_NAMED_PREFIXES[outer].items), (
         f"{inner} restates {outer}'s steps instead of nesting it"
     )
+
+
+@pytest.mark.spec("DEMOMA-13-012")
+@pytest.mark.spec("DEMOMA-14-017")
+def test_the_two_coordinator_pair_shares_the_second_invite_opening() -> None:
+    """Both ``rccv`` scenarios start from ``C1_INVITES_C2`` (#5535).
+
+    Which two they are, where the derived check above only knows there are at
+    least two.  The pair's own prefix nests
+    ``REPORTER_TELLS_THE_COORDINATOR`` (``_PREFIX_NESTING``) and carries on
+    through C2 being seeded, invited and joined, so the pair parts at exactly
+    one decision: whether the owner keeps the case.
+    """
+    import importlib
+
+    from vultron.demo.helpers.two_coordinator_story import C1_INVITES_C2
+
+    shared = len(C1_INVITES_C2.items)
+    for stem in ("rccv_extension", "rccv_handoff"):
+        module = importlib.import_module(f"vultron.demo.scenario.{stem}_demo")
+        assert module.STORY.items[:shared] == C1_INVITES_C2.items, (
+            f"{stem} does not start from C1_INVITES_C2"
+        )
+        assert isinstance(module.STORY.items[shared], Choose)
+    assert C1_INVITES_C2.path[-1] == ("coordinator-invite-whom", "coordinator")
+
+
+@pytest.mark.spec("DEMOMA-12-017")
+@pytest.mark.spec("DEMOMA-13-012")
+def test_every_coordinator_first_scenario_shares_one_report_submission() -> (
+    None
+):
+    """All seven start from ``REPORTER_TELLS_THE_COORDINATOR`` (#5535).
+
+    One copy of the report submission and the owner's triage, which is what
+    makes the first thirteen ledger entries of every coordinator-first
+    recording byte-identical (DEMOCI-11-018).  The scenario list is read off
+    the registry's paths rather than typed, so an eighth joins the check by
+    declaring ``reporter-whom-to-tell:coordinator``.
+    """
+    from vultron.demo.helpers.coordinated_story import (
+        REPORTER_TELLS_THE_COORDINATOR,
+    )
+
+    shared = len(REPORTER_TELLS_THE_COORDINATOR.items)
+    coordinator_first = {
+        name: plot
+        for name, plot in _registered_stories().items()
+        if plot.path
+        and plot.path[0] == ("reporter-whom-to-tell", "coordinator")
+    }
+    assert len(coordinator_first) >= 7, (
+        f"only {sorted(coordinator_first)} tell a Coordinator first; the "
+        "coordinator-first subtree has seven scenarios (#5535)"
+    )
+    for name, plot in coordinator_first.items():
+        assert plot.items[:shared] == REPORTER_TELLS_THE_COORDINATOR.items, (
+            f"{name} does not start from REPORTER_TELLS_THE_COORDINATOR, so "
+            "its report submission is a second copy of the code"
+        )
 
 
 @pytest.mark.spec("DEMOMA-20-013")

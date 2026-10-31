@@ -181,37 +181,12 @@ def test_reporter_asks_gates_on_the_reporter_replica_and_asks_first():
     assert rest == replies
 
 
-@pytest.mark.parametrize(
-    ("module", "posters"),
-    [
-        ("rccv_extension_demo", ["reporter", "c1", "c2", "vendor"]),
-        ("rccv_handoff_demo", ["reporter", "c1", "c2", "vendor"]),
-    ],
-)
-@pytest.mark.spec("DEMOMA-17-001")
-def test_scenario_notes_exchange_is_one_thread(
-    module: str, posters: list[str]
-) -> None:
-    """Each scenario's exchange posts one thread, in order, from each poster."""
-    import importlib
-    import inspect
-
-    demo = importlib.import_module(f"vultron.demo.scenario.{module}")
-    params = inspect.signature(demo._phase_notes_exchange).parameters
-    kwargs = {name: MagicMock(name=name) for name in params}
-
-    with patch.object(demo, "add_note_thread") as thread:
-        demo._phase_notes_exchange(**kwargs)
-
-    (_watching, case, posts), _ = thread.call_args
-    assert case is kwargs["case"]
-    assert [p.poster.client for p in posts] == [
-        kwargs[f"{name}_client"] for name in posters
-    ]
-    assert [p.poster.actor for p in posts] == [
-        kwargs[f"{name}_in_{name}"] for name in posters
-    ]
-    assert posts[0].name == "Question from Reporter"
+# The phase-form of this check covered ``rccv-extension`` and
+# ``rccv-handoff``, which are now written as composition (#5535): their one
+# thread is asserted by ``TestFourWayNoteThread`` in
+# ``test/demo/test_two_coordinator_story.py``, which owns the shared half of
+# the thread, and by each scenario's own ``TestTheFourExchangeNotes``.  The
+# composed form below is the shape every scenario's check now takes.
 
 
 @pytest.mark.spec("DEMOMA-17-001")

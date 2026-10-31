@@ -45,10 +45,12 @@ from click.testing import CliRunner
 import vultron.demo.scenario.rcvcv_demo as demo
 import vultron.demo.utils as demo_utils
 from test.demo._helpers import (
+    devlogs_name_of,
     functions_referencing,
     mock_actor,
     mock_case,
     mock_client,
+    no_demo_banners,
     patch_chain_shared,
     story_state,
     stub_closure_gate,
@@ -57,7 +59,11 @@ from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main as cli_main
-from vultron.demo.helpers import coordinated_story, invite_chain
+from vultron.demo.helpers import (
+    coordinated_story,
+    invite_chain,
+    owner_decision_story,
+)
 from vultron.demo.helpers.coordinated_story import (
     COORDINATOR,
     REPORTER,
@@ -96,27 +102,21 @@ def _fresh_failures():
 
 @contextlib.contextmanager
 def _no_banners():
-    """Make the fragments' own context managers pass-through.
-
-    Both modules are patched: a fragment of this scenario runs inside its own
-    ``demo_step`` and reaches shared fragments that open theirs.
-    """
-    with contextlib.ExitStack() as stack:
-        for module in (demo, coordinated_story):
-            for name in ("demo_gate", "demo_check", "demo_step"):
-                stack.enter_context(
-                    patch.object(
-                        module,
-                        name,
-                        side_effect=lambda _: contextlib.nullcontext(),
-                    )
-                )
+    """Every module a fragment of this scenario reaches, patched once."""
+    with no_demo_banners(demo, coordinated_story, owner_decision_story):
         yield
 
 
-def _five_party_state():
-    """A story state seating all five, on an open case."""
-    return story_state(*_CAST, case=mock_case())
+def _five_party_state(joined: bool = True):
+    """A story state seating all five, on an open case.
+
+    C2's join is kept by default: the suggestion C2 makes reads it, because
+    only a participant may suggest anyone (DEMOMA-19-009, #5535).
+    """
+    state = story_state(*_CAST, case=mock_case())
+    if joined:
+        state.keep(demo.C2_JOINED, str(state.case.id_))
+    return state
 
 
 def _sessions_of(mock_method) -> list[str]:
@@ -473,6 +473,49 @@ class TestC1InvitesTheSecondCoordinator:
             for who in (REPORTER, demo.C1, demo.V1, demo.C2)
         }
 
+    @pytest.mark.spec("DEMOCI-01-011")
+    @pytest.mark.spec("DEMOMA-19-009")
+    def test_the_roster_keeps_the_join_c2s_suggestion_reads(self):
+        """Only a participant may suggest anyone (#5535).
+
+        C2's join is the suggestion's causal precondition, and a flat story
+        cannot nest the suggestion inside the roster's gate, so the gate keeps
+        :data:`~vultron.demo.scenario.rcvcv_demo.C2_JOINED` and the shared
+        continuation reads it.  Without it the story stops rather than posting
+        a suggestion from an actor that is not in the case.
+        """
+        state = _five_party_state(joined=False)
+
+        self._invite_c2(state, run_then=True)
+
+        assert state.kept(demo.C2_JOINED) == str(state.case.id_)
+
+    def test_a_roster_that_never_arrives_keeps_no_join(self):
+        """The gate records the timeout, so the suggestion stops the story."""
+        state = _five_party_state(joined=False)
+
+        with (
+            patch.object(coordinated_story, "run_case_invite_chain") as chain,
+            patch.object(
+                coordinated_story,
+                "wait_for_case_participants",
+                side_effect=AssertionError("roster never filled"),
+            ),
+            patch_chain_shared(
+                coordinated_story, "wait_for_case_on_container"
+            ),
+            patch.object(
+                coordinated_story,
+                "demo_step",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo.c1_invites_the_second_coordinator(state)
+            chain.call_args.kwargs["then"]()
+
+        with pytest.raises(DemoStoryError, match="no case C2 joined"):
+            state.kept(demo.C2_JOINED)
+
     def test_the_invite_offers_the_coordinator_role_from_c1(self):
         """C1, the Case Owner, invites C2 as ``CVDRole.COORDINATOR``."""
         state = _five_party_state()
@@ -532,22 +575,22 @@ class TestC2SuggestsTheVendorDeployer:
                 side_effect=lambda *a, **kw: order.append("approve"),
             ) as approve,
             patch.object(
-                demo,
+                owner_decision_story,
                 "find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ) as cp_offer,
             patch.object(
-                demo,
+                owner_decision_story,
                 "find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
             patch.object(
-                demo,
+                owner_decision_story,
                 "run_case_invite_chain",
                 side_effect=lambda **kw: order.append("invite-chain"),
             ) as chain,
             patch.object(
-                demo,
+                owner_decision_story,
                 "invitee_triages_after_joining",
                 side_effect=lambda *a, **kw: order.append("triage"),
             ) as triage,
@@ -587,8 +630,13 @@ class TestC2SuggestsTheVendorDeployer:
         assert kwargs["invite_timeout"] == demo.LATE_JOIN_TIMEOUT
         assert kwargs["replica_timeout"] == demo.LATE_JOIN_TIMEOUT
         assert kwargs["reply_timeout"] == demo.LATE_JOIN_TIMEOUT
+        # The roster the triage gates on is read from the Case Owner's own
+        # replica, which is C1 here and the new owner in a story whose
+        # ownership moved (#5535).
         assert triage.call_args.kwargs == {
             "seated": (REPORTER, demo.C1, demo.V1, demo.C2, demo.V2),
+            "owner": demo.C1,
+            "owner_label": demo.C1_LABEL,
             "join_timeout": LATE_JOINER_TIMEOUT,
             "triage_timeout": demo.LATE_JOIN_TIMEOUT,
         }
@@ -610,19 +658,23 @@ class TestC2SuggestsTheVendorDeployer:
                 ActorSession, "accept_actor_recommendation"
             ) as approve,
             patch.object(
-                demo,
+                owner_decision_story,
                 "find_cp_offer_for_case",
                 side_effect=AssertionError(
                     "timed out polling for Offer(CaseParticipant)"
                 ),
             ),
             patch.object(
-                demo,
+                owner_decision_story,
                 "find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
-            patch.object(demo, "run_case_invite_chain") as chain,
-            patch.object(demo, "invitee_triages_after_joining") as triage,
+            patch.object(
+                owner_decision_story, "run_case_invite_chain"
+            ) as chain,
+            patch.object(
+                owner_decision_story, "invitee_triages_after_joining"
+            ) as triage,
             patch_chain_shared(
                 coordinated_story, "wait_for_case_on_container"
             ),
@@ -649,15 +701,19 @@ class TestC2SuggestsTheVendorDeployer:
                 ActorSession, "accept_actor_recommendation"
             ) as approve,
             patch.object(
-                demo,
+                owner_decision_story,
                 "find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ),
             patch.object(
-                demo, "find_case_actor_participant_id", return_value=None
+                owner_decision_story,
+                "find_case_actor_participant_id",
+                return_value=None,
             ),
-            patch.object(demo, "run_case_invite_chain"),
-            patch.object(demo, "invitee_triages_after_joining"),
+            patch.object(owner_decision_story, "run_case_invite_chain"),
+            patch.object(
+                owner_decision_story, "invitee_triages_after_joining"
+            ),
             patch_chain_shared(
                 coordinated_story, "wait_for_case_on_container"
             ),
@@ -666,7 +722,7 @@ class TestC2SuggestsTheVendorDeployer:
 
         approve.assert_not_called()
         assert any(
-            "GATE FAILED" in f and "cannot route Accept" in f
+            "GATE FAILED" in f and "route the Accept to" in f
             for f in demo_utils._demo_failures
         ), demo_utils._demo_failures
 
@@ -686,12 +742,12 @@ class TestC2SuggestsTheVendorDeployer:
                 ActorSession, "accept_case_invite", autospec=True
             ) as accept,
             patch.object(
-                demo,
+                owner_decision_story,
                 "find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ),
             patch.object(
-                demo,
+                owner_decision_story,
                 "find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
@@ -700,7 +756,9 @@ class TestC2SuggestsTheVendorDeployer:
                 "find_case_invite_for_actor",
                 return_value="urn:test:v2-invite",
             ) as find_invite,
-            patch.object(demo, "invitee_triages_after_joining"),
+            patch.object(
+                owner_decision_story, "invitee_triages_after_joining"
+            ),
             patch_chain_shared(
                 coordinated_story, "wait_for_case_on_container"
             ) as replica_wait,
@@ -730,12 +788,12 @@ class TestC2SuggestsTheVendorDeployer:
             patch.object(ActorSession, "accept_actor_recommendation"),
             patch.object(ActorSession, "accept_case_invite") as accept,
             patch.object(
-                demo,
+                owner_decision_story,
                 "find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ),
             patch.object(
-                demo,
+                owner_decision_story,
                 "find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
@@ -744,7 +802,9 @@ class TestC2SuggestsTheVendorDeployer:
                 "find_case_invite_for_actor",
                 side_effect=AssertionError("timed out polling for Invite"),
             ),
-            patch.object(demo, "invitee_triages_after_joining"),
+            patch.object(
+                owner_decision_story, "invitee_triages_after_joining"
+            ),
             patch_chain_shared(
                 coordinated_story, "wait_for_case_on_container"
             ) as replica_wait,
@@ -775,16 +835,16 @@ class TestC2SuggestsTheVendorDeployer:
             patch.object(ActorSession, "suggest_actor_to_case"),
             patch.object(ActorSession, "accept_actor_recommendation"),
             patch.object(
-                demo,
+                owner_decision_story,
                 "find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ),
             patch.object(
-                demo,
+                owner_decision_story,
                 "find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
-            patch.object(demo, "run_case_invite_chain"),
+            patch.object(owner_decision_story, "run_case_invite_chain"),
             patch.object(
                 coordinated_story,
                 "run_invite_path_rm_triage",
@@ -818,16 +878,16 @@ class TestC2SuggestsTheVendorDeployer:
             patch.object(ActorSession, "suggest_actor_to_case"),
             patch.object(ActorSession, "accept_actor_recommendation"),
             patch.object(
-                demo,
+                owner_decision_story,
                 "find_cp_offer_for_case",
                 return_value="urn:test:cp-offer",
             ),
             patch.object(
-                demo,
+                owner_decision_story,
                 "find_case_actor_participant_id",
                 return_value="urn:test:case-actor-participant",
             ),
-            patch.object(demo, "run_case_invite_chain"),
+            patch.object(owner_decision_story, "run_case_invite_chain"),
             patch.object(
                 coordinated_story, "run_invite_path_rm_triage"
             ) as triage,
@@ -1250,12 +1310,16 @@ class TestV1PublishesThenTheOthers:
 
     def _run(self, state):
         order: list[str] = []
+
+        def name_of(client: object) -> str:
+            return devlogs_name_of(state, client, demo.DEVLOG_REPLICAS)
+
         with (
             patch.object(
                 demo,
                 "wait_for_case_em_terminated",
                 side_effect=lambda client, case_id: order.append(
-                    f"em_exited:{_client_name(state, client)}"
+                    f"em_exited:{name_of(client)}"
                 ),
             ),
             patch.object(demo, "wait_for_participant_vf_state"),
@@ -1315,14 +1379,6 @@ class TestV1PublishesThenTheOthers:
         assert disclosed.call_args.kwargs[
             "receiver_actor_id"
         ] == state.actor_id(demo.C1)
-
-
-def _client_name(state, client) -> str:
-    """The devlogs name of the cast member *client* belongs to."""
-    for devlogs_name, member in demo.DEVLOG_REPLICAS:
-        if state.client(member) is client:
-            return devlogs_name
-    return "unknown"
 
 
 # ---------------------------------------------------------------------------
