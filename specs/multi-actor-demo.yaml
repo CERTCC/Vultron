@@ -1748,8 +1748,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The RCV story MUST carry on from that opening through the Vendor's
-      acceptance, the replica convergence and the answered note thread.
+      The RCV story MUST carry on from the shared "the Coordinator invites the
+      Vendor" opening. It continues through the Vendor's acceptance, the
+      replica convergence and the answered note thread.
     rationale: >-
       Those three steps are told identically by RCVCV (DEMOMA-19-024), so they
       are one further stretch of shared code and the two recordings are
@@ -3440,7 +3441,7 @@ groups:
     kind: project
     statement: >-
       The RCVCV story MUST start with the shared "the Reporter asks the Vendor"
-      opening (DEMOMA-12-017) and continue from C1's decision to invite a
+      opening (DEMOMA-12-018) and continue from C1's decision to invite a
       second Coordinator.
     rationale: >-
       Everything up to C1's decision is told identically to RCV, so it is one
@@ -3670,8 +3671,10 @@ groups:
       The structure mirrors prior RCV/RVCV scenarios while inserting embargo
       lifecycle steps between report setup and fix-lifecycle. The scenario is
       written as composition (DEMOMA-20-013), so the steps are the fragments of
-      its story rather than phase functions of its own, and each step name is
-      still the label its EM-state assertion carries (DEMOMA-20-008).
+      its story rather than phase functions of its own, and every step name but
+      the dump is still the label its EM-state assertion carries
+      (DEMOMA-20-008). The dump is the harness's, and has no EM state of its
+      own to assert.
     preconditions:
     - description: >-
         All four containers running (Reporter, Coordinator, Vendor, CaseActor);
@@ -4036,8 +4039,9 @@ groups:
       requires an ACTIVE embargo; V2 late-invite simulates a short-deadline
       vendor held back until terms are settled. The scenario is written as
       composition (DEMOMA-21-015), so the steps are the fragments of its story
-      rather than phase functions of its own, and each step name is still the
-      label its EM-state assertion carries (DEMOMA-21-009).
+      rather than phase functions of its own, and every step name but the dump
+      is still the label its EM-state assertion carries (DEMOMA-21-009). The
+      dump is the harness's, and has no EM state of its own to assert.
     preconditions:
     - description: >-
         All five containers running (Reporter, Coordinator, V1, V2, CaseActor);
@@ -4486,8 +4490,8 @@ groups:
     verification_debt: '#2573'
     statement: >-
       A scenario MUST register its dump with the harness as soon as a case
-      exists — at the first instant there is anything to dump — rather than at
-      the end of the run.
+      exists. That is the first instant there is anything to dump, and not the
+      end of the run.
     rationale: >-
       The harness can only dump what it has been given. Registering the dump at
       the first point where a case exists is what makes every later failure
@@ -4602,9 +4606,9 @@ groups:
     kind: project
     statement: >-
       A scenario's replica sync-verification step MUST be a thin call to a
-      shared helper in `vultron/demo/helpers/sync.py`, declaring only the
-      scenario's authority, replicas, late joiners, expected participant set, and
-      the replica pairs to state-check.
+      shared helper in `vultron/demo/helpers/sync.py`. It declares only the
+      scenario's authority, replicas, late joiners, expected participant set
+      and the replica pairs to state-check.
     rationale: >-
       Keeping the scenario's facts in the scenario and the mechanics in the
       helper puts each fact in one place, exactly as DEMOMA-23-002 does for the

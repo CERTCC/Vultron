@@ -58,7 +58,7 @@ from vultron.demo.helpers.coordinated_story import (
     REPORTER_LABEL,
     VENDOR,
     VENDOR_LABEL,
-    CastContainer,
+    coordinated_cast_members,
     coordinated_clients,
     coordinated_open_cast,
     dump_coordinated_ledgers,
@@ -76,9 +76,9 @@ logger = logging.getLogger(__name__)
 # the fixed cast (DEMOCI-11-020).  The demo CLI derives this scenario's
 # sub-command options from this list (DEMOCI-11-011).
 ROLES: list[ActorRole] = [
-    ActorRole(REPORTER, REPORTER_SLOT, "Reporter", has_id=True),
-    ActorRole(COORDINATOR, COORDINATOR_SLOT, "Coordinator", has_id=True),
-    ActorRole(VENDOR, VENDOR_SLOT, "Vendor", has_id=True),
+    ActorRole(REPORTER, REPORTER_SLOT, REPORTER_LABEL, has_id=True),
+    ActorRole(COORDINATOR, COORDINATOR_SLOT, COORDINATOR_LABEL, has_id=True),
+    ActorRole(VENDOR, VENDOR_SLOT, VENDOR_LABEL, has_id=True),
     case_actor_role(),
 ]
 #: Indexed for the CLI factory and for ``coordinated_clients()``, which reads
@@ -211,11 +211,11 @@ def main(
     """
     clients = coordinated_clients(
         _ROLES,
-        [
-            CastContainer(REPORTER, REPORTER_LABEL, reporter_url),
-            CastContainer(COORDINATOR, COORDINATOR_LABEL, coordinator_url),
-            CastContainer(VENDOR, VENDOR_LABEL, vendor_url),
-        ],
+        coordinated_cast_members(
+            reporter_url=reporter_url,
+            coordinator_url=coordinator_url,
+            vendor_url=vendor_url,
+        ),
         skip_health_check=skip_health_check,
         case_actor_url=case_actor_url,
     )

@@ -201,12 +201,6 @@ groups:
             note: >-
               Constrains where raising waits may run; the accumulation and
               exit-code contract of DEMOCI-01-001 and DEMOCI-01-003 is unchanged.
-        verification: >-
-          An architecture ratchet test asserts that scenario `_phase_*`
-          functions in `vultron/demo/scenario/` do not invoke a known raising
-          wait helper outside a demo context, and that helpers encapsulating
-          such polling (e.g. `wait_for_participants_on_replicas`) wrap the call
-          internally.
 
   - id: DEMOCI-02
     title: GitHub Actions Demo Workflow

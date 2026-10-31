@@ -38,6 +38,7 @@ related_notes:
   - notes/domain-validation.md
   - notes/triggers-test-coverage.md
   - notes/demo-ci-invariants.md
+  - notes/demo-scenario-tree.md
   - notes/wire-artifact-immutability.md
   - notes/spec-authoring-rules.md
   - notes/architecture-ratchet-corpus.md
@@ -409,18 +410,13 @@ Split it into two sequential pieces and that decision moves to the caller that
 now sequences them, which is a place neither piece's test reaches. Two passing
 per-piece tests then leave the one behaviour the split changed unchecked.
 
-Two witnesses, both found by a fresh-agent pre-push review and by nothing else:
-
-- #5533 split the case-invite chain into `invite_and_await_delivery` and
-  `answer_case_invite` so a story could put the invitee's branch point between
-  them. Three tests pinned the skip and all three called the fragments
-  directly; the runner that sequenced them emitted the step mark between the
-  two, unnested, so a failed invite trigger died at the mark instead of
-  skipping the answer.
-- #5534 moved `rcvcv`'s "C1 case has Reporter + C1 before inviting" `demo_gate`
-  into the shared opening, where the invite is a *different fragment*. The gate
-  became a `demo_check`: a timeout recorded a failure and the invite went ahead
-  anyway, where before it skipped the whole invite and admit chain.
+Both witnesses so far are in the demo story runner (#5534). Splitting the
+case-invite chain so a branch point could sit between the invite and the answer
+put the step mark between them unnested, so a failed invite trigger died at the
+mark instead of skipping the answer. Moving `rcvcv`'s roster `demo_gate` into
+the shared opening, where the invite is a *different* fragment, turned the gate
+into a `demo_check`: a timeout recorded a failure and the invite went ahead
+anyway, where before it skipped the whole invite and admit chain.
 
 **How to apply.** When a diff turns nesting into sequence, name the guarantee
 the nesting gave — what did it skip, and on whose failure? — and write one test

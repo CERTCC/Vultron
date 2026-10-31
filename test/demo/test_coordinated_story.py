@@ -424,6 +424,10 @@ class TestCoordinatedMilestones:
         """
         state = story_state(*_CAST)
         case = mock_case()
+        # A distinct object, so the re-read below is observable: handing back
+        # the triage's own case would pass whether or not the fragment
+        # restated it.
+        reread = mock_case()
 
         with (
             patch.object(
@@ -445,7 +449,7 @@ class TestCoordinatedMilestones:
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):
-            mock_vc.model_validate.return_value = case
+            mock_vc.model_validate.return_value = reread
             reporter_tells_coordinator(state)
 
         mock_m1.assert_called_once()
@@ -456,9 +460,20 @@ class TestCoordinatedMilestones:
             f" (ISSUE-2811); got {triage.call_args.kwargs!r}"
         )
         # The fragment hands the case to the state, which arms the dump as
-        # soon as there is something to dump (DEMOMA-23-003).
-        assert state.case is case
-        cast(MagicMock, state.harness).dump_with.assert_called_once()
+        # soon as there is something to dump (DEMOMA-23-003), and then
+        # restates it from the owner's own store once the triage and the
+        # participant seating have moved on.
+        assert state.case is reread, (
+            "the fragment must re-read the case the Coordinator now stores; "
+            f"state holds {state.case!r}"
+        )
+        harness = cast(MagicMock, state.harness)
+        harness.dump_with.assert_called_once()
+        # Armed once, on the case that existed first: restating must not
+        # re-arm the dump or follow a second ledger (DEMOMA-23-003).
+        harness.follow_ledger.assert_called_once_with(
+            state.case_actor_client, case.id_
+        )
 
     def test_vendor_reports_the_fix_ready_calls_verify_fix_ready(self):
         """M5 runs when the Vendor reports fix ready."""

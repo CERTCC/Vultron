@@ -18,6 +18,7 @@ tracks:
   - "#5535"
   - "#5536"
   - "#5537"
+  - "#5591"
 description: >
   Design for the remaining scenario-tree work (#4726): the letter-grammar names
   and how a rename keeps old URLs, the generated tree index the demo UI reads,
@@ -36,6 +37,7 @@ related_notes:
   - notes/demo-interactive-ui.md
   - notes/demo-scenario-authoring.md
   - notes/demo-future-ideas.md
+  - notes/testing-pitfalls.md
 relevant_packages:
   - vultron/demo/helpers
   - vultron/demo/scenario
@@ -310,19 +312,19 @@ the hand-placed `reach_step` go (#5537).
   list of required semantic types describe the whole story, written by hand,
   so the run is checked against the spec, not against the code. Each group
   names the shared opening its story starts with in one line (DEMOMA-12-017,
-  DEMOMA-27-004, DEMOMA-19-024, DEMOMA-20-013, DEMOMA-21-015). Give a shared
+  DEMOMA-12-018, DEMOMA-27-004, DEMOMA-19-024, DEMOMA-20-013,
+  DEMOMA-21-015). Give a shared
   stretch its own spec group only when one change to it must be edited in
   several scenario groups.
 - **Verdicts do not move.** Every migration is a consolidation, so no
   scenario's pass or fail may change in it (DEMOMA-17-002). An unchanged
-  recording is the cheapest evidence of that, and in #5534 `rcv`, `rcv-reject`
-  and `rcv-embargo` all came out byte for byte identical. The two whose
-  seeding moved could not, so read their diff instead: the semantic-type
-  sequence and the entry count must be unchanged, and the bytes may differ
-  only in timestamps, hash-chain digests and the uuids drawn after the branch
-  point. That diff is how #5534 caught giving `rcvcv`'s second Coordinator an
-  RM triage it never had — one extra `engage_case` entry, and one participant
-  status fewer at closure. A shared join helper therefore takes `triages=`:
+  recording is the cheapest evidence of that; a scenario whose seeding moved
+  has none, so read its diff instead: the semantic-type sequence and the entry
+  count must be unchanged, and the bytes may differ only in timestamps,
+  hash-chain digests and the uuids drawn after the branch point. That diff is
+  what catches an act the migration added — giving a joining coordinator the
+  RM triage a vendor gets adds an `engage_case` entry and drops a participant
+  status at closure (#5534). A shared join helper therefore takes `triages=`:
   a vendor judges the report it was invited over, a coordinator joining to
   coordinate does not.
 - **Run `--report-changes` by hand; no gate will do it for you.** Nothing in

@@ -897,9 +897,22 @@ class TestRcvvEmbargoLedgerDump:
             VENDOR2,
             "case-actor",
         ]
-        # The canonical ledger is read on the dedicated case-actor container,
-        # never from a participant's replica (DEMOMA-06-005).
-        assert targets[-1].route_key == "case-actor"
+        # The route key is asserted beside the name because it is the half
+        # that selects the store (ADR-0073): a target carrying Vendor1's key
+        # would export Vendor1's ledger into Vendor2's directory and the
+        # names would still read correctly.  Vendor2 is where that
+        # mis-pairing is most likely, being the one a continuation seeds
+        # rather than the one the shared opening seats
+        # (``test_later_vendors.py``).  The canonical ledger is read on the
+        # dedicated case-actor container, never from a participant's replica
+        # (DEMOMA-06-005).
+        assert [t.route_key for t in targets] == [
+            REPORTER,
+            COORDINATOR,
+            VENDOR1,
+            VENDOR2,
+            "case-actor",
+        ]
 
     @pytest.mark.spec("DEMOMA-23-003")
     def test_a_vendor2_the_run_never_seated_is_left_out(self):

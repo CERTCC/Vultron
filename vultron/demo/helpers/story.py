@@ -485,7 +485,20 @@ class StoryState:
             case: The case as the Case Owner's container stores it.
             report: The report the Reporter submitted.
             offer: The Offer it arrived as.
+
+        Raises:
+            DemoStoryError: When the story has opened a case already.  Arming
+                a second dump would export the ledgers twice and follow a
+                second ledger, so a step that re-reads the case calls
+                :meth:`restate_case` instead.
         """
+        if self._case is not None:
+            raise DemoStoryError(
+                "the story has opened a case already; the dump is armed at "
+                "the first instant there is anything to dump and exactly "
+                "once (DEMOMA-23-003), so a step that re-reads the case "
+                "calls restate_case."
+            )
         self._case = case
         self._report = report
         self._offer = offer

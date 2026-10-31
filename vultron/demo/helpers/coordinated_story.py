@@ -254,6 +254,42 @@ def coordinated_clients(
     return clients
 
 
+def coordinated_cast_members(
+    *,
+    reporter_url: str | None = None,
+    coordinator_url: str | None = None,
+    vendor_url: str | None = None,
+) -> list[CastContainer]:
+    """The three containers every scenario of this family seats by role.
+
+    The fixed-role cast in ``ROLES`` order: the whole cast of a scenario that
+    brings in no character actor, and the opening of one that does — exactly
+    the three :func:`open_coordinated_cast` seeds.  Declared here rather than
+    in each ``main()`` because it is the same three lines in every scenario
+    that takes the family's default labels, and a fourth scenario copying them
+    is how a cast drifts (DEMOMA-17-001).
+
+    A scenario whose vendor is one of two labels it apart (``rcvv-embargo``'s
+    "Vendor1") or whose roles carry its own option stems (``rcvcv``'s ``c1``
+    and ``v1``) builds its own list: the labels are what a reader sees when a
+    container is down, and naming them is that scenario's business.
+
+    Args:
+        reporter_url: Base-URL override for the Reporter's container, or
+            ``None`` to take its cast slot's own address (DEMOCI-11-020).
+        coordinator_url: The same, for the Coordinator's.
+        vendor_url: The same, for the Vendor's.
+
+    Returns:
+        The three members, to hand to :func:`coordinated_clients`.
+    """
+    return [
+        CastContainer(REPORTER, REPORTER_LABEL, reporter_url),
+        CastContainer(COORDINATOR, COORDINATOR_LABEL, coordinator_url),
+        CastContainer(VENDOR, VENDOR_LABEL, vendor_url),
+    ]
+
+
 def open_coordinated_cast(
     harness: ScenarioHarness,
     *,
@@ -1272,6 +1308,7 @@ __all__ = [
     "CastContainer",
     "await_reporter_case_replica",
     "close_the_case",
+    "coordinated_cast_members",
     "coordinated_clients",
     "coordinated_open_cast",
     "coordinator_and_reporter_publish",

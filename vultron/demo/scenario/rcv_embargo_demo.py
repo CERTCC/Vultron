@@ -68,7 +68,7 @@ from vultron.demo.helpers.coordinated_story import (
     REPORTER_LABEL,
     VENDOR,
     VENDOR_LABEL,
-    CastContainer,
+    coordinated_cast_members,
     coordinated_clients,
     coordinated_open_cast,
     dump_coordinated_ledgers,
@@ -228,11 +228,11 @@ def main(
     """
     clients = coordinated_clients(
         _ROLES,
-        [
-            CastContainer(REPORTER, REPORTER_LABEL, reporter_url),
-            CastContainer(COORDINATOR, COORDINATOR_LABEL, coordinator_url),
-            CastContainer(VENDOR, VENDOR_LABEL, vendor_url),
-        ],
+        coordinated_cast_members(
+            reporter_url=reporter_url,
+            coordinator_url=coordinator_url,
+            vendor_url=vendor_url,
+        ),
         skip_health_check=skip_health_check,
         case_actor_url=case_actor_url,
     )

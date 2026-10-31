@@ -298,6 +298,52 @@ class TestStoryState:
         harness.dump_with.call_args.args[0]()
         assert dumped == [state]
 
+    @pytest.mark.spec("DEMOMA-23-003")
+    def test_restating_the_case_replaces_it_without_re_arming_the_dump(
+        self,
+    ) -> None:
+        """For a step that re-reads the case after an act changed it.
+
+        The dump is armed at the first instant there is anything to dump and
+        exactly once (ISSUE-2239), so a restate must not arm a second one or
+        follow a second ledger — including when an ownership transfer moves
+        the case to another owner mid-story (#5535).
+        """
+        state = _state()
+        opened = MagicMock(id_="urn:test:case")
+        state.open_case(case=opened, report=MagicMock(), offer=MagicMock())
+        harness = cast(MagicMock, state.harness)
+        harness.reset_mock()
+
+        restated = MagicMock(id_="urn:test:case")
+        state.restate_case(restated)
+
+        assert state.case is restated
+        harness.dump_with.assert_not_called()
+        harness.follow_ledger.assert_not_called()
+
+    def test_restating_a_case_the_story_never_opened_raises(self) -> None:
+        """Restating first would arm no dump and follow no ledger."""
+        with pytest.raises(DemoStoryError, match="no case to restate"):
+            _state().restate_case(MagicMock(id_="urn:test:case"))
+
+    @pytest.mark.spec("DEMOMA-23-003")
+    def test_opening_a_second_case_is_refused(self) -> None:
+        """Re-opening would arm a second dump, which is what restate avoids."""
+        state = _state()
+        state.open_case(
+            case=MagicMock(id_="urn:test:case"),
+            report=MagicMock(),
+            offer=MagicMock(),
+        )
+        with pytest.raises(DemoStoryError, match="opened a case already"):
+            state.open_case(
+                case=MagicMock(id_="urn:test:case"),
+                report=MagicMock(),
+                offer=MagicMock(),
+            )
+        cast(MagicMock, state.harness).dump_with.assert_called_once()
+
     def test_a_delivered_invite_is_read_back_by_cast_name(self) -> None:
         state = _state(vendor=_session("urn:test:vendor"))
         assert state.delivered_invite("vendor") is None
@@ -1066,6 +1112,22 @@ _PREFIX_NESTING = [
         "coordinated_embargo_story.REPORTER_PROPOSES_EMBARGO",
     ),
 ]
+
+
+def test_the_named_prefixes_were_collected() -> None:
+    """The guard the parametrized check below cannot carry itself.
+
+    An empty derivation makes ``parametrize`` emit one skipped test and a
+    green run (``empty_parameter_set_mark`` defaults to ``skip``), so the
+    zero-target case needs its own assertion (DF-09-007).  Its sibling
+    :func:`test_every_story_prop_name_is_unique` carries the same guard
+    inline, where its subject is a dict it builds itself.
+    """
+    assert _NAMED_PREFIXES, (
+        "no named prefix was collected, so the check below proves nothing; "
+        "the prefixes have moved out of coordinated_story and "
+        "coordinated_embargo_story and _named_prefixes needs the new modules"
+    )
 
 
 @pytest.mark.spec("DEMOMA-17-001")
