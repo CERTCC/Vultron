@@ -81,6 +81,40 @@ def chain_mocks():
         )
 
 
+#: The acts of an accepting chain, in the order one copy of the links runs
+#: them: the invite trigger, the delivery lookup, the Accept, the case
+#: replica, the full-case Invite, the ledger-coverage wait, and the reply.
+#: Named once, so the whole chain and the two halves are pinned against the
+#: same sequence rather than each against a list of its own (#5533).
+_ACCEPT_CHAIN_ORDER = (
+    "invite",
+    "find",
+    "accept",
+    "replica",
+    "full_invite",
+    "coverage",
+    "full_reply",
+)
+
+
+def _in_call_order(chain_mocks) -> MagicMock:
+    """Attach every chain mock to one parent, which records their order.
+
+    Call before the chain runs: a parent mock records the calls its children
+    receive after they are attached, so the returned mock's ``mock_calls``
+    is the sequence of acts, by the name ``chain_mocks`` gives each.
+    """
+    parent = MagicMock()
+    for name in _ACCEPT_CHAIN_ORDER:
+        parent.attach_mock(getattr(chain_mocks, name), name)
+    return parent
+
+
+def _call_names(parent: MagicMock) -> list[str]:
+    """The names of the acts *parent* recorded, in order."""
+    return [name for name, _args, _kwargs in parent.mock_calls]
+
+
 def _run(**overrides):
     kwargs: dict[str, Any] = dict(
         case=mock_case(),
@@ -101,8 +135,10 @@ def _run(**overrides):
 
 def test_accept_path_invites_finds_accepts_and_waits_for_replica(chain_mocks):
     ran = []
+    ordered = _in_call_order(chain_mocks)
     _run(then=lambda: ran.append(True))
 
+    assert _call_names(ordered) == list(_ACCEPT_CHAIN_ORDER)
     chain_mocks.invite.assert_called_once()
     assert chain_mocks.invite.call_args.kwargs == {
         "invitee_id": "urn:t:vendor",
@@ -207,8 +243,14 @@ def _halves(**overrides: Any) -> dict[str, Any]:
 
 
 def test_the_two_halves_invite_then_answer_like_the_whole_chain(chain_mocks):
-    """The split form reaches the same acts, in the same order."""
+    """The split form reaches the same acts, in the same order.
+
+    Pinned against ``_ACCEPT_CHAIN_ORDER``, the sequence the whole chain is
+    pinned against too, rather than against independent per-mock assertions
+    that hold for any order.
+    """
     shared = _halves()
+    ordered = _in_call_order(chain_mocks)
     delivered = invite_and_await_delivery(
         inviter=CaseInviter(
             name="Coordinator",
@@ -227,8 +269,11 @@ def test_the_two_halves_invite_then_answer_like_the_whole_chain(chain_mocks):
         **shared,
     )
 
+    assert _call_names(ordered) == list(_ACCEPT_CHAIN_ORDER)
     chain_mocks.invite.assert_called_once()
+    chain_mocks.find.assert_called_once()
     chain_mocks.accept.assert_called_once_with(invite_id="urn:t:invite")
+    chain_mocks.replica.assert_called_once()
     chain_mocks.full_reply.assert_called_once()
     assert demo_utils._demo_failures == []
 
@@ -533,21 +578,34 @@ def test_every_chain_with_an_inviter_is_ordered_after_a_seed():
     helpers_dir = Path(invite_chain.__file__).parent
     scenario_dir = helpers_dir.parent / "scenario"
     starters = {"run_case_invite_chain", "invite_and_await_delivery"}
-    sources = sorted(scenario_dir.glob("*_demo.py")) + sorted(
-        helpers_dir.glob("coordinated_*.py")
+    scenario_sources = sorted(scenario_dir.glob("*_demo.py"))
+    fragment_sources = sorted(helpers_dir.glob("coordinated_*.py"))
+    # Each half asserted on its own: the scenario glob alone makes `sources`
+    # non-empty, so a fragment glob that matched nothing — a renamed or moved
+    # ``coordinated_*.py`` — would leave the composed half unguarded and the
+    # test still green (#5533).
+    assert scenario_sources, "no scenario module starts an invite chain"
+    assert fragment_sources, (
+        "no story-fragment module found beside the invite chain; a composed "
+        "family's invite lives in one, and this scan would pass over it"
     )
-    assert sources, "no module starts an invite chain"
+    sources = scenario_sources + fragment_sources
     offenders = []
+    seen_starters: set[str] = set()
     for path in sources:
         for node in ast.walk(ast.parse(path.read_text())):
-            if not (
-                isinstance(node, ast.Call)
-                and getattr(node.func, "id", None) in starters
-            ):
+            if not isinstance(node, ast.Call):
                 continue
+            called = getattr(node.func, "id", None)
+            if called not in starters:
+                continue
+            seen_starters.add(called)
             keywords = {k.arg for k in node.keywords}
             if "inviter" in keywords:
                 if "case_manager_client" not in keywords:
                     offenders.append(f"{path.name}:{node.lineno}")
                 break
     assert not offenders, offenders
+    # The scan found a call to each starter it looks for, so renaming one of
+    # them fails here rather than silently emptying the check.
+    assert seen_starters == starters, sorted(starters - seen_starters)

@@ -65,6 +65,11 @@ from vultron.metadata.generated_files import read_committed, serialize_json
 
 ARTIFACT = "ui/src/data/scenario_tree.json"
 
+#: Every scenario belonging to a composed family, flattened and sorted.
+#: Hoisted out of the parametrization below, which collects zero cases on an
+#: empty ``COMPOSED_FAMILIES`` and reports a skip rather than a failure.
+_COMPOSED_NAMES = sorted(set().union(*COMPOSED_FAMILIES, set()))
+
 
 def _endings(node: dict[str, Any]) -> list[str]:
     """Every scenario name at or below *node*, depth first."""
@@ -270,10 +275,23 @@ def test_one_entry_per_scenario_with_label_and_path(
         assert _path_to(payload["tree"], spec.name) == row["path"]
 
 
+def test_at_least_one_family_is_composed() -> None:
+    """The check below is not a zero-target gate.
+
+    ``COMPOSED_FAMILIES`` is what parametrizes it, and an empty one collects
+    no cases: pytest then reports a skip, so AC-4's only gate would vanish
+    without a red test anywhere.
+    """
+    assert _COMPOSED_NAMES, (
+        "no scenario belongs to a composed family, so nothing checks that a "
+        "composed story's derived path is the committed one; name the family "
+        "in vultron/demo/recordings/prefix.py COMPOSED_FAMILIES "
+        "(DEMOCI-11-019)"
+    )
+
+
 @pytest.mark.spec("DEMOCI-11-016", "DEMOCI-11-019")
-@pytest.mark.parametrize(
-    "name", sorted(set().union(*COMPOSED_FAMILIES, set()))
-)
+@pytest.mark.parametrize("name", _COMPOSED_NAMES)
 def test_a_composed_scenarios_derived_path_is_the_committed_one(
     name: str,
 ) -> None:

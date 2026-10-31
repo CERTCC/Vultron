@@ -24,6 +24,17 @@ Every test patches the collaborators out, so no HTTP happens; ``demo_gate`` /
 ``demo_check`` / ``demo_step`` are left real wherever the test is about control
 flow, and stubbed to ``nullcontext`` only where it is about call shape
 (``test_demo_context_managers.py`` owns their behaviour).
+
+These tests are mock-only, yet they live here rather than in
+``test/demo_unit/`` — and so are auto-marked ``integration`` by this
+directory's ``conftest.py`` — because they depend on that conftest's autouse
+fixtures: ``stub_summary_seed`` and ``stub_full_case_reply`` skip the two
+chain steps that have no container to talk to when the client is a mock
+(#5444), and the ledger-rebuild guard runs on the way out.  Copying them
+under ``test/demo_unit/`` would leave two copies to keep in step, which is
+where order-dependent failures live, so the module stays here and pays the
+``integration`` marker.  ``test/demo_unit/test_story.py`` states the other
+half of the rule: a test that needs none of those fixtures belongs there.
 """
 
 import contextlib
@@ -73,10 +84,26 @@ from vultron.demo.helpers.coordinated_story import (
     vendor_rejects_invite,
     vendor_reports_the_fix_ready,
 )
-from vultron.demo.utils import reset_demo_failures
+from vultron.demo.utils import case_actor_id_on, reset_demo_failures
 from vultron.errors import DemoStoryError
 
 _CAST = (REPORTER, COORDINATOR, VENDOR)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_failures():
+    """Clear the process-global failure accumulator around every test.
+
+    ``vultron.demo.utils._demo_failures`` is process-global, and a fragment
+    that records a failure leaves it there for the next test — where it
+    changes what ``demo_gate`` does (a gate skips its body once anything is
+    recorded).  One fixture for the whole module rather than a reset per
+    class, which is where the classes that had none were reading another
+    class's leftovers.
+    """
+    reset_demo_failures()
+    yield
+    reset_demo_failures()
 
 
 @contextlib.contextmanager
@@ -160,7 +187,6 @@ class TestOpenCoordinatedCast:
 
     def test_a_failed_seeding_leaves_no_cast_to_tell_the_story_with(self):
         """The failure is recorded by demo_step; the story stops here."""
-        reset_demo_failures()
         with (
             patch.object(coordinated_story, "reset_datalayer"),
             patch("vultron.demo.helpers.seeding.seed_case_actor_identity"),
@@ -179,7 +205,6 @@ class TestOpenCoordinatedCast:
                 case_actor_client=mock_client(),
                 dump=lambda _state: None,
             )
-        reset_demo_failures()
 
 
 class TestCoordinatedClients:
@@ -207,7 +232,7 @@ class TestCoordinatedClients:
         assert clients.case_actor.base_url == CASE_ACTOR.url
         # The case-actor client is bound to the CaseActor its container hosts,
         # so a read through it addresses the canonical store (ADR-0073).
-        assert clients.case_actor.actor_id
+        assert clients.case_actor.actor_id == case_actor_id_on(CASE_ACTOR.url)
         assert [label for label, _c in checked.call_args.args[0]] == [
             "Reporter",
             "Coordinator",
@@ -336,6 +361,12 @@ class TestCoordinatedMilestones:
             c.get("expected_states") == {RM.ACCEPTED, RM.DEFERRED, RM.CLOSED}
             for c in rm_calls
         ), "expected_states must be {ACCEPTED, DEFERRED, CLOSED} (CSB-18-001)"
+        # Membership first: indexing a missing call raises ValueError and the
+        # ordering assertion's message never prints.
+        assert "rm_wait" in call_order, call_order
+        assert "fix_ready" in call_order, (
+            f"notify_fix_ready was never called. Call order: {call_order}"
+        )
         assert call_order.index("rm_wait") < call_order.index("fix_ready"), (
             "wait_for_participant_rm_state must precede notify_fix_ready"
             " (ADR-0058)"
@@ -458,6 +489,47 @@ class TestReporterCaseReplicaWaitBeforeVendorTriage:
 
 
 # ---------------------------------------------------------------------------
+# The accept arm answers against the canonical case (#5533)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("SYNC-10-004")
+class TestVendorAcceptsAndJoins:
+    """The ledger authority of the accept arm is the case-actor container.
+
+    The full-case reply trigger fails closed until the invitee's own ledger
+    copy reaches the Invite's floor, so the chain waits for coverage against
+    the container holding the canonical ledger first (SYNC-10-004, ADR-0073,
+    DEMOMA-06-005).  A participant's replica is the wrong one to wait on and
+    would pass the wait before the entries landed.
+
+    ``rcv`` is the only scenario that reaches this fragment and it is not in
+    the PR set (``in_pr_set=False``), so Docker CI exercises the wiring only
+    on the full suite; it is pinned here.
+    """
+
+    def test_the_full_case_reply_waits_on_the_case_actor_container(self):
+        state = story_state(*_CAST, case=mock_case())
+        state.invited(VENDOR, "urn:test:invite")
+
+        with (
+            patch_chain_shared(coordinated_case, "wait_for_case_on_container"),
+            patch.object(coordinated_case, "run_invite_path_rm_triage"),
+            patch.object(ActorSession, "accept_case_invite"),
+            patch.object(invite_chain, "reply_to_full_case_invite") as reply,
+            patch.object(coordinated_case, "wait_for_case_participants"),
+            _no_banners(),
+        ):
+            vendor_accepts_and_joins(state)
+
+        reply.assert_called_once()
+        assert (
+            reply.call_args.kwargs["authority_client"]
+            is state.case_actor_client
+        )
+
+
+# ---------------------------------------------------------------------------
 # The invite chain, split across two fragments, still skips its dependents
 # ---------------------------------------------------------------------------
 
@@ -471,27 +543,16 @@ class TestInviteChainSkipsDependents:
     rather than posting ``invite_id: None`` (EDF-06-005, #3038).
     """
 
-    def setup_method(self):
-        reset_demo_failures()
-
-    def teardown_method(self):
-        reset_demo_failures()
-
     def _invite(self, *, invite_trigger, invite_lookup):
         state = story_state(*_CAST, case=mock_case())
         with (
             patch.object(
                 ActorSession, "invite_actor_to_case", **invite_trigger
             ),
-            patch.object(ActorSession, "set_stub_summary"),
-            patch.object(
-                invite_chain,
-                "find_case_actor_participant_id",
-                return_value="p",
-            ),
-            patch.object(
-                invite_chain, "get_actor_by_id", return_value=mock_actor()
-            ),
+            # Nothing stubs the stub-summary seed here: this directory's
+            # conftest no-ops ``invite_chain._seed_stub_summary`` whenever the
+            # case-manager client is a mock, and ``story_state`` builds mocks
+            # (#5444).
             patch.object(
                 invite_chain, "find_case_invite_for_actor", **invite_lookup
             ) as find_invite,
@@ -580,9 +641,6 @@ class TestVendorRejectsInvite:
     container cannot address it, so every post-rejection read must go through
     ``case_actor_client``.
     """
-
-    def setup_method(self):
-        reset_demo_failures()
 
     def test_post_rejection_reads_go_through_the_case_actor_client(self):
         state = story_state(*_CAST, case=mock_case())

@@ -26,6 +26,7 @@ gives: ``test/demo/`` is auto-marked ``integration`` and deselected by default.
 from __future__ import annotations
 
 import contextlib
+import pathlib
 from collections.abc import Callable, Iterator
 from typing import Any, cast
 from unittest.mock import MagicMock
@@ -33,7 +34,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers import story as story_module
+from vultron.demo.helpers import (
+    harness as harness_module,
+    story as story_module,
+)
+from vultron.demo.helpers.harness import ScenarioHarness
 from vultron.demo.helpers.story import (
     Choose,
     Story,
@@ -315,7 +320,15 @@ class TestRunStory:
     def test_the_cast_is_opened_inside_the_harness(
         self, fake_harness: _FakeHarness
     ) -> None:
-        """A seeding failure is dumped and reported like any other."""
+        """``open_cast`` is handed this run's harness, inside its context.
+
+        Only the wiring is asserted here: the state is built from the harness
+        the runner entered, which is what puts a seeding failure inside the
+        harness that dumps and reports it.  That the failure itself is
+        recorded and stops the story is covered on the real seeding path, by
+        ``test/demo/test_coordinated_story.py::TestOpenCoordinatedCast::
+        test_a_failed_seeding_leaves_no_cast_to_tell_the_story_with``.
+        """
         seen: list[object] = []
 
         def open_cast(harness: Any) -> StoryState:
@@ -384,6 +397,172 @@ class TestRunStory:
         assert "submit fails" in failures[0]
         assert "reaches vendor-after-answer" in failures[1]
 
+    @pytest.mark.spec("DEMOCI-01-003")
+    @pytest.mark.spec("EDF-06-005")
+    def test_a_mark_that_still_lands_after_a_failure_lets_the_story_go_on(
+        self, fake_harness: _FakeHarness
+    ) -> None:
+        """A recorded failure is not itself a reason to stop the story.
+
+        The third outcome of ``_mark_step``: the accumulator is dirty, so the
+        mark is made inside a ``demo_gate`` — and it succeeds, because the
+        failed act granted no role this step depends on.  The story then runs
+        to its end, and the gate records nothing of its own, so the first
+        failure stays the only one reported.
+        """
+        log = fake_harness.log
+        fake_harness.refuse = None
+        state = _state(
+            reporter=_session("urn:test:reporter"),
+            vendor=_session("urn:test:vendor"),
+        )
+        plot = story(
+            choose("reporter-whom-to-tell", "vendor", by="reporter"),
+            _fragment("submit", log, fails=True),
+            choose("vendor-after-answer", "report-fix-ready", by="vendor"),
+            _fragment("fix", log),
+        )
+
+        run_story("rv", plot, lambda _harness: state)
+
+        assert log == [
+            "mark:reporter-whom-to-tell",
+            "submit",
+            "mark:vendor-after-answer",
+            "fix",
+        ]
+        assert fake_harness.marks == [
+            ("reporter-whom-to-tell", "vendor", "urn:test:reporter"),
+            ("vendor-after-answer", "report-fix-ready", "urn:test:vendor"),
+        ]
+        failures = demo_failures()
+        assert len(failures) == 1, failures
+        assert "submit fails" in failures[0]
+
+
+def _opens_the_case(state: StoryState) -> None:
+    """A fragment that opens a case, as a story's first one does.
+
+    Opening the case is what makes the harness follow a ledger, which is the
+    precondition the real harness puts on every step after the first.
+    """
+    state.open_case(
+        case=MagicMock(id_="urn:test:case"),
+        report=MagicMock(),
+        offer=MagicMock(),
+    )
+
+
+class TestRunStoryOnTheRealHarness:
+    """The runner against ``scenario_harness`` itself, not a stand-in.
+
+    :class:`_FakeHarness` keeps the containers out of the way, and with them
+    two refusals the real :meth:`ScenarioHarness.reach_step` makes: a step
+    that is not the next one of the scenario's declared path, and a step after
+    the first reached before ``follow_ledger`` named the case.  These tests
+    drive an already-registered scenario's path through the real harness, so
+    what the runner reports is pinned against the object it reports to.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _real_harness(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+    ) -> Iterator[None]:
+        """Leave the harness real; stub only what reads a container or disk."""
+        registry.discover_scenarios()  # so 'rv' has a declared path here
+        monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
+        # Both role checks and the ledger tail read the canonical case
+        # through a client.  Patched on the harness module, which imported
+        # each of them by name, so patching their own module would be a no-op.
+        monkeypatch.setattr(
+            harness_module, "require_case_role", lambda *a, **k: None
+        )
+        monkeypatch.setattr(
+            harness_module, "require_report_submitter", lambda *a, **k: None
+        )
+        monkeypatch.setattr(
+            harness_module, "case_ledger_length", lambda *a, **k: 2
+        )
+        reset_demo_failures()
+        yield
+        reset_demo_failures()
+
+    @staticmethod
+    def _open_cast(
+        seen: list[ScenarioHarness],
+    ) -> Callable[[ScenarioHarness], StoryState]:
+        """Build the run's state on the harness the runner entered."""
+
+        def open_cast(harness: ScenarioHarness) -> StoryState:
+            seen.append(harness)
+            return StoryState(
+                cast={
+                    "reporter": _session("urn:test:reporter"),
+                    "vendor": _session("urn:test:vendor"),
+                },
+                case_actor_client=MagicMock(),
+                harness=harness,
+                dump=lambda _state: None,
+            )
+
+        return open_cast
+
+    @pytest.mark.spec("DEMOCI-11-013")
+    def test_the_real_harness_records_each_mark_where_the_story_passed_it(
+        self,
+    ) -> None:
+        """The marks the real harness keeps, with the tail each was made at."""
+        seen: list[ScenarioHarness] = []
+        plot = story(
+            choose("reporter-whom-to-tell", "vendor", by="reporter"),
+            _opens_the_case,
+            choose("vendor-after-answer", "report-fix-ready", by="vendor"),
+        )
+
+        run_story("rv", plot, self._open_cast(seen))
+
+        (harness,) = seen
+        assert [
+            (mark.branch_point, mark.choice, mark.ledger_tail)
+            for mark in harness.marks
+        ] == [
+            ("reporter-whom-to-tell", "vendor", 0),
+            ("vendor-after-answer", "report-fix-ready", 2),
+        ]
+        assert not demo_failures()
+
+    @pytest.mark.spec("DEMOCI-11-014")
+    def test_a_choice_out_of_the_declared_order_is_refused(self) -> None:
+        """The refusal ``_FakeHarness`` cannot make: the ORDER check."""
+        seen: list[ScenarioHarness] = []
+        plot = story(
+            _opens_the_case,
+            choose("vendor-after-answer", "report-fix-ready", by="vendor"),
+        )
+
+        with pytest.raises(DemoScenarioStepError, match="declared path says"):
+            run_story("rv", plot, self._open_cast(seen))
+
+        (harness,) = seen
+        assert harness.marks == []
+
+    @pytest.mark.spec("DEMOCI-11-013")
+    def test_a_later_step_before_the_case_ledger_is_refused(self) -> None:
+        """The second refusal it cannot make: no ledger to mark the step in."""
+        seen: list[ScenarioHarness] = []
+        plot = story(
+            choose("reporter-whom-to-tell", "vendor", by="reporter"),
+            choose("vendor-after-answer", "report-fix-ready", by="vendor"),
+        )
+
+        with pytest.raises(DemoScenarioStepError, match="before following"):
+            run_story("rv", plot, self._open_cast(seen))
+
+        (harness,) = seen
+        assert [mark.branch_point for mark in harness.marks] == [
+            "reporter-whom-to-tell"
+        ]
+
 
 # ---------------------------------------------------------------------------
 # @scenario(story=...) — the path is read off the story (DEMOCI-11-019)
@@ -427,6 +606,9 @@ class TestRegisteringAStory:
         composed = _rv_story()
         spec = _register_fixture(monkeypatch, name="rv", story_obj=composed)
         assert spec.path == composed.path
+        # Which form declared the path is what the ratchets read to decide
+        # whether the scenario may place a reach_step by hand (DEMOCI-11-019).
+        assert spec.composed is True
 
         tree = build_scenario_tree(registry.registered_scenarios())
         assert tree.endings()["rv"].prefix == composed.path
@@ -437,6 +619,7 @@ class TestRegisteringAStory:
     ) -> None:
         spec = _register_fixture(monkeypatch, name="rv", path=_RV_CHOICES)
         assert spec.path == _RV_CHOICES
+        assert spec.composed is False
 
     @pytest.mark.spec("DEMOCI-11-024")
     def test_declaring_both_a_story_and_a_path_fails_discovery(self) -> None:

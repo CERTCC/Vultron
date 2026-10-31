@@ -973,6 +973,12 @@ class TestComposedFamilies:
         )
 
     def test_every_composed_family_names_registered_scenarios(self):
+        # The loop below is vacuous on an empty tuple, and the comment above
+        # already treats non-emptiness as a fact (#5533).
+        assert prefix.COMPOSED_FAMILIES, (
+            "no family is named as composed, so the byte-identity check "
+            "above runs over nothing (DEMOCI-11-018)"
+        )
         names = {spec.name for spec in discover_scenarios()}
         for family in prefix.COMPOSED_FAMILIES:
             assert len(family) >= 2 and family <= names, family

@@ -74,7 +74,15 @@ def _reported_steps(module_name: str) -> Counter[tuple[str, str]]:
 
 
 def _steps_in(tree: ast.AST) -> Counter[tuple[str, str]]:
-    """Every literal ``(branch point, choice)`` *tree* reports."""
+    """Every literal ``(branch point, choice)`` *tree* reports.
+
+    Both argument forms are read.  A reporter takes the pair positionally at
+    every call site today, but nothing stops a hand-placed
+    ``reach_step(branch_point="x", choice="y", by=...)``, and a scan that
+    required two positional arguments would not see it — leaving the
+    "a composed scenario places no reach_step by hand" ratchet below passing
+    over the one call it exists to forbid (#5533).
+    """
     steps: Counter[tuple[str, str]] = Counter()
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -87,14 +95,73 @@ def _steps_in(tree: ast.AST) -> Counter[tuple[str, str]]:
             if isinstance(func, ast.Name)
             else None
         )
-        if name not in _REPORTERS or len(node.args) != 2:
+        if name not in _REPORTERS:
             continue
-        branch_point, choice = node.args
+        step = _step_args(node)
+        if step is None:
+            continue
+        branch_point, choice = step
         if isinstance(branch_point, ast.Constant) and isinstance(
             choice, ast.Constant
         ):
             steps[(str(branch_point.value), str(choice.value))] += 1
     return steps
+
+
+def _step_args(node: ast.Call) -> tuple[ast.expr, ast.expr] | None:
+    """The branch point and choice *node* passes, however it passes them.
+
+    Returns:
+        The two argument expressions in declaration order, or ``None`` when
+        the call does not supply exactly those two — a ``*args`` splat, or a
+        reporter called with something other than the pair.
+    """
+    by_keyword = {kw.arg: kw.value for kw in node.keywords if kw.arg}
+    supplied = list(node.args) + [
+        by_keyword[name]
+        for name in ("branch_point", "choice")
+        if name in by_keyword
+    ]
+    if len(supplied) != 2:
+        return None
+    return supplied[0], supplied[1]
+
+
+_STEP = Counter({("vendor-join", "accept"): 1})
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'h.reach_step("vendor-join", "accept", by=v)',
+        'h.reach_step(branch_point="vendor-join", choice="accept", by=v)',
+        'h.reach_step(choice="accept", branch_point="vendor-join", by=v)',
+        'h.reach_step("vendor-join", choice="accept", by=v)',
+        'step_reporter(branch_point="vendor-join", choice="accept", by=v)',
+    ],
+    ids=["positional", "keyword", "keyword-reversed", "mixed", "reporter"],
+)
+def test_a_hand_placed_report_is_seen_in_every_argument_form(
+    source: str,
+) -> None:
+    """The scan reads the pair however the call passes it.
+
+    The two checks below are only as strong as what the scan can see, so a
+    form it misses is a hole in the ratchet, not a style question.
+    """
+    assert _steps_in(_corpus.parse_inline(source)) == _STEP
+
+
+@pytest.mark.parametrize(
+    "source",
+    ["h.reach_step(*step, by=v)", 'h.reach_step("vendor-join", by=v)'],
+    ids=["splat", "one-argument"],
+)
+def test_a_call_that_names_no_literal_pair_counts_as_no_step(
+    source: str,
+) -> None:
+    """A call the scan cannot read a pair from reports nothing, not a guess."""
+    assert _steps_in(_corpus.parse_inline(source)) == Counter()
 
 
 def test_both_declaration_forms_are_still_in_use() -> None:
