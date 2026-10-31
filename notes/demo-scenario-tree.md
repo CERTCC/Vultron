@@ -218,6 +218,17 @@ vendor-first half follows (#5536) and then `path=` and the hand-placed
   really is mis-assembled. That is the flat-sequence form of the nesting the
   hand-placed scenarios used — `rcv-embargo` ran its termination, publication
   and closure inside one `demo_gate` on the revised embargo (DEMOCI-01-007).
+- **A prop is a gate only once something reads it.** Keeping one carries no
+  guarantee: a prop kept by the roster gate and read by nobody left both
+  owner-decision continuations running after a timed-out roster, which is the
+  gate the hand-placed form got from nesting them inside it — the suite stayed
+  green, because every test of the keeping side passed (#5535). Make the read
+  structural rather than remembered: a continuation whose precondition is
+  another step's act takes that step's prop as a **required** parameter and
+  reads it first, so it cannot be assembled without being told what it depends
+  on. Then test the pair end to end, through `run_story` with the real gates,
+  because the failure lives between the two halves and no test of either half
+  alone can see it.
 - **Fragments and named prefixes.** A story fragment is one step of a story,
   a callable taking the `StoryState`. A named prefix is a `Story` several
   scenarios start with. Both live in `vultron/demo/helpers/` when more than
