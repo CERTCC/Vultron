@@ -103,7 +103,7 @@ Their CVD role comes from the act that brings them into the case — the role th
 That is why one container can be a Vendor in one scenario and a Coordinator in another.
 
 Fixing the cast this way makes identical bytes possible for a shared opening.
-Two scenarios record them when they also tell that opening from one copy of the code, which is what `rcv` and `rcv-reject` now do.
+Recording them also takes telling that opening from one copy of the code, which is what `rcv` and `rcv-reject` now do.
 That is how the demo tooling proves a branch point is the only place a pair of them differ.
 
 ---
