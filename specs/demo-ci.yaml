@@ -2279,7 +2279,8 @@ groups:
           The shared-prefix test compares byte for byte the scenario pairs of
           each family marked as composed, and fails on a fixture pair of a
           marked family that differs in one byte before the branch point. It
-          parametrizes over no family until the first is composed.
+          parametrizes over the families named in `COMPOSED_FAMILIES`, which a
+          family joins when its scenarios share one authored opening.
         adr:
           - ADR-0098
         relationships:

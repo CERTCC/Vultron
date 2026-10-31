@@ -1718,6 +1718,32 @@ groups:
     rationale: >-
       Announce(CaseLedgerEntry) is the sole canonical propagation path for status
       updates to peers (SYNC-02-002); this invariant confirms the fan-out fired.
+  - id: DEMOMA-12-017
+    priority: MUST
+    kind: project
+    statement: >-
+      The RCV story MUST start with the shared "the Coordinator invites the
+      Vendor" opening and continue from the Vendor's acceptance.
+    rationale: >-
+      The opening is the Reporter telling the Coordinator, the Coordinator
+      engaging the case, and the Coordinator inviting the Vendor. RCV tells it
+      identically to RCV-reject, so it is one copy of the code and the
+      recordings of the two are byte-identical up to the Vendor's decision
+      (DEMOCI-11-018). Naming it here keeps this group a whole story: a reader
+      sees where RCV's own telling begins without reading the sibling's group.
+    verification: >-
+      `test/demo_unit/test_story.py::test_the_two_composed_scenarios_share_one_opening`
+      asserts that `rcv`'s story begins with the items of
+      `COORDINATOR_INVITES_VENDOR`, and `TestComposedFamilies` in
+      `test/demo_unit/test_recordings.py` compares the `rcv` and `rcv-reject`
+      recordings byte for byte up to the `vendor-join` branch point.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    - rel_type: depends_on
+      spec_id: DEMOCI-11-019
+    tags:
+    - demo
 
 - id: DEMOMA-13
   title: RCCV-Extension Scenario (C1 retains ownership; C2 is participant; C2 suggests Vendor)
@@ -5200,5 +5226,30 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-27-001
+    tags:
+    - demo
+  - id: DEMOMA-27-004
+    priority: MUST
+    kind: project
+    statement: >-
+      The RCV-reject story MUST start with the same shared opening as RCV
+      (DEMOMA-12-017) and continue from the Vendor's rejection.
+    rationale: >-
+      The rejection is the only thing this scenario tells differently, so
+      everything before it is one copy of the code shared with RCV and the two
+      recordings are byte-identical up to the Vendor's decision
+      (DEMOCI-11-018). Naming it here keeps this group a whole story: a reader
+      sees where the rejection path begins without reading RCV's group.
+    verification: >-
+      `test/demo_unit/test_story.py::test_the_two_composed_scenarios_share_one_opening`
+      asserts that `rcv-reject`'s story begins with the items of
+      `COORDINATOR_INVITES_VENDOR`, and `TestComposedFamilies` in
+      `test/demo_unit/test_recordings.py` compares the `rcv` and `rcv-reject`
+      recordings byte for byte up to the `vendor-join` branch point.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    - rel_type: depends_on
+      spec_id: DEMOCI-11-019
     tags:
     - demo

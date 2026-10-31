@@ -29,6 +29,7 @@ To fix a drift failure here::
     git add ui/src/data/scenario_tree.json
 """
 
+import importlib
 import json
 import re
 from pathlib import Path
@@ -38,6 +39,7 @@ import pytest
 import yaml
 
 from vultron.demo.recordings.layout import RECORDINGS_DIR, recording_path
+from vultron.demo.recordings.prefix import COMPOSED_FAMILIES
 from vultron.demo.scenario.branch_points import (
     BRANCH_POINTS,
     BranchPoint,
@@ -62,6 +64,11 @@ from vultron.metadata.file_loading import MetadataLoadError
 from vultron.metadata.generated_files import read_committed, serialize_json
 
 ARTIFACT = "ui/src/data/scenario_tree.json"
+
+#: Every scenario belonging to a composed family, flattened and sorted.
+#: Hoisted out of the parametrization below, which collects zero cases on an
+#: empty ``COMPOSED_FAMILIES`` and reports a skip rather than a failure.
+_COMPOSED_NAMES = sorted(set().union(*COMPOSED_FAMILIES, set()))
 
 
 def _endings(node: dict[str, Any]) -> list[str]:
@@ -266,6 +273,45 @@ def test_one_entry_per_scenario_with_label_and_path(
             {"branch_point": bp, "choice": choice} for bp, choice in spec.path
         ]
         assert _path_to(payload["tree"], spec.name) == row["path"]
+
+
+def test_at_least_one_family_is_composed() -> None:
+    """The check below is not a zero-target gate.
+
+    ``COMPOSED_FAMILIES`` is what parametrizes it, and an empty one collects
+    no cases: pytest then reports a skip, so AC-4's only gate would vanish
+    without a red test anywhere.
+    """
+    assert _COMPOSED_NAMES, (
+        "no scenario belongs to a composed family, so nothing checks that a "
+        "composed story's derived path is the committed one; name the family "
+        "in vultron/demo/recordings/prefix.py COMPOSED_FAMILIES "
+        "(DEMOCI-11-019)"
+    )
+
+
+@pytest.mark.spec("DEMOCI-11-016", "DEMOCI-11-019")
+@pytest.mark.parametrize("name", _COMPOSED_NAMES)
+def test_a_composed_scenarios_derived_path_is_the_committed_one(
+    name: str,
+) -> None:
+    """The committed index follows a composed story with no new sync step.
+
+    Read from the committed file rather than a fresh export: the point is that
+    the artifact the UI imports already holds the path the running code walks,
+    not that the exporter would produce it.  Parametrized over the composed
+    families (``COMPOSED_FAMILIES``), so each family that lands is covered the
+    moment it is named there.
+    """
+    spec = next(s for s in discover_scenarios() if s.name == name)
+    module = importlib.import_module(spec.module_name)
+    text = read_committed(OUTPUT_PATH)
+    assert text is not None, f"{ARTIFACT} is missing; run {REGEN_COMMAND}"
+    committed = json.loads(text)
+    assert committed["scenarios"][name]["path"] == [
+        {"branch_point": branch_point, "choice": choice}
+        for branch_point, choice in module.STORY.path
+    ]
 
 
 def test_recordings_are_keyed_by_actor_then_case(

@@ -48,36 +48,53 @@ from vultron.demo.helpers.ledger_dump import DUMP_MANIFEST_FILENAME
 from vultron.demo.utils import reset_demo_failures
 from vultron.errors import DemoFailureError
 
-# (module path, run function name, devlogs sub-directory name)
-SCENARIOS: list[tuple[str, str, str]] = [
-    ("vultron.demo.scenario.rv_demo", "run_rv_demo", "rv"),
-    ("vultron.demo.scenario.rvv_demo", "run_rvv_demo", "rvv"),
-    ("vultron.demo.scenario.rcv_demo", "run_rcv_demo", "rcv"),
+#: What the scenario does before a case exists, as a name on its own module.
+#: A scenario still written as phases opens with ``_phase_report_submission``;
+#: one written as composition (#5533) opens with the shared cast opening its
+#: story runs against, which is the first thing that can die.
+_PHASE_ONE = "_phase_report_submission"
+_CAST_ONE = "open_coordinated_cast"
+
+# (module path, run function name, devlogs sub-directory name, first step)
+SCENARIOS: list[tuple[str, str, str, str]] = [
+    ("vultron.demo.scenario.rv_demo", "run_rv_demo", "rv", _PHASE_ONE),
+    ("vultron.demo.scenario.rvv_demo", "run_rvv_demo", "rvv", _PHASE_ONE),
+    ("vultron.demo.scenario.rcv_demo", "run_rcv_demo", "rcv", _CAST_ONE),
     (
         "vultron.demo.scenario.rcv_reject_demo",
         "run_rcv_reject_demo",
         "rcv-reject",
+        _CAST_ONE,
     ),
-    ("vultron.demo.scenario.rcvcv_demo", "run_rcvcv_demo", "rcvcv"),
+    (
+        "vultron.demo.scenario.rcvcv_demo",
+        "run_rcvcv_demo",
+        "rcvcv",
+        _PHASE_ONE,
+    ),
     (
         "vultron.demo.scenario.rccv_extension_demo",
         "run_rccv_extension_demo",
         "rccv-extension",
+        _PHASE_ONE,
     ),
     (
         "vultron.demo.scenario.rvcv_extension_demo",
         "run_rvcv_extension_demo",
         "rvcv-extension",
+        _PHASE_ONE,
     ),
     (
         "vultron.demo.scenario.rccv_handoff_demo",
         "run_rccv_handoff_demo",
         "rccv-handoff",
+        _PHASE_ONE,
     ),
     (
         "vultron.demo.scenario.rvcv_handoff_demo",
         "run_rvcv_handoff_demo",
         "rvcv-handoff",
+        _PHASE_ONE,
     ),
 ]
 
@@ -103,15 +120,16 @@ class TestManifestWrittenWhenScenarioDiesEarly:
     """A scenario that dies before the case exists still produces an artifact."""
 
     @pytest.mark.parametrize(
-        "module_path, run_name, demo_name",
+        "module_path, run_name, demo_name, first_step",
         SCENARIOS,
-        ids=[demo_name for _, _, demo_name in SCENARIOS],
+        ids=[demo_name for _, _, demo_name, _ in SCENARIOS],
     )
     def test_manifest_written_when_first_phase_raises(
         self,
         module_path: str,
         run_name: str,
         demo_name: str,
+        first_step: str,
         tmp_path,
         monkeypatch,
     ) -> None:
@@ -121,7 +139,7 @@ class TestManifestWrittenWhenScenarioDiesEarly:
 
         with patch.object(
             module,
-            "_phase_report_submission",
+            first_step,
             side_effect=RuntimeError("phase 1 exploded"),
         ):
             with pytest.raises((RuntimeError, DemoFailureError)):

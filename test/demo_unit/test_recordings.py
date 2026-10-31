@@ -953,11 +953,11 @@ def _fixture(name: str, lines: list[str]) -> Recording:
 class TestComposedFamilies:
     """A composed family is byte-identical up to the branch point (DEMOCI-11-018)."""
 
-    # Parametrizes over no pair until the first family is written as
-    # composition (#4733) and named in COMPOSED_FAMILIES: until then siblings
-    # place their shared steps by hand, so the order can still differ where the
-    # logic matches and only the isomorphism above can hold.  pytest reports
-    # the empty set as one skip.
+    # Parametrizes over the pairs of the families named in COMPOSED_FAMILIES,
+    # which a family joins when its scenarios share one authored opening
+    # (#4733).  A family that still places its shared steps by hand is absent,
+    # because the order can then differ where the logic matches and only the
+    # isomorphism above can hold.
     @pytest.mark.parametrize(
         "pair",
         prefix.composed_pairs(prefix.shared_prefixes(scenario_tree())),
@@ -973,6 +973,12 @@ class TestComposedFamilies:
         )
 
     def test_every_composed_family_names_registered_scenarios(self):
+        # The loop below is vacuous on an empty tuple, and the comment above
+        # already treats non-emptiness as a fact (#5533).
+        assert prefix.COMPOSED_FAMILIES, (
+            "no family is named as composed, so the byte-identity check "
+            "above runs over nothing (DEMOCI-11-018)"
+        )
         names = {spec.name for spec in discover_scenarios()}
         for family in prefix.COMPOSED_FAMILIES:
             assert len(family) >= 2 and family <= names, family

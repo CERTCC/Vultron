@@ -13,6 +13,8 @@ from vultron.demo.helpers import invite_chain
 from vultron.demo.helpers.invite_chain import (
     CaseInviter,
     EmittedBy,
+    answer_case_invite,
+    invite_and_await_delivery,
     run_case_invite_chain,
 )
 from vultron.demo.utils import reset_demo_failures
@@ -79,6 +81,40 @@ def chain_mocks():
         )
 
 
+#: The acts of an accepting chain, in the order one copy of the links runs
+#: them: the invite trigger, the delivery lookup, the Accept, the case
+#: replica, the full-case Invite, the ledger-coverage wait, and the reply.
+#: Named once, so the whole chain and the two halves are pinned against the
+#: same sequence rather than each against a list of its own (#5533).
+_ACCEPT_CHAIN_ORDER = (
+    "invite",
+    "find",
+    "accept",
+    "replica",
+    "full_invite",
+    "coverage",
+    "full_reply",
+)
+
+
+def _in_call_order(chain_mocks) -> MagicMock:
+    """Attach every chain mock to one parent, which records their order.
+
+    Call before the chain runs: a parent mock records the calls its children
+    receive after they are attached, so the returned mock's ``mock_calls``
+    is the sequence of acts, by the name ``chain_mocks`` gives each.
+    """
+    parent = MagicMock()
+    for name in _ACCEPT_CHAIN_ORDER:
+        parent.attach_mock(getattr(chain_mocks, name), name)
+    return parent
+
+
+def _call_names(parent: MagicMock) -> list[str]:
+    """The names of the acts *parent* recorded, in order."""
+    return [name for name, _args, _kwargs in parent.mock_calls]
+
+
 def _run(**overrides):
     kwargs: dict[str, Any] = dict(
         case=mock_case(),
@@ -99,8 +135,10 @@ def _run(**overrides):
 
 def test_accept_path_invites_finds_accepts_and_waits_for_replica(chain_mocks):
     ran = []
+    ordered = _in_call_order(chain_mocks)
     _run(then=lambda: ran.append(True))
 
+    assert _call_names(ordered) == list(_ACCEPT_CHAIN_ORDER)
     chain_mocks.invite.assert_called_once()
     assert chain_mocks.invite.call_args.kwargs == {
         "invitee_id": "urn:t:vendor",
@@ -185,6 +223,115 @@ def test_accepting_chain_without_any_ledger_client_is_refused(chain_mocks):
 
     chain_mocks.accept.assert_not_called()
     chain_mocks.full_reply.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# The chain in two halves, for a composed story (#5533)
+# ---------------------------------------------------------------------------
+
+
+def _halves(**overrides: Any) -> dict[str, Any]:
+    """The arguments both halves share, as :func:`_run` builds them."""
+    kwargs: dict[str, Any] = dict(
+        case=mock_case(),
+        invitee_name="Vendor",
+        invitee_client=MagicMock(),
+        invitee=mock_actor("urn:t:vendor"),
+    )
+    kwargs.update(overrides)
+    return kwargs
+
+
+def test_the_two_halves_invite_then_answer_like_the_whole_chain(chain_mocks):
+    """The split form reaches the same acts, in the same order.
+
+    Pinned against ``_ACCEPT_CHAIN_ORDER``, the sequence the whole chain is
+    pinned against too, rather than against independent per-mock assertions
+    that hold for any order.
+    """
+    shared = _halves()
+    ordered = _in_call_order(chain_mocks)
+    delivered = invite_and_await_delivery(
+        inviter=CaseInviter(
+            name="Coordinator",
+            client=MagicMock(),
+            actor=mock_actor("urn:t:coord"),
+            role=CVDRole.VENDOR,
+        ),
+        **shared,
+    )
+    assert delivered == "urn:t:invite"
+
+    answer_case_invite(
+        invite_id=delivered,
+        invitee_in_own_container=mock_actor("urn:t:vendor"),
+        authority_client=MagicMock(),
+        **shared,
+    )
+
+    assert _call_names(ordered) == list(_ACCEPT_CHAIN_ORDER)
+    chain_mocks.invite.assert_called_once()
+    chain_mocks.find.assert_called_once()
+    chain_mocks.accept.assert_called_once_with(invite_id="urn:t:invite")
+    chain_mocks.replica.assert_called_once()
+    chain_mocks.full_reply.assert_called_once()
+    assert demo_utils._demo_failures == []
+
+
+def test_an_undelivered_invite_leaves_the_second_half_nothing_to_answer(
+    chain_mocks,
+):
+    """EDF-06-005: the answer is skipped and recorded, never attempted."""
+    chain_mocks.find.side_effect = AssertionError("timed out")
+    shared = _halves()
+
+    delivered = invite_and_await_delivery(
+        inviter=CaseInviter(
+            name="Coordinator",
+            client=MagicMock(),
+            actor=mock_actor("urn:t:coord"),
+            role=CVDRole.VENDOR,
+        ),
+        **shared,
+    )
+    assert delivered is None
+
+    answer_case_invite(
+        invite_id=delivered,
+        invitee_in_own_container=mock_actor("urn:t:vendor"),
+        authority_client=MagicMock(),
+        **shared,
+    )
+
+    chain_mocks.accept.assert_not_called()
+    chain_mocks.reject.assert_not_called()
+    assert len(demo_utils._demo_failures) == 2
+
+
+@pytest.mark.spec("SYNC-10-004")
+def test_the_second_half_refuses_an_accept_with_no_ledger_client(chain_mocks):
+    """The same refusal the whole chain makes, at the other entry point."""
+    with pytest.raises(ValueError, match="ledger coverage"):
+        answer_case_invite(
+            invite_id="urn:t:invite",
+            invitee_in_own_container=mock_actor("urn:t:vendor"),
+            **_halves(),
+        )
+
+    chain_mocks.accept.assert_not_called()
+
+
+def test_the_second_half_rejects_without_a_ledger_client(chain_mocks):
+    """A rejecting invitee waits on no coverage, so it needs none."""
+    answer_case_invite(
+        invite_id="urn:t:invite",
+        invitee_in_own_container=mock_actor("urn:t:vendor"),
+        respond="reject",
+        **_halves(),
+    )
+
+    chain_mocks.reject.assert_called_once_with(invite_id="urn:t:invite")
+    chain_mocks.accept.assert_not_called()
 
 
 def test_undelivered_full_case_invite_skips_the_reply(chain_mocks):
@@ -412,29 +559,53 @@ def test_chain_without_case_manager_client_does_not_seed(chain_mocks):
     seed.assert_not_called()
 
 
-def test_every_scenario_chain_with_an_inviter_is_ordered_after_a_seed():
-    """A scenario's first inviter-triggered chain must seed ``stub_summary``.
+def test_every_chain_with_an_inviter_is_ordered_after_a_seed():
+    """The first inviter-triggered chain of a story must seed ``stub_summary``.
 
     Docker CI is the only place a missing seed shows (the in-process demo
     tests patch ``set_stub_summary`` out), so pin it statically: within each
-    scenario module, the first ``run_case_invite_chain`` call that passes
-    ``inviter=`` must also pass ``case_manager_client=`` (#4285).
+    module that starts a chain, the first call passing ``inviter=`` must also
+    pass ``case_manager_client=`` (#4285).
+
+    Covers the composed story fragments under ``helpers/`` as well as the
+    scenario modules: a family written as composition moves its invite into a
+    shared fragment (#5533), and a scan of ``scenario/`` alone would pass
+    vacuously for it.
     """
     import ast
     from pathlib import Path
 
-    scenario_dir = Path(invite_chain.__file__).parents[1] / "scenario"
+    helpers_dir = Path(invite_chain.__file__).parent
+    scenario_dir = helpers_dir.parent / "scenario"
+    starters = {"run_case_invite_chain", "invite_and_await_delivery"}
+    scenario_sources = sorted(scenario_dir.glob("*_demo.py"))
+    fragment_sources = sorted(helpers_dir.glob("coordinated_*.py"))
+    # Each half asserted on its own: the scenario glob alone makes `sources`
+    # non-empty, so a fragment glob that matched nothing — a renamed or moved
+    # ``coordinated_*.py`` — would leave the composed half unguarded and the
+    # test still green (#5533).
+    assert scenario_sources, "no scenario module starts an invite chain"
+    assert fragment_sources, (
+        "no story-fragment module found beside the invite chain; a composed "
+        "family's invite lives in one, and this scan would pass over it"
+    )
+    sources = scenario_sources + fragment_sources
     offenders = []
-    for path in sorted(scenario_dir.glob("*_demo.py")):
+    seen_starters: set[str] = set()
+    for path in sources:
         for node in ast.walk(ast.parse(path.read_text())):
-            if not (
-                isinstance(node, ast.Call)
-                and getattr(node.func, "id", None) == "run_case_invite_chain"
-            ):
+            if not isinstance(node, ast.Call):
                 continue
+            called = getattr(node.func, "id", None)
+            if called not in starters:
+                continue
+            seen_starters.add(called)
             keywords = {k.arg for k in node.keywords}
             if "inviter" in keywords:
                 if "case_manager_client" not in keywords:
                     offenders.append(f"{path.name}:{node.lineno}")
                 break
     assert not offenders, offenders
+    # The scan found a call to each starter it looks for, so renaming one of
+    # them fails here rather than silently emptying the check.
+    assert seen_starters == starters, sorted(starters - seen_starters)

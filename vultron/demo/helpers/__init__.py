@@ -58,7 +58,16 @@ Sub-modules
   ``verify_reporter_trusts_introduction``.
 - :mod:`~vultron.demo.helpers.invite_chain` — ``run_case_invite_chain``,
   ``CaseInviter``, and ``EmittedBy``: the invite → deliver → answer → replica
-  chain every scenario joins an invitee through (DEMOMA-17-001).
+  chain every scenario joins an invitee through (DEMOMA-17-001), and
+  ``invite_and_await_delivery`` / ``answer_case_invite``, the same chain in the
+  two halves a composed story needs around the invitee's branch point.
+- :mod:`~vultron.demo.helpers.story` — ``choose``, ``story``, ``StoryState``
+  and ``run_story``: a branching demo story written once, with the scenario's
+  path read off its choices (DEMOCI-11-019). Not re-exported here, because it
+  imports the harness, which imports the scenario registry.
+- :mod:`~vultron.demo.helpers.coordinated_story` — the story fragments and the
+  ``COORDINATOR_INVITES_VENDOR`` named prefix of the Reporter → Coordinator →
+  Vendor family. Not re-exported here, for the same reason.
 - :mod:`~vultron.demo.helpers.notes` — ``participant_adds_note_to_case``.
 - :mod:`~vultron.demo.helpers.milestones` — lifecycle milestone verifiers
   (``verify_case_active``, ``verify_fix_ready``, ``verify_fix_deployed``,
@@ -99,6 +108,8 @@ from vultron.demo.helpers.embargo_outcome import (
 from vultron.demo.helpers.invite_chain import (
     CaseInviter,
     EmittedBy,
+    answer_case_invite,
+    invite_and_await_delivery,
     run_case_invite_chain,
 )
 from vultron.demo.helpers.ledger_commit import (

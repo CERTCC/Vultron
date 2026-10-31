@@ -13,10 +13,13 @@
 """The demo scenario tree, merged from the scenarios' declared paths.
 
 Each registered scenario declares its full path from the root as ordered
-``(branch point, choice)`` pairs (DEMOCI-11-014). Merging the paths gives the
-tree: a node is identified by its **path prefix**, never by its branch point,
-because one decision can recur on a path. :func:`build_scenario_tree` refuses
-a set of paths that is not one well-formed tree:
+``(branch point, choice)`` pairs — on ``@scenario(path=...)``, or read off the
+choices of its assembled story once it is written as composition
+(DEMOCI-11-014, DEMOCI-11-019). Merging the paths gives the tree: a node is
+identified by its **path prefix**, never by its branch point, because one
+decision can recur on a path. :func:`build_scenario_tree` refuses a set of
+paths that is not one well-formed tree, so that every registered scenario is
+exactly one ending (DEMOCI-11-023):
 
 - two scenarios with the same path (one ending, two scenarios);
 - a path that is a strict prefix of another (a scenario that is both an
