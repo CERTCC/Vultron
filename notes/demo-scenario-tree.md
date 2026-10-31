@@ -163,7 +163,20 @@ and then `path=` and the hand-placed `reach_step` go (#5537).
   `story(...)` concatenates named prefixes, choices and fragments into one flat
   sequence, `StoryState` is what a fragment runs against, and `run_story(name,
   plot, open_cast)` plays it inside `scenario_harness`. Prefer adding a
-  fragment to extending the API.
+  fragment to extending the API — with one exception, the artifacts a family
+  carries between its own steps (below).
+- **`StoryState` holds only what the pilot needed.** It carries the case, the
+  report, the Offer and the delivered Invites, because `rcv` and `rcv-reject`
+  pass nothing else between steps. The next three families do: an embargo id
+  from the proposal step to its answer (#5534), a reply note (#5536), and a
+  case whose owner changed mid-story (#5535), which `open_case` cannot restate
+  because it also re-arms the dump. Whichever Task reaches one first designs
+  the home for it, with its real requirement in hand; a per-family subclass is
+  not one of the options, because a fragment is typed
+  `Callable[[StoryState], None]` and a `Callable[[Subclass], None]` is not
+  assignable to it. Do not reach for `state._case` and its siblings: every
+  accessor on the state raises rather than hand out a `None`, and that is the
+  property the fragments rely on.
 - **Fragments and named prefixes.** A story fragment is one step of a story,
   a callable taking the `StoryState`. A named prefix is a `Story` several
   scenarios start with (`COORDINATOR_INVITES_VENDOR` in
@@ -236,6 +249,16 @@ and then `path=` and the hand-placed `reach_step` go (#5537).
   recordings came out unchanged byte for byte, which is the cheapest evidence
   of that: regenerate the family and expect `--report-changes` to report
   nothing unless a protocol act moved.
+- **Run `--report-changes` by hand; no gate will do it for you.** Nothing in
+  PR CI regenerates a recording — the freshness check runs daily on `main` and
+  files a refresh Task rather than failing (`demo-recordings.yml`) — and
+  `TestComposedFamilies` compares the two *committed* recordings with each
+  other, so a reordered shared fragment moves both alike and the check still
+  passes. Measured on the pilot: the reorder left every unit, architecture and
+  byte-identity test green, and only
+  `export-demo-recordings --scenario <a> --scenario <b> --report-changes`
+  caught it, with exit 3. That run is the evidence DEMOMA-17-002 asks for, so
+  make it in every composition PR until #5589 turns it into a gate.
 
 ## Test starting points
 

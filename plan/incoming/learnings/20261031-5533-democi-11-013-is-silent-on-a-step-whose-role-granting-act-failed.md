@@ -35,6 +35,16 @@ invite trigger through `run_story`. `_mark_step`
 recorded a failure and (1) when it has not, which is the reading the nested
 form had; nothing in DEMOCI-11 says it.
 
+**The condition is coarser than the question.** `_mark_step` reads "has this
+run recorded a failure", not "did the act that grants this role succeed", and
+the two part company when the invite trigger commits but the delivery wait
+times out: the CASE_MANAGER has already seated the inert participant, so the
+role *is* readable and the mark is made, for a decision the invitee never took.
+The run is red either way and the mark is only written to devlogs, so nothing
+is blessed by it — but a clause that obliges outcome (2) should say whether the
+mark is owed in that case, because a reader of the marks cannot otherwise tell
+a decision that happened from one that could only have happened.
+
 **How to apply.** Settle which outcome DEMOCI-11-013 obliges and say it in the
 requirement, so the four remaining composition Tasks (#5534 to #5537) are not
 each free to choose. Every one of them places an invitee's decision the same
