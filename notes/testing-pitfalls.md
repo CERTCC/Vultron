@@ -14,7 +14,8 @@ description: >
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
   blackboard isolation, py_trees test patterns, CoreObject subclass isolation,
   assertion-quality traps (vacuous asserts, "falls back to" tests, bare
-  MagicMock), test layout rules for module splits, why a two-sided count pin
+  MagicMock), why turning nesting into sequence moves the skip nobody tests,
+  test layout rules for module splits, why a two-sided count pin
   races concurrent PRs (keep a per-item record and a PR-only growth guard
   instead), why a schema change that the merge base fails breaks every growth
   guard, when to delete a migration check, and why a child Python process
@@ -399,6 +400,36 @@ constructor, and pass `TriggerActivityAdapter(dl)` to every use case in chained
 integration tests.
 
 ## Assertion Quality
+
+### Turning Nesting Into Sequence Moves the Skip Nobody Tests
+
+A block whose nesting carried the behaviour — a `demo_gate`, a `try`/`finally`,
+a context manager, a BT composite — decided what got **skipped** on failure.
+Split it into two sequential pieces and that decision moves to the caller that
+now sequences them, which is a place neither piece's test reaches. Two passing
+per-piece tests then leave the one behaviour the split changed unchecked.
+
+Two witnesses, both found by a fresh-agent pre-push review and by nothing else:
+
+- #5533 split the case-invite chain into `invite_and_await_delivery` and
+  `answer_case_invite` so a story could put the invitee's branch point between
+  them. Three tests pinned the skip and all three called the fragments
+  directly; the runner that sequenced them emitted the step mark between the
+  two, unnested, so a failed invite trigger died at the mark instead of
+  skipping the answer.
+- #5534 moved `rcvcv`'s "C1 case has Reporter + C1 before inviting" `demo_gate`
+  into the shared opening, where the invite is a *different fragment*. The gate
+  became a `demo_check`: a timeout recorded a failure and the invite went ahead
+  anyway, where before it skipped the whole invite and admit chain.
+
+**How to apply.** When a diff turns nesting into sequence, name the guarantee
+the nesting gave — what did it skip, and on whose failure? — and write one test
+that exercises that guarantee *through the new caller*. The per-piece tests
+stay; they are not the ones at risk. In a flat sequence the guarantee needs a
+carrier: #5534's answer is a `StoryProp` the gate keeps and the dependent
+reads, so a failed gate leaves the artifact absent and the runner stops the
+story (`notes/demo-scenario-tree.md` § "Composition"). ADR-0135's "compose,
+never chain" rule for BT helpers is the same shape seen from the design side.
 
 ### A Test That Says "Falls Back To" for Malformed Input Is Asserting a Bug
 
