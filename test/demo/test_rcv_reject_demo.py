@@ -120,21 +120,46 @@ class TestParticipantAddsNoteNoNoteId:
 
 
 class TestRcvRejectDumpTargetsTheCaseActorContainer:
-    """The ``case-actor`` ledger is dumped from the dedicated container."""
+    """The ``case-actor`` ledger is dumped from the dedicated container.
+
+    The dump is one shared fragment now (#5534), so the export is patched
+    where that fragment looks it up — in ``coordinated_story`` — rather than on
+    this scenario's own module, which no longer imports it.
+    """
 
     def test_case_actor_target_uses_case_actor_client(self):
-        case_actor_client = MagicMock(
-            actor_id="http://case-actor:7999/api/v2/actors/case-actor"
+        """And the rejecting Vendor is named in the manifest under its own key.
+
+        The container actors are bound as seeding binds them, so the real
+        ``replica_route_key`` reads each key off the client's own actor id
+        (ADR-0073) instead of a ``MagicMock`` attribute.  The manifest is then
+        asserted as the mapping it is: that it is merely non-empty would hold
+        just as well with the wrong actor named, and naming the right one is
+        the whole of what #4248 asked for — a narrative tag on the Case
+        Actor's ``reject_invite_actor_to_case`` entry resolves through this
+        entry to the Vendor that rejected.
+        """
+        from test.demo._helpers import story_state
+        from test.demo.test_coordinated_story import _bind_container_actors
+        from vultron.demo.helpers import coordinated_story
+        from vultron.demo.helpers.coordinated_story import (
+            CASE_ACTOR_NAME,
+            COORDINATOR,
+            REPORTER,
+            VENDOR,
         )
-        with patch.object(demo, "dump_case_ledgers") as dump:
-            demo._phase_dump_case_ledgers(
-                reporter_client=MagicMock(actor_id="http://f/actors/reporter"),
-                coordinator_client=MagicMock(
-                    actor_id="http://c/actors/coordinator"
-                ),
-                case_actor_client=case_actor_client,
-                case=MagicMock(id_="urn:test:case"),
-            )
+
+        cast = (REPORTER, COORDINATOR, VENDOR)
+        state = story_state(*cast, case=MagicMock(id_="urn:c"))
+        _bind_container_actors(state, *cast)
+
+        with patch.object(coordinated_story, "dump_case_ledgers") as dump:
+            demo._dump_ledgers(state)
         targets = {t.actor_name: t for t in dump.call_args.kwargs["targets"]}
-        assert targets["case-actor"].client is case_actor_client
-        assert targets["case-actor"].route_key == "case-actor"
+        assert targets[CASE_ACTOR_NAME].client is state.case_actor_client
+        assert targets[CASE_ACTOR_NAME].route_key == CASE_ACTOR_NAME
+        assert VENDOR not in targets, (
+            "the Vendor rejected its invitation and has no replica to dump"
+        )
+        # ``{manifest name: route key}``, both the Vendor's own.
+        assert dump.call_args.kwargs["unreplicated"] == {VENDOR: VENDOR}

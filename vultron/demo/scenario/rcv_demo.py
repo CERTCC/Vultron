@@ -28,9 +28,10 @@ to fix ready (VFd; Vendor stops at VFd), and all three participants
 coordinate to VFdPxa closure.
 
 The story is assembled, not written out: it starts with
-:data:`~vultron.demo.helpers.coordinated_story.COORDINATOR_INVITES_VENDOR`,
-the opening it shares with ``rcv-reject``, and continues with the Vendor's
-acceptance (:data:`STORY`, DEMOCI-11-019).
+:data:`~vultron.demo.helpers.coordinated_story.REPORTER_ASKS_THE_VENDOR` —
+the opening it shares with ``rcvcv``, which nests the shorter one
+``rcv-reject`` starts with — and continues from the Coordinator's decision to
+publish (:data:`STORY`, DEMOCI-11-019).
 
 Spec: DEMOMA-12 (GitHub issue #1593).
 """
@@ -48,30 +49,26 @@ from vultron.demo.helpers.cast import (
     REPORTER_SLOT,
     VENDOR_SLOT,
 )
-from vultron.demo.helpers.coordinated_case import (
-    dump_coordinated_case_ledgers,
-)
 from vultron.demo.helpers.coordinated_story import (
+    CASE_ACTOR_NAME,
     COORDINATOR,
-    COORDINATOR_INVITES_VENDOR,
+    COORDINATOR_LABEL,
     REPORTER,
+    REPORTER_ASKS_THE_VENDOR,
+    REPORTER_LABEL,
     VENDOR,
+    VENDOR_LABEL,
+    coordinated_cast_members,
     coordinated_clients,
+    coordinated_open_cast,
+    dump_coordinated_ledgers,
     everyone_closes,
     everyone_publishes,
-    open_coordinated_cast,
-    replicas_converge_with_vendor,
-    reporter_asks_about_the_timeline,
-    vendor_accepts_and_joins,
     vendor_reports_the_fix_ready,
 )
-from vultron.demo.helpers.harness import ScenarioHarness
 from vultron.demo.helpers.story import StoryState, choose, run_story, story
 from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import DataLayerClient, setup_demo_logging
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -79,9 +76,9 @@ logger = logging.getLogger(__name__)
 # the fixed cast (DEMOCI-11-020).  The demo CLI derives this scenario's
 # sub-command options from this list (DEMOCI-11-011).
 ROLES: list[ActorRole] = [
-    ActorRole(REPORTER, REPORTER_SLOT, "Reporter", has_id=True),
-    ActorRole(COORDINATOR, COORDINATOR_SLOT, "Coordinator", has_id=True),
-    ActorRole(VENDOR, VENDOR_SLOT, "Vendor", has_id=True),
+    ActorRole(REPORTER, REPORTER_SLOT, REPORTER_LABEL, has_id=True),
+    ActorRole(COORDINATOR, COORDINATOR_SLOT, COORDINATOR_LABEL, has_id=True),
+    ActorRole(VENDOR, VENDOR_SLOT, VENDOR_LABEL, has_id=True),
     case_actor_role(),
 ]
 #: Indexed for the CLI factory and for ``coordinated_clients()``, which reads
@@ -115,17 +112,12 @@ Workflow:
  10. All participants close the case (every RM.CLOSED in the Case Actor's store).
 """
 
-#: The RCV story: the shared opening, then the Vendor accepts and the three
-#: participants run the case to VFdPxa closure.  The registry reads this
-#: scenario's path off the ``choose`` items (DEMOCI-11-019), so it declares no
-#: ``path=``.
+#: The RCV story: the opening it shares with ``rcvcv`` up to the Coordinator's
+#: decision, then the three participants run the case to VFdPxa closure.  The
+#: registry reads this scenario's path off the ``choose`` items
+#: (DEMOCI-11-019), so it declares no ``path=``.
 STORY = story(
-    COORDINATOR_INVITES_VENDOR,
-    choose("vendor-join", "accept", by=VENDOR),
-    vendor_accepts_and_joins,
-    replicas_converge_with_vendor,
-    choose("reporter-after-join", "ask-vendor", by=REPORTER),
-    reporter_asks_about_the_timeline,
+    REPORTER_ASKS_THE_VENDOR,
     # The Coordinator decides once the thread is answered.
     choose("coordinator-after-answer", "publish", by=COORDINATOR),
     vendor_reports_the_fix_ready,
@@ -134,40 +126,13 @@ STORY = story(
 )
 
 
-def _phase_dump_case_ledgers(
-    reporter_client: DataLayerClient,
-    coordinator_client: DataLayerClient,
-    case_actor_client: DataLayerClient,
-    vendor_client: DataLayerClient,
-    case: as_VulnerabilityCase,
-    demo_name: str = "rcv",
-) -> None:
-    """Dump case ledger entries from each actor container to JSONL files.
+def _dump_ledgers(state: StoryState) -> None:
+    """Dump this run's ledgers, named by the story state's cast.
 
     The ``case-actor`` ledger is read from the dedicated case-actor container,
     which holds the canonical ledger (DEMOMA-06-005).
     """
-    dump_coordinated_case_ledgers(
-        demo_name=demo_name,
-        reporter_name=REPORTER,
-        reporter_client=reporter_client,
-        coordinator_client=coordinator_client,
-        case_actor_client=case_actor_client,
-        vendor_client=vendor_client,
-        case=case,
-    )
-
-
-def _dump_ledgers(state: StoryState) -> None:
-    """Dump this run's ledgers, named by the story state's cast."""
-    _phase_dump_case_ledgers(
-        reporter_client=state.client(REPORTER),
-        coordinator_client=state.client(COORDINATOR),
-        case_actor_client=state.case_actor_client,
-        vendor_client=state.client(VENDOR),
-        case=state.case,
-        demo_name=state.harness.demo_name,
-    )
+    dump_coordinated_ledgers(state, replicas=(REPORTER, COORDINATOR, VENDOR))
 
 
 def run_rcv_demo(
@@ -188,18 +153,16 @@ def run_rcv_demo(
     logger.info("Vendor container:      %s", vendor_client.base_url)
     logger.info("CaseActor container:   %s", case_actor_client.base_url)
 
-    def open_cast(harness: ScenarioHarness) -> StoryState:
-        return open_coordinated_cast(
-            harness,
-            reporter_client=reporter_client,
-            coordinator_client=coordinator_client,
-            vendor_client=vendor_client,
-            case_actor_client=case_actor_client,
-            dump=_dump_ledgers,
-            reporter_id=reporter_id,
-            coordinator_id=coordinator_id,
-            vendor_id=vendor_id,
-        )
+    open_cast = coordinated_open_cast(
+        reporter_client=reporter_client,
+        coordinator_client=coordinator_client,
+        vendor_client=vendor_client,
+        case_actor_client=case_actor_client,
+        dump=_dump_ledgers,
+        reporter_id=reporter_id,
+        coordinator_id=coordinator_id,
+        vendor_id=vendor_id,
+    )
 
     # run_story() owns the failure accumulator through scenario_harness: it
     # resets it, always dumps the case ledgers, and asserts success — so a
@@ -248,22 +211,24 @@ def main(
     """
     clients = coordinated_clients(
         _ROLES,
+        coordinated_cast_members(
+            reporter_url=reporter_url,
+            coordinator_url=coordinator_url,
+            vendor_url=vendor_url,
+        ),
         skip_health_check=skip_health_check,
-        reporter_url=reporter_url,
-        coordinator_url=coordinator_url,
-        vendor_url=vendor_url,
         case_actor_url=case_actor_url,
     )
     run_rcv_demo(
-        reporter_client=clients.reporter,
-        coordinator_client=clients.coordinator,
-        vendor_client=clients.vendor,
-        case_actor_client=clients.case_actor,
+        reporter_client=clients[REPORTER],
+        coordinator_client=clients[COORDINATOR],
+        vendor_client=clients[VENDOR],
+        case_actor_client=clients[CASE_ACTOR_NAME],
         **resolved_actor_ids(
             _ROLES,
-            reporter=(clients.reporter, reporter_id),
-            coordinator=(clients.coordinator, coordinator_id),
-            vendor=(clients.vendor, vendor_id),
+            reporter=(clients[REPORTER], reporter_id),
+            coordinator=(clients[COORDINATOR], coordinator_id),
+            vendor=(clients[VENDOR], vendor_id),
         ),
     )
 

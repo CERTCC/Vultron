@@ -347,16 +347,21 @@ but a genuine failure observed before the cancellation still files
 
 ---
 
-## Keeping the Per-Scenario Dump Phase Thin (DEMOMA-23-002)
+## Keeping the Per-Scenario Dump Step Thin (DEMOMA-23-002)
 
-A scenario's `_phase_dump_case_ledgers` builds `LedgerDumpTarget`s and delegates
-to `vultron.demo.helpers.ledger_dump.dump_case_ledgers()`. It MUST NOT carry its
+A scenario's dump step builds `LedgerDumpTarget`s and delegates to
+`vultron.demo.helpers.ledger_dump.dump_case_ledgers()`. It MUST NOT carry its
 own fetch/write loop, or one scenario's dump fix fails to reach the others
-(DEMOMA-17-001).
+(DEMOMA-17-001). It is a `_phase_dump_case_ledgers` in a scenario written as
+phases and a `_dump_ledgers` fragment in one written as composition, which
+reaches the helper through `coordinated_story.dump_coordinated_ledgers()` where
+a family shares its participant map.
 
-- **Register the dump the moment a case exists**: right after the phase that
-  creates it, call `harness.dump_with(lambda: _phase_dump_case_ledgers(...))`, so
-  every later phase can fail without losing the ledgers (DEMOMA-23-003).
+- **Register the dump the moment a case exists**, so every later step can fail
+  without losing the ledgers (DEMOMA-23-003): a phase scenario calls
+  `harness.dump_with(lambda: _phase_dump_case_ledgers(...))` right after the
+  phase that creates the case; a story calls `state.open_case(...)`, which arms
+  the `dump=` fragment its cast opening was built with.
 - **Do not add `try/finally: assert_demo_success()` to `main()`.** The harness
   owns the accumulator; a second owner asserts before the dump runs
   (DEMOMA-23-001).

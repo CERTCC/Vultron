@@ -47,31 +47,27 @@ from vultron.demo.helpers.cast import (
     VENDOR_SLOT,
 )
 from vultron.demo.helpers.coordinated_story import (
+    CASE_ACTOR_NAME,
     COORDINATOR,
     COORDINATOR_INVITES_VENDOR,
+    COORDINATOR_LABEL,
     REPORTER,
+    REPORTER_LABEL,
     VENDOR,
+    VENDOR_LABEL,
+    coordinated_cast_members,
     coordinated_clients,
+    coordinated_open_cast,
     coordinator_and_reporter_publish,
-    open_coordinated_cast,
+    dump_coordinated_ledgers,
     reporter_asks_about_the_rejection,
     reporter_replica_converges,
     reporter_then_coordinator_close,
     vendor_rejects_invite,
 )
-from vultron.demo.helpers.harness import ScenarioHarness
-from vultron.demo.helpers.ledger_dump import (
-    LedgerDumpTarget,
-    case_actor_dump_target,
-    dump_case_ledgers,
-    replica_route_key,
-)
 from vultron.demo.helpers.story import StoryState, choose, run_story, story
 from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import DataLayerClient, setup_demo_logging
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -79,9 +75,9 @@ logger = logging.getLogger(__name__)
 # the fixed cast (DEMOCI-11-020).  The demo CLI derives this scenario's
 # sub-command options from this list (DEMOCI-11-011).
 ROLES: list[ActorRole] = [
-    ActorRole(REPORTER, REPORTER_SLOT, "Reporter", has_id=True),
-    ActorRole(COORDINATOR, COORDINATOR_SLOT, "Coordinator", has_id=True),
-    ActorRole(VENDOR, VENDOR_SLOT, "Vendor", has_id=True),
+    ActorRole(REPORTER, REPORTER_SLOT, REPORTER_LABEL, has_id=True),
+    ActorRole(COORDINATOR, COORDINATOR_SLOT, COORDINATOR_LABEL, has_id=True),
+    ActorRole(VENDOR, VENDOR_SLOT, VENDOR_LABEL, has_id=True),
     case_actor_role(),
 ]
 #: Indexed for the CLI factory and for ``coordinated_clients()``, which reads
@@ -129,67 +125,19 @@ STORY = story(
 )
 
 
-def _phase_dump_case_ledgers(
-    reporter_client: DataLayerClient,
-    coordinator_client: DataLayerClient,
-    case_actor_client: DataLayerClient,
-    case: as_VulnerabilityCase,
-    demo_name: str = "rcv-reject",
-    vendor_client: DataLayerClient | None = None,
-) -> None:
-    """Dump case ledger entries from Reporter, Coordinator, and CaseActor to JSONL.
-
-    Vendor is intentionally excluded from the dump targets: it rejected the
-    invitation and was never added as a case participant, so it has no case
-    ledger replica.  Its identity is still recorded in the manifest, because
-    the Case Actor's ``reject_invite_actor_to_case`` entry names it as the
-    recorded actor and a narrative tag must resolve to it (#4248).
-
-    Thin scenario-specific wrapper over
-    :func:`~vultron.demo.helpers.ledger_dump.dump_case_ledgers`, which owns the
-    per-actor export, the 404 handling, and the dump manifest.
-    """
-    # Route keys come from each client's own actor id, not its display
-    # name: the key selects the store (ADR-0073), so a literal is right
-    # only while the scenario seeds deterministic named ids.
-    targets = [
-        LedgerDumpTarget(
-            REPORTER,
-            reporter_client,
-            replica_route_key(reporter_client),
-        ),
-        LedgerDumpTarget(
-            COORDINATOR,
-            coordinator_client,
-            replica_route_key(coordinator_client),
-        ),
-        # The canonical ledger, on the dedicated case-actor container
-        # (DEMOMA-06-005).
-        case_actor_dump_target(case_actor_client),
-    ]
-
-    unreplicated = (
-        {VENDOR: replica_route_key(vendor_client)}
-        if vendor_client is not None
-        else None
-    )
-    dump_case_ledgers(
-        demo_name=demo_name,
-        case=case,
-        targets=targets,
-        unreplicated=unreplicated,
-    )
-
-
 def _dump_ledgers(state: StoryState) -> None:
-    """Dump this run's ledgers, named by the story state's cast."""
-    _phase_dump_case_ledgers(
-        reporter_client=state.client(REPORTER),
-        coordinator_client=state.client(COORDINATOR),
-        case_actor_client=state.case_actor_client,
-        case=state.case,
-        demo_name=state.harness.demo_name,
-        vendor_client=state.client(VENDOR),
+    """Dump this run's ledgers, named by the story state's cast.
+
+    The Vendor is not among the replicas: it rejected the invitation and was
+    never added as a case participant, so it has no case ledger replica.  Its
+    identity is still recorded in the manifest, because the Case Actor's
+    ``reject_invite_actor_to_case`` entry names it as the recorded actor and a
+    narrative tag must resolve to it (#4248).
+    """
+    dump_coordinated_ledgers(
+        state,
+        replicas=(REPORTER, COORDINATOR),
+        unreplicated=(VENDOR,),
     )
 
 
@@ -213,18 +161,16 @@ def run_rcv_reject_demo(
     logger.info("Vendor container:      %s", vendor_client.base_url)
     logger.info("CaseActor container:   %s", case_actor_client.base_url)
 
-    def open_cast(harness: ScenarioHarness) -> StoryState:
-        return open_coordinated_cast(
-            harness,
-            reporter_client=reporter_client,
-            coordinator_client=coordinator_client,
-            vendor_client=vendor_client,
-            case_actor_client=case_actor_client,
-            dump=_dump_ledgers,
-            reporter_id=reporter_id,
-            coordinator_id=coordinator_id,
-            vendor_id=vendor_id,
-        )
+    open_cast = coordinated_open_cast(
+        reporter_client=reporter_client,
+        coordinator_client=coordinator_client,
+        vendor_client=vendor_client,
+        case_actor_client=case_actor_client,
+        dump=_dump_ledgers,
+        reporter_id=reporter_id,
+        coordinator_id=coordinator_id,
+        vendor_id=vendor_id,
+    )
 
     # run_story() owns the failure accumulator through scenario_harness: it
     # resets it, always dumps the case ledgers, and asserts success — so a
@@ -275,22 +221,24 @@ def main(
     """
     clients = coordinated_clients(
         _ROLES,
+        coordinated_cast_members(
+            reporter_url=reporter_url,
+            coordinator_url=coordinator_url,
+            vendor_url=vendor_url,
+        ),
         skip_health_check=skip_health_check,
-        reporter_url=reporter_url,
-        coordinator_url=coordinator_url,
-        vendor_url=vendor_url,
         case_actor_url=case_actor_url,
     )
     run_rcv_reject_demo(
-        reporter_client=clients.reporter,
-        coordinator_client=clients.coordinator,
-        vendor_client=clients.vendor,
-        case_actor_client=clients.case_actor,
+        reporter_client=clients[REPORTER],
+        coordinator_client=clients[COORDINATOR],
+        vendor_client=clients[VENDOR],
+        case_actor_client=clients[CASE_ACTOR_NAME],
         **resolved_actor_ids(
             _ROLES,
-            reporter=(clients.reporter, reporter_id),
-            coordinator=(clients.coordinator, coordinator_id),
-            vendor=(clients.vendor, vendor_id),
+            reporter=(clients[REPORTER], reporter_id),
+            coordinator=(clients[COORDINATOR], coordinator_id),
+            vendor=(clients[VENDOR], vendor_id),
         ),
     )
 

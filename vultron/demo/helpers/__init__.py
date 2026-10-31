@@ -61,13 +61,19 @@ Sub-modules
   chain every scenario joins an invitee through (DEMOMA-17-001), and
   ``invite_and_await_delivery`` / ``answer_case_invite``, the same chain in the
   two halves a composed story needs around the invitee's branch point.
-- :mod:`~vultron.demo.helpers.story` — ``choose``, ``story``, ``StoryState``
-  and ``run_story``: a branching demo story written once, with the scenario's
-  path read off its choices (DEMOCI-11-019). Not re-exported here, because it
-  imports the harness, which imports the scenario registry.
+- :mod:`~vultron.demo.helpers.story` — ``choose``, ``story``, ``StoryState``,
+  ``StoryProp``, ``UnseatedContainer`` and ``run_story``: a branching demo
+  story written once, with the scenario's path read off its choices
+  (DEMOCI-11-019). Not re-exported here, because it imports the harness, which
+  imports the scenario registry.
 - :mod:`~vultron.demo.helpers.coordinated_story` — the story fragments and the
-  ``COORDINATOR_INVITES_VENDOR`` named prefix of the Reporter → Coordinator →
-  Vendor family. Not re-exported here, for the same reason.
+  nested named prefixes (``COORDINATOR_INVITES_VENDOR``,
+  ``VENDOR_JOINS_THE_CASE``, ``REPORTER_ASKS_THE_VENDOR``) of the
+  Reporter → Coordinator → Vendor family, one per stretch two of its scenarios
+  share. Not re-exported here, for the same reason.
+- :mod:`~vultron.demo.helpers.coordinated_embargo_story` — the fragments and
+  the ``REPORTER_PROPOSES_EMBARGO`` prefix of that family's embargo pair.
+  Not re-exported here, for the same reason.
 - :mod:`~vultron.demo.helpers.notes` — ``participant_adds_note_to_case``.
 - :mod:`~vultron.demo.helpers.milestones` — lifecycle milestone verifiers
   (``verify_case_active``, ``verify_fix_ready``, ``verify_fix_deployed``,

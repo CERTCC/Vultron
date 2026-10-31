@@ -75,18 +75,32 @@ _TIMESTAMP = "<timestamp>"
 #: admitted here when its scenarios share one authored opening, not when two
 #: hand-placed openings happen to agree.
 #:
-#: ``{rcv, rcv-reject}`` is the first (#5533): both assemble their stories from
-#: ``COORDINATOR_INVITES_VENDOR``
-#: (:mod:`vultron.demo.helpers.coordinated_story`), so the bytes before
-#: ``vendor-join`` come from one copy of the code and byte identity holds by
-#: construction.  The remaining families follow as they are composed
-#: (#5534, #5535, #5536); until then only the isomorphism check
-#: (DEMOCI-11-017) holds for them, because a hand-placed opening can still
-#: differ in setup length — ``rcvcv`` and ``rcvv-embargo`` read the stepping
-#: clock more times before the case opens, so they stamp ``create_case`` one
-#: second later and the hash chain carries the offset to the branch point.
+#: The Reporter → Coordinator → Vendor family is the first, composed in two
+#: steps: ``rcv`` and ``rcv-reject`` piloted the story runner (#5533), and the
+#: rest of the subtree followed (#5534).  All five assemble their stories from
+#: the nested prefixes in :mod:`vultron.demo.helpers.coordinated_story` and
+#: :mod:`vultron.demo.helpers.coordinated_embargo_story`, so the bytes before
+#: each pair's branch point come from one copy of the code and byte identity
+#: holds by construction.  The remaining families follow as they are composed
+#: (#5535, #5536); until then only the isomorphism check (DEMOCI-11-017) holds
+#: for them, because a hand-placed opening can still differ in setup length —
+#: it is the shared opening seeding only the containers every sibling uses
+#: that closed the gap here, each actor and peer record it writes being one
+#: more read of the recording clock (#5532).
+#:
+#: The subtree is named as **two overlapping families**, which is how this
+#: table says "every pair but one".  The one pair left out is
+#: ``{rcv-embargo, rcvv-embargo}``: their paths agree for four steps, so their
+#: shared prefix runs past the embargo activation, where the recording is not
+#: yet reproducible — the pending-assertion store reads the clock to check
+#: expiry, so a lookup racing the owner's accept trigger moves every later
+#: timestamp by 80 ms, and the two scenarios came out 80 ms apart in a
+#: whole-tree run and identical in solo runs (#5591).  Every other pair parts
+#: at or before ledger entry 26, ahead of that race, and is checked here.
+#: Merging the two entries into one is #5591's job.
 COMPOSED_FAMILIES: tuple[frozenset[str], ...] = (
-    frozenset({"rcv", "rcv-reject"}),
+    frozenset({"rcv", "rcv-reject", "rcvcv", "rcv-embargo"}),
+    frozenset({"rcv", "rcv-reject", "rcvcv", "rcvv-embargo"}),
 )
 
 

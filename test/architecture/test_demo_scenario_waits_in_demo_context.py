@@ -13,8 +13,8 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Architecture invariant (DEMOCI-01-011): scenario ``_phase_*`` functions must
-not call a raising ``wait_for_*`` helper outside a demo accumulation context.
+"""Architecture invariant (DEMOCI-01-011): scenario-level demo code must not
+call a raising ``wait_for_*`` helper outside a demo accumulation context.
 
 Every ``wait_for_*`` / ``find_*`` polling helper in
 ``vultron/demo/helpers/polling.py`` raises ``AssertionError`` on timeout — the
@@ -23,8 +23,29 @@ scenario: ``scenario_harness`` re-raises, so a bare call crashes the whole run
 at the first failure and buries every co-occurring failure (violating the
 accumulation model, DEMOCI-01-003/004).
 
-A raising wait invoked from scenario ``_phase_*`` code MUST therefore sit inside
-a ``demo_step`` / ``demo_check`` / ``demo_gate`` block, OR be invoked through a
+Scenario-level code has two shapes while the scenarios migrate to composed
+stories (#5533, #5534, #5537):
+
+* a ``_phase_*`` function in a hand-written scenario module;
+* a **story fragment** — a module-level function taking a
+  :class:`~vultron.demo.helpers.story.StoryState`, which is one step of a
+  story (``vultron/demo/helpers/story.py``).  A fragment is scenario-level
+  wherever it is written: a composed scenario keeps the fragments only it
+  tells in its own module, and the shared ones live in
+  ``helpers/coordinated_story.py`` and
+  ``helpers/coordinated_embargo_story.py``.
+
+Both shapes run under ``scenario_harness`` and both own their wrap, so the
+check follows the subject rather than the directory: it scans every module
+under ``vultron/demo/`` and takes its subjects from the two shapes.
+:func:`test_the_check_has_subjects_of_both_shapes` fails if either shape stops
+being found, so retiring the ``_phase_*`` arm when the migration finishes is a
+deliberate edit rather than a gate quietly left with nothing to check
+(``notes/documentation-strategy.md`` § "A gate that resolves zero targets must
+fail").
+
+A raising wait invoked from scenario-level code MUST therefore sit inside a
+``demo_step`` / ``demo_check`` / ``demo_gate`` block, OR be invoked through a
 shared helper that performs that wrap internally so every caller inherits it
 (``wait_for_participants_on_replicas`` in ``polling.py`` and
 ``wait_for_replica_ledger_coverage`` in ``helpers/sync.py`` are such helpers;
@@ -37,7 +58,8 @@ editing this test.  A demo context is a literal ``demo_step`` / ``demo_check`` /
 ``demo_gate`` call, or a call to a local name bound only to those (for example
 ``context = demo_gate if causal else demo_check``).
 
-Source: CONCERN-3384 (#3406), generalising the #1772/#1802 ledger-coverage fix.
+Source: CONCERN-3384 (#3406), generalising the #1772/#1802 ledger-coverage fix;
+widened to story fragments by #5534.
 Spec: ``specs/demo-ci.yaml`` DEMOCI-01-011.
 """
 
@@ -51,7 +73,6 @@ from test.architecture import _corpus
 
 _DEMO_DIR = _corpus.REPO_ROOT / "vultron" / "demo"
 _HELPERS_DIR = _DEMO_DIR / "helpers"
-_SCENARIO_DIR = _DEMO_DIR / "scenario"
 _POLLING = _HELPERS_DIR / "polling.py"
 _SYNC = _HELPERS_DIR / "sync.py"
 
@@ -159,8 +180,9 @@ def _demo_context_names(scope: ast.AST) -> frozenset[str]:
     context (``_is_demo_context_value``).  Any other binding — a parameter, a
     loop or ``with`` target, an augmented or walrus assignment, a tuple unpack,
     an import, a ``def`` / ``class``, an ``except ... as`` or ``match`` capture,
-    a ``global`` / ``nonlocal`` declaration — disqualifies it, since the name may then hold something that is not a
-    demo context.  The analysis is flow-insensitive and per function: it does
+    a ``global`` / ``nonlocal`` declaration — disqualifies it, since the name
+    may then hold something that is not a demo context.  The analysis is
+    flow-insensitive and per function: it does
     not order bindings against uses, and a name bound in an outer function or
     at module level is not resolved (both fail toward flagging the call).
     """
@@ -312,32 +334,125 @@ def _classify_polling_helpers(
 
 _RAISING_WAITS, _WRAPPING_WAITS = _classify_polling_helpers()
 
-_SCENARIO_TREES = {
-    path: tree
-    for path, tree in _corpus.files_mentioning(
-        *_WAIT_PREFIXES, under=_SCENARIO_DIR
+#: The annotation that marks a story fragment's state parameter: one step of a
+#: story is ``Callable[[StoryState], None]`` (``helpers/story.py``).
+_STORY_STATE = "StoryState"
+
+#: The name prefix of a hand-written scenario phase function.
+_PHASE_PREFIX = "_phase_"
+
+#: The two shapes of scenario-level code, as the report and the scope
+#: assertion name them.
+_PHASE, _FRAGMENT = "phase function", "story fragment"
+
+_FunctionNode = ast.FunctionDef | ast.AsyncFunctionDef
+
+
+def _annotates_story_state(annotation: ast.expr | None) -> bool:
+    """True if *annotation* names ``StoryState``.
+
+    Matched on the trailing name so the import form a module happens to use —
+    bare ``StoryState``, dotted ``story.StoryState``, or a quoted forward
+    reference — does not decide whether its fragments are checked.
+    """
+    if isinstance(annotation, ast.Name):
+        return annotation.id == _STORY_STATE
+    if isinstance(annotation, ast.Attribute):
+        return annotation.attr == _STORY_STATE
+    if isinstance(annotation, ast.Constant) and isinstance(
+        annotation.value, str
+    ):
+        return annotation.value.rsplit(".", 1)[-1] == _STORY_STATE
+    return False
+
+
+def _takes_story_state(fn: _FunctionNode) -> bool:
+    """True if any parameter of *fn* is annotated ``StoryState``.
+
+    Every parameter position is considered, not just the first: a shared
+    fragment helper takes the state plus the cast name it acts for
+    (``report_fix_ready(state, name, label)``), and a keyword-only or
+    starred state parameter would be the same subject written differently.
+    """
+    args = fn.args
+    return any(
+        arg is not None and _annotates_story_state(arg.annotation)
+        for arg in (
+            *args.posonlyargs,
+            *args.args,
+            *args.kwonlyargs,
+            args.vararg,
+            args.kwarg,
+        )
     )
-    if path.name != "__init__.py"
-}
+
+
+def _scenario_level_functions(
+    tree: ast.AST,
+) -> list[tuple[str, _FunctionNode]]:
+    """Return ``(shape, fn)`` for each scenario-level function in *tree*.
+
+    A ``_phase_*`` function counts wherever it is defined, as it always has.
+    A story fragment counts only at module level: that is where a story's
+    items are declared and where :func:`~vultron.demo.helpers.story.run_story`
+    calls them, whereas a nested function taking the state is a closure the
+    enclosing subject already covers.  A module-level ``_phase_*`` that also
+    takes the state is reported once, under ``_phase_*``.
+    """
+    found: list[tuple[str, _FunctionNode]] = [
+        (_PHASE, node)
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name.startswith(_PHASE_PREFIX)
+    ]
+    if isinstance(tree, ast.Module):
+        found.extend(
+            (_FRAGMENT, node)
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and not node.name.startswith(_PHASE_PREFIX)
+            and _takes_story_state(node)
+        )
+    return found
+
+
+def _scanned_trees() -> tuple[dict[Path, ast.AST], Counter[str]]:
+    """Return the trees holding scenario-level code and the shapes found.
+
+    Narrowing the parametrisation to the files that actually hold a subject
+    keeps the per-file test and its id meaningful, and makes the emptiness
+    assertion a real one: ``polling.py`` mentions ``wait_for_`` on every line
+    and holds no scenario-level code at all.
+    """
+    trees: dict[Path, ast.AST] = {}
+    shapes: Counter[str] = Counter()
+    for path, tree in _corpus.files_mentioning(
+        *_WAIT_PREFIXES, under=_DEMO_DIR
+    ):
+        if path.name == "__init__.py":
+            continue
+        found = Counter(shape for shape, _ in _scenario_level_functions(tree))
+        if found:
+            trees[path] = tree
+            shapes.update(found)
+    return trees, shapes
+
+
+_SCANNED_TREES, _SHAPES_FOUND = _scanned_trees()
 
 
 def _bare_wait_violations(
     tree: ast.AST, raising: frozenset[str]
 ) -> list[tuple[int, str, str]]:
-    """Return ``(line, phase_fn, callee)`` for bare raising waits in ``_phase_*``.
+    """Return ``(line, function, callee)`` for bare raising waits.
 
     A call is a violation when its callee is a known raising helper, it is
-    lexically inside a function whose name starts with ``_phase_``, and no
-    ancestor of the call is a ``with demo_*`` block.
+    lexically inside a scenario-level function (:func:`_scenario_level_functions`),
+    and no ancestor of the call is a ``with demo_*`` block.
     """
     parents = _parent_map(tree)
     violations: list[tuple[int, str, str]] = []
-    for node in ast.walk(tree):
-        if not (
-            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and node.name.startswith("_phase_")
-        ):
-            continue
+    for _, node in _scenario_level_functions(tree):
         for call in ast.walk(node):
             if (
                 isinstance(call, ast.Call)
@@ -369,11 +484,41 @@ def test_polling_module_has_raising_and_wrapping_helpers():
     assert _WRAPPING_WAITS, "at least one real wrapping helper must exist"
 
 
+def test_the_check_has_subjects_of_both_shapes():
+    """The scan must resolve files, and a subject of each shape.
+
+    A gate that resolves no target passes while checking nothing, and its
+    false clean signal suppresses the review it replaced
+    (``notes/documentation-strategy.md`` § "A gate that resolves zero targets
+    must fail").  Both arms are asserted separately because the scenarios are
+    mid-migration from ``_phase_*`` functions to composed stories: a rewrite
+    that leaves a scenario with no phases must not quietly take its checking
+    with it, and the last phase function going away is the signal to retire
+    that arm here on purpose.
+    """
+    assert _SCANNED_TREES, (
+        "no module under vultron/demo/ holds scenario-level code, so"
+        " DEMOCI-01-011 is unchecked; the scan looks for _phase_* functions"
+        f" and for module-level functions taking a {_STORY_STATE}"
+    )
+    assert _SHAPES_FOUND[_FRAGMENT], (
+        f"no {_FRAGMENT} was found under vultron/demo/, so the composed"
+        " scenarios (#5533, #5534, #5537) are unchecked; a fragment is a"
+        f" module-level function taking a {_STORY_STATE}"
+    )
+    assert _SHAPES_FOUND[_PHASE], (
+        f"no {_PHASE} was found under vultron/demo/: if the story migration"
+        " (#5533, #5534, #5537) has converted the last scenario, delete the"
+        f" {_PHASE_PREFIX}* arm of this check and this assertion with it,"
+        " rather than leaving an arm that can no longer fail"
+    )
+
+
 @pytest.mark.parametrize(
-    "scenario", sorted(_SCENARIO_TREES), ids=lambda p: p.name
+    "scenario", sorted(_SCANNED_TREES), ids=lambda p: p.name
 )
-def test_phase_functions_wrap_raising_waits(scenario: Path):
-    """No ``_phase_*`` may call a raising ``wait_for_*`` outside a demo context.
+def test_scenario_level_code_wraps_raising_waits(scenario: Path):
+    """No scenario-level call of a raising ``wait_for_*`` outside a demo context.
 
     Wrap the call in ``demo_step`` / ``demo_check`` / ``demo_gate``, or route it
     through a shared helper that wraps internally (e.g.
@@ -381,11 +526,12 @@ def test_phase_functions_wrap_raising_waits(scenario: Path):
     whole run at the first timeout (DEMOCI-01-011).
     """
     violations = _bare_wait_violations(
-        _SCENARIO_TREES[scenario], _RAISING_WAITS
+        _SCANNED_TREES[scenario], _RAISING_WAITS
     )
     assert not violations, (
         f"{scenario.relative_to(_corpus.REPO_ROOT)} calls raising wait helpers"
-        f" outside a demo context in _phase_* code: {violations}. Wrap each in"
+        " outside a demo context in scenario-level code (a _phase_* function"
+        f" or a story fragment): {violations}. Wrap each in"
         " demo_step/demo_check/demo_gate, or route it through a shared helper"
         " that wraps internally (DEMOCI-01-011)."
     )
@@ -419,6 +565,62 @@ def test_the_check_passes_when_wrapped():
         "            case_id=case.id_,\n"
         "            expected_actor_ids={a.id_, b.id_},\n"
         "        )\n"
+    )
+    assert not _bare_wait_violations(
+        sample, frozenset({"wait_for_case_participants"})
+    )
+
+
+#: A fragment body whose one raising wait is bare, as a format string over the
+#: ``StoryState`` annotation form.
+_BARE_FRAGMENT = (
+    "def vendor_accepts_and_joins(state: {annotation}) -> None:\n"
+    "    wait_for_case_participants(state.client('v'), state.case.id_, set())\n"
+)
+
+
+@pytest.mark.parametrize(
+    "annotation", ["StoryState", "story.StoryState", "'StoryState'"]
+)
+def test_the_check_can_fail_on_a_story_fragment(annotation: str):
+    """Guard: a fragment's bare raising wait is flagged like a phase's.
+
+    Parametrised over the annotation forms a module may write, so a scenario
+    that imports the state module rather than the name, or quotes the
+    annotation, is not silently exempt.
+    """
+    sample = _corpus.parse_inline(_BARE_FRAGMENT.format(annotation=annotation))
+    violations = _bare_wait_violations(
+        sample, frozenset({"wait_for_case_participants"})
+    )
+    assert [v[1:] for v in violations] == [
+        ("vendor_accepts_and_joins", "wait_for_case_participants")
+    ]
+
+
+def test_a_story_fragment_wait_in_a_demo_gate_is_not_a_violation():
+    """Guard: the same fragment wait inside a ``demo_gate`` is wrapped."""
+    sample = _corpus.parse_inline(
+        "def vendor_accepts_and_joins(state: StoryState) -> None:\n"
+        "    with demo_gate('Vendor joined the case'):\n"
+        "        wait_for_case_participants(state.client('v'), '1', set())\n"
+    )
+    assert not _bare_wait_violations(
+        sample, frozenset({"wait_for_case_participants"})
+    )
+
+
+def test_function_that_is_neither_phase_nor_fragment_is_not_scanned():
+    """A plain demo helper is not scenario-level code, so it is not scanned.
+
+    The check covers the code a story or a scenario runs as a step, which owns
+    the wrap.  A helper several steps call is classified from its own body by
+    :func:`_classify_polling_helpers` instead, and its bare raising call is
+    reported against the scenario-level caller.
+    """
+    sample = _corpus.parse_inline(
+        "def seed_the_containers(client, case) -> None:\n"
+        "    wait_for_case_participants(client, case.id_, set())\n"
     )
     assert not _bare_wait_violations(
         sample, frozenset({"wait_for_case_participants"})

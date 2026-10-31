@@ -13,8 +13,10 @@
 
 """Shared helpers for demo test fixtures."""
 
+import ast
 import contextlib
 import importlib
+import inspect
 import logging
 import re
 from collections.abc import Iterator, Mapping, Sequence
@@ -48,7 +50,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers import invite_chain, runner, workflow
-from vultron.demo.helpers.story import StoryState
+from vultron.demo.helpers.story import StoryState, UnseatedContainer
 from vultron.demo.in_process import response_value
 from vultron.demo.utils import DataLayerClient
 from vultron.errors import VultronError
@@ -110,6 +112,7 @@ def mock_client() -> MagicMock:
 def story_state(
     *names: str,
     case: MagicMock | None = None,
+    unseated: Sequence[str] = (),
 ) -> StoryState:
     """A :class:`StoryState` whose cast is one stand-in session per name.
 
@@ -121,6 +124,9 @@ def story_state(
     Args:
         names: The cast names the fragment under test reads, e.g. ``"reporter"``.
         case: When given, the state is opened on it so ``state.case`` resolves.
+        unseated: Cast names whose container is waiting for a character actor
+            the fragment under test seeds and seats (#5534); each gets its own
+            client and the deterministic id ``urn:test:<name>``.
 
     Returns:
         The state, with ``state.client(name)`` and ``state.actor(name)`` live.
@@ -135,10 +141,40 @@ def story_state(
         case_actor_client=mock_client(),
         harness=MagicMock(),
         dump=lambda _state: None,
+        unseated={
+            name: UnseatedContainer(
+                label=name,
+                client=mock_client(),
+                actor_id=f"urn:test:{name}",
+            )
+            for name in unseated
+        },
     )
     if case is not None:
         state.open_case(case=case, report=MagicMock(), offer=MagicMock())
     return state
+
+
+def functions_referencing(module: ModuleType, name: str) -> list[str]:
+    """The names of *module*'s functions whose body mentions *name*.
+
+    For a sole-caller assertion: a scenario's own ``seed_containers_*`` must be
+    called by the one step that brings its character actors into the case, and
+    by nothing earlier, because every record written before the case exists is
+    one more read of the recording clock (DEMOCI-11-018, #5532).  Read from the
+    source rather than by patching, so the claim holds for the code as written
+    and not only for the path a test happens to drive.
+    """
+    tree = ast.parse(inspect.getsource(module))
+    return [
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef)
+        and any(
+            isinstance(child, ast.Name) and child.id == name
+            for child in ast.walk(node)
+        )
+    ]
 
 
 @contextlib.contextmanager

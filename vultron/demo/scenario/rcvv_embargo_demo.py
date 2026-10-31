@@ -30,19 +30,28 @@ signs the embargo in force by accepting the invitation.  After the fixes are
 ready the Reporter reports public disclosure: CS.P ends the embargo
 automatically (``ACTIVE → EXITED``), and nobody terminates it.
 
-The phases run in the order DEMOMA-21-008 gives, and phases 2, 3, 4 and 6
-each assert the expected EM state before the next starts (DEMOMA-21-009).
+The story is assembled, not written out: it starts with
+:data:`~vultron.demo.helpers.coordinated_embargo_story\
+.REPORTER_PROPOSES_EMBARGO`, the opening it shares with ``rcv-embargo``, and
+continues with Vendor1's revision (:data:`STORY`, DEMOCI-11-019).  Its steps
+run in the order DEMOMA-21-008 gives, and the revision, the late invite and
+the collapse each assert the expected EM state before the next starts
+(DEMOMA-21-009).
+
+Vendor2 is a **character actor**: its container is reset with the rest, and its
+actor is seeded by the fragment that invites it rather than by the shared
+opening, because every record the opening writes before the case exists moves
+the first ledger entry's timestamp away from the sibling it must match byte
+for byte (DEMOCI-11-018).
 
 Spec: DEMOMA-21, DEMOCI-07 (GitHub issue #2072).
 """
 
 import logging
-from dataclasses import dataclass
 
 from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
-from vultron.demo.actor_session import ActorSession
 from vultron.demo.exchange.embargo_lifecycle import (
     COMMIT_TIMEOUT_SECONDS,
     demo_propose_embargo_revision,
@@ -59,70 +68,80 @@ from vultron.demo.helpers.cast import (
     REPORTER_SLOT,
     VENDOR_SLOT,
 )
-from vultron.demo.helpers.coordinated_case import (
-    CoordinatedCase,
-    dump_coordinated_case_ledgers,
-    everyone_closes_case,
-    open_case_with_vendor,
-    vendor_joins_coordinated_case,
-    vendor_reports_fix_ready,
-)
-from vultron.demo.helpers.embargo_phases import (
+from vultron.demo.helpers.coordinated_embargo_story import (
+    PROPOSED_EMBARGO,
+    REPORTER_PROPOSES_EMBARGO,
     assert_canonical_em_state,
     confirm_embargo_revised,
-    revise_default_embargo,
+    embargo_stays_ended_through_closure,
+    embargo_survives_the_fix,
+    replicas_see_the_embargo_ended,
 )
-from vultron.demo.helpers.harness import (
-    ScenarioHarness,
-    scenario_harness,
-    step_reporter,
+from vultron.demo.helpers.coordinated_story import (
+    CASE_ACTOR_NAME,
+    COORDINATOR,
+    COORDINATOR_LABEL,
+    REPORTER,
+    REPORTER_LABEL,
+    VENDOR,
+    CastContainer,
+    close_the_case,
+    coordinated_clients,
+    coordinated_open_cast,
+    dump_coordinated_ledgers,
+    invitee_joins_the_case,
+    report_fix_ready,
+    reports_published,
+    seat_character_actors,
 )
-from vultron.demo.helpers.notes import reporter_asks_vendor_answers
 from vultron.demo.helpers.polling import (
     wait_for_case_em_state,
-    wait_for_case_em_terminated,
     wait_for_participant_embargo_consent,
     wait_for_semantic_type_in_ledger,
 )
-from vultron.demo.helpers.runner import check_all_containers
-from vultron.demo.helpers.seeding import (
-    get_actor_by_id,
-    reset_containers as _reset_containers,
-    seed_containers_rcvv,
+from vultron.demo.helpers.seeding import seed_containers_rcvv
+from vultron.demo.helpers.story import (
+    StoryProp,
+    StoryState,
+    UnseatedContainer,
+    choose,
+    run_story,
+    story,
 )
 from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import (
     DataLayerClient,
-    bound_case_actor_client,
     demo_check,
     demo_gate,
     demo_step,
-    reset_datalayer,
     setup_demo_logging,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
+
+#: What this scenario calls its two vendors.  Vendor1 is the family's Vendor —
+#: the first Vendor of the fixed cast, named ``Vendor`` as ``rcv-embargo``'s
+#: one Vendor is, because the two share their path up to Vendor1's decision
+#: and their ledgers must match there (DEMOCI-11-018).
+VENDOR1 = VENDOR
+VENDOR1_LABEL = "Vendor1"
+VENDOR2 = "vendor2"
+VENDOR2_LABEL = "Vendor2"
 
 # The scenario's actors in main() parameter order, each seated in a container of
 # the fixed cast (DEMOCI-11-020).  The demo CLI derives this scenario's
 # sub-command options from this list (DEMOCI-11-011).
 ROLES: list[ActorRole] = [
-    ActorRole("reporter", REPORTER_SLOT, "Reporter", has_id=True),
-    ActorRole("coordinator", COORDINATOR_SLOT, "Coordinator", has_id=True),
-    ActorRole("vendor", VENDOR_SLOT, "Vendor1", has_id=True),
-    ActorRole("vendor2", CAST[3], "Vendor2", has_id=True),
+    ActorRole(REPORTER, REPORTER_SLOT, REPORTER_LABEL, has_id=True),
+    ActorRole(COORDINATOR, COORDINATOR_SLOT, COORDINATOR_LABEL, has_id=True),
+    ActorRole(VENDOR1, VENDOR_SLOT, VENDOR1_LABEL, has_id=True),
+    ActorRole(VENDOR2, CAST[3], VENDOR2_LABEL, has_id=True),
     case_actor_role(),
 ]
 _ROLES = role_map(ROLES)
 
-REPORTER_BASE_URL = _ROLES["reporter"].url
-COORDINATOR_BASE_URL = _ROLES["coordinator"].url
-VENDOR_BASE_URL = _ROLES["vendor"].url
-VENDOR2_BASE_URL = _ROLES["vendor2"].url
-CASE_ACTOR_BASE_URL = _ROLES["case-actor"].url
+DEMO_NAME = "rcvv-embargo"
 
 #: ``vultron-demo rcvv-embargo --help`` text.
 CLI_HELP = """Run the RCVV embargo demo (DEMOMA-21).
@@ -148,397 +167,184 @@ Workflow:
   8. Case ledgers are dumped for the invariant harness.
 """
 
-REPORTER_NAME = "reporter"
-VENDOR2_NAME = "vendor2"
-DEMO_NAME = "rcvv-embargo"
+#: The embargo Vendor1's revision put in force.  A second prop rather than a
+#: rewrite of :data:`PROPOSED_EMBARGO`, so a revision that never took effect
+#: leaves nothing for the steps that presuppose it to read and the story stops
+#: there (DEMOCI-01-007).
+REVISED_EMBARGO: StoryProp[str] = StoryProp(
+    "embargo Vendor1's revision put in force", str
+)
 
-
-@dataclass(frozen=True)
-class _Cast:
-    """The four trigger sessions of the scenario, each bound to its container.
-
-    Vendor2 is seeded with the rest but takes no part in the case until phase 4
-    invites it.  *case_manager* is the client for the dedicated case-actor
-    container, where the CASE_MANAGER's canonical case is read (DEMOMA-06-004).
-    """
-
-    reporter: ActorSession
-    coordinator: ActorSession
-    vendor: ActorSession
-    vendor2: ActorSession
-    case_manager: DataLayerClient
-
-
-def reset_containers(
-    reporter_client: DataLayerClient,
-    coordinator_client: DataLayerClient,
-    vendor_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
-    case_actor_client: DataLayerClient,
-) -> None:
-    """Reset the RCVV containers to a clean baseline."""
-    targets: list[tuple[str, DataLayerClient]] = [
-        ("Reporter", reporter_client),
-        ("Coordinator", coordinator_client),
-        ("Vendor1", vendor_client),
-        ("Vendor2", vendor2_client),
-    ]
-    _reset_containers(
-        targets,
-        reset_fn=reset_datalayer,
-        case_actor_client=case_actor_client,
-    )
+#: The embargo Vendor2 signed by accepting its case invitation.  The fix
+#: lifecycle, the collapse and the closure presuppose it, so they read it
+#: rather than acting on a case Vendor2 never joined (DEMOMA-21-012).
+VENDOR2_SIGNED: StoryProp[str] = StoryProp(
+    "embargo Vendor2 signed on joining", str
+)
 
 
 # ---------------------------------------------------------------------------
-# Phases (DEMOMA-21-008)
+# Fragments this scenario alone tells
 # ---------------------------------------------------------------------------
 
 
-def _phase_report_submission(
-    harness: ScenarioHarness,
-    reporter_client: DataLayerClient,
-    coordinator_client: DataLayerClient,
-    vendor_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
-    case_actor_client: DataLayerClient,
-    reporter_id: str | None,
-    coordinator_id: str | None,
-    vendor_id: str | None,
-    vendor2_id: str | None,
-) -> tuple[_Cast, as_VulnerabilityCase, CoordinatedCase]:
-    """Seed, submit the report, open the case, bring Vendor1 in.
-
-    Leaves the case at ``EM.ACTIVE`` under the default embargo (EP-04-001).
-    """
-    logger.info("─" * 80)
-    logger.info(
-        "Phase 1: Report submission — Reporter → Coordinator; Vendor1 joins"
-    )
-    logger.info("─" * 80)
-
-    reset_containers(
-        reporter_client=reporter_client,
-        coordinator_client=coordinator_client,
-        vendor_client=vendor_client,
-        vendor2_client=vendor2_client,
-        case_actor_client=case_actor_client,
-    )
-    reporter = coordinator = vendor = vendor2 = None
-    with demo_step("Seeding Reporter, Coordinator, Vendor1, and Vendor2"):
-        reporter, coordinator, vendor, vendor2 = seed_containers_rcvv(
-            reporter_client=reporter_client,
-            coordinator_client=coordinator_client,
-            vendor_client=vendor_client,
-            vendor2_client=vendor2_client,
-            reporter_actor_id=reporter_id,
-            coordinator_actor_id=coordinator_id,
-            vendor_actor_id=vendor_id,
-            vendor2_actor_id=vendor2_id,
-            case_actor_client=case_actor_client,
-        )
-
-    def on_case_opened(opened_case: as_VulnerabilityCase) -> None:
-        # Register the dump as soon as there is a case to dump, so every phase
-        # below can fail without costing us the ledgers (ISSUE-2239).
-        harness.dump_with(
-            lambda: _phase_dump_case_ledgers(
-                reporter_client=reporter_client,
-                coordinator_client=coordinator_client,
-                case_actor_client=case_actor_client,
-                vendor_client=vendor_client,
-                vendor2_client=vendor2_client,
-                case=opened_case,
-                demo_name=harness.demo_name,
-            )
-        )
-        harness.follow_ledger(case_actor_client, opened_case.id_)
-        harness.reach_step(
-            "coordinator-invite-whom", "vendor", by=coordinator.id_
-        )
-
-    # The Reporter's decision; its role comes from submitting the report.
-    harness.reach_step("reporter-whom-to-tell", "coordinator", by=reporter.id_)
-    opened, vendor_in_vendor = open_case_with_vendor(
-        reporter_client=reporter_client,
-        coordinator_client=coordinator_client,
-        case_actor_client=case_actor_client,
-        vendor_client=vendor_client,
-        reporter=reporter,
-        coordinator=coordinator,
-        vendor=vendor,
-        on_case_opened=on_case_opened,
-        before_answer=step_reporter("vendor-join", "accept", by=vendor.id_),
-    )
-    case = opened.case
-
-    cast = _Cast(
-        reporter=ActorSession(
-            client=reporter_client,
-            actor=get_actor_by_id(reporter_client, reporter.id_),
-        ).with_case(case),
-        coordinator=ActorSession(
-            client=coordinator_client, actor=opened.coordinator_in_coordinator
-        ).with_case(case),
-        vendor=ActorSession(
-            client=vendor_client, actor=vendor_in_vendor
-        ).with_case(case),
-        vendor2=ActorSession(
-            client=vendor2_client,
-            actor=get_actor_by_id(vendor2_client, vendor2.id_),
-        ).with_case(case),
-        case_manager=case_actor_client,
-    )
-    assert_canonical_em_state(
-        cast.coordinator,
-        case,
-        EM.ACTIVE,
-        "report_submission",
-        case_manager_client=cast.case_manager,
-    )
-    return cast, case, opened
-
-
-def _phase_embargo_proposal(
-    cast: _Cast, case: as_VulnerabilityCase
-) -> str | None:
-    """The Reporter revises the default embargo; the Coordinator activates it.
-
-    Returns:
-        The id of the embargo now in force.
-    """
-    logger.info("─" * 80)
-    logger.info(
-        "Phase 2: Embargo proposal — Reporter revises the default embargo"
-    )
-    logger.info("─" * 80)
-    return revise_default_embargo(
-        cast.reporter,
-        cast.coordinator,
-        cast.vendor,
-        case,
-        phase="embargo_proposal",
-        case_manager_client=cast.case_manager,
-    )
-
-
-def _phase_embargo_revision(
-    cast: _Cast, case: as_VulnerabilityCase, prior_embargo_id: str
-) -> str | None:
+def vendor1_proposes_a_revision(state: StoryState) -> None:
     """Vendor1 revises the embargo; the Reporter consents; the owner activates.
 
-    Returns:
-        The id of the embargo now in force, or ``None`` when the revision did
-        not take effect (the failure is recorded).
+    The relayed revision sequence (EP-09, DEMOMA-21-002).  Vendor2 signs
+    whatever is in force when it joins, so without this second revision the
+    late invite would assert about the wrong embargo — which is why the
+    revision it put in force is kept rather than inferred from ``EM.ACTIVE``.
     """
-    logger.info("─" * 80)
-    logger.info("Phase 3: Embargo revision — Vendor1 proposes new terms")
-    logger.info("─" * 80)
+    proposed = state.kept(PROPOSED_EMBARGO)
 
     demo_propose_embargo_revision(
-        proposing=cast.vendor,
-        accepting=cast.reporter,
-        owner=cast.coordinator,
-        case=case,
-        case_manager_client=cast.case_manager,
+        proposing=state.actor(VENDOR1),
+        accepting=state.actor(REPORTER),
+        owner=state.actor(COORDINATOR),
+        case=state.case,
+        case_manager_client=state.case_actor_client,
     )
 
-    # Vendor2 signs whatever is in force when it joins, so without a second
-    # revision phase 4 would assert about the wrong embargo.
-    return confirm_embargo_revised(
-        cast.coordinator,
-        case,
-        prior_embargo_id,
+    revised = confirm_embargo_revised(
+        state,
+        proposed,
         "embargo_revision",
         "The second revision is now in force",
-        case_manager_client=cast.case_manager,
     )
+    if revised is not None:
+        state.keep(REVISED_EMBARGO, revised)
 
 
-def _phase_v2_late_invite(
-    cast: _Cast,
-    case: as_VulnerabilityCase,
-    opened: CoordinatedCase,
-    embargo_id: str,
-) -> bool:
-    """Invite Vendor2 once the revision is active; it signs the embargo.
+def vendor2_joins_under_the_revision(state: StoryState) -> None:
+    """Seed and invite Vendor2 once the revision is active; it signs it.
 
-    Returns:
-        Whether Vendor2 is a signatory of the embargo in force; a ``False`` is
-        already recorded as a failure.
+    Vendor2's container is seeded here rather than in the shared opening
+    (DEMOCI-11-018): ``seed_containers_rcvv`` creates it and registers it as a
+    peer of the three already seated, returning each of them unchanged
+    because ``POST /actors/`` and ``POST /actors/{id}/peers/`` are idempotent.
+
+    Accepting the invitation consents to the embargo in force (CM-11-002), so
+    Vendor2 is a signatory before it does anything else (DEMOMA-21-012); the
+    signed embargo is kept, and the steps that presuppose it stop without it.
     """
-    logger.info("─" * 80)
-    logger.info(
-        "Phase 4: Vendor2 late invite — joins under the revised embargo"
-    )
-    logger.info("─" * 80)
+    embargo_id = state.kept(REVISED_EMBARGO)
 
-    vendor_joins_coordinated_case(
-        opened=opened,
-        reporter=cast.reporter.actor,
-        reporter_client=cast.reporter.client,
-        coordinator_client=cast.coordinator.client,
-        case_actor_client=cast.case_manager,
-        vendor=cast.vendor2.actor,
-        vendor_client=cast.vendor2.client,
-        vendor_name="Vendor2",
-        already_seated=[cast.vendor.actor],
+    waiting = state.container(VENDOR2)
+    with demo_step("Seeding the Vendor2 container"):
+        seeded = seed_containers_rcvv(
+            reporter_client=state.client(REPORTER),
+            coordinator_client=state.client(COORDINATOR),
+            vendor_client=state.client(VENDOR1),
+            vendor2_client=waiting.client,
+            reporter_actor_id=state.actor_id(REPORTER),
+            coordinator_actor_id=state.actor_id(COORDINATOR),
+            vendor_actor_id=state.actor_id(VENDOR1),
+            vendor2_actor_id=waiting.actor_id,
+            case_actor_client=state.case_actor_client,
+        )
+        # Seated inside the step that seeded it: a seeding failure then leaves
+        # the cast short, and the fragments that reach for Vendor2 stop the
+        # story rather than acting on a stand-in (#2308).
+        seat_character_actors(state, {VENDOR2: seeded[3].id_})
+
+    invitee_joins_the_case(
+        state,
+        VENDOR2,
+        VENDOR2_LABEL,
+        role=CVDRole.VENDOR,
+        seated=(REPORTER, COORDINATOR, VENDOR1, VENDOR2),
     )
     assert_canonical_em_state(
-        cast.coordinator,
-        case,
+        state,
         EM.ACTIVE,
         "v2_late_invite",
         active_embargo_id=embargo_id,
-        case_manager_client=cast.case_manager,
     )
-    # Accepting the invitation consents to the embargo in force (CM-11-002), so
-    # Vendor2 is a signatory before it does anything else (DEMOMA-21-012).
-    # The fix lifecycle, collapse and closure presuppose it, so the caller runs
-    # them only when this returns True (DEMOCI-01-007).
-    signed = False
+
     with demo_gate("Vendor2 is a signatory to the active embargo"):
         wait_for_participant_embargo_consent(
-            cast.case_manager,
-            case.id_,
-            cast.vendor2.actor.id_,
+            state.case_actor_client,
+            state.case.id_,
+            state.actor_id(VENDOR2),
             embargo_id,
             EmbargoConsentState.AGREED,
             COMMIT_TIMEOUT_SECONDS,
         )
-        signed = True
+        state.keep(VENDOR2_SIGNED, embargo_id)
     with demo_check("Vendor2's replica has the revised embargo active"):
         wait_for_case_em_state(
-            cast.vendor2.client,
-            case.id_,
+            state.client(VENDOR2),
+            state.case.id_,
             EM.ACTIVE,
             COMMIT_TIMEOUT_SECONDS,
             active_embargo_id=embargo_id,
         )
-    return signed
 
 
-def _phase_fix_lifecycle(cast: _Cast, case: as_VulnerabilityCase) -> None:
+def both_vendors_report_the_fix_ready(state: StoryState) -> None:
     """Both vendors report fix ready; the embargo is untouched."""
-    logger.info("─" * 80)
-    logger.info("Phase 5: Fix lifecycle — both vendors report fix ready (VFd)")
-    logger.info("─" * 80)
-
-    for session in (cast.vendor, cast.vendor2):
-        vendor_reports_fix_ready(
-            coordinator_client=cast.coordinator.client,
-            vendor_client=session.client,
-            vendor_in_vendor=session.actor,
-            case=case,
-        )
-    assert_canonical_em_state(
-        cast.coordinator,
-        case,
-        EM.ACTIVE,
-        "fix_lifecycle",
-        case_manager_client=cast.case_manager,
-    )
+    state.kept(VENDOR2_SIGNED)
+    report_fix_ready(state, VENDOR1, VENDOR1_LABEL)
+    report_fix_ready(state, VENDOR2, VENDOR2_LABEL)
 
 
-def _phase_accidental_collapse(
-    cast: _Cast, case: as_VulnerabilityCase
-) -> None:
-    """The Reporter publishes; CS.P ends the embargo with no one terminating it.
+def reporter_publishes_and_the_embargo_collapses(state: StoryState) -> None:
+    """The Reporter publishes; CS.P ends the embargo with nobody terminating it.
 
     The collapse is the protocol's own consequence of the P-transition
-    (DEMOMA-21-014): this phase never calls ``terminate_embargo``.
+    (DEMOMA-21-014): this fragment never calls ``terminate_embargo``.
     """
-    logger.info("─" * 80)
-    logger.info("Phase 6: Accidental collapse — Reporter publishes (CS.P)")
-    logger.info("─" * 80)
-
-    with demo_step("Reporter reports the vulnerability publicly disclosed"):
-        cast.reporter.quiet().notify_published()
+    reports_published(state, REPORTER)
 
     # The teardown is the CASE_MANAGER's own commit, so it is read where it
     # commits before any replica is expected to show it (EDF-06-002).
     with demo_gate("The CASE_MANAGER commits the embargo teardown"):
         wait_for_semantic_type_in_ledger(
-            client=cast.case_manager,
-            case_id=case.id_,
+            client=state.case_actor_client,
+            case_id=state.case.id_,
             semantic_type=EMBARGO_TEARDOWN_SEMANTIC_TYPE,
             timeout_seconds=COMMIT_TIMEOUT_SECONDS,
         )
-    assert_canonical_em_state(
-        cast.coordinator,
-        case,
-        EM.EXITED,
-        "accidental_collapse",
-        case_manager_client=cast.case_manager,
-    )
-    # Replicas learn it from the ledger fan-out afterwards, so these are checks
-    # of the effect, not gates for what follows (EDF-06-006).
-    for label, session in (
-        ("Coordinator", cast.coordinator),
-        ("Reporter", cast.reporter),
-        ("Vendor1", cast.vendor),
-        ("Vendor2", cast.vendor2),
-    ):
-        with demo_check(f"{label}'s replica has EM.EXITED"):
-            wait_for_case_em_terminated(
-                client=session.client,
-                case_id=case.id_,
-                timeout_seconds=COMMIT_TIMEOUT_SECONDS,
-            )
-
-
-def _phase_case_closure(cast: _Cast, case: as_VulnerabilityCase) -> None:
-    """Every participant closes the case."""
-    logger.info("─" * 80)
-    logger.info("Phase 7: Case closure — all participants RM.CLOSED")
-    logger.info("─" * 80)
-
-    everyone_closes_case(
-        reporter_client=cast.reporter.client,
-        coordinator_client=cast.coordinator.client,
-        case_actor_client=cast.case_manager,
-        vendor_client=cast.vendor.client,
-        reporter_in_reporter=cast.reporter.actor,
-        coordinator_in_coordinator=cast.coordinator.actor,
-        vendor_in_vendor=cast.vendor.actor,
-        case=case,
-        later_vendors=[
-            ("Vendor2", cast.vendor2.client, cast.vendor2.actor),
-        ],
-    )
-    assert_canonical_em_state(
-        cast.coordinator,
-        case,
-        EM.EXITED,
-        "case_closure",
-        case_manager_client=cast.case_manager,
+    assert_canonical_em_state(state, EM.EXITED, "accidental_collapse")
+    replicas_see_the_embargo_ended(
+        state, (COORDINATOR, REPORTER, VENDOR1, VENDOR2)
     )
 
 
-def _phase_dump_case_ledgers(
-    reporter_client: DataLayerClient,
-    coordinator_client: DataLayerClient,
-    case_actor_client: DataLayerClient,
-    vendor_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
-    case: as_VulnerabilityCase,
-    demo_name: str = DEMO_NAME,
-) -> None:
-    """Dump each participant's case ledger (phase 8, DEMOMA-21-008).
+def everyone_including_vendor2_closes(state: StoryState) -> None:
+    """Every participant closes the case; the Case Owner leaves last."""
+    close_the_case(state, others=(VENDOR1, REPORTER, VENDOR2), milestone="M7")
+
+
+#: The RCVV-embargo story: the opening it shares with ``rcv-embargo``, then
+#: Vendor1's revision, the late second vendor, and the accidental collapse.
+#: The registry reads this scenario's path off the ``choose`` items
+#: (DEMOCI-11-019), so it declares no ``path=``.
+STORY = story(
+    REPORTER_PROPOSES_EMBARGO,
+    # Vendor1 decides once the revised embargo is in force.
+    choose("vendor-after-embargo", "propose-revision", by=VENDOR1),
+    vendor1_proposes_a_revision,
+    vendor2_joins_under_the_revision,
+    both_vendors_report_the_fix_ready,
+    embargo_survives_the_fix,
+    reporter_publishes_and_the_embargo_collapses,
+    everyone_including_vendor2_closes,
+    embargo_stays_ended_through_closure,
+)
+
+
+def _dump_ledgers(state: StoryState) -> None:
+    """Dump each participant's case ledger (the last step, DEMOMA-21-008).
 
     Thin wrapper (DEMOMA-23-002): the harness runs it on the way out, whether
-    or not an earlier phase failed.
+    or not an earlier step failed.
     """
-    dump_coordinated_case_ledgers(
-        demo_name=demo_name,
-        reporter_name=REPORTER_NAME,
-        reporter_client=reporter_client,
-        coordinator_client=coordinator_client,
-        case_actor_client=case_actor_client,
-        vendor_client=vendor_client,
-        case=case,
-        later_vendors=[(VENDOR2_NAME, vendor2_client)],
-    )
+    replicas = [REPORTER, COORDINATOR, VENDOR1]
+    if VENDOR2 in state.cast:
+        replicas.append(VENDOR2)
+    dump_coordinated_ledgers(state, replicas=replicas)
 
 
 def run_rcvv_embargo_demo(
@@ -564,65 +370,26 @@ def run_rcvv_embargo_demo(
     logger.info("Vendor2 container:     %s", vendor2_client.base_url)
     logger.info("CaseActor container:   %s", case_actor_client.base_url)
 
-    # scenario_harness() owns the failure accumulator: it resets it, always
-    # dumps the case ledgers (phase 8, dump_case_ledgers, DEMOMA-21-008) on the
-    # way out whether or not a phase failed, and asserts success last
-    # (ISSUE-2239).
-    with scenario_harness(DEMO_NAME) as harness:
-        cast, case, opened = _phase_report_submission(
-            harness=harness,
-            reporter_client=reporter_client,
-            coordinator_client=coordinator_client,
-            vendor_client=vendor_client,
-            vendor2_client=vendor2_client,
-            case_actor_client=case_actor_client,
-            reporter_id=reporter_id,
-            coordinator_id=coordinator_id,
-            vendor_id=vendor_id,
-            vendor2_id=vendor2_id,
-        )
-        harness.reach_step(
-            "reporter-after-join",
-            "propose-embargo",
-            by=cast.reporter.actor.id_,
-        )
-        proposed_embargo_id = _phase_embargo_proposal(cast, case)
-        # The Reporter proposed rather than asked first (its branch point on
-        # the scenario tree), so the shared note exchange follows the
-        # proposal and comes before Vendor1's own next decision.  It puts
-        # add_note_to_case in the ledger (DEMOMA-16-001); Vendor1 is seated,
-        # Vendor2 is not yet.
-        reporter_asks_vendor_answers(
-            cast.reporter, cast.vendor, cast.coordinator.client, case
-        )
-        harness.reach_step(
-            "vendor-after-embargo",
-            "propose-revision",
-            by=cast.vendor.actor.id_,
-        )
-        # The revision cycle revises the embargo phase 2 put in force; without
-        # one, phases 3-7 would only pile secondary failures on the first.
-        with demo_gate("Phase 2 put the revised embargo in force"):
-            if proposed_embargo_id is None:
-                raise AssertionError(
-                    "no revised embargo; skipping phases 3-7"
-                    " (embargo_revision through case_closure)"
-                )
-            revised_embargo_id = _phase_embargo_revision(
-                cast, case, proposed_embargo_id
+    open_cast = coordinated_open_cast(
+        reporter_client=reporter_client,
+        coordinator_client=coordinator_client,
+        vendor_client=vendor_client,
+        case_actor_client=case_actor_client,
+        dump=_dump_ledgers,
+        reporter_id=reporter_id,
+        coordinator_id=coordinator_id,
+        vendor_id=vendor_id,
+        unseated={
+            VENDOR2: UnseatedContainer(
+                VENDOR2_LABEL, vendor2_client, vendor2_id
             )
-            with demo_gate("Phase 3 put the second revision in force"):
-                if revised_embargo_id is None:
-                    raise AssertionError(
-                        "no second revision; skipping phases 4-7"
-                        " (v2_late_invite through case_closure)"
-                    )
-                if _phase_v2_late_invite(
-                    cast, case, opened, revised_embargo_id
-                ):
-                    _phase_fix_lifecycle(cast, case)
-                    _phase_accidental_collapse(cast, case)
-                    _phase_case_closure(cast, case)
+        },
+    )
+
+    # run_story() owns the failure accumulator through scenario_harness: it
+    # resets it, always dumps the case ledgers, and asserts success — so a
+    # failure here never costs us the artifacts (ISSUE-2239, DEMOMA-23-001).
+    run_story(DEMO_NAME, STORY, open_cast)
 
     logger.info("=" * 80)
     logger.info(
@@ -643,13 +410,7 @@ def run_rcvv_embargo_demo(
     participants="Reporter + Coordinator + Vendor1 + Vendor2",
     feature="Embargo revision cycle, late second vendor, and accidental collapse",
     in_pr_set=True,
-    path=(
-        ("reporter-whom-to-tell", "coordinator"),
-        ("coordinator-invite-whom", "vendor"),
-        ("vendor-join", "accept"),
-        ("reporter-after-join", "propose-embargo"),
-        ("vendor-after-embargo", "propose-revision"),
-    ),
+    story=STORY,
 )
 def main(
     skip_health_check: bool = False,
@@ -677,39 +438,29 @@ def main(
         vendor_id: Optional deterministic URI for the Vendor1 actor.
         vendor2_id: Optional deterministic URI for the Vendor2 actor.
     """
-    reporter_client = DataLayerClient(
-        base_url=reporter_url or REPORTER_BASE_URL
+    clients = coordinated_clients(
+        _ROLES,
+        [
+            CastContainer(REPORTER, REPORTER_LABEL, reporter_url),
+            CastContainer(COORDINATOR, COORDINATOR_LABEL, coordinator_url),
+            CastContainer(VENDOR1, VENDOR1_LABEL, vendor_url),
+            CastContainer(VENDOR2, VENDOR2_LABEL, vendor2_url),
+        ],
+        skip_health_check=skip_health_check,
+        case_actor_url=case_actor_url,
     )
-    coordinator_client = DataLayerClient(
-        base_url=coordinator_url or COORDINATOR_BASE_URL
-    )
-    vendor_client = DataLayerClient(base_url=vendor_url or VENDOR_BASE_URL)
-    vendor2_client = DataLayerClient(base_url=vendor2_url or VENDOR2_BASE_URL)
-    ca_url = case_actor_url or CASE_ACTOR_BASE_URL
-    case_actor_client = bound_case_actor_client(ca_url)
-
-    if not skip_health_check:
-        targets: list[tuple[str, DataLayerClient]] = [
-            ("Reporter", reporter_client),
-            ("Coordinator", coordinator_client),
-            ("Vendor1", vendor_client),
-            ("Vendor2", vendor2_client),
-            ("CaseActor", case_actor_client),
-        ]
-        check_all_containers(targets)
-
     run_rcvv_embargo_demo(
-        reporter_client=reporter_client,
-        coordinator_client=coordinator_client,
-        vendor_client=vendor_client,
-        vendor2_client=vendor2_client,
-        case_actor_client=case_actor_client,
+        reporter_client=clients[REPORTER],
+        coordinator_client=clients[COORDINATOR],
+        vendor_client=clients[VENDOR1],
+        vendor2_client=clients[VENDOR2],
+        case_actor_client=clients[CASE_ACTOR_NAME],
         **resolved_actor_ids(
             _ROLES,
-            reporter=(reporter_client, reporter_id),
-            coordinator=(coordinator_client, coordinator_id),
-            vendor=(vendor_client, vendor_id),
-            vendor2=(vendor2_client, vendor2_id),
+            reporter=(clients[REPORTER], reporter_id),
+            coordinator=(clients[COORDINATOR], coordinator_id),
+            vendor=(clients[VENDOR1], vendor_id),
+            vendor2=(clients[VENDOR2], vendor2_id),
         ),
     )
 

@@ -222,7 +222,8 @@ first failure and hides every co-occurring one.
 3. Keep the low-level primitives raising; their unit tests depend on it.
 
 `test/architecture/test_demo_scenario_waits_in_demo_context.py` enforces the rule
-for scenario `_phase_*` functions.
+for scenario-level code: a `_phase_*` function, and a composed story's fragments
+(the callables taking a `StoryState`, wherever they live).
 
 ---
 
@@ -239,7 +240,8 @@ once.
   participant is sent nothing after the entries recording its own closure
   (CM-23-004), so no replica covers the authority's tail then.
 - A scenario's sync-verification step — its `_phase_sync_verification`, or a
-  composed story's fragment — is a thin call to `run_sync_verification_phase`,
+  composed story's fragment (`replicas_converge_with_vendor`,
+  `every_replica_converges`) — is a thin call to `run_sync_verification_phase`,
   declaring only its authority, Reporter, replicas, late joiners, expected
   participants and the replica pairs to state-check (DEMOMA-23-007). A replica
   whose coverage gate failed is not state-checked, and an authority with no
