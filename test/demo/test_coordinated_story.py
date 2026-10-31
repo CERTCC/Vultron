@@ -47,10 +47,22 @@ from vultron.demo.helpers import (
     coordinated_story,
     invite_chain,
 )
+from vultron.demo.helpers.actor_roles import (
+    ActorRole,
+    case_actor_role,
+    role_map,
+)
+from vultron.demo.helpers.cast import (
+    CASE_ACTOR,
+    COORDINATOR_SLOT,
+    REPORTER_SLOT,
+    VENDOR_SLOT,
+)
 from vultron.demo.helpers.coordinated_story import (
     COORDINATOR,
     REPORTER,
     VENDOR,
+    coordinated_clients,
     coordinator_invites_vendor,
     everyone_closes,
     everyone_publishes,
@@ -75,14 +87,15 @@ def _no_banners():
     control flow.
     """
     with contextlib.ExitStack() as stack:
-        for name in ("demo_gate", "demo_check", "demo_step"):
-            stack.enter_context(
-                patch.object(
-                    coordinated_story,
-                    name,
-                    side_effect=lambda _: contextlib.nullcontext(),
+        for module in (coordinated_story, coordinated_case):
+            for name in ("demo_gate", "demo_check", "demo_step"):
+                stack.enter_context(
+                    patch.object(
+                        module,
+                        name,
+                        side_effect=lambda _: contextlib.nullcontext(),
+                    )
                 )
-            )
         yield
 
 
@@ -167,6 +180,64 @@ class TestOpenCoordinatedCast:
                 dump=lambda _state: None,
             )
         reset_demo_failures()
+
+
+class TestCoordinatedClients:
+    """One client set and one health check for the whole family."""
+
+    def test_each_address_falls_back_to_its_cast_slot(self):
+        roles = role_map(
+            [
+                ActorRole(REPORTER, REPORTER_SLOT, "Reporter", has_id=True),
+                ActorRole(
+                    COORDINATOR, COORDINATOR_SLOT, "Coordinator", has_id=True
+                ),
+                ActorRole(VENDOR, VENDOR_SLOT, "Vendor", has_id=True),
+                case_actor_role(),
+            ]
+        )
+        with patch.object(
+            coordinated_story, "check_all_containers"
+        ) as checked:
+            clients = coordinated_clients(roles, skip_health_check=False)
+
+        assert clients.reporter.base_url == REPORTER_SLOT.url
+        assert clients.coordinator.base_url == COORDINATOR_SLOT.url
+        assert clients.vendor.base_url == VENDOR_SLOT.url
+        assert clients.case_actor.base_url == CASE_ACTOR.url
+        # The case-actor client is bound to the CaseActor its container hosts,
+        # so a read through it addresses the canonical store (ADR-0073).
+        assert clients.case_actor.actor_id
+        assert [label for label, _c in checked.call_args.args[0]] == [
+            "Reporter",
+            "Coordinator",
+            "Vendor",
+            "CaseActor",
+        ]
+
+    def test_an_override_wins_and_the_check_can_be_skipped(self):
+        roles = role_map(
+            [
+                ActorRole(REPORTER, REPORTER_SLOT, "Reporter", has_id=True),
+                ActorRole(
+                    COORDINATOR, COORDINATOR_SLOT, "Coordinator", has_id=True
+                ),
+                ActorRole(VENDOR, VENDOR_SLOT, "Vendor", has_id=True),
+                case_actor_role(),
+            ]
+        )
+        with patch.object(
+            coordinated_story, "check_all_containers"
+        ) as checked:
+            clients = coordinated_clients(
+                roles,
+                skip_health_check=True,
+                vendor_url="http://elsewhere:7999/api/v2",
+            )
+
+        assert clients.vendor.base_url == "http://elsewhere:7999/api/v2"
+        assert clients.reporter.base_url == REPORTER_SLOT.url
+        checked.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -354,18 +425,18 @@ class TestReporterCaseReplicaWaitBeforeVendorTriage:
 
         with (
             patch_chain_shared(
-                coordinated_story,
+                coordinated_case,
                 "wait_for_case_on_container",
                 side_effect=_wait_for_case,
             ),
             patch.object(
-                coordinated_story,
+                coordinated_case,
                 "run_invite_path_rm_triage",
                 side_effect=lambda **_kw: call_order.append("triage"),
             ),
             patch.object(ActorSession, "accept_case_invite"),
             patch.object(invite_chain, "reply_to_full_case_invite"),
-            patch.object(coordinated_story, "wait_for_case_participants"),
+            patch.object(coordinated_case, "wait_for_case_participants"),
             _no_banners(),
         ):
             vendor_accepts_and_joins(state)
@@ -440,11 +511,9 @@ class TestInviteChainSkipsDependents:
 
         with (
             patch.object(ActorSession, "accept_case_invite") as accept,
-            patch_chain_shared(
-                coordinated_story, "wait_for_case_on_container"
-            ),
-            patch.object(coordinated_story, "wait_for_case_participants"),
-            patch.object(coordinated_story, "run_invite_path_rm_triage"),
+            patch_chain_shared(coordinated_case, "wait_for_case_on_container"),
+            patch.object(coordinated_case, "wait_for_case_participants"),
+            patch.object(coordinated_case, "run_invite_path_rm_triage"),
         ):
             vendor_accepts_and_joins(state)
         accept.assert_not_called()

@@ -44,6 +44,15 @@ import pytest
 from test.architecture import _corpus
 from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
 
+#: The modules holding the story fragments of a composed family.  Globbed
+#: rather than listed, so a family composed later is covered the moment its
+#: fragment module lands beside the others.
+_FRAGMENT_MODULES = sorted(
+    (_corpus.REPO_ROOT / "vultron" / "demo" / "helpers").glob(
+        "coordinated_*.py"
+    )
+)
+
 
 def _specs(composed: bool) -> list[ScenarioSpec]:
     """Registered scenarios using one declaration form."""
@@ -57,9 +66,15 @@ _REPORTERS = frozenset({"reach_step", "step_reporter"})
 
 def _reported_steps(module_name: str) -> Counter[tuple[str, str]]:
     """Every literal ``(branch point, choice)`` the module reports."""
-    tree = _corpus.tree_of(
-        _corpus.REPO_ROOT / (module_name.replace(".", "/") + ".py")
+    return _steps_in(
+        _corpus.tree_of(
+            _corpus.REPO_ROOT / (module_name.replace(".", "/") + ".py")
+        )
     )
+
+
+def _steps_in(tree: ast.AST) -> Counter[tuple[str, str]]:
+    """Every literal ``(branch point, choice)`` *tree* reports."""
     steps: Counter[tuple[str, str]] = Counter()
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -96,6 +111,15 @@ def test_both_declaration_forms_are_still_in_use() -> None:
     )
 
 
+def _fragment_steps() -> Counter[tuple[str, str]]:
+    """Every literal step a story-fragment module reports."""
+    assert _FRAGMENT_MODULES, "no story-fragment module found"
+    total: Counter[tuple[str, str]] = Counter()
+    for path in _FRAGMENT_MODULES:
+        total += _steps_in(_corpus.tree_of(path))
+    return total
+
+
 @pytest.mark.parametrize(
     "spec", _specs(composed=False), ids=lambda spec: spec.name
 )
@@ -117,11 +141,17 @@ def test_each_declared_step_is_reported_once(spec: ScenarioSpec) -> None:
 def test_a_composed_scenario_places_no_reach_step_by_hand(
     spec: ScenarioSpec,
 ) -> None:
-    """The runner is the only source of a composed scenario's marks."""
-    reported = _reported_steps(spec.module_name)
+    """The runner is the only source of a composed scenario's marks.
+
+    Scans the story-fragment modules as well as the scenario module, because
+    composition empties the scenario module: a hand-placed ``reach_step`` in a
+    fragment is where the double-mark defect would be introduced, and a scan
+    of ``scenario/`` alone would pass over it.
+    """
+    reported = _reported_steps(spec.module_name) + _fragment_steps()
     assert reported == Counter(), (
-        f"{spec.demo_path} places {dict(reported)} by hand, but its story's "
-        "choose(...) items already declare its steps and run_story() marks "
-        "each one as it passes it. Drop the call "
+        f"{spec.demo_path} or a story fragment places {dict(reported)} by "
+        "hand, but a story's choose(...) items already declare its steps and "
+        "run_story() marks each one as it passes it. Drop the call "
         "(DEMOCI-11-019, notes/demo-scenario-tree.md § Composition)."
     )

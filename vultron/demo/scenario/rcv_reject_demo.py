@@ -68,20 +68,7 @@ from vultron.demo.helpers.ledger_dump import (
 )
 from vultron.demo.helpers.story import StoryState, choose, run_story, story
 from vultron.demo.scenario.registry import scenario
-from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
-    DataLayerClient,
-    assert_demo_success,
-    bound_case_actor_client,
-    check_server_availability,
-    demo_check,
-    demo_gate,
-    demo_step,
-    ref_id,
-    reset_datalayer,
-    reset_demo_failures,
-    setup_demo_logging,
-    verify_object_stored,
-)
+from vultron.demo.utils import DataLayerClient, setup_demo_logging
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )

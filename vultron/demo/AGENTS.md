@@ -58,12 +58,12 @@ A scenario module declares itself, and nothing else anywhere does:
   underscores) — rename the file to match, never add an override (DEMOCI-11-003).
 - `ROLES: list[ActorRole]` (`helpers/actor_roles.py`), one frozen role per actor
   **in `main()` parameter order**, and `CLI_HELP: str`. These generate the
-  scenario's `--<role>-url` / `--<role>-id` options, its `--help`, and the module's
-  own `*_BASE_URL` constants (`REPORTER_BASE_URL = _ROLES["reporter"].url`). So **never
-  add a `@main.command` block to `cli.py`** (DEMOCI-11-011), and mind the quiet
-  drift direction the `main()`-signature ratchet catches: a keyword no role declares
-  gets no option, keeps its default, and runs the scenario against the wrong
-  container without failing.
+  scenario's `--<role>-url` / `--<role>-id` options and its `--help`; each address
+  comes off the role's cast slot, read by the module's own `*_BASE_URL` constant or,
+  in a composed family, by its shared client factory. So **never add a
+  `@main.command` block to `cli.py`** (DEMOCI-11-011), and mind the quiet drift
+  direction the `main()`-signature ratchet catches: a keyword no role declares gets
+  no option, keeps its default, and runs against the wrong container without failing.
 
 A scenario specified but not yet built goes in `notes/demo-future-ideas.md`, never the
 registry (DEMOCI-11-010); its recording is generated, never hand-edited. Full write-up:

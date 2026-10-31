@@ -13,6 +13,8 @@ from vultron.demo.helpers import invite_chain
 from vultron.demo.helpers.invite_chain import (
     CaseInviter,
     EmittedBy,
+    answer_case_invite,
+    invite_and_await_delivery,
     run_case_invite_chain,
 )
 from vultron.demo.utils import reset_demo_failures
@@ -185,6 +187,106 @@ def test_accepting_chain_without_any_ledger_client_is_refused(chain_mocks):
 
     chain_mocks.accept.assert_not_called()
     chain_mocks.full_reply.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# The chain in two halves, for a composed story (#5533)
+# ---------------------------------------------------------------------------
+
+
+def _halves(**overrides: Any) -> dict[str, Any]:
+    """The arguments both halves share, as :func:`_run` builds them."""
+    kwargs: dict[str, Any] = dict(
+        case=mock_case(),
+        invitee_name="Vendor",
+        invitee_client=MagicMock(),
+        invitee=mock_actor("urn:t:vendor"),
+    )
+    kwargs.update(overrides)
+    return kwargs
+
+
+def test_the_two_halves_invite_then_answer_like_the_whole_chain(chain_mocks):
+    """The split form reaches the same acts, in the same order."""
+    shared = _halves()
+    delivered = invite_and_await_delivery(
+        inviter=CaseInviter(
+            name="Coordinator",
+            client=MagicMock(),
+            actor=mock_actor("urn:t:coord"),
+            role=CVDRole.VENDOR,
+        ),
+        **shared,
+    )
+    assert delivered == "urn:t:invite"
+
+    answer_case_invite(
+        invite_id=delivered,
+        invitee_in_own_container=mock_actor("urn:t:vendor"),
+        authority_client=MagicMock(),
+        **shared,
+    )
+
+    chain_mocks.invite.assert_called_once()
+    chain_mocks.accept.assert_called_once_with(invite_id="urn:t:invite")
+    chain_mocks.full_reply.assert_called_once()
+    assert demo_utils._demo_failures == []
+
+
+def test_an_undelivered_invite_leaves_the_second_half_nothing_to_answer(
+    chain_mocks,
+):
+    """EDF-06-005: the answer is skipped and recorded, never attempted."""
+    chain_mocks.find.side_effect = AssertionError("timed out")
+    shared = _halves()
+
+    delivered = invite_and_await_delivery(
+        inviter=CaseInviter(
+            name="Coordinator",
+            client=MagicMock(),
+            actor=mock_actor("urn:t:coord"),
+            role=CVDRole.VENDOR,
+        ),
+        **shared,
+    )
+    assert delivered is None
+
+    answer_case_invite(
+        invite_id=delivered,
+        invitee_in_own_container=mock_actor("urn:t:vendor"),
+        authority_client=MagicMock(),
+        **shared,
+    )
+
+    chain_mocks.accept.assert_not_called()
+    chain_mocks.reject.assert_not_called()
+    assert len(demo_utils._demo_failures) == 2
+
+
+@pytest.mark.spec("SYNC-10-004")
+def test_the_second_half_refuses_an_accept_with_no_ledger_client(chain_mocks):
+    """The same refusal the whole chain makes, at the other entry point."""
+    with pytest.raises(ValueError, match="ledger coverage"):
+        answer_case_invite(
+            invite_id="urn:t:invite",
+            invitee_in_own_container=mock_actor("urn:t:vendor"),
+            **_halves(),
+        )
+
+    chain_mocks.accept.assert_not_called()
+
+
+def test_the_second_half_rejects_without_a_ledger_client(chain_mocks):
+    """A rejecting invitee waits on no coverage, so it needs none."""
+    answer_case_invite(
+        invite_id="urn:t:invite",
+        invitee_in_own_container=mock_actor("urn:t:vendor"),
+        respond="reject",
+        **_halves(),
+    )
+
+    chain_mocks.reject.assert_called_once_with(invite_id="urn:t:invite")
+    chain_mocks.accept.assert_not_called()
 
 
 def test_undelivered_full_case_invite_skips_the_reply(chain_mocks):

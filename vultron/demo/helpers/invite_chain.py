@@ -285,7 +285,6 @@ def answer_case_invite(
     replica_timeout: float | None = None,
     reply_timeout: float = FULL_CASE_REPLY_TIMEOUT,
     authority_client: DataLayerClient | None = None,
-    then: Callable[[], None] | None = None,
 ) -> None:
     """Answer the Invite :func:`invite_and_await_delivery` delivered.
 
@@ -309,9 +308,10 @@ def answer_case_invite(
         reply_timeout: As :func:`run_case_invite_chain`.
         authority_client: Client for the container hosting the CASE_MANAGER,
             for the ledger-coverage wait before the full-case reply.  Required
-            for an accepting answer (SYNC-10-004).
-        then: Runs inside the gate after the answer, so it is skipped when the
-            Invite never arrived.
+            for an accepting answer (SYNC-10-004).  A composed story puts what
+            follows the answer in its own fragment, so there is no ``then``
+            hook here: the whole chain keeps one, for the callers that nest
+            their follow-on inside its gate.
 
     Raises:
         ValueError: When an accepting answer is given no *authority_client*.
@@ -335,7 +335,7 @@ def answer_case_invite(
             replica_timeout=replica_timeout,
             reply_timeout=reply_timeout,
             authority_client=authority_client,
-            then=then,
+            then=None,
         )
 
 

@@ -45,7 +45,12 @@ from vultron.demo.helpers.story import (
 from vultron.demo.scenario import registry
 from vultron.demo.scenario.registry import ScenarioSpec, scenario
 from vultron.demo.scenario.tree import build_scenario_tree
-from vultron.errors import DemoScenarioRegistryError, DemoStoryError
+from vultron.demo.utils import demo_failures, demo_step, reset_demo_failures
+from vultron.errors import (
+    DemoScenarioRegistryError,
+    DemoScenarioStepError,
+    DemoStoryError,
+)
 
 #: ``rv``'s path, as choices of a story.  Reused as the fixture story so the
 #: fixture registry it is spliced into stays one well-formed tree.
@@ -55,11 +60,21 @@ _RV_CHOICES = (
 )
 
 
-def _fragment(name: str, log: list[str]) -> Callable[[StoryState], None]:
-    """A fragment that records that it ran."""
+def _fragment(
+    name: str, log: list[str], fails: bool = False
+) -> Callable[[StoryState], None]:
+    """A fragment that records that it ran, and optionally fails doing it.
+
+    A failing fragment fails the way a demo fragment does: inside
+    ``demo_step``, which records the failure and lets the story go on
+    (DEMOCI-01-003).
+    """
 
     def run(_state: StoryState) -> None:
         log.append(name)
+        if fails:
+            with demo_step(f"{name} fails"):
+                raise AssertionError(f"{name} exploded")
 
     run.__name__ = name
     return run
@@ -227,14 +242,28 @@ class TestStoryState:
 
 
 class _FakeHarness:
-    """Records the step marks a story reports, in order."""
+    """Records the step marks a story reports, in order.
 
-    def __init__(self) -> None:
+    Writes them into the same list the fragments write to, so a test asserts
+    where each mark fell relative to the fragments around it — the property
+    ``run_story`` exists to guarantee, because it is what fixes the recorded
+    ``ledger_tail`` (DEMOCI-11-013).
+    """
+
+    def __init__(self, log: list[str] | None = None) -> None:
+        self.log: list[str] = [] if log is None else log
         self.marks: list[tuple[str, str, str]] = []
         self.demo_name = "rv"
+        self.refuse: str | None = None
 
     def reach_step(self, branch_point: str, choice: str, *, by: str) -> None:
+        if self.refuse == branch_point:
+            raise DemoScenarioStepError(
+                f"{branch_point} is decided by {by!r}, which is not a "
+                "participant in the case (DEMOCI-11-013)."
+            )
         self.marks.append((branch_point, choice, by))
+        self.log.append(f"mark:{branch_point}")
 
 
 @pytest.fixture
@@ -242,6 +271,7 @@ def fake_harness(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[_FakeHarness]:
     """Stand in for ``scenario_harness``, which needs a real case to check."""
+    reset_demo_failures()
     harness = _FakeHarness()
 
     @contextlib.contextmanager
@@ -250,6 +280,7 @@ def fake_harness(
 
     monkeypatch.setattr(story_module, "scenario_harness", stub)
     yield harness
+    reset_demo_failures()
 
 
 class TestRunStory:
@@ -257,8 +288,12 @@ class TestRunStory:
     def test_the_runner_marks_each_choice_as_it_passes_it(
         self, fake_harness: _FakeHarness
     ) -> None:
-        """No fragment places a reach_step: the runner emits every mark."""
-        log: list[str] = []
+        """No fragment places a reach_step: the runner emits every mark.
+
+        Asserted as one interleaved sequence: a runner that emitted every mark
+        first and then ran every fragment would satisfy two separate lists.
+        """
+        log = fake_harness.log
         state = _state(
             reporter=_session("urn:test:reporter"),
             vendor=_session("urn:test:vendor"),
@@ -266,7 +301,12 @@ class TestRunStory:
 
         run_story("rv", _rv_story(log), lambda _harness: state)
 
-        assert log == ["submit", "fix"]
+        assert log == [
+            "mark:reporter-whom-to-tell",
+            "submit",
+            "mark:vendor-after-answer",
+            "fix",
+        ]
         assert fake_harness.marks == [
             ("reporter-whom-to-tell", "vendor", "urn:test:reporter"),
             ("vendor-after-answer", "report-fix-ready", "urn:test:vendor"),
@@ -295,6 +335,54 @@ class TestRunStory:
         with pytest.raises(DemoStoryError, match="does not seat"):
             run_story("rv", _rv_story(), lambda _harness: state)
         assert fake_harness.marks == []
+
+    @pytest.mark.spec("DEMOCI-11-013")
+    def test_a_mis_declared_step_raises_on_a_run_that_had_not_failed(
+        self, fake_harness: _FakeHarness
+    ) -> None:
+        """A declaration defect is not a soft failure to be blessed later."""
+        fake_harness.refuse = "vendor-after-answer"
+        state = _state(
+            reporter=_session("urn:test:reporter"),
+            vendor=_session("urn:test:vendor"),
+        )
+        with pytest.raises(DemoScenarioStepError, match="not a"):
+            run_story("rv", _rv_story(), lambda _harness: state)
+
+    @pytest.mark.spec("DEMOCI-01-003")
+    @pytest.mark.spec("EDF-06-005")
+    def test_a_mark_that_an_earlier_failure_broke_stops_the_story(
+        self, fake_harness: _FakeHarness
+    ) -> None:
+        """The failed act is the headline, not the role it never granted.
+
+        The invite trigger failing is the case this exists for: no inert
+        participant is seated, so the Vendor's mark cannot read its role.
+        Reporting that as the cause would misattribute a transport failure to
+        a declaration defect, and raising it would bury the real one.
+        """
+        log = fake_harness.log
+        fake_harness.refuse = "vendor-after-answer"
+        state = _state(
+            reporter=_session("urn:test:reporter"),
+            vendor=_session("urn:test:vendor"),
+        )
+        plot = story(
+            choose("reporter-whom-to-tell", "vendor", by="reporter"),
+            _fragment("submit", log, fails=True),
+            choose("vendor-after-answer", "report-fix-ready", by="vendor"),
+            _fragment("fix", log),
+        )
+
+        run_story("rv", plot, lambda _harness: state)
+
+        assert log == ["mark:reporter-whom-to-tell", "submit"], (
+            "the story ran on past the mark it could not make"
+        )
+        failures = demo_failures()
+        assert len(failures) == 2
+        assert "submit fails" in failures[0]
+        assert "reaches vendor-after-answer" in failures[1]
 
 
 # ---------------------------------------------------------------------------

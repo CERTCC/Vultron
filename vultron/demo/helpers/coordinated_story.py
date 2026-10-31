@@ -44,8 +44,11 @@ from vultron.demo.helpers.actor_roles import ActorRole
 from vultron.demo.helpers.cast import CASE_ACTOR
 from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
 from vultron.demo.helpers.coordinated_case import (
+    CROSS_CONTAINER_TIMEOUT,
+    await_reporter_case_replica,
     everyone_closes_case,
     everyone_reports_published,
+    invitee_triages_after_joining,
     open_coordinated_case,
     vendor_reports_fix_ready,
 )
@@ -62,9 +65,7 @@ from vultron.demo.helpers.notes import (
     reporter_asks_vendor_timeline,
 )
 from vultron.demo.helpers.polling import (
-    PARTICIPANT_JOIN_TIMEOUT,
     wait_for_case_em_terminated,
-    wait_for_case_on_container,
     wait_for_case_participants,
     wait_for_participant_rm_state,
     wait_for_semantic_type_in_ledger,
@@ -78,7 +79,6 @@ from vultron.demo.helpers.seeding import (
 from vultron.demo.helpers.story import StoryState, choose, story
 from vultron.demo.helpers.sync import run_sync_verification_phase
 from vultron.demo.helpers.verification import _check_participant_rm_state_in
-from vultron.demo.helpers.workflow import run_invite_path_rm_triage
 from vultron.demo.utils import (
     DataLayerClient,
     bound_case_actor_client,
@@ -108,10 +108,6 @@ VENDOR_LABEL = "Vendor"
 #: What the scenarios of this family call the dedicated CaseActor container in
 #: their ``ROLES``: the cast slot's own name.
 CASE_ACTOR_NAME = CASE_ACTOR.name
-
-#: Seconds the Invite, the replicas and the join gates may take.  One value
-#: because the three scenarios that share this opening all used it.
-_CROSS_CONTAINER_TIMEOUT = 20.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -313,7 +309,7 @@ def coordinator_invites_vendor(state: StoryState) -> None:
                 role=CVDRole.VENDOR,
             ),
             case_manager_client=state.case_actor_client,
-            invite_timeout=_CROSS_CONTAINER_TIMEOUT,
+            invite_timeout=CROSS_CONTAINER_TIMEOUT,
         ),
     )
 
@@ -334,19 +330,19 @@ COORDINATOR_INVITES_VENDOR = story(
 def vendor_accepts_and_joins(state: StoryState) -> None:
     """The Vendor accepts the Invite, takes its replica and triages the report.
 
-    CM-11-002: an invitee that joined by accepting runs its RM triage.  The
-    Reporter must hold the case replica first: the Vendor's reply to the
-    full-case Invite broadcasts ``Announce(CaseLedgerEntry)`` to every
-    participant, and a Reporter without the case has no genesis hash to anchor
-    the chain on (CLP-08-005, Bug #2135).
+    The composed form of :func:`~vultron.demo.helpers.coordinated_case
+    .vendor_joins_coordinated_case`\'s second half: the same
+    :func:`~vultron.demo.helpers.coordinated_case.await_reporter_case_replica`
+    gate (CLP-08-005, Bug #2135), the chain\'s answer, and the same
+    :func:`~vultron.demo.helpers.coordinated_case
+    .invitee_triages_after_joining` tail (CM-11-002).  Only the Invite\'s
+    delivery, which a story places before the Vendor\'s branch point, sits
+    outside it.
     """
     vendor = state.actor(VENDOR).actor
-    with demo_check("Reporter's DataLayer received case replica"):
-        wait_for_case_on_container(
-            client=state.client(REPORTER),
-            case_id=state.case.id_,
-            timeout_seconds=_CROSS_CONTAINER_TIMEOUT,
-        )
+    await_reporter_case_replica(
+        reporter_client=state.client(REPORTER), case=state.case
+    )
 
     answer_case_invite(
         invite_id=state.delivered_invite(VENDOR),
@@ -356,40 +352,27 @@ def vendor_accepts_and_joins(state: StoryState) -> None:
         invitee=vendor,
         invitee_in_own_container=vendor,
         respond="accept",
-        replica_timeout=_CROSS_CONTAINER_TIMEOUT,
+        replica_timeout=CROSS_CONTAINER_TIMEOUT,
         authority_client=state.case_actor_client,
     )
 
-    # All participants present is the causal precondition for the Vendor's RM
-    # triage: a demo_gate, not demo_check, so a timeout skips the doomed
-    # triage rather than cascading (DEMOCI-01-011, vultron/demo/AGENTS.md
-    # § "Never Wrap a Causal Wait in demo_check").
-    with demo_gate(
-        f"Coordinator case has {VENDOR_LABEL} before {VENDOR_LABEL} RM triage"
-    ):
-        wait_for_case_participants(
-            vendor_client=state.client(COORDINATOR),
-            case_id=state.case.id_,
-            expected_actor_ids={
-                state.actor_id(REPORTER),
-                state.actor_id(COORDINATOR),
-                state.actor_id(VENDOR),
-            },
-            timeout_seconds=PARTICIPANT_JOIN_TIMEOUT,
-        )
-        logger.info("✓ M2: %s joined case", VENDOR_LABEL)
-
-        run_invite_path_rm_triage(
-            invited_client=state.client(VENDOR),
-            invited_actor=vendor,
-            offer=state.offer,
-            report=state.report,
-            reporter=state.actor(REPORTER).actor,
-            auth_client=state.case_actor_client,
-            case=state.case,
-            invited_obj=vendor,
-            timeout_seconds=_CROSS_CONTAINER_TIMEOUT,
-        )
+    invitee_triages_after_joining(
+        invitee_name=VENDOR_LABEL,
+        invitee_client=state.client(VENDOR),
+        invitee=vendor,
+        invitee_in_own_container=vendor,
+        roster_client=state.client(COORDINATOR),
+        expected_actor_ids={
+            state.actor_id(REPORTER),
+            state.actor_id(COORDINATOR),
+            state.actor_id(VENDOR),
+        },
+        reporter=state.actor(REPORTER).actor,
+        report=state.report,
+        offer=state.offer,
+        case=state.case,
+        case_actor_client=state.case_actor_client,
+    )
 
 
 def vendor_rejects_invite(state: StoryState) -> None:

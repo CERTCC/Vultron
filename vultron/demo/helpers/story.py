@@ -62,7 +62,7 @@ from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.harness import ScenarioHarness, scenario_harness
 from vultron.demo.scenario.branch_points import validate_path
 from vultron.demo.scenario.tree import PathStep
-from vultron.demo.utils import DataLayerClient
+from vultron.demo.utils import DataLayerClient, demo_failures, demo_gate
 from vultron.errors import DemoStoryError
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -395,7 +395,8 @@ def run_story(
         DemoFailureError: When the story completed with recorded failures.
         DemoScenarioStepError: When a choice is not the next step of the
             scenario's declared path, or its actor does not hold the branch
-            point's role.
+            point's role on a run that had not already failed
+            (:func:`_mark_step`).
         DemoStoryError: When a fragment reads an artifact no earlier fragment
             produced.
     """
@@ -403,13 +404,63 @@ def run_story(
         state = open_cast(harness)
         for item in plot.items:
             if isinstance(item, Choose):
-                harness.reach_step(
-                    item.branch_point,
-                    item.choice,
-                    by=state.actor_id(item.by),
-                )
+                if not _mark_step(harness, state, item):
+                    return
                 continue
+            logger.debug("%s runs %s", name, getattr(item, "__name__", item))
             item(state)
+
+
+def _mark_step(
+    harness: ScenarioHarness, state: StoryState, item: Choose
+) -> bool:
+    """Record *item*'s step mark; return whether the story may go on.
+
+    A step's role is read from the canonical case (DEMOCI-11-013), so a
+    decision cannot be checked when the act that granted the role failed: an
+    invitee holds the role of an Invite that was never sent no more than it
+    holds any other.  A mark is therefore a dependent step like any other, and
+    on a run that has already recorded a failure it is reported the way a
+    dependent step is — inside a ``demo_gate``, recorded and never raised, and
+    the story stops there so the first failure stays the headline
+    (DEMOCI-01-003, EDF-06-005).  The whole chain nested the same way before
+    the stories were composed: the invitee's mark sat inside the Invite's
+    delivery gate, so a failed invite skipped it with the answer.
+
+    On a run with nothing recorded, the mark raises: then the step really is
+    mis-declared, and a declaration defect must not be reported as a soft
+    failure the next regeneration could bless.
+
+    Args:
+        harness: The run's harness, which checks and records the mark.
+        state: The story's state, which names the deciding actor.
+        item: The choice being passed.
+
+    Returns:
+        Whether the mark was made, and so whether the story continues.
+    """
+    step = f"{item.branch_point}:{item.choice}"
+    if not demo_failures():
+        harness.reach_step(
+            item.branch_point, item.choice, by=state.actor_id(item.by)
+        )
+        return True
+    marked = False
+    with demo_gate(
+        f"{harness.demo_name} reaches {step} after an earlier failure"
+    ):
+        harness.reach_step(
+            item.branch_point, item.choice, by=state.actor_id(item.by)
+        )
+        marked = True
+    if not marked:
+        logger.error(
+            "%s cannot reach %s after an earlier failure; stopping the story "
+            "so the first failure stays the headline",
+            harness.demo_name,
+            step,
+        )
+    return marked
 
 
 __all__ = [

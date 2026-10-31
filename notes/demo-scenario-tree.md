@@ -37,6 +37,7 @@ related_notes:
   - notes/demo-scenario-authoring.md
   - notes/demo-future-ideas.md
 relevant_packages:
+  - vultron/demo/helpers
   - vultron/demo/scenario
   - vultron/demo/recordings
   - vultron/metadata/demo_scenarios
@@ -196,6 +197,16 @@ and then `path=` and the hand-placed `reach_step` go (#5537).
   between them, and why `StoryState.delivered_invite` may hand back `None`:
   the answer owns the skip in its own gate, as the whole chain does
   (EDF-06-005).
+- **A mark is a dependent step too.** A choose placed after an act reads its
+  actor's role from what that act wrote, so a failed act leaves the mark
+  unmakeable — a failed invite *trigger* seats no inert participant, and the
+  Vendor then holds no role to check. `_mark_step` therefore marks inside a
+  `demo_gate` and stops the story when the run has already recorded a failure,
+  so the failed act stays the headline instead of being reported as a role
+  defect; with a clean accumulator the mark still raises, because then the
+  declaration really is wrong (DEMOCI-01-003, EDF-06-005). The hand-placed
+  form got this from nesting: the invitee's mark sat inside the Invite's
+  delivery gate.
 - **Clear process-global registries between runs.** One seed means the second
   scenario in a process redraws the first one's ids, so a runner that plays
   more than one story must reset them — `reset_blackboard()` is the one that
