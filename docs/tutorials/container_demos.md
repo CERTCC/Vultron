@@ -102,7 +102,8 @@ A scenario that seats no Coordinator leaves `actor2` idle: `rv` runs a Reporter 
 Their CVD role comes from the act that brings them into the case — the role the invitation offers them — and not from any container setting.
 That is why one container can be a Vendor in one scenario and a Coordinator in another.
 
-Fixing the cast this way lets any pair of scenarios that start the same way record the same bytes for their shared opening.
+Fixing the cast this way makes identical bytes possible for a shared opening.
+Two scenarios record them when they also tell that opening from one copy of the code, which is what `rcv` and `rcv-reject` now do.
 That is how the demo tooling proves a branch point is the only place a pair of them differ.
 
 ---
