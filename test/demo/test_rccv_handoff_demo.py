@@ -544,12 +544,17 @@ class TestEveryonePublishes:
         state = _four_party_state()
         order: list[str] = []
 
+        def name_of(client: object) -> str:
+            return devlogs_name_of(
+                state, client, two_coordinator_story.DEVLOG_REPLICAS
+            )
+
         with (
             patch.object(
                 two_coordinator_story,
                 "wait_for_case_em_terminated",
                 side_effect=lambda client, case_id: order.append(
-                    f"em_exited:{devlogs_name_of(state, client, two_coordinator_story.DEVLOG_REPLICAS)}"
+                    f"em_exited:{name_of(client)}"
                 ),
             ),
             patch.object(
@@ -561,7 +566,7 @@ class TestEveryonePublishes:
                 "notify_published",
                 autospec=True,
                 side_effect=lambda session: order.append(
-                    f"published:{devlogs_name_of(state, session.client, two_coordinator_story.DEVLOG_REPLICAS)}"
+                    f"published:{name_of(session.client)}"
                 ),
             ),
             _no_banners(),
@@ -1001,7 +1006,16 @@ class TestARosterThatNeverFillsSkipsTheTransfer:
 
     @contextlib.contextmanager
     def _roster(self, *, fills: bool):
-        """Run the join with its roster filling or timing out."""
+        """Run the join with its roster filling or timing out.
+
+        The roster gate in ``coordinated_story`` and the prop read in
+        ``owner_decision_story`` are the subject, so both stay real.  Every
+        poll *after* the transfer trigger is stubbed: left real they would
+        each spend the whole ``OWNER_DECISION_TIMEOUT`` against a
+        ``MagicMock`` store, which buys no assertion and puts the test over
+        the unit tier's ceiling (``test/AGENTS.md`` § "Timeouts Are
+        Two-Tier").
+        """
         with (
             patch.object(coordinated_story, "wait_for_case_on_container"),
             patch.object(
@@ -1020,6 +1034,18 @@ class TestARosterThatNeverFillsSkipsTheTransfer:
                 coordinated_story,
                 "demo_step",
                 side_effect=lambda _: contextlib.nullcontext(),
+            ),
+            patch.object(
+                owner_decision_story,
+                "find_ownership_transfer_offer_for_actor",
+                return_value="urn:test:offer",
+            ),
+            patch.object(
+                owner_decision_story, "wait_for_case_actor_ledger_event"
+            ),
+            patch.object(owner_decision_story, "wait_for_case_attributed_to"),
+            patch.object(
+                owner_decision_story, "wait_for_semantic_type_in_ledger"
             ),
             patch.object(
                 ActorSession, "offer_case_ownership_transfer", autospec=True

@@ -93,8 +93,13 @@ def _fresh_failures():
 
 @contextlib.contextmanager
 def _no_banners():
-    """Every module a fragment of this scenario reaches, patched once."""
-    with no_demo_banners(pair, coordinated_story, owner_decision_story):
+    """Every module a fragment of this pair reaches, patched once.
+
+    ``owner_decision_story`` is not among them: this pair's module takes
+    only ``Part`` and a timeout from it, so no fragment under test opens a
+    banner there (``test_owner_decision_story.py`` owns those).
+    """
+    with no_demo_banners(pair, coordinated_story):
         yield
 
 
@@ -778,6 +783,79 @@ class TestAllFourPublish:
 # ---------------------------------------------------------------------------
 
 
+def _pair_cast_references() -> frozenset[str]:
+    """Every way this pair's cast could be named in another module.
+
+    Derived from the pair module, so a new ``Part`` joins the check with no
+    edit here: the constant's own identifier, plus the name and the label it
+    carries, which are the same hard-wiring written out as literals.
+    """
+    references: set[str] = set()
+    for attribute, value in vars(pair).items():
+        if isinstance(value, Part):
+            references |= {attribute, value.name, value.label}
+    return frozenset(references)
+
+
+_PAIR_CAST_REFERENCES = _pair_cast_references()
+
+
+def _continuations_source() -> str:
+    """The source of the shared continuations, read as written."""
+    source = owner_decision_story.__file__
+    assert source is not None
+    return pathlib.Path(source).read_text(encoding="utf-8")
+
+
+def _cast_references(source: str) -> tuple[set[str], set[str]]:
+    """The modules *source* imports, and every name it could name a cast by.
+
+    Docstrings are excluded from the literals: a continuation may describe
+    the pair it serves in prose without being wired to it.
+    """
+    import ast
+
+    tree = ast.parse(source)
+    imported = {
+        node.module
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module
+    } | {
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+    }
+    docstrings = {
+        id(node.body[0].value)
+        for node in ast.walk(tree)
+        if isinstance(
+            node,
+            (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef),
+        )
+        and node.body
+        and isinstance(node.body[0], ast.Expr)
+        and isinstance(node.body[0].value, ast.Constant)
+        and isinstance(node.body[0].value.value, str)
+    }
+    referenced = (
+        {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
+        | {
+            node.attr
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Attribute)
+        }
+        | {
+            node.value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and id(node) not in docstrings
+        }
+    )
+    return imported, referenced
+
+
 class TestTheOwnerDecisionParts:
     """The pair names its parts; the continuations take them as data.
 
@@ -799,34 +877,46 @@ class TestTheOwnerDecisionParts:
         ``C1_PART`` could not serve the vendor-first pair, whose owner is a
         Vendor (#5535 AC-2).
         """
-        import ast
-
-        import vultron.demo.helpers.owner_decision_story as continuations
-
-        source = continuations.__file__
-        assert source is not None
-        tree = ast.parse(pathlib.Path(source).read_text(encoding="utf-8"))
-        imported = {
-            node.module
-            for node in ast.walk(tree)
-            if isinstance(node, ast.ImportFrom) and node.module
-        } | {
-            alias.name
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Import)
-            for alias in node.names
-        }
+        imported, referenced = _cast_references(_continuations_source())
+        # An absence proves nothing unless the walk found something: an empty
+        # set satisfies every assertion below, so pin both non-empty first
+        # (notes/architecture-ratchet-corpus.md, #5595).
+        assert imported, "the import walk found nothing — the check is vacuous"
+        assert referenced, "the name walk found nothing — the check is vacuous"
         assert pair.__name__ not in imported, (
             f"{pair.__name__} imported by owner_decision_story would"
             " hard-wire the two-coordinator cast into a continuation the"
             " vendor-first half reuses (#5535 AC-2)"
         )
-        # Nor may it name this pair's own parts by any other route.
-        names = {
-            node.id for node in ast.walk(tree) if isinstance(node, ast.Name)
-        } | {
-            node.attr
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Attribute)
+        # Nor may it name this pair's cast by any other route — through the
+        # pair's constants, or by writing the same name or label out as a
+        # literal, which is the same hard-wiring with the identifier removed.
+        assert not referenced & _PAIR_CAST_REFERENCES, (
+            "owner_decision_story names this pair's cast"
+            f" ({sorted(referenced & _PAIR_CAST_REFERENCES)}), so it could"
+            " not serve the vendor-first pair, whose owner is a Vendor"
+            " (#5535 AC-2)"
+        )
+
+    def test_the_cast_check_flags_a_planted_reference(self):
+        """The positive control for the check above.
+
+        A check that asserts an absence is only worth what its walk can see,
+        so plant each evasion the blacklist form missed and assert the walk
+        catches it: the pair's constant, an aliased module attribute, and the
+        cast written out as a literal (#5595).
+        """
+        plants = {
+            "import": "from vultron.demo.helpers.two_coordinator_story"
+            " import C1_PART\nOWNER = C1_PART\n",
+            "attribute": "from vultron.demo.helpers import"
+            " two_coordinator_story as p\nOWNER = p.C2_PART\n",
+            "literal name": 'OWNER = Part("c2", "Newcomer")\n',
+            "literal label": 'OWNER = Part("newcomer", "C2")\n',
         }
-        assert not names & {"C1_PART", "C2_PART", "C1_LABEL", "C2_LABEL"}
+        for shape, source in plants.items():
+            _, referenced = _cast_references(source)
+            assert referenced & _PAIR_CAST_REFERENCES, (
+                f"the cast check misses a {shape} plant, so its absence"
+                " assertion proves less than it claims"
+            )

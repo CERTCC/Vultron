@@ -236,16 +236,16 @@ vendor-first half follows (#5536) and then `path=` and the hand-placed
   that step. Name a prefix for every shared stretch, and **nest them**, each
   built from the one before: assembling siblings from fragments alone lets one
   of them slip in a step before the branch point. The coordinator-first
-  subtree's six are `REPORTER_TELLS_THE_COORDINATOR` ⊂
+  subtree's named prefixes are `REPORTER_TELLS_THE_COORDINATOR` ⊂
   `COORDINATOR_INVITES_VENDOR` ⊂ `VENDOR_JOINS_THE_CASE` ⊂
   `REPORTER_ASKS_THE_VENDOR` (`coordinated_story.py`),
   `VENDOR_JOINS_THE_CASE` ⊂ `REPORTER_PROPOSES_EMBARGO`
   (`coordinated_embargo_story.py`) and `REPORTER_TELLS_THE_COORDINATOR` ⊂
   `C1_INVITES_C2` (`two_coordinator_story.py`), one per branch point the
   subtree parts at. The root one is the report submission and the owner's
-  triage, which all seven tell identically, so a sub-family that parts earlier
-  than its siblings splits the shortest prefix rather than writing a second
-  copy of the opening (#5535).
+  triage, which every coordinator-first scenario tells identically, so a
+  sub-family that parts earlier than its siblings splits the shortest prefix
+  rather than writing a second copy of the opening (#5535).
 - **A decision both halves make gets its own module, not a family's.** The
   owner-keep-case choice — keep the case and approve the joiner's suggestion,
   or hand the case over and let the new owner invite — appears in the
@@ -322,11 +322,11 @@ vendor-first half follows (#5536) and then `path=` and the hand-placed
   read the clock, so where a poll or a verification sits does not matter; how
   many actor and peer records are written before `create_case` does. Seeding
   the character actors in the step that invites them, after the branch point,
-  took both offsets to zero and made all ten pairs of the five-scenario family
+  took both offsets to zero and made every checked pair of that family
   byte-identical. The two-coordinator pair came in the same way: its C2 is a
   character actor, so its opening seeds the same three containers `rcv`'s
-  does, and every checked pair of the seven-scenario coordinator-first
-  subtree is byte-identical (#5535). A family joins `COMPOSED_FAMILIES` when
+  does, and every checked pair of the coordinator-first subtree is
+  byte-identical (#5535). A family joins `COMPOSED_FAMILIES` when
   its scenarios share one authored opening *and* that opening writes the same
   records in every one of them (DEMOCI-11-018).
 - **A shared prefix that runs past the embargo activation is not checkable

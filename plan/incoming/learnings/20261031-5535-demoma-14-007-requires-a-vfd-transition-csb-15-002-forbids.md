@@ -59,3 +59,8 @@ DEMOMA-11-006 both oblige "VFDPxa CS", and their Vendor2 is invited as
 Do not resolve it inside a composition PR: DEMOMA-17-002 forbids a
 consolidation from changing what a scenario passes or fails on, and either
 resolution does one or the other. It needs its own change with its own issue.
+That record is on open issue
+[#5351](https://github.com/CERTCC/Vultron/issues/5351), the register for demo
+requirements that contradict other requirements, which already carries
+DEMOMA-15-002's rationale naming the same stop. `learn` settles which of the
+two resolutions to take; #5351 tracks the work either one implies.

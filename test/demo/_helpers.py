@@ -174,16 +174,7 @@ def no_demo_banners(*modules: ModuleType) -> Iterator[None]:
     """
     with contextlib.ExitStack() as stack:
         for module in modules:
-            for name in ("demo_gate", "demo_check", "demo_step"):
-                if not hasattr(module, name):
-                    continue
-                stack.enter_context(
-                    patch.object(
-                        module,
-                        name,
-                        side_effect=lambda _: contextlib.nullcontext(),
-                    )
-                )
+            null_demo_contexts(stack, module)
         yield
 
 
@@ -781,8 +772,13 @@ def null_demo_contexts(stack: contextlib.ExitStack, demo: ModuleType) -> None:
 
     For call-shape tests that observe which client a scenario hands a helper,
     never gate control flow (``test_demo_context_managers.py`` covers that).
+    A module imports only the names it uses, so a name it never opens is
+    skipped rather than patched into existence.  :func:`no_demo_banners` is
+    this over several modules, as its own context manager.
     """
     for name in ("demo_gate", "demo_check", "demo_step"):
+        if not hasattr(demo, name):
+            continue
         stack.enter_context(
             patch.object(
                 demo, name, side_effect=lambda _: contextlib.nullcontext()

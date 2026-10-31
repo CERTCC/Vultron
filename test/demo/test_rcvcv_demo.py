@@ -45,6 +45,7 @@ from click.testing import CliRunner
 import vultron.demo.scenario.rcvcv_demo as demo
 import vultron.demo.utils as demo_utils
 from test.demo._helpers import (
+    devlogs_name_of,
     functions_referencing,
     mock_actor,
     mock_case,
@@ -1309,12 +1310,16 @@ class TestV1PublishesThenTheOthers:
 
     def _run(self, state):
         order: list[str] = []
+
+        def name_of(client: object) -> str:
+            return devlogs_name_of(state, client, demo.DEVLOG_REPLICAS)
+
         with (
             patch.object(
                 demo,
                 "wait_for_case_em_terminated",
                 side_effect=lambda client, case_id: order.append(
-                    f"em_exited:{_client_name(state, client)}"
+                    f"em_exited:{name_of(client)}"
                 ),
             ),
             patch.object(demo, "wait_for_participant_vf_state"),
@@ -1374,14 +1379,6 @@ class TestV1PublishesThenTheOthers:
         assert disclosed.call_args.kwargs[
             "receiver_actor_id"
         ] == state.actor_id(demo.C1)
-
-
-def _client_name(state, client) -> str:
-    """The devlogs name of the cast member *client* belongs to."""
-    for devlogs_name, member in demo.DEVLOG_REPLICAS:
-        if state.client(member) is client:
-            return devlogs_name
-    return "unknown"
 
 
 # ---------------------------------------------------------------------------

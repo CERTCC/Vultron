@@ -41,7 +41,7 @@ flow and are stubbed to ``nullcontext`` only where it is about call shape
 """
 
 import contextlib
-from typing import Any
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -63,6 +63,7 @@ from vultron.demo.cli import main as cli_main
 from vultron.demo.helpers import (
     coordinated_story,
     owner_decision_story,
+    story as story_module,
     two_coordinator_story,
 )
 from vultron.demo.helpers.coordinated_story import (
@@ -76,7 +77,13 @@ from vultron.demo.helpers.notes import (
     WORKAROUND_QUESTION,
 )
 from vultron.demo.helpers.owner_decision_story import Part
-from vultron.demo.helpers.story import Choose, UnseatedContainer, choose
+from vultron.demo.helpers.story import (
+    Choose,
+    UnseatedContainer,
+    choose,
+    run_story,
+    story,
+)
 from vultron.demo.helpers.two_coordinator_story import (
     C1_INVITES_C2,
     SECOND_COORDINATOR_JOINED,
@@ -84,6 +91,7 @@ from vultron.demo.helpers.two_coordinator_story import (
 from vultron.demo.scenario.registry import registered_scenarios
 from vultron.demo.utils import reset_demo_failures
 from vultron.enums.roles import CVDRole
+from vultron.errors import DemoStoryError
 
 #: The scenario's four cast names, in ``ROLES`` order.
 _CAST = (REPORTER, demo.C1, demo.C2, VENDOR)
@@ -568,7 +576,7 @@ class TestRccvExtensionDedicatedCaseActor:
             mock_actor(f"urn:test:{name}")
             for name in (REPORTER, demo.C1, VENDOR)
         ]
-        captured: dict[str, Any] = {}
+        captured = SimpleNamespace()
 
         with (
             patch.object(demo, "run_story") as run_story,
@@ -603,8 +611,8 @@ class TestRccvExtensionDedicatedCaseActor:
                 c2_id="urn:test:c2",
                 vendor_id="urn:test:vendor",
             )
-            captured["state"] = run_story.call_args.args[2](MagicMock())
-            captured["run_story"] = run_story
+            captured.state = run_story.call_args.args[2](MagicMock())
+            captured.run_story = run_story
         return captured, reset, reseed, seed_three, seed_four
 
     @pytest.mark.spec("DEMOMA-01-003")
@@ -653,7 +661,7 @@ class TestRccvExtensionDedicatedCaseActor:
         assert seeding["vendor_client"] is clients[VENDOR]
         seed_four.assert_not_called()
 
-        state = captured["state"]
+        state = captured.state
         assert sorted(state.cast) == sorted([REPORTER, demo.C1, VENDOR])
         assert sorted(state.unseated) == [demo.C2]
         assert state.container(demo.C2).client is clients[demo.C2]
@@ -665,7 +673,7 @@ class TestRccvExtensionDedicatedCaseActor:
 
         captured, _, _, _, _ = self._open_the_cast(clients, mock_client())
 
-        run_story = captured["run_story"]
+        run_story = captured.run_story
         assert run_story.call_args.args[0] == "rccv-extension"
         assert run_story.call_args.args[1] is demo.STORY
 
@@ -914,3 +922,116 @@ class TestReplicasDrainBeforeTheVendor:
         assert "http://c1.test/api/v2" in failure
         assert "opening drain before the Vendor joins" in failure
         assert "holds no CaseLedgerEntry" in failure
+
+
+# ---------------------------------------------------------------------------
+# A roster that never fills stops the keep continuation too (#5535)
+# ---------------------------------------------------------------------------
+
+
+class TestARosterThatNeverFillsSkipsTheSuggestion:
+    """The keep side of the guarantee nesting used to give (#5535).
+
+    ``test_rccv_handoff_demo.py`` drives the same chain for the
+    ``offer-ownership`` continuation.  Both branches of ``owner-keep-case``
+    read the same prop, so both are driven through the real ``run_story``,
+    the real ``demo_gate`` and the real fragments: a test of the read alone
+    is what let the guarantee go missing in the first place.
+    """
+
+    @pytest.fixture
+    def marks(self, monkeypatch):
+        """Stand in for ``scenario_harness``, which needs a real case."""
+        reset_demo_failures()
+        harness = MagicMock()
+        harness.demo_name = "rccv-extension"
+
+        @contextlib.contextmanager
+        def stub(_demo_name: str):
+            yield harness
+
+        monkeypatch.setattr(story_module, "scenario_harness", stub)
+        yield harness
+        reset_demo_failures()
+
+    @contextlib.contextmanager
+    def _roster(self, *, fills: bool):
+        """Run the join with its roster filling or timing out.
+
+        The roster gate in ``coordinated_story`` and the prop read in
+        ``owner_decision_story`` are the subject, so both stay real.  Every
+        poll after the suggestion trigger is stubbed: left real each would
+        spend the whole ``OWNER_DECISION_TIMEOUT`` against a ``MagicMock``
+        store and buy no assertion.
+        """
+        with (
+            patch.object(coordinated_story, "wait_for_case_on_container"),
+            patch.object(
+                coordinated_story,
+                "run_case_invite_chain",
+                side_effect=lambda **kw: kw["then"] and kw["then"](),
+            ),
+            patch.object(
+                coordinated_story,
+                "wait_for_case_participants",
+                side_effect=None
+                if fills
+                else AssertionError("roster never filled"),
+            ),
+            patch.object(
+                coordinated_story,
+                "demo_step",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+            patch.object(
+                owner_decision_story,
+                "find_cp_offer_for_case",
+                return_value="urn:test:cp-offer",
+            ),
+            patch.object(owner_decision_story, "run_case_invite_chain"),
+            patch.object(
+                owner_decision_story, "invitee_triages_after_joining"
+            ),
+            patch.object(
+                ActorSession, "suggest_actor_to_case", autospec=True
+            ) as suggest,
+        ):
+            yield suggest
+
+    def _play(self, state) -> None:
+        run_story(
+            "rccv-extension",
+            story(
+                two_coordinator_story.c1_invites_c2,
+                demo.c2_suggests_the_vendor,
+            ),
+            lambda _harness: state,
+        )
+
+    def test_a_timed_out_roster_leaves_the_vendor_unsuggested(self, marks):
+        """The suggest trigger never runs, and the roster is the one failure."""
+        state = story_state(
+            REPORTER, demo.C1, demo.C2, VENDOR, case=mock_case()
+        )
+
+        with self._roster(fills=False) as suggest:
+            self._play(state)
+
+        suggest.assert_not_called()
+        with pytest.raises(
+            DemoStoryError, match="no case the second Coordinator joined"
+        ):
+            state.kept(SECOND_COORDINATOR_JOINED)
+
+    def test_a_filled_roster_lets_the_suggestion_run(self, marks):
+        """The counterpart, so the test above is not vacuous."""
+        state = story_state(
+            REPORTER, demo.C1, demo.C2, VENDOR, case=mock_case()
+        )
+
+        with self._roster(fills=True) as suggest:
+            self._play(state)
+
+        assert state.kept(SECOND_COORDINATOR_JOINED) == str(state.case.id_)
+        suggest.assert_called_once()
+        assert suggest.call_args.args[0].client is state.client(demo.C2)

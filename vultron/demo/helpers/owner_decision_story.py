@@ -316,17 +316,19 @@ def the_owner_hands_the_case_over(
     fan-out being slow rather than as the transfer never having happened
     (EDF-06-002, #3602).
 
-    Reads *joined* first: the transferee must be an active participant
-    already (DEMOMA-14-010, CM-21-021), so a join whose roster never filled
-    stops the story here rather than offering the case to an actor that is
-    not in it.  Before composition the whole offer and accept nested inside
-    that roster's own ``demo_gate``; the prop is what carries the guarantee
-    through a flat sequence (DEMOCI-01-011, #5535).
+    Reads *joined* before any act: the transferee must be an active
+    participant already (DEMOMA-14-010, CM-21-021), so a join whose roster
+    never filled stops the story here rather than offering the case to an
+    actor that is not in it.  Before composition the whole offer and accept
+    nested inside that roster's own ``demo_gate``; the prop is what carries
+    the guarantee through a flat sequence (DEMOCI-01-011, #5535).  Only the
+    *witness* check runs ahead of it, and it reads nothing and writes
+    nothing; no statement with an effect may go before the read.
 
     Args:
         state: The running story's state.
-        joined: The prop the transferee's roster gate kept, read before
-            anything else runs.
+        joined: The prop the transferee's roster gate kept, read before any
+            act of this fragment.
         owner: The Case Owner handing the case over.
         new_owner: The participant taking it; it must hold the case's
             coordinating role and be an active participant already

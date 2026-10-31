@@ -52,6 +52,7 @@ from test.demo._helpers import (
     mock_actor,
     mock_case,
     mock_client,
+    no_demo_banners,
     patch_chain_shared,
     story_state,
 )
@@ -129,25 +130,6 @@ def _fresh_failures():
 
 
 @contextlib.contextmanager
-def _no_banners():
-    """Make the fragments' own context managers pass-through.
-
-    The tests that use it observe call parameters and ordering, not gate
-    control flow.
-    """
-    with contextlib.ExitStack() as stack:
-        for name in ("demo_gate", "demo_check", "demo_step"):
-            stack.enter_context(
-                patch.object(
-                    coordinated_story,
-                    name,
-                    side_effect=lambda _: contextlib.nullcontext(),
-                )
-            )
-        yield
-
-
-@contextlib.contextmanager
 def _join_stubs() -> Iterator[SimpleNamespace]:
     """Stub every collaborator of ``invitee_joins_the_case``.
 
@@ -161,7 +143,7 @@ def _join_stubs() -> Iterator[SimpleNamespace]:
             coordinated_story, "wait_for_case_participants"
         ) as roster,
         patch.object(coordinated_story, "run_invite_path_rm_triage") as triage,
-        _no_banners(),
+        no_demo_banners(coordinated_story),
     ):
         yield SimpleNamespace(chain=chain, roster=roster, triage=triage)
 
@@ -976,7 +958,7 @@ class TestReporterCaseReplicaWaitBeforeVendorTriage:
             patch.object(ActorSession, "accept_case_invite"),
             patch.object(invite_chain, "reply_to_full_case_invite"),
             patch.object(coordinated_story, "wait_for_case_participants"),
-            _no_banners(),
+            no_demo_banners(coordinated_story),
         ):
             vendor_accepts_and_joins(state)
 
@@ -1028,7 +1010,7 @@ class TestVendorAcceptsAndJoins:
             patch.object(ActorSession, "accept_case_invite"),
             patch.object(invite_chain, "reply_to_full_case_invite") as reply,
             patch.object(coordinated_story, "wait_for_case_participants"),
-            _no_banners(),
+            no_demo_banners(coordinated_story),
         ):
             vendor_accepts_and_joins(state)
 

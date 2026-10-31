@@ -105,7 +105,7 @@ A guard on "the subject set is non-empty" is not enough for the same reason:
 it cannot tell one subject from two. A ratchet whose subjects come in known
 shapes asserts that **each shape is still found** — as
 `test_demo_scenario_waits_in_demo_context.py` does for its `_phase_*` and
-story-fragment arms — so retiring an arm is a deliberate edit (DF-09-007).
+story-fragment arms — so retiring an arm is a deliberate edit (#5535).
 
 ## Check a Ratchet's Goal State Against the Spec Corpus Before Adding the `xfail`
 

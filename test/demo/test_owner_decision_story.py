@@ -59,14 +59,14 @@ from vultron.errors import DemoStoryError
 #: A neutral cast, named for the part each plays rather than for either pair's
 #: actors: the two-coordinator pair runs these continuations with C1, C2 and a
 #: Vendor, the vendor-first pair with Vendor1, a Coordinator and Vendor2.
+OWNER = Part("owner", "Owner")
+JOINER = Part("joiner", "Joiner")
+NEWCOMER = Part("newcomer", "Newcomer")
+
 #: The join prop the pair's roster gate keeps and both continuations read:
 #: each presupposes the joiner being an active participant (DEMOMA-13-003,
 #: DEMOMA-14-010), so the module's state keeps it and two tests take it away.
 JOINED: StoryProp[str] = StoryProp("test pair's join", str)
-
-OWNER = Part("owner", "Owner")
-JOINER = Part("joiner", "Joiner")
-NEWCOMER = Part("newcomer", "Newcomer")
 
 #: Every cast name a continuation of this module reaches.
 _CAST = (REPORTER, OWNER.name, JOINER.name, NEWCOMER.name)
