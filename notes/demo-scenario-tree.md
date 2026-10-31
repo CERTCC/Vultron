@@ -84,9 +84,18 @@ branch-point table". Read the tree there, not from a copy here.
   without changing a verdict (DEMOMA-17-002), then regenerate the recordings.
   A shared step goes in one helper (`reporter_asks_vendor_timeline`,
   `vendor_answers_workaround`), so its siblings cannot drift apart.
-- **Regenerate every scenario together.** One seed and one cast mean a run
-  draws the same ids in every scenario, so a single fresh recording beside
-  stale siblings fails the pairwise check even when nothing drifted.
+- **Regenerate every scenario together, in one process.** One seed and one
+  cast mean a run draws the same ids in every scenario, so a single fresh
+  recording beside stale siblings fails the pairwise check even when nothing
+  drifted. There is a second reason, measured in #5534: a scenario's bytes
+  depend on where it sits in the run. `rcv-embargo` stamps its
+  `activate_embargo_on_case` entry 80 ms later as the first scenario of a
+  process than as any later one, reproducibly, so
+  `export-demo-recordings --scenario rcv-embargo` and a full run disagree. The
+  daily freshness check runs `export-demo-recordings` with no `--scenario`
+  (`demo-recordings.yml`), so that is the only form whose output may be
+  committed; a per-scenario run is for looking, never for committing. The
+  leaked process state behind the 80 ms is #5591.
 
 ## Names
 
@@ -155,8 +164,10 @@ DEMOCI-11-018). The test is `TestSharedPrefixes` in
 
 A branching story is written once: shared steps up to a branch point, then one
 continuation per choice (DEMOCI-11-019, ADR-0098). Built in #5533 and piloted
-on `rcv` and `rcv-reject`; the remaining families follow (#5534, #5535, #5536)
-and then `path=` and the hand-placed `reach_step` go (#5537).
+on `rcv` and `rcv-reject`, then finished across the whole
+Reporter → Coordinator → Vendor family in #5534 (`rcvcv`, `rcv-embargo`,
+`rcvv-embargo`); the other families follow (#5535, #5536) and then `path=` and
+the hand-placed `reach_step` go (#5537).
 
 - **The API is four names.** `vultron/demo/helpers/story.py` holds them:
   `choose(branch point, choice, by=<cast name>)` declares one decision,
@@ -165,25 +176,50 @@ and then `path=` and the hand-placed `reach_step` go (#5537).
   plot, open_cast)` plays it inside `scenario_harness`. Prefer adding a
   fragment to extending the API — with one exception, the artifacts a family
   carries between its own steps (below).
-- **`StoryState` holds only what the pilot needed.** It carries the case, the
-  report, the Offer and the delivered Invites, because `rcv` and `rcv-reject`
-  pass nothing else between steps. The next three families do: an embargo id
-  from the proposal step to its answer (#5534), a reply note (#5536), and a
-  case whose owner changed mid-story (#5535), which `open_case` cannot restate
-  because it also re-arms the dump. Whichever Task reaches one first designs
-  the home for it, with its real requirement in hand; a per-family subclass is
-  not one of the options, because a fragment is typed
+- **A family's own artifacts are props, not state fields.** `StoryState` names
+  what every story has: the case, the report, the Offer, the delivered
+  Invites. What one family passes between its own steps is a
+  `StoryProp[T](name, type_)` declared beside the fragments that share it,
+  written with `state.keep(prop, value)` and read with `state.kept(prop)`
+  (#5534). A per-family subclass is not an option, because a fragment is typed
   `Callable[[StoryState], None]` and a `Callable[[Subclass], None]` is not
-  assignable to it. Do not reach for `state._case` and its siblings: every
-  accessor on the state raises rather than hand out a `None`, and that is the
-  property the fragments rely on.
+  assignable to it; a field per family would put every family's artifacts on
+  every story. `keep` type-checks on the way in, so `kept` never hands back a
+  `None` and no reader checks for one. Do not reach for `state._case` and its
+  siblings: every accessor on the state raises rather than hand out a `None`,
+  and that is the property the fragments rely on. The embargo pair carries its
+  embargo ids this way (`PROPOSED_EMBARGO`, `REVISED_EMBARGO`,
+  `VENDOR2_SIGNED`) and `rcvcv` carries the note its late joiners reply to
+  (`TIMELINE_ANSWER`); #5536's reply note is the same shape. A case whose owner
+  changed mid-story (#5535) is the one artifact a prop does not serve, because
+  fragments read the case through `state.case`: give it a setter beside
+  `open_case` that replaces the case without re-arming the dump.
+- **One prop per step, not one rewritten prop.** `rcvv-embargo` revises the
+  embargo twice, and the second step keeps a *second* prop rather than
+  overwriting the first. Overwriting would leave the previous id in place when
+  a revision failed, and the steps that presuppose the new one would run
+  against the old embargo instead of stopping.
+- **A missing prop stops the story, as a missing step mark does.** A fragment
+  reads what an earlier one made through an accessor that raises, so a failed
+  act shows up as a `DemoStoryError` in the fragment that depended on it.
+  `run_story` treats that exactly as `_mark_step` treats an unmakeable mark:
+  on a run that has already recorded a failure it records it inside a
+  `demo_gate` and stops the story, so the first failure stays the headline and
+  the dependents are skipped; on a clean run it raises, because then the story
+  really is mis-assembled. That is the flat-sequence form of the nesting the
+  hand-placed scenarios used — `rcv-embargo` ran its termination, publication
+  and closure inside one `demo_gate` on the revised embargo (DEMOCI-01-007).
 - **Fragments and named prefixes.** A story fragment is one step of a story,
   a callable taking the `StoryState`. A named prefix is a `Story` several
-  scenarios start with (`COORDINATOR_INVITES_VENDOR` in
-  `vultron/demo/helpers/coordinated_story.py`). Both live in
-  `vultron/demo/helpers/`. Name a prefix for every shared stretch: assembling
-  siblings from fragments alone lets one of them slip in a step before the
-  branch point.
+  scenarios start with. Both live in `vultron/demo/helpers/` when more than
+  one scenario uses them, and in the scenario's own module when only it tells
+  that step. Name a prefix for every shared stretch, and **nest them**, each
+  built from the one before: assembling siblings from fragments alone lets one
+  of them slip in a step before the branch point. The family's four are
+  `COORDINATOR_INVITES_VENDOR` ⊂ `VENDOR_JOINS_THE_CASE` ⊂
+  `REPORTER_ASKS_THE_VENDOR` (`coordinated_story.py`) and
+  `VENDOR_JOINS_THE_CASE` ⊂ `REPORTER_PROPOSES_EMBARGO`
+  (`coordinated_embargo_story.py`), one per branch point the family parts at.
 - **A scenario assembles its story.** Its module keeps its name-derived file
   (DEMOCI-11-003) and its `main()`, and states its `STORY` as one sequence: a
   named prefix, then `choose(...)` items and fragments. The whole story reads
@@ -197,10 +233,25 @@ and then `path=` and the hand-placed `reach_step` go (#5537).
   apart.
 - **A fragment takes the cast, not a container.** The cast and the tree-wide
   seed are fixed (DEMOCI-11-020, DEMOCI-11-025), so a fragment is handed the
-  cast's `ActorSession`s under the names its scenario's `ROLES` seats them
-  under, and names no container of its own. It reads the case off the state;
-  the fragment that opens one calls `state.open_case(...)`, which arms the
-  ledger dump and follows the ledger in one step (DEMOMA-23-003).
+  cast's `ActorSession`s under the names the story seats them under, and names
+  no container of its own. It reads the case off the state; the fragment that
+  opens one calls `state.open_case(...)`, which arms the ledger dump and
+  follows the ledger in one step (DEMOMA-23-003).
+- **The shared fragments address roles, not a scenario's own names.** A
+  family's fragments read the cast under the family's role names, so one copy
+  of each serves every scenario: `rcvcv`'s C1 and V1 are seated as
+  `coordinator` and `vendor`, while `c1` and `v1` stay their names on the
+  command line, in `ROLES` and as the devlogs directories the invariant
+  harness loads (DEMOMA-19-018). The dump therefore takes
+  `(devlogs name, cast name)` pairs rather than one name for both. Renaming a
+  scenario's `ROLES` instead would move its CLI flags and its devlogs.
+- **A character actor is seeded by the step that brings it in.** The shared
+  opening seeds only the containers every sibling uses; a scenario's further
+  containers are reset with the rest and left as `UnseatedContainer`s, which
+  the fragment that invites each one reads with `state.container(name)`, seeds
+  through the scenario's own `seed_containers_*` (idempotent, so the already
+  seeded come back unchanged), and then `state.seat(name, session)`s. This is
+  not tidiness: it is what makes byte identity hold (below).
 - **An invitee's choice falls between the Invite and the answer.** Its role is
   read from the inert participant the Invite seats (CM-17-003), so a
   `vendor-join` choose placed before the Invite fails the deciding-role check,
@@ -224,15 +275,32 @@ and then `path=` and the hand-placed `reach_step` go (#5537).
   scenario in a process redraws the first one's ids, so a runner that plays
   more than one story must reset them — `reset_blackboard()` is the one that
   bit, because py_trees refuses a blackboard client id it already holds.
-- **Byte identity needs one authored opening, not just one cast.** With the cast
-  and the tree-wide seed fixed, five of the twelve sibling pairs that share a
-  prefix were already byte-identical, where none was before (#5532). The seven
-  that were not all pair `rcvcv` or `rcvv-embargo` with a narrower sibling, and
-  the cause is setup length: those two read the stepping clock more times before
-  the case opens, so they stamp `create_case` a second later and the hash chain
-  carries the offset. Composing the opening is what closes it, which is why a
-  family joins `COMPOSED_FAMILIES` only when it shares one authored opening
-  (DEMOCI-11-018). `{rcv, rcv-reject}` is the first.
+- **Byte identity is decided before the case opens.** With the cast and the
+  tree-wide seed fixed, five of the twelve sibling pairs that share a prefix
+  were already byte-identical, where none was before (#5532). The seven that
+  were not all paired `rcvcv` or `rcvv-embargo` with a narrower sibling, and
+  the cause was setup length, measured in #5534: the shared prefix was already
+  isomorphic and drew the *same* ids — actor ids come from container slugs, so
+  seeding draws no uuid — and differed only by a constant offset of 360 ms
+  (`rcvcv`, two extra containers) or 160 ms (`rcvv-embargo`, one), about
+  sixteen reads of the 10 ms stepping clock per extra container. Only writes
+  read the clock, so where a poll or a verification sits does not matter; how
+  many actor and peer records are written before `create_case` does. Seeding
+  the character actors in the step that invites them, after the branch point,
+  took both offsets to zero and made all ten pairs of the five-scenario family
+  byte-identical. A family joins `COMPOSED_FAMILIES` when its scenarios share
+  one authored opening *and* that opening writes the same records in every one
+  of them (DEMOCI-11-018).
+- **A shared prefix that runs past the embargo activation is not checkable
+  yet.** Nine of the ten pairs of the five-scenario family are byte-identical;
+  the tenth, `{rcv-embargo, rcvv-embargo}`, shares four steps, so its prefix
+  reaches ledger entry 33 — where `PendingAssertionStore.pending_for_subject`
+  reads the clock to check expiry, on a thread that races the owner's accept
+  trigger. The two came out 80 ms apart in a whole-tree run and identical in
+  solo runs (#5591). The table therefore names the subtree as two overlapping
+  families, which is how it says "every pair but one"; collapsing them is
+  #5591's acceptance criterion. Read the table's comment before adding a
+  family whose members share four or more steps.
 - **Key a composed view on the scenario and the case, never the case alone.**
   One seed also means every scenario draws the *same* case id, which is what
   lets siblings record identical bytes for a shared opening (DEMOCI-11-025) and
@@ -242,13 +310,21 @@ and then `path=` and the hand-placed `reach_step` go (#5537).
   list of required semantic types describe the whole story, written by hand,
   so the run is checked against the spec, not against the code. Each group
   names the shared opening its story starts with in one line (DEMOMA-12-017,
-  DEMOMA-27-004). Give a shared stretch its own spec group only when one change
-  to it must be edited in several scenario groups.
+  DEMOMA-27-004, DEMOMA-19-024, DEMOMA-20-013, DEMOMA-21-015). Give a shared
+  stretch its own spec group only when one change to it must be edited in
+  several scenario groups.
 - **Verdicts do not move.** Every migration is a consolidation, so no
-  scenario's pass or fail may change in it (DEMOMA-17-002). The pilot's
-  recordings came out unchanged byte for byte, which is the cheapest evidence
-  of that: regenerate the family and expect `--report-changes` to report
-  nothing unless a protocol act moved.
+  scenario's pass or fail may change in it (DEMOMA-17-002). An unchanged
+  recording is the cheapest evidence of that, and in #5534 `rcv`, `rcv-reject`
+  and `rcv-embargo` all came out byte for byte identical. The two whose
+  seeding moved could not, so read their diff instead: the semantic-type
+  sequence and the entry count must be unchanged, and the bytes may differ
+  only in timestamps, hash-chain digests and the uuids drawn after the branch
+  point. That diff is how #5534 caught giving `rcvcv`'s second Coordinator an
+  RM triage it never had — one extra `engage_case` entry, and one participant
+  status fewer at closure. A shared join helper therefore takes `triages=`:
+  a vendor judges the report it was invited over, a coordinator joining to
+  coordinate does not.
 - **Run `--report-changes` by hand; no gate will do it for you.** Nothing in
   PR CI regenerates a recording — the freshness check runs daily on `main` and
   files a refresh Task rather than failing (`demo-recordings.yml`) — and

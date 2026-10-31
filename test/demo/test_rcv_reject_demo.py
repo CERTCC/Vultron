@@ -120,21 +120,31 @@ class TestParticipantAddsNoteNoNoteId:
 
 
 class TestRcvRejectDumpTargetsTheCaseActorContainer:
-    """The ``case-actor`` ledger is dumped from the dedicated container."""
+    """The ``case-actor`` ledger is dumped from the dedicated container.
+
+    The dump is one shared fragment now (#5534), so the export is patched
+    where that fragment looks it up — in ``coordinated_story`` — rather than on
+    this scenario's own module, which no longer imports it.
+    """
 
     def test_case_actor_target_uses_case_actor_client(self):
-        case_actor_client = MagicMock(
+        from test.demo._helpers import story_state
+        from vultron.demo.helpers import coordinated_story
+
+        state = story_state(
+            "reporter", "coordinator", "vendor", case=MagicMock(id_="urn:c")
+        )
+        state.case_actor_client = MagicMock(
             actor_id="http://case-actor:7999/api/v2/actors/case-actor"
         )
-        with patch.object(demo, "dump_case_ledgers") as dump:
-            demo._phase_dump_case_ledgers(
-                reporter_client=MagicMock(actor_id="http://f/actors/reporter"),
-                coordinator_client=MagicMock(
-                    actor_id="http://c/actors/coordinator"
-                ),
-                case_actor_client=case_actor_client,
-                case=MagicMock(id_="urn:test:case"),
-            )
+        with patch.object(coordinated_story, "dump_case_ledgers") as dump:
+            demo._dump_ledgers(state)
         targets = {t.actor_name: t for t in dump.call_args.kwargs["targets"]}
-        assert targets["case-actor"].client is case_actor_client
+        assert targets["case-actor"].client is state.case_actor_client
         assert targets["case-actor"].route_key == "case-actor"
+        assert "vendor" not in targets, (
+            "the Vendor rejected its invitation and has no replica to dump"
+        )
+        assert dump.call_args.kwargs["unreplicated"] is not None, (
+            "the rejected Vendor is still named in the manifest (#4248)"
+        )

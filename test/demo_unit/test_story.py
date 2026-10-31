@@ -42,7 +42,9 @@ from vultron.demo.helpers.harness import ScenarioHarness
 from vultron.demo.helpers.story import (
     Choose,
     Story,
+    StoryProp,
     StoryState,
+    UnseatedContainer,
     choose,
     run_story,
     story,
@@ -92,13 +94,21 @@ def _session(actor_id: str) -> ActorSession:
     return ActorSession(client=MagicMock(base_url="x"), actor=actor)
 
 
-def _state(**cast: ActorSession) -> StoryState:
+def _state(
+    unseated: dict[str, UnseatedContainer] | None = None,
+    **cast: ActorSession,
+) -> StoryState:
     return StoryState(
         cast=cast,
         case_actor_client=MagicMock(),
         harness=MagicMock(),
         dump=lambda _state: None,
+        unseated=unseated or {},
     )
+
+
+#: A prop of the shape a family declares beside its own fragments.
+_KEPT_ID: StoryProp[str] = StoryProp("embargo in force", str)
 
 
 def _rv_story(log: list[str] | None = None) -> Story:
@@ -244,6 +254,113 @@ class TestStoryState:
 # ---------------------------------------------------------------------------
 # run_story
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("DEMOMA-17-001")
+class TestStoryProps:
+    """What one family passes between its own steps (#5534).
+
+    A prop rather than a field on the state or a per-family subclass: a
+    fragment is typed ``Callable[[StoryState], None]``, so a subclass of the
+    state is not assignable to it.
+    """
+
+    def test_a_kept_prop_is_read_back_by_the_later_fragment(self) -> None:
+        state = _state()
+        state.keep(_KEPT_ID, "urn:uuid:embargo-1")
+        assert state.kept(_KEPT_ID) == "urn:uuid:embargo-1"
+
+    def test_a_prop_no_fragment_kept_raises(self) -> None:
+        """The accessor raises rather than handing back a ``None``.
+
+        That is what lets ``run_story`` stop a story whose earlier step failed
+        instead of acting on a stand-in.
+        """
+        with pytest.raises(DemoStoryError, match="embargo in force"):
+            _state().kept(_KEPT_ID)
+
+    def test_a_value_of_the_wrong_type_is_refused_where_it_is_kept(
+        self,
+    ) -> None:
+        """A helper that records its own failure returns ``None``.
+
+        Keeping that would leave the dependent fragment reading a stand-in, so
+        the refusal happens on the way in, not on the way out.
+        """
+        state = _state()
+        with pytest.raises(DemoStoryError, match="is not one"):
+            state.keep(_KEPT_ID, cast(Any, None))
+        with pytest.raises(DemoStoryError):
+            state.kept(_KEPT_ID)
+
+    def test_two_props_of_the_same_type_do_not_collide(self) -> None:
+        """A second revision keeps a second prop, never overwrites the first.
+
+        Overwriting would leave the previous id in place when a revision
+        failed, and the steps that presuppose the new one would run against
+        the old embargo instead of stopping.
+        """
+        revised: StoryProp[str] = StoryProp("revised embargo", str)
+        state = _state()
+        state.keep(_KEPT_ID, "first")
+        state.keep(revised, "second")
+        assert (state.kept(_KEPT_ID), state.kept(revised)) == (
+            "first",
+            "second",
+        )
+
+
+@pytest.mark.spec("DEMOCI-11-018")
+class TestSeatingACharacterActor:
+    """Containers the shared opening leaves for a later step to seed.
+
+    The opening seeds only the containers every sibling of the family uses:
+    each actor and peer record it writes is one more read of the recording
+    clock, so one extra container moves the first ledger entry's timestamp
+    away from the siblings whose bytes it must match (#5532, #5534).
+    """
+
+    def test_a_waiting_container_carries_its_client_and_deterministic_id(
+        self,
+    ) -> None:
+        client = MagicMock(base_url="v2")
+        state = _state(
+            unseated={"v2": UnseatedContainer("V2", client, "urn:test:v2")}
+        )
+        waiting = state.container("v2")
+        assert (waiting.client, waiting.actor_id) == (client, "urn:test:v2")
+
+    def test_seating_moves_the_name_from_waiting_to_the_cast(self) -> None:
+        state = _state(
+            unseated={"v2": UnseatedContainer("V2", MagicMock(), None)}
+        )
+        session = _session("urn:test:v2")
+        state.seat("v2", session)
+        assert state.actor("v2") is session
+        assert "v2" not in state.unseated
+
+    def test_seating_a_name_twice_is_refused(self) -> None:
+        """Re-seating would redirect every later fragment that names it."""
+        state = _state(
+            unseated={"v2": UnseatedContainer("V2", MagicMock(), None)}
+        )
+        state.seat("v2", _session("urn:test:v2"))
+        with pytest.raises(DemoStoryError, match="already seats"):
+            state.seat("v2", _session("urn:test:other"))
+
+    def test_seating_a_name_no_container_waited_for_is_refused(self) -> None:
+        with pytest.raises(DemoStoryError, match="no container waiting"):
+            _state().seat("v2", _session("urn:test:v2"))
+
+    def test_an_unseated_actor_says_the_container_is_still_waiting(
+        self,
+    ) -> None:
+        """The message tells a reader which half of the handover is missing."""
+        state = _state(
+            unseated={"v2": UnseatedContainer("V2", MagicMock(), None)}
+        )
+        with pytest.raises(DemoStoryError, match="does not seat yet"):
+            state.actor("v2")
 
 
 class _FakeHarness:
@@ -396,6 +513,80 @@ class TestRunStory:
         assert len(failures) == 2
         assert "submit fails" in failures[0]
         assert "reaches vendor-after-answer" in failures[1]
+
+    @pytest.mark.spec("DEMOCI-01-003")
+    @pytest.mark.spec("DEMOCI-01-007")
+    def test_a_fragment_missing_what_a_failed_step_would_have_made_stops_it(
+        self, fake_harness: _FakeHarness
+    ) -> None:
+        """The flat-sequence form of the nesting a phase scenario used.
+
+        ``rcv-embargo`` ran its termination, publication and closure inside
+        one ``demo_gate`` on the revised embargo, so a failed revision skipped
+        all three.  A story is flat, so the dependent fragment asks for the
+        artifact instead: the step that would have made it recorded its own
+        failure and kept nothing, and the story stops where the first
+        dependent asks.
+        """
+        log = fake_harness.log
+
+        def proposes(_state: StoryState) -> None:
+            log.append("propose")
+            with demo_step("the proposal fails"):
+                raise AssertionError("no revision took effect")
+
+        def terminates(state: StoryState) -> None:
+            log.append("terminate")
+            state.kept(_KEPT_ID)
+
+        def publishes(state: StoryState) -> None:
+            log.append("publish")
+
+        state = _state(
+            reporter=_session("urn:test:reporter"),
+            vendor=_session("urn:test:vendor"),
+        )
+        plot = story(
+            choose("reporter-whom-to-tell", "vendor", by="reporter"),
+            proposes,
+            choose("vendor-after-answer", "report-fix-ready", by="vendor"),
+            terminates,
+            publishes,
+        )
+
+        run_story("rv", plot, lambda _harness: state)
+
+        assert "publish" not in log, (
+            "the story ran the fragments that presupposed the failed step"
+        )
+        failures = demo_failures()
+        assert len(failures) == 2
+        assert "the proposal fails" in failures[0]
+        assert "cannot run terminates" in failures[1]
+        assert "embargo in force" in failures[1]
+
+    def test_a_fragment_missing_an_artifact_on_a_clean_run_raises(
+        self, fake_harness: _FakeHarness
+    ) -> None:
+        """Then the story really is mis-assembled, not merely downstream.
+
+        Reporting it as a soft failure would let the next regeneration bless a
+        fragment placed before the one that makes what it reads.
+        """
+
+        def terminates(state: StoryState) -> None:
+            state.kept(_KEPT_ID)
+
+        state = _state(
+            reporter=_session("urn:test:reporter"),
+            vendor=_session("urn:test:vendor"),
+        )
+        plot = story(
+            choose("reporter-whom-to-tell", "vendor", by="reporter"),
+            terminates,
+        )
+        with pytest.raises(DemoStoryError, match="embargo in force"):
+            run_story("rv", plot, lambda _harness: state)
 
     @pytest.mark.spec("DEMOCI-01-003")
     @pytest.mark.spec("EDF-06-005")
@@ -677,6 +868,36 @@ class TestRegisteringAStory:
                 ("vendor-join", "reject"),
             ),
         ),
+        (
+            "vultron.demo.scenario.rcvcv_demo",
+            (
+                ("reporter-whom-to-tell", "coordinator"),
+                ("coordinator-invite-whom", "vendor"),
+                ("vendor-join", "accept"),
+                ("reporter-after-join", "ask-vendor"),
+                ("coordinator-after-answer", "invite-coordinator"),
+            ),
+        ),
+        (
+            "vultron.demo.scenario.rcv_embargo_demo",
+            (
+                ("reporter-whom-to-tell", "coordinator"),
+                ("coordinator-invite-whom", "vendor"),
+                ("vendor-join", "accept"),
+                ("reporter-after-join", "propose-embargo"),
+                ("vendor-after-embargo", "report-fix-ready"),
+            ),
+        ),
+        (
+            "vultron.demo.scenario.rcvv_embargo_demo",
+            (
+                ("reporter-whom-to-tell", "coordinator"),
+                ("coordinator-invite-whom", "vendor"),
+                ("vendor-join", "accept"),
+                ("reporter-after-join", "propose-embargo"),
+                ("vendor-after-embargo", "propose-revision"),
+            ),
+        ),
     ],
 )
 def test_a_composed_scenario_keeps_the_path_it_declared(
@@ -711,3 +932,79 @@ def test_the_two_composed_scenarios_share_one_opening() -> None:
     assert rcv_reject.STORY.items[:shared] == COORDINATOR_INVITES_VENDOR.items
     assert isinstance(rcv.STORY.items[shared], Choose)
     assert isinstance(rcv_reject.STORY.items[shared], Choose)
+
+
+#: Each stretch the Reporter → Coordinator → Vendor family shares, with the
+#: scenarios that start from it.  One named prefix per branch point the family
+#: parts at, each nesting the one before (#5534).
+_FAMILY_PREFIXES = [
+    (
+        "COORDINATOR_INVITES_VENDOR",
+        ("rcv", "rcv_reject", "rcvcv", "rcv_embargo", "rcvv_embargo"),
+    ),
+    (
+        "VENDOR_JOINS_THE_CASE",
+        ("rcv", "rcvcv", "rcv_embargo", "rcvv_embargo"),
+    ),
+    ("REPORTER_ASKS_THE_VENDOR", ("rcv", "rcvcv")),
+]
+
+
+@pytest.mark.spec("DEMOMA-17-001")
+@pytest.mark.spec("DEMOCI-11-018")
+@pytest.mark.parametrize(("prefix_name", "scenarios"), _FAMILY_PREFIXES)
+def test_every_shared_stretch_of_the_family_is_one_named_prefix(
+    prefix_name: str, scenarios: tuple[str, ...]
+) -> None:
+    """Each scenario starts from the prefix object's own items, not a copy.
+
+    Assembling siblings from fragments alone lets one of them slip a step in
+    before the branch point, which the byte-identity check would then catch
+    only after a regeneration.  Comparing against the prefix's items pins it
+    where the story is written.  The item right after the prefix must be a
+    choice: that is the branch point the scenarios part at.
+    """
+    import importlib
+
+    from vultron.demo.helpers import coordinated_story
+
+    prefix: Story = getattr(coordinated_story, prefix_name)
+    shared = len(prefix.items)
+    for stem in scenarios:
+        module = importlib.import_module(f"vultron.demo.scenario.{stem}_demo")
+        assert module.STORY.items[:shared] == prefix.items, (
+            f"{stem} does not start from {prefix_name}"
+        )
+        assert isinstance(module.STORY.items[shared], Choose), (
+            f"{stem} places a step before the branch point it parts at"
+        )
+
+
+@pytest.mark.spec("DEMOMA-20-013")
+@pytest.mark.spec("DEMOMA-21-015")
+def test_the_embargo_pair_shares_the_proposal_opening() -> None:
+    """Both embargo scenarios start from ``REPORTER_PROPOSES_EMBARGO``.
+
+    The pair's own prefix nests ``VENDOR_JOINS_THE_CASE`` and carries on
+    through the default embargo's confirmation, the Reporter's revision of it
+    and the note thread that follows.
+    """
+    import importlib
+
+    from vultron.demo.helpers.coordinated_embargo_story import (
+        REPORTER_PROPOSES_EMBARGO,
+    )
+    from vultron.demo.helpers.coordinated_story import VENDOR_JOINS_THE_CASE
+
+    joined = len(VENDOR_JOINS_THE_CASE.items)
+    assert (
+        REPORTER_PROPOSES_EMBARGO.items[:joined] == VENDOR_JOINS_THE_CASE.items
+    )
+
+    shared = len(REPORTER_PROPOSES_EMBARGO.items)
+    for stem in ("rcv_embargo", "rcvv_embargo"):
+        module = importlib.import_module(f"vultron.demo.scenario.{stem}_demo")
+        assert (
+            module.STORY.items[:shared] == REPORTER_PROPOSES_EMBARGO.items
+        ), f"{stem} does not start from REPORTER_PROPOSES_EMBARGO"
+        assert isinstance(module.STORY.items[shared], Choose)

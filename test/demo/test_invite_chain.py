@@ -593,18 +593,36 @@ def test_every_chain_with_an_inviter_is_ordered_after_a_seed():
     offenders = []
     seen_starters: set[str] = set()
     for path in sources:
-        for node in ast.walk(ast.parse(path.read_text())):
-            if not isinstance(node, ast.Call):
-                continue
-            called = getattr(node.func, "id", None)
-            if called not in starters:
-                continue
-            seen_starters.add(called)
-            keywords = {k.arg for k in node.keywords}
-            if "inviter" in keywords:
-                if "case_manager_client" not in keywords:
-                    offenders.append(f"{path.name}:{node.lineno}")
-                break
+        # Sorted by line, not taken in ``ast.walk`` order: walk is breadth
+        # first, so "the first chain" read off it is whichever starter sits
+        # shallowest in the tree rather than the one the module calls first
+        # (#5534).
+        calls = sorted(
+            (
+                node
+                for node in ast.walk(ast.parse(path.read_text()))
+                if isinstance(node, ast.Call)
+                and getattr(node.func, "id", None) in starters
+            ),
+            key=lambda node: node.lineno,
+        )
+        seen_starters.update(
+            name
+            for node in calls
+            if (name := getattr(node.func, "id", None)) is not None
+        )
+        first_invite = next(
+            (
+                node
+                for node in calls
+                if "inviter" in {k.arg for k in node.keywords}
+            ),
+            None,
+        )
+        if first_invite is not None and "case_manager_client" not in {
+            k.arg for k in first_invite.keywords
+        }:
+            offenders.append(f"{path.name}:{first_invite.lineno}")
     assert not offenders, offenders
     # The scan found a call to each starter it looks for, so renaming one of
     # them fails here rather than silently emptying the check.

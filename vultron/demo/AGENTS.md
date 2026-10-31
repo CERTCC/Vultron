@@ -172,12 +172,16 @@ dead on artifact download).
   does it for a composed scenario.
 - Register the dump as soon as a case exists:
   `harness.dump_with(lambda: _phase_dump_case_ledgers(...))`; in a story,
-  `state.open_case(...)` arms it.
+  `state.open_case(...)` arms the `dump=` fragment the scenario passed to its
+  cast opening.
 - Do not re-add `try/finally: assert_demo_success()` in `main()` — a second owner
   of the accumulator asserts before the dump runs.
-- Keep `_phase_dump_case_ledgers` thin; delegate to
-  `helpers.ledger_dump.dump_case_ledgers()`. The manifest is not optional, and a
-  dump failure must never replace the scenario's exception.
+- Keep the dump step thin — `_phase_dump_case_ledgers`, or a story's
+  `_dump_ledgers` fragment — and delegate to
+  `helpers.ledger_dump.dump_case_ledgers()`, through
+  `coordinated_story.dump_coordinated_ledgers()` where a family shares one
+  shape. The manifest is not optional, and a dump failure must never replace
+  the scenario's exception.
 
 DEMOCI-10, DEMOMA-23, and
 [`notes/demo-ci-invariants.md`](../../notes/demo-ci-invariants.md). (ISSUE-2239)

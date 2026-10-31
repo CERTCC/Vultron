@@ -26,7 +26,11 @@ that opening written **once**, with one continuation per choice
   story takes there, and the cast member that decides;
 * a **named prefix** is a :class:`Story` several scenarios start with.
   :func:`story` concatenates prefixes, fragments and choices into one
-  sequence, so the whole story reads top to bottom in one file.
+  sequence, so the whole story reads top to bottom in one file;
+* a **prop** (:class:`StoryProp`) is an artifact one family passes between its
+  own fragments — the embargo in force, the note a later poster replies to —
+  kept on the state rather than on a per-family subclass of it, which a
+  fragment's type forbids.
 
 The path is then read off the choices (:attr:`Story.path`), never typed a
 second time beside the story: ``@scenario(story=STORY)`` instead of
@@ -55,7 +59,7 @@ Design: ``notes/demo-scenario-tree.md`` § "Composition".
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from vultron.demo.actor_session import ActorSession
@@ -78,6 +82,34 @@ logger = logging.getLogger(__name__)
 #: rather than inlined because it is also what a named prefix is made of, and
 #: what a scenario reads top to bottom.
 Fragment = Callable[["StoryState"], None]
+
+
+@dataclass(frozen=True)
+class StoryProp[PropT]:
+    """One artifact a story carries from the fragment that makes it onward.
+
+    :class:`StoryState` names the artifacts *every* story has — the case, the
+    report, the Offer, the delivered Invites.  A family's own artifacts are
+    declared as props beside the fragments that pass them: the embargo in
+    force in the Reporter → Coordinator → Vendor embargo pair, the note a
+    later poster replies to.  A prop rather than a field on the state, and
+    rather than a per-family subclass, because a fragment is typed
+    ``Callable[[StoryState], None]`` and a ``Callable[[Subclass], None]`` is
+    not assignable to it (``notes/demo-scenario-tree.md`` § "Composition").
+
+    Declare one at module level, where the fragments that share it can see it::
+
+        EMBARGO_IN_FORCE: StoryProp[str] = StoryProp("embargo in force", str)
+
+    Attributes:
+        name: What the artifact is, in the words the error message uses.
+        type_: What :meth:`StoryState.keep` accepts and
+            :meth:`StoryState.kept` returns.  Checked on the way in, so a
+            reader never has to.
+    """
+
+    name: str
+    type_: type[PropT]
 
 
 @dataclass(frozen=True, slots=True)
@@ -201,21 +233,49 @@ def story(*parts: Story | Choose | Fragment) -> Story:
     return Story(items=tuple(items))
 
 
+@dataclass(frozen=True, slots=True)
+class UnseatedContainer:
+    """A container whose character actor the story has not seeded yet.
+
+    The shared opening of a family seeds only the containers every one of its
+    scenarios uses: each actor and peer record it writes reads the recording
+    clock, so one extra container moves the first ledger entry's timestamp
+    away from the siblings whose bytes it must match (DEMOCI-11-018, #5532).
+    A character actor's container is therefore reset with the rest and left
+    here, for the fragment that brings the actor into the case to seed and
+    seat (:meth:`StoryState.container`, :meth:`StoryState.seat`).
+
+    Attributes:
+        label: What the reset and the health check call the container.
+        client: Client for it.
+        actor_id: The deterministic URI its actor is to be seeded with, when
+            the run was given one; ``None`` lets the container derive it.
+    """
+
+    label: str
+    client: DataLayerClient
+    actor_id: str | None = None
+
+
 @dataclass
 class StoryState:
     """What every fragment of one story run shares.
 
     A fragment takes the cast, not a container: each actor is an
     :class:`~vultron.demo.actor_session.ActorSession` bound to the container
-    the fixed cast seats it in (DEMOCI-11-020), looked up by the name its
-    scenario's ``ROLES`` uses.  The artifacts a story produces — the report,
-    the Offer, the case, each delivered Invite — are recorded here as the
+    the fixed cast seats it in (DEMOCI-11-020), looked up by the name the
+    story seats it under.  The artifacts a story produces — the report, the
+    Offer, the case, each delivered Invite — are recorded here as the
     fragments that produce them run, and read back through accessors that
     raise rather than hand out a ``None`` a later fragment would post.
+    Whatever else one family passes between its own fragments is kept as a
+    :class:`StoryProp` (:meth:`keep`, :meth:`kept`).
     """
 
-    #: Each actor the scenario seats, by its ``ActorRole`` name.
-    cast: Mapping[str, ActorSession]
+    #: Each actor the story has seated so far, by the name it seats it under.
+    #: A character actor joins mid-story (:meth:`seat`), so this is the cast
+    #: as of now, not the scenario's whole ``ROLES`` list.
+    cast: dict[str, ActorSession]
     #: Client for the dedicated case-actor container, which holds the
     #: canonical case and ledger (DEMOMA-06-005).
     case_actor_client: DataLayerClient
@@ -224,6 +284,9 @@ class StoryState:
     #: This scenario's ledger dump, armed by :meth:`open_case` as soon as
     #: there is a case to dump (DEMOMA-23-003).
     dump: Callable[[StoryState], None]
+    #: The containers a character actor is still to be seeded in, by the name
+    #: the story will seat it under (:class:`UnseatedContainer`).
+    unseated: dict[str, UnseatedContainer] = field(default_factory=dict)
     _case: as_VulnerabilityCase | None = field(
         default=None, init=False, repr=False
     )
@@ -232,6 +295,9 @@ class StoryState:
     )
     _offer: as_Offer | None = field(default=None, init=False, repr=False)
     _invites: dict[str, str] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _props: dict[str, object] = field(
         default_factory=dict, init=False, repr=False
     )
 
@@ -246,9 +312,98 @@ class StoryState:
         if session is None:
             raise DemoStoryError(
                 f"the story names the actor {name!r}, which this scenario's "
-                f"cast does not seat; it seats {sorted(self.cast)}."
+                f"cast does not seat yet; it seats {sorted(self.cast)}. A "
+                "character actor is seated by the fragment that brings it "
+                "into the case (seat), so a fragment that reads it runs "
+                "after that one."
             )
         return session
+
+    def container(self, name: str) -> UnseatedContainer:
+        """The container the story is still to seed its *name* actor in.
+
+        Read by the fragment that brings that character actor into the case:
+        it seeds the actor on this client, with this deterministic id, and
+        then :meth:`seat`\\ s the session.
+
+        Raises:
+            DemoStoryError: When the scenario declared no such container, or
+                its actor is seated already.
+        """
+        pending = self.unseated.get(name)
+        if pending is None:
+            raise DemoStoryError(
+                f"the story has no container waiting for {name!r}; it is "
+                f"waiting for {sorted(self.unseated)} and already seats "
+                f"{sorted(self.cast)}."
+            )
+        return pending
+
+    def seat(self, name: str, session: ActorSession) -> None:
+        """Seat the character actor the story has just seeded as *name*.
+
+        The name leaves :attr:`unseated` for :attr:`cast`, so the container is
+        seeded once and every later fragment reaches its actor through
+        :meth:`actor`.
+
+        Args:
+            name: The name this story's fragments call the new member.
+            session: Its session, bound to its own container.
+
+        Raises:
+            DemoStoryError: When the name is already seated, or no container
+                was waiting for it.  Re-seating would silently redirect every
+                later fragment that names it.
+        """
+        if name in self.cast:
+            raise DemoStoryError(
+                f"the story already seats an actor called {name!r}; a cast "
+                "member is seated once, and the name is how every later "
+                "fragment reaches it."
+            )
+        self.container(name)
+        self.cast[name] = session
+        del self.unseated[name]
+
+    def keep[PropT](self, prop: StoryProp[PropT], value: PropT) -> None:
+        """Record *value* as this story's *prop*, for a later fragment.
+
+        Args:
+            prop: The artifact being recorded.
+            value: What to record.  A fragment whose act failed records
+                nothing, so the dependent fragment's :meth:`kept` raises and
+                the story stops there rather than acting on a stand-in
+                (:func:`run_story`).
+
+        Raises:
+            DemoStoryError: When *value* is not of the prop's type — including
+                a ``None`` from a helper that records its own failure.
+        """
+        if not isinstance(value, prop.type_):
+            raise DemoStoryError(
+                f"the story's {prop.name} is a {prop.type_.__name__}, and "
+                f"{value!r} is not one; a fragment whose act failed keeps "
+                "nothing, so the fragments that need it stop instead."
+            )
+        self._props[prop.name] = value
+
+    def kept[PropT](self, prop: StoryProp[PropT]) -> PropT:
+        """The *prop* an earlier fragment of this story recorded.
+
+        Raises:
+            DemoStoryError: When no fragment recorded it.  On a run that has
+                already failed that is the earlier failure showing through,
+                and :func:`run_story` stops the story; on a clean run the
+                story is mis-assembled.
+        """
+        held = self._props.get(prop.name)
+        if not isinstance(held, prop.type_):
+            raise DemoStoryError(
+                f"the story has no {prop.name} yet; the fragment that makes "
+                "it runs before the fragments that read it, and keeps "
+                "nothing when its own act failed."
+            )
+        return held
 
     def client(self, name: str) -> DataLayerClient:
         """The container client of the cast member called *name*."""
@@ -398,7 +553,7 @@ def run_story(
             point's role on a run that had not already failed
             (:func:`_mark_step`).
         DemoStoryError: When a fragment reads an artifact no earlier fragment
-            produced.
+            produced on a run that had recorded no failure (:func:`_run_item`).
     """
     with scenario_harness(name) as harness:
         state = open_cast(harness)
@@ -407,8 +562,62 @@ def run_story(
                 if not _mark_step(harness, state, item):
                     return
                 continue
-            logger.debug("%s runs %s", name, getattr(item, "__name__", item))
-            item(state)
+            if not _run_fragment(name, state, item):
+                return
+
+
+def _run_fragment(name: str, state: StoryState, item: Fragment) -> bool:
+    """Run *item*; return whether the story may go on.
+
+    A fragment reads what an earlier one made through an accessor that raises
+    (:meth:`StoryState.kept` and its siblings), so a failed act shows up here
+    as a :class:`DemoStoryError` in the fragment that depended on it.  That is
+    the hand-placed form's nesting seen from the other end: ``rcv-embargo``
+    ran its termination, publication and closure phases inside one
+    ``demo_gate`` on the revised embargo, so a failed revision skipped all
+    three (DEMOCI-01-007).
+
+    A missing artifact is therefore treated exactly as an unmakeable step mark
+    is (:func:`_mark_step`): on a run that has already recorded a failure it
+    is that failure showing through, so it is recorded inside a ``demo_gate``
+    and the story stops, leaving the first failure as the headline and the
+    dependent fragments unrun.  On a run with nothing recorded the story is
+    mis-assembled — a fragment placed before the one that makes what it reads
+    — and that must not be reported as a soft failure the next regeneration
+    could bless, so it is raised.
+
+    Args:
+        name: The scenario's name, for the log line.
+        state: The story's state.
+        item: The fragment to run.
+
+    Returns:
+        Whether the fragment ran, and so whether the story continues.
+
+    Raises:
+        DemoStoryError: When the fragment read a missing artifact on a run
+            that had recorded no failure.
+    """
+    label = getattr(item, "__name__", repr(item))
+    logger.debug("%s runs %s", name, label)
+    stopped = False
+    try:
+        item(state)
+    except DemoStoryError:
+        if not demo_failures():
+            raise
+        stopped = True
+        with demo_gate(f"{name} cannot run {label} after an earlier failure"):
+            raise
+    if stopped:
+        logger.error(
+            "%s stopped before %s, which needs what an earlier failed step "
+            "would have made; the first failure stays the headline",
+            name,
+            label,
+        )
+        return False
+    return True
 
 
 def _mark_step(
@@ -467,7 +676,9 @@ __all__ = [
     "Choose",
     "Fragment",
     "Story",
+    "StoryProp",
     "StoryState",
+    "UnseatedContainer",
     "choose",
     "run_story",
     "story",

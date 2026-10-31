@@ -50,8 +50,11 @@ from vultron.errors import DemoFailureError
 
 #: What the scenario does before a case exists, as a name on its own module.
 #: A scenario still written as phases opens with ``_phase_report_submission``;
-#: one written as composition (#5533) opens with the shared cast opening its
-#: story runs against, which is the first thing that can die.
+#: one written as composition (#5533, #5534) opens with the shared cast opening
+#: its story runs against, which is the first thing that can die.  Every
+#: scenario of the tree is listed: a composed one that slipped out of the table
+#: would leave the artifact promise unchecked for the half of the tree that
+#: dies in a shared opening.
 _PHASE_ONE = "_phase_report_submission"
 _CAST_ONE = "open_coordinated_cast"
 
@@ -70,7 +73,19 @@ SCENARIOS: list[tuple[str, str, str, str]] = [
         "vultron.demo.scenario.rcvcv_demo",
         "run_rcvcv_demo",
         "rcvcv",
-        _PHASE_ONE,
+        _CAST_ONE,
+    ),
+    (
+        "vultron.demo.scenario.rcv_embargo_demo",
+        "run_rcv_embargo_demo",
+        "rcv-embargo",
+        _CAST_ONE,
+    ),
+    (
+        "vultron.demo.scenario.rcvv_embargo_demo",
+        "run_rcvv_embargo_demo",
+        "rcvv-embargo",
+        _CAST_ONE,
     ),
     (
         "vultron.demo.scenario.rccv_extension_demo",
