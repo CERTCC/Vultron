@@ -168,8 +168,10 @@ A branching story is written once: shared steps up to a branch point, then one
 continuation per choice (DEMOCI-11-019, ADR-0098). Built in #5533 and piloted
 on `rcv` and `rcv-reject`, then finished across the whole
 Reporter → Coordinator → Vendor family in #5534 (`rcvcv`, `rcv-embargo`,
-`rcvv-embargo`); the other families follow (#5535, #5536) and then `path=` and
-the hand-placed `reach_step` go (#5537).
+`rcvv-embargo`) and the two-coordinator pair in #5535 (`rccv-extension`,
+`rccv-handoff`), which is the whole coordinator-first subtree; the
+vendor-first half follows (#5536) and then `path=` and the hand-placed
+`reach_step` go (#5537).
 
 - **The API is four names.** `vultron/demo/helpers/story.py` holds them:
   `choose(branch point, choice, by=<cast name>)` declares one decision,
@@ -193,9 +195,14 @@ the hand-placed `reach_step` go (#5537).
   embargo ids this way (`PROPOSED_EMBARGO`, `REVISED_EMBARGO`,
   `VENDOR2_SIGNED`) and `rcvcv` carries the note its late joiners reply to
   (`TIMELINE_ANSWER`); #5536's reply note is the same shape. A case whose owner
-  changed mid-story (#5535) is the one artifact a prop does not serve, because
-  fragments read the case through `state.case`: give it a setter beside
-  `open_case` that replaces the case without re-arming the dump.
+  changed mid-story is the one artifact a prop does not serve, because
+  fragments read the case through `state.case`: it has a setter beside
+  `open_case`, `restate_case`, which replaces the case without re-arming the
+  dump and **refuses a different id** — no act of a scenario changes a case's
+  id, an ownership transfer moving `attributed_to` and leaving the id alone
+  (CM-21-002), so a different one means the fragment read the wrong record and
+  taking it would leave the story on one case while the armed dump and the
+  followed ledger belong to another (#5535).
 - **One prop per step, not one rewritten prop.** `rcvv-embargo` revises the
   embargo twice, and the second step keeps a *second* prop rather than
   overwriting the first. Overwriting would leave the previous id in place when
@@ -217,11 +224,26 @@ the hand-placed `reach_step` go (#5537).
   one scenario uses them, and in the scenario's own module when only it tells
   that step. Name a prefix for every shared stretch, and **nest them**, each
   built from the one before: assembling siblings from fragments alone lets one
-  of them slip in a step before the branch point. The family's four are
+  of them slip in a step before the branch point. The coordinator-first
+  subtree's six are `REPORTER_TELLS_THE_COORDINATOR` ⊂
   `COORDINATOR_INVITES_VENDOR` ⊂ `VENDOR_JOINS_THE_CASE` ⊂
-  `REPORTER_ASKS_THE_VENDOR` (`coordinated_story.py`) and
+  `REPORTER_ASKS_THE_VENDOR` (`coordinated_story.py`),
   `VENDOR_JOINS_THE_CASE` ⊂ `REPORTER_PROPOSES_EMBARGO`
-  (`coordinated_embargo_story.py`), one per branch point the family parts at.
+  (`coordinated_embargo_story.py`) and `REPORTER_TELLS_THE_COORDINATOR` ⊂
+  `C1_INVITES_C2` (`two_coordinator_story.py`), one per branch point the
+  subtree parts at. The root one is the report submission and the owner's
+  triage, which all seven tell identically, so a sub-family that parts earlier
+  than its siblings splits the shortest prefix rather than writing a second
+  copy of the opening (#5535).
+- **A decision both halves make gets its own module, not a family's.** The
+  owner-keep-case choice — keep the case and approve the joiner's suggestion,
+  or hand the case over and let the new owner invite — appears in the
+  coordinator-first pair and in the vendor-first one, with a different cast
+  each time. Its two continuations therefore live in
+  `owner_decision_story.py`, taking the owner, the joiner and the newcomer as
+  `Part(name, label)` values read off the running story, never a family's
+  cast constants; a family's module names only the parts each plays
+  (DEMOMA-13-012, DEMOMA-14-017, #5535).
 - **A scenario assembles its story.** Its module keeps its name-derived file
   (DEMOCI-11-003) and its `main()`, and states its `STORY` as one sequence: a
   named prefix, then `choose(...)` items and fragments. The whole story reads
@@ -290,12 +312,15 @@ the hand-placed `reach_step` go (#5537).
   many actor and peer records are written before `create_case` does. Seeding
   the character actors in the step that invites them, after the branch point,
   took both offsets to zero and made all ten pairs of the five-scenario family
-  byte-identical. A family joins `COMPOSED_FAMILIES` when its scenarios share
-  one authored opening *and* that opening writes the same records in every one
-  of them (DEMOCI-11-018).
+  byte-identical. The two-coordinator pair came in the same way: its C2 is a
+  character actor, so its opening seeds the same three containers `rcv`'s
+  does, and every checked pair of the seven-scenario coordinator-first
+  subtree is byte-identical (#5535). A family joins `COMPOSED_FAMILIES` when
+  its scenarios share one authored opening *and* that opening writes the same
+  records in every one of them (DEMOCI-11-018).
 - **A shared prefix that runs past the embargo activation is not checkable
-  yet.** Nine of the ten pairs of the five-scenario family are byte-identical;
-  the tenth, `{rcv-embargo, rcvv-embargo}`, shares four steps, so its prefix
+  yet.** All but one pair of the coordinator-first subtree are byte-identical;
+  that one, `{rcv-embargo, rcvv-embargo}`, shares four steps, so its prefix
   reaches ledger entry 33 — where `PendingAssertionStore.pending_for_subject`
   reads the clock to check expiry, on a thread that races the owner's accept
   trigger. The two came out 80 ms apart in a whole-tree run and identical in
@@ -313,7 +338,7 @@ the hand-placed `reach_step` go (#5537).
   so the run is checked against the spec, not against the code. Each group
   names the shared opening its story starts with in one line (DEMOMA-12-017,
   DEMOMA-12-018, DEMOMA-27-004, DEMOMA-19-024, DEMOMA-20-013,
-  DEMOMA-21-015). Give a shared
+  DEMOMA-21-015, DEMOMA-13-012, DEMOMA-14-017). Give a shared
   stretch its own spec group only when one change to it must be edited in
   several scenario groups.
 - **Verdicts do not move.** Every migration is a consolidation, so no

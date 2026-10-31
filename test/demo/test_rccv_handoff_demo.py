@@ -11,371 +11,612 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for the RCCV-handoff four-actor CVD demo (DEMOMA-14).
+"""Unit tests for the RCCV-handoff four-actor CVD demo (DEMOMA-14, #5535).
 
-Uses a single TestClient (one FastAPI app instance) to simulate five containers.
-All DataLayerClient instances route through the same TestClient but address
-different actor namespaces via their respective actor IDs.
+``rccv-handoff`` is written as composition (ADR-0098,
+:mod:`vultron.demo.helpers.story`): its opening is the shared
+:data:`~vultron.demo.helpers.two_coordinator_story.C1_INVITES_C2` prefix it
+shares with ``rccv-extension``, and its own story is the continuation after C1
+decides to offer ownership to C2 (DEMOMA-14-017).  The checks that used to sit
+on its ``_phase_*`` functions therefore sit here on three things:
 
-True multi-container isolation is validated by the acceptance test runnable via:
-    DEMO=rccv-handoff docker compose -f docker/docker-compose-multi-actor.yml up --abort-on-container-exit
+* the **story's shape** — the path read off its choices, the identity of the
+  stretch it shares with ``rccv-extension``, and the order of its own
+  fragments;
+* each of its **own fragments**, driven against a
+  :func:`~test.demo._helpers.story_state` stand-in cast, so a test observes
+  what the fragment calls;
+* the **surfaces around the story** — the CLI option set (DEMOMA-14-008), the
+  registry entry and the devlogs names the invariant harness reads.
+
+What the shared opening does is not re-tested here: it is one copy of the code,
+and ``test/demo/test_coordinated_story.py`` and
+``test/demo/test_two_coordinator_story.py`` own it.  The two
+``owner-keep-case`` continuations are shared with the vendor-first half, so
+``test/demo/test_owner_decision_story.py`` owns their mechanics and this module
+asserts only which parts ``rccv-handoff`` casts in them.
+
+Every test patches the collaborators out, so no HTTP happens except in
+``TestSeedContainersRccv``, which drives the real seeding helper through a
+FastAPI TestClient.  ``demo_gate`` / ``demo_check`` / ``demo_step`` stay real
+wherever the test is about control flow and are stubbed to ``nullcontext`` only
+where it is about call shape (``test_demo_context_managers.py`` owns their
+behaviour).
 """
 
-import importlib
+import contextlib
 import json
-from types import SimpleNamespace
-from typing import Any
-from unittest.mock import MagicMock, call, patch
+from typing import cast
+from unittest.mock import MagicMock, patch
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
+import vultron.demo.scenario.rccv_extension_demo as extension_demo
 import vultron.demo.scenario.rccv_handoff_demo as demo
 from test.demo._helpers import (
+    devlogs_name_of,
     make_client,
     make_testclient_call,
-    null_demo_contexts,
-    patch_chain_shared,
+    mock_actor,
+    mock_case,
+    mock_client,
+    no_demo_banners,
+    story_state,
     stub_closure_gate,
 )
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.cli import main
-from vultron.demo.helpers import invite_chain
+from vultron.demo.cli import main as cli_main
+from vultron.demo.helpers import (
+    coordinated_story,
+    owner_decision_story,
+    story as story_module,
+    two_coordinator_story,
+)
+from vultron.demo.helpers.coordinated_story import (
+    REPORTER,
+    VENDOR,
+    VENDOR_LABEL,
+)
+from vultron.demo.helpers.story import (
+    Choose,
+    StoryState,
+    UnseatedContainer,
+    choose,
+    run_story,
+    story,
+)
+from vultron.demo.helpers.two_coordinator_story import (
+    C1,
+    C1_INVITES_C2,
+    C1_PART,
+    C1_ROLE,
+    C2,
+    C2_PART,
+    SECOND_COORDINATOR_JOINED,
+    VENDOR_PART,
+    c1_invites_c2,
+)
+from vultron.demo.scenario.registry import registered_scenarios
+from vultron.demo.utils import DataLayerClient, reset_demo_failures
+from vultron.enums.roles import CVDRole
+from vultron.errors import DemoStoryError
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
+#: The scenario's four cast names, in the order the story seats them.
+_CAST = (REPORTER, C1, C2, VENDOR)
+
+#: How many items of ``STORY`` are the shared opening.
+_PREFIX_LEN = len(C1_INVITES_C2.items)
 
 
-@pytest.fixture(scope="module")
-def base(client: TestClient) -> str:
-    """Return the base URL for the single TestClient, matching /api/v2 prefix."""
-    return str(client.base_url).rstrip("/") + "/api/v2"
+@pytest.fixture(autouse=True)
+def _fresh_failures():
+    """Clear the process-global failure accumulator around every test.
+
+    ``vultron.demo.utils._demo_failures`` is process-global, so a fragment
+    that records a failure would otherwise leave it for the next test to read
+    as its own (``notes/testing-pitfalls.md``).
+    """
+    reset_demo_failures()
+    yield
+    reset_demo_failures()
 
 
-@pytest.fixture(scope="module", autouse=True)
-def patch_datalayer_call(client: TestClient, base: str):
-    """Patch DataLayerClient.call at the class level for all tests in this module."""
-    mp = MonkeyPatch()
-    try:
-        mp.setattr(
-            demo.DataLayerClient, "call", make_testclient_call(client, base)
-        )
+@contextlib.contextmanager
+def _no_banners():
+    """Every module a fragment of this scenario reaches, patched once."""
+    with no_demo_banners(
+        demo, coordinated_story, two_coordinator_story, owner_decision_story
+    ):
         yield
-    finally:
-        mp.undo()
-        importlib.reload(demo)
+
+
+def _four_party_state():
+    """A story state seating all four, on an open case."""
+    return story_state(*_CAST, case=mock_case())
+
+
+def _sessions_of(mock_method) -> list[str]:
+    """The actor id of each session an ``autospec``-ed verb was called on."""
+    return [call.args[0].actor.id_ for call in mock_method.call_args_list]
 
 
 # ---------------------------------------------------------------------------
-# Unit tests for seed_containers_rccv
+# The story's shape (DEMOCI-11-019, DEMOCI-11-024, DEMOMA-14-017)
 # ---------------------------------------------------------------------------
 
 
-class TestSeedContainersRccv:
-    """Test that seeding creates actors on all four containers."""
+class TestRccvHandoffStoryShape:
+    """``STORY`` places the scenario on the tree, and nothing else does."""
 
-    def test_seed_creates_all_four_actors(self, base: str):
-        from vultron.demo.helpers.seeding import seed_containers_rccv
+    #: The path ``rccv-handoff`` declared as ``@scenario(path=...)`` before it
+    #: was composed.  The composed form must walk exactly the same tree
+    #: ending, or the recordings, the generated index and the invariant
+    #: harness all move with it.
+    DECLARED_PATH = (
+        ("reporter-whom-to-tell", "coordinator"),
+        ("coordinator-invite-whom", "coordinator"),
+        ("owner-keep-case", "offer-ownership"),
+    )
 
-        reporter, c1, c2, vendor = seed_containers_rccv(
-            reporter_client=make_client(base),
-            c1_client=make_client(base),
-            c2_client=make_client(base),
-            vendor_client=make_client(base),
+    def test_the_story_walks_the_path_the_scenario_used_to_declare(self):
+        """The path is read off the choices, not typed beside them."""
+        assert demo.STORY.path == self.DECLARED_PATH
+
+    @pytest.mark.spec("DEMOMA-14-017")
+    def test_the_opening_is_the_shared_prefix_itself(self):
+        """``rccv-handoff`` and ``rccv-extension`` start with one prefix.
+
+        Identity of the shared stretch, not merely a matching sequence: the
+        two recordings must be byte-identical up to the ``owner-keep-case``
+        branch point (DEMOCI-11-018), which only holds while the opening is
+        one copy of the code.  Comparing against ``C1_INVITES_C2.items`` is
+        what stops a sibling slipping a step in before the branch point.
+        """
+        assert demo.STORY.items[:_PREFIX_LEN] == C1_INVITES_C2.items
+        assert extension_demo.STORY.items[:_PREFIX_LEN] == C1_INVITES_C2.items
+        # Every item of the prefix is the same object in both stories.
+        # Identity only: ``Choose`` is a frozen dataclass, so a hand-copied
+        # duplicate compares equal and an ``or mine == theirs`` arm would make
+        # this loop a second spelling of the tuple equality above.
+        for mine, theirs in zip(
+            demo.STORY.items[:_PREFIX_LEN],
+            extension_demo.STORY.items[:_PREFIX_LEN],
+            strict=True,
+        ):
+            assert mine is theirs
+
+    @pytest.mark.spec("DEMOMA-13-012")
+    def test_the_prefix_itself_starts_with_the_rcv_familys_opening(self):
+        """The first two steps are shared with every coordinator-first run.
+
+        ``C1_INVITES_C2`` continues ``REPORTER_TELLS_THE_COORDINATOR``, so the
+        report submission and C1's triage are one copy of the code for all of
+        ``rcv``, ``rcv-reject``, ``rcvcv`` and this pair (DEMOCI-11-018).
+        """
+        shared = coordinated_story.REPORTER_TELLS_THE_COORDINATOR.items
+        assert C1_INVITES_C2.items[: len(shared)] == shared
+        for mine, theirs in zip(
+            demo.STORY.items[: len(shared)], shared, strict=True
+        ):
+            assert mine is theirs
+
+    def test_the_siblings_part_at_the_owners_decision(self):
+        """The first item after the prefix is the choice, and it differs."""
+        branch = demo.STORY.items[_PREFIX_LEN]
+        assert branch == Choose(
+            branch_point="owner-keep-case",
+            choice="offer-ownership",
+            by=C1,
         )
-        assert reporter.id_ is not None
-        assert reporter.name == "Reporter"
-        assert c1.id_ is not None
-        assert c1.name == "Coordinator1"
-        assert c2.id_ is not None
-        assert c2.name == "Coordinator2"
-        assert vendor.id_ is not None
-        assert vendor.name == "Vendor"
-
-    def test_seed_registers_cross_container_peers(self, base: str):
-        from vultron.demo.helpers.seeding import seed_containers_rccv
-
-        reporter_client = make_client(base)
-
-        seed_containers_rccv(
-            reporter_client=reporter_client,
-            c1_client=make_client(base),
-            c2_client=make_client(base),
-            vendor_client=make_client(base),
+        assert branch != extension_demo.STORY.items[_PREFIX_LEN], (
+            "rccv-handoff and rccv-extension must take different choices at"
+            " owner-keep-case, or they are the same scenario"
         )
 
-        actors = reporter_client.get("/actors/")
-        actor_names = {a.get("name") for a in actors if isinstance(a, dict)}
-        assert "Reporter" in actor_names
-        assert "Coordinator1" in actor_names
-        assert "Coordinator2" in actor_names
-        assert "Vendor" in actor_names
+    def test_the_prefix_ends_with_c2_joining_the_case(self):
+        """C1 decides only once C2 is a participant (DEMOMA-14-010)."""
+        assert C1_INVITES_C2.items[-1] is two_coordinator_story.c1_invites_c2
 
-    def test_seed_with_deterministic_ids(self, base: str):
-        from vultron.demo.helpers.seeding import seed_containers_rccv
+    def test_the_continuation_runs_in_the_declared_order(self):
+        """One assertion for the whole continuation, so a reordering shows.
 
-        reporter_id = f"{base}/actors/reporter-rccv-det-test"
-        c1_id = f"{base}/actors/c1-rccv-det-test"
-        c2_id = f"{base}/actors/c2-rccv-det-test"
-        vendor_id = f"{base}/actors/vendor-rccv-det-test"
-
-        reporter, c1, c2, vendor = seed_containers_rccv(
-            reporter_client=make_client(base),
-            c1_client=make_client(base),
-            c2_client=make_client(base),
-            vendor_client=make_client(base),
-            reporter_actor_id=reporter_id,
-            c1_actor_id=c1_id,
-            c2_actor_id=c2_id,
-            vendor_actor_id=vendor_id,
+        The order is load-bearing: the handover comes before C2 invites
+        anyone, because only the Case Owner may invite (DEMOMA-14-005).
+        """
+        assert demo.STORY.items[_PREFIX_LEN:] == (
+            choose("owner-keep-case", "offer-ownership", by=C1),
+            demo.c1_hands_the_case_to_c2,
+            demo.c2_invites_the_vendor,
+            two_coordinator_story.required_participants_are_present,
+            two_coordinator_story.every_replica_converges,
+            demo.the_four_exchange_notes,
+            coordinated_story.vendor_reports_the_fix_ready,
+            demo.everyone_publishes,
+            demo.everyone_closes,
         )
 
-        assert reporter.id_ == reporter_id
-        assert c1.id_ == c1_id
-        assert c2.id_ == c2_id
-        assert vendor.id_ == vendor_id
+    def test_c1_and_the_vendor_are_seated_under_the_family_role_names(self):
+        """One copy of the opening serves the rcv family and this pair."""
+        assert C1 == coordinated_story.COORDINATOR
+        assert VENDOR_PART.name == VENDOR
+        # The devlogs and the CLI keep the scenario's own names.
+        assert [role.name for role in demo.ROLES] == [
+            "reporter",
+            C1_ROLE,
+            C2,
+            "vendor",
+            "case-actor",
+        ]
 
 
 # ---------------------------------------------------------------------------
-# Unit tests for reset_containers
+# The run's cast: C2 is a character actor (DEMOCI-11-018)
 # ---------------------------------------------------------------------------
 
 
-class TestResetContainersRccv:
-    """Test container reset orchestration for RCCV-handoff scenario."""
+class TestRccvHandoffCast:
+    """Four containers are reset; the opening seeds three of them."""
 
-    def test_reset_containers_calls_reset_for_all_targets(self):
-        reporter_client = MagicMock()
-        c1_client = MagicMock()
-        c2_client = MagicMock()
-        case_actor_client = MagicMock()
-        vendor_client = MagicMock()
-        reporter_client.get.return_value = {}
-        c1_client.get.return_value = {}
-        c2_client.get.return_value = {}
-        case_actor_client.get.return_value = {}
-        vendor_client.get.return_value = {}
+    def _open(self, *, case_actor_id=None):
+        """Run the orchestrator and open its cast, collaborators stubbed."""
+        clients = {
+            name: mock_client() for name in ("reporter", "c1", "c2", "vendor")
+        }
+        case_actor_client = mock_client()
+        seeded = [
+            MagicMock(id_=f"urn:test:{name}")
+            for name in ("reporter", "c1", "vendor")
+        ]
+        captured: dict[str, object] = {}
 
         with (
-            patch(
-                "vultron.demo.scenario.rccv_handoff_demo.reset_datalayer",
+            patch.object(demo, "run_story") as run_story,
+            patch.object(
+                coordinated_story,
+                "reset_datalayer",
                 return_value={"status": "ok"},
-            ) as reset_mock,
+            ) as reset,
             patch(
                 "vultron.demo.helpers.seeding.seed_case_actor_identity"
-            ) as reseed_mock,
+            ) as reseed,
+            patch.object(
+                coordinated_story,
+                "seed_containers_rcv",
+                return_value=tuple(seeded),
+            ) as seed_three,
+            patch.object(
+                coordinated_story, "get_actor_by_id", side_effect=list(seeded)
+            ),
+            patch.object(
+                two_coordinator_story, "seed_containers_rccv"
+            ) as seed_four,
         ):
-            demo.reset_containers(
-                reporter_client=reporter_client,
-                c1_client=c1_client,
-                c2_client=c2_client,
+            demo.run_rccv_handoff_demo(
+                reporter_client=clients["reporter"],
+                c1_client=clients["c1"],
+                c2_client=clients["c2"],
+                vendor_client=clients["vendor"],
                 case_actor_client=case_actor_client,
-                vendor_client=vendor_client,
+                reporter_id="urn:test:reporter",
+                c1_id="urn:test:c1",
+                c2_id="urn:test:c2",
+                vendor_id="urn:test:vendor",
+                case_actor_id=case_actor_id,
             )
-
-        reset_mock.assert_has_calls(
-            [
-                call(client=reporter_client),
-                call(client=c1_client),
-                call(client=c2_client),
-                call(client=vendor_client),
-                call(client=case_actor_client),
-            ]
-        )
-        # The reset wipes the CaseActor identity C1 proposes to, so it is
-        # re-seeded on the dedicated container (DEMOMA-06-004).
-        reseed_mock.assert_called_once_with(case_actor_client)
-
-
-# ---------------------------------------------------------------------------
-# Unit tests for wait_for_case_attributed_to
-# ---------------------------------------------------------------------------
-
-
-class TestWaitForCaseAttributedTo:
-    """Test the polling helper that waits for case attributed_to to match."""
-
-    def test_returns_immediately_when_attributed_to_matches(self):
-        client = MagicMock()
-        client.get.return_value = {
-            "attributedTo": {"id": "http://c2/actors/c2"}
+            # run_story() is what plays the story; the cast opening is the
+            # callable it is handed, so the test runs that and nothing else.
+            open_cast = run_story.call_args.args[2]
+            captured["state"] = open_cast(MagicMock())
+        return {
+            "clients": clients,
+            "case_actor_client": case_actor_client,
+            "reset": reset,
+            "reseed": reseed,
+            "seed_three": seed_three,
+            "seed_four": seed_four,
+            "run_story": run_story,
+            "state": captured["state"],
         }
-        demo.wait_for_case_attributed_to(
-            client=client,
-            case_id="urn:uuid:case-1",
-            expected_attributed_to="http://c2/actors/c2",
-            timeout_seconds=1.0,
-        )
-        assert client.get.call_count >= 1
 
-    def test_raises_on_timeout_when_attributed_to_never_matches(self):
-        client = MagicMock()
-        client.get.return_value = {
-            "attributedTo": {"id": "http://c1/actors/c1"}
-        }
-        with pytest.raises(AssertionError, match="Timed out waiting"):
-            demo.wait_for_case_attributed_to(
-                client=client,
-                case_id="urn:uuid:case-1",
-                expected_attributed_to="http://c2/actors/c2",
-                timeout_seconds=0.1,
-                poll_interval=0.05,
-            )
+    @pytest.mark.spec("DEMOMA-14-001")
+    def test_every_container_is_reset_and_the_case_actor_re_seeded(self):
+        """DEMOMA-01-003: a run starts clean on every container it touches.
 
-    def test_accepts_bare_string_attributed_to(self):
-        client = MagicMock()
-        client.get.return_value = {"attributedTo": "http://c2/actors/c2"}
-        demo.wait_for_case_attributed_to(
-            client=client,
-            case_id="urn:uuid:case-1",
-            expected_attributed_to="http://c2/actors/c2",
-            timeout_seconds=1.0,
-        )
-        assert client.get.call_count >= 1
+        The reset wipes the CaseActor identity C1 proposes the case to, so the
+        dedicated container's identity is re-seeded after it (DEMOMA-06-004,
+        #1876).
+        """
+        ran = self._open()
 
-
-# ---------------------------------------------------------------------------
-# wait_for_object_stored tests
-# ---------------------------------------------------------------------------
-
-
-class TestWaitForObjectStored:
-    """Test the polling helper that waits for an arbitrary object in a DataLayer."""
-
-    OBJ_ID = "urn:uuid:offer-abc"
-
-    def test_returns_when_object_present(self):
-        from vultron.demo.helpers.polling import wait_for_object_stored
-
-        client = MagicMock()
-        client.get.return_value = {"id": self.OBJ_ID, "type": "Offer"}
-        client.dl_path.side_effect = lambda key="", actor_id=None: (
-            f"/actors/{actor_id or 'an-actor'}/datalayer/{key}"
-        )
-        wait_for_object_stored(
-            client=client,
-            obj_id=self.OBJ_ID,
-            timeout_seconds=1.0,
-        )
-        # The read must be actor-scoped, and must ask the client to build the
-        # path rather than hand-writing it (ADR-0073): a MagicMock would happily
-        # accept any string, so assert the delegation too.
-        client.dl_path.assert_called_with(self.OBJ_ID, actor_id=None)
-        client.get.assert_called_with(client.dl_path(self.OBJ_ID))
-
-    def test_polls_the_named_actors_store(self):
-        """``actor_id`` selects the recipient's store, not the client's own."""
-        from vultron.demo.helpers.polling import wait_for_object_stored
-
-        client = MagicMock()
-        client.get.return_value = {"id": self.OBJ_ID, "type": "Read"}
-        client.dl_path.side_effect = lambda key="", actor_id=None: (
-            f"/actors/{actor_id or 'an-actor'}/datalayer/{key}"
-        )
-        wait_for_object_stored(
-            client=client,
-            obj_id=self.OBJ_ID,
-            timeout_seconds=1.0,
-            actor_id="reporter",
-        )
-        client.dl_path.assert_called_with(self.OBJ_ID, actor_id="reporter")
-        client.get.assert_called_with(
-            f"/actors/reporter/datalayer/{self.OBJ_ID}"
-        )
-
-    def test_raises_on_timeout_when_object_absent(self):
-        from vultron.demo.helpers.polling import wait_for_object_stored
-
-        client = MagicMock()
-        client.get.return_value = None
-        with pytest.raises(AssertionError, match="Timed out waiting"):
-            wait_for_object_stored(
-                client=client,
-                obj_id=self.OBJ_ID,
-                timeout_seconds=0.1,
-                poll_interval=0.05,
-            )
-
-    def test_raises_on_timeout_when_object_returns_empty_dict(self):
-        from vultron.demo.helpers.polling import wait_for_object_stored
-
-        client = MagicMock()
-        client.get.return_value = {}
-        with pytest.raises(AssertionError, match="Timed out waiting"):
-            wait_for_object_stored(
-                client=client,
-                obj_id=self.OBJ_ID,
-                timeout_seconds=0.1,
-                poll_interval=0.05,
-            )
-
-    def test_swallows_get_exception_and_retries(self):
-        from vultron.demo.helpers.polling import wait_for_object_stored
-
-        client = MagicMock()
-        client.get.side_effect = [
-            RuntimeError("transient network error"),
-            {"id": self.OBJ_ID, "type": "Offer"},
+        assert [c.kwargs["client"] for c in ran["reset"].call_args_list] == [
+            ran["clients"]["reporter"],
+            ran["clients"]["c1"],
+            ran["clients"]["vendor"],
+            ran["clients"]["c2"],
+            ran["case_actor_client"],
         ]
-        wait_for_object_stored(
-            client=client,
-            obj_id=self.OBJ_ID,
-            timeout_seconds=1.0,
-        )
-        assert client.get.call_count == 2
+        ran["reseed"].assert_called_once_with(ran["case_actor_client"])
+
+    def test_the_opening_seeds_only_the_three_fixed_role_containers(self):
+        """C2's actor record would move the first ledger entry's timestamp."""
+        ran = self._open()
+
+        ran["seed_three"].assert_called_once()
+        seeding = ran["seed_three"].call_args.kwargs
+        assert seeding["reporter_client"] is ran["clients"]["reporter"]
+        assert seeding["coordinator_client"] is ran["clients"]["c1"]
+        assert seeding["vendor_client"] is ran["clients"]["vendor"]
+        ran["seed_four"].assert_not_called()
+
+        state = ran["state"]
+        assert sorted(state.cast) == sorted([REPORTER, C1, VENDOR])
+        assert sorted(state.unseated) == [C2]
+
+    def test_c2s_container_waits_with_its_deterministic_id(self):
+        """``--c2-id`` reaches the fragment that seeds C2, not the opening."""
+        ran = self._open()
+        unseated = ran["state"].unseated
+
+        assert isinstance(unseated[C2], UnseatedContainer)
+        assert unseated[C2].client is ran["clients"]["c2"]
+        assert unseated[C2].actor_id == "urn:test:c2"
+        assert unseated[C2].label == "C2"
+
+    def test_the_orchestrator_plays_this_scenarios_story(self):
+        """``run_story`` is handed the registered name and ``STORY``."""
+        ran = self._open()
+
+        assert ran["run_story"].call_args.args[0] == "rccv-handoff"
+        assert ran["run_story"].call_args.args[1] is demo.STORY
+
+    @pytest.mark.spec("DEMOMA-14-008")
+    def test_a_case_actor_id_override_is_accepted_and_unused(self):
+        """``--case-actor-id`` has somewhere to go and seeds nothing with it.
+
+        The case-actor container seeds its own identity on reset
+        (DEMOMA-06-004), and the id the Invite check needs is read off the
+        case's participant index so that it names the actor actually holding
+        CASE_MANAGER (PCR-08-008).  The option therefore exists so the CLI
+        contract holds, and a run given it must behave as one that is not —
+        never quietly seed a CaseActor under the given id.
+        """
+        given = self._open(case_actor_id="urn:test:given-case-actor")
+
+        seeding = given["seed_three"].call_args.kwargs
+        assert seeding["case_actor_client"] is given["case_actor_client"]
+        assert "urn:test:given-case-actor" not in seeding.values(), seeding
+        # The three seeded actors are the opening's; it seeds no fourth, and
+        # the canonical store stays the dedicated container's.
+        assert sorted(given["state"].cast) == sorted([REPORTER, C1, VENDOR])
+        assert given["state"].case_actor_client is given["case_actor_client"]
 
 
 # ---------------------------------------------------------------------------
-# CLI integration tests
+# The handover and the new owner's invite (DEMOMA-14-004/005/010/011)
 # ---------------------------------------------------------------------------
 
 
-class TestRccvHandoffCliCommand:
-    """Test that the 'rccv-handoff' CLI sub-command is registered and reachable."""
+class TestC1HandsTheCaseToC2:
+    """The scenario casts C1 as the owner and C2 as the new owner."""
 
-    def test_rccv_handoff_command_exists(self):
-        runner = CliRunner()
-        result = runner.invoke(main, ["rccv-handoff", "--help"])
-        assert result.exit_code == 0, result.output
-        assert "Reporter" in result.output or "rccv" in result.output.lower()
+    @pytest.mark.spec("DEMOMA-14-004")
+    def test_the_handover_names_c1_as_owner_and_c2_as_the_new_owner(self):
+        """The mechanics are shared; which part each plays is the scenario's.
 
-    def test_rccv_handoff_command_reporter_url_option(self):
-        runner = CliRunner()
-        result = runner.invoke(main, ["rccv-handoff", "--help"])
-        assert "--reporter-url" in result.output
+        ``owner_decision_story`` takes ``Part``\\ s off the running story, so
+        the only thing this scenario decides is the casting — and getting it
+        backwards would transfer ownership the wrong way (DEMOMA-14-012).  It
+        also names the join the transfer presupposes, which the continuation
+        reads before it offers anything (DEMOMA-14-010).
+        """
+        state = _four_party_state()
 
-    def test_rccv_handoff_command_skip_health_check_option(self):
-        runner = CliRunner()
-        result = runner.invoke(main, ["rccv-handoff", "--help"])
-        assert "--skip-health-check" in result.output
+        with patch.object(demo, "the_owner_hands_the_case_over") as handover:
+            demo.c1_hands_the_case_to_c2(state)
 
-    def test_rccv_handoff_command_c1_url_option(self):
-        runner = CliRunner()
-        result = runner.invoke(main, ["rccv-handoff", "--help"])
-        assert "--c1-url" in result.output
+        handover.assert_called_once()
+        assert handover.call_args.args == (state,)
+        assert handover.call_args.kwargs == {
+            "joined": SECOND_COORDINATOR_JOINED,
+            "owner": C1_PART,
+            "new_owner": C2_PART,
+        }
 
-    def test_rccv_handoff_command_c2_url_option(self):
-        runner = CliRunner()
-        result = runner.invoke(main, ["rccv-handoff", "--help"])
-        assert "--c2-url" in result.output
 
-    def test_rccv_handoff_command_vendor_url_option(self):
-        runner = CliRunner()
-        result = runner.invoke(main, ["rccv-handoff", "--help"])
-        assert "--vendor-url" in result.output
+class TestC2InvitesTheVendor:
+    """C2, the owner since the handoff, invites the Vendor — not C1."""
 
-    def test_rccv_handoff_command_case_actor_url_option(self):
-        runner = CliRunner()
-        result = runner.invoke(main, ["rccv-handoff", "--help"])
-        assert "--case-actor-url" in result.output
+    @pytest.mark.spec("DEMOMA-14-005")
+    def test_the_invite_comes_from_c2_and_offers_the_vendor_role(self):
+        """The new owner invites, so the roster is read on its replica."""
+        state = _four_party_state()
+
+        with patch.object(demo, "the_new_owner_invites") as invite:
+            demo.c2_invites_the_vendor(state)
+
+        invite.assert_called_once()
+        assert invite.call_args.args == (state,)
+        assert invite.call_args.kwargs == {
+            "new_owner": C2_PART,
+            "invitee": VENDOR_PART,
+            "role": CVDRole.VENDOR,
+            "seated": (REPORTER, C1, C2, VENDOR),
+        }
+
+    @pytest.mark.spec("DEMOMA-14-013")
+    def test_an_uncommitted_handover_stops_the_story_before_the_invite(self):
+        """Only the Case Owner may invite (DEMOCI-01-011).
+
+        The real shared continuation runs: it reads the prop the handover
+        keeps, so a transfer the CASE_MANAGER never committed stops the story
+        here instead of inviting into a case C2 does not own.
+        """
+        state = _four_party_state()
+
+        with (
+            patch.object(
+                owner_decision_story, "run_case_invite_chain"
+            ) as chain,
+            patch.object(
+                owner_decision_story, "find_case_actor_participant_id"
+            ),
+            pytest.raises(DemoStoryError, match="handed over"),
+        ):
+            demo.c2_invites_the_vendor(state)
+
+        chain.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
-# Unit tests for _phase_dump_case_ledgers
+# The note thread (DEMOMA-16-001)
+# ---------------------------------------------------------------------------
+
+
+class TestTheFourExchangeNotes:
+    """C2 and the Vendor answer the thread the Reporter and C1 opened."""
+
+    def test_the_two_updates_are_posted_from_their_own_containers(self):
+        """Each poster acts from its own replica; the thread is C1's.
+
+        The question and C1's answer are the pair's shared half
+        (``four_way_note_thread``); what C2 says differs with who owns the
+        case by then, which is why this scenario passes its own two posts.
+        """
+        state = _four_party_state()
+
+        with patch.object(two_coordinator_story, "add_note_thread") as thread:
+            demo.the_four_exchange_notes(state)
+
+        watching_client, case, posts = thread.call_args.args
+        assert watching_client is state.client(C1)
+        assert case is state.case
+        assert [post.poster.client for post in posts] == [
+            state.client(REPORTER),
+            state.client(C1),
+            state.client(C2),
+            state.client(VENDOR),
+        ]
+        assert [post.name for post in posts[2:]] == [
+            "C2 Update (new Case Owner)",
+            f"{VENDOR_LABEL} Status Update",
+        ]
+        # C2 speaks as the new Case Owner, which is what distinguishes this
+        # thread from ``rccv-extension``'s (DEMOMA-17-002).
+        assert "new case owner" in posts[2].content.lower()
+
+
+# ---------------------------------------------------------------------------
+# Publication and closure (DEMOMA-14-014, DEMOMA-14-015)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("DEMOMA-14-014")
+class TestEveryonePublishes:
+    """C2, the Case Owner since the handoff, publishes first."""
+
+    def test_the_case_owner_is_c2_and_the_other_coordinator_is_c1(self):
+        """The shared step reads the owner's part; this scenario casts it."""
+        state = _four_party_state()
+
+        with patch.object(demo, "all_four_publish") as publish:
+            demo.everyone_publishes(state)
+
+        assert publish.call_args.args == (state,)
+        assert publish.call_args.kwargs == {
+            "owner": C2_PART,
+            "other": C1_PART,
+        }
+
+    def test_the_real_order_is_c2_then_vendor_then_c1_then_reporter(self):
+        """DEMOMA-07-003(4): the Case Owner triggers CS.P first.
+
+        The shared step runs for real, so the casting above is checked by its
+        effect: a swapped owner would publish C1 first and the embargo
+        teardown would be awaited after the wrong trigger.
+        """
+        state = _four_party_state()
+        order: list[str] = []
+
+        with (
+            patch.object(
+                two_coordinator_story,
+                "wait_for_case_em_terminated",
+                side_effect=lambda client, case_id: order.append(
+                    f"em_exited:{devlogs_name_of(state, client, two_coordinator_story.DEVLOG_REPLICAS)}"
+                ),
+            ),
+            patch.object(
+                two_coordinator_story, "wait_for_participant_vf_state"
+            ),
+            patch.object(two_coordinator_story, "verify_publicly_disclosed"),
+            patch.object(
+                ActorSession,
+                "notify_published",
+                autospec=True,
+                side_effect=lambda session: order.append(
+                    f"published:{devlogs_name_of(state, session.client, two_coordinator_story.DEVLOG_REPLICAS)}"
+                ),
+            ),
+            _no_banners(),
+        ):
+            demo.everyone_publishes(state)
+
+        assert order == [
+            "published:coordinator",
+            "em_exited:vendor",
+            "published:vendor2",
+            "published:vendor",
+            "em_exited:reporter",
+            "published:reporter",
+            "em_exited:reporter",
+        ], order
+
+
+@pytest.mark.spec("DEMOMA-14-015")
+class TestEveryoneCloses:
+    """C1, the Vendor and the Reporter leave; C2, the owner, leaves last."""
+
+    def test_c2_leaves_last_and_the_departures_are_read_on_the_case_actor(
+        self,
+    ):
+        """The owner's ``Leave`` is gated on the CASE_MANAGER's store.
+
+        The handoff moves CASE_OWNER, not CASE_MANAGER: that store stays on
+        the dedicated case-actor container (DEMOMA-06-005), so the authority
+        client must be that one and not C1's or C2's own.
+        """
+        state = _four_party_state()
+
+        with (
+            patch.object(ActorSession, "leave_case"),
+            stub_closure_gate(),
+            patch.object(
+                coordinated_story, "close_case_owner_last"
+            ) as closure,
+        ):
+            demo.everyone_closes(state)
+
+        kwargs = closure.call_args.kwargs
+        assert kwargs["milestone"] == "M8"
+        assert kwargs["authority_client"] is state.case_actor_client
+        assert [leaver.client for leaver in kwargs["others"]] == [
+            state.client(C1),
+            state.client(VENDOR),
+            state.client(REPORTER),
+        ]
+        assert kwargs["owner"].client is state.client(C2)
+        assert kwargs["owner"].actor is state.actor(C2).actor
+
+
+# ---------------------------------------------------------------------------
+# The devlogs the invariant harness reads
 # ---------------------------------------------------------------------------
 
 
@@ -383,11 +624,11 @@ def _bound_client(slug: str) -> MagicMock:
     """A dump client stub bound to a *generated* actor id, as the real one is.
 
     ``actor_id`` must be a real string: the dump derives its route key from it
-    (``replica_route_key``, ADR-0073) and writes the key into the manifest, so a
-    bare ``MagicMock()`` leaves an unserialisable object there.  The ids are
-    deliberately *not* the docker-compose seed names — that is the whole point of
-    deriving the key, and a stub carrying ``actor_id="reporter"`` would pass even if
-    the derivation were dropped.
+    (``replica_route_key``, ADR-0073) and writes the key into the manifest, so
+    a bare ``MagicMock()`` leaves an unserialisable object there.  The ids are
+    deliberately *not* the docker-compose seed names — that is the whole point
+    of deriving the key, and a stub carrying ``actor_id="reporter"`` would
+    pass even if the derivation were dropped.
     """
     client = MagicMock()
     client.actor_id = f"https://example.org/actors/{slug}"
@@ -395,63 +636,61 @@ def _bound_client(slug: str) -> MagicMock:
     return client
 
 
-class TestPhaseDumpCaseLedgersRccv:
-    """Tests for the case-ledger dump phase in the RCCV-handoff demo."""
+class TestRccvHandoffLedgerDump:
+    """Each replica is dumped under this scenario's own name for it."""
 
-    def test_writes_jsonl_files_for_all_four_actors(
+    def _state_for_dump(self, case):
+        """A story state whose clients are dump-ready, on *case*.
+
+        Built rather than adapted: an ``ActorSession`` is frozen, so a bound
+        client has to be the one the session is made with.
+        """
+        slugs = {
+            REPORTER: "reporter-9f3a",
+            C1: "coordinator1-2b71",
+            C2: "coordinator2-4c05",
+            VENDOR: "vendor-8ade",
+        }
+        state = StoryState(
+            cast={
+                name: ActorSession(
+                    client=_bound_client(slug),
+                    actor=mock_actor(f"urn:test:{name}"),
+                )
+                for name, slug in slugs.items()
+            },
+            case_actor_client=_bound_client("case-actor"),
+            harness=MagicMock(demo_name="rccv-handoff"),
+            dump=lambda _state: None,
+        )
+        state.open_case(case=case, report=MagicMock(), offer=MagicMock())
+        return state
+
+    def test_the_dump_writes_one_file_per_actor_under_the_demo_name(
         self, tmp_path, monkeypatch
     ):
-        reporter_client = _bound_client("reporter-9f3a")
-        c1_client = _bound_client("coordinator1-2b71")
-        c2_client = _bound_client("coordinator2-4c05")
-        vendor_client = _bound_client("vendor-8ade")
-        case_actor_client = _bound_client("case-actor")
-
-        case = demo.as_VulnerabilityCase(
+        """Four crossed devlogs names, each keyed on its client's actor id."""
+        case = as_VulnerabilityCase(
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/rccv-test-case",
         )
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
-        demo._phase_dump_case_ledgers(
-            reporter_client=reporter_client,
-            c1_client=c1_client,
-            c2_client=c2_client,
-            vendor_client=vendor_client,
-            case_actor_client=case_actor_client,
-            case=case,
-        )
+        demo.dump_two_coordinator_ledgers(self._state_for_dump(case))
 
         case_slug = "https_example.org_cases_rccv-test-case"
-        assert (
-            tmp_path
-            / "rccv-handoff"
-            / "reporter"
-            / f"{case_slug}-case-ledger.jsonl"
-        ).exists()
-        assert (
-            tmp_path
-            / "rccv-handoff"
-            / "vendor"
-            / f"{case_slug}-case-ledger.jsonl"
-        ).exists()
-        assert (
-            tmp_path
-            / "rccv-handoff"
-            / "coordinator"
-            / f"{case_slug}-case-ledger.jsonl"
-        ).exists()
-        assert (
-            tmp_path
-            / "rccv-handoff"
-            / "vendor2"
-            / f"{case_slug}-case-ledger.jsonl"
-        ).exists()
+        for devlogs_name in ("reporter", "vendor", "coordinator", "vendor2"):
+            assert (
+                tmp_path
+                / "rccv-handoff"
+                / devlogs_name
+                / f"{case_slug}-case-ledger.jsonl"
+            ).exists(), devlogs_name
 
         # The route key selects the store (ADR-0073), so it must be the
         # client's own actor id — not the seed name the directory is named
-        # after.  Note the RCCV handoff deliberately crosses the two: c1 is
-        # the actor written under "vendor".
+        # after.  The pair deliberately crosses the two: C1 is the actor
+        # written under "vendor".
         manifest = json.loads(
             (tmp_path / "rccv-handoff" / "dump-manifest.json").read_text()
         )
@@ -464,1072 +703,357 @@ class TestPhaseDumpCaseLedgersRccv:
             "case-actor": "case-actor",
         }
 
-    def test_reads_case_actor_ledger_from_dedicated_container(
+    def test_the_canonical_ledger_is_read_on_the_dedicated_container(
         self, tmp_path, monkeypatch
     ):
-        """The canonical ledger is dumped from the case-actor container only.
-
-        The CaseActor is not on C1's container any more (DEMOMA-06-005), so
-        nothing is read for it there.
-        """
-        reporter_client = _bound_client("reporter-9f3a")
-        c1_client = _bound_client("coordinator1-2b71")
-        c2_client = _bound_client("coordinator2-4c05")
-        vendor_client = _bound_client("vendor-8ade")
-        case_actor_client = _bound_client("case-actor")
-
-        case = demo.as_VulnerabilityCase(
+        """The CaseActor is not on C1's container (DEMOMA-06-005)."""
+        case = as_VulnerabilityCase(
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/rccv-with-ca",
             actor_participant_index={
                 "https://example.org/actors/case-actor": (
-                    "https://example.org/cases/rccv-with-ca/participants/case-actor"
+                    "https://example.org/cases/rccv-with-ca"
+                    "/participants/case-actor"
                 )
             },
         )
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
+        state = self._state_for_dump(case)
 
-        demo._phase_dump_case_ledgers(
-            reporter_client=reporter_client,
-            c1_client=c1_client,
-            c2_client=c2_client,
-            vendor_client=vendor_client,
-            case_actor_client=case_actor_client,
-            case=case,
-        )
+        demo.dump_two_coordinator_ledgers(state)
 
+        canonical = cast(MagicMock, state.case_actor_client.get_list)
+        c1_reads = cast(MagicMock, state.client(C1).get_list)
         assert any(
             "/actors/case-actor/demo/cases/rccv-with-ca/log" in call.args[0]
-            for call in case_actor_client.get_list.call_args_list
+            for call in canonical.call_args_list
         )
         assert not any(
             "/actors/case-actor/" in call.args[0]
-            for call in c1_client.get_list.call_args_list
+            for call in c1_reads.call_args_list
         )
 
-
-# ---------------------------------------------------------------------------
-# Milestone assertion tests — AC-4 of ISSUE-1976
-# ---------------------------------------------------------------------------
-
-
-class TestRccvHandoffMilestoneAssertions:
-    """Verify that _phase_* functions call the required milestone helpers."""
-
-    def _actor(self, id_: str = "urn:test:actor"):
-        a = MagicMock()
-        a.id_ = id_
-        return a
-
-    def _case(self, id_: str = "urn:test:case"):
-        c = MagicMock()
-        c.id_ = id_
-        return c
-
-    def _client(self):
-        c = MagicMock()
-        c.get.return_value = {}
-        return c
-
-    def test_phase_report_submission_calls_verify_case_active(self):
-        """_phase_report_submission calls verify_case_active (via run_rccv_handoff_demo).
-
-        The _phase_report_submission function itself does not call verify_case_active;
-        the M1 check is done in run_rccv_handoff_demo after all participants join.
-        This test verifies the phase runs without error and returns a case.
-        """
-        import contextlib
-
-        reporter_client = self._client()
-        c1_client = self._client()
-        c2_client = self._client()
-        case_actor_client = self._client()
-        vendor_client = self._client()
-        reporter = self._actor("urn:test:reporter")
-        c1 = self._actor("urn:test:c1")
-        c2 = self._actor("urn:test:c2")
-        vendor = self._actor("urn:test:vendor")
-        c1_in_c1 = self._actor("urn:test:c1")
-        c2_in_c2 = self._actor("urn:test:c2")
-        report = MagicMock()
-        offer = MagicMock()
-        offer.id_ = "urn:test:offer"
-        case = self._case()
-
+    def test_the_dump_is_what_the_cast_opening_arms(self):
+        """DEMOMA-23-003: armed when the case opens, and exactly once."""
         with (
-            patch.object(demo, "reset_containers"),
+            patch.object(demo, "run_story") as run_story,
             patch.object(
-                demo,
-                "seed_containers_rccv",
-                return_value=(reporter, c1, c2, vendor),
-            ),
-            patch.object(
-                demo, "get_actor_by_id", side_effect=[c1_in_c1, c2_in_c2]
-            ),
-            patch.object(
-                demo, "reporter_submits_report", return_value=(report, offer)
-            ),
-            patch.object(demo, "run_direct_path_rm_triage", return_value=case),
-            patch.object(demo, "wait_for_case_participants"),
-            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
-            patch.object(
-                demo,
-                "demo_check",
-                # Patched: test verifies call parameters/ordering, not context-manager
-                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-            patch.object(
-                demo,
-                "demo_step",
-                # Patched: test verifies call parameters/ordering, not context-manager
-                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-        ):
-            mock_vc.model_validate.return_value = case
-            result = demo._phase_report_submission(
-                reporter_client=reporter_client,
-                c1_client=c1_client,
-                c2_client=c2_client,
-                case_actor_client=case_actor_client,
-                vendor_client=vendor_client,
-                reporter_id=None,
-                c1_id=None,
-                c2_id=None,
-                vendor_id=None,
-            )
-        assert result is not None
-
-    @pytest.mark.spec("CM-12-001")
-    def test_run_rccv_handoff_calls_verify_case_active(self):
-        """run_rccv_handoff_demo calls verify_case_active at M1."""
-        import contextlib
-
-        reporter_client = self._client()
-        c1_client = self._client()
-        c2_client = self._client()
-        case_actor_client = self._client()
-        vendor_client = self._client()
-
-        with (
-            patch.object(
-                demo,
-                "_phase_report_submission",
-                return_value=(
-                    self._actor("f"),
-                    self._actor("c1"),
-                    self._actor("c1_c1"),
-                    self._actor("c2"),
-                    self._actor("c2_c2"),
-                    self._actor("v"),
-                    MagicMock(),
-                    MagicMock(),
-                    self._case(),
-                ),
-            ),
-            patch.object(
-                demo,
-                "find_case_actor_participant_id",
-                return_value="urn:test:case-actor",
-            ),
-            patch.object(
-                demo, "_phase_ownership_handoff", return_value=self._case()
-            ),
-            patch.object(demo, "_phase_c2_invites_vendor"),
-            patch.object(demo, "_phase_sync_verification"),
-            patch.object(demo, "_phase_notes_exchange"),
-            patch.object(demo, "_phase_fix_lifecycle"),
-            patch.object(demo, "_phase_publication"),
-            patch.object(demo, "_phase_case_closure"),
-            patch.object(demo, "_phase_dump_case_ledgers"),
-            patch.object(demo, "get_actor_by_id", return_value=self._actor()),
-            patch.object(demo, "wait_for_case_participants"),
-            patch.object(demo, "verify_case_active") as mock_m1,
-            patch.object(
-                demo,
-                "demo_check",
-                # Patched: test verifies call parameters/ordering, not context-manager
-                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
+                coordinated_story, "open_coordinated_cast"
+            ) as open_coordinated_cast,
         ):
             demo.run_rccv_handoff_demo(
-                reporter_client=reporter_client,
-                c1_client=c1_client,
-                c2_client=c2_client,
-                case_actor_client=case_actor_client,
-                vendor_client=vendor_client,
+                reporter_client=mock_client(),
+                c1_client=mock_client(),
+                c2_client=mock_client(),
+                vendor_client=mock_client(),
+                case_actor_client=mock_client(),
+                c2_id="urn:test:c2",
             )
-        mock_m1.assert_called()
+            run_story.call_args.args[2](MagicMock())
 
-    def test_phase_fix_lifecycle_calls_verify_fix_ready(self):
-        """_phase_fix_lifecycle calls verify_fix_ready at M4/M5."""
-        import contextlib
-
-        reporter_client = self._client()
-        c1_client = self._client()
-        vendor_client = self._client()
-        c1 = self._actor("urn:test:c1")
-        vendor = self._actor("urn:test:vendor")
-        vendor_in_vendor = self._actor("urn:test:vendor")
-        case = self._case()
-
-        with (
-            patch.object(demo, "wait_for_participant_rm_state"),
-            patch.object(ActorSession, "notify_fix_ready"),
-            patch.object(demo, "wait_for_participant_vf_state"),
-            patch.object(demo, "verify_fix_ready") as mock_m4,
-            patch.object(
-                demo,
-                "demo_check",
-                # Patched: test verifies call parameters/ordering, not context-manager
-                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-        ):
-            demo._phase_fix_lifecycle(
-                reporter_client=reporter_client,
-                c1_client=c1_client,
-                vendor_client=vendor_client,
-                c1=c1,
-                vendor=vendor,
-                vendor_in_vendor=vendor_in_vendor,
-                case=case,
-            )
-        mock_m4.assert_called()
-
-    def test_phase_fix_lifecycle_gates_on_rm_accepted(self):
-        """_phase_fix_lifecycle polls vendor RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (ADR-0058/CSB-18-001)."""
-        from vultron.core.states.rm import RM
-
-        reporter_client = self._client()
-        c1_client = self._client()
-        vendor_client = self._client()
-        c1 = self._actor("urn:test:c1")
-        vendor = self._actor("urn:test:vendor")
-        vendor_in_vendor = self._actor("urn:test:vendor")
-        case = self._case()
-
-        call_order = []
-        rm_calls = []
-
-        def _rm_wait(*a, **kw):
-            rm_calls.append(kw)
-            call_order.append("rm_wait")
-
-        with (
-            patch.object(demo, "wait_for_participant_rm_state", _rm_wait),
-            patch.object(
-                ActorSession,
-                "notify_fix_ready",
-                side_effect=lambda *a, **kw: call_order.append("fix_ready"),
-            ),
-            patch.object(demo, "wait_for_participant_vf_state"),
-            patch.object(demo, "verify_fix_ready"),
-        ):
-            demo._phase_fix_lifecycle(
-                reporter_client=reporter_client,
-                c1_client=c1_client,
-                vendor_client=vendor_client,
-                c1=c1,
-                vendor=vendor,
-                vendor_in_vendor=vendor_in_vendor,
-                case=case,
-            )
-
-        assert rm_calls, (
-            "wait_for_participant_rm_state must be called (ADR-0058/CSB-18-001)"
-        )
-        assert all(
-            c.get("expected_states") == {RM.ACCEPTED, RM.DEFERRED, RM.CLOSED}
-            for c in rm_calls
-        ), "expected_states must be {ACCEPTED, DEFERRED, CLOSED} (CSB-18-001)"
-        assert "rm_wait" in call_order and "fix_ready" in call_order
-        assert call_order.index("rm_wait") < call_order.index("fix_ready"), (
-            "wait_for_participant_rm_state must precede actor_notifies_fix_ready (ADR-0058)"
+        assert (
+            open_coordinated_cast.call_args.kwargs["dump"]
+            is demo.dump_two_coordinator_ledgers
         )
 
-    def test_phase_publication_calls_verify_publicly_disclosed(self):
-        """_phase_publication calls verify_publicly_disclosed at M6."""
-        import contextlib
 
-        reporter_client = self._client()
-        c1_client = self._client()
-        c2_client = self._client()
-        vendor_client = self._client()
-        c1 = self._actor("urn:test:c1")
-        c1_in_c1 = self._actor("urn:test:c1")
-        c2 = self._actor("urn:test:c2")
-        c2_in_c2 = self._actor("urn:test:c2")
-        reporter = self._actor("urn:test:reporter")
-        reporter_in_reporter = self._actor("urn:test:reporter")
-        vendor = self._actor("urn:test:vendor")
-        vendor_in_vendor = self._actor("urn:test:vendor")
-        case = self._case()
+# ---------------------------------------------------------------------------
+# The CLI sub-command and the registry entry (DEMOCI-11-011, DEMOMA-14-008)
+# ---------------------------------------------------------------------------
 
-        with (
-            patch.object(ActorSession, "notify_published"),
-            patch.object(demo, "wait_for_case_em_terminated"),
-            patch.object(demo, "wait_for_participant_vf_state"),
-            patch.object(demo, "verify_publicly_disclosed") as mock_m6,
-            patch.object(
-                demo,
-                "demo_check",
-                # Patched: test verifies call parameters/ordering, not context-manager
-                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-        ):
-            demo._phase_publication(
-                reporter_client=reporter_client,
-                c1_client=c1_client,
-                c2_client=c2_client,
-                vendor_client=vendor_client,
-                c1=c1,
-                c1_in_c1=c1_in_c1,
-                c2=c2,
-                c2_in_c2=c2_in_c2,
-                reporter=reporter,
-                reporter_in_reporter=reporter_in_reporter,
-                vendor=vendor,
-                vendor_in_vendor=vendor_in_vendor,
-                case=case,
-            )
-        mock_m6.assert_called()
 
-    def test_phase_case_closure_runs_the_closure_milestone(self):
-        """_phase_case_closure runs the shared closure milestone (CM-23-004).
+@pytest.fixture
+def help_text() -> str:
+    """``vultron-demo rccv-handoff --help`` as the sub-command renders it."""
+    result = CliRunner().invoke(cli_main, ["rccv-handoff", "--help"])
+    assert result.exit_code == 0, result.output
+    return result.output
 
-        The milestone checks the CASE_MANAGER's store and each leaver's own
-        replica inside ``close_case_owner_last``; the scenario only names it.
-        """
-        import contextlib
 
-        reporter_client = self._client()
-        c1_client = self._client()
-        c2_client = self._client()
-        vendor_client = self._client()
-        c1 = self._actor("urn:test:c1")
-        c1_in_c1 = self._actor("urn:test:c1")
-        c2 = self._actor("urn:test:c2")
-        c2_in_c2 = self._actor("urn:test:c2")
-        reporter = self._actor("urn:test:reporter")
-        reporter_in_reporter = self._actor("urn:test:reporter")
-        vendor = self._actor("urn:test:vendor")
-        vendor_in_vendor = self._actor("urn:test:vendor")
-        case = self._case()
-        case.id_ = "urn:test:case"
-        c2_client.get.return_value = {
-            "e0": {
-                "case_id": case.id_,
-                "log_index": 0,
-                "entry_hash": "h0",
-                "semantic_type": "close_case",
-            }
-        }
+@pytest.mark.spec("DEMOMA-14-008")
+class TestRccvHandoffCliCommand:
+    """The generated sub-command offers every option DEMOMA-14-008 names."""
 
-        with (
-            patch.object(ActorSession, "leave_case"),
-            stub_closure_gate(),
-            patch.object(demo, "close_case_owner_last") as mock_m7,
-            patch.object(
-                demo,
-                "demo_check",
-                # Patched: test verifies call parameters/ordering, not context-manager
-                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-        ):
-            demo._phase_case_closure(
-                reporter_client=reporter_client,
-                c1_client=c1_client,
-                c2_client=c2_client,
-                vendor_client=vendor_client,
-                case_actor_client=MagicMock(),
-                c1=c1,
-                c1_in_c1=c1_in_c1,
-                c2=c2,
-                c2_in_c2=c2_in_c2,
-                reporter=reporter,
-                reporter_in_reporter=reporter_in_reporter,
-                vendor=vendor,
-                vendor_in_vendor=vendor_in_vendor,
-                case=case,
-            )
-        mock_m7.assert_called_once()
-        assert mock_m7.call_args.kwargs.get("milestone") is None
+    @pytest.mark.parametrize(
+        "option",
+        [
+            "--skip-health-check",
+            "--reporter-url",
+            "--c1-url",
+            "--c2-url",
+            "--vendor-url",
+            "--case-actor-url",
+            "--reporter-id",
+            "--c1-id",
+            "--c2-id",
+            "--vendor-id",
+            "--case-actor-id",
+        ],
+    )
+    def test_the_option_is_offered(self, help_text: str, option: str):
+        """One URL and one id option per container, plus the health skip."""
+        assert option in help_text
 
-    def test_phase_case_closure_c2_closes_last(self):
-        """C2 (case owner post-handoff) must close after C1, Vendor, and Reporter."""
-        import contextlib
-
-        reporter_client = self._client()
-        c1_client = self._client()
-        c2_client = self._client()
-        vendor_client = self._client()
-        c1_in_c1 = self._actor("urn:test:c1")
-        c2_in_c2 = self._actor("urn:test:c2")
-        reporter_in_reporter = self._actor("urn:test:reporter")
-        vendor_in_vendor = self._actor("urn:test:vendor")
-        case = self._case()
-        case.id_ = "urn:test:case"
-        c2_client.get.return_value = {
-            "e0": {
-                "case_id": case.id_,
-                "log_index": 0,
-                "entry_hash": "h0",
-                "semantic_type": "close_case",
-            }
+    def test_main_builds_one_client_per_container_and_runs_the_story(self):
+        """``main()`` names its containers and passes their clients on."""
+        clients = {
+            name: MagicMock(name=name, base_url=f"http://{name}:7999/api/v2")
+            for name in ("reporter", "c1", "c2", "vendor", "case-actor")
         }
 
         with (
             patch.object(
-                ActorSession, "leave_case", autospec=True
-            ) as mock_close,
-            stub_closure_gate(),
-            patch.object(
-                demo,
-                "demo_check",
-                # Patched: test verifies call parameters/ordering, not context-manager
-                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
+                demo, "coordinated_clients", return_value=clients
+            ) as built,
+            patch.object(demo, "run_rccv_handoff_demo") as run,
         ):
-            demo._phase_case_closure(
-                reporter_client=reporter_client,
-                c1_client=c1_client,
-                c2_client=c2_client,
-                vendor_client=vendor_client,
-                case_actor_client=MagicMock(),
-                c1=self._actor("urn:test:c1"),
-                c1_in_c1=c1_in_c1,
-                c2=self._actor("urn:test:c2"),
-                c2_in_c2=c2_in_c2,
-                reporter=self._actor("urn:test:reporter"),
-                reporter_in_reporter=reporter_in_reporter,
-                vendor=self._actor("urn:test:vendor"),
-                vendor_in_vendor=vendor_in_vendor,
-                case=case,
+            demo.main(
+                skip_health_check=True,
+                c1_url="http://elsewhere:7999/api/v2",
+                reporter_id="urn:test:reporter",
+                c1_id="urn:test:c1",
+                c2_id="urn:test:c2",
+                vendor_id="urn:test:vendor",
+                case_actor_id="urn:test:case-actor",
             )
 
-        actors_closed = [
-            call.args[0].actor.id_ for call in mock_close.call_args_list
+        members = built.call_args.args[1]
+        assert [(m.role, m.label) for m in members] == [
+            ("reporter", "Reporter"),
+            ("c1", "C1"),
+            ("c2", "C2"),
+            ("vendor", "Vendor"),
         ]
-        assert actors_closed[-1] == c2_in_c2.id_, (
-            "C2 (case owner post-handoff) must close last; got order: "
-            + str(actors_closed)
-        )
-        assert actors_closed.index(
-            reporter_in_reporter.id_
-        ) < actors_closed.index(c2_in_c2.id_), "Reporter must close before C2"
+        assert [m.url for m in members] == [
+            None,
+            "http://elsewhere:7999/api/v2",
+            None,
+            None,
+        ]
+        assert built.call_args.kwargs["skip_health_check"] is True
+
+        kwargs = run.call_args.kwargs
+        assert kwargs["reporter_client"] is clients["reporter"]
+        assert kwargs["c1_client"] is clients["c1"]
+        assert kwargs["c2_client"] is clients["c2"]
+        assert kwargs["vendor_client"] is clients["vendor"]
+        assert kwargs["case_actor_client"] is clients["case-actor"]
+        assert kwargs["c2_id"] == "urn:test:c2"
+        assert kwargs["case_actor_id"] == "urn:test:case-actor"
 
 
-@pytest.mark.spec("CLP-08-005")
-class TestReporterCaseReplicaWaitBeforeVendorTriage:
-    """CLP-08-005: Reporter replica wait must precede invite-path RM triage in rccv-handoff."""
-
-    def _actor(self, id_: str = "urn:test:actor"):
-        a = MagicMock()
-        a.id_ = id_
-        return a
-
-    def _case(self, id_: str = "urn:test:case"):
-        c = MagicMock()
-        c.id_ = id_
-        return c
-
-    def _client(self):
-        c = MagicMock()
-        c.get.return_value = {}
-        return c
-
-    def test_reporter_client_in_signature(self):
-        import inspect
-
-        sig = inspect.signature(demo._phase_c2_invites_vendor)
-        assert "reporter_client" in sig.parameters
-
-    def test_reporter_wait_before_vendor_triage(self):
-        import contextlib
-
-        reporter_client = self._client()
-        c1_client = self._client()
-        c2_client = self._client()
-        vendor_client = self._client()
-        c2 = self._actor("urn:test:c2")
-        c2_in_c2 = self._actor("urn:test:c2")
-        vendor = self._actor("urn:test:vendor")
-        vendor_in_vendor = self._actor("urn:test:vendor")
-        case = self._case()
-        offer = MagicMock()
-        report = MagicMock()
-        reporter = self._actor("urn:test:reporter")
-        c1 = self._actor("urn:test:c1")
-        invite = MagicMock()
-        invite.id_ = "urn:test:invite"
-        # Matches the case_actor_id passed below: the phase now asserts the
-        # Invite went out attributed to the CaseActor (PCR-08-008), which is the
-        # property that used to be pursued by posting the trigger to the
-        # CaseActor's container instead.
-        invite.actor = "urn:test:case-actor"
-
-        call_order: list[str] = []
-
-        def _wait_for_case(client, case_id, **_kw):
-            if client is reporter_client:
-                call_order.append("reporter_wait")
-
-        def _triage(**_kw):
-            call_order.append("triage")
-
-        with (
-            patch_chain_shared(
-                demo,
-                "wait_for_case_on_container",
-                side_effect=_wait_for_case,
-            ),
-            patch.object(
-                demo, "run_invite_path_rm_triage", side_effect=_triage
-            ),
-            patch.object(
-                ActorSession,
-                "invite_actor_to_case",
-                return_value=SimpleNamespace(activity=invite),
-            ),
-            patch.object(
-                ActorSession,
-                "accept_case_invite",
-                return_value=SimpleNamespace(
-                    activity={
-                        "type": "Accept",
-                        "id": "http://t/acc",
-                        "actor": "http://t/a",
-                        "object": "http://t/o",
-                    }
-                ),
-            ),
-            patch.object(invite_chain, "find_case_invite_for_actor"),
-            patch.object(demo, "wait_for_case_participants"),
-            patch.object(
-                demo,
-                "demo_check",
-                # Patched: test verifies call parameters/ordering, not context-manager
-                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-            patch.object(
-                demo,
-                "demo_step",
-                # Patched: test verifies call parameters/ordering, not context-manager
-                # control flow. demo_gate/demo_check behaviour: test_demo_context_managers.py.
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-        ):
-            demo._phase_c2_invites_vendor(
-                reporter_client=reporter_client,
-                c1_client=c1_client,
-                c2_client=c2_client,
-                vendor_client=vendor_client,
-                case_actor_client=MagicMock(),
-                c2=c2,
-                c2_in_c2=c2_in_c2,
-                case_actor_id="urn:test:case-actor",
-                vendor=vendor,
-                vendor_in_vendor=vendor_in_vendor,
-                case=case,
-                offer=offer,
-                report=report,
-                reporter=reporter,
-                c1=c1,
-            )
-
-        assert "reporter_wait" in call_order, (
-            "wait_for_case_on_container(reporter_client) never called"
-        )
-        assert "triage" in call_order, "run_invite_path_rm_triage never called"
-        reporter_idx = next(
-            i for i, v in enumerate(call_order) if v == "reporter_wait"
-        )
-        triage_idx = next(i for i, v in enumerate(call_order) if v == "triage")
-        assert reporter_idx < triage_idx, (
-            "Reporter replica wait must precede run_invite_path_rm_triage; "
-            f"got order: {call_order}"
-        )
+@pytest.fixture
+def spec():
+    """The one registry entry named ``rccv-handoff``."""
+    entries = [s for s in registered_scenarios() if s.name == "rccv-handoff"]
+    assert len(entries) == 1, entries
+    return entries[0]
 
 
-class TestRccvHandoffCausalGates:
-    """Verify causal demo_gate sites skip dependent steps on timeout.
+class TestRccvHandoffRegistryEntry:
+    """The registry is the sole declaration that ``rccv-handoff`` exists."""
 
-    Each test simulates an async-commit timeout at the precondition and
-    confirms the dependent step is never reached.
-    """
+    def test_the_entry_describes_the_ownership_transfer_scenario(self, spec):
+        """Every field is rendered into the generated scenario tables."""
+        assert spec.label == "RCCV-handoff"
+        assert spec.participants == "Reporter + C1 → C2 + Vendor"
+        assert spec.feature == "Ownership transfer between two coordinators"
+        assert spec.in_pr_set is False
 
-    def _actor(self, id_: str = "urn:test:actor"):
-        a = MagicMock()
-        a.id_ = id_
-        return a
+    def test_the_path_is_read_off_the_story(self, spec):
+        """``composed=True`` is what tells a check it places no step marks."""
+        assert spec.composed is True
+        assert spec.path == demo.STORY.path
 
-    def _case(self, id_: str = "urn:test:case"):
-        c = MagicMock()
-        c.id_ = id_
-        return c
-
-    def _client(self):
-        c = MagicMock()
-        c.get.return_value = {}
-        return c
-
-    def _run_ownership_handoff(
-        self,
-        *,
-        invite_lookup: dict[str, Any],
-        offer_lookup: dict[str, Any],
-        invite_trigger: dict[str, Any] | None = None,
-        offer_trigger: dict[str, Any] | None = None,
+    def test_the_derived_paths_point_at_this_module_and_its_harness(
+        self, spec
     ):
-        """Drive _phase_ownership_handoff with the lookups (and optionally the
-        triggers) substituted.
-
-        Returns the (accept_case_invite, accept_case_ownership_transfer,
-        find_case_invite_for_actor, find_ownership_transfer_offer_for_actor)
-        mocks.
-        """
-        invite_trigger = invite_trigger or {
-            "return_value": SimpleNamespace(
-                activity=MagicMock(id_="urn:test:invite")
-            )
-        }
-        offer_trigger = offer_trigger or {
-            "return_value": SimpleNamespace(
-                activity=MagicMock(id_="urn:test:ownership-offer")
-            )
-        }
-        reporter_client = self._client()
-        c1_client = self._client()
-        c2_client = self._client()
-        c1 = self._actor("urn:test:c1")
-        c1_in_c1 = self._actor("urn:test:c1-in-c1")
-        c2 = self._actor("urn:test:c2")
-        c2_in_c2 = self._actor("urn:test:c2-in-c2")
-        reporter = self._actor("urn:test:reporter")
-        case = self._case()
-
-        accept_invite = MagicMock()
-        accept_transfer = MagicMock()
-
-        with (
-            patch.object(demo, "wait_for_case_participants"),
-            patch_chain_shared(demo, "wait_for_case_on_container"),
-            patch.object(demo, "wait_for_case_attributed_to"),
-            patch.object(demo, "wait_for_semantic_type_in_ledger"),
-            patch.object(
-                ActorSession, "invite_actor_to_case", **invite_trigger
-            ),
-            patch.object(
-                ActorSession, "offer_case_ownership_transfer", **offer_trigger
-            ),
-            patch.object(ActorSession, "accept_case_invite", accept_invite),
-            patch.object(
-                ActorSession, "accept_case_ownership_transfer", accept_transfer
-            ),
-            patch.object(
-                invite_chain, "find_case_invite_for_actor", **invite_lookup
-            ) as find_invite,
-            patch.object(
-                demo, "find_ownership_transfer_offer_for_actor", **offer_lookup
-            ) as find_offer,
-            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
-        ):
-            mock_vc.model_validate.return_value = case
-            # Must not raise: every failure is accumulated, never escaped.
-            demo._phase_ownership_handoff(
-                reporter_client=reporter_client,
-                c1_client=c1_client,
-                c2_client=c2_client,
-                case_actor_client=MagicMock(),
-                c1=c1,
-                c1_in_c1=c1_in_c1,
-                c2=c2,
-                c2_in_c2=c2_in_c2,
-                case=case,
-                reporter=reporter,
-            )
-        return accept_invite, accept_transfer, find_invite, find_offer
-
-    def test_c2_accept_invite_not_called_when_invite_gate_fails(self):
-        """demo_gate skips C2's accept-case-invite when find_case_invite_for_actor times out (#3038)."""
-        accept_invite, _, _, _ = self._run_ownership_handoff(
-            invite_lookup={
-                "side_effect": AssertionError("timed out polling for Invite")
-            },
-            offer_lookup={"return_value": "urn:test:ownership-offer"},
+        """Every artifact path derives from the name (DEMOCI-11-003)."""
+        assert spec.demo_path == "vultron/demo/scenario/rccv_handoff_demo.py"
+        assert spec.harness_path == (
+            "test/ci/invariants/test_rccv_handoff_invariants.py"
         )
-        accept_invite.assert_not_called()
-
-    def test_c2_accept_transfer_not_called_when_offer_gate_fails(self):
-        """demo_gate skips C2's accept-case-ownership-transfer when the offer lookup times out (#3038)."""
-        _, accept_transfer, _, _ = self._run_ownership_handoff(
-            invite_lookup={"return_value": "urn:test:invite"},
-            offer_lookup={
-                "side_effect": AssertionError(
-                    "timed out polling for Offer(VulnerabilityCase)"
-                )
-            },
-        )
-        accept_transfer.assert_not_called()
-
-    def test_invite_trigger_failure_skips_lookup_and_accept(self):
-        """A failed C1 invite trigger skips the lookup gate and C2's accept.
-
-        Before the fix ``invite_result.activity`` was read on a ``None``
-        sentinel after the suppressing ``demo_step`` and crashed the run
-        (DEMOCI-01-003, #3038 sibling).
-        """
-        accept_invite, _, find_invite, _ = self._run_ownership_handoff(
-            invite_trigger={
-                "side_effect": RuntimeError("invite trigger failed")
-            },
-            invite_lookup={"return_value": "urn:test:invite"},
-            offer_lookup={"return_value": "urn:test:ownership-offer"},
-        )
-        find_invite.assert_not_called()
-        accept_invite.assert_not_called()
-
-    def test_offer_trigger_failure_skips_lookup_and_accept(self):
-        """A failed C1 ownership-offer trigger skips the offer gate and C2's accept."""
-        _, accept_transfer, _, find_offer = self._run_ownership_handoff(
-            invite_lookup={"return_value": "urn:test:invite"},
-            offer_trigger={
-                "side_effect": RuntimeError("offer trigger failed")
-            },
-            offer_lookup={"return_value": "urn:test:ownership-offer"},
-        )
-        find_offer.assert_not_called()
-        accept_transfer.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
-# Regression test — ISSUE-2811 timeout fix
+# The seeding helper this pair's character actor arrives through
 # ---------------------------------------------------------------------------
 
 
-class TestRccvHandoffRmTriageTimeout:
-    """_phase_report_submission must forward timeout_seconds=60.0 to
-    run_direct_path_rm_triage so the causal gate (ADR-0058) does not race
-    under 4-container CI load (ISSUE-2811)."""
+class TestSeedContainersRccv:
+    """``seed_containers_rccv`` creates the pair's four actors as peers.
 
-    def _actor(self, id_: str = "urn:test:actor"):
-        a = MagicMock()
-        a.id_ = id_
-        return a
+    Driven against a real FastAPI TestClient, so the actor and peer records it
+    writes are the ones a run writes.  The fragment that calls it is
+    ``two_coordinator_story.c2_is_seeded``, whose placement after the branch
+    point is that module's test's subject (DEMOCI-11-018).
+    """
 
-    def _case(self, id_: str = "urn:test:case"):
-        c = MagicMock()
-        c.id_ = id_
-        return c
+    @pytest.fixture(autouse=True)
+    def _route_through_testclient(self, client: TestClient, base: str):
+        """Route every ``DataLayerClient`` call through the one TestClient."""
+        mp = MonkeyPatch()
+        try:
+            mp.setattr(
+                DataLayerClient, "call", make_testclient_call(client, base)
+            )
+            yield
+        finally:
+            mp.undo()
 
-    def _client(self):
-        c = MagicMock()
-        c.get.return_value = {}
-        return c
+    @pytest.fixture
+    def base(self, client: TestClient) -> str:
+        """The base URL of the single TestClient, with the /api/v2 prefix."""
+        return str(client.base_url).rstrip("/") + "/api/v2"
 
-    def test_phase_report_submission_passes_60s_timeout_to_rm_triage(self):
-        """Regression: rccv_handoff CI timed out at 20 s default (ISSUE-2811)."""
-        import contextlib
+    def test_the_seeding_creates_all_four_actors(self, base: str):
+        """Reporter, C1, C2 and the Vendor, each on its own container."""
+        reporter, c1, c2, vendor = two_coordinator_story.seed_containers_rccv(
+            reporter_client=make_client(base),
+            c1_client=make_client(base),
+            c2_client=make_client(base),
+            vendor_client=make_client(base),
+        )
 
-        reporter = self._actor("urn:test:reporter")
-        c1 = self._actor("urn:test:c1")
-        c2 = self._actor("urn:test:c2")
-        vendor = self._actor("urn:test:vendor")
-        c1_in_c1 = self._actor("urn:test:c1")
-        c2_in_c2 = self._actor("urn:test:c2")
-        report = MagicMock()
-        offer = MagicMock()
-        offer.id_ = "urn:test:offer"
-        case = self._case()
+        assert [a.name for a in (reporter, c1, c2, vendor)] == [
+            "Reporter",
+            "Coordinator1",
+            "Coordinator2",
+            "Vendor",
+        ]
+        assert all(a.id_ for a in (reporter, c1, c2, vendor))
 
+    def test_the_seeding_registers_every_actor_as_a_peer(self, base: str):
+        """C2 must know the Vendor it will invite, and be known to C1."""
+        reporter_client = make_client(base)
+
+        two_coordinator_story.seed_containers_rccv(
+            reporter_client=reporter_client,
+            c1_client=make_client(base),
+            c2_client=make_client(base),
+            vendor_client=make_client(base),
+        )
+
+        actors = reporter_client.get("/actors/")
+        names = {a.get("name") for a in actors if isinstance(a, dict)}
+        assert {
+            "Reporter",
+            "Coordinator1",
+            "Coordinator2",
+            "Vendor",
+        } <= names
+
+    def test_a_deterministic_id_is_honoured_for_every_actor(self, base: str):
+        """The recordings need the same ids on every run (DEMOCI-11-025)."""
+        ids = {
+            role: f"{base}/actors/{role}-rccv-det-test"
+            for role in ("reporter", "c1", "c2", "vendor")
+        }
+
+        seeded = two_coordinator_story.seed_containers_rccv(
+            reporter_client=make_client(base),
+            c1_client=make_client(base),
+            c2_client=make_client(base),
+            vendor_client=make_client(base),
+            reporter_actor_id=ids["reporter"],
+            c1_actor_id=ids["c1"],
+            c2_actor_id=ids["c2"],
+            vendor_actor_id=ids["vendor"],
+        )
+
+        assert [a.id_ for a in seeded] == list(ids.values())
+
+
+# ---------------------------------------------------------------------------
+# The join the owner's decision presupposes (DEMOMA-14-010, DEMOCI-01-011)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("DEMOMA-14-010")
+@pytest.mark.spec("DEMOMA-17-002")
+class TestARosterThatNeverFillsSkipsTheTransfer:
+    """The guarantee the hand-placed form got from nesting (#5535).
+
+    Before composition the whole offer and accept sat inside the roster's own
+    ``demo_gate``, so a roster that never filled skipped the transfer.  A flat
+    story cannot nest, so the roster gate keeps
+    :data:`SECOND_COORDINATOR_JOINED` and the transfer reads it — and the
+    runner stops the story at the unreadable prop.  Driven through the real
+    ``run_story``, the real ``demo_gate`` and the real fragments, because
+    every link of that chain is load-bearing and a test of any one of them
+    alone is what let the guarantee go missing.
+    """
+
+    @pytest.fixture
+    def marks(self, monkeypatch: MonkeyPatch):
+        """Stand in for ``scenario_harness``, which needs a real case."""
+        reset_demo_failures()
+        harness = MagicMock()
+        harness.demo_name = "rccv-handoff"
+
+        @contextlib.contextmanager
+        def stub(_demo_name: str):
+            yield harness
+
+        monkeypatch.setattr(story_module, "scenario_harness", stub)
+        yield harness
+        reset_demo_failures()
+
+    @contextlib.contextmanager
+    def _roster(self, *, fills: bool):
+        """Run the join with its roster filling or timing out."""
         with (
-            patch.object(demo, "reset_containers"),
+            patch.object(coordinated_story, "wait_for_case_on_container"),
             patch.object(
-                demo,
-                "seed_containers_rccv",
-                return_value=(reporter, c1, c2, vendor),
+                coordinated_story,
+                "run_case_invite_chain",
+                side_effect=lambda **kw: kw["then"] and kw["then"](),
             ),
             patch.object(
-                demo, "get_actor_by_id", side_effect=[c1_in_c1, c2_in_c2]
+                coordinated_story,
+                "wait_for_case_participants",
+                side_effect=None
+                if fills
+                else AssertionError("roster never filled"),
             ),
             patch.object(
-                demo, "reporter_submits_report", return_value=(report, offer)
-            ),
-            patch.object(
-                demo, "run_direct_path_rm_triage", return_value=case
-            ) as mock_rm_triage,
-            patch.object(demo, "wait_for_case_participants"),
-            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
-            patch.object(
-                demo,
-                "demo_check",
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-            patch.object(
-                demo,
+                coordinated_story,
                 "demo_step",
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
-        ):
-            mock_vc.model_validate.return_value = case
-            demo._phase_report_submission(
-                reporter_client=self._client(),
-                c1_client=self._client(),
-                c2_client=self._client(),
-                case_actor_client=self._client(),
-                vendor_client=self._client(),
-                reporter_id=None,
-                c1_id=None,
-                c2_id=None,
-                vendor_id=None,
-            )
-
-        _call = mock_rm_triage.call_args
-        assert _call is not None
-        assert _call.kwargs.get("timeout_seconds") == 60.0, (
-            "run_direct_path_rm_triage must receive timeout_seconds=60.0; "
-            "the 20-second default races under 4-container CI load (ISSUE-2811)"
-        )
-
-
-class TestRccvHandoffVendorInviteChainSkipsDependents:
-    """Phase 3 (C2 invites Vendor): failed trigger or lookup skips the dependents.
-
-    The trigger result used to be read as ``invite_result.activity`` on a
-    ``None`` sentinel after the suppressing ``demo_step`` (crash, #3038
-    sibling), and the delivery wait was a ``demo_check`` that let the accept
-    post ``invite.id_`` regardless (EDF-06-005).
-    """
-
-    def _actor(self, id_: str = "urn:test:actor"):
-        a = MagicMock()
-        a.id_ = id_
-        return a
-
-    def _case(self, id_: str = "urn:test:case"):
-        c = MagicMock()
-        c.id_ = id_
-        return c
-
-    def _client(self):
-        c = MagicMock()
-        c.get.return_value = {}
-        return c
-
-    def _run(self, *, invite_trigger, invite_lookup):
-        reporter_client = self._client()
-        c1_client = self._client()
-        c2_client = self._client()
-        vendor_client = self._client()
-        case = self._case()
-
-        with (
-            patch_chain_shared(
-                demo, "wait_for_case_on_container"
-            ) as replica_wait,
-            patch.object(demo, "run_invite_path_rm_triage") as rm_triage,
             patch.object(
-                ActorSession, "invite_actor_to_case", **invite_trigger
-            ),
-            patch.object(ActorSession, "accept_case_invite") as accept_invite,
-            patch.object(
-                invite_chain, "find_case_invite_for_actor", **invite_lookup
-            ) as find_invite,
-            patch.object(demo, "wait_for_case_participants"),
+                ActorSession, "offer_case_ownership_transfer", autospec=True
+            ) as offer,
         ):
-            demo._phase_c2_invites_vendor(
-                reporter_client=reporter_client,
-                c1_client=c1_client,
-                c2_client=c2_client,
-                vendor_client=vendor_client,
-                case_actor_client=MagicMock(),
-                c2=self._actor("urn:test:c2"),
-                c2_in_c2=self._actor("urn:test:c2"),
-                case_actor_id="urn:test:case-actor",
-                vendor=self._actor("urn:test:vendor"),
-                vendor_in_vendor=self._actor("urn:test:vendor"),
-                case=case,
-                offer=MagicMock(),
-                report=MagicMock(),
-                reporter=self._actor("urn:test:reporter"),
-                c1=self._actor("urn:test:c1"),
-            )
-        return (
-            find_invite,
-            accept_invite,
-            replica_wait,
-            rm_triage,
-            vendor_client,
+            yield offer
+
+    def _play(self, state: StoryState) -> None:
+        run_story(
+            "rccv-handoff",
+            story(c1_invites_c2, demo.c1_hands_the_case_to_c2),
+            lambda _harness: state,
         )
 
-    def test_invite_trigger_failure_skips_lookup_and_accept(self):
-        find_invite, accept_invite, replica_wait, _, vendor_client = self._run(
-            invite_trigger={
-                "side_effect": RuntimeError("invite trigger failed")
-            },
-            invite_lookup={"return_value": "urn:test:invite"},
-        )
-        find_invite.assert_not_called()
-        accept_invite.assert_not_called()
-        assert not [
-            c
-            for c in replica_wait.call_args_list
-            if c.kwargs.get("client") is vendor_client
-        ], "replica_wait ran for the skipped dependent: " + str(
-            replica_wait.call_args_list
-        )
+    def test_a_timed_out_roster_leaves_the_transfer_unoffered(self, marks):
+        """The transfer trigger never runs, and the roster is the one failure."""
+        state = story_state(REPORTER, C1, C2, VENDOR, case=mock_case())
 
-    def test_invite_lookup_failure_skips_accept(self):
-        _, accept_invite, replica_wait, _, vendor_client = self._run(
-            invite_trigger={
-                "return_value": SimpleNamespace(
-                    activity=MagicMock(
-                        id_="urn:test:invite", actor="urn:test:case-actor"
-                    )
-                )
-            },
-            invite_lookup={
-                "side_effect": AssertionError("timed out polling for Invite")
-            },
-        )
-        accept_invite.assert_not_called()
-        assert not [
-            c
-            for c in replica_wait.call_args_list
-            if c.kwargs.get("client") is vendor_client
-        ], "replica_wait ran for the skipped dependent: " + str(
-            replica_wait.call_args_list
-        )
+        with self._roster(fills=False) as offer:
+            self._play(state)
 
+        offer.assert_not_called()
+        with pytest.raises(
+            DemoStoryError, match="no case the second Coordinator joined"
+        ):
+            state.kept(SECOND_COORDINATOR_JOINED)
 
-# ---------------------------------------------------------------------------
-# The dedicated case-actor container (DEMOMA-06-004, #1876)
-# ---------------------------------------------------------------------------
+    def test_a_filled_roster_lets_the_transfer_run(self, marks):
+        """The counterpart, so the test above is not vacuous."""
+        state = story_state(REPORTER, C1, C2, VENDOR, case=mock_case())
 
+        with self._roster(fills=True) as offer:
+            self._play(state)
 
-def _actor(id_: str) -> MagicMock:
-    actor = MagicMock()
-    actor.id_ = id_
-    return actor
-
-
-class TestRccvHandoffDedicatedCaseActor:
-    """Every CASE_MANAGER read and act goes to the case-actor container.
-
-    The handoff moves CASE_OWNER from C1 to C2; CASE_MANAGER stays with the
-    CaseActor on the dedicated container, before and after it.
-    """
-
-    def test_handoff_invite_chain_acts_on_case_actor(self):
-        import contextlib
-
-        case_actor_client = MagicMock(name="case_actor_client")
-        with contextlib.ExitStack() as stack:
-            chain = stack.enter_context(
-                patch.object(demo, "run_case_invite_chain")
-            )
-            for name in (
-                "wait_for_case_participants",
-                "find_ownership_transfer_offer_for_actor",
-                "wait_for_case_attributed_to",
-                "wait_for_semantic_type_in_ledger",
-                "as_VulnerabilityCase",
-            ):
-                stack.enter_context(patch.object(demo, name))
-            for name in (
-                "offer_case_ownership_transfer",
-                "accept_case_ownership_transfer",
-            ):
-                stack.enter_context(patch.object(ActorSession, name))
-            null_demo_contexts(stack, demo)
-            demo._phase_ownership_handoff(
-                reporter_client=MagicMock(),
-                c1_client=MagicMock(),
-                c2_client=MagicMock(),
-                case_actor_client=case_actor_client,
-                c1=_actor("urn:test:c1"),
-                c1_in_c1=_actor("urn:test:c1"),
-                c2=_actor("urn:test:c2"),
-                c2_in_c2=_actor("urn:test:c2"),
-                case=_actor("urn:test:case"),
-                reporter=_actor("urn:test:reporter"),
-            )
-
-        assert (
-            chain.call_args.kwargs["case_manager_client"] is case_actor_client
-        )
-
-    def test_vendor_join_reads_case_manager_on_case_actor(self):
-        import contextlib
-
-        case_actor_client = MagicMock(name="case_actor_client")
-        with contextlib.ExitStack() as stack:
-            chain = stack.enter_context(
-                patch.object(demo, "run_case_invite_chain")
-            )
-            triage = stack.enter_context(
-                patch.object(demo, "run_invite_path_rm_triage")
-            )
-            for name in (
-                "wait_for_case_participants",
-                "wait_for_case_on_container",
-            ):
-                stack.enter_context(patch.object(demo, name))
-            null_demo_contexts(stack, demo)
-            demo._phase_c2_invites_vendor(
-                reporter_client=MagicMock(),
-                c1_client=MagicMock(),
-                c2_client=MagicMock(),
-                vendor_client=MagicMock(),
-                case_actor_client=case_actor_client,
-                c2=_actor("urn:test:c2"),
-                c2_in_c2=_actor("urn:test:c2"),
-                case_actor_id="urn:test:case-actor",
-                vendor=_actor("urn:test:vendor"),
-                vendor_in_vendor=_actor("urn:test:vendor"),
-                case=_actor("urn:test:case"),
-                offer=MagicMock(),
-                report=MagicMock(),
-                reporter=_actor("urn:test:reporter"),
-                c1=_actor("urn:test:c1"),
-            )
-
-        assert (
-            chain.call_args.kwargs["case_manager_client"] is case_actor_client
-        )
-        assert triage.call_args.kwargs["auth_client"] is case_actor_client
-
-    def test_closure_reads_departures_on_case_actor(self):
-        import contextlib
-
-        case_actor_client = MagicMock(name="case_actor_client")
-        with contextlib.ExitStack() as stack:
-            close = stack.enter_context(
-                patch.object(demo, "close_case_owner_last")
-            )
-            null_demo_contexts(stack, demo)
-            demo._phase_case_closure(
-                reporter_client=MagicMock(),
-                c1_client=MagicMock(),
-                c2_client=MagicMock(),
-                vendor_client=MagicMock(),
-                c1=_actor("urn:test:c1"),
-                c1_in_c1=_actor("urn:test:c1"),
-                c2=_actor("urn:test:c2"),
-                c2_in_c2=_actor("urn:test:c2"),
-                reporter=_actor("urn:test:reporter"),
-                reporter_in_reporter=_actor("urn:test:reporter"),
-                vendor=_actor("urn:test:vendor"),
-                vendor_in_vendor=_actor("urn:test:vendor"),
-                case=_actor("urn:test:case"),
-                case_actor_client=case_actor_client,
-            )
-
-        assert close.call_args.kwargs["authority_client"] is case_actor_client
+        assert state.kept(SECOND_COORDINATOR_JOINED) == str(state.case.id_)
+        offer.assert_called_once()
+        assert offer.call_args.args[0].client is state.client(C1)

@@ -516,17 +516,33 @@ class StoryState:
         first instant there is anything to dump and exactly once
         (DEMOMA-23-003, ISSUE-2239).
 
+        The restated case must be the one the story opened.  Nothing a
+        scenario does changes a case's id — an ownership transfer moves
+        ``attributed_to`` and leaves the id alone (CM-21-002) — so a different
+        id means the fragment read the wrong record, and taking it would leave
+        the story acting on one case while the armed dump and the followed
+        ledger belong to another (#5535).
+
         Args:
             case: The case as its container now stores it.
 
         Raises:
-            DemoStoryError: Before :meth:`open_case`.  Restating a case the
-                story never opened would arm no dump and follow no ledger.
+            DemoStoryError: Before :meth:`open_case` — restating a case the
+                story never opened would arm no dump and follow no ledger —
+                or when *case* is not the case the story opened.
         """
         if self._case is None:
             raise DemoStoryError(
                 "the story has no case to restate yet; the fragment that "
                 "opens one calls open_case, which also arms the ledger dump."
+            )
+        if case.id_ != self._case.id_:
+            raise DemoStoryError(
+                f"the story opened the case {self._case.id_!r} and is being "
+                f"asked to restate it as {case.id_!r}; no act of a scenario "
+                "changes a case's id, so the fragment read the wrong record "
+                "and the armed dump and the followed ledger would still be "
+                "the first case's (DEMOMA-23-003)."
             )
         self._case = case
 

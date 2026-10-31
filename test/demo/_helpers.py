@@ -155,6 +155,66 @@ def story_state(
     return state
 
 
+@contextlib.contextmanager
+def no_demo_banners(*modules: ModuleType) -> Iterator[None]:
+    """Make every demo context manager in *modules* a pass-through.
+
+    For the tests that observe call parameters and ordering rather than gate
+    control flow.  A composed scenario's fragment reaches several modules —
+    its own, its family's, and a shared continuation's — and each opens its
+    own ``demo_step`` / ``demo_check`` / ``demo_gate``, so every one a
+    fragment reaches is patched or the banner it opens stays real.  A module
+    imports only the names it uses, so a name it never opens is skipped
+    rather than patched into existence.
+
+    Never use it in a test about control flow: patching a gate out makes its
+    assertion propagate and the test pass while proving nothing
+    (``vultron/demo/AGENTS.md`` § "Test gates against the real context
+    manager").
+    """
+    with contextlib.ExitStack() as stack:
+        for module in modules:
+            for name in ("demo_gate", "demo_check", "demo_step"):
+                if not hasattr(module, name):
+                    continue
+                stack.enter_context(
+                    patch.object(
+                        module,
+                        name,
+                        side_effect=lambda _: contextlib.nullcontext(),
+                    )
+                )
+        yield
+
+
+def devlogs_name_of(
+    state: StoryState,
+    client: object,
+    replicas: Sequence[tuple[str, str]],
+) -> str:
+    """The devlogs name of the seated cast member *client* belongs to.
+
+    For a test that reads an ordering through the names the invariant harness
+    loads, which in the two-coordinator pair deliberately cross the parts
+    (``vendor`` is C1, ``vendor2`` is the Vendor), so reading an order through
+    them also holds the dump mapping honest.
+
+    Args:
+        state: The running story's state.
+        client: The container client to name.
+        replicas: The scenario's ``(devlogs name, cast name)`` pairs.
+
+    Returns:
+        The devlogs name, or ``"unknown"`` when no seated member holds that
+        client — an unseated member has no replica, so naming it would raise
+        instead of reporting the order the test is about.
+    """
+    for devlogs_name, member in replicas:
+        if member in state.cast and state.client(member) is client:
+            return devlogs_name
+    return "unknown"
+
+
 def functions_referencing(module: ModuleType, name: str) -> list[str]:
     """The names of *module*'s functions whose body mentions *name*.
 

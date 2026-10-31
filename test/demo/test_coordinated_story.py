@@ -83,6 +83,7 @@ from vultron.demo.helpers.coordinated_story import (
     everyone_closes,
     everyone_publishes,
     invitee_joins_the_case,
+    invitee_triages_after_joining,
     open_coordinated_cast,
     reporter_tells_coordinator,
     reporter_then_coordinator_close,
@@ -90,7 +91,11 @@ from vultron.demo.helpers.coordinated_story import (
     vendor_rejects_invite,
     vendor_reports_the_fix_ready,
 )
-from vultron.demo.helpers.story import StoryState, UnseatedContainer
+from vultron.demo.helpers.story import (
+    StoryProp,
+    StoryState,
+    UnseatedContainer,
+)
 from vultron.demo.utils import case_actor_id_on, reset_demo_failures
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
@@ -101,6 +106,10 @@ _CAST = (REPORTER, COORDINATOR, VENDOR)
 #: Coordinator of ``rcvcv`` and the second Vendor of ``rcvv-embargo`` are both
 #: seated under a name the shared opening never sees.
 _JOINER = "joiner"
+
+#: A stand-in for the prop a caller hands ``invitee_joins_the_case``, where
+#: the two-coordinator pair hands it ``SECOND_COORDINATOR_JOINED`` (#5535).
+_JOINED: StoryProp[str] = StoryProp("case the test joiner joined", str)
 
 
 @pytest.fixture(autouse=True)
@@ -723,6 +732,135 @@ class TestInviteeJoinsTheCase:
         assert (
             stubs.chain.call_args.kwargs["inviter"].role is CVDRole.COORDINATOR
         )
+
+    @pytest.mark.spec("DEMOCI-01-011")
+    def test_a_joined_prop_makes_the_roster_a_gate_that_keeps_it(self):
+        """A non-triaging joiner whose join the next act presupposes (#5535).
+
+        The two-coordinator pair decides the case's ownership once its second
+        Coordinator is a participant (DEMOMA-13-003, DEMOMA-14-010), and a
+        flat story cannot nest that decision inside this roster's gate.  So
+        the roster becomes the gate and keeps the case id, which the deciding
+        fragment reads.  The real ``demo_gate`` runs here: this test is about
+        control flow.
+        """
+        state = story_state(*_CAST, _JOINER, case=mock_case())
+
+        with (
+            patch.object(coordinated_story, "wait_for_case_on_container"),
+            patch.object(coordinated_story, "run_case_invite_chain") as chain,
+            patch.object(coordinated_story, "wait_for_case_participants"),
+            patch.object(
+                coordinated_story,
+                "demo_step",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            invitee_joins_the_case(
+                state,
+                _JOINER,
+                "Joiner",
+                role=CVDRole.COORDINATOR,
+                seated=(REPORTER, COORDINATOR, _JOINER),
+                triages=False,
+                joined=_JOINED,
+            )
+            chain.call_args.kwargs["then"]()
+
+        assert state.kept(_JOINED) == str(state.case.id_)
+
+    @pytest.mark.spec("DEMOCI-01-011")
+    def test_a_roster_that_never_fills_keeps_no_prop(self):
+        """The gate records the timeout and leaves the prop unkept.
+
+        That is how the dependent fragment stops the story instead of
+        suggesting or offering into a case the joiner is not in: it reads the
+        prop through an accessor that raises
+        (:func:`~vultron.demo.helpers.story.run_story`).
+        """
+        state = story_state(*_CAST, _JOINER, case=mock_case())
+
+        with (
+            patch.object(coordinated_story, "wait_for_case_on_container"),
+            patch.object(coordinated_story, "run_case_invite_chain") as chain,
+            patch.object(
+                coordinated_story,
+                "wait_for_case_participants",
+                side_effect=AssertionError("roster never filled"),
+            ),
+            patch.object(
+                coordinated_story,
+                "demo_step",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            invitee_joins_the_case(
+                state,
+                _JOINER,
+                "Joiner",
+                role=CVDRole.COORDINATOR,
+                seated=(REPORTER, COORDINATOR, _JOINER),
+                triages=False,
+                joined=_JOINED,
+            )
+            chain.call_args.kwargs["then"]()
+
+        with pytest.raises(
+            DemoStoryError, match="no case the test joiner joined yet"
+        ):
+            state.kept(_JOINED)
+
+    @pytest.mark.spec("DEMOCI-01-011")
+    def test_a_prop_asked_for_on_the_triaging_path_is_refused(self):
+        """Only the non-triaging path keeps one, so the pairing raises.
+
+        A triaging invitee's roster is already the gate inside
+        ``invitee_triages_after_joining``, and the chain's ``then`` — the only
+        place a prop is kept — is not run on that path.  Accepting the
+        pairing would leave a prop no step ever keeps, so every fragment that
+        read it would stop the story on a healthy run.
+        """
+        state = story_state(*_CAST, _JOINER, case=mock_case())
+
+        with (
+            _join_stubs() as stubs,
+            pytest.raises(DemoStoryError, match="triages=True and a prop"),
+        ):
+            invitee_joins_the_case(
+                state,
+                _JOINER,
+                "Joiner",
+                role=CVDRole.VENDOR,
+                seated=(REPORTER, COORDINATOR, _JOINER),
+                joined=_JOINED,
+            )
+
+        stubs.chain.assert_not_called()
+
+    @pytest.mark.spec("DEMOMA-14-005")
+    def test_the_triage_roster_is_read_from_the_named_owner(self):
+        """A story whose owner changed mid-run names the owner of this step.
+
+        ``invitee_triages_after_joining`` reads the roster from the Case
+        Owner's replica, which is the family's Coordinator by default and the
+        new owner after an ownership transfer (#5535).
+        """
+        state = story_state(*_CAST, _JOINER, case=mock_case())
+
+        with _join_stubs() as stubs:
+            invitee_triages_after_joining(
+                state,
+                VENDOR,
+                "Vendor",
+                seated=(REPORTER, COORDINATOR, _JOINER, VENDOR),
+                owner=_JOINER,
+                owner_label="Joiner",
+            )
+
+        assert stubs.roster.call_args.kwargs["vendor_client"] is state.client(
+            _JOINER
+        )
+        stubs.triage.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
