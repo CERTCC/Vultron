@@ -92,7 +92,7 @@ def engage_case_trigger_bt(
 
     Returns:
         A ``py_trees.composites.Sequence`` that checks the move to ACCEPTED,
-        then resolves the Case Manager, builds the Engage(Case) activity, and
+        then resolves the Case Manager, builds the Join(VulnerabilityCase) activity, and
         queues it in the actor's outbox.
     """
     return _decision_trigger_bt(
@@ -125,8 +125,8 @@ def defer_case_trigger_bt(
 
     Returns:
         A ``py_trees.composites.Sequence`` that checks the move to DEFERRED,
-        then resolves the Case Manager, builds the Defer(Case) activity, and
-        queues it in the actor's outbox.
+        then resolves the Case Manager, builds the Ignore(VulnerabilityCase)
+        activity, and queues it in the actor's outbox.
     """
     return _decision_trigger_bt(
         "DeferCaseTriggerBT",

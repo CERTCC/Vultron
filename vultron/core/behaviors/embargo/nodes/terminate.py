@@ -212,7 +212,7 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
         self, activity_id: str, exc: Exception
     ) -> Status:
         self.feedback_message = (
-            f"Outbox write failed for Terminate(EmbargoEvent)"
+            f"Outbox write failed for Remove(EmbargoEvent)"
             f" '{activity_id}': {exc}"
         )
         self.logger.warning("%s: %s", self.name, self.feedback_message)

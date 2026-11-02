@@ -3275,14 +3275,14 @@ groups:
       The protocol does not say when to create a case. Thus `auto_create_case=True` is a
       choice of this reference implementation, and other implementations do not have to
       copy it (ADR-0085). When a case holds the report, its Case Owner closes the case
-      with Leave, as for a case created automatically. No trigger sends `Close(Report)`
-      for the case (CM-23-019, ADR-0145). With one closure path, a case created in a
-      later step does not need a second path.
+      with Leave, as for a case created automatically. No trigger sends
+      `Reject(Offer(VulnerabilityReport))` for the case (CM-23-019, ADR-0145). With one
+      closure path, a case created in a later step does not need a second path.
     verification: >-
       The `leave-case` tests in `test/core/use_cases/triggers/case/test_leave.py`
       assert the Case Owner's Leave is sent, the reject-report tests in
-      `test/core/use_cases/triggers/test_trignotify.py` assert no `Close(Report)`
-      is sent on a case, and the Leave tests in
+      `test/core/use_cases/triggers/test_trignotify.py` assert no
+      `Reject(Offer(VulnerabilityReport))` is sent on a case, and the Leave tests in
       `test/core/use_cases/received/test_close_case_role_semantics.py` cover the
       closure path.
     adr:
@@ -7477,8 +7477,8 @@ groups:
       guard and asserts a Case Owner whose closure the case records is refused, and
       received-use-case tests drive an `Add(VulnerabilityReport)`, an owner embargo
       decision and a `Remove(EmbargoEvent)` from a closed owner and assert `REFUSED`
-      with nothing committed or sent. A test drives a closed sender's `Close(Report)`
-      and asserts `REFUSED`.
+      with nothing committed or sent. A test drives a closed sender's
+      `Reject(Offer(VulnerabilityReport))` and asserts `REFUSED`.
     relationships:
     - rel_type: refines
       spec_id: CM-23-004
@@ -7528,8 +7528,8 @@ groups:
       The CASE_MANAGER MUST report as `SKIPPED` a repeated act that would close a closed
       sender, whatever its activity id, committing no entry and sending nothing. Such an
       act is a Leave(VulnerabilityCase), or a `Reject` of the sender's stub or full-case
-      Invite. A `Close(Report)` closes no sender on a case, so it is not such a repeat
-      (CM-23-019).
+      Invite. A `Reject(Offer(VulnerabilityReport))` closes no sender on a case, so it
+      is not such a repeat (CM-23-019).
     rationale: >-
       A second closing act changes nothing, whichever act closed the sender first: its
       effect is already in place (ID-05-003). The effect of an act, not its activity
@@ -7545,7 +7545,7 @@ groups:
       and assert `SKIPPED` with no ledger entry and no outbound activity.
       `test_close_report_from_a_closed_sender_is_refused_not_skipped` in
       `test/core/use_cases/received/test_close_report_on_case.py` asserts a closed
-      sender's `Close(Report)` is `REFUSED`.
+      sender's `Reject(Offer(VulnerabilityReport))` is `REFUSED`.
     relationships:
     - rel_type: extends
       spec_id: CM-23-018
@@ -7640,23 +7640,25 @@ groups:
     statement: >-
       Once a report belongs to a case, only that case's Case Owner holds the report. The
       Case Owner closes the case by Leave(VulnerabilityCase) (CM-23-001, CM-23-002),
-      never by `Close(Report)`. The CASE_MANAGER, and each participant holding a case
-      replica, MUST refuse a `Close(Report)` for a report that belongs to the case, from
+      never by `Reject(Offer(VulnerabilityReport))`. The CASE_MANAGER, and each
+      participant holding a case replica, MUST refuse a
+      `Reject(Offer(VulnerabilityReport))` for a report that belongs to the case, from
       every sender. From the Case Owner it is the wrong closing act. From any other
       sender it is a message about a report that sender does not hold. A
-      `Close(Report)` for a report that belongs to no case is unaffected.
+      `Reject(Offer(VulnerabilityReport))` for a report that belongs to no case is
+      unaffected.
     rationale: >-
-      A `Close(Report)` moves its sender to `RM.CLOSED` without the Leave round trip.
-      Thus a Case Owner that sends one can close itself while its case stays open. It
-      can then continue to act as Case Owner, and the case is never fully closed. If the
-      Case Owner's `Close(Report)` became a full close, the case would have two closing
-      messages. If only the later acts of a closed Case Owner were refused, the wrong
-      message would stay admitted (ADR-0144).
+      A `Reject(Offer(VulnerabilityReport))` moves its sender to `RM.CLOSED` without the
+      Leave round trip. Thus a Case Owner that sends one can close itself while its case
+      stays open. It can then continue to act as Case Owner, and the case is never fully
+      closed. If the Case Owner's `Reject(Offer(VulnerabilityReport))` became a full
+      close, the case would have two closing messages. If only the later acts of a
+      closed Case Owner were refused, the wrong message would stay admitted (ADR-0144).
     verification: >-
       `test/core/use_cases/received/test_close_report_on_case.py` drives a
-      `Close(Report)` on an open case from the Case Owner and from a participant that
-      is not the owner, at the CASE_MANAGER and at a participant holding a replica,
-      and asserts `REFUSED`.
+      `Reject(Offer(VulnerabilityReport))` on an open case from the Case Owner and from
+      a participant that is not the owner, at the CASE_MANAGER and at a participant
+      holding a replica, and asserts `REFUSED`.
     relationships:
     - rel_type: refines
       spec_id: CM-23-001
@@ -7671,8 +7673,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      On refusing a `Close(Report)` (CM-23-019), the CASE_MANAGER or replica holder MUST
-      write no RM state, commit no entry and send nothing, a refusal notice included.
+      On refusing a `Reject(Offer(VulnerabilityReport))` (CM-23-019), the CASE_MANAGER
+      or replica holder MUST write no RM state, commit no entry and send nothing, a
+      refusal notice included.
       The refusal is the sender guard's: no sender is entitled to send it to a case
       actor (CLP-02-005, HP-01-006).
     rationale: >-
@@ -7680,7 +7683,8 @@ groups:
       trace. A refusal notice would answer a message that no sender may send.
     verification: >-
       `test/core/use_cases/received/test_close_report_on_case.py` asserts no RM change,
-      no ledger entry and no outbound activity for each refused `Close(Report)`.
+      no ledger entry and no outbound activity for each refused
+      `Reject(Offer(VulnerabilityReport))`.
       `test_close_on_a_case_commits_nothing_anywhere` in
       `test/core/use_cases/received/test_receive_tree_ledger_commit.py` asserts nothing
       is committed at any actor.
@@ -7696,19 +7700,20 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      An actor MUST NOT send `Close(Report)` for a report that belongs to a case it
-      holds.
+      An actor MUST NOT send `Reject(Offer(VulnerabilityReport))` for a report that
+      belongs to a case it holds.
     rationale: >-
-      Every case actor refuses such a `Close(Report)` (CM-23-019). The actor closes its
-      part in the case by Leave(VulnerabilityCase) instead (CM-23-001).
+      Every case actor refuses such a `Reject(Offer(VulnerabilityReport))` (CM-23-019).
+      The actor closes its part in the case by Leave(VulnerabilityCase) instead
+      (CM-23-001).
     verification: >-
       `test_close_report_is_sent_to_no_one_when_a_case_exists` in
       `test/core/use_cases/triggers/test_trignotify.py` and
       `test_reject_report_on_a_case_raises_and_sends_nothing` in
       `test/core/use_cases/triggers/test_report_triggers.py` assert that no
-      `Close(Report)` is sent for a report that belongs to a case. The `leave-case`
-      tests in `test/core/use_cases/triggers/case/test_leave.py` cover how an actor on a
-      case closes its part in it instead.
+      `Reject(Offer(VulnerabilityReport))` is sent for a report that belongs to a case.
+      The `leave-case` tests in `test/core/use_cases/triggers/case/test_leave.py`
+      cover how an actor on a case closes its part in it instead.
     relationships:
     - rel_type: extends
       spec_id: CM-23-019
@@ -7724,9 +7729,9 @@ groups:
       An actor's report-closing trigger MUST fail, before it writes or sends anything,
       for a report that belongs to a case the actor holds.
     rationale: >-
-      The trigger is where the actor would build the `Close(Report)` that CM-23-052
-      forbids. Failing there, before any write, leaves no local closure that the case
-      never recorded.
+      The trigger is where the actor would build the
+      `Reject(Offer(VulnerabilityReport))` that CM-23-052 forbids. Failing there, before
+      any write, leaves no local closure that the case never recorded.
     verification: >-
       Tests in `test/core/use_cases/triggers/test_trignotify.py`,
       `test/core/use_cases/triggers/test_report_triggers.py`,

@@ -26,8 +26,9 @@ operations:
 
 The ``CloseReport`` emitter fails closed when the report belongs to a case:
 an actor closes its part in a case by ``Leave(VulnerabilityCase)``, through the
-``leave-case`` trigger (TRIG-13-001), and no actor sends ``Close(Report)`` for a
-report a case holds (CM-23-052, CM-23-053).
+``leave-case`` trigger (TRIG-13-001), and no actor sends
+``Reject(Offer(VulnerabilityReport))`` for a report a case holds (CM-23-052,
+CM-23-053).
 
 Trees are run via ``BTBridge.execute_with_setup()`` in the corresponding
 trigger use case.

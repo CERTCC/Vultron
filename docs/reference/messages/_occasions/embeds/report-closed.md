@@ -2,7 +2,7 @@
 
 !!! info "Close report"
 
-    Closes the report, moving the sender's RM state to Closed. Once a case holds the report, its Case Owner closes the case with Leave(VulnerabilityCase) instead, and every receiver refuses a Close(Report) for it.
+    Closes the report, moving the sender's RM state to Closed. Once a case holds the report, its Case Owner closes the case with Leave(VulnerabilityCase) instead, and every receiver refuses a Reject(Offer(VulnerabilityReport)) for it.
 
     - **When…** a report receiver closes a report no case holds
     - **Send:** `Reject(Offer(VulnerabilityReport))`

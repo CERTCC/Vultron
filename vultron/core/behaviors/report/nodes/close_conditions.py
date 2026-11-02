@@ -114,9 +114,10 @@ class CheckReportHasNoCase(DataLayerConditionWithPorts):
 
     Once a report belongs to a case, only the case's Case Owner holds it, and
     the Case Owner closes the case by ``Leave(VulnerabilityCase)``; no actor
-    sends a ``Close(Report)`` for it, and the CASE_MANAGER would refuse one.
-    So a trigger that would emit ``Close(Report)`` fails closed here, before
-    any RM write or emit, when this actor's store holds a case for the
+    sends a ``Reject(Offer(VulnerabilityReport))`` for it, and the CASE_MANAGER
+    would refuse one.  So a trigger that would emit
+    ``Reject(Offer(VulnerabilityReport))`` fails closed here, before any RM
+    write or emit, when this actor's store holds a case for the
     report.  A report that belongs to no case passes: closing it is the
     pre-case path, unchanged.
 
@@ -163,7 +164,8 @@ class CheckReportHasNoCase(DataLayerConditionWithPorts):
         error = VultronInvalidStateTransitionError(
             f"Report '{self.report_id}' belongs to case '{case.id_}': an"
             " actor closes its part in the case by Leave(VulnerabilityCase)"
-            " (leave-case), and no actor sends Close(Report) for it"
+            " (leave-case), and no actor sends"
+            " Reject(Offer(VulnerabilityReport)) for it"
             " (CM-23-019)"
         )
         if self._result_out is not None:

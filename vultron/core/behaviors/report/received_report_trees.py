@@ -334,8 +334,8 @@ def _report_verdict_stages(
 
     The report-invalid factory composes them through
     :func:`create_receive_activity_tree` itself (CLP-10-017).  A
-    ``Close(Report)`` has no verdict to stage: its tree refuses it
-    (CM-23-019).
+    ``Reject(Offer(VulnerabilityReport))`` has no verdict to stage: its tree
+    refuses it (CM-23-019).
 
     The subject of the RM write is the sender, ``request.actor_id``; the tree
     still executes in the receiving actor's store (RSH-08-001, BT-17-006).
