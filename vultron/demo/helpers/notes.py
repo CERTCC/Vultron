@@ -19,11 +19,13 @@ through the ``add-note-to-case`` trigger.  The trigger sends one
 inline; the CASE_MANAGER attaches the note and commits an
 ``add_note_to_case`` ledger entry.
 
-:func:`add_note_thread` posts a sequence of notes, each replying to the one
-before, and :func:`gated_note_thread` does so only once a named replica holds
+:func:`post_note_thread` posts a sequence of notes, each replying to the one
+before, and :func:`gated_note_posts` does so only once a named replica holds
 the case: a poster acts from its own replica, so that replica is the cause the
 first note waits on (DEMOMA-22-001).  :func:`reporter_asks` is the thread a
-Reporter opens, gated on the Reporter's replica.
+Reporter opens, gated on the Reporter's replica.  Each has a one-note form —
+:func:`add_note_thread`, :func:`gated_note_thread` — for the caller that needs
+only the note a continuation replies to.
 """
 
 import logging
@@ -123,16 +125,22 @@ class NotePost:
     content: str
 
 
-def add_note_thread(
+def post_note_thread(
     watching_client: DataLayerClient,
     case: as_VulnerabilityCase,
     posts: Sequence[NotePost],
     in_reply_to: as_Note | None = None,
-) -> as_Note | None:
+) -> list[as_Note | None]:
     """Post *posts* in order, each replying to the note before it.
 
     A note that fails is recorded by :func:`participant_adds_note_to_case`,
     and the next note is then posted unthreaded rather than skipped.
+
+    Returns every note rather than the last, for a caller that must name more
+    than one of them afterwards: the ``rv`` story's final case check asserts
+    both the Reporter's question and the Vendor's answer are on the case, so
+    its story keeps both as props (``vultron/demo/helpers/vendor_story.py``).
+    :func:`add_note_thread` is the one-note form.
 
     Args:
         watching_client: Client where delivery of each note is verified
@@ -142,8 +150,9 @@ def add_note_thread(
         in_reply_to: The note the first post replies to, if any.
 
     Returns:
-        The last note posted, or ``None`` when it failed.
+        One entry per post, in posting order; ``None`` where that post failed.
     """
+    posted: list[as_Note | None] = []
     previous = in_reply_to
     for post in posts:
         previous = participant_adds_note_to_case(
@@ -155,7 +164,65 @@ def add_note_thread(
             note_content=post.content,
             in_reply_to=previous.id_ if previous is not None else None,
         )
-    return previous
+        posted.append(previous)
+    return posted
+
+
+def add_note_thread(
+    watching_client: DataLayerClient,
+    case: as_VulnerabilityCase,
+    posts: Sequence[NotePost],
+    in_reply_to: as_Note | None = None,
+) -> as_Note | None:
+    """Post *posts* as :func:`post_note_thread` does; return the last note.
+
+    Args:
+        watching_client: As :func:`post_note_thread`.
+        case: As :func:`post_note_thread`.
+        posts: As :func:`post_note_thread`.
+        in_reply_to: As :func:`post_note_thread`.
+
+    Returns:
+        The last note posted, or ``None`` when it failed; *in_reply_to* when
+        *posts* is empty.
+    """
+    posted = post_note_thread(watching_client, case, posts, in_reply_to)
+    return posted[-1] if posted else in_reply_to
+
+
+def gated_note_posts(
+    *,
+    gate: str,
+    replica_client: DataLayerClient,
+    watching_client: DataLayerClient,
+    case: as_VulnerabilityCase,
+    posts: Sequence[NotePost],
+    in_reply_to: as_Note | None = None,
+) -> list[as_Note | None]:
+    """Post *posts* once *replica_client*'s replica holds the case.
+
+    The wait is a causal gate (DEMOMA-22-001): the first poster acts from its
+    own replica, so a thread whose poster has no replica is skipped and the
+    gate failure recorded, rather than posting a note that cannot succeed.
+
+    Args:
+        gate: The ``demo_gate`` label naming the precondition.
+        replica_client: The container whose replica must hold the case.
+        watching_client: As :func:`post_note_thread`.
+        case: As :func:`post_note_thread`.
+        posts: As :func:`post_note_thread`.
+        in_reply_to: As :func:`post_note_thread`.
+
+    Returns:
+        One entry per post, in posting order; empty when the gate failed, so
+        a caller that keeps a note as a story prop keeps nothing and the
+        fragments that read it stop the story.
+    """
+    posted: list[as_Note | None] = []
+    with demo_gate(gate):
+        wait_for_case_on_container(client=replica_client, case_id=case.id_)
+        posted = post_note_thread(watching_client, case, posts, in_reply_to)
+    return posted
 
 
 def gated_note_thread(
@@ -167,28 +234,20 @@ def gated_note_thread(
     posts: Sequence[NotePost],
     in_reply_to: as_Note | None = None,
 ) -> as_Note | None:
-    """Post *posts* once *replica_client*'s replica holds the case.
-
-    The wait is a causal gate (DEMOMA-22-001): the first poster acts from its
-    own replica, so a thread whose poster has no replica is skipped and the
-    gate failure recorded, rather than posting a note that cannot succeed.
-
-    Args:
-        gate: The ``demo_gate`` label naming the precondition.
-        replica_client: The container whose replica must hold the case.
-        watching_client: As :func:`add_note_thread`.
-        case: As :func:`add_note_thread`.
-        posts: As :func:`add_note_thread`.
-        in_reply_to: As :func:`add_note_thread`.
+    """Post *posts* as :func:`gated_note_posts` does; return the last note.
 
     Returns:
         The last note posted, or ``None`` when it failed or the gate did.
     """
-    last: as_Note | None = None
-    with demo_gate(gate):
-        wait_for_case_on_container(client=replica_client, case_id=case.id_)
-        last = add_note_thread(watching_client, case, posts, in_reply_to)
-    return last
+    posted = gated_note_posts(
+        gate=gate,
+        replica_client=replica_client,
+        watching_client=watching_client,
+        case=case,
+        posts=posts,
+        in_reply_to=in_reply_to,
+    )
+    return posted[-1] if posted else None
 
 
 #: The Reporter's opening question in the rv, rvv, rvcv, rccv and rcvcv
@@ -261,24 +320,30 @@ def reporter_asks(
     case: as_VulnerabilityCase,
     question: str,
     replies: Sequence[NotePost],
-) -> as_Note | None:
+) -> list[as_Note | None]:
     """The Reporter asks *question* from its replica; *replies* answer it.
 
-    A :func:`gated_note_thread` on the Reporter's replica: the Reporter posts
+    A :func:`gated_note_posts` on the Reporter's replica: the Reporter posts
     from it, so the thread waits until that replica holds the case
     (DEMOMA-22-001).
 
+    Returns every note of the thread, not only the last: the vendor-first
+    family's story keeps the question and the answer as separate props,
+    because ``rv``'s final case check names both and its siblings reply to
+    the answer (``vultron/demo/helpers/vendor_story.py``, DEMOCI-11-017).
+
     Args:
         reporter: Session in the Reporter's container; posts the question.
-        watching_client: As :func:`add_note_thread`.
-        case: As :func:`add_note_thread`.
+        watching_client: As :func:`post_note_thread`.
+        case: As :func:`post_note_thread`.
         question: Text of the Reporter's question.
         replies: The notes that answer it, in posting order.
 
     Returns:
-        The last reply, or ``None`` when it failed or the gate did.
+        The question and each reply, in posting order; ``None`` where that
+        post failed, and empty when the gate did.
     """
-    return gated_note_thread(
+    return gated_note_posts(
         gate="Reporter's replica holds the case before it asks",
         replica_client=reporter.client,
         watching_client=watching_client,

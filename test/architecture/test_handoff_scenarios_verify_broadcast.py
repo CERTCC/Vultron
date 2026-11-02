@@ -43,8 +43,10 @@ import pytest
 
 from test.architecture import _corpus
 
-#: Where a handoff is written: as a scenario's own phase, or as a story
-#: fragment the scenarios of a family share.
+#: Where a handoff may be written: in a scenario module, or as a story
+#: fragment the scenarios of a family share.  Both are scanned, although every
+#: handoff is now a shared fragment
+#: (:func:`test_every_handoff_is_a_shared_story_fragment`).
 HANDOFF_DIRS = (
     _corpus.REPO_ROOT / "vultron/demo/scenario",
     _corpus.REPO_ROOT / "vultron/demo/helpers",
@@ -157,28 +159,29 @@ def _transfer_ledger_waits(phase: ast.FunctionDef) -> list[ast.Call]:
     return calls
 
 
-def test_the_ratchet_has_a_handoff_of_both_shapes() -> None:
-    """One subject of each shape, not merely a non-empty set.
+def test_every_handoff_is_a_shared_story_fragment() -> None:
+    """The handoffs are the shared continuations, and nothing else.
 
-    A non-empty guard cannot tell one subject from two, so the silent
-    narrowing this ratchet was rewritten to prevent would pass it: the scan
-    must find a handoff written as a scenario phase **and** one written as a
-    shared story fragment, because the scenarios are mid-migration (#5535,
-    ``notes/architecture-ratchet-corpus.md`` § "Key a Ratchet on the Act, Not
-    on the Name of What Performs It").  The last phase-written handoff going
-    away is then the signal to retire that arm here on purpose, as its
-    sibling does (``test_demo_scenario_waits_in_demo_context.py``
-    § ``test_the_check_has_subjects_of_both_shapes``).
+    Both handoff scenarios are composed (``rccv-handoff`` in #5535,
+    ``rvcv-handoff`` in #5536), so every function that offers the transfer is
+    a shared story fragment and no scenario module writes one of its own.  The
+    scan still covers ``vultron/demo/scenario`` (:data:`HANDOFF_DIRS`): a
+    handoff written there again would be found and checked, and this assertion
+    is what says it must not be — a scenario that wrote its own would be the
+    silent narrowing this ratchet exists to prevent
+    (``notes/architecture-ratchet-corpus.md`` § "Key a Ratchet on the Act, Not
+    on the Name of What Performs It").
     """
     modules = {name.split("::", 1)[0] for name, _ in _HANDOFF_FUNCTIONS}
-    assert any(name.endswith("_demo.py") for name in modules), (
-        "no scenario module performs a handoff of its own, so the"
-        " phase-written arm checks nothing; if the last one has been composed,"
-        " retire this arm deliberately. Found: " + repr(sorted(modules))
-    )
     assert any(not name.endswith("_demo.py") for name in modules), (
-        "no shared helper performs a handoff, so the composed arm checks"
-        " nothing. Found: " + repr(sorted(modules))
+        "no shared helper performs a handoff, so the ratchet checks nothing."
+        " Found: " + repr(sorted(modules))
+    )
+    assert not [name for name in modules if name.endswith("_demo.py")], (
+        "a scenario module offers the ownership transfer itself; the handoff"
+        " is one shared continuation both handoff scenarios reach through"
+        " (vultron/demo/helpers/owner_decision_story.py, DEMOMA-17-001)."
+        " Found: " + repr(sorted(modules))
     )
 
 

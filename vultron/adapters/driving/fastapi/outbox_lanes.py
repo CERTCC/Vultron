@@ -25,10 +25,10 @@ the CASE_MANAGER answers by replaying the whole suffix into the same queue
 This module schedules one drain pass as **lanes**: every recipient a row is
 addressed to is a lane, a row runs only when none of its lanes has a row in
 flight or a row waiting ahead of it, and distinct lanes proceed concurrently
-(OX-01-005, OX-01-006).  A row whose delivery fails past the per-pass cap
-*stalls* its lanes: nothing behind it in those lanes is attempted this pass,
-and the stalled rows are handed back for re-queueing in enqueue order
-(OX-13-012, #3878).
+(OX-01-005, OX-01-006, OX-01-008).  A row whose delivery fails past the
+per-pass cap *stalls* its lanes: nothing behind it in those lanes is attempted this pass
+(OX-13-014), and the stalled rows are handed back for re-queueing in enqueue
+order (OX-13-012, #3878).
 
 The scheduler knows nothing about HTTP or retry bookkeeping — the caller
 supplies ``deliver`` and receives the ids to re-queue.

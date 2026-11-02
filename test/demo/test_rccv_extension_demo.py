@@ -64,6 +64,7 @@ from vultron.demo.helpers import (
     coordinated_story,
     owner_decision_story,
     story as story_module,
+    story_cast,
     two_coordinator_story,
 )
 from vultron.demo.helpers.coordinated_story import (
@@ -581,7 +582,7 @@ class TestRccvExtensionDedicatedCaseActor:
         with (
             patch.object(demo, "run_story") as run_story,
             patch.object(
-                coordinated_story,
+                story_cast,
                 "reset_datalayer",
                 return_value={"status": "ok"},
             ) as reset,
@@ -594,7 +595,7 @@ class TestRccvExtensionDedicatedCaseActor:
                 return_value=tuple(seeded),
             ) as seed_three,
             patch.object(
-                coordinated_story, "get_actor_by_id", side_effect=list(seeded)
+                story_cast, "get_actor_by_id", side_effect=list(seeded)
             ),
             patch.object(two_coordinator_story, "seed_containers_rccv") as (
                 seed_four

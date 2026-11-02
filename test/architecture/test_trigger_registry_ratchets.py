@@ -175,11 +175,11 @@ def test_bt_backed_flag_matches_the_class_hierarchy(row: TriggerEntry) -> None:
     assert row.bt_backed is issubclass(row.use_case_class, SvcBTTriggerBase)
 
 
-@pytest.mark.spec("UCORG-05-005")
+@pytest.mark.spec("UCORG-05-016")
 @pytest.mark.parametrize("row", _rows(), ids=_row_ids())
 def test_every_row_result_type_forbids_unknown_keys(row: TriggerEntry) -> None:
     """Each verb's result is a ``TriggerResult`` subtype that forbids unknown
-    keys — a use case that grows a return key fails loudly (UCORG-05-005)."""
+    keys — a use case that grows a return key fails loudly (UCORG-05-016)."""
     assert issubclass(row.result_type, TriggerResult)
     assert row.result_type.model_config.get("extra") == "forbid"
 

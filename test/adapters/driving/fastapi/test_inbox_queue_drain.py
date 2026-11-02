@@ -173,6 +173,7 @@ def _logged(caplog: pytest.LogCaptureFixture, *parts: str) -> bool:
 @pytest.mark.spec("ASK-07-010")
 @pytest.mark.spec("ASK-07-011")
 @pytest.mark.usefixtures("outbox_drains")
+@pytest.mark.spec("IE-06-008", "IE-06-009")
 def test_a_failing_replay_is_answered_only_when_dead_lettered(
     dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch, caplog
 ) -> None:
@@ -308,6 +309,7 @@ def test_a_refused_replay_is_final(
 @pytest.mark.spec("IE-06-004")
 @pytest.mark.spec("ASK-07-010")
 @pytest.mark.usefixtures("outbox_drains")
+@pytest.mark.spec("IE-06-009", "IE-06-010")
 def test_a_protocol_violation_is_dropped_and_answered_at_once(
     dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch, caplog
 ) -> None:
@@ -333,6 +335,7 @@ def test_a_protocol_violation_is_dropped_and_answered_at_once(
 
 @pytest.mark.spec("IE-06-004")
 @pytest.mark.usefixtures("outbox_drains")
+@pytest.mark.spec("IE-06-008")
 def test_a_replay_that_does_not_rebuild_is_retried_then_dead_lettered(
     dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -355,6 +358,7 @@ def test_a_replay_that_does_not_rebuild_is_retried_then_dead_lettered(
 
 @pytest.mark.spec("IE-06-004")
 @pytest.mark.usefixtures("outbox_drains")
+@pytest.mark.spec("IE-06-010")
 def test_a_protocol_violation_in_the_rebuild_is_dropped(
     dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -566,6 +570,7 @@ def _assert_untouched(dl: SqliteDataLayer, item: as_Activity, count: int):
 
 @pytest.mark.spec("IE-06-005")
 @pytest.mark.usefixtures("outbox_drains")
+@pytest.mark.spec("IE-06-012", "IE-06-013")
 def test_an_attempt_interrupted_during_the_act_leaves_the_item_queued(
     dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -583,6 +588,7 @@ def test_an_attempt_interrupted_during_the_act_leaves_the_item_queued(
 
 @pytest.mark.spec("IE-06-005")
 @pytest.mark.usefixtures("outbox_drains")
+@pytest.mark.spec("IE-06-012")
 def test_an_attempt_interrupted_during_its_settlement_leaves_the_item_queued(
     dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -605,6 +611,7 @@ def test_an_attempt_interrupted_during_its_settlement_leaves_the_item_queued(
 
 @pytest.mark.spec("IE-06-005")
 @pytest.mark.usefixtures("outbox_drains")
+@pytest.mark.spec("IE-06-013")
 def test_an_interrupted_attempt_is_replayed_by_the_next_drain(
     dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
 ) -> None:

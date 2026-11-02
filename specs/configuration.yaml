@@ -80,12 +80,25 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: The application MUST support loading configuration from a YAML file. The default path MUST be `config.yaml`
-      in the project root (current working directory at startup).
+    statement: >-
+      The application MUST support loading its configuration from a YAML file.
     rationale: >-
       An operator needs one file that holds all settings for a node, in a format that
-      people can read and edit. A fixed default path lets a node start with no extra
-      arguments when the file is in the working directory.
+      people can read and edit.
+  - id: CFG-02-008
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      The application MUST use `config.yaml` in the project root as the default
+      configuration file path. The project root is the current working directory at
+      startup.
+    rationale: >-
+      A fixed default path lets a node start with no extra arguments when the file is
+      in the working directory.
+    relationships:
+    - rel_type: extends
+      spec_id: CFG-02-001
   - id: CFG-02-002
     priority: MUST
     kind: project
@@ -109,9 +122,13 @@ groups:
   - id: CFG-02-004
     priority: MUST
     kind: project
-    verification_debt: '#2575'
-    statement: 'Config loading precedence (lowest to highest) MUST be: YAML file < environment variables. Environment variable
-      values MUST override YAML values for the same field.'
+    verification: >-
+      `test_env_overrides_yaml_log_level` and `test_env_overrides_yaml_base_url` in
+      `test/test_config.py` set a field in a YAML file and in the environment, and
+      assert the environment value is in effect.
+    statement: >-
+      When the YAML file and an environment variable both set a field, the
+      application MUST use the environment variable value.
     rationale: >-
       Container platforms and CI set environment variables for each deployment, while
       the file holds the shared values. When the environment wins, an operator can
@@ -129,11 +146,15 @@ groups:
       configuration that adds nothing. Defaults that work on a local host remove this
       step.
   - id: CFG-02-006
-    priority: MUST_NOT
+    priority: MUST
     kind: project
-    verification_debt: '#2575'
-    statement: If `VULTRON_CONFIG` is set and points to a non-existent file, the application MUST raise a descriptive error
-      at startup (MUST NOT silently ignore a missing explicit config path).
+    verification: >-
+      `test_missing_config_file_raises_when_vultron_config_set` in
+      `test/test_config.py` sets `VULTRON_CONFIG` to a missing file and asserts that
+      loading the configuration raises an error that names `VULTRON_CONFIG`.
+    statement: >-
+      When `VULTRON_CONFIG` points to a file that does not exist, the application MUST
+      raise a descriptive error at startup, not ignore the missing path.
     rationale: >-
       When an operator sets `VULTRON_CONFIG`, the operator expects the node to use that
       file. If the node ignored a wrong path, it would start with defaults, and the
@@ -219,14 +240,34 @@ groups:
   - id: CFG-04-004
     priority: MUST
     kind: project
-    verification_debt: '#2575'
-    statement: '`ServerConfig.log_level` MUST default to `"INFO"` and MUST be validated as one of `DEBUG`, `INFO`, `WARNING`,
-      `ERROR`, `CRITICAL` (case-insensitive on input; stored upper-case).'
+    verification: >-
+      `test_defaults_server_log_level` in `test/test_config.py` asserts that a default
+      `ServerConfig` has the log level `INFO`.
+    statement: >-
+      `ServerConfig.log_level` MUST default to `"INFO"`.
+    rationale: >-
+      `INFO` shows the lifecycle and state changes an operator follows, without the
+      detail of `DEBUG`. A node with no log level setting then logs what an operator
+      needs.
+  - id: CFG-04-008
+    priority: MUST
+    kind: project
+    verification: >-
+      In `test/test_config.py`, `test_server_config_rejects_invalid_log_level` asserts
+      that an unknown name raises a validation error, and
+      `test_server_config_normalises_log_level_to_uppercase` asserts that `debug` is
+      stored as `DEBUG`.
+    statement: >-
+      `ServerConfig` MUST accept as `log_level` only `DEBUG`, `INFO`, `WARNING`,
+      `ERROR` or `CRITICAL`, in any case on input, and store it in upper case.
     rationale: >-
       A wrong log level name must stop the start with a clear error. A silent fallback
       to another level could hide the logs an operator needs, or fill the logs with
       detail. Case-insensitive input accepts the forms that operators type, and
       upper-case storage matches the names that the `logging` module uses.
+    relationships:
+    - rel_type: extends
+      spec_id: CFG-04-004
   - id: CFG-04-005
     priority: MUST
     kind: project
@@ -240,13 +281,30 @@ groups:
     priority: MUST_NOT
     kind: project
     verification_debt: '#2575'
-    statement: Field validators MUST enforce per-field constraints (URL format, valid log level name) but MUST NOT implement
-      cross-field business rules.
+    statement: >-
+      A field validator in the configuration models MUST NOT implement a cross-field
+      business rule.
+    rationale: >-
+      A rule that compares two fields is about how the node behaves, not about the
+      form of a value. That rule belongs with the code that owns the behavior, where
+      its tests are, and not in the configuration model.
+  - id: CFG-04-009
+    priority: MUST
+    kind: project
+    verification: >-
+      In `test/test_config.py`, `test_server_config_rejects_invalid_base_url` and
+      `test_server_config_rejects_invalid_log_level` assert that a malformed URL and
+      an unknown log level name each raise a validation error.
+    statement: >-
+      The configuration models MUST enforce per-field constraints, such as URL format
+      and a valid log level name, in field validators.
     rationale: >-
       Field validators run when the configuration loads, so they are the correct place
-      to refuse a malformed value. A rule that compares two fields is about how the node
-      behaves, not about the form of a value. That rule belongs with the code that owns
-      the behavior, where its tests are, and not in the configuration model.
+      to refuse a malformed value. A node then never starts with a value that it cannot
+      use.
+    relationships:
+    - rel_type: extends
+      spec_id: CFG-04-006
   - id: CFG-04-007
     priority: MUST_NOT
     kind: project
@@ -348,36 +406,62 @@ groups:
   - id: CFG-06-006
     priority: MUST
     kind: project
-    verification_debt: '#2575'
+    verification: >-
+      In `test/test_config.py`, `test_config_override_yields_updated_config`,
+      `test_config_override_restores_env_on_exit`,
+      `test_config_override_removes_new_key_on_exit` and
+      `test_config_override_cache_restored_after_exit` check the yielded configuration
+      and the restored environment and cache.
     statement: >-
-      `vultron/config/app.py` MUST export a `config_override(**env_updates)` context manager that
-      atomically sets the given environment variables, calls `reload_config()`, yields the updated
-      `AppConfig`, and then restores the original environment values and calls `reload_config()`
-      again — including when the body raises an exception (i.e., the restore MUST happen in a
-      `finally` block).
+      `vultron/config/app.py` MUST export a `config_override(**env_updates)` context
+      manager. On entry it atomically sets the given environment variables, calls
+      `reload_config()` and yields the updated `AppConfig`. On exit it restores the
+      original values and calls `reload_config()` again.
     rationale: >-
       If a fixture reloads the configuration before it restores the environment, the
       cache keeps the test's values for later tests. `config_override()` changes the
-      environment, reloads and restores in the correct order in one place. The `finally`
-      block restores the environment and the cache also when the body raises, so a
-      failed test does not change the next test.
+      environment, reloads and restores in the correct order in one place.
+  - id: CFG-06-008
+    priority: MUST
+    kind: project
+    verification: >-
+      `test_config_override_restores_on_exception` in `test/test_config.py` raises
+      inside the `config_override()` body and asserts the environment is restored.
+    statement: >-
+      `config_override()` MUST restore the environment and reload the configuration in
+      a `finally` block, so the restore also runs when the body raises.
+    rationale: >-
+      A test that fails inside the body raises an exception. The `finally` block
+      restores the environment and the cache then too, so a failed test does not
+      change the next test.
+    relationships:
+    - rel_type: extends
+      spec_id: CFG-06-006
   - id: CFG-06-007
     priority: SHOULD
     kind: project
     statement: >-
-      Test fixtures that need to override `AppConfig` values SHOULD use `config_override()`
-      instead of combining `monkeypatch.setenv()` with explicit `reload_config()` calls. Where
-      `monkeypatch` is used directly (e.g., in session-scoped fixtures), `monkeypatch.undo()` MUST
-      precede any `reload_config()` call in teardown (CFG-06-003).
+      A test fixture that overrides `AppConfig` values SHOULD use `config_override()`,
+      not `monkeypatch.setenv()` with explicit `reload_config()` calls.
     rationale: >-
       With `config_override()` (CFG-06-006), a fixture cannot put the restore and the
-      reload in the wrong order. Some fixtures cannot use it, for example session-scoped
-      fixtures that use `monkeypatch` directly. Those fixtures must undo the environment
-      changes before they reload, or the cache keeps the test's values (CFG-06-003).
+      reload in the wrong order.
+  - id: CFG-06-009
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      A fixture that uses `monkeypatch` directly, such as a session-scoped fixture,
+      MUST call `monkeypatch.undo()` before any `reload_config()` call in teardown.
+    rationale: >-
+      Some fixtures cannot use `config_override()`, for example session-scoped
+      fixtures that use `monkeypatch` directly. Those fixtures must undo the
+      environment changes before they reload, or the cache keeps the test's values
+      (CFG-06-003).
     relationships:
     - rel_type: refines
       spec_id: CFG-06-003
-      note: config_override() is the preferred mechanism; CFG-06-003 applies when it cannot be used
+      note: the case where `config_override()` cannot be used
 - id: CFG-07
   title: Actor Configuration
   specs:
@@ -434,9 +518,9 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: '`CVDRole` and its associated helpers (`serialize_roles`, `validate_roles`) MUST reside in a top-level neutral
-      enum module (`vultron/enums/roles.py`) rather than inside `vultron/core/`, so that `vultron/config/` and other neutral
-      modules can import them without violating the constraint that neutral modules MUST NOT import from `vultron/core/`.'
+    statement: >-
+      `CVDRole` and its helpers `serialize_roles` and `validate_roles` MUST reside in
+      the neutral enum module `vultron/enums/roles.py`, not in `vultron/core/`.
     adr:
     - ADR-0031
     rationale: >-
@@ -455,19 +539,6 @@ groups:
       DataLayer once at startup. Policy comes from `AppConfig.actor` each time a
       behavior needs it. If one model held both, demo seed code could change production
       policy, and a policy change could need a new seed file.
-  - id: CFG-07-008
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: A YAML sub-block loader (e.g., `_actor_config_from_seed_yaml()`) MUST check for the presence of the target
-      key in the raw YAML dict before calling `model_validate`. If the key is absent, the loader MUST return `None` so the
-      caller falls through to the next source in the resolution order (env vars, then defaults).
-    rationale: >-
-      `model_validate({})` succeeds on a model whose fields all have defaults, and it
-      returns an instance that holds only defaults. A loader that validates a missing
-      key therefore cannot tell an absent key from a key set to its defaults. It returns
-      that instance and skips the sources after the file, such as environment variables.
-      A check for the key before validation keeps the order of sources.
   - id: CFG-07-009
     priority: MUST
     kind: project

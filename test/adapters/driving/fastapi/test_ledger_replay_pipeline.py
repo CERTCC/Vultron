@@ -158,7 +158,7 @@ def _assert_archive_is_what_was_delivered(
         for body in delivered
     }
     assert archived == expected
-    # Every held body was consumed by its replay (IO-03-004).
+    # Every held body was consumed by its replay (IO-03-009).
     assert dl.list_objects("DeferredInboxActivity") == []
     assert held_ledger_announces(dl, _CASE_ID) == []
 

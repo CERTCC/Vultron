@@ -57,7 +57,7 @@ class ObjectDereferencePort(Protocol):
         """Hold *activity_id* for its replay and wait on each reference's fetch.
 
         The adapter holds the activity's received body under a key the
-        receiver derives (DL-06-006, IO-03-004), and records the activity
+        receiver derives (DL-06-006, IO-03-009), and records the activity
         among the waiters of one fetch per reference, starting the fetch
         when none is recorded.
         """

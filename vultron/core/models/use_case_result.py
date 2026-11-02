@@ -30,7 +30,7 @@ hierarchy rooted at ``TriggerResult`` (ADR-0110)::
       RoleOfferResult      activity_id, activity
 
 Each trigger subtype declares exactly the keys its verb's HTTP response body
-carries (UCORG-05-005); the body is the subtype's ``model_dump()``, so a
+carries (UCORG-05-015); the body is the subtype's ``model_dump()``, so a
 ``None``-valued key is still emitted (TRIG-12-002). ``activity``, ``offer``
 and ``note`` are ``dict[NonEmptyString, Any]``: the JSON object a trigger BT captured on
 its blackboard. Core cannot type them as wire activities without importing
@@ -61,7 +61,7 @@ class UseCaseResult(BaseModel):
     Carries no fields of its own: it exists so the ``UseCase`` Protocol and
     the UCORG-05-004 ratchet have one type to name. Subtypes MAY add
     domain-specific fields but MUST NOT carry raw ``dict`` payloads
-    (UCORG-05-005).
+    (UCORG-05-018, UCORG-05-019).
 
     ``validate_assignment`` is set here so every subtype inherits it
     (ARCH-21, ADR-0064): a result mutated after construction is revalidated
@@ -99,7 +99,7 @@ class HandlerDisposition(StrEnum):
 
 
 class HandlerResult(UseCaseResult):
-    """Typed result of a received-side use case (UCORG-05-002, UCORG-05-005).
+    """Typed result of a received-side use case (UCORG-05-002, UCORG-05-017).
 
     ``reason`` rules, enforced at construction:
 
@@ -118,7 +118,7 @@ class HandlerResult(UseCaseResult):
 
     ``unhandled`` marks the one ``REFUSED`` verdict no handler gives: the
     dispatcher's report that the routing table has no use case for a
-    recognized semantic type (:meth:`no_use_case_found`, SE-05-002).  The
+    recognized semantic type (:meth:`no_use_case_found`, SE-05-005).  The
     message is not invalid, so the inbox reports it at INFO, not as a
     refusal to look into (IO-01-005).
 

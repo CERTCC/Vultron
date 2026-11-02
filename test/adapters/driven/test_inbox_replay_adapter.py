@@ -55,7 +55,7 @@ def test_queues_the_held_activity_by_its_own_id(dl):
     InboxReplayAdapter(dl).replay_held(_ANNOUNCE_ID)
 
     assert dl.inbox_list() == [_ANNOUNCE_ID]
-    # The body stays held for the replay to read (IO-03-004).
+    # The body stays held for the replay to read (IO-03-009).
     assert isinstance(
         dl.read(DeferredInboxActivity.build_id(_ANNOUNCE_ID)),
         DeferredInboxActivity,

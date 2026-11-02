@@ -17,7 +17,7 @@
 
 Intake is followed by the post-close guard, the addressee check, the
 closed-sender check, any case resolution and the sender guard.  Split out of
-``receive_activity_tree.py`` (CS-18-001).
+``receive_activity_tree.py`` (CS-18-005).
 """
 
 import py_trees

@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""A deferred inbox activity, held whole for its replay (DL-06-006, IO-03-004).
+"""A deferred inbox activity, held whole for its replay (DL-06-006, IO-03-009).
 
 An activity the inbox defers until its case is known
 (``VultronPendingCaseInbox``) is replayed later, by id, after the delivery that
@@ -29,7 +29,7 @@ It holds two things, and nothing derived from them (ADR-0149):
   ADR-0149), so its replay parses those bytes and carries the same evidence
   as the first delivery.  Every delivery is sealed at its parse, so there is
   always a body to hold;
-- the storage rows staged from its inline objects (IO-03-004), which the
+- the storage rows staged from its inline objects (IO-03-009), which the
   replay stages again for routing.  They are rows (``id_``, ``type_``,
   ``data_``), not domain objects, so no read by an object's own id ever
   reaches them, and they are held as one JSON string because storage

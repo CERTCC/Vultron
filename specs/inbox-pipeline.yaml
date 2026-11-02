@@ -46,13 +46,24 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      `InboxPipeline.process()` MUST return the `VultronEvent` when the
-      activity was dispatched, and MUST return `None` when the activity was
-      deferred or an error prevented dispatch.
+      `InboxPipeline.process()` MUST return the `VultronEvent` when the activity was
+      dispatched.
     rationale: >-
-      A `None` return is an unambiguous signal to routing-safety-net tests
-      that dispatch did not occur, without requiring the test to inspect
-      DataLayer side-effects.
+      A routing-safety-net test reads the returned event to see which semantic type
+      the pipeline dispatched, without having to inspect DataLayer side effects.
+  - id: IBP-01-005
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      `InboxPipeline.process()` MUST return `None` when the activity was deferred or an
+      error prevented dispatch.
+    rationale: >-
+      A `None` return is an unambiguous signal to routing-safety-net tests that dispatch
+      did not occur, without requiring the test to inspect DataLayer side effects.
+    relationships:
+    - rel_type: extends
+      spec_id: IBP-01-003
   - id: IBP-01-004
     priority: MUST_NOT
     kind: project
@@ -153,12 +164,23 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      A routing-safety-net test MUST use `build_test_pipeline()` (real wiring)
-      and MUST NOT mock `_DISPATCHER_SLOT`, `prepare_for_dispatch`, or
-      `use_case_map()`.
+      A routing-safety-net test MUST use `build_test_pipeline()` (real wiring).
+    rationale: >-
+      The real wiring is what the safety net exists to exercise. A test that builds its
+      own pipeline can miss a wiring defect that production has.
+  - id: IBP-04-005
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      A routing-safety-net test MUST NOT mock `_DISPATCHER_SLOT`, `prepare_for_dispatch`,
+      or `use_case_map()`.
     rationale: >-
       Mocking the exact symbols the test is supposed to exercise defeats the
       purpose of a routing safety net.
+    relationships:
+    - rel_type: extends
+      spec_id: IBP-04-002
   - id: IBP-04-003
     priority: MUST
     kind: project
@@ -177,9 +199,16 @@ groups:
     kind: project
     statement: >-
       Routing-safety-net tests SHOULD be placed in
-      `test/adapters/driving/fastapi/test_inbox_pipeline.py` and SHOULD NOT
-      require the `@pytest.mark.integration` marker, since they use only
-      in-memory adapters.
+      `test/adapters/driving/fastapi/test_inbox_pipeline.py`.
+    rationale: >-
+      One file for the safety net lets a reader find every routing check in one place,
+      and lets a change to the pipeline run them together.
+  - id: IBP-04-006
+    priority: SHOULD_NOT
+    kind: project
+    statement: >-
+      Routing-safety-net tests SHOULD NOT require the `@pytest.mark.integration`
+      marker, since they use only in-memory adapters.
     rationale: >-
       Keeping these tests in the unit suite ensures they run on every local
       `pytest` invocation, providing fast feedback without needing the full

@@ -515,7 +515,7 @@ groups:
       wire-only lookup or names its need for the core fallback explicitly.
     relationships:
     - rel_type: refines
-      spec_id: MV-04-003
+      spec_id: MV-04-004
     - rel_type: constrains
       spec_id: ARCH-12-010
       note: ARCH-12-010's registration duty stands; what changes is which callers reach the map it fills.

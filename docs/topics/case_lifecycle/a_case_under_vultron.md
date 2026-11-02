@@ -153,7 +153,7 @@ In either form, the invitation asks for one decision, and the table below shows 
 
 | Your answer | What follows |
 |---|---|
-| Accept | You are a signatory to the terms. You are expected not to disclose the vulnerability to anyone outside the case until the embargo ends ([Embargo Principles](../process_models/em/principles.md)). |
+| Accept | You are a [signatory](../../reference/glossary.md#embargo-and-timing) to the terms once they are in force. You are expected not to disclose the vulnerability to anyone outside the case until the embargo ends ([Embargo Principles](../process_models/em/principles.md)). |
 | Decline | You are not bound. You still receive the negotiation traffic, so you can accept later terms, but embargoed case content is withheld from you ([§9.5 Embargo Traffic Reaches Non-Signatories](../../reference/vultron-spec/tracking-models.md#95-embargo-traffic-reaches-non-signatories), [§9.7 Gating Full Case Delivery](../../reference/vultron-spec/tracking-models.md#97-gating-full-case-delivery)). |
 | No answer by the deadline | Recorded as timed out, distinct from an explicit decline ([§9.4 Deadlines and the Pocket Veto](../../reference/vultron-spec/tracking-models.md#94-deadlines-and-the-pocket-veto)). |
 | Propose different terms | The shortest proposed embargo is taken as accepted and the longer one as a proposed revision, so the case has an embargo while you negotiate ([Default Embargoes](../process_models/em/defaults.md)). |
@@ -162,8 +162,8 @@ Three things happen without anyone asking you.
 
 | Event | What it means for you |
 |---|---|
-| A case begins already under embargo | A report recipient that publishes a default embargo period in its vulnerability disclosure policy has made a standing proposal, and a Reporter who submits without proposing other terms has accepted it ([Default Embargoes](../process_models/em/defaults.md)). Publishing your own default is the most useful thing your organization can do before its first case. |
-| The terms are revised | A proposed revision changes nothing for you: the old terms stay in force and so does your consent to them. When the case owner activates the revision, you are carried over if it ends no later than the terms you accepted; if it ends later and you have not accepted it, your consent lapses until you do. |
+| A case begins already under embargo | A report recipient that publishes a default embargo in its vulnerability disclosure policy has made a standing proposal, and a Reporter who submits without proposing other terms has accepted it ([Default Embargoes](../process_models/em/defaults.md)). Publishing your own default is the most useful thing your organization can do before its first case. |
+| The terms are revised | A proposed revision changes nothing for you: the old terms stay in force and so does your consent to them. When the Case Owner activates the revision, you are carried over if it ends no later than the terms you accepted; if it ends later and you have not accepted it, your consent lapses until you do. |
 | The vulnerability, an exploit for it, or attacks using it become public | The embargo ends for everyone, and every participant's consent moves to a terminal state that no later invitation can leave ([Early Termination](../process_models/em/early_termination.md)). Be prepared for this before you accept. |
 
 Who else to bring into an embargoed case, and when, is the subject of [Adding Participants to an Embargoed Case](../process_models/em/working_with_others.md).

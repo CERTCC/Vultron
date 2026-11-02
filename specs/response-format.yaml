@@ -94,21 +94,38 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      This codebase MUST carry the Offer inline as the `object` of an `Accept`, and MUST
-      reject a bare string ID there at construction time; the Offer is passed as an inline
-      typed activity object (for example `RmSubmitReportActivity` or
-      `EmProposeEmbargoActivity`).
+      This codebase MUST carry the Offer inline as the `object` of an `Accept`, as an
+      inline typed activity object such as `RmSubmitReportActivity` or
+      `EmProposeEmbargoActivity`.
     rationale: >-
       How this codebase meets RF-02-004; split from it so RF-02-004 states only what other
       participants observe (MS-12-010). Carrying the Offer inline rather than by reference
       is a shortcut of this prototype reference implementation, not a protocol rule.
     verification: >-
-      Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`
-      confirm that passing a bare string ID as the `object` of an `Accept` activity raises a
-      validation error at construction time.
+      Unit tests in
+      `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
+      an `Accept` carries its inline typed Offer (`TestInlineTypedObjectAccepted`).
     relationships:
     - rel_type: implements
       spec_id: RF-02-004
+  - id: RF-02-008
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST reject a bare string ID as the `object` of an `Accept` of an
+      Offer at construction time.
+    rationale: >-
+      A check at construction time stops a wrong shape before any code sends it. An
+      `Accept` built with a bare ID would reach the peer without the inline Offer that
+      RF-02-006 requires.
+    verification: >-
+      `TestBareStringObjectRejected` in
+      `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirms
+      that passing a bare string ID as the `object` of an `Accept` activity raises a
+      validation error at construction time.
+    relationships:
+    - rel_type: implements
+      spec_id: RF-02-006
   - id: RF-02-005
     priority: MUST
     kind: protocol
@@ -136,21 +153,36 @@ groups:
     kind: project
     statement: >-
       This codebase MUST carry the Invite inline as the `object` of an `Accept` of an
-      Invite, as a full inline typed activity object (for example `RmInviteToCaseActivity`
-      or `EmInviteToEmbargoOnCaseActivity`), and MUST reject a bare string ID there at
-      construction time.
+      Invite. The Invite is a full inline typed activity object, such as
+      `RmInviteToCaseActivity` or `EmInviteToEmbargoOnCaseActivity`.
     rationale: >-
       How this codebase meets RF-02-005; split from it so RF-02-005 states only what other
       participants observe (MS-12-010). Carrying the Invite inline rather than by reference
       is a shortcut of this prototype reference implementation, not a protocol rule.
     verification: >-
       In `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`,
-      `TestInlineTypedObjectAccepted` confirms that an `Accept` of an `Invite` carries the
-      full inline Invite, and `TestBareStringObjectRejected` confirms that a bare string ID
-      raises a validation error.
+      `TestInlineTypedObjectAccepted` confirms that an `Accept` of an `Invite` carries
+      the full inline Invite.
     relationships:
     - rel_type: implements
       spec_id: RF-02-005
+  - id: RF-02-009
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST reject a bare string ID as the `object` of an `Accept` of an
+      Invite at construction time.
+    rationale: >-
+      A check at construction time stops a wrong shape before any code sends it. An
+      `Accept` built with a bare ID would reach the invitee's peers without the inline
+      Invite that RF-02-007 requires.
+    verification: >-
+      In `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`,
+      `TestBareStringObjectRejected` confirms that a bare string ID as the `object` of
+      an `Accept` of an `Invite` raises a validation error.
+    relationships:
+    - rel_type: implements
+      spec_id: RF-02-007
 - id: RF-03
   title: Reject Response
   specs:
@@ -375,21 +407,46 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The `inReplyTo` field requirement MUST be enforced at the Pydantic model level via a
-      `model_validator` on `Accept`, `Reject`, and other response activity classes, not by
-      call-site convention. The validator MUST reject a response object that has a `None` or
-      missing `inReplyTo` at construction time.
+      This codebase MUST enforce the `inReplyTo` rule with a `model_validator` on
+      `Accept`, `Reject` and the other response activity classes, not by call-site
+      convention.
     rationale: >-
       Call-site convention (setting `inReplyTo` manually at every factory call site) is
       fragile: new factory paths can forget it, and there is no compile-time or model-validation
       enforcement. A `model_validator` makes the invariant intrinsic to the type and
       impossible to bypass silently.
-    verification: Unit tests in `test/wire/as2/factories/test_case_factories.py` confirm that constructing an `Accept`
-      or `Reject` activity with `None` or missing `in_reply_to` raises a Pydantic validation error enforced by the
-      `model_validator` on the class.
+    verification: >-
+      `test_a_response_built_without_in_reply_to_names_what_it_answers` in
+      `test/architecture/test_response_in_reply_to.py` builds every response class
+      in `vultron/wire/as2/vocab/activities/` from its vocab example with no
+      `inReplyTo` and checks that the class itself sets it. The classes that do not
+      yet are listed by name in its `_KNOWN_GAP` record, owned by #5641.
+      `test_rm_accept_invite_to_case_in_reply_to_auto_set` and
+      `test_rm_reject_invite_to_case_in_reply_to_auto_set` in
+      `test/wire/as2/factories/test_case_factories.py` check the two Invite replies.
     relationships:
     - rel_type: refines
       spec_id: RF-08-001
+  - id: RF-08-003
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The `inReplyTo` validator MUST NOT let a response activity be constructed with a
+      `None` or missing `inReplyTo`.
+    rationale: >-
+      A response with no `inReplyTo` does not say which activity it answers. When the
+      validator stops it at construction time, no code can send it.
+    verification: >-
+      `test_a_response_built_without_in_reply_to_names_what_it_answers` in
+      `test/architecture/test_response_in_reply_to.py` builds every response class
+      with no `inReplyTo` and checks that the result carries one or that
+      construction fails on the missing field. The classes listed in its
+      `_KNOWN_GAP` record (#5641) do not meet this yet, and
+      `test_a_known_gap_class_still_builds_without_in_reply_to` keeps that record
+      current.
+    relationships:
+    - rel_type: extends
+      spec_id: RF-08-002
 - id: RF-09
   title: Idempotent Responses
   specs:

@@ -127,9 +127,9 @@ class DispatcherBase:
         The registry recognizes the type, but this receiver does not handle
         it: the message is not invalid, so this is a normal outcome logged
         at INFO, never a raise that would answer the sender with a fault
-        (ADR-0140 item 5, SE-05-002).  No handler ran, so the verdict is
+        (ADR-0140 item 5, SE-05-006).  No handler ran, so the verdict is
         ``REFUSED`` and the activity is not ``processed`` (UCORG-05-012); it
-        is marked ``unhandled`` so the inbox reports it at INFO (IO-01-005).
+        is marked ``unhandled`` so the inbox reports it at INFO (IO-01-008).
         An unrecognized activity never reaches here: it routes to the
         ``UNKNOWN`` fallback's use case (SE-04).
         """

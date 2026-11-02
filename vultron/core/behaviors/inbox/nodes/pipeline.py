@@ -141,7 +141,7 @@ class _InboxNodeWithPorts(BehaviourWithPorts):
 
         Logged at INFO, not WARNING: the driving adapter logs every rejected
         ``InboxOutcome`` with the actor and activity ids, at WARNING, or at
-        INFO for an unhandled one (UCORG-05-013, IO-01-005), so a node-level
+        INFO for an unhandled one (UCORG-05-013, IO-01-008), so a node-level
         warning would report it twice.
         """
         self.feedback_message = reason

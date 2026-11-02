@@ -165,7 +165,7 @@ groups:
       (OX-06-002).
     note: >-
       Delivery to an inbox address derived from a recipient's id, when no inbox is held,
-      is addressing rather than a recorded or sent value (OX-12-009).
+      is addressing rather than a recorded or sent value (OX-12-010).
     verification: >-
       `test/wire/as2/factories/test_actor_references.py::test_an_actor_given_by_uri_carries_no_invented_field`
       builds each factory activity that names an actor given by URI, and
@@ -700,7 +700,7 @@ groups:
     - rel_type: refines
       spec_id: AKM-05-001
     - rel_type: constrains
-      spec_id: MV-10-001
+      spec_id: MV-10-009
     adr:
     - ADR-0159
     stories:

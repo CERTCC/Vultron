@@ -85,6 +85,19 @@ Sub-modules
   ``the_owner_hands_the_case_over`` / ``the_new_owner_invites``, each taking
   its cast as ``Part``\\ s off the running story. Not re-exported here, for
   the same reason.
+- :mod:`~vultron.demo.helpers.vendor_story` — the fragments and the nested
+  named prefixes (``REPORTER_TELLS_THE_VENDOR``,
+  ``THE_VENDOR_ANSWERS_THE_REPORTER``) of the vendor-first family, whose
+  Reporter tells a Vendor rather than a Coordinator. Not re-exported here,
+  for the same reason.
+- :mod:`~vultron.demo.helpers.vendor_coordinator_story` — the fragments and
+  the ``THE_VENDOR_INVITES_A_COORDINATOR`` prefix of the ``rvcv`` pair, which
+  continues ``THE_VENDOR_ANSWERS_THE_REPORTER`` by inviting a Coordinator.
+  Not re-exported here, for the same reason.
+- :mod:`~vultron.demo.helpers.story_cast` — ``CastSeat`` and
+  ``open_story_cast``: the reset, seeding and seating
+  every composed family's opening shares, so a second family does not copy
+  the first one's (DEMOMA-17-001). Not re-exported here, for the same reason.
 - :mod:`~vultron.demo.helpers.notes` — ``participant_adds_note_to_case``.
 - :mod:`~vultron.demo.helpers.milestones` — lifecycle milestone verifiers
   (``verify_case_active``, ``verify_fix_ready``, ``verify_fix_deployed``,

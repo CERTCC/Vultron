@@ -199,9 +199,10 @@ def _scenario_roles(
 
     ``role_map()`` is called for its side effect, not its result: it holds the
     "declared once" guarantees (no duplicate name, no two roles reading one
-    container slot), and without this call they would bind only because every
-    scenario module happens to call it to derive its ``*_BASE_URL`` constants.
-    Nothing requires a module to do that, and the failure is quiet — two roles
+    container slot), and without this call they would bind only because a
+    scenario module happens to call it for some other reason — as each once did
+    to derive its own ``*_BASE_URL`` constants, which the composed form has
+    none of.  Nothing requires a module to call it, and the failure is quiet — two roles
     sharing a ``name`` yield two identical flags both carrying the *second*
     role's binding, because :func:`_role_option_decorators` keys its map by
     parameter name and the first is silently dropped.

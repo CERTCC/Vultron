@@ -4096,7 +4096,7 @@ groups:
     - rel_type: refines
       spec_id: CM-21-013
     - rel_type: refines
-      spec_id: CS-13-001
+      spec_id: CS-13-009
     adr:
     - ADR-0053
     - ADR-0148
@@ -4931,8 +4931,8 @@ groups:
       (`vultron/demo/helpers/closure.py`), which sends the owner's Leave only
       once the CASE_MANAGER has recorded each other departure.
     verification: >-
-      `test/demo/test_rv_demo.py::TestRvMilestoneAssertions::test_phase_case_closure_closes_the_case_owner_last`
-      asserts the rv closure phase closes the Reporter before the Vendor, the Case Owner;
+      `test/demo/test_rv_demo.py::TestBothClose::test_the_vendor_is_the_owner_and_leaves_after_the_reporter`
+      asserts the rv closure fragment closes the Reporter before the Vendor, the Case Owner;
       `test/demo/test_case_closure.py` asserts the shared closure phase gates the
       owner's Leave on every other departure and that the closure milestone reports
       a departure recorded after the CASE_MANAGER's own RM.CLOSED status entry.
@@ -5763,7 +5763,7 @@ groups:
       `rsvp_deadline` (not rejected or dropped).
     relationships:
     - rel_type: refines
-      spec_id: CS-13-001
+      spec_id: CS-13-009
     adr:
     - ADR-0065
     - ADR-0032

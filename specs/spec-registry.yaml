@@ -1005,8 +1005,8 @@ groups:
     kind: project
     statement: >-
       The `except` clause of `pytest_collection_modifyitems` MUST name only the
-      narrowest concrete types that a corpus which exists but does not load can raise
-      (CS-23-001).
+      narrowest concrete types that an existing but unloadable corpus can raise
+      (CS-23-002).
     rationale: >-
       Narrow types are what keep an unexpected exception uncaught (SR-05-013). A blanket
       `except Exception` is a defect, because it catches every bug in the loader.
@@ -1017,10 +1017,10 @@ groups:
     - rel_type: implements
       spec_id: SR-05-013
     - rel_type: refines
-      spec_id: CS-23-001
+      spec_id: CS-23-002
       note: >-
         applies the narrow-catch rule to the pytest collection hook, which sits outside
-        CS-23-001's `vultron/` scope
+        CS-23-002's `vultron/` scope
   - id: SR-05-007
     priority: MUST
     kind: project

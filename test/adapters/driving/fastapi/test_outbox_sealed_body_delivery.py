@@ -164,6 +164,8 @@ def test_the_sync_adapter_seals_the_announce_it_queues(dl):
     assert delivered["object"]["logIndex"] == 0
 
 
+@pytest.mark.spec("OX-07-004")
+@pytest.mark.spec("OX-07-005")
 def test_a_queued_id_with_no_sealed_body_is_dropped_not_delivered(dl, caplog):
     """The activity record alone is not enough: no seal, no delivery."""
     case = as_VulnerabilityCase(name="CVE-2026-0004", attributed_to=_ACTOR)

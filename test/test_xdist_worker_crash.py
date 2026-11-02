@@ -49,7 +49,7 @@ def test_worker_dies():
 """
 
 
-@pytest.mark.spec("TB-14-004")
+@pytest.mark.spec("TB-14-004", "TB-14-010")
 def test_dead_worker_fails_run_instead_of_hanging(pytester, pytestconfig):
     pytester.makepyfile(test_crash=_CRASHING_TESTS)
 

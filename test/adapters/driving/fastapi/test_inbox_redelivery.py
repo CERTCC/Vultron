@@ -16,7 +16,7 @@ through the real FastAPI inbox route to a real CoreActor and verify that:
 The parametrized sweep (AC-3) runs every dispatchable example activity twice
 through the process_payload pipeline on a fresh per-actor in-memory store
 (IBP-04-002, IO-04-002) and asserts the second run is a no-op.  No patching of
-the dispatcher, use_case_map(), or ingress adapter (IBP-04-002, IO-04-002b).
+the dispatcher, use_case_map(), or ingress adapter (IBP-04-005, IO-04-002b).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -372,7 +372,7 @@ def test_redelivery_sweep_idempotent(name: str, sweep_dl: SqliteDataLayer):
     """Second pipeline run for every dispatchable example leaves store and outbox unchanged (ID-02-001, ID-02-003, ID-05-003).
 
     Uses real wiring: no patching of the dispatcher, use_case_map(), or
-    ingress adapter (IBP-04-002, IO-04-002b).
+    ingress adapter (IBP-04-005, IO-04-002b).
     """
     example = _EXAMPLES[name]
     body = wire_body(example)
@@ -410,6 +410,7 @@ def test_redelivery_sweep_idempotent(name: str, sweep_dl: SqliteDataLayer):
 
 @pytest.mark.spec("IE-10-002")
 @pytest.mark.spec("ID-02-001")
+@pytest.mark.spec("IE-10-004")
 def test_a_different_body_under_a_delivered_id_is_refused(
     actor_client, caplog: pytest.LogCaptureFixture
 ):

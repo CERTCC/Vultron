@@ -57,31 +57,73 @@ groups:
   - id: AF-01-005
     priority: MUST
     kind: project
-    statement: When a factory parameter represents a domain entity whose fields determine how the wire object is enriched
-      (e.g. a case whose embargo state determines whether `activeEmbargo` appears in the stub), the factory MUST accept the
-      complete domain object — under ARCH-25-003 the core class is its own wire form, so there is no separate
-      counterpart to project into — and MUST derive the enrichment from that object's own fields. Callers MUST NOT hand a
-      factory a hand-built *partial* stub (e.g. an `as_VulnerabilityCaseStub` assembled field-by-field) in place of the
-      object — an incomplete argument risks omitting fields the object would have supplied (e.g. `end_time` on an embargo
-      event). Factories MUST NOT re-derive AS2 spellings by hand; the field alias a core object inherits (ARCH-12-003) is the
-      only source of the wire spelling, and delivery renders through the port (ARCH-20-001).
+    statement: >-
+      When the fields of a domain entity decide how a factory enriches the wire object,
+      the factory MUST accept the complete domain object. An example is a case whose
+      embargo state decides whether `activeEmbargo` appears in
+      the stub.
     rationale: >-
-      When two places compute the same enrichment, the results drift apart. The factory
-      takes the complete domain object and derives the enrichment from its own fields. A
-      partial stub that a caller builds field by field can omit a field the object
-      supplies, for example `end_time` on an embargo event. The recipient then gets less
-      than the sender knows. The core class is its own wire form (ARCH-25-003,
-      ADR-0099), and ARCH-22-001 lets the wire layer import it, so the factory needs no
-      separate wire copy. The field alias that the object inherits is the only source of
-      each wire spelling, so a factory cannot spell a field differently from the rest of
-      the system.
-    verification: Each factory that enriches from a domain entity reads only fields of the object it was handed, and the
-      factory package's imports from `vultron.core` stay inside the ARCH-22-001 allow-list
-      (`test/architecture/test_wire_core_import_allowlist.py`).
+      The core class is its own wire form (ARCH-25-003, ADR-0099), and ARCH-22-001 lets
+      the wire layer import it. The factory thus needs no separate wire copy of the
+      object, and it can read every field the object has.
+    verification: >-
+      The factory package's imports from `vultron.core` stay inside the ARCH-22-001
+      allow-list (`test/architecture/test_wire_core_import_allowlist.py`).
     relationships:
     - rel_type: depends_on
       spec_id: ARCH-22-001
       note: The allow-list is what lets a factory accept the core object directly.
+    adr:
+    - ADR-0099
+  - id: AF-01-006
+    priority: MUST
+    kind: project
+    statement: >-
+      A factory that accepts a domain entity (AF-01-005) MUST derive the enrichment from
+      that object's own fields.
+    rationale: >-
+      When two places compute the same enrichment, the results drift apart. When the
+      factory derives it from the object's own fields, the wire object always agrees
+      with the domain object.
+    verification: >-
+      Each factory that enriches from a domain entity reads only fields of the object it
+      was handed, and the factory package's imports from `vultron.core` stay inside the
+      ARCH-22-001 allow-list (`test/architecture/test_wire_core_import_allowlist.py`).
+    relationships:
+    - rel_type: extends
+      spec_id: AF-01-005
+    adr:
+    - ADR-0099
+  - id: AF-01-007
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A caller MUST NOT hand a factory a hand-built partial stub in place of the domain
+      object, such as an `as_VulnerabilityCaseStub` assembled field by field.
+    rationale: >-
+      A partial stub that a caller builds field by field can omit a field the object
+      supplies, for example `end_time` on an embargo event. The recipient then gets less
+      than the sender knows.
+    verification: >-
+      `test_no_production_module_outside_the_wire_layer_builds_a_case_stub` in
+      `test/architecture/test_factory_wire_spelling_and_stubs.py` asserts that no module
+      under `vultron/` outside `vultron/wire/as2/` names `as_VulnerabilityCaseStub`.
+    adr:
+    - ADR-0099
+  - id: AF-01-008
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A factory MUST NOT spell an AS2 field name by hand. The field alias a core object
+      inherits (ARCH-12-013) is the only source of the wire spelling, and delivery
+      renders through the port (ARCH-20-001).
+    rationale: >-
+      When the inherited alias is the only source of each wire spelling, a factory
+      cannot spell a field differently from the rest of the system.
+    verification: >-
+      `test_no_factory_spells_an_as2_member_name_by_hand` in
+      `test/architecture/test_factory_wire_spelling_and_stubs.py` fails on a camelCase
+      string literal in `vultron/wire/as2/factories/` that is not a docstring.
     adr:
     - ADR-0099
 - id: AF-02
@@ -100,12 +142,26 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: 'The `factories/` package MUST be organized into one module per protocol domain, with one factory module for each module present in `vocab/activities/` (e.g. `embargo.py`, `report_management.py`, `case_management.py`). New `vocab/activities/` modules MUST have a corresponding `factories/` module added at the same time.'
+    statement: >-
+      The `factories/` package MUST hold one module per protocol domain, one for each
+      module in `vocab/activities/`, such as `embargo.py`, `report_management.py` and
+      `case_management.py`.
     rationale: >-
       A factory module for each vocabulary module lets a reader find the factory for an
-      activity from the module of its class. A new vocabulary module with no factory
-      module has activities that only direct instantiation can build, which AF-01-001
-      forbids.
+      activity from the module of its class.
+  - id: AF-02-005
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      A change that adds a `vocab/activities/` module MUST add its `factories/` module
+      in the same change.
+    rationale: >-
+      A new vocabulary module with no factory module has activities that only direct
+      instantiation can build, which AF-01-001 forbids.
+    relationships:
+    - rel_type: extends
+      spec_id: AF-02-002
   - id: AF-02-003
     priority: MUST
     kind: project
@@ -263,12 +319,12 @@ groups:
   title: Activity Translator Port
   specs:
   - id: AF-09-001
-    priority: MUST
+    priority: MUST_NOT
     kind: project
     verification_debt: '#2575'
-    statement: 'The correct replacement for `from_core()` calls in `vultron/core/use_cases/` is a driven-adapter port: a `Protocol`
-      interface defined in `vultron/core/` that accepts domain objects and returns wire activities, implemented by an adapter
-      in the wire layer. Core use-cases MUST NOT import from `vultron/wire/` directly; they MUST call through the port.'
+    statement: >-
+      A core use case in `vultron/core/use_cases/` MUST NOT import from `vultron/wire/`
+      directly.
     rationale: '`from_core()` is a wire-layer method. Calling it directly from core use-cases inverts the hexagonal architecture
       dependency direction: core→wire. The Activity Translator port pattern maintains the correct direction (core defines
       the port; wire implements it) while providing the same functional capability. See AF-08-002 for migration scope.'
@@ -277,12 +333,30 @@ groups:
       spec_id: ARCH-04-001
     - rel_type: refines
       spec_id: AF-08-002
+  - id: AF-09-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      A core use case MUST turn domain objects into wire activities through the Activity
+      Translator port. The port is a driven-adapter `Protocol` defined in
+      `vultron/core/`, and an adapter in the wire layer implements it. It replaces the
+      `from_core()` calls in `vultron/core/use_cases/`.
+    rationale: >-
+      The use case still needs wire activities after AF-09-001 removes its wire
+      imports. The port gives it that capability, and core keeps the dependency
+      direction: core defines the port and the wire layer implements it.
+    relationships:
+    - rel_type: implements
+      spec_id: AF-09-001
   - id: AF-09-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: The Activity Translator port MUST be injected into use-cases via dependency injection (constructor parameter
-      or factory argument). Use-cases MUST NOT instantiate the wire-layer translator directly.
+    statement: >-
+      A use case MUST receive the Activity Translator port by dependency injection and
+      not create the wire-layer translator itself. The port arrives as a constructor
+      parameter or factory argument.
     rationale: >-
       A use case that creates the translator itself must import the wire layer, which
       AF-09-001 forbids. Injection keeps that import out of core. It also lets a test
