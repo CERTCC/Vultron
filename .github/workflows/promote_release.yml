@@ -1,0 +1,63 @@
+# Promotes a publish to a release (DOCBW-07, ADR-0006). A maintainer starts it
+# from `main` and names a `publish-YYYY-MM-DD.N` tag, or leaves the input empty
+# for the newest one. The run tags that tag's commit with the next `vYYYY.M.P`,
+# numbered by today's UTC month, and opens a draft GitHub Release with notes
+# generated since the previous release. The maintainer edits the notes and
+# publishes the draft. A tag this run pushes starts no other workflow, so the
+# script checks its own input. Tags are append-only (#5545): the run creates
+# one tag and never moves or deletes any. The logic lives in
+# .github/scripts/release.py, with its tests in test/ci/test_release.py.
+name: Promote a publish to a release
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish-tag:
+        description: >-
+          The publish-YYYY-MM-DD.N tag to promote. It must be one the publish
+          workflow made. Leave empty to promote the newest one, which names
+          what the site shows now.
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+# One promotion at a time, never cancelled: the release number is computed
+# inside the group, and a half-finished run leaves a tag without its release.
+concurrency:
+  group: promote-release
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Tag the release and draft its notes
+    runs-on: ubuntu-latest
+    # A fetch, a push and two API calls. Cap at 10 min so a hang fails fast
+    # instead of holding a runner until GitHub's 6-h limit (TB-14-006).
+    timeout-minutes: 10
+    # Pushes the release tag and creates the draft release (DOCBW-07-005).
+    permissions:
+      contents: write
+    steps:
+      # Full history and every tag: the run reads every publish-* and v* tag.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      # A manual run from another ref is refused: it would run that ref's copy
+      # of this workflow with write access (DOCBW-07-004).
+      - name: Promote the publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.ref }}
+          ACTOR: ${{ github.actor }}
+          PUBLISH_TAG: ${{ inputs.publish-tag }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 -I .github/scripts/release.py promote \
+            --repo "$REPO" --ref "$REF" --actor "$ACTOR" \
+            --run-url "$RUN_URL" --publish-tag "$PUBLISH_TAG"

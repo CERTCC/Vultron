@@ -10,19 +10,25 @@ its concurrency group and its report.
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import re
 import subprocess
-import sys
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from types import ModuleType
 from typing import Any
 
 import pytest
 
 from test.ci._fake_gh import install_fake_gh
+from test.ci._scratch_git import (
+    commit as _commit,
+    git as _git,
+    head as _head,
+    isolate_git_config,
+    scratch_clone,
+    tag_as_bot as _tag_as_bot,
+)
+from test.ci._scripts import SCRIPTS_DIR, load_script
 from test.ci._workflows import (
     REPO_ROOT,
     WORKFLOWS_DIR,
@@ -32,7 +38,7 @@ from test.ci._workflows import (
     triggers,
 )
 
-_SCRIPT = REPO_ROOT / ".github" / "scripts" / "publish_gate.py"
+_SCRIPT = SCRIPTS_DIR / "publish_gate.py"
 _WORKFLOW = WORKFLOWS_DIR / "deploy_site.yml"
 _MAIN_CI = {
     "python-app.yml",
@@ -47,17 +53,7 @@ MAIN = "refs/heads/main"
 RUN_URL = "https://github.com/O/R/actions/runs/5"
 
 
-def _load_script() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("publish_gate", _SCRIPT)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    # Dataclasses look their module up in sys.modules while being defined.
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-_gate = _load_script()
+_gate = load_script("publish_gate")
 Trigger = _gate.Trigger
 BLOCKING = [
     _gate.BlockingWorkflow(
@@ -74,7 +70,7 @@ def _ctx(trigger: Any, source_tag: str = "") -> Any:
 
 
 def _bot_tag(name: str = f"publish-{DAY}.1") -> Any:
-    return _gate.PublishTag(name, True, _gate.BOT_NAME, _gate.BOT_EMAIL)
+    return _gate.Tag(name, True, _gate.BOT_NAME, _gate.BOT_EMAIL)
 
 
 class _Calls:
@@ -309,24 +305,7 @@ def test_wait_for_runs_stops_when_the_runs_finish() -> None:
 
 @pytest.fixture
 def git_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep the developer's git config (signing, identity) out of the tests."""
-    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
-    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
-
-
-def _git(
-    repo: Path,
-    *args: str,
-    name: str = "Some Person",
-    email: str = "p@example.org",
-) -> str:
-    return subprocess.run(
-        ["git", "-c", f"user.name={name}", "-c", f"user.email={email}", *args],
-        cwd=repo,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
+    isolate_git_config(monkeypatch)
 
 
 @pytest.fixture
@@ -337,14 +316,7 @@ def repo(
 
     The commit carries the ``BUILD_ACTIONS``, as every buildable commit does.
     """
-    origin = tmp_path / "origin.git"
-    subprocess.run(["git", "init", "--bare", "-q", str(origin)], check=True)
-    work = tmp_path / "work"
-    subprocess.run(
-        ["git", "clone", "-q", str(origin), str(work)],
-        check=True,
-        capture_output=True,
-    )
+    work = scratch_clone(tmp_path)
     for action in _gate.BUILD_ACTIONS:
         (work / action).parent.mkdir(parents=True)
         (work / action).write_text("name: stub\n")
@@ -353,29 +325,6 @@ def repo(
     _git(work, "push", "-q", "origin", "HEAD")
     monkeypatch.chdir(work)
     return work
-
-
-def _head(repo: Path) -> str:
-    return _git(repo, "rev-parse", "HEAD")
-
-
-def _commit(repo: Path, message: str) -> str:
-    _git(repo, "commit", "--allow-empty", "-q", "-m", message)
-    return _head(repo)
-
-
-def _tag_as_bot(repo: Path, name: str, target: str = "HEAD") -> None:
-    _git(
-        repo,
-        "tag",
-        "-a",
-        name,
-        target,
-        "-m",
-        "scheduled publish.",
-        name=_gate.BOT_NAME,
-        email=_gate.BOT_EMAIL,
-    )
 
 
 @pytest.mark.spec("DOCBW-06-010")
@@ -534,7 +483,7 @@ def test_a_rolled_back_commit_is_not_republished(repo: Path) -> None:
     x = _commit(repo, "X")
     _tag_as_bot(repo, f"publish-{DAY}.2")
     _tag_as_bot(repo, f"publish-{DAY}.3", target=w)  # the rollback
-    newest = _gate.next_tag_name(DAY, _git(repo, "tag").split())
+    newest = _gate.next_publish_name(DAY, _git(repo, "tag").split())
     assert newest == f"publish-{DAY}.4"
     assert _gate.tag_commit(f"publish-{DAY}.3") == w
     decision = _Calls(tags=_gate.publish_tags_on(x)).decide(
@@ -584,7 +533,7 @@ def test_tag_message_records_trigger_and_actor(
     ],
 )
 def test_next_tag_name(existing: list[str], expected: str) -> None:
-    assert _gate.next_tag_name(DAY, existing) == expected
+    assert _gate.next_publish_name(DAY, existing) == expected
 
 
 def _remote_tags(repo: Path) -> dict[str, str]:
@@ -1059,33 +1008,50 @@ _TAG_REWRITES = re.compile(
 )
 
 
-@pytest.mark.spec("DOCBW-06-022")
-def test_no_step_moves_or_deletes_a_tag() -> None:
-    texts = {
-        "workflow": "\n".join(
-            str(s.get("run", ""))
-            for j in _workflow()["jobs"].values()
-            for s in j["steps"]
-        ),
-        "script": _SCRIPT.read_text(),
-    }
-    for where, text in texts.items():
-        found = _TAG_REWRITES.findall(text)
-        assert not found, f"The {where} can move or delete a tag: {found}"
+# Every workflow that reads or writes publish-* or v* tags, and the scripts
+# they run. Tags are append-only (#5545), so none may move or delete one.
+_TAG_WORKFLOWS = (
+    _WORKFLOW,
+    WORKFLOWS_DIR / "promote_release.yml",
+    WORKFLOWS_DIR / "release_tag_check.yml",
+    WORKFLOWS_DIR / "site_staleness.yml",
+)
+_TAG_SCRIPTS = tuple(
+    SCRIPTS_DIR / f"{name}.py"
+    for name in ("publish_gate", "release", "release_tags")
+)
 
 
-def test_no_run_step_expands_an_expression() -> None:
+@pytest.mark.spec("DOCBW-06-022", "DOCBW-07-009")
+@pytest.mark.parametrize(
+    "path", [*_TAG_WORKFLOWS, *_TAG_SCRIPTS], ids=lambda p: p.name
+)
+def test_no_step_moves_or_deletes_a_tag(path: Path) -> None:
+    """No step pushes a tag deletion or a force-updated tag ref."""
+    if path.suffix == ".py":
+        text = path.read_text()
+    else:
+        wf_steps = steps(load_workflow(path))
+        assert wf_steps, f"{path.name} has no steps, so nothing was checked"
+        text = "\n".join(str(s.get("run", "")) for s in wf_steps)
+    found = _TAG_REWRITES.findall(text)
+    assert not found, f"{path.name} can move or delete a tag: {found}"
+
+
+@pytest.mark.parametrize("path", _TAG_WORKFLOWS, ids=lambda p: p.name)
+def test_no_run_step_expands_an_expression(path: Path) -> None:
     """Inputs, outputs and context values reach a shell only through ``env:``.
 
     A ``${{ }}`` inside ``run:`` is pasted into the script before the shell
-    parses it, so a crafted ``rollback-to`` would run as code in the gate job.
+    parses it, so a crafted ``rollback-to`` or ``publish-tag`` would run as
+    code in a job that can push a tag.
     """
     inlined = [
         str(s.get("name", s.get("id", "?")))
-        for s in steps(_workflow())
+        for s in steps(load_workflow(path))
         if "${{" in str(s.get("run", ""))
     ]
-    assert not inlined, f"run: expands an expression in {inlined}"
+    assert not inlined, f"{path.name}: run: expands an expression in {inlined}"
 
 
 @pytest.mark.parametrize(

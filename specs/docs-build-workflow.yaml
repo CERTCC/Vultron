@@ -8,7 +8,9 @@ description: >-
   `.github/workflows/deploy_site.yml`, which builds the site and uploads it to
   GitHub Pages. DOCBW-01, DOCBW-02 and DOCBW-05 name and configure the review
   workflow; DOCBW-03 states the build and gate obligations every site-building
-  workflow carries; DOCBW-06 states what is specific to publication.
+  workflow carries; DOCBW-06 states what is specific to publication; DOCBW-07
+  states the release promotion, release tag check and staleness alarm that read
+  the publication's tags.
   The workflows are distinct from `python-app.yml` (Python unit tests and
   linting) and `.github/workflows/demo-integration.yml` (demo container
   integration tests, specified in `specs/demo-ci.yaml`).
@@ -1143,3 +1145,213 @@ groups:
           `test/ci/test_publish_gate.py`.
         adr:
           - ADR-0171
+
+  - id: DOCBW-07
+    title: Release Promotion and Site Staleness
+    description: >-
+      Obligations of the workflows that read the `publish-*` tags DOCBW-06 makes:
+      the promote workflow `.github/workflows/promote_release.yml`, which turns a
+      publish into a release (ADR-0006, ADR-0171); the release tag check
+      `.github/workflows/release_tag_check.yml`; and the staleness alarm
+      `.github/workflows/site_staleness.yml`. Their logic lives in
+      `.github/scripts/release.py`, and every tag query in
+      `.github/scripts/release_tags.py`.
+    specs:
+      - id: DOCBW-07-001
+        priority: MUST
+        kind: project
+        statement: >-
+          The promote workflow MUST create the next `vYYYY.M.P` tag (ADR-0006)
+          as an annotated tag on the commit of the chosen `publish-*` tag, and
+          open a draft GitHub Release for it whose notes are generated since
+          the previous `v*` tag. The year and month MUST be those of the UTC
+          promotion date, and `P` MUST be 0 for the month's first release and
+          one more than the month's highest otherwise. With no input, the
+          chosen tag MUST be the newest DOCBW-07-006 publish.
+        rationale: >-
+          A release then names a snapshot that passed CI and the site checks and
+          was live, with no SHAs matched by eye. The release dialog cannot target
+          an existing tag, and its default target is `main`, which is not what
+          the site shows. A draft lets the maintainer write the notes in the usual
+          editor before anyone sees the release.
+        verification: >-
+          `test_an_empty_input_promotes_the_newest_publish`,
+          `test_the_release_month_is_the_promotion_date`,
+          `test_the_first_release_has_no_previous_release`,
+          `test_promote_tags_the_publish_and_drafts_the_release` and
+          `test_promote_workflow` in `test/ci/test_release.py`, and
+          `test_next_release_name` in `test/ci/test_release_tags.py`.
+        adr:
+          - ADR-0006
+          - ADR-0171
+      - id: DOCBW-07-002
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          The promote workflow MUST NOT create a `v*` tag when its input is not
+          an existing `publish-*` tag that is a DOCBW-07-006 publish.
+        rationale: >-
+          A tag the workflow's `GITHUB_TOKEN` pushes starts no other workflow, so
+          the release tag check never sees it and the workflow must check its own
+          input. Anyone who can push can create a `publish-*` tag (#5545), so a
+          name alone is no sign that the commit was published.
+        verification: >-
+          `test_promote_refuses_an_input_that_is_no_publish` and
+          `test_promote_refuses_and_tags_nothing` in `test/ci/test_release.py`.
+        adr:
+          - ADR-0171
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-07-001
+      - id: DOCBW-07-003
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          The promote workflow MUST NOT create a `v*` tag that does not compare
+          strictly greater than every existing version-shaped `v*` tag.
+        rationale: >-
+          ADR-0006 requires release tags to increase monotonically. A tag from a
+          later month pushed by hand would otherwise make the next promotion
+          name a release older than the latest one.
+        verification: >-
+          `test_next_release_name_never_goes_backwards` in
+          `test/ci/test_release_tags.py` and
+          `test_promote_never_names_a_release_below_the_latest` in
+          `test/ci/test_release.py`.
+        adr:
+          - ADR-0006
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-07-001
+      - id: DOCBW-07-004
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A run of the promote workflow that does not start from `main` MUST NOT
+          create a tag or a release.
+        rationale: >-
+          A manual run executes the copy of the workflow file stored at the ref
+          it starts from. A run from another ref would execute that ref's copy
+          with write access to the repository.
+        verification: >-
+          `test_promote_refuses_and_tags_nothing` in `test/ci/test_release.py`.
+        adr:
+          - ADR-0171
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-07-001
+      - id: DOCBW-07-005
+        priority: MUST
+        kind: project
+        statement: >-
+          The promote workflow MUST trigger on `workflow_dispatch` only, with
+          `contents: read` at the workflow level and `contents: write` only on
+          the job that pushes the release tag and creates the release.
+        rationale: >-
+          Promotion is a maintainer's decision, so nothing starts it on its own.
+          The one job that writes needs to push a tag and create a release, and
+          nothing more (CISEC-02-002).
+        verification: >-
+          `test_promote_workflow` in `test/ci/test_release.py`.
+        relationships:
+          - rel_type: refines
+            spec_id: CISEC-02-002
+      - id: DOCBW-07-006
+        priority: MUST
+        kind: project
+        statement: >-
+          Every query of `publish-*` and `v*` tags by the publish gate, the
+          promote workflow, the release tag check and the staleness alarm MUST go
+          through the shared helper `.github/scripts/release_tags.py`, which
+          counts as a publish only an annotated `publish-YYYY-MM-DD.N` tag whose
+          tagger is `github-actions[bot]`.
+        rationale: >-
+          One helper gives all four the same answer to "which commits were
+          published." A hand-pushed tag that the skip rule ignores (DOCBW-06-014)
+          must not pass as a publish to promote, to the release check or to the
+          staleness alarm either.
+        verification: >-
+          `test/ci/test_release_tags.py` covers each query, a hand-pushed tag
+          included, and `test_check_reports_a_release_of_no_publish` in
+          `test/ci/test_release.py` covers the check.
+        adr:
+          - ADR-0171
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-014
+      - id: DOCBW-07-007
+        priority: MUST
+        kind: project
+        statement: >-
+          A push of a `v*` tag whose commit has no DOCBW-07-006 publish MUST file
+          or update a failure issue through the `notify-failure` composite
+          action. The check MUST NOT block, move or delete the tag.
+        rationale: >-
+          A release cut by hand can name a commit that never passed the site
+          checks or was never live. Tags are append-only (#5545), so the check
+          can only report it for a maintainer to review.
+        verification: >-
+          `test_check_passes_a_release_of_a_publish`,
+          `test_check_reports_a_release_of_no_publish`,
+          `test_unpublished_release_names_the_tag_and_never_deletes` and
+          `test_release_tag_check_workflow` in `test/ci/test_release.py`.
+        relationships:
+          - rel_type: implements
+            spec_id: CISEC-05-008
+      - id: DOCBW-07-008
+        priority: MUST
+        kind: project
+        statement: >-
+          When the newest DOCBW-07-006 publish is more than 4 weekdays older than
+          the newest commit on `main`, and `main` has commits that are not in the
+          published commit's history, the staleness alarm MUST keep one failure
+          issue open through the `notify-failure` composite action. The first
+          check after a publish that ends the condition MUST close it.
+        rationale: >-
+          A skipped publish is a green run, so nothing else reports a site that
+          stopped moving: the site once fell 6,966 commits behind `main` unseen
+          (ADR-0171). Weekdays, not days, are counted, so a weekend alone never
+          triggers it. The alarm also checks after every run of the publish
+          workflow, so the next publish closes it.
+        verification: >-
+          `test_weekdays_between`, `test_stale_site`,
+          `test_no_publish_at_all_is_stale`, `test_staleness_reads_the_clone` and
+          `test_staleness_workflow` in `test/ci/test_release.py`.
+        adr:
+          - ADR-0171
+      - id: DOCBW-07-009
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A step of the promote workflow, the release tag check or the staleness
+          alarm MUST NOT move or delete a `publish-*` or `v*` tag.
+        rationale: >-
+          The tag ruleset refuses a move or a deletion (#5545), and a repository
+          ruleset cannot grant the GitHub Actions app a bypass, so such a step
+          could only fail.
+        verification: >-
+          `test_no_step_moves_or_deletes_a_tag` in
+          `test/ci/test_publish_gate.py` covers every tag workflow and the
+          scripts they run.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-022
+      - id: DOCBW-07-010
+        priority: MUST
+        kind: project
+        statement: >-
+          When the chosen publish's commit already carries the latest `v*` tag
+          and that tag has no GitHub Release, the promote workflow MUST open the
+          draft release for that tag instead of creating another tag. When the
+          commit carries a `v*` tag in any other case, it MUST refuse.
+        rationale: >-
+          A run whose release step failed leaves its tag pushed. Re-running it
+          then finishes the release instead of tagging one commit twice.
+        verification: >-
+          `test_a_tagged_commit_without_a_release_gets_its_draft`,
+          `test_a_released_commit_is_not_promoted_again` and
+          `test_a_rerun_after_a_failed_draft_reuses_the_tag` in
+          `test/ci/test_release.py`.
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-07-001
