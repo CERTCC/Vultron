@@ -2,8 +2,9 @@
 
 Whether each ``# owner: #N`` issue a ratchet baseline cites is still open needs
 the GitHub API, so it cannot live in the unit suite. ARCH-18-004 puts it in a
-job outside the merge path that reports a closed owner through one tracking
-issue and never fails the build; this test pins that workflow's shape.
+job outside the merge path, which reports a closed owner through one tracking
+issue (ARCH-18-008) and never fails the build (ARCH-18-009); this test pins that
+workflow's shape.
 """
 
 from __future__ import annotations
@@ -45,7 +46,7 @@ def test_runs_on_a_schedule_and_on_demand_never_on_pull_requests() -> None:
     assert len(entry["cron"].split()) == 5
 
 
-@pytest.mark.spec("ARCH-18-004")
+@pytest.mark.spec("ARCH-18-009")
 def test_a_closed_owner_never_fails_the_build() -> None:
     job, step = _job_and_step()
     assert step["continue-on-error"] is True
@@ -53,7 +54,7 @@ def test_a_closed_owner_never_fails_the_build() -> None:
     assert "if" not in job
 
 
-@pytest.mark.spec("ARCH-18-004")
+@pytest.mark.spec("ARCH-18-008")
 def test_one_tracking_issue_is_filed_or_updated_then_closed() -> None:
     """notify files or updates the one tracker; close retires it on success."""
     job, step = _job_and_step()
@@ -66,7 +67,7 @@ def test_one_tracking_issue_is_filed_or_updated_then_closed() -> None:
     assert labels == {"ci:workflow-ratchet-baseline-owners"}
 
 
-@pytest.mark.spec("ARCH-18-004")
+@pytest.mark.spec("ARCH-18-008")
 def test_the_tracking_issue_lists_the_report_the_script_wrote() -> None:
     job, step = _job_and_step()
     notify = _notify_steps(job)["notify"]
