@@ -103,6 +103,8 @@ def test_replay_stops_at_an_entry_that_does_not_verify(
     assert result.sent == 2
     assert result.held_back is not None
     assert result.held_back.log_index == 2
+    # SYNC-15-022: the covered index stops before the held-back entry.
+    assert result.through_index == 1
 
 
 @pytest.mark.spec("SYNC-03-009")
@@ -119,7 +121,53 @@ def test_an_intact_suffix_is_sent_unchanged() -> None:
     )
 
     assert port.sent == [0, 1, 2, 3]
-    assert result == (4, 0, None)
+    assert result == (4, 0, None, 3)
+
+
+class _PendingAboveSyncPort(_RecordingSyncPort):
+    """Declines every entry from *pending_from* on as already pending."""
+
+    def __init__(self, pending_from: int) -> None:
+        super().__init__()
+        self.pending_from = pending_from
+
+    def send_announce_log_entry(
+        self, entry: CaseLedgerEntry, actor_id: str, to: list[str]
+    ) -> bool:
+        if entry.log_index >= self.pending_from:
+            return False
+        return super().send_announce_log_entry(entry, actor_id, to)
+
+
+@pytest.mark.spec("SYNC-15-022")
+def test_already_pending_entries_count_toward_the_covered_index() -> None:
+    """A row already pending for the peer is on its way, so it is covered."""
+    port = _PendingAboveSyncPort(pending_from=2)
+
+    result = send_ledger_suffix(
+        cast(SyncActivityPort, port),
+        _chain(4),
+        after_index=-1,
+        actor_id=_CASE_ACTOR_ID,
+        peer_id=_PEER_ID,
+    )
+
+    assert port.sent == [0, 1]
+    assert (result.sent, result.already_pending) == (2, 2)
+    assert result.through_index == 3
+
+
+@pytest.mark.spec("SYNC-15-022")
+def test_a_send_that_offers_nothing_covers_no_index() -> None:
+    result = send_ledger_suffix(
+        cast(SyncActivityPort, _RecordingSyncPort()),
+        _chain(4),
+        after_index=3,
+        actor_id=_CASE_ACTOR_ID,
+        peer_id=_PEER_ID,
+    )
+
+    assert result == (0, 0, None, None)
 
 
 @pytest.mark.spec("SYNC-03-009")

@@ -18,6 +18,7 @@ from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     MAX_REPLAY_COOLDOWN_SECONDS,
+    genesis_reject_answered,
 )
 from vultron.core.behaviors.sync.reject_tree import (
     create_reject_log_entry_tree,
@@ -191,11 +192,23 @@ def test_create_reject_log_entry_tree_returns_sequence():
         "AnswerRejectIfCaseManager",
     ]
     assert isinstance(tree.children[-1], CaseManagerGate)
-    # The genesis pre-seed precedes the replay inside the gate (SYNC-15-015).
-    assert [
-        child.name for child in tree.children[-1].gated_branch.children
-    ] == [
+    gated = tree.children[-1].gated_branch.children
+    assert [child.name for child in gated] == [
         "UpdateReplicationState",
+        "DeclineAnsweredGenesisRejectOrReplay",
+    ]
+    # An answered genesis Reject is declined ahead of the pre-seed and the
+    # replay (SYNC-15-024); otherwise the pre-seed precedes the replay
+    # (SYNC-15-015).
+    decline_or_replay = gated[-1]
+    assert isinstance(decline_or_replay, py_trees.composites.Selector)
+    assert [child.name for child in decline_or_replay.children] == [
+        "GenesisRejectAlreadyAnswered",
+        "PreSeedThenReplay",
+    ]
+    assert [
+        child.name for child in decline_or_replay.children[-1].children
+    ] == [
         "AnnounceCaseOnGenesisReject",
         "ReplayMissingEntries",
     ]
@@ -730,11 +743,6 @@ def _replay_record(datalayer) -> tuple[str | None, datetime | None, int]:
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SYNC-15-024: decline a genesis Reject the last genesis replay"
-    " answered. Tracked by #5556.",
-)
 @pytest.mark.spec("SYNC-15-019")
 @pytest.mark.spec("SYNC-15-022")
 @pytest.mark.spec("SYNC-15-024")
@@ -757,11 +765,6 @@ def test_genesis_reject_for_an_entry_the_last_genesis_replay_sent_is_declined(
     trigger_activity.announce_vulnerability_case.assert_called_once()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SYNC-15-025: a declined genesis Reject leaves the replay record"
-    " unchanged. Tracked by #5556.",
-)
 @pytest.mark.spec("SYNC-15-025")
 def test_declined_genesis_reject_leaves_the_replication_record_unchanged(
     datalayer, case_manager_case, monkeypatch
@@ -778,6 +781,112 @@ def test_declined_genesis_reject_leaves_the_replication_record_unchanged(
     _receive_reject(bridge, sync_port, entries[2], tail_hash="")
 
     assert _replay_record(datalayer) == before
+
+
+@pytest.mark.spec("SYNC-15-018")
+@pytest.mark.spec("SYNC-15-024")
+def test_genesis_reject_for_an_entry_the_last_genesis_replay_did_not_send_replays(
+    datalayer, case_manager_case, monkeypatch
+):
+    """An entry committed after the genesis replay is not answered by it, so
+    its genesis Reject draws the case and the ledger under the cooldown."""
+    entries = _five_entry_ledger(datalayer)
+    bridge, sync_port, trigger_activity = _replay_bridge(datalayer)
+
+    _set_clock(monkeypatch, 0)
+    _receive_reject(bridge, sync_port, entries[0], tail_hash="")
+    newer = _make_entry(5, entries[-1].entry_hash)
+    datalayer.save(newer)
+
+    _set_clock(monkeypatch, 30)
+    _receive_reject(bridge, sync_port, newer, tail_hash="")
+
+    assert sync_port.send_announce_log_entry.call_count == 5 + 6
+    assert trigger_activity.announce_vulnerability_case.call_count == 2
+    position, _, _ = _replay_record(datalayer)
+    assert position == ""
+    state = datalayer.read(
+        VultronReplicationState(case_id=CASE_ID, peer_id=PEER_ID).id_
+    )
+    assert state.last_genesis_replay_through_index == 5
+
+
+@pytest.mark.spec("SYNC-03-009")
+@pytest.mark.spec("SYNC-15-022")
+def test_a_held_back_genesis_replay_covers_only_the_entries_before_the_hold(
+    datalayer, case_manager_case, monkeypatch
+):
+    """A genesis replay stopped at a broken entry still fails the tree, and
+    records as covered only the entries it sent before the hold, so a Reject
+    of the broken entry or a later one is not declined."""
+    from test.support.broken_ledger_entry import tampered
+
+    entries = _five_entry_ledger(datalayer)
+    datalayer.save(tampered(entries[3]))
+    bridge, sync_port, _ = _replay_bridge(datalayer)
+
+    _set_clock(monkeypatch, 0)
+    py_trees.blackboard.Blackboard.storage.clear()
+    result = bridge.execute_with_setup(
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        activity=_make_event(entries[0], tail_hash=""),
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.FAILURE
+    assert sync_port.send_announce_log_entry.call_count == 3
+    state = datalayer.read(
+        VultronReplicationState(case_id=CASE_ID, peer_id=PEER_ID).id_
+    )
+    assert state.last_replayed_from_hash == ""
+    assert state.last_genesis_replay_through_index == 2
+    for rejected_index, declined in ((2, True), (3, False), (4, False)):
+        assert (
+            genesis_reject_answered(
+                datalayer,
+                case_id=CASE_ID,
+                peer_id=PEER_ID,
+                rejected_index=rejected_index,
+            )
+            is declined
+        )
+
+
+@pytest.mark.spec("SYNC-15-024")
+def test_genesis_reject_naming_no_entry_is_not_declined(
+    datalayer, case_manager_case, monkeypatch
+):
+    """The Reject that names no entry (SYNC-16-007) has no index to compare,
+    so it is answered under the cooldown alone."""
+    entries = _five_entry_ledger(datalayer)
+    bridge, sync_port, trigger_activity = _replay_bridge(datalayer)
+
+    _set_clock(monkeypatch, 0)
+    _receive_reject(bridge, sync_port, entries[0], tail_hash="")
+
+    _set_clock(monkeypatch, 30)
+    event = _make_event(entries[2], tail_hash="").model_copy(
+        update={"object_": None, "target": datalayer.read(CASE_ID)}
+    )
+    assert event.rejected_entry is None
+    py_trees.blackboard.Blackboard.storage.clear()
+    result = bridge.execute_with_setup(
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        activity=event,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.SUCCESS
+    assert sync_port.send_announce_log_entry.call_count == 10
+    assert trigger_activity.announce_vulnerability_case.call_count == 2
 
 
 @pytest.mark.spec("SYNC-15-024")

@@ -14,6 +14,7 @@ from vultron.core.behaviors.sync.nodes.replay_guard import (
     GENESIS_REPLAY_COOLDOWN_SECONDS,
     MAX_REPLAY_COOLDOWN_SECONDS,
     REPLAY_COOLDOWN_SECONDS,
+    genesis_reject_answered,
     record_replay,
     replay_from_hash,
     should_replay,
@@ -55,7 +56,11 @@ def claim_replay_position(datalayer, *, case_id, peer_id, from_hash) -> bool:
     ):
         return False
     record_replay(
-        datalayer, case_id=case_id, peer_id=peer_id, from_hash=from_hash
+        datalayer,
+        case_id=case_id,
+        peer_id=peer_id,
+        from_hash=from_hash,
+        through_index=0,
     )
     return True
 
@@ -355,3 +360,120 @@ class TestZeroEntryReplayDoesNotRecordPosition:
             peer_id=PARTICIPANT_ACTOR_ID,
             from_hash="tail",
         )
+
+
+def _record(datalayer, *, from_hash: str, through_index: int | None) -> None:
+    record_replay(
+        datalayer,
+        case_id=CASE_ID,
+        peer_id=PARTICIPANT_ACTOR_ID,
+        from_hash=from_hash,
+        through_index=through_index,
+    )
+
+
+def _answered(datalayer, rejected_index: int | None) -> bool:
+    return genesis_reject_answered(
+        datalayer,
+        case_id=CASE_ID,
+        peer_id=PARTICIPANT_ACTOR_ID,
+        rejected_index=rejected_index,
+    )
+
+
+def _stored_state(datalayer) -> VultronReplicationState:
+    state = datalayer.read(
+        VultronReplicationState(
+            case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID
+        ).id_
+    )
+    assert isinstance(state, VultronReplicationState)
+    return state
+
+
+class TestGenesisReplayCoverage:
+    """The last replay from genesis records, and declines, what it sent.
+
+    Spec: SYNC-15-022, SYNC-15-024.
+    """
+
+    @pytest.mark.spec("SYNC-15-022")
+    def test_a_genesis_replay_records_the_highest_index_it_sent(
+        self, datalayer
+    ):
+        _record(datalayer, from_hash="", through_index=4)
+        assert _stored_state(datalayer).last_genesis_replay_through_index == 4
+
+    @pytest.mark.spec("SYNC-15-022")
+    def test_a_replay_from_another_position_keeps_the_genesis_index(
+        self, datalayer
+    ):
+        _record(datalayer, from_hash="", through_index=4)
+        _record(datalayer, from_hash="abc", through_index=6)
+        state = _stored_state(datalayer)
+        assert state.last_genesis_replay_through_index == 4
+        assert state.last_replayed_from_hash == "abc"
+
+    @pytest.mark.spec("SYNC-15-024")
+    @pytest.mark.parametrize("rejected_index", [0, 3, 4])
+    def test_a_reject_at_or_below_the_index_is_answered(
+        self, datalayer, rejected_index
+    ):
+        _record(datalayer, from_hash="", through_index=4)
+        assert _answered(datalayer, rejected_index) is True
+
+    @pytest.mark.spec("SYNC-15-024")
+    def test_a_reject_above_the_index_is_not_answered(self, datalayer):
+        _record(datalayer, from_hash="", through_index=4)
+        assert _answered(datalayer, 5) is False
+
+    @pytest.mark.spec("SYNC-15-024")
+    def test_a_reject_naming_no_entry_is_not_answered(self, datalayer):
+        _record(datalayer, from_hash="", through_index=4)
+        assert _answered(datalayer, None) is False
+
+    @pytest.mark.spec("SYNC-15-024")
+    def test_no_record_answers_nothing(self, datalayer):
+        assert _answered(datalayer, 0) is False
+
+    @pytest.mark.spec("SYNC-15-024")
+    def test_a_record_with_no_replay_answers_nothing(self, datalayer):
+        """A peer whose record holds only its acknowledged position."""
+        datalayer.save(
+            VultronReplicationState(
+                case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID
+            )
+        )
+        assert _answered(datalayer, 0) is False
+
+    @pytest.mark.spec("SYNC-15-024")
+    def test_a_recorded_position_past_genesis_answers_nothing(self, datalayer):
+        _record(datalayer, from_hash="", through_index=4)
+        _record(datalayer, from_hash="abc", through_index=6)
+        assert _answered(datalayer, 2) is False
+
+    @pytest.mark.spec("SYNC-15-024")
+    def test_a_genesis_replay_with_no_index_answers_nothing(self, datalayer):
+        """A record stored before the index existed reads as nothing covered."""
+        _record(datalayer, from_hash="", through_index=None)
+        assert _answered(datalayer, 0) is False
+
+    @pytest.mark.spec("SYNC-15-018")
+    @pytest.mark.spec("SYNC-15-024")
+    def test_the_ceiling_ends_the_decline(self, datalayer):
+        _record(datalayer, from_hash="", through_index=4)
+        _age_last_replay(
+            datalayer,
+            peer_id=PARTICIPANT_ACTOR_ID,
+            seconds=MAX_REPLAY_COOLDOWN_SECONDS - 1,
+        )
+        assert _answered(datalayer, 2) is True
+        _age_last_replay(datalayer, peer_id=PARTICIPANT_ACTOR_ID, seconds=1)
+        assert _answered(datalayer, 2) is False
+
+    @pytest.mark.spec("SYNC-15-025")
+    def test_the_check_writes_nothing(self, datalayer):
+        _record(datalayer, from_hash="", through_index=4)
+        before = _stored_state(datalayer).model_dump()
+        _answered(datalayer, 2)
+        assert _stored_state(datalayer).model_dump() == before

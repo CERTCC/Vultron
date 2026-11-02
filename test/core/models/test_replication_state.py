@@ -43,6 +43,7 @@ _VALUES: dict[str, Any] = {
     "last_replayed_at": _WHEN,
     "replays_at_position": 3,
     "embargo_paused_from_index": 7,
+    "last_genesis_replay_through_index": 4,
     "last_reseeded_at": _WHEN,
     "last_reseed_position": LedgerPosition(log_index=2, entry_hash="f" * 64),
 }
@@ -97,3 +98,41 @@ def test_a_row_with_a_retired_join_backfill_key_is_refused(old: str) -> None:
     message = str(excinfo.value)
     assert repr(old) in message
     assert "#5074" in message
+
+
+@pytest.mark.spec("SYNC-15-022")
+def test_a_row_stored_before_the_genesis_replay_index_reads_as_none() -> None:
+    """A record from before SYNC-15-022 reads as no genesis replay covered.
+
+    Such a row may still record a replay from genesis; with no covered index
+    it declines no Reject, so existing stores keep answering as before.
+    """
+    stored = {
+        **_BASE,
+        "lastReplayedFromHash": "",
+        "lastReplayedAt": _WHEN.isoformat(),
+        "replaysAtPosition": 1,
+    }
+    state = VultronReplicationState.model_validate(stored)
+    assert state.last_genesis_replay_through_index is None
+
+
+def test_the_genesis_replay_index_round_trips_under_its_alias() -> None:
+    state = VultronReplicationState.model_validate(
+        {**_BASE, "last_genesis_replay_through_index": 4}
+    )
+    dumped = state.model_dump(by_alias=True, mode="json")
+    assert dumped["lastGenesisReplayThroughIndex"] == 4
+    assert (
+        VultronReplicationState.model_validate(
+            dumped
+        ).last_genesis_replay_through_index
+        == 4
+    )
+
+
+def test_the_genesis_replay_index_is_never_negative() -> None:
+    with pytest.raises(ValidationError):
+        VultronReplicationState.model_validate(
+            {**_BASE, "last_genesis_replay_through_index": -1}
+        )

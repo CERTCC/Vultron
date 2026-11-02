@@ -229,6 +229,7 @@ Each reject triggers another full replay, and the two feed each other into a sto
 
 Each further replay from that same position doubles the wait, up to a ceiling, so a peer that never catches up is retried less and less often ([SYNC-15-018](../../reference/vultron-spec/requirements/ledger-replication.md#sync-15-018)).
 A reject from a position that *has* advanced always triggers a replay, so a peer making progress is never held back.
+A reject from genesis for an entry the last replay from genesis already sent asks for nothing new, so the CASE_MANAGER may send nothing for it until the ceiling has passed ([SYNC-15-019](../../reference/vultron-spec/requirements/ledger-replication.md#sync-15-019)).
 
 The holding area should also be bounded, so that a hostile or broken peer streaming far-future entries cannot exhaust the replica's storage.
 When it is full, the replica discards the held `Announce` farthest ahead of the gap and logs a warning ([SYNC-14-006](../../reference/specs/project.md#sync-14-006)).
