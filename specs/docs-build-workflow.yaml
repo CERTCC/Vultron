@@ -1167,6 +1167,9 @@ groups:
         verification: >-
           `test_gate_command_skips_the_gate_on_request`,
           `test_the_footer_and_the_free_name_are_checked_before_the_upload`,
+          `test_the_footer_check_fails_before_the_upload`,
+          `test_the_footer_check_passes_a_free_name_the_footer_prints`,
+          `test_the_footer_check_only_notes_a_page_without_the_footer`,
           `test_gate_command_rolls_back_to_a_commit_on_main`,
           `test_the_build_and_the_tag_job_share_the_gates_tag_name`,
           `test_another_runs_tag_of_the_same_name_fails_the_job`,

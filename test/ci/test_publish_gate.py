@@ -11,9 +11,11 @@ its concurrency group and its report.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from collections.abc import Callable, Iterator
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -43,6 +45,8 @@ from vultron.metadata.docs.build_version import (
     PUBLISH_DATE_ENV,
     PUBLISH_TAG_ENV,
     RELEASE_TAG_ENV,
+    Publish,
+    describe_build,
 )
 
 _SCRIPT = SCRIPTS_DIR / "publish_gate.py"
@@ -1136,6 +1140,100 @@ def test_the_footer_and_the_free_name_are_checked_before_the_upload() -> None:
     partial = REPO_ROOT / "overrides" / "partials" / "copyright.html"
     assert 'class="build-footer"' in partial.read_text(encoding="utf-8")
     assert 'class="build-footer"' in run
+
+
+def _footer_check(
+    repo: Path, tag_name: str, index_html: str | None
+) -> subprocess.CompletedProcess[str]:
+    """Run the build job's footer check as GitHub runs it, in *repo*."""
+    build_steps = _job_steps("build")
+    check = index_of(
+        build_steps, "Check the footer names this publish", "name"
+    )
+    assert check is not None
+    step = build_steps[check]
+    if index_html is not None:
+        (repo / "site").mkdir(exist_ok=True)
+        (repo / "site" / "index.html").write_text(index_html, encoding="utf-8")
+    # GitHub's default for `run:` without `shell:` (no `defaults:` here).
+    return subprocess.run(
+        [
+            "bash",
+            "--noprofile",
+            "--norc",
+            "-eo",
+            "pipefail",
+            "-c",
+            step["run"],
+        ],
+        cwd=repo,
+        env={**os.environ, "TAG_NAME": tag_name},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _built_page(name: str) -> str:
+    """An index page as the build prints it, footer from build_version.py."""
+    line = describe_build(
+        "2026.11.0", Publish(name, date.fromisoformat(DAY)), "https://g/O/R"
+    )
+    return f'<footer><p class="build-footer">{line}</p></footer>'
+
+
+@pytest.mark.spec("DOCBW-06-031")
+def test_the_footer_check_passes_a_free_name_the_footer_prints(
+    repo: Path,
+) -> None:
+    result = _footer_check(repo, NAME, _built_page(NAME))
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "::error::" not in result.stdout
+
+
+@pytest.mark.spec("DOCBW-06-031")
+@pytest.mark.parametrize(
+    ("case", "message"),
+    [
+        ("no-name", "named no publish tag"),
+        ("taken", "already on the remote"),
+        ("footer-names-another", "does not name"),
+        ("unreadable-remote", ""),
+    ],
+)
+def test_the_footer_check_fails_before_the_upload(
+    repo: Path, case: str, message: str
+) -> None:
+    """Each refusal fails the step, an unreadable remote included."""
+    name, page = NAME, _built_page(NAME)
+    if case == "no-name":
+        name = ""
+    elif case == "taken":
+        _git(repo, "tag", NAME)
+        _git(repo, "push", "-q", "origin", f"refs/tags/{NAME}")
+    elif case == "footer-names-another":
+        page = _built_page(f"publish-{DAY}.2")
+    else:
+        _git(
+            repo,
+            "remote",
+            "set-url",
+            "origin",
+            str(repo.parent / "missing.git"),
+        )
+    result = _footer_check(repo, name, page)
+    assert result.returncode != 0
+    assert message in result.stdout
+
+
+@pytest.mark.spec("DOCBW-06-031")
+def test_the_footer_check_only_notes_a_page_without_the_footer(
+    repo: Path,
+) -> None:
+    """A rollback target older than the footer builds pages with none."""
+    result = _footer_check(repo, NAME, "<footer><p>old box</p></footer>")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "::notice::" in result.stdout
 
 
 @pytest.mark.spec("DOCBW-06-016", "DOCBW-06-002")

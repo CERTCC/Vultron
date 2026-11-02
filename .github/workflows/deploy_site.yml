@@ -149,10 +149,14 @@ jobs:
 
       # Before anything can reach Pages (DOCBW-06-031). The name must still be
       # free: a re-run of this job reuses the gate's outputs, and a later
-      # publish may have taken the name since. And the footer must print it,
-      # which proves the environment reached the build inside the action. A
-      # rollback target older than the footer prints none, so it only gets a
-      # notice. The class name is the one overrides/partials/copyright.html sets.
+      # publish may have taken the name since. That includes this run's own
+      # tag: re-running the build of a run that already tagged would publish
+      # the site again under that tag, so it fails and asks for a new run. And
+      # the footer must print it, which proves the environment reached the
+      # build inside the action. A rollback target older than the footer
+      # prints none, so it only gets a notice. The class name is the one
+      # overrides/partials/copyright.html sets. ls-remote is assigned first so
+      # that an unreadable remote fails the step instead of reading as free.
       - name: Check the footer names this publish
         env:
           TAG_NAME: ${{ needs.gate.outputs.publish-tag }}
@@ -161,7 +165,8 @@ jobs:
             echo "::error::The gate named no publish tag."
             exit 1
           fi
-          if [ -n "$(git ls-remote --tags origin "refs/tags/$TAG_NAME")" ]; then
+          taken=$(git ls-remote --tags origin "refs/tags/$TAG_NAME")
+          if [ -n "$taken" ]; then
             echo "::error::$TAG_NAME is already on the remote, so it cannot name this publish. Start a new run from main."
             exit 1
           fi

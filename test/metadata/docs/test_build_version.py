@@ -155,6 +155,14 @@ def test_the_publish_variables_are_read() -> None:
         {PUBLISH_TAG_ENV: TAG, PUBLISH_DATE_ENV: "2026-W44-5"},
         # The tag names another day than the date.
         {PUBLISH_TAG_ENV: TAG, PUBLISH_DATE_ENV: "2026-10-31"},
+        # strptime alone would take an unpadded date.
+        {PUBLISH_TAG_ENV: "publish-2026-1-5.1", PUBLISH_DATE_ENV: "2026-1-5"},
+        # The tag carries the date but is not a publish tag.
+        {PUBLISH_TAG_ENV: "junk-2026-10-30.1", PUBLISH_DATE_ENV: "2026-10-30"},
+        {
+            PUBLISH_TAG_ENV: "publish-2026-10-30.x",
+            PUBLISH_DATE_ENV: "2026-10-30",
+        },
         {RELEASE_TAG_ENV: "v2026.11.0"},
     ],
     ids=[
@@ -164,6 +172,9 @@ def test_the_publish_variables_are_read() -> None:
         "basic-format-date",
         "week-date",
         "date-mismatch",
+        "unpadded-date",
+        "wrong-prefix",
+        "wrong-suffix",
         "release-only",
     ],
 )
@@ -207,8 +218,16 @@ def test_hook_renders_the_publish_jobs_tag(
 def test_hook_is_registered_and_the_footer_partial_reads_its_key() -> None:
     """Jinja prints an undefined value as nothing, so drift blanks every footer."""
     root = Path(__file__).resolve().parents[3]
-    mkdocs_yml = (root / "mkdocs.yml").read_text(encoding="utf-8")
-    assert "  - vultron/metadata/docs/build_version.py\n" in mkdocs_yml
+    lines = (root / "mkdocs.yml").read_text(encoding="utf-8").splitlines()
+    start = lines.index("hooks:") + 1
+    hooks = []
+    for line in lines[start:]:
+        item = line.strip()
+        if item and not item.startswith("#") and not line[0].isspace():
+            break  # the next top-level key
+        if item.startswith("- "):
+            hooks.append(item.removeprefix("- ").strip())
+    assert "vultron/metadata/docs/build_version.py" in hooks
     partial = root / "overrides" / "partials" / "copyright.html"
     assert f"{{{{ config.extra.{FOOTER_KEY} }}}}" in partial.read_text(
         encoding="utf-8"

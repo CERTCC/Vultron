@@ -28,6 +28,7 @@ release is what issue #3550 fixed.
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -54,6 +55,10 @@ RELEASE_TAG_ENV = "VULTRON_RELEASE_TAG"
 
 #: The ``config.extra`` key the footer partial reads.
 FOOTER_KEY = "build_footer"
+
+#: The date shape the gate writes, zero-padded; ``strptime`` alone also
+#: takes ``2026-1-5``.
+_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 SEPARATOR = " · "
 UNPUBLISHED = "Unpublished build"
@@ -91,6 +96,25 @@ def is_release(version: str) -> bool:
     return not (parsed.is_devrelease or parsed.local)
 
 
+def _publish_date(day: str) -> date:
+    """*day* as a date, if it is exactly ``YYYY-MM-DD``.
+
+    Raises:
+        PublishLabelError: If *day* is any other shape or no real date.
+    """
+    # Not date.fromisoformat, which also takes 20261030 and 2026-W44-1; the
+    # fullmatch refuses the unpadded 2026-1-5 that strptime alone takes.
+    bad = PublishLabelError(
+        f"{PUBLISH_DATE_ENV} {day!r} is not a YYYY-MM-DD date."
+    )
+    if not _DATE_RE.fullmatch(day):
+        raise bad
+    try:
+        return datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=UTC).date()
+    except ValueError as error:
+        raise bad from error
+
+
 def publish_from_env(env: Mapping[str, str]) -> Publish | None:
     """The publish *env* describes, or ``None`` for an unpublished build.
 
@@ -102,7 +126,8 @@ def publish_from_env(env: Mapping[str, str]) -> Publish | None:
 
     Raises:
         PublishLabelError: If the variables are set inconsistently, the
-            date is not ``YYYY-MM-DD``, or the tag does not carry the date.
+            date is not ``YYYY-MM-DD``, or the tag is not
+            ``publish-<date>.N``.
     """
     tag = env.get(PUBLISH_TAG_ENV, "").strip()
     day = env.get(PUBLISH_DATE_ENV, "").strip()
@@ -119,19 +144,13 @@ def publish_from_env(env: Mapping[str, str]) -> Publish | None:
             f"{PUBLISH_TAG_ENV} and {PUBLISH_DATE_ENV} must be set together; "
             f"got tag {tag!r} and date {day!r}."
         )
-    try:
-        # strptime, not date.fromisoformat, which also takes 20261030 and
-        # 2026-W44-1.
-        published = (
-            datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=UTC).date()
-        )
-    except ValueError as error:
+    published = _publish_date(day)
+    prefix = f"publish-{day}."
+    serial = tag.removeprefix(prefix)
+    if not (tag.startswith(prefix) and serial.isascii() and serial.isdigit()):
         raise PublishLabelError(
-            f"{PUBLISH_DATE_ENV} {day!r} is not a YYYY-MM-DD date."
-        ) from error
-    if f"-{published.isoformat()}." not in tag:
-        raise PublishLabelError(
-            f"{PUBLISH_TAG_ENV} {tag!r} does not carry the publish date {day}."
+            f"{PUBLISH_TAG_ENV} {tag!r} is not publish-{day}.N, the publish "
+            f"tag of the publish date {day}."
         )
     return Publish(tag, published, release or None)
 
