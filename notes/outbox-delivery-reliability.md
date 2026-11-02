@@ -174,8 +174,8 @@ emission, or every redelivery grows the store and outbox (ID-04-004, #4215).
   still leaves the poll. `_EmitSingleActivityBase.update` and
   `_CommitCaseManagerActivityBase.update` open it; a node with its own `update`
   that sends and commits calls `_one_act()` the same way.
-  `test/core/behaviors/test_send_delivered_after_its_act_commits.py` holds every
-  such frame to it with a drain that wins the race.
+  `test/core/behaviors/test_send_delivered_after_its_act_commits.py` holds the
+  three shared frames to it with a drain that wins the race.
 - A commit that fails after the outbox write MUST escape the node, never return
   FAILURE: an enclosing Selector would read it as a guard miss and send another
   arm's answer after the queued one (BT-14-001; `_EmitSingleActivityBase.update`).

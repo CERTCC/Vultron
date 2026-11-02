@@ -46,7 +46,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes.invite_actor_emit import (
     EmitInviteActorToCaseNode,
 )
@@ -225,7 +225,7 @@ def setup(request: pytest.FixtureRequest) -> Iterator[_Setup]:
     built.dl.close()
 
 
-def _run(setup: _Setup) -> tuple[_EagerDrain, py_trees.common.Status]:
+def _run(setup: _Setup) -> tuple[_EagerDrain, BTExecutionResult]:
     drain = _EagerDrain(setup.dl, setup.semantic_type)
     setup.dl.set_enqueue_callback(drain)
     result = BTBridge(
@@ -236,7 +236,7 @@ def _run(setup: _Setup) -> tuple[_EagerDrain, py_trees.common.Status]:
     ).execute_with_setup(
         tree=setup.node(), actor_id=setup.actor_id, case_id=setup.case_id
     )
-    return drain, result.status
+    return drain, result
 
 
 @pytest.mark.spec("OX-03-002")
@@ -251,10 +251,13 @@ def test_a_send_whose_commit_fails_is_never_delivered(
         when=lambda kw: kw["semantic_type"] == setup.semantic_type,
     )
 
-    drain, status = _run(setup)
+    drain, result = _run(setup)
 
     assert failed, "the act never reached its commit"
-    assert status != py_trees.common.Status.SUCCESS
+    # The failed commit escapes the node as an internal error, never a plain
+    # FAILURE an enclosing Selector could read as a guard miss (BT-14-001).
+    assert result.status == py_trees.common.Status.FAILURE
+    assert result.internal_error is True
     assert drain.delivered == {}, (
         "an activity whose act did not commit was delivered:"
         f" {sorted(drain.delivered)}"
@@ -269,9 +272,9 @@ def test_a_committed_send_is_delivered_only_after_its_commit(
     setup: _Setup,
 ) -> None:
     """A drain woken by the send finds the act's entry already committed."""
-    drain, status = _run(setup)
+    drain, result = _run(setup)
 
-    assert status == py_trees.common.Status.SUCCESS
+    assert result.status == py_trees.common.Status.SUCCESS
     assert drain.delivered, "the act sent nothing"
     assert all(drain.delivered.values()), (
         "delivered before the entry recording it committed:"
