@@ -72,7 +72,7 @@ def owner_declined_embargo(
 
     The creation-time owner seed reads it: seeding is not an answer the owner
     gave, so it never overrides a decline (CM-14-003, CM-18-003).  The
-    owner's own activation does change a decline (MSM-07-008).  An owner with
+    owner's own activation does change a decline (MSM-07-028).  An owner with
     no participant record in *persistence* has no declined row; nor has an
     owner whose case does not hold the embargo yet, since it holds no row for
     it.
@@ -127,19 +127,19 @@ def embargo_withdrawal_refusal(
     if active_id is None:
         return (
             f"No embargo is in force on case '{case_id}', so there is"
-            " nothing to withdraw from (MSM-07-010)"
+            " nothing to withdraw from (MSM-07-036)"
         )
     if embargo_id is not None and embargo_id != active_id:
         return (
             f"Embargo '{embargo_id}' is not the embargo in force on case"
             f" '{case_id}': only the active embargo can be withdrawn from"
-            " (MSM-07-010)"
+            " (MSM-07-036)"
         )
     if case.attributed_to == actor_id:
         return (
             f"'{actor_id}' is the case owner of '{case_id}': the case owner"
             " ends an embargo by terminating it, not by withdrawing"
-            " (MSM-07-010, CM-02-005)"
+            " (MSM-07-036, CM-02-005)"
         )
     row = participant_consent_row(persistence, case, actor_id, active_id)
     if row is None:
@@ -148,7 +148,7 @@ def embargo_withdrawal_refusal(
         return (
             f"'{actor_id}' is {row.value} on embargo '{active_id}' of case"
             f" '{case_id}', not AGREED: only a signatory withdraws"
-            " (MSM-07-010, EP-09-013)"
+            " (MSM-07-036, EP-09-013)"
         )
     return None
 

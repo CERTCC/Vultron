@@ -74,7 +74,7 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # and close_report (RC) entries already in a ledger, though no
     # Close(Report) on a case is admitted now (CM-23-019).
     ("Reject", "Offer"),
-    # No ``("Read", "Offer")``: RK is never ledgered (RMB-08-003, CLP-02-013).
+    # No ``("Read", "Offer")``: RK is never ledgered (RMB-08-007, CLP-02-013).
     # The Case Owner's withdrawal of its ownership-transfer proposal
     # (CM-21-015, ADR-0148).  Owner-authored: an Offer that passes its
     # end_time is closed by that time alone, with no entry (CM-21-043,

@@ -314,6 +314,7 @@ class TestCounterArm:
         assert len(counter_arm.children) == 2
 
     @pytest.mark.spec("EMB-15-003")
+    @pytest.mark.spec("EMB-15-012")
     def test_counter_arm_first_child_is_willing_to_counter_deterministic(self):
         """EMB-15-003: WillingToCounterEmbargoProposal defaults to AlwaysFail."""
         tree = _make_tree(counter=True)
@@ -325,6 +326,7 @@ class TestCounterArm:
         willing = tree.children[1].children[0]
         assert willing.name == "WillingToCounterEmbargoProposal"
 
+    @pytest.mark.spec("EMB-15-011")
     def test_counter_arm_second_child_is_delegate(self):
         tree = _make_tree(counter=True)
         delegate = tree.children[1].children[1]
@@ -617,6 +619,7 @@ class TestBTBridgeIntegration:
         )
 
     @pytest.mark.spec("EMB-15-003")
+    @pytest.mark.spec("EMB-15-011")
     def test_flow_a_counter_delegation_when_willing(self):
         """Flow A: WillingToCounter → SUCCESS → counter_bt is ticked."""
         # Accept arm fails because AuthorizeSelector fails:

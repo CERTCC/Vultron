@@ -141,8 +141,9 @@ class VultronEvent(ValidatedAssignmentMixin, BaseModel):
     activity_type: NonEmptyString | None = None
     # The sender id in its canonical spelling, no trailing slash: the wire
     # extractor normalises it, and an unnormalised one is refused here, so
-    # core compares it with stored ids exactly (OID-01-006, OID-01-007).
-    # The activity snapshot keeps the sender's own spelling.
+    # core compares it with stored ids exactly (OID-01-006, OID-01-007,
+    # OID-01-009). The activity snapshot keeps the sender's own spelling
+    # (OID-01-008).
     actor_id: NormalisedActorId
 
     # Rich domain objects — parallel to AS2 Activity fields.

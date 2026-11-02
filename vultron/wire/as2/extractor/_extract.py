@@ -118,10 +118,10 @@ def extract_intent(
         include_activity: When ``True``, populate ``event.activity`` with a
             summarised ``VultronActivity`` snapshot of the outer activity.
         min_rsvp_window: Minimum RSVP window for an inbound embargo invite
-            (EP-07-002, EP-07-003); 72 h by default.  Pass
+            (EP-07-002, EP-07-003); 72 h by default (EP-07-010).  Pass
             ``ActorConfig.min_rsvp_window`` to apply the configured floor.
         default_rsvp_window: Policy window used when an inbound embargo
-            invite names no deadline (EP-07-001, CM-18-023); 7 days by
+            invite names no deadline (EP-07-001, EP-07-009, CM-18-023); 7 days by
             default.  Pass ``ActorConfig.default_rsvp_window``.
 
     Returns:

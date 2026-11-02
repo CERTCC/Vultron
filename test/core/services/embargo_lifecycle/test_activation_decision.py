@@ -15,7 +15,7 @@
 
 ``EmbargoLifecycle.decide_activation`` returns the ``ACTIVATE`` step, the
 owner's agreement its ``Accept`` states and one ``CARRY_OVER`` row per
-signatory a shorter revision keeps (EP-05-001, MSM-07-008, ADR-0124).
+signatory a shorter revision keeps (EP-05-003, MSM-07-019, ADR-0124).
 """
 
 from typing import cast

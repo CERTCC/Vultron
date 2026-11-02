@@ -309,9 +309,11 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: 'The CS state machine MUST enforce two forced (ephemeral) transitions at validation time: (1) `pX → PX` — exploit-public
-      forces public-aware; (2) `vP → VP` — public-aware forces vendor-aware. Any incoming CS state that contains `pX` or `vP`
-      MUST be promoted to the forced form before being persisted.'
+    statement: >-
+      This codebase MUST enforce two forced (ephemeral) CS transitions at validation
+      time: `pX → PX` and `vP → VP`.
+      In `pX → PX`, exploit public forces public aware. In `vP → VP`, public aware
+      forces vendor aware.
     rationale: 'These transitions are protocol-correctness invariants, not optional normalizations. A CS state of `pXa` (exploit
       public, public unaware) is semantically impossible — the exploit being public implies the vulnerability is public.
       Implementors MUST use `is_ephemeral_cs_state()` and `required_next_cs_events()` from
@@ -324,12 +326,27 @@ groups:
     - rel_type: implements
       spec_id: VP-09-001
       note: exploit/attack public implies embargo termination, not just awareness
+  - id: SM-09-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      This codebase MUST promote each incoming CS state that holds `pX` or `vP` to its
+      forced form (SM-09-001) before it persists the state.
+    rationale: >-
+      A stored `pX` or `vP` state is one that no participant can be in. Promotion at
+      the persistence boundary keeps every stored CS state reachable, whatever the
+      sender wrote.
+    relationships:
+    - rel_type: implements
+      spec_id: SM-09-001
   - id: SM-09-002
     priority: MUST_NOT
     kind: protocol
     verification_debt: '#3612'
-    statement: The CS state machine MUST NOT allow states in the `vF*` pattern (fix-ready, vendor-unaware) or `*fD*` pattern
-      (fix-deployed, fix-not-ready). These 32 states are structurally impossible and MUST be rejected at validation time.
+    statement: >-
+      The CS state machine MUST NOT allow a state in pattern `vF*` (fix ready, vendor
+      unaware) or `*fD*` (fix deployed, fix not ready).
     rationale: 'A vendor cannot have deployed a fix (`D`) without first having one ready (`F`); a fix cannot be ready (`F`)
       if the vendor is unaware (`v`) of the vulnerability. Together, SM-09-001 and this rule reduce the theoretical 64-state
       CS space to the 32 reachable CS states: 4 valid VFD combinations (vfd, Vfd, VFd, VFD) × 8 PXA combinations. See `docs/reference/formal_protocol/states.md`
@@ -338,6 +355,25 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SM-09-001
+  - id: SM-09-004
+    priority: MUST
+    kind: protocol
+    verification_debt: '#3612'
+    statement: >-
+      A receiver MUST reject a CS state in the `vF*` or `*fD*` pattern (SM-09-002) at
+      validation time.
+    rationale: >-
+      These 32 states are structurally impossible. A receiver that rejects them at
+      validation time keeps them out of every store and replica.
+    note: >-
+      Not met today: a participant status accepts `Vf` with `D` (#5636). The strict
+      xfail `test_a_fix_deployed_before_the_fix_is_ready_is_refused` in
+      `test/core/models/test_participant_status_shape.py` carries this ID.
+    relationships:
+    - rel_type: implements
+      spec_id: SM-09-002
+    stories:
+    - story_2022_088
 - id: SM-10
   title: State Scoping Rules
   specs:
@@ -392,13 +428,19 @@ groups:
     verification_debt: '#3612'
     statement: >-
       A receiver MUST NOT apply a participant-specific axis transition (RM, VFD) to the
-      shared `CaseStatus`, and MUST NOT apply a participant-agnostic axis transition
-      (EM, PXA) to a participant's `ParticipantStatus`. Mixing axes is a protocol
-      correctness violation.
+      shared `CaseStatus`. It MUST NOT apply a participant-agnostic axis transition
+      (EM, PXA) to a participant's `ParticipantStatus`.
+    lint_suppress:
+    # compound_statement: neither half has a test, so a split child would be a new
+    # protocol ID that the marker-coverage guard (SR-05-005) fails. The second half
+    # is not settled either: a `ParticipantStatus` can carry a reported
+    # `case_status`. Split it once each half has a test.
+    - compound_statement
     rationale: >-
-      A transition that writes across the two kinds of state has two bad results. An RM
-      or VFD move of one participant can change the shared embargo or public state of
-      the case. A shared EM or PXA event can overwrite the progress of one participant
+      Mixing axes is a protocol correctness violation. A transition that writes
+      across the two kinds of state has two bad results. An RM or VFD move of one
+      participant can change the shared embargo or public state of the case. A
+      shared EM or PXA event can overwrite the progress of one participant
       (CM-04-006).
     relationships:
     - rel_type: refines

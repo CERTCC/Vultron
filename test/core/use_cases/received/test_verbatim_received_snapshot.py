@@ -136,7 +136,7 @@ def test_nothing_but_the_received_body_changes_the_snapshot():
     The CASE_MANAGER's stored case is renamed, so the routing copy is
     hydrated with a case its sender never sent; the entry is the body still.
     That
-    the parsed graph cannot reach the evidence either is VM-08-002's
+    the parsed graph cannot reach the evidence either is VM-08-005's
     (``test/architecture/test_wire_artifact_immutability.py``).
     """
     net = LedgerNetwork(CASE_ID)
@@ -209,7 +209,7 @@ def test_a_resend_of_an_archived_activity_adds_no_entry():
     """The resend is routed as the archived copy; the first entry stands.
 
     The archived copy carries the first delivery's body as its evidence
-    (IE-10-001, VM-08-002).  ``Join`` (RM engage) has no repeat guard of its
+    (IE-10-001, VM-08-009).  ``Join`` (RM engage) has no repeat guard of its
     own, so the resend reaches the commit with a body to record, and the
     commit finds the activity already recorded as the same semantic.
     """

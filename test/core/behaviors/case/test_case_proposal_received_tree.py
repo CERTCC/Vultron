@@ -1167,7 +1167,7 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
         """Neither the owner's decline nor the case actor's blocks activation.
 
         An owner that declined and then activates has changed its answer
-        (MSM-07-008, maintainer ruling 2026-10-14).
+        (MSM-07-028, maintainer ruling 2026-10-14).
         """
         from test.core.behaviors.bt_harness import BTTestScenario
         from vultron.core.behaviors.embargo.nodes import (
@@ -1661,6 +1661,7 @@ class TestADR0041EmbargoInit:
             assert abs(embargo.end_time - (now + expected[report_id])) < slack
 
     @pytest.mark.spec("EP-04-008")
+    @pytest.mark.spec("EP-04-020")
     def test_ineligible_case_is_created_without_an_embargo(
         self, make_payload, monkeypatch
     ):
@@ -3416,8 +3417,8 @@ class TestEP04SenderProposalAtCaseCreation:
     (CP-01-008).  Shortest-wins runs between it and the case owner's actor
     default (EP-04-003); the protocol default is never a candidate
     (EP-04-006); the winning sender event keeps its identity with its
-    ``context`` rewritten to the case (EP-04-004); the loser becomes a pending
-    revision (EP-04-003).  #3392.
+    ``context`` rewritten to the case (EP-04-017); the loser becomes a pending
+    revision (EP-04-016).  #3392.
     """
 
     _SENDER_END_DAYS = 10
@@ -3549,6 +3550,7 @@ class TestEP04SenderProposalAtCaseCreation:
     @pytest.mark.spec("CP-01-021")
     @pytest.mark.spec("EP-04-004")
     @pytest.mark.spec("EP-04-007")
+    @pytest.mark.spec("EP-04-017")
     def test_a_lone_sender_proposal_becomes_the_active_embargo_about_the_case(
         self, make_payload
     ):
@@ -3571,6 +3573,7 @@ class TestEP04SenderProposalAtCaseCreation:
         assert case.proposed_embargo_ids == []
 
     @pytest.mark.spec("EP-04-003")
+    @pytest.mark.spec("EP-04-016")
     def test_shorter_sender_proposal_wins_and_the_actor_default_is_a_revision(
         self, make_payload
     ):
@@ -3625,6 +3628,7 @@ class TestEP04SenderProposalAtCaseCreation:
 
     @pytest.mark.spec("EP-04-003")
     @pytest.mark.spec("EP-04-004")
+    @pytest.mark.spec("EP-04-016")
     def test_shorter_actor_default_wins_and_the_sender_proposal_is_a_revision(
         self, make_payload
     ):
@@ -3694,7 +3698,7 @@ class TestEP04SenderProposalAtCaseCreation:
         assert isinstance(invitee, CaseParticipant)
         assert invitee.is_signatory(stored.active_embargo_id)
         assert invitee.consent_for(revision_id) == EmbargoConsentState.INVITED
-        # Proposing the revision is the loser's consent to it (MSM-07-005):
+        # Proposing the revision is the loser's consent to it (MSM-07-022):
         # the executing CaseActor and the winner record nothing (#4152).
         proposer = dl.read(stored.actor_participant_index[loser])
         assert isinstance(proposer, CaseParticipant)
@@ -3723,6 +3727,10 @@ class TestEP04SenderProposalAtCaseCreation:
     @pytest.mark.spec("CM-24-001")
     @pytest.mark.spec("CM-24-002")
     @pytest.mark.spec("CM-14-014")
+    @pytest.mark.spec("EP-04-024")
+    @pytest.mark.spec("EP-04-025")
+    @pytest.mark.spec("EP-04-026")
+    @pytest.mark.spec("EP-04-027")
     def test_the_owners_losing_default_is_relayed_to_the_reporter(
         self, make_payload
     ):
@@ -3730,7 +3738,7 @@ class TestEP04SenderProposalAtCaseCreation:
         owner's longer default to the Reporter on the owner's behalf, under
         the id derived from the case proposal (OX-06-002), commits it, and
         only then indexes it
-        (EP-04-011, EP-08-002)."""
+        (EP-04-025, EP-04-026, EP-08-002)."""
         dl = self._store()
         self._publish_owner_policy()
         case, _ = self._run(
@@ -3742,6 +3750,10 @@ class TestEP04SenderProposalAtCaseCreation:
     @pytest.mark.spec("EP-04-011")
     @pytest.mark.spec("CM-24-001")
     @pytest.mark.spec("CM-24-002")
+    @pytest.mark.spec("EP-04-024")
+    @pytest.mark.spec("EP-04-025")
+    @pytest.mark.spec("EP-04-026")
+    @pytest.mark.spec("EP-04-027")
     def test_the_reporters_losing_terms_are_relayed_to_the_owner(
         self, make_payload
     ):
@@ -3904,6 +3916,8 @@ class TestEP04SenderProposalAtCaseCreation:
 
     @pytest.mark.spec("EP-04-003")
     @pytest.mark.spec("CP-05-006")
+    @pytest.mark.spec("EP-04-016")
+    @pytest.mark.spec("EP-04-029")
     def test_a_second_proposal_for_the_same_report_registers_no_second_revision(
         self, make_payload
     ):
@@ -3948,7 +3962,7 @@ class TestEP04SenderProposalAtCaseCreation:
         """The same proposal redelivered after the case's embargo has ended
         reuses the case and is answered, and the terms it carries are not
         reconciled against the case: EM stays ``EXITED``, no embargo is
-        attached and no ``EmbargoEvent`` is stored (EP-04-012, #3986).
+        attached and no ``EmbargoEvent`` is stored (EP-04-028, EP-04-029, #3986).
 
         Before the guard read the EM state, termination's cleared reference
         let the creation arm run: an orphan event, then the EM machine's

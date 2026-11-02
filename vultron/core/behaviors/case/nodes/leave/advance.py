@@ -89,7 +89,7 @@ class AdvanceParticipantToRMClosedNode(
         self._closure_steps = closure_steps
         # Pre-build the status writers (BTND-10-004: no construction in
         # update()).  The closure is written as ordinary RM transitions, so a
-        # Leave from VALID is V -> D -> C (RMB-14-005, CM-23-012).
+        # Leave from VALID is V -> D -> C (RMB-14-009, CM-23-038).
         self._closure = RMClosureWriter(name=_name)
 
     def update(self) -> Status:
@@ -201,7 +201,7 @@ class AdvanceCaseActorToRMClosedNode(
         self._closure_steps = closure_steps
         # Pre-build the status writers (BTND-10-004: no construction in
         # update()).  The closure is written as ordinary RM transitions, so a
-        # Leave from VALID is V -> D -> C (RMB-14-005, CM-23-012).
+        # Leave from VALID is V -> D -> C (RMB-14-009, CM-23-038).
         self._closure = RMClosureWriter(name=_name)
 
     def update(self) -> Status:

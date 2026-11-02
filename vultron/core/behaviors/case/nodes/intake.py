@@ -97,7 +97,7 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
     node must surface (ARCH-15-001), not a benign duplicate.
 
     An event with no received evidence is a resend under an id the receiver
-    already holds (VM-08-002, IE-10-001): it is routed without a body of its
+    already holds (VM-08-010, IE-10-001): it is routed without a body of its
     own, so there is nothing new to archive.  Intake finds the archive, or
     the deferred record whose replay will archive it, and succeeds having
     written nothing.  With neither, there is no body to archive and none
@@ -183,7 +183,7 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
         """Answer an event with no body: find what this receiver holds.
 
         A resend under an id already held carries no received evidence
-        (VM-08-002).  Finding its archive, or the deferred record whose
+        (VM-08-010).  Finding its archive, or the deferred record whose
         replay archives it, is success with nothing written; finding neither
         is a wiring fault (ARCH-15-001).
         """

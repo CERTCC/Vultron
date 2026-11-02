@@ -1586,6 +1586,7 @@ class TestLeaveCommitsEachClosureStep:
     @pytest.mark.spec("RMB-14-005")
     @pytest.mark.spec("CM-23-021")
     @pytest.mark.spec("CM-23-022")
+    @pytest.mark.spec("RMB-14-009")
     def test_non_owner_leave_from_valid_commits_two_steps(self):
         """A non-owner Leave from Valid commits close_case, V → D, D → C."""
         dl = _make_full_dl()
@@ -2231,6 +2232,7 @@ class TestClosureRMBoundary:
         "leaver_id", [OWNER_ID, VENDOR_ID], ids=["owner", "non-owner"]
     )
     @pytest.mark.spec("CM-23-038")
+    @pytest.mark.spec("RMB-14-009")
     def test_leave_from_valid_is_recorded_through_deferred(
         self, leaver_id: str
     ):

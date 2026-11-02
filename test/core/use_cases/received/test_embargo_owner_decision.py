@@ -212,6 +212,7 @@ def test_an_embargo_activation_changes_no_participant_state(make_payload):
     [(False, EM.NONE), (True, EM.ACTIVE)],
     ids=["er", "ej"],
 )
+@pytest.mark.spec("MSM-07-031")
 def test_the_case_manager_applies_and_commits_the_owners_rejection(
     make_payload, active, em_after
 ):
@@ -238,6 +239,8 @@ def test_the_case_manager_applies_and_commits_the_owners_rejection(
 @pytest.mark.spec("CLP-10-009")
 @pytest.mark.spec("SYNC-12-001")
 @pytest.mark.parametrize(("factory", "use_case"), _DECISIONS)
+@pytest.mark.spec("MSM-07-029")
+@pytest.mark.spec("MSM-07-033")
 def test_a_decision_naming_no_open_proposal_is_refused_uncommitted(
     make_payload, factory, use_case
 ):
@@ -257,6 +260,7 @@ def test_a_decision_naming_no_open_proposal_is_refused_uncommitted(
 
 @pytest.mark.spec("EMB-02-002")
 @pytest.mark.spec("CLP-10-009")
+@pytest.mark.spec("MSM-07-029")
 def test_an_activation_with_pxa_set_is_refused_uncommitted(make_payload):
     dl, _case_obj, embargo = _store()
     case = _case(dl)
@@ -321,6 +325,7 @@ def test_an_accepted_revision_with_pxa_set_is_refused_without_et(
 
 @pytest.mark.spec("CM-18-003")
 @pytest.mark.spec("CLP-10-009")
+@pytest.mark.spec("MSM-07-028")
 def test_an_activation_the_owner_declined_changes_its_answer(
     make_payload,
 ):
@@ -328,7 +333,7 @@ def test_an_activation_the_owner_declined_changes_its_answer(
 
     The activation goes through with one ledger entry: the owner's row moves
     straight to AGREED and the embargo is in force, with no re-invite first
-    (MSM-07-008, maintainer ruling 2026-10-14).
+    (MSM-07-028, maintainer ruling 2026-10-14).
     """
     dl, _case_obj, embargo = _store()
     owner = _owner(dl)

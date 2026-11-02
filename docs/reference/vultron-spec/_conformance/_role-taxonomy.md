@@ -15,7 +15,7 @@ An actor can hold several process roles, and what it may do is the union of what
 | Observer | Holds no drive obligations for VFD; can report PXA observations ([§13.4.2 Participant-Agnostic CS Transitions (PXA)](../conformance.md#1342-participant-agnostic-cs-transitions-pxa)) |
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-26-001", "CSB-15-001", "CSB-15-002", "CM-25-005"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-26-001", "CSB-15-001", "CSB-15-007", "CSB-15-002", "CSB-15-009", "CM-25-005"))
 ```
 
 **Capability prerequisites.** Every case Participant, whatever its roles, provides the Case Observer capability set ([§13.2 Capability Sets](../conformance.md#132-capability-sets), [§13.3.3 Roles and Capability Sets Are Independent](../conformance.md#1333-roles-and-capability-sets-are-independent)).

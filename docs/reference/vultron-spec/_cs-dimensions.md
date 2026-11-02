@@ -61,7 +61,7 @@ Reporting is not the same as the case adopting the observation ([§13.4.2 Partic
     `pxA` is a state a case can legitimately rest in.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CSB-13-001", "CSB-17-003", "CSB-17-012", "CSB-17-013"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CSB-13-001", "CSB-13-006", "CSB-17-003", "CSB-17-012", "CSB-17-013"))
 ```
 
 ### 8.3 Case State as a Compound Tuple
@@ -75,7 +75,7 @@ Two compound states are ephemeral: `vP`, public awareness while the vendor is un
 A reported CS history is checked by replaying its events in order from `vfdpxa`, not by comparing timestamps.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CSB-17-001", "CSB-17-002", "CSB-17-008", "CSB-17-009", "CSB-17-004", "CSB-17-005"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CSB-17-001", "CSB-17-002", "CSB-17-014", "CSB-17-008", "CSB-17-009", "CSB-17-004", "CSB-17-005"))
 ```
 
 The orderings also constrain the embargo.

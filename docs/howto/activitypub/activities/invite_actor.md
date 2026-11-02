@@ -80,7 +80,7 @@ sequenceDiagram
 3. Set the reply deadline on the activity's `end_time`.
    When that value is present, it takes precedence over the invitee's local policy window (CM-28-002, ADR-0065).
    When it is absent, the policy window applies instead (CM-28-019, ADR-0065).
-   In both cases, the effective deadline is clamped down to the embargo's own `end_time` (EP-07-006).
+   In both cases, the effective deadline is clamped down to the embargo's own `end_time` (EP-07-011).
    An `end_time` that outlives the embargo does not give the invitee extra time.
 
 !!! warning "The CASE_MANAGER is the sender, not the Case Owner"

@@ -859,7 +859,7 @@ class TestInviteeIsTheAddressee:
 
         A proposal goes to the CASE_MANAGER alone (PCR-08-001); one naming
         several recipients is a misrouting the manager neither adjudicates
-        nor relays (EP-09-010), so no participant is INVITED.
+        nor relays (EP-09-026), so no participant is INVITED.
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/addressee6"
@@ -1477,7 +1477,7 @@ class TestInviteeIdProperty:
     def test_multiple_recipients_are_a_misrouting(self, make_payload):
         event = self._event(make_payload, [_INVITEE, _OTHER])
         assert event.to_recipients == [_INVITEE, _OTHER]
-        # A misrouting (EP-09-010): no invitee, never a guess.
+        # A misrouting (EP-09-026): no invitee, never a guess.
         assert event.invitee_id is None
 
     def test_no_recipient_yields_none(self, make_payload):
@@ -2362,6 +2362,7 @@ class TestLateAcceptHandling:
 
     @pytest.mark.spec("EMB-17-004")
     @pytest.mark.spec("CM-28-004")
+    @pytest.mark.spec("EMB-17-017")
     def test_late_accept_with_no_embargo_leaves_the_invitee_row_frozen(
         self, make_payload
     ):

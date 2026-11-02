@@ -239,7 +239,7 @@ class ExpireOverdueInvitesNode(ExpireInvitationsNode):
     it after the door guards of every received embargo activity, before the
     activity's precondition guards, and ahead of every embargo trigger's own
     tree, so the case owner learns of each timeout through the expiry
-    entry's fan-out before it decides on an embargo (MSM-07-007).  It
+    entry's fan-out before it decides on an embargo (MSM-07-026).  It
     decides from *now*, the CASE_MANAGER's clock, and the case file; the
     activity only prompts it.
 

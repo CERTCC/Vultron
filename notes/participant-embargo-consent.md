@@ -62,7 +62,7 @@ predates ADR-0122 and is wrong.
 |---|---|
 | `UNINVITED` | Not asked about this embargo. The start state |
 | `INVITED` | Asked; no answer yet. Carries the invitation's RSVP deadline |
-| `AGREED` | Agreed — explicitly, as proposer, by seeding (CM-14-003, CM-14-005), or by carry-over (EP-05-001) |
+| `AGREED` | Agreed — explicitly, as proposer, by seeding (CM-14-003, CM-14-005), or by carry-over (EP-05-003) |
 | `DECLINED` | Explicitly refused it, or withdrew from it (ADR-0093) |
 | `TIMED_OUT` | Invited; the RSVP deadline passed with no answer (pocket veto, ADR-0118) |
 
@@ -77,7 +77,7 @@ predates ADR-0122 and is wrong.
 - **`CARRY_OVER` agrees for a participant without its asking.** Agreeing to N
   days is agreeing to every shorter period, so a signatory of the replaced
   embargo is bound by a shorter revision even if it declined the revision
-  (EP-05-001).
+  (EP-05-003).
 - **Answers to a closed embargo version can no longer change.** Each embargo
   version has its own record of each participant's answer. Once a version is
   replaced (`SUPERSEDED`), rejected (`REJECTED`), cancelled (`CANCELLED`) or ended
@@ -146,7 +146,7 @@ agreed to.**
 | Revision B proposed | every participant gets an `UNINVITED` row for B; the proposer's becomes `AGREED`; nothing else |
 | A participant (owner included) accepts the Invite to B | its row for B becomes `AGREED`; its row for A is untouched |
 | A participant (owner included) rejects the Invite to B | its row for B becomes `DECLINED`; refusing B is not withdrawing from A |
-| A non-owner withdraws from the *active* embargo | its row for A becomes `DECLINED`, and so does every open proposal's row it had agreed to (MSM-07-010) |
+| A non-owner withdraws from the *active* embargo | its row for A becomes `DECLINED`, and so does every open proposal's row it had agreed to (MSM-07-010, MSM-07-034) |
 | A participant that declined an embargo accepts its Invite | its row for that embargo becomes `AGREED` directly; no new invitation first (CM-18-003) |
 | Owner rejects B for the case (`Reject(EmbargoEvent)`) | nothing — the owner is keeping A, not declining it |
 | Owner activates B, and B ends **no later than** A | owner's row for B → `AGREED`; `CARRY_OVER` makes B's row `AGREED` for every signatory of A, a `DECLINED` row for B included |
@@ -313,7 +313,8 @@ both move straight to `AGREED` on an Accept.
 
 **The pocket veto and the RSVP deadline are one mechanism.** An `Invite.end_time`
 is authoritative (CM-28-002); the configured window is the fallback for an Invite
-without one (CM-28-019, EP-07-001, default 7 days). Do not add a second timeout notion.
+without one (CM-28-019, EP-07-001, default 7 days per EP-07-009). Do not add a
+second timeout notion.
 
 **A lapse is not the timer destination.** The timer ends at `TIMED_OUT`, and only
 from an `INVITED` row; lapsed is a read (the owner activated longer terms). Each
@@ -368,9 +369,9 @@ an entry attributed to the invitee (ADR-0140; trees in
 | Situation | Behaviour |
 |---|---|
 | `INVITED` row past its deadline | `Update(EmbargoConsent)` carrying the `TIMED_OUT` row, that row only (CM-28-005, CM-28-009, CM-28-014) |
-| Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: commit the Accept itself, as an on-time Accept is, its entry carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED`; no `Update(EmbargoConsent)` follows (EMB-17-002, EMB-17-009, ADR-0152) |
-| Accepted embargo is stale | relay a fresh Invite to the current embargo, `attributedTo` its proposer (the CASE_MANAGER for terms it made itself), with a fresh deadline; the answer recorded for the stale terms can no longer change (EMB-17-003) |
-| No current embargo (EM `EXITED`/`NONE`) | a no-op: no entry, no reply, rows and case participation unchanged; reported `SKIPPED` (EMB-17-004) |
+| Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: commit the Accept itself, as an on-time Accept is, its entry carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED`; no `Update(EmbargoConsent)` follows (EMB-17-002, EMB-17-009, EMB-17-018, ADR-0152) |
+| Accepted embargo is stale | relay a fresh Invite to the current embargo, `attributedTo` its proposer (the CASE_MANAGER for terms it made itself), with a fresh deadline; the answer recorded for the stale terms can no longer change (EMB-17-003, EMB-17-013) |
+| No current embargo (EM `EXITED`/`NONE`) | a no-op: no entry, no reply, rows and case participation unchanged; reported `SKIPPED` (EMB-17-004, EMB-17-015 through EMB-17-017) |
 
 A late Accept is never refused (EMB-17): the accepter has signalled willingness
 to coordinate. Each decision follows decide → commit → apply (CLP-10-006,
@@ -407,7 +408,7 @@ backwards (CLP-15-003). The P/X/A refusal of an Invite or an `Accept` is a
 diversion of the Invite and Accept trees (CLP-10-026), so it runs after their
 clock decisions, the sweep included.
 
-### The ledger fan-out is the owner's notification (MSM-07-007)
+### The ledger fan-out is the owner's notification (MSM-07-026)
 
 The owner learns of a `DECLINED` or `TIMED_OUT` answer from the entry itself. An
 active owner gets the `Announce(CaseLedgerEntry)`, because `ledger_entry_recipients`
@@ -421,7 +422,7 @@ acknowledgement EP-09-009 forbids (#4548).
 A sub-floor deadline is raised to the floor on receipt, never refused: refusing
 would hand a hostile sender an invite that never takes effect. The floor is
 relative (ADR-0096): the lesser of the configured window (72h default) and the
-time left in the embargo, because EP-07-006 clamps any deadline down to the
+time left in the embargo, because EP-07-011 clamps any deadline down to the
 embargo's own `end_time`. Receivers with different windows compute different
 deadlines; the clamp guarantees safety, not identical arithmetic. Normalize an
 inbound `end_time` to UTC before comparing (CM-28-006).

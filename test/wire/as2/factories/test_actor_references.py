@@ -16,7 +16,9 @@
 
 Spec coverage:
 - AKM-02-006: an actor given by URI carries no value nobody asserted.
-- AKM-05-005: an actor travels as held, or as an id-and-type actor reference.
+- AKM-05-005: an actor the sender holds travels as held.
+- AKM-05-017: an actor known only by URI travels as an id-and-type actor
+  reference.
 - VAM-04: each activity dispatches to the same semantic whichever form its
   actor takes.
 """
@@ -122,7 +124,7 @@ def test_an_actor_given_by_uri_carries_no_invented_field(name: str) -> None:
     assert [key for key in _INVENTED if key in actor] == []
 
 
-@pytest.mark.spec("AKM-05-005")
+@pytest.mark.spec("AKM-05-017")
 @pytest.mark.spec("MV-10-010")
 @pytest.mark.parametrize("name", sorted(_BUILDERS))
 def test_an_actor_given_by_uri_travels_as_an_actor_reference(
@@ -197,7 +199,7 @@ def test_the_activity_dispatches_to_the_same_semantic(
     assert event.semantic_type is _SEMANTICS[name]
 
 
-@pytest.mark.spec("AKM-05-005")
+@pytest.mark.spec("AKM-05-017")
 @pytest.mark.parametrize("name", sorted(_BUILDERS))
 def test_a_minimal_core_actor_record_travels_as_a_reference(name: str) -> None:
     """A bare ``CoreActor`` names no wire type, so it travels as id and type."""

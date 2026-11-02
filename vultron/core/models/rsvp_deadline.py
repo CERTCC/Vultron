@@ -36,7 +36,7 @@ from vultron.core.models._helpers import now_utc, timestamp_serializer
 from vultron.core.models.base import ValidatedAssignmentMixin
 
 DEFAULT_MIN_RSVP_WINDOW = timedelta(hours=72)
-"""Default minimum RSVP window (EP-07-002)."""
+"""Default minimum RSVP window (EP-07-010)."""
 
 DEFAULT_RSVP_WINDOW = timedelta(days=7)
 """Default policy RSVP window when an invite names no deadline (EP-07-001)."""
@@ -47,7 +47,7 @@ class RsvpDeadlineClamp(StrEnum):
 
     NONE = "none"
     RAISED_TO_MINIMUM = "raised_to_minimum"  # EP-07-003
-    LOWERED_TO_EMBARGO_END = "lowered_to_embargo_end"  # EP-07-006
+    LOWERED_TO_EMBARGO_END = "lowered_to_embargo_end"  # EP-07-011
 
 
 class RsvpDeadline(ValidatedAssignmentMixin):

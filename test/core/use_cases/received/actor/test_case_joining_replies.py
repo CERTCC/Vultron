@@ -812,6 +812,7 @@ def test_valid_participant_engages_or_defers_with_join_or_ignore(
 
 
 @pytest.mark.spec("RMB-14-005")
+@pytest.mark.spec("RMB-14-009")
 def test_leave_from_valid_is_recorded_through_deferred(joining_case) -> None:
     """``V → C`` is not in the RM table, so Leave from VALID passes through D."""
     from vultron.wire.as2.factories import rm_close_case_activity

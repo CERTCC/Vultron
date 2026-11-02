@@ -84,7 +84,7 @@ def create_add_note_to_case_received_tree(
                 ├── StoreNoteIfAbsentNode(note_obj)
                 └── AttachNoteToCaseNode(note_obj.id_, case_id)
 
-    The ``Add`` carries the note inline (VAM-01-010), so the CASE_MANAGER
+    The ``Add`` carries the note inline (VAM-01-015), so the CASE_MANAGER
     stores the note before attaching it, and the case never references a
     note the CASE_MANAGER cannot read.  Storing it is part of what the
     ``Add`` states, so it is part of the change the ``add_note_to_case``

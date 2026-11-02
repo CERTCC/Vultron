@@ -20,7 +20,7 @@ A Vendor-only actor therefore cannot advance past `VFd`.
 A CASE_MANAGER refuses a received status that states a fix-readiness value from a sender without the Vendor role, or a deployment value from a sender without the Deployer role.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("PRM-06-001", "CSB-15-001", "CSB-15-002", "CSB-15-004", "RSH-09-003"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("PRM-06-001", "CSB-15-001", "CSB-15-007", "CSB-15-002", "CSB-15-009", "CSB-15-004", "RSH-09-003"))
 ```
 
 Two transitions can also be asserted on another participant's behalf, by the Case Manager or the Case Owner.
@@ -44,7 +44,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
     An implementation that treats publication as deployment produces an unauthorized VFD advance.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CSB-15-003"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CSB-15-003", "CSB-15-011"))
 ```
 
 {% include-markdown "../_oq-v-to-V.md" %}

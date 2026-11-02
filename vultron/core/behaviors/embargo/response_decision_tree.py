@@ -30,7 +30,7 @@ Two overture flows are supported via caller-supplied delegate trees:
   as ``counter_bt`` (counter = re-propose, no new mechanism, EMB-15-003).
 
 - **Flow B** — PEC-level invitation (InviteToEmbargoOnCase), answered by the
-  invitee (EP-09-003).  The caller passes a
+  invitee (EP-09-003, EP-09-025).  The caller passes a
   :class:`~vultron.core.behaviors.embargo.nodes.invite_answer.SendEmbargoInviteAnswerNode`
   with ``accept=True`` as ``accept_bt`` and one with ``accept=False`` as
   ``reject_bt``; each queues the answer to the CASE_MANAGER.  No counter arm;

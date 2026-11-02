@@ -447,7 +447,7 @@ def embargo_ending_notice_recipients(
 
     *embargo_id* is the embargo that is ending: the one terminated, or the
     one a shorter revision replaces.  Consent rows outlive both moves
-    (MSM-07-006, EP-05-001), so the selection is the same before and after
+    (MSM-07-025, EP-05-003), so the selection is the same before and after
     the EM write.  The notice is not case content (CM-10-007), so the active
     check does not apply.  Roster order is kept, minus *excluding*.
 

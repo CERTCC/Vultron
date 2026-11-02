@@ -113,7 +113,7 @@ def find_in_vocabulary(
     ``as_Base``-only rule would refuse the canonical case type.
 
     The core ``CORE_TYPE_MAP`` fallback (ARCH-12-010) is reached only when the
-    caller passes ``include_core=True`` (VM-06-008). A hit there is a
+    caller passes ``include_core=True`` (VM-06-013). A hit there is a
     coincidence of naming rather than a wire counterpart (ARCH-23-002): while
     ``OrderedCollection`` was registered only in the core map, a wire caller
     resolving an inline actor's ``inbox`` got a core class that

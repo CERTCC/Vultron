@@ -73,7 +73,7 @@ def rejection_ends_embargo(case: "VulnerabilityCase", embargo_id: str) -> bool:
     its last open revision, EP-08-001) and CS is public, exploited or
     attacked.  Rejecting the revision returns the case to the prior terms,
     which no act may end in then: the CASE_MANAGER records the ``REJECT``
-    step and then terminates the embargo in the same act (MSM-07-009).  The
+    step and then terminates the embargo in the same act (MSM-07-032).  The
     CASE_MANAGER reads this before the rejection, among the guards that
     trial-apply both steps; replicas never read it, they copy both entries
     (CM-23-016).
@@ -90,7 +90,7 @@ def embargo_outlives_disclosure(case: "VulnerabilityCase") -> bool:
     or attacked.  This is the case the owner's rejection of the last
     revision leaves when :func:`rejection_ends_embargo` held before it: the
     CASE_MANAGER's rejection trees read it after the ``REJECT`` step and
-    terminate the embargo in the same act (MSM-07-009).
+    terminate the embargo in the same act (MSM-07-032).
     """
     return not case.proposed_embargo_ids and _in_force_disclosed(case)
 

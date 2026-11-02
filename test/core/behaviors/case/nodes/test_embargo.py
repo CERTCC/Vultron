@@ -261,6 +261,7 @@ class TestInitializeDefaultEmbargoNode:
         assert len(events) == 1
 
     @pytest.mark.spec("EP-04-003")
+    @pytest.mark.spec("EP-04-016")
     def test_a_second_run_registers_no_second_revision(
         self,
         bt_scenario: BTTestScenario,

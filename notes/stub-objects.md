@@ -10,7 +10,7 @@ related_specs:
   - specs/stub-objects.yaml
   - specs/message-validation.yaml
   - specs/case-management.yaml (CM-11-013, CM-17-002, CM-17-010, CM-17-011, MV-10-001)
-  - specs/actor-knowledge-model.yaml (AKM-05-005)
+  - specs/actor-knowledge-model.yaml (AKM-05-017)
 related_notes:
   - vultron/core/ports/AGENTS.md
   - notes/wire-core-boundary.md
@@ -25,7 +25,7 @@ relevant_packages:
 
 The `VulnerabilityCase` stub (`as_VulnerabilityCaseStub`) is the only stub type
 the protocol permits (MV-10-001, narrowed by ADR-0090). Requirements: MV-10 in
-`specs/message-validation.yaml`. The id-and-type actor reference of AKM-05-005
+`specs/message-validation.yaml`. The id-and-type actor reference of AKM-05-017
 (ADR-0159) is MV-10-001's one other exception, and it is not a stub: it claims
 only the two fields its sender knows. Referencing other objects without inlining
 them, and explicit redaction, are not built: see

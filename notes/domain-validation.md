@@ -15,7 +15,8 @@ related_specs:
   - specs/case-management.yaml (CM-01-001, CM-18-005, CM-23-001, CM-27-001
     through CM-27-003, CM-31-001)
   - specs/case-ledger-processing.yaml (CLP-07-002)
-  - specs/rm-behavior.yaml (RMB-14-004, RMB-14-005)
+  - specs/rm-behavior.yaml (RMB-14-004, RMB-14-005, RMB-14-008, RMB-14-009)
+  - specs/state-machine.yaml (SM-09-001, SM-09-003)
   - specs/participant-role-management.yaml (PRM-03-003)
   - specs/error-handling.yaml (EH-05-002 through EH-05-005, EH-07-001 through EH-07-004)
   - specs/code-style.yaml (CS-23-001)
@@ -101,7 +102,7 @@ symbol in `models.base`, not a cycle. A helper needing a state enum goes with it
 type.
 
 Unknown-key rejection is not a helper: it is `extra="forbid"` on `CoreRecord`
-(ARCH-12-003). Never add a per-class reject-guard (SDO-03-005;
+(ARCH-12-003). Never add a per-class reject-guard (SDO-03-009;
 `test/architecture/test_core_extra_forbid.py`). See
 [wire-core-boundary.md](wire-core-boundary.md) for what `forbid` does and does not
 reject, and for the inbound unknown-key rule (MV-11).
@@ -283,7 +284,7 @@ shifts every id a seeded demo recording mints afterwards (#5510).
 
 ### Pitfall: a forced promotion runs after validation
 
-`CreateParticipantStatusNode._apply_ac1_promotions()` applies SM-09-001's forced
+`CreateParticipantStatusNode._apply_ac1_promotions()` applies SM-09-001/003's forced
 promotions (`pXa→PXa`, `pXA→PXA`, `vP→VP`) **after** the evaluator runs, and the
 promoted values are persisted. "One evaluator governs every write" does not mean
 "everything persisted was validated". The promotion is unreachable for an
@@ -294,8 +295,8 @@ its role does not license, you reopen this.**
 ### RM closure walks the table; only the CASE_MANAGER walks it
 
 - **Closure goes through the RM table, never an override** (ADR-0114,
-  RMB-14-004/005). RM closes from *Received* (`R → C`); from *Valid* it is written
-  as `V → D → C`. CASE_MANAGER closure sites use `RMClosureWriter`
+  RMB-14-004/005/008/009). RM closes from *Received* (`R → C`); from *Valid* it is
+  written as `V → D → C`. CASE_MANAGER closure sites use `RMClosureWriter`
   (`case/nodes/participant/rm_closure.py`), which walks `rm_closure_path()` with
   adjacency validation in force. `test/architecture/test_rm_closure_no_force.py`
   pins that `force_rm_state` remains only on bootstrap writes (ARCH-18-005). If a

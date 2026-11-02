@@ -133,7 +133,7 @@ profile is an enrichment step, not a precondition for protocol participation.
 
 An activity that names such a peer as its `object` or `target` still carries it inline, because a receiver routes an activity by its object's `type`.
 The sender carries the actor profile it holds, unchanged.
-When it holds only the URI, it carries an *actor reference*: an inline object with exactly the actor's `id` and a `type` (AKM-05-005).
+When it holds only the URI, it carries an *actor reference*: an inline object with exactly the actor's `id` and a `type` (AKM-05-017).
 A receiver reads the fields an actor reference lacks as unknown, so a reference never replaces a fuller record of that actor the receiver already holds.
 
 The actor reference follows from a general rule: an actor never records or sends a value it does not know (AKM-02-006).

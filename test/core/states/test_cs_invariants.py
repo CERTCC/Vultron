@@ -368,6 +368,7 @@ def test_every_transition_changes_exactly_one_dimension():
 
 
 @pytest.mark.spec("CSB-17-002")
+@pytest.mark.spec("CSB-17-014")
 def test_transitions_are_monotone():
     """No transition ever un-sets a bit; CS events are irreversible."""
     for src in CS:
@@ -486,6 +487,7 @@ def test_apply_cs_event_agrees_with_the_transition_predicate():
 
 
 @pytest.mark.spec("CSB-17-002")
+@pytest.mark.spec("CSB-17-014")
 def test_apply_cs_event_rejects_a_repeated_event():
     with pytest.raises(VultronInvalidStateTransitionError, match="already"):
         apply_cs_event(CS.Vfdpxa, CSEvent.V)
@@ -698,6 +700,7 @@ def test_every_accepted_prefix_extends_to_a_complete_valid_history():
         [CSEvent.A, CSEvent.V],
     ],
 )
+@pytest.mark.spec("CSB-17-015")
 def test_accepted_prefixes(prefix):
     assert is_valid_cs_history_prefix(prefix)
 

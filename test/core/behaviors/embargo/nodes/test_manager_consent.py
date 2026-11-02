@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The CASE_MANAGER's own consent row at the proposal commit (EP-09-002, #4180).
+"""The CASE_MANAGER's own consent row at the proposal commit (EP-09-024, #4180).
 
 The relay never invites the manager, so a manager that is also a stakeholder
 writes its own row when it adjudicates a proposal: ``AGREED`` or
@@ -131,6 +131,7 @@ def _run(
 
 @pytest.mark.executes_as(MANAGER)
 @pytest.mark.spec("EP-09-002")
+@pytest.mark.spec("EP-09-024")
 class TestManagerConsentAtCommit:
     def test_a_stakeholder_manager_accepts_by_default_policy(
         self, bt_scenario: BTTestScenario

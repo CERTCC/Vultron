@@ -55,7 +55,7 @@ VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_HASH_MISMATCH = (
     f"{VULTRON_FAILURE_LEDGER_ENTRY_REFUSED}/HashMismatch"
 )
 
-# EP-09-010, MSM-05-001: an Invite(EmbargoEvent) whose shape the protocol
+# EP-09-026, MSM-05-001: an Invite(EmbargoEvent) whose shape the protocol
 # does not allow — no `to` recipient or several — was received but not
 # understood.
 VULTRON_FAILURE_MISROUTED_EMBARGO_INVITE = (

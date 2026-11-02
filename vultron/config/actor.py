@@ -24,8 +24,8 @@ defaults for the local actor without importing from the demo or adapter layers.
 
 Per ``specs/configuration.yaml`` CFG-07-001, CFG-07-002, CFG-07-005, CFG-07-006.
 RSVP window fields per ``specs/embargo-policy.yaml`` EP-07-001, EP-07-002.
-Protocol default embargo duration per ``specs/embargo-policy.yaml`` EP-04-005
-(ADR-0096).
+Protocol default embargo duration per ``specs/embargo-policy.yaml`` EP-04-005,
+EP-04-018 and EP-04-032 (ADR-0096).
 """
 
 from datetime import timedelta
@@ -42,10 +42,10 @@ from pydantic import (
 from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
 
 PROTOCOL_DEFAULT_EMBARGO_MIN = timedelta(hours=72)
-"""Lower bound on the configurable protocol default embargo (EP-04-005)."""
+"""Lower bound on the configurable protocol default embargo (EP-04-018)."""
 
 PROTOCOL_DEFAULT_EMBARGO_MAX = timedelta(days=5)
-"""Upper bound on the configurable protocol default embargo (EP-04-005)."""
+"""Upper bound on the configurable protocol default embargo (EP-04-018)."""
 
 
 class PostCloseReply(StrEnum):
@@ -106,7 +106,7 @@ class ActorConfig(BaseModel):
             creation when neither a sender proposal nor an actor default
             (published ``EmbargoPolicy``) applies.  Constrained to
             [72 hours, 5 days]; a value outside that range is refused
-            (EP-04-005, ADR-0096).  It never competes under shortest-wins and
+            (EP-04-018, EP-04-032, ADR-0096).  It never competes under shortest-wins and
             is never a minimum on agreed terms (EP-04-006, EP-04-007).
         post_close_reply: The one policy point for replies after the case
             closes: whether the CASE_MANAGER answers a late
@@ -156,8 +156,8 @@ class ActorConfig(BaseModel):
         default=PROTOCOL_DEFAULT_EMBARGO_MIN,
         description=(
             "Embargo duration applied at case creation when no sender proposal "
-            "and no actor default applies (EP-04-005). Must lie within "
-            "[72 hours, 5 days]. Default: 72 h."
+            "and no actor default applies (EP-04-019). Must lie within "
+            "[72 hours, 5 days] (EP-04-018). Default: 72 h."
         ),
     )
 
@@ -184,7 +184,7 @@ class ActorConfig(BaseModel):
             raise ValueError(
                 f"protocol_default_embargo_duration {value} is outside the"
                 f" permitted range [{PROTOCOL_DEFAULT_EMBARGO_MIN},"
-                f" {PROTOCOL_DEFAULT_EMBARGO_MAX}] (EP-04-005)"
+                f" {PROTOCOL_DEFAULT_EMBARGO_MAX}] (EP-04-018)"
             )
         return value
 

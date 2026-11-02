@@ -283,7 +283,7 @@ are in `test/adapters/driven/test_sqlite_save_if_unchanged.py`.
 
 - **The caller decides what a refusal means.** A caller that changes one field
   can re-read and re-apply, then refuse after a bounded number of attempts (the
-  embargo-policy PUT answers 409, EP-02-004). A caller whose change depends on the
+  embargo-policy PUT answers 409, EP-02-009). A caller whose change depends on the
   fields it read must surface the conflict at once.
 - **A compare-and-set guards only the writers that use it.** Every
   read-modify-write of the actor profile MUST go through `save_if_unchanged`; a

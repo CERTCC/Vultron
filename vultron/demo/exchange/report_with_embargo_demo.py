@@ -28,7 +28,7 @@ the Reporter states terms once, on the Offer, and the CASE_MANAGER settles the
 comparison when it creates the case (EP-04-003, shortest-wins).  What is
 visible is the *result* — which terms became active and which were left
 pending as ``EM.REVISE``.  The CASE_MANAGER relays every creation-time
-revision to the party whose terms won (EP-04-011); no run shows an automatic
+revision to the party whose terms won (EP-04-027); no run shows an automatic
 answer, because the protocol requires none (EP-09-006).
 
 Three runs:
@@ -48,7 +48,7 @@ Three runs:
    records consent, so that case also stays at ``EM.REVISE``.
 3. **Receiver has no actor default**: the Reporter's terms are the only
    candidate and win outright at their stated length.  The 10-day proposal
-   is longer than the protocol default's 5-day ceiling (EP-04-005), so an
+   is longer than the protocol default's 5-day ceiling (EP-04-018), so an
    active 10-day embargo shows the proposal was honored (EP-04-007) and the
    protocol default did not compete (EP-04-006).
 
@@ -106,7 +106,7 @@ logger = logging.getLogger(__name__)
 #: The Receiver's published default in the two contested runs.
 RECEIVER_DEFAULT_DAYS = 30
 #: A Reporter proposal shorter than the Receiver's default — and longer than
-#: the protocol default's 5-day ceiling (EP-04-005), so run 3 can tell the
+#: the protocol default's 5-day ceiling (EP-04-018), so run 3 can tell the
 #: proposal apart from the fallback.
 REPORTER_SHORTER_DAYS = 10
 #: A Reporter proposal longer than the Receiver's default.
@@ -238,7 +238,7 @@ def _run_negotiated_submission(
             else:
                 # The Receiver's shorter default won at creation and the
                 # Reporter's terms were registered as a revision and relayed
-                # to the Receiver, the CASE_OWNER (EP-04-011).  The protocol
+                # to the Receiver, the CASE_OWNER (EP-04-027).  The protocol
                 # requires no automatic answer (EP-09-006), and the
                 # prototype's bounded auto-accept does not fire at an active
                 # embargo, so the Receiver's default stays active and the

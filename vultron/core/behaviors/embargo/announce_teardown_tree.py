@@ -503,7 +503,7 @@ def invite_to_embargo_on_case_tree(
             # answers (ID-04-004).
             answers=invite_id,
         ),
-        # EP-09-002: the relay skips the manager, so it writes its own row.
+        # EP-09-024: the relay skips the manager, so it writes its own row.
         record_manager_embargo_consent_tree(
             case_id=case_id,
             embargo_id=embargo_id,

@@ -183,7 +183,7 @@ class _ParticipantMoveLedgerEffectNode(_LedgerEffectNode):
         candidates: list[str] = []
         if isinstance(participant_data, dict):
             # Normalised: the snapshot keeps the sender's spelling
-            # (OID-01-006).
+            # (OID-01-008).
             actor_id = snapshot_actor_id(participant_data.get(_ATTRIBUTED_TO))
             if actor_id and actor_id in case.actor_participant_index:
                 candidates.append(case.actor_participant_index[actor_id])

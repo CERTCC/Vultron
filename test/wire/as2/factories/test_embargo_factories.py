@@ -112,7 +112,7 @@ def test_em_propose_embargo_invalid_raises(sample_embargo):
     assert exc_info.value.__cause__ is not None
 
 
-@pytest.mark.spec("VAM-01-010")
+@pytest.mark.spec("VAM-01-016")
 def test_em_propose_embargo_refuses_terms_by_uri():
     """This codebase sends the terms inline, though a received Invite may
     name them by URI (ADR-0123)."""

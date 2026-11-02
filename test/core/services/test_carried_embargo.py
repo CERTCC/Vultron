@@ -86,6 +86,7 @@ def test_an_inline_embargo_is_stored_as_its_own_record(
 
 @pytest.mark.spec("EMB-18-003")
 @pytest.mark.spec("EMB-18-004")
+@pytest.mark.spec("EMB-18-012")
 def test_an_inline_embargo_of_another_case_is_refused_unstored(
     dl: SqliteDataLayer,
 ) -> None:
@@ -328,6 +329,7 @@ def _held_for_other_case(dl: SqliteDataLayer) -> EmbargoEvent:
 
 @pytest.mark.spec("EMB-18-004")
 @pytest.mark.parametrize("as_reference", [True, False])
+@pytest.mark.spec("EMB-18-012")
 def test_a_case_naming_a_held_embargo_of_another_case_is_refused_unwritten(
     dl: SqliteDataLayer, as_reference: bool
 ) -> None:
@@ -407,6 +409,7 @@ def _case_with_report(
 
 @pytest.mark.spec("EMB-18-004")
 @pytest.mark.spec("EP-04-009")
+@pytest.mark.spec("EP-04-021")
 @pytest.mark.parametrize("inline_report", [False, True])
 @pytest.mark.parametrize("as_reference", [True, False])
 def test_a_held_proposal_about_the_cases_own_report_is_accepted(

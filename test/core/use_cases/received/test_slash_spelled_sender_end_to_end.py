@@ -15,7 +15,7 @@
 The proposal tree stores the proposer canonically (#4772).  The peer's later
 messages arrive in the slash spelling; the extractor normalises the sender id
 (OID-01-007), so the CASE_MANAGER's exact lookups find the CASE_OWNER records
-the proposal wrote, while the ledger keeps what the sender wrote (OID-01-006).
+the proposal wrote, while the ledger keeps what the sender wrote (OID-01-008).
 """
 
 from typing import Any, cast
@@ -125,6 +125,7 @@ def _ledger(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
 
 @pytest.mark.spec("OID-01-006")
 @pytest.mark.spec("OID-01-007")
+@pytest.mark.spec("OID-01-008")
 @pytest.mark.spec("CLP-07-003")
 def test_a_slash_spelled_owner_reaches_its_case_owner_records():
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR)
@@ -159,11 +160,11 @@ def test_a_slash_spelled_owner_reaches_its_case_owner_records():
         for e in _ledger(dl)
         if e.semantic_type == "reject_embargo_proposal_on_case"
     ]
-    # The ledger keeps what the sender wrote (OID-01-006).
+    # The ledger keeps what the sender wrote (OID-01-008).
     assert entry.payload_snapshot.get("actor") == _VENDOR_AS_WRITTEN
 
     # The owner's withdrawal reaches the CASE_OWNER record: it is refused
-    # because the owner ends an embargo by terminating it (MSM-07-010), not
+    # because the owner ends an embargo by terminating it (MSM-07-036), not
     # because the sender has no participant record.
     leave = withdraw_from_embargo_activity(
         cast(as_EmbargoEvent, dl.read(active_id)),

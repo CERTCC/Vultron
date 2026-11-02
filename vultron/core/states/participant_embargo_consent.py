@@ -16,7 +16,7 @@ States
 UNINVITED – Not asked about this embargo.  The start state.
 INVITED   – Asked; no answer yet.  Carries the invitation's RSVP deadline.
 AGREED    – Agreed to this embargo: explicitly, as its proposer, by seeding
-            (CM-14-003, CM-14-005), or by carry-over (EP-05-001).
+            (CM-14-003, CM-14-005), or by carry-over (EP-05-003).
 DECLINED  – Explicitly refused this embargo, or withdrew from it (ADR-0093).
 TIMED_OUT – Invited, and the RSVP deadline passed with no answer (ADR-0118).
             Not a refusal.
@@ -27,7 +27,7 @@ INVITE     : UNINVITED | DECLINED | TIMED_OUT → INVITED
 AGREE      : UNINVITED | INVITED | DECLINED | TIMED_OUT → AGREED
 DECLINE    : UNINVITED | INVITED | AGREED | TIMED_OUT → DECLINED
 TIME_OUT   : INVITED → TIMED_OUT  (RSVP deadline passed, CM-28-014)
-CARRY_OVER : every state except AGREED → AGREED  (EP-05-001)
+CARRY_OVER : every state except AGREED → AGREED  (EP-05-003)
 
 ``AGREED`` refuses ``INVITE``: an answer already given is not undone by
 asking again.  ``AGREE`` from ``DECLINED`` is a participant changing its

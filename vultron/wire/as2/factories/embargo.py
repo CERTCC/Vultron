@@ -140,7 +140,7 @@ def em_propose_embargo_activity(
             ``as_EmbargoEvent``.
     """
     # The wire class takes the terms by URI for a received Invite (ADR-0123);
-    # this codebase always sends them inline (VAM-01-010).
+    # this codebase always sends them inline (VAM-01-016).
     embargo = require_inline(
         embargo, as_EmbargoEvent, factory="em_propose_embargo_activity"
     )

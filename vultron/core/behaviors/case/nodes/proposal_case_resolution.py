@@ -175,7 +175,7 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
     receiver, who becomes the CASE_OWNER — never to the CASE_MANAGER that
     creates it (CP-09-001, CM-22-001, CM-02-008).  ``attributed_to`` is the
     case's owner field: the status adoption gate and embargo consent and
-    answers all read it (MSM-07-008), and ownership transfer
+    answers all read it (MSM-07-027), and ownership transfer
     rewrites it (CM-21-024), so naming the CASE_MANAGER there would make
     every one of those checks treat it as the owner.  The CASE_MANAGER's
     authorship is carried where AS2 puts it instead: it is the ``actor`` of

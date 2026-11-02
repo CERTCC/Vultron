@@ -267,7 +267,7 @@ def test_reject_embargo_proposal_strict_revise_pxa_rejects_the_revision(
     """STRICT reject from REVISE+PXA records the REJECT step as decided.
 
     The lifecycle no longer refuses it: the CASE_MANAGER's trees terminate
-    the embargo after this step, in the same act (MSM-07-009), so the
+    the embargo after this step, in the same act (MSM-07-032), so the
     revision ends REJECTED and the termination is its own entry.
     """
     owner, dl = owner_and_dl

@@ -59,7 +59,7 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
         "reporter and returns it in the response body (TRIG-04-001). "
         "Only an actor the Offer was addressed to may acknowledge it; it may "
         "do so whether or not a case exists, and RK is never sent to the "
-        "CASE_MANAGER (RMB-08-003)."
+        "CASE_MANAGER (RMB-08-003, RMB-08-005)."
     ),
     operation_id="actors_trigger_ack_report",
     response_model=ActivityResult,
@@ -77,7 +77,7 @@ def trigger_ack_report(
     Implements:
         TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-001, TRIG-03-001,
         TRIG-03-002, TRIG-03-003, TRIG-04-001, TRIG-06-001, TRIG-06-002,
-        TRIG-07-001, TRIG-12-001, RMB-08-003
+        TRIG-07-001, TRIG-12-001, RMB-08-003, RMB-08-005
     """
     return run_trigger(
         AckReportTriggerRequest(

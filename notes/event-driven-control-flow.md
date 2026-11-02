@@ -120,7 +120,7 @@ When the input must come later, the node **asks and terminates**. It never retur
 tree down, so there is nothing to resume. The answer arrives as a trigger or an
 inbox message and starts a fresh evaluation that first finds where the exchange
 stands (EDF-04-003, ASK-02-001). Asking another actor is the protocol-ask
-primitive: emit the ask, return `SUCCESS` meaning *I asked* (ASK-01-002); see
+primitive: emit the ask, return `SUCCESS` meaning *I asked* (ASK-01-006); see
 `notes/protocol-asks.md`.
 
 A terminal status with no request emitted is the silent failure EDF-04-005

@@ -2993,13 +2993,14 @@ def test_a_slash_spelled_transferee_is_offered_to_canonically(make_payload):
 
 
 @pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("OID-01-008")
 @pytest.mark.spec("CM-24-002")
 def test_a_slash_spelled_attribution_is_taken_and_filed_as_received(
     make_payload,
 ):
     """The transferee takes the CASE_MANAGER's Offer whose ``attributed_to``
     carries a trailing slash, and files it as received: the stored Offer
-    keeps the sender's spelling (OID-01-006)."""
+    keeps the sender's spelling (OID-01-008)."""
     case_id = "https://example.org/cases/case_ot_slash_delegated"
     dl, case = _transferee_replica(case_id)
     offer = offer_case_ownership_transfer_activity(

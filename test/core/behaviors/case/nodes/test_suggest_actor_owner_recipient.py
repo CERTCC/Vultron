@@ -246,7 +246,7 @@ class TestDuplicateRecommendationNoteAddressesTheCaseOwner:
         assert CASE_ACTOR_ID not in recipients, recipients
 
     @pytest.mark.spec("CM-16-016")
-    @pytest.mark.spec("VAM-01-010")
+    @pytest.mark.spec("VAM-01-015")
     def test_note_travels_inline_on_the_add(self, case_actor_dl):
         """The reinforcing-suggestion note rides inline on its Add(Note),
         naming the second recommender (CM-16-016, #4706)."""

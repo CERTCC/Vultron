@@ -361,7 +361,7 @@ The owner's departure closes the case, and the Case Actor records nothing a part
    As a non-owner, this advances only the Reporter (CM-23-003); no other participant's RM state changes (CM-23-012).
    The Case Actor commits `close_case` for the Reporter.
    It then moves the Reporter to `RM.CLOSED` and commits one `add_participant_status_to_participant` entry for each RM transition it writes, in order (CM-23-022).
-   The Reporter is at `RM.ACCEPTED`, so that is one entry; a participant at `RM.VALID` would get two, for `VALID → DEFERRED` and `DEFERRED → CLOSED` (RMB-14-005).
+   The Reporter is at `RM.ACCEPTED`, so that is one entry; a participant at `RM.VALID` would get two, for `VALID → DEFERRED` and `DEFERRED → CLOSED` (RMB-14-009).
 2. The demo waits until the Case Actor's own store shows the Reporter at `RM.CLOSED`.
    A trigger returns before its effect commits, so the demo does not let the Vendor's `Leave` overtake the Reporter's.
 3. The Vendor sends `Leave(VulnerabilityCase)`.

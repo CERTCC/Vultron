@@ -171,7 +171,7 @@ groups:
       received the Offer, the CASE_OWNER.
     rationale: >-
       `attributed_to` is the owner field of the case. Ownership checks read it
-      (MSM-07-008), and ownership transfer changes it together with the `CASE_OWNER`
+      (MSM-07-027), and ownership transfer changes it together with the `CASE_OWNER`
       role (CM-21-002, CM-21-024). The `actor` of `Create(VulnerabilityCase)` records
       who *created* the case, not `attributed_to`. Thus the CASE_MANAGER does not
       become the owner when it creates the case.
@@ -2735,12 +2735,13 @@ groups:
       another party joins. The receiver initializes the default embargo at
       `RM.RECEIVED`, before it adds any other participant. Thus every later participant
       joins under the embargo (CM-14-010). The protocol default makes sure that a
-      receiver with no configured policy also gets an embargo with a limit (EP-04-005,
+      receiver with no configured policy also gets an embargo with a limit (EP-04-019,
       ADR-0096).
     note: >-
       Amended by ADR-0096. The condition was previously "if a default embargo policy is
-      configured", which left no embargo at all when none was. EP-04-005 now supplies a bounded
-      protocol default for that case, so the only condition on initialization is
+      configured", which left no embargo at all when none was. EP-04-019 now
+      supplies a bounded protocol default for that case, so the only condition on
+      initialization is
       embargo-eligibility (EP-04-008).
     verification: Integration tests in `test/demo/` confirm that a default embargo is initialized
       during case creation at RM.RECEIVED both when an actor default embargo policy is configured
@@ -3087,8 +3088,8 @@ groups:
       join.
     note: >-
       Amended by ADR-0096. The step was previously conditional on a configured default embargo
-      policy; EP-04-005 now supplies a bounded protocol default when none is configured, so the
-      only condition is embargo-eligibility (EP-04-008).
+      policy; EP-04-019 now supplies a bounded protocol default when none is
+      configured, so the only condition is embargo-eligibility (EP-04-008).
     verification: Integration tests in `test/demo/` confirm that step 3 sets the default embargo
       to `EM.ACTIVE` and seeds the case owner as a signatory both when an actor default policy is
       configured and when none is, and that it is skipped when the case is not embargo-eligible.
@@ -4496,7 +4497,7 @@ groups:
       path (CM-18-002). A late Accept that the CASE_MANAGER honours moves `TIMED_OUT →
       AGREED` directly (EMB-17-002), and a late explicit Reject moves `TIMED_OUT →
       DECLINED`. Only the activation of a revision that ends at or before the end of the
-      embargo it replaces causes `CARRY_OVER` (EP-05-001). `CARRY_OVER` also lifts a
+      embargo it replaces causes `CARRY_OVER` (EP-05-003). `CARRY_OVER` also lifts a
       `DECLINED` row. An agreement to N days is an agreement to every shorter period. A
       decline of a shorter revision objects to the loss of time, not to the embargo. A
       row whose embargo is final records the past. Thus a participant cannot give more
@@ -5043,7 +5044,7 @@ groups:
       processed, the system MUST update the case's `attributed_to` to the accepting
       actor's ID.
     rationale: >-
-      `attributed_to` is the owner that the case names to every reader (MSM-07-008). A
+      `attributed_to` is the owner that the case names to every reader (MSM-07-027). A
       transfer that grants the role (CM-21-002) but leaves `attributed_to` alone makes
       the case name an owner that no longer holds the role. Thus a transfer writes both.
     verification: >-
@@ -6040,7 +6041,7 @@ groups:
     rationale: >-
       ADR-0041 supersedes ADR-0015.  The CASE_MANAGER is the case's authoritative
       creator. `attributed_to` records the case owner, which ownership checks
-      read and ownership transfer rewrites (MSM-07-008, CM-21-024).
+      read and ownership transfer rewrites (MSM-07-027, CM-21-024).
     verification: >-
       Integration tests in `test/demo/` confirm that the `VulnerabilityCase` created by
       the CASE_MANAGER has `attributed_to` equal to the proposing actor's ID.
@@ -8440,8 +8441,9 @@ groups:
       let the two parties agree if an invitation is still open. See ADR-0065.
     note: >-
       Amended by ADR-0096. "Authoritative" settles precedence between the wire value and the
-      receiver's local policy window; it does not exempt the wire value from EP-07-006, which
-      clamps any computed deadline down to the embargo's own `end_time`. CM-28-011 binds the same
+      receiver's local policy window; it does not exempt the wire value from
+      EP-07-011, which clamps any computed deadline down to the embargo's own
+      `end_time`. CM-28-011 binds the same
       ceiling to the CM-18-023 fallback path.
       An explicit `Invite.end_time` that outlives the
       embargo is still clamped.
@@ -8790,8 +8792,9 @@ groups:
       ADR-0113).
     verification: >-
       A test of the relay asserts every emitted Invite carries `end_time` equal to its
-      `published` plus the configured window, clamped per EP-07-002 and EP-07-006. Until the
-      implementation lands the test is a strict `xfail` naming its tracking issue.
+      `published` plus the configured window, clamped per EP-07-002, EP-07-006 and
+      EP-07-011. Until the implementation lands the test is a strict `xfail`
+      naming its tracking issue.
     relationships:
     - rel_type: refines
       spec_id: CM-28-002
@@ -9969,7 +9972,7 @@ groups:
       and a paused replica cannot learn it from the ledger. A longer revision does not
       bind a participant that never agreed to it, and expiry on the agreed date is
       already known to it. A revision that ends at the same time as the embargo it
-      replaces is on the EP-05-001 carry-over arm, so it is sent like a shorter one.
+      replaces is on the EP-05-003 carry-over arm, so it is sent like a shorter one.
     verification: >-
       `test_shorter_revision_is_announced_to_each_unreached_signatory`,
       `test_longer_revision_sends_nothing` and `test_embargo_ending_notice_decision`

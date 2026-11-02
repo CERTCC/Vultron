@@ -252,6 +252,7 @@ def test_the_case_manager_applies_and_commits_a_withdrawal(make_payload):
 
 @pytest.mark.spec("MSM-07-010")
 @pytest.mark.spec("CLP-10-009")
+@pytest.mark.spec("MSM-07-036")
 def test_a_leave_of_an_embargo_not_in_force_is_refused_uncommitted(
     make_payload,
 ):
@@ -301,6 +302,7 @@ def test_a_leave_with_no_embargo_in_force_is_refused_uncommitted(
 @pytest.mark.spec("MSM-07-010")
 @pytest.mark.spec("CLP-10-009")
 @pytest.mark.parametrize("row", [ECS.INVITED, ECS.TIMED_OUT, ECS.DECLINED])
+@pytest.mark.spec("MSM-07-036")
 def test_a_leave_from_a_row_that_is_not_agreed_is_refused_uncommitted(
     make_payload, row
 ):
@@ -331,6 +333,7 @@ def test_a_leave_from_a_row_that_is_not_agreed_is_refused_uncommitted(
 @pytest.mark.spec("MSM-07-010")
 @pytest.mark.spec("CM-02-005")
 @pytest.mark.spec("CLP-10-009")
+@pytest.mark.spec("MSM-07-036")
 def test_a_leave_from_the_case_owner_is_refused_uncommitted(make_payload):
     """The case owner ends an embargo by terminating it (CM-02-005)."""
     dl = _store()
