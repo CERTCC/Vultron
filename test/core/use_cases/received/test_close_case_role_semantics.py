@@ -2502,7 +2502,7 @@ class TestOwnerLeaveDuringActiveEmbargo:
         dl = _make_full_dl()
         _seed_active_embargo(dl, em_state=EM.ACTIVE)
 
-        CloseCaseReceivedUseCase(
+        result = CloseCaseReceivedUseCase(
             dl=dl,
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
@@ -2510,6 +2510,8 @@ class TestOwnerLeaveDuringActiveEmbargo:
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "embargo" in result.reason
         assert _case_ledger(dl) == [], (
             "A declined owner-close commits no close_case entry (CM-23-035)"
         )

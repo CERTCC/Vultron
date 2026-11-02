@@ -5828,9 +5828,9 @@ groups:
     verification: >-
       `test_new_offer_after_an_expired_one_ledgers_no_expiry` in
       `test/core/use_cases/received/actor/test_ownership.py` and
-      `test_the_case_manager_authors_no_undo_of_an_offer` in
-      `test/core/use_cases/received/actor/test_ownership_deadline.py` assert that no
-      entry or activity records the expiry.
+      `test_an_offer_past_its_end_time_is_closed_with_no_entry` in
+      `test/core/participants/test_ownership_offer.py` assert that no entry or
+      activity records the expiry.
     relationships:
     - rel_type: extends
       spec_id: CM-21-017

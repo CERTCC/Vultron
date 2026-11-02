@@ -119,13 +119,12 @@ def test_notice_is_delegated_names_the_participant_and_is_not_ledgered(
     assert ledgered == {_REMOVE_ACTIVITY_ID}
 
 
-@pytest.mark.spec("CM-31-005")
-@pytest.mark.spec("HP-01-008")
+@pytest.mark.spec("CM-31-004")
 def test_only_the_case_owner_may_send_the_removal() -> None:
-    """The Case Owner authors the entry; the CASE_MANAGER only commits it.
+    """The CASE_MANAGER admits a removal request only from the Case Owner.
 
-    The sender rule admits the removal only from the Case Owner, and only at
-    the CASE_MANAGER, so no other participant can author it (HP-01-006).
+    The declared sender rule admits ``Remove(CaseParticipant)`` only from
+    the Case Owner, and only at the CASE_MANAGER (CM-31-004, HP-01-006).
     """
     assert RemoveCaseParticipantFromCaseReceivedUseCase.sender_entitlement == (
         SenderRule.to_case_manager(SenderEntitlementKind.CASE_OWNER)

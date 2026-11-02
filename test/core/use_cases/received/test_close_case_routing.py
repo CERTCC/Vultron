@@ -204,7 +204,7 @@ class TestCloseCaseLedgerRouting:
         AutoCloseBranchNode emits Leave(as_VulnerabilityCase) with
         actor=case_actor_id to signal that all participants have closed.  The
         case-actor must accept its own Leave as a canonical ledger entry
-        because the close_case signature IS case-authored (DEMOMA-07-003 step 5).
+        (DEMOMA-07-003 step 5).
 
         The commit boundary checks the entry's signature, not which actor
         authored it, so a CaseActor-authored ("Leave", "VulnerabilityCase")

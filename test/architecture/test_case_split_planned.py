@@ -23,8 +23,8 @@ proposal (CM-32-001 through CM-32-012, CM-32-016 and their split-off
 children CM-32-017 through CM-32-039 and CM-32-045), and one for the
 split-family embargo notice (CM-32-013 through CM-32-015, CM-32-040 through
 CM-32-044, VP-10-002, VP-10-003). CM-32-025 rules on a case merge, so its probe
-names merge vocabulary instead. Each probe names only split vocabulary, so a case-merge build,
-which may use ``sibling_cases``, cannot XPASS them. When either lands,
+names merge vocabulary instead. Every other probe names only split vocabulary,
+so a case-merge build, which may use ``sibling_cases``, cannot XPASS them. When either lands,
 its tests XPASS, ``strict=True`` fails the build, and the builder replaces each
 placeholder with the behavioural check the requirement's ``verification:``
 names. That promotion is the point: this module is a ratchet, not a test of
@@ -283,7 +283,7 @@ def test_a_split_writes_no_sibling_cases():
 @pytest.mark.spec("CM-32-025")
 @pytest.mark.xfail(
     strict=True,
-    reason=f"CM-32-025: no case merge exists yet. {_SPLIT_BUILD}",
+    reason="CM-32-025: no case merge exists yet. Tracked by #3702.",
 )
 def test_a_merge_records_no_merged_case_in_child_cases():
     assert _case_merge_exists()

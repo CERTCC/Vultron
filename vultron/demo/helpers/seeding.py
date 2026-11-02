@@ -1443,10 +1443,8 @@ def _seed_reporter_participant(
     )
 
 
-def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
+def _seed_case_actor_participant(case_obj, case_actor_id: str, dl) -> None:
     case_id = case_obj.id_
-    del report_id  # the CaseActor identity does not vary by report (#1872)
-    case_actor_id = configured_case_actor_id()
     if case_actor_id in case_obj.actor_participant_index:
         return
 
@@ -1567,15 +1565,23 @@ def seed_case_participants_for_demo(
         case_id: Full URI of the ``VulnerabilityCase``.
         vendor_actor_id: Full URI of the vendor actor (seeded as CASE_OWNER + VENDOR).
         reporter_actor_id: Full URI of the reporter actor, or ``None`` to skip.
-        report_id: Report URI used to derive the CaseActor slug; falls back to
-            ``case_id`` if ``None``.
+        report_id: Report URI. Unused: the CaseActor identity does not vary
+            by report (#1872); it comes from configuration only (CP-08-009).
         dl: The store to seed — required, and specifically the store of the
             actor whose replica of the case is being set up.  There is no
             default: it used to fall back to ``get_shared_dl()``, which ADR-0073
             deletes, and no defensible default replaced it.  "Which actor's
             replica?" is exactly the question a shared DataLayer let callers skip,
             and the participants seeded here are per-replica state.
+
+    Raises:
+        DemoCaseActorUnconfiguredError: No CaseActor service URL is
+            configured. Raised before any write, so the store is unchanged.
     """
+    del report_id  # the CaseActor identity does not vary by report (#1872)
+    # Resolve the CaseActor first: an unconfigured URL must fail before the
+    # vendor and reporter records are written (CP-08-009).
+    case_actor_id = configured_case_actor_id()
     case_obj = dl.read(case_id)
     if not isinstance(case_obj, VulnerabilityCase):
         logger.warning(
@@ -1585,7 +1591,7 @@ def seed_case_participants_for_demo(
 
     _seed_vendor_participant(case_obj, vendor_actor_id, dl)
     _seed_reporter_participant(case_obj, reporter_actor_id, dl)
-    _seed_case_actor_participant(case_obj, report_id, dl)
+    _seed_case_actor_participant(case_obj, case_actor_id, dl)
     # Participants first: the embargo write reads the case from the store
     # and records consent on the participants it indexes.
     dl.save(case_obj)

@@ -13,7 +13,7 @@
 
 """Demo helpers take the CaseActor identity from configuration only (CP-08-009).
 
-``case_actor_id_for_report`` and ``_seed_case_actor_participant`` once fell back
+``case_actor_id_for_report`` and ``seed_case_participants_for_demo`` once fell back
 to this node's own ``server.base_url`` when no CaseActor service URL was
 configured. In a multi-container topology that names a CaseActor no container
 hosts, so each helper now raises an error naming
@@ -21,13 +21,13 @@ hosts, so each helper now raises an error naming
 """
 
 from collections.abc import Iterator
-from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 from pytest import MonkeyPatch
 
 from vultron.config.app import reload_config
-from vultron.demo.helpers.seeding import _seed_case_actor_participant
+from vultron.demo.helpers.seeding import seed_case_participants_for_demo
 from vultron.demo.utils import case_actor_id_for_report
 from vultron.errors import DemoCaseActorUnconfiguredError
 
@@ -63,14 +63,20 @@ class TestCaseActorUrlRequired:
         with pytest.raises(DemoCaseActorUnconfiguredError, match=_ENV):
             case_actor_id_for_report("https://example.org/reports/r1")
 
-    def test_seed_case_actor_participant_raises_when_unconfigured(
+    def test_seeding_raises_before_any_write_when_unconfigured(
         self, unconfigured: None
     ) -> None:
-        case_obj = SimpleNamespace(
-            id_="https://example.org/cases/c1", actor_participant_index={}
-        )
+        """The seeder fails before it writes the vendor or reporter record."""
+        dl = MagicMock(name="dl")
         with pytest.raises(DemoCaseActorUnconfiguredError, match=_ENV):
-            _seed_case_actor_participant(case_obj, None, dl=None)
+            seed_case_participants_for_demo(
+                "https://example.org/cases/c1",
+                "https://example.org/actors/vendor",
+                "https://example.org/actors/reporter",
+                None,
+                dl,
+            )
+        assert dl.mock_calls == []
 
     def test_identity_follows_the_configured_url_not_the_server_base(
         self, node_env: MonkeyPatch

@@ -329,14 +329,13 @@ def test_a_late_reply_changes_nothing_once_the_case_is_fully_closed(
 
 
 @pytest.mark.spec("CM-21-017")
-@pytest.mark.spec("HP-01-008")
-@pytest.mark.spec("CM-21-043")
+@pytest.mark.spec("CM-21-036")
 def test_the_case_manager_authors_no_undo_of_an_offer():
-    """No CASE_MANAGER entry withdraws an expired Offer (ADR-0152).
+    """``Undo(Offer)`` is the Case Owner's withdrawal, never the CASE_MANAGER's.
 
-    Only the Case Owner may send ``Undo(Offer)``, and only to the
-    CASE_MANAGER: the rule admits no sender at a participant, so a replica
-    refuses a CASE_MANAGER-authored one (HP-01-006).
+    The declared sender rule admits ``Undo(Offer)`` only from the Case Owner,
+    and only at the CASE_MANAGER (HP-01-006). The CASE_MANAGER has no
+    withdrawal of its own to send when an Offer expires (ADR-0152).
     """
     from vultron.core.behaviors.sender_entitlement import (
         SenderEntitlementKind,
