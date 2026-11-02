@@ -114,7 +114,7 @@ class ContainerSlot:
 
         Backs each scenario's ``--<name>-id`` option, so the compose
         environment can hand a container's actor id to the scenario that drives
-        it (DEMOMA-14-008) without the scenario naming either.
+        it (DEMOMA-14-024) without the scenario naming either.
         """
         return f"VULTRON_{self.name.upper().replace('-', '_')}_ACTOR_ID"
 

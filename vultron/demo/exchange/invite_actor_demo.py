@@ -193,7 +193,7 @@ def demo_invite_actor_reject(
     then rejects the Invite the CASE_MANAGER recorded.  After the Reject,
     ``ApplyInviteRejectToParticipantNode`` closes the inert record at
     RM ``CLOSED`` (CM-11-007) — coordinator is present in
-    ``actor_participant_index`` but never active (DEMOMA-27-002).
+    ``actor_participant_index`` but never active (DEMOMA-27-008).
 
     Steps:
     1. Setup: initialize case (report submitted + validated, case created,
@@ -249,7 +249,7 @@ def demo_invite_actor_reject(
                     f" invite-send (ADR-0114, CM-11-006)"
                 )
         with demo_check(
-            "Coordinator at RM.CLOSED after rejection (never active, DEMOMA-27-002)"
+            "Coordinator at RM.CLOSED after rejection (never active, DEMOMA-27-008)"
         ):
             _check_participant_rm_state_in(
                 client=client,

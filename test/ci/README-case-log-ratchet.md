@@ -10,7 +10,7 @@ universal invariant check functions live in
 
 Each scenario declares itself in its own demo module by decorating `main()`
 with `@scenario(...)` from `vultron/demo/scenario/registry.py`; that registry
-is the sole declaration point (ADR-0098, DEMOCI-11-001). Both the table below
+is the sole declaration point (ADR-0098, DEMOCI-11-036). Both the table below
 and `.github/demo-scenarios.json` are generated from it, and the harness path
 in each row is derived from the scenario name by convention rather than stored
 (DEMOCI-11-003). Do not hand-edit either — change the decorator and run
@@ -87,7 +87,7 @@ structural ratchets and helper unit tests listed above do not skip — they read
 source and docs, not artifacts, and are expected to run and pass everywhere.
 
 One consequence worth knowing: the `_AllSkipGuard` in
-`test/ci/invariants/conftest.py` (DEMOCI-10-005) forces a non-zero exit when
+`test/ci/invariants/conftest.py` (DEMOCI-10-017) forces a non-zero exit when
 *every* collected test skipped, which is how a vacuous green is caught. It
 judges the whole session, so it only works because CI invokes one harness file
 at a time. Do not "helpfully" widen that CI command to the directory — adding

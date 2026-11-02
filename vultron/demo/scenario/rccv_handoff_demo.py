@@ -92,7 +92,7 @@ DEMO_NAME = "rccv-handoff"
 # The scenario's actors in main() parameter order, each seated in a container of
 # the fixed cast (DEMOCI-11-020).  The demo CLI derives this scenario's
 # sub-command options from this list (DEMOCI-11-011); the CaseActor role
-# carries an id option of its own, which DEMOMA-14-008 requires.
+# carries an id option of its own, which DEMOMA-14-023 requires.
 ROLES = two_coordinator_roles(case_actor=case_actor_role(has_id=True))
 #: Indexed for the CLI factory and for ``coordinated_clients()``, which reads
 #: each actor's container address off its cast slot — so this module declares
@@ -134,7 +134,7 @@ Workflow:
 
 
 def c1_hands_the_case_to_c2(state: StoryState) -> None:
-    """C1 offers case ownership to C2, which accepts (DEMOMA-14-004).
+    """C1 offers case ownership to C2, which accepts (DEMOMA-14-004, DEMOMA-14-020).
 
     C2 holds ``CVDRole.COORDINATOR`` and must be an active participant by
     now, so the shared continuation reads the join the opening's roster gate
@@ -244,7 +244,7 @@ def run_rccv_handoff_demo(
         c2_id: Deterministic URI for the C2 actor.
         vendor_id: Deterministic URI for the Vendor actor.
         case_actor_id: Accepted so ``--case-actor-id`` has somewhere to go
-            (DEMOMA-14-008) and unused: the case-actor container seeds its own
+            (DEMOMA-14-023) and unused: the case-actor container seeds its own
             identity on reset (DEMOMA-06-004), and the id the Invite check
             needs is read off the case's participant index, so that it names
             the actor actually holding CASE_MANAGER (PCR-08-008).

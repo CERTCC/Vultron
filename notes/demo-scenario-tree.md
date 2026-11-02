@@ -290,7 +290,7 @@ retiring `path=` and the hand-placed `reach_step` (#5537).
   they are written once in `story_cast.py` (`CastSeat`, `open_story_cast`,
   `story_open_cast`) and each family supplies only its seats, in its
   `seed_containers_*` return order, and that seeder as a closure. A second
-  family copying the first one's opener is what DEMOMA-17-001 forbids, and the
+  family copying the first one's opener is what DEMOMA-17-003 forbids, and the
   seat order is load-bearing: the opener binds each session to the seat's own
   container, so a seeder returning a different number of actors raises rather
   than seating one actor on another's client (#5536).

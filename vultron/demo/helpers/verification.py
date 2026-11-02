@@ -682,7 +682,7 @@ def verify_case_actor_holds_records(
         raise AssertionError(
             f"Dedicated case-actor container ({case_actor_client.base_url})"
             f" does not hold case {case_id!r} in CaseActor {case_actor_id}'s"
-            " store: the proposal was not handled there (DEMOMA-06-004)"
+            " store: the proposal was not handled there (DEMOMA-06-008)"
         ) from exc
     case = as_VulnerabilityCase.model_validate(case_data)
     participant = _fetch_participant(case_actor_client, case_id, case_actor_id)

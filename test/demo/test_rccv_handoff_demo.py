@@ -26,7 +26,7 @@ on its ``_phase_*`` functions therefore sit here on three things:
 * each of its **own fragments**, driven against a
   :func:`~test.demo._helpers.story_state` stand-in cast, so a test observes
   what the fragment calls;
-* the **surfaces around the story** — the CLI option set (DEMOMA-14-008), the
+* the **surfaces around the story** — the CLI option set (DEMOMA-14-023), the
   registry entry and the devlogs names the invariant harness reads.
 
 What the shared opening does is not re-tested here: it is one copy of the code,
@@ -326,7 +326,7 @@ class TestRccvHandoffCast:
             "state": captured["state"],
         }
 
-    @pytest.mark.spec("DEMOMA-14-001")
+    @pytest.mark.spec("DEMOMA-14-001", "DEMOMA-14-018")
     def test_every_container_is_reset_and_the_case_actor_re_seeded(self):
         """DEMOMA-01-003: a run starts clean on every container it touches.
 
@@ -377,7 +377,7 @@ class TestRccvHandoffCast:
         assert ran["run_story"].call_args.args[0] == "rccv-handoff"
         assert ran["run_story"].call_args.args[1] is demo.STORY
 
-    @pytest.mark.spec("DEMOMA-14-008")
+    @pytest.mark.spec("DEMOMA-14-023")
     def test_a_case_actor_id_override_is_accepted_and_unused(self):
         """``--case-actor-id`` has somewhere to go and seeds nothing with it.
 
@@ -407,7 +407,7 @@ class TestRccvHandoffCast:
 class TestC1HandsTheCaseToC2:
     """The scenario casts C1 as the owner and C2 as the new owner."""
 
-    @pytest.mark.spec("DEMOMA-14-004")
+    @pytest.mark.spec("DEMOMA-14-004", "DEMOMA-14-020")
     def test_the_handover_names_c1_as_owner_and_c2_as_the_new_owner(self):
         """The mechanics are shared; which part each plays is the scenario's.
 
@@ -777,8 +777,9 @@ def help_text() -> str:
 
 
 @pytest.mark.spec("DEMOMA-14-008")
+@pytest.mark.spec("DEMOMA-14-023")
 class TestRccvHandoffCliCommand:
-    """The generated sub-command offers every option DEMOMA-14-008 names."""
+    """The generated sub-command offers every option DEMOMA-14-023 names."""
 
     @pytest.mark.parametrize(
         "option",

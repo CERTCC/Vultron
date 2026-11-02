@@ -465,11 +465,11 @@ class TestTheFourExchangeNotes:
 
 
 # ---------------------------------------------------------------------------
-# Publication and closure with C1 still the owner (DEMOMA-13-002/006)
+# Publication and closure with C1 still the owner (DEMOMA-13-014/018)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("DEMOMA-13-002")
+@pytest.mark.spec("DEMOMA-13-014")
 class TestEveryonePublishes:
     """C1 never hands the case over, so C1 publishes first."""
 
@@ -767,7 +767,7 @@ class TestRccvExtensionCliCommand:
         assert option in help_text
 
     def test_the_case_actor_carries_no_id_option(self, help_text: str):
-        """Only ``rccv-handoff`` exposes one (DEMOMA-14-008)."""
+        """Only ``rccv-handoff`` exposes one (DEMOMA-14-023)."""
         assert "--case-actor-id" not in help_text
 
     def test_main_builds_one_client_per_container_and_runs_the_story(self):

@@ -23,7 +23,7 @@ Both consumers read the same list:
 
 * ``vultron/demo/cli.py``'s command factory turns the list into that scenario's
   click options, so a registered scenario cannot be missing a sub-command and a
-  sub-command cannot be hand-declared (DEMOCI-11-011);
+  sub-command cannot be hand-declared (DEMOCI-11-044, DEMOCI-11-045);
 * the module's own ``*_BASE_URL`` constants are :attr:`ActorRole.url` values,
   and its ``main()`` resolves each actor's id with
   :meth:`ActorRole.resolve_id`.
@@ -165,7 +165,7 @@ class ActorRole:
     def id_env(self) -> str | None:
         """Env var backing the ``--<name>-id`` option: the slot's.
 
-        DEMOMA-14-008 requires the id options to have env bindings, and the
+        DEMOMA-14-024 requires the id options to have env bindings, and the
         binding names the container rather than the part it plays here, so two
         scenarios that seat one container read one variable.
         """
@@ -329,7 +329,7 @@ def case_actor_role(*, has_id: bool = False) -> ActorRole:
     (CP-08-008, DEMOMA-06-004), so each has this role, in the
     :data:`~vultron.demo.helpers.cast.CASE_ACTOR` slot.  Scenarios differ only
     in whether they take a ``--case-actor-id`` (the handoff scenarios do, per
-    DEMOMA-14-008).
+    DEMOMA-14-023).
 
     Args:
         has_id: Whether the scenario also takes ``--case-actor-id``.

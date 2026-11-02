@@ -434,9 +434,9 @@ class TestStepMarks:
         reach_step("vendor-after-answer", "report-fix-ready", by=VENDOR)
 
 
-@pytest.mark.spec("DEMOCI-11-013")
+@pytest.mark.spec("DEMOCI-11-013", "DEMOCI-11-047")
 class TestDecidingRole:
-    """The harness fails a step whose caller lacks the role (DEMOCI-11-013).
+    """The harness fails a step whose caller lacks the role (DEMOCI-11-047).
 
     A participant's role is read from its record in the canonical case; the
     Reporter's, before any case exists, from submitting the report.

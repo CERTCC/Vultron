@@ -94,7 +94,7 @@ class TestSlotDerivations:
         assert role.id_env == "VULTRON_ACTOR2_ACTOR_ID"
 
     def test_an_id_option_is_env_bound_to_its_container(self) -> None:
-        """DEMOMA-14-008 wants the id options env-bound; the slot names it."""
+        """DEMOMA-14-024 wants the id options env-bound; the slot names it."""
         assert _role(has_id=True).id_env == "VULTRON_ACTOR0_ACTOR_ID"
         assert _role().id_env is None
 
@@ -274,7 +274,7 @@ class TestCaseActorRole:
         assert role.plays is None
 
     def test_takes_an_id_option_only_when_asked(self) -> None:
-        """Only the handoff scenarios offer ``--case-actor-id`` (DEMOMA-14-008)."""
+        """Only the handoff scenarios offer ``--case-actor-id`` (DEMOMA-14-023)."""
         assert case_actor_role().has_id is False
         assert case_actor_role().id_help is None
         assert case_actor_role(has_id=True).id_help is not None

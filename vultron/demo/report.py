@@ -409,7 +409,7 @@ class CaseTimelineEvent(BaseModel):
 
     This is the reusable, testable "friendly data" layer between JSONL parsing
     and rendering: both renderers consume :class:`CaseTimelineEvent` objects
-    rather than raw JSONL dicts (DRPT-02-001).
+    rather than raw JSONL dicts (DRPT-02-014).
 
     Fields:
         case_id: URI of the case this entry belongs to; the primary grouping
@@ -669,7 +669,7 @@ def discover_replicas(input_dir: Path) -> dict[str, list[dict[str, Any]]]:
     """Discover and parse case-ledger replica files under ``input_dir``.
 
     Recursively globs ``**/*-case-ledger.jsonl`` and groups the parsed entries
-    by the name of the directory that contains each file (DRPT-01-002,
+    by the name of the directory that contains each file (DRPT-01-007,
     DRPT-01-003).
 
     Raises:
@@ -699,7 +699,7 @@ def build_timeline(
     De-duplicates replicated entries by ``entry_hash`` (falling back to a
     per-source key for degenerate hashless entries), records which actors'
     replicas hold each entry, and orders the result by ``log_index`` ascending
-    (DRPT-02-004, DRPT-02-005).
+    (DRPT-02-004, DRPT-02-005, DRPT-02-015).
 
     Actor URIs are resolved to display names extracted from inline actor objects
     in the payload snapshots (e.g. Organization objects carrying a ``name``
@@ -742,7 +742,7 @@ def build_timeline(
 
     # Group by case first so distinct cases discovered under one input
     # directory are never interleaved, then order within a case by log_index
-    # (DRPT-02-006, DRPT-02-004).
+    # (DRPT-02-006, DRPT-02-016).
     events.sort(key=lambda e: (e.case_id, e.log_index, e.entry_hash))
     return events
 
@@ -1008,7 +1008,7 @@ def render_html(events: list[CaseTimelineEvent], actors: list[str]) -> str:
     ``<h2>Case …</h2>`` + table section each (DRPT-02-006). The per-actor
     replica-presence matrix is rendered as a per-actor emoji cell per event
     (DRPT-04-003). Full URIs/ids are retained only as ``title`` tooltips
-    (DRPT-03-001).
+    (DRPT-03-011).
     """
     by_case = group_events_by_case(events)
     sections: list[str] = []
@@ -1064,7 +1064,8 @@ def generate_report(input_dir: Path, fmt: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# CLI (DRPT-01-001, DRPT-04-004, DRPT-04-005)
+# CLI (DRPT-01-001, DRPT-01-006, DRPT-04-004, DRPT-04-005, DRPT-04-017,
+# DRPT-04-018)
 # ---------------------------------------------------------------------------
 
 
