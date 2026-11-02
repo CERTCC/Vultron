@@ -22,7 +22,7 @@ rejects the proposal's register entry and writes no consent.  The owner's
 (:mod:`.activation`).  Consent is per embargo (CM-10-001): a signatory's
 answer to a *proposed* revision is about those terms only, and consent to
 the active embargo is re-evaluated only when the owner activates a revision
-(EP-05-001).  A ``Reject(Invite(EmbargoEvent))`` is recorded by
+(EP-05-001, EP-05-003).  A ``Reject(Invite(EmbargoEvent))`` is recorded by
 ``record_embargo_rejection`` (:mod:`.consent`).
 """
 
@@ -117,7 +117,7 @@ class _AnswerOperationsMixin(_PecActivationMixin):
         attacked returns the case to the prior terms only inside the act:
         the caller ends the embargo in the same act, so the revision ends
         ``REJECTED`` and the embargo ``TERMINATED``, as two entries a
-        replica copies in order (EMB-04-002, MSM-07-009).  The received and
+        replica copies in order (EMB-04-002, MSM-07-032).  The received and
         trigger trees compose that termination after this step
         (``end_embargo_outliving_disclosure_bt``).
 

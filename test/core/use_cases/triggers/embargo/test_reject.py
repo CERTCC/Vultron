@@ -294,7 +294,7 @@ def test_manager_reject_after_disclosure_rejects_then_terminates(
 
     It commits the ``Reject`` (the ``REJECT`` step) and then its own
     ``Remove`` (the ``TERMINATE`` step, with the threat signal as its cause)
-    in the same act (MSM-07-009).
+    in the same act (MSM-07-032).
     """
     owner, dl = owner_actor_and_dl
     case, proposal_id, revision_id = _owner_manager_revision_after_disclosure(
@@ -358,7 +358,7 @@ def test_manager_reject_after_disclosure_failing_after_the_remove_commits_neithe
 
     The termination's stub re-issue runs after its ``Remove`` entry commits;
     when it fails, neither entry is kept and the prior terms are not left
-    standing by a fallback (MSM-07-009).
+    standing by a fallback (MSM-07-032).
     """
     owner, dl = owner_actor_and_dl
     case, proposal_id, revision_id = _owner_manager_revision_after_disclosure(

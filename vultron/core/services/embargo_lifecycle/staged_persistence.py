@@ -15,7 +15,7 @@
 
 ``EmbargoLifecycle.initialize_creation_embargo`` changes the case, the
 participants' consent records and, for a contested creation, a revision's
-``EmbargoEvent`` (EP-04-002, EP-04-003, CM-14-003).  Saved one at a time, a
+``EmbargoEvent`` (EP-04-002, EP-04-016, CM-14-003).  Saved one at a time, a
 failure part-way left the case past ``EM.NONE`` with the rest undone, and the
 once-per-case guard then refused the rerun that would have finished it
 (EP-04-012, #4142).  The shared consent helpers save each participant they

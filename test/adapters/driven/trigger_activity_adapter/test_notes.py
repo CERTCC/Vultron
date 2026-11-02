@@ -116,7 +116,7 @@ class TestAddNoteToCase:
 
         assert dl.read(activity_id) is not None
 
-    @pytest.mark.spec("VAM-01-010")
+    @pytest.mark.spec("VAM-01-015")
     @pytest.mark.spec("VAM-07-002")
     def test_carries_the_note_inline_with_the_case_as_target(
         self, adapter, dl

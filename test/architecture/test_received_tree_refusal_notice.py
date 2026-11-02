@@ -183,7 +183,7 @@ NO_COMMIT_TREES: dict[_Site, str] = {
         _NOT_UNDERSTOOD
     ),
     (f"{_R}/received_report_trees.py", "create_ack_report_received_tree"): (
-        "RK goes to the reporter, never to the CASE_MANAGER (RMB-08-003)"
+        "RK goes to the reporter, never to the CASE_MANAGER (RMB-08-005)"
     ),
     (f"{_R}/received_report_trees.py", "create_report_received_tree"): (
         _BEFORE_ANY_CASE

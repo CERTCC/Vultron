@@ -54,7 +54,7 @@ def carries_no_received_body(activity: Any) -> bool:
     """True for a received event routed without received evidence.
 
     A resend of the held body of an activity still deferred is routed so
-    (VM-08-002, IE-10-001): the copy routed is the held one, not this
+    (VM-08-010, IE-10-001): the copy routed is the held one, not this
     delivery, so there is nothing new to record.  The archived copy routed
     for a resend of an archived activity carries the archived body and is
     not one.
@@ -68,7 +68,7 @@ def unrecordable_resend_reason(activity_id: str, case_id: str) -> str:
     """Why a resend with no received body is refused, not recorded.
 
     Its first delivery was archived but never recorded (a guard refused it),
-    and the resend carries no body to record in its place (VM-08-002).
+    and the resend carries no body to record in its place (VM-08-010).
     """
     return (
         f"activity '{activity_id}' is a resend of an activity this receiver"

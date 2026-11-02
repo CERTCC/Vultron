@@ -16,7 +16,7 @@ relays a contested creation's revision:
   3. Add reporter as participant at RM.ACCEPTED (AC-2)
   4. Initialize the default embargo, seeding the CASE_OWNER as a signatory
      (AC-3, CM-14-003); a contest registers the losing terms as a revision
-     (EP-04-003)
+     (EP-04-016)
   5. Seed reporter as an embargo signatory (CM-14-005)
   6. Emit ``Accept(CaseProposal)``
   7. Emit ``Create(VulnerabilityCase)`` with inline participants (AC-5)
@@ -24,7 +24,7 @@ relays a contested creation's revision:
      participant holds the case before its first ``Announce(CaseLedgerEntry)``
      (CM-14-011, CP-09-009)
   9. Relay a contested creation's revision to the party whose terms won
-     (EP-04-011) — after initialization is complete (CM-14-007)
+     (EP-04-027) — after initialization is complete (CM-14-007)
 
 Steps 1-9, with the admission record ahead of them, are one act: they run in
 one ``ActTransaction`` (ADR-0146, CLP-07-015), so a failed step rolls back
@@ -286,7 +286,7 @@ def create_case_proposal_received_tree(
          (ADR-0041 AC-3); its ``InitializeCreationEmbargoNode`` seeds the case
          owner (``attributed_to``, the CASE_OWNER) as an embargo signatory
          (CM-14-003) and registers a contested creation's losing terms as a
-         revision (EP-04-003)
+         revision (EP-04-016)
       7. ``SeedReporterSignatoryNode`` — reporter seeded as embargo
          signatory (CM-14-005); implicit consent per ADR-0048
 
@@ -349,7 +349,7 @@ def create_case_proposal_received_tree(
             cannot look up for itself.
         actor_config: Optional configuration of the CaseActor itself.  Its
             ``protocol_default_embargo_duration`` is the fallback embargo
-            when no actor default applies (EP-04-005); ``None`` uses the
+            when no actor default applies (EP-04-019); ``None`` uses the
             ``ActorConfig`` default.  It says nothing about the proposer, so
             its ``default_case_roles`` are not read (ADR-0133).
         call_out: Bundle supplying the ``EvaluateCaseProposal`` admission
@@ -444,7 +444,7 @@ def create_case_proposal_received_tree(
             # CASE_OWNER this case is attributed to — as a signatory
             # (CM-14-003), the one owner-seeding path.  A contested creation
             # registers its losing terms as a revision in the same commit
-            # (EP-04-003, #4142).
+            # (EP-04-016, #4142).
             InitializeDefaultEmbargoNode(
                 actor_config=actor_config, report_id=report_id
             ),

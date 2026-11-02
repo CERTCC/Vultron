@@ -95,7 +95,7 @@ def test_trigger_withdraw_embargo_returns_202_with_the_leave(
 def test_trigger_withdraw_embargo_from_an_invited_row_returns_409(
     client_triggers, actor, dl
 ):
-    """EP-09-013: a row that is not AGREED has nothing to withdraw from."""
+    """EP-09-028: a row that is not AGREED has nothing to withdraw from."""
     case, _ = _case_with_signatory(dl, actor.id_, EmbargoConsentState.INVITED)
 
     resp = client_triggers.post(
@@ -109,7 +109,7 @@ def test_trigger_withdraw_embargo_from_an_invited_row_returns_409(
 def test_trigger_withdraw_embargo_with_no_embargo_in_force_returns_409(
     client_triggers, actor, dl
 ):
-    """EP-09-013: with no embargo in force there is nothing to withdraw from."""
+    """EP-09-028: with no embargo in force there is nothing to withdraw from."""
     case = VulnerabilityCase(name="NO-EMBARGO-CASE", attributed_to=_OWNER)
     dl.create(case)
     _add_case_manager(case, dl)
@@ -133,7 +133,7 @@ def test_trigger_withdraw_embargo_with_no_embargo_in_force_returns_409(
 def test_trigger_withdraw_embargo_by_the_case_owner_returns_409(
     client_triggers, actor, case_with_embargo
 ):
-    """EP-09-013: the owner ends an embargo with terminate-embargo instead."""
+    """EP-09-028: the owner ends an embargo with terminate-embargo instead."""
     case_obj, _ = case_with_embargo
 
     resp = client_triggers.post(

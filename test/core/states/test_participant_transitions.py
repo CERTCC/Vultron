@@ -262,6 +262,7 @@ class TestRoleGates:
         assert "CVDRole.VENDOR" in violation.message
 
     @pytest.mark.spec("CSB-15-001")
+    @pytest.mark.spec("CSB-15-007")
     def test_fix_ready_vf_role_gate_cites_csb_15_001(self):
         violations = _violations(
             current_rm=RM.ACCEPTED,
@@ -309,7 +310,7 @@ class TestRoleGates:
         The role gate covers *any* asserted VF value, not only the ones that
         claim awareness or fix readiness, mirroring the deployer path (#2963).
         Before #3135 a non-VENDOR could assert ``vf`` and thereby open a vendor
-        path, which SM-09-001's public-disclosure promotion then advanced to
+        path, which SM-09-003's public-disclosure promotion then advanced to
         ``Vf`` — a value the same actor could not assert directly.
 
         The Vendor-implies-V rule (PRM-06-002) does not fire here: it constrains
@@ -333,7 +334,7 @@ class TestRoleGates:
 
 
 class TestNonVendorCannotOpenAVendorPath:
-    """#3135: close the route that fed SM-09-001's promotion an ungated ``vf``.
+    """#3135: close the route that fed SM-09-003's promotion an ungated ``vf``.
 
     ``_apply_ac1_promotions`` runs *after* validation, so a ``vf`` the evaluator
     accepted could be promoted to ``Vf`` — a value the same actor could not

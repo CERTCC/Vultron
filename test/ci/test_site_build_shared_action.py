@@ -93,12 +93,26 @@ def _uses_build_site(wf_data: dict[str, Any]) -> bool:
 
 
 @pytest.mark.spec("DOCBW-06-004")
-def test_build_site_action_takes_no_inputs():
-    """An input would let one caller build a different site from another."""
+def test_build_site_action_inputs_pick_only_the_commit():
+    """An input that changed how the site builds would let one caller build a
+    different site from another; the one input picks which commit, for a
+    rollback (DOCBW-06-020), and reaches nothing but the checkout's ``ref``.
+    """
     action = load_workflow(BUILD_SITE_DIR / "action.yml")
-    assert not action.get("inputs"), (
+    assert set(action.get("inputs") or {}) <= {"ref"}, (
         f"{BUILD_SITE_ACTION} declares inputs {sorted(action['inputs'])}, so "
         "its callers can build different sites (DOCBW-06-004)."
+    )
+    readers = [
+        step
+        for step in local_action_steps(BUILD_SITE_ACTION)
+        if "inputs." in str(step)
+    ]
+    assert len(readers) == 1, readers
+    assert str(readers[0].get("uses", "")).startswith(CHECKOUT_ACTION)
+    assert readers[0]["with"]["ref"] == "${{ inputs.ref }}"
+    assert "inputs." not in str(
+        {k: v for k, v in readers[0]["with"].items() if k != "ref"}
     )
 
 

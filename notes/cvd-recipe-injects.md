@@ -264,7 +264,7 @@ Reporter inbox.
 
 **Inject design**: A vendor-only variant. The Vendor self-reports a
 vulnerability it learned of publicly and the case is created with P already
-set. EP-04-008 then requires the case to stay at `EM.NONE`, with no embargo
+set. EP-04-020 then requires the case to stay at `EM.NONE`, with no embargo
 ever created.
 
 **Why sequenced, not approximated**: self-reporting and then publishing

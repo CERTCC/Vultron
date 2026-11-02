@@ -1890,7 +1890,7 @@ groups:
     note: >-
       Where a message names its subject as its sole `to:` recipient, there is
       no position to choose: the invitee of an `Invite(EmbargoEvent)` is that
-      recipient, and an Invite naming none or several is refused (EP-09-010).
+      recipient, and an Invite naming none or several is refused (EP-09-026).
     rationale: >-
       The order of the `to:` list carries no meaning. A pick by position resolves a
       message with several recipients to the same subject in every replica. Each

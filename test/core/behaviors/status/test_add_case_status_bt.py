@@ -1619,7 +1619,7 @@ class TestCaseLedgerEntryCreation:
 
 
 # ---------------------------------------------------------------------------
-# EmitCaseStatusUpdateNode — AC-1 pX promotion (SM-09-001)
+# EmitCaseStatusUpdateNode — AC-1 pX promotion (SM-09-003)
 # ---------------------------------------------------------------------------
 
 EMIT_ACTOR_ID = "https://example.org/actors/emit-node-actor"
@@ -1627,7 +1627,7 @@ EMIT_PARTICIPANT_ID = f"{CASE_ID}/participants/emit-node-actor"
 
 
 class TestEmitCaseStatusUpdateNodePromotion:
-    """AC-1 / SM-09-001: EmitCaseStatusUpdateNode promotes pX states before write."""
+    """AC-1 / SM-09-003: EmitCaseStatusUpdateNode promotes pX states before write."""
 
     def _build_dl(self):
         from vultron.enums.roles import CVDRole
@@ -1650,7 +1650,7 @@ class TestEmitCaseStatusUpdateNodePromotion:
         return dl
 
     def test_pXa_promoted_to_PXa_by_emit_node(self):
-        """AC-1 / SM-09-001: pXa in case.current_status is promoted to PXa."""
+        """AC-1 / SM-09-003: pXa in case.current_status is promoted to PXa."""
         from vultron.core.behaviors.case_status_snapshot import (
             EmitCaseStatusUpdateNode,
         )

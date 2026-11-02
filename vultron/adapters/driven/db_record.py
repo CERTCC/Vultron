@@ -374,7 +374,7 @@ def _retype_inline_ref(obj: "BaseModel", field_name: str, raw: object) -> Any:
     try:
         # Both-branch: a stored inline ref may be any persisted type, core
         # records included, so this read path opts into the core fallback
-        # (VM-06-008).
+        # (VM-06-014).
         specific_cls = find_in_vocabulary(type_str, include_core=True)
     except KeyError:
         return None
@@ -489,7 +489,7 @@ class Record(StorableRecord):
         """
         try:
             # Both-branch: a record holds whatever was stored, including core
-            # records keyed only in CORE_TYPE_MAP (VM-06-008).
+            # records keyed only in CORE_TYPE_MAP (VM-06-014).
             cls = find_in_vocabulary(self.type_, include_core=True)
         except KeyError:
             raise ValueError(  # noqa: B904  # ruff-baseline #3353

@@ -84,7 +84,7 @@ class StoreNoteIfAbsentNode(SaveNoteNode):
 class NoteIdNotTakenNode(FlaggedRepeatGuardMixin, DataLayerConditionWithPorts):
     """Guard: no note is stored under the received note's id yet.
 
-    An ``Add(Note)`` introduces a new note (VAM-01-010, HP-08-006); a change
+    An ``Add(Note)`` introduces a new note (VAM-01-015, HP-08-006); a change
     to a stored note is an ``Update(Note)``.  So a note already stored under
     the id refuses the ``Add``, whatever the carried copy says: the inbox's
     routing rebuild hands this guard the stored note in place of the carried

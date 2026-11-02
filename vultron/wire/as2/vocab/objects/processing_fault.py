@@ -38,7 +38,7 @@ class as_ProcessingFault(as_VultronObject):
     assertion activity could not be processed (ADR-0080).
 
     Per ASK-07-004: ``in_reply_to`` carries a pointer to the failed activity
-    URI; the failed activity is never echoed inline.
+    URI; the failed activity is never echoed inline (ASK-07-012).
     Per ASK-07-005: ``failure_class`` is a URI under the Vultron namespace.
     Per ASK-07-006: no implementation diagnostics are included.
 

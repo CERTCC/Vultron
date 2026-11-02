@@ -210,13 +210,14 @@ def test_the_owner_rejecting_one_of_two_revisions_keeps_the_other_open():
 @pytest.mark.spec("MSM-07-009")
 @pytest.mark.spec("EMB-13-005")
 @pytest.mark.spec("TB-06-007")
+@pytest.mark.spec("MSM-07-032")
 def test_the_owner_rejecting_a_revision_after_disclosure_ends_the_embargo():
     """EJ with P/X/A set ends EXITED in every store, not ACTIVE again.
 
     The owner's ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` of the last open
     revision (ADR-0122, EMB-04-002): the revision ends ``REJECTED`` and the
     embargo ``TERMINATED`` with the threat signal as its cause, as two
-    entries every replica copies (MSM-07-009, EMB-13-005).
+    entries every replica copies (MSM-07-032, EMB-13-005).
     """
     net = _Network("https://example.org/cases/answer-after-disclosure")
     revision = _propose(net, "late", 90)
@@ -247,7 +248,7 @@ def test_the_owner_rejecting_a_revision_after_disclosure_ends_the_embargo():
         assert case.current_status.em.state == EM.EXITED, actor_id
         assert case.active_embargo_id is None, actor_id
         assert case.proposed_embargo_ids == [], actor_id
-        # Rejected as decided, then the embargo terminated (MSM-07-009).
+        # Rejected as decided, then the embargo terminated (MSM-07-032).
         assert case.embargo_register_status(revision) is (
             EmbargoRegisterStatus.REJECTED
         ), actor_id
@@ -411,6 +412,8 @@ def test_the_managers_expiry_is_committed_and_replayed_by_a_replica():
 @pytest.mark.spec("CLP-10-006")
 @pytest.mark.spec("TB-06-007")
 @pytest.mark.spec("EP-09-002")
+@pytest.mark.spec("EMB-17-013")
+@pytest.mark.spec("EMB-17-014")
 def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     """A late Accept of a stale embargo is re-invited; a replica learns it.
 
@@ -538,6 +541,7 @@ def test_a_late_accept_of_a_stale_embargo_reinvites_nobody_from_a_replica():
 @pytest.mark.spec("EMB-17-009")
 @pytest.mark.spec("RSH-08-004")
 @pytest.mark.spec("TB-06-007")
+@pytest.mark.spec("EMB-17-018")
 def test_an_honoured_late_accept_is_committed_and_replayed_by_a_replica():
     """Late Accept honours into an AGREED row when the embargo is still active.
 
@@ -699,6 +703,9 @@ def _no_trace(net: _Network) -> tuple[list[str], list[str]]:
 
 @pytest.mark.spec("EMB-17-004")
 @pytest.mark.spec("CLP-02-013")
+@pytest.mark.spec("EMB-17-015")
+@pytest.mark.spec("EMB-17-016")
+@pytest.mark.spec("EMB-17-017")
 def test_a_late_accept_with_no_embargo_to_bind_records_and_sends_nothing():
     """Late Accept on an exited embargo: no entry, no message, no row moved.
 
@@ -741,7 +748,7 @@ def test_a_redelivered_late_accept_gets_the_same_result(evidence: str):
     """A redelivery of the late Accept also records and sends nothing.
 
     The inbox routes a resend either as the body intake archived or with no
-    received body at all (IE-10-001, VM-08-002).  Nothing is built from the
+    received body at all (IE-10-001, VM-08-009, VM-08-010).  Nothing is built from the
     Accept, so either way the arm answers it the same: ``SKIPPED``, with no
     entry and no message.
     """

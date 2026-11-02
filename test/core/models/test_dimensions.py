@@ -64,13 +64,13 @@ class TestEmDimension:
         assert d2.state == EM.ACTIVE
 
     def test_state_mutation_raises(self):
-        """``EmDimension`` is frozen: assigning to .state raises (SDO-03-006)."""
+        """``EmDimension`` is frozen: assigning to .state raises (SDO-03-010)."""
         d = EmDimension(state=EM.NONE)
         with pytest.raises(ValidationError):
             d.state = EM.ACTIVE  # type: ignore[misc]
 
     def test_status_em_assignment_raises(self):
-        """``CaseStatus.em`` is a frozen field: reassignment raises (SDO-03-006)."""
+        """``CaseStatus.em`` is a frozen field: reassignment raises (SDO-03-010)."""
         status = CaseStatus(context="urn:case:1")
         with pytest.raises(ValidationError):
             status.em = EmDimension(state=EM.ACTIVE)  # type: ignore[misc]
@@ -85,7 +85,7 @@ class TestEmDimension:
         "flat, value", [("em_state", EM.ACTIVE), ("pxa_state", CS_pxa.PXA)]
     )
     def test_flat_assignment_raises(self, flat, value):
-        """A flat spelling such as ``status.em_state = X`` raises (SDO-03-006)."""
+        """A flat spelling such as ``status.em_state = X`` raises (SDO-03-010)."""
         status = CaseStatus(context="urn:case:1")
         with pytest.raises(ValidationError, match="no attribute"):
             setattr(status, flat, value)
@@ -199,11 +199,12 @@ class TestCaseStatusCarriesNoFlatShim:
 
     @pytest.mark.spec("SDO-03-003")
     @pytest.mark.spec("SDO-03-005")
+    @pytest.mark.spec("SDO-03-008")
     @pytest.mark.parametrize(
         "flat, value", [("em_state", "ACTIVE"), ("pxa_state", "PXA")]
     )
     def test_flat_input_key_is_refused_by_extra_forbid(self, flat, value):
-        """A flat key raises through ``extra="forbid"`` (SDO-03-005)."""
+        """A flat key raises through ``extra="forbid"`` (SDO-03-008)."""
         with pytest.raises(ValidationError) as excinfo:
             CaseStatus.model_validate({"context": "urn:case:1", flat: value})
         assert [e["type"] for e in excinfo.value.errors()] == [
@@ -227,9 +228,9 @@ class TestCaseStatusCarriesNoFlatShim:
         )
         assert read(status).name == value
 
-    @pytest.mark.spec("SDO-03-005")
+    @pytest.mark.spec("SDO-03-009")
     def test_no_reject_guard_validator(self):
-        """The refusal is ``extra="forbid"``, not a before-validator (SDO-03-005)."""
+        """The refusal is ``extra="forbid"``, not a before-validator (SDO-03-009)."""
         validators = CaseStatus.__pydantic_decorators__.model_validators
         own_before = [
             name

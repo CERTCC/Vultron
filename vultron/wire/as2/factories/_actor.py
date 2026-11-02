@@ -11,13 +11,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""How a factory carries an actor it is handed (AKM-05-005, ADR-0159).
+"""How a factory carries an actor it is handed (AKM-05-005, AKM-05-017).
 
 A factory that names an actor in an activity is given either the actor's
 profile as the sender holds it, or only the actor's URI.  The profile travels
 as held; a URI travels as an actor reference, an inline object with exactly
 an ``id`` and a ``type``.  Neither path adds a value the sender does not know
-(AKM-02-006).
+(AKM-02-006, ADR-0159).
 """
 
 from vultron.core.models.actor import CoreActor

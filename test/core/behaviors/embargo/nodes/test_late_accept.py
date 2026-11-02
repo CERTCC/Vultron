@@ -49,6 +49,7 @@ _OTHER = "https://example.org/embargo/other"
 
 
 @pytest.mark.spec("EMB-17-001")
+@pytest.mark.spec("EMB-17-012")
 @pytest.mark.parametrize(
     ("em_state", "active", "route"),
     [

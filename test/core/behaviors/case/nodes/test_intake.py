@@ -314,7 +314,7 @@ def test_an_event_with_no_body_and_nothing_held_is_a_wiring_fault(scenario):
 def test_a_resend_with_no_body_finds_the_archive_and_writes_nothing(
     scenario,
 ):
-    """A resend under an archived id carries no body (VM-08-002): intake
+    """A resend under an archived id carries no body (VM-08-009): intake
     finds the first delivery's archive and leaves it as it was."""
     first = _note_event(_rich_note())
     scenario.assert_success(

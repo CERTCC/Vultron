@@ -77,7 +77,7 @@ class _ApplyStubReplyFromLedgerNode(_LedgerEffectNode):
 
         entry = self._get_entry()
         snapshot = entry.payload_snapshot
-        # Normalised: the snapshot keeps the sender's spelling (OID-01-006).
+        # Normalised: the snapshot keeps the sender's spelling (OID-01-008).
         actor_id = snapshot_actor_id(snapshot.get("actor"))
         if not actor_id or not entry.case_id:
             self.logger.debug(

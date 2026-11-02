@@ -711,12 +711,13 @@ groups:
   - id: MSM-04-001
     priority: MUST
     kind: project
-    statement: The note lifecycle MUST realize protocol shorthand `GI` (General Inquiry) as
-      `MessageSemantics.ADD_NOTE_TO_CASE` and `MessageSemantics.REMOVE_NOTE_FROM_CASE`;
-      their AS2 wire forms are `Add(Note)[target=VulnerabilityCase]` per VAM-07-002
-      and `Remove(Note)[target=VulnerabilityCase]` per VAM-07-003.
-      A received `Create(Note)` is not a protocol message (VAM-01-011).
-      These are not the whole of `GI` — MSM-04-002 adds the actor-suggestion exchange.
+    statement: >-
+      The note lifecycle MUST realize protocol shorthand `GI` (General Inquiry) as
+      `MessageSemantics.ADD_NOTE_TO_CASE` and `MessageSemantics.REMOVE_NOTE_FROM_CASE`.
+      Their AS2 wire forms are `Add(Note)[target=VulnerabilityCase]` (VAM-07-002) and
+      `Remove(Note)[target=VulnerabilityCase]` (VAM-07-003). A received
+      `Create(Note)` is not a protocol message (VAM-01-019). These are not the whole
+      of `GI`: MSM-04-002 adds the actor-suggestion exchange.
     rationale: '`GI` is defined in the formal protocol as any message conveying non-state-change information, so it is
       inherently one-to-many on the wire. The `Add` and `Remove` split is a wire-layer
       artifact with no formal counterpart: the formal set models the inquiry, not the
@@ -727,7 +728,7 @@ groups:
       value is named for `GI`.
     relationships:
     - rel_type: derives_from
-      spec_id: VAM-01-011
+      spec_id: VAM-01-019
     - rel_type: derives_from
       spec_id: VAM-07-002
     - rel_type: derives_from
@@ -801,22 +802,60 @@ groups:
   - id: MSM-05-002
     priority: MUST
     kind: protocol
-    statement: 'Acknowledgement of replicated case-ledger state MUST be cumulative and implicit via hash-chain continuity. A
-      receiver whose `prev_log_hash` matches its local tail MUST NOT emit an acknowledgement, and MUST emit
-      `Reject(CaseLedgerEntry)` on a mismatch, whereupon the CASE_MANAGER replays all entries after the last accepted hash.'
+    statement: >-
+      Acknowledgement of replicated case-ledger state MUST be cumulative and implicit,
+      through hash-chain continuity.
     rationale: A matching `prev_log_hash` already proves receipt of every prior entry, so per-message positive
       acknowledgement would be redundant. This is negative acknowledgement with gap-fill replay, structurally closer to a
       cumulative ACK or SACK scheme than to the formal per-message EK, CK and GK design. `RK` remains a real wire activity
       (MSM-01-008) because report submission is not ledger-replicated.
     verification: >-
-      Inspection of `RejectLedgerEntryReceivedUseCase` in
-      `vultron/core/use_cases/received/sync.py` confirms the mismatch-and-replay
-      behaviour, and the registry contains no per-message `EK`, `CK`, or `GK` entry.
+      Inspection of the registry confirms it contains no per-message `EK`, `CK`, or
+      `GK` entry.
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-003
     lint_suppress:
     - missing_story_reference
+  - id: MSM-05-007
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A receiver whose `prev_log_hash` matches its local tail MUST NOT emit an
+      acknowledgement.
+    rationale: >-
+      The match already acknowledges every prior entry (MSM-05-002), so a positive
+      acknowledgement would only add traffic.
+    verification: >-
+      `test/test_message_semantics_mapping.py`
+      (`test_ledger_acknowledgement_is_negative_and_cumulative`) confirms no
+      acknowledgement semantic exists for ledger-replicated state.
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-05-002
+    stories:
+    - story_2022_088
+  - id: MSM-05-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST emit `Reject(CaseLedgerEntry)` when an entry's `prev_log_hash`
+      does not match its local tail. The CASE_MANAGER then replays all entries after the
+      last accepted hash.
+    rationale: >-
+      The mismatch is the one event the sender cannot see for itself. The Reject names
+      where the receiver's chain ends, so the replay fills the gap.
+    verification: >-
+      Inspection of `RejectLedgerEntryReceivedUseCase` in
+      `vultron/core/use_cases/received/sync.py` confirms the mismatch-and-replay
+      behaviour. `test/test_message_semantics_mapping.py`
+      (`test_ledger_hash_mismatch_rejects_and_replays_from_last_accepted`) confirms
+      the mismatch guard, the Reject emitter and the replaying use case are wired.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-05-002
+    stories:
+    - story_2022_088
   - id: MSM-05-005
     priority: MUST
     kind: protocol
@@ -893,91 +932,210 @@ groups:
   - id: MSM-06-001
     priority: MUST
     kind: process
-    statement: The mapping tables in `docs/reference/messages/` MUST be committed `include-markdown` fragments generated
-      from `SEMANTIC_REGISTRY`, together with the occasion table YAML they are rendered from, and MUST NOT be hand-written
-      or rendered by a build-time `markdown_exec` block. A pre-commit `--check` hook MUST regenerate the YAML and every
-      fragment and fail on any difference from the committed files, including a committed fragment that nothing
-      generates.
+    statement: >-
+      The mapping tables in `docs/reference/messages/` MUST be committed
+      `include-markdown` fragments generated from `SEMANTIC_REGISTRY`, committed with
+      the occasion table YAML they are rendered from.
     rationale: 'Hand-maintained mapping tables drift silently, as the orphaned examples of issue 2904 showed. The tables
       are generated and committed rather than rendered at build time because they are mostly links, and MkDocs neither
-      rewrites nor checks a `.md` link a `markdown_exec` block prints (ADR-0128). A generated file nothing compares with
-      a fresh generation is a hand-edited one; the hook makes divergence fail at commit time.'
+      rewrites nor checks a `.md` link a `markdown_exec` block prints (ADR-0128).'
     verification: >-
-      `uv run msm-occasions --check` exits 0, and
+      `uv run msm-occasions --check` exits 0.
+    adr:
+    - ADR-0128
+  - id: MSM-06-005
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      A maintainer MUST NOT hand-write a mapping table in `docs/reference/messages/`,
+      or render one by a build-time `markdown_exec` block.
+    rationale: >-
+      A hand-written table drifts from the registry, and MkDocs neither rewrites nor
+      checks a `.md` link that a `markdown_exec` block prints (ADR-0128).
+    verification: >-
+      `test_no_message_page_renders_its_table_at_build_time` in
+      `test/metadata/test_msm_occasions.py` fails when any page under
+      `docs/reference/messages/` carries a `markdown_exec` block of its own, because
+      each page includes its table and its occasion sections as fragments. A wire
+      example inside an occasion section carries no link and is not a mapping table,
+      so it may still render at build time.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-06-001
+    adr:
+    - ADR-0128
+  - id: MSM-06-006
+    priority: MUST
+    kind: process
+    statement: >-
+      A pre-commit `--check` hook MUST regenerate the occasion table YAML and every
+      mapping fragment, and fail on any difference from the committed files. A
+      committed fragment that nothing generates counts as a difference.
+    rationale: >-
+      A generated file that nothing compares with a fresh generation is a hand-edited
+      one. The hook makes divergence fail at commit time.
+    verification: >-
       `test_committed_occasion_artifacts_are_in_sync` in
       `test/metadata/test_msm_occasions.py` fails when the committed YAML or a
       fragment under `docs/reference/messages/_occasions/` differs from a fresh
-      generation. `test_no_message_page_renders_its_table_at_build_time` in
-      the same module fails when any page under `docs/reference/messages/`
-      carries a `markdown_exec` block of its own, because each page includes
-      its table and its occasion sections as fragments. A wire example inside
-      an occasion section carries no link and is not a mapping table, so it
-      may still render at build time.
+      generation.
+    relationships:
+    - rel_type: verifies
+      spec_id: MSM-06-001
     adr:
     - ADR-0128
   - id: MSM-06-002
     priority: MUST
     kind: process
-    statement: Every `SEMANTIC_REGISTRY` entry MUST be designated to exactly one *primary* page under
-      `docs/reference/messages/` and MUST appear on that page, or be explicitly exempted as a dispatcher fallback rather
-      than a protocol message. An entry MAY additionally be cross-referenced from other pages, and MUST be where a
-      collapse or an evolved mechanism gives it a second home.
+    statement: >-
+      Each `SEMANTIC_REGISTRY` entry MUST be designated to exactly one *primary* page
+      under `docs/reference/messages/`. The exception is an entry explicitly exempted
+      as a dispatcher fallback rather than a protocol message.
     rationale: 'Without a completeness check a new registry entry can be added without ever being documented, so every entry
       needs one page that owns it. A bare "exactly one page" rule would be unsatisfiable, because the mapping is many-to-many
       — see `docs/reference/messages/` for the entries that legitimately need a second home. A *primary* page keeps the
       completeness guarantee without contradicting MSM-06-003. The dispatch fallbacks are the intended exemptions.'
     verification: >-
       A ratchet test enumerates `SEMANTIC_REGISTRY` and asserts exactly one primary-page
-      designation for every entry outside the declared exemption set, and that the entry
-      appears on its designated page.
+      designation for every entry outside the declared exemption set.
     lint_suppress:
     - phantom_path_ref
+    adr:
+    - ADR-0083
+  - id: MSM-06-007
+    priority: MUST
+    kind: process
+    statement: >-
+      Every `SEMANTIC_REGISTRY` entry that is not exempted as a dispatcher fallback MUST
+      appear on its primary page.
+    rationale: >-
+      A designation that the page does not honour leaves the entry undocumented while
+      the check passes.
+    verification: >-
+      A ratchet test enumerates `SEMANTIC_REGISTRY` and asserts that each non-exempt
+      entry appears on its designated page.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-06-002
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0083
+  - id: MSM-06-008
+    priority: MAY
+    kind: process
+    statement: >-
+      A page other than an entry's primary page MAY cross-reference that
+      `SEMANTIC_REGISTRY` entry.
+    rationale: >-
+      The mapping is many-to-many, so a reader on a related page can be pointed at an
+      entry without that page owning it.
+    adr:
+    - ADR-0083
+  - id: MSM-06-009
+    priority: MUST
+    kind: process
+    statement: >-
+      A page MUST cross-reference a `SEMANTIC_REGISTRY` entry where a collapse or an
+      evolved mechanism gives the entry a second home on that page.
+    rationale: >-
+      A collapsed or evolved entry belongs to two message families, and a reader of
+      the second family needs to find it there.
+    verification: >-
+      Review of the pages under `docs/reference/messages/` confirms each entry that a
+      collapse or an evolved mechanism gives a second home is cross-referenced from it.
     adr:
     - ADR-0083
   - id: MSM-06-003
     priority: MUST
     kind: process
-    statement: Each occasion section on a message page MUST state its entry's mapping status, indicating whether the
-      relationship is direct, a collapse of several shorthands onto one wire activity, an expansion of one shorthand across
-      several wire activities, a mechanism that evolved onto a different axis per MSM-05, or none, and the Message Types
-      page MUST define each status value. The occasion table need not carry the status, because its columns serve a sender
-      choosing what to send.
+    statement: >-
+      Each occasion section on a message page MUST state its entry's mapping status.
+      The status is direct, collapse, expansion, evolved or none. A collapse maps
+      several shorthands onto one wire activity. An expansion spreads one shorthand
+      across several wire activities. An evolved mechanism moved onto a different axis
+      (MSM-05).
     rationale: Reference material must state what is true, including divergence from the normative message set. Documentation
       that shows only direct mappings and omits the rest reads as a complete correspondence and misleads implementers about
       both the collapses and the evolved mechanisms. The status sits in each section, beside the formal definition it
-      qualifies, rather than in a table column a sender does not need.
+      qualifies, rather than in a table column a sender does not need, so the
+      occasion table need not carry it.
     verification: >-
       `test_every_section_links_its_mapping_status_to_its_definition` in
       `test/metadata/test_msm_occasions.py` asserts that every generated
       occasion section states its entry's status, linked to the definitions on
-      `docs/reference/messages/index.md`, and that the page defines every
+      `docs/reference/messages/index.md`.
+  - id: MSM-06-010
+    priority: MUST
+    kind: process
+    statement: >-
+      The Message Types page MUST define each mapping status value.
+    rationale: >-
+      Each occasion section links its status to a definition, so the page has to hold
+      one for every value.
+    verification: >-
+      `test_every_section_links_its_mapping_status_to_its_definition` in
+      `test/metadata/test_msm_occasions.py` asserts that the page defines every
       `MappingStatus` value.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-06-003
   - id: MSM-06-004
     priority: MUST
     kind: process
-    statement: The Protocol Quick Reference's "Message Types at a Glance" section MUST
-      include the whole occasion table and a table of the formal message set, both as
-      committed fragments generated from `SEMANTIC_REGISTRY` (MSM-06-001), and MUST
-      carry no hand-written table. The formal table MUST list each shorthand with the
-      wire activities whose occasions carry it, or state that it has none.
+    statement: >-
+      The Protocol Quick Reference's "Message Types at a Glance" section MUST include
+      the whole occasion table and a table of the formal message set. Both are committed
+      fragments generated from `SEMANTIC_REGISTRY` (MSM-06-001).
     rationale: A hand-written table has nothing comparing it with the registry, so it
       can give an emit trigger and a response for every shorthand, including the ones
-      that faults and hash-chain acknowledgment replace on the wire. Beside the
-      generated occasion table it would also give a second, ungated answer to what is
-      sent when. Generating both tables from the registry keeps the quick reference
-      in step with the message pages.
+      that faults and hash-chain acknowledgment replace on the wire. Generating both
+      tables from the registry keeps the quick reference in step with the message pages.
     verification: >-
       `test_quick_reference_includes_the_generated_message_tables` in
       `test/metadata/test_msm_occasions.py` asserts that the section of
       `docs/reference/quick_reference.md` includes `lookup.md` and `shorthands.md`
-      from the fragment directory and holds no table row of its own, and
-      `test_shorthand_table_lists_every_shorthand_with_its_carriers` asserts one
-      row per `ProtocolShorthand` linking exactly the sections of the occasions
-      that carry it, once per wire activity, or its family page's section on
-      shorthands with no wire activity.
+      from the fragment directory.
     relationships:
     - rel_type: depends_on
       spec_id: MSM-06-001
+    adr:
+    - ADR-0128
+  - id: MSM-06-011
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      The Protocol Quick Reference's "Message Types at a Glance" section MUST NOT carry
+      a hand-written table.
+    rationale: >-
+      Beside the generated occasion table, a hand-written one would give a second,
+      ungated answer to what is sent when.
+    verification: >-
+      `test_quick_reference_includes_the_generated_message_tables` in
+      `test/metadata/test_msm_occasions.py` asserts that the section holds no table
+      row of its own.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-06-004
+    adr:
+    - ADR-0128
+  - id: MSM-06-012
+    priority: MUST
+    kind: process
+    statement: >-
+      The formal message-set table MUST list each shorthand with the wire activities
+      whose occasions carry it, or state that it has none.
+    rationale: >-
+      Some shorthands are replaced on the wire by faults or hash-chain acknowledgment,
+      so the table says which have no wire activity rather than inventing one.
+    verification: >-
+      `test_shorthand_table_lists_every_shorthand_with_its_carriers` in
+      `test/metadata/test_msm_occasions.py` asserts one row per `ProtocolShorthand`
+      linking exactly the sections of the occasions that carry it, once per wire
+      activity, or its family page's section on shorthands with no wire activity.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-06-004
     adr:
     - ADR-0128
 - id: MSM-07
@@ -1138,57 +1296,28 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the case owner's Accept(EmbargoEvent)[target=VulnerabilityCase] (MSM-07-008) replaces
-      active embargo A with revision B (the register activates B and supersedes A, so the
-      derived EM goes REVISE → ACTIVE, or stays REVISE while another proposal is open,
-      EMB-18-005),
-      implementations MUST settle every participant's consent rows against B:
-      if B ends no later than A, every participant whose row for A is AGREED MUST be carried
-      over by applying CARRY_OVER to its row for B, a DECLINED row for B included
-      (CM-18-003); if B ends later than A, implementations MUST NOT write any row to lapse
-      anyone — a participant whose row for B is not AGREED is not a signatory to B and has
-      lapsed if it had agreed to A (CM-18-001). The owner's row for B is AGREED unless it
-      already is; an owner whose row for B is DECLINED has changed its answer by activating B,
-      so its row moves directly to AGREED with no re-invite first (MSM-07-008, CM-18-003).
-      Activating B advances no one else: a participant holding an AGREED row for B is its
-      signatory by lookup, whether it is the proposer or an early acceptor. Only participants
-      whose row for A is AGREED are carried over: a participant that had lapsed from an
-      earlier embargo stays lapsed until it is re-invited or agrees to B, and a participant
-      INVITED to A whose invitation B has made stale is handled by the stale-terms re-invite
-      path (EMB-17), because its row for the now-SUPERSEDED A is frozen. A revision proposal
-      (EV, ACTIVE → REVISE, or a counter-revision REVISE → REVISE) MUST NOT change any
-      participant's consent to the embargo in force, and the proposer's row for the proposed
-      embargo MUST be marked AGREED. The CASE_MANAGER decides the carry-over and MUST commit
-      each carried-over row as its own CASE_MANAGER `Update(EmbargoConsent)` ledger entry,
-      after the Accept's, and every replica MUST copy those entries rather than run the
-      carry-over itself (ADR-0124, CLP-07-013, CM-23-016); the owner's own row is what its
-      Accept states, applied from the Accept's entry. No activity is sent to a participant
-      for these consent writes beyond the ledger fan-out.
+      This rule covers the case owner's Accept(EmbargoEvent)[target=VulnerabilityCase]
+      (MSM-07-008) that replaces active embargo A with revision B. The register activates
+      B and supersedes A, so the derived EM goes REVISE → ACTIVE, or stays REVISE while
+      another proposal is open (EMB-18-005). Implementations MUST settle every
+      participant's consent rows against B.
     rationale: >-
-      A participant has lapsed when the active embargo was replaced by longer terms it has not
-      agreed to. While a revision is merely proposed the prior embargo is still in force and
-      every signatory to it is still bound by it, so nothing about their consent has changed
-      (ADR-0093). Agreeing to N days is agreeing to every shorter period — the containment that
-      makes shortest-wins safe (EP-04-003) — so a shorter revision asks nothing new of an
-      existing signatory and carries them over, even one that declined B: its decline objected
-      to losing time, not to keeping the embargo. Longer terms ask for more than they promised,
-      so only those who agreed to B are bound by B, and the rows say so without a write. Only
-      the owner's acceptance changes the embargo on the case; other participants' accepts and
-      rejects are recorded per embargo and inform that decision. Committing each carried-over
-      row as its own entry keeps every replica's consent rows in step with the CASE_MANAGER's
-      without a replica re-running the containment comparison on its own state.
+      Only the owner's acceptance changes the embargo on the case; other participants'
+      accepts and rejects are recorded per embargo and inform that decision. When it
+      replaces the embargo in force, each participant's standing has to be read again
+      against the new terms (ADR-0093).
+    note: >-
+      The owner's row for B is AGREED unless it already is, and an owner whose row for B
+      is DECLINED moves directly to AGREED with no re-invite first (MSM-07-008,
+      CM-18-003). Activating B advances no one else: a participant holding an AGREED row
+      for B is its signatory by lookup, whether it is the proposer or an early acceptor.
+      The settlement's cases are MSM-07-019 and MSM-07-020.
     verification: >-
       Inspection of vultron/core/services/embargo_lifecycle/ confirms that
-      propose_embargo() answers only the proposer's row for the proposed id (every other
-      participant's new row is UNINVITED), and that decide_activation() names a
-      CARRY_OVER row for each signatory of a replaced embargo that ends no later, and
-      only the owner's row for a longer one. Unit tests in
-      test/core/services/embargo_lifecycle/ (test_activation.py,
-      test_activation_decision.py) assert both arms, the derived lapse, and the no-op
-      on proposal; test/core/use_cases/received/test_embargo_activation_copy.py
-      asserts the Accept is followed by one Update(EmbargoConsent) entry per
-      carried-over row and that a replica's rows and register equal the
-      CASE_MANAGER's.
+      decide_activation() names a CARRY_OVER row for each signatory of a replaced
+      embargo that ends no later, and only the owner's row for a longer one. Unit tests
+      in test/core/services/embargo_lifecycle/ (test_activation.py,
+      test_activation_decision.py) assert both arms and the derived lapse.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
@@ -1198,36 +1327,171 @@ groups:
     - ADR-0093
     - ADR-0122
     lint_suppress:
-    # compound_statement: the compound pre-dates #5156, which only converted its
-    # activity notation; the split into one obligation per ID belongs to #5219.
-    - compound_statement
     - missing_story_reference
+  - id: MSM-07-019
+    priority: MUST
+    kind: protocol
+    statement: >-
+      This rule covers the owner's activation of revision B in place of active embargo
+      A, where B ends no later than A. The CASE_MANAGER MUST carry over every participant
+      whose row for A is AGREED. It applies CARRY_OVER to that participant's row
+      for B, a DECLINED row
+      for B included (CM-18-003).
+    rationale: >-
+      Agreeing to N days is agreeing to every shorter period — the containment that
+      makes shortest-wins safe (EP-04-003) — so a shorter revision asks nothing new of an
+      existing signatory and carries them over, even one that declined B: its decline
+      objected to losing time, not to keeping the embargo.
+    note: >-
+      Only participants whose row for A is AGREED are carried over. A participant that
+      had lapsed from an earlier embargo stays lapsed until it is re-invited or agrees
+      to B. A participant INVITED to A whose invitation B has made stale is handled by
+      the stale-terms re-invite path (EMB-17), because its row for the now-SUPERSEDED A
+      is frozen.
+    verification: >-
+      `test/core/services/embargo_lifecycle/test_activation.py`
+      (`test_activate_embargo_replacing_a_longer_one_carries_signatories_over`) and
+      `test/core/services/embargo_lifecycle/test_answers.py`
+      (`test_owner_activating_a_shorter_revision_carries_every_signatory_over`) confirm
+      every signatory of the replaced embargo is carried over to a shorter revision.
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-07-005
+    adr:
+    - ADR-0093
+    - ADR-0122
+    stories:
+    - story_2022_014
+  - id: MSM-07-020
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      This rule covers the owner's activation of revision B in place of active embargo
+      A, where B ends later than A. Implementations MUST NOT write any consent row to
+      lapse a participant. A participant whose row for B is not AGREED is not a
+      signatory to B,
+      and has lapsed if it had agreed to A (CM-18-001).
+    rationale: >-
+      Longer terms ask for more than the signatories of A promised, so only those who
+      agreed to B are bound by B, and the rows say so without a write.
+    verification: >-
+      `test/core/services/embargo_lifecycle/test_activation.py`
+      (`test_activate_embargo_replacing_a_shorter_one_lapses_non_acceptors`) and
+      `test/core/services/embargo_lifecycle/test_answers.py`
+      (`test_owner_activating_a_longer_revision_lapses_signatories_lacking_it`) confirm
+      a longer revision writes only the owner's row and lapses the others by lookup.
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-07-005
+    adr:
+    - ADR-0093
+    - ADR-0122
+    stories:
+    - story_2022_014
+  - id: MSM-07-021
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A revision proposal (EV, ACTIVE → REVISE, or a counter-revision REVISE → REVISE)
+      MUST NOT change any participant's consent to the embargo in force.
+    rationale: >-
+      While a revision is merely proposed the prior embargo is still in force and every
+      signatory to it is still bound by it, so nothing about their consent has changed
+      (ADR-0093).
+    verification: >-
+      `test/core/services/embargo_lifecycle/test_proposals.py`
+      (`test_propose_embargo_active_to_revise_lapses_nobody`,
+      `test_propose_embargo_revise_to_revise_lapses_nobody`) confirm a revision
+      proposal changes no participant's consent to the embargo in force.
+    adr:
+    - ADR-0093
+    - ADR-0122
+    stories:
+    - story_2022_014
+  - id: MSM-07-022
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a participant proposes a revision, implementations MUST mark the proposer's
+      row for the proposed embargo AGREED.
+    rationale: >-
+      Proposing terms is agreeing to them, so the proposer needs no Invite of its own
+      proposal.
+    verification: >-
+      `test/core/services/embargo_lifecycle/test_creation.py`
+      (`test_the_revision_is_consented_to_by_its_proposer_not_the_executor`) confirms
+      the proposer's row for the proposed embargo is AGREED.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-07-021
+    adr:
+    - ADR-0093
+    - ADR-0122
+    stories:
+    - story_2022_014
+  - id: MSM-07-023
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST commit each carried-over row as its own CASE_MANAGER
+      `Update(EmbargoConsent)` ledger entry, after the Accept's entry. The owner's own
+      row is what its Accept states, applied from the Accept's entry.
+    rationale: >-
+      The CASE_MANAGER decides the carry-over. Committing each carried-over row as its
+      own entry keeps every replica's consent rows in step with the CASE_MANAGER's.
+    note: >-
+      No activity is sent to a participant for these consent writes beyond the ledger
+      fan-out.
+    verification: >-
+      `test/core/use_cases/received/test_embargo_activation_copy.py`
+      (`test_the_accept_then_one_update_per_carried_over_row`) confirms the Accept is
+      followed by one `Update(EmbargoConsent)` entry per carried-over row.
+    relationships:
+    - rel_type: implements
+      spec_id: MSM-07-019
+    adr:
+    - ADR-0124
+    - ADR-0122
+    stories:
+    - story_2022_014
+  - id: MSM-07-024
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Every replica MUST copy the CASE_MANAGER's carried-over consent entries rather
+      than run the carry-over itself (ADR-0124, CLP-07-013, CM-23-016).
+    rationale: >-
+      A replica that ran the containment comparison on its own state could reach a
+      different answer from the CASE_MANAGER's.
+    verification: >-
+      `test/core/use_cases/received/test_ledger_replay_convergence.py`
+      (`test_a_replica_carries_signatories_over_to_a_shorter_activated_revision`)
+      confirms a replica's rows and register equal the CASE_MANAGER's after it copies
+      the entries.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MSM-07-023
+    adr:
+    - ADR-0124
+    stories:
+    - story_2022_014
   - id: MSM-07-006
     priority: MUST
     kind: protocol
     statement: >-
       When an ET / REMOVE_EMBARGO_EVENT_FROM_CASE wire activity terminates the embargo
-      register's ACTIVE entry (cancelling every open proposal in the same step, so the derived
-      EM becomes EXITED), implementations MUST leave the case with no active embargo and MUST
-      NOT write any participant's consent rows: with no active embargo
-      no participant is a signatory and no row binds anyone, and an Accept or Reject that
-      arrives afterwards records nothing (EMB-17-004). No separate outbound wire activity is
-      emitted; the participant position is derived from the case.
+      register's ACTIVE entry, implementations MUST leave the case with no active
+      embargo. The same step cancels every open proposal, so the derived EM becomes
+      EXITED. No separate outbound wire activity is emitted; the participant position is
+      derived from the case.
     rationale: >-
       A register with a TERMINATED entry accepts no further change (ADR-0122), so a
       terminated embargo can never be invited to again. That is a fact about the case,
-      which every replica holds once it replays the teardown, so it does not need to be
-      copied onto each participant record as a terminal consent state. Leaving the rows
-      as they were also keeps the history of who agreed to what, and every row of a
-      final entry is frozen (CM-18-003).
+      which every replica holds once it replays the teardown.
     verification: >-
-      Inspection confirms that the `TERMINATE` register step
-      (vultron/core/models/embargo_apply.py) writes no consent row, and
-      test/core/use_cases/received/test_embargo_termination_copy.py asserts that
-      a termination commits no consent-row entry. Unit tests in
-      test/core/services/embargo_lifecycle/ assert the rows are unchanged and no participant is
-      a signatory afterwards, and a per-actor-store test asserts the same on the CASE_MANAGER
-      and on a replica.
+      `test/core/use_cases/received/test_embargo_termination_copy.py`
+      (`test_the_remove_is_committed_before_the_case_changes`) confirms the
+      termination leaves the case with no active embargo.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003
@@ -1238,79 +1502,115 @@ groups:
     - ADR-0122
     lint_suppress:
     - missing_story_reference
+  - id: MSM-07-025
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When an ET terminates the embargo register's ACTIVE entry, implementations MUST NOT
+      write any participant's consent rows. With no active embargo no participant is a
+      signatory and no row binds anyone. An Accept or Reject that arrives afterwards
+      records nothing (EMB-17-004).
+    rationale: >-
+      The termination is a fact about the case, so it does not need copying onto each
+      participant record as a terminal consent state. Leaving the rows as they were
+      also keeps the history of who agreed to what, and every row of a final entry is
+      frozen (CM-18-003).
+    verification: >-
+      Inspection confirms that the `TERMINATE` register step
+      (vultron/core/models/embargo_apply.py) writes no consent row.
+      `test/core/use_cases/received/test_embargo_relay_replay.py`
+      (`test_termination_leaves_nobody_a_signatory_in_every_store`) confirms the rows
+      are unchanged and no participant is a signatory afterwards, on the CASE_MANAGER
+      and on a replica.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-07-006
+    adr:
+    - ADR-0118
+    - ADR-0122
+    stories:
+    - story_2022_014
   - id: MSM-07-007
     priority: MUST
     kind: protocol
     statement: >-
-      The timer-based pocket-veto transition — INVITED to TIMED_OUT on the row of the
-      invitation whose deadline passed — MUST be enforced lazily with no outbound wire
-      message emitted for the consent change itself. A lapse has no timer path
-      (CM-18-002): a lapsed participant is re-invited, and the deadline attaches to that
-      invitation. The CASE_MANAGER MUST author a case-ledger entry recording the expiry
-      (CM-28-005) so the consent change is visible in the canonical ledger, but no
-      additional protocol wire activity is required. The case owner learns of the
-      expiry, as of an explicit refusal (MSM-07-004), from that entry: by its
-      `Announce(CaseLedgerEntry)` fan-out while the owner is an active participant
-      (CM-10-004), or from its own ledger when the owner holds the CASE_MANAGER role. No
-      separate notification activity is sent to the owner.
+      The timer-based pocket-veto transition MUST be enforced lazily, with no outbound
+      wire message for the consent change itself. That transition moves the row of the
+      invitation whose deadline passed from INVITED to TIMED_OUT. A lapse has no
+      timer path (CM-18-002): a
+      lapsed participant is re-invited, and the deadline attaches to that invitation.
     rationale: >-
       Inaction cannot produce an outbound message because there is no actor-observable event to
-      report. The expiry is a derived conclusion from (the row's rsvp_deadline, now); the ledger entry
-      is the record of that conclusion, not a message sent by the silent participant. Requiring a
+      report. The expiry is a derived conclusion from (the row's rsvp_deadline,
+      now). Requiring a
       wire message would demand the system speak on behalf of a participant who has said nothing,
-      which contradicts the Actor Knowledge Model (AKM). The entry already reaches every owner
-      entitled to case content, so a second message would only duplicate it; for an explicit
-      refusal, a received embargo activity, it would also be the acknowledgement EP-09-009 forbids.
+      which contradicts the Actor Knowledge Model (AKM).
     verification: >-
       Inspection of vultron/core/services/embargo_lifecycle/ confirms detect_and_apply_expiry()
-      applies PEC_Trigger.TIME_OUT without emitting an outbound wire activity, that a
-      CASE_MANAGER-authored ledger entry is written per CM-28-005, and that
-      detect_and_apply_expiry() applies it only to the named invitation's row, and only from
-      INVITED. A test asserts an active case owner that does not hold CVDRole.CASE_MANAGER is
-      among ledger_entry_recipients for both the expiry's TIMED_OUT
-      Update(EmbargoConsent) and a Reject(Invite(EmbargoEvent)) entry, and that
-      neither commit emits any activity other than the Announce fan-out.
+      applies PEC_Trigger.TIME_OUT without emitting an outbound wire activity, and that
+      it applies it only to the named invitation's row, and only from INVITED.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-002
-    - rel_type: derives_from
-      spec_id: CM-28-005
     adr:
     - ADR-0093
     - ADR-0118
     lint_suppress:
     - missing_story_reference
+  - id: MSM-07-026
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST author a case-ledger entry that records a pocket-veto expiry
+      (CM-28-005), so the consent change is visible in the canonical ledger. No other
+      protocol wire activity is required.
+    rationale: >-
+      The ledger entry is the record of the derived expiry, not a message sent by the
+      silent participant. The entry already reaches every owner entitled to case
+      content, so a second message would only duplicate it.
+    note: >-
+      The case owner learns of the expiry, as of an explicit refusal (MSM-07-004), from
+      that entry. It gets the entry by its `Announce(CaseLedgerEntry)` fan-out while it
+      is an active participant (CM-10-004), or from its own ledger when it holds the
+      CASE_MANAGER role. No separate notification activity is sent to the owner; for an
+      explicit refusal it would also be the acknowledgement EP-09-009 forbids.
+    verification: >-
+      `test/core/use_cases/received/test_embargo_overdue_invite_sweep.py`
+      (`test_the_expiry_is_committed_before_the_decision`,
+      `test_the_owner_learns_of_both_from_the_fan_out_alone`) confirms the
+      CASE_MANAGER commits the expiry's TIMED_OUT `Update(EmbargoConsent)` entry, that
+      an active case owner without the CASE_MANAGER role is among its recipients, and
+      that the commit emits no activity other than the Announce fan-out.
+    relationships:
+    - rel_type: derives_from
+      spec_id: CM-28-005
+    adr:
+    - ADR-0093
+    - ADR-0118
+    stories:
+    - story_2022_014
   - id: MSM-07-008
     priority: MUST
     kind: protocol
     statement: >-
       The wire activity ACTIVATE_EMBARGO_ON_CASE (wire form:
-      Accept(EmbargoEvent)[target=VulnerabilityCase], the EmbargoEvent itself as the
-      object) is the
-      case owner's decision for the case and MUST be accepted only from the case owner; any
-      other sender MUST be refused with REFUSED before any write (HP-01-006). It MUST
-      activate the named proposal's embargo register entry and supersede any entry in force
-      in the same step, so the derived EM becomes ACTIVE (EA, or EC for a revision); MUST
-      mark the owner's row for the activated embargo AGREED unless it already is, a DECLINED
-      row included, since activating is the owner changing its answer (CM-18-003); and, when
-      it replaces an embargo in force, MUST apply the MSM-07-005 consent rule. It MUST be
-      refused before it is committed when the named embargo is not an open proposal of the
-      case, or when CS is public, exploited or attacked (EMB-02-002).
+      Accept(EmbargoEvent)[target=VulnerabilityCase], the EmbargoEvent itself as
+      the object) is
+      the case owner's decision for the case. It MUST activate the named proposal's
+      embargo register entry and supersede any entry in force in the same step. The
+      derived EM becomes ACTIVE (EA, or EC for a revision).
     rationale: >-
       Giving the owner's decision its own activity retires the two-audience rule: an Accept of
       an Invite is always the sender's consent (MSM-07-003), and this activity is always the
       owner's decision for the case, so neither meaning depends on who sent the message
-      (ADR-0122). Refusing a doomed activation before the commit keeps the ledger free of an
-      entry that replicas, copying its step, would apply without the CASE_MANAGER's P/X/A
-      check (CM-23-016).
+      (ADR-0122). When it replaces an embargo in force, the MSM-07-005 consent rule settles
+      the rows.
     verification: >-
       Unit tests in `test/core/use_cases/received/` assert that the case owner's
-      Accept(EmbargoEvent)[target=VulnerabilityCase] at the CASE_MANAGER activates the
-      proposal, records
-      the owner's AGREED row and carries signatories over to a shorter revision, that a
-      replica replaying the committed entry converges, that a DECLINED owner's activation
-      moves its row to AGREED with one ledger entry, and that a non-owner sender, a non-open
-      proposal and P/X/A are each refused with nothing committed.
+      Accept(EmbargoEvent)[target=VulnerabilityCase] at the CASE_MANAGER activates
+      the proposal and
+      carries signatories over to a shorter revision, and that a replica replaying the
+      committed entry converges.
     relationships:
     - rel_type: depends_on
       spec_id: VAM-05-008
@@ -1326,30 +1626,83 @@ groups:
     - ADR-0122
     stories:
     - story_2022_014
-    lint_suppress:
-    # compound_statement: the compound pre-dates #5156, which only converted its
-    # activity notation; the split into one obligation per ID belongs to #5219.
-    - compound_statement
+  - id: MSM-07-027
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST accept ACTIVATE_EMBARGO_ON_CASE only from the case owner. It
+      refuses any other sender with REFUSED before any write (HP-01-006).
+    rationale: >-
+      Activating an embargo is the case owner's decision for the case (CM-02-005), so no
+      other participant's activity may make it.
+    verification: >-
+      `test/core/use_cases/received/test_sender_entitlement.py`
+      (`test_owner_embargo_decision_from_a_non_owner_is_refused`) confirms a non-owner
+      sender is refused with nothing committed.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-07-008
+    adr:
+    - ADR-0122
+    stories:
+    - story_2022_014
+  - id: MSM-07-028
+    priority: MUST
+    kind: protocol
+    statement: >-
+      ACTIVATE_EMBARGO_ON_CASE MUST mark the case owner's row for the activated embargo
+      AGREED unless it already is. This includes a DECLINED row, since activating is the
+      owner changing its answer (CM-18-003).
+    rationale: >-
+      The owner that activates terms is bound by them, so its own row has to say so,
+      whatever it answered before.
+    verification: >-
+      `test/core/models/test_embargo_consent_move.py` (`test_the_owners_row_is_agreed`,
+      `test_an_agreed_owner_moves_nothing`) and
+      `test/core/use_cases/received/test_embargo_owner_decision.py`
+      (`test_an_activation_the_owner_declined_changes_its_answer`) confirm the owner's
+      row becomes AGREED, a DECLINED row with one ledger entry.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-07-008
+    adr:
+    - ADR-0122
+    stories:
+    - story_2022_014
+  - id: MSM-07-029
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST refuse ACTIVATE_EMBARGO_ON_CASE before committing it in two
+      cases. One is a named embargo that is not an open proposal of the case. The other
+      is CS that is public, exploited or attacked (EMB-02-002).
+    rationale: >-
+      Refusing a doomed activation before the commit keeps the ledger free of an entry
+      that replicas, copying its step, would apply without the CASE_MANAGER's P/X/A check
+      (CM-23-016).
+    verification: >-
+      `test/core/use_cases/received/test_embargo_owner_decision.py`
+      (`test_a_decision_naming_no_open_proposal_is_refused_uncommitted`,
+      `test_an_activation_with_pxa_set_is_refused_uncommitted`) confirms a non-open
+      proposal and P/X/A are each refused with nothing committed.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-07-008
+    adr:
+    - ADR-0122
+    stories:
+    - story_2022_014
   - id: MSM-07-009
     priority: MUST
     kind: protocol
     statement: >-
       The wire activity REJECT_EMBARGO_PROPOSAL_ON_CASE (wire form:
-      Reject(EmbargoEvent)[target=VulnerabilityCase], the EmbargoEvent itself as the
-      object) is the
-      case owner's decision for the case and MUST be accepted only from the case owner; any
-      other sender MUST be refused with REFUSED before any write (HP-01-006). It MUST reject
-      the named proposal's embargo register entry, so the derived EM becomes NONE (ER) or
-      stays ACTIVE with the prior terms in force (EJ) once no other proposal is open, and
-      stays PROPOSED or REVISE while another is (EP-08-001); it MUST NOT change any
-      participant's consent rows, the owner's included. When it rejects the last open
-      revision while CS is public, exploited or attacked, the embargo MUST also be
-      terminated in the same act (EMB-04-002): the CASE_MANAGER decides both steps together,
-      trial-applying both before committing either, and commits the Reject's entry carrying
-      the REJECT step followed by its own ET `Remove(EmbargoEvent)` entry carrying the
-      TERMINATE step, so the revision ends REJECTED and EM EXITED, and a refused termination
-      commits neither. It MUST be refused before it is committed when the named embargo is
-      not an open proposal of the case.
+      Reject(EmbargoEvent)[target=VulnerabilityCase], the EmbargoEvent itself as
+      the object) is
+      the case owner's decision for the case. It MUST reject the named proposal's
+      embargo register entry. Once no other proposal is open, the derived EM becomes
+      NONE (ER) or stays ACTIVE with the prior terms in force (EJ). It stays PROPOSED or
+      REVISE while another proposal is open (EP-08-001).
     rationale: >-
       The owner's rejection decides the proposal for the case; whether the owner, as a
       participant, also refuses those terms is a separate Reject of the Invite (MSM-07-004).
@@ -1357,20 +1710,14 @@ groups:
       (ADR-0122).
     verification: >-
       Unit tests in `test/core/use_cases/received/` assert that the case owner's
-      Reject(EmbargoEvent)[target=VulnerabilityCase] at the CASE_MANAGER rejects the
-      proposal with no
-      consent row changed, leaves another open proposal open, rejects the last revision after
-      disclosure and then terminates the embargo with the revision REJECTED on the
-      CASE_MANAGER and on a replica that copies both entries, the Reject's entry committed
-      before the termination entry, that a refused termination commits neither entry, and
-      that a non-owner sender or a non-open proposal is refused with nothing committed.
+      Reject(EmbargoEvent)[target=VulnerabilityCase] at the CASE_MANAGER rejects
+      the proposal and
+      leaves another open proposal open.
     relationships:
     - rel_type: depends_on
       spec_id: VAM-05-009
     - rel_type: derives_from
       spec_id: EP-09-005
-    - rel_type: depends_on
-      spec_id: EMB-04-002
     - rel_type: refines
       spec_id: MSM-02-004
     - rel_type: refines
@@ -1379,10 +1726,99 @@ groups:
     - ADR-0122
     stories:
     - story_2022_014
-    lint_suppress:
-    # compound_statement: the compound pre-dates #5156, which only converted its
-    # activity notation; the split into one obligation per ID belongs to #5219.
-    - compound_statement
+  - id: MSM-07-030
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST accept REJECT_EMBARGO_PROPOSAL_ON_CASE only from the case
+      owner. It refuses any other sender with REFUSED before any write (HP-01-006).
+    rationale: >-
+      Deciding a proposal for the case is the case owner's authority, so no other
+      participant's activity may reject it for the case.
+    verification: >-
+      `test/core/use_cases/received/test_sender_entitlement.py`
+      (`test_owner_embargo_decision_from_a_non_owner_is_refused`) confirms a non-owner
+      sender is refused with nothing committed.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-07-009
+    adr:
+    - ADR-0122
+    stories:
+    - story_2022_014
+  - id: MSM-07-031
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      REJECT_EMBARGO_PROPOSAL_ON_CASE MUST NOT change any participant's consent rows, the
+      case owner's included.
+    rationale: >-
+      The owner's decision for the case is not its consent as a participant; that is a
+      Reject of the Invite (MSM-07-004).
+    verification: >-
+      `test/core/use_cases/received/test_embargo_owner_decision.py`
+      (`test_the_case_manager_applies_and_commits_the_owners_rejection`) confirms the
+      rejection leaves every consent row unchanged, the owner's included.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-07-009
+    adr:
+    - ADR-0122
+    stories:
+    - story_2022_014
+  - id: MSM-07-032
+    priority: MUST
+    kind: protocol
+    statement: >-
+      This rule covers REJECT_EMBARGO_PROPOSAL_ON_CASE of the last open revision while
+      CS is public, exploited or attacked. The CASE_MANAGER MUST also terminate the
+      embargo in the same act (EMB-04-002). It trial-applies both steps before
+      committing either. It
+      commits the Reject's entry carrying the REJECT step, then its own ET
+      `Remove(EmbargoEvent)` entry carrying the TERMINATE step. A refused termination
+      commits neither.
+    rationale: >-
+      Reverting to the prior terms is not viable once disclosure has happened, so the
+      rejection ends the embargo. Deciding both steps together means a replica copying
+      both entries ends with the revision REJECTED and EM EXITED, as the CASE_MANAGER
+      does.
+    verification: >-
+      `test/core/use_cases/received/test_embargo_answer_routing.py`
+      (`test_the_owner_rejecting_a_revision_after_disclosure_ends_the_embargo`) and
+      `test/core/use_cases/received/test_ledger_replay_convergence.py`
+      (`test_a_replica_follows_the_owners_rejection_of_a_revision_after_disclosure`,
+      `test_a_refused_termination_commits_neither_entry`) confirm the revision ends
+      REJECTED and EM EXITED on the CASE_MANAGER and on a replica, the Reject's entry
+      first, and that a refused termination commits neither entry.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-07-009
+    - rel_type: depends_on
+      spec_id: EMB-04-002
+    adr:
+    - ADR-0122
+    stories:
+    - story_2022_014
+  - id: MSM-07-033
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST refuse REJECT_EMBARGO_PROPOSAL_ON_CASE before committing it
+      when the named embargo is not an open proposal of the case.
+    rationale: >-
+      There is nothing to decide, and a committed entry naming no open proposal would be
+      applied by every replica that copies it.
+    verification: >-
+      `test/core/use_cases/received/test_embargo_owner_decision.py`
+      (`test_a_decision_naming_no_open_proposal_is_refused_uncommitted`) confirms a
+      non-open proposal is refused with nothing committed.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-07-009
+    adr:
+    - ADR-0122
+    stories:
+    - story_2022_014
   - id: MSM-07-010
     priority: MUST
     kind: protocol
@@ -1390,13 +1826,7 @@ groups:
       The wire activity `Leave(EmbargoEvent)[context=VulnerabilityCase]` is a
       participant's withdrawal of its consent to the case's *active* embargo. For a
       sender whose row for that embargo is AGREED, the receiver MUST apply the PEC
-      DECLINE trigger to that row and MUST also decline every open proposal's row the
-      sender had AGREED to: every open proposal is a revision of the embargo withdrawn
-      from (EP-08-004), and a DECLINED participant MUST NOT hold an AGREED row for an
-      embargo that can become active without re-invitation. The receiver MUST refuse
-      with a reported reason a Leave whose embargo is not the active one, whose sender's
-      row for it is not AGREED, or whose sender is the case owner, which ends an
-      embargo by terminating it (CM-02-005). A Leave changes no register entry.
+      DECLINE trigger to that row. A Leave changes no register entry.
     rationale: >-
       Accept and Reject answer an Invite; leaving an embargo one is bound by is a
       different act, as `Leave(VulnerabilityCase)` is for leaving the case. A dedicated
@@ -1405,9 +1835,8 @@ groups:
       the state of the case. The rejected alternatives are recorded in ADR-0122.
     verification: >-
       Inspection of the received-side handler for `Leave(EmbargoEvent)` confirms it
-      declines the sender's AGREED row for the active embargo and its agreed open
-      proposals, refuses the three cases named in the statement with a reported reason,
-      and changes no register entry.
+      declines the sender's AGREED row for the active embargo and changes no register
+      entry.
     relationships:
     - rel_type: depends_on
       spec_id: VAM-05-011
@@ -1415,6 +1844,74 @@ groups:
       spec_id: CM-18-003
     - rel_type: refines
       spec_id: VP-13-017
+    adr:
+    - ADR-0093
+    - ADR-0122
+    stories:
+    - story_2022_014
+  - id: MSM-07-034
+    priority: MUST
+    kind: protocol
+    statement: >-
+      On a withdrawal (MSM-07-010), the receiver MUST also decline every open proposal's
+      row that the sender had AGREED to. Every open proposal is a revision of the
+      embargo withdrawn from (EP-08-004).
+    rationale: >-
+      An agreed revision left in place would make the withdrawer a signatory again as
+      soon as the owner activated it (MSM-07-035).
+    verification: >-
+      `test/core/services/embargo_lifecycle/test_answers.py`
+      (`test_withdrawal_from_the_active_embargo_leaves_its_revisions_too`) confirms the
+      withdrawal declines the sender's agreed revision rows too.
+    relationships:
+    - rel_type: implements
+      spec_id: MSM-07-035
+    - rel_type: extends
+      spec_id: MSM-07-010
+    adr:
+    - ADR-0093
+    - ADR-0122
+    stories:
+    - story_2022_014
+  - id: MSM-07-035
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A DECLINED participant MUST NOT hold an AGREED row for an embargo that can become
+      active without re-invitation.
+    rationale: >-
+      A participant that has withdrawn from an embargo has to be asked again before
+      terms bind it, or its withdrawal would be undone by an activation it took no part
+      in.
+    verification: >-
+      `test/core/services/embargo_lifecycle/test_answers.py`
+      (`test_withdrawal_from_the_active_embargo_leaves_its_revisions_too`) confirms a
+      withdrawer holds no AGREED row for an open revision afterwards.
+    adr:
+    - ADR-0093
+    - ADR-0122
+    stories:
+    - story_2022_014
+  - id: MSM-07-036
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The receiver MUST refuse a Leave(EmbargoEvent), with a reported reason, in three
+      cases. Its embargo is not the active one, the sender's row for it is not AGREED, or
+      the sender is the case owner. The case owner ends an embargo by terminating it
+      (CM-02-005).
+    rationale: >-
+      Only a signatory of the embargo in force can withdraw from it, and the case owner
+      holds the termination instead.
+    verification: >-
+      `test/core/use_cases/received/test_embargo_withdrawal.py`
+      (`test_a_leave_of_an_embargo_not_in_force_is_refused_uncommitted`,
+      `test_a_leave_from_a_row_that_is_not_agreed_is_refused_uncommitted`,
+      `test_a_leave_from_the_case_owner_is_refused_uncommitted`) confirms each case is
+      refused with a reported reason and nothing committed.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-07-010
     adr:
     - ADR-0093
     - ADR-0122
@@ -1632,18 +2129,50 @@ groups:
   - id: MSM-08-001
     priority: MUST
     kind: process
-    statement: Every `SEMANTIC_REGISTRY` entry outside the dispatcher-fallback exemptions
-      (MSM-06-002) MUST declare at least one occasion, and each occasion MUST state when
-      it applies, a stable anchor ID, a description and the example that renders it.
-      Construction of a non-exempt entry with no occasion MUST fail.
-    rationale: The lookup table is complete only if every wire activity has a row. A
-      construction-time failure makes a new registry entry without an occasion
+    statement: >-
+      Every `SEMANTIC_REGISTRY` entry outside the dispatcher-fallback exemptions
+      (MSM-06-002) MUST declare at least one occasion.
+    rationale: The lookup table is complete only if every wire activity has a row.
+    verification: >-
+      A test enumerates `SEMANTIC_REGISTRY` and asserts every non-exempt entry has at
+      least one occasion.
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0128
+  - id: MSM-08-015
+    priority: MUST
+    kind: process
+    statement: >-
+      Each occasion MUST state when it applies, a stable anchor ID, a description and
+      the example that renders it.
+    rationale: >-
+      These are the fields the lookup table and the occasion section render, so an
+      occasion without one leaves a gap in the reference.
+    verification: >-
+      A unit test asserts that an occasion missing one of these fields fails at
+      construction.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-08-001
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0128
+  - id: MSM-08-016
+    priority: MUST
+    kind: process
+    statement: >-
+      Construction of a non-exempt `SEMANTIC_REGISTRY` entry with no occasion MUST fail.
+    rationale: >-
+      A construction-time failure makes a new registry entry without an occasion
       impossible, not merely detectable, so completeness does not depend on a ratchet
       someone remembers to extend.
     verification: >-
-      A unit test constructs a `SemanticEntry` with no occasion and asserts it raises,
-      and a test enumerates `SEMANTIC_REGISTRY` and asserts every non-exempt entry has
-      at least one occasion.
+      A unit test constructs a `SemanticEntry` with no occasion and asserts it raises.
+    relationships:
+    - rel_type: implements
+      spec_id: MSM-08-001
     lint_suppress:
     - phantom_path_ref
     adr:
@@ -1651,26 +2180,18 @@ groups:
   - id: MSM-08-002
     priority: MUST
     kind: process
-    statement: An occasion's distinguisher MUST be a field value, a state context or a
-      sender standing. A field value MUST be a member of that field's enum, a state
-      context MUST name a state machine and states that are members of that machine's
-      state enum, and a sender standing MUST name a `SenderEntitlementKind` member and
-      whether the sender holds it.
+    statement: >-
+      An occasion's distinguisher MUST be a field value, a state context or a sender
+      standing.
     rationale: '"Distinguished by" is what tells two occasions of one wire activity
       apart when they share an addressee (MSM-08-009), such as vendor awareness and fix
       ready on `Add(ParticipantStatus)`. A free-text distinguisher can name a value no
-      implementation sends. Typing it against the enums makes a renamed or retired
-      state fail at construction. Some occasions differ only in who sends them: the
+      implementation sends. Some occasions differ only in who sends them: the
       Case Owner''s request to invite an actor and a participant''s suggestion are one
       `Offer(Actor)`, and the CASE_MANAGER answers them differently (CM-17-007,
-      CM-16-003). The sender''s standing is typed by the entitlement kinds a receiver
-      already checks (HP-01-009), so it has one vocabulary and its wording comes from
-      the kind (MSM-08-010).'
+      CM-16-003).'
     verification: >-
-      A unit test asserts that an occasion whose field value is not a member of the
-      field's enum, whose state context names a state outside its machine's enum, or
-      whose sender standing names no `SenderEntitlementKind` member, fails at
-      construction.
+      A unit test asserts that an occasion's distinguisher is one of the three kinds.
     lint_suppress:
     - phantom_path_ref
     relationships:
@@ -1678,23 +2199,97 @@ groups:
       spec_id: MSM-08-010
     adr:
     - ADR-0128
+  - id: MSM-08-017
+    priority: MUST
+    kind: process
+    statement: >-
+      A field-value distinguisher MUST be a member of that field's enum.
+    rationale: >-
+      Typing the value against the enum makes a renamed or retired value fail at
+      construction, rather than name a value no implementation sends.
+    verification: >-
+      A unit test asserts that an occasion whose field value is not a member of the
+      field's enum fails at construction.
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-08-002
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0128
+  - id: MSM-08-018
+    priority: MUST
+    kind: process
+    statement: >-
+      A state-context distinguisher MUST name a state machine, and states that are
+      members of that machine's state enum.
+    rationale: >-
+      Typing the states against the machine's enum makes a renamed or retired state
+      fail at construction.
+    verification: >-
+      A unit test asserts that an occasion whose state context names a state outside
+      its machine's enum fails at construction.
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-08-002
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0128
+  - id: MSM-08-019
+    priority: MUST
+    kind: process
+    statement: >-
+      A sender-standing distinguisher MUST name a `SenderEntitlementKind` member and
+      whether the sender holds it.
+    rationale: >-
+      The sender's standing is typed by the entitlement kinds a receiver already checks
+      (HP-01-009), so it has one vocabulary and its wording comes from the kind
+      (MSM-08-010).
+    verification: >-
+      A unit test asserts that an occasion whose sender standing names no
+      `SenderEntitlementKind` member fails at construction.
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-08-002
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0128
   - id: MSM-08-003
     priority: MUST
     kind: process
-    statement: Each occasion's example MUST dispatch to the occasion's own
-      `SEMANTIC_REGISTRY` entry, and an occasion whose distinguisher is a field value
-      MUST have an example that carries that field value.
+    statement: >-
+      Each occasion's example MUST dispatch to the occasion's own `SEMANTIC_REGISTRY`
+      entry.
+    rationale: >-
+      An example that dispatches elsewhere would show the reader a different wire
+      activity from the one the occasion describes.
+    verification: >-
+      A parametrized test over every occasion asserts that its example matches exactly
+      the occasion's own entry pattern.
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0128
+  - id: MSM-08-020
+    priority: MUST
+    kind: process
+    statement: >-
+      An occasion whose distinguisher is a field value MUST have an example that carries
+      that field value.
     rationale: Dispatch alone does not tell occasions of one entry apart. Vendor
       awareness, fix readiness and fix deployed all dispatch to
       `Add(ParticipantStatus)`, so one shared example would dispatch correctly for
-      each yet show two of them a status value that is not theirs. Each
-      occasion needs an example that shows what makes it that occasion. No example
-      can carry a state context, such as the receiver's EM state or the CASE_MANAGER's
-      register status of the named embargo.
+      each yet show two of them a status value that is not theirs. No example can carry
+      a state context, such as the receiver's EM state or the CASE_MANAGER's register
+      status of the named embargo.
     verification: >-
-      A parametrized test over every occasion asserts that its example matches exactly
-      the occasion's own entry pattern and, for an occasion with a field-value
-      distinguisher, that the example carries that field value.
+      A parametrized test over every occasion with a field-value distinguisher asserts
+      that the example carries that field value.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-08-003
     lint_suppress:
     - phantom_path_ref
     adr:
@@ -1702,16 +2297,48 @@ groups:
   - id: MSM-08-004
     priority: MUST
     kind: process
-    statement: Occasion anchor IDs MUST be unique across `SEMANTIC_REGISTRY`, each anchor
-      MUST resolve to exactly one section on the entry's message page, and every
-      occasion section MUST be referenced by a row of the lookup table.
+    statement: >-
+      Occasion anchor IDs MUST be unique across `SEMANTIC_REGISTRY`.
     rationale: The table links each row to its details by anchor. A duplicate anchor
-      links two rows to one section, and an unreferenced section is reference content
-      no reader can reach from the table.
+      links two rows to one section.
     verification: >-
-      A test asserts anchor uniqueness across the registry, and a test over the
-      message pages asserts that each anchor resolves to exactly one section and that
-      each occasion section is referenced by a table row.
+      A test asserts anchor uniqueness across the registry.
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0128
+  - id: MSM-08-021
+    priority: MUST
+    kind: process
+    statement: >-
+      Each occasion anchor MUST resolve to exactly one section on the entry's message
+      page.
+    rationale: >-
+      A table row links to its details by anchor, so the anchor has to land on one
+      section.
+    verification: >-
+      A test over the message pages asserts that each anchor resolves to exactly one
+      section.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-08-004
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0128
+  - id: MSM-08-022
+    priority: MUST
+    kind: process
+    statement: >-
+      A row of the lookup table MUST reference every occasion section.
+    rationale: >-
+      An unreferenced section is reference content no reader can reach from the table.
+    verification: >-
+      A test over the message pages asserts that each occasion section is referenced
+      by a table row.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-08-004
     lint_suppress:
     - phantom_path_ref
     adr:
@@ -1719,28 +2346,19 @@ groups:
   - id: MSM-08-005
     priority: MUST
     kind: process
-    statement: The lookup table's "Sent by" value MUST be derived from the side of the
-      sender entitlement that the occasion's received use case declares (HP-01-007,
-      HP-01-008) matching the occasion's addressee (MSM-08-009), worded from that side's
-      entitlement kinds (MSM-08-010), MUST state an exempt use case as not yet
-      checked, and MUST state an entry with no received use case as internal to the
-      case manager (SE-05-002). An occasion MAY add the CVD roles that usually send it,
-      which MUST be values of `CVDRole`.
+    statement: >-
+      The lookup table's "Sent by" value MUST be derived from the side of the sender
+      entitlement that the occasion's received use case declares (HP-01-007,
+      HP-01-008). That side is the one matching the occasion's addressee (MSM-08-009),
+      and the value is worded from its entitlement kinds (MSM-08-010).
     rationale: 'The entitlement is the rule a receiver applies, so it is what another
       implementation must satisfy, and deriving it means it cannot drift from the code.
       It is often broader than the CVD convention: any active participant may announce
-      that a fix is ready, though in practice a vendor does. The usual-role note gives
-      the convention without replacing the rule. Positions such as the invitee are
-      entitlement kinds (HP-01-009), so they appear in the derived value. An entry with
-      no received use case is an act the CASE_MANAGER role performs on its own case,
-      whichever actor holds that role; no receiver handles it, though it may still be
-      committed to the case ledger, so "not handled" would misread it as an unsupported
-      message.'
+      that a fix is ready, though in practice a vendor does. Positions such as the
+      invitee are entitlement kinds (HP-01-009), so they appear in the derived value.'
     verification: >-
       A test asserts that each rendered "Sent by" value equals the wording of the kinds on
-      the declared rule's side for the occasion's addressee, the not-yet-checked wording
-      for an exemption, or the internal-to-the-case-manager wording for an entry with no
-      received use case, and that every usual-role value is a `CVDRole` member.
+      the declared rule's side for the occasion's addressee.
     lint_suppress:
     - phantom_path_ref
     relationships:
@@ -1752,24 +2370,88 @@ groups:
     - ADR-0115
     - ADR-0128
     - ADR-0129
+  - id: MSM-08-023
+    priority: MUST
+    kind: process
+    statement: >-
+      The lookup table's "Sent by" value MUST state an exempt use case as not yet
+      checked.
+    rationale: >-
+      An exempt use case declares no rule to derive the value from, so the table says
+      so rather than imply one.
+    verification: >-
+      A test asserts that the rendered "Sent by" value of an exemption is the
+      not-yet-checked wording.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-08-005
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0115
+    - ADR-0128
+  - id: MSM-08-024
+    priority: MUST
+    kind: process
+    statement: >-
+      The lookup table's "Sent by" value MUST state an entry with no received use case
+      as internal to the case manager (SE-05-002).
+    rationale: >-
+      An entry with no received use case is an act the CASE_MANAGER role performs on
+      its own case, whichever actor holds that role. No receiver handles it, though it
+      may still be committed to the case ledger, so "not handled" would misread it as
+      an unsupported message.
+    verification: >-
+      A test asserts that the rendered "Sent by" value of an entry with no received use
+      case is the internal-to-the-case-manager wording.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-08-005
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0128
+  - id: MSM-08-025
+    priority: MAY
+    kind: process
+    statement: >-
+      An occasion MAY add the CVD roles that usually send it.
+    rationale: >-
+      The usual-role note gives the CVD convention without replacing the entitlement
+      rule.
+    adr:
+    - ADR-0128
+  - id: MSM-08-026
+    priority: MUST
+    kind: process
+    statement: >-
+      Each usual-sender CVD role that an occasion adds MUST be a value of `CVDRole`.
+    rationale: >-
+      Typing the role against the enum keeps the note to roles the protocol defines.
+    verification: >-
+      A test asserts that every usual-role value is a `CVDRole` member.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-08-025
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0128
   - id: MSM-08-006
     priority: MUST
     kind: process
-    statement: The mapping status that MSM-06-003 requires MUST be derived from the
-      occasions and their shorthands, and MUST NOT be declared per entry, except that
-      an occasion MAY declare a mechanism that evolved per MSM-05.
+    statement: >-
+      The mapping status that MSM-06-003 requires MUST be derived from the occasions and
+      their shorthands.
     rationale: 'A declared status is a second copy of what the shorthands already say,
       and the two disagreed: `EP` was tagged as expanding to `Create(Event)` and
-      `Announce(EmbargoEvent)`, where MSM-02-001 maps it to `Invite(EmbargoEvent)`
-      alone. An evolved
-      mechanism has no shorthand to count, so it alone is declared.'
+      `Announce(EmbargoEvent)`, where MSM-02-001 maps it to `Invite(EmbargoEvent)` alone.'
     verification: >-
       A unit test builds an entry whose occasions carry one shorthand, an entry whose
       occasions carry several distinct shorthands, one shorthand spread across several
-      entries, an entry with no shorthand, and an occasion that declares an evolved
-      mechanism, and asserts the derived status is direct, collapse, expansion, none
-      and evolved respectively. Several occasions sharing one shorthand on one entry
-      derive direct, not collapse.
+      entries, and an entry with no shorthand, and asserts the derived status is direct,
+      collapse, expansion and none respectively. Several occasions sharing one shorthand
+      on one entry derive direct, not collapse.
     lint_suppress:
     - phantom_path_ref
     relationships:
@@ -1777,23 +2459,65 @@ groups:
       spec_id: MSM-06-003
     adr:
     - ADR-0128
+  - id: MSM-08-027
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      A `SEMANTIC_REGISTRY` entry MUST NOT declare its mapping status, except as
+      MSM-08-028 allows.
+    rationale: >-
+      A declared status drifts from the shorthands it should be derived from
+      (MSM-08-006).
+    verification: >-
+      Inspection of `SemanticEntry` confirms it has no mapping-status field.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-08-006
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0128
+  - id: MSM-08-028
+    priority: MAY
+    kind: process
+    statement: >-
+      An occasion MAY declare a mechanism that evolved per MSM-05.
+    rationale: >-
+      An evolved mechanism has no shorthand to count, so it alone is declared.
+    verification: >-
+      A unit test builds an occasion that declares an evolved mechanism and asserts the
+      derived status is evolved.
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0128
   - id: MSM-08-007
     priority: MUST
     kind: process
-    statement: An occasion's "when" text MUST describe the sender's situation, for
-      protocol mechanics and for a `Create` that precedes an `Add` as well as for CVD
-      events, and every occasion's prose fields MUST follow the documentation style
-      guide (DF-09-001), use the glossary's canonical terms (DF-09-002) and address
-      no reader.
-    rationale: 'One grammar lets a reader scan the "When…" column by situation. The
-      prose lives in Python, outside the reach of DF-09-001 as written, yet renders on
-      reference pages and in how-to guides; a fragment with more than one host must
-      satisfy the rules of each (DF-09-012), so it can use neither the how-to "you" nor
-      reference-only phrasing.'
+    statement: >-
+      An occasion's "when" text MUST describe the sender's situation. This holds for
+      protocol mechanics and for a `Create` that precedes an `Add`, as well as for CVD
+      events.
+    rationale: 'One grammar lets a reader scan the "When…" column by situation.'
+    verification: >-
+      Review of each occasion confirms the "when" text names the sender's situation.
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0128
+  - id: MSM-08-029
+    priority: MUST
+    kind: process
+    statement: >-
+      Every occasion's prose fields MUST follow the documentation style guide
+      (DF-09-001), use the glossary's canonical terms (DF-09-002) and address no reader.
+    rationale: 'The prose lives in Python, outside the reach of DF-09-001 as written,
+      yet renders on reference pages and in how-to guides; a fragment with more than one
+      host must satisfy the rules of each (DF-09-012), so it can use neither the how-to
+      "you" nor reference-only phrasing.'
     verification: >-
       The generated occasion fragments under `docs/` are `lint-docs` targets
-      (DF-09-007), and review of each occasion confirms the "when" text names the
-      sender's situation.
+      (DF-09-007).
     lint_suppress:
     - phantom_path_ref
     relationships:
@@ -1830,11 +2554,10 @@ groups:
   - id: MSM-08-009
     priority: MUST
     kind: process
-    statement: Each occasion MUST declare its addressee as one of the sides a sender
-      entitlement can have (the CASE_MANAGER, a participant, or an actor outside any case
-      for an activity sent before a case exists), and the lookup table MUST
-      render it as the row's "Send to" value. An occasion of a non-exempt use case whose
-      addressee is not a side of that use case's declared rule MUST fail.
+    statement: >-
+      Each occasion MUST declare its addressee as one of the sides a sender entitlement
+      can have. The sides are the CASE_MANAGER, a participant, or an actor outside any
+      case for an activity sent before a case exists.
     rationale: 'An emitter looks up its own situation. One wire activity can carry two
       occasions with different senders: a participant proposing an embargo sends
       `Invite(EmbargoEvent)` to the CASE_MANAGER, and the CASE_MANAGER asking a
@@ -1844,9 +2567,8 @@ groups:
       and one use case, so only the addressee tells the two rows which side of the rule
       gives their sender. See ADR-0129.'
     verification: >-
-      A test over every non-exempt occasion asserts that its addressee is a side of its use
-      case's declared rule and that the rendered "Send to" value names it, and a unit test
-      asserts that an occasion naming a side its rule lacks fails.
+      A test over every non-exempt occasion asserts that its addressee is a side of its
+      use case's declared rule.
     lint_suppress:
     - phantom_path_ref
     relationships:
@@ -1854,23 +2576,53 @@ groups:
       spec_id: HP-01-024
     adr:
     - ADR-0129
+  - id: MSM-08-030
+    priority: MUST
+    kind: process
+    statement: >-
+      The lookup table MUST render an occasion's addressee as the row's "Send to" value.
+    rationale: >-
+      The addressee is what tells two rows of one wire activity apart, so the reader
+      has to see it.
+    verification: >-
+      A test over every non-exempt occasion asserts that the rendered "Send to" value
+      names its addressee.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-08-009
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0129
+  - id: MSM-08-031
+    priority: MUST
+    kind: process
+    statement: >-
+      Construction MUST fail for an occasion of a non-exempt use case whose addressee is
+      not a side of that use case's declared rule.
+    rationale: >-
+      An addressee the rule lacks would give the row a sender no receiver admits.
+    verification: >-
+      A unit test asserts that an occasion naming a side its rule lacks fails.
+    relationships:
+    - rel_type: implements
+      spec_id: MSM-08-009
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0129
   - id: MSM-08-010
     priority: MUST
     kind: process
-    statement: Each entitlement kind MUST declare the wording a "Sent by" value uses for it
-      and the glossary term that defines it, and that term MUST exist in the glossary. The
-      addressee kind's wording MUST name the request from the object type of the activity
-      being answered.
+    statement: >-
+      Each entitlement kind MUST declare the wording a "Sent by" value uses for it and
+      the glossary term that defines it.
     rationale: A wording table kept apart from the kinds is a second copy that drifts when
       a kind is added. Declaring the wording on the kind makes a new kind incomplete until
-      it can be rendered and defined. The addressee kind serves every request type but an
-      Invite, so its wording takes the request from the answered activity's object type
-      to stay identified ("the addressee of the case proposal") without a kind per
-      request. See ADR-0129.
+      it can be rendered and defined. See ADR-0129.
     verification: >-
-      A test asserts that every entitlement kind has non-empty wording and a glossary term
-      present in `docs/reference/glossary.md`, and that the addressee wording for the case
-      proposal answers names the case proposal.
+      A test asserts that every entitlement kind has non-empty wording and a glossary
+      term.
     lint_suppress:
     - phantom_path_ref
     relationships:
@@ -1878,26 +2630,56 @@ groups:
       spec_id: HP-01-009
     adr:
     - ADR-0129
+  - id: MSM-08-032
+    priority: MUST
+    kind: process
+    statement: >-
+      The glossary term that an entitlement kind declares MUST exist in the glossary.
+    rationale: >-
+      A term that the glossary lacks defines nothing for the reader.
+    verification: >-
+      A test asserts that each declared term is present in
+      `docs/reference/glossary.md`.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-08-010
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0129
+  - id: MSM-08-033
+    priority: MUST
+    kind: process
+    statement: >-
+      The addressee kind's wording MUST name the request from the object type of the
+      activity being answered.
+    rationale: >-
+      The addressee kind serves every request type but an Invite, so its wording takes
+      the request from the answered activity's object type to stay identified ("the
+      addressee of the case proposal") without a kind per request.
+    verification: >-
+      A test asserts that the addressee wording for the case proposal answers names the
+      case proposal.
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-08-010
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0129
   - id: MSM-08-011
     priority: MUST
     kind: process
-    statement: Each occasion that shares a `SEMANTIC_REGISTRY` entry and an addressee
-      with another occasion MUST declare a distinguisher, and the distinguishers of such
-      occasions MUST differ. Two such distinguishers of one kind on one field, state
-      machine or entitlement kind MUST NOT overlap. They MUST share no field value or
-      state, and two sender standings MUST differ in whether the sender holds the
-      kind. Construction of a registry that breaks this MUST fail.
+    statement: >-
+      Each occasion that shares a `SEMANTIC_REGISTRY` entry and an addressee with
+      another occasion MUST declare a distinguisher.
     rationale: The lookup table is how a receiver finds which occasion an activity is.
       Two same-addressee occasions with no distinguisher render as two rows only prose
-      separates, so a receiver cannot tell which one an activity is. Distinguishers
-      that overlap, such as EM `NONE` and `PROPOSED` against `PROPOSED`, still let one
-      activity match two rows. Different fields or machines are not compared, since
-      one activity may carry both values by design.
+      separates, so a receiver cannot tell which one an activity is.
     verification: >-
       A unit test asserts that a registry with two occasions on one entry and one
-      addressee fails when either has no distinguisher, when both declare the same
-      one, or when both are state contexts on one machine that share a state, and
-      that `msm-occasions --check` passes on `SEMANTIC_REGISTRY`.
+      addressee fails when either has no distinguisher, and that `msm-occasions
+      --check` passes on `SEMANTIC_REGISTRY`.
     lint_suppress:
     - phantom_path_ref
     relationships:
@@ -1905,6 +2687,65 @@ groups:
       spec_id: MSM-08-002
     - rel_type: depends_on
       spec_id: MSM-08-009
+    adr:
+    - ADR-0128
+  - id: MSM-08-034
+    priority: MUST
+    kind: process
+    statement: >-
+      The distinguishers of occasions that share a `SEMANTIC_REGISTRY` entry and an
+      addressee MUST differ.
+    rationale: >-
+      Two equal distinguishers tell the rows apart no better than none.
+    verification: >-
+      A unit test asserts that a registry with two such occasions fails when both
+      declare the same distinguisher.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-08-011
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0128
+  - id: MSM-08-035
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      Two such distinguishers of one kind on one field, state machine or entitlement
+      kind MUST NOT overlap. Two field values or state contexts overlap when they share
+      a field value or a state. Two sender standings overlap unless they differ in
+      whether the sender holds the kind.
+    rationale: >-
+      Distinguishers that overlap, such as EM `NONE` and `PROPOSED` against `PROPOSED`,
+      still let one activity match two rows. Different fields or machines are not
+      compared, since one activity may carry both values by design.
+    verification: >-
+      A unit test asserts that a registry fails when two such occasions are state
+      contexts on one machine that share a state.
+    relationships:
+    - rel_type: extends
+      spec_id: MSM-08-034
+    lint_suppress:
+    - phantom_path_ref
+    adr:
+    - ADR-0128
+  - id: MSM-08-036
+    priority: MUST
+    kind: process
+    statement: >-
+      Construction of a registry that breaks MSM-08-011, MSM-08-034 or MSM-08-035 MUST
+      fail.
+    rationale: >-
+      A construction-time failure makes an ambiguous lookup table impossible, not merely
+      detectable.
+    verification: >-
+      The unit tests of MSM-08-011, MSM-08-034 and MSM-08-035 build each broken
+      registry and assert it fails.
+    relationships:
+    - rel_type: implements
+      spec_id: MSM-08-011
+    lint_suppress:
+    - phantom_path_ref
     adr:
     - ADR-0128
   - id: MSM-08-012

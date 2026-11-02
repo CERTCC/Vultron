@@ -122,7 +122,7 @@ def _slot_requires_object(annotation: Any) -> bool:
     # ``as_Object`` alone excluded every class ARCH-25-003 (ADR-0099) collapsed —
     # ``participant_statuses: list[ParticipantStatus]`` stopped being an eligible
     # slot, so an unresolvable reference in it was left bare instead of refused,
-    # silently dropping VM-06-007's refusal guarantee.
+    # silently dropping VM-06-009's refusal guarantee.
     #
     # ``CoreObject`` is the right addition rather than ``BaseModel``: the point of
     # this gate is to keep a *dimension* out, since ARCH-25-005 makes it serialize
@@ -176,7 +176,7 @@ def _materialise_one(
             f"{cls_name}.{field_name}: reference '{obj_id}' could not be "
             "resolved in the data layer, and the slot is declared to hold an "
             "object rather than a URI. Refusing rather than fabricating a "
-            "placeholder (VM-06-007)."
+            "placeholder (VM-06-010)."
         )
     # A promoted core class is placeable: ARCH-25-003 has now retargeted these
     # slots at the core class, which is what the previous version of this message said
@@ -189,7 +189,7 @@ def _materialise_one(
             f"{cls_name}.{field_name}: reference '{obj_id}' resolved to "
             f"{type(resolved).__name__}, which is neither an AS2 object nor a "
             "core domain object, so it cannot be placed in this slot. Refusing "
-            "rather than substituting a shape the slot cannot hold (VM-06-007)."
+            "rather than substituting a shape the slot cannot hold (VM-06-012)."
         )
     logger.debug(
         "Materialised %s.%s reference '%s' as %s.",

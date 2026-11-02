@@ -213,6 +213,7 @@ def test_protocol_default_embargo_duration_defaults_to_72_hours():
 @pytest.mark.parametrize(
     "value", [timedelta(hours=72), timedelta(days=4), timedelta(days=5)]
 )
+@pytest.mark.spec("EP-04-018")
 def test_protocol_default_embargo_duration_accepts_range(value):
     cfg = ActorConfig(protocol_default_embargo_duration=value)
     assert cfg.protocol_default_embargo_duration == value
@@ -229,8 +230,10 @@ def test_protocol_default_embargo_duration_accepts_range(value):
         timedelta(0),
     ],
 )
+@pytest.mark.spec("EP-04-018")
+@pytest.mark.spec("EP-04-032")
 def test_protocol_default_embargo_duration_refuses_out_of_range(value):
-    with pytest.raises(ValidationError, match="EP-04-005"):
+    with pytest.raises(ValidationError, match="EP-04-018"):
         ActorConfig(protocol_default_embargo_duration=value)
 
 

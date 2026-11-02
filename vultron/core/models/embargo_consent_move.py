@@ -30,7 +30,7 @@ position, and both write the same row (CM-23-016):
 - :func:`owner_agreement` — the case owner's
   ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` is its agreement to the embargo it
   activates; a ``DECLINED`` row moves too, since activating is the owner
-  changing its answer (MSM-07-008).
+  changing its answer (MSM-07-028).
 - :func:`joiner_agreement` — an invitee's ``Accept`` of the stub Invite
   agrees to the embargo in force; a ``DECLINED`` row is left as it is, as
   seeding never overrides an answer the participant gave (CM-10-001).

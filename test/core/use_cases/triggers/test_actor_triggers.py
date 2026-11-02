@@ -431,7 +431,7 @@ class TestSvcInviteActorToCaseUseCase:
 
         With the injectable ActorDiscoveryCallOutBundle seam (ADR-0025), the
         default DETERMINISTIC backend (AlwaysSucceed) logs at DEBUG rather than
-        WARNING — the seam is wired, no gap to report (AKM-05-002).
+        WARNING — the seam is wired, no gap to report (AKM-05-016).
         """
         actor, dl = _make_actor_dl("Coordinator")
         missing_id = "https://example.org/actors/nobody"
@@ -1782,7 +1782,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         decision 5) — so the old 404 refused exactly the transfers the protocol
         exists to support. Same defect as the invite and recommend paths; all
         three share ``_record_named_peer`` with the ActorDiscoveryCallOutBundle
-        seam. With DETERMINISTIC (AlwaysSucceed), no WARNING fires (AKM-05-002).
+        seam. With DETERMINISTIC (AlwaysSucceed), no WARNING fires (AKM-05-016).
         """
         owner, dl = _make_actor_dl("Vendor")
         missing_id = "https://example.org/actors/nobody"
@@ -2387,7 +2387,7 @@ class TestActorDiscoveryCallOut:
         assert "actor discovery returned" not in caplog.text
 
     def test_failure_backend_warns_on_missing_invitee(self, caplog):
-        """When the backend returns FAILURE an explicit WARNING is emitted (AKM-05-002)."""
+        """When the backend returns FAILURE an explicit WARNING is emitted (AKM-05-016)."""
         from vultron.core.behaviors.call_out.bundles.actor_discovery import (
             ActorDiscoveryCallOutBundle,
         )
@@ -2421,7 +2421,7 @@ class TestActorDiscoveryCallOut:
 
         # Invite proceeds even on FAILURE — annotating, not blocking (AC-4)
         assert result is not None
-        # Explicit WARNING is emitted (AC-3, AKM-05-002)
+        # Explicit WARNING is emitted (AC-3, AKM-05-016)
         assert "actor discovery returned FAILURE" in caplog.text
         assert missing_id in caplog.text
 

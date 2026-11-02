@@ -222,6 +222,7 @@ def _abandonment_entries(
 @pytest.mark.spec("EP-09-008")
 @pytest.mark.spec("BT-17-001")
 @pytest.mark.spec("MSM-02-006")
+@pytest.mark.spec("EMB-16-003")
 def test_the_manager_abandons_every_open_proposal_and_commits_each():
     case, dl, proposals = _proposed_case("abandon-mgr")
 
@@ -325,6 +326,7 @@ def _consents(
 @pytest.mark.spec("EMB-16-002")
 @pytest.mark.spec("EP-09-008")
 @pytest.mark.parametrize("indexed", [True, False])
+@pytest.mark.spec("EMB-16-006")
 def test_a_non_manager_neither_writes_nor_asks(indexed: bool):
     """The manager abandons on its own P/X/A detection (#4148).
 
@@ -433,6 +435,7 @@ def test_a_failed_commit_leaves_the_case_unchanged(monkeypatch):
 
 @pytest.mark.spec("CLP-07-015")
 @pytest.mark.spec("EP-09-007")
+@pytest.mark.spec("EMB-16-004")
 def test_a_later_failed_commit_abandons_no_proposal(monkeypatch):
     """The first ER commits and the second fails: the abandonment is one
     transaction (ADR-0146), so neither ER, nor the stored rejection, nor any
@@ -454,6 +457,7 @@ def test_a_later_failed_commit_abandons_no_proposal(monkeypatch):
 
 @pytest.mark.spec("CLP-07-015")
 @pytest.mark.spec("EMB-16-001")
+@pytest.mark.spec("EMB-16-004")
 def test_a_failed_undo_keeps_no_part_of_the_abandonment(monkeypatch):
     """The Reject commits and the Undo of a relayed Invite fails: the
     abandonment is one transaction (ADR-0146), so neither is kept."""

@@ -85,7 +85,7 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
     When the sender's proposal won, the event is the sender's own
     ``EmbargoEvent`` with its ``context`` rewritten from the report to the
     case — the same terms and identity the Reporter stated, now about the case
-    (EP-04-004, EP-04-009).  Otherwise an event is minted for the resolved
+    (EP-04-017, EP-04-009).  Otherwise an event is minted for the resolved
     duration under ``creation_time_embargo_id(case_id)``.
 
     The node writes nothing.  ``InitializeCreationEmbargoNode`` stores the
@@ -177,17 +177,17 @@ class InitializeCreationEmbargoNode(
     (CM-14-003), stores the ``EmbargoEvent`` ``CreateEmbargoEventNode`` built
     (no earlier node writes it, #4182) and registers the revision
     ``ResolveCreationTimeRevisionNode`` selected (``ACTIVE → REVISE``,
-    EP-04-003), all in one ``save_many``, so
+    EP-04-016), all in one ``save_many``, so
     ``EM.PROPOSED`` is never persisted (EP-04-002).  Any failure leaves the
     case at ``EM.NONE`` with nothing written, which the once-per-case guard
-    lets a redelivered proposal finish (EP-04-012).  Proposing and then
+    lets a redelivered proposal finish (EP-04-030).  Proposing and then
     activating in two nodes saved the case at ``PROPOSED`` in between (#4123);
     seeding and registering in nodes after the activation could leave an
     ``ACTIVE`` case unseeded or with its revision missing (#4142).
 
     The revision is proposed by the party whose terms lost: the reporter of
     *report_id* or the case owner (``creation_revision_parties``), so that
-    party's consent record, not the executing actor's, gains it (MSM-07-005,
+    party's consent record, not the executing actor's, gains it (MSM-07-022,
     #4152).  A contest with no resolvable reporter fails before the
     initialization commit, leaving the case at ``EM.NONE``.
 
@@ -326,7 +326,7 @@ class InitializeCreationEmbargoNode(
     def _revision(
         self, case: VulnerabilityCase, candidate: CreationTimeRevisionCandidate
     ) -> CreationRevision:
-        """Name the revision's proposer (MSM-07-005, #4152)."""
+        """Name the revision's proposer (MSM-07-022, #4152)."""
         assert self.datalayer is not None
         proposer_id, _winner = creation_revision_parties(
             self.datalayer, case, candidate.losing_source, self._report_id

@@ -21,7 +21,7 @@ whoever does not has lapsed by derivation (CM-18-001).  Two writes are left:
 the case owner's own agreement, since activating an embargo is agreeing to it,
 and containment: a revision that ends no later than the embargo it replaces
 asks nothing new of an existing signatory, so their agreement is carried over
-to it (``CARRY_OVER``, EP-05-001, CM-10-001).
+to it (``CARRY_OVER``, EP-05-003, CM-10-001).
 """
 
 import logging
@@ -85,7 +85,7 @@ class _PecActivationMixin(_PecEffectsMixin):
         copy model move the same rows:
 
         - The owner's row for the activated embargo is ``AGREED``, a
-          ``DECLINED`` row included (MSM-07-008).
+          ``DECLINED`` row included (MSM-07-028).
         - Replacing A with a B that ends no later than A carries A's
           signatories over; a longer B carries nobody, and the signatories
           who have not agreed to it have lapsed by derivation.  A first

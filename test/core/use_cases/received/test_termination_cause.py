@@ -102,6 +102,7 @@ _OWNER_CAUSES: list[TerminationCause] = [
 
 @pytest.mark.spec("EMB-13-004")
 @pytest.mark.parametrize("cause", _NEW_CAUSES, ids=lambda c: c["kind"])
+@pytest.mark.spec("EMB-13-010")
 def test_an_early_termination_records_each_new_cause_kind(
     cause: dict[str, object],
 ) -> None:
@@ -117,6 +118,7 @@ def test_an_early_termination_records_each_new_cause_kind(
 
 
 @pytest.mark.spec("EMB-13-004")
+@pytest.mark.spec("EMB-13-011")
 def test_every_cause_kind_is_early_and_end_time_has_none() -> None:
     assert _CAUSE_KINDS_BY_REASON[TerminationReason.EARLY] == set(
         TerminationCauseKind
@@ -164,6 +166,7 @@ def test_a_malformed_cause_is_refused(cause: dict[str, object]) -> None:
 
 
 @pytest.mark.spec("EMB-13-004")
+@pytest.mark.spec("EMB-13-011")
 def test_an_early_termination_with_no_cause_records_the_what_alone() -> None:
     assert EmbargoTermination.from_reason(TerminationReason.EARLY) == (
         EmbargoTermination.early()
@@ -232,6 +235,7 @@ def test_a_remove_with_no_cause_extracts_none() -> None:
         "not-an-object",
     ],
 )
+@pytest.mark.spec("EMB-13-012")
 def test_parse_edge_refuses_a_malformed_cause(cause: object) -> None:
     body = _remove_body()
     body["terminationCause"] = cause
@@ -241,6 +245,7 @@ def test_parse_edge_refuses_a_malformed_cause(cause: object) -> None:
 
 
 @pytest.mark.spec("EMB-13-005")
+@pytest.mark.spec("EMB-13-012")
 def test_parse_edge_refuses_a_cause_on_an_end_time_termination() -> None:
     body = _remove_body(TerminationReason.END_TIME_REACHED)
     body["terminationCause"] = {"kind": "OTHER"}
@@ -343,6 +348,7 @@ def _owner_remove(net: LedgerNetwork, cause: TerminationCause) -> Any:
 
 @pytest.mark.spec("EMB-13-005")
 @pytest.mark.parametrize("cause", _OWNER_CAUSES, ids=lambda c: c.kind)
+@pytest.mark.spec("EMB-13-013")
 def test_case_manager_records_an_owner_cause_as_given(
     cause: TerminationCause,
 ) -> None:
@@ -369,6 +375,7 @@ def test_case_manager_records_an_owner_cause_as_given(
 
 
 @pytest.mark.spec("EMB-13-005")
+@pytest.mark.spec("EMB-13-013")
 def test_an_owner_fix_ready_cause_is_not_checked_against_the_vendors() -> None:
     """Ending early on a quorum is the owner's judgment: the CASE_MANAGER
     records the vendors it names, though none of them is fix-ready."""
@@ -383,6 +390,7 @@ def test_an_owner_fix_ready_cause_is_not_checked_against_the_vendors() -> None:
 
 
 @pytest.mark.spec("EMB-13-005")
+@pytest.mark.spec("EMB-13-014")
 def test_an_owner_threat_signal_cause_is_refused_before_the_commit() -> None:
     net = LedgerNetwork("https://example.org/cases/tc-owner-threat")
     before = ledger_entries(net.stores[MANAGER], net.case_id)
@@ -418,6 +426,7 @@ def _assert_replicas_copy_the_termination(
 
 @pytest.mark.spec("EMB-13-005")
 @pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("EMB-13-016")
 def test_a_replica_copies_an_owner_fix_ready_cause() -> None:
     """Nothing in a replica's case state names the vendors whose readiness
     made the owner's quorum, so it can only copy them from the entry."""
@@ -434,6 +443,7 @@ def test_a_replica_copies_an_owner_fix_ready_cause() -> None:
 
 @pytest.mark.spec("EMB-13-005")
 @pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("EMB-13-017")
 def test_a_replica_copies_signals_its_own_pxa_does_not_carry() -> None:
     """The CASE_MANAGER names ``P`` and ``A`` while every replica's case
     still reads ``pxa``: a replica that worked the cause out from its own
@@ -492,6 +502,7 @@ def _sent_removes(
 
 
 @pytest.mark.spec("EMB-13-005")
+@pytest.mark.spec("EMB-13-015")
 def test_the_threat_cascade_remove_carries_the_signals_it_records() -> None:
     """The cascade builds its ``Remove`` through the factory, from the
     decided termination."""

@@ -261,7 +261,7 @@ def test_ensure_embargo_exists_succeeds_for_ineligible_case_without_embargo(
 ) -> None:
     """A case that is not embargo-eligible passes with no embargo.
 
-    With P, X or A set the case never receives an embargo (EP-04-008), so
+    With P, X or A set the case never receives an embargo (EP-04-020), so
     DUR-07-004 does not apply and validation proceeds at ``EM.NONE``.
     """
     case = VulnerabilityCase(

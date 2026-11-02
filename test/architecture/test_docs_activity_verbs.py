@@ -199,10 +199,10 @@ _UNREGISTERED_FORMS_BY_DESIGN = MappingProxyType(
         "Read(VulnerabilityReport)": "counter-example (MSM-01-008)",
         # manage_participants.md, status_updates.md: named as forms that are
         # not protocol messages, to warn an implementer off sending a separate
-        # Create ahead of the Add that carries the object (VAM-01-011,
+        # Create ahead of the Add that carries the object (VAM-01-019,
         # ADR-0137; deferred-forms open question #4550).
-        "Create(CaseStatus)": "not a protocol message (VAM-01-011)",
-        "Create(ParticipantStatus)": "not a protocol message (VAM-01-011)",
+        "Create(CaseStatus)": "not a protocol message (VAM-01-019)",
+        "Create(ParticipantStatus)": "not a protocol message (VAM-01-019)",
         # status_updates.md: named as the form a change to a posted note
         # would take, to warn an implementer off re-sending an Add(Note) for
         # a stored note id, which the CASE_MANAGER refuses (HP-08-006).

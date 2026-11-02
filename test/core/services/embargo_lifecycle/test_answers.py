@@ -20,7 +20,7 @@ own consent, the case owner's included; ``activate_embargo`` and
 STRICT and OBSERVED mode, idempotency,
 pruning of decided proposals (EP-08-003), and the per-embargo consent rules
 of ADR-0093 and ADR-0122: the containment carry-over at activation
-(EP-05-001, MSM-07-005), a
+(EP-05-003, MSM-07-019), a
 signatory's answer to a *proposed* revision (MSM-07-003), and which embargo
 a Reject names (MSM-07-004)."""
 
@@ -699,6 +699,8 @@ def _revision_case(
 @pytest.mark.spec("EP-05-001")
 @pytest.mark.spec("MSM-07-005")
 @pytest.mark.spec("CM-10-001")
+@pytest.mark.spec("EP-05-003")
+@pytest.mark.spec("MSM-07-019")
 def test_owner_activating_a_shorter_revision_carries_every_signatory_over(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -763,6 +765,7 @@ def test_owner_activating_a_shorter_revision_carries_every_signatory_over(
 @pytest.mark.spec("CM-18-002")
 @pytest.mark.spec("CM-18-001")
 @pytest.mark.spec("CM-18-016")
+@pytest.mark.spec("MSM-07-020")
 def test_owner_activating_a_longer_revision_lapses_signatories_lacking_it(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -1178,6 +1181,8 @@ def test_owner_activation_with_an_unreadable_previous_embargo_changes_nothing(
 
 
 @pytest.mark.spec("MSM-07-010")
+@pytest.mark.spec("MSM-07-034")
+@pytest.mark.spec("MSM-07-035")
 def test_withdrawal_from_the_active_embargo_leaves_its_revisions_too(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -1386,6 +1391,7 @@ def _shorter_revision_case(dl: SqliteDataLayer, owner: as_Service):
 
 
 @pytest.mark.spec("EP-05-001", "CM-18-003")
+@pytest.mark.spec("EP-05-003")
 def test_carry_over_lifts_a_declined_revision_row(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:

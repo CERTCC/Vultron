@@ -3,10 +3,18 @@ description: >
   Builds the MkDocs site into `site/` the one way every site-building workflow
   builds it (docs-build-check.yml, deploy_site.yml), so a green review is
   evidence about the site that publishes (DOCBW-06-004). It fixes the checkout,
-  the dependency set and the build command, and takes no inputs, so no caller
-  can build a different site. A caller checks the repository out first (a
-  local action cannot load without it) and adds its own steps only after this
-  one.
+  the dependency set and the build command. Its one input picks which commit
+  to build, never how, so no caller can build a commit differently. A caller
+  checks the repository out first (a local action cannot load without it) and
+  adds its own steps only after this one.
+
+inputs:
+  ref:
+    description: >-
+      The commit to build. Empty builds the run's own commit; the publish
+      workflow names an earlier commit only for a rollback (DOCBW-06-020).
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -17,6 +25,7 @@ runs:
     - name: Check out full history and tags
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
+        ref: ${{ inputs.ref }}
         fetch-depth: 0
         fetch-tags: true
 
