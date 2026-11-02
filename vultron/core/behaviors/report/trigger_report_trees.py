@@ -19,7 +19,7 @@ Each factory produces a ``py_trees.composites.Sequence`` that implements the
 outbound protocol handling for one of the report-lifecycle trigger
 operations:
 
-- ``AckReport``        — emit Read(Offer(Report)) (RK) to the reporter
+- ``AckReport``        — emit Read(Offer(VulnerabilityReport)) (RK) to the reporter
 - ``InvalidateReport`` — emit TentativeReject activity + transition RM → INVALID
 - ``RejectReport``     — guard (report in no case) + guard (RM may close) +
                          emit CloseReport activity + transition RM → CLOSED
@@ -66,7 +66,7 @@ def create_ack_report_trigger_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the ack-report trigger workflow.
 
-    Emits ``RmReadReportActivity`` (``Read(Offer(Report))``, RK) to the
+    Emits ``RmReadReportActivity`` (``Read(Offer(VulnerabilityReport))``, RK) to the
     reporter (RMB-08-003).  An acknowledgement moves no RM state, so the tree
     has no transition node.
 

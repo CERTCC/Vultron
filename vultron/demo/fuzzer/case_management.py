@@ -17,7 +17,7 @@
 
 This module provides probabilistic stub ``py_trees`` behaviour nodes for
 case-management call-out points — currently the admission decision a case actor
-service makes on an inbound ``Create(as_CaseProposal)``.
+service makes on an inbound ``Create(CaseProposal)``.
 
 Nodes are built on the probabilistic base types in
 ``vultron.demo.fuzzer.base`` and satisfy BT-16-003 and BT-16-007 (named
@@ -39,7 +39,7 @@ from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
 
 
 class EvaluateCaseProposal(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
-    """Decide whether to admit an inbound ``Create(as_CaseProposal)``.
+    """Decide whether to admit an inbound ``Create(CaseProposal)``.
 
     Semantic function:
         Condition — a case actor service reviews a proposal and decides

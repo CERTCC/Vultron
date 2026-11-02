@@ -61,7 +61,7 @@ def create_participant_activity(
     target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Create:
-    """Build a Create(as_CaseParticipant).
+    """Build a Create(CaseParticipant).
 
     The internal class automatically generates a descriptive ``name``
     field if one is not provided.
@@ -96,7 +96,7 @@ def update_participant_activity(
     participant: as_CaseParticipant,
     **kwargs,
 ) -> as_Update:
-    """Build an Update(as_CaseParticipant).
+    """Build an Update(CaseParticipant).
 
     The snapshot shape of a CASE_MANAGER-authored ledger entry recording a
     change to a participant record, carrying the record in full (CLP-07-013),

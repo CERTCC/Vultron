@@ -19,7 +19,7 @@ lives in the simulation layer
 (:data:`vultron.demo.fuzzer.bundles.case_proposal.CASE_PROPOSAL_STOCHASTIC`).
 
 The single call-out point in this domain is the admission decision a case actor
-service makes on an inbound ``Create(as_CaseProposal)`` (CP-05-002).  It is the
+service makes on an inbound ``Create(CaseProposal)`` (CP-05-002).  It is the
 only place a deployment can express admission policy — who may propose, how many
 open cases one actor may hold, whether the inline report is acceptable.
 

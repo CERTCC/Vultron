@@ -1,7 +1,7 @@
 """Wire-layer vocabulary type for the ProcessingFault protocol message.
 
 Provides :class:`as_ProcessingFault`, the AS2 Object type used in the
-``Create(as_ProcessingFault)`` NACK message flow defined in ADR-0080.
+``Create(ProcessingFault)`` NACK message flow defined in ADR-0080.
 
 A receiver emits ``Create(ProcessingFault)`` to an authenticated sender when
 it cannot process the sender's status assertion (ASK-07-001).

@@ -1365,7 +1365,7 @@ def test_ownership_reply_embeds_the_offer_as_its_sender_sent_it(factory):
 def test_ownership_reply_refuses_a_received_offer_of_another_kind(
     sample_report, factory
 ):
-    """A received ``Offer(Report)`` is not an ownership-transfer Offer."""
+    """A received ``Offer(VulnerabilityReport)`` is not an ownership-transfer Offer."""
     from vultron.wire.as2.factories import rm_submit_report_activity
 
     offer = rm_submit_report_activity(

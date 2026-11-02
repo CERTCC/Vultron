@@ -1000,5 +1000,5 @@ def test_validate_report_tree_case_has_active_embargo(
     )
     assert case_obj.active_embargo is not None, (
         "VulnerabilityCase must have active_embargo set so participants "
-        "can learn about the embargo from the Create(Case) activity"
+        "can learn about the embargo from the Create(VulnerabilityCase) activity"
     )

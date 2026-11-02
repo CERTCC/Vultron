@@ -13,7 +13,7 @@
 """Tests for SubmitReportReceivedUseCase: log messages, proposal flow, offer addressing.
 
 ADR-0041: SubmitReportReceivedUseCase no longer creates a VulnerabilityCase.
-Instead it writes a pending VultronReportCaseLink and sends Create(as_CaseProposal).
+Instead it writes a pending VultronReportCaseLink and sends Create(CaseProposal).
 """
 
 import pytest
@@ -115,7 +115,7 @@ class TestSubmitReportCreatesCase:
     """Tests that SubmitReportReceivedUseCase writes a pending proposal at RM.RECEIVED.
 
     Per ADR-0041, SubmitReportReceivedUseCase now writes a pending
-    VultronReportCaseLink and sends Create(as_CaseProposal) to the CaseActor.
+    VultronReportCaseLink and sends Create(CaseProposal) to the CaseActor.
     It does NOT create a VulnerabilityCase locally.
     """
 
@@ -163,7 +163,7 @@ class TestSubmitReportCreatesCase:
         """SubmitReportReceivedUseCase writes a pending VultronReportCaseLink (ADR-0041).
 
         Per ADR-0041, the vendor no longer creates a VulnerabilityCase.
-        Instead it writes a pending link and sends Create(as_CaseProposal).
+        Instead it writes a pending link and sends Create(CaseProposal).
         """
         event, dl = self._make_event_and_dl()
         SubmitReportReceivedUseCase(
@@ -393,7 +393,7 @@ class TestSubmitReportAutoCreateCasePolicy:
             actor_config=ActorConfig(auto_create_case=False),
         ).execute()
 
-        # The report is persisted; the Offer(Report) is held as received.
+        # The report is persisted; the Offer(VulnerabilityReport) is held as received.
         assert dl.read(self.REPORT_ID) is not None
         assert_held_only_as_received(dl, self.OFFER_ID)
         assert dl.get_all("Offer") == []
@@ -443,7 +443,9 @@ class TestSubmitReportAutoCreateCasePolicy:
 
 
 class TestOfferAddressingSemantics:
-    """Tests for HP-09-001 / HP-09-002: Offer(Report) to/cc addressing semantics."""
+    """Tests for HP-09-001 / HP-09-002: Offer(VulnerabilityReport) to/cc
+    addressing semantics.
+    """
 
     VENDOR_ID = "https://example.org/actors/vendor"
     OTHER_ID = "https://example.org/actors/other"
@@ -544,7 +546,8 @@ class TestOfferAddressingSemantics:
     def _make_wire_event(
         self, to: str, cc: list[str]
     ) -> SubmitReportReceivedEvent:
-        """The event the inbox builds from a wire ``Offer(Report)`` with *cc*.
+        """The event the inbox builds from a wire ``Offer(VulnerabilityReport)``
+        with *cc*.
 
         Goes through the extractor, the edge where ``cc`` is dropped
         (ADR-0109), so the handler sees exactly what a real delivery gives it.

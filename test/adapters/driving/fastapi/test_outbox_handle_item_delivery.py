@@ -298,7 +298,7 @@ def test_handle_outbox_item_keeps_the_case_stub_target_inline():
 @pytest.mark.spec("SYNC-02-005")
 @pytest.mark.spec("SYNC-13-004")
 def test_handle_outbox_item_preserves_inline_case_ledger_entry_fields():
-    """Announce(as_CaseLedgerEntry) delivery keeps the full inline entry."""
+    """Announce(CaseLedgerEntry) delivery keeps the full inline entry."""
     from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
     from vultron.core.models.case_ledger import HashChainLedgerRecord
     from vultron.wire.as2.factories import announce_log_entry_activity

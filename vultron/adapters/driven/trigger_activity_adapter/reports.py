@@ -106,7 +106,7 @@ class _ReportsMixin:
         target: str,
         proposed_embargo_id: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Offer(as_VulnerabilityReport)`` activity.
+        """Create and persist an ``Offer(VulnerabilityReport)`` activity.
 
         *proposed_embargo_id* names the Reporter's stored ``EmbargoEvent`` for
         the report; the factory carries it as ``proposedEmbargo`` and refuses
@@ -224,7 +224,9 @@ class _ReportsMixin:
         to: list[str] | None = None,
         content: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Read(Offer(Report))`` ack-report activity."""
+        """Create and persist a ``Read(Offer(VulnerabilityReport))`` ack-report
+        activity.
+        """
         offer = self._resolve_offer(offer_id)
         activity = rm_read_report_activity(
             offer, actor=actor, to=to, content=content

@@ -2357,18 +2357,18 @@ groups:
     must decide how to respond. Two overture flows are distinguished: (Flow A)
     an EM-level embargo proposal (EP) proposing terms, whose acceptance moves
     the shared EM state; and (Flow B) a PEC-level invitation
-    (InviteToEmbargoOnCase) asking the actor to become a signatory to an
-    embargo, whose acceptance advances that participant's Participant Embargo
-    Consent (PEC) state. The pre-PEC simulator conflated these into a single
-    _ChooseEmProposedResponse fallback; the production protocol separates the
-    shared EM lifecycle (EMB-01..EMB-09) from per-participant consent (CM-18,
-    ADR-0048). This group specifies a single decision seam layered over both
-    flows: it selects the response (accept / defer-to-owner / reject / counter)
-    while delegating the mechanical transition to the existing received and
-    trigger BTs. The mechanics already exist (invite/accept/reject trees,
-    propose/accept/reject trigger use cases); what is missing is the decision
-    layer that chooses among them, with a default-accept policy and a
-    plug-in seam for owner adjudication.
+    (Invite(EmbargoEvent)[context=VulnerabilityCase]) asking the actor to become
+    a signatory to an embargo, whose acceptance advances that participant's
+    Participant Embargo Consent (PEC) state. The pre-PEC simulator conflated
+    these into a single _ChooseEmProposedResponse fallback; the production
+    protocol separates the shared EM lifecycle (EMB-01..EMB-09) from
+    per-participant consent (CM-18, ADR-0048). This group specifies a single
+    decision seam layered over both flows: it selects the response (accept /
+    defer-to-owner / reject / counter) while delegating the mechanical
+    transition to the existing received and trigger BTs. The mechanics already
+    exist (invite/accept/reject trees, propose/accept/reject trigger use cases);
+    what is missing is the decision layer that chooses among them, with a
+    default-accept policy and a plug-in seam for owner adjudication.
   trigger:
     type: message_received
     value: EP | InviteToEmbargoOnCase

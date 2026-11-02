@@ -472,7 +472,7 @@ def test_owner_decision_invalid_raises(factory, verb):
 
 # ---------------------------------------------------------------------------
 # withdraw_from_embargo_activity — a signatory's withdrawal from the embargo
-# in force, Leave(EmbargoEvent)[context=Case] (MSM-07-010)
+# in force, Leave(EmbargoEvent)[context=VulnerabilityCase] (MSM-07-010)
 # ---------------------------------------------------------------------------
 
 

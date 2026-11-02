@@ -107,7 +107,9 @@ def _make_store(
 def _make_ack_event(
     sender_id: str, receiving_actor_id: str
 ) -> AckReportReceivedEvent:
-    """An AckReportReceivedEvent (``Read(Offer(Report))``) from *sender_id*."""
+    """An AckReportReceivedEvent (``Read(Offer(VulnerabilityReport))``) from
+    *sender_id*.
+    """
     report_obj = VulnerabilityReport(id_=REPORT_ID)
     offer_obj = VultronActivity(
         id_=OFFER_ID,

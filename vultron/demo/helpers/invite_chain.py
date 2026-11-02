@@ -609,4 +609,7 @@ def reply_to_full_case_invite(
             ActorSession(
                 client=invitee_client, actor=invitee_in_own_container
             ).quiet().accept_full_case_invite(invite_id=invite_id)
-        logger.info("%s sent Accept(Invite(case)) to CaseActor", invitee_name)
+        logger.info(
+            "%s sent Accept(Invite(Actor)[target=VulnerabilityCase]) to CaseActor",
+            invitee_name,
+        )

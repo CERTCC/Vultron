@@ -65,7 +65,7 @@ class QueueEntry(SQLModel, table=True):
 
     A partial UNIQUE index over ``(queue, activity_id)`` for outbox rows
     (:data:`OUTBOX_PENDING_INDEX`) makes the store itself enforce OX-06-002: an
-    activity id cannot be pending in the outbox twice.  Popping or withdrawing
+    activity id cannot be pending in the outbox twice.  Popping
     an entry deletes its row, so the table holds only pending rows and a
     delivered id can be queued again.  The index is scoped to the outbox: the
     inbox has no no-duplicate rule, and its re-queue paths append plainly.
