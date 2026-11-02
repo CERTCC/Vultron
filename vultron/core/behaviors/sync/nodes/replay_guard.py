@@ -320,8 +320,11 @@ def genesis_reject_answered(
     replay did not send, so it is declined (SYNC-15-019) when all of these
     hold (SYNC-15-024):
 
-    - the recorded replay position is still genesis: a peer that moved past
-      genesis and reports it again has lost its copy, so it is answered;
+    - the recorded replay position is still genesis.  Only a recorded
+      non-empty replay from another position ends the decline this way: a
+      peer that then reports genesis again has lost its copy, so it is
+      answered.  A peer that advanced through fan-out alone stays declined
+      until the ceiling below;
     - *rejected_index* is at or below the highest ``log_index`` that replay
       sent; a Reject naming no entry (``None``) or a later one is answered;
     - less than :data:`MAX_REPLAY_COOLDOWN_SECONDS` has passed since that

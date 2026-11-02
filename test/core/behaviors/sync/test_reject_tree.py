@@ -810,6 +810,41 @@ def test_genesis_reject_for_an_entry_the_last_genesis_replay_did_not_send_replay
     assert state.last_genesis_replay_through_index == 5
 
 
+@pytest.mark.spec("SYNC-03-009")
+@pytest.mark.spec("SYNC-15-022")
+def test_a_held_back_genesis_replay_covers_only_the_entries_before_the_hold(
+    datalayer, case_manager_case, monkeypatch
+):
+    """A genesis replay stopped at a broken entry still fails the tree, and
+    records as covered only the entries it sent before the hold, so a Reject
+    of the broken entry or a later one is not declined."""
+    from test.support.broken_ledger_entry import tampered
+
+    entries = _five_entry_ledger(datalayer)
+    datalayer.save(tampered(entries[3]))
+    bridge, sync_port, _ = _replay_bridge(datalayer)
+
+    _set_clock(monkeypatch, 0)
+    py_trees.blackboard.Blackboard.storage.clear()
+    result = bridge.execute_with_setup(
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        activity=_make_event(entries[0], tail_hash=""),
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.FAILURE
+    assert sync_port.send_announce_log_entry.call_count == 3
+    state = datalayer.read(
+        VultronReplicationState(case_id=CASE_ID, peer_id=PEER_ID).id_
+    )
+    assert state.last_replayed_from_hash == ""
+    assert state.last_genesis_replay_through_index == 2
+
+
 @pytest.mark.spec("SYNC-15-024")
 def test_genesis_reject_naming_no_entry_is_not_declined(
     datalayer, case_manager_case, monkeypatch
