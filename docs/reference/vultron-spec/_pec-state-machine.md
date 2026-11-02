@@ -327,14 +327,14 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 
 Only case content (report details, fix status, sensitive notes) is gated on being a signatory ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).
 
-### 9.6 Embargo Adherence
+### 9.6 Being Bound by the Embargo
 
 Whether a participant is currently bound by the embargo is a single yes-or-no question.
 The protocol answers this question from the consent rows.
 A participant is bound exactly when it is a signatory, that is, when its row for the register's `ACTIVE` entry is `AGREED` ([§9.3 Signatory and Lapsed](tracking-models.md#93-signatory-and-lapsed)).
 
 This is a derived fact, not an independent one.
-Adherence is not recorded as a value that can be set separately from the rows it reports.
+Being bound is not recorded as a value that can be set separately from the rows it reports.
 Such a value and the rows could then disagree.
 A case that reports a participant as bound while its rows say otherwise has no correct reading.
 
