@@ -102,8 +102,12 @@ class _CasesMixin:
             VultronValidationError: If the case names a participant the
                 sender's own store cannot read: the bootstrap carries each
                 participant record inline (CBT-01-007, CBT-05-008).  A report
-                it cannot read goes as its id, which the receiver, having
-                offered it, holds.
+                it cannot read goes as its id with a WARNING.  At the
+                reporter introduction that is sound, since the reporter
+                offered the report; the create-case trigger, which may address
+                anyone, reads its report before it gets here
+                (``SvcCreateCaseUseCase._prepare``), so it carries the report
+                inline (AKM-02-004).
         """
         case = _case_for_wire(self._dl, case_id)
         _require_bootstrap_inline(case, case_id)

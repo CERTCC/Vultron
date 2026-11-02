@@ -572,7 +572,8 @@ class TestAnnounceVulnerabilityCase:
 
 class TestCaseOnTheWireCarriesItsParticipants:
     """CBT-05-005 / CBT-01-007 / AKM-02-004: a case put on the wire carries
-    its participants (and reports) inline, not as ids.
+    its participants inline, not as ids (CBT-01-007 at the bootstrap), and the
+    reports its sender holds (AKM-02-004, a prototype choice at the bootstrap).
 
     The recipient of a bootstrap ``Create`` or ``Announce`` stores each embedded
     participant as its own record; with ids alone it has no participant at
@@ -626,6 +627,7 @@ class TestCaseOnTheWireCarriesItsParticipants:
 
     @pytest.mark.spec("CBT-05-005")
     @pytest.mark.spec("CBT-01-007")
+    @pytest.mark.spec("AKM-02-004")
     def test_create_case_carries_participants_and_reports(self, adapter, dl):
         case, participant_ids, report_id = self._case_with_participant_ids(dl)
 
@@ -722,7 +724,7 @@ class TestCaseOnTheWireCarriesItsParticipants:
             str(CVDRole.COORDINATOR),
         }
 
-    @pytest.mark.spec("CBT-01-007")
+    @pytest.mark.spec("AKM-02-004")
     def test_announce_carries_participants(self, adapter, dl):
         case, participant_ids, _ = self._case_with_participant_ids(dl)
 

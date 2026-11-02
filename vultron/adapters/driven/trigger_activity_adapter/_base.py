@@ -147,7 +147,10 @@ def _case_for_wire(
       route its reply to. The outbox used to expand these at delivery time
       (``dl.hydrate()``); the sealed body is delivered as built (VM-08-003), so
       the expansion belongs here, where the body is made.
-    - ``vulnerability_reports``: the same, for the reports the case names.
+    - ``vulnerability_reports``: the reports the case names, which a
+      recipient that lacks them cannot read (AKM-02-004).  The bootstrap's
+      receiver offered its report, so carrying it there is this prototype's
+      choice, not a protocol requirement (CBT-01-007 names only participants).
 
     The stored case is untouched — the carried objects live on a ``model_copy``.
     ``as_VulnerabilityCase`` admits the objects in every one of these slots, and

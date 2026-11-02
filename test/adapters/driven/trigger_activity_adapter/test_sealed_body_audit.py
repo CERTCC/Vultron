@@ -252,9 +252,10 @@ class _World:
 
     def prepared_create_case(self) -> dict[str, Any]:
         # Mirrors ``EmitCreateVulnerabilityCaseNode._build_case_object``: the
-        # prepared payload carries the participants and reports as objects
-        # (ADR-0041 AC-5, CBT-01-007); the adapter persists it unchanged
-        # (CP-05-005), so the audit hands it the shape production does.
+        # prepared payload carries the participants (ADR-0041 AC-5, CP-09-004)
+        # and the reports it holds (AKM-02-004) as objects; the adapter
+        # persists it unchanged (CP-05-005), so the audit hands it the shape
+        # production does.
         stored = self.dl.read(self.case_id, raise_on_missing=True)
         assert stored is not None
         case_dict = As2WireRenderAdapter().render(
