@@ -778,15 +778,16 @@ groups:
       describes where the act ends: EM ends EXITED, never back in Active. Inside
       the act, the CASE_MANAGER records the rejection as decided (the revision
       REJECTED) and then terminates the embargo, as two entries a replica copies
-      in order (MSM-07-009, CM-23-016). Adopting P, X or A ends the embargo and
-      cancels its proposals in the same act (ADR-0166, EP-08-004), so this
-      start state follows only a failed teardown (CSB-18-004).
+      in order (MSM-07-009, CM-23-016).
     note: >-
       EJ is the Case Owner's decision, and only the CASE_MANAGER writes shared
       EM state, so the CASE_MANAGER emits the ET. The CASE_MANAGER can be the
       Case Owner itself. A Participant that does not hold the CASE_MANAGER role
       emits no ET (EP-09-008, EMB-03-003, ADR-0118). While another revision is
       open, the rejection leaves EM in Revise and ends nothing (EP-08-001).
+      Adopting P, X or A ends the embargo and cancels its proposals in the same
+      act (ADR-0166, EP-08-004), so this rule's start state follows only a
+      failed teardown (CSB-18-004).
     verification: >-
       `test/core/use_cases/received/test_embargo_ending_notices.py`
       (`test_owner_ej_after_disclosure_sends_et_crediting_the_owner`) and
@@ -927,8 +928,8 @@ groups:
     verification: >-
       `test/core/use_cases/received/test_embargo_owner_decision.py::test_an_accepted_revision_with_pxa_set_is_refused_without_et`
       confirms that, with P, X or A set, the CASE_MANAGER refuses the Case
-      Owner's EC of a revision with no ledger entry, neither the activation
-      nor a termination, and leaves EM in REVISE under the prior terms.
+      Owner's EC of a revision with no ledger entry and nothing queued to the
+      outbox, so no ET, and leaves EM in REVISE under the prior terms.
     testable: true
     preconditions:
     - em_state:

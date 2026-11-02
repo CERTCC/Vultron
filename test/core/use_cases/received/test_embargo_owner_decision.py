@@ -247,7 +247,7 @@ def test_an_activation_with_pxa_set_is_refused_uncommitted(make_payload):
 @pytest.mark.spec("EMB-05-002")
 @pytest.mark.spec("EMB-02-002")
 @pytest.mark.parametrize(
-    "pxa", [CS_pxa.Pxa, CS_pxa.PXa, CS_pxa.pxA], ids=["P", "X", "A"]
+    "pxa", [CS_pxa.Pxa, CS_pxa.pXa, CS_pxa.pxA], ids=["P", "X", "A"]
 )
 def test_an_accepted_revision_with_pxa_set_is_refused_without_et(
     make_payload, pxa
@@ -264,6 +264,7 @@ def test_an_accepted_revision_with_pxa_set_is_refused_without_et(
     assert case.em_state == EM.REVISE
     case.current_status.pxa.state = pxa
     dl.save(case)
+    outbox_before = set(dl.outbox_list())
 
     result = _receive(
         dl,
@@ -275,6 +276,8 @@ def test_an_accepted_revision_with_pxa_set_is_refused_without_et(
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "EMB-02-002" in (result.reason or "")
+    # Nothing is sent: no ET, and no announcement of an activation.
+    assert set(dl.outbox_list()) == outbox_before
     after = _case(dl)
     assert after.em_state == EM.REVISE
     assert after.active_embargo_id == prior_id

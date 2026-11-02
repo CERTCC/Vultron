@@ -506,15 +506,16 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
             ),
         ],
     )
+    @pytest.mark.parametrize("revising", [False, True], ids=["A", "R"])
     def test_a_threat_under_an_active_embargo_is_reported_not_ended(
-        self, reported
+        self, reported, revising
     ):
         """A non-manager Participant that enters P, X or A while an embargo
         is active reports the CS change to the CASE_MANAGER and sends
         nothing else: no ET, and the embargo stays in force in its store
         until the CASE_MANAGER ends it (CSB-12-005, CSB-13-005, CSB-14-006,
         EMB-03-003)."""
-        from test.support.embargo_register import activate
+        from test.support.embargo_register import activate, propose
         from vultron.core.models._helpers import days_from_now_utc
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.models.participant_status import ParticipantStatus
@@ -538,7 +539,15 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         self.dl.create(embargo)
         case = cast(VulnerabilityCase, self.dl.read(self.case.id_))
         activate(case, embargo.id_)
+        if revising:
+            revision = as_EmbargoEvent(
+                context=self.case.id_, end_time=days_from_now_utc(60)
+            )
+            self.dl.create(revision)
+            propose(case, revision.id_)
         self.dl.save(case)
+        em_before = case.em_state
+        assert em_before == (EM.REVISE if revising else EM.ACTIVE)
 
         request = AddParticipantStatusTriggerRequest(
             actor_id=self.actor.id_,
@@ -562,7 +571,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         assert status.case_status is not None
         assert bit in status.case_status.pxa.state.name
         after = cast(VulnerabilityCase, self.dl.read(self.case.id_))
-        assert after.em_state == EM.ACTIVE
+        assert after.em_state == em_before
         assert after.active_embargo_id == embargo.id_
 
     @pytest.mark.spec("RSH-08-003")

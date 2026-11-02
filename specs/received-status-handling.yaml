@@ -700,14 +700,13 @@ groups:
       participants are trusted and the cost of Case Owner approval is
       unacceptable.
     rationale: >
-      Demo and trusted-participant deployments legitimately need automated
-      sentinel behavior without ceremony. The conservative posture applies by
-      default. With a permissive backend the Case Owner delegates its approval
-      in advance and keeps the authority (VP-11-006); the operator configures
-      and documents it (RSH-07-007). Other valid alternative backends include
-      role-differentiated policy, probabilistic approval, and any
-      `CallOutBackendFactory`-conformant implementation. See ADR-0076. It
-      relaxes the teardown too, which adoption authorizes (ADR-0166).
+      Demo and trusted-participant deployments need automated sentinel
+      behavior without ceremony; the conservative posture is the default. A
+      permissive backend is the Case Owner delegating its approval in advance,
+      keeping the authority (VP-11-006), configured and documented by the
+      operator (RSH-07-007). Role-differentiated, probabilistic or any
+      `CallOutBackendFactory`-conformant backend is also valid (ADR-0076). The
+      delegation covers the teardown, which adoption authorizes (ADR-0166).
     adr:
     - ADR-0046
     - ADR-0076

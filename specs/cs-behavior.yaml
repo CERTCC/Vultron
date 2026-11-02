@@ -442,6 +442,10 @@ groups:
     testable: true
     adr:
     - ADR-0166
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-12-001
+      note: The adoption of a received CP
 
     stories:
     - story_2022_023
@@ -744,6 +748,10 @@ groups:
     testable: true
     adr:
     - ADR-0166
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-13-002
+      note: The adoption of a received CX
 
     stories:
     - story_2022_023
@@ -1084,6 +1092,10 @@ groups:
     testable: true
     adr:
     - ADR-0166
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-14-001
+      note: The adoption of a received CA
 
     stories:
     - story_2022_023
@@ -1419,17 +1431,17 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      This rule covers a Participant that enters CS Public Aware
+      This rule covers the CASE_MANAGER when it adopts a P value
       (q^cs → ···P··) while an embargo is active (q^em ∈ {A, R}).
-      The CASE_MANAGER, acting for the Case Owner, MUST end the embargo
-      immediately, by emitting ET in the act that adopts the P value.
+      Acting for the Case Owner, it MUST end the embargo immediately, by
+      emitting ET in the act that adopts the value.
     rationale: >-
       VP-09-001 requires immediate embargo termination upon public
-      disclosure. Ending an embargo is the Case Owner's decision, and only the
-      CASE_MANAGER writes shared EM state, so the CASE_MANAGER emits the ET; it
-      can be the Case Owner itself (EMB-03-003, ADR-0118). Adopting P also
-      authorizes the termination, so no second approval is asked (ADR-0166). A
-      non-manager Participant reports P instead (CSB-12-005). CSB-12-004 orders the CS
+      disclosure. Ending an embargo is the Case Owner's decision, and only
+      the CASE_MANAGER writes shared EM state; it can be the Case Owner itself
+      (EMB-03-003, ADR-0118). Adopting P also authorizes the termination
+      (ADR-0166). A non-manager Participant reports P instead (CSB-12-005),
+      and CSB-04-007 covers a received CP. CSB-12-004 orders the CS
       transition before the teardown.
     adr:
     - ADR-0118
@@ -1488,9 +1500,9 @@ groups:
     verification: >-
       Tests marked CSB-12-005 in
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
-      confirm that a non-manager Participant that reports P while an embargo
-      is active sends one status report, addressed only to the CASE_MANAGER,
-      and sends no ET, its embargo staying in force.
+      confirm that a non-manager Participant that reports P with EM Active or
+      Revise sends one status report, addressed only to the CASE_MANAGER,
+      and sends no ET, its EM state unchanged.
     testable: true
     preconditions:
     - cs_pattern: "...P.."
@@ -1649,17 +1661,17 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      This rule covers a Participant that enters CS Exploit Public
+      This rule covers the CASE_MANAGER when it adopts a X value
       (q^cs → ···PX·) while an embargo is active (q^em ∈ {A, R}).
-      The CASE_MANAGER, acting for the Case Owner, MUST end the embargo
-      immediately, by emitting ET in the act that adopts the X value.
+      Acting for the Case Owner, it MUST end the embargo immediately, by
+      emitting ET in the act that adopts the value.
     rationale: >-
       VP-09-001 requires immediate embargo termination upon exploit
-      publication. Ending an embargo is the Case Owner's decision, and only the
-      CASE_MANAGER writes shared EM state, so the CASE_MANAGER emits the ET; it
-      can be the Case Owner itself (EMB-03-003, ADR-0118). Adopting X also
-      authorizes the termination, so no second approval is asked (ADR-0166). A
-      non-manager Participant reports X instead (CSB-13-005). CSB-13-004 orders the CS
+      publication. Ending an embargo is the Case Owner's decision, and only
+      the CASE_MANAGER writes shared EM state; it can be the Case Owner itself
+      (EMB-03-003, ADR-0118). Adopting X also authorizes the termination
+      (ADR-0166). A non-manager Participant reports X instead (CSB-13-005),
+      and CSB-05-008 covers a received CX. CSB-13-004 orders the CS
       transition before the teardown.
     adr:
     - ADR-0118
@@ -1719,9 +1731,9 @@ groups:
     verification: >-
       Tests marked CSB-13-005 in
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
-      confirm that a non-manager Participant that reports X while an embargo
-      is active sends one status report, addressed only to the CASE_MANAGER,
-      and sends no ET, its embargo staying in force.
+      confirm that a non-manager Participant that reports X with EM Active or
+      Revise sends one status report, addressed only to the CASE_MANAGER,
+      and sends no ET, its EM state unchanged.
     testable: true
     preconditions:
     - cs_pattern: "...PX."
@@ -1807,21 +1819,17 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      This rule covers a Participant that enters CS Attacks Observed
+      This rule covers the CASE_MANAGER when it adopts an A value
       (q^cs → ·····A) while an embargo is active (q^em ∈ {A, R}).
-      The CASE_MANAGER, acting for the Case Owner, SHOULD end the embargo,
-      by emitting ET in the act that adopts the A value.
+      Acting for the Case Owner, it SHOULD end the embargo, by emitting ET in
+      the act that adopts the value.
     rationale: >-
-      VP-09-003 recommends immediate embargo termination when attacks
-      are observed. Unlike P and X, the attacks case is SHOULD (not SHALL) to
-      allow for judgment in cases where other factors may apply. The Case
-      Owner makes that judgment when it decides whether to adopt the A value;
-      the act that adopts A ends the embargo (CSB-06-008, ADR-0166). The Case
-      Owner may delegate the decision in advance, for example by configuring
-      `CaseOwnerApprovesStatusUpdate` to adopt reported attacks automatically
-      (RSH-07-003). It then decides ahead of time and keeps the authority
+      VP-09-003 recommends ending the embargo when attacks are observed. It is
+      SHOULD, not SHALL, to leave room for judgment, which the Case Owner
+      makes in deciding whether to adopt A; the adopting act then ends the
+      embargo (CSB-06-008 for a received CA, ADR-0166). The Case Owner may
+      delegate that decision in advance (RSH-07-003) and keeps the authority
       (VP-11-006). A non-manager Participant reports A instead (CSB-14-006).
-      CSB-14-005 orders the CS transition before any teardown.
     adr:
     - ADR-0118
     - ADR-0166
@@ -1880,9 +1888,9 @@ groups:
     verification: >-
       Tests marked CSB-14-006 in
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
-      confirm that a non-manager Participant that reports A while an embargo
-      is active sends one status report, addressed only to the CASE_MANAGER,
-      and sends no ET, its embargo staying in force.
+      confirm that a non-manager Participant that reports A with EM Active or
+      Revise sends one status report, addressed only to the CASE_MANAGER,
+      and sends no ET, its EM state unchanged.
     testable: true
     preconditions:
     - cs_pattern: ".....A"
