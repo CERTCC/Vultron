@@ -32,6 +32,8 @@ A source higher in the table overrides a source below it, one setting at a time 
 `VULTRON_CONFIG` holds a file path, relative to the working directory or absolute (CFG-02-002).
 When `VULTRON_CONFIG` names a file that does not exist, the node refuses to start and reports the path (CFG-02-006).
 When `VULTRON_CONFIG` is unset and no `config.yaml` exists in the working directory, the node starts on defaults and environment variables alone (CFG-02-007).
+An unknown key at the top level of the file stops the node at startup.
+An unknown key inside a section, such as a misspelled `server:` key, is ignored without a warning, so check each section key against the tables below.
 
 A node reads its configuration once and keeps it for the life of the process.
 A change to the file or to the environment takes effect when the server restarts.
@@ -62,12 +64,13 @@ An environment variable always carries a string, so a setting whose type is not 
 | string, URL | A YAML string | The text itself |
 | integer, number | A YAML number | The number as text, for example `300` or `0.25` |
 | boolean | `true` or `false` | `true` or `false` |
-| duration | An ISO 8601 duration string, for example `PT72H` or `P7D`, or a number of seconds | The ISO 8601 string only; a bare number of seconds is refused |
+| duration | An ISO 8601 duration string, for example `PT72H` or `P7D`, or a number of seconds | A duration string, preferably ISO 8601; a bare number of seconds is refused |
 | list | A YAML sequence | A JSON array, for example `["vendor", "coordinator"]` |
 | unset | `null`, or the key left out | No form: a variable left out of the environment leaves the setting at its file value or default |
 
 A value that does not match its setting's type or bounds stops the node at startup with an error that names the setting.
-So does `ledger.invite_resend_max_cooldown_seconds` set below `ledger.invite_resend_cooldown_seconds`, the one check that compares two settings.
+A list variable that is not a valid JSON array also stops the node, but its error names only the section, for example `actor`.
+A `ledger.invite_resend_max_cooldown_seconds` set below `ledger.invite_resend_cooldown_seconds` stops the node too.
 
 ---
 
