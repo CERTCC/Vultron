@@ -91,16 +91,20 @@ groups:
       The refusal binds only the proposal's addressee. A receiver the proposal is not
       addressed to (HP-01-012) holds an unaddressed copy, refuses it (HP-01-005) and
       answers nothing (ADR-0118); `cc` addresses nobody (ADR-0109). The `Reject` names
-      the Invite by id and needs no terms. So an Invite that names its terms by URI only
-      is answered too (ADR-0123). A re-delivery of an Invite already answered with a
-      `Reject` is a duplicate, and gets no second `Reject` (HP-01-003).
+      the Invite by id and carries no terms. An Invite that names its terms by URI only
+      is classified as an embargo Invite only once the receiver holds the terms
+      (SE-01-006). Its `Reject` follows the fetch of those terms (AKM-05-007), and none
+      is sent when the fetch fails (AKM-05-015). A re-delivery of an Invite already
+      answered with a `Reject` is a duplicate, and gets no second `Reject` (HP-01-003).
     rationale: >-
       Embargo negotiation is not viable once public disclosure has occurred.
       VP-06-001 prohibits new embargo negotiations in these states.
       The `Reject` of the Invite tells the proposer that the receiver refuses the
       terms. It is the receiver's own consent answer (MSM-07-004), not ER: ER is the
       Case Owner's decision for the case, or the CASE_MANAGER's abandonment of the
-      proposal (MSM-02-006, MSM-02-010).
+      proposal (MSM-02-006, MSM-02-010). A bare object URI matches no pattern's object
+      type, so a receiver that lacks the terms cannot tell an embargo Invite from an
+      actor Invite until it fetches them (#5266).
     adr:
     - ADR-0118
     testable: true

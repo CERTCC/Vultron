@@ -22,3 +22,9 @@ also follows `vultron/core/services/` (BT-22-005); the statement could say so.
 
 **Evidence.** PR #4875 (ISSUE-4645) pre-push review finding
 `phase10-embargo-exactly-one-coverage-lost-0` and its `self-check` note.
+
+**Promoted**: 2026-10-30 — CLP-10-005 now names the unrecognized-semantics catch-all
+(`UnknownUseCase`) as running no tree and counts helpers under `vultron/core/services/`;
+its other duties split to CLP-10-028, CLP-10-029 and CLP-10-030
+(`specs/case-ledger-processing.yaml`).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/5581>.

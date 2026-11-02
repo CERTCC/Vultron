@@ -868,10 +868,15 @@ groups:
     kind: architecture
     statement: >-
       Core types MUST NOT carry a per-class retired-key reject-guard (SDO-03-005).
+      The shared `RetiredFieldsRecord` base, which refuses a stored row's retired
+      field with a named reason, is not such a guard.
     rationale: >-
       A retired-key guard on a core class copies the wire-side list into a second
       place, and the two lists can become different. `extra="forbid"` already refuses a
-      retired key in in-process and stored data.
+      retired key in in-process and stored data, but only as a bare "extra inputs"
+      error that never says a field was renamed, so the store reset a stored row needs
+      goes unexplained (CLP-02-014). Before 1.0 only the current protocol version is
+      supported, so retired-name tracking is to be dropped on both sides (#5573).
     verification: >-
       A grep of `vultron/core/models/` finds no `mode="before"` validator that rejects a
       retired key by name: #3921 deleted `ParticipantStatus._reject_retired_vfd_keys`.
