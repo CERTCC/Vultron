@@ -100,7 +100,7 @@ The table below lists what that copy tells you, whose state each item is, and wh
 | Where each other participant stands on the report | Theirs | Only that participant |
 | Whether a fix is ready or deployed, per vendor or deployer | That participant's | That participant |
 | Whether the case has an embargo, and its terms | The case's | The Case Owner, through the Case Manager |
-| Whether you have agreed to the embargo terms | Yours | You, by accepting or declining |
+| Whether you have agreed to the Active Embargo's terms | Yours | You, by accepting or declining |
 | What is publicly known: the vulnerability, an exploit, attacks | The case's | Any participant may report it; the Case Manager records it |
 
 Every message in a case states that something has already happened.

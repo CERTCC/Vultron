@@ -2457,7 +2457,8 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that an `Accept(Invite(EmbargoEvent))`
       received after the RSVP deadline is not rejected on timeliness grounds and is
-      evaluated against the case's EM state per EMB-17-002, EMB-17-003, or
+      evaluated against the case's EM state and Active Embargo per EMB-17-002,
+      EMB-17-003, or
       EMB-17-004.
     testable: true
     preconditions:
@@ -2483,10 +2484,10 @@ groups:
     kind: protocol
     statement: >-
       When the accepted embargo is the case's Active Embargo, the CASE_MANAGER
-      MUST honour the late
-      Accept and mark the participant's consent row for it AGREED, exactly as it would for an
-      on-time Accept. A row at TIMED_OUT moves directly to AGREED (`TIMED_OUT → AGREED`,
-      ADR-0118), and so does one at DECLINED (`DECLINED → AGREED`, CM-18-003): the participant
+      MUST honour the late Accept and mark the participant's consent row for it
+      AGREED, exactly as it would for an on-time Accept. A row at TIMED_OUT moves
+      directly to AGREED (`TIMED_OUT → AGREED`, ADR-0118), and so does one at
+      DECLINED (`DECLINED → AGREED`, CM-18-003): the participant
       has changed its answer, so it is not re-invited first. The CASE_MANAGER
       honours it by committing the received Accept verbatim as
       `accept_invite_to_embargo_on_case`, carrying the row it states, as an
@@ -2530,12 +2531,10 @@ groups:
     kind: protocol
     statement: >-
       When the accepted embargo is NOT the case's Active Embargo (for example the
-      embargo was
-      revised or replaced after the invitation was sent), the CASE_MANAGER MUST issue a fresh
-      `Invite(EmbargoEvent)` to the accepting actor carrying the case's Active Embargo.
-      An
-      accepting participant at TIMED_OUT moves `TIMED_OUT → INVITED` for the Active
-      Embargo (ADR-0118).
+      embargo was revised or replaced after the invitation was sent), the
+      CASE_MANAGER MUST issue a fresh `Invite(EmbargoEvent)` to the accepting actor
+      carrying the case's Active Embargo. An accepting participant at TIMED_OUT
+      moves `TIMED_OUT → INVITED` for the Active Embargo (ADR-0118).
       The fresh Invite is a relay (EP-09-002): its `actor` is the
       CASE_MANAGER and its `attributedTo` names the Active Embargo's
       proposer, or the CASE_MANAGER itself when it made the embargo without a
@@ -2625,11 +2624,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the case has no Active Embargo and no Proposed Embargo (EM state is EXITED or
-      NONE), the late Accept
-      changes nothing, and the CASE_MANAGER MUST treat it as a no-op: it MUST NOT commit
-      any
-      ledger entry for it, MUST NOT send any activity in reply, and MUST leave the
+      When the case has no Active Embargo and no Proposed Embargo (EM state is
+      EXITED or NONE), the late Accept changes nothing, and the CASE_MANAGER MUST
+      treat it as a no-op: it MUST NOT commit any ledger entry for it, MUST NOT
+      send any activity in reply, and MUST leave the
       participant's consent rows unchanged: nothing is recorded after a termination (EM
       EXITED), and a TIMED_OUT row stays TIMED_OUT when no embargo has started (EM NONE)
       (ADR-0118). A redelivery of the same Accept gets the same result. It is a correct
@@ -2696,9 +2694,9 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      When the case has no Active Embargo and no Proposed Embargo (EM state is EXITED or
-      NONE), the
-      CASE_MANAGER MUST NOT issue a fresh embargo invitation to the accepting actor.
+      When the case has no Active Embargo and no Proposed Embargo (EM state is
+      EXITED or NONE), the CASE_MANAGER MUST NOT issue a fresh embargo invitation
+      to the accepting actor.
     rationale: >-
       There is no active embargo to invite the actor to; a fresh invitation would
       manufacture a negotiation nobody requested. See ADR-0065.
@@ -2712,9 +2710,9 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      When the case has no Active Embargo and no Proposed Embargo (EM state is EXITED or
-      NONE), the
-      CASE_MANAGER MUST NOT remove the accepting actor from the case.
+      When the case has no Active Embargo and no Proposed Embargo (EM state is
+      EXITED or NONE), the CASE_MANAGER MUST NOT remove the accepting actor from
+      the case.
     rationale: >-
       Case participation is independent of embargo consent; the actor's
       willingness to coordinate must not result in their removal. See ADR-0065.

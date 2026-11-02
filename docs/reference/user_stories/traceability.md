@@ -661,7 +661,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[CM-02-001](../vultron-spec/requirements/case-management.md#cm-02-001)</td>
-<td markdown="span">Each VulnerabilityCase MUST have exactly one associated CaseActor — case listing support.</td>
+<td markdown="span">Each VulnerabilityCase MUST have exactly one associated CASE_MANAGER — case listing support.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[CM-07-001](../specs/project.md#cm-07-001)</td>

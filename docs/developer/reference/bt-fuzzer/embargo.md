@@ -337,7 +337,7 @@ They model the negotiation, evaluation, and lifecycle management of coordinated 
 - **btz type**: `AlmostAlwaysSucceed` (p=0.90)
 - **Source file**: `embargo_management/fuzzer.py`
 - **Parent tree**: `_ChooseEmActiveResponse` (within `_EmActive`)
-- **Semantic function**: Condition — is the participant satisfied with the terms of the current active embargo, or does the participant want to propose a revision?
+- **Semantic function**: Condition — is the participant satisfied with the terms of the Active Embargo, or does the participant want to propose a revision?
 - **Input dependency**: Human judgment, or an automated policy check that compares the embargo terms against organizational preferences
 - **Notes**: Modeled as usually acceptable.
   Revision proposals are relatively uncommon

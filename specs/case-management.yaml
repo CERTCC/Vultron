@@ -116,10 +116,10 @@ groups:
     kind: protocol
     statement: >-
       CASE_MANAGER MUST restrict the following activities to the Case Owner: case
-      closure,
-      approving an embargo proposal to become active on the case and terminating an active embargo,
-      approving or rejecting participant invitations, case ownership transfer, and offering a
-      participant an additional role (CM-33-002) (see CM-02-006 for the authorisation
+      closure, approving an embargo proposal to become active on the case and
+      terminating an active embargo, approving or rejecting participant invitations,
+      case ownership transfer, and offering a participant an additional role
+      (CM-33-002) (see CM-02-006 for the authorisation
       mechanism).
     rationale: >-
       These actions decide who learns about the vulnerability, under what embargo, and
