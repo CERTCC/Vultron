@@ -22,7 +22,7 @@ from test.ci._scratch_git import (
     scratch_clone,
     tag_as_bot,
 )
-from test.ci._scripts import load_script
+from test.ci._scripts import SCRIPTS_DIR, load_script
 
 _tags = load_script("release_tags")
 Tag = _tags.Tag
@@ -40,7 +40,7 @@ def _hand(name: str, commit_id: str = "c1") -> object:
 # --- which tags count as a publish ---------------------------------------------
 
 
-@pytest.mark.spec("DOCBW-06-014", "DOCBW-07-006")
+@pytest.mark.spec("DOCBW-06-014", "DOCBW-07-013")
 def test_only_a_bot_made_well_named_tag_is_a_publish() -> None:
     own, ignored = _tags.split_publish_tags(
         [
@@ -113,7 +113,7 @@ def test_latest_release_compares_versions_not_names() -> None:
     assert _tags.latest_release(["vendor"]) is None
 
 
-@pytest.mark.spec("DOCBW-07-001", "DOCBW-07-006")
+@pytest.mark.spec("DOCBW-07-011", "DOCBW-07-006")
 @pytest.mark.parametrize(
     ("today", "existing", "expected"),
     [
@@ -218,7 +218,7 @@ _DIRECT_TAG_QUERIES = (
 def test_scripts_query_tags_only_through_the_helper(name: str) -> None:
     """A script that read tags or the bot identity itself could disagree with
     the helper about which tags are publishes."""
-    source = (Path(_tags.__file__).parent / f"{name}.py").read_text()
+    source = (SCRIPTS_DIR / f"{name}.py").read_text()
     assert "from release_tags import" in source
     found = [q for q in _DIRECT_TAG_QUERIES if q in source]
     assert not found, f"{name}.py queries tags itself: {found}"
@@ -227,4 +227,4 @@ def test_scripts_query_tags_only_through_the_helper(name: str) -> None:
 @pytest.mark.parametrize("query", _DIRECT_TAG_QUERIES)
 def test_the_routing_check_sees_each_query_in_the_helper(query: str) -> None:
     """Each pattern the routing check bans is one the helper really uses."""
-    assert query in Path(_tags.__file__).read_text()
+    assert query in (SCRIPTS_DIR / "release_tags.py").read_text()

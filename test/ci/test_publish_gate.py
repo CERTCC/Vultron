@@ -384,7 +384,7 @@ def test_a_foreign_tag_is_ignored(repo: Path) -> None:
     assert f"Ignored `publish-{DAY}.3`" in notes
 
 
-@pytest.mark.spec("DOCBW-07-006")
+@pytest.mark.spec("DOCBW-07-013")
 def test_a_bot_tag_with_a_malformed_name_is_ignored(repo: Path) -> None:
     """Only a ``publish-YYYY-MM-DD.N`` name counts, whoever tagged it."""
     _tag_as_bot(repo, "publish-not-a-date")

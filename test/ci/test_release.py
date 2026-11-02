@@ -63,7 +63,7 @@ def _hand(name: str, commit_id: str = "c1") -> Any:
 # --- choosing what to promote --------------------------------------------------
 
 
-@pytest.mark.spec("DOCBW-07-001")
+@pytest.mark.spec("DOCBW-07-012")
 def test_an_empty_input_promotes_the_newest_publish() -> None:
     tags = [
         _bot("publish-2026-10-30.1"),
@@ -112,7 +112,7 @@ def _never(name: str) -> bool:
     raise AssertionError(f"asked whether {name} has a release")
 
 
-@pytest.mark.spec("DOCBW-07-001")
+@pytest.mark.spec("DOCBW-07-011")
 def test_the_release_month_is_the_promotion_date() -> None:
     """A publish from October promoted in November is a November release."""
     source = _bot("publish-2026-10-30.1")
@@ -157,7 +157,7 @@ def test_a_tagged_commit_without_a_release_gets_its_draft() -> None:
     )
 
 
-@pytest.mark.spec("DOCBW-07-010")
+@pytest.mark.spec("DOCBW-07-016")
 @pytest.mark.parametrize(
     ("releases", "has_release", "why"),
     [
@@ -454,7 +454,7 @@ def test_release_exists_reads_only_not_found_as_no_release(
     assert calls == [False]
 
 
-@pytest.mark.spec("DOCBW-07-007", "DOCBW-07-006")
+@pytest.mark.spec("DOCBW-07-007", "DOCBW-07-013", "DOCBW-07-014")
 def test_check_reports_a_release_of_no_publish(
     repo: Path, tmp_path: Path
 ) -> None:
@@ -472,7 +472,7 @@ def _staleness(details: Path) -> int:
     return int(_rel.main(["staleness", "--details-file", str(details)]))
 
 
-@pytest.mark.spec("DOCBW-07-008")
+@pytest.mark.spec("DOCBW-07-008", "DOCBW-07-015")
 def test_staleness_reads_the_clone(repo: Path, tmp_path: Path) -> None:
     details = tmp_path / "stale.md"
     assert _staleness(details) == 1  # no publish at all
@@ -540,7 +540,7 @@ def test_promote_workflow() -> None:
     assert '--ref "$REF"' in step["run"]
 
 
-@pytest.mark.spec("DOCBW-07-007")
+@pytest.mark.spec("DOCBW-07-007", "DOCBW-07-014")
 def test_release_tag_check_workflow() -> None:
     wf = load_workflow(CHECK)
     assert triggers(wf) == {"push": {"tags": ["v*"]}}
@@ -567,7 +567,7 @@ def test_release_tag_check_workflow() -> None:
     }
 
 
-@pytest.mark.spec("DOCBW-07-008")
+@pytest.mark.spec("DOCBW-07-008", "DOCBW-07-015")
 def test_staleness_workflow() -> None:
     wf = load_workflow(STALENESS)
     on = triggers(wf)
