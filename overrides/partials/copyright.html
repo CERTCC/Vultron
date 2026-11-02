@@ -23,6 +23,10 @@
 <!-- Copyright and theme information -->
 	<div style="font-size: small">	
 
+		{#- Which publish and build this page came from, rendered by the
+		    vultron/metadata/docs/build_version.py hook (#5544). -#}
+		<p class="build-footer">{{ config.extra.build_footer }}</p>
+
 		<p class="copyright">
 		Copyright 
 		&copy; <span id="footerDate"></span> 
