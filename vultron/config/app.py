@@ -100,8 +100,9 @@ class ServerConfig(BaseModel):
 
     Attributes:
         base_url: Base URL of the Vultron server, used for constructing
-            object IDs.  It starts with ``http://`` or ``https://``.  The value includes the API path prefix: an actor's id
-            is the URL that reaches it, and a hosted actor is named
+            object IDs.  It starts with ``http://`` or ``https://``.  The value
+            includes the API path prefix: an actor's id is the URL that
+            reaches it, and a hosted actor is named
             ``{base_url}/actors/{slug}``, so a value without ``/api/v2`` mints
             ids that address nothing (DL-07-006).  The default has the shape
             the compose files set, so a local run resolves actors the way a
