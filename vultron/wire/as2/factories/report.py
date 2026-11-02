@@ -56,7 +56,7 @@ def rm_create_report_activity(
     report: as_VulnerabilityReport,
     **kwargs,
 ) -> as_Create:
-    """Build a Create(as_VulnerabilityReport) — the reporter creates a report.
+    """Build a Create(VulnerabilityReport) — the reporter creates a report.
 
     Args:
         report: The ``as_VulnerabilityReport`` to create.
@@ -83,7 +83,7 @@ def rm_submit_report_activity(
     proposed_embargo: as_EmbargoEvent | None = None,
     **kwargs,
 ) -> as_Offer:
-    """Build an Offer(as_VulnerabilityReport) — the RS message when no case exists.
+    """Build an Offer(VulnerabilityReport) — the RS message when no case exists.
 
     Args:
         report: The ``as_VulnerabilityReport`` to submit.

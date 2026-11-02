@@ -622,7 +622,7 @@ class TestAnnounceDrainsPreGenesisBuffer:
 
 
 class TestAnnounceStoresEmbeddedParticipants:
-    """Announce(as_VulnerabilityCase) seeding must store embedded participants.
+    """Announce(VulnerabilityCase) seeding must store embedded participants.
 
     Regression tests for #566: ``AnnounceVulnerabilityCaseReceivedUseCase``
     was not calling ``store_embedded_participants`` after saving the case,

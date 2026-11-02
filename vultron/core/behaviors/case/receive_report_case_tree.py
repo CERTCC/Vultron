@@ -23,7 +23,7 @@ receiver MUST NOT create a ``VulnerabilityCase`` locally; instead it:
 
 1. Writes a pending ``VultronReportCaseLink`` marker recording the expected
    CaseActor that will send ``Create(VulnerabilityCase)`` in response.
-2. Sends ``Create(as_CaseProposal)`` to the CaseActor service so the CaseActor
+2. Sends ``Create(CaseProposal)`` to the CaseActor service so the CaseActor
    can create the canonical case and respond with ``Create(VulnerabilityCase)``.
 
 The local ``VulnerabilityCase`` replica is seeded later by
@@ -41,7 +41,7 @@ Structure (ADR-0041):
        └─ ReceiveReportProposalFlow (Sequence)
           ├─ EnsureCaseActorHostedNode        # CaseActor record in its own store
           ├─ WritePendingReportCaseLinkNode   # VultronReportCaseLink(case_id=None)
-          └─ ProposeReportCaseToActorNode     # Create(as_CaseProposal) → CaseActor
+          └─ ProposeReportCaseToActorNode     # Create(CaseProposal) → CaseActor
 
 Per ADR-0041 and specs/case-proposal.yaml CP-04-001, CP-04-002.
 """
@@ -88,7 +88,7 @@ def create_receive_report_case_tree(
 
     Per ADR-0041, the report receiver no longer creates a ``VulnerabilityCase`` at
     report receipt.  This tree writes a pending ``VultronReportCaseLink``
-    and sends ``Create(as_CaseProposal)`` to the CaseActor service.  The
+    and sends ``Create(CaseProposal)`` to the CaseActor service.  The
     ``VulnerabilityCase`` replica is seeded when ``Create(VulnerabilityCase)``
     arrives from the CaseActor.
 

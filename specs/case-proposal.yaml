@@ -242,7 +242,7 @@ groups:
     kind: project
     statement: >-
       In this implementation, a sender MUST carry the proposing actor's full actor
-      profile inline as the `actor` of `Create(as_CaseProposal)`, carrying its embargo
+      profile inline as the `actor` of `Create(CaseProposal)`, carrying its embargo
       policy when it has published one.
     rationale: >-
       A sender inlines the objects it introduces, as CP-01-008 does the Reporter's terms
@@ -250,7 +250,7 @@ groups:
       for a proposal this codebase sends.
     verification: >-
       Tests of the case-proposal send path confirm the `actor` of the sent
-      `Create(as_CaseProposal)` is the proposer's full profile, carrying its embargo
+      `Create(CaseProposal)` is the proposer's full profile, carrying its embargo
       policy.
     relationships:
     - rel_type: refines
@@ -263,7 +263,7 @@ groups:
     kind: project
     statement: >-
       In this implementation, the CASE_MANAGER MUST accept as the `actor` of
-      `Create(as_CaseProposal)` the proposer's inline profile or its id, which it
+      `Create(CaseProposal)` the proposer's inline profile or its id, which it
       dereferences from the proposer's published profile before processing the
       proposal (AKM-05-007).
     rationale: >-
@@ -286,7 +286,7 @@ groups:
     kind: project
     statement: >-
       The CASE_MANAGER MUST refuse at the parse edge, with a reason naming the fault, a
-      `Create(as_CaseProposal)` whose `actor` is a `Link` or does not name the
+      `Create(CaseProposal)` whose `actor` is a `Link` or does not name the
       proposal's `attributed_to`.
     rationale: >-
       The proposer's profile supplies the CASE_OWNER's actor default, so a profile that
@@ -426,10 +426,12 @@ groups:
   - id: CP-02-001
     priority: MUST
     kind: project
-    statement: The `MessageSemantics` enum MUST include `CREATE_CASE_PROPOSAL` for the pattern `Create(as_CaseProposal)`.
+    statement: >-
+      The `MessageSemantics` enum MUST include `CREATE_CASE_PROPOSAL` for the pattern
+      `Create(CaseProposal)`.
     rationale: >-
       The dispatcher sends each received activity to one use case by its
-      `MessageSemantics` value. Without a value for `Create(as_CaseProposal)`, a
+      `MessageSemantics` value. Without a value for `Create(CaseProposal)`, a
       received proposal has no use case to handle it.
     verification: Inspection of `vultron/core/models/events/base.py` confirms `CREATE_CASE_PROPOSAL` is present in
       `MessageSemantics`; `test/test_semantic_activity_patterns.py::test_create_case_proposal_dispatches_correctly` validates it.
@@ -438,10 +440,12 @@ groups:
   - id: CP-02-002
     priority: MUST
     kind: project
-    statement: The `MessageSemantics` enum MUST include `ACCEPT_CASE_PROPOSAL` for the pattern `Accept(as_CaseProposal)`.
+    statement: >-
+      The `MessageSemantics` enum MUST include `ACCEPT_CASE_PROPOSAL` for the pattern
+      `Accept(CaseProposal)`.
     rationale: >-
       The dispatcher sends each received activity to one use case by its
-      `MessageSemantics` value. Without a value for `Accept(as_CaseProposal)`, the
+      `MessageSemantics` value. Without a value for `Accept(CaseProposal)`, the
       report receiver cannot record that its proposal was accepted.
     verification: Inspection of `vultron/core/models/events/base.py` confirms `ACCEPT_CASE_PROPOSAL` is present in
       `MessageSemantics`; `test/test_semantic_activity_patterns.py::test_accept_case_proposal_dispatches_correctly` validates it.
@@ -450,10 +454,12 @@ groups:
   - id: CP-02-003
     priority: MUST
     kind: project
-    statement: The `MessageSemantics` enum MUST include `REJECT_CASE_PROPOSAL` for the pattern `Reject(as_CaseProposal)`.
+    statement: >-
+      The `MessageSemantics` enum MUST include `REJECT_CASE_PROPOSAL` for the pattern
+      `Reject(CaseProposal)`.
     rationale: >-
       The dispatcher sends each received activity to one use case by its
-      `MessageSemantics` value. Without a value for `Reject(as_CaseProposal)`, the
+      `MessageSemantics` value. Without a value for `Reject(CaseProposal)`, the
       report receiver cannot record that its proposal was rejected.
     verification: Inspection of `vultron/core/models/events/base.py` confirms `REJECT_CASE_PROPOSAL` is present in
       `MessageSemantics`; `test/test_semantic_activity_patterns.py::test_reject_case_proposal_dispatches_correctly` validates it.
@@ -532,7 +538,7 @@ groups:
       not the case itself. Sending `Create(VulnerabilityCase)` from the receiver would violate AS2 semantics because the receiver
       is not the authoritative creator of the case.
     verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm a report receiver sends
-      `Create(as_CaseProposal)` to the case-actor inbox with its own URI set as `actor`.
+      `Create(CaseProposal)` to the case-actor inbox with its own URI set as `actor`.
     relationships:
     - rel_type: implements
       spec_id: CP-01-001
@@ -546,7 +552,7 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      This codebase MUST send `Create(as_CaseProposal)` from a distinct BT node,
+      This codebase MUST send `Create(CaseProposal)` from a distinct BT node,
       `ProposeReportCaseToActorNode`, separate from `EnsureCaseActorHostedNode`.
     rationale: Conflating actor registration with proposal sending violates single responsibility and causes the proposal
       to be sent before the case-actor service is ready. See `notes/case-proposal.md` for the pitfall.
@@ -640,11 +646,12 @@ groups:
   - id: CP-05-001
     priority: MUST
     kind: project
-    statement: A `CreateCaseProposalReceivedUseCase` MUST be implemented on the case-actor side to handle incoming `Create(as_CaseProposal)`
-      activities.
+    statement: >-
+      A `CreateCaseProposalReceivedUseCase` MUST be implemented on the case-actor side
+      to handle incoming `Create(CaseProposal)` activities.
     rationale: >-
       The Case Actor Service must answer each proposal it admits (CP-05-002). The
-      dispatcher sends each `Create(as_CaseProposal)` to this use case, so without it a
+      dispatcher sends each `Create(CaseProposal)` to this use case, so without it a
       proposal reaches no code that can answer it.
     verification: Inspection of `vultron/core/use_cases/received/case_proposal.py` confirms `CreateCaseProposalReceivedUseCase`
       is implemented and tested in `test/core/behaviors/case/test_case_proposal_received_tree.py`.
@@ -709,7 +716,7 @@ groups:
       proposal the answer is for, because one receiver can have more than one proposal
       open.
     verification: Unit tests in `test/core/behaviors/case/test_case_proposal_admission.py` confirm the reject path emits
-      `Reject(as_CaseProposal)` with the proposal as `object_`.
+      `Reject(CaseProposal)` with the proposal as `object_`.
     stories:
     - story_2022_006
     - story_2022_016
@@ -720,7 +727,7 @@ groups:
     kind: project
     statement: >-
       This codebase MUST carry the `as_CaseProposal` inline as the `object_` of the
-      `Accept(as_CaseProposal)` of CP-05-003 and of the `Reject(as_CaseProposal)` of
+      `Accept(CaseProposal)` of CP-05-003 and of the `Reject(CaseProposal)` of
       CP-05-004.
     rationale: >-
       CP-05-003 and CP-05-004 allow the proposal inline or by reference; this item
@@ -729,11 +736,13 @@ groups:
       and this codebase fetches only the objects the note on AKM-05-007 lists. So the
       proposal travels inline and stays inline through the outbox store. This is a
       prototype choice, not a protocol rule.
-    verification: '`test/core/use_cases/received/test_case_proposal.py::TestCreateCaseProposalReceivedUseCase::test_execute_creates_case_and_queues_activities`
-      confirms the accept path emits `Accept(as_CaseProposal)` whose `object_` is the typed proposal, not a bare URI string;
-      and unit tests in `test/core/behaviors/case/test_case_proposal_admission.py`
-      confirm the reject path emits `Reject(as_CaseProposal)` with the proposal object
-      embedded inline as `object_`.'
+    verification: >-
+      `test/core/use_cases/received/test_case_proposal.py::TestCreateCaseProposalReceivedUseCase::test_execute_creates_case_and_queues_activities`
+      confirms the accept path emits `Accept(CaseProposal)` whose `object_` is the typed
+      proposal, not a bare URI string; and unit tests in
+      `test/core/behaviors/case/test_case_proposal_admission.py` confirm the reject path
+      emits `Reject(CaseProposal)` with the proposal object embedded inline as
+      `object_`.
     relationships:
     - rel_type: implements
       spec_id: CP-05-003
@@ -858,8 +867,9 @@ groups:
       after an ownership transfer it may be a former owner, and the reading is the same
       (#4464). Whether a closed case can be reopened, or a new case created for its report,
       is the reopen design (#3066), not this requirement.
-    verification: A duplicate `Create(as_CaseProposal)` after acceptance produces an outbound `Accept(as_CaseProposal)`
-      identical to the stored original including its `id`.
+    verification: >-
+      A duplicate `Create(CaseProposal)` after acceptance produces an outbound
+      `Accept(CaseProposal)` identical to the stored original including its `id`.
     adr:
     - ADR-0080
     relationships:
@@ -907,7 +917,7 @@ groups:
     verification: >-
       `TestARedeliveryAfterCloseIsDeclined` in
       `test/core/behaviors/case/test_case_proposal_admission.py` confirms a duplicate
-      after the case is fully closed produces `Reject(as_CaseProposal)` and no outbound
+      after the case is fully closed produces `Reject(CaseProposal)` and no outbound
       `Accept`.
     adr:
     - ADR-0080
@@ -1065,7 +1075,7 @@ groups:
     verification: >-
       `TestTheOwnersNewProposalForAClosedCaseIsDeclined` in
       `test/core/behaviors/case/test_case_proposal_admission.py` confirms a new
-      proposal from the owner of a fully closed case yields `Reject(as_CaseProposal)`,
+      proposal from the owner of a fully closed case yields `Reject(CaseProposal)`,
       no `Accept` and no new case, and that the admission policy is not consulted.
     adr:
     - ADR-0080
@@ -1184,12 +1194,13 @@ groups:
   - id: CP-06-001
     priority: MUST
     kind: project
-    statement: An `AcceptCaseProposalReceivedUseCase` MUST be implemented on the report-receiver side to handle incoming `Accept(as_CaseProposal)`
-      activities.
+    statement: >-
+      An `AcceptCaseProposalReceivedUseCase` MUST be implemented on the report-receiver
+      side to handle incoming `Accept(CaseProposal)` activities.
     rationale: >-
       The report receiver must know that the Case Actor Service accepted its proposal,
       so that it can match the `Create(VulnerabilityCase)` that follows to its own
-      request and check its sender. The dispatcher sends each `Accept(as_CaseProposal)`
+      request and check its sender. The dispatcher sends each `Accept(CaseProposal)`
       to this use case.
     verification: Inspection of `vultron/core/use_cases/received/case_proposal.py` confirms
       `AcceptCaseProposalReceivedUseCase` is implemented with an `execute()` method.
@@ -1201,12 +1212,13 @@ groups:
   - id: CP-06-002
     priority: MUST
     kind: project
-    statement: A `RejectCaseProposalReceivedUseCase` MUST be implemented on the report-receiver side to handle incoming `Reject(as_CaseProposal)`
-      activities.
+    statement: >-
+      A `RejectCaseProposalReceivedUseCase` MUST be implemented on the report-receiver
+      side to handle incoming `Reject(CaseProposal)` activities.
     rationale: >-
       The report receiver must know when the Case Actor Service declines its proposal,
       so that it stops waiting for a case. The dispatcher sends each
-      `Reject(as_CaseProposal)` to this use case.
+      `Reject(CaseProposal)` to this use case.
     verification: Inspection of `vultron/core/use_cases/received/case_proposal.py` confirms
       `RejectCaseProposalReceivedUseCase` is implemented with an `execute()` method.
     stories:
@@ -1710,7 +1722,7 @@ groups:
     kind: project
     verification: >-
       Inspection of `receive_report_case_tree` confirms it sends
-      `Create(as_CaseProposal)` without creating a `VulnerabilityCase` in the
+      `Create(CaseProposal)` without creating a `VulnerabilityCase` in the
       receiver's DataLayer.
     statement: >-
       The report receiver MUST NOT create a `VulnerabilityCase` object in its own
@@ -1731,7 +1743,7 @@ groups:
     kind: project
     statement: >-
       The report receiver's `receive_report_case_tree` MUST store the inbound report and
-      write a pending `VultronReportCaseLink`, then send `Create(as_CaseProposal)` and
+      write a pending `VultronReportCaseLink`, then send `Create(CaseProposal)` and
       wait.
     rationale: >-
       The stored report and the pending link are what the receiver has while it waits
@@ -1742,7 +1754,7 @@ groups:
       spec_id: CP-09-005
     verification: >-
       Inspection of `receive_report_case_tree` confirms it stores the inbound report,
-      writes a pending `VultronReportCaseLink` and sends `Create(as_CaseProposal)`;
+      writes a pending `VultronReportCaseLink` and sends `Create(CaseProposal)`;
       `test/core/behaviors/case/test_receive_report_case_tree.py` asserts the link is
       pending after the tree runs.
     adr:

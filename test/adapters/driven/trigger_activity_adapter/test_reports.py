@@ -319,7 +319,8 @@ class TestSubmitReportProposedEmbargo:
 
 
 def _received_offer(dl) -> tuple[str, str]:
-    """Archive a finder's ``Offer(Report)`` as the receiver's intake keeps it.
+    """Archive a finder's ``Offer(VulnerabilityReport)`` as the receiver's intake
+    keeps it.
 
     Nothing is held under the Offer's own id (DL-06-006).  Returns
     ``(offer_id, report_id)``.

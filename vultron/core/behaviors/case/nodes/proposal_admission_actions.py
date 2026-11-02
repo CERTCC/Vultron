@@ -232,10 +232,10 @@ class RecordProposalDeclineNode(DataLayerAction):
 
 
 class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
-    """Emit ``Reject(as_CaseProposal)`` through the shared outbox seam.
+    """Emit ``Reject(CaseProposal)`` through the shared outbox seam.
 
     CP-05-004: when the case actor service declines a proposal it MUST send
-    ``Reject(as_CaseProposal)`` with the proposal as ``object_``.  This codebase
+    ``Reject(CaseProposal)`` with the proposal as ``object_``.  This codebase
     embeds it inline (CP-05-009) so the report receiver has full context without
     a second round-trip (AKM-03-003).
 

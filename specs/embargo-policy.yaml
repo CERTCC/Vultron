@@ -1171,7 +1171,7 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      This rule covers a `Create(as_CaseProposal)` that resolves to an existing
+      This rule covers a `Create(CaseProposal)` that resolves to an existing
       `VulnerabilityCase`. Its receiver MUST NOT run creation-time embargo
       initialization again in any EM state but `NONE`: `PROPOSED`, `ACTIVE`, `REVISE` or
       `EXITED`.
@@ -1208,7 +1208,7 @@ groups:
     kind: project
     statement: >-
       The CASE_MANAGER MUST NOT reconcile the embargo terms on a
-      `Create(as_CaseProposal)` that resolves to an existing case against that case.
+      `Create(CaseProposal)` that resolves to an existing case against that case.
       Terms that conflict with the case lose to the case.
     rationale: >-
       The embargo belongs to the case, not to the report. Skipping the whole creation
@@ -2554,7 +2554,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the CASE_MANAGER admits a participant (`Accept(Invite(stub))`) while an embargo
+      When the CASE_MANAGER admits a participant
+      (`Accept(Invite(Actor)[target=VulnerabilityCaseStub])`) while an embargo
       proposal is open, it MUST relay an `Invite(EmbargoEvent)` for every open proposal to
       the joiner and commit each as a ledger entry, after the joiner holds the case and the
       prior ledger. Each Invite has `actor` set to the CASE_MANAGER's ID and `attributedTo`

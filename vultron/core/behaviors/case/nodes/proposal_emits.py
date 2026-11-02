@@ -16,7 +16,7 @@
 
 """Outbound-activity emit leaf nodes for the CaseProposal received tree.
 
-Queue ``Accept(as_CaseProposal)`` and ``Create(VulnerabilityCase)`` to the
+Queue ``Accept(CaseProposal)`` and ``Create(VulnerabilityCase)`` to the
 CaseActor outbox. Composed by ``create_case_proposal_received_tree``
 (BTND-07-003).
 """

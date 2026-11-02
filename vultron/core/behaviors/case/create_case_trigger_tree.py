@@ -140,7 +140,7 @@ class _RegisterCreatorParticipantNode(
 
 
 class _BuildCreateCaseActivityNode(DataLayerActionWithPorts):
-    """Create Create(Case) activity and publish activity_id to blackboard.
+    """Create Create(VulnerabilityCase) activity and publish activity_id to blackboard.
 
     Also published as ``create_case_activity_id``: the case's genesis entry
     is this activity, sent or not (CLP-07-011).

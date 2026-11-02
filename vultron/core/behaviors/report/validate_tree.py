@@ -143,10 +143,10 @@ def create_validate_report_subtree(
         captured: Optional dict; ``captured["activity"]`` is set to the
             serialised emitted activity on success (DL-06-001, AC-1).
         emit: When ``True``, ``ValidationActions`` ends with a
-            ``Read(Offer(Report))``-style emit to the Case Actor so its inbox
-            can write the canonical ledger entry (ADR-0021 CLP-10-027).  Pass
-            ``False`` on the received side: the activity being handled *is* that
-            message, and re-emitting it would loop.
+            ``Read(Offer(VulnerabilityReport))``-style emit to the Case Actor so
+            its inbox can write the canonical ledger entry (ADR-0021 CLP-10-027).
+            Pass ``False`` on the received side: the activity being handled *is*
+            that message, and re-emitting it would loop.
         name: Root node name.
         rm_rule: The RM rule the participant write is held to.  The trigger
             side keeps ``TRANSITION``; the received side passes

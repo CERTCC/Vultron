@@ -15,8 +15,8 @@
 
 """Integration tests for the CaseProposal round-trip (CP-07-003).
 
-Verifies the full ``Create(as_CaseProposal)`` →
-``Accept(as_CaseProposal)`` + ``Create(VulnerabilityCase)`` exchange
+Verifies the full ``Create(CaseProposal)`` →
+``Accept(CaseProposal)`` + ``Create(VulnerabilityCase)`` exchange
 between a vendor actor and a case-actor service.
 
 Coverage
@@ -41,7 +41,7 @@ When the vendor's inbox receives ``SubmitReport`` from the reporter,
 1. Reads the CaseActor's identity from the configured
    ``case_actor_service_url`` (``case_actor_identity``).
 2. Delegates to ``TriggerActivityAdapter.create_case_proposal()`` to build
-   and persist a proper ``as_Create(as_CaseProposal)`` in the DataLayer.
+   and persist a proper ``Create(CaseProposal)`` in the DataLayer.
 3. Queues the activity to the vendor's outbox via ``record_outbox_item``.
 
 ``UpdateActorOutbox`` then flushes the vendor's outbox.  The
@@ -54,7 +54,7 @@ which:
 
 1. Creates a ``VulnerabilityCase`` attributed to the proposing vendor,
    the CASE_OWNER (CP-09-001).
-2. Emits ``Accept(as_CaseProposal)`` addressed to the vendor.
+2. Emits ``Accept(CaseProposal)`` addressed to the vendor.
 3. Emits ``Create(VulnerabilityCase)`` addressed to the vendor.
 
 ``run_inbox_pipeline`` automatically calls ``outbox_handler`` after
@@ -257,11 +257,13 @@ def two_app_setup():
 
 @pytest.mark.spec("CP-07-003")
 class TestCaseProposalRoundTrip:
-    """CP-07-003: full Create(CaseProposal) → Accept + Create(Case) round-trip."""
+    """CP-07-003: full Create(CaseProposal) → Accept + Create(VulnerabilityCase)
+    round-trip.
+    """
 
     @pytest.mark.spec("CP-04-001")
     def test_proposal_queued_after_submit_report(self, two_app_setup):
-        """ProposeReportCaseToActorNode queues Create(as_CaseProposal) after SubmitReport.
+        """ProposeReportCaseToActorNode queues Create(CaseProposal) after SubmitReport.
 
         After the vendor processes a SubmitReport, a ``Create`` activity
         whose ``object_`` is an ``as_CaseProposal`` must exist in the
@@ -309,7 +311,7 @@ class TestCaseProposalRoundTrip:
                 vendor_actor_id,
                 report_name=label,
                 report_content=(
-                    "Verifying that Accept(as_CaseProposal) is delivered to "
+                    "Verifying that Accept(CaseProposal) is delivered to "
                     "the vendor during the CaseProposal round-trip (CP-05-003)."
                 ),
             )
@@ -371,7 +373,7 @@ class TestCaseProposalRoundTrip:
     ):
         """Case-actor responds with Accept(CaseProposal) + Create(VulnerabilityCase).
 
-        After the vendor's outbox flushes Create(as_CaseProposal) to the
+        After the vendor's outbox flushes Create(CaseProposal) to the
         case-actor inbox, the case-actor service must emit Accept and
         Create(VulnerabilityCase) back to the vendor (CP-05-003).
         """
@@ -395,7 +397,7 @@ class TestCaseProposalRoundTrip:
             "Expected at least one Accept activity in the vendor DataLayer "
             "after the CaseProposal round-trip.  "
             "CreateCaseProposalReceivedUseCase may not have sent "
-            "Accept(as_CaseProposal) back to the vendor (CP-05-003)."
+            "Accept(CaseProposal) back to the vendor (CP-05-003)."
         )
 
         # Verify at least one VulnerabilityCase was created by the case-actor.
@@ -587,7 +589,7 @@ class TestCaseProposalRejectRoundTrip:
       Patching the adapter's module-level singleton is what a deployment with an
       admission policy does.
     - ``RejectCaseProposalReceivedUseCase`` existed long before anything could
-      emit a ``Reject(as_CaseProposal)``, which is why #3399 described it as
+      emit a ``Reject(CaseProposal)``, which is why #3399 described it as
       unreachable in practice.  Only a round-trip shows it is now reached.
     """
 
@@ -625,14 +627,14 @@ class TestCaseProposalRejectRoundTrip:
             report_name="CP-05-002 reject round-trip report",
             report_content=(
                 "Verifying that a declining case actor service sends "
-                "Reject(as_CaseProposal) and creates nothing (CP-05-002, "
+                "Reject(CaseProposal) and creates nothing (CP-05-002, "
                 "CP-05-004)."
             ),
         )
 
         reject_activities = received_of_type(vendor_iso.dl, "Reject")
         assert len(reject_activities) >= 1, (
-            "A declining case actor service MUST send Reject(as_CaseProposal) "
+            "A declining case actor service MUST send Reject(CaseProposal) "
             "back to the proposer (CP-05-002, CP-05-004).  No Reject reached "
             "the vendor's store, so the refusal never left the case actor."
         )
@@ -738,4 +740,4 @@ class TestCaseProposalDemo:
             )
 
         assert "ERROR SUMMARY" in caplog.text
-        assert "Accept(as_CaseProposal) exists" in caplog.text
+        assert "Accept(CaseProposal) exists" in caplog.text

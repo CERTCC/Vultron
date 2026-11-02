@@ -2184,7 +2184,7 @@ class TestADR0041Idempotency:
     """ADR-0041 / CP-05-006: re-processing a proposal is idempotent.
 
     The ADR explicitly warns that a prior attempt shifted ledger indices and
-    broke replication timing.  A duplicate ``Create(as_CaseProposal)`` (after
+    broke replication timing.  A duplicate ``Create(CaseProposal)`` (after
     the first delivery committed) must reuse the existing case and must NOT
     create duplicate participants or duplicate ledger entries.
     """

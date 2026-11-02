@@ -371,7 +371,7 @@ reconstructing a participant's causal order; they are verified by
 
 The CASE_MANAGER commits every initialization entry natively in
 `CommitNativeLedgerEntriesNode` (`vultron/core/behaviors/case/nodes/proposal_ledger.py`)
-while handling `Create(as_CaseProposal)` (CM-22-003, CLP-09-001). The create-case
+while handling `Create(CaseProposal)` (CM-22-003, CLP-09-001). The create-case
 trigger composes the same node (`create_case_trigger_tree.py`), its creator being
 owner and CASE_MANAGER, so both creation paths commit one sequence; do not add a
 second copy (CLP-07-013). Order:

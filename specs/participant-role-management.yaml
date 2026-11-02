@@ -389,16 +389,17 @@ groups:
     statement: >-
       A Case Manager or Case Owner MAY assert ``v→V`` (``Vf``) on behalf of a
       Vendor-role participant when the notification or invite is evidenced. Any vendor
-      acknowledgement, including ``Read(Invite(stub))``, is evidence. The target is
+      acknowledgement, including
+      ``Read(Invite(Actor)[target=VulnerabilityCaseStub])``, is evidence. The target is
       typically an inert invitee that has not yet replied, and it must already be a
       participant (PRM-06-006).
     rationale: >-
       Without this path, the case cannot record that an invited vendor is aware until
       the vendor replies to the Invite. A vendor acknowledgement, such as
-      `Read(Invite(stub))`, already shows that the vendor is aware. The stub Invite
-      creates the participant record (ADR-0114), so the assertion has a target, and no
-      new participant is necessary. RM stays the same, so the assertion does not speak
-      for the report decisions of the vendor.
+      `Read(Invite(Actor)[target=VulnerabilityCaseStub])`, already shows that the
+      vendor is aware. The stub Invite creates the participant record (ADR-0114), so
+      the assertion has a target, and no new participant is necessary. RM stays the
+      same, so the assertion does not speak for the report decisions of the vendor.
     verification: >-
       ``SvcAddOnBehalfStatusUseCase`` implements this path; the asserting
       actor's CASE_MANAGER or CASE_OWNER role is verified by

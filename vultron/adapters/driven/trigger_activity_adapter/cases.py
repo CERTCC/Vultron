@@ -88,7 +88,7 @@ class _CasesMixin:
         to: list[str] | None = None,
         id_: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Create(as_VulnerabilityCase)`` activity.
+        """Create and persist a ``Create(VulnerabilityCase)`` activity.
 
         ``context`` is the case, as for the proposal path's ``Create``
         (ADR-0045): the create-case trigger commits this same activity as the
@@ -261,7 +261,7 @@ class _CasesMixin:
         context_id: str,
         to: list[str],
     ) -> str:
-        """Create and persist an ``Announce(as_VulnerabilityCase)`` activity.
+        """Create and persist an ``Announce(VulnerabilityCase)`` activity.
 
         Reads the full case from the DataLayer, constructs the activity with
         the case inline, and persists it.  Returns the activity ID for outbox
