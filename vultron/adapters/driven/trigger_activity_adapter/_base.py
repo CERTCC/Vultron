@@ -160,9 +160,9 @@ def _case_for_wire(
     there, and a sender-side gap is the business of whoever wrote the
     dangling reference. ``announce_vulnerability_case`` then refuses to send
     a case whose report is missing (AKM-02-004), and ``create_case`` one with
-    any bare participant or report (CBT-01-007,
-    :func:`_require_bootstrap_inline`). An unreadable active embargo
-    is the exception: it raises (EMB-18-003, :func:`_carried_embargo`).
+    any bare participant (CBT-01-007, :func:`_require_bootstrap_inline`). An
+    unreadable active embargo is the exception: it raises (EMB-18-003,
+    :func:`_carried_embargo`).
     """
     case = _to_wire(dl.read(case_id), as_VulnerabilityCase)
     updates: dict[str, Any] = {}
@@ -181,29 +181,39 @@ def _case_for_wire(
 #: Case list fields whose bare ids are carried as objects by ``_case_for_wire``.
 #: ``_AS_LIST_REF_FIELDS`` is the DataLayer's own list of list-reference fields
 #: (the ones its retired delivery-time ``hydrate()`` expanded); the reports are
-#: added because a recipient seeding a case needs them too (CBT-01-007,
-#: AKM-02-004).
+#: added because a recipient seeding a case may lack them (AKM-02-004).
 _CARRIED_LIST_FIELDS: frozenset[str] = _AS_LIST_REF_FIELDS | {
     "vulnerability_reports"
 }
 
 
-def _require_bootstrap_inline(case: Any, case_id: str) -> None:
-    """Refuse a bootstrap case that still names a nested object by bare id.
+#: Case list fields the bootstrap ``Create(VulnerabilityCase)`` must carry as
+#: objects: its receiver cannot already hold the participant records
+#: (CBT-01-007).  The reports are not listed: the bootstrap's receiver offered
+#: the report, so a bare id names an object it holds.  ``_case_for_wire`` still
+#: carries every report the sender holds inline, a choice of this prototype
+#: rather than a protocol requirement.
+_BOOTSTRAP_INLINE_FIELDS: frozenset[str] = frozenset({"case_participants"})
 
-    The bootstrap ``Create(VulnerabilityCase)`` carries every nested domain
-    object inline (CBT-01-007), and its receiver refuses a participant named
-    by id rather than fetch it (CBT-05-008, AKM-05-007). :func:`_case_for_wire`
-    leaves an id it cannot resolve as the id, so a case it returns with a
-    bare participant or report is one the bootstrap may not carry.
+
+def _require_bootstrap_inline(case: Any, case_id: str) -> None:
+    """Refuse a bootstrap case that still names a participant by bare id.
+
+    The bootstrap ``Create(VulnerabilityCase)`` carries each participant record
+    inline (CBT-01-007), and its receiver refuses a participant named by id
+    rather than fetch it (CBT-05-008, AKM-05-007). :func:`_case_for_wire`
+    leaves an id it cannot resolve as the id, so a case it returns with a bare
+    participant is one the bootstrap may not carry.  A report it cannot
+    resolve stays an id, with the WARNING ``_carried_list`` logs: the receiver
+    offered that report, so the protocol lets the bootstrap name it.
 
     Raises:
-        VultronValidationError: If a field in ``_CARRIED_LIST_FIELDS`` still
-            holds a bare id.
+        VultronValidationError: If a field in ``_BOOTSTRAP_INLINE_FIELDS``
+            still holds a bare id.
     """
     bare = {
         field_name: [item for item in items if isinstance(item, str)]
-        for field_name in sorted(_CARRIED_LIST_FIELDS)
+        for field_name in sorted(_BOOTSTRAP_INLINE_FIELDS)
         if isinstance(items := getattr(case, field_name, None), list)
     }
     bare = {name: ids for name, ids in bare.items() if ids}
@@ -281,7 +291,7 @@ def _carried_list(
                 logger.warning(
                     "_case_for_wire: case '%s' names %s '%s' which is absent"
                     " from the sending actor's own store, so it cannot be"
-                    " carried inline (AKM-02-004, CBT-01-007)",
+                    " carried inline (AKM-02-004)",
                     case_id,
                     field_name,
                     item,

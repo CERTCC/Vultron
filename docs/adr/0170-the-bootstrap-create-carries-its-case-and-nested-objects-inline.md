@@ -3,7 +3,7 @@ status: accepted-provisional
 date: 2026-11-02
 created: 2026-11-02
 updated: 2026-11-02
-revision: 1
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0107, ADR-0132, ADR-0157; issues #5373, #5470;
@@ -46,7 +46,8 @@ Chosen option: "A", because it is the only option in which a receiver never has 
 
 The invariant is:
 
-- The bootstrap `Create(VulnerabilityCase)` carries the complete case and every domain object nested in it inline.
+- The bootstrap `Create(VulnerabilityCase)` carries the complete case and its participant records inline, the objects its receiver cannot already hold.
+  A report the receiver offered may be named by reference, because the receiver holds it (Amendment 2026-11-02).
 - A receiver does not fetch an object the protocol requires inline.
   A bootstrap whose participant record is missing or named only by reference is a protocol error, and the receiver refuses it.
 
@@ -59,13 +60,14 @@ Every other message keeps the general rule: an object may travel inline or by re
 - Good, because the protocol now states the refusal the reference implementation already performs, so the refusal is no longer a prototype shortcut.
 - Good, because the receiver's checks run on one message, with nothing left to fetch.
 - Bad, because a large case makes a large bootstrap message.
-- Neutral, because the receiver's refusal covers participant records, which its later checks read; a report the receiver already holds, such as the one it submitted, it can still read from its own store if a non-conforming sender names it by reference.
+- Neutral, because the receiver's refusal covers participant records, which its later checks read; a report the receiver already holds, such as the one it submitted, it reads from its own store when the sender names it by reference.
 - Neutral, because a `Create` whose own `object` is a bare URI cannot be recognised as a bootstrap until its type is known, and a receiver that holds no case has no host to fetch it from, so it is not processed.
 
 ## Validation
 
 - A test sends a bootstrap whose participant is a bare URI and finds it refused before anything is stored.
-- A test checks that the bootstrap a sender builds carries the case, its participants and its reports as full objects.
+- A test checks that the bootstrap a sender builds carries the case and its participants as full objects.
+- A test gives a sender a case naming a report its own store cannot read and finds the bootstrap is sent, the report named by its id.
 - A test gives a sender a case naming a participant its own store cannot read and finds the bootstrap is not sent.
 
 ## Pros and Cons of the Options
@@ -87,6 +89,29 @@ Every other message keeps the general rule: an object may travel inline or by re
 - Good, because the sender is the actor the reporter chose.
 - Bad, because the sender may have delegated the case to another CASE_MANAGER and need not hold every object.
 - Bad, because it adds a fetch exchange that exists only for the bootstrap.
+
+## Amendment — 2026-11-02
+
+The invariant is narrowed to the objects the bootstrap's receiver cannot already hold; the chosen option, inline and never fetched, is unchanged.
+The maintainer decided that the protocol requires an object inline only when its receiver cannot already hold it (#5691).
+The reporter offered the report the bootstrap names, so the bootstrap may name that report by reference; the case and its participant records stay inline.
+The reference implementation still carries each report its sender holds inline, but that is a choice of the prototype, not a requirement of this decision.
+
+The first invariant read:
+
+> The bootstrap `Create(VulnerabilityCase)` carries the complete case and every domain object nested in it inline.
+
+The neutral consequence on reports read:
+
+> a report the receiver already holds, such as the one it submitted, it can still read from its own store if a non-conforming sender names it by reference.
+
+A sender that names the report by reference is no longer non-conforming.
+
+The second validation item read:
+
+> A test checks that the bootstrap a sender builds carries the case, its participants and its reports as full objects.
+
+The title is kept so that links to this record stay valid; "nested objects" in it now means the participant records.
 
 ## More Information
 

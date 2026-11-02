@@ -558,16 +558,16 @@ groups:
       A receiver MUST fetch an object it lacks, and needs to process a received
       activity, from the actor that holds it. A case's object is held by the
       case's CASE_MANAGER, and an actor's profile by that actor. An object the
-      protocol requires inline, as it does the bootstrap's case and nested objects
-      (CBT-01-002, CBT-01-007), is not fetched. A bootstrap missing a participant
-      record is refused (CBT-05-008).
+      protocol requires inline, as it does the bootstrap's case and participant
+      records (CBT-01-002, CBT-01-007), is not fetched. A bootstrap missing a
+      participant record is refused (CBT-05-008).
     rationale: >-
       A sender may name by reference an object its receiver is expected to hold
       (CLP-07-006, AKM-02-002), and a replica that lacks it, through a gap or a lag,
       would otherwise refuse or drop an activity that was sound. The bootstrap is the
       exception: its receiver trusts no CASE_MANAGER until it accepts the bootstrap,
-      so it has no trusted source to fetch from, and the protocol requires the
-      bootstrap to carry what it needs inline instead (ADR-0170).
+      so it has no trusted source to fetch from, and the bootstrap carries inline
+      what the receiver cannot already hold instead (ADR-0170).
     note: >-
       In this codebase a receiver fetches a case object for an activity no pattern
       matches because its `object` is a bare id it does not hold

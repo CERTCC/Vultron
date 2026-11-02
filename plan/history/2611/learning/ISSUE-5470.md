@@ -36,3 +36,13 @@ id with a WARNING (`EmitCreateVulnerabilityCaseNode._build_case_object`). If
 that `Create` is the bootstrap, it breaks CBT-01-007, and the CASE_MANAGER
 would have to refuse such a proposal instead. #5470 read CBT-01's own
 definition and left the report path as it was.
+
+## Resolution
+
+The maintainer settled it on 2026-11-02 (#5691): the protocol requires an
+object inline only when its receiver cannot already hold it. Neither `Create`
+must carry the report inline: the Case Owner proposed it, and the reporter
+offered it. Both carry the case and its participant records inline
+(CBT-01-002, CBT-01-007, CP-09-004). CBT-01-007 now names only the participant
+records, ADR-0170 carries a dated Amendment, and the bootstrap sender no longer
+refuses a report it cannot read. The CASE_MANAGER's report-by-id path stays.

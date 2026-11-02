@@ -124,7 +124,9 @@ class _World:
         )
         dl.create(self.participant)
         # The case names its participant and report by id, as a stored case
-        # does; a case put on the wire must carry them inline (CBT-01-007, AKM-02-004).
+        # does; a case put on the wire carries them inline: the participant
+        # because its receiver cannot hold it (CBT-01-007), the report because
+        # this prototype carries every report its sender holds (AKM-02-004).
         self.case = as_VulnerabilityCase(
             id_=self.case_id,
             name="CVE-2026-1",
@@ -711,9 +713,11 @@ def test_the_activity_is_sealed_complete(world, method):
     # URI or the selective-disclosure stub — never the full object.  Checked
     # at every depth: an Accept embeds the Offer or Invite it answers, and a
     # read-back-rehydrated embedded activity is where a full case leaked.
-    # CBT-01-007, AKM-02-004: a case carried as the ``object`` carries its
-    # participants and reports as objects — the recipient seeds its replica
-    # from them, and the outbox no longer expands ids at delivery time.
+    # A case carried as the ``object`` carries its participants (CBT-01-007)
+    # and, as this prototype's choice, the reports its sender holds
+    # (AKM-02-004) as objects — the recipient seeds its replica from them, and
+    # the outbox no longer expands ids at delivery time.  The world holds its
+    # report, so a bare report id here is a regression too.
     obj = body.get("object")
     if (
         isinstance(obj, dict)
@@ -724,7 +728,8 @@ def test_the_activity_is_sealed_complete(world, method):
             bare = [x for x in obj.get(field, []) if not isinstance(x, dict)]
             assert not bare, (
                 f"{method} put a VulnerabilityCase in object whose {field}"
-                f" holds bare ids {bare} (CBT-01-007, AKM-02-004)"
+                f" holds bare ids {bare} (CBT-01-007 for participants,"
+                " AKM-02-004 for reports)"
             )
     leaks = _full_case_paths(body)
     assert not leaks, (
