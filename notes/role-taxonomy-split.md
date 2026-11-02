@@ -3,8 +3,9 @@ title: Role Taxonomy Split — Position, Case Authority, Actor Standing
 status: active
 kind: plan
 tracks:
-  - "#5586"
-  - "#4747"
+  - "#5619"
+  - "#5620"
+  - "#5411"
 description: >
   Migration design for ADR-0169: splitting `CVDRole` into three enums by scope,
   giving `CaseParticipant` a separate authority field, moving actor standing off
