@@ -166,13 +166,10 @@ Forensic artifacts matter most in the run that fails, so a dump placed after the
 last phase never runs when it counts (#2239: `devlogs/` empty, invariant harness
 dead on artifact download).
 
-- Wrap the whole body of `run_<name>_demo()` in
-  `run_story()` enters `scenario_harness("<demo-name>")` for every scenario — it
-  resets the accumulator, always dumps on the way out, and calls
-  `assert_demo_success()` last.
-- Register the dump as soon as a case exists: `state.open_case(...)`, which
-  arms the `dump=` fragment the cast opening was built with and follows the
-  canonical ledger, both exactly once.
+- `run_story()` enters `scenario_harness("<demo-name>")` for every scenario: it
+  resets the accumulator, always dumps on the way out, and asserts success last.
+- The dump is armed as soon as a case exists, by `state.open_case(...)`, which
+  also follows the canonical ledger — both exactly once.
 - Do not re-add `try/finally: assert_demo_success()` in `main()` — a second owner
   of the accumulator asserts before the dump runs.
 - Keep the dump step thin and delegate to
