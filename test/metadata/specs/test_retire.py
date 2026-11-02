@@ -368,3 +368,39 @@ def test_cli_passes_base_and_reports_refusal(
     assert exc.value.code == 1
     assert "no-such-ref" in capsys.readouterr().err
     _assert_nothing_changed(repo, before)
+
+
+def test_retire_accepts_sub_item_id_and_keeps_its_parent_citations_apart(
+    tmp_path: Path,
+) -> None:
+    """A sub-item ID such as ``TST-01-001b`` is retirable (MS-04-001).
+
+    Its parent's citations are not its own, and the parent's are not listed
+    for it.
+    """
+    data = _two_spec_file()
+    data["groups"][0]["specs"][1]["id"] = "TST-01-001b"
+    (tmp_path / "specs").mkdir()
+    write_yaml(tmp_path / "specs", data)
+    (tmp_path / "notes.md").write_text("See TST-01-001.\nSee TST-01-001b.\n")
+    _init_repo(tmp_path)
+
+    refs = retire_spec(
+        "TST-01-001b",
+        why="restated its parent",
+        retired_by="#1",
+        repo_root=tmp_path,
+        today=date(2026, 10, 5),
+    )
+
+    assert "TST-01-001b" not in load_registry(tmp_path / "specs").all_specs
+    assert retired_spec_ids(tmp_path) == {"TST-01-001b"}
+    assert [(rel, n) for rel, n, _ in refs] == [("notes.md", 2)]
+
+
+def test_retire_does_not_list_a_sub_item_citation_for_its_parent(
+    repo: Path,
+) -> None:
+    (repo / "notes.md").write_text("See TST-01-001b.\n")
+
+    assert _retire(repo) == []

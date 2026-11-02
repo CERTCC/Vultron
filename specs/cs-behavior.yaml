@@ -252,8 +252,8 @@ groups:
       (q^cs ∈ ···p··) and EM Proposed (q^em ∈ P) receiving CP MUST transition
       their local CS to Public Aware.
     rationale: >-
-      Public awareness terminates a pending embargo proposal per VP-09-001 and
-      VP-11-002. The embargo cannot be negotiated once the information is public.
+      Public awareness terminates a pending embargo proposal per VP-09-001. The
+      embargo cannot be negotiated once the information is public (VP-06-001).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CP with EM Proposed
       transitions local CS to ···P··, sets EM to NONE, and emits CK.
@@ -297,9 +297,9 @@ groups:
       (q^cs ∈ ···p··) and EM Active or Revise (q^em ∈ {A, R}) receiving CP MUST
       transition their local CS to Public Aware.
     rationale: >-
-      VP-09-001 and VP-11-002 require immediate embargo termination when public
-      awareness occurs. The CS transition is recorded before embargo teardown
-      begins (CSB-12-004).
+      VP-09-001 requires immediate embargo termination when public awareness
+      occurs. The CS transition is recorded before embargo teardown begins
+      (CSB-12-004).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CP with EM Active or
       Revise transitions CS to ···P·· and that the CASE_MANAGER emits ET before
@@ -334,11 +334,6 @@ groups:
     - rel_type: satisfies
       spec_id: VP-09-001
       note: Embargoes SHALL terminate immediately when information becomes public
-    - rel_type: satisfies
-      spec_id: VP-11-002
-      note: >-
-        SHALL terminate embargo when information about vulnerability or exploit
-        is public
     - rel_type: satisfies
       spec_id: VP-11-003
       note: >-
@@ -432,8 +427,8 @@ groups:
       On receiving CP, it MUST initiate embargo termination by emitting ET
       in the act that adopts the P value.
     rationale: >-
-      VP-09-001 and VP-11-002 require immediate embargo termination when public
-      awareness occurs.
+      VP-09-001 requires immediate embargo termination when public awareness
+      occurs.
       Only the CASE_MANAGER writes shared EM state, so it emits the ET when it
       records the P/X/A status (RSH-03-001, EP-09-008); it can be the Case
       Owner itself. A non-manager Participant reports the CS change and emits
@@ -570,8 +565,8 @@ groups:
       and not yet exploit-public (q^cs ∈ ···px·) and EM Active or Revise
       (q^em ∈ {A, R}) receiving CX MUST transition their local CS to ···PX·.
     rationale: >-
-      VP-09-001 and VP-11-002 require immediate embargo termination when exploit
-      publication occurs. The pX→PX invariant applies. The CS transition is
+      VP-09-001 requires immediate embargo termination when exploit publication
+      occurs. The pX→PX invariant applies. The CS transition is
       recorded before teardown begins (CSB-05-010).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CX in CS ···px· with
@@ -608,9 +603,6 @@ groups:
     - rel_type: satisfies
       spec_id: VP-09-001
       note: Embargoes SHALL terminate immediately when exploit publication occurs
-    - rel_type: satisfies
-      spec_id: VP-11-002
-      note: SHALL terminate embargo when exploit is public
     - rel_type: satisfies
       spec_id: MSM-03-005
       note: 'CX shorthand wire-type mapping'
@@ -737,8 +729,8 @@ groups:
       On receiving CX, it MUST initiate embargo termination by emitting ET
       in the act that adopts the X value.
     rationale: >-
-      VP-09-001 and VP-11-002 require immediate embargo termination when exploit
-      publication occurs.
+      VP-09-001 requires immediate embargo termination when exploit publication
+      occurs.
       Only the CASE_MANAGER writes shared EM state, so it emits the ET when it
       records the P/X/A status (RSH-03-001, EP-09-008); it can be the Case
       Owner itself. A non-manager Participant reports the CS change and emits
@@ -888,8 +880,8 @@ groups:
     - description: Receiver CS is ···p·A; EM is NONE; CK emitted
     relationships:
     - rel_type: satisfies
-      spec_id: VP-11-006
-      note: SHOULD terminate embargo when attacks are known to have occurred
+      spec_id: VP-09-003
+      note: Embargoes SHOULD terminate immediately when attacks are observed
     - rel_type: satisfies
       spec_id: MSM-03-006
       note: 'CA shorthand wire-type mapping'
@@ -906,7 +898,7 @@ groups:
       (q^em ∈ {A, R}) receiving CA MUST transition their local CS attacks bit
       to A (q^cs ···p·a → ···p·A).
     rationale: >-
-      Observed attacks warrant embargo termination (VP-11-006, CSB-18-004)
+      Observed attacks warrant embargo termination (VP-09-003, CSB-18-004)
       without making the vulnerability public, so only the attacks bit changes
       (CSB-17-002). The CS transition is recorded before teardown begins
       (CSB-06-010).
@@ -945,8 +937,8 @@ groups:
         CK emitted
     relationships:
     - rel_type: satisfies
-      spec_id: VP-11-006
-      note: SHOULD terminate embargo when attacks are known to have occurred
+      spec_id: VP-09-003
+      note: Embargoes SHOULD terminate immediately when attacks are observed
     - rel_type: satisfies
       spec_id: MSM-03-006
       note: 'CA shorthand wire-type mapping'
@@ -1038,7 +1030,7 @@ groups:
       abandoning each open proposal (EMB-16-001).
     rationale: >-
       Observed attacks make further embargo negotiation moot; the pending
-      proposal is abandoned per VP-11-006 and EMB-16-001.
+      proposal is abandoned per VP-06-001 and EMB-16-001.
       The abandonment is shared EM state, so the CASE_MANAGER, which can be the
       Case Owner itself, makes it when it records the P/X/A status (RSH-03-001,
       EMB-16-001). A Participant that does not hold the role writes no EM
@@ -1077,7 +1069,7 @@ groups:
       On receiving CA, it MUST initiate embargo termination by emitting ET
       in the act that adopts the A value.
     rationale: >-
-      Observed attacks warrant embargo termination (VP-11-006), and an active
+      Observed attacks warrant embargo termination (VP-09-003), and an active
       embargo cannot coexist with the attacks bit (CSB-18-004).
       Only the CASE_MANAGER writes shared EM state, so it emits the ET when it
       records the P/X/A status (RSH-03-001, EP-09-008); it can be the Case
@@ -1291,27 +1283,28 @@ groups:
     statement: >-
       A Participant entering CS Fix Ready (q^cs ∈ VFd···) SHOULD NOT start new
       embargo negotiations. If an embargo proposal is pending (q^em ∈ P), the
-      Participant SHOULD reject it.
+      Participant SHOULD reject it. The one exception is the brief publication
+      or deployment embargo of VP-06-008.
     rationale: >-
       VP-14-007 discourages starting or completing new embargo negotiations once
-      a fix is ready. Constraint C-34: fix readiness is late in the process for
-      beginning embargo negotiations.
-    verification: >-
-      Integration tests in `test/demo/` confirm that a participant entering CS Fix
-      Ready does not start new embargo negotiations and rejects any pending
-      proposal.
+      a fix is ready, and VP-06-008 names its one exception. Constraint C-34:
+      fix readiness is late in the process for beginning embargo negotiations.
     testable: false
     preconditions:
     - cs_pattern: "VFd..."
       description: CS matches pattern VFd...
     lint_suppress:
     - testable_without_steps
+    # compound_statement: it mirrors VP-14-007, whose two keywords apply one
+    # Fix Ready default with one exception (#5298 AC-1).
+    - compound_statement
     relationships:
     - rel_type: satisfies
       spec_id: VP-14-007
       note: >-
         Once a case has reached Fix Ready, new embargo negotiations SHOULD NOT
-        start and pending embargoes SHOULD be rejected
+        start and pending embargoes SHOULD be rejected, except for the VP-06-008
+        publication or deployment embargo
     stories:
     - story_2022_014
 
@@ -1430,7 +1423,7 @@ groups:
       embargo (q^em ∈ {A, R}) SHALL terminate the embargo immediately by
       emitting ET.
     rationale: >-
-      VP-09-001 and VP-14-001 require immediate embargo termination upon public
+      VP-09-001 requires immediate embargo termination upon public
       disclosure. CSB-12-004 orders the CS transition before the teardown.
     verification: >-
       Integration tests in `test/demo/` confirm that entering CS Public Aware with an
@@ -1458,9 +1451,6 @@ groups:
     - rel_type: satisfies
       spec_id: VP-09-001
       note: Embargoes SHALL terminate immediately when information becomes public
-    - rel_type: satisfies
-      spec_id: VP-14-001
-      note: Once Public Awareness, any existing embargo SHALL terminate
 
     stories:
     - story_2022_023
@@ -1496,7 +1486,7 @@ groups:
       A Participant entering CS Public Aware MUST NOT seek new embargoes or
       accept new embargo proposals for this case.
     rationale: >-
-      VP-14-001 prohibits seeking new embargoes once public awareness has
+      VP-06-001 prohibits seeking new embargoes once public awareness has
       occurred. This applies to all future EP messages for this case.
     verification: >-
       Integration tests in `test/demo/` confirm that a participant with CS ···P··
@@ -1509,7 +1499,7 @@ groups:
     - testable_without_steps
     relationships:
     - rel_type: satisfies
-      spec_id: VP-14-001
+      spec_id: VP-06-001
       note: Once Public Awareness, new embargoes SHALL NOT be sought
     stories:
     - story_2022_014
@@ -1602,7 +1592,7 @@ groups:
       embargo (q^em ∈ {A, R}) SHALL terminate the embargo immediately by
       emitting ET.
     rationale: >-
-      VP-09-001 and VP-14-002 require immediate embargo termination upon exploit
+      VP-09-001 requires immediate embargo termination upon exploit
       publication. CSB-13-004 orders the CS transition before the teardown.
     verification: >-
       Integration tests in `test/demo/` confirm that entering CS ···PX· with an active
@@ -1631,9 +1621,6 @@ groups:
       spec_id: VP-09-001
       note: >-
         Embargoes SHALL terminate immediately when exploit becomes public
-    - rel_type: satisfies
-      spec_id: VP-14-002
-      note: Once Exploit Publication, any existing embargo SHALL terminate
 
     stories:
     - story_2022_023
@@ -1669,7 +1656,7 @@ groups:
       A Participant entering CS Exploit Public MUST NOT seek new embargoes or
       accept new embargo proposals for this case.
     rationale: >-
-      VP-14-002 prohibits seeking new embargoes once exploit publication has
+      VP-06-001 prohibits seeking new embargoes once exploit publication has
       occurred.
     verification: >-
       Integration tests in `test/demo/` confirm that a participant with CS ···PX·
@@ -1682,7 +1669,7 @@ groups:
     - testable_without_steps
     relationships:
     - rel_type: satisfies
-      spec_id: VP-14-002
+      spec_id: VP-06-001
       note: Once Exploit Publication, new embargoes SHALL NOT be sought
     stories:
     - story_2022_014
@@ -1702,7 +1689,7 @@ groups:
       active embargo (q^em ∈ {A, R}) SHOULD terminate the embargo by emitting
       ET.
     rationale: >-
-      VP-09-003 and VP-14-013 recommend early embargo termination when attacks
+      VP-09-003 recommends immediate embargo termination when attacks
       are observed. Unlike P and X, the attacks case is SHOULD (not SHALL) to
       allow for judgment in cases where other factors may apply. CSB-14-005
       orders the CS transition before any teardown.
@@ -1731,15 +1718,8 @@ groups:
     - rel_type: satisfies
       spec_id: VP-09-003
       note: >-
-        Embargoes SHOULD terminate early when there is evidence of active
+        Embargoes SHOULD terminate immediately when there is evidence of active
         exploitation
-    - rel_type: satisfies
-      spec_id: VP-11-006
-      note: >-
-        SHOULD terminate embargo when attacks are known to have occurred
-    - rel_type: satisfies
-      spec_id: VP-14-013
-      note: Once Attacks observed, any existing embargo SHOULD terminate
     stories:
     - story_2022_014
 
@@ -1775,7 +1755,7 @@ groups:
       A Participant entering CS Attacks Observed MUST NOT seek new embargoes
       for this case.
     rationale: >-
-      VP-14-003 prohibits seeking new embargoes once attacks have been observed.
+      VP-06-001 prohibits seeking new embargoes once attacks have been observed.
     testable: false
     preconditions:
     - cs_pattern: ".....A"
@@ -1784,7 +1764,7 @@ groups:
     - testable_without_steps
     relationships:
     - rel_type: satisfies
-      spec_id: VP-14-003
+      spec_id: VP-06-001
       note: Once Attacks observed, new embargoes SHALL NOT be sought
 
   - id: CSB-14-004
