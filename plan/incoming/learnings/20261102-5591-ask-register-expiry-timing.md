@@ -35,8 +35,5 @@ will hit them again:
    ASK-04-007 exists, that timing and "no read path may read the recording
    clock" have to be satisfied together, and no requirement says how.
 
-Open question for the corpus: does ASK-05-001's timing survive the clock-free
-read rule, and if so, where does the deciding instant come from — the entry into
-the tree being a write boundary, or a reap pass (ASK-05-002, #2887) being the
-only evaluator? The same question is what #5649 and #5650 each have to answer
-for their own call sites.
+Where the deciding instant should come from — and whether a window is the
+right test for a repeat at all — is Concern #5689's question, not this note's.

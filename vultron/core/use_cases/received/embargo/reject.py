@@ -15,6 +15,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.announce_teardown_tree import (
     reject_invite_to_embargo_tree,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.events.embargo import (
     RejectInviteToEmbargoOnCaseReceivedEvent,
 )
@@ -69,6 +70,10 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
+        # This delivery's instant, read once before anything decides
+        # anything: the pending-ask lookup below judges against it rather
+        # than reading the clock itself (#5591).
+        at = now_utc()
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
@@ -142,7 +147,7 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             logger.info(
                 "'%s' rejected embargo '%s'", rejecting_actor_id, invite_id
             )
-            close_refused_embargo_ask(self._dl, request)
+            close_refused_embargo_ask(self._dl, request, at=at)
 
         # A repeat of a Reject already recorded is refused by the tree's
         # repeat guard before the commit, and reported SKIPPED (CM-13-005,

@@ -274,8 +274,10 @@ retiring `path=` and the hand-placed `reach_step` (#5537).
   recording clock a read costs a 10 ms tick, so slipping one into a shared
   stretch shifts every later timestamp and digest, and on a racing thread it
   shifts them by a different amount on each run. `PendingAssertionStore`'s
-  lookups were the one such read reached from a shared stretch and no longer
-  read the clock (#5591); a new one is a defect, not a measurement problem.
+  lookups were the one such read reached from a shared stretch; they now take
+  the instant from the act whose check they are (#5591), which is the shape a
+  read that needs a time should take — a new clock read inside a read path is
+  a defect, not a measurement problem.
   Other read paths still read it — the decision-tree builders (#5649), five
   guard nodes (#5650), the sync cooldown checks (#5651) and the inbound
   extraction edge (#5652) — so a stretch that reaches one of those is not
@@ -389,9 +391,10 @@ retiring `path=` and the hand-placed `reach_step` (#5537).
   expiry on a thread racing the owner's accept trigger, and where the
   process-global store those entries live in carried the previous scenario's
   asks into the next run. The two came out 80 ms apart in a whole-tree run and
-  identical in solo runs until expiry moved to the write and the sweep and the
-  registry joined the per-run resets (#5591); the coordinator-first subtree is
-  one family of seven now, with every pair checked. The vendor-first half
+  identical in solo runs until the lookup started taking its instant from the
+  act that calls for it and the registry joined the per-run resets (#5591);
+  the coordinator-first subtree is one family of seven now, with every pair
+  checked. The vendor-first half
   parts at ledger entry 15 or 22, well ahead of that stretch, so it needed
   neither (#5536).
 - **Key a composed view on the scenario and the case, never the case alone.**

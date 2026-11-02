@@ -22,6 +22,8 @@ suppressed by :class:`TeardownAskPendingNode`; the manager's announced commit
 of the ask clears it (SYNC-11-003).  BTND-07-005.
 """
 
+from datetime import datetime
+
 import py_trees
 from py_trees.common import Status
 
@@ -36,6 +38,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.models.pending_assertion import (
     record_pending_assertion,
@@ -69,9 +72,17 @@ class TeardownAskPendingNode(DataLayerConditionWithPorts):
         "embargo_id": PortInformation(data_type=str, required=True),
     }
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    def __init__(
+        self, case_id: str, at: datetime, name: str | None = None
+    ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
+        #: The instant this check judges the pending ask's age against,
+        #: supplied by the subtree that composed it.  The check reads no
+        #: clock of its own: under the demo recording clock a read costs a
+        #: tick, and a read whose occurrence depends on what the store holds
+        #: moves every later timestamp (#5591).
+        self._at = at
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -92,6 +103,7 @@ class TeardownAskPendingNode(DataLayerConditionWithPorts):
             self._case_id,
             EMBARGO_TEARDOWN_SEMANTIC_TYPE,
             self.embargo_id,
+            at=self._at,
         )
         if reason is None:
             return Status.FAILURE
@@ -223,6 +235,8 @@ def ask_case_manager_to_terminate_once(
     case_id: str,
     reason: TerminationReason,
     cause: TerminationCause | ChosenTermination | None = None,
+    *,
+    at: datetime | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """The cascades' ask: queue ``Remove(EmbargoEvent)`` unless already asked.
 
@@ -235,12 +249,22 @@ def ask_case_manager_to_terminate_once(
     carries *reason*, the termination's what (ADR-0122), and *cause*, its
     why, when given (EMB-13-005); a :class:`ChosenTermination` is read when
     the ask is sent (EMB-14-001).
+
+    *at* is the instant the pending-ask check judges the ask's age against
+    (SYNC-11-005).  When the caller holds none it is read here, once, as this
+    subtree is built: a construction-time read is fixed before any node
+    ticks, so it cannot move with the check's verdict or with thread
+    interleaving, which is the defect #5591 fixed in the store's lookups.
+    It is the same shape as the embargo and case clock decisions, and #5649
+    moves all three to the act that calls for the tree.
     """
     return py_trees.composites.Selector(
         name="AskCaseManagerToTerminateOnce",
         memory=False,
         children=[
-            TeardownAskPendingNode(case_id=case_id),
+            TeardownAskPendingNode(
+                case_id=case_id, at=at if at is not None else now_utc()
+            ),
             SendTerminateEmbargoActivityNode(
                 case_id=case_id, reason=reason, cause=cause
             ),

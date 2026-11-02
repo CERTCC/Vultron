@@ -42,6 +42,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import (
     RmDimension,
@@ -467,6 +468,7 @@ class TestSvcAddNoteToCaseUseCase:
             self.case.id_,
             MessageSemantics.ADD_NOTE_TO_CASE.value,
             add_activity_id,
+            at=now_utc(),
         ), (
             "Expected pending-assertion store to suppress the Add(Note) "
             "activity until the matching Announce(CaseLedgerEntry) arrives"
@@ -484,6 +486,7 @@ class TestSvcAddNoteToCaseUseCase:
             self.case.id_,
             MessageSemantics.ADD_NOTE_TO_CASE.value,
             add_activity_id,
+            at=now_utc(),
         )
 
         # Simulate the Announce(CaseLedgerEntry) round-trip clearing the entry
@@ -496,6 +499,7 @@ class TestSvcAddNoteToCaseUseCase:
             self.case.id_,
             MessageSemantics.ADD_NOTE_TO_CASE.value,
             add_activity_id,
+            at=now_utc(),
         ), "After clear(), suppression must be lifted"
 
     @pytest.mark.spec("SYNC-11-004")
@@ -590,4 +594,5 @@ class TestSvcAddNoteToCaseUseCase:
             self.case.id_,
             MessageSemantics.ADD_NOTE_TO_CASE.value,
             add_activity_id,
+            at=now_utc(),
         ), "Zero-timeout store must never suppress"

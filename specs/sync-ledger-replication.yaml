@@ -1067,11 +1067,12 @@ groups:
       participant could never make the assertion again.
     verification: >-
       `test/core/models/test_pending_assertion.py::TestTimeout` covers the
-      marking and the lifted suppression. The mark is applied by the write that
-      stamps the next entry and by `expire_timed_out()`, the sweep an operator
-      retry or the catch-up gate runs; a lookup applies no mark, because a
-      lookup that read the clock moved every later timestamp in a demo
-      recording (#5591, `notes/demo-scenario-tree.md`).
+      marking and the lifted suppression. Every lookup applies the mark, and
+      so do the write that stamps the next entry and the `expire_timed_out()`
+      sweep; each judges the entry's age against an instant it is given
+      rather than one it reads, because a lookup that read the clock itself
+      moved every later timestamp in a demo recording (#5591,
+      `notes/demo-scenario-tree.md`).
 - id: SYNC-12
   title: Effects-Before-Persist Invariant
   specs:

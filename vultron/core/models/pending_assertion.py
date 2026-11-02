@@ -24,18 +24,21 @@ This is **not** persisted and **not** a DataLayer entity.  The store is
 intentionally ephemeral: entries are lost on actor restart (the catch-up
 gate in #791 replays any unconfirmed log entries after restart).
 
-**A lookup reads no clock.**  An entry is marked ``"timed_out"`` when the
-store is written or swept, never when it is read, so
-:meth:`PendingAssertionStore.is_suppressed` and
-:meth:`PendingAssertionStore.pending_for_subject` leave the clock where they
-found it.  Under the demo recording clock every read costs a 10 ms tick, so a
-lookup that read the clock moved every later timestamp and hash in the
-recording when it raced another thread (#5591).  Expiry is therefore decided
-against the latest instant the store has been *told*: the ``emitted_at`` of
-the newest entry :meth:`~PendingAssertionStore.add` wrote, or the instant
-:meth:`~PendingAssertionStore.expire_timed_out` swept with.  That sweep is the
-one place the store reads the clock, and is what SYNC-11-005's operator retry
-and catch-up gate call before they resubmit.
+**A lookup reads no clock; its caller supplies the instant.**  Every lookup
+(:meth:`PendingAssertionStore.is_suppressed`,
+:meth:`~PendingAssertionStore.pending_for_subject`,
+:meth:`~PendingAssertionStore.clear_activity`) takes the instant it judges an
+entry's age against, and applies the SYNC-11-005 timeout mark itself against
+that instant.  Under the demo recording clock every clock read costs a 10 ms
+tick, so a lookup that read the clock itself moved every later timestamp and
+hash in the recording when it raced another thread (#5591).  The instant comes
+from the act the caller is already performing — one read per act, taken
+whether or not the lookup then suppresses anything — so the lookup's verdict
+cannot move the clock and thread interleaving cannot move the verdict.
+
+:meth:`~PendingAssertionStore.expire_timed_out` is the explicit sweep, and the
+one method here that reads the clock; nothing depends on it for the timeout to
+fire, because every lookup evaluates expiry.
 
 Spec: SYNC-11-001 through SYNC-11-005.
 """
@@ -112,11 +115,11 @@ class PendingAssertionStore:
     the actor.  Timed-out entries are marked ``"timed_out"`` and no longer
     suppress future decisions.
 
-    **Expiry is marked on a write or a sweep, never on a lookup** (#5591, see
-    the module docstring): :meth:`add` times out every overdue entry against
-    the instant it stamped on the new one, and :meth:`expire_timed_out` does
-    the same against the clock.  A lookup then needs only the status, so it
-    reads no clock.
+    **A lookup judges expiry against an instant its caller supplies** (#5591,
+    see the module docstring).  :meth:`add` uses the instant it stamped on the
+    new entry, :meth:`expire_timed_out` reads the clock, and every lookup
+    takes an ``at`` argument; each applies the mark to whatever the instant
+    shows is overdue.  No method here reads the clock except that sweep.
 
     Setting ``timeout_seconds=0`` disables suppression entirely.
 
@@ -137,12 +140,6 @@ class PendingAssertionStore:
     ) -> None:
         self.timeout_seconds = timeout_seconds
         self._store: dict[ProtocolPair, PendingAssertion] = {}
-        #: The latest instant the store has been told about, by a write or a
-        #: sweep.  ``None`` until the first one: a store that has been told no
-        #: instant holds no entry either, so there is nothing to expire.  The
-        #: store never reads the clock to fill this in — that is what keeps a
-        #: lookup clock-free (#5591).
-        self._observed: datetime | None = None
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -173,30 +170,30 @@ class PendingAssertionStore:
             return False
         return (at - entry.emitted_at).total_seconds() >= self.timeout_seconds
 
-    def _observe(self, at: datetime) -> int:
-        """Advance the observed instant to *at* and time out what is overdue.
+    def _mark_overdue(self, at: datetime) -> int:
+        """Mark every entry *at* shows is overdue ``"timed_out"`` (SYNC-11-005).
 
-        The one path that marks an entry ``"timed_out"``, called by every
-        write and by the sweep (#5591).  The observed instant only ever moves
-        forward, so an earlier *at* — a clock that stepped back — expires
-        nothing it has already covered.
+        The one path that applies the mark.  Every write, every lookup and
+        the sweep call it with the instant they hold, so the timeout fires on
+        whichever of them comes first and none of them reads the clock to do
+        it (#5591).  The mark is sticky — :meth:`_overdue` answers ``False``
+        for an entry that is no longer ``"pending"`` — so a later call with an
+        earlier instant cannot put an expired entry back.
 
         Returns:
             How many entries this call moved to ``"timed_out"``.
         """
-        observed = at if self._observed is None else max(self._observed, at)
-        self._observed = observed
         overdue = [
             entry
             for entry in list(self._store.values())
-            if self._overdue(entry, observed)
+            if self._overdue(entry, at)
         ]
         for entry in overdue:
             entry.status = "timed_out"
             logger.error(
                 "pending_assertions: entry timed out after %.0fs "
                 "case_id=%s semantic_type=%s object_id=%.32s…",
-                (observed - entry.emitted_at).total_seconds(),
+                (at - entry.emitted_at).total_seconds(),
                 entry.case_id,
                 entry.semantic_type,
                 entry.object_id,
@@ -220,8 +217,8 @@ class PendingAssertionStore:
         successful re-commit after a timeout resets the clock.
 
         The instant stamped on the new entry is also the instant every other
-        entry's deadline is judged against, so a write is one of the two
-        places an overdue entry is marked ``"timed_out"`` (#5591).
+        entry's deadline is judged against, so a write marks what it finds
+        overdue, as a lookup and the sweep do (#5591).
 
         Args:
             case_id: URI of the parent :class:`VulnerabilityCase`.
@@ -237,10 +234,10 @@ class PendingAssertionStore:
             object_id=object_id,
             subject_id=subject_id,
         )
-        # Swept before the new entry joins the store, so a stale observed
-        # instant — a clock that stepped back — cannot time out an entry on
-        # the write that created it.
-        self._observe(entry.emitted_at)
+        # Marked before the new entry joins the store, so an instant an
+        # earlier caller supplied cannot time out the entry this write
+        # created.
+        self._mark_overdue(entry.emitted_at)
         self._store[key] = entry
         logger.debug(
             "pending_assertions: added entry "
@@ -251,40 +248,55 @@ class PendingAssertionStore:
         )
 
     def is_suppressed(
-        self, case_id: str, semantic_type: str, object_id: str
+        self,
+        case_id: str,
+        semantic_type: str,
+        object_id: str,
+        *,
+        at: datetime,
     ) -> bool:
-        """Return ``True`` iff a pending entry exists.
+        """Return ``True`` iff a pending entry exists and has not aged out.
 
         Zero ``timeout_seconds`` disables suppression (always returns
-        ``False``).  Already-cleared or timed-out entries never suppress.
-        A pure lookup: it reads no clock, because an overdue entry was moved
-        to ``"timed_out"`` by the write or sweep that saw the time pass
-        (#5591).
+        ``False``).  Already-cleared or timed-out entries never suppress, and
+        an entry *at* shows is overdue is marked ``"timed_out"`` here and does
+        not suppress (SYNC-11-005).
 
         Args:
             case_id: URI of the parent :class:`VulnerabilityCase`.
             semantic_type: The assertion's semantic type.
             object_id: Full URI of the asserted activity or primary object.
+            at: The instant to judge the entry's age against, from the act
+                the caller is performing.  The lookup reads no clock of its
+                own (#5591).
         """
         if self.timeout_seconds == 0:
             return False
+        self._mark_overdue(at)
         key = self._key(case_id, semantic_type, object_id)
         entry = self._store.get(key)
         return entry is not None and entry.status == "pending"
 
     def pending_for_subject(
-        self, case_id: str, semantic_type: str, subject_id: str
+        self,
+        case_id: str,
+        semantic_type: str,
+        subject_id: str,
+        *,
+        at: datetime,
     ) -> PendingAssertion | None:
         """Return the pending, unexpired assertion about *subject_id*, if any.
 
         The duplicate check for an assertion whose repeat would carry a new
         activity id (SYNC-11-002): the same embargo answer, teardown or terms
         asked for again inside the window.  Honours the timeout exactly as
-        :meth:`is_suppressed` does — zero disables suppression, a timed-out
-        entry no longer matches, and the lookup reads no clock (#5591).
+        :meth:`is_suppressed` does — zero disables suppression, an entry *at*
+        shows is overdue is marked ``"timed_out"`` and no longer matches, and
+        the lookup reads no clock of its own (#5591).
         """
         if self.timeout_seconds == 0:
             return None
+        self._mark_overdue(at)
         for entry in list(self._store.values()):
             if (
                 entry.case_id == case_id
@@ -320,7 +332,7 @@ class PendingAssertionStore:
         )
 
     def clear_activity(
-        self, case_id: str, activity_id: str
+        self, case_id: str, activity_id: str, *, at: datetime
     ) -> list[PendingAssertion]:
         """Clear every pending entry for the asserted activity *activity_id*.
 
@@ -332,13 +344,14 @@ class PendingAssertionStore:
             case_id: URI of the parent :class:`VulnerabilityCase`.
             activity_id: The refused activity's id.
 
-        An entry already marked ``timed_out`` is not cleared: it was no
-        longer pending.  Selecting the entries reads no clock, as every
-        lookup here does (#5591).
+        An entry *at* shows is overdue is marked ``timed_out`` here and is not
+        cleared: it was no longer pending.  Selecting the entries reads no
+        clock of its own, as every lookup here does (#5591).
 
         Returns:
             The entries this call cleared; empty when none was pending.
         """
+        self._mark_overdue(at)
         cleared = [
             entry
             for entry in list(self._store.values())
@@ -353,17 +366,16 @@ class PendingAssertionStore:
     def expire_timed_out(self) -> int:
         """Sweep the store and expire all overdue pending entries.
 
-        The one place the store reads the clock, and what SYNC-11-005's
-        operator retry and catch-up gate call before they resubmit an
-        assertion whose round-trip never came back: no lookup expires an
-        entry, so without a sweep a lone unanswered ask keeps suppressing
-        its own repeat (#5591).  A write expires overdue entries too, so an
-        actor that asserts anything at all sweeps as it goes.
+        The one method here that reads the clock, for a caller that holds no
+        instant of its own — an operator forcing a sweep, or the reap trigger
+        of ASK-05-002 (#2887).  Nothing depends on it for the timeout to
+        fire: every lookup judges expiry against the instant its caller
+        supplies (#5591).
 
         Returns:
             Number of entries transitioned to ``"timed_out"`` this sweep.
         """
-        return self._observe(now_utc())
+        return self._mark_overdue(now_utc())
 
     def __len__(self) -> int:
         """Return the total number of tracked entries (all statuses)."""
@@ -436,6 +448,8 @@ def suppressed_repeat_reason(
     case_id: str,
     semantic_type: str,
     subject_id: str,
+    *,
+    at: datetime,
 ) -> str | None:
     """Why a repeat ask about *subject_id* is suppressed, or ``None``.
 
@@ -444,10 +458,12 @@ def suppressed_repeat_reason(
     cascade's ``TeardownAskPendingNode`` read the same store with the same
     key, so an ask from either path suppresses a repeat from the other.
     ``None`` means nothing is pending: never asked, cleared by the announced
-    commit (SYNC-11-003), or timed out (SYNC-11-005).
+    commit (SYNC-11-003), or timed out (SYNC-11-005) — judged against *at*,
+    the instant of the act the asker is performing, so this check reads no
+    clock of its own (#5591).
     """
     pending = get_pending_assertion_store(actor_id).pending_for_subject(
-        case_id, semantic_type, subject_id
+        case_id, semantic_type, subject_id, at=at
     )
     if pending is None:
         return None

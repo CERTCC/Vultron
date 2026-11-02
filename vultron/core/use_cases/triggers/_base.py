@@ -38,6 +38,7 @@ Three-level hierarchy:
 
 import logging
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Any, ClassVar
 
 import py_trees
@@ -54,6 +55,7 @@ from vultron.core.behaviors.case.nodes.clock_decision_stage import (
 from vultron.core.behaviors.embargo.embargo_clock_decisions import (
     embargo_clock_decisions,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.pending_assertion import (
     ASSERTED_ACTIVITY_KEY,
@@ -120,6 +122,14 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
     ) -> None:
         self._dl = dl
         self._request = request
+        #: This act's instant, read once when the use case is built — before
+        #: anything decides anything, and whatever the run then decides.
+        #: Every clock decision this run takes judges against it, and so does
+        #: the pending-assertion check in :meth:`_suppressed_duplicate`,
+        #: which therefore reads no clock of its own: the check's verdict
+        #: cannot move the clock, and thread interleaving cannot move the
+        #: verdict (#5591).
+        self._at: datetime = now_utc()
         self._trigger_activity = trigger_activity
         # A tree that captures a core object in a ledger snapshot renders it
         # through this port; core cannot produce the AS2 shape itself
@@ -323,7 +333,7 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
         """
         if not self._takes_case_clock_decisions:
             return []
-        return case_clock_decisions(case_id)
+        return case_clock_decisions(case_id, now=self._at)
 
     def _activity_fields(self) -> dict[str, Any]:
         """The two keys every :class:`ActivityResult` body carries.
@@ -391,10 +401,12 @@ class SvcActivityTriggerBase(SvcBTTriggerBase[ActivityResult]):
         The check half of the pending-assertion pair whose record half is
         :meth:`_record_asserted_activity`: a request about *subject_id* while
         an assertion about it under *semantic_type* is pending is answered
-        without re-emitting it (SYNC-11-002).
+        without re-emitting it (SYNC-11-002).  Judged against
+        :attr:`_at`, this act's instant, so the check reads no clock of its
+        own (#5591).
         """
         reason = suppressed_repeat_reason(
-            self._actor_id, case_id, semantic_type, subject_id
+            self._actor_id, case_id, semantic_type, subject_id, at=self._at
         )
         if reason is None:
             return None
@@ -444,7 +456,7 @@ class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
         """
         return [
             *super()._clock_decisions(case_id),
-            *embargo_clock_decisions(case_id),
+            *embargo_clock_decisions(case_id, now=self._at),
         ]
 
     def _asserted_semantic_type(self) -> str:
