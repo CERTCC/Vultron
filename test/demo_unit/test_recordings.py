@@ -955,14 +955,11 @@ class TestComposedFamilies:
 
     # Parametrizes over the pairs of the families named in COMPOSED_FAMILIES,
     # which a family joins when its scenarios share one authored opening
-    # (#4733).  Two reasons a pair can be absent.  A family that still places
-    # its shared steps by hand is absent whole, because the order can then
-    # differ where the logic matches and only the isomorphism above can hold.
-    # And one pair of a fully composed family is held out: {rcv-embargo,
-    # rcvv-embargo} share four steps, so their prefix runs past the embargo
-    # activation, where a read advances the recording clock and the two came
-    # out 80 ms apart in a whole-tree run (#5591).  The table says that by
-    # naming that subtree as two overlapping families.
+    # (#4733).  A family that still places its shared steps by hand is absent
+    # whole, because the order can then differ where the logic matches and
+    # only the isomorphism above can hold.  What else a family must satisfy is
+    # stated once in notes/demo-scenario-tree.md § "Composition" and
+    # cited from COMPOSED_FAMILIES; no pair of a composed family is held out.
     @pytest.mark.parametrize(
         "pair",
         prefix.composed_pairs(prefix.shared_prefixes(scenario_tree())),

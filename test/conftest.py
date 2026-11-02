@@ -250,9 +250,11 @@ def _reset_pending_assertion_stores_between_tests():
     test would silently suppress the same trigger in the next.
     """
     yield
-    from vultron.core.models.pending_assertion import _reset_stores
+    from vultron.core.models.pending_assertion import (
+        reset_pending_assertion_stores,
+    )
 
-    _reset_stores()
+    reset_pending_assertion_stores()
 
 
 @pytest.fixture(autouse=True)

@@ -70,6 +70,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.fault import RefusalNoticeReceivedEvent
@@ -410,7 +411,10 @@ def test_the_participant_closes_its_pending_assertion(caplog):
 
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
     assert not get_pending_assertion_store(BYSTANDER).is_suppressed(
-        net.case_id, ACCEPT_EVENT, event.activity_id
+        net.case_id,
+        ACCEPT_EVENT,
+        event.activity_id,
+        at=now_utc(),
     )
     warnings = [
         r.getMessage() for r in caplog.records if r.levelname == "WARNING"
@@ -457,7 +461,10 @@ def test_a_notice_from_anyone_but_the_case_manager_is_refused():
 
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert get_pending_assertion_store(BYSTANDER).is_suppressed(
-        net.case_id, ACCEPT_EVENT, event.activity_id
+        net.case_id,
+        ACCEPT_EVENT,
+        event.activity_id,
+        at=now_utc(),
     )
 
 
@@ -544,7 +551,10 @@ def test_a_declined_leave_closes_the_owners_pending_leave():
 
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
     assert not get_pending_assertion_store(OWNER).is_suppressed(
-        net.case_id, "close_case", leave_id
+        net.case_id,
+        "close_case",
+        leave_id,
+        at=now_utc(),
     )
 
 

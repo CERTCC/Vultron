@@ -76,11 +76,14 @@ _TIMESTAMP = "<timestamp>"
 #: hand-placed openings happen to agree.
 #:
 #: The coordinator-first subtree — every scenario whose Reporter tells a
-#: Coordinator — is the first family, composed in three steps: ``rcv`` and
+#: Coordinator — is the first family, composed in four steps: ``rcv`` and
 #: ``rcv-reject`` piloted the story runner (#5533), the rest of the
-#: Reporter → Coordinator → Vendor branch followed (#5534), and the
-#: two-coordinator pair joined it on the opening all seven share (#5535).
-#: Each assembles its story from the nested prefixes in
+#: Reporter → Coordinator → Vendor branch followed (#5534), the
+#: two-coordinator pair joined it on the opening all seven share (#5535), and
+#: ``{rcv-embargo, rcvv-embargo}`` — the one pair whose shared prefix runs
+#: past the embargo activation — joined once a pending-assertion lookup
+#: stopped reading the recording clock (#5591).  Each assembles its story from
+#: the nested prefixes in
 #: :mod:`vultron.demo.helpers.coordinated_story`,
 #: :mod:`vultron.demo.helpers.coordinated_embargo_story` and
 #: :mod:`vultron.demo.helpers.two_coordinator_story`, so the bytes before each
@@ -88,7 +91,7 @@ _TIMESTAMP = "<timestamp>"
 #: by construction.
 #:
 #: The vendor-first half — every scenario whose Reporter tells a Vendor — is
-#: the third entry, composed in one step (#5536): ``rv``, ``rvv``,
+#: the second entry, composed in one step (#5536): ``rv``, ``rvv``,
 #: ``rvcv-extension`` and ``rvcv-handoff`` assemble their stories from the
 #: nested prefixes in :mod:`vultron.demo.helpers.vendor_story` and
 #: :mod:`vultron.demo.helpers.vendor_coordinator_story`.  Its opening seeds
@@ -96,20 +99,11 @@ _TIMESTAMP = "<timestamp>"
 #: the setup-length gap that kept the half on the isomorphism check alone:
 #: each actor and peer record written before the case exists is one more read
 #: of the recording clock, and the four started 120 and 160 ms apart with two,
-#: three and four containers seeded (#5532).  Every pair of the four parts at
-#: ledger entry 15 or 22, ahead of the race below, so every pair is checked
-#: here.
+#: three and four containers seeded (#5532).
 #:
-#: The subtree is named as **two overlapping families**, which is how this
-#: table says "every pair but one".  The one pair left out is
-#: ``{rcv-embargo, rcvv-embargo}``: their paths agree for four steps, so their
-#: shared prefix runs past the embargo activation, where the recording is not
-#: yet reproducible — the pending-assertion store reads the clock to check
-#: expiry, so a lookup racing the owner's accept trigger moves every later
-#: timestamp by 80 ms, and the two scenarios came out 80 ms apart in a
-#: whole-tree run and identical in solo runs (#5591).  Every other pair parts
-#: at or before ledger entry 26, ahead of that race, and is checked here.
-#: Merging the two entries into one is #5591's job.
+#: What a family must satisfy before it is named here, and why a read that
+#: reads the clock breaks it, is stated once in
+#: ``notes/demo-scenario-tree.md`` § "Composition".
 COMPOSED_FAMILIES: tuple[frozenset[str], ...] = (
     frozenset(
         {
@@ -119,15 +113,6 @@ COMPOSED_FAMILIES: tuple[frozenset[str], ...] = (
             "rccv-extension",
             "rccv-handoff",
             "rcv-embargo",
-        }
-    ),
-    frozenset(
-        {
-            "rcv",
-            "rcv-reject",
-            "rcvcv",
-            "rccv-extension",
-            "rccv-handoff",
             "rcvv-embargo",
         }
     ),
