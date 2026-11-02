@@ -200,7 +200,7 @@ class TestOfferActorToCaseReceivedUseCase:
         strict=True,
         reason=(
             "CM-16-020: the forwarded Offer(CaseParticipant) does not carry "
-            "the recommender's reason yet"
+            "the recommender's reason yet. Tracked by #5642."
         ),
     )
     def test_offer_actor_to_case_forwards_the_recommenders_reason(
