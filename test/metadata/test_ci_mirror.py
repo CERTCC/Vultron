@@ -468,7 +468,9 @@ def _result(status: CheckStatus, log: str | None = None):
 )
 def test_a_blocking_result_exits_1(status: CheckStatus, capsys):
     assert (
-        ci_mirror.report([_result(CheckStatus.PASSED), _result(status)], False)
+        ci_mirror.print_report(
+            [_result(CheckStatus.PASSED), _result(status)], False
+        )
         == 1
     )
 
@@ -485,7 +487,7 @@ def test_a_blocking_result_exits_1(status: CheckStatus, capsys):
     ],
 )
 def test_a_non_blocking_result_exits_0(status: CheckStatus, capsys):
-    assert ci_mirror.report([_result(status)], False) == 0
+    assert ci_mirror.print_report([_result(status)], False) == 0
     assert capsys.readouterr().out.rstrip().endswith("mirror exit: 0")
 
 
@@ -493,7 +495,7 @@ def test_a_failure_prints_its_log_tail(tmp_path: Path, capsys):
     log = tmp_path / "c.log"
     log.write_text("first\nthe real error\n")
 
-    ci_mirror.report([_result(CheckStatus.FAILED, str(log))], False)
+    ci_mirror.print_report([_result(CheckStatus.FAILED, str(log))], False)
 
     out = capsys.readouterr().out
     assert f"log: {log}" in out
@@ -503,7 +505,7 @@ def test_a_failure_prints_its_log_tail(tmp_path: Path, capsys):
 def test_json_reports_real_results(capsys):
     import json
 
-    assert ci_mirror.report([_result(CheckStatus.FAILED)], True) == 1
+    assert ci_mirror.print_report([_result(CheckStatus.FAILED)], True) == 1
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["exit"] == 1

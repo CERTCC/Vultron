@@ -76,7 +76,7 @@ _MERGE_IDENTITY = (
 )  # fmt: skip
 
 #: The exit status of a run stopped by SIGTERM (128 + 15), after cleanup.
-TERMINATED = 143
+SIGTERM_EXIT = 143
 
 
 class MergedTreeError(RuntimeError):
@@ -254,7 +254,7 @@ def main(
 
     SIGTERM (``timeout`` sends it first) unwinds through the cleanup instead
     of killing the process where it stands, so the scratch worktree is
-    removed and the run exits :data:`TERMINATED`.
+    removed and the run exits :data:`SIGTERM_EXIT`.
     """
     args = _build_parser().parse_args(argv)
     previous = signal.signal(signal.SIGTERM, _on_sigterm)
@@ -265,7 +265,7 @@ def main(
         code = 2
     except _Terminated:
         print("merged-tree-tests: terminated; scratch worktree removed")
-        code = TERMINATED
+        code = SIGTERM_EXIT
     finally:
         signal.signal(signal.SIGTERM, previous)
     print(f"merged-tree exit: {code}")

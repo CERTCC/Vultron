@@ -97,7 +97,7 @@ __all__ = [
     "main",
     "opaque_actions",
     "parity_problems",
-    "report",
+    "print_report",
 ]
 
 
@@ -164,7 +164,7 @@ def _planned_rows(planned: Sequence[PlannedCheck]) -> list[CheckResult]:
     ]  # fmt: skip
 
 
-def report(rows: Sequence[CheckResult], as_json: bool) -> int:
+def print_report(rows: Sequence[CheckResult], as_json: bool) -> int:
     """Print *rows* in the output contract; return the exit code they give."""
     code = 1 if any(r.status.blocks for r in rows) else 0
     if as_json:
@@ -215,10 +215,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         skip=args.skip,
     )
     if args.list:
-        return report(_planned_rows(planned), args.json)
+        return print_report(_planned_rows(planned), args.json)
     # PYTHONPATH empty, as every CI step sets it; GITHUB_BASE_REF so the
     # merge-base guards read this base, as they do in CI.
     env = {**os.environ, "PYTHONPATH": "", "GITHUB_BASE_REF": args.base}
-    return report(
+    return print_report(
         run_checks(planned, root, jobs=args.jobs, env=env), args.json
     )
