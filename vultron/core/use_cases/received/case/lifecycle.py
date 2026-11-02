@@ -84,7 +84,8 @@ class AddReportToCaseReceivedUseCase:
         if report_id is None or case_id is None:
             logger.warning("add_report_to_case: missing report_id or case_id")
             return HandlerResult.refused(
-                "Add(Report, Case) is missing its report id or case id"
+                "Add(VulnerabilityReport)[target=VulnerabilityCase] is "
+                "missing its report id or case id"
             )
         if self._dl.read_case(case_id) is None:
             logger.warning("add_report_to_case: case '%s' not found", case_id)

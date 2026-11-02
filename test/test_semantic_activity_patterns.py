@@ -412,7 +412,9 @@ def test_only_a_stub_invite_matches_the_stub_invite_pattern(invitee, target):
 @pytest.mark.spec("SE-01-004")
 @pytest.mark.spec("VAM-04-004")
 def test_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
-    """InviteActorToCasePattern must match Invite(actor_subtype, target=Case).
+    """InviteActorToCasePattern matches Invite(Actor)[target=VulnerabilityCaseStub].
+
+    It matches for every actor subtype.
 
     DR-07: _match_field() must be subtype-aware for AOtype.ACTOR so that
     Person, Organization, and Service (the real actor subtypes used in
@@ -444,7 +446,9 @@ def test_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
 @pytest.mark.spec("SE-01-004")
 @pytest.mark.spec("VAM-04-005")
 def test_accept_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
-    """AcceptInviteActorToCasePattern must match Accept(Invite(actor_subtype, target=Case)).
+    """AcceptInviteActorToCasePattern matches the Accept of a stub Invite, any subtype.
+
+    The Accept is ``Accept(Invite(Actor)[target=VulnerabilityCaseStub])``.
 
     The nested-pattern check propagates actor subtype-awareness through the
     AcceptInviteActorToCasePattern → InviteActorToCasePattern chain.
@@ -468,7 +472,7 @@ def test_accept_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
 
 @pytest.mark.spec("SE-01-004")
 def test_invite_actor_to_case_without_actor_object_does_not_match():
-    """Invite(Note, target=Case) must NOT match INVITE_ACTOR_TO_CASE.
+    """Invite(Note)[target=VulnerabilityCase] must NOT match INVITE_ACTOR_TO_CASE.
 
     Enforces the object_ discriminator added by DR-07: a non-Actor object
     must not be accepted as an actor-invite pattern match.
@@ -623,11 +627,11 @@ def _make_target_actor() -> as_Actor:
 
 @pytest.mark.spec("SE-08-003")
 def test_offer_case_participant_role_dispatches_correctly():
-    """Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase) must
+    """Offer(CaseParticipantRole)[context=VulnerabilityCase] must
     be classified as OFFER_CASE_PARTICIPANT_ROLE (ADR-0039, SE-08-003).
 
     The self-describing object type eliminates the target-field ambiguity of
-    the deprecated Offer(VulnerabilityCase, target=CaseParticipant) format.
+    the deprecated Offer(VulnerabilityCase)[target=CaseParticipant] format.
     """
     from vultron.enums.roles import CVDRole
 
@@ -1012,7 +1016,7 @@ def test_strict_target_matches_typed_actor():
 
 
 def _make_role_offer():
-    """Build a valid Offer(CaseParticipantRole, target=Actor, context=Case) activity."""
+    """Build a valid Offer(CaseParticipantRole)[context=VulnerabilityCase] activity."""
     from vultron.enums.roles import CVDRole
 
     case = _make_case_manager_case()
@@ -1027,7 +1031,7 @@ def _make_role_offer():
 
 @pytest.mark.spec("SE-08-003")
 def test_accept_case_participant_role_dispatches_correctly():
-    """Accept(Offer(CaseParticipantRole, ...)) must be classified as
+    """Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase]) must be classified as
     ACCEPT_CASE_PARTICIPANT_ROLE (ADR-0039, SE-08-003).
 
     AC-2/AC-3/AC-4: the Accept pattern, registry entry, and MessageSemantics
@@ -1045,7 +1049,7 @@ def test_accept_case_participant_role_dispatches_correctly():
 
 @pytest.mark.spec("SE-08-003")
 def test_reject_case_participant_role_dispatches_correctly():
-    """Reject(Offer(CaseParticipantRole, ...)) must be classified as
+    """Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase]) must be classified as
     REJECT_CASE_PARTICIPANT_ROLE (ADR-0039, SE-08-003).
 
     AC-2/AC-3/AC-4: the Reject pattern, registry entry, and MessageSemantics

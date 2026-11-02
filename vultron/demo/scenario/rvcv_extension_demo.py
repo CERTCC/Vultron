@@ -417,7 +417,8 @@ def _phase_coordinator_suggests_vendor2(
     )
     logger.info("─" * 80)
 
-    # Step M3: Coordinator sends suggest-actor-to-case (Offer(Actor, Case) → CaseActor).
+    # Step M3: Coordinator sends suggest-actor-to-case
+    # (Offer(Actor)[target=VulnerabilityCase] → CaseActor).
     with demo_step("Coordinator suggests Vendor2 to CaseActor"):
         ActorSession(
             client=coordinator_client, actor=coordinator_in_coordinator
@@ -429,7 +430,7 @@ def _phase_coordinator_suggests_vendor2(
         "Coordinator sent suggest-actor-to-case for Vendor2 (%s)", vendor2.id_
     )
 
-    # CaseActor processes Offer(Actor, Case) and forwards Offer(CaseParticipant)
+    # CaseActor processes Offer(Actor)[target=VulnerabilityCase] and forwards Offer(CaseParticipant)
     # to Vendor1 (CASE_OWNER).  Poll Vendor1's DataLayer for the offer.
     # All dependent steps (case_actor lookup and approve) are nested inside
     # demo_gate so they are skipped if the offer never arrives (ADR-0058).
@@ -463,9 +464,9 @@ def _phase_coordinator_suggests_vendor2(
             )
     logger.info("Vendor1 sent Accept(Offer(CaseParticipant)) to CaseActor")
 
-    # CaseActor receives Accept → emits Invite(Actor, CaseStub) to Vendor2.  Per
-    # MV-10-004 the Invite alone does NOT seed Vendor2's case replica; Vendor2
-    # must Accept(Invite) so the CaseActor sends the trust-bootstrap
+    # CaseActor receives Accept → emits Invite(Actor)[target=VulnerabilityCaseStub] to
+    # Vendor2. Per MV-10-004 the Invite alone does NOT seed Vendor2's case replica;
+    # Vendor2 must Accept(Invite) so the CaseActor sends the trust-bootstrap
     # Announce(VulnerabilityCase) (MV-10-003).  The chain polls Vendor2's
     # DataLayer for the Invite and puppeteers the accept (ADR-0026
     # invite/accept/bootstrap chain; DEMOMA-10-005 / CM-16-006), nesting

@@ -86,7 +86,8 @@ groups:
       The case is at P/X/A when the vulnerability is public (q^cs ∈ ···P··), an
       exploit is public (q^cs ∈ ····X·), or attacks are observed
       (q^cs ∈ ·····A). A Participant that receives a new embargo proposal (EP) at P/X/A
-      MUST answer the Invite with its own `Reject(Invite(Event))` instead of accepting it.
+      MUST answer the Invite with its own `Reject(Invite(EmbargoEvent))` instead of
+      accepting it.
       The refusal binds only the proposal's addressee. A receiver the proposal is not
       addressed to (HP-01-012) holds an unaddressed copy, refuses it (HP-01-005) and
       answers nothing (ADR-0118); `cc` addresses nobody (ADR-0109). The `Reject` names
@@ -115,11 +116,11 @@ groups:
       actor: receiver
       action: Emit a `Reject` of the Invite to refuse the embargo proposal
       expected: >-
-        `Reject(Invite(Event))` queued for the sender; the receiver's EM state does
+        `Reject(Invite(EmbargoEvent))` queued for the sender; the receiver's EM state does
         not move to PROPOSED
     postconditions:
     - description: >-
-        `Reject(Invite(Event))` emitted; no EM state transition to PROPOSED
+        `Reject(Invite(EmbargoEvent))` emitted; no EM state transition to PROPOSED
     relationships:
     - rel_type: satisfies
       spec_id: VP-06-001
@@ -346,7 +347,7 @@ groups:
       in the owner's decision), so X or A set refuses the activation as P does.
     statement: >-
       A Participant MUST NOT apply EA's transition to Active when the case is at P/X/A
-      (q^cs ∉ ···pxa). EA is the Case Owner's `Accept(EmbargoEvent, target=Case)`
+      (q^cs ∉ ···pxa). EA is the Case Owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]`
       (MSM-07-008). The CASE_MANAGER refuses that activation before committing it to the
       case ledger, and sends no `Reject` of the Invite for it.
     rationale: >-
@@ -412,7 +413,7 @@ groups:
     kind: protocol
     statement: >-
       The case may be at P/X/A (q^cs ∉ ···pxa) when a Participant's
-      `Accept(Invite(Event))` reaches the CASE_MANAGER. The CASE_MANAGER MUST then
+      `Accept(Invite(EmbargoEvent))` reaches the CASE_MANAGER. The CASE_MANAGER MUST then
       refuse the Accept by answering that Participant with a `Reject` of the Invite.
     rationale: >-
       An `Accept` of the Invite is the Participant's own consent, not EA (MSM-02-010), so
@@ -441,11 +442,12 @@ groups:
       actor: CASE_MANAGER
       action: Emit a `Reject` of the Invite to refuse the acceptance (embargo not viable)
       expected: >-
-        `Reject(Invite(Event))` queued for the accepting Participant; its consent is not
+        `Reject(Invite(EmbargoEvent))` queued for the accepting Participant; its consent
+        is not
         recorded
     postconditions:
     - description: >-
-        `Reject(Invite(Event))` emitted; the Participant's acceptance is not recorded
+        `Reject(Invite(EmbargoEvent))` emitted; the Participant's acceptance is not recorded
     relationships:
     - rel_type: satisfies
       spec_id: VP-06-001
@@ -687,9 +689,9 @@ groups:
     - order: 1
       actor: receiver
       action: Emit a `Reject` of the revision Invite to the CASE_MANAGER
-      expected: "`Reject(Invite(Event))` queued for the CASE_MANAGER"
+      expected: "`Reject(Invite(EmbargoEvent))` queued for the CASE_MANAGER"
     postconditions:
-    - description: "`Reject(Invite(Event))` queued for the CASE_MANAGER"
+    - description: "`Reject(Invite(EmbargoEvent))` queued for the CASE_MANAGER"
     relationships:
     - rel_type: refines
       spec_id: EMB-01-002
@@ -851,7 +853,7 @@ groups:
       last proposal open, and MUST remain in Revise (q^em R → R) under the
       revised terms while another proposal is open (EMB-18-005). "Emit EK" is discharged by the
       CASE_MANAGER's commit of the case owner's
-      `Accept(EmbargoEvent, target=Case)`, fanned out as
+      `Accept(EmbargoEvent)[target=VulnerabilityCase]`, fanned out as
       `Announce(CaseLedgerEntry)`; no EK message is emitted (EP-09-009, MSM-02-009).
     rationale: >-
       EC says that the Case Owner accepts a revision. The revised terms replace the
@@ -868,7 +870,7 @@ groups:
       with CS matching ...pxa and no other open proposal transitions EM back to
       ACTIVE with revised terms, and that the
       CASE_MANAGER's commit of the case owner's
-      `Accept(EmbargoEvent, target=Case)` and its announcement
+      `Accept(EmbargoEvent)[target=VulnerabilityCase]` and its announcement
       discharge EK with no EK message queued.
     testable: true
     preconditions:
@@ -884,7 +886,8 @@ groups:
     - order: 2
       actor: receiver
       action: >-
-        CASE_MANAGER commits the case owner's `Accept(EmbargoEvent, target=Case)` and announces the ledger entry
+        CASE_MANAGER commits the case owner's
+        `Accept(EmbargoEvent)[target=VulnerabilityCase]` and announces the ledger entry
         (discharges EK)
       expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
@@ -904,6 +907,10 @@ groups:
 
     stories:
     - story_2022_014
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5219.
+    - compound_statement
   - id: EMB-05-002
     priority: MUST
     kind: protocol
@@ -1237,7 +1244,7 @@ groups:
     kind: protocol
     statement: >-
       A Participant entering EM Proposed MAY evaluate the proposed terms and answer
-      the Invite with `Accept(Invite(Event))` or `Reject(Invite(Event))`, or
+      the Invite with `Accept(Invite(EmbargoEvent))` or `Reject(Invite(EmbargoEvent))`, or
       counter-propose with EV.
     rationale: >-
       EM Proposed marks that embargo negotiation is underway. The participant
@@ -1443,7 +1450,7 @@ groups:
     kind: protocol
     statement: >-
       A Participant entering EM Revise MAY evaluate the revision proposal and answer
-      its Invite with `Accept(Invite(Event))` or `Reject(Invite(Event))`, or
+      its Invite with `Accept(Invite(EmbargoEvent))` or `Reject(Invite(EmbargoEvent))`, or
       counter-propose a further revision with EV.
     rationale: >-
       EM Revise means an active embargo has a pending revision proposal. The
@@ -2152,7 +2159,8 @@ groups:
     statement: >-
       An actor that rejects an embargo overture MUST answer with the activity that
       matches what it rejects. The case owner deciding a proposal for the case sends ER,
-      its `Reject(EmbargoEvent, target=Case)`, which returns the shared EM to NONE
+      its `Reject(EmbargoEvent)[target=VulnerabilityCase]`, which returns the shared EM
+      to NONE
       (EMB-06, MSM-07-009). A participant answering an embargo Invite sends a `Reject`
       of the Invite, which records only its own consent (MSM-07-004). That Reject marks
       the rejected embargo's row DECLINED. A signatory refusing proposed terms keeps its
@@ -2165,7 +2173,8 @@ groups:
     verification: >-
       `test/core/use_cases/triggers/embargo/test_reject.py`
       (`test_non_manager_owner_reject_asks_the_manager_to_reject`) confirms the case
-      owner's rejection of a proposal is `Reject(EmbargoEvent, target=Case)`, and
+      owner's rejection of a proposal is
+      `Reject(EmbargoEvent)[target=VulnerabilityCase]`, and
       `test/core/behaviors/embargo/nodes/test_invite_answer.py`
       (`test_queues_the_answer_to_the_case_manager`) confirms an invitee's rejection of
       an embargo Invite is a `Reject` of it, addressed to the CASE_MANAGER.

@@ -240,7 +240,7 @@ class AddObjectToCaseTriggerRequest(
     """Trigger request to attach an existing AS2 object to a case.
 
     The object must already exist in the actor's datalayer.  The use case
-    will read it by ``object_id`` and queue an ``Add(object, target=case)``
+    will read it by ``object_id`` and queue an ``Add(object)[target=VulnerabilityCase]``
     activity in the actor's outbox.  Type-specific wrappers (e.g.,
     ``AddReportToCaseTriggerRequest``) extend this with additional
     type-validation before delegating here.
@@ -349,7 +349,7 @@ class AddParticipantStatusTriggerRequest(
     """Trigger request to send a ParticipantStatus update to the case.
 
     The actor self-reports their current RM/VF/D/PXA state to the Case Manager.
-    Emits an Add(ParticipantStatus, target=CaseParticipant) activity.  The
+    Emits an Add(ParticipantStatus)[target=CaseParticipant] activity.  The
     demo ``notify-*`` routes build this from their ``CaseTriggerRequest``-shaped
     bodies; no client supplies the state fields directly.
     """
@@ -405,8 +405,8 @@ class OfferCaseParticipantRoleTriggerRequest(
 ):
     """Trigger request to offer a CVDRole to a target Actor in a Case.
 
-    Emits ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``
-    from the requesting actor (ADR-0039).
+    Emits ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``, whose
+    ``target`` is the target Actor, from the requesting actor (ADR-0039).
     """
 
 

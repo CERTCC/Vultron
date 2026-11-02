@@ -264,7 +264,7 @@ ENTRIES: list[SemanticEntry] = [
         ),
         page=MessagePage.GENERAL,
     ),
-    # Recommender inbox: the CASE_MANAGER's answer to its Offer(Actor, Case)
+    # Recommender inbox: the CASE_MANAGER's answer to its Offer(Actor)[target=VulnerabilityCase]
     SemanticEntry(
         semantics=MessageSemantics.ACCEPT_ACTOR_RECOMMENDATION,
         pattern=AcceptSuggestActorToCasePattern,

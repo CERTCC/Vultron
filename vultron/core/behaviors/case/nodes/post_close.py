@@ -96,7 +96,7 @@ def _candidate_case_ids(event: object) -> list[str]:
 
     ``case_id`` is the field of the case-object events (``Leave``, ``Update``,
     ...); the context resolution covers the case-scoped ones; ``target`` covers
-    ``Add(X, target=Case)``.  Each candidate is checked against the store, so
+    ``Add(X)[target=VulnerabilityCase]``.  Each candidate is checked against the store, so
     an id that names something other than a case is skipped.
     """
     candidates: list[object] = [getattr(event, "case_id", None)]

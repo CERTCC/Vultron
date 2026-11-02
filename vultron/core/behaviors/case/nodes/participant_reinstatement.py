@@ -15,7 +15,7 @@
 
 """BT leaf nodes for a received ``Add(CaseParticipant)``: reinstatement (CM-31-011).
 
-``Add(CaseParticipant, target=VulnerabilityCase)`` is the Case Owner's request
+``Add(CaseParticipant)[target=VulnerabilityCase]`` is the Case Owner's request
 to the CASE_MANAGER to reinstate a removed participant, and only that
 (ADR-0116, VAM-06-002).  It mirrors the removal pipeline in
 :mod:`~vultron.core.behaviors.case.nodes.case_participant_received`, reusing

@@ -76,7 +76,7 @@ def add_case_status_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create the behavior tree for the AddCaseStatusToCase workflow.
 
-    Handles receipt of an ``Add(CaseStatus, VulnerabilityCase)`` activity at
+    Handles receipt of an ``Add(CaseStatus)[target=VulnerabilityCase]`` activity at
     a participant replica, from the case's CASE_MANAGER (RSH-04-005).  After
     the factory's intake and guards, five precondition guards run in a
     Sequence:

@@ -15,9 +15,10 @@
 
 """Received-side trees for the case owner's decision on an embargo proposal.
 
-``activate_embargo_on_case_tree`` handles ``Accept(EmbargoEvent,
-target=Case)`` and ``reject_embargo_proposal_on_case_tree`` handles
-``Reject(EmbargoEvent, target=Case)`` (ADR-0122).  Only the case owner sends
+``activate_embargo_on_case_tree`` handles
+``Accept(EmbargoEvent)[target=VulnerabilityCase]`` and
+``reject_embargo_proposal_on_case_tree`` handles
+``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122).  Only the case owner sends
 either (EP-09-005); the sender guard refuses anyone else (HP-01-006).  The
 owner addresses its decision to the CASE_MANAGER (PCR-08-001), so the
 effects write shared case state behind the factory's CASE_MANAGER gate
@@ -73,7 +74,7 @@ def activate_embargo_on_case_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the case owner's activation of a proposal (EA / EC).
 
-    Handles receipt of an ``Accept(EmbargoEvent, target=Case)``::
+    Handles receipt of an ``Accept(EmbargoEvent)[target=VulnerabilityCase]``::
 
         ActivateEmbargoOnCaseBT (Sequence)
         ├─ IntakeReceivedActivityNode
@@ -172,7 +173,7 @@ def reject_embargo_proposal_on_case_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the case owner's rejection of a proposal (ER / EJ).
 
-    Handles receipt of a ``Reject(EmbargoEvent, target=Case)``::
+    Handles receipt of a ``Reject(EmbargoEvent)[target=VulnerabilityCase]``::
 
         RejectEmbargoProposalOnCaseBT (Sequence)
         ├─ IntakeReceivedActivityNode

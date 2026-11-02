@@ -163,7 +163,7 @@ def demo_add_note_to_case(
     description=(
         "Demo-only scaffold. "
         "Self-reports VFD state VFd (fix ready, not yet deployed) "
-        "to the Case Manager via Add(ParticipantStatus, CaseParticipant). "
+        "to the Case Manager via Add(ParticipantStatus)[target=CaseParticipant]. "
         "Only available in ``RunMode.PROTOTYPE``. "
         "Spec: DEMOMA-07-001."
     ),
@@ -225,7 +225,7 @@ def demo_notify_fix_ready(
     description=(
         "Demo-only scaffold. "
         "Self-reports VFD state VFD (fix deployed) "
-        "to the Case Manager via Add(ParticipantStatus, CaseParticipant). "
+        "to the Case Manager via Add(ParticipantStatus)[target=CaseParticipant]. "
         "Only available in ``RunMode.PROTOTYPE``. "
         "Spec: DEMOMA-07-001."
     ),
@@ -261,7 +261,7 @@ def demo_notify_fix_deployed(
     description=(
         "Demo-only scaffold. "
         "Self-reports VFD=VFD and PXA=Pxa (public aware) "
-        "to the Case Manager via Add(ParticipantStatus, CaseParticipant). "
+        "to the Case Manager via Add(ParticipantStatus)[target=CaseParticipant]. "
         "Only available in ``RunMode.PROTOTYPE``. "
         "Spec: DEMOMA-07-001."
     ),

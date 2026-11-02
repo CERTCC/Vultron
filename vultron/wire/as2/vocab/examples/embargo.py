@@ -102,10 +102,10 @@ def propose_embargo() -> as_Invite:
 def relay_embargo_proposal() -> as_Invite:
     """The CASE_MANAGER's Invite asking one participant about a proposal.
 
-    The CASE_MANAGER relays each adjudicated proposal as an ``Invite(Event)``
+    The CASE_MANAGER relays each adjudicated proposal as an ``Invite(EmbargoEvent)``
     of its own, one per participant other than the proposer, naming the
     proposer in ``attributedTo`` (EP-09-002, CM-24).  The wire form is the
-    proposer's ``Invite(Event)``; only the sender and addressee differ
+    proposer's ``Invite(EmbargoEvent)``; only the sender and addressee differ
     (MSM-08-009).  The CASE_MANAGER stamps every relayed Invite with the
     RSVP deadline it alone evaluates, carried as the activity's ``endTime``
     and measured from its ``published`` time (CM-28-012, EP-07-002); here a
@@ -258,7 +258,7 @@ def reject_embargo() -> as_Reject:
 def propose_embargo_revision() -> as_Invite:
     """EV: a proposal sent while an embargo is active, so it is a revision.
 
-    The wire form is the same ``Invite(Event)`` as an initial proposal
+    The wire form is the same ``Invite(EmbargoEvent)`` as an initial proposal
     (MSM-02-001); only the receiver's EM state makes it a revision.
     """
     revision = embargo_event(120)
@@ -388,8 +388,8 @@ def announce_embargo() -> as_Announce:
 def announce_embargo_termination() -> as_Announce:
     """The CASE_MANAGER announces that the embargo has ended (EMB-19-001).
 
-    After it tears the embargo down on a Case Owner's ``Remove(Event)`` sent
-    before the end time, the CASE_MANAGER sends ``Announce(Event)`` naming
+    After it tears the embargo down on a Case Owner's ``Remove(EmbargoEvent)`` sent
+    before the end time, the CASE_MANAGER sends ``Announce(EmbargoEvent)`` naming
     the terminated embargo to every other active participant except a Closed
     Participant, the Case Owner (the vendor) included (CM-10-004,
     CM-23-004).  The wire form is the same as ``announce_embargo``'s; the
@@ -406,7 +406,7 @@ def announce_embargo_termination() -> as_Announce:
 
 
 def remove_embargo() -> as_Remove:
-    """The Case Owner's ``Remove(Event)`` ending the embargo early.
+    """The Case Owner's ``Remove(EmbargoEvent)`` ending the embargo early.
 
     It names why as ``terminationCause`` (EMB-13-005): here the fix is
     deployed.  The CASE_MANAGER records the owner's cause as given.
@@ -424,12 +424,12 @@ def remove_embargo() -> as_Remove:
 
 
 def notify_embargo_termination() -> as_Remove:
-    """The CASE_MANAGER's ``Remove(Event)`` telling a participant the embargo
+    """The CASE_MANAGER's ``Remove(EmbargoEvent)`` telling a participant the embargo
     has ended.
 
     The CASE_MANAGER addresses its own termination to every other participant
     (EMB-19-001), naming the Case Owner it acts for in ``attributedTo``
-    (CM-24).  The wire form is the Case Owner's ``Remove(Event)``; only the
+    (CM-24).  The wire form is the Case Owner's ``Remove(EmbargoEvent)``; only the
     sender and addressee differ (MSM-08-009).
     """
     _case = case()

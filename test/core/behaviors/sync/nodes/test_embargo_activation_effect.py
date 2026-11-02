@@ -14,8 +14,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Replay of the case owner's embargo decisions on a participant replica.
 
-``activate_embargo_on_case`` (the owner's ``Accept(EmbargoEvent,
-target=Case)``) is copied through the one apply function: the ``ACTIVATE``
+``activate_embargo_on_case`` (the owner's
+``Accept(EmbargoEvent)[target=VulnerabilityCase]``) is copied through the one apply
+function: the ``ACTIVATE``
 step and the owner's agreement it states (ADR-0124).
 ``reject_embargo_proposal_on_case`` (its ``Reject``) is copied the same way,
 as the ``REJECT`` step (CM-23-016).  Either way the register moves and EM

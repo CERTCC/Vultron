@@ -33,7 +33,7 @@ class SvcAddReportToCaseUseCase(SvcAddObjectToCaseUseCase):
 
     Validates that the referenced object is a ``VulnerabilityReport``, then
     delegates to :class:`SvcAddObjectToCaseUseCase` (TRIG-10-002), which
-    sends ``Add(VulnerabilityReport, target=VulnerabilityCase)`` to the
+    sends ``Add(VulnerabilityReport)[target=VulnerabilityCase]`` to the
     CASE_MANAGER alone (PCR-08-005) and records the pending assertion.
     """
 

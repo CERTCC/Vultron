@@ -60,12 +60,12 @@ the case), ADR-0116 (removal and reinstatement). The participant-facing flow is 
 
 | Step | Message | RM | VF (vendor) | Embargo consent | Inert? |
 |---|---|---|---|---|---|
-| 1 | CASE_MANAGER sends `Invite(Actor, VulnerabilityCaseStub)`; record created | `RECEIVED` | `v` | `INVITED` if an embargo is active | yes |
+| 1 | CASE_MANAGER sends `Invite(Actor)[target=VulnerabilityCaseStub]`; record created | `RECEIVED` | `v` | `INVITED` if an embargo is active | yes |
 | — | optional on-behalf `v→V` by the Case Manager or Case Owner | — | `V` | — | yes |
 | 2a | `Accept(Invite(stub))` — join, and consent to the active embargo | `RECEIVED` | `V` | `AGREED` if an embargo is active, unless `DECLINED` | **no** |
 | 2b | `Reject(Invite(stub))` — hard no | `CLOSED` | `V` | `DECLINED` if an embargo is active | yes, permanently |
 | 3 | CASE_MANAGER sends `Announce(VulnerabilityCase)` and replays the ledger | — | — | — | no |
-| 4 | CASE_MANAGER sends `Invite(Actor, VulnerabilityCase)` with its ledger position | — | — | — | no |
+| 4 | CASE_MANAGER sends `Invite(Actor)[target=VulnerabilityCase]` with its ledger position | — | — | — | no |
 | 5a | `Accept(Invite(case))` (RV) | `VALID` | — | — | no |
 | 5b | `TentativeReject(Invite(case))` (RI) | `INVALID` | — | — | no |
 | 5c | `Reject(Invite(case))` (RC) | `CLOSED` | — | — | stops receiving |
@@ -195,11 +195,11 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 
 | Step | Message | Ledger | Effect |
 |---|---|---|---|
-| 1 | Case Owner sends `Remove(CaseParticipant, target=Case)` to the CASE_MANAGER | the received `Remove` is the one entry | removal fact set; participant leaves `activeParticipants` |
+| 1 | Case Owner sends `Remove(CaseParticipant)[target=VulnerabilityCase]` to the CASE_MANAGER | the received `Remove` is the one entry | removal fact set; participant leaves `activeParticipants` |
 | 2 | CASE_MANAGER sends the removed party a direct `Remove(CaseParticipant)` naming it | not ledgered | notice only |
 | 3 | Removal entry fans out, the removed party included | — | each replica applies the fact by replay; it is the removed party's last entry |
 | 4 | Embargo terminated or shortened while it is removed | not sent to it | direct `Remove(EmbargoEvent)` or `Announce(EmbargoEvent)`; its paused replica applies it |
-| 5 | Case Owner sends `Add(CaseParticipant, target=Case)` | the received `Add` is the one entry | fact cleared; backfill from the removal entry on (CM-10-006) |
+| 5 | Case Owner sends `Add(CaseParticipant)[target=VulnerabilityCase]` | the received `Add` is the one entry | fact cleared; backfill from the removal entry on (CM-10-006) |
 
 - **Only the Case Owner asks.** The CASE_MANAGER refuses anyone else, and a removal of
   itself or the Case Owner; it never removes on its own. Self-removal is
@@ -267,7 +267,8 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   the invitee after its case seed (#2898). Replay from genesis may run over a seed that
   is ahead, so each write moves forward only.
 - VF is vendor-only: no other role's record, status or entry carries one.
-- Who recommended whom on the `Offer(Actor, Case)` path is not on the case and
+- Who recommended whom on the `Offer(Actor)[target=VulnerabilityCase]` path is not on
+the case and
   has no entry: it is case bookkeeping, an `ActorRecommendationRecord` in the
   CASE_MANAGER's own store, so no replica holds it (CLP-07-014, #4448).
 

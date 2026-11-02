@@ -250,7 +250,7 @@ def add_report_to_case_activity(
     target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Add:
-    """Build an Add(as_VulnerabilityReport, target=as_VulnerabilityCase).
+    """Build an Add(VulnerabilityReport)[target=VulnerabilityCase].
 
     Args:
         report: The ``as_VulnerabilityReport`` to add to the case.
@@ -284,7 +284,7 @@ def add_status_to_case_activity(
     target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Add:
-    """Build an Add(as_CaseStatus, target=as_VulnerabilityCase).
+    """Build an Add(CaseStatus)[target=VulnerabilityCase].
 
     Args:
         status: The ``as_CaseStatus`` to add.
@@ -343,7 +343,7 @@ def add_note_to_case_activity(
     target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Add:
-    """Build an Add(Note, target=as_VulnerabilityCase).
+    """Build an Add(Note)[target=VulnerabilityCase].
 
     The note travels inline as the ``Add``'s ``object``: the ``object``
     field takes an ``as_Note`` and refuses a URI or a ``Link``, so this is
@@ -505,11 +505,11 @@ def offer_case_participant_role_activity(
     case: as_VulnerabilityCase | str,
     **kwargs,
 ) -> as_Offer:
-    """Build Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase).
+    """Build Offer(CaseParticipantRole)[context=VulnerabilityCase].
 
     This is the canonical role-delegation wire format introduced in ADR-0039.
     It replaces the deprecated ``offer_case_manager_role_activity`` format
-    (``Offer(VulnerabilityCase, target=CaseParticipant)``) which was structurally
+    (``Offer(VulnerabilityCase)[target=CaseParticipant]``) which was structurally
     ambiguous with ownership-transfer offers.
 
     The ``as_CaseParticipantRole`` object carries the specific ``CVDRole`` being
@@ -637,7 +637,7 @@ def offer_case_ownership_transfer_activity(
     target: as_ActorRef | CoreActor | None = None,
     **kwargs,
 ) -> as_Offer:
-    """Build an Offer(as_VulnerabilityCase, target=Actor) — ownership transfer.
+    """Build an Offer(VulnerabilityCase) to the transferee — ownership transfer.
 
     The case travels as its typed reference, never a copy (ADR-0165): the
     CASE_MANAGER this Offer's proposal goes to and the active participant
@@ -685,7 +685,7 @@ def propose_case_ownership_transfer_activity(
     end_time: datetime | None = None,
     **kwargs,
 ) -> as_Offer:
-    """Build Offer(Offer(VulnerabilityCase), context=case): the owner's proposal.
+    """Build Offer(Offer(VulnerabilityCase)), the owner's proposal; context is the case.
 
     The Case Owner sends it to the CASE_MANAGER, which makes the one
     ``Offer(VulnerabilityCase)`` the transferee answers (ADR-0148,
@@ -878,7 +878,7 @@ def rm_invite_to_case_activity(
     embargo_obj: Any = None,
     **kwargs,
 ) -> as_Invite:
-    """Build an Invite(Actor, target=VulnerabilityCaseStub) — the stub Invite.
+    """Build an Invite(Actor)[target=VulnerabilityCaseStub] — the stub Invite.
 
     Invites an actor to join a case that already exists.  It is not an RM
     message: it records no RM transition (CM-11-001, ADR-0114).  See

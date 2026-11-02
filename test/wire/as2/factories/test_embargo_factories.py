@@ -426,7 +426,7 @@ def test_em_undo_embargo_invite_plain_invite_raises(sample_embargo):
 
 # ---------------------------------------------------------------------------
 # activate_embargo_activity / reject_embargo_proposal_activity — the case
-# owner's decision, Accept/Reject(EmbargoEvent, target=Case) (ADR-0122)
+# owner's decision, Accept/Reject(EmbargoEvent)[target=VulnerabilityCase] (ADR-0122)
 # ---------------------------------------------------------------------------
 
 _OWNER_DECISIONS = [

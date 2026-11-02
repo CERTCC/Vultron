@@ -85,7 +85,7 @@ def demo_propose_embargo_accept(
     1. Setup: initialize case with two participants (vendor + coordinator)
     2. Coordinator proposes embargo (EmProposeEmbargoActivity → vendor inbox)
     3. Vendor, the case owner and CASE_MANAGER, activates the embargo:
-       Accept(EmbargoEvent, target=Case) → vendor inbox (ADR-0122)
+       Accept(EmbargoEvent)[target=VulnerabilityCase] → vendor inbox (ADR-0122)
     4. Vendor announces embargo to all participants
     5. Verify case has ACTIVE embargo
 
@@ -162,7 +162,7 @@ def demo_propose_embargo_reject(
     1. Setup: initialize case with two participants (vendor + coordinator)
     2. Coordinator proposes embargo (EmProposeEmbargoActivity → vendor inbox)
     3. Vendor, the case owner and CASE_MANAGER, rejects the proposal:
-       Reject(EmbargoEvent, target=Case) → vendor inbox (ADR-0122)
+       Reject(EmbargoEvent)[target=VulnerabilityCase] → vendor inbox (ADR-0122)
     4. Verify case has no active embargo and no open proposal
 
     This follows the reject branch in

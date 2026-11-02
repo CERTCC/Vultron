@@ -252,7 +252,7 @@ def test_a_participants_rejection_is_fanned_out_and_replayed():
 def test_the_owners_rejection_returns_every_store_to_the_prior_terms():
     """ACTIVE → REVISE → ACTIVE on the prior embargo when the owner rejects.
 
-    The owner's ``Reject(EmbargoEvent, target=Case)`` decides the revision
+    The owner's ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` decides the revision
     and writes no consent (ADR-0122).
     """
     net = _Network("https://example.org/cases/relay-replay-owner-reject")

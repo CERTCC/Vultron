@@ -170,7 +170,7 @@ class _ActorsMixin:
         published: datetime | None = None,
         in_reply_to: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(Actor, CaseStub)`` activity.
+        """Create and persist an ``Invite(Actor)[target=VulnerabilityCaseStub]`` activity.
 
         ``actor`` MUST be the CASE_MANAGER's ID (PCR-08-007); ``attributed_to``
         MAY carry the case owner's ID for attribution.  The Invite carries no
@@ -454,7 +454,8 @@ class _ActorsMixin:
         id_: str | None = None,
         roles: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Offer(Actor, Case)`` recommendation activity."""
+        """Create and persist a ``Offer(Actor)[target=VulnerabilityCase]``
+        recommendation activity."""
         extra = _addressing(actor, to, id_)
         # The factory accepts a string for target (case ID).
         activity = recommend_actor_activity(
@@ -476,10 +477,11 @@ class _ActorsMixin:
         id_: str | None = None,
         roles: list | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an Offer(as_CaseParticipant{actor, roles}, Case).
+        """Create and persist an Offer(CaseParticipant)[target=VulnerabilityCase].
 
-        Transforms the original Offer(Actor, Case) from a recommending
-        participant into an Offer(as_CaseParticipant) addressed to the Case Owner.
+        Transforms the original Offer(Actor)[target=VulnerabilityCase] from a recommending
+        participant into an Offer(CaseParticipant) naming the actor and its roles,
+        addressed to the Case Owner.
         ``roles`` defaults to ``[CVDRole.VENDOR]`` when ``None`` (CM-16-003).
         ``origin`` carries the original Offer ID for causal traceability
         (CM-16-004).  An Offer already built under *id_* is returned as
@@ -598,7 +600,7 @@ class _ActorsMixin:
         to: list[str] | None = None,
         attributed_to: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Add(as_CaseParticipant, Case)`` activity.
+        """Create and persist an ``Add(CaseParticipant)[target=VulnerabilityCase]``.
 
         The participant goes inline as the store holds it, removal fact
         cleared.  Returns ``(activity_id, activity_blob)`` (CM-31-011).
@@ -623,7 +625,9 @@ class _ActorsMixin:
         attributed_to: str,
         to: list[str],
     ) -> tuple[str, str]:
-        """Create and persist the ``Remove(as_CaseParticipant, Case)`` notice.
+        """Create and persist a ``Remove(CaseParticipant)[target=VulnerabilityCase]``.
+
+        The ``Remove`` is the removal notice.
 
         The participant goes inline as the store holds it, removal fact
         included.  Returns ``(activity_id, activity_blob)`` (CM-31-006).
@@ -649,7 +653,7 @@ class _ActorsMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> str:
-        """Create and persist an ``Add(as_ParticipantStatus, as_CaseParticipant)`` activity."""
+        """Create and persist an ``Add(ParticipantStatus)[target=CaseParticipant]``."""
         raw = self._dl.read(status_id)
         if raw is None:
             raise VultronNotFoundError(
@@ -691,7 +695,7 @@ class _ActorsMixin:
         in_reply_to: str | None = None,
         id_: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``.
+        """Create and persist ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``.
 
         The canonical role-delegation wire format introduced by ADR-0039.
         *attributed_to* and *in_reply_to*, when given, make it the

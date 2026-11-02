@@ -17,7 +17,7 @@
 
 A container emits only as actors it hosts (ADR-0109).  So the Case Owner's
 ``invite-actor-to-case`` trigger does not emit the Invite itself: it sends the
-owner's own ``Offer(Actor, Case)`` with the requested roles to the case's
+owner's own ``Offer(Actor)[target=VulnerabilityCase]`` with the requested roles to the case's
 CASE_MANAGER, and the CASE_MANAGER's recommend-actor tree emits the Invite from
 its own store and commits it there (CM-17-007, CM-17-006).  The Invite carries
 no ``cc:`` copy, because the CASE_MANAGER does not mail itself.

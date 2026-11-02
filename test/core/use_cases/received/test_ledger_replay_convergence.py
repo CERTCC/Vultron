@@ -800,7 +800,7 @@ def test_add_object_trigger_pending_entry_clears_on_the_managers_commit(
 @pytest.mark.spec("CLP-07-013")
 @pytest.mark.spec("HP-08-006")
 def test_an_add_naming_a_note_the_manager_already_holds_is_refused():
-    """An Add(Note, target=Case) naming a note the CASE_MANAGER already
+    """An Add(Note)[target=VulnerabilityCase] naming a note the CASE_MANAGER already
     holds is refused: an Add introduces a new note (a change is an
     Update(Note)), so no ``add_note_to_case`` entry is committed, the case
     does not gain the note and no replica learns of it (#4831)."""

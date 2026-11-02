@@ -144,7 +144,8 @@ class RecordRecommendationRecommenderNode(DataLayerActionWithPorts):
 
 
 class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
-    """Transform Offer(Actor, Case) → Offer(CaseParticipant) and DM Case Owner.
+    """Transform Offer(Actor)[target=VulnerabilityCase] → Offer(CaseParticipant) and DM
+    Case Owner.
 
     Uses ``trigger_activity_factory.offer_actor_to_case()`` with the
     recommender_id, recommended_id, roles from the blackboard (written by
@@ -287,7 +288,7 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
 class EmitNoteDuplicateRecommendationToOwnerNode(_CommitCaseManagerNoteBase):
     """Record a note for the Case Owner noting reinforcing demand.
 
-    Used when a second ``Offer(Actor, Case)`` arrives while a first
+    Used when a second ``Offer(Actor)[target=VulnerabilityCase]`` arrives while a first
     ``Offer(CaseParticipant)`` is still pending the Case Owner's
     Accept/Reject decision (AC-6, CM-16-008, CM-16-016).  No second
     ``Offer(CaseParticipant)`` is issued.  The CASE_MANAGER records the note

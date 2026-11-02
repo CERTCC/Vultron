@@ -86,7 +86,7 @@ class SvcAddParticipantStatusUseCase(SvcBTTriggerBase[StatusResult]):
     Delegates validating and storing the ParticipantStatus snapshot to
     :class:`~vultron.core.behaviors.case.nodes.participant\
 .CreateParticipantStatusNode` via BTBridge (BT-15-001), then emits an
-    ``Add(ParticipantStatus, target=CaseParticipant)`` activity addressed
+    ``Add(ParticipantStatus)[target=CaseParticipant]`` activity addressed
     to the Case Manager (DEMOMA-07-001).  The snapshot is not appended to the
     actor's record: the CASE_MANAGER appends it, and the actor's replica
     copies that from the ledger (RSH-08-003, CM-23-016).

@@ -46,7 +46,7 @@ class SvcAddObjectToCaseUseCase(SvcActivityTriggerBase):
     """Add any existing AS2 object to a case (general-purpose).
 
     Reads the object by ``object_id`` from the datalayer, creates a generic
-    ``Add(object, target=case)`` activity addressed to the case's
+    ``Add(object)[target=VulnerabilityCase]`` activity addressed to the case's
     CASE_MANAGER alone (PCR-08-005), and queues it in the actor's outbox.
     The object must already exist; this use case does not create it.
 

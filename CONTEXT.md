@@ -73,9 +73,10 @@ content (ADR-0114).
 *Avoid*: treating roster membership as entitlement to case content
 
 **Stub Invite / full-case Invite**:
-The stub Invite (`Invite(Actor, VulnerabilityCaseStub)`) asks an actor to join and creates
-its inert record; the full-case Invite (`Invite(Actor, VulnerabilityCase)`) later asks a
-joined participant to judge the case (ADR-0114, ADR-0121).
+The stub Invite (`Invite(Actor)[target=VulnerabilityCaseStub]`) asks an actor to join
+and creates its inert record; the full-case Invite
+(`Invite(Actor)[target=VulnerabilityCase]`) later asks a joined participant to judge the
+case (ADR-0114, ADR-0121).
 *Avoid*: "the case Invite" without saying which
 
 **Embargo**:

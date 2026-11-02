@@ -533,8 +533,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      After the late joiner has accepted the stub Invite (`Accept(Invite(Actor,
-      VulnerabilityCaseStub))`), the CASE_MANAGER MAY send `Announce(VulnerabilityCase)`
+      After the late joiner has accepted the stub Invite
+      (`Accept(Invite(Actor)[target=VulnerabilityCaseStub])`), the CASE_MANAGER MAY send
+      `Announce(VulnerabilityCase)`
       without a separate `Create(VulnerabilityCase)` bootstrap.
     rationale: >-
       The accepted stub Invite already gives the joiner its Trust Anchor

@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 
-"""Received-side BT factory for ``Remove(Note, Case)``.
+"""Received-side BT factory for ``Remove(Note)[target=VulnerabilityCase]``.
 
 Mirror of :mod:`add_note_received_tree`: only the CASE_MANAGER detaches the note
 and commits the canonical ledger entry; replicas apply the entry's fan-out
@@ -43,7 +43,7 @@ def create_remove_note_from_case_received_tree(
     *,
     sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
-    """Single-BT received-side tree for ``Remove(Note, Case)`` (ADR-0111).
+    """Single-BT received-side tree for ``Remove(Note)[target=VulnerabilityCase]`` (ADR-0111).
 
     Structure (the CLP-10-010 stages)::
 

@@ -16,7 +16,8 @@
 
 """Invitee idempotency and record-exists guard nodes.
 
-Guards a duplicate ``Accept(Invite(actor, case))`` from a joined or removed
+Guards a duplicate ``Accept(Invite(Actor)[target=VulnerabilityCaseStub])`` from a joined
+or removed
 participant (CM-17-012), and refuses an Accept whose invitee has no
 participant record (CM-11-021): the record is created when the stub Invite is
 sent (CM-11-006), never on the Accept.  The activation step
@@ -114,7 +115,7 @@ class InviteeHasParticipantRecordNode(DataLayerConditionWithPorts):
     """Guard: the invitee already has a participant record (CM-11-021).
 
     The CASE_MANAGER creates the record when it sends the stub Invite
-    (CM-11-006), so an ``Accept(Invite(Actor, VulnerabilityCaseStub))`` finds
+    (CM-11-006), so an ``Accept(Invite(Actor)[target=VulnerabilityCaseStub])`` finds
     it; an Accept never creates one.  FAILURE, with the reason as
     ``feedback_message``, when the case holds no record for the invitee.  The
     guard runs before the tree commits anything, so a refused Accept writes

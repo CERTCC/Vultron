@@ -51,7 +51,8 @@ def create_reject_invite_actor_to_case_received_tree(
     *,
     sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
-    """Received-side BT for ``Reject(Invite(actor, case))`` on the CaseActor inbox.
+    """Received-side BT for ``Reject(Invite(Actor)[target=VulnerabilityCaseStub])`` on
+    the CaseActor inbox.
 
     Commits the canonical ``CaseLedgerEntry`` for the invite rejection when the
     receiving actor holds ``CVDRole.CASE_MANAGER`` (CLP-10-006).  When
@@ -119,7 +120,8 @@ def create_invite_actor_to_case_received_tree(
     *,
     sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
-    """Received-side BT for ``Invite(Actor, CaseStub)`` — one tree for every receiver.
+    """Received-side BT for ``Invite(Actor)[target=VulnerabilityCaseStub]`` — one tree
+    for every receiver.
 
     The CASE_MANAGER emits the Invite from its own store and commits it in
     the emitting tree; it never receives its own Invite (CM-17-006,
