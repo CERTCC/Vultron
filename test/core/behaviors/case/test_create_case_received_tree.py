@@ -465,6 +465,7 @@ def _introductions(owner_dl: SqliteDataLayer) -> list[as_Create]:
 @pytest.mark.spec("CBT-01-001")
 @pytest.mark.spec("CBT-01-002")
 @pytest.mark.spec("CBT-01-007")
+@pytest.mark.spec("AKM-02-004")
 @pytest.mark.spec("CM-12-003")
 @pytest.mark.spec("CBT-01-019")
 def test_report_receiver_introduces_the_case_manager_to_the_reporter():
@@ -490,6 +491,8 @@ def test_report_receiver_introduces_the_case_manager_to_the_reporter():
         if CVDRole.CASE_MANAGER.value in p["caseRoles"]
     ]
     assert managers == [_CREATOR]
+    # The held report is inlined too, a prototype choice (AKM-02-004): the
+    # protocol lets this Create name the report the reporter offered by id.
     reports = case["vulnerabilityReports"]
     assert [r["id"] for r in reports] == [_REPORT_ID]
 

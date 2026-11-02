@@ -68,8 +68,10 @@ A production implementation must support dereference (AKM-05-004).
 
 ### Where the protocol requires one form
 
-The bootstrap `Create(VulnerabilityCase)` carries the case and every object nested in it inline (CBT-01-002, CBT-01-007).
+The bootstrap `Create(VulnerabilityCase)` carries the case and its participant records inline (CBT-01-002, CBT-01-007).
 Its receiver trusts no case manager until it accepts that message, so it has no trusted source to fetch a reference from, and it does not fetch one (AKM-05-007).
+The report is not among those objects: the receiver offered it and already holds it, so the bootstrap may name it by reference.
+The reference implementation still carries the report inline when its sender holds it, a choice of the prototype rather than a protocol rule.
 
 The `target` field carries a case by reference only: the case URI when the recipient already holds the case, or a case stub for an actor that does not yet hold it (AKM-02-003).
 The [protocol specification §12.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n) defines what a case stub carries.

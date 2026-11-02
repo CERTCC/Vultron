@@ -168,7 +168,6 @@ class TestBroadcastCaseUpdateNodePorts:
         )
 
     @pytest.mark.spec("AKM-02-004")
-    @pytest.mark.spec("CBT-01-007")
     @pytest.mark.spec("CM-06-001")
     def test_refused_announce_is_a_reported_failure(
         self, bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch

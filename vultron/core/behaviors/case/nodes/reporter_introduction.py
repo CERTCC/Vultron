@@ -49,8 +49,10 @@ class IntroduceCaseManagerToReporterNode(_EmitSingleActivityBase):
     The reporter trusts it because it comes from the actor the reporter sent
     its report to (CBT-01-005); the snapshot names the CASE_MANAGER, so the
     reporter then records it (CBT-01-006).  The factory carries the stored
-    case with its participants, reports and active embargo inline
-    (CBT-01-007), which relays the completed snapshot (CBT-01-019).
+    case with its participants (CBT-01-007) and active embargo (EMB-18-003)
+    inline, which relays the completed snapshot (CBT-01-019).  It carries each
+    report it holds inline too, a prototype choice: the reporter offered the
+    report, so the protocol lets this ``Create`` name it by id.
 
     Sends nothing, and returns ``SUCCESS``, when:
 

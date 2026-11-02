@@ -832,6 +832,11 @@ groups:
       to typed domain objects; the referenced objects are never written to the receiver's
       DataLayer. Downstream BT nodes (e.g., `SenderIsParticipantNode`) then fail because
       participant records are absent.
+    note: >-
+      This demo rule is wider than CBT-01-007, which requires only the participant
+      records inline (ADR-0170, amended 2026-11-02). Inlining the report here is a
+      choice of the demo, whose sender holds the report; the protocol lets the
+      bootstrap name it by reference.
     relationships:
     - rel_type: refines
       spec_id: CBT-01-007
