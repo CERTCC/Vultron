@@ -18,6 +18,7 @@ from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     MAX_REPLAY_COOLDOWN_SECONDS,
+    genesis_reject_answered,
 )
 from vultron.core.behaviors.sync.reject_tree import (
     create_reject_log_entry_tree,
@@ -843,6 +844,16 @@ def test_a_held_back_genesis_replay_covers_only_the_entries_before_the_hold(
     )
     assert state.last_replayed_from_hash == ""
     assert state.last_genesis_replay_through_index == 2
+    for rejected_index, declined in ((2, True), (3, False), (4, False)):
+        assert (
+            genesis_reject_answered(
+                datalayer,
+                case_id=CASE_ID,
+                peer_id=PEER_ID,
+                rejected_index=rejected_index,
+            )
+            is declined
+        )
 
 
 @pytest.mark.spec("SYNC-15-024")
