@@ -74,11 +74,11 @@ groups:
     tags:
     - http
   - id: IE-02-005
-    priority: MUST
+    priority: MUST_NOT
     kind: project
     statement: >-
-      The inbox endpoint MUST serve POST only. It MUST NOT serve the read (GET) that
-      ActivityPub allows an inbox's authenticated owner.
+      The inbox endpoint MUST NOT serve any method but POST, including the read (GET)
+      that ActivityPub allows an inbox's authenticated owner.
     rationale: >-
       ActivityPub lets the actor that owns an inbox read it with an authenticated GET.
       This codebase has no authentication, so a GET on the inbox would show one actor's
@@ -299,58 +299,61 @@ groups:
     statement: >-
       The inbox background task MUST NOT execute the synchronous BT pipeline
       (`process_payload`, including the pending-queue replay loop) on the ASGI
-      event loop. It MUST run that work in a worker thread — as the synchronous
-      trigger routes already do — so that while one activity's handler executes
-      the process keeps accepting deliveries from peers, answering DataLayer and
-      trigger requests, and draining its own outboxes.
+      event loop.
     rationale: >-
       Starlette runs an `async` background task on the event loop itself, and the inbox
-      pipeline is synchronous: tree execution, the tree lock and SQLite I/O. If it runs
-      on the event loop, the whole process stops for each inbound activity, so the
-      isolation of IE-06-002 holds only for the request that scheduled it. The outbox
-      monitor in the same process then waits for each tree to finish before it delivers
-      the next message, and a trigger route that waits for the tree lock can wait until
-      its client times out. The per-actor lock is held across the move to the worker
-      thread, so the per-actor order of BT-11-001 stays the same.
+      pipeline is synchronous: tree execution, the tree lock and SQLite I/O. On the
+      event loop, the whole process stops for each inbound activity, so the isolation of
+      IE-06-002 holds only for the request that scheduled it. The outbox monitor then
+      waits for each tree to finish, and a trigger route that waits for the tree lock
+      can wait until its client times out.
     verification: >-
-      `test/adapters/driving/fastapi/test_inbox_orchestration_offloop.py` asserts
-      that `process_payload` runs on a thread other than the event-loop thread and
-      that a concurrent coroutine keeps progressing while a payload is processed.
+      `test_event_loop_keeps_serving_while_a_payload_is_processed` in
+      `test/adapters/driving/fastapi/test_inbox_orchestration_offloop.py` asserts that
+      a concurrent coroutine keeps progressing while a payload is processed.
     relationships:
     - rel_type: refines
       spec_id: IE-06-002
     - rel_type: depends_on
       spec_id: BT-11-004
+  - id: IE-06-007
+    priority: MUST
+    kind: project
+    statement: >-
+      The inbox background task MUST run the synchronous BT pipeline in a worker
+      thread, as the synchronous trigger routes do.
+    rationale: >-
+      Off the event loop, the process keeps working while one activity's handler runs.
+      It accepts deliveries from peers, answers DataLayer and trigger requests, and
+      drains its own outboxes. The per-actor lock is held across the move to the worker
+      thread, so the per-actor order of BT-11-001 stays the same.
+    verification: >-
+      `test_process_payload_runs_off_the_event_loop` in
+      `test/adapters/driving/fastapi/test_inbox_orchestration_offloop.py` asserts that
+      `process_payload` runs on a thread other than the event-loop thread.
+    relationships:
+    - rel_type: implements
+      spec_id: IE-06-003
   - id: IE-06-004
     priority: MUST
     kind: project
     statement: >-
-      The inbox background task (`run_inbox_pipeline` in
-      `vultron/adapters/driving/fastapi/inbox_orchestration.py`) MUST catch an
-      exception raised while processing an item it replays from the receiving actor's
-      inbox queue and log it at ERROR with the item's `activity_id` and `actor_id`. It
-      MUST drop an item that raised `VultronProtocolViolationError` as a permanent
-      failure. It MUST re-queue an item that raised any other exception at most a
-      bounded, configurable number of attempts, and MUST then move it to a dead-letter
-      store, using the same persisted retry and dead-letter mechanism as outbox
-      delivery.
+      This rule covers an item that the inbox background task (`run_inbox_pipeline` in
+      `vultron/adapters/driving/fastapi/inbox_orchestration.py`) replays from the
+      receiving actor's inbox queue. When the item raises an exception other than
+      `VultronProtocolViolationError`, the task MUST re-queue it for at most a bounded,
+      configurable number of attempts.
     rationale: >-
-      Handler exceptions propagate to this boundary (DR-03-002). A protocol violation
-      fails the same way every time, so it is dropped. Any other exception may be
-      transient or a deterministic bug, so an unbounded re-queue could loop forever.
-      The outbox's persisted mechanism (OX-13) keeps counts across restarts. A failed
-      act keeps nothing (ADR-0151), so a retry re-runs the whole act. A live delivery
-      is not queued: its retry is the sender's resend (ASK-07-010).
+      Handler exceptions propagate to this boundary (DR-03-002). An exception other
+      than a protocol violation may be transient or a deterministic bug, so an
+      unbounded re-queue could loop forever. A failed act keeps nothing (ADR-0151), so
+      a retry re-runs the whole act. A live delivery is not queued: its retry is the
+      sender's resend (ASK-07-010).
     verification: >-
       `test/adapters/driving/fastapi/test_inbox_queue_drain.py` runs
       `run_inbox_pipeline` with a queued item whose dispatch, rebuild or extraction
       raises: it is re-queued until the configured attempt limit, counting attempts
-      an earlier run stored, and then appears in the dead-letter store with its last
-      error; each failure is logged at ERROR with `activity_id` and `actor_id`; a
-      retry that succeeds clears its count; and an item raising
-      `VultronProtocolViolationError` is dropped on the first attempt.
-      `test/adapters/driven/test_sqlite_outbox_dead_letter.py` shows that the attempt
-      count and the dead letter survive a restart of the store.
+      an earlier run stored, and a retry that succeeds clears its count.
     relationships:
     - rel_type: depends_on
       spec_id: DR-03-002
@@ -358,38 +361,106 @@ groups:
       spec_id: IE-06-001
     adr:
     - ADR-0066
+  - id: IE-06-008
+    priority: MUST
+    kind: project
+    statement: >-
+      The inbox background task MUST move a replayed item that used its last attempt
+      (IE-06-004) to a dead-letter store.
+    rationale: >-
+      An item that fails every attempt must leave the queue, or each drain retries it
+      again. The dead-letter store keeps the item and its last error, so an operator
+      can find the cause.
+    verification: >-
+      `test_a_replay_that_does_not_rebuild_is_retried_then_dead_lettered` and
+      `test_a_failing_replay_is_answered_only_when_dead_lettered` in
+      `test/adapters/driving/fastapi/test_inbox_queue_drain.py` show that an item
+      that reaches the attempt limit appears in the dead-letter store with its last
+      error.
+    relationships:
+    - rel_type: extends
+      spec_id: IE-06-004
+    adr:
+    - ADR-0066
+  - id: IE-06-009
+    priority: MUST
+    kind: project
+    statement: >-
+      The inbox background task MUST catch an exception that a replayed item raises, and
+      log it at ERROR with the item's `activity_id` and `actor_id`.
+    rationale: >-
+      An exception that escapes the task ends the whole drain, so the items after it
+      wait for the next one. The ERROR record is how an operator learns that a
+      replayed item failed, and the two IDs find the item.
+    verification: >-
+      `test_a_failing_replay_is_answered_only_when_dead_lettered` and
+      `test_a_protocol_violation_is_dropped_and_answered_at_once` in
+      `test/adapters/driving/fastapi/test_inbox_queue_drain.py` show that each
+      failure of a replayed item is logged at ERROR with `activity_id` and `actor_id`.
+    relationships:
+    - rel_type: depends_on
+      spec_id: DR-03-002
+  - id: IE-06-010
+    priority: MUST
+    kind: project
+    statement: >-
+      The inbox background task MUST drop a replayed item that raised
+      `VultronProtocolViolationError`, as a permanent failure.
+    rationale: >-
+      A protocol violation fails the same way every time, so a retry only repeats the
+      failure.
+    verification: >-
+      `test_a_protocol_violation_is_dropped_and_answered_at_once` and
+      `test_a_protocol_violation_in_the_rebuild_is_dropped` in
+      `test/adapters/driving/fastapi/test_inbox_queue_drain.py` show that such an
+      item is dropped on the first attempt.
+    relationships:
+    - rel_type: extends
+      spec_id: IE-06-004
+  - id: IE-06-011
+    priority: MUST
+    kind: project
+    statement: >-
+      The inbox retry (IE-06-004) and dead letter (IE-06-008) MUST use the same
+      persisted retry and dead-letter mechanism as outbox delivery (OX-13).
+    rationale: >-
+      One mechanism keeps one set of rules for counts and dead letters. The outbox's
+      persisted mechanism keeps counts across restarts, so a restart does not reset an
+      item's attempts.
+    verification: >-
+      `test/adapters/driven/test_sqlite_outbox_dead_letter.py` shows that the inbox
+      attempt count shares the outbox's queue table and stays apart from the outbox
+      count (`test_inbox_and_outbox_attempt_counts_are_independent`), and that the
+      count and the dead letter survive a restart of the store.
+    relationships:
+    - rel_type: refines
+      spec_id: IE-06-004
+    adr:
+    - ADR-0066
   - id: IE-06-005
     priority: MUST
     kind: project
     statement: >-
-      Each attempt to replay an item from the receiving actor's inbox queue MUST
-      commit as one DataLayer transaction: taking the item's id off the queue,
-      releasing the record that holds it for its replay, the attempt itself, and the
-      attempt's settlement (its attempt count, the record held again, the id queued
-      again, its dead letter, and any fault held for its sender). A process stop, or
-      a raise the drain does not catch and settle as a failed attempt (IE-06-004),
-      at any point in the attempt MUST leave the item queued and held, with the
-      attempt count it had before the attempt began, and MUST end that drain with
-      the raise, so the item waits for the next replay.
+      Each attempt to replay an item from the receiving actor's inbox queue MUST commit
+      as one DataLayer transaction. The transaction covers taking the item's id off the
+      queue, releasing the record that holds it for its replay, and the attempt itself.
+      It also covers the attempt's settlement: the attempt count, the record held again,
+      the id queued again, the dead letter and any held fault.
     rationale: >-
       The held record is the only copy of a received activity the replay can rebuild
       it from (DL-06-006), and the sender is not answered while the item is retried
       (ASK-07-010), so an item lost between its dequeue and its settlement is never
       recovered. Writes that must land together share one transaction, never a
       repair pass (ADR-0146). The act's own transaction nests inside the attempt's,
-      so a failed act still keeps nothing (ADR-0151). The attempt count bounds an
-      activity's failures, not the store's: a raise that escapes the attempt rolls
-      back the count with everything else, so it is not counted but surfaced, and an
-      item whose settlement fails every time is retried by each drain until the
-      store fault is fixed.
+      so a failed act still keeps nothing (ADR-0151).
     verification: >-
       `test/adapters/driving/fastapi/test_inbox_queue_drain.py` interrupts a replay
       attempt with an exception the drain does not catch, once during the act and
-      once during its settlement, and shows that the drain raises, and that the
-      item's id is still queued, its `DeferredInboxActivity` is still held, its
-      attempt count is unchanged, and nothing the act wrote is kept. The act-time
-      interrupt is one the tree's nodes do not catch as `Exception`, such as a
-      `BaseException` subclass, so it escapes the act as a process stop would.
+      once during its settlement, and shows that nothing the act wrote is kept.
+      `test_a_held_fault_that_fails_part_way_keeps_none_of_its_writes` shows that a
+      settlement that fails part way keeps none of its writes. The act-time interrupt
+      is one the tree's nodes do not catch as `Exception`, such as a `BaseException`
+      subclass, so it escapes the act as a process stop would.
     adr:
     - ADR-0146
     relationships:
@@ -397,6 +468,46 @@ groups:
       spec_id: IE-06-004
     - rel_type: depends_on
       spec_id: DL-06-006
+  - id: IE-06-012
+    priority: MUST
+    kind: project
+    statement: >-
+      This rule covers a process stop during a replay attempt, and a raise that the
+      drain does not settle as a failed attempt (IE-06-004). Either MUST leave the item
+      queued and held, with the attempt count it had before the attempt began.
+    rationale: >-
+      The attempt count bounds an activity's failures, not the store's. A raise that
+      escapes the attempt rolls back the count with everything else, so it is not
+      counted. An item whose settlement fails every time is retried by each drain
+      until the store fault is fixed.
+    verification: >-
+      `test_an_attempt_interrupted_during_the_act_leaves_the_item_queued` and
+      `test_an_attempt_interrupted_during_its_settlement_leaves_the_item_queued` in
+      `test/adapters/driving/fastapi/test_inbox_queue_drain.py` show that the item's
+      id is still queued, its `DeferredInboxActivity` is still held and its attempt
+      count is unchanged.
+    adr:
+    - ADR-0146
+    relationships:
+    - rel_type: implements
+      spec_id: IE-06-005
+  - id: IE-06-013
+    priority: MUST
+    kind: project
+    statement: >-
+      When an attempt raises an exception that the drain does not settle as a failed
+      attempt (IE-06-004), the drain MUST end with that raise.
+    rationale: >-
+      The raise is surfaced, not counted. The item stays queued (IE-06-012), so it
+      waits for the next replay.
+    verification: >-
+      `test_an_attempt_interrupted_during_the_act_leaves_the_item_queued` and
+      `test_an_interrupted_attempt_is_replayed_by_the_next_drain` in
+      `test/adapters/driving/fastapi/test_inbox_queue_drain.py` show that the drain
+      raises and that the next drain replays the item.
+    relationships:
+    - rel_type: extends
+      spec_id: IE-06-005
   - id: IE-06-006
     priority: MUST
     kind: project
@@ -557,25 +668,19 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The endpoint MUST refuse a delivery whose activity id the receiving actor
-      already holds (IE-10-001) when the delivery's sealed received body (VM-08-002)
-      is not exactly the body held for that id: the deferred record's while the first
-      delivery is still deferred, else the body intake archived. The refused delivery
-      MUST NOT be routed, the held copy MUST NOT be routed in its place, and the
-      endpoint MUST NOT write or change anything in the receiving actor's store for
-      it, so the first delivery's record stays as it was. The refusal MUST be logged
-      at WARNING with the activity id and the sending actor. This applies to every
-      activity type, including an `Announce(CaseLedgerEntry)` that ingress hydrates in
-      place (SYNC-13-004); a repeat of its held body is still answered by the
-      already-stored gate (SYNC-12-003).
+      This rule covers a delivery whose activity id the receiving actor already holds
+      (IE-10-001). The endpoint MUST refuse the delivery when its sealed received body
+      (VM-08-002) is not exactly the body held for that id. The held body is the
+      deferred record's while the first delivery is still deferred, else the body intake
+      archived. This applies to every activity type, including an
+      `Announce(CaseLedgerEntry)` that ingress hydrates in place (SYNC-13-004).
     rationale: >-
-      An activity id names one activity (ID-01-001). A second body under an id that the
-      receiver holds is a sender bug or a changed version of what was said. Routing the
-      held copy in its place hides that change. The inbox refuses the body and does not
-      quarantine it, so the WARNING is the only trace of the refused body. The
-      comparison uses the exact sealed text of each body (a SHA-256 digest of each), so
-      no rule decides which differences count. The inbox answers 202 before it processes
-      the activity (IE-05-002), so the refusal is the inbox outcome, not an HTTP status.
+      An activity id names one activity (ID-01-001). A second body under a held id is a
+      sender bug or a changed version of what was said. The comparison uses the exact
+      sealed text of each body (a SHA-256 digest), so no rule decides which differences
+      count. The inbox answers 202 before it processes the activity (IE-05-002), so the
+      refusal is the inbox outcome, not an HTTP status. The already-stored gate
+      (SYNC-12-003) still answers a same-body repeat of an `Announce(CaseLedgerEntry)`.
     note: >-
       Known limitation: the sealed text is the body as the parser decoded and
       re-serialized it, so two bodies that differ only in how they are written, such
@@ -587,18 +692,13 @@ groups:
       `test/adapters/driving/fastapi/test_ingress_received_evidence.py::test_a_different_body_under_a_deferred_id_is_refused`
       and `::test_a_different_body_under_an_archived_id_is_refused` assert that a
       different body under a deferred id, and under an archived id, is refused
-      through `process_payload` with one WARNING naming the activity id and the
-      sender, that nothing is dispatched or deferred, and that the store, the
-      deferred record and the archive included, is unchanged;
+      through `process_payload`;
       `::test_a_different_body_under_an_archived_ledger_announce_id_is_refused` and
       `::test_a_different_body_under_a_held_ledger_announce_id_is_refused` assert the
       same for an `Announce(CaseLedgerEntry)`, and
       `::test_a_repeat_of_an_archived_ledger_announce_is_hydrated_in_place` that its
       same-body repeat still takes the in-place path to the SYNC-12-003 gate;
       `::test_a_body_that_differs_only_in_key_order_is_refused` pins the exact match.
-      `test/adapters/driving/fastapi/test_inbox_redelivery.py::test_a_different_body_under_a_delivered_id_is_refused`
-      posts a different body under a delivered id through the FastAPI route and
-      asserts the store and outbox are unchanged after the second post.
     relationships:
     - rel_type: refines
       spec_id: IE-10-001
@@ -610,6 +710,58 @@ groups:
       spec_id: ID-02-001
     - rel_type: depends_on
       spec_id: SYNC-12-003
+  - id: IE-10-003
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The endpoint MUST NOT route a delivery that IE-10-002 refuses, or the held copy
+      in its place.
+    rationale: >-
+      Routing the held copy in place of the refused body hides the change that the
+      sender made. Routing the refused body acts on a second meaning for one id.
+    verification: >-
+      The tests in `test/adapters/driving/fastapi/test_ingress_received_evidence.py`
+      that IE-10-002 names assert that nothing is dispatched or deferred for the
+      refused delivery.
+    relationships:
+    - rel_type: extends
+      spec_id: IE-10-002
+  - id: IE-10-004
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The endpoint MUST NOT write or change anything in the receiving actor's store for
+      a delivery that IE-10-002 refuses. The first delivery's record stays as it was.
+    rationale: >-
+      The inbox refuses the body and does not quarantine it. A write for the refused
+      body would change the record of the first delivery, which is the only record of
+      what the sender said first.
+    verification: >-
+      The tests in `test/adapters/driving/fastapi/test_ingress_received_evidence.py`
+      that IE-10-002 names assert that the store, the deferred record and the archive
+      included, is unchanged.
+      `test/adapters/driving/fastapi/test_inbox_redelivery.py::test_a_different_body_under_a_delivered_id_is_refused`
+      posts a different body under a delivered id through the FastAPI route and
+      asserts the store and outbox are unchanged after the second post.
+    relationships:
+    - rel_type: extends
+      spec_id: IE-10-002
+  - id: IE-10-005
+    priority: MUST
+    kind: project
+    statement: >-
+      The endpoint MUST log the refusal of IE-10-002 at WARNING with the activity id
+      and the sending actor.
+    rationale: >-
+      The inbox does not keep the refused body, so the WARNING is the only trace of
+      it. The two IDs let an operator find the sender and the held activity.
+    verification: >-
+      The tests in `test/adapters/driving/fastapi/test_ingress_received_evidence.py`
+      that IE-10-002 names assert one WARNING record that names the activity id and
+      the sender.
+    relationships:
+    - rel_type: extends
+      spec_id: IE-10-002
 - id: IE-11
   title: Activity Addressing
   specs:
@@ -618,8 +770,7 @@ groups:
     kind: protocol
     statement: >-
       The inbox endpoint MUST refuse any Activity whose addressing fields (to, cc,
-      bto, bcc) are all non-empty and none of them names the receiving actor, and
-      MUST NOT write anything to the receiving actor's store for it.
+      bto, bcc) are all non-empty and none of them names the receiving actor.
     rationale: >-
       Per-actor DataLayer isolation (ADR-0073) makes each actor's store the
       authoritative answer to "whose replica is this?". That invariant is only
@@ -632,12 +783,35 @@ groups:
       `test_post_inbox_returns_400_when_activity_addressed_to_other_actor` in
       `test/adapters/driving/fastapi/routers/test_actors.py` confirms that an
       Activity addressed only to another actor is refused (with this codebase's
-      HTTP 400), synchronously, in place of the 202. Integration tests in
-      `test/demo/` confirm that no record is written to the actor's store.
+      HTTP 400), synchronously, in place of the 202.
     relationships:
     - rel_type: depends_on
       spec_id: IE-07-002
       note: the HTTP status that carries the refusal is this codebase's choice
+    adr:
+    - ADR-0068
+    - ADR-0073
+    stories:
+    - story_2022_039
+    - story_2022_040
+  - id: IE-11-004
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The inbox endpoint MUST NOT write anything to the receiving actor's store for an
+      Activity that IE-11-001 refuses.
+    rationale: >-
+      A record of a misaddressed Activity would make the store hold an activity that
+      its owner was not meant to receive. The store would then no longer answer
+      "whose replica is this?" with certainty (ADR-0073).
+    verification: >-
+      `test_a_misaddressed_activity_writes_nothing_to_the_receivers_store` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` posts an Activity
+      addressed only to another actor and asserts that the receiving actor's records,
+      inbox queue and outbox are unchanged.
+    relationships:
+    - rel_type: extends
+      spec_id: IE-11-001
     adr:
     - ADR-0068
     - ADR-0073

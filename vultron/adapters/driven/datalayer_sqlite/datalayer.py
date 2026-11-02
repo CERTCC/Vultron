@@ -474,7 +474,7 @@ class SqliteDataLayer:
         queues.clear_inbox_attempt_count(self, activity_id)
 
     # ------------------------------------------------------------------
-    # Inbox dead-letter store (IE-06-004)
+    # Inbox dead-letter store (IE-06-008)
     # ------------------------------------------------------------------
 
     def inbox_dead_letter_append(
@@ -494,5 +494,5 @@ class SqliteDataLayer:
         )
 
     def inbox_dead_letter_list(self) -> list[InboxDeadLetterEntry]:
-        """Return this actor's inbox dead-letter entries (IE-06-004)."""
+        """Return this actor's inbox dead-letter entries (IE-06-008)."""
         return queues.inbox_dead_letter_list(self)

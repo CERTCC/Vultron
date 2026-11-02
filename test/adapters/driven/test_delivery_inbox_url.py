@@ -177,7 +177,7 @@ def test_a_held_inbox_is_used_in_place_of_the_derived_one():
     assert inbox_url_for(_ACTOR_ID, {_ACTOR_ID: held}) == held
 
 
-@pytest.mark.spec("OX-12-009")
+@pytest.mark.spec("OX-12-010")
 def test_a_recipient_with_no_held_inbox_gets_the_derived_one():
     """Only a recipient the sender holds no inbox for falls back."""
     other = "https://elsewhere.example/actors/other"

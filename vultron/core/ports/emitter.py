@@ -48,7 +48,7 @@ class ActivityEmitter(Protocol):
     ``recipients`` is a sequence of actor ID strings (URI-formatted) that
     should receive the activity.  ``inboxes`` maps a recipient to the inbox
     the sender's held profile of it names; a recipient it leaves out is
-    delivered to the address derived from its URI (OX-12-009).
+    delivered to the address derived from its URI (OX-12-010).
     """
 
     async def emit(

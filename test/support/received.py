@@ -348,7 +348,7 @@ def hold_deferred(dl: Any, activity: Any) -> DeferredInboxActivity:
     An activity waiting on its case has not reached intake, so it has no
     ``ReceivedActivityRecord``; the inbox holds it whole in a
     ``DeferredInboxActivity`` under the receiver's key (DL-06-006,
-    IO-03-004).  *activity* is delivered as a sender would send it: its body
+    IO-03-009).  *activity* is delivered as a sender would send it: its body
     is parsed, staged and held through the inbox's own staging.
     """
     parsed = parse_activity(delivered_body(activity))

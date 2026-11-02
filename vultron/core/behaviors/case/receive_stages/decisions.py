@@ -17,7 +17,7 @@
 
 The clock decisions (CLP-10-025) and the answer to the ledger position the
 received activity stamps (SYNC-18-007).  Split out of
-``receive_activity_tree.py`` (CS-18-001).
+``receive_activity_tree.py`` (CS-18-005).
 """
 
 import py_trees

@@ -28,9 +28,10 @@ queue, ahead of the next entry's fan-out to every other peer (#3602, #3033,
 These tests pin the delivery contract that closes that loop:
 
 - OX-01-004: one drain per actor outbox at a time.
+- OX-01-007: a drain requested during another waits for it or is served by it.
 - OX-01-005: per-recipient enqueue order is preserved at delivery.
-- OX-01-006: at most one in-flight delivery per (actor, recipient); distinct
-  recipients proceed concurrently.
+- OX-01-006: at most one in-flight delivery per (actor, recipient).
+- OX-01-008: distinct recipients proceed concurrently.
 - OX-13-012: a failed row is re-queued ahead of every later row sharing a
   recipient with it (#3878).
 
@@ -181,6 +182,7 @@ def test_concurrent_drains_deliver_each_recipient_in_enqueue_order(
 
 
 @pytest.mark.spec("OX-01-006")
+@pytest.mark.spec("OX-01-008")
 def test_slow_recipient_does_not_delay_another_recipient(monkeypatch):
     """A slow POST to recipient A must not hold back the row queued behind it for B.
 
@@ -235,6 +237,7 @@ def test_multi_recipient_row_joins_every_lane_it_addresses(monkeypatch):
 
 
 @pytest.mark.spec("OX-13-012")
+@pytest.mark.spec("OX-13-014")
 def test_failed_row_is_requeued_ahead_of_later_rows_to_same_recipient(
     monkeypatch,
 ):
@@ -265,6 +268,7 @@ def test_failed_row_is_requeued_ahead_of_later_rows_to_same_recipient(
 
 
 @pytest.mark.spec("OX-13-012")
+@pytest.mark.spec("OX-13-014")
 def test_row_arriving_during_a_stalled_pass_queues_behind_the_stalled_rows(
     monkeypatch,
 ):
@@ -323,7 +327,7 @@ def test_dead_lettered_row_releases_its_lane(monkeypatch):
     assert queue == []
 
 
-@pytest.mark.spec("OX-01-004")
+@pytest.mark.spec("OX-01-007")
 def test_second_drain_does_not_pop_while_the_first_holds_the_outbox(
     monkeypatch,
 ):
@@ -353,7 +357,7 @@ def test_second_drain_does_not_pop_while_the_first_holds_the_outbox(
     assert queue == []
 
 
-@pytest.mark.spec("OX-01-004")
+@pytest.mark.spec("OX-01-007")
 def test_nested_drain_request_returns_and_the_holder_looks_again(monkeypatch):
     """A drain re-entered for the same actor must neither deadlock nor lose rows.
 

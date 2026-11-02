@@ -22,7 +22,7 @@ Direct ``ast.parse(`` or ``.rglob(`` calls in sibling files bypass the shared
 module-level corpus, re-read source files on every test run, and risk blowing
 the per-test timeout budget.
 
-Spec: TB-13-003.
+Spec: TB-13-003, TB-13-009.
 """
 
 from pathlib import Path

@@ -220,7 +220,7 @@ def test_a_queued_row_with_no_sealed_body_is_not_pending(dl):
     """A row the outbox cannot deliver does not stand in for a real one.
 
     The outbox delivers only the sealed body (OX-07-001); a queued id with
-    none is never delivered, so it must not suppress the Announce that would
+    none is never delivered (OX-07-005), so it must not suppress the Announce that would
     be (SYNC-15-012).
     """
     dl.outbox_append("urn:test:unsealed-announce")

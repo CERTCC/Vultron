@@ -4,8 +4,8 @@ status: active
 kind: guidance
 description: >
   Rules for YAML-backed Pydantic configuration in vultron/config/: layering,
-  loader key-presence checks, and the test patterns that keep the
-  process-wide config cache from leaking between tests.
+  easily misread fields, and the test patterns that keep the process-wide
+  config cache from leaking between tests.
 related_specs:
   - specs/case-ledger-processing.yaml
   - specs/case-proposal.yaml
@@ -101,15 +101,6 @@ from `vultron/adapters/`, `vultron/wire/`, `vultron/core/`, or FastAPI.
 `actor.py` takes `CVDRole` from `vultron/enums/roles.py`, which is bottom of the
 stack and imports neither core nor config.
 
-## Key-Presence Check Required Before `model_validate`
-
-A YAML sub-block loader that falls back to a secondary source MUST check that
-its key is present in the raw dict **before** calling `model_validate`
-(CFG-07-008). On a model where every field has a default, `model_validate({})`
-succeeds and returns an all-defaults instance, so `raw.get("local_actor", {})`
-makes the loader "find" config that is not there and skip the `VULTRON_ACTOR__*`
-env vars. Return `None` when the key is absent.
-
 ## Testing Pattern
 
 - **Use `config_override(**env)`** when a test overrides `AppConfig` values
@@ -118,7 +109,7 @@ env vars. Return `None` when the key is absent.
   construction.
 - **To only reset the cache, call `clear_config_cache()`**, never
   `reload_config()`, in teardown.
-- **The ordering footgun (CFG-06-007):** the cache is process-wide, and
+- **The ordering footgun (CFG-06-009):** the cache is process-wide, and
   `reload_config()` re-reads `os.environ` at once. `monkeypatch` undoes env
   changes *after* the teardown body runs, so `reload_config()` in teardown
   caches the test's patched values for every later test. Outside
