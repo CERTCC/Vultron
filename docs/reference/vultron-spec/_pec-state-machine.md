@@ -50,7 +50,7 @@ The CASE_MANAGER relays an open proposal to a joiner only while the joiner's row
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-006", "CM-11-026", "CM-11-023", "CM-11-024", "CM-11-025", "EP-09-011"))
 ```
 
-`INVITED` carries the invitation's respond-by deadline, the **RSVP deadline**, on the row itself ([§9.4 Deadlines and the Pocket Veto](tracking-models.md#94-deadlines-and-the-pocket-veto)).
+`INVITED` carries the invitation's **RSVP Deadline** on the row itself ([§9.4 Deadlines and the Pocket Veto](tracking-models.md#94-deadlines-and-the-pocket-veto)).
 Each deadline belongs to one invitation.
 A participant can therefore hold several `INVITED` rows with different deadlines.
 When one deadline passes, it times out only its own row.
@@ -66,7 +66,7 @@ Five triggers drive each row.
 **INVITE** records an invitation.
 **AGREE** and **DECLINE** record an answer.
 **TIME_OUT** fires when the RSVP deadline of an invitation passes with no answer.
-**CARRY_OVER** agrees for a participant when the case owner activates a revision that asks nothing new of that participant.
+**CARRY_OVER** agrees for a participant when the Case Owner activates a revision that asks nothing new of that participant.
 
 | Trigger | From | To |
 |---|---|---|
@@ -140,7 +140,7 @@ A CASE_MANAGER that has a stake in an embargo therefore records its own answer a
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-16-001", "EMB-16-003", "EMB-16-004", "EMB-16-005"))
 ```
 
-A participant lapses when the case owner activates a revision that ends later than the embargo that the participant agreed to, and the participant has not agreed to the revision.
+A participant lapses when the Case Owner activates a revision that ends later than the embargo that the participant agreed to, and the participant has not agreed to the revision.
 The participant did agree, but the embargo in force has since become something that the participant did not agree to.
 Only the embargoes that were once in force are on the `replaces` chain.
 Agreement to a proposal that never took effect therefore gives the participant nothing to lapse from.
@@ -169,14 +169,14 @@ A signatory withdraws by leaving the embargo in force with `Leave(EmbargoEvent)`
 The withdrawal declines the signatory's row for the embargo in force.
 The withdrawal also declines each open proposal's row that the signatory had agreed to, because every open proposal is a revision of the embargo that the signatory is leaving.
 A `Reject` of the active embargo from an `AGREED` row is refused with a reported reason.
-The case owner does not leave an embargo.
-The case owner ends an embargo by terminating it.
+The Case Owner does not leave an embargo.
+The Case Owner ends an embargo by terminating it.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MSM-07-010", "MSM-07-035", "MSM-07-034", "MSM-07-036", "VAM-05-011"))
 ```
 
-Only the case owner's decision changes the embargo on the case.
+Only the Case Owner's decision changes the embargo on the case.
 The answers of the other participants inform that decision.
 When the owner activates a revision, the direction of the change decides what happens to the consent of the signatories to the old terms:
 
@@ -213,7 +213,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 
 The deadline is explicit or defaulted:
 
-- An embargo invitation can carry its own `endTime`, giving an explicit respond-by instant.
+- An embargo invitation can carry its own `endTime`, giving an explicit RSVP Deadline.
   When present, this `endTime` takes precedence over the policy window.
 - When the invitation has no `endTime`, a policy window applies.
   The default window is 7 days.
@@ -227,7 +227,7 @@ The explicit `endTime` takes precedence over the policy window, but neither one 
 The pocket veto is the implicit form of this one mechanism, not a second mechanism alongside it.
 
 !!! warning "One invitation carries two different end times"
-    The invitation's `endTime` is the **respond-by** deadline for the invitee.
+    The invitation's `endTime` is the **RSVP Deadline** for the invitee.
     The embargo event nested inside the invitation has its own `endTime`, which is when the **embargo** would expire.
     They sit one nesting level apart and mean different things.
 
@@ -255,13 +255,13 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
     The reference implementation enforces the deadline lazily.
     When the CASE_MANAGER next handles the case, it compares each deadline against its own clock, so no scheduler or timer service is needed.
 
-    Before it commits the case owner's decision on a proposal, whenever it processes any other received embargo activity for the case, and whenever it runs an embargo trigger of its own, it expires every `INVITED` row whose deadline has passed and whose embargo is an open proposal or the embargo in force.
+    Before it commits the Case Owner's decision on a proposal, whenever it processes any other received embargo activity for the case, and whenever it runs an embargo trigger of its own, it expires every `INVITED` row whose deadline has passed and whose embargo is an open proposal or the embargo in force.
     A row of a replaced, rejected, canceled or ended embargo is frozen, so the sweep skips it.
     The sweep runs after the activity's sender has been admitted and before the activity's own refusals.
     An expiry is therefore recorded even when the activity is then refused.
 
 **A minimum window applies.**
-The minimum respond-by window is the lesser of a configured window, 72 hours by default, and the time remaining in the embargo the invitation concerns.
+The minimum window for an RSVP Deadline is the lesser of a configured window, 72 hours by default, and the time remaining in the embargo the invitation concerns.
 An inviting actor does not send an invitation whose deadline is shorter than the minimum.
 A receiver that gets one anyway extends the deadline to the minimum, and does not reject the invitation for this reason.
 A too-short deadline is the proposer's error, and a refusal of the invitation would penalize the invitee for that error.
@@ -271,7 +271,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 ```
 
 **A deadline does not outlive its embargo.**
-A respond-by deadline never falls after the end of the embargo it concerns.
+An RSVP Deadline never falls after the end of the embargo it concerns.
 If a computed deadline, whether from the invitation's explicit `endTime` or from the policy window, would fall after that end, it is clamped down to the embargo's end.
 
 ```python exec="true" idprefix=""
@@ -289,7 +289,7 @@ That window is not an unreasonably short deadline when 12 hours is the whole emb
 The CASE_MANAGER does not refuse a late accept on deadline grounds.
 Three cases apply:
 
-- If the accepted terms are the case's current embargo, the CASE_MANAGER records the accept exactly as an on-time accept.
+- If the accepted terms are the case's Active Embargo, the CASE_MANAGER records the accept exactly as an on-time accept.
   Its entry is the accept itself, and a `TIMED_OUT` or `DECLINED` row moves to `AGREED` directly.
 - If the terms are stale, the CASE_MANAGER relays a fresh invitation carrying the current terms, on behalf of their proposer.
 - If no embargo remains, the accept changes nothing.
@@ -347,7 +347,7 @@ The CASE_MANAGER commits every consent row that it changes as its own `Update(Em
 For a row that it brings into existence, the entry is `Create(EmbargoConsent)`.
 Each such entry comes after the entry of the act that caused the change.
 When the act's own activity states the row, the act's entry is also the row's entry.
-Examples are a participant's `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])` or, for the case owner's own row, its `Accept(EmbargoEvent)[target=VulnerabilityCase]` that activates an embargo.
+Examples are a participant's `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])` or, for the Case Owner's own row, its `Accept(EmbargoEvent)[target=VulnerabilityCase]` that activates an embargo.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CLP-07-013", "CM-23-016", "CM-23-044"))

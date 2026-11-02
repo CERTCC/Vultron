@@ -27,7 +27,7 @@ How a participant joins a case, changes role in it and leaves it is at [§12 Par
 ### 10.1 Single-Writer Authority
 
 The participant holding the `CASE_MANAGER` role is the **only** entity authorized to write the case's shared state.
-That shared state is the Public aware, eXploit public, Attacks observed (PXA) axis, the embargo state, the embargo record, and the case ledger.
+That shared state is the Public aware, eXploit public, Attacks observed (PXA) axis, the EM state, the Embargo Register, and the case ledger.
 No other participant writes shared case state directly.
 Every such change goes through the CASE_MANAGER.
 
