@@ -16,7 +16,7 @@
 
 """Store lookups that resolve a ``CaseProposal`` to the case it applies to.
 
-A ``Create(as_CaseProposal)`` names a report, not a case.  Two nodes of the
+A ``Create(CaseProposal)`` names a report, not a case.  Two nodes of the
 received-side tree need the case it resolves to: the closed-case decline
 (``CheckProposalCaseFullyClosedNode``) and the accept arm's case reuse
 (``LoadExistingCaseNode``).  Both resolve it here, through
@@ -138,7 +138,7 @@ def proposal_case_ids(
 
     A proposal resolves to a case in one of two ways:
 
-    - **The proposer's own case for the report** (CP-05-008).  This covers a
+    - **The proposer's own case for the report** (CP-05-017).  This covers a
       new proposal id from the case's owner.
     - **The case this proposal's stored ``Accept`` names** (its ``result``).
       This covers a redelivery of the original proposal (CP-05-006), also
@@ -147,7 +147,7 @@ def proposal_case_ids(
       the only way to find the case.
 
     A different proposer's case for the same report is never this proposal's
-    case: that proposer gets a separate case (CP-05-008).
+    case: that proposer gets a separate case (CP-05-020).
 
     The proposal id is chosen by the sender, so another actor can reuse an
     accepted proposal's id.  With *accepted_for_proposer_only* the stored

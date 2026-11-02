@@ -468,7 +468,7 @@ def test_extract_intent_participant_status_rm_and_d():
 
 
 def _make_embargo_invite(end_time=None, embargo_end=None, published=None):
-    """Build an as_Invite(as_EmbargoEvent) with optional activity-level end_time.
+    """Build an Invite(EmbargoEvent) with optional activity-level end_time.
 
     The invited embargo ends *embargo_end* (default: 90 days out).
     """
@@ -533,6 +533,7 @@ def test_extract_event_honours_custom_default_rsvp_window():
 
 
 @pytest.mark.spec("CM-28-001")
+@pytest.mark.spec("CM-28-018")
 def test_invite_rsvp_deadline_distinct_from_embargo_end_time():
     """AC-2: invite.end_time and invite.object_.end_time are distinct fields."""
     rsvp = datetime.now(tz=UTC) + timedelta(days=5)
@@ -564,9 +565,9 @@ def test_invite_rsvp_deadline_clamped_when_below_floor():
     assert ev.rsvp_deadline > datetime.now(tz=UTC)
 
 
-@pytest.mark.spec("CM-28-006")
+@pytest.mark.spec("CM-28-021")
 def test_invite_rsvp_deadline_normalized_when_naive_end_time():
-    """CM-28-006: naive end_time is normalised to UTC at the wire edge (ADR-0032).
+    """CM-28-021: naive end_time is normalised to UTC at the wire edge (ADR-0032).
 
     Previously the extractor rejected naive end_time as malformed (→ rsvp_deadline=None).
     ADR-0032's validate_datetime now normalises naive datetimes to UTC before
@@ -969,7 +970,7 @@ def test_consent_coercion_helpers_are_retired():
 
 
 # ---------------------------------------------------------------------------
-# Ownership-transfer Offer deadline (CM-21-016, #4491)
+# Ownership-transfer Offer deadline (CM-21-016, CM-21-042, #4491)
 # ---------------------------------------------------------------------------
 
 
@@ -1002,6 +1003,7 @@ def _deadline_offer(end_time=None):
         "2026-12-01T12:00:00",
     ],
 )
+@pytest.mark.spec("CM-21-042")
 def test_ownership_offer_deadline_is_normalised_to_utc_at_the_edge(end_time):
     """The event carries the Offer's end_time in UTC; the activity keeps the
     offset it arrived with (CS-13-005), since the entry records it."""

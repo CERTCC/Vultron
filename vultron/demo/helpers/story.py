@@ -518,7 +518,7 @@ class StoryState:
 
         The restated case must be the one the story opened.  Nothing a
         scenario does changes a case's id — an ownership transfer moves
-        ``attributed_to`` and leaves the id alone (CM-21-002) — so a different
+        ``attributed_to`` and leaves the id alone (CM-21-024) — so a different
         id means the fragment read the wrong record, and taking it would leave
         the story acting on one case while the armed dump and the followed
         ledger belong to another (#5535).

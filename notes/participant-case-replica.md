@@ -43,7 +43,7 @@ they explode the actor registry for no protocol benefit.
 - The enacting "CaseActor" is one per container, not one per case, at
   `{case_actor_service_url}/actors/case-actor` (CP-08-002/003). Its label is
   cosmetic: gate on `CVDRole.CASE_MANAGER`, never compare `actor_id` to a
-  computed case-actor id (CM-24-004, ADR-0088).
+  computed case-actor id (CM-24-009, ADR-0088).
 
 ## Only the CASE_MANAGER Writes a Replica
 
@@ -82,7 +82,7 @@ it, so a fabricated case naming the sender as CASE_MANAGER
 passes (#3274). Do not reintroduce the retired `Service`-hosting scan
 (ARCH-24-004). Whether the named CaseActor is genuine awaits signatures (#2841).
 
-## Late Joiners: Cascade from `Accept(Invite(stub))`
+## Late Joiners: Cascade from `Accept(Invite(Actor)[target=VulnerabilityCaseStub])`
 
 The invitee's record already exists, inert, from when the stub Invite was sent
 (`CreateInertInviteeParticipantNode`, CM-11-006). On the stub Accept the

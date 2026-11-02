@@ -203,7 +203,7 @@ retiring `path=` and the hand-placed `reach_step` (#5537).
   `open_case`, `restate_case`, which replaces the case without re-arming the
   dump and **refuses a different id** — no act of a scenario changes a case's
   id, an ownership transfer moving `attributed_to` and leaving the id alone
-  (CM-21-002), so a different one means the fragment read the wrong record and
+  (CM-21-024), so a different one means the fragment read the wrong record and
   taking it would leave the story on one case while the armed dump and the
   followed ledger belong to another (#5535).
 - **One prop per step, not one rewritten prop.** `rcvv-embargo` revises the

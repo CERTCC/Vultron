@@ -18,6 +18,7 @@ related_specs:
   - specs/sync-ledger-replication.yaml
   - specs/sync-behavior-trees.yaml
   - specs/embargo-policy.yaml
+  - specs/handler-protocol.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/case-joining.md
@@ -169,7 +170,7 @@ replica decides nothing:
   of the stub Invite is the entry for its consent row and `joined` mark
   (CM-31-012). No second entry records either again (CLP-07-002).
 - **A replica copies.** Applying an entry mints no id, reads no clock, reads no
-  policy or state outside the case, and runs no lifecycle logic (CM-23-016).
+  policy or state outside the case, and runs no lifecycle logic (CM-23-044).
   Lifecycle and policy code runs on the CASE_MANAGER before the commit.
 - **Moving the case's position is not a change.** Storing an entry moves the
   case's `ledger_position` to it in the same transaction (`store_ledger_entry()`),
@@ -283,7 +284,7 @@ it erases provenance (CLP-07-003).
 CLP-07-002 bars two entries for the *same* change, but an act and the changes it
 causes are different facts. For a `Leave`, the CASE_MANAGER commits the
 `close_case` entry, then one participant-status entry per RM transition it writes
-for the leaver (`V → D → C` is two), in that order (CM-23-001). Replicas apply
+for the leaver (`V → D → C` is two), in that order (CM-23-022). Replicas apply
 the status entries and never derive a closure path from their own state.
 
 The status entries are the CASE_MANAGER's own writes, so their
@@ -315,8 +316,10 @@ The CLP-07-003 actor-identity check lives in `CommitCaseLedgerEntryNode`
 `activity.actor_id` is available, **not** in `_validate_canonical_entry`. A
 CASE_MANAGER may legitimately self-assert participant activities (ADR-0088), and
 a commit-boundary identity check false-rejects those (#3282). Do not move the
-comparison back. `_CASE_AUTHORED_SIGNATURES` stays: CLP-12-002's native-init
-coverage check needs it.
+comparison back. `_validate_canonical_entry` checks a signature, never its
+author. Who may author an act is decided by sender entitlement at receipt
+(HP-01-006, HP-01-007) and by the role gate at commit (CLP-09-001), so no
+author-scoped signature set exists; a second one would be read only by tests.
 
 ### An Entry Has Two Timestamps, and They Belong to Different Layers
 
@@ -368,7 +371,7 @@ reconstructing a participant's causal order; they are verified by
 
 The CASE_MANAGER commits every initialization entry natively in
 `CommitNativeLedgerEntriesNode` (`vultron/core/behaviors/case/nodes/proposal_ledger.py`)
-while handling `Create(as_CaseProposal)` (CM-22-003, CLP-12). The create-case
+while handling `Create(CaseProposal)` (CM-22-003, CLP-09-001). The create-case
 trigger composes the same node (`create_case_trigger_tree.py`), its creator being
 owner and CASE_MANAGER, so both creation paths commit one sequence; do not add a
 second copy (CLP-07-013). Order:
@@ -409,12 +412,10 @@ what changed, so a retry hands back the first sealed body (ID-04-004).
   records, the queued `Accept`/`Create` and the entries in one `ActTransaction`
   (ADR-0146), so a failed entry rolls back all of them and delivery is never told
   of the activities (DL-02-004). A redelivered proposal starts afresh.
-- **Step 4 names the vendor** because the vendor set the genesis status.
-  `("Add", "CaseStatus")` is also in `_CASE_AUTHORED_SIGNATURES` (CLP-12-001), so
-  single-actor deployments (vendor is the CASE_MANAGER) validate too. That
-  signature entry is correct, but adding it was never a substitute for removing
-  the old two-init-path back-fill: the report receiver authors no initialization
-  entry (CM-22-003, ADR-0041).
+- **Step 4 names the vendor** because the vendor set the genesis status. The
+  validator checks the signature, not its author, so a single-actor deployment
+  (vendor is the CASE_MANAGER) validates too. The report receiver still authors
+  no initialization entry (CM-22-003, ADR-0041).
 
 ## Per-Case Genesis Hash (CLP-08)
 
@@ -454,7 +455,7 @@ A computable hash still leaves a targeted-DoS gap; the planned fix is in
 
 The ledger is the only channel by which state crosses actors, so **an unrecorded
 transition did not happen** for every replica and every ledger-derived check. A
-clause like CM-23-005 ("each transition MUST be recorded as a `CaseLedgerEntry`")
+clause like CM-23-033 ("each transition MUST be recorded as a `CaseLedgerEntry`")
 is the visibility contract, not bookkeeping.
 
 A replica effect keys off its own entry's `payloadSnapshot.actor`, so one
@@ -471,7 +472,7 @@ CASE_MANAGER's status entry reaching `RM.CLOSED` is the write
 boundary; no marker entry follows, because it would record nothing a replica
 lacks (ADR-0152). Every boundary check asks `entry_closes_case_manager`
 (`core/predicates/case_closure.py`). `close_case` has no replay slot
-(CM-23-001, CM-23-016).
+(CM-23-024, CM-23-044).
 
 - **Recording is best-effort.** The node warns and returns SUCCESS where it
   cannot produce the entry, because a FAILURE would skip the rest of the owner

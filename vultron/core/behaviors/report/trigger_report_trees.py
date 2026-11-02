@@ -19,7 +19,7 @@ Each factory produces a ``py_trees.composites.Sequence`` that implements the
 outbound protocol handling for one of the report-lifecycle trigger
 operations:
 
-- ``AckReport``        — emit Read(Offer(Report)) (RK) to the reporter
+- ``AckReport``        — emit Read(Offer(VulnerabilityReport)) (RK) to the reporter
 - ``InvalidateReport`` — emit TentativeReject activity + transition RM → INVALID
 - ``RejectReport``     — guard (report in no case) + guard (RM may close) +
                          emit CloseReport activity + transition RM → CLOSED
@@ -27,7 +27,7 @@ operations:
 The ``CloseReport`` emitter fails closed when the report belongs to a case:
 an actor closes its part in a case by ``Leave(VulnerabilityCase)``, through the
 ``leave-case`` trigger (TRIG-13-001), and no actor sends ``Close(Report)`` for a
-report a case holds (CM-23-019).
+report a case holds (CM-23-052, CM-23-053).
 
 Trees are run via ``BTBridge.execute_with_setup()`` in the corresponding
 trigger use case.
@@ -66,7 +66,7 @@ def create_ack_report_trigger_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the ack-report trigger workflow.
 
-    Emits ``RmReadReportActivity`` (``Read(Offer(Report))``, RK) to the
+    Emits ``RmReadReportActivity`` (``Read(Offer(VulnerabilityReport))``, RK) to the
     reporter (RMB-08-003).  An acknowledgement moves no RM state, so the tree
     has no transition node.
 
@@ -171,7 +171,7 @@ def create_reject_report_trigger_tree(
 
     A report that belongs to a case is refused first, before anything is
     emitted: its Case Owner closes the case by ``Leave(VulnerabilityCase)``
-    (CM-23-019).
+    (CM-23-053).
 
     The hard-reject writes ``CLOSED`` only through a transition the RM table
     permits: from *Received* it is the ``R → C`` transition (RMB-14-004), and

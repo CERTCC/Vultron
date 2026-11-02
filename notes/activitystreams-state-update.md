@@ -44,15 +44,16 @@ Derive a BT-built activity's `name` from the object's own attributes
 (`object_.name or object_.id_`), never `repr()` or `str()`. The outbound adapter
 does not sanitize semantic content.
 
-## A `cc`-Only Receiver of `Offer(Report)` Refuses It
+## A `cc`-Only Receiver of `Offer(VulnerabilityReport)` Refuses It
 
-Only a `to` recipient of `Offer(Report)` creates a case; a `cc`-only receiver
-reports `REFUSED` with a reason naming the addressing (HP-01-005, HP-09-001).
+Only a `to` recipient of `Offer(VulnerabilityReport)` creates a case; a `cc`-only
+receiver reports `REFUSED` with a reason naming the addressing (HP-01-005,
+HP-09-001).
 
 ## A Received `Update(VulnerabilityCase)` Is Not Processed
 
 No actor sends `Update(VulnerabilityCase)` to the CASE_MANAGER: it is the
-CASE_MANAGER's own `update_case_owner` entry (CM-21-002). The registry labels
+CASE_MANAGER's own `update_case_owner` entry (CM-21-024). The registry labels
 it (ADR-0140), but no received use case handles it, so an inbound one is
 reported "no use case found" and changes nothing: a received update would
 change the case with no ledger entry (CLP-07-013, SE-05-002).
@@ -94,7 +95,7 @@ delivery boundary: a DataLayer round trip alone misses loss in the outbox.
 
 `Accept(Invite(...))` nests an `Invite` whose own `actor` and `object_` must also
 be parsed to typed objects, or `ActivityPattern` matching on subtypes fails. A
-case stub is recognized by its `type` (`VulnerabilityCaseStub`, CM-11-013),
+case stub is recognized by its `type` (`VulnerabilityCaseStub`, CM-11-038),
 never by its sparseness: a sparse `VulnerabilityCase` is always a case.
 
 ## Bootstrap Embeds Nested Objects Inline

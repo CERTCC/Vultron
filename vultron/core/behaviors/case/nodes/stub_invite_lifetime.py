@@ -24,7 +24,7 @@ Read-only conditions for the CASE_MANAGER's received trees:
 - :class:`ReinviteAwaitingNode` — the invitee has a record and has not
   answered, so a fresh stub goes out on that record (CM-11-015).
 - :class:`ReinviteNotToClosedParticipantNode` — refuses a re-invite of a
-  participant at ``RM.CLOSED`` (CM-11-015, ADR-0085).
+  participant at ``RM.CLOSED`` (CM-11-043, ADR-0085).
 
 The deadline rules live in :mod:`vultron.core.behaviors.case.stub_invite_lifetime`.
 """
@@ -46,7 +46,7 @@ class StubInviteAnswerableNode(DataLayerConditionWithPorts):
 
     FAILURE, with the reason as ``feedback_message``, when the recorded Invite
     was superseded by a replacement (the refusal names it).  The Invite is
-    read from this store, never from the copy the reply embeds (CM-11-017).
+    read from this store, never from the copy the reply embeds (CM-11-047).
     """
 
     def __init__(

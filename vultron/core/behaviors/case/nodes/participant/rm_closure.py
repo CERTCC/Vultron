@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Write an RM closure as ordinary RM transitions (RMB-14-005, CM-23-012).
+"""Write an RM closure as ordinary RM transitions (RMB-14-005, CM-23-038).
 
 A ``Leave(VulnerabilityCase)`` closes the leaving actor's RM state from
 whatever rung it holds.  The RM transition function has a close edge from
@@ -61,7 +61,7 @@ class RMClosureWriter:
     one writer serves every actor its owner closes and no call inherits the
     previous call's actor.
 
-    Only the CASE_MANAGER walks a closure path (CM-23-001, CM-23-016).  A
+    Only the CASE_MANAGER walks a closure path (CM-23-023, CM-23-044).  A
     replica never builds one of these: the path starts from the writer's own
     stored RM state, so a replica holding an older status for the actor would
     write a step no ledger entry backs (#4091).  The CASE_MANAGER commits each
@@ -119,7 +119,7 @@ class RMClosureWriter:
             case_id: The case the participant belongs to.
             actor_id: The closing actor; every write is attributed to it.
             steps_out: Receives the id of each status written, in path order,
-                so the caller can commit one ledger entry per step (CM-23-001).
+                so the caller can commit one ledger entry per step (CM-23-022).
                 A step written before a refused one stays in it.
 
         Returns:
@@ -158,7 +158,7 @@ class RMClosureWriter:
             status_id = result_out.get("status_id")
             if not isinstance(status_id, str):
                 # A write the caller cannot name is a step no ledger entry
-                # will record (CM-23-001): report it, never drop it silently.
+                # will record (CM-23-022): report it, never drop it silently.
                 node.feedback_message = (
                     f"RM {current_rm.name} -> {rung.name} for participant"
                     f" '{participant_id}' reported no status id"

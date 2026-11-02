@@ -506,10 +506,11 @@ class TestVendor1HandsTheCaseToTheCoordinator:
         assert "witness" not in handover.call_args.kwargs, (
             "ADR-0053: the shared continuation's Reporter witness stands, and"
             " naming a party to the transfer would prove nothing about the"
-            " CM-21-007 broadcast"
+            " CM-21-030 broadcast"
         )
 
     @pytest.mark.spec("CM-21-007")
+    @pytest.mark.spec("CM-21-030")
     def test_the_reporter_witnesses_the_commit_the_case_actor_made(self):
         """The casting checked by its effect, not by its keywords.
 
@@ -518,7 +519,7 @@ class TestVendor1HandsTheCaseToTheCoordinator:
         slow fan-out reads as a slow fan-out rather than as a transfer that
         never happened (EDF-06-002, #3602); and the ledger entry is then read
         on the Reporter's replica, the ADR-0053 criterion that a non-party
-        learns of the transfer from the CM-21-007 broadcast alone.  Vendor1 or
+        learns of the transfer from the CM-21-030 broadcast alone.  Vendor1 or
         the Coordinator in that role would witness only their own round trip.
         """
         state = _four_party_state()

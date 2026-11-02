@@ -134,7 +134,8 @@ def _run_create_report(
     sender_id: str = _FINDER_ID,
     dl: SqliteDataLayer | None = None,
 ) -> tuple[HandlerResult, SqliteDataLayer]:
-    """Run ``CreateReportReceivedUseCase`` for ``Create(Report)`` from *sender_id*.
+    """Run ``CreateReportReceivedUseCase`` for ``Create(VulnerabilityReport)``
+    from *sender_id*.
 
     The activity is addressed to the receiving store's actor, so it passes the
     received tree's addressee door (HP-01-005).

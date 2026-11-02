@@ -16,7 +16,7 @@
 
 """Outbound-activity emit leaf nodes for the CaseProposal received tree.
 
-Queue ``Accept(as_CaseProposal)`` and ``Create(VulnerabilityCase)`` to the
+Queue ``Accept(CaseProposal)`` and ``Create(VulnerabilityCase)`` to the
 CaseActor outbox. Composed by ``create_case_proposal_received_tree``
 (BTND-07-003).
 """
@@ -186,7 +186,7 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
     The node runs inside the case-creation ``ActTransaction`` (ADR-0146): if
     the ``Create`` cannot be queued, the ``Accept`` and the case roll back
     with it.  Once the act commits, the durable outbox holds the ``Create``
-    and retries its delivery (OX-13, CP-05-005); no separate marker is kept.
+    and retries its delivery (OX-13, CP-05-011); no separate marker is kept.
 
     Returns SUCCESS without queueing when the proposal's ``Create`` is already
     stored for this case, and FAILURE when it is stored for another case —
@@ -340,7 +340,7 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
             logger.exception("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
         # The report receiver (the Case Owner) is the only addressee
-        # (CBT-01-010, CM-22-001): it introduces the CASE_MANAGER to the
+        # (CBT-01-010, CM-22-006): it introduces the CASE_MANAGER to the
         # reporter with its own Create(VulnerabilityCase) (CBT-01-001,
         # ADR-0132).  The reporter never addressed this actor, so a Create from
         # it would give the reporter nothing to check the sender against.

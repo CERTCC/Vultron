@@ -175,7 +175,7 @@ class _ActorsMixin:
 
         ``actor`` MUST be the CASE_MANAGER's ID (PCR-08-007); ``attributed_to``
         MAY carry the case owner's ID for attribution.  The Invite carries no
-        ``cc`` (CM-17-006, ADR-0109).
+        ``cc`` (CM-17-015, ADR-0109).
 
         ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
         ``target`` may be a core ``as_VulnerabilityCase`` (projected to an enriched
@@ -287,7 +287,9 @@ class _ActorsMixin:
         to: list[str] | None = None,
         id_: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist the full-case ``Invite(Actor)[target=Case]``."""
+        """Create and persist the full-case
+        ``Invite(Actor)[target=VulnerabilityCase]``.
+        """
         extra = _addressing(actor, to, id_)
         activity = rm_invite_to_full_case_activity(
             invitee=_held_actor(self._dl, invitee_id),
@@ -545,7 +547,7 @@ class _ActorsMixin:
         """Create and persist an AcceptActorRecommendation activity.
 
         Sent by the CaseActor to the recommender after the Case Owner accepts
-        the Offer(as_CaseParticipant) (CM-16-006 step 3), or at once for an
+        the Offer(CaseParticipant) (CM-16-006 step 3), or at once for an
         actor already invited or joined (CM-16-009).  ``inReplyTo`` names
         the recommendation it answers.
         """
@@ -576,7 +578,7 @@ class _ActorsMixin:
         """Create and persist a RejectActorRecommendation activity.
 
         Sent by the CaseActor to the recommender after the Case Owner rejects
-        the Offer(as_CaseParticipant) (CM-16-007 step 3).  ``inReplyTo``
+        the Offer(CaseParticipant) (CM-16-007 step 3).  ``inReplyTo``
         names the recommendation it answers.
         """
         recommendation = self._rebuilt_recommendation(
@@ -700,7 +702,7 @@ class _ActorsMixin:
 
         The canonical role-delegation wire format introduced by ADR-0039.
         *attributed_to* and *in_reply_to*, when given, make it the
-        CASE_MANAGER's forward of a recorded Offer (CM-33-001); a given *id_*
+        CASE_MANAGER's forward of a recorded Offer (CM-33-008); a given *id_*
         is kept so a retry rebuilds the same activity (OX-06-002).
 
         Returns ``(activity_id, activity_dict)``.
@@ -848,7 +850,7 @@ class _ActorsMixin:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership transfer.
 
         The CASE_MANAGER's Offer to ``transferee_id``, made from the owner's
-        proposal (ADR-0148, CM-21-005).  The case travels as its typed
+        proposal (ADR-0148, CM-21-028).  The case travels as its typed
         reference (ADR-0165): the transferee is an active participant that
         holds it (CM-21-021), and the reference's ``type`` tells this from a
         ``SUBMIT_REPORT`` offer.  *end_time*, when given, is the Offer's

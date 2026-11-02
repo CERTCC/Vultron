@@ -675,7 +675,7 @@ def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
     ``CreateCaseProposalReceivedUseCase`` needs ``default_case_roles`` so the
     CaseActor grants the proposing actor its real roles alongside CASE_OWNER
     (CFG-07-002, CFG-07-004), ``trigger_activity`` so the admission decline
-    path can emit Reject(as_CaseProposal) (CP-05-004), and ``call_out`` as the
+    path can emit Reject(CaseProposal) (CP-05-004), and ``call_out`` as the
     admission-policy injection point (CP-05-002).  ``wire_render_port`` and
     ``sync_port`` come only from the received baseline (#4113), so this
     factory must not name them.
@@ -712,7 +712,7 @@ def test_case_proposal_port_factory_omits_actor_config_when_unavailable(
     """The factory drops actor_config, keeping the port, when config load fails.
 
     The owner gets CASE_OWNER only (no inherited role guess), and the decline
-    path can still emit Reject(as_CaseProposal) (CP-05-004) under the default
+    path can still emit Reject(CaseProposal) (CP-05-004) under the default
     admission policy.
     """
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
@@ -824,7 +824,7 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
     """AC-2: DirectActivityDispatcher honours auto_create_case=False end-to-end.
 
     With _resolve_actor_config returning auto_create_case=False,
-    dispatching an inbound Offer(Report) via DirectActivityDispatcher must
+    dispatching an inbound Offer(VulnerabilityReport) via DirectActivityDispatcher must
     store the report and archive the Offer but must NOT create a
     as_VulnerabilityCase and must leave the actor's outbox empty (CM-15-001,
     issue #1319).
@@ -932,6 +932,7 @@ def test_pending_case_queue_expiry_sends_nothing():
 
 
 @pytest.mark.spec("EP-07-001")
+@pytest.mark.spec("CM-28-019")
 def test_prepare_for_dispatch_applies_configured_rsvp_window(monkeypatch):
     """The local actor's default RSVP window reaches extraction (#3737)."""
     from datetime import datetime, timedelta

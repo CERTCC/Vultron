@@ -314,7 +314,7 @@ def create_recommend_actor_to_case_received_tree(
         ],
     )
 
-    # CM-11-015: the owner may not re-invite a participant at RM.CLOSED.
+    # CM-11-043: the owner may not re-invite a participant at RM.CLOSED.
     # Anyone else's suggestion is answered as before.
     closed_is_not_reinvited = py_trees.composites.Selector(
         name="ReinviteIsNotToClosedParticipant",
@@ -460,8 +460,9 @@ def create_accept_actor_recommendation_received_tree(
 
     Commits a canonical ``CaseLedgerEntry`` (CM-16-006 step 1), then fans
     out: sends ``AcceptActorRecommendation`` to the original recommender
-    (CM-16-006 step 3) and ``Invite(CaseStub+embargo+roles)`` to the
-    invitee (CM-16-006 step 4, CM-17).
+    (CM-16-006 step 3) and ``Invite(Actor)[target=VulnerabilityCaseStub]``
+    to the invitee (CM-16-006 step 4, CM-17): its stub carries the embargo,
+    and the Invite carries the intended roles.
 
     Tree structure::
 

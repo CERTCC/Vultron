@@ -310,6 +310,7 @@ class TestEvaluateDefaultRolesNode:
             f"Expected VENDOR default at '{expected_key}', got {raw!r}"
         )
 
+    @pytest.mark.spec("CM-11-050")
     @pytest.mark.spec("CM-11-019")
     def test_require_explicit_roles_fails_when_no_roles_given(self):
         """CM-11-019: require_explicit_roles=True → FAILURE when no roles.
@@ -611,6 +612,7 @@ class TestAcceptActorRecommendationReceivedTree:
         assert node._subject() == (_RECOMMENDER, _REC_ID, _RECOMMENDED)
         assert node.case_id == _CASE_ID
 
+    @pytest.mark.spec("CM-16-023")
     @pytest.mark.spec("CM-16-019")
     def test_the_invite_goes_to_the_recorded_invitee(self):
         nodes = [
@@ -638,7 +640,8 @@ class TestAcceptActorRecommendationReceivedTree:
         )
         assert _invite_id_as_manager(node) == _derived_invite_id(_REC_ID)
 
-    @pytest.mark.spec("CM-11-015")
+    @pytest.mark.spec("CM-16-021")
+    @pytest.mark.spec("CM-11-043")
     @pytest.mark.spec("CM-16-006")
     @pytest.mark.spec("CLP-10-010")
     def test_the_guards_run_before_the_commit_and_either_emit(self):
@@ -710,6 +713,7 @@ def test_an_answer_node_without_the_published_offer_is_an_internal_error(
     assert "must run first" in result.feedback_message
 
 
+@pytest.mark.spec("CM-11-050")
 @pytest.mark.spec("CM-11-019")
 @pytest.mark.parametrize(
     ("raw", "expected"),
@@ -722,7 +726,7 @@ def test_an_answer_node_without_the_published_offer_is_an_internal_error(
     ],
 )
 def test_validated_invitee_roles_never_defaults(raw, expected):
-    """No valid role seats nothing: there is no VENDOR default (CM-11-019)."""
+    """No valid role seats nothing: there is no VENDOR default (CM-11-050)."""
     assert validated_invitee_roles(raw) == expected
 
 
@@ -1045,6 +1049,26 @@ class TestDuplicateDetectionTreeStructure:
     def test_selector_has_six_children(self):
         assert len(self._duplicate_selector().children) == 6
 
+    @pytest.mark.spec("CM-16-009", "CM-16-022")
+    def test_the_in_flight_and_participant_arms_emit_no_invite(self):
+        """An actor already invited or seated gets the recommender's Accept,
+        never a second Invite (CM-16-009, CM-16-022)."""
+        arms = [
+            arm
+            for arm in self._duplicate_selector().children
+            if any(
+                isinstance(
+                    n, (ActorAlreadyParticipantNode, InviteInFlightNode)
+                )
+                for n in arm.iterate()
+            )
+        ]
+        assert len(arms) == 2
+        for arm in arms:
+            types = [type(n) for n in arm.iterate()]
+            assert EmitAcceptActorRecommendationNode in types
+            assert EmitInviteActorToCaseNode not in types
+
     @pytest.mark.spec("OX-06-002")
     def test_every_invite_id_derives_from_the_offer_it_answers(self):
         """Owner-direct and re-invite Invites alike take the Offer's id."""
@@ -1100,7 +1124,7 @@ class TestDuplicateDetectionTreeStructure:
             EmitInviteActorToCaseNode,
         ]
 
-    @pytest.mark.spec("CM-11-015")
+    @pytest.mark.spec("CM-11-043")
     def test_closed_participant_guard_runs_before_the_recommender_is_recorded(
         self,
     ):
@@ -1142,6 +1166,7 @@ class TestDuplicateDetectionTreeStructure:
         assert PendingOfferCaseParticipantNode in child_types
         assert EmitNoteDuplicateRecommendationToOwnerNode in child_types
 
+    @pytest.mark.spec("CM-17-018")
     @pytest.mark.spec("CM-17-007")
     def test_owner_direct_invite_structure(self):
         """CASE_OWNER arm: owner check, roles, Invite, inert participant.

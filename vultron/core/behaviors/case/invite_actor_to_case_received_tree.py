@@ -95,7 +95,7 @@ def create_reject_invite_actor_to_case_received_tree(
         precondition_guards=[],
         sender_rule=sender_rule,
         # A Reject closes its invitee: the handler reads a repeat from one
-        # the case already records as closed as SKIPPED (CM-23-018,
+        # the case already records as closed as SKIPPED (CM-23-049,
         # ID-05-003).
         closed_sender=ClosedSenderCheck(sender_id=invitee_id or ""),
         sender_context=SenderCheckContext(

@@ -733,8 +733,9 @@ class TestReportTriggerToField:
         assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
 
-    @pytest.mark.spec("CM-23-019")
     @pytest.mark.parametrize("owner", [False, True], ids=["vendor", "owner"])
+    @pytest.mark.spec("CM-23-052")
+    @pytest.mark.spec("CM-23-053")
     def test_close_report_is_sent_to_no_one_when_a_case_exists(self, owner):
         """Once a case holds the report, reject-report queues no Close(Report).
 

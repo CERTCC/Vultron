@@ -89,7 +89,7 @@ def _case_with_case_actor_participant() -> tuple:
 
     Returns a tuple of (as_VulnerabilityCase, CaseActorParticipant).  The
     participant is embedded INLINE in the case snapshot (not just an ID),
-    matching what a real bootstrap ``Create(as_VulnerabilityCase)`` would carry.
+    matching what a real bootstrap ``Create(VulnerabilityCase)`` would carry.
     """
     participant = as_CaseParticipant(
         case_roles=[CVDRole.CASE_MANAGER],
@@ -429,6 +429,7 @@ def _bootstrap_event(
     ),
 )
 @pytest.mark.spec("CBT-06-002")
+@pytest.mark.spec("CBT-06-004")
 @pytest.mark.parametrize(
     "bootstrap_order",
     [(_CREATOR_ID, _COORDINATOR_ID), (_COORDINATOR_ID, _CREATOR_ID)],

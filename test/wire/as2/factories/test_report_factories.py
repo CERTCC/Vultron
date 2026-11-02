@@ -164,6 +164,7 @@ def test_rm_submit_report_to_accepts_actor_object(sample_report, sample_actor):
 
 
 @pytest.mark.spec("CBT-06-001")
+@pytest.mark.spec("CBT-06-003")
 def test_rm_submit_report_offers_to_two_recipients_are_distinct(
     sample_report, sample_actor
 ):

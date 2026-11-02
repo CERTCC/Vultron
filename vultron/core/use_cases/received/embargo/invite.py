@@ -257,7 +257,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             logger.warning("%s (invite '%s')", verdict.reason, invite_id)
         # No deadline is stored on receipt: the CASE_MANAGER recorded the one
         # it stamped at its relay's commit, and a replica records that value
-        # from the committed entry (CM-28-013).
+        # from the committed entry (CM-28-024, CM-28-023).
         return verdict
 
     def _refusal(

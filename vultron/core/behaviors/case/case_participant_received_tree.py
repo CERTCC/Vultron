@@ -105,7 +105,7 @@ def create_add_case_participant_received_tree(
     removal entry, the reinstatement entry included, in log order
     (CM-10-006); a participant that is not a signatory to the active
     embargo is not admitted yet, so it is sent that embargo's Invite instead
-    and its backfill waits for its consent (CM-31-013).  At a replica every
+    and its backfill waits for its consent (CM-31-040).  At a replica every
     gated stage skips: intake is its only write (RSH-08-003).
 
     An ``Add`` naming no participant or no case is refused by the same
@@ -207,7 +207,7 @@ def create_remove_case_participant_received_tree(
     CASE_MANAGER at any other replica (ADR-0115, PCR-03-001), which is how
     the removed participant's own replica accepts the direct notice.  The
     commit runs before the effect, so the entry's fan-out selects its
-    recipients while the removed participant is still active (CM-31-006).
+    recipients while the removed participant is still active (CM-31-027).
     At a replica every gated stage skips: intake is its only write
     (RSH-08-003).
 

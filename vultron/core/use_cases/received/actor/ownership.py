@@ -63,14 +63,14 @@ class ProposeCaseOwnershipTransferReceivedUseCase:
     inner Offer — this case, a transferee it can address — ledgers the
     proposal, and makes the one ``Offer(VulnerabilityCase)`` of the transfer
     under an id it derives, with ``attributedTo`` the owner, and ledgers that
-    Offer (CM-21-005).  Anyone else is ``REFUSED`` by the tree's sender
+    Offer (CM-21-028, CM-21-029).  Anyone else is ``REFUSED`` by the tree's sender
     guard before anything but intake's archive is written (CLP-10-018): no
     expiry, no ledger entry, no Offer.  A redelivery of a proposal the
     CASE_MANAGER already made its Offer from is ``SKIPPED`` (HP-01-003).
     """
 
     # Only the Case Owner proposes; a participant never receives a proposal,
-    # so no sender is admitted there (CM-21-019, ADR-0129).
+    # so no sender is admitted there (CM-21-045, ADR-0129).
     sender_entitlement: ClassVar[SenderRule] = SenderRule(
         at_case_manager=any_of(SenderEntitlementKind.CASE_OWNER)
     )
@@ -402,7 +402,7 @@ class UndoCaseOwnershipTransferReceivedUseCase:
         proposal_id = request.proposal_id
         # The Undo names the owner's proposal; the CASE_MANAGER withdraws the
         # Offer it made from it, whose id it derives the way it did when it
-        # made it (CM-21-015, ADR-0148).  At a replica the derivation names
+        # made it (CM-21-037, ADR-0148).  At a replica the derivation names
         # no Offer it holds, but its sender guard admits the CASE_MANAGER
         # alone, so nothing is read for it.
         offer_id = (

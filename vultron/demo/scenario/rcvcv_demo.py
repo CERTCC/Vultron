@@ -272,7 +272,7 @@ def c1_invites_the_second_coordinator(state: StoryState) -> None:
     """C1 invites C2 with ``CVDRole.COORDINATOR``; C2 accepts and joins.
 
     C2 runs no RM triage: it joins to help coordinate, not to judge the
-    report, so it engages no case of its own (CM-11-002 applies to the
+    report, so it engages no case of its own (CM-11-022 applies to the
     invitee that answers over a report it must triage).  The roster is this
     join's gate and keeps :data:`C2_JOINED`, which C2's suggestion reads.
     """

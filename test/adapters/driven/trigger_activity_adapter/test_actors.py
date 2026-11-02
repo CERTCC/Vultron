@@ -183,7 +183,7 @@ class TestInviteActorToCaseWithEmbargoHeldById:
         )
         assert json.loads(blob)["target"]["activeEmbargo"] == expected
 
-    @pytest.mark.spec("CM-17-011")
+    @pytest.mark.spec("CM-17-024")
     def test_invite_is_refused_when_the_embargo_is_not_in_the_store(
         self, adapter, dl
     ):
@@ -377,7 +377,7 @@ class TestAcceptCaseInvite:
                 invite_id="urn:uuid:never-received", actor=_INVITEE
             )
 
-    @pytest.mark.spec("CM-11-013")
+    @pytest.mark.spec("CM-11-038")
     @pytest.mark.parametrize(
         "held_target",
         [{"type": "VulnerabilityCase", "id": _CASE_ID}, _CASE_ID],
@@ -841,6 +841,7 @@ class TestAnswerReceivedOwnershipOffer:
         assert dl.outbox_list() == []
 
     @pytest.mark.spec("CM-21-015")
+    @pytest.mark.spec("CM-21-036")
     def test_the_owner_withdraws_the_proposal_it_sent(self, adapter, dl):
         """The owner's own proposal is held under its own id, and read there;
         the Undo names the proposal (ADR-0148)."""
@@ -861,6 +862,7 @@ class TestAnswerReceivedOwnershipOffer:
 
     @pytest.mark.spec("CM-21-005")
     @pytest.mark.spec("CM-21-016")
+    @pytest.mark.spec("CM-21-025")
     def test_the_proposal_nests_the_offer_it_asks_for(self, adapter, dl):
         case = _make_case(dl)
         deadline = datetime(2030, 1, 1, tzinfo=UTC)

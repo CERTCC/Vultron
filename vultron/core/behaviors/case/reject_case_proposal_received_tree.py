@@ -1,6 +1,6 @@
 """BT tree for the RejectCaseProposal received-side use case.
 
-Report-receiver side: handles an inbound ``Reject(as_CaseProposal)`` by recording
+Report-receiver side: handles an inbound ``Reject(CaseProposal)`` by recording
 the rejection state in the receiver's ``VultronReportCaseLink``.
 
 Spec: ``specs/case-proposal.yaml`` CP-06-002, CP-06-004.
@@ -86,12 +86,12 @@ class RecordCaseProposalRejectionNode(DataLayerAction):
             return Status.SUCCESS
 
         if link.case_id is not None:
-            # CP-06-005: once a case is established for the report, a late
+            # CP-06-007: once a case is established for the report, a late
             # Reject must not re-open the proposal (proposal_rejected lets the
             # vendor propose again).
             logger.info(
                 "%s: case '%s' already established for report '%s'"
-                " — leaving the proposal state unchanged (CP-06-005)",
+                " — leaving the proposal state unchanged (CP-06-007)",
                 self.name,
                 link.case_id,
                 self._report_id,
@@ -118,7 +118,7 @@ def create_reject_case_proposal_received_tree(
     *,
     sender_rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
-    """Return the received-side BT for processing ``Reject(as_CaseProposal)``.
+    """Return the received-side BT for processing ``Reject(CaseProposal)``.
 
     Marks the receiver's ``VultronReportCaseLink`` as rejected and records
     the rejection reason when present, allowing the receiver to surface the

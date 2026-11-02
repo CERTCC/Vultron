@@ -70,7 +70,7 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
 
     The one recipient is still judged by
     :func:`~vultron.core.participants.recipients.invitation_recipients`
-    (CM-10-007): a removed or RM ``CLOSED`` invitee is sent nothing, and the
+    (CM-10-009): a removed or RM ``CLOSED`` invitee is sent nothing, and the
     node succeeds without an Invite (CM-31-013, ADR-0116).
     """
 
@@ -211,7 +211,7 @@ class InviteReinstatedParticipantToEmbargoNode(ReinviteStaleAccepterNode):
     """Invite a reinstated participant to the active embargo it is not bound by.
 
     A participant reinstated into a case whose active embargo it has not
-    accepted stays inert, so the CASE_MANAGER asks it (CM-31-013, ADR-0116):
+    accepted stays inert, so the CASE_MANAGER asks it (CM-31-040, ADR-0116):
     the same one-recipient Invite as the EMB-17-003 re-invite, the manager's
     relayed ask about the embargo in force, attributed to its proposer and
     committed as ``invite_to_embargo_on_case`` (ADR-0152).

@@ -167,7 +167,7 @@ def require_future_aware(
 
 
 #: Recency floor for statuses that carry no timestamps: they sort to the
-#: bottom. ``id_`` MUST NOT be used as a recency tiebreaker (CM-29-001) — its
+#: bottom. ``id_`` MUST NOT be used as a recency tiebreaker (CM-29-002) — its
 #: scheme (``urn:uuid`` vs ``https``) is an implementation artefact, not a
 #: time proxy.
 _MIN_UTC = datetime.min.replace(tzinfo=UTC)
@@ -251,7 +251,7 @@ def status_recency_key(
 
     Both are normalised to timezone-aware UTC. When both are absent the key is
     ``datetime.min`` (UTC) so timestampless statuses sort to the bottom rather
-    than by ``id_`` scheme (CM-29-001). Shared by the core and wire
+    than by ``id_`` scheme (CM-29-002). Shared by the core and wire
     ``VulnerabilityCase.current_status`` implementations so the invariant lives
     in one place.
     """
@@ -275,7 +275,7 @@ def most_recent_status(statuses: Sequence[_StatusT]) -> _StatusT:
     Recency is :func:`status_recency_key`.  Received statuses carry the
     sender's time or none at all (ISSUE-3257), so equal keys are ordinary, and
     append order is the only honest tiebreaker left: ``id_`` scheme is an
-    implementation artefact (CM-29-001), and a bare ``max`` keeps the *first*
+    implementation artefact (CM-29-002), and a bare ``max`` keeps the *first*
     maximal element, so a status appended with the same time as the one before
     it would never become current.
 

@@ -197,7 +197,7 @@ def _run_received_bt(
     offer_id: str | None,
     offer_actor_id: str | None,
 ) -> None:
-    """Deliver ``Create(as_CaseProposal)`` to the CaseActor and run its tree."""
+    """Deliver ``Create(CaseProposal)`` to the CaseActor and run its tree."""
     from vultron.core.models.events.case_proposal import (
         CreateCaseProposalReceivedEvent,
     )
@@ -254,12 +254,12 @@ def _add_report_snapshot(dl: SqliteDataLayer) -> dict[str, Any]:
     return snapshot
 
 
-@pytest.mark.spec("CP-01-007")
+@pytest.mark.spec("CP-01-019")
 @pytest.mark.spec("PCR-01-003")
 class TestCaseActorCommitsTheProvenance:
     """CaseActor side: what the proposal carried reaches the ledger entry.
 
-    This is the assertion CP-01-007 provenance depends on, in another container.
+    This is the CP-01-019 use of the CP-01-007 provenance, in another container.
     """
 
     def test_the_snapshot_names_the_offer_the_proposal_carried(self):

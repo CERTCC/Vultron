@@ -15,9 +15,9 @@
 
 After a participant joins, the CASE_MANAGER asks it to judge the case with
 ``Invite(Actor)[target=VulnerabilityCase]`` carrying the CASE_MANAGER's ledger
-tail (CM-11-010).  The participant answers ``Accept`` (RV, ``RECEIVED →
+tail (CM-11-031).  The participant answers ``Accept`` (RV, ``RECEIVED →
 VALID``), ``TentativeReject`` (RI, ``RECEIVED → INVALID``) or ``Reject`` (RC,
-``RECEIVED → CLOSED``), each carrying its own ledger position (CM-11-011).
+``RECEIVED → CLOSED``), each carrying its own ledger position (CM-11-034).
 
 Composed by ``full_case_invite_trees`` (BTND-07-003).
 """

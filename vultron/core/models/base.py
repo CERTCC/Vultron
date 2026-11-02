@@ -465,7 +465,7 @@ class CoreObject(CoreRecord):
         The AS2 serializer emits ``self.context_ or VULTRON_CONTEXT_URI``, so
         ``None`` and the default URI dump identically.  Keeping the supplied
         default would make every ``by_alias`` dump validate into an object
-        unequal to the one dumped (ARCH-23-005, CM-31-003).  A non-default
+        unequal to the one dumped (ARCH-23-005, CM-31-021).  A non-default
         context is kept, so a document parsed from the wire still dumps
         with the context it arrived with.
         """

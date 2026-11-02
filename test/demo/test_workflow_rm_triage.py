@@ -393,6 +393,7 @@ def test_invite_path_engage_not_called_when_own_rm_valid_never_commits(
     engage_called.assert_not_called()
 
 
+@pytest.mark.spec("CM-11-051")
 @pytest.mark.spec("CM-11-020")
 def test_invite_path_never_validates_the_original_report(invite_actors):
     """The invited participant judges the case by the full-case Invite, not validate-report."""

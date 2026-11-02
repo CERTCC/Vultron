@@ -69,7 +69,7 @@ from vultron.core.behaviors.sync.nodes.stub_reply_effect import (
     ApplyInviteRejectFromLedgerNode,
 )
 
-#: What a copying slot must never reach for (CM-23-016): an id or clock of
+#: What a copying slot must never reach for (CM-23-044): an id or clock of
 #: its own, the RM table or a lifecycle writer, an acceptance rule that
 #: carries the replica's value forward, or the replica's current status.
 _FORBIDDEN = frozenset(
@@ -165,7 +165,7 @@ def _slot_names(slot: type) -> dict[str, set[str]]:
     return found
 
 
-@pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("CM-23-044")
 @pytest.mark.parametrize("slot", _SLOTS, ids=lambda c: c.__name__)
 def test_a_participant_slot_derives_nothing(slot: type) -> None:
     offenders = {
@@ -176,7 +176,7 @@ def test_a_participant_slot_derives_nothing(slot: type) -> None:
     assert not offenders, f"{slot.__name__} reaches {offenders}"
 
 
-@pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("CM-23-044")
 @pytest.mark.parametrize("slot", _SLOTS, ids=lambda c: c.__name__)
 def test_a_participant_slot_builds_no_record(slot: type) -> None:
     """A copy keeps the carried record's id and times; a build mints its own.
@@ -200,7 +200,7 @@ def _writes_participant_state(cls: type) -> bool:
     return bool(names & _WRITER_NAMES)
 
 
-@pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("CM-23-044")
 def test_every_replica_participant_slot_is_checked() -> None:
     """A new participant-writing slot in the announce tree joins the ratchet."""
     slots = {c for c in _tree_slot_classes() if _writes_participant_state(c)}

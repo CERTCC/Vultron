@@ -26,7 +26,7 @@ This page explains three things:
 
 ## What starts it
 
-An actor that holds a report and wants it coordinated as a case sends `Create(as_CaseProposal)` to a **case actor service**.
+An actor that holds a report and wants it coordinated as a case sends `Create(CaseProposal)` to a **case actor service**.
 That service is the provisioning endpoint configured as `case_actor_service_url` (CP-04-001, CP-08-002).
 In the reference implementation, this happens in the `create_case` trigger path.
 The actor records a local case, publishes the case actor identity it will address, and emits the proposal.
@@ -34,7 +34,7 @@ The actor records a local case, publishes the case actor identity it will addres
 The proposal carries the report inline.
 The reference implementation does not permit a URI reference here, because the receiving service fetches only a few objects by reference, and a report is not one of them (CP-01-004, AKM-03-003).
 The proposal also carries the provenance of the report: which `Offer(VulnerabilityReport)` delivered it, and from whom.
-The accepting service cannot reconstruct that provenance, and it needs it for the first ledger entry (CP-01-007).
+The accepting service cannot reconstruct that provenance, and it needs it for the first ledger entry (CP-01-007, CP-01-019).
 
 The proposal is addressed to the service's own actor identity, never to an identity derived per case or per report (CP-04-003).
 That identity exists before the report does.
@@ -73,7 +73,7 @@ The accepting service does the steps below, and the order is not interchangeable
 
 | Step | What it establishes |
 |---|---|
-| Resolve or create the case | A redelivered proposal (same proposal identifier) reuses its case rather than creating a second (CP-05-006); a new proposal identifier is a new request, and the case is reused only for the proposer that owns it (CP-05-008) |
+| Resolve or create the case | A redelivered proposal (same proposal identifier) reuses its case rather than creating a second (CP-05-006, CP-05-013); a new proposal identifier is a new request, and the case is reused only for the proposer that owns it (CP-05-008, CP-05-017, CP-05-020) |
 | Store the inline report | Everything downstream derives from it — the reporter Participant, its ledger entry, the consent seed |
 | Add itself as Participant | COORDINATOR and CASE_MANAGER, so the authority is in the roster |
 | Add the proposing actor | CASE_OWNER at `RM.RECEIVED`, plus the roles its proposal states in `proposerCaseRoles` (CP-09-007) — never the accepting service's own configuration |
@@ -81,7 +81,7 @@ The accepting service does the steps below, and the order is not interchangeable
 | Initialize the default embargo | A case begins embargoed rather than open (EP-04-001) |
 | Seed the owner's consent | An `AGREED` consent row for the default embargo, without an invitation round-trip |
 | Seed the reporter's consent | An `AGREED` consent row — submitting a report is implicit consent ([ADR-0048](../../../adr/0048-pec-no-embargo-is-absence-not-pre-consent.md)) |
-| Emit `Accept(as_CaseProposal)` | The proposer learns its request succeeded |
+| Emit `Accept(CaseProposal)` | The proposer learns its request succeeded |
 | Emit `Create(VulnerabilityCase)` | The proposer receives the case replica, with Participants inline |
 | Commit the canonical ledger entries | The case's history starts here, and each entry fans out to every Participant |
 | Relay a contested creation's revision | When the reporter and the owner both proposed terms, the longer ones are sent as an `Invite(EmbargoEvent)` to the party whose terms won (EP-04-011, EP-04-027) |
@@ -92,7 +92,7 @@ A commit placed ahead of the `Create` therefore gives every Participant ledger e
 Each such entry takes the pre-genesis recovery path — buffer, then one `Reject` per case asking for a replay from genesis — while the replica waits behind the whole fan-out (CP-09-009).
 When the service emits the case first, that recovery path is what it was designed to be: a backstop for transport reordering, not the normal route.
 
-The revision relay comes after the ledger commits, because no modification of the case may start before its initialization is complete (CM-14-007).
+The revision relay comes after the ledger commits, because no modification of the case may start before its initialization is complete (CM-14-014).
 
 Case creation is one act.
 Every step from the case to the revision relay is written in one storage transaction.
@@ -107,7 +107,7 @@ The `Accept` is irrevocable once sent: the service has committed to managing the
 An `Accept` with no `Create` behind it would tell the proposer of a case that nothing announces.
 So the service queues neither one without the other (CP-05-005).
 
-After both are queued, the outbox retries the delivery of each one until it succeeds or its attempts run out.
+After both are queued, the outbox retries the delivery of each one until it succeeds or its attempts run out (CP-05-011).
 The `Create` takes an id derived from the proposal.
 A redelivery that finds the case already announced announces nothing again.
 A redelivery that finds a `Create` for a different case under that id fails, instead of leaving the new case unannounced.
@@ -138,17 +138,17 @@ Suppose a service created the case, committed ledger entries, and *then* decline
 It would tell the proposer "no" while it holds a case that no Participant will ever converge on.
 That is the canonical-versus-replica divergence that CLP-10-009 exists to prevent.
 
-When the service declines, it sends `Reject(as_CaseProposal)` with the proposal inline, and creates nothing (CP-05-004).
+When the service declines, it sends `Reject(CaseProposal)` with the proposal inline, and creates nothing (CP-05-004).
 The proposing actor records the refusal (CP-06-003, CP-06-004).
 It records a reply only from the actor that it addressed the proposal to.
-It refuses a reply from any other actor, and its records stay unchanged (CP-06-005).
-Once a case exists for the report, no reply replaces the case's trusted CASE_MANAGER.
+It refuses a reply from any other actor, and its records stay unchanged (CP-06-005, CP-06-008).
+Once a case exists for the report, no reply replaces the case's trusted CASE_MANAGER (CP-06-007).
 
 The service records and queues the refusal in one storage transaction.
 A refusal that fails stops the whole delivery.
 A decline that cannot be queued does not silently become an acceptance.
 The service keeps neither the decision nor the `Reject`, and it does not try the accept path.
-So the irrevocability that CP-05-004 and CP-05-005 rely on holds in both directions.
+So the irrevocability that CP-05-004 and CP-05-012 rely on holds in both directions.
 
 A reader should expect this consequence.
 Suppose a service decided "no" and then failed to say so.
@@ -207,7 +207,7 @@ It also does not make the former owner CASE_OWNER again (CM-21-001).
 The exception is a case that is fully closed, that is, its ledger holds the CASE_MANAGER's own status entry reaching RM `CLOSED`.
 The stored `Accept` would lead into the accept path, which writes to the case.
 A closed case accepts no further writes (CM-23-013).
-So the CASE_MANAGER answers the duplicate with `Reject(as_CaseProposal)` instead.
+So the CASE_MANAGER answers the duplicate with `Reject(CaseProposal)` instead.
 It commits no ledger entry and changes no case or participant state.
 
 The `Reject` declines only the redelivery.
@@ -216,23 +216,23 @@ The same lookup gives a former owner this answer after an ownership transfer.
 
 Only the proposal's author can redeliver it.
 The sender chooses the proposal identifier.
-So the CASE_MANAGER refuses a delivery whose identifier it recorded for another proposer, and it writes and sends nothing for it (CP-05-010).
+So the CASE_MANAGER refuses a delivery whose identifier it recorded for another proposer, and it writes and sends nothing for it (CP-05-010, CP-05-022).
 The proposer-side deadline that lets a proposer give up on a lost reply (CP-05-007) is not yet implemented ([#2890](https://github.com/CERTCC/Vultron/issues/2890)).
 
 A proposal under a *new* identifier is a new request, even when it names a report that already has a case (CP-05-008).
 It goes through the admission decision.
-It gets its own `Accept` or `Reject`, not the earlier proposal's stored answer.
+It gets its own `Accept` or `Reject`, not the earlier proposal's stored answer (CP-05-016).
 
 What happens to the case depends on who asks.
 The proposer that owns the case gets that case back.
 The `Accept`'s `result` names it, and no second case is created.
 The case is not announced or recorded in the ledger a second time.
 
-Any other proposer gets a separate case of its own and is not added to the first one.
+Any other proposer gets a separate case of its own and is not added to the first one (CP-05-020).
 The reason is that the sender chooses the report identifier, and that identifier does not say whose case it is.
 
-When the owner's case is fully closed, the owner's new proposal is declined with `Reject(as_CaseProposal)`, and nothing is written for the case (CM-23-013).
-The admission policy is not consulted, because the closure decides.
+When the owner's case is fully closed, the owner's new proposal is declined with `Reject(CaseProposal)`, and nothing is written for the case (CP-05-018, CP-05-019, CM-23-013).
+The admission policy is not consulted, because the closure decides first.
 Reopening a closed case, or creating a fresh case for its report, is not yet designed ([#3066](https://github.com/CERTCC/Vultron/issues/3066)).
 
 Both closed-case declines write a decline record keyed on the proposal, before the `Reject` is queued.
@@ -244,11 +244,11 @@ The `Reject` carries a `summary` that says the case is fully closed.
 
 ## What the case learns
 
-The proposer receives two messages, in order: `Accept(as_CaseProposal)`, then `Create(VulnerabilityCase)` carrying the case with its Participants inline.
+The proposer receives two messages, in order: `Accept(CaseProposal)`, then `Create(VulnerabilityCase)` carrying the case with its Participants inline.
 The `Create` sets `context` to the new case's URI and `in_reply_to` to the `Accept` that authorized it.
 So the causal link is explicit in the ActivityStreams 2.0 (AS2) correct field (CP-05-003, [ADR-0045](../../../adr/0045-create-vulnerability-case-field-assignment.md)).
 
-On a declined proposal the proposer receives `Reject(as_CaseProposal)` and nothing else.
+On a declined proposal the proposer receives `Reject(CaseProposal)` and nothing else.
 
 The authority sends nothing to the reporter (CBT-01-010).
 The proposer, which received the report, sends the reporter its own `Create(VulnerabilityCase)` with the same case inline, naming the authority as `CASE_MANAGER` (CBT-01-001, [ADR-0132](../../../adr/0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md)).
@@ -278,10 +278,20 @@ Bringing in a vendor or a coordinator is a separate flow.
 | [CP-04-005](../../../reference/specs/project.md#cp-04-005) | This implementation's service identity is `{case_actor_service_url}/actors/case-actor` |
 | [CP-05-002](../../../reference/vultron-spec/requirements/case-management.md#cp-05-002) | The service MUST evaluate the proposal and either accept or reject it |
 | [CP-05-003](../../../reference/vultron-spec/requirements/case-management.md#cp-05-003) | On acceptance it MUST send `Accept` and then `Create(VulnerabilityCase)`, in that order |
-| [CP-05-004](../../../reference/vultron-spec/requirements/case-management.md#cp-05-004) | On refusal it MUST send `Reject(as_CaseProposal)` with the proposal, inline or by reference |
-| [CP-05-005](../../../reference/vultron-spec/requirements/case-management.md#cp-05-005) | `Accept` and `Create(VulnerabilityCase)` MUST be queued together or not at all, each retried until delivered, and the `Accept` never sent a second time |
-| [CP-05-006](../../../reference/vultron-spec/requirements/case-management.md#cp-05-006) | A duplicate proposal (the same proposal identifier) MUST re-send the stored `Accept` unchanged, with its original identifier, and MUST NOT create a second case; when the case is fully closed it MUST be answered with `Reject(as_CaseProposal)` instead, with no ledger entry and no case or participant change |
-| [CP-05-008](../../../reference/vultron-spec/requirements/case-management.md#cp-05-008) | A proposal under a new identifier MUST be admitted and answered on its own; the case is reused only for its owner, and any other proposer gets a separate case; when the owner's case is fully closed the proposal MUST be answered with `Reject(as_CaseProposal)`, with no ledger entry and no case or participant change |
+| [CP-05-004](../../../reference/vultron-spec/requirements/case-management.md#cp-05-004) | On refusal it MUST send `Reject(CaseProposal)` with the proposal, inline or by reference |
+| [CP-05-005](../../../reference/vultron-spec/requirements/case-management.md#cp-05-005) | `Accept` and `Create(VulnerabilityCase)` MUST be queued together or not at all |
+| [CP-05-011](../../../reference/vultron-spec/requirements/case-management.md#cp-05-011) | Each queued `Accept` and `Create(VulnerabilityCase)` MUST be retried until delivered or its attempts are exhausted |
+| [CP-05-012](../../../reference/vultron-spec/requirements/case-management.md#cp-05-012) | A retry or re-send MUST carry the same `Accept` under its original identifier, never a second one |
+| [CP-05-006](../../../reference/vultron-spec/requirements/case-management.md#cp-05-006) | A duplicate proposal (the same proposal identifier) MUST re-send the stored `Accept` unchanged, with its original identifier |
+| [CP-05-013](../../../reference/vultron-spec/requirements/case-management.md#cp-05-013) | A duplicate MUST NOT create a second case |
+| [CP-05-014](../../../reference/vultron-spec/requirements/case-management.md#cp-05-014) | When the case is fully closed, a duplicate MUST be answered with `Reject(CaseProposal)` instead |
+| [CP-05-015](../../../reference/vultron-spec/requirements/case-management.md#cp-05-015) | That decline MUST NOT commit a ledger entry or change case or participant state |
+| [CP-05-008](../../../reference/vultron-spec/requirements/case-management.md#cp-05-008) | A proposal under a new identifier MUST go through the admission decision, which begins with the closed-case decline |
+| [CP-05-016](../../../reference/vultron-spec/requirements/case-management.md#cp-05-016) | It MUST be answered with its own `Accept` or `Reject` |
+| [CP-05-017](../../../reference/vultron-spec/requirements/case-management.md#cp-05-017) | The case MUST be reused for its owner, with no second case |
+| [CP-05-018](../../../reference/vultron-spec/requirements/case-management.md#cp-05-018) | When the owner's case is fully closed, the proposal MUST be answered with `Reject(CaseProposal)`, before any other step of the decision |
+| [CP-05-019](../../../reference/vultron-spec/requirements/case-management.md#cp-05-019) | That decline MUST NOT commit a ledger entry or change case or participant state |
+| [CP-05-020](../../../reference/vultron-spec/requirements/case-management.md#cp-05-020) | Any other proposer MUST get a separate case and is not added to the existing one |
 | [CP-05-007](../../../reference/vultron-spec/requirements/case-management.md#cp-05-007) | A proposer MUST treat an unanswered proposal as expired at its deadline |
 | [CP-06-003](../../../reference/specs/project.md#cp-06-003) | The proposer MUST record the acceptance and await the replica |
 | [CP-06-004](../../../reference/specs/project.md#cp-06-004) | The proposer MUST record a refusal and surface its reason where one is given |

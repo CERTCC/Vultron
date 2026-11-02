@@ -31,10 +31,10 @@ Named constants for known request/reply pairs:
 - :data:`OFFER_CASE_PARTICIPANT_REPLY_TYPES` — closes when Case Owner sends
   ``Accept`` or ``Reject`` of ``Offer(CaseParticipant)``.
 - :data:`INVITE_ACTOR_TO_CASE_REPLY_TYPES` — closes when invited actor sends
-  ``Accept`` or ``Reject`` of ``Invite(Case)``.
+  ``Accept`` or ``Reject`` of ``Invite(Actor)[target=VulnerabilityCaseStub]``.
 - :data:`INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES` — closes when the joined
   participant sends ``Accept``, ``TentativeReject`` or ``Reject`` of the
-  full-case ``Invite(Actor)[target=Case]``.
+  full-case ``Invite(Actor)[target=VulnerabilityCase]``.
 - :data:`CASE_PARTICIPANT_ROLE_OFFER_REPLY_TYPES` — closes when the target's
   ``Accept`` or ``Reject`` of a role ``Offer(CaseParticipantRole)`` is
   ledgered (CM-33-005).
@@ -69,9 +69,9 @@ INVITE_ACTOR_TO_CASE_REPLY_TYPES: frozenset[str] = frozenset(
     }
 )
 
-#: Reply semantic types that close a full-case ``Invite(Actor)[target=Case]``
-#: protocol pair — the ask the CASE_MANAGER puts to a joined participant
-#: (CM-11-010, CM-11-011, ADR-0121).
+#: Reply semantic types that close a full-case
+#: ``Invite(Actor)[target=VulnerabilityCase]`` protocol pair — the ask the
+#: CASE_MANAGER puts to a joined participant (CM-11-010, CM-11-011, ADR-0121).
 INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES: frozenset[str] = frozenset(
     {
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_FULL_CASE.value,
@@ -95,11 +95,11 @@ UNDO_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE: str = (
 )
 
 #: Semantic types that close an ownership-transfer ``Offer(VulnerabilityCase)``
-#: protocol pair once the CASE_MANAGER ledgers them (CM-21-014): the
+#: protocol pair once the CASE_MANAGER ledgers them (CM-21-034): the
 #: transferee's answer (CM-21-007, CM-21-012) and the offerer's withdrawal
 #: (CM-21-015).  Every reader of "is this Offer open?" goes through this set,
 #: so a new closing entry needs no other change to close the Offer.  An Offer
-#: past its ``end_time`` is closed with no entry (CM-21-017, ADR-0152).
+#: past its ``end_time`` is closed with no entry (CM-21-043, ADR-0152).
 OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES: frozenset[str] = frozenset(
     {
         MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER.value,
@@ -110,13 +110,13 @@ OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES: frozenset[str] = frozenset(
 
 
 #: Ledger ``semantic_type`` of the target's ``Accept`` of a role
-#: ``Offer(CaseParticipantRole)``: the grant (CM-02-016, CM-33-006).
+#: ``Offer(CaseParticipantRole)``: the grant (CM-02-016, CM-33-020).
 ACCEPT_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE: str = (
     MessageSemantics.ACCEPT_CASE_PARTICIPANT_ROLE.value
 )
 
 #: Ledger ``semantic_type`` of the target's ``Reject`` of a role
-#: ``Offer(CaseParticipantRole)`` (CM-33-006).
+#: ``Offer(CaseParticipantRole)`` (CM-33-006, CM-33-021).
 REJECT_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE: str = (
     MessageSemantics.REJECT_CASE_PARTICIPANT_ROLE.value
 )

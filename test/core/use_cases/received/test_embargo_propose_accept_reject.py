@@ -273,7 +273,10 @@ class TestEmbargoProposalLifecycle:
     def test_accept_invite_to_embargo_records_embargo_on_participant(
         self, monkeypatch, make_payload
     ):
-        """accept_invite_to_embargo_on_case records an AGREED consent row for the embargo (CM-10-002, CM-10-003)."""
+        """accept_invite_to_embargo_on_case records an AGREED consent row.
+
+        The row is for the embargo (CM-10-001, CM-10-002).
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.wire.as2.vocab.objects.embargo_event import (

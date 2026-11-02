@@ -13,10 +13,10 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Durable record that a ``Create(as_CaseProposal)`` was declined.
+"""Durable record that a ``Create(CaseProposal)`` was declined.
 
 The admission decision writes the record and queues the
-``Reject(as_CaseProposal)`` in one transaction (``RefusalActTransaction``,
+``Reject(CaseProposal)`` in one transaction (``RefusalActTransaction``,
 CLP-07-015), so the store holds both or neither.  Two properties depend on it:
 
 - **The decision is terminal.** Once the record exists, a later delivery of
@@ -59,7 +59,7 @@ class CaseProposalDeclineRecord(RetiredFieldsRecord):
             ``Reject``'s ``summary`` when present (CP-06-004). Absent when the
             admission backend supplied none; a decline is never blocked on
             having a reason to give. The closed-case decline writes one
-            (CP-05-006, CP-05-008). The admission call-out point does not yet:
+            (CP-05-014, CP-05-018). The admission call-out point does not yet:
             it signals refusal by returning FAILURE and BT-18-002 defines
             blackboard outputs only for the SUCCESS case, so a refusal has no
             sanctioned channel for a payload. Tracked in #3446.

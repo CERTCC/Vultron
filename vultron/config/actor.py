@@ -54,7 +54,8 @@ class PostCloseReply(StrEnum):
     After the CASE_MANAGER commits its own status entry reaching ``RM.CLOSED``
     (the case is fully closed), it records nothing
     for any inbound activity on the case and changes no case or participant
-    state (CM-23-013, ADR-0085).  This setting decides only the courtesy reply
+    state (CM-23-013, CM-23-039, ADR-0085).  This setting decides only the
+    courtesy reply
     to a late **Leave**:
 
     - ``DROP`` — send nothing (the default).
@@ -73,7 +74,7 @@ class PostCloseReply(StrEnum):
 
 
 DEFAULT_POST_CLOSE_REPLY = PostCloseReply.DROP
-"""The default reply to a late Leave: none (CM-23-013, ADR-0131)."""
+"""The default reply to a late Leave: none (CM-23-017, ADR-0131)."""
 
 
 class ActorConfig(BaseModel):
@@ -89,9 +90,9 @@ class ActorConfig(BaseModel):
             Defaults to an empty list.  ``CVDRole.CASE_OWNER`` is always
             appended at participant-creation time (BTND-05-002).
         auto_create_case: When ``True``, create a ``VulnerabilityCase``
-            immediately on ``Offer(Report)`` receipt (CM-15-001, CM-12-001,
+            immediately on ``Offer(VulnerabilityReport)`` receipt (CM-15-001, CM-12-001,
             CM-22-001).  When ``False``, defer case creation so the receiver
-            can send a pre-case ACK (``Read(Offer(Report))``, VAM-02-003)
+            can send a pre-case ACK (``Read(Offer(VulnerabilityReport))``, VAM-02-003)
             before deciding to accept or reject (CM-15-002, CM-15-003;
             ADR-0015).  Defaults to ``True``.
         case_actor_service_url: Base URL of the dedicated CaseActor service
@@ -111,7 +112,7 @@ class ActorConfig(BaseModel):
             closes: whether the CASE_MANAGER answers a late
             ``Leave(VulnerabilityCase)`` with an ``as:Reject`` or drops it.
             Every other late activity is dropped under either setting
-            (CM-23-013, CM-23-017, ADR-0131).  See :class:`PostCloseReply`.
+            (CM-23-017, CM-23-045, ADR-0131).  See :class:`PostCloseReply`.
     """
 
     default_case_roles: list[CVDRole] = Field(default_factory=list)
@@ -119,8 +120,8 @@ class ActorConfig(BaseModel):
         default=True,
         description=(
             "When True (default), create a VulnerabilityCase immediately on "
-            "Offer(Report) receipt per ADR-0015. When False, defer case "
-            "creation to allow a pre-case ACK (Read(Offer(Report))) first."
+            "Offer(VulnerabilityReport) receipt per ADR-0015. When False, defer case "
+            "creation to allow a pre-case ACK (Read(Offer(VulnerabilityReport))) first."
         ),
     )
     case_actor_service_url: HttpUrl | None = Field(
@@ -166,7 +167,7 @@ class ActorConfig(BaseModel):
             "Reply to a Leave(VulnerabilityCase) that arrives after the "
             "case is fully closed: 'drop' (default) sends nothing, 'reject' "
             "sends Reject(Leave(VulnerabilityCase)). Every other late "
-            "activity is dropped under both settings (CM-23-017)."
+            "activity is dropped under both settings (CM-23-045)."
         ),
     )
 

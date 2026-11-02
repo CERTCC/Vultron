@@ -3,17 +3,17 @@
 Three use cases covering the full CP message flow (ADR-0023):
 
 - ``CreateCaseProposalReceivedUseCase`` — case-actor service receives
-  ``Create(as_CaseProposal)`` from a report receiver; creates a VulnerabilityCase
-  and emits ``Accept(as_CaseProposal)`` + ``Create(VulnerabilityCase)``
+  ``Create(CaseProposal)`` from a report receiver; creates a VulnerabilityCase
+  and emits ``Accept(CaseProposal)`` + ``Create(VulnerabilityCase)``
   (CP-05-001 through CP-05-004).
 
 - ``AcceptCaseProposalReceivedUseCase`` — report receiver receives
-  ``Accept(as_CaseProposal)`` from the case-actor service; records the
+  ``Accept(CaseProposal)`` from the case-actor service; records the
   case-actor URI in the receiver's VultronReportCaseLink (CP-06-001,
   CP-06-003).
 
 - ``RejectCaseProposalReceivedUseCase`` — report receiver receives
-  ``Reject(as_CaseProposal)`` from the case-actor service; logs the
+  ``Reject(CaseProposal)`` from the case-actor service; logs the
   rejection so the receiver can surface it (CP-06-002, CP-06-004).
 """
 
@@ -114,20 +114,20 @@ def _skipped_if_no_link(
 
 
 class CreateCaseProposalReceivedUseCase:
-    """Handle an inbound ``Create(as_CaseProposal)`` on the case-actor service.
+    """Handle an inbound ``Create(CaseProposal)`` on the case-actor service.
 
     Delegates to ``CreateCaseProposalReceivedBT``, which creates a
     VulnerabilityCase and emits two outbound activities:
 
-    1. ``Accept(as_CaseProposal)`` — acknowledgement to the report receiver
+    1. ``Accept(CaseProposal)`` — acknowledgement to the report receiver
     2. ``Create(VulnerabilityCase)`` — case announcement to the report receiver
 
     BT-15-001 audit: all DataLayer mutations and outbox enqueues are
     delegated to leaf nodes of the BT tree.
 
     A proposal that resolves to a fully closed case is declined with
-    ``Reject(as_CaseProposal)`` and reported ``REFUSED`` (CP-05-006,
-    CP-05-008, CM-23-013).
+    ``Reject(CaseProposal)`` and reported ``REFUSED`` (CP-05-014,
+    CP-05-018, CM-23-013).
 
     Spec: CP-05-001 through CP-05-004, CP-05-006, CP-05-008, CP-05-010.
     """
@@ -167,7 +167,7 @@ class CreateCaseProposalReceivedUseCase:
         self._actor_config = actor_config
         self._wire_render_port = wire_render_port
         # Needed only on the decline path: _EmitRejectCaseProposalNode builds
-        # Reject(as_CaseProposal) through the shared emit seam (CP-05-004,
+        # Reject(CaseProposal) through the shared emit seam (CP-05-004,
         # OX-14-001).  The accept path does not use it.
         self._trigger_activity = trigger_activity
         # Admission policy (CP-05-002).  The adapter chooses the bundle, the
@@ -215,7 +215,7 @@ class CreateCaseProposalReceivedUseCase:
         # A proposal with no id is refused by the tree itself (CLP-10-005).
         proposal_id = request.proposal_id
 
-        # The report receiver who sent Create(as_CaseProposal) is the activity
+        # The report receiver who sent Create(CaseProposal) is the activity
         # actor, and becomes the CASE_OWNER if the proposal is admitted.
         proposer_uri = request.actor_id
 
@@ -333,7 +333,7 @@ class CreateCaseProposalReceivedUseCase:
             )
         closed = find_node(tree, CheckProposalCaseFullyClosedNode)
         if closed is not None and closed.closed_case_id is not None:
-            # CP-05-006, CP-05-008: the proposal's case is fully closed, so the
+            # CP-05-014, CP-05-018: the proposal's case is fully closed, so the
             # CASE_MANAGER declined it and wrote nothing for the case
             # (CM-23-013).
             return HandlerResult.refused(
@@ -349,7 +349,7 @@ class CreateCaseProposalReceivedUseCase:
 
 
 class AcceptCaseProposalReceivedUseCase:
-    """Handle an inbound ``Accept(as_CaseProposal)`` on the report receiver.
+    """Handle an inbound ``Accept(CaseProposal)`` on the report receiver.
 
     Updates the receiver's ``VultronReportCaseLink`` with the case-actor URI
     so the subsequent ``Create(VulnerabilityCase)`` bootstrap can validate
@@ -440,7 +440,7 @@ class AcceptCaseProposalReceivedUseCase:
 
 
 class RejectCaseProposalReceivedUseCase:
-    """Handle an inbound ``Reject(as_CaseProposal)`` on the report receiver.
+    """Handle an inbound ``Reject(CaseProposal)`` on the report receiver.
 
     Updates the receiver's ``VultronReportCaseLink`` to reflect the rejection,
     setting ``proposal_rejected=True`` and recording any ``rejection_reason``

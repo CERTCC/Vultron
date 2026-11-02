@@ -22,7 +22,7 @@ deadline its addressee must answer by, so the ask carries its own deadline
 configured ``default_rsvp_window``, floored at ``min_rsvp_window`` (EP-07-002)
 and capped at the embargo's own end (EP-07-006): CM-28-012.  The same value
 is what the manager records against the invitee at commit and what each
-replica records from the committed entry (CM-28-013), so nothing downstream
+replica records from the committed entry (CM-28-023), so nothing downstream
 re-derives it.
 """
 

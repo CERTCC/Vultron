@@ -18,9 +18,9 @@
 
 Marks the invitee's inert participant record joined when its ``Accept`` of the
 stub Invite is processed (CM-11-001, ADR-0114).  The record already exists:
-the stub Invite created it at RM.RECEIVED (CM-11-006), and
+the stub Invite created it at RM.RECEIVED (CM-11-026), and
 ``InviteeHasParticipantRecordNode`` refuses an Accept that finds none
-(CM-11-021).  Composed by ``create_accept_invite_actor_to_case_tree``
+(CM-11-052).  Composed by ``create_accept_invite_actor_to_case_tree``
 (BTND-07-003).
 """
 

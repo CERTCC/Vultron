@@ -78,10 +78,11 @@ def _by_key(settings: list[ConfigSetting]) -> dict[str, ConfigSetting]:
         (
             "actor.auto_create_case",
             "When `true`, create a `VulnerabilityCase` immediately on"
-            " `Offer(Report)` receipt (CM-15-001, CM-12-001, CM-22-001)."
+            " `Offer(VulnerabilityReport)` receipt (CM-15-001, CM-12-001, CM-22-001)."
             " When `false`, defer case creation so the receiver can send a"
-            " pre-case ACK (`Read(Offer(Report))`, VAM-02-003) before deciding"
-            " to accept or reject (CM-15-002, CM-15-003; ADR-0015).",
+            " pre-case ACK (`Read(Offer(VulnerabilityReport))`, VAM-02-003)"
+            " before deciding to accept or reject (CM-15-002, CM-15-003;"
+            " ADR-0015).",
         ),
         (
             "ledger.invite_resend_cooldown_seconds",
@@ -95,7 +96,7 @@ def _by_key(settings: list[ConfigSetting]) -> dict[str, ConfigSetting]:
             "The one policy point for replies after the case closes: whether"
             " the CASE_MANAGER answers a late `Leave(VulnerabilityCase)` with"
             " an `as:Reject` or drops it. Every other late activity is dropped"
-            " under either setting (CM-23-013, CM-23-017, ADR-0131).",
+            " under either setting (CM-23-017, CM-23-045, ADR-0131).",
         ),
     ],
 )

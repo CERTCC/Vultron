@@ -23,7 +23,7 @@ Defined in `vultron/core/models/case.py`.
 
 | Field | Description |
 |---|---|
-| `attributed_to` | The case owner: set when the case is created, where it is an input to `genesis_hash`, and changed to the new owner when an ownership transfer is accepted ([CM-21-002](vultron-spec/requirements/case-management.md#cm-21-002)). Required: a case without an owner is refused when it is built, loaded or received ([ARCH-10-001](specs/architecture.md#arch-10-001)) |
+| `attributed_to` | The case owner: set when the case is created, where it is an input to `genesis_hash`, and changed to the new owner when an ownership transfer is accepted ([CM-21-024](vultron-spec/requirements/case-management.md#cm-21-002)). Required: a case without an owner is refused when it is built, loaded or received ([ARCH-10-001](specs/architecture.md#arch-10-001)) |
 | `case_participants` | `CaseParticipant` records (or their URIs) |
 | `actor_participant_index` | Fast-lookup map: actor URI → participant URI |
 | `vulnerability_reports` | Reports associated with this case (objects or URIs) |
@@ -108,7 +108,7 @@ Participants hold zero or more roles as `list[CVDRole]`.
 | `COORDINATOR` | Neutral third party facilitating coordination |
 | `OBSERVER` | Base role — admitted via Invite/Accept; no VFD obligations (ADR-0057) |
 | `CASE_OWNER` | Decision-maker who administers the case |
-| `CASE_MANAGER` | The case's single-writer authority for the ledger; usually held alongside `COORDINATOR` (CBT-01-003); any actor type may hold it |
+| `CASE_MANAGER` | The case's single-writer authority for the ledger; usually held alongside `COORDINATOR` (CBT-01-015); any actor type may hold it |
 | `CVE_NUMBERING_AUTHORITY` | Holds CNA status; may assign CVE IDs directly |
 
 !!! warning "Do not use `CVDRolesFlag`"

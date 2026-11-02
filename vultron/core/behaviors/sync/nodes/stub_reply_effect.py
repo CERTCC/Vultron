@@ -14,7 +14,8 @@
 """Replica replay of the invitee's reply to the stub Invite.
 
 The ledger holds the wire messages exchanged (ADR-0114).  The invitee's
-``Accept(Invite(stub))`` and ``Reject(Invite(stub))`` are already entries
+``Accept(Invite(Actor)[target=VulnerabilityCaseStub])`` and
+``Reject(Invite(Actor)[target=VulnerabilityCaseStub])`` are already entries
 (``accept_invite_actor_to_case``, ``reject_invite_actor_to_case``), and each
 carries the reply verbatim: the replying actor, the stub Invite and the reply's
 ``published``.  They are the entries for the reply's own effects on the
@@ -35,7 +36,7 @@ only on a replica that holds no copy of the case (Regime 2, ADR-0087).  No id is
 made and no clock is read: ``updated`` is the reply's ``published`` as received.
 A stale entry replayed over a seed that is ahead changes nothing.
 
-Per CM-11-006, CM-31-012, SYNC-02-002, SYNC-12-001, RSH-08-004.
+Per CM-11-006, CM-31-012, CM-31-037, SYNC-02-002, SYNC-12-001, RSH-08-004.
 """
 
 from __future__ import annotations

@@ -18,7 +18,7 @@
 The Case Owner proposes a transfer as ``Offer(Offer(VulnerabilityCase))``;
 the CASE_MANAGER's received tree makes the one ``Offer(VulnerabilityCase)``
 under an id it derives, queues it in its own outbox and ledgers it
-(CM-21-005).  A receiver that is not the CASE_MANAGER makes nothing.
+(CM-21-028, CM-21-029).  A receiver that is not the CASE_MANAGER makes nothing.
 """
 
 from unittest.mock import patch
@@ -163,6 +163,8 @@ def _make_nodes(node) -> list[MakeOwnershipTransferOfferNode]:
 
 @pytest.mark.spec("CM-21-005")
 @pytest.mark.executes_as(CASE_ACTOR_ID)
+@pytest.mark.spec("CM-21-028")
+@pytest.mark.spec("CM-21-029")
 def test_the_case_manager_makes_one_offer_and_ledgers_it(
     bt_scenario: BTTestScenario,
 ) -> None:
@@ -271,6 +273,7 @@ def test_a_missing_factory_is_a_wiring_fault(
 
 
 @pytest.mark.spec("CM-21-005")
+@pytest.mark.spec("CM-21-026")
 def test_no_offer_is_built_for_a_proposal_naming_no_transferee() -> None:
     """The guard refuses such a proposal; no effect is composed for it."""
     assert _make_nodes(_tree(transferee_id=None)) == []

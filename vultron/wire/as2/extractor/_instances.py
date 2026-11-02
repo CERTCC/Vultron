@@ -192,7 +192,7 @@ UpdateCaseOwnerPattern = ActivityPattern(
     description=(
         "The CASE_MANAGER names a new Case Owner on a vulnerability case: an "
         "UPDATE of the case carrying its new attributedTo, its own act on an "
-        "ownership transfer (CM-21-002, CLP-07-013)."
+        "ownership transfer (CM-21-024, CLP-07-013)."
     ),
     activity_=TAtype.UPDATE,
     object_=VOtype.VULNERABILITY_CASE,
@@ -227,7 +227,7 @@ CreateCaseProposalPattern = ActivityPattern(
     description=(
         "Report receiver requests case initialization at a case-actor service "
         "by creating a CaseProposal object. "
-        "Corresponds to Create(as_CaseProposal) — CP-03-001."
+        "Corresponds to Create(CaseProposal) — CP-03-001."
     ),
     activity_=TAtype.CREATE,
     object_=VOtype.CASE_PROPOSAL,
@@ -235,7 +235,7 @@ CreateCaseProposalPattern = ActivityPattern(
 AcceptCaseProposalPattern = ActivityPattern(
     description=(
         "Case-actor service accepts a report receiver's CaseProposal. "
-        "Corresponds to Accept(as_CaseProposal) — CP-03-002."
+        "Corresponds to Accept(CaseProposal) — CP-03-002."
     ),
     activity_=TAtype.ACCEPT,
     object_=VOtype.CASE_PROPOSAL,
@@ -243,7 +243,7 @@ AcceptCaseProposalPattern = ActivityPattern(
 RejectCaseProposalPattern = ActivityPattern(
     description=(
         "Case-actor service rejects a report receiver's CaseProposal. "
-        "Corresponds to Reject(as_CaseProposal) — CP-03-003."
+        "Corresponds to Reject(CaseProposal) — CP-03-003."
     ),
     activity_=TAtype.REJECT,
     object_=VOtype.CASE_PROPOSAL,
@@ -331,7 +331,7 @@ AcceptCaseParticipantRolePattern = ActivityPattern(
         "Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])"
         " — acceptance of the canonical "
         "role-delegation wire format (ADR-0039). Received by the case's "
-        "CASE_MANAGER when the target actor accepts the role (CM-33-004). "
+        "CASE_MANAGER when the target actor accepts the role (CM-33-015). "
         "See SE-08-003."
     ),
     activity_=TAtype.ACCEPT,
@@ -342,7 +342,7 @@ RejectCaseParticipantRolePattern = ActivityPattern(
         "Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])"
         " — rejection of the canonical "
         "role-delegation wire format (ADR-0039). Received by the case's "
-        "CASE_MANAGER when the target actor declines the role (CM-33-004). "
+        "CASE_MANAGER when the target actor declines the role (CM-33-015). "
         "See SE-08-003."
     ),
     activity_=TAtype.REJECT,
@@ -428,7 +428,7 @@ AcceptInviteActorToFullCasePattern = ActivityPattern(
 TentativeRejectInviteActorToFullCasePattern = ActivityPattern(
     description=(
         "RI: TentativeReject(Invite(Actor)[target=VulnerabilityCase])"
-        " (VAM-04-013).  The stub Invite has no TentativeReject (CM-11-007)."
+        " (VAM-04-013).  The stub Invite has no TentativeReject (CM-11-028)."
     ),
     activity_=TAtype.TENTATIVE_REJECT,
     object_=InviteActorToFullCasePattern,
@@ -547,7 +547,7 @@ CreateProcessingFaultPattern = ActivityPattern(
     description=(
         "Receiver notifies an authenticated sender that their status assertion "
         "could not be processed. "
-        "Corresponds to Create(as_ProcessingFault) — ASK-07-001, ADR-0080."
+        "Corresponds to Create(ProcessingFault) — ASK-07-001, ADR-0080."
     ),
     activity_=TAtype.CREATE,
     object_=VOtype.PROCESSING_FAULT,

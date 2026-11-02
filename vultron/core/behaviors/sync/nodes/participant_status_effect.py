@@ -80,7 +80,7 @@ class ApplyParticipantStatusFromLedgerNode(
 
     The entry carries the status the CASE_MANAGER stored, in full, so this
     node copies it — id, times and every dimension as carried — and derives
-    nothing from the replica's own state (CM-23-016, ADR-0124).  The
+    nothing from the replica's own state (CM-23-044, ADR-0124).  The
     CASE_MANAGER adjudicated the move before committing it, so the replica
     does not re-run the RM transition rules, and it does not carry a local RM
     value forward over the entry's: a replica applies the ledger in order, and

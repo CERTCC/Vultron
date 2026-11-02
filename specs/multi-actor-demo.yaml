@@ -1229,10 +1229,15 @@ groups:
     - order: 1
       actor: vendor1
       action: POST accept-actor-recommendation trigger for Vendor2
-      expected: Vendor1 accepts Offer(CaseParticipant); CaseActor sends Invite(CaseStub+embargo) to Vendor2
+      expected: >-
+        Vendor1 accepts Offer(CaseParticipant); CaseActor sends
+        Invite(Actor)[target=VulnerabilityCaseStub], the stub carrying the embargo,
+        to Vendor2
     - order: 2
       actor: demo-script
-      action: Poll Vendor2 DataLayer until Invite(CaseStub+embargo) is visible
+      action: >-
+        Poll Vendor2 DataLayer until Invite(Actor)[target=VulnerabilityCaseStub] is
+        visible
       expected: Invite activity present in Vendor2 DataLayer
     postconditions:
     - description: >-
@@ -1247,7 +1252,8 @@ groups:
     verification_debt: '#2573'
     statement: >-
       After Vendor1 approves the suggestion, the CaseActor MUST send
-      Invite(CaseStub+embargo) to Vendor2 on Vendor1's behalf.
+      Invite(Actor)[target=VulnerabilityCaseStub], whose stub carries the embargo,
+      to Vendor2 on Vendor1's behalf.
     rationale: >-
       The CASE_MANAGER sends the invitation that the Case Owner approved. The
       invitation carries the embargo, so Vendor2 learns the terms before it joins.
@@ -2539,10 +2545,13 @@ groups:
       action: POST accept-actor-recommendation trigger for Vendor
       expected: >-
         C1 accepts Offer(CaseParticipant); CaseActor sends
-        Invite(CaseStub+embargo) to Vendor
+        Invite(Actor)[target=VulnerabilityCaseStub], the stub carrying the embargo,
+        to Vendor
     - order: 2
       actor: demo-script
-      action: Poll Vendor DataLayer until Invite(CaseStub+embargo) is visible
+      action: >-
+        Poll Vendor DataLayer until Invite(Actor)[target=VulnerabilityCaseStub] is
+        visible
       expected: Invite activity present in Vendor DataLayer
     - order: 3
       actor: vendor
@@ -2565,7 +2574,8 @@ groups:
     verification_debt: '#2573'
     statement: >-
       After C1 approves the suggestion, the CaseActor MUST send
-      Invite(CaseStub+embargo) to the Vendor on C1's behalf.
+      Invite(Actor)[target=VulnerabilityCaseStub], whose stub carries the embargo,
+      to the Vendor on C1's behalf.
     rationale: >-
       The CASE_MANAGER sends the invitation that the Case Owner approved. The
       invitation carries the embargo, so the Vendor learns the terms before it joins.

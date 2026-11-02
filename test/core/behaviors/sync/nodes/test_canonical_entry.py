@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for ``_validate_canonical_entry`` (CLP-07, CLP-12).
+"""Unit tests for ``_validate_canonical_entry`` (CLP-07).
 
 Mirrors ``vultron/core/behaviors/sync/nodes/canonical_entry.py``, which was
 split out of ``chain.py`` (BTND-07-002, CS-18-004).  Tests that exercise the
@@ -448,7 +448,7 @@ def test_invite_with_a_bare_case_target_resolves_to_the_case_signature():
     )
 
 
-@pytest.mark.spec("CM-11-013")
+@pytest.mark.spec("CM-11-038")
 def test_invite_with_a_case_stub_target_resolves_to_the_stub_signature():
     """``Invite(Actor)[target=VulnerabilityCaseStub]`` is its own signature.
 
@@ -481,7 +481,7 @@ def test_invite_with_a_case_stub_target_resolves_to_the_stub_signature():
 @pytest.mark.spec("CLP-07-011")
 @pytest.mark.spec("VAM-07-003")
 def test_remove_note_snapshot_is_a_canonical_signature():
-    """``Remove(Note)[target=case]`` is accepted as a canonical payload."""
+    """``Remove(Note)[target=VulnerabilityCase]`` is accepted as a canonical payload."""
     snapshot = {
         "type": "Remove",
         "actor": OWNER_ACTOR_ID,

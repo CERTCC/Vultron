@@ -18,7 +18,7 @@ Tests for the slimmed vendor receive-report case-proposal tree (ADR-0041).
 
 The tree no longer creates a VulnerabilityCase.  Instead it:
 1. Writes a pending VultronReportCaseLink (WritePendingReportCaseLinkNode).
-2. Sends Create(as_CaseProposal) to the CaseActor service
+2. Sends Create(CaseProposal) to the CaseActor service
    (ProposeReportCaseToActorNode).
 
 Tests are grouped by concern:
@@ -346,7 +346,7 @@ class TestPolicyGate:
 
 
 class TestHappyPath:
-    """Proposal flow: link written + Create(as_CaseProposal) queued."""
+    """Proposal flow: link written + Create(CaseProposal) queued."""
 
     def test_tree_succeeds(
         self,
@@ -398,6 +398,7 @@ class TestHappyPath:
 
     @pytest.mark.spec("BT-10-002")
     @pytest.mark.spec("BT-10-008")
+    @pytest.mark.spec("CP-06-006")
     def test_case_creator_id_is_the_case_actor_container(
         self,
         datalayer,
@@ -445,7 +446,7 @@ class TestHappyPath:
         report,
         bridge,
     ):
-        """ProposeReportCaseToActorNode enqueues Create(as_CaseProposal) to outbox."""
+        """ProposeReportCaseToActorNode enqueues Create(CaseProposal) to outbox."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
@@ -644,7 +645,7 @@ class TestIdempotency:
         The Selector falls through (CheckProposalAlreadySentForReport returns
         FAILURE because proposal_rejected=True), WritePendingReportCaseLinkNode
         returns SUCCESS (link exists — skips write), and ProposeReportCaseToActorNode
-        enqueues another Create(as_CaseProposal).  This is the correct retry
+        enqueues another Create(CaseProposal).  This is the correct retry
         behavior after the CaseActor rejects the first proposal.
         """
         tree1 = create_receive_report_case_tree(

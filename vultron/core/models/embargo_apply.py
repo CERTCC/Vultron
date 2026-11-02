@@ -39,7 +39,7 @@ the embargo part of the case file:
 and every replica call it, so both make the same checks (EMB-18-006).  It
 copies: it writes what the entry carries, or performs the step the entry
 names, after checking the starting state the entry implies; it mints no id,
-reads no clock, reads no store, and runs no lifecycle logic (CM-23-016).  The
+reads no clock, reads no store, and runs no lifecycle logic (CM-23-044).  The
 register step keeps ADR-0122's invariants and ADR-0130's EM transition check
 after every entry, because it goes through
 :func:`~vultron.core.models.embargo_register.apply_register_step`.  EM is never

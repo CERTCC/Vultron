@@ -62,13 +62,13 @@ the case), ADR-0116 (removal and reinstatement). The participant-facing flow is 
 |---|---|---|---|---|---|
 | 1 | CASE_MANAGER sends `Invite(Actor)[target=VulnerabilityCaseStub]`; record created | `RECEIVED` | `v` | `INVITED` if an embargo is active | yes |
 | — | optional on-behalf `v→V` by the Case Manager or Case Owner | — | `V` | — | yes |
-| 2a | `Accept(Invite(stub))` — join, and consent to the active embargo | `RECEIVED` | `V` | `AGREED` if an embargo is active, unless `DECLINED` | **no** |
-| 2b | `Reject(Invite(stub))` — hard no | `CLOSED` | `V` | `DECLINED` if an embargo is active | yes, permanently |
+| 2a | `Accept(Invite(Actor)[target=VulnerabilityCaseStub])` — join, and consent to the active embargo | `RECEIVED` | `V` | `AGREED` if an embargo is active, unless `DECLINED` | **no** |
+| 2b | `Reject(Invite(Actor)[target=VulnerabilityCaseStub])` — hard no | `CLOSED` | `V` | `DECLINED` if an embargo is active | yes, permanently |
 | 3 | CASE_MANAGER sends `Announce(VulnerabilityCase)` and replays the ledger | — | — | — | no |
 | 4 | CASE_MANAGER sends `Invite(Actor)[target=VulnerabilityCase]` with its ledger position | — | — | — | no |
-| 5a | `Accept(Invite(case))` (RV) | `VALID` | — | — | no |
-| 5b | `TentativeReject(Invite(case))` (RI) | `INVALID` | — | — | no |
-| 5c | `Reject(Invite(case))` (RC) | `CLOSED` | — | — | stops receiving |
+| 5a | `Accept(Invite(Actor)[target=VulnerabilityCase])` (RV) | `VALID` | — | — | no |
+| 5b | `TentativeReject(Invite(Actor)[target=VulnerabilityCase])` (RI) | `INVALID` | — | — | no |
+| 5c | `Reject(Invite(Actor)[target=VulnerabilityCase])` (RC) | `CLOSED` | — | — | stops receiving |
 | 6 | `Join(VulnerabilityCase)` (RA) / `Ignore(VulnerabilityCase)` (RD) | `ACCEPTED` / `DEFERRED` | — | — | no |
 
 A stub Invite has two replies, not three: accepting a stub is not a judgement of the
@@ -83,8 +83,8 @@ cases have no active embargo, so "inert until a signatory" is wrong.
 
 - The one check is `VulnerabilityCase.is_active_participant()`, read from the
   replicated `CaseParticipant` record and the case's `active_embargo`, so a replica
-  answers as the CASE_MANAGER does. It is computed, never stored (CM-31-002): a stored
-  "joined" property would read as "active" at a send site.
+  answers as the CASE_MANAGER does. It is computed, never stored (CM-31-002,
+  CM-31-018): a stored "joined" property would read as "active" at a send site.
 - Every case-content send picks recipients through
   `vultron/core/participants/recipients.py` (`case_content_recipients()`,
   `invitation_recipients()`), never at the send site (CM-10-004, CM-10-005). A roster
@@ -93,7 +93,7 @@ cases have no active embargo, so "inert until a signatory" is wrong.
 ### RM `CLOSED` ends content delivery (CM-23-004)
 
 A `CLOSED` participant's replication is assumed to have exited, so it is sent no case
-content, except the entries that record its own closure (CM-23-001): it receives every
+content, except the entries that record its own closure (CM-23-031): it receives every
 step up to the one that reaches `CLOSED` and waits for them rather than writing
 `CLOSED` itself. Later entries, the CASE_MANAGER's own closure included, reach
 only participants not yet closed. The exception never widens entitlement, and the
@@ -152,7 +152,7 @@ from its role (CLP-09).
 - **Unanswered stub Invite.** Its `Invite.end_time` is stamped as for a relayed embargo
   Invite (CM-28-012). Expiry is read (`now >= end_time`, on the CASE_MANAGER's copy),
   never recorded: the Invite closes as an expired ask, the record stays inert at
-  `RECEIVED`, consent stays `INVITED`, and no entry is written (CM-11-014). The
+  `RECEIVED`, consent stays `INVITED`, and no entry is written (CM-11-040). The
   `TIMED_OUT` rule (CM-28-004) is for embargo Invites only. Expiry is *stale*
   (ASK-03-002): a late `Accept` still joins and a late `Reject` still closes.
   "All participants closed" counts only participants that joined.
@@ -168,7 +168,7 @@ from its role (CLP-09).
   participant record (CM-11-018, CM-11-021) — never a silent no-op, never creates a
   participant; a full-case Invite reply from a participant that has not joined
   (CM-11-012).
-- **No roles means refuse, never default to VENDOR (CM-11-019).**
+- **No roles means refuse, never default to VENDOR (CM-11-048, CM-11-050).**
   `EvaluateDefaultRolesNode` returns `[]`, which the trigger turns into REFUSED;
   `CreateInertInviteeParticipantNode` enforces the same rule.
 - **Re-invite.** Same record, fresh stub Invite and deadline, `inReplyTo` the earlier
@@ -251,11 +251,11 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 |---|---|---|
 | the CASE_MANAGER sends the stub Invite | `invite_actor_to_case` | applies nothing |
 | the CASE_MANAGER creates the inert record and puts it on the roster | `create_case_participant` | stores the record carried |
-| the invitee sends `Accept(Invite(stub))`: consent signed, joined | `accept_invite_actor_to_case`, the Accept itself | applies the same writes, `updated` = the Accept's `published`; fails if it holds no record |
+| the invitee sends `Accept(Invite(Actor)[target=VulnerabilityCaseStub])`: consent signed, joined | `accept_invite_actor_to_case`, the Accept itself | applies the same writes, `updated` = the Accept's `published`; fails if it holds no record |
 | VF to `Vf` (VENDOR role only) | `add_participant_status_to_participant` | stores the status |
-| the invitee sends `Reject(Invite(stub))`: consent `DECLINED` | `reject_invite_actor_to_case`, the Reject itself | applies the same write |
+| the invitee sends `Reject(Invite(Actor)[target=VulnerabilityCaseStub])`: consent `DECLINED` | `reject_invite_actor_to_case`, the Reject itself | applies the same write |
 | the record closes (RM `CLOSED`, vendor `Vf`) | `add_participant_status_to_participant` | stores the status |
-| expiry | none | nothing changed (CM-11-014) |
+| expiry | none | nothing changed (CM-11-040) |
 
 - The CASE_MANAGER and the replica apply the same writes
   (`core/participants/stub_reply.py`), storing what the entry carries; the replica
@@ -282,7 +282,7 @@ distinction in new messages: we accept offers and invitations, never bare object
 
 - **A joined participant judges the case only by answering the full-case Invite**,
   never the original `Offer(VulnerabilityReport)` or the report triggers (CM-11-020,
-  ADR-0121). The check keys on `joined`, not on embargo consent (CM-11-012).
+  ADR-0121). The check keys on `joined`, not on embargo consent (CM-11-036).
 - **A status update never creates a participant.** An on-behalf assertion about a
   non-participant is refused before any write (PRM-06-006).
 - **Do not hold the ledger replay until the full-case Invite is accepted.** The history

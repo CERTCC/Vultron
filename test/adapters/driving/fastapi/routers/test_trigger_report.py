@@ -630,7 +630,7 @@ def test_trigger_reject_report_non_report_offer_returns_404(
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
-@pytest.mark.spec("CM-23-019")
+@pytest.mark.spec("CM-23-053")
 def test_trigger_reject_report_on_an_owner_case_returns_409_and_queues_nothing(
     client_triggers, dl, actor, offer, owner_case_report
 ):

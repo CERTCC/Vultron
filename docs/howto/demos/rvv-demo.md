@@ -86,11 +86,11 @@ sequenceDiagram
     V1-->>F: case replica delivered<br/>Create(VulnerabilityCase)
     V1->>V2: Invite Actor to Case<br/>Invite(Actor)[target=VulnerabilityCaseStub]
     note right of V1: inert participant recorded for Vendor2
-    V2->>V1: Accept Invite to Case<br/>Accept(Invite(stub))
+    V2->>V1: Accept Invite to Case<br/>Accept(Invite(Actor)[target=VulnerabilityCaseStub])
     note right of V1: 4 participants: Reporter, Vendor1, Vendor2, CaseActor
     V1-->>V2: case replica delivered and ledger replayed<br/>Announce(VulnerabilityCase)
     V1->>V2: Invite Actor to Full Case<br/>Invite(Actor)[target=VulnerabilityCase]
-    V2->>V1: Accept Full-Case Invite (RV)<br/>Accept(Invite(case))
+    V2->>V1: Accept Full-Case Invite (RV)<br/>Accept(Invite(Actor)[target=VulnerabilityCase])
 
     note over F,V2: ✅ M1 — ≥4 participants · EM.ACTIVE · F and V2 have replicas
 
@@ -181,7 +181,7 @@ Each actor closes its participation with `Leave(VulnerabilityCase)` (RM → CLOS
 Vendor2 and the Reporter leave first.
 Vendor1 is the Case Owner, so it leaves last, and its closure also closes the case: the Case Actor advances itself to `RM.CLOSED`, and its own status entry that reaches `RM.CLOSED` marks the case fully closed.
 
-A participant that has closed receives the ledger entries that record its own closure, and nothing after them (CM-23-004).
+A participant that has closed receives the ledger entries that record its own closure, and nothing after them (CM-23-004, CM-23-031).
 No replica therefore holds every participant's closure: the Reporter's replica does not learn that Vendor1 left, and Vendor1's replica does not receive the Case Actor's own closure.
 The Case Actor's own store is where every closure is checked.
 

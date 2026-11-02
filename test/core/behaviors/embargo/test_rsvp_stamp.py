@@ -46,6 +46,7 @@ def _embargo(dl: SqliteDataLayer, days: int) -> str:
 
 
 @pytest.mark.spec("CM-28-012")
+@pytest.mark.spec("CM-18-023")
 @pytest.mark.spec("EP-07-010")
 def test_the_default_window_is_seven_days_from_published(dl) -> None:
     stamp = stamp_invite_rsvp_deadline(dl, _embargo(dl, 45))

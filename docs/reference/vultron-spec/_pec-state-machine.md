@@ -35,7 +35,7 @@ No state is read from a missing row.
 A missing row is a defect, and an attempt to read one raises an error.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-18-001", "CM-10-001"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-18-001", "CM-18-019", "CM-18-020", "CM-18-021", "CM-10-001"))
 ```
 
 A participant that joins late stays `UNINVITED` on embargoes that are no longer in force.
@@ -47,7 +47,7 @@ The lapsed read stops at a `DECLINED` row and passes over an `UNINVITED` row ([�
 The CASE_MANAGER relays an open proposal to a joiner only while the joiner's row for that proposal is `UNINVITED`.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-006", "EP-09-011"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-006", "CM-11-026", "CM-11-023", "CM-11-024", "CM-11-025", "EP-09-011"))
 ```
 
 `INVITED` carries the invitation's **RSVP Deadline** on the row itself ([§9.4 Deadlines and the Pocket Veto](tracking-models.md#94-deadlines-and-the-pocket-veto)).
@@ -125,7 +125,7 @@ After an embargo is terminated, no entry is `ACTIVE`, so the termination writes 
 The position of every participant follows from the register alone.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-18-001", "MSM-07-006", "MSM-07-025"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-18-001", "CM-18-019", "CM-18-020", "CM-18-021", "MSM-07-006", "MSM-07-025"))
 ```
 
 After the case is public, an exploit is public or attacks are observed, abandoning an open proposal also writes no row.
@@ -208,7 +208,7 @@ The protocol also does not record silence as a refusal.
 Only an explicit refusal reaches `DECLINED`.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-18-002", "CM-28-004", "MSM-07-007", "MSM-07-026"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-18-002", "CM-18-022", "CM-18-023", "CM-28-004", "CM-28-020", "MSM-07-007", "MSM-07-026"))
 ```
 
 The deadline is explicit or defaulted:
@@ -219,7 +219,7 @@ The deadline is explicit or defaulted:
   The default window is 7 days.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-28-001", "CM-28-002", "EP-07-001", "EP-07-009"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-28-001", "CM-28-017", "CM-28-018", "CM-28-002", "CM-28-019", "EP-07-001", "EP-07-009"))
 ```
 
 In both cases, two rules later in this section set a lower bound and an upper bound on the result.
@@ -240,7 +240,7 @@ Every replica records the same deadline by copying the CASE_MANAGER's ledger ent
 A participant does not derive or store a deadline when it receives an Invite.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-28-012", "CM-28-013"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-28-012", "CM-28-013", "CM-28-023", "CM-28-024"))
 ```
 
 **Enforcing the deadline.**
@@ -248,7 +248,7 @@ Only the CASE_MANAGER enforces the deadline.
 It records each expiry as its own ledger entry, and a replica learns of the expiry from that entry, never by computing it.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-28-003", "CM-28-014", "CM-28-009"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-28-003", "CM-28-014", "CM-28-009", "CM-28-022"))
 ```
 
 !!! note "Informative: when the CASE_MANAGER checks deadlines"
@@ -322,7 +322,7 @@ A participant cannot agree to revised terms that nobody told it about.
 A participant that declined the original terms can still accept the revision.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-10-005"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-10-005", "CM-10-008"))
 ```
 
 Only case content (report details, fix status, sensitive notes) is gated on being a signatory ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).
@@ -350,7 +350,7 @@ When the act's own activity states the row, the act's entry is also the row's en
 Examples are a participant's `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])` or, for the Case Owner's own row, its `Accept(EmbargoEvent)[target=VulnerabilityCase]` that activates an embargo.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CLP-07-013", "CM-23-016"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CLP-07-013", "CM-23-016", "CM-23-044"))
 ```
 
 !!! note "Informative: how the reference implementation does this"
@@ -367,7 +367,7 @@ Before the CASE_MANAGER delivers full case content (`Announce(VulnerabilityCase)
 Content stops for a participant whose closure the ledger records, after the entries that record its own closure.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-10-004", "CM-17-005", "CM-23-004"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-10-004", "CM-17-005", "CM-23-004", "CM-23-031", "CM-23-032"))
 ```
 
 !!! note "Recall: report management states"

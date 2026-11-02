@@ -631,7 +631,7 @@ def _make_relayed_invite_entry(
     """Entry the CASE_MANAGER commits for a relayed ``Invite(EmbargoEvent)``.
 
     The relayed Invite carries the manager's RSVP deadline as ``endTime``
-    (CM-28-012); the replica apply node records it on the invitee (CM-28-013).
+    (CM-28-012); the replica apply node records it on the invitee (CM-28-023).
     """
     return _to_persistable_entry(
         HashChainLedgerRecord(
@@ -719,7 +719,7 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
     """Replicas learn the RSVP deadline and an expiry from the ledger, never
     by computing either themselves (CM-28-013, CM-28-014; ADR-0113)."""
 
-    @pytest.mark.spec("CM-28-013")
+    @pytest.mark.spec("CM-28-023")
     @pytest.mark.spec("EP-09-007")
     def test_replica_records_invitee_deadline_from_relayed_invite_entry(
         self, bridge, datalayer, case_obj
@@ -763,7 +763,7 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
             is EmbargoConsentState.INVITED
         )
 
-    @pytest.mark.spec("CM-28-014", "CM-28-016")
+    @pytest.mark.spec("CM-28-014", "CM-28-030")
     def test_replica_reads_expired_from_expiry_entry(
         self, bridge, datalayer, case_actor, case_obj
     ):
@@ -847,7 +847,7 @@ class TestAnnounceLogEntryAppliesNoteAttachment:
         """BT attaches note ID to case replica when entry is add_note_to_case.
 
         A non-CaseActor participant must learn about note additions exclusively
-        via Announce(as_CaseLedgerEntry) fan-out (SYNC-02-002, ADR-0022).
+        via Announce(CaseLedgerEntry) fan-out (SYNC-02-002, ADR-0022).
         """
         entry = _make_add_note_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
@@ -1221,7 +1221,7 @@ class TestAnnounceLogEntryAppliesStubPath:
         )
         return create
 
-    @pytest.mark.spec("CM-11-006")
+    @pytest.mark.spec("CM-11-025")
     @pytest.mark.spec("SYNC-12-001")
     def test_create_entry_stores_the_record_exactly_as_carried(
         self, bridge, datalayer, case_actor, case_obj
@@ -1238,7 +1238,7 @@ class TestAnnounceLogEntryAppliesStubPath:
         case = datalayer.read(CASE_ID)
         assert INVITEE_RECORD_ID in {str(p) for p in case.case_participants}
 
-    @pytest.mark.spec("CM-31-012")
+    @pytest.mark.spec("CM-31-037")
     def test_the_accept_entry_signs_consent_and_marks_joined(
         self, bridge, datalayer, case_actor, case_obj
     ):
@@ -1290,7 +1290,7 @@ class TestAnnounceLogEntryAppliesStubPath:
             EmbargoConsentState.AGREED
         )
 
-    @pytest.mark.spec("CM-11-007")
+    @pytest.mark.spec("CM-11-027")
     def test_the_reject_entry_declines_the_embargo_in_force(
         self, bridge, datalayer, case_actor, case_obj
     ):
@@ -1309,7 +1309,7 @@ class TestAnnounceLogEntryAppliesStubPath:
         assert held.joined is False
         assert held.updated == _REPLIED_AT
 
-    @pytest.mark.spec("CM-31-012")
+    @pytest.mark.spec("CM-31-039")
     @pytest.mark.parametrize(
         "make", [_accept_entry, _reject_entry], ids=["accept", "reject"]
     )
@@ -1390,7 +1390,7 @@ class TestAnnounceLogEntryAppliesStubPath:
         assert self._held(datalayer).model_dump(mode="json") == before
 
     @pytest.mark.spec("SYNC-15-002")
-    @pytest.mark.spec("CM-31-012")
+    @pytest.mark.spec("CM-31-038")
     def test_a_stale_accept_replayed_over_a_seed_that_is_ahead_changes_nothing(
         self, bridge, datalayer, case_actor, case_obj
     ):
@@ -1564,7 +1564,7 @@ class TestEffectsFailureBlocksPersist:
 
 
 # ---------------------------------------------------------------------------
-# A close_case ledger entry changes no RM state on a replica (CM-23-001)
+# A close_case ledger entry changes no RM state on a replica (CM-23-024)
 # ---------------------------------------------------------------------------
 
 DEPARTING_ACTOR_ID = "https://example.org/actors/departing"
@@ -1606,8 +1606,8 @@ def _make_case_with_departing_participant(
 class TestAnnounceLogEntryCloseCaseChangesNoRmState:
     """A close_case entry is stored; the leaver's RM moves arrive as status entries."""
 
-    @pytest.mark.spec("CM-23-001")
     @pytest.mark.spec("CM-23-016")
+    @pytest.mark.spec("CM-23-024")
     def test_close_case_entry_alone_changes_no_rm_state(
         self, bridge, datalayer, case_actor
     ):
@@ -1640,7 +1640,7 @@ class TestAnnounceLogEntryCloseCaseChangesNoRmState:
         assert isinstance(updated, CaseParticipant)
         assert updated.participant_statuses == before.participant_statuses, (
             "close_case must write no ParticipantStatus on a replica"
-            f" (CM-23-001); got {updated.participant_statuses}"
+            f" (CM-23-024); got {updated.participant_statuses}"
         )
 
     @pytest.mark.spec("SYNC-12-003")
@@ -1950,7 +1950,7 @@ class TestAnnounceLogEntryAppliesParticipantUpdate:
 
 
 class TestAnnounceLogEntryOfOwnershipTransferReject:
-    """A replica applies no state change from a declined transfer (CM-21-012).
+    """A replica applies no state change from a declined transfer (CM-21-033).
 
     ``reject_case_ownership_transfer`` is declared ``NO_REPLICA_EFFECT``
     (RSH-08-004): the entry closes the Offer, which every reader learns from
@@ -1959,6 +1959,7 @@ class TestAnnounceLogEntryOfOwnershipTransferReject:
 
     @pytest.mark.spec("CM-21-012")
     @pytest.mark.spec("RSH-08-004")
+    @pytest.mark.spec("CM-21-033")
     def test_reject_entry_is_persisted_and_ownership_unchanged(
         self, bridge, datalayer, case_actor
     ):

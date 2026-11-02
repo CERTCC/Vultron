@@ -16,7 +16,7 @@
 
 """Case-resolution leaf nodes for the CaseProposal received-side tree.
 
-Resolve which ``VulnerabilityCase`` a ``Create(as_CaseProposal)`` applies
+Resolve which ``VulnerabilityCase`` a ``Create(CaseProposal)`` applies
 to (reuse an existing one or create a new one) and persist the report the
 proposal carried inline. Composed by ``create_case_proposal_received_tree``
 in the sibling ``case_proposal_received_tree.py`` (BTND-07-003).
@@ -56,8 +56,8 @@ class LoadExistingCaseNode(DataLayerActionWithPorts):
     The case is the first of ``proposal_case_ids`` that is in the store, the
     lookup ``CheckProposalCaseFullyClosedNode`` also uses (CS-22-001):
 
-    - **The proposer's own case for the report** (CP-05-008).  A
-      ``Create(as_CaseProposal)`` under a new proposal id may name a report
+    - **The proposer's own case for the report** (CP-05-017).  A
+      ``Create(CaseProposal)`` under a new proposal id may name a report
       that already has a case.  The case is reused only when the proposer
       owns it (``attributed_to``); a case for the same report owned by anyone
       else is not this proposer's, so the outer Selector creates a separate
@@ -176,12 +176,12 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
     creates it (CP-09-001, CM-22-001, CM-02-008).  ``attributed_to`` is the
     case's owner field: the status adoption gate and embargo consent and
     answers all read it (MSM-07-027), and ownership transfer
-    rewrites it (CM-21-002), so naming the CASE_MANAGER there would make
+    rewrites it (CM-21-024), so naming the CASE_MANAGER there would make
     every one of those checks treat it as the owner.  The CASE_MANAGER's
     authorship is carried where AS2 puts it instead: it is the ``actor`` of
     the ``Create(VulnerabilityCase)`` it emits (CP-05-003).
 
-    *owner_id* is the actor that sent the ``Create(as_CaseProposal)``, the one
+    *owner_id* is the actor that sent the ``Create(CaseProposal)``, the one
     ``AddOwnerParticipantNode`` records as CASE_OWNER, so the owner field
     and the CASE_OWNER participant cannot name different actors.  The proposal's
     ``attributed_to`` names the same actor (CP-01-010).

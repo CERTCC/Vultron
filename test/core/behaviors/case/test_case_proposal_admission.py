@@ -15,8 +15,8 @@
 
 """Case-proposal admission decision: CP-05-002 and CP-05-004.
 
-The case actor service adjudicates an inbound ``Create(as_CaseProposal)`` at the
-``EvaluateCaseProposal`` call-out point and emits ``Reject(as_CaseProposal)``
+The case actor service adjudicates an inbound ``Create(CaseProposal)`` at the
+``EvaluateCaseProposal`` call-out point and emits ``Reject(CaseProposal)``
 when it declines. These tests pin five properties:
 
 - The DETERMINISTIC default admits, so the pre-existing accept path is unchanged
@@ -314,7 +314,7 @@ class TestDeterministicDefaultAdmits:
 @pytest.mark.spec("CP-05-004")
 class TestDeclineEmitsReject:
     def test_reject_is_queued_to_the_outbox(self, dl):
-        """CP-05-004: declining sends Reject(as_CaseProposal)."""
+        """CP-05-004: declining sends Reject(CaseProposal)."""
         status = _run_tree(dl, call_out=_declining_bundle([]))
 
         assert status == Status.SUCCESS, (
@@ -919,6 +919,7 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
 
 
 @pytest.mark.spec("CP-05-008")
+@pytest.mark.spec("CP-05-020")
 def test_second_proposer_for_an_accepted_report_gets_its_own_case(dl):
     """Reuse is keyed on (report, proposer), never on the report alone.
 
@@ -955,6 +956,8 @@ def test_second_proposer_for_an_accepted_report_gets_its_own_case(dl):
 
 
 @pytest.mark.spec("CP-05-008")
+@pytest.mark.spec("CP-05-016")
+@pytest.mark.spec("CP-05-017")
 def test_new_proposal_id_from_the_owner_reuses_its_case(dl):
     """The owner's second proposal for its own report is answered, not re-created.
 
@@ -998,6 +1001,7 @@ def test_new_proposal_id_from_the_owner_reuses_its_case(dl):
 
 @pytest.mark.spec("CP-05-008")
 @pytest.mark.spec("CBT-06-002")
+@pytest.mark.spec("CP-05-017")
 def test_second_proposer_re_proposing_reuses_its_own_case(dl):
     """The report-only fast path returns the first proposer's case; the second
     proposer's own case is still found, not duplicated.
@@ -1031,7 +1035,7 @@ def test_second_proposer_re_proposing_reuses_its_own_case(dl):
 
 # ---------------------------------------------------------------------------
 # A proposal that resolves to a fully closed case is declined
-# (CP-05-006, CP-05-008, CM-23-013)
+# (CP-05-014, CP-05-018, CM-23-013)
 # ---------------------------------------------------------------------------
 
 _SECOND_PROPOSAL_URI = "https://vendor.example.org/proposals/p-002"
@@ -1080,6 +1084,8 @@ def _decline_record(dl, proposal_uri: str) -> CaseProposalDeclineRecord:
 @pytest.mark.spec("CP-05-008")
 @pytest.mark.spec("CM-23-013")
 @pytest.mark.spec("CP-05-004")
+@pytest.mark.spec("CP-05-018")
+@pytest.mark.spec("CP-05-019")
 class TestTheOwnersNewProposalForAClosedCaseIsDeclined:
     """A new proposal id from the owner of a fully closed case is declined.
 
@@ -1158,6 +1164,8 @@ class TestTheOwnersNewProposalForAClosedCaseIsDeclined:
 @pytest.mark.spec("CP-05-006")
 @pytest.mark.spec("CM-23-013")
 @pytest.mark.spec("ASK-08-001")
+@pytest.mark.spec("CP-05-014")
+@pytest.mark.spec("CP-05-015")
 class TestARedeliveryAfterCloseIsDeclined:
     """The original proposal, accepted before close, is declined on redelivery.
 
@@ -1224,6 +1232,7 @@ class TestARedeliveryAfterCloseIsDeclined:
 
 @pytest.mark.spec("CP-05-008")
 @pytest.mark.spec("CM-23-013")
+@pytest.mark.spec("CP-05-018")
 class TestTheClosedCaseCheckFailsTowardRefusal:
     """The closure check sits on a refusal arm, so it fails the tree, never admits.
 
@@ -1331,6 +1340,7 @@ class TestTheClosedCaseCheckFailsTowardRefusal:
 
 
 @pytest.mark.spec("CP-05-008")
+@pytest.mark.spec("CP-05-020")
 def test_another_proposer_for_a_closed_cases_report_gets_its_own_case(dl):
     """Another party's closed case does not decline this proposer (CP-05-008)."""
     closed = _accepted_then_closed(dl)
@@ -1353,6 +1363,7 @@ def test_another_proposer_for_a_closed_cases_report_gets_its_own_case(dl):
 
 
 @pytest.mark.spec("CP-05-008")
+@pytest.mark.spec("CP-05-018")
 def test_the_accept_scan_is_skipped_when_the_owners_case_is_closed(
     dl, monkeypatch
 ):
@@ -1539,6 +1550,7 @@ def _accepted_then_transferred(dl) -> VulnerabilityCase:
 @pytest.mark.spec("ASK-08-001")
 @pytest.mark.spec("ASK-08-002")
 @pytest.mark.spec("CM-21-001")
+@pytest.mark.spec("CP-05-013")
 class TestAFormerOwnersRedeliveryReusesTheAcceptedCase:
     """The original proposal, redelivered after an ownership transfer.
 
@@ -1622,6 +1634,7 @@ _UNSEEN_REPORT_URI = "https://finder.example.org/reports/r-999"
 
 @pytest.mark.spec("CP-05-006")
 @pytest.mark.spec("ASK-08-002")
+@pytest.mark.spec("CP-05-013")
 class TestARedeliveryNamingAnotherReportReusesTheAcceptedCase:
     """A redelivery is found through the stored ``Accept``, whatever it names.
 
@@ -1658,6 +1671,7 @@ class TestARedeliveryNamingAnotherReportReusesTheAcceptedCase:
 @pytest.mark.spec("CP-05-006")
 @pytest.mark.spec("CP-05-010")
 @pytest.mark.spec("CM-21-001")
+@pytest.mark.spec("CP-05-022")
 class TestAnotherSendersReuseOfAnAcceptedProposalId:
     """Another sender's reuse of an accepted proposal id never reaches its case.
 
@@ -1728,6 +1742,7 @@ class TestAnotherSendersReuseOfAnAcceptedProposalId:
 @pytest.mark.spec("CP-05-006")
 @pytest.mark.spec("CP-05-010")
 @pytest.mark.spec("HP-01-006")
+@pytest.mark.spec("CP-05-022")
 class TestAnotherSendersReuseOfAClosedCasesProposalId:
     """The closed-case arm never declines on another proposer's proposal id.
 
@@ -1760,6 +1775,7 @@ class TestAnotherSendersReuseOfAClosedCasesProposalId:
 @pytest.mark.spec("CP-05-006")
 @pytest.mark.spec("CP-05-010")
 @pytest.mark.spec("HP-01-006")
+@pytest.mark.spec("CP-05-022")
 class TestAnotherSendersReuseOfADeclinedProposalId:
     """A declined proposal id reused by another sender is refused, not
     answered from the decline record."""

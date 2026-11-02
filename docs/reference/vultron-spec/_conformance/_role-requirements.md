@@ -30,7 +30,7 @@ A Deployer's fix deployment (`d→D`) can be asserted the same way, which is exp
 Fix readiness is never asserted on a vendor's behalf, because only the vendor can know it.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("PRM-06-003", "PRM-06-004", "PRM-06-005", "PRM-06-006"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("PRM-06-003", "PRM-06-007", "PRM-06-004", "PRM-06-008", "PRM-06-005", "PRM-06-006"))
 ```
 
 !!! warning "Publishing a fix is not deploying it"

@@ -142,6 +142,7 @@ def _run(
 @pytest.mark.spec("CLP-04-007")
 @pytest.mark.spec("CLP-04-001")
 @pytest.mark.parametrize("sender", [_OWNER, _VENDOR], ids=["owner", "vendor"])
+@pytest.mark.spec("CM-23-051")
 def test_close_report_on_an_open_case_is_refused(sender: str) -> None:
     """The owner's and a participant's ``Close(Report)`` are both refused."""
     dl = _store()
@@ -157,6 +158,7 @@ def test_close_report_on_an_open_case_is_refused(sender: str) -> None:
 
 
 @pytest.mark.spec("CM-23-019")
+@pytest.mark.spec("CM-23-051")
 def test_close_report_at_a_participant_replica_is_refused() -> None:
     """A participant holding a replica refuses the owner's ``Close(Report)``
     too: no sender is entitled to send it to any case actor."""
@@ -173,6 +175,7 @@ def test_close_report_at_a_participant_replica_is_refused() -> None:
 
 @pytest.mark.spec("CM-23-019")
 @pytest.mark.spec("CM-23-018")
+@pytest.mark.spec("CM-23-049")
 def test_close_report_from_a_closed_sender_is_refused_not_skipped() -> None:
     """A closed participant's ``Close(Report)`` is refused like any other."""
     dl = _store(closed=_VENDOR)

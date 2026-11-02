@@ -130,6 +130,7 @@ def test_em_propose_embargo_refuses_terms_by_uri():
 
 
 @pytest.mark.spec("CM-28-001")
+@pytest.mark.spec("CM-28-017")
 def test_em_propose_embargo_rsvp_deadline_sets_end_time(sample_embargo):
     """AC-1: rsvp_deadline is placed on activity-level end_time."""
     deadline = datetime.now(tz=UTC) + timedelta(days=5)
@@ -142,6 +143,7 @@ def test_em_propose_embargo_rsvp_deadline_sets_end_time(sample_embargo):
 
 
 @pytest.mark.spec("CM-28-001")
+@pytest.mark.spec("CM-28-017")
 def test_em_propose_embargo_no_rsvp_deadline_end_time_is_none(sample_embargo):
     """AC-7 (absent): no rsvp_deadline → end_time not set on activity."""
     result = em_propose_embargo_activity(
@@ -470,7 +472,7 @@ def test_owner_decision_invalid_raises(factory, verb):
 
 # ---------------------------------------------------------------------------
 # withdraw_from_embargo_activity — a signatory's withdrawal from the embargo
-# in force, Leave(EmbargoEvent)[context=Case] (MSM-07-010)
+# in force, Leave(EmbargoEvent)[context=VulnerabilityCase] (MSM-07-010)
 # ---------------------------------------------------------------------------
 
 

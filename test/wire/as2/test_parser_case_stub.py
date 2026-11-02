@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""A case stub is recognised by its ``type`` alone (CM-11-013, #4045).
+"""A case stub is recognised by its ``type`` alone (CM-11-038, #4045).
 
 The parser used to recognise a stub as a ``VulnerabilityCase`` whose keys all
 fell in a list derived from the stub class (#2624), so a sparse full case and
@@ -69,7 +69,7 @@ def _enriched_stub() -> dict:
     }
 
 
-@pytest.mark.spec("CM-11-013")
+@pytest.mark.spec("CM-11-038")
 def test_a_stub_is_recognised_by_its_type():
     assert (
         _inline_vocab_class(
@@ -79,12 +79,12 @@ def test_a_stub_is_recognised_by_its_type():
     )
 
 
-@pytest.mark.spec("CM-11-013")
+@pytest.mark.spec("CM-11-038")
 def test_an_enriched_stub_is_a_stub():
     assert _inline_vocab_class(_enriched_stub()) is as_VulnerabilityCaseStub
 
 
-@pytest.mark.spec("CM-11-013")
+@pytest.mark.spec("CM-11-038")
 @pytest.mark.spec("AKM-03-003")
 def test_an_id_and_type_case_is_a_case_reference_not_a_stub():
     """Only ``id`` and ``type``: the typed reference an act names its case by
@@ -153,7 +153,7 @@ def test_a_case_reference_as_a_target_is_refused_at_parse():
         parse_activity(body)
 
 
-@pytest.mark.spec("CM-11-013")
+@pytest.mark.spec("CM-11-038")
 def test_a_sparse_case_is_a_case_not_a_stub():
     """One key past ``id`` and ``type``: a case, because the type says so."""
     resolved = _inline_vocab_class(
@@ -162,7 +162,7 @@ def test_a_sparse_case_is_a_case_not_a_stub():
     assert resolved is VulnerabilityCase
 
 
-@pytest.mark.spec("CM-11-013")
+@pytest.mark.spec("CM-11-038")
 def test_a_sparse_case_validates_as_a_case():
     case = VulnerabilityCase.model_validate(
         {
@@ -182,6 +182,7 @@ def test_the_stub_id_is_derived_from_the_case_it_names():
     assert stub.type_ == "VulnerabilityCaseStub"
 
 
+@pytest.mark.spec("CM-11-037")
 @pytest.mark.spec("CM-11-013")
 def test_the_stub_serialises_its_type_id_and_case():
     wire = json.loads(
@@ -218,6 +219,7 @@ def test_a_stub_validates_from_either_spelling(data):
     assert as_VulnerabilityCaseStub.model_validate(data).id_ == _STUB_ID
 
 
+@pytest.mark.spec("CM-11-037")
 @pytest.mark.spec("CM-11-013")
 @pytest.mark.parametrize(
     "stub_id",
@@ -231,7 +233,7 @@ def test_a_stub_whose_id_disagrees_with_its_case_is_refused(stub_id):
         )
 
 
-@pytest.mark.spec("CM-11-013")
+@pytest.mark.spec("CM-11-037")
 def test_a_stub_without_its_case_is_refused():
     with pytest.raises(ValidationError, match="caseId"):
         as_VulnerabilityCaseStub.model_validate({"id": _STUB_ID})
@@ -263,7 +265,7 @@ def test_an_invite_with_an_enriched_stub_target_parses():
     assert target.case_status is not None
 
 
-@pytest.mark.spec("CM-11-013")
+@pytest.mark.spec("CM-11-038")
 def test_an_invite_whose_target_is_a_sparse_case_parses_it_as_a_case():
     activity = parse_activity(
         _invite(

@@ -75,8 +75,8 @@ an Offer can also close without an answer (#4490):
     treats an Offer past it as closed, so a new proposal is admitted
     (`RecordedOwnershipOffer.is_open_at`). Both run behind the CASE_MANAGER
     gate and compare against one `now` per delivery, read from `now_utc()`.
-- **Expiry (CM-21-017) — implemented.** The expiry is an observation, not an
-  act: nothing is ledgered or sent for it, because every holder of the ledger
+- **Expiry (CM-21-017, CM-21-043) — implemented.** The expiry is an observation,
+  not an act: nothing is ledgered or sent for it, because every holder of the ledger
   can read the deadline from the Offer and no replica changes when it passes
   (ADR-0152). The CASE_MANAGER reads it lazily, when it next processes an
   Accept, Reject or Undo of the Offer or a new proposal for the case; it is no

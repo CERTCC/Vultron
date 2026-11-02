@@ -201,7 +201,7 @@ def _assert_refused_with_nothing(
 
 @pytest.mark.spec("SYNC-17-002")
 @pytest.mark.spec("CM-10-004")
-@pytest.mark.spec("CM-31-001")
+@pytest.mark.spec("CM-31-017")
 def test_removed_participant_with_lagging_position_is_refused(dl) -> None:
     """A removed participant's lagging statement gets nothing (CM-31-001)."""
     entries = seed_ledger(dl, 3)

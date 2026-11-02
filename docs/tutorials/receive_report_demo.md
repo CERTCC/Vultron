@@ -89,6 +89,8 @@ The server finds that service through the `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL
 
     If the variable is not set, the server cannot ask for a case for a report.
     No case is opened, and every demo fails.
+    The `vultron-demo` command needs the same variable, and it stops with an error that names the variable when it is unset.
+    The Compose file sets it in the `demo` container too.
 
     The [Node Configuration Reference](../reference/configuration.md) lists every other setting the server reads, and the `config.yaml` file that can carry them instead of environment variables.
 

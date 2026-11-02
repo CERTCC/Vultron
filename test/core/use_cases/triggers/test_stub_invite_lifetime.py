@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The lifetime of a stub Invite: deadline, expiry, re-invite, re-issue (#4049).
 
-CM-11-014 (a deadline; expiry closes the Invite and writes no participant
+CM-11-014, CM-11-039, CM-11-040 (a deadline; expiry closes the Invite and writes no participant
 state), CM-11-015 (re-invite on the same record), CM-11-016 (re-issue when the
 active embargo changes) and ASK-03-008 (expiry is stale: a late reply is honoured).  The
 trigger-side tests for the same requirements are in
@@ -205,7 +205,7 @@ def test_a_revise_stub_deadline_is_capped_by_the_embargo_in_force(
 ) -> None:
     """In EM REVISE the stub's embargo in force caps its deadline.
 
-    The open revision is not the stub's embargo (CM-17-002), so its later end
+    The open revision is not the stub's embargo (CM-17-014), so its later end
     plays no part in the cap.
     """
     manager, dl = actor_store("CaseManager")
@@ -269,7 +269,8 @@ def _expire_then_terminate(
     _terminate(dl, owner_id, case_id)
 
 
-@pytest.mark.spec("CM-11-014")
+@pytest.mark.spec("CM-11-040")
+@pytest.mark.spec("CM-11-039")
 def test_expiry_writes_nothing_and_a_late_accept_still_joins(
     actor_store, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -306,7 +307,7 @@ def test_expiry_writes_nothing_and_a_late_accept_still_joins(
     assert _participant_of(dl, case.id_, invitee.id_).joined is True
 
 
-@pytest.mark.spec("CM-11-014")
+@pytest.mark.spec("CM-11-040")
 def test_a_late_reject_closes_the_record_as_a_live_one_would(
     actor_store,
 ) -> None:
@@ -328,7 +329,7 @@ def test_a_late_reject_closes_the_record_as_a_live_one_would(
     assert _participant_of(dl, case.id_, invitee.id_).rm_closed
 
 
-@pytest.mark.spec("CM-11-014")
+@pytest.mark.spec("CM-11-039")
 @pytest.mark.parametrize(
     "offset,reissued",
     [(timedelta(0), False), (-timedelta(microseconds=1), True)],
@@ -360,6 +361,7 @@ def test_the_deadline_itself_is_expired(
     assert (len(_invites_to(dl, invitee.id_)) == 2) is reissued
 
 
+@pytest.mark.spec("CM-11-042")
 @pytest.mark.spec("CM-11-015")
 def test_reinvite_replaces_the_earlier_stub_on_the_same_record(
     actor_store,
@@ -401,8 +403,8 @@ def test_reinvite_replaces_the_earlier_stub_on_the_same_record(
     assert new.disposition is HandlerDisposition.APPLIED
 
 
-@pytest.mark.spec("CM-11-015")
-@pytest.mark.spec("CM-11-016")
+@pytest.mark.spec("CM-11-042")
+@pytest.mark.spec("CM-11-044")
 def test_in_reply_to_on_a_stub_invite_survives_parse_and_extraction(
     actor_store,
 ) -> None:
@@ -427,6 +429,7 @@ def test_in_reply_to_on_a_stub_invite_survives_parse_and_extraction(
     assert stored.in_reply_to == first["id"]
 
 
+@pytest.mark.spec("CM-11-046")
 @pytest.mark.spec("CM-11-015")
 def test_a_reject_of_the_replaced_stub_is_honoured(actor_store) -> None:
     manager, dl = actor_store("CaseManager")
@@ -448,7 +451,7 @@ def test_a_reject_of_the_replaced_stub_is_honoured(actor_store) -> None:
     assert _participant_of(dl, case.id_, invitee.id_).rm_closed
 
 
-@pytest.mark.spec("CM-11-015")
+@pytest.mark.spec("CM-11-043")
 def test_manager_refuses_a_reinvite_of_a_closed_participant(
     actor_store,
 ) -> None:
@@ -549,6 +552,7 @@ def test_a_joined_invitee_is_not_reissued_on_an_embargo_change(
     assert [i.id_ for i in stub_invites] == [original["id"]]
 
 
+@pytest.mark.spec("CM-11-044")
 @pytest.mark.spec("CM-11-016")
 def test_a_replacement_carries_a_new_deadline_and_current_terms_and_roles(
     actor_store,
@@ -767,7 +771,7 @@ def _send_stub_invite_during_revision(
 
     invite = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
 
-    # The stub carries the embargo in force, not the open revision (CM-17-002).
+    # The stub carries the embargo in force, not the open revision (CM-17-002, CM-17-014).
     assert invite["target"]["activeEmbargo"]["id"] == in_force
     stored = dl.read_case(case.id_)
     assert stored is not None
@@ -902,7 +906,7 @@ def test_a_failed_replacement_waits_while_a_later_revision_is_open(
     ] == []
 
 
-@pytest.mark.spec("CM-11-016")
+@pytest.mark.spec("CM-11-045")
 def test_accept_of_a_superseded_stub_names_the_replacement_and_it_can_be_accepted(
     actor_store,
 ) -> None:

@@ -54,7 +54,7 @@ never through a roster in the payload the sender wrote (CBT-01-011).
 - **The receiver's own anchor** is `case_manager_id` from the
   `Accept(CaseProposal)` recorded in `accept_case_proposal_received_tree.py`,
   admitted only from the actor the proposal was addressed to and never once a
-  case exists for the report (CP-06-005, CBT-02-003).
+  case exists for the report (CP-06-005, CP-06-007, CBT-02-003).
 
 `Create` is the introduction verb; `Announce(VulnerabilityCase)` is the
 CASE_MANAGER's later sync (CBT-02-001). When owner and CASE_MANAGER are one actor

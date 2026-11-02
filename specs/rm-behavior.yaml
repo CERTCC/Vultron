@@ -1611,7 +1611,7 @@ groups:
       participant that anticipates returning to the case SHOULD instead move to
       `RM.DEFERRED` (resumable via DEFERRED → ACCEPTED) rather than close; once
       closed, the participant has no path back in, because a re-invite to a
-      participant at `RM.CLOSED` is refused (CM-11-015, ADR-0085). Rejoin
+      participant at `RM.CLOSED` is refused (CM-11-043, ADR-0085). Rejoin
       mechanics are deferred to a future design; the interim workaround is
       defer-not-close (RMB-14-007).
     verification: >-

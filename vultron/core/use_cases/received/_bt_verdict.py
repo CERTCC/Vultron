@@ -524,7 +524,7 @@ def role_offer_answer_verdict(
 
     :class:`~vultron.core.behaviors.case.nodes.role_offer_guard.RoleOfferOpenNode`
     sets ``is_redelivery`` when the answer is the one already ledgered as
-    closing its Offer, and fails, so nothing runs (HP-01-003, CM-33-005).
+    closing its Offer, and fails, so nothing runs (HP-01-003, CM-33-018).
     """
     return _redelivery_verdict(
         tree, RoleOfferOpenNode, verdict, "role Offer answer redelivered"

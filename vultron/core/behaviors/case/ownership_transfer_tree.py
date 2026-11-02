@@ -104,7 +104,7 @@ def _reply_stages(
     (PCR-03-001).  The open-Offer check runs next, at the CASE_MANAGER only
     (CM-21-014, CM-21-016, HP-01-003): a reply to an Offer past its
     ``end_time`` is refused from that time alone, and nothing records the
-    expiry (CM-21-017, ADR-0152).  With *transferee_must_be_active* (the
+    expiry (CM-21-043, ADR-0152).  With *transferee_must_be_active* (the
     Accept), the transferee must then still be an active participant
     (CM-21-021).
     """
@@ -228,7 +228,7 @@ def create_reject_ownership_transfer_tree(
     The Accept's tree with no effects: the sender guard admits only the
     transferee of an open Offer the CASE_MANAGER recorded (CM-21-013), and the
     guarded commit ledgers the Reject and broadcasts
-    ``Announce(CaseLedgerEntry)`` (CM-21-012, CLP-02-012).  That entry closes
+    ``Announce(CaseLedgerEntry)`` (CM-21-032, CLP-02-012).  That entry closes
     the Offer (CM-21-014); ownership is unchanged, so nothing else is written.
 
     Args:
@@ -478,7 +478,7 @@ def create_offer_ownership_transfer_tree(
     transfer, which the CASE_MANAGER made from the owner's proposal
     (ADR-0148).  Intake archives it, which is the copy the transferee
     answers (CLP-10-017); its sender guard admits the case's CASE_MANAGER
-    alone, and a store that holds no such case refuses (CM-21-019,
+    alone, and a store that holds no such case refuses (CM-21-046,
     PCR-03-001).  At the CASE_MANAGER the rule admits nobody: an owner
     proposes, it does not offer.  Nothing is committed: the CASE_MANAGER
     ledgered the Offer when it made it.

@@ -24,7 +24,7 @@ exist, and they differ on purpose (ADR-0114 § "Inert and active"):
 - :func:`ledger_entry_recipients` — the recipients of one ledger entry's
   fan-out: :func:`case_content_recipients`, plus each closed participant the
   entry is *about* — the ``close_case`` entry and the status entries that
-  record its own closure (CM-23-001, CM-23-004).
+  record its own closure (CM-23-031, CM-23-004).
 - :func:`inactive_joined_participants` — the joined participants that are
   not active, whose ledger streams are paused and backfilled on admission
   (CM-10-005, CM-10-006): the active embargo withholds them, or they were
@@ -35,7 +35,7 @@ exist, and they differ on purpose (ADR-0114 § "Inert and active"):
   included (CM-10-007, CM-31-013).
 - :func:`embargo_ending_notice_recipients` — the bound signatories the
   ledger fan-out no longer reaches, owed a direct notice when their embargo
-  ends or shortens (CM-31-009).  Not case content (CM-10-007).
+  ends or shortens (CM-31-009, CM-31-030).  Not case content (CM-10-007).
 - :func:`reporter_introduction_recipients` — the reporters the report
   receiver introduces the CASE_MANAGER to with its own
   ``Create(VulnerabilityCase)`` (CBT-01-001, ADR-0132).  The case-content
@@ -53,13 +53,14 @@ records only, in no fixed order, and skips what it cannot read silently).
 Record precedence matches it: the stored record first, an inline copy only as
 the fallback.
 
-The report tree's own ``Create(Case)`` (``case_creation.CreateCaseActivity``)
-does not come here: ``case_creation._collect_create_case_addressees``
-builds its addressees from the actor, the report and the offer rather than
-the roster, and every one of them is seated at case initialization.
+The report tree's own ``Create(VulnerabilityCase)``
+(``case_creation.CreateCaseActivity``) does not come here:
+``case_creation._collect_create_case_addressees`` builds its addressees from the
+actor, the report and the offer rather than the roster, and every one of them
+is seated at case initialization.
 
 The sender check reads the same records: :func:`may_act_on_case` is the one
-predicate behind the ``ACTIVE_PARTICIPANT`` sender standing (CM-23-020), so a
+predicate behind the ``ACTIVE_PARTICIPANT`` sender standing (CM-23-054), so a
 sender may act on a case exactly when it would be sent its content;
 :func:`why_may_not_act_on_case` names the ground a refusal by it cites.
 
@@ -370,7 +371,7 @@ def inactive_joined_participants(
     active embargo (CM-10-004), or it carries the removal fact (CM-31-001).
     These are the participants whose ledger stream is paused and backfilled
     on admission (CM-10-005, CM-10-006); a removed participant is admitted
-    when the fact is cleared (CM-31-011).  A participant that has not joined
+    when the fact is cleared (CM-31-034).  A participant that has not joined
     is left out: it is inert whatever the embargo, and its case copy and
     ledger arrive through the join path (ADR-0114).  A participant at RM
     ``CLOSED`` is left out too: it has left, so it is sent nothing further
@@ -399,7 +400,7 @@ def invitation_recipients(
     """Return the actor IDs a consent Invite on *case* is addressed to.
 
     Every participant whose RM is not ``CLOSED``, active or inert, minus
-    *excluding* (EP-09-002, CM-10-007).  An Invite asks the participant to
+    *excluding* (EP-09-002, CM-10-009).  An Invite asks the participant to
     consent; an inert participant is exactly the one that needs asking, so
     the active check does not apply.  A participant that never joined is
     included: it is not ``CLOSED``.  A removed participant is not: the Case
@@ -644,7 +645,7 @@ def closure_recorded(
 
     The roster lists the actor and its record is at RM ``CLOSED``.  An act
     that would close such a participant again changes nothing: it is the
-    repeat CM-23-018 reports ``SKIPPED``, whatever its activity id
+    repeat CM-23-049 reports ``SKIPPED``, whatever its activity id
     (ID-05-003).  An actor the case does not list, or whose record does not
     resolve, has no recorded closure.
     """

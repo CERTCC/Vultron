@@ -375,7 +375,7 @@ def test_accept_of_unrecorded_invite_is_refused(
     assert cm_store.outbox_list() == []
 
 
-@pytest.mark.spec("CM-11-017")
+@pytest.mark.spec("CM-11-047")
 def test_accept_of_invite_takes_roles_from_recorded_invite(
     cm_store, owned_case, make_payload
 ):
@@ -556,7 +556,9 @@ def test_accept_of_an_invite_the_case_manager_did_not_issue_is_refused(
 def test_reject_from_a_sender_that_is_not_the_recorded_invitee_is_refused(
     cm_store, owned_case, make_payload, recorded
 ):
-    """The same sender check applies to Reject(Invite(stub))."""
+    """The same sender check applies to
+    Reject(Invite(Actor)[target=VulnerabilityCaseStub]).
+    """
     cm_store.create(owned_case)
     if recorded:
         invite = _record_stub_invite(cm_store, owned_case)
@@ -701,6 +703,7 @@ def test_offer_case_participant_from_non_case_manager_is_refused():
 
 
 @pytest.mark.spec("CP-06-005")
+@pytest.mark.spec("CP-06-008")
 def test_case_proposal_accept_from_non_addressee_is_refused(make_payload):
     """The vendor addressed the proposal to another case actor."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
@@ -725,6 +728,7 @@ def test_case_proposal_accept_from_non_addressee_is_refused(make_payload):
 
 
 @pytest.mark.spec("CP-06-005")
+@pytest.mark.spec("CP-06-008")
 def test_case_proposal_reject_from_non_addressee_is_refused(make_payload):
     """A Reject from an actor the proposal was not addressed to is refused."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
@@ -775,6 +779,7 @@ def test_case_proposal_reply_with_no_recorded_addressee_is_refused(
 
 
 @pytest.mark.spec("CP-06-005")
+@pytest.mark.spec("CP-06-007")
 def test_case_proposal_accept_after_case_established_keeps_case_manager(
     make_payload,
 ):
@@ -806,6 +811,7 @@ def test_case_proposal_accept_after_case_established_keeps_case_manager(
 
 
 @pytest.mark.spec("CP-06-005")
+@pytest.mark.spec("CP-06-007")
 def test_case_proposal_reject_after_case_established_leaves_link_unchanged(
     make_payload,
 ):
@@ -868,6 +874,7 @@ def test_case_proposal_accept_from_addressee_with_trailing_slash_is_applied(
 
 
 @pytest.mark.spec("CM-30-001")
+@pytest.mark.spec("CM-30-004")
 def test_note_removal_by_stranger_is_refused(
     cm_store, owned_case, make_payload
 ):
@@ -896,6 +903,7 @@ def test_note_removal_by_stranger_is_refused(
 
 
 @pytest.mark.spec("CM-30-002")
+@pytest.mark.spec("CM-30-006")
 def test_report_addition_by_non_owner_is_refused(
     cm_store, owned_case, make_payload
 ):
@@ -964,6 +972,7 @@ def test_ledger_reject_for_unknown_case_is_refused():
 
 
 @pytest.mark.spec("CM-23-018", "CM-23-020", "HP-01-009")
+@pytest.mark.spec("CM-23-055")
 def test_ledger_reject_does_not_declare_the_active_participant_standing():
     """A closed participant keeps its resync request, so its kind is its own.
 

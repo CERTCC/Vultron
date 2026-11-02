@@ -1185,7 +1185,7 @@ def setup_initialized_case(
     ``[CVDRole.CASE_OWNER, CVDRole.CASE_MANAGER]`` (CM-02-014, CM-02-015).
     Use :func:`setup_canonical_case` for any exchange that requires a separate
     CaseActor service identity — ownership transfer among them — or the routing
-    silently degrades to the direct peer-to-peer path (a failure under CM-24-006).
+    silently degrades to the direct peer-to-peer path (a failure under CM-24-014).
 
     Performs the standard setup shared by ``invite_actor_demo``,
     ``suggest_actor_demo``, and ``status_updates_demo``:
@@ -1266,7 +1266,7 @@ def setup_canonical_case(
     than :func:`setup_initialized_case`: a vendor-minted case has **no**
     ``CASE_MANAGER`` participant, so there is no CaseActor to address and the
     routing silently degrades to the direct peer-to-peer path it is meant to
-    replace (a failure under CM-24-006).
+    replace (a failure under CM-24-014).
 
     Args:
         client: DataLayerClient for the container hosting all three actors.
@@ -1316,7 +1316,7 @@ def setup_canonical_case(
     )
     # Resolve the CaseActor from the case's own participant index, not from
     # config: `case_actor_id_for_report` answers "which CaseActor would *this
-    # node* address", which is a different question and returns `""` when no
+    # node* address", which is a different question and raises when no
     # CaseActor service is configured.  What callers need is the actor that holds
     # CASE_MANAGER on this case.
     case_actor_id = case_actor_participant_id_in(case)
@@ -1343,7 +1343,7 @@ def await_ownership_transfer_offer(
 
     The owner addresses its proposal, ``Offer(Offer(VulnerabilityCase))``, to
     the CaseActor, which makes the one ``Offer(VulnerabilityCase)`` of the
-    transfer under an id of its own and sends it to the transferee (CM-21-005,
+    transfer under an id of its own and sends it to the transferee (CM-21-028,
     ADR-0148).  The consequent therefore has a new identity: polling the
     transferee's store for the proposal's id never matches (EDF-06-004, issue
     #2178).  This helper discovers the CaseActor's Offer by its properties

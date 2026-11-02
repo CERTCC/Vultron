@@ -245,7 +245,7 @@ def wait_for_case_on_container(
 ) -> None:
     """Poll *client*'s DataLayer until *case_id* appears.
 
-    Proves that an outbox activity (e.g. ``Create(as_VulnerabilityCase)``) was
+    Proves that an outbox activity (e.g. ``Create(VulnerabilityCase)``) was
     delivered to the actor on *client* and its inbox handler processed it.
 
     In single-server integration tests both actors share the same DataLayer so
@@ -885,7 +885,7 @@ def _is_case_invite_for(
 ) -> bool:
     """Return True if *obj_data* holds a case Invite for *invitee_id*/*case_id*.
 
-    A stub Invite names its case in the stub's ``caseId`` (CM-11-013); the
+    A stub Invite names its case in the stub's ``caseId`` (CM-11-037); the
     stub's own ``id`` is ``<case-id>/stub`` and is never parsed.  A full-case
     Invite names the case by URI (AKM-02-003).  *full_case* selects which of the
     two is wanted: any case Invite by default, only a full-case one when true.
@@ -1092,7 +1092,7 @@ def _is_ownership_transfer_offer_for(
     """True if *obj_data* is the CaseActor's ownership Offer to *transferee_id*.
 
     The CaseActor makes the one Offer of a transfer from the owner's proposal
-    and sends it to the transferee (CM-21-005, ADR-0148).  That Offer has::
+    and sends it to the transferee (CM-21-028, ADR-0148).  That Offer has::
 
         type   = "Offer"
         target = transferee_id      # the actor being offered ownership,
@@ -2349,7 +2349,7 @@ def wait_for_case_attributed_to(
     CaseActor's own store is the authority (CM-21-002, CM-21-004); every other
     replica — the old owner's included — learns the new owner only from the
     ``Announce(CaseLedgerEntry)`` fan-out of the ``update_case_owner`` entry,
-    applied by ``ApplyOwnershipTransferFromLedgerNode`` (CM-21-007,
+    applied by ``ApplyOwnershipTransferFromLedgerNode`` (CM-21-030,
     CLP-07-013).  So this reads the
     replica whose view is being asserted (EDF-06-002); to gate on the commit
     itself, use :func:`wait_for_case_actor_ledger_event` first (#3602).

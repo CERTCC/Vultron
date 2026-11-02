@@ -124,7 +124,7 @@ def with_received_baseline_ports(factory: PortFactory) -> PortFactory:
       AC-4); the port is that fan-out's only channel (ARCH-04-004), and its
       outbox order relative to ``Create(VulnerabilityCase)`` is CP-09-009's.
     - ``CLOSE_CASE`` renders each RM closure status, the leaver's and the
-      CASE_MANAGER's own, into the snapshots CM-23-001/005 require, and fans
+      CASE_MANAGER's own, into the snapshots CM-23-022/033 require, and fans
       each entry out (``CommitRMClosureEntriesNode``, CM-23-002).
     """
 
@@ -167,7 +167,7 @@ def _trigger_activity_with_actor_config_port_factory(
       re-invite, with an RSVP deadline measured against its configured
       ``min_rsvp_window`` and ``default_rsvp_window`` (CM-28-012, EP-07-002).
     - ``CLOSE_CASE``, whose CASE_MANAGER answers a Leave that arrives after
-      the case is fully closed per ``post_close_reply`` (CM-23-013, ADR-0131).
+      the case is fully closed per ``post_close_reply`` (CM-23-017, ADR-0131).
 
     Falls back to ``actor_config=None`` when ``SeedConfig`` is unavailable:
     report submission keeps the always-create default and the embargo use
@@ -198,7 +198,7 @@ def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
     ``ActorConfig`` defaults in force.
 
     The trigger-activity port is needed only on the decline path, where
-    ``_EmitRejectCaseProposalNode`` builds ``Reject(as_CaseProposal)`` through
+    ``_EmitRejectCaseProposalNode`` builds ``Reject(CaseProposal)`` through
     the shared emit seam (CP-05-002, CP-05-004).  The accept path never reads it.
     The accept path's sync port comes from
     :func:`with_received_baseline_ports`, as a constructor argument, so the

@@ -22,7 +22,7 @@ Spec coverage:
   VultronActivityConstructionError.
 - AF-04-002: All factory functions re-exported from factories/__init__.py.
 - CM-17-002: The stub carries the embargo in force (EM ACTIVE or REVISE).
-- CM-17-011: The stub Invite embeds the full active embargo, or is refused.
+- CM-17-011, CM-17-024: The stub Invite embeds the full active embargo, or is refused.
 """
 
 import json
@@ -545,6 +545,7 @@ def test_undo_ownership_transfer_plain_offer_raises(sample_offer):
 
 @pytest.mark.spec("CM-21-005")
 @pytest.mark.spec("CM-21-016")
+@pytest.mark.spec("CM-21-025")
 def test_proposal_nests_the_offer_the_case_manager_will_make(sample_case):
     """Offer(Offer(VulnerabilityCase)), context the case: the inner Offer names
     the case, the transferee and the deadline (ADR-0148)."""
@@ -626,6 +627,8 @@ def _invite_stub_wire(sample_actor) -> dict:
     return stub
 
 
+@pytest.mark.spec("CM-17-023")
+@pytest.mark.spec("CM-17-022")
 def test_rm_invite_stub_carries_no_case_content(sample_actor):
     """The stub names the case and carries no other case content.
 
@@ -646,6 +649,8 @@ def test_rm_invite_stub_carries_a_non_empty_summary(sample_actor):
     assert stub["summary"].strip()
 
 
+@pytest.mark.spec("CM-17-021")
+@pytest.mark.spec("CM-17-020")
 @pytest.mark.spec("CM-17-010")
 def test_rm_invite_to_case_refuses_when_no_stub_summary():
     """The factory refuses when the case carries no ``stub_summary`` (CM-17-010, AC-2).
@@ -984,6 +989,8 @@ def test_rm_invite_stub_is_enriched_from_an_inline_active_embargo(
     assert stub.case_status.em.state == EM.ACTIVE
 
 
+@pytest.mark.spec("CM-17-022")
+@pytest.mark.spec("CM-17-013")
 @pytest.mark.spec("CM-17-002")
 def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
     """An embargo-active stub adds only ``activeEmbargo`` and ``caseStatus``,
@@ -1045,6 +1052,7 @@ def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
     assert set(status) <= {"@context", "id", "type", "context", "emState"}
 
 
+@pytest.mark.spec("CM-17-014")
 @pytest.mark.spec("CM-17-002")
 def test_revise_stub_carries_the_embargo_in_force_not_the_revision(
     sample_actor,
@@ -1234,7 +1242,7 @@ def test_rm_invite_stub_embeds_the_full_active_embargo(
     assert wire["target"]["activeEmbargo"] == expected
 
 
-@pytest.mark.spec("CM-17-011")
+@pytest.mark.spec("CM-17-024")
 @_IN_FORCE_EM
 def test_rm_invite_refuses_an_active_embargo_it_cannot_embed(
     sample_actor, revising
@@ -1243,7 +1251,7 @@ def test_rm_invite_refuses_an_active_embargo_it_cannot_embed(
 
     A bare id would leave the invitee no way to read the terms it would agree
     to, since the prototype does not build fetching by id (CM-17-002,
-    CM-17-011).  The factory refuses rather than sending an uninformed stub.
+    CM-17-024).  The factory refuses rather than sending an uninformed stub.
     """
     case_id = "https://example.org/cases/embargo-not-held"
     case = _embargo_active_case(
@@ -1256,7 +1264,7 @@ def test_rm_invite_refuses_an_active_embargo_it_cannot_embed(
         )
 
 
-@pytest.mark.spec("CM-17-011")
+@pytest.mark.spec("CM-17-024")
 @_IN_FORCE_EM
 def test_rm_invite_refuses_an_embargo_object_that_is_not_the_active_one(
     sample_actor, revising
@@ -1276,7 +1284,7 @@ def test_rm_invite_refuses_an_embargo_object_that_is_not_the_active_one(
         )
 
 
-@pytest.mark.spec("CM-17-011")
+@pytest.mark.spec("CM-17-024")
 def test_stub_embargo_refuses_when_no_active_embargo_is_named():
     """An EM-active case that names no active embargo is refused, not sent bare.
 
@@ -1357,7 +1365,7 @@ def test_ownership_reply_embeds_the_offer_as_its_sender_sent_it(factory):
 def test_ownership_reply_refuses_a_received_offer_of_another_kind(
     sample_report, factory
 ):
-    """A received ``Offer(Report)`` is not an ownership-transfer Offer."""
+    """A received ``Offer(VulnerabilityReport)`` is not an ownership-transfer Offer."""
     from vultron.wire.as2.factories import rm_submit_report_activity
 
     offer = rm_submit_report_activity(

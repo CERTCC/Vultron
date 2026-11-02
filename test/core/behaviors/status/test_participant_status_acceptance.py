@@ -1025,6 +1025,7 @@ class TestLedgerApplyCopiesTheStatus:
         assert _vf_of(latest) == CS_vf.Vf.name
 
     @pytest.mark.spec("CM-23-016")
+    @pytest.mark.spec("CM-23-044")
     def test_two_fresh_replicas_write_identical_records(self, store_for):
         """One entry applied to two replicas: the same record, ids and times.
 

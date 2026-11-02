@@ -280,7 +280,7 @@ class TestCollectEmbargoInviteRecipientsNode:
         assert sorted(_collected_recipients()) == sorted([OTHER_A, OTHER_B])
 
     @pytest.mark.executes_as(MANAGER)
-    @pytest.mark.spec("CM-10-007")
+    @pytest.mark.spec("CM-10-009")
     def test_reaches_inert_participants_but_not_a_closed_one(
         self, bt_scenario: BTTestScenario
     ) -> None:

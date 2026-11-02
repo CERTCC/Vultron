@@ -1011,7 +1011,7 @@ groups:
       invited; when the owner's longer default lost, the owner is the proposer and the
       reporter is invited. An exact tie registers no revision (EP-04-016) and relays
       nothing. The relay is part of the case-creation act
-      (CLP-07-015): it runs after the creation entries are committed (CM-14-007,
+      (CLP-07-015): it runs after the creation entries are committed (CM-14-014,
       CM-14-011), in the same transaction, so a failed relay rolls the whole creation
       back and a redelivered proposal creates the case and relays the revision again.
       Nothing is stored for a later run.
@@ -1171,7 +1171,7 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      This rule covers a `Create(as_CaseProposal)` that resolves to an existing
+      This rule covers a `Create(CaseProposal)` that resolves to an existing
       `VulnerabilityCase`. Its receiver MUST NOT run creation-time embargo
       initialization again in any EM state but `NONE`: `PROPOSED`, `ACTIVE`, `REVISE` or
       `EXITED`.
@@ -1208,7 +1208,7 @@ groups:
     kind: project
     statement: >-
       The CASE_MANAGER MUST NOT reconcile the embargo terms on a
-      `Create(as_CaseProposal)` that resolves to an existing case against that case.
+      `Create(CaseProposal)` that resolves to an existing case against that case.
       Terms that conflict with the case lose to the case.
     rationale: >-
       The embargo belongs to the case, not to the report. Skipping the whole creation
@@ -1380,7 +1380,7 @@ groups:
       CASE_MANAGER when it stamps `Invite.end_time` on each relayed Invite (CM-28-012):
       the default window is what it adds to its own `published`. No receiving
       participant applies the fallback on receipt; it derives no deadline and stores none
-      (CM-28-013).
+      (CM-28-024).
     rationale: >-
       An invitation with no deadline would leave the invitee's consent row `INVITED`
       for ever. A default window gives every invitation an end, so silence resolves.
@@ -1404,7 +1404,7 @@ groups:
     statement: >-
       The default RSVP window of EP-07-001 SHOULD be 7 days, matching CM-18-002.
     rationale: >-
-      Aligning the fallback with the CM-18-002 policy window means an invitation that
+      Aligning the fallback with the CM-18-023 policy window means an invitation that
       omits `end_time` gets the same answer window as the policy grants. See ADR-0065.
     verification: >-
       `test/core/behaviors/inbox/test_process_payload.py`
@@ -1424,10 +1424,10 @@ groups:
     kind: project
     statement: >-
       This codebase MUST make the default RSVP window of EP-07-001, which is the policy
-      window of CM-18-002, configurable per actor.
+      window of CM-18-023, configurable per actor.
     rationale: >-
       How this codebase lets a deployment choose the window; split from EP-07-001 and
-      CM-18-002 so they state only the window and its default that other participants
+      CM-18-023 so they state only the window and its default that other participants
       observe (MS-12-010). Whether the value can be changed is an operating choice of
       one implementation.
     verification: >-
@@ -1440,7 +1440,7 @@ groups:
     - rel_type: implements
       spec_id: EP-07-001
     - rel_type: implements
-      spec_id: CM-18-002
+      spec_id: CM-18-023
   - id: EP-07-002
     priority: MUST
     kind: protocol
@@ -1590,7 +1590,7 @@ groups:
       ADR-0096.
     note: >-
       The failure is concrete. Invite a participant to a 24-hour embargo with no explicit
-      `Invite.end_time` and the CM-18-002 policy window applies: 7 days. The pocket veto
+      `Invite.end_time` and the CM-18-023 policy window applies: 7 days. The pocket veto
       fires on day 7; the embargo ended at hour 24. The participant is asked to consent to
       an embargo that is already over, and their inaction is recorded as an expiry six days
       after it stopped mattering.
@@ -1605,7 +1605,7 @@ groups:
       the remaining embargo is shorter than the configured minimum window.
     relationships:
     - rel_type: constrains
-      spec_id: CM-18-002
+      spec_id: CM-18-023
     adr:
     - ADR-0096
     stories:
@@ -2000,7 +2000,7 @@ groups:
       CASE_MANAGER and is committed in the emitting tree (CM-24-004, ADR-0109). Every
       other participant on the case whose RM state is not `RM.CLOSED` is a recipient,
       whatever its consent state and whether or not it has joined: an embargo Invite is
-      not case content and reaches an inert participant (CM-10-007). A participant not
+      not case content and reaches an inert participant (CM-10-009). A participant not
       yet bound is invited into the revised terms, a signatory is asked whether it
       accepts them (EP-09-004). Instead of an Invite, the proposer and a CASE_MANAGER
       with a stake of its own get consent rows at the commit (EP-09-023, EP-09-024).
@@ -2554,7 +2554,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the CASE_MANAGER admits a participant (`Accept(Invite(stub))`) while an embargo
+      When the CASE_MANAGER admits a participant
+      (`Accept(Invite(Actor)[target=VulnerabilityCaseStub])`) while an embargo
       proposal is open, it MUST relay an `Invite(EmbargoEvent)` for every open proposal to
       the joiner and commit each as a ledger entry, after the joiner holds the case and the
       prior ledger. Each Invite has `actor` set to the CASE_MANAGER's ID and `attributedTo`
@@ -2606,7 +2607,7 @@ groups:
       Answering the embargo in force goes through the relayed `Invite(EmbargoEvent)`
       (ADR-0122), not the full-case Invite, whose replies move only the RM state
       (CM-11-011). A joiner whose `INVITED` row for the embargo in force comes from the
-      stub Invite (CM-11-006) holds no `Invite(EmbargoEvent)` to name; accepting the
+      stub Invite (CM-11-026) holds no `Invite(EmbargoEvent)` to name; accepting the
       stub makes it `AGREED` (CM-11-001), so it needs no trigger. Withdrawing from the
       embargo in force from an `AGREED` row is not an answer and has its own trigger
       (EP-09-013, EP-09-016).

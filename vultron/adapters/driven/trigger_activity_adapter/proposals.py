@@ -15,7 +15,7 @@
 
 """CaseProposal trigger activity methods for :class:`TriggerActivityAdapter`.
 
-The ``Create(as_CaseProposal)`` a report receiver sends to a case-actor service,
+The ``Create(CaseProposal)`` a report receiver sends to a case-actor service,
 the ``Accept``/``Reject`` the CASE_MANAGER answers with, and the prepared
 ``Create(VulnerabilityCase)`` it re-sends after a crash (CP-05, CP-09).
 Split from ``cases.py`` at the CS-18-001 module-size cap.
@@ -80,11 +80,11 @@ class _ProposalsMixin:
         offer_actor_id: str | None = None,
         proposer_case_roles: Sequence[CVDRole] = (),
     ) -> tuple[str, str]:
-        """Create and persist a ``Create(as_CaseProposal)`` activity.
+        """Create and persist a ``Create(CaseProposal)`` activity.
 
         Reads the ``as_VulnerabilityReport`` identified by ``report_id``,
         constructs an ``as_CaseProposal``, and persists
-        ``Create(as_CaseProposal)`` to the DataLayer.
+        ``Create(CaseProposal)`` to the DataLayer.
 
         ``offer_id``/``offer_actor_id`` are the report's offer provenance and are
         carried through when supplied (CP-01-007).  When this store holds the
@@ -211,7 +211,7 @@ class _ProposalsMixin:
         to: list[str] | None = None,
         summary: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Reject(as_CaseProposal)`` activity.
+        """Create and persist a ``Reject(CaseProposal)`` activity.
 
         Rebuilds the ``as_CaseProposal`` from the wire dict the inbound
         ``Create`` carried, so the Reject embeds the proposal inline exactly as
@@ -274,7 +274,7 @@ class _ProposalsMixin:
         to: list[str],
         result: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Accept(as_CaseProposal)`` activity.
+        """Create and persist an ``Accept(CaseProposal)`` activity.
 
         The CASE_MANAGER sends this to acknowledge that it will open (or has
         already opened) a case for the report receiver's proposal (CP-05-002).  The

@@ -158,6 +158,7 @@ class TestOwnershipTransferUseCases:
 
     @pytest.mark.spec("CM-21-002")
     @pytest.mark.spec("CM-21-011")
+    @pytest.mark.spec("CM-21-024")
     def test_accept_case_ownership_transfer_updates_attributed_to(
         self, make_payload
     ):
@@ -257,6 +258,7 @@ class TestOwnershipTransferUseCases:
     @pytest.mark.spec("CM-21-005")
     @pytest.mark.spec("CM-24-001")
     @pytest.mark.spec("CM-24-002")
+    @pytest.mark.spec("CM-21-028")
     def test_proposal_makes_one_offer_minted_by_the_case_manager(
         self, make_payload
     ):
@@ -299,6 +301,7 @@ class TestOwnershipTransferUseCases:
 
     @pytest.mark.spec("CM-21-005")
     @pytest.mark.spec("SYNC-09-002")
+    @pytest.mark.spec("CM-21-029")
     def test_the_offer_entry_snapshot_is_the_emitted_offer(self, make_payload):
         """The ledgered Offer is the one sent, recorded once it was queued."""
         case_id = "https://example.org/cases/case_ot_snapshot"
@@ -324,6 +327,7 @@ class TestOwnershipTransferUseCases:
         assert snapshot["to"] == [_COORDINATOR_ID]
 
     @pytest.mark.spec("CM-21-005")
+    @pytest.mark.spec("CM-21-027")
     def test_the_inner_offers_id_actor_and_to_are_ignored(self, make_payload):
         """The CASE_MANAGER validates the inner Offer and copies none of the
         sender's own fields: an inner id naming a stored object, an inner
@@ -385,6 +389,7 @@ class TestOwnershipTransferUseCases:
             ("proposer", "names the proposer"),
         ],
     )
+    @pytest.mark.spec("CM-21-026")
     def test_an_inner_offer_the_case_manager_cannot_make_is_refused(
         self, make_payload, label, reason
     ):
@@ -485,10 +490,11 @@ class TestOwnershipTransferUseCases:
 
     @pytest.mark.spec("CM-21-019")
     @pytest.mark.spec("HP-01-006")
+    @pytest.mark.spec("CM-21-044")
     def test_an_offer_of_the_case_sent_to_the_case_manager_is_refused(
         self, make_payload
     ):
-        """At the CASE_MANAGER no sender is admitted for ``Offer(Case)``:
+        """At the CASE_MANAGER no sender is admitted for ``Offer(VulnerabilityCase)``:
         the owner proposes, it does not offer, and the CASE_MANAGER sends
         itself no Offer (CM-21-019, ADR-0148)."""
         case_id = "https://example.org/cases/case_ot_offer_at_cm"
@@ -747,6 +753,7 @@ class TestOwnershipProposalOwnCopy:
 
     @pytest.mark.spec("HP-01-005")
     @pytest.mark.spec("CM-21-019")
+    @pytest.mark.spec("CM-21-045")
     def test_own_copy_is_refused_by_the_sender_guard(self, make_payload):
         case_id = "https://example.org/cases/case_ot_own_copy"
         dl, _ = _vendor_replica(case_id)
@@ -871,7 +878,10 @@ def _proposal(
     proposer: str = _VENDOR_ID,
     **extra: Any,
 ):
-    """The *proposer*'s Offer(Offer(Case)) to the CASE_MANAGER (ADR-0148)."""
+    """The *proposer*'s Offer(Offer(VulnerabilityCase)) to the CASE_MANAGER.
+
+    ADR-0148.
+    """
     if isinstance(transferee, str):
         transferee = as_Service(id_=transferee, name="Transferee")
     return propose_case_ownership_transfer_activity(
@@ -1076,6 +1086,7 @@ def test_second_offer_while_first_is_unanswered_is_refused(make_payload):
 
 
 @pytest.mark.spec("CM-21-014")
+@pytest.mark.spec("CM-21-035")
 def test_new_offer_after_the_first_is_answered_is_admitted(make_payload):
     """Once an Offer is answered, the case may be offered again to anyone."""
     dl, deliver, trigger_activity = _ownership_offer_harness(
@@ -1110,6 +1121,7 @@ def _redeliver_proposal(dl, make_payload, offer, trigger_activity):
 
 @pytest.mark.spec("HP-01-003")
 @pytest.mark.spec("CM-21-014")
+@pytest.mark.spec("CM-21-035")
 def test_redelivered_proposal_is_skipped_and_its_offer_not_made_again(
     make_payload,
 ):
@@ -1270,6 +1282,7 @@ def test_accept_after_the_offer_deadline_is_refused(make_payload):
 
 @pytest.mark.spec("CM-21-017")
 @pytest.mark.spec("CM-21-014")
+@pytest.mark.spec("CM-21-043")
 def test_new_offer_after_an_expired_one_ledgers_no_expiry(make_payload):
     """An Offer past its end_time is closed, so a new one is admitted, and
     nothing records the expiry (ADR-0152)."""
@@ -1802,6 +1815,7 @@ class TestOfferAtTheTransferee:
 
     @pytest.mark.spec("CM-21-019")
     @pytest.mark.spec("PCR-03-001")
+    @pytest.mark.spec("CM-21-046")
     def test_transferee_takes_the_case_managers_offer(self, make_payload):
         case_id = "https://example.org/cases/case_ot_transferee_cm"
         dl, case = _transferee_replica(case_id)
@@ -1820,6 +1834,7 @@ class TestOfferAtTheTransferee:
     @pytest.mark.spec("CM-21-019")
     @pytest.mark.spec("PCR-03-001")
     @pytest.mark.parametrize("sender", [_VENDOR_ID, _MALLORY_ID])
+    @pytest.mark.spec("CM-21-046")
     def test_transferee_refuses_an_offer_not_from_the_case_manager(
         self, make_payload, sender
     ):
@@ -1843,6 +1858,7 @@ class TestOfferAtTheTransferee:
 
     @pytest.mark.spec("CM-21-019")
     @pytest.mark.spec("PCR-03-001")
+    @pytest.mark.spec("CM-21-046")
     def test_transferee_holding_no_case_refuses_the_offer(self, make_payload):
         """With no replica there is no CASE_MANAGER to recognise."""
         case_id = "https://example.org/cases/case_ot_transferee_no_case"
@@ -1895,6 +1911,7 @@ class TestAcceptAtAReplica:
 
     @pytest.mark.spec("CM-21-011")
     @pytest.mark.spec("PCR-03-001")
+    @pytest.mark.spec("CM-21-031")
     def test_accept_from_the_transferee_is_refused_at_a_replica(
         self, make_payload
     ):
@@ -1971,6 +1988,7 @@ class TestRejectOfOwnershipTransfer:
 
     @pytest.mark.spec("CM-21-012")
     @pytest.mark.spec("CLP-02-012")
+    @pytest.mark.spec("CM-21-032")
     def test_transferee_reject_is_ledgered_and_broadcast(self, make_payload):
         """The decline commits an entry and announces it; ownership stays."""
         case_id = "https://example.org/cases/case_ot_reject"
@@ -2084,6 +2102,7 @@ class TestRejectOfOwnershipTransfer:
         assert _owner(dl, case_id) == _COORDINATOR_ID
 
     @pytest.mark.spec("CM-21-014")
+    @pytest.mark.spec("CM-21-035")
     def test_new_offer_after_a_reject_is_admitted_even_to_the_decliner(
         self, make_payload
     ):
@@ -2250,6 +2269,7 @@ class TestWithdrawalOfOwnershipTransfer:
     """CM-21-015: the ownership-transfer Undo at the CASE_MANAGER."""
 
     @pytest.mark.spec("CM-21-015")
+    @pytest.mark.spec("CM-21-038")
     def test_offerer_withdrawal_is_ledgered_and_broadcast(self, make_payload):
         """The withdrawal commits an entry and announces it; ownership stays."""
         case_id = "https://example.org/cases/case_ot_undo"
@@ -2311,6 +2331,7 @@ class TestWithdrawalOfOwnershipTransfer:
 
     @pytest.mark.spec("CM-21-015")
     @pytest.mark.spec("HP-01-006")
+    @pytest.mark.spec("CM-21-039")
     def test_withdrawal_from_a_non_offerer_changes_nothing(self, make_payload):
         """The transferee cannot withdraw the Offer made to it."""
         case_id = "https://example.org/cases/case_ot_undo_impostor"
@@ -2386,6 +2407,7 @@ class TestWithdrawalOfOwnershipTransfer:
         assert _semantic_types(dl) == []
 
     @pytest.mark.spec("CM-21-015")
+    @pytest.mark.spec("CM-21-037")
     def test_withdrawal_closes_the_offer_made_from_the_proposal(
         self, make_payload
     ):
@@ -2476,6 +2498,7 @@ class TestWithdrawalOfOwnershipTransfer:
 
     @pytest.mark.spec("CM-21-015")
     @pytest.mark.parametrize("answer", ["accept", "reject"])
+    @pytest.mark.spec("CM-21-039")
     def test_withdrawal_of_an_answered_offer_is_refused(
         self, make_payload, answer
     ):
@@ -2523,6 +2546,7 @@ class TestWithdrawalOfOwnershipTransfer:
         )
 
     @pytest.mark.spec("CM-21-015")
+    @pytest.mark.spec("CM-21-039")
     def test_second_withdrawal_of_a_withdrawn_offer_is_refused(
         self, make_payload
     ):
@@ -2572,6 +2596,7 @@ class TestWithdrawalOfOwnershipTransfer:
 
     @pytest.mark.spec("CM-21-014")
     @pytest.mark.spec("CM-21-015")
+    @pytest.mark.spec("CM-21-035")
     def test_new_offer_after_a_withdrawal_is_admitted(self, make_payload):
         """A withdrawal closes the Offer, so the case may be offered again."""
         case_id = "https://example.org/cases/case_ot_undo_reoffer"

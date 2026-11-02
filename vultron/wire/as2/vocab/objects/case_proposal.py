@@ -1,8 +1,8 @@
 """Wire-layer vocabulary type for the CaseProposal protocol.
 
 Provides :class:`as_CaseProposal`, the AS2 Object type used in the
-``Create(as_CaseProposal)`` / ``Accept(as_CaseProposal)`` /
-``Reject(as_CaseProposal)`` message flow defined in ADR-0023.
+``Create(CaseProposal)`` / ``Accept(CaseProposal)`` /
+``Reject(CaseProposal)`` message flow defined in ADR-0023.
 
 Spec: ``specs/case-proposal.yaml`` CP-01-001 through CP-01-006.
 """
@@ -52,9 +52,9 @@ class as_CaseProposal(as_VultronObject):
     A report receiver creates this object to request that a dedicated
     case-actor service initialise a new :class:`VulnerabilityCase`.
     The case-actor evaluates the proposal and responds with either
-    ``Accept(as_CaseProposal)`` followed by
+    ``Accept(CaseProposal)`` followed by
     ``Create(VulnerabilityCase)`` (happy path, CP-05-003) or
-    ``Reject(as_CaseProposal)`` (rejection path, CP-05-004).
+    ``Reject(CaseProposal)`` (rejection path, CP-05-004).
 
     All classes in ``vultron/wire/as2/vocab/objects/`` use the ``as_``
     prefix (ARCH-14-001); the bare name ``CaseProposal`` is reserved for
@@ -161,7 +161,8 @@ class as_CaseProposal(as_VultronObject):
         description="URI of the actor that sent the Offer named by offer_id.",
     )
     # CP-01-008: the Offer itself, carried whole.  ``offer_id``/``offer_actor_id``
-    # are its bare-reference twin; when both forms are present they MUST agree.
+    # are its bare-reference twin; when both forms are present they MUST agree
+    # (CP-01-020).
     # Typed on the base ``as_Offer``: the parser expands an inline Offer to the
     # class the wire registry holds for ``type: Offer``, which is the base.
     in_reply_to: as_Offer | None = Field(  # pyright: ignore[reportIncompatibleVariableOverride]
@@ -229,7 +230,7 @@ class as_CaseProposal(as_VultronObject):
         if self.offer_id is not None and offer.id_ != self.offer_id:
             raise ValueError(
                 f"as_CaseProposal offerId {self.offer_id!r} does not name the"
-                f" inline Offer {offer.id_!r} carried in inReplyTo (CP-01-008)"
+                f" inline Offer {offer.id_!r} carried in inReplyTo (CP-01-020)"
             )
         offer_actor = getattr(offer.actor, "id_", offer.actor)
         if (
@@ -240,7 +241,7 @@ class as_CaseProposal(as_VultronObject):
             raise ValueError(
                 f"as_CaseProposal offerActorId {self.offer_actor_id!r} does"
                 f" not name the inline Offer's actor {offer_actor!r}"
-                " (CP-01-008)"
+                " (CP-01-020)"
             )
         # The Offer must be the one that brought *this* report: otherwise the
         # case-actor would read another report's proposed terms (EP-04-009).

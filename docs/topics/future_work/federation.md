@@ -147,11 +147,11 @@ sequenceDiagram
     participant A as Reporter (instance A)
     participant B as Vendor (instance B)
     participant CM as CASE_MANAGER
-    A->>B: Offer(Report)
+    A->>B: Offer(VulnerabilityReport)
     Note over B: cold contact — no case exists
     B->>CM: provision case and CASE_MANAGER
-    B->>A: Accept(Offer(Report))
-    CM->>A: Create(Case)
+    B->>A: Accept(Offer(VulnerabilityReport))
+    CM->>A: Create(VulnerabilityCase)
     Note over A: case replica seeded
     CM->>A: Add(CaseParticipant)[target=VulnerabilityCase]
     A->>CM: case traffic from here on

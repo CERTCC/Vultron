@@ -254,7 +254,7 @@ class _OwnerDirectInvite:
 
     Under ADR-0109 the owner's container never emits as the CASE_MANAGER: the
     owner sends its own ``Offer(Actor)[target=VulnerabilityCase]`` and the CASE_MANAGER's
-    recommend-actor received tree emits the ``Invite`` (CM-17-007).  This
+    recommend-actor received tree emits the ``Invite`` (CM-17-018).  This
     harness runs both halves against two stores so a test can inspect either.
     """
 
@@ -339,8 +339,9 @@ class _OwnerDirectInvite:
 
 
 class TestSvcInviteActorToCaseUseCase:
-    """The owner-direct invite trigger (CM-17-007, CM-24-004, ADR-0109)."""
+    """The owner-direct invite trigger (CM-17-007, CM-24-010, ADR-0109)."""
 
+    @pytest.mark.spec("CM-17-017")
     @pytest.mark.spec("CM-17-007")
     def test_invite_sends_the_owners_own_offer_to_the_case_manager(self):
         """The owner's activity is an Offer from the owner, to the CASE_MANAGER."""
@@ -359,6 +360,7 @@ class TestSvcInviteActorToCaseUseCase:
         assert "cc" not in activity
 
     @pytest.mark.spec("CM-24-004", "CLP-10-027")
+    @pytest.mark.spec("CM-24-010")
     def test_invite_is_queued_in_the_owners_outbox_only(self):
         """The Offer leaves from the owner's outbox; nothing is queued as the
         CASE_MANAGER and nothing is committed by the owner."""
@@ -599,9 +601,10 @@ class TestInviteRolesAndEmbargoEnrichment:
         assert invite.roles == ["vendor"]
         assert wire["roles"] == ["vendor"]
 
+    @pytest.mark.spec("CM-11-048")
     @pytest.mark.spec("CM-11-019")
     def test_no_roles_requested_is_refused(self, make_payload):
-        """CM-11-019: no roles given → CASE_MANAGER refuses to emit the Invite.
+        """CM-11-048: no roles given → CASE_MANAGER refuses to emit the Invite.
 
         The owner sends its Offer with no roles; the CASE_MANAGER's
         EvaluateDefaultRolesNode returns FAILURE rather than defaulting to
@@ -647,6 +650,7 @@ class TestInviteRolesAndEmbargoEnrichment:
         assert wire.get("to") == [harness.invitee.id_]
         assert "cc" not in wire
 
+    @pytest.mark.spec("CM-17-013")
     @pytest.mark.spec("CM-17-002")
     def test_active_embargo_enriches_case_stub(self, make_payload):
         """The Invite stub carries activeEmbargo.endTime and emState=ACTIVE."""
@@ -665,6 +669,7 @@ class TestInviteRolesAndEmbargoEnrichment:
             "ACTIVE",
         )
 
+    @pytest.mark.spec("CM-17-013")
     @pytest.mark.spec("CM-17-002")
     def test_revise_stub_carries_the_embargo_in_force(self, make_payload):
         """In EM REVISE the stub carries the prior embargo and emState=REVISE.
@@ -759,9 +764,11 @@ class TestRolesThreadingIntegration:
         )
         assert CVDRole.VENDOR in participant.case_roles
 
+    @pytest.mark.spec("CM-11-050")
+    @pytest.mark.spec("CM-11-048")
     @pytest.mark.spec("CM-11-019")
     def test_no_roles_is_refused_not_defaulted(self, make_payload):
-        """CM-11-019: no roles → CASE_MANAGER refuses rather than defaulting to VENDOR.
+        """CM-11-048, CM-11-050: no roles → CASE_MANAGER refuses, no VENDOR default.
 
         The CASE_MANAGER must not substitute VENDOR when the inviter provides
         no roles. The full-round-trip fails at the CASE_MANAGER's receipt of
@@ -1503,7 +1510,7 @@ class TestSvcActorRecommendationAnswerUseCases:
 def _seed_managed_case(owner, dl, *peers, participant_ids=()):
     """A case whose roster names a separate CASE_MANAGER (CM-24-006).
 
-    The owner's trigger runs in the owner's own store only (CM-24-004,
+    The owner's trigger runs in the owner's own store only (CM-24-011,
     ADR-0109); the CASE_MANAGER's store is seeded with the case too, so the
     tests that deliver the owner's Offer to it have a replica to act on.
     Each of *peers*, and each of *participant_ids* (an actor this store
@@ -1580,7 +1587,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
     @pytest.mark.spec("CM-21-005")
     @pytest.mark.spec("CM-24-004")
     def test_offer_is_the_owners_proposal_to_the_case_manager(self):
-        """The trigger sends the owner's proposal, Offer(Offer(Case)), from
+        """The trigger sends the owner's proposal, Offer(Offer(VulnerabilityCase)), from
         the owner to the CASE_MANAGER, naming no one else as its author
         (ADR-0109, ADR-0148)."""
         owner, dl = _make_actor_dl("Vendor")
@@ -1755,6 +1762,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             )
 
     @pytest.mark.spec("CM-24-004", "CLP-10-027")
+    @pytest.mark.spec("CM-24-010")
     def test_offer_is_queued_in_the_owners_outbox_only(self):
         """The proposal is stored and queued in the owner's store; nothing is
         queued as the CASE_MANAGER and the owner commits no ledger entry."""
@@ -1855,6 +1863,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
     @pytest.mark.spec("CM-21-005")
     @pytest.mark.spec("CM-24-004")
     @pytest.mark.spec("CM-24-005")
+    @pytest.mark.spec("CM-24-010")
     def test_case_manager_makes_the_offer_the_owner_proposed(
         self, make_payload
     ):

@@ -414,7 +414,7 @@ def test_same_sender_answers_record_one_consent_in_either_order() -> None:
 )
 @pytest.mark.spec("SYNC-19-001")
 def test_note_sent_before_leave_is_kept_in_either_order() -> None:
-    """``Add(Note)`` then ``Leave(Case)`` keep the note in either order."""
+    """``Add(Note)`` then ``Leave(VulnerabilityCase)`` keep the note in either order."""
     kept = {}
     # One case per order; the note's id carries its case, so neither order's
     # note is a repeat of the other's, and each order checks its own note.

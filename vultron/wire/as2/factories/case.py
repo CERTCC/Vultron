@@ -316,7 +316,7 @@ def create_case_activity(
     case: as_VulnerabilityCase,
     **kwargs,
 ) -> as_Create:
-    """Build a Create(as_VulnerabilityCase).
+    """Build a Create(VulnerabilityCase).
 
     Args:
         case: The ``as_VulnerabilityCase`` being created.
@@ -382,10 +382,10 @@ def update_case_activity(
     case: as_VulnerabilityCase,
     **kwargs,
 ) -> as_Update:
-    """Build an Update(as_VulnerabilityCase).
+    """Build an Update(VulnerabilityCase).
 
     The CASE_MANAGER's ``update_case_owner`` ledger entry naming a new Case
-    Owner (CM-21-002, CLP-07-013); no received use case handles it
+    Owner (CM-21-024, CLP-07-013); no received use case handles it
     (ADR-0140).  ``context`` defaults to the case's URI (CLP-07-007).
 
     Args:
@@ -414,7 +414,7 @@ def rm_engage_case_activity(
     case: as_VulnerabilityCase | str,
     **kwargs,
 ) -> as_Join:
-    """Build a Join(as_VulnerabilityCase) — the RA message.
+    """Build a Join(VulnerabilityCase) — the RA message.
 
     Signals that the actor is now actively working on the case
     (``RM.ACCEPTED`` state).
@@ -444,7 +444,7 @@ def rm_defer_case_activity(
     case: as_VulnerabilityCase | str,
     **kwargs,
 ) -> as_Ignore:
-    """Build an Ignore(as_VulnerabilityCase) — the RD message.
+    """Build an Ignore(VulnerabilityCase) — the RD message.
 
     Signals that the actor is deferring work on the case
     (``RM.DEFERRED`` state).
@@ -474,7 +474,7 @@ def rm_close_case_activity(
     case: as_VulnerabilityCase | str,
     **kwargs,
 ) -> as_Leave:
-    """Build a Leave(as_VulnerabilityCase) — the RC message.
+    """Build a Leave(VulnerabilityCase) — the RC message.
 
     Signals permanent closure / departure from the case.
 
@@ -689,7 +689,7 @@ def propose_case_ownership_transfer_activity(
 
     The Case Owner sends it to the CASE_MANAGER, which makes the one
     ``Offer(VulnerabilityCase)`` the transferee answers (ADR-0148,
-    CM-21-005).  The inner Offer carries what the owner decides: the case,
+    CM-21-028).  The inner Offer carries what the owner decides: the case,
     by typed reference, as its object (ADR-0165), the transferee as its
     ``target`` and, when given, the deadline to answer as its ``end_time``
     (CM-21-016).  It is built with
@@ -1251,7 +1251,7 @@ def announce_vulnerability_case_activity(
     case: as_VulnerabilityCase,
     **kwargs,
 ) -> as_Announce:
-    """Build an Announce(as_VulnerabilityCase) — sent by the case owner.
+    """Build an Announce(VulnerabilityCase) — sent by the case owner.
 
     Sent after an ``Accept(Invite)`` is received and the invitee's
     embargo consent has been verified.  The full case object is sent
@@ -1285,7 +1285,7 @@ def create_case_proposal_activity(
     to: list[str],
     **kwargs,
 ) -> as_Create:
-    """Build a ``Create(as_CaseProposal)`` sent by the report receiver.
+    """Build a ``Create(CaseProposal)`` sent by the report receiver.
 
     The report receiver sends this to the case-actor service to initiate the
     case initialization protocol (CP-04-001).  The ``as_CaseProposal``
@@ -1342,11 +1342,11 @@ def accept_case_proposal_activity(
     to: list[str],
     **kwargs,
 ) -> as_Accept:
-    """Build an ``Accept(as_CaseProposal)`` sent by the case-actor service.
+    """Build an ``Accept(CaseProposal)`` sent by the case-actor service.
 
     The case-actor service sends this to acknowledge that it will create a
     ``as_VulnerabilityCase`` from the report receiver's proposal.  A separate
-    ``Create(as_VulnerabilityCase)`` follows (CP-05-003).
+    ``Create(VulnerabilityCase)`` follows (CP-05-003).
 
     Args:
         actor_id: URI of the case-actor service that is accepting the proposal.
@@ -1383,7 +1383,7 @@ def reject_case_proposal_activity(
     to: list[str],
     **kwargs,
 ) -> as_Reject:
-    """Build a ``Reject(as_CaseProposal)`` sent by the case-actor service.
+    """Build a ``Reject(CaseProposal)`` sent by the case-actor service.
 
     The case-actor service sends this when it declines the report receiver's proposal
     (CP-05-004).  The ``as_CaseProposal`` is embedded inline so the report receiver

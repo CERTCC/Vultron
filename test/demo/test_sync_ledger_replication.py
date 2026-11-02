@@ -333,7 +333,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
             for activity in peer_dl.list_objects("Reject")
         ]
         assert peer_reject_events, (
-            "Expected peer to emit Reject(as_CaseLedgerEntry)."
+            "Expected peer to emit Reject(CaseLedgerEntry)."
         )
         emitted_reject_event = peer_reject_events[-1]
         assert emitted_reject_event.actor_id == peer_actor_id
@@ -395,9 +395,9 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
 def test_sync_duplicate_delivery_idempotency(
     two_app_setup, monkeypatch
 ) -> None:
-    """Duplicate delivery of Announce(as_CaseLedgerEntry) must produce one replica.
+    """Duplicate delivery of Announce(CaseLedgerEntry) must produce one replica.
 
-    Delivers the same ``Announce(as_CaseLedgerEntry)`` twice to the peer actor
+    Delivers the same ``Announce(CaseLedgerEntry)`` twice to the peer actor
     and verifies the peer replica contains exactly one copy of the entry
     (SYNC-03-003: replication MUST be idempotent; repeated delivery MUST NOT
     produce duplicate entries).
@@ -443,7 +443,7 @@ def test_sync_duplicate_delivery_idempotency(
     case.actor_participant_index[peer_actor_id] = peer_participant.id_
 
     # Peer needs the case and participants in its DataLayer to process inbound
-    # Announce(as_CaseLedgerEntry) as a participant, not as the CaseActor.
+    # Announce(CaseLedgerEntry) as a participant, not as the CaseActor.
     peer_dl.save(case_actor_participant)
     peer_dl.save(peer_participant)
     peer_dl.save(case)
@@ -468,7 +468,7 @@ def test_sync_duplicate_delivery_idempotency(
         to=[peer_actor_id],
     )
 
-    # Deliver the same Announce(as_CaseLedgerEntry) twice.
+    # Deliver the same Announce(CaseLedgerEntry) twice.
     for _ in range(2):
         handle_inbox_item(
             actor_id=peer_actor_id,

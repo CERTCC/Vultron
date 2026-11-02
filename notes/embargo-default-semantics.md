@@ -95,7 +95,7 @@ to `EM.ACTIVE` with no `EP`/`EA` exchange (EP-04-001). The intermediate
   fails unless the profile's id is `case.attributed_to`.
 - **The policy travels with the proposal and is never kept.** The CASE_MANAGER
   cannot read the owner's store (PCR-01-003), so the owner's full profile is the
-  `actor` of `Create(as_CaseProposal)` (CP-01-010), or is fetched from the owner
+  `actor` of `Create(CaseProposal)` (CP-01-010), or is fetched from the owner
   for that proposal alone when the `actor` is its id (AKM-05-007). It reaches
   the tree as `owner_profile`, which `BTBridge` restores after the run, so one
   proposal's profile is never another's default. A profile with no policy means
@@ -130,7 +130,7 @@ The losing terms are a revision like any other and follow the relay in
 - **Relayed after initialization, in the same act.** `RelayCreationTimeRevisionNode`
   runs after `CommitNativeLedgerEntriesNode`, inside the creation's
   `ActTransaction`, because no modification may start before the creation
-  sequence completes (CM-14-007) and a failed relay must roll the creation back
+  sequence completes (CM-14-014) and a failed relay must roll the creation back
   (CLP-07-015). It queues the relayed Invite, commits it, and only then indexes
   it, so the index never names an Invite that was not emitted. It relays only
   when this execution's registration published `creation_time_revision_candidate`,
@@ -141,7 +141,7 @@ The losing terms are a revision like any other and follow the relay in
   (MSM-07-005), so the proposer's row, not the executing actor's, gains the
   revision (`creation_revision_parties`). A reporter that is the CASE_OWNER has
   nobody to invite: nothing is relayed. A missing reporter, a missing
-  CASE_OWNER, or a winner who is not an invitation recipient (CM-10-007) raises
+  CASE_OWNER, or a winner who is not an invitation recipient (CM-10-009) raises
   as the manager's internal error, never a REFUSED verdict (ADR-0095).
 - **A failed relay keeps nothing.** The whole creation rolls back, so the
   inbox's redelivery of the proposal creates the case, registers the revision

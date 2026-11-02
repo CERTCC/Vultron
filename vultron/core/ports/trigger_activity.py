@@ -175,7 +175,8 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         to: list[str] | None = None,
         content: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Read(Offer(Report))`` ack-report activity.
+        """Create and persist a ``Read(Offer(VulnerabilityReport))`` ack-report
+        activity.
 
         RK is addressed to the reporter, never to the CASE_MANAGER, and is
         never ledgered (RMB-08-005, RMB-08-007).  ``content`` carries the trigger's
@@ -295,11 +296,11 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         offer_actor_id: str | None = None,
         proposer_case_roles: Sequence[CVDRole] = (),
     ) -> tuple[str, str]:
-        """Create and persist a ``Create(as_CaseProposal)`` activity.
+        """Create and persist a ``Create(CaseProposal)`` activity.
 
         Builds an ``as_CaseProposal`` from the ``VulnerabilityReport``
         identified by ``report_id``, addressed to the case-actor service at
-        ``case_actor_id``, and persists ``Create(as_CaseProposal)`` to the
+        ``case_actor_id``, and persists ``Create(CaseProposal)`` to the
         DataLayer.
 
         ``offer_id`` and ``offer_actor_id`` carry the provenance of the report —
@@ -332,7 +333,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         to: list[str] | None = None,
         summary: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Reject(as_CaseProposal)`` activity.
+        """Create and persist a ``Reject(CaseProposal)`` activity.
 
         The case actor service sends this when it declines to open and manage a
         case for the proposal (CP-05-004).  *proposal* is the wire-serialised
@@ -356,7 +357,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         to: list[str],
         result: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Accept(as_CaseProposal)`` activity.
+        """Create and persist an ``Accept(CaseProposal)`` activity.
 
         The CASE_MANAGER sends this to acknowledge that it will open (or has
         already opened) a case for the proposal (CP-05-002).  *proposal* is the
@@ -402,7 +403,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         ``actor`` MUST be the CASE_MANAGER's ID (PCR-08-007); ``attributed_to``
         MAY carry the case owner's ID for attribution.  There is no ``cc``:
         the CASE_MANAGER commits the Invite in the tree that emits it and
-        never addresses a copy to itself (CM-17-006, ADR-0109).
+        never addresses a copy to itself (CM-17-015, ADR-0109).
         ``id_`` allows callers to supply a deterministic ID for idempotency.
         ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
         ``target`` may be a core ``VulnerabilityCase`` (the adapter projects it
@@ -430,7 +431,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         to: list[str] | None = None,
         id_: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist the full-case ``Invite(Actor)[target=Case]``.
+        """Create and persist the full-case ``Invite(Actor)[target=VulnerabilityCase]``.
 
         ``actor`` MUST be the CASE_MANAGER's ID.  The Invite references the
         case by ID and carries the CASE_MANAGER's ledger tail
@@ -639,7 +640,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         """``Update(VulnerabilityCase)`` (``update_case_owner``), the changed case.
 
         Records the case's new ``attributed_to`` after an ownership transfer
-        (CM-21-002).  *case* is the case as it will be stored: the entry
+        (CM-21-024).  *case* is the case as it will be stored: the entry
         commits before the change is saved (CLP-07-013).  *cause_id* names
         the act the change follows, as for
         :meth:`record_case_participant_updated`.
@@ -948,7 +949,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         ``activity_id`` is the Invite's id when the caller recorded it before
         the emission — the creation-time revision is indexed under its
         Invite's id at registration and relayed only after the initialization
-        sequence completes (EP-04-011, CM-14-007).  ``None`` mints a fresh id.
+        sequence completes (EP-04-011, CM-14-014).  ``None`` mints a fresh id.
         ``rsvp_deadline`` becomes the Invite's ``endTime`` (CM-28-012,
         ASK-03-004); ``published`` is the instant it was measured from and
         ``min_rsvp_window`` the configured floor the factory checks it against
@@ -1036,7 +1037,8 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Leave(EmbargoEvent)[context=case]`` activity.
+        """Create and persist a ``Leave(EmbargoEvent)[context=VulnerabilityCase]``
+        activity.
 
         A signatory's withdrawal from the embargo in force (MSM-07-010,
         ADR-0122), distinct from :meth:`reject_embargo`, which answers an
@@ -1133,7 +1135,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership-transfer activity.
 
         The one Offer of a transfer, which the CASE_MANAGER makes from the
-        owner's proposal (ADR-0148, CM-21-005), with *attributed_to* the
+        owner's proposal (ADR-0148, CM-21-028), with *attributed_to* the
         owner.  *end_time*, when given, is the Offer's activity-level
         ``end_time``: the deadline to answer it (CM-21-016).  *id_*, when
         given, is the Offer's id, which the CASE_MANAGER derives from the

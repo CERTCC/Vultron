@@ -859,7 +859,7 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         :func:`most_recent_status`. When both are absent the status sorts to
         the bottom (``datetime.min``); among equals the last appended wins.
         ``id_`` MUST NOT be used as a tiebreaker because its scheme is an
-        implementation artefact, not a time proxy (CM-29-001).
+        implementation artefact, not a time proxy (CM-29-002).
 
         Raises:
             ValueError: When no materialized :class:`CaseStatus` exists.
