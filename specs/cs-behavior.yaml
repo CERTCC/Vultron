@@ -1160,9 +1160,9 @@ groups:
       CE signals a protocol error in the CS process. Acknowledging with CK and
       following up with GI allows the sender to explain the error and enables
       recovery. CE does not trigger a CS state transition.
-    verification: >-
-      Integration tests in `test/demo/` confirm that receiving CE enqueues CK and GI
-      without modifying any CS state.
+    note: >-
+      Not verified today: CE has no receive path in this codebase (MSM-03-007), so
+      no test can show a received CE enqueues CK and GI.
     testable: true
     preconditions:
     - rm_state:
