@@ -880,7 +880,7 @@ def invitee_joins_the_case(
 def vendor_rejects_invite(state: StoryState) -> None:
     """The Vendor rejects the Invite and never becomes an active participant.
 
-    The Vendor sends ``Reject(Invite(Actor, VulnerabilityCaseStub))`` and the
+    The Vendor sends ``Reject(Invite(Actor)[target=VulnerabilityCaseStub])`` and the
     CaseActor records a ``reject_invite_actor_to_case`` entry.  At invite-send
     time ``CreateInertInviteeParticipantNode`` already seated the Vendor as an
     inert participant (``joined=False``, RM ``RECEIVED``; ADR-0114,

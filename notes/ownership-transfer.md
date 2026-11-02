@@ -63,8 +63,8 @@ Case Owner calls trigger: offer-case-ownership-transfer
   → SvcOfferCaseOwnershipTransferUseCase._prepare() sets:
       self._actor_id = owner_id               ← the owner sends its own proposal
   → EmitProposeCaseOwnershipTransferNode
-      constructs: Offer(Offer(VulnerabilityCase, target=Actor(transferee),
-                              end_time?), context=case_id)
+      constructs: Offer(Offer(VulnerabilityCase)), context=case_id,
+                  inner target=Actor(transferee), inner end_time?
       addressed:  to=[case_actor_id]         ← MUST (CM-21-005)
       queued in:  the owner's own outbox     ← CM-24-004, ADR-0109
 

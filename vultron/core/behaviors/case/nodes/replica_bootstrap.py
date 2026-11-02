@@ -60,6 +60,7 @@ from vultron.core.services.case_replica_seeding import (
     find_pending_report_case_link,
     is_bootstrap_accepted,
 )
+from vultron.core.services.genesis_reject_limit import forget_genesis_rejects
 from vultron.errors import VultronAlreadyExistsError
 
 BootstrapRouteName = Literal["trusted", "redelivery"]
@@ -238,7 +239,12 @@ class SeedCaseReplicaNode(DataLayerActionWithPorts, StateWriteCapable):
             )
             return Status.SUCCESS
         try:
-            self.datalayer.create(self.case_obj)
+            # The seed ends this replica's wait for the case, so the record
+            # of its last genesis Reject goes with it (SYNC-15-023,
+            # ADR-0146).
+            with self.datalayer.transaction():
+                self.datalayer.create(self.case_obj)
+                forget_genesis_rejects(self.datalayer, self.case_id)
         except VultronAlreadyExistsError:
             self.logger.info(
                 "%s: case '%s' persisted concurrently — idempotent",

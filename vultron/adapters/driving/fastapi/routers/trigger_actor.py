@@ -412,8 +412,9 @@ def trigger_reject_actor_recommendation(
     status_code=status.HTTP_202_ACCEPTED,
     summary="Offer a CVDRole to an Actor in a case (ADR-0039).",
     description=(
-        "Emits Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase) "
-        "from the requesting actor.  This is the canonical role-delegation wire "
+        "Emits Offer(CaseParticipantRole)[context=VulnerabilityCase], whose "
+        "``target`` is the actor offered the role, from the requesting "
+        "actor.  This is the canonical role-delegation wire "
         "format introduced by ADR-0039, replacing the deprecated "
         "offer-case-manager-role endpoint.  The Offer is addressed to the "
         "case's CASE_MANAGER, which forwards it to the target.  The ``role`` "

@@ -15,7 +15,7 @@
 
 ``activate_embargo`` changes the register's ``ACTIVE`` entry rather than a
 consent row — activation is the case owner's
-``Accept(EmbargoEvent, target=Case)`` (the creation-time accept is
+``Accept(EmbargoEvent)[target=VulnerabilityCase]`` (the creation-time accept is
 ``initialize_creation_embargo`` in ``creation.py``, one write per
 EP-04-002).  Termination is handled by :func:`decide_termination` (the
 decide half) plus the one apply function
@@ -174,7 +174,7 @@ class _ActivationOperationsMixin(_PecActivationMixin):
     ) -> EmbargoLifecycleResult:
         """Apply the case owner's activation of a proposed embargo.
 
-        ``Accept(EmbargoEvent, target=Case)`` (ADR-0122): ``ACTIVATE``
+        ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122): ``ACTIVATE``
         *embargo_id*'s register entry and ``SUPERSEDE`` any ``ACTIVE`` one in
         the same step, so EM derives ``ACTIVE``, or ``REVISE`` while another
         proposal stays open as a revision (ADR-0130).  In ``STRICT`` mode the entry

@@ -482,7 +482,7 @@ def test_stub_invite_accept_is_followed_by_full_case_invite(
     )
 
     assert _full_case_invites_to(joining_case), (
-        "no Invite(Actor, VulnerabilityCase) was sent to the participant"
+        "no Invite(Actor)[target=VulnerabilityCase] was sent to the participant"
     )
 
 
@@ -737,7 +737,7 @@ def _advance_invitee_to(joining: _JoiningCase, state: RM) -> None:
     joining.dl.save(participant)
 
 
-@pytest.mark.spec("CM-11-004")
+@pytest.mark.spec("CM-11-004", "PCR-08-012")
 def test_joined_participant_is_not_accepted_until_it_sends_join(
     joining_case,
 ) -> None:

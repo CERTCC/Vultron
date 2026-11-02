@@ -29,13 +29,13 @@ sequenceDiagram
     participant CM as CASE_MANAGER
     participant P as Active participants
 
-    I->>CM: Accept(Invite(Actor, VulnerabilityCaseStub))
+    I->>CM: Accept(Invite(Actor)[target=VulnerabilityCaseStub])
     CM->>CM: Commit ledger entry for the acceptance
     CM->>P: Announce(CaseLedgerEntry)
     CM->>CM: Record effect: RM stays Received, embargo consent AGREED
     CM->>I: Announce(VulnerabilityCase) — full case content
     CM->>I: Prior ledger entries, oldest first
-    CM->>I: Invite(Actor, VulnerabilityCase) — full-case Invite
+    CM->>I: Invite(Actor)[target=VulnerabilityCase] — full-case Invite
 ```
 
 On receiving `Accept(Invite)`, the CASE_MANAGER performs these four steps in

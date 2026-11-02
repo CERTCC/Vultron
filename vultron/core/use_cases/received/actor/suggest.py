@@ -37,7 +37,8 @@ logger = logging.getLogger(__name__)
 
 
 class OfferActorToCaseReceivedUseCase:
-    """The CASE_MANAGER received Offer(Actor, Case) from a recommending participant.
+    """The CASE_MANAGER received Offer(Actor)[target=VulnerabilityCase] from a
+    recommending participant.
 
     Delegates to :func:`create_recommend_actor_to_case_received_tree` via
     BTBridge to commit the ledger entry and DM Offer(CaseParticipant) to the
@@ -84,7 +85,8 @@ class OfferActorToCaseReceivedUseCase:
         activity_id = request.activity_id
         recommender_id = request.actor_id
         case_id = request.target_id
-        # Offer(Actor, Case): object_ is an as_Actor; object_id is the actor URI directly.
+        # Offer(Actor)[target=VulnerabilityCase]: object_ is an as_Actor; object_id is
+        # the actor URI directly.
         # It is looked up and stored as the invitee, so it is normalised
         # where it is extracted (OID-01-006).
         recommended_id = (
@@ -100,7 +102,8 @@ class OfferActorToCaseReceivedUseCase:
                 activity_id,
             )
             return HandlerResult.refused(
-                "Offer(Actor, Case) is missing its recommended actor or case"
+                "Offer(Actor)[target=VulnerabilityCase] is missing its"
+                " recommended actor or case"
             )
 
         local_actor_id = resolve_receiving_actor_id(

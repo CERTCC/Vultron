@@ -90,12 +90,15 @@ class LedgerSuffixSend(NamedTuple):
     because it already held them for the peer (SYNC-15-012).  ``held_back``
     is the error for the entry the send stopped at because its hash did not
     verify, or ``None`` when every entry in range was checked and offered to
-    the port (SYNC-03-009).
+    the port (SYNC-03-009).  ``through_index`` is the highest ``log_index``
+    the send queued or found already pending, so on its way to the peer
+    either way, or ``None`` when it offered none (SYNC-15-022).
     """
 
     sent: int
     already_pending: int
     held_back: VultronUnverifiedLedgerEntryError | None = None
+    through_index: int | None = None
 
 
 def send_ledger_suffix(
@@ -124,6 +127,7 @@ def send_ledger_suffix(
     """
     sent = 0
     skipped = 0
+    through: int | None = None
     for log_entry in entries:
         if log_entry.log_index <= after_index:
             continue
@@ -144,12 +148,15 @@ def send_ledger_suffix(
                 sent,
                 exc,
             )
-            return LedgerSuffixSend(sent, skipped, held_back=exc)
+            return LedgerSuffixSend(
+                sent, skipped, held_back=exc, through_index=through
+            )
         if queued:
             sent += 1
         else:
             skipped += 1
-    return LedgerSuffixSend(sent, skipped)
+        through = log_entry.log_index
+    return LedgerSuffixSend(sent, skipped, through_index=through)
 
 
 def embargo_paused_from_index(
@@ -337,7 +344,7 @@ def backfill_admitted_peers(
             continue
         if entries is None:
             entries = sorted_case_ledger_entries(datalayer, case.id_)
-        sent, skipped, held_back = send_ledger_suffix(
+        sent, skipped, held_back, _ = send_ledger_suffix(
             sync_port,
             entries,
             after_index=paused_from - 1,

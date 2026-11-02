@@ -15,7 +15,8 @@
 
 """Reading and stamping the lifetime of a stub Invite (CM-11-014..016).
 
-A stub ``Invite(Actor, CaseStub)`` is an ask with a deadline (ASK-03-004).  The
+A stub ``Invite(Actor)[target=VulnerabilityCaseStub]`` is an ask with a deadline
+(ASK-03-004).  The
 CASE_MANAGER stamps ``Invite.end_time`` the way it stamps an embargo Invite's
 (CM-28-012, :func:`~vultron.core.behaviors.embargo.rsvp_stamp.stamp_rsvp_deadline`),
 and every question about the Invite's life is answered from the CASE_MANAGER's

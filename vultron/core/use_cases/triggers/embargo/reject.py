@@ -17,7 +17,7 @@
 
 A participant's rejection is ``Reject(Invite(EmbargoEvent))``, its own
 consent.  The case owner's rejection is its decision for the case,
-``Reject(EmbargoEvent, target=Case)``, which rejects the proposal and writes
+``Reject(EmbargoEvent)[target=VulnerabilityCase]``, which rejects the proposal and writes
 no consent (ADR-0122).  A CASE_MANAGER that is not the owner builds no
 ``Reject``: a CASE_MANAGER-sent ``Reject(Invite(EmbargoEvent))`` is its
 abandonment of the proposal (EMB-16-001), so it records its own consent as

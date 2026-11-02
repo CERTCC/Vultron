@@ -117,7 +117,7 @@ def _owner_accept(dl: SqliteDataLayer, request: AcceptEmbargoTriggerRequest):
 def test_accept_embargo_activates_the_proposed_embargo(
     owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """The owner-manager's accept is Accept(EmbargoEvent, target=Case).
+    """The owner-manager's accept is Accept(EmbargoEvent)[target=VulnerabilityCase].
 
     PROPOSED → ACTIVE, the owner's row becomes ACCEPTED, and the decision is
     committed as the owner's activation (ADR-0122), never as a consent
@@ -165,7 +165,7 @@ def test_non_manager_owner_accept_asks_the_manager_to_activate(
 ) -> None:
     """An owner that is not the CASE_MANAGER sends its activation to it.
 
-    The queued activity is Accept(EmbargoEvent, target=Case), recorded as a
+    The queued activity is Accept(EmbargoEvent)[target=VulnerabilityCase], recorded as a
     pending ``activate_embargo_on_case`` assertion; the owner's replica
     writes no EM state and no consent until the manager's commit arrives.
     """

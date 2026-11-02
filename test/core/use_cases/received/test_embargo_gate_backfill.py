@@ -150,7 +150,7 @@ class _GateScenario:
 
         The case is in REVISE with the revision proposed, and *actor_id*'s
         participant lists the revision, so the CASE_MANAGER's receipt of the
-        owner's ``Accept(EmbargoEvent, target=Case)`` admits it (CM-10-004).
+        owner's ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` admits it (CM-10-004).
         The revision ends sooner than the active terms, so the signatories
         (AGREED rows for the active terms) carry over by containment and stay
         admitted (EP-05-001).

@@ -170,6 +170,7 @@ nav:
       - Wiring a Capability: 'howto/wire_capability.md'
       - Trigger API: 'reference/trigger-api.md'
       - Case Model Fields: 'reference/case_model_fields.md'
+      - Node Configuration: 'reference/configuration.md'
     - Implementation Requirements:
       - Architecture: 'reference/specs/architecture.md'
     - User Stories: 'reference/user_stories/index.md'

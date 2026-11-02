@@ -120,7 +120,7 @@ class _LedgerRecordsMixin:
         offer_id: str | None = None,
         offer_actor_id: str | None = None,
     ) -> tuple[str, str]:
-        """Build and seal ``Add(VulnerabilityReport, target=case)``."""
+        """Build and seal ``Add(VulnerabilityReport)[target=VulnerabilityCase]``."""
         report = _to_wire(self._dl.read(report_id), as_VulnerabilityReport)
         activity = add_report_to_case_activity(
             report=report,
@@ -142,7 +142,7 @@ class _LedgerRecordsMixin:
         case_id: str,
         actor: str,
     ) -> tuple[str, str]:
-        """Build and seal ``Add(ParticipantStatus, target=participant)``."""
+        """Build and seal ``Add(ParticipantStatus)[target=CaseParticipant]``."""
         activity = add_status_to_participant_activity(
             status=status,
             target=participant,
@@ -160,7 +160,7 @@ class _LedgerRecordsMixin:
         case_id: str,
         actor: str,
     ) -> tuple[str, str]:
-        """Build and seal ``Add(CaseStatus, target=case)``."""
+        """Build and seal ``Add(CaseStatus)[target=VulnerabilityCase]``."""
         activity = add_status_to_case_activity(
             status=status,
             target=case_id,

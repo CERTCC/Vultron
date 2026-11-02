@@ -841,7 +841,8 @@ groups:
       Every change the CASE_MANAGER makes to the case file MUST be committed as its own
       `CaseLedgerEntry`, and a change with no committed entry MUST NOT be made. The
       act's entry comes first. When the act's own activity states a change, such as
-      `Add(Note, target=Case)` carrying the note or an invitee's `Accept` of the stub
+      `Add(Note)[target=VulnerabilityCase]` carrying the note or an invitee's `Accept`
+      of the stub
       Invite marking its own consent and joining, that entry is the change's entry, and
       applying it writes only what the activity states. Each other change the act causes
       MUST follow as its own CASE_MANAGER-authored entry, in the order the CASE_MANAGER
@@ -883,6 +884,10 @@ groups:
     - ADR-0152
     stories:
     - story_2022_045
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5218.
+    - compound_statement
   - id: CLP-07-014
     priority: MUST_NOT
     kind: protocol

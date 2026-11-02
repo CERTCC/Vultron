@@ -266,7 +266,7 @@ Admission is caught at two points:
   *before* its effect admits anyone (CLP-10-006), so
   `BackfillAdmittedParticipantsNode` (`embargo_admission_backfill_nodes()`) runs
   after the effect: accepted Invite, `Remove(EmbargoEvent)` teardown, an honored
-  late Accept (EMB-17-001), and the owner's `Accept(EmbargoEvent, target=Case)`
+  late Accept (EMB-17-001), and the owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]`
   activating a revision a paused participant already accepted.
 
 An admitted peer's own Reject clears the pause too: its replay resends everything
@@ -478,8 +478,9 @@ case seed first (CP-09-009, CM-17-009), so this is recovery, not the steady stat
 
 - `ReconstructChainTailNode` writes sentinels (`tail_hash=""`, `tail_index=-1`)
   before FAILURE, and the `ReconstructOrRejectOnMissingCase` Selector in
-  `announce_tree.py` falls back to `SendRejectLogEntryNode`, so a Reject with
-  `last_accepted_hash=""` ("replay from genesis") goes out (SYNC-15-001/002).
+  `announce_tree.py` falls back to `SendGenesisRejectOnMissingCaseNode`, so a
+  Reject with `last_accepted_hash=""` ("replay from genesis") goes out
+  (SYNC-15-001/002).
   Without it the CASE_MANAGER never learns of the failure.
 - **Ask once per wait, not once per held entry** (SYNC-15-016/017, ADR-0168). One
   genesis Reject asks for the case and the whole ledger, and the held entries
@@ -487,13 +488,16 @@ case seed first (CP-09-009, CM-17-009), so this is recovery, not the steady stat
   on a loaded host they delayed unrelated messages by about 20 s (#5552). The
   participant records when it last asked about the case (SYNC-15-021), deletes
   that record on seed (SYNC-15-023), and asks again only for an early entry after
-  the interval, which is the replay ceiling (SYNC-15-020). Recovery after a lost
+  the interval, which is the replay ceiling (SYNC-15-020): the
+  `GenesisRejectRecord` read by `SendGenesisRejectOnMissingCaseNode` and deleted
+  by both seed nodes. Recovery after a lost
   case copy waits for such an entry: replayed entries inside the interval are
   withheld, so no timer re-asks on a quiet case (ADR-0168).
 - **A re-ask is a new activity.** The entry-keyed Reject id repeats for a
   replayed copy of an entry already rejected, and the CASE_MANAGER drops a known
   id as a duplicate (ID-02-001), so a request after the interval must not reuse
-  an earlier Reject's id (SYNC-15-017).
+  an earlier Reject's id (SYNC-15-017). The genesis Reject passes `asked_at` to
+  `send_reject_log_entry`, which joins the derived id's key.
 
 ### Pre-Genesis Buffering and Drain on Case Seed (SYNC-15-004/005)
 
@@ -502,7 +506,7 @@ own hold, in the same holding area (ADR-0059):
 
 - `BufferPreGenesisEntryNode` (`sync/nodes/receive.py`) is the first child of the
   `ReconstructOrRejectOnMissingCase` fallback, under `FailureIsSuccess` so the
-  genesis Reject still fires. It applies no forward-gap check.
+  genesis Reject limit still runs. It applies no forward-gap check.
 - Seeding the case is enough to anchor the chain, because the genesis hash comes
   from the case object alone (CLP-08). The `Announce(VulnerabilityCase)` tree ends
   in the same `ReplayHeldSuccessorNode` the announce path uses, which finds the

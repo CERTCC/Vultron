@@ -18,7 +18,8 @@
 Trigger trees provided here include:
 
 - ``suggest_actor_to_case_trigger_bt`` — SenderSideBT wrapper for
-  Offer(Actor, Case) routed through the Case Manager (PCR-08-001).  The Case
+  Offer(Actor)[target=VulnerabilityCase] routed through the Case Manager (PCR-08-001).
+  The Case
   Owner's direct invite uses it too: the owner asks the CASE_MANAGER to
   invite, and the CASE_MANAGER emits the Invite from its own received tree
   (CM-17-007, ADR-0109).  No trigger tree emits an Invite.
@@ -69,7 +70,7 @@ def suggest_actor_to_case_trigger_bt(
 ) -> py_trees.behaviour.Behaviour:
     """Return the trigger-side BT for the suggest-actor workflow.
 
-    Routes Offer(Actor, Case) through the Case Manager via
+    Routes Offer(Actor)[target=VulnerabilityCase] through the Case Manager via
     :func:`~vultron.core.behaviors.sender.send_tree.sender_side_bt`
     (PCR-08-001).
 

@@ -142,18 +142,20 @@ ADR-0121).
 
 ```text
 Case Owner triggers SvcInviteActorToCaseUseCase
-  → Case Owner sends its own Offer(Actor, Case, suggestedRoles)
+  → Case Owner sends its own Offer(Actor)[target=VulnerabilityCase],
+    carrying the suggested roles
     → CASE_MANAGER's inbox (CM-17-007, ADR-0109)
   → CASE_MANAGER's recommend-actor tree takes the owner-direct branch, since
     the recommender holds CVDRole.CASE_OWNER (it does not forward the Offer)
   → CASE_MANAGER creates the invitee's CaseParticipant (inert: RM.RECEIVED,
     VF v for a vendor, consent INVITED if an embargo is active) and commits
     the creation to the ledger (CM-11-006)
-  → CASE_MANAGER sends Invite(Actor, VulnerabilityCaseStub,
-    actor=case_actor_id, attributedTo=case_owner_id), commits it in the
+  → CASE_MANAGER sends Invite(Actor)[target=VulnerabilityCaseStub]
+    (sent by case_actor_id, attributedTo case_owner_id), commits it in the
     emitting tree, no cc: (CM-17-006) → invitee's inbox
 
-Invitee sends Accept(Invite(stub), actor=invitee_id, to=[case_actor_id])
+Invitee sends Accept(Invite(Actor)[target=VulnerabilityCaseStub])
+  (sent by invitee_id, addressed to case_actor_id)
   → CASE_MANAGER's inbox (NOT the case owner's inbox)
 
 AcceptInviteActorToCaseReceivedUseCase, at every receiver of a copy:
@@ -165,7 +167,7 @@ AcceptInviteActorToCaseReceivedUseCase, at every receiver of a copy:
      (CM-11-001)
   4. Emits Announce(VulnerabilityCase) to the participant and replays the
      prior ledger to it (CM-11-008)
-  5. Queues the full-case Invite(Actor, VulnerabilityCase) after the last
+  5. Queues the full-case Invite(Actor)[target=VulnerabilityCase] after the last
      replayed entry, carrying its ledger tail position (CM-11-010)
 
 Participant replies to the full-case Invite, carrying its own ledger position:
@@ -222,7 +224,8 @@ each answer; the owner's answer also decides the embargo.
 ```text
 Participant P sends Invite(EmbargoEvent B) → CASE_MANAGER
   CASE_MANAGER: EM NONE → PROPOSED (or ACTIVE → REVISE), commit → Announce to all
-  CASE_MANAGER: Invite(B, end_time) → each participant ≠ P, commit → Announce to all
+  CASE_MANAGER: Invite(B), end_time set → each participant ≠ P,
+    commit → Announce to all
 Each participant Q answers Accept/Reject(Invite(B))     → CASE_MANAGER
   CASE_MANAGER: record Q's consent, commit               → Announce to all
 Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
@@ -273,8 +276,8 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
 | `undo_invite_to_embargo_on_case` (the CASE_MANAGER's `Undo` of an Invite it sent) | `EmbargoInviteWithdrawal` | copies the `CANCEL` step of the proposal; in place after the abandonment's first entry (EMB-16-001) |
 | `withdraw_from_embargo_on_case` (`Leave(EmbargoEvent)`) | `EmbargoWithdrawal` | stores the embargo if absent; writes no row: each row it declines follows as its own `update_embargo_consent` (MSM-07-010) |
 | `create_embargo_consent` / `update_embargo_consent` | `EmbargoConsent` | copies the row the CASE_MANAGER changed, an invitation expiry (`TIMED_OUT`, CM-28-014) and the CASE_MANAGER's own consent change (MSM-07-017) included; a no-op when the seed is past it, else refuses it and holds its Announce |
-| `activate_embargo_on_case` (owner's `Accept(EmbargoEvent, target=Case)`) | `EmbargoActivation` | copies the `ACTIVATE` step (B `ACTIVE`, A `SUPERSEDED`) and the owner's `AGREED` row; each `CARRY_OVER` row follows as its own `update_embargo_consent` |
-| `reject_embargo_proposal_on_case` (owner's `Reject(EmbargoEvent, target=Case)`) | `EmbargoProposalRejection` | copies the `REJECT` step: B `REJECTED`, EM back to A (or `NONE`) once no proposal is open; no consent. After disclosure the CASE_MANAGER's teardown entry follows in the same act and terminates A (EMB-04-002, MSM-07-009); the replica copies both and decides nothing |
+| `activate_embargo_on_case` (owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]`) | `EmbargoActivation` | copies the `ACTIVATE` step (B `ACTIVE`, A `SUPERSEDED`) and the owner's `AGREED` row; each `CARRY_OVER` row follows as its own `update_embargo_consent` |
+| `reject_embargo_proposal_on_case` (owner's `Reject(EmbargoEvent)[target=VulnerabilityCase]`) | `EmbargoProposalRejection` | copies the `REJECT` step: B `REJECTED`, EM back to A (or `NONE`) once no proposal is open; no consent. After disclosure the CASE_MANAGER's teardown entry follows in the same act and terminates A (EMB-04-002, MSM-07-009); the replica copies both and decides nothing |
 | `remove_embargo_event_from_case` | `EmbargoTeardown` | copies the `TERMINATE` step for the embargo the entry names, with the `CANCEL` of every open proposal (EP-08-004); writes no row (MSM-07-006); an entry naming an embargo not in force here changes nothing |
 
 - A proposal and a relay share one semantic type; `is_relayed_embargo_invite()` reads a
@@ -313,7 +316,7 @@ CM-24-002), queued in the CASE_MANAGER's outbox (CM-24-004).
   gate makes the CASE_MANAGER.
 - **The delegated emit runs where the CASE_MANAGER is hosted** (ADR-0109). A trigger
   sends the requester's *own* activity to the CASE_MANAGER (the owner's
-  `Offer(Actor, Case)` for the invite, CM-17-007; the owner's `Offer(VulnerabilityCase)`
+  `Offer(Actor)[target=VulnerabilityCase]` for the invite, CM-17-007; the owner's `Offer(VulnerabilityCase)`
   for an ownership transfer, CM-21-005), and the CASE_MANAGER's received tree emits and
   commits. No trigger executes a tree as the CASE_MANAGER: `BTBridge` raises for an
   executing actor this container does not host (BT-05-005).

@@ -77,7 +77,7 @@ def _adoption_gate_blocked(tree: py_trees.behaviour.Behaviour) -> bool:
 
 
 class AddCaseStatusToCaseReceivedUseCase:
-    """Process a received ``Add(CaseStatus, VulnerabilityCase)`` (CP, CX, CA).
+    """Process a received ``Add(CaseStatus)[target=VulnerabilityCase]`` (CP, CX, CA).
 
     ``Add(CaseStatus)`` is the CASE_MANAGER's record of the case status it
     adopted, which it alone emits (RSH-04-001).  A receiver admits it only from
@@ -171,7 +171,7 @@ class AddCaseStatusToCaseReceivedUseCase:
 
 
 class AddParticipantStatusToParticipantReceivedUseCase:
-    """Process a received Add(ParticipantStatus, CaseParticipant) message.
+    """Process a received Add(ParticipantStatus)[target=CaseParticipant] message.
 
     Delegates DEMOMA-07-003 steps to the ``AddParticipantStatusBT``
     behavior tree:

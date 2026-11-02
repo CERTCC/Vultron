@@ -97,7 +97,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Add(Note, target=Case)`` activity.
+        """Create and persist an ``Add(Note)[target=VulnerabilityCase]`` activity.
 
         The ``Add`` carries the stored note *note_id* inline as its
         ``object`` (VAM-01-010).  The id is derived from *actor* and the
@@ -246,7 +246,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         object_id: str,
         case_id: str,
     ) -> MessageSemantics:
-        """Return what a receiver would read ``Add(object, Case)`` as.
+        """Return what a receiver would read ``Add(object)[target=VulnerabilityCase]`` as.
 
         Classifies the ``Add`` that :meth:`add_object_to_case` would build
         for the stored object against the receive-side patterns, without
@@ -274,7 +274,8 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         case_id: str,
         to: list[str],
     ) -> tuple[str, str]:
-        """Create and persist an ``Add(object, Case)`` activity addressed to *to*.
+        """Create and persist an ``Add(object)[target=VulnerabilityCase]`` activity
+        addressed to *to*.
 
         *to* is the CASE_MANAGER alone: the ``Add`` is a participant asking
         the case to take the object (PCR-08-005).
@@ -396,7 +397,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         published: datetime | None = None,
         in_reply_to: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(Actor, CaseStub)`` activity.
+        """Create and persist an ``Invite(Actor)[target=VulnerabilityCaseStub]`` activity.
 
         ``actor`` MUST be the CASE_MANAGER's ID (PCR-08-007); ``attributed_to``
         MAY carry the case owner's ID for attribution.  There is no ``cc``:
@@ -571,7 +572,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         offer_id: str | None = None,
         offer_actor_id: str | None = None,
     ) -> tuple[str, str]:
-        """``Add(VulnerabilityReport, target=case)`` (``add_report_to_case``).
+        """``Add(VulnerabilityReport)[target=VulnerabilityCase]`` (``add_report_to_case``).
 
         The stored report is carried inline.  ``offer_id`` and
         ``offer_actor_id``, when given, are the report's Offer provenance
@@ -586,7 +587,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         case_id: str,
         actor: str,
     ) -> tuple[str, str]:
-        """``Add(ParticipantStatus, target=participant)`` (``add_participant_status_to_participant``).
+        """``Add(ParticipantStatus)[target=CaseParticipant]`` (``add_participant_status_to_participant``).
 
         Both are carried inline, as the caller just stored them.
         """
@@ -598,7 +599,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         case_id: str,
         actor: str,
     ) -> tuple[str, str]:
-        """``Add(CaseStatus, target=case)`` (``add_case_status_to_case``).
+        """``Add(CaseStatus)[target=VulnerabilityCase]`` (``add_case_status_to_case``).
 
         *status* is carried inline; it may be one the caller persists only
         once the entry is committed.
@@ -725,7 +726,8 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         id_: str | None = None,
         roles: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Offer(Actor, Case)`` recommendation activity.
+        """Create and persist a ``Offer(Actor)[target=VulnerabilityCase]``
+        recommendation activity.
 
         ``id_`` allows callers to supply a deterministic ID for idempotency.
         ``roles`` carries serialized CVD role strings into the wire object so
@@ -745,13 +747,14 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         id_: str | None = None,
         roles: list[Any] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Offer(CaseParticipant, Case)`` activity.
+        """Create and persist an ``Offer(CaseParticipant)[target=VulnerabilityCase]`` activity.
 
-        Transforms the original ``Offer(Actor, Case)`` into an
-        ``Offer(CaseParticipant{actor, roles}, Case)`` addressed to the
-        Case Owner.  ``roles`` defaults to ``[CVDRole.VENDOR]`` when
-        ``None`` (CM-16-003).  ``origin`` carries the original recommender
-        Offer ID so the Case Owner can trace the causal chain (CM-16-004).
+        Transforms the original ``Offer(Actor)[target=VulnerabilityCase]`` into an
+        ``Offer(CaseParticipant)[target=VulnerabilityCase]`` naming the actor and
+        its roles, addressed to the Case Owner.  ``roles`` defaults to
+        ``[CVDRole.VENDOR]`` when ``None`` (CM-16-003).  ``origin`` carries the
+        original recommender Offer ID so the Case Owner can trace the causal
+        chain (CM-16-004).
         Returns ``(activity_id, activity_dict)``.
         """
         ...
@@ -800,7 +803,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         to: list[str] | None = None,
         attributed_to: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Add(CaseParticipant, Case)`` activity.
+        """Create and persist an ``Add(CaseParticipant)[target=VulnerabilityCase]`` activity.
 
         The CASE_MANAGER's direct notice to a reinstated participant
         (CM-31-011): ``actor`` is the CASE_MANAGER and ``attributed_to`` the
@@ -820,7 +823,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         attributed_to: str,
         to: list[str],
     ) -> tuple[str, str]:
-        """Create and persist a ``Remove(CaseParticipant, Case)`` notice.
+        """Create and persist a ``Remove(CaseParticipant)[target=VulnerabilityCase]`` notice.
 
         The CASE_MANAGER's direct notice to a removed participant (CM-31-006):
         ``actor`` is the CASE_MANAGER and ``attributed_to`` the Case Owner who
@@ -838,7 +841,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         actor: str,
         to: list[str] | None = None,
     ) -> str:
-        """Create and persist an ``Add(ParticipantStatus, CaseParticipant)`` activity.
+        """Create and persist an ``Add(ParticipantStatus)[target=CaseParticipant]`` activity.
 
         Returns the activity ID (callers only need the ID for outbox queueing).
         """
@@ -859,7 +862,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         in_reply_to: str | None = None,
         id_: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``.
+        """Create and persist ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``.
 
         Canonical role-delegation wire format (ADR-0039).  ``role`` is the
         :class:`CVDRole` being offered; ``target_actor_id`` is the Actor URI
@@ -934,7 +937,9 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         published: datetime | None = None,
         min_rsvp_window: timedelta | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(EmbargoEvent, Case)`` proposal.
+        """Create and persist an ``Invite(EmbargoEvent)[context=VulnerabilityCase]``.
+
+        The Invite is the embargo proposal.
 
         ``attributed_to`` carries the proposer when the CASE_MANAGER relays a
         proposal on a participant's behalf (CM-24-002, EP-09-002): ``actor`` is
@@ -1001,7 +1006,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist the case owner's ``Accept(EmbargoEvent, target=case)``.
+        """Create and persist the case owner's ``Accept(EmbargoEvent)[target=VulnerabilityCase]``.
 
         The owner's activation of a proposed embargo (ADR-0122), distinct
         from :meth:`accept_embargo`, the sender's own consent to an Invite.
@@ -1016,7 +1021,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist the case owner's ``Reject(EmbargoEvent, target=case)``.
+        """Create and persist the case owner's ``Reject(EmbargoEvent)[target=VulnerabilityCase]``.
 
         The owner's rejection of a proposed embargo (ADR-0122), distinct
         from :meth:`reject_embargo`, the sender's own refusal of an Invite.
@@ -1079,7 +1084,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         to: list[str] | None = None,
         attributed_to: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Remove(EmbargoEvent, origin=case)`` ET activity.
+        """Create and persist a ``Remove(EmbargoEvent)`` ET activity.
 
         Corresponds to the ET (Embargo Termination) protocol message.
         *reason* is the termination's what, carried as ``content``

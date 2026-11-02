@@ -90,6 +90,8 @@ The server finds that service through the `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL
     If the variable is not set, the server cannot ask for a case for a report.
     No case is opened, and every demo fails.
 
+    The [Node Configuration Reference](../reference/configuration.md) lists every other setting the server reads, and the `config.yaml` file that can carry them instead of environment variables.
+
 ---
 
 ## Step 3 — Run the receive-report demo

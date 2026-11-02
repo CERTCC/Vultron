@@ -291,7 +291,7 @@ def test_a_generic_event_shaped_proposal_is_projected_to_embargo_terms() -> (
     None
 ):
     """A sender that types the proposal as a plain AS2 ``Event`` is read the
-    same way an ``Invite(Event)``'s object is: end and context become an
+    same way an ``Invite(EmbargoEvent)``'s object is: end and context become an
     ``EmbargoEvent``."""
     report = _report()
     body = _wire(_offer(report))

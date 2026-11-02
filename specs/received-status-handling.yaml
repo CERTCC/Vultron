@@ -344,7 +344,7 @@ groups:
       `Announce(CaseLedgerEntry)`. `add_participant_status_tree` MUST run it
       when StatusAdoptionGate passes. The node and the tree MUST NOT route
       through `add_case_status_tree`, and MUST NOT emit a self-addressed
-      `Add(CaseStatus, VulnerabilityCase)` to the CASE_MANAGER to reach the
+      `Add(CaseStatus)[target=VulnerabilityCase]` to the CASE_MANAGER to reach the
       canonical write indirectly.
     rationale: >
       One node keeps every tree that changes EM or PXA from carrying its own
@@ -371,6 +371,10 @@ groups:
       spec_id: RSH-01-003
     - rel_type: implements
       spec_id: RSH-04-004
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5218.
+    - compound_statement
   - id: RSH-04-005
     priority: MUST
     kind: protocol
@@ -423,7 +427,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      A CASE_MANAGER receiving an `Add(ParticipantStatus, CaseParticipant)` that
+      A CASE_MANAGER receiving an `Add(ParticipantStatus)[target=CaseParticipant]` that
       carries a non-adjacent forward RM jump (a move forward on the RM progress
       scale to a state that is not adjacent to the recorded one) MUST accept the
       reported `rm` state.
@@ -449,7 +453,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      A CASE_MANAGER receiving an `Add(ParticipantStatus, CaseParticipant)` that
+      A CASE_MANAGER receiving an `Add(ParticipantStatus)[target=CaseParticipant]` that
       carries a backward RM regression (i.e. the reported `rm` state is earlier
       on the RM progress scale than the receiver's current value) MUST refuse
       the whole update (RSH-09-001, RSH-09-003).
@@ -498,7 +502,7 @@ groups:
       case when an RM anomaly is detected, requesting the sender to clarify the path it
       took between the two observed states. This holds whether the declaration that
       carries the anomaly is accepted or refused. The note is the CASE_MANAGER's own act
-      (CLP-10-001): it commits the `Add(Note, VulnerabilityCase)` carrying the note
+      (CLP-10-001): it commits the `Add(Note)[target=VulnerabilityCase]` carrying the note
       inline as an `add_note_to_case` entry and attaches the note to the case, and the
       sender learns of it from the entry's `Announce(CaseLedgerEntry)` fan-out
       (SYNC-02-002). It MUST NOT send the note to the sender as a direct `Add(Note)`,
@@ -506,7 +510,7 @@ groups:
     rationale: >-
       An RM anomaly needs an answer in the protocol, not only in local logs, because
       only the sender knows the path that it took between the two states seen.
-      `Add(Note, VulnerabilityCase)` is the message for a condition that needs a written
+      `Add(Note)[target=VulnerabilityCase]` is the message for a condition that needs a written
       explanation (MSM-05-001). It replaces the report-management error message that
       `MessageSemantics` does not define (ADR-0049). The note is a case act of the
       CASE_MANAGER, so it goes to the sender through the ledger. The participant refuses
@@ -538,6 +542,10 @@ groups:
       implemented (#4885). The standalone `append_participant_status_tree`
       path (test-only, no production callers) has no case context; it MUST log
       (RSH-06-003) but MUST NOT attempt to emit a note.
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5218.
+    - compound_statement
   - id: RSH-06-005
     priority: MUST
     kind: protocol
@@ -572,9 +580,11 @@ groups:
       state, whichever wire activity carried the declaration. This includes the report
       activities `Accept(Offer(VulnerabilityReport))` and
       `TentativeReject(Offer(VulnerabilityReport))`, the full-case Invite replies `Accept`,
-      `TentativeReject` and `Reject(Invite(Actor, VulnerabilityCase))` (CM-11-011), and the
+      `TentativeReject` and `Reject(Invite(Actor)[target=VulnerabilityCase])`
+      (CM-11-011), and the
       case activities `Join(VulnerabilityCase)` and `Ignore(VulnerabilityCase)`, not only
-      `Add(ParticipantStatus, CaseParticipant)`. Adjacency-only validation, which accepts
+      `Add(ParticipantStatus)[target=CaseParticipant]`. Adjacency-only validation, which
+      accepts
       only a move to an adjacent RM state, MUST NOT be the receive-side acceptance rule for
       any of these. A declaration from a sender whose closure the case's ledger records is
       not adjudicated: it is refused before the rule applies, with no note (CM-23-018).
@@ -597,6 +607,10 @@ groups:
     stories:
     - story_2022_074
     - story_2022_088
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5218.
+    - compound_statement
 - id: RSH-07
   title: Conservative Default Authorization Policy for Status Gates
   description: >
@@ -965,8 +979,9 @@ groups:
 - id: RSH-09
   title: Whole Accept or Reject of a Received Status
   description: >
-    A received `Add(ParticipantStatus, CaseParticipant)` or `Add(CaseStatus,
-    VulnerabilityCase)` states a whole status, so the CASE_MANAGER accepts it
+    A received `Add(ParticipantStatus)[target=CaseParticipant]` or
+    `Add(CaseStatus)[target=VulnerabilityCase]` states a whole status, so the
+    CASE_MANAGER accepts it
     as sent or refuses all of it. It never records a status the sender did
     not send. Derived from ADR-0107 and ISSUE-3741.
   specs:
@@ -974,7 +989,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      A CASE_MANAGER receiving an `Add(ParticipantStatus, CaseParticipant)`
+      A CASE_MANAGER receiving an `Add(ParticipantStatus)[target=CaseParticipant]`
       MUST either accept the status whole, recording exactly the status it
       received, or refuse the whole update. It MUST NOT record, commit or
       replicate a status that differs from the one received, and MUST NOT
@@ -998,6 +1013,10 @@ groups:
     - story_2022_088
     adr:
     - ADR-0107
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5218.
+    - compound_statement
   - id: RSH-09-002
     priority: MUST
     kind: protocol
@@ -1105,7 +1124,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      A participant receiving an `Add(CaseStatus, VulnerabilityCase)` from the
+      A participant receiving an `Add(CaseStatus)[target=VulnerabilityCase]` from the
       case's CASE_MANAGER MUST accept the status whole only when its EM state
       is identical to the EM state the case derives from its embargo register
       and its P/X/A state is the case's or a monotone forward move from it,
@@ -1143,6 +1162,10 @@ groups:
     adr:
     - ADR-0107
     - ADR-0122
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5218.
+    - compound_statement
   - id: RSH-09-006
     priority: MUST
     kind: protocol
@@ -1212,7 +1235,7 @@ groups:
     kind: project
     statement: >
       When `CheckParticipantStatusAcceptableNode` refuses an
-      `Add(ParticipantStatus, CaseParticipant)`, the received use case MUST
+      `Add(ParticipantStatus)[target=CaseParticipant]`, the received use case MUST
       return `HandlerResult.refused`, which the inbox maps to a `rejected`
       `InboxOutcome` rather than `202 Accepted / processed`.
     rationale: >-

@@ -15,9 +15,9 @@
 
 """Full-case Invite reply handlers apply the shared received-side RM rule.
 
-``Accept(Invite(Actor, VulnerabilityCase))`` (RV, RECEIVED → VALID),
-``TentativeReject(Invite(Actor, VulnerabilityCase))`` (RI, RECEIVED → INVALID),
-and ``Reject(Invite(Actor, VulnerabilityCase))`` (RC, RECEIVED → CLOSED) each
+``Accept(Invite(Actor)[target=VulnerabilityCase])`` (RV, RECEIVED → VALID),
+``TentativeReject(Invite(Actor)[target=VulnerabilityCase])`` (RI, RECEIVED → INVALID),
+and ``Reject(Invite(Actor)[target=VulnerabilityCase])`` (RC, RECEIVED → CLOSED) each
 declare one RM state for their sender.  The CASE_MANAGER adjudicates every
 declaration exactly as it adjudicates an ``Add(ParticipantStatus)``: a forward
 move is recorded, a non-adjacent one included; a backward move is refused and

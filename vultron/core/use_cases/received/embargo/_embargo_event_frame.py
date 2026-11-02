@@ -1,6 +1,6 @@
 """Shared frame of the received use cases whose object is the ``EmbargoEvent``.
 
-The case owner's decisions (``Accept``/``Reject(EmbargoEvent, target=Case)``,
+The case owner's decisions (``Accept``/``Reject(EmbargoEvent)[target=VulnerabilityCase]``,
 ADR-0122) and a signatory's withdrawal (``Leave(EmbargoEvent)``,
 MSM-07-010) name the embargo itself, not an Invite, and only the
 CASE_MANAGER applies them.  Each runs the same steps: shape checks that write

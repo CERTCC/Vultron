@@ -19,16 +19,16 @@ Demonstrates the workflow for suggesting an actor for a case via the Vultron API
 This demo script showcases two suggestion paths per ADR-0026 (CaseActor-routed):
 
 1. Accept path, each act through its actor's trigger (#5438):
-   - Reporter → CASE_MANAGER: Offer(Actor, Case) (``suggest-actor-to-case``)
-   - CASE_MANAGER → Case Owner: Offer(as_CaseParticipant{actor, roles}, Case)
-   - Case Owner → CASE_MANAGER: Accept(Offer(as_CaseParticipant))
+   - Reporter → CASE_MANAGER: Offer(Actor)[target=VulnerabilityCase] (``suggest-actor-to-case``)
+   - CASE_MANAGER → Case Owner: Offer(CaseParticipant)[target=VulnerabilityCase]
+   - Case Owner → CASE_MANAGER: Accept(Offer(CaseParticipant))
      (``accept-actor-recommendation``)
    - CASE_MANAGER → Coordinator: Invite(CaseStub+embargo+roles)
 
 2. Reject path, each act through its actor's trigger (#5459):
-   - Reporter → CASE_MANAGER: Offer(Actor, Case) (``suggest-actor-to-case``)
-   - CASE_MANAGER → Case Owner: Offer(as_CaseParticipant{actor, roles}, Case)
-   - Case Owner → CASE_MANAGER: Reject(Offer(as_CaseParticipant))
+   - Reporter → CASE_MANAGER: Offer(Actor)[target=VulnerabilityCase] (``suggest-actor-to-case``)
+   - CASE_MANAGER → Case Owner: Offer(CaseParticipant)[target=VulnerabilityCase]
+   - Case Owner → CASE_MANAGER: Reject(Offer(CaseParticipant))
      (``reject-actor-recommendation``)
    - CASE_MANAGER → Reporter: RejectActorRecommendation
 
@@ -81,7 +81,7 @@ def _suggest_coordinator(
 ) -> None:
     """Step 2: the reporter recommends the coordinator (suggest-actor-to-case).
 
-    The reporter's trigger sends Offer(Actor, Case) to the case's
+    The reporter's trigger sends Offer(Actor)[target=VulnerabilityCase] to the case's
     CASE_MANAGER (CM-16-001), which forwards it to the Case Owner as
     Offer(CaseParticipant) and records that it did (CM-16-004).  The demo
     builds and posts neither: the Case Owner's answer to an Offer the
@@ -145,9 +145,9 @@ def demo_suggest_actor_accept(
     ADR-0026 CaseActor-routed protocol, each act through its actor's trigger:
 
     1. Setup: initialize case
-    2. Reporter → CASE_MANAGER: Offer(Actor, Case)
-    3. CASE_MANAGER → Case Owner: Offer(as_CaseParticipant{actor,roles}, Case)
-    4. Case Owner → CASE_MANAGER: Accept(Offer(as_CaseParticipant))
+    2. Reporter → CASE_MANAGER: Offer(Actor)[target=VulnerabilityCase]
+    3. CASE_MANAGER → Case Owner: Offer(CaseParticipant)[target=VulnerabilityCase]
+    4. Case Owner → CASE_MANAGER: Accept(Offer(CaseParticipant))
     5. CASE_MANAGER → coordinator: Invite to the case
 
     The vendor minted the case, so it holds both CASE_OWNER and CASE_MANAGER.
@@ -196,9 +196,9 @@ def demo_suggest_actor_reject(
     ADR-0026 CaseActor-routed protocol, each act through its actor's trigger:
 
     1. Setup: initialize case
-    2. Reporter → CASE_MANAGER: Offer(Actor, Case)
-    3. CASE_MANAGER → Case Owner: Offer(as_CaseParticipant{actor,roles}, Case)
-    4. Case Owner → CASE_MANAGER: Reject(Offer(as_CaseParticipant))
+    2. Reporter → CASE_MANAGER: Offer(Actor)[target=VulnerabilityCase]
+    3. CASE_MANAGER → Case Owner: Offer(CaseParticipant)[target=VulnerabilityCase]
+    4. Case Owner → CASE_MANAGER: Reject(Offer(CaseParticipant))
     5. CASE_MANAGER ledgers the Reject (CM-16-007)
     6. Verify no new participant was added
 

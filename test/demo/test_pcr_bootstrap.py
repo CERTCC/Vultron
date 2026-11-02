@@ -547,7 +547,8 @@ class TestBootstrapSequence:
         """AC-2: Case-scoped activity routes directly after replica exists.
 
         After the case replica is seeded directly in the store, a
-        subsequent ``Add(Note, context=case_id)`` delivered to the same inbox
+        subsequent ``Add(Note)[target=VulnerabilityCase]`` (``context`` set to the
+        case id) delivered to the same inbox
         must be dispatched immediately — it must NOT be placed into
         ``VultronPendingCaseInbox`` (the pre-bootstrap deferral queue).
 
@@ -627,7 +628,8 @@ class TestBootstrapSequence:
         assert note.id_ not in replica_note_ids, (
             f"Note '{note.id_}' was unexpectedly attached to a non-CaseActor "
             f"case replica. Non-CaseActors must not update replica notes "
-            f"directly from Add(Note, Case) messages (SYNC-02-002, ADR-0022). "
+            f"directly from Add(Note)[target=VulnerabilityCase] messages "
+            f"(SYNC-02-002, ADR-0022). "
             f"Replica notes: {replica_note_ids!r}"
         )
 

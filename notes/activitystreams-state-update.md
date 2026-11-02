@@ -112,9 +112,10 @@ guards fail. Serialize the snapshot with
 A semantic registry pattern matches what arrives in the **receiver's** inbox, not
 what this actor emits. Before adding an entry, ask who sends the message and what
 the recipient receives. The actor-suggestion names cross:
-`OFFER_ACTOR_TO_CASE` matches `SuggestActorToCasePattern` (`Offer(Actor, Case)`),
+`OFFER_ACTOR_TO_CASE` matches `SuggestActorToCasePattern` (`Offer(Actor)[target=VulnerabilityCase]`),
 and `OFFER_CASE_PARTICIPANT` matches `OfferActorToCasePattern`
-(`Offer(CaseParticipant, Case)`) (VAM-04-001). A pattern no registry entry uses
+(`Offer(CaseParticipant)[target=VulnerabilityCase]`) (VAM-04-001). A pattern no registry
+entry uses
 routes nothing, so `test_vocab_examples_dispatchable` refuses one (#4527).
 
 ## `offer_case_participant_activity` Object IDs Carry `#participant`

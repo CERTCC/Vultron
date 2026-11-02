@@ -218,7 +218,7 @@ groups:
     statement: >-
       Protocol shorthand `EP` (Embargo Proposed) MUST have the semantic type
       `INVITE_TO_EMBARGO_ON_CASE`; its AS2 wire form is
-      `Invite(Event)[context=VulnerabilityCase]` per VAM-05-005.
+      `Invite(EmbargoEvent)[context=VulnerabilityCase]` per VAM-05-005.
     rationale: >-
       Proposing an embargo asks each participant to consent to the proposed terms, which
       is what `Invite` expresses; the `Event` is the proposed embargo. The `context`
@@ -227,7 +227,7 @@ groups:
     verification: >-
       Inspection of `vultron/wire/` confirms that
       `MessageSemantics.INVITE_TO_EMBARGO_ON_CASE` is paired with an `ActivityPattern`
-      matching `Invite(Event)[context=VulnerabilityCase]` in
+      matching `Invite(EmbargoEvent)[context=VulnerabilityCase]` in
       `SEMANTIC_REGISTRY`.
     relationships:
     - rel_type: derives_from
@@ -241,18 +241,18 @@ groups:
     statement: >-
       Protocol shorthand `EA` (Embargo Accepted) MUST have the semantic type
       `ACTIVATE_EMBARGO_ON_CASE`; its AS2 wire form is
-      `Accept(Event)[target=VulnerabilityCase]` per VAM-05-008, the Case Owner's
+      `Accept(EmbargoEvent)[target=VulnerabilityCase]` per VAM-05-008, the Case Owner's
       decision that moves EM from PROPOSED to ACTIVE (MSM-07-008).
     rationale: >-
       EA names the EM transition PROPOSED to ACTIVE, and only the Case Owner's decision
-      makes it. A Participant's `Accept(Invite(Event))` records that Participant's
+      makes it. A Participant's `Accept(Invite(EmbargoEvent))` records that Participant's
       consent (MSM-07-003) and moves no register entry, so mapping EA to it would name a
       message that never makes EA's transition. The consent answers are what the Case
       Owner weighs before it decides (MSM-02-010).
     verification: >-
       Inspection of `vultron/wire/` confirms that
       `MessageSemantics.ACTIVATE_EMBARGO_ON_CASE` is paired with an `ActivityPattern`
-      matching `Accept(Event)[target=VulnerabilityCase]` in `SEMANTIC_REGISTRY`, and
+      matching `Accept(EmbargoEvent)[target=VulnerabilityCase]` in `SEMANTIC_REGISTRY`, and
       `test/test_semantic_activity_patterns.py` asserts that it is told apart from the
       Accept of the Invite.
     relationships:
@@ -266,7 +266,8 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: Protocol shorthand `EV` (Embargo Revision Proposed) MUST dispatch as `MessageSemantics.INVITE_TO_EMBARGO_ON_CASE`;
-      its AS2 wire form is `Invite(Event)[context=VulnerabilityCase]` per VAM-05-005 — identical to `EP`. The revision context
+      its AS2 wire form is `Invite(EmbargoEvent)[context=VulnerabilityCase]` per
+      VAM-05-005 — identical to `EP`. The revision context
       is inferred from the presence of an active embargo.
     rationale: EV, EJ, and EC are aliases for EP, ER, and EA at the wire layer (`vultron/bt/messaging/states.py`). The distinction
       between initial proposal and revision proposal is not encoded in the AS2 activity structure; implementations MUST infer
@@ -280,19 +281,19 @@ groups:
     statement: >-
       Protocol shorthand `EJ` (Embargo Revision Rejected) MUST have the semantic type
       `REJECT_EMBARGO_PROPOSAL_ON_CASE`; its AS2 wire form is
-      `Reject(Event)[target=VulnerabilityCase]` per VAM-05-009, the Case Owner's
+      `Reject(EmbargoEvent)[target=VulnerabilityCase]` per VAM-05-009, the Case Owner's
       decision that returns EM from REVISE to ACTIVE with the prior terms in force
       (MSM-07-009).
     rationale: >-
       EJ names the EM transition REVISE to ACTIVE, and only the Case Owner's rejection
-      of the revision makes it; a Participant's `Reject(Invite(Event))` of the revision
+      of the revision makes it; a Participant's `Reject(Invite(EmbargoEvent))` of the revision
       declines that Participant's consent row and nothing else (MSM-07-004). EJ shares
       its wire form with the Case Owner's ER, and the receiver's EM state tells the two
       apart, as MSM-02-003 does for EV.
     verification: >-
       Inspection of `vultron/wire/` confirms that
       `MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE` is paired with an
-      `ActivityPattern` matching `Reject(Event)[target=VulnerabilityCase]` in
+      `ActivityPattern` matching `Reject(EmbargoEvent)[target=VulnerabilityCase]` in
       `SEMANTIC_REGISTRY`, and `test/test_semantic_activity_patterns.py` asserts that it
       is told apart from the Reject of the Invite.
     relationships:
@@ -307,12 +308,12 @@ groups:
     statement: >-
       Protocol shorthand `EC` (Embargo Revision Accepted) MUST have the semantic type
       `ACTIVATE_EMBARGO_ON_CASE`; its AS2 wire form is
-      `Accept(Event)[target=VulnerabilityCase]` per VAM-05-008, the Case Owner's
+      `Accept(EmbargoEvent)[target=VulnerabilityCase]` per VAM-05-008, the Case Owner's
       decision that replaces the active embargo with the revision and moves EM from
       REVISE to ACTIVE (MSM-07-008).
     rationale: >-
       EC names the EM transition REVISE to ACTIVE, and only the Case Owner's activation
-      of the revision makes it; a Participant's `Accept(Invite(Event))` of the revision
+      of the revision makes it; a Participant's `Accept(Invite(EmbargoEvent))` of the revision
       records that Participant's consent and binds it to nothing new (MSM-07-003). EC
       shares its wire form with EA, and the receiver's EM state tells the two apart, as
       MSM-02-003 does for EV.
@@ -333,25 +334,26 @@ groups:
     statement: >-
       Protocol shorthand `ER` (Embargo Rejected) MUST have the semantic type
       `REJECT_EMBARGO_PROPOSAL_ON_CASE`, with AS2 wire form
-      `Reject(Event)[target=VulnerabilityCase]` per VAM-05-009, for the Case Owner's
+      `Reject(EmbargoEvent)[target=VulnerabilityCase]` per VAM-05-009, for the Case Owner's
       decision that rejects a proposal, and the semantic type
       `REJECT_INVITE_TO_EMBARGO_ON_CASE`, with AS2 wire form
-      `Reject(Invite(Event)[context=VulnerabilityCase])` per VAM-05-007, for the
+      `Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])` per VAM-05-007, for the
       CASE_MANAGER's abandonment of a proposal (EMB-16-001); either moves EM from
       PROPOSED to NONE once no other proposal is open.
     rationale: >-
       ER names the EM transition PROPOSED to NONE, and two activities make it: the Case
       Owner's rejection of the proposal (MSM-07-009) and the CASE_MANAGER's abandonment,
       which cancels the proposal once the case is public, exploited or attacked. A
-      Participant's `Reject(Invite(Event))` declines only that Participant's consent row
+      Participant's `Reject(Invite(EmbargoEvent))` declines only that Participant's
+      consent row
       (MSM-07-004), and a replica tells it from the abandonment by the payload's `actor`
       (ADR-0152).
     verification: >-
       Inspection of `vultron/wire/` confirms that
       `MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE` is paired with an
-      `ActivityPattern` matching `Reject(Event)[target=VulnerabilityCase]` and
+      `ActivityPattern` matching `Reject(EmbargoEvent)[target=VulnerabilityCase]` and
       `MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE` with one matching
-      `Reject(Invite(Event)[context=VulnerabilityCase])` in `SEMANTIC_REGISTRY`;
+      `Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])` in `SEMANTIC_REGISTRY`;
       `test/core/behaviors/embargo/nodes/test_abandon.py` asserts the CASE_MANAGER's
       abandonment.
     relationships:
@@ -366,7 +368,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: Protocol shorthand `ET` (Embargo Terminated) MUST have the semantic type `REMOVE_EMBARGO_EVENT_FROM_CASE`;
-      its AS2 wire form is `Remove(Event)` per VAM-05-003.
+      its AS2 wire form is `Remove(EmbargoEvent)` per VAM-05-003.
     rationale: >-
       Ending an embargo takes the embargo event off the case, which is what `Remove`
       expresses. A verb distinct from `Reject` keeps the end of an active embargo apart
@@ -375,7 +377,7 @@ groups:
     verification: >-
       Inspection of `vultron/wire/` confirms that
       `MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE` is paired with an
-      `ActivityPattern` matching `Remove(Event)` in `SEMANTIC_REGISTRY`.
+      `ActivityPattern` matching `Remove(EmbargoEvent)` in `SEMANTIC_REGISTRY`.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-05-003
@@ -431,11 +433,13 @@ groups:
     kind: protocol
     statement: >-
       An implementation MUST NOT apply the EM transition of EA, EC, ER or EJ on
-      receipt of a Participant's `Accept(Invite(Event)[context=VulnerabilityCase])` or
-      `Reject(Invite(Event)[context=VulnerabilityCase])`, because that activity is the
+      receipt of a Participant's
+      `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])` or
+      `Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])`, because that activity
+      is the
       sender's consent to one embargo (MSM-07-003, MSM-07-004), and the transition is
       made only by the activity MSM-02-002, MSM-02-004, MSM-02-005 or MSM-02-006 maps the
-      shorthand to. The CASE_MANAGER's own `Reject(Invite(Event))` is not its consent
+      shorthand to. The CASE_MANAGER's own `Reject(Invite(EmbargoEvent))` is not its consent
       but its abandonment of the proposal, which MSM-02-006 maps to ER (EMB-16-001).
     rationale: >-
       The formal message set models the case's view of the embargo, not each
@@ -1032,7 +1036,8 @@ groups:
     kind: protocol
     statement: >-
       The wire activity INVITE_TO_EMBARGO_ON_CASE (EP wire form:
-      Invite(Event)[context=VulnerabilityCase]) MUST apply the PEC INVITE trigger to the
+      Invite(EmbargoEvent)[context=VulnerabilityCase]) MUST apply the PEC INVITE trigger
+      to the
       invited participant's row for the invited embargo, advancing it from UNINVITED, DECLINED
       or TIMED_OUT to INVITED.
     rationale: >-
@@ -1060,7 +1065,7 @@ groups:
     kind: protocol
     statement: >-
       The wire activity ACCEPT_INVITE_TO_EMBARGO_ON_CASE (wire form:
-      Accept(Invite(Event)[context=VulnerabilityCase])) is always its sender's own
+      Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])) is always its sender's own
       consent, the case owner's included. An actor applying it MUST apply the PEC AGREE
       trigger to the sender's row for the accepted embargo. The row advances from
       UNINVITED, INVITED, DECLINED or TIMED_OUT to AGREED. The accepted embargo may be
@@ -1101,7 +1106,7 @@ groups:
     kind: protocol
     statement: >-
       The wire activity REJECT_INVITE_TO_EMBARGO_ON_CASE (wire form:
-      Reject(Invite(Event)[context=VulnerabilityCase])) is its sender's own consent
+      Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])) is its sender's own consent
       whenever a participant sends it, the case owner included. Unless MSM-07-014
       refuses it, an actor applying it MUST apply the PEC DECLINE trigger to the
       sender's row for the rejected embargo. DECLINE is valid from UNINVITED, INVITED,
@@ -1133,7 +1138,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the case owner's Accept(Event)[target=VulnerabilityCase] (MSM-07-008) replaces
+      When the case owner's Accept(EmbargoEvent)[target=VulnerabilityCase] (MSM-07-008) replaces
       active embargo A with revision B (the register activates B and supersedes A, so the
       derived EM goes REVISE → ACTIVE, or stays REVISE while another proposal is open,
       EMB-18-005),
@@ -1193,6 +1198,9 @@ groups:
     - ADR-0093
     - ADR-0122
     lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5219.
+    - compound_statement
     - missing_story_reference
   - id: MSM-07-006
     priority: MUST
@@ -1277,7 +1285,8 @@ groups:
     kind: protocol
     statement: >-
       The wire activity ACTIVATE_EMBARGO_ON_CASE (wire form:
-      Accept(Event)[target=VulnerabilityCase], the EmbargoEvent itself as the object) is the
+      Accept(EmbargoEvent)[target=VulnerabilityCase], the EmbargoEvent itself as the
+      object) is the
       case owner's decision for the case and MUST be accepted only from the case owner; any
       other sender MUST be refused with REFUSED before any write (HP-01-006). It MUST
       activate the named proposal's embargo register entry and supersede any entry in force
@@ -1296,7 +1305,8 @@ groups:
       check (CM-23-016).
     verification: >-
       Unit tests in `test/core/use_cases/received/` assert that the case owner's
-      Accept(EmbargoEvent, target=Case) at the CASE_MANAGER activates the proposal, records
+      Accept(EmbargoEvent)[target=VulnerabilityCase] at the CASE_MANAGER activates the
+      proposal, records
       the owner's AGREED row and carries signatories over to a shorter revision, that a
       replica replaying the committed entry converges, that a DECLINED owner's activation
       moves its row to AGREED with one ledger entry, and that a non-owner sender, a non-open
@@ -1316,12 +1326,17 @@ groups:
     - ADR-0122
     stories:
     - story_2022_014
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5219.
+    - compound_statement
   - id: MSM-07-009
     priority: MUST
     kind: protocol
     statement: >-
       The wire activity REJECT_EMBARGO_PROPOSAL_ON_CASE (wire form:
-      Reject(Event)[target=VulnerabilityCase], the EmbargoEvent itself as the object) is the
+      Reject(EmbargoEvent)[target=VulnerabilityCase], the EmbargoEvent itself as the
+      object) is the
       case owner's decision for the case and MUST be accepted only from the case owner; any
       other sender MUST be refused with REFUSED before any write (HP-01-006). It MUST reject
       the named proposal's embargo register entry, so the derived EM becomes NONE (ER) or
@@ -1342,7 +1357,8 @@ groups:
       (ADR-0122).
     verification: >-
       Unit tests in `test/core/use_cases/received/` assert that the case owner's
-      Reject(EmbargoEvent, target=Case) at the CASE_MANAGER rejects the proposal with no
+      Reject(EmbargoEvent)[target=VulnerabilityCase] at the CASE_MANAGER rejects the
+      proposal with no
       consent row changed, leaves another open proposal open, rejects the last revision after
       disclosure and then terminates the embargo with the revision REJECTED on the
       CASE_MANAGER and on a replica that copies both entries, the Reject's entry committed
@@ -1363,6 +1379,10 @@ groups:
     - ADR-0122
     stories:
     - story_2022_014
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5219.
+    - compound_statement
   - id: MSM-07-010
     priority: MUST
     kind: protocol
@@ -1563,7 +1583,7 @@ groups:
     statement: >-
       A CASE_MANAGER can hold an embargo stake of its own (EP-09-002). It MUST record a
       change of its own consent as its `Update(EmbargoConsent)` of the row. MSM-07-018
-      bans recording it as a Reject(Invite(Event)).
+      bans recording it as a Reject(Invite(EmbargoEvent)).
     rationale: >-
       The CASE_MANAGER's own consent is the row it changes (CLP-07-013). Recording it as
       an Update keeps every CASE_MANAGER-sent Reject an abandonment (MSM-07-016), so a
@@ -1581,7 +1601,8 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      A CASE_MANAGER MUST NOT send or commit a Reject(Invite(Event)) as a change of its
+      A CASE_MANAGER MUST NOT send or commit a Reject(Invite(EmbargoEvent)) as a change
+      of its
       own consent.
     rationale: >-
       Every CASE_MANAGER-sent Reject is its abandonment of the proposal (MSM-07-016,
@@ -1739,7 +1760,8 @@ groups:
       an occasion MAY declare a mechanism that evolved per MSM-05.
     rationale: 'A declared status is a second copy of what the shorthands already say,
       and the two disagreed: `EP` was tagged as expanding to `Create(Event)` and
-      `Announce(Event)`, where MSM-02-001 maps it to `Invite(Event)` alone. An evolved
+      `Announce(EmbargoEvent)`, where MSM-02-001 maps it to `Invite(EmbargoEvent)`
+      alone. An evolved
       mechanism has no shorthand to count, so it alone is declared.'
     verification: >-
       A unit test builds an entry whose occasions carry one shorthand, an entry whose
@@ -1815,8 +1837,10 @@ groups:
       addressee is not a side of that use case's declared rule MUST fail.
     rationale: 'An emitter looks up its own situation. One wire activity can carry two
       occasions with different senders: a participant proposing an embargo sends
-      `Invite(Event)` to the CASE_MANAGER, and the CASE_MANAGER asking a participant about
-      a proposal sends `Invite(Event)` to that participant. Both match one registry entry
+      `Invite(EmbargoEvent)` to the CASE_MANAGER, and the CASE_MANAGER asking a
+      participant about
+      a proposal sends `Invite(EmbargoEvent)` to that participant. Both match one
+      registry entry
       and one use case, so only the addressee tells the two rows which side of the rule
       gives their sender. See ADR-0129.'
     verification: >-

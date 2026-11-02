@@ -54,6 +54,10 @@ class VultronReplicationState(RetiredFieldsRecord):
     acknowledged position, so a repeat fault the peer claims it sent at or
     before that acknowledgement reads as stale (SYNC-16-008).
 
+    ``last_genesis_replay_through_index`` records how far the last replay
+    from genesis reached, so a genesis Reject that replay already answered
+    is declined (SYNC-15-022, SYNC-15-024).
+
     Spec: SYNC-04-001, SYNC-04-002; the embargo pause is CM-10-005/006.
     """
 
@@ -136,6 +140,21 @@ class VultronReplicationState(RetiredFieldsRecord):
         ),
         validation_alias="replaysAtPosition",
         serialization_alias="replaysAtPosition",
+    )
+    last_genesis_replay_through_index: int | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Highest log_index the last non-empty replay from genesis sent"
+            " this peer, so a genesis Reject of an entry at or below it,"
+            " while last_replayed_from_hash is still genesis and within the"
+            " cooldown ceiling, is declined as already answered (SYNC-15-022,"
+            " SYNC-15-024). None means no replay from genesis covered any"
+            " entry, which is how a record stored before this field existed"
+            " reads"
+        ),
+        validation_alias="lastGenesisReplayThroughIndex",
+        serialization_alias="lastGenesisReplayThroughIndex",
     )
     embargo_paused_from_index: int | None = Field(
         default=None,

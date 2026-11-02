@@ -232,6 +232,7 @@ Each reject triggers another full replay, and the two feed each other into a sto
 
 Each further replay from that same position doubles the wait, up to a ceiling, so a peer that never catches up is retried less and less often ([SYNC-15-018](../../reference/vultron-spec/requirements/ledger-replication.md#sync-15-018)).
 A reject from a position that *has* advanced always triggers a replay, so a peer making progress is never held back.
+A reject from genesis for an entry the last replay from genesis already sent asks for nothing new, so the CASE_MANAGER may send nothing for it until the ceiling has passed ([SYNC-15-019](../../reference/vultron-spec/requirements/ledger-replication.md#sync-15-019)).
 
 The holding area should also be bounded, so that a hostile or broken peer streaming far-future entries cannot exhaust the replica's storage.
 When it is full, the replica discards the held `Announce` farthest ahead of the gap and logs a warning ([SYNC-14-006](../../reference/specs/project.md#sync-14-006)).
@@ -252,6 +253,8 @@ Without the case, the replica cannot compute the genesis hash and so cannot anch
 
 A replica holds these entries too, with no gap comparison ([SYNC-15-004](../../reference/vultron-spec/requirements/ledger-replication.md#sync-15-004)).
 There is no chain yet to compare against, so the replica holds every entry for the unknown case, including entry 0.
+While it waits, the replica asks the CASE_MANAGER for the case and its whole ledger once, not once per held entry ([SYNC-15-016](../../reference/vultron-spec/requirements/ledger-replication.md#sync-15-016)).
+If a further entry arrives after ten minutes and the case still has not, the replica asks again, as a new request ([SYNC-15-017](../../reference/vultron-spec/requirements/ledger-replication.md#sync-15-017)).
 When the case is later delivered, the replica drains the holding area for that case ([SYNC-15-005](../../reference/vultron-spec/requirements/ledger-replication.md#sync-15-005)).
 Seeding the case is enough, because the genesis hash is derived from the case object.
 The genesis ledger entry does not have to be re-sent ([ADR-0059](../../adr/0059-buffer-pre-genesis-ledger-entries.md)).

@@ -241,34 +241,24 @@ persistence — both were already performed on first delivery. (SYNC-12-003)
 
 ### 5.4 Reject/Replay Rate Bound
 
-The reject-and-replay recovery path is susceptible to amplification: a
-participant that cannot anchor its hash chain Rejects every entry replayed to
-it, and each Reject triggers a full-suffix replay, creating a
-self-sustaining loop.
+The reject-and-replay recovery path is susceptible to amplification.
+A participant that cannot anchor its hash chain Rejects every entry replayed to it, and each Reject triggers a full-suffix replay, so the exchange can sustain itself.
 
-The CASE_MANAGER MUST bound the rate at which it replays entries to a peer
-whose acknowledged replication position has not advanced. (SYNC-15-003)
+The CASE_MANAGER SHOULD bound the rate at which it replays entries to a peer whose acknowledged replication position has not advanced. (SYNC-15-003)
 
-Specifically:
+The CASE_MANAGER MAY decline to answer a `Reject(CaseLedgerEntry)` with `last_accepted_hash=""` whose rejected entry was included in a replay from genesis it sent the same peer within a bounded interval.
+Declining sends neither the case nor any entry. (SYNC-15-019)
+Such a Reject asks for nothing that replay did not already send, and a host that handles queued Rejects late would otherwise send the whole ledger once per Reject.
 
-- The CASE_MANAGER MUST record, per peer, the position (`entry_hash` or `""`
-  for genesis) and timestamp of the last replay in which at least one entry
-  was actually sent. (SYNC-15-008)
-- A Reject reporting an unchanged replication position within the cooldown
-  window MUST NOT trigger another replay. (SYNC-15-009)
-- A Reject reporting an advanced replication position MUST always trigger a
-  replay, regardless of cooldown. (SYNC-15-010)
-- A replay in which zero entries were sent MUST NOT update the recorded
-  position. (SYNC-15-011)
-- Each consecutive non-empty replay from an unchanged position MUST lengthen
-  the cooldown before the next (doubling it, up to a fixed ceiling); a replay
-  from a different position MUST reset it. (SYNC-15-013)
-- The genesis `Announce(VulnerabilityCase)` pre-seed MUST NOT be sent for a
-  genesis Reject whose replay the cooldown suppresses. (SYNC-15-014)
+A rate limit is never a stop.
+Once a bounded interval has passed since an actor's rate limit last let through a replay, or a replay request, about the same case and position, that limit MUST let the next one through. (SYNC-15-018)
+This keeps recovery possible for a participant whose replay was lost.
 
-The genesis position (`last_accepted_hash == ""`) SHOULD use a shorter
-cooldown than a mid-chain stall, to avoid starving the initial bootstrap
-while still preventing amplification.
+When the CASE_MANAGER does answer a genesis Reject with a replay, it MUST first send `Announce(VulnerabilityCase)` to the rejecting peer, so the peer can anchor its hash chain before the entries arrive. (SYNC-15-015)
+
+How the CASE_MANAGER bounds the rate, and which records it keeps for that, are implementation choices, not protocol requirements.
+The reference implementation records each peer's last non-empty replay position, time and count, doubles a short cooldown per replay from an unchanged position up to a ceiling, and declines a genesis Reject the last genesis replay already answered until that ceiling has passed.
+`specs/sync-ledger-replication.yaml` carries those rules and their current values as `project` requirements.
 
 ### 5.5 Divergence Recovery
 
@@ -475,12 +465,19 @@ reconstruct the per-case genesis hash and MUST NOT proceed normally.
 
 ### 8.1 Reject as Loss Backstop
 
-When a participant receives an `Announce(CaseLedgerEntry)` but cannot
-reconstruct the per-case genesis hash because the `VulnerabilityCase` is not
-yet present in its local store, the participant MUST NOT silently discard the
-entry. It MUST send a `Reject(CaseLedgerEntry)` with
-`last_accepted_hash = ""` to the CASE_MANAGER so that the CASE_MANAGER replays all
-entries from the beginning once the case is delivered. (SYNC-15-001)
+When a participant receives an `Announce(CaseLedgerEntry)` but cannot reconstruct the per-case genesis hash because the `VulnerabilityCase` is not yet present in its local store, the participant MUST NOT silently discard the entry.
+It MUST send a `Reject(CaseLedgerEntry)` with `last_accepted_hash = ""` to the CASE_MANAGER so that the CASE_MANAGER replays all entries from the beginning once the case is delivered. (SYNC-15-001)
+
+One such Reject asks for the case and its whole ledger, so the participant sends one per wait, not one per early entry.
+After it sends one for a case it still does not hold, it SHOULD NOT send another for that case until a bounded interval has passed. (SYNC-15-016)
+The interval is the ceiling of the CASE_MANAGER's replay cooldown (§5.4), 600 seconds. (SYNC-15-020)
+The participant still holds each early entry it withholds a Reject for (§8.2); one the holding area's size bound drops (§6.4) is recovered by the whole-ledger replay the earlier Reject asked for.
+
+The first early entry for the missing case that arrives after the interval MUST send a Reject again. (SYNC-15-017)
+That Reject MUST be a new activity with an id of its own, not a redelivery of the earlier Reject, because the CASE_MANAGER drops an activity whose id it already knows. (SYNC-15-017)
+
+The participant records, per missing case, when it last sent such a Reject, as a record of its own kind in its own store, so the interval holds across a restart. (SYNC-15-021)
+It deletes that record when it seeds the case, so a later wait for the same case asks at once. (SYNC-15-023)
 
 A `CaseLedgerEntry` received when the per-case genesis hash is unavailable
 MUST NOT be persisted (SYNC-15-002), MUST NOT be treated as committed

@@ -84,12 +84,12 @@ sequenceDiagram
     F->>V1: Report Submission (RS)<br/>Offer(VulnerabilityReport)
     note right of V1: case created by the Case Actor,<br/>participants seated,<br/>embargo activated (EM.ACTIVE),<br/>report validated, case engaged
     V1-->>F: case replica delivered<br/>Create(VulnerabilityCase)
-    V1->>V2: Invite Actor to Case<br/>Invite(Actor, VulnerabilityCaseStub)
+    V1->>V2: Invite Actor to Case<br/>Invite(Actor)[target=VulnerabilityCaseStub]
     note right of V1: inert participant recorded for Vendor2
     V2->>V1: Accept Invite to Case<br/>Accept(Invite(stub))
     note right of V1: 4 participants: Reporter, Vendor1, Vendor2, CaseActor
     V1-->>V2: case replica delivered and ledger replayed<br/>Announce(VulnerabilityCase)
-    V1->>V2: Invite Actor to Full Case<br/>Invite(Actor, VulnerabilityCase)
+    V1->>V2: Invite Actor to Full Case<br/>Invite(Actor)[target=VulnerabilityCase]
     V2->>V1: Accept Full-Case Invite (RV)<br/>Accept(Invite(case))
 
     note over F,V2: ✅ M1 — ≥4 participants · EM.ACTIVE · F and V2 have replicas
@@ -284,6 +284,7 @@ docker compose -f docker/docker-compose-multi-actor.yml down -v
 - **Read the scenario narrative** — the
   [RVV scenario narrative](../../topics/scenarios/rvv.md) explains each step
   in CVD terms and names the ledger entry it produces.
+- **Change a container's settings** — the [Node Configuration Reference](../../reference/configuration.md) lists every `VULTRON_*` setting a node reads from its environment or from `config.yaml`.
 - **Read the scenario source** — the RVV demo script is at
   `vultron/demo/scenario/rvv_demo.py`; shared helpers are in
   `vultron/demo/helpers/`.

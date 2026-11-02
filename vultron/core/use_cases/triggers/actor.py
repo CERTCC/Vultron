@@ -90,7 +90,7 @@ logger = logging.getLogger(__name__)
 
 
 class _SvcRecommendActorBase(SvcActivityTriggerBase):
-    """Send this actor's own ``Offer(Actor, Case)`` to the case's CASE_MANAGER.
+    """Send this actor's own ``Offer(Actor)[target=VulnerabilityCase]`` to the case's CASE_MANAGER.
 
     The shared emit of the suggest-actor flow (CM-16-001) and of the Case
     Owner's direct invite (CM-17-007): both name an actor the case does not
@@ -205,7 +205,8 @@ class SvcSuggestActorToCaseUseCase(_SvcRecommendActorBase):
 class SvcInviteActorToCaseUseCase(_SvcRecommendActorBase):
     """Ask the CASE_MANAGER to invite an actor to a case (case-owner action).
 
-    The Case Owner sends its own ``Offer(Actor, Case)`` carrying the intended
+    The Case Owner sends its own ``Offer(Actor)[target=VulnerabilityCase]`` carrying the
+    intended
     roles to the CASE_MANAGER, from the owner's identity and outbox
     (CM-17-007). It executes no tree as the CASE_MANAGER and never emits in
     its name (CM-24-004, ADR-0109): the CASE_MANAGER's recommend-actor
@@ -767,7 +768,7 @@ class SvcWithdrawCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
 class SvcOfferCaseParticipantRoleUseCase:
     """The Case Owner offers a CVDRole to a target Actor (ADR-0039, CM-33-001).
 
-    Builds ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``
+    Builds ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``
     from the requesting actor, addressed to the case's CASE_MANAGER only, and
     queues it in the requesting actor's outbox through the SenderSideBT
     (PCR-08-001).  The CASE_MANAGER checks the Offer, records it and forwards

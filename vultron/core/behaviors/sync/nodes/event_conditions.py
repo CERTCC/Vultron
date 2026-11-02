@@ -115,7 +115,7 @@ class IsAddNoteEventNode(_SingleSemanticTypeNode):
     """Precondition: SUCCESS when this log entry attaches a note to the case.
 
     One entry attaches a note: ``add_note_to_case``, a received
-    ``Add(Note, target=Case)`` carrying the note inline.  The activity states
+    ``Add(Note)[target=VulnerabilityCase]`` carrying the note inline.  The activity states
     the attachment itself, so its entry is the change's entry (CLP-07-013);
     no other entry attaches a note (RSH-08-004, VAM-01-011).
 

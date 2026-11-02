@@ -1171,7 +1171,7 @@ class TestInviteeIsTheAddressee:
         ``Reject(Invite(EmbargoEvent))`` is always the sender's consent
         (ADR-0122): its row for proposed B becomes DECLINED, its row for the
         embargo in force is untouched, and B stays open — rejecting it for
-        the case is ``Reject(EmbargoEvent, target=Case)``.
+        the case is ``Reject(EmbargoEvent)[target=VulnerabilityCase]``.
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/addressee11"
@@ -1550,7 +1550,7 @@ class TestActivationWhenTheReplacedEmbargoIsUnreadable:
     def test_owner_activation_of_a_revision_is_refused(self, make_payload):
         """No path may leave a case naming an unreadable embargo (EMB-18-003).
 
-        The owner's ``Accept(EmbargoEvent, target=Case)`` must read the
+        The owner's ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` must read the
         embargo it replaces to settle consent (EP-05-001); the read fails
         closed, so the handler refuses (never DEFERRED) and EM and the active
         embargo are left as they were.
@@ -3049,7 +3049,7 @@ class TestOwnerAnswerToRelayedInvite:
         """The owner accepts the embargo itself; a participant, the Invite.
 
         ADR-0122: the owner's answer decides the proposal, so it is
-        ``Accept(EmbargoEvent, target=Case)``; anyone else's is
+        ``Accept(EmbargoEvent)[target=VulnerabilityCase]``; anyone else's is
         ``Accept(Invite(EmbargoEvent))``, its own consent.
         """
         from vultron.adapters.outbox_sealed_body import read_sealed_body_dict

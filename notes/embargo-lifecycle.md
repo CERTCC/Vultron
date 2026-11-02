@@ -171,7 +171,7 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   consent to `Accept`/`Reject(Invite(EmbargoEvent))` — the owner's included —
   and move no register entry (MSM-07-011, MSM-07-013).
 - `activate_embargo` / `reject_embargo_proposal` apply the owner's
-  `Accept`/`Reject(EmbargoEvent, target=Case)` (MSM-07-008, MSM-07-009).
+  `Accept`/`Reject(EmbargoEvent)[target=VulnerabilityCase]` (MSM-07-008, MSM-07-009).
 - No operation branches on whether the sender is the owner. The accept and
   reject triggers pick by actor: an owner sends its decision, anyone else its
   consent.

@@ -31,6 +31,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.sync.nodes._helpers import hold_received_announce
 from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
 from vultron.core.models.case_ledger import ledger_entry_hash_intact
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.sync_helpers import store_ledger_entry
 from vultron.errors import (
@@ -279,9 +280,10 @@ class BufferPreGenesisEntryNode(DataLayerActionWithPorts):
     hash and therefore replays first once the case is seeded.
 
     Returns SUCCESS when the ``Announce`` is held, FAILURE when the size bound
-    dropped it.  Its status only structures the enclosing tree — a
-    ``Reject(CaseLedgerEntry)`` is sent on every pre-genesis entry regardless,
-    so the CaseActor's replay remains the backstop (SYNC-15-001).  The entry
+    dropped it.  Its status only structures the enclosing tree —
+    :class:`~.genesis_reject.SendGenesisRejectOnMissingCaseNode` runs either
+    way, and asks for the case unless it already asked within the interval,
+    so the CaseActor's replay remains the backstop (SYNC-15-001, SYNC-15-016).  The entry
     is deliberately NOT persisted here; its replay applies effects before
     persisting, honouring SYNC-12-001 / SYNC-14-005.
     """
@@ -373,6 +375,17 @@ class SendRejectLogEntryNode(DataLayerActionWithPorts):
                 f"{self.name}: activity.actor_id missing for rejection target"
             )
 
+        self._reject(entry, self._sync_port, self.actor_id, sender_id)
+        return Status.FAILURE
+
+    def _reject(
+        self,
+        entry: CaseLedgerEntry,
+        sync_port: SyncActivityPort,
+        actor_id: str,
+        sender_id: str,
+    ) -> None:
+        """Queue the ``Reject(CaseLedgerEntry)`` of *entry* to *sender_id*."""
         self.logger.warning(
             "%s: log entry '%s' prev_log_hash %.16s… does not match local tail "
             "%.16s…; sending Reject(CaseLedgerEntry)",
@@ -381,13 +394,12 @@ class SendRejectLogEntryNode(DataLayerActionWithPorts):
             entry.prev_log_hash,
             self.tail_hash,
         )
-        self._sync_port.send_reject_log_entry(
+        sync_port.send_reject_log_entry(
             entry=entry,
             tail_hash=self.tail_hash,
-            actor_id=self.actor_id,
+            actor_id=actor_id,
             to=[sender_id],
         )
-        return Status.FAILURE
 
 
 class CheckHashOrRejectOnMismatchNode(py_trees.composites.Selector):

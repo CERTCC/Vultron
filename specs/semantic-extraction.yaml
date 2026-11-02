@@ -580,8 +580,8 @@ groups:
       omits the target causes a silent routing error. This sender can be minimally
       conformant or have a defect. The pattern order of the receiver is then its only
       protection. A distinct object type removes this risk, and the wire shape then
-      tells its own meaning (ADR-0039). `Offer(CaseParticipantRole,
-      context=VulnerabilityCase)` is the canonical example. See
+      tells its own meaning (ADR-0039).
+      `Offer(CaseParticipantRole)[context=VulnerabilityCase]` is the canonical example. See
       `notes/activitystreams-state-update.md` § "Patterns Sharing a Verb and Object Need
       a Strict Discriminator".
     relationships:

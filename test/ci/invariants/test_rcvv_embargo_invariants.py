@@ -138,7 +138,7 @@ def test_rcvv_embargo_proposal_then_revision_then_teardown_in_order(
     precedes the owner's first activation, a later Invite (the revision)
     follows it, a later activation (of the revision) follows that, and the
     teardown comes last.  The owner's activation has its own type,
-    ``Accept(EmbargoEvent, target=Case)`` (ADR-0122), so this is the owner's
+    ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122), so this is the owner's
     decision, not a participant's consent; the participants' consent is
     asserted by the scenario (DEMOMA-21-002, DEMOMA-21-012).
 

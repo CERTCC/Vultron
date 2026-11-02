@@ -103,14 +103,14 @@ lookup table is mostly links.
   "any of" several kinds, stated per addressee (the CASE_MANAGER, a participant,
   or an actor outside any case), and the factory builds the guard from it alone.
   No part of the rule is left to the tree: `Remove(Note)` admits the note's
-  author or the Case Owner at the CASE_MANAGER, and the embargo `Invite(Event)`
-  admits the CASE_MANAGER or an active participant there; at a participant both
-  admit only the CASE_MANAGER.
+  author or the Case Owner at the CASE_MANAGER, and the embargo
+  `Invite(EmbargoEvent)` admits the CASE_MANAGER or an active participant there;
+  at a participant both admit only the CASE_MANAGER.
 - **Each occasion names its addressee; "Sent by" and "Send to" are derived**
   (MSM-08-009). One wire activity can carry occasions with different senders: a
-  participant's `Invite(Event)` to the CASE_MANAGER and the CASE_MANAGER's
-  `Invite(Event)` to a participant match one entry and one use case, so they are
-  two occasions (`embargo-proposal` and `relay-embargo-proposal`); `Remove(Event)`
+  participant's `Invite(EmbargoEvent)` to the CASE_MANAGER and the CASE_MANAGER's
+  `Invite(EmbargoEvent)` to a participant match one entry and one use case, so they are
+  two occasions (`embargo-proposal` and `relay-embargo-proposal`); `Remove(EmbargoEvent)`
   likewise has the Case Owner's `embargo-termination` and the CASE_MANAGER's
   `embargo-termination-notice`. `SemanticEntry` refuses an occasion whose
   addressee is a side its use case's rule leaves empty; an exemption constrains
@@ -131,7 +131,7 @@ lookup table is mostly links.
   `Add(ParticipantStatus)` (RSH-04-001).
 - **A distinguisher is typed** (MSM-08-002): a field value checked against its
   enum, a state context naming a state machine and states (the EM state
-  separating `EP` from `EV` on `Invite(Event)`), or a sender standing naming a
+  separating `EP` from `EV` on `Invite(EmbargoEvent)`), or a sender standing naming a
   `SenderEntitlementKind` and whether the sender holds it. Use the receiver's
   vocabulary, not `CVDRole`: the standing is what the receiver checks, and it
   is worded from the kind's `sent_by` (MSM-08-010). The embargo register is a

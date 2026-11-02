@@ -12,6 +12,7 @@ from vultron.core.behaviors.sender_guard import LedgerActivityContext
 from vultron.core.behaviors.sync.nodes import (
     AnnounceCaseOnGenesisRejectNode,
     FindCaseActorNode,
+    GenesisRejectAlreadyAnsweredNode,
     ReplayMissingEntriesNode,
     UpdateReplicationStateNode,
 )
@@ -42,6 +43,10 @@ def create_reject_log_entry_tree(
     before the entries arrive (SYNC-15-015).  A pre-seed that fails at the
     CASE_MANAGER — its embargo gate undecidable — fails the tree before the
     replay, instead of reading as "not the CASE_MANAGER" (BTND-07-005).
+    Ahead of both, a genesis Reject for an entry the last replay from genesis
+    already sent, within the cooldown ceiling, is declined: no case and no
+    entry go out, and the replay record is unchanged (SYNC-15-019,
+    SYNC-15-024, SYNC-15-025).
 
     The sender must be an active participant (SYNC-03-005); any other sender
     halts the tree before replication state is written.  The factory composes
@@ -74,10 +79,30 @@ def create_reject_log_entry_tree(
         replica_effects=[FindCaseActorNode(name="FindCaseActor")],
         manager_effects=[
             UpdateReplicationStateNode(name="UpdateReplicationState"),
-            AnnounceCaseOnGenesisRejectNode(
-                name="AnnounceCaseOnGenesisReject"
+            # SYNC-15-019, SYNC-15-024: a genesis Reject the last replay from
+            # genesis already answered is declined, so the Selector stops
+            # before the pre-seed and the replay; any other Reject runs both.
+            py_trees.composites.Selector(
+                name="DeclineAnsweredGenesisRejectOrReplay",
+                memory=False,
+                children=[
+                    GenesisRejectAlreadyAnsweredNode(
+                        name="GenesisRejectAlreadyAnswered"
+                    ),
+                    py_trees.composites.Sequence(
+                        name="PreSeedThenReplay",
+                        memory=False,
+                        children=[
+                            AnnounceCaseOnGenesisRejectNode(
+                                name="AnnounceCaseOnGenesisReject"
+                            ),
+                            ReplayMissingEntriesNode(
+                                name="ReplayMissingEntries"
+                            ),
+                        ],
+                    ),
+                ],
             ),
-            ReplayMissingEntriesNode(name="ReplayMissingEntries"),
         ],
         manager_case_id=case_id,
         manager_gate_name="AnswerRejectIfCaseManager",

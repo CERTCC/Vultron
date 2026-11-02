@@ -68,6 +68,10 @@ _SAMPLES: dict[str, dict[str, Any]] = {
         "total_attempts": 3,
     },
     "DeferredInboxActivity": {"activity_id": _URI, "received_body": "{}"},
+    "GenesisRejectRecord": {
+        "case_id": f"{_URI}/case",
+        "last_sent_at": "2026-10-29T00:00:00Z",
+    },
     "HeldLedgerAnnounce": {
         "case_id": f"{_URI}/case",
         "prev_log_hash": "0" * 64,
