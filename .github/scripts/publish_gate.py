@@ -18,10 +18,12 @@ workflow and this script are always ``main``'s reviewed copies:
   run finds the tag it already pushed instead of making a second.
 
 The decisions (``classify_trigger``, ``resolve_rollback``,
-``split_publish_tags``, ``blocking_issues``, ``pending_runs``,
-``next_tag_name``, ``tag_message``, ``wait_for_runs``, ``decide``) are pure or
-take their I/O as arguments, so the test suite pins them without GitHub; the
-rest is thin ``gh`` and ``git`` plumbing.
+``blocking_issues``, ``pending_runs``, ``tag_message``, ``wait_for_runs``,
+``decide``) are pure or take their I/O as arguments, so the test suite pins
+them without GitHub; the rest is thin ``gh`` and ``git`` plumbing. Every tag
+query (which ``publish-*`` tags count, the next tag name) comes from
+``release_tags``, the helper the promote workflow, the release tag check and
+the staleness alarm share.
 
 Usage:
   publish_gate.py gate --repo OWNER/NAME --sha SHA --event EVENT --ref REF
@@ -45,15 +47,28 @@ from enum import StrEnum
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from gh_cli import CALL_TIMEOUT_SECONDS, gh, run  # see gh_cli
+from gh_cli import (  # see gh_cli
+    CALL_TIMEOUT_SECONDS,
+    gh,
+    run,
+    write_github_file,
+)
+from release_tags import (
+    BOT_GIT_IDENTITY,
+    BOT_NAME,
+    PUBLISH_PREFIX,
+    Tag,
+    next_publish_name,
+    publish_tags,
+    publish_tags_on,
+    read_tag_message,
+    split_publish_tags,
+    tag_commit,
+    tag_object,
+    workflow_publish_tags_on,
+)
 
-TAG_PREFIX = "publish-"
 MAIN_REF = "refs/heads/main"
-# The identity this workflow tags as. git records it as the tagger of every
-# annotated tag the workflow creates; the skip rule recognises a tag the
-# workflow made by it (ADR-0171).
-BOT_NAME = "github-actions[bot]"
-BOT_EMAIL = "41898282+github-actions[bot]@users.noreply.github.com"
 FAILURE_LABEL = "ci:main-failure"
 # Wait this long for unfinished blocking runs, then skip.
 WAIT_SECONDS = 3600
@@ -66,7 +81,6 @@ PENDING_STATUSES = frozenset(
 # between; renumber and try again this many times.
 TAG_PUSH_ATTEMPTS = 5
 
-_TAG_NAME_RE = re.compile(r"^publish-(\d{4}-\d{2}-\d{2})\.(\d+)$")
 # What a rollback may name: a publish tag, or a release tag (ADR-0006).
 _ROLLBACK_TAG_RE = re.compile(r"^(publish-\d{4}-\d{2}-\d{2}\.\d+|v\d\S*)$")
 # The local actions the build job loads from the commit it builds, not from
@@ -95,24 +109,6 @@ class BlockingWorkflow:
 
     path: str
     label: str
-
-
-@dataclass(frozen=True)
-class PublishTag:
-    """A ``publish-*`` tag on the candidate commit, as git records it."""
-
-    name: str
-    annotated: bool
-    tagger_name: str = ""
-    tagger_email: str = ""
-
-    @property
-    def made_by_workflow(self) -> bool:
-        return (
-            self.annotated
-            and self.tagger_name == BOT_NAME
-            and self.tagger_email == BOT_EMAIL
-        )
 
 
 @dataclass(frozen=True)
@@ -163,7 +159,7 @@ def classify_trigger(
     if rollback_to:
         if not _ROLLBACK_TAG_RE.match(rollback_to):
             raise UnsupportedRunError(
-                f"rollback-to {rollback_to!r} is not a {TAG_PREFIX}* or v* tag"
+                f"rollback-to {rollback_to!r} is not a {PUBLISH_PREFIX}* or v* tag"
             )
         return Trigger.ROLLBACK
     return Trigger.MANUAL_UNGATED if skip_ci_gate else Trigger.MANUAL
@@ -199,20 +195,12 @@ def resolve_rollback(
     return commit
 
 
-def split_publish_tags(
-    tags: Iterable[PublishTag],
-) -> tuple[list[PublishTag], list[PublishTag]]:
-    """Split tags into those this workflow made and those the skip rule ignores.
-
-    Tag creation is unrestricted (#5545), so a ``publish-*`` tag anyone pushed
-    must not suppress a publish: only an annotated tag whose tagger is
-    ``github-actions[bot]`` counts.
-    """
-    own: list[PublishTag] = []
-    ignored: list[PublishTag] = []
-    for tag in tags:
-        (own if tag.made_by_workflow else ignored).append(tag)
-    return own, ignored
+def _why_ignored(tag: Tag) -> str:
+    if not tag.annotated:
+        return "a lightweight tag, with no tagger."
+    if not tag.made_by_workflow:
+        return f"tagged by {tag.tagger_name or 'nobody'}, not {BOT_NAME}."
+    return f"not a {PUBLISH_PREFIX}YYYY-MM-DD.N name."
 
 
 def blocking_issues(
@@ -281,16 +269,6 @@ def pending_runs(
     )
 
 
-def next_tag_name(day: str, existing: Iterable[str]) -> str:
-    """``publish-<day>.N`` with N one more than the highest for *day*, from 1."""
-    taken = [
-        int(m.group(2))
-        for name in existing
-        if (m := _TAG_NAME_RE.match(name)) and m.group(1) == day
-    ]
-    return f"{TAG_PREFIX}{day}.{max(taken, default=0) + 1}"
-
-
 def tag_message(ctx: RunContext, run_url: str) -> str:
     """The annotated tag's message: what started the publish, and who.
 
@@ -336,7 +314,7 @@ def wait_for_runs(
 def decide(
     ctx: RunContext,
     *,
-    tags_on_commit: Callable[[], list[PublishTag]],
+    tags_on_commit: Callable[[], list[Tag]],
     open_blocking_issues: Callable[[], list[tuple[int, str]]],
     still_pending: Callable[[], list[str]],
 ) -> Decision:
@@ -356,15 +334,7 @@ def decide(
         )
     notes: list[str] = []
     own, ignored = split_publish_tags(tags_on_commit())
-    notes.extend(
-        f"Ignored `{t.name}`: "
-        + (
-            f"tagged by {t.tagger_name or 'nobody'}, not {BOT_NAME}."
-            if t.annotated
-            else "a lightweight tag, with no tagger."
-        )
-        for t in ignored
-    )
+    notes.extend(f"Ignored `{t.name}`: {_why_ignored(t)}" for t in ignored)
     if own:
         names = ", ".join(f"`{t.name}`" for t in own)
         if ctx.trigger is Trigger.SCHEDULED:
@@ -494,37 +464,10 @@ def missing_build_actions(commit: str) -> list[str]:
     ]
 
 
-def tag_commit(tag: str) -> str | None:
-    """The commit *tag* points at in this clone, or ``None``."""
-    try:
-        return run(
-            "git", "rev-parse", "--verify", f"refs/tags/{tag}^{{commit}}"
-        ).strip()
-    except subprocess.CalledProcessError:
-        return None
-
-
-def publish_tags_on(sha: str) -> list[PublishTag]:
-    """Every ``publish-*`` tag that points at *sha* in the local clone."""
-    out = run(
-        "git",
-        "for-each-ref",
-        f"--points-at={sha}",
-        "--format=%(refname:strip=2)%09%(objecttype)%09%(taggername)"
-        "%09%(taggeremail:trim)",
-        f"refs/tags/{TAG_PREFIX}*",
-    )
-    tags: list[PublishTag] = []
-    for line in out.splitlines():
-        name, kind, tagger, email = [*line.split("\t"), "", "", ""][:4]
-        tags.append(PublishTag(name, kind == "tag", tagger, email))
-    return tags
-
-
 def _remote_tags() -> dict[str, str]:
     """The remote's ``publish-*`` tags, by name, with their object ids."""
     out = run(
-        "git", "ls-remote", "--tags", "origin", f"refs/tags/{TAG_PREFIX}*"
+        "git", "ls-remote", "--tags", "origin", f"refs/tags/{PUBLISH_PREFIX}*"
     )
     tags: dict[str, str] = {}
     for line in out.splitlines():
@@ -539,11 +482,10 @@ def _tag_from_this_run(
 ) -> str | None:
     """A tag this workflow run already pushed on *sha*, if a re-run finds one."""
     marker = _run_line(run_url)
-    for tag in publish_tags_on(sha):
-        if not tag.made_by_workflow or tag.name not in remote:
+    for tag in workflow_publish_tags_on(sha):
+        if tag.name not in remote:
             continue
-        message = run("git", "tag", "--list", "--format=%(contents)", tag.name)
-        if marker in message.splitlines():
+        if marker in read_tag_message(tag.name).splitlines():
             return tag.name
     return None
 
@@ -564,13 +506,12 @@ def create_tag(
     day = today or datetime.now(UTC).strftime("%Y-%m-%d")
     if found := _tag_from_this_run(sha, run_url, _remote_tags()):
         return found
-    as_bot = ("-c", f"user.name={BOT_NAME}", "-c", f"user.email={BOT_EMAIL}")
     for attempt in range(1, TAG_PUSH_ATTEMPTS + 1):
-        local = run("git", "tag", "--list", f"{TAG_PREFIX}*").split()
-        name = next_tag_name(day, [*local, *_remote_tags()])
+        local = [t.name for t in publish_tags()]
+        name = next_publish_name(day, [*local, *_remote_tags()])
         run(
             "git",
-            *as_bot,
+            *BOT_GIT_IDENTITY,
             "tag",
             "--annotate",
             name,
@@ -583,18 +524,11 @@ def create_tag(
             return name
         except subprocess.CalledProcessError:
             remote = _remote_tags().get(name)
-            if remote == run("git", "rev-parse", f"refs/tags/{name}").strip():
+            if remote is not None and remote == tag_object(name):
                 return name
             if remote is None or attempt == TAG_PUSH_ATTEMPTS:
                 raise
     raise AssertionError("unreachable")  # pragma: no cover
-
-
-def _write(env_var: str, text: str) -> None:
-    path = os.environ.get(env_var)
-    if path:
-        with open(path, "a", encoding="utf-8") as handle:
-            handle.write(text)
 
 
 def _summary(decision: Decision) -> str:
@@ -627,7 +561,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
         )
     except UnsupportedRunError as error:
         print(f"::error::{error}", file=sys.stderr)
-        _write(
+        write_github_file(
             "GITHUB_STEP_SUMMARY", f"### Publish gate: refused\n\n{error}\n"
         )
         return 1
@@ -655,8 +589,8 @@ def cmd_gate(args: argparse.Namespace) -> int:
     )
     message = tag_message(ctx, _run_url(args.repo, args.run_id))
     print(_summary(decision))
-    _write("GITHUB_STEP_SUMMARY", _summary(decision))
-    _write(
+    write_github_file("GITHUB_STEP_SUMMARY", _summary(decision))
+    write_github_file(
         "GITHUB_OUTPUT",
         f"publish={'true' if decision.publish else 'false'}\n"
         f"trigger={trigger}\n"
@@ -669,8 +603,8 @@ def cmd_gate(args: argparse.Namespace) -> int:
 def cmd_tag(args: argparse.Namespace) -> int:
     name = create_tag(args.sha, args.message, args.run_url)
     print(f"Tagged {args.sha} as {name}")
-    _write("GITHUB_STEP_SUMMARY", f"Published as `{name}`.\n")
-    _write("GITHUB_OUTPUT", f"tag={name}\n")
+    write_github_file("GITHUB_STEP_SUMMARY", f"Published as `{name}`.\n")
+    write_github_file("GITHUB_OUTPUT", f"tag={name}\n")
     return 0
 
 
