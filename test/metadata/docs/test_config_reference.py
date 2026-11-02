@@ -23,10 +23,13 @@ blank row.
 from __future__ import annotations
 
 import os
+import re
 from datetime import timedelta
 from pathlib import Path
+from typing import Literal
 
 import pytest
+import yaml
 from pydantic import BaseModel, Field
 
 from vultron.config.app import AppConfig, config_override
@@ -60,11 +63,93 @@ def test_every_leaf_field_is_listed(settings: list[ConfigSetting]) -> None:
     assert [s.path for s in settings] == list(_leaf_paths(AppConfig))
 
 
-def test_every_setting_has_a_description(
+def _by_key(settings: list[ConfigSetting]) -> dict[str, ConfigSetting]:
+    return {s.yaml_key: s for s in settings}
+
+
+@pytest.mark.parametrize(
+    ("key", "description"),
+    [
+        (
+            "object_fetch_timeout_seconds",
+            "Timeout of each fetch attempt, in seconds (AKM-05-008)."
+            " It matches the delivery timeout (SYNC-05-004).",
+        ),
+        (
+            "actor.auto_create_case",
+            "When `true`, create a `VulnerabilityCase` immediately on"
+            " `Offer(Report)` receipt (CM-15-001, CM-12-001, CM-22-001)."
+            " When `false`, defer case creation so the receiver can send a"
+            " pre-case ACK (`Read(Offer(Report))`, VAM-02-003) before deciding"
+            " to accept or reject (CM-15-002, CM-15-003; ADR-0015).",
+        ),
+        (
+            "ledger.invite_resend_cooldown_seconds",
+            "The base cooldown between two resends of one unanswered Invite"
+            " to one participant (SYNC-20-005). Each consecutive resend"
+            " doubles it. It matches the base of the ledger replay cooldown"
+            " (SYNC-15-013).",
+        ),
+        (
+            "actor.post_close_reply",
+            "The one policy point for replies after the case closes: whether"
+            " the CASE_MANAGER answers a late `Leave(VulnerabilityCase)` with"
+            " an `as:Reject` or drops it. Every other late activity is dropped"
+            " under either setting (CM-23-013, CM-23-017, ADR-0131).",
+        ),
+    ],
+)
+def test_real_descriptions_are_cleaned(
+    settings: list[ConfigSetting], key: str, description: str
+) -> None:
+    """Default, override and code-pointer sentences go; the rest survives."""
+    assert _by_key(settings)[key].description == description
+
+
+def test_server_base_url_keeps_its_rationale(
     settings: list[ConfigSetting],
 ) -> None:
-    blank = [s.yaml_key for s in settings if not s.description]
-    assert not blank
+    description = _by_key(settings)["server.base_url"].description
+    assert "the shape the compose files set" in description
+    assert (
+        "localhost" not in description
+    )  # the default is the Default column's
+
+
+_DEFAULT_LEAK = re.compile(
+    r"\bDefaults?\b(?! (?:has|matches|ceiling|at))|\(default\)|by default"
+)
+
+
+def test_no_description_restates_a_default_or_a_variable(
+    settings: list[ConfigSetting],
+) -> None:
+    for setting in settings:
+        text = setting.description
+        assert not _DEFAULT_LEAK.search(text), (setting.yaml_key, text)
+        assert "Override via" not in text, setting.yaml_key
+        assert "VULTRON_" not in text, setting.yaml_key
+
+
+def test_descriptions_use_page_vocabulary(
+    settings: list[ConfigSetting],
+) -> None:
+    """No Python literal, Sphinx role, RST span, issue number or MUST leaks."""
+    for setting in settings:
+        text = setting.description
+        for token in (
+            "`None`",
+            "`True`",
+            "`False`",
+            "``",
+            ":class:",
+            "FAILURE",
+        ):
+            assert token not in text, (setting.yaml_key, token)
+        assert not re.search(r"#\d", text), setting.yaml_key
+        assert not re.search(r"\b(MUST|SHALL|SHOULD)\b", text), (
+            setting.yaml_key
+        )
 
 
 def test_env_var_names_follow_the_naming_rule(
@@ -167,16 +252,6 @@ def test_tables_have_one_row_per_setting(
     )
 
 
-def test_descriptions_drop_default_and_override_sentences(
-    settings: list[ConfigSetting],
-) -> None:
-    for setting in settings:
-        assert "Defaults to" not in setting.description, setting.yaml_key
-        assert "Override via" not in setting.description, setting.yaml_key
-        assert "``" not in setting.description, setting.yaml_key
-        assert ":class:" not in setting.description, setting.yaml_key
-
-
 def test_unset_default_renders_as_unset(settings: list[ConfigSetting]) -> None:
     url = next(
         s for s in settings if s.yaml_key == "actor.case_actor_service_url"
@@ -192,9 +267,16 @@ def test_bounds_are_rendered(settings: list[ConfigSetting]) -> None:
     assert attempts.bounds == "≥ 1"
 
 
-def test_default_block_is_a_yaml_fence(settings: list[ConfigSetting]) -> None:
+def test_default_block_is_the_example_file(
+    settings: list[ConfigSetting],
+) -> None:
     block = render_default_config_block(settings)
     assert block.startswith("```yaml\n") and block.endswith("```\n")
+    body = block.removeprefix("```yaml\n").removesuffix("```\n")
+    assert yaml.safe_load(body) == yaml.safe_load(
+        default_config_yaml(settings)
+    )
+    assert yaml.safe_load(body)["actor"]["min_rsvp_window"] == "P3D"
 
 
 class _Undocumented(BaseModel):
@@ -259,3 +341,163 @@ def test_page_renders_the_generated_blocks() -> None:
     ).read_text()
     assert "render_settings_tables()" in page
     assert "render_default_config_block()" in page
+
+
+class _AllBounds(BaseModel):
+    """Every bound kind.
+
+    Attributes:
+        low: Lower bounds.
+        high: Upper bounds.
+    """
+
+    low: int = Field(default=5, ge=1, gt=0)
+    high: int = Field(default=5, le=10, lt=11)
+
+
+def test_every_bound_kind_renders() -> None:
+    low, high = iter_settings(_AllBounds)
+    assert low.bounds == "> 0, ≥ 1"
+    assert high.bounds == "< 11, ≤ 10"
+    assert high.type_label == "integer (< 11, ≤ 10)"
+
+
+class _OtherConstraint(BaseModel):
+    """A constraint the page cannot render.
+
+    Attributes:
+        roles: A list with a length limit.
+    """
+
+    roles: list[str] = Field(default_factory=list, max_length=3)
+
+
+def test_unrenderable_constraint_fails() -> None:
+    with pytest.raises(ConfigReferenceError, match=r"_OtherConstraint\.roles"):
+        iter_settings(_OtherConstraint)
+
+
+class _Required(BaseModel):
+    """A field with no default.
+
+    Attributes:
+        needed: Required.
+    """
+
+    needed: int
+
+
+def test_field_without_default_fails_naming_it() -> None:
+    with pytest.raises(ConfigReferenceError, match=r"_Required\.needed"):
+        iter_settings(_Required)
+
+
+class _Lists(BaseModel):
+    """Lists of non-string items, and integer literals.
+
+    Attributes:
+        counts: Integers.
+        level: An integer literal.
+    """
+
+    counts: list[int] = Field(default_factory=lambda: [1, 2])
+    level: Literal[1, 2] = 1
+
+
+def test_non_string_list_and_literal_labels() -> None:
+    counts, level = iter_settings(_Lists)
+    assert counts.type_label == "list of integer"
+    assert counts.default == "`[1, 2]`"
+    assert level.type_label == "integer, one of `1`, `2`"
+
+
+class _MixedLiteral(BaseModel):
+    """A literal mixing value types.
+
+    Attributes:
+        mixed: Mixed.
+    """
+
+    mixed: Literal[1, "a"] = 1
+
+
+class _BareList(BaseModel):
+    """An unparameterized list.
+
+    Attributes:
+        items: Anything.
+    """
+
+    items: list = Field(default_factory=list)  # type: ignore[type-arg]
+
+
+@pytest.mark.parametrize("model", [_MixedLiteral, _BareList])
+def test_unlabeled_annotations_fail(model: type[BaseModel]) -> None:
+    with pytest.raises(ConfigReferenceError, match="type label"):
+        iter_settings(model)
+
+
+class _TwoSpaceDocstring(BaseModel):
+    """Entries at a two-space indent, with a deeper ``word:`` continuation.
+
+    Attributes:
+      first: The first value, which
+        note: continues here rather than starting an entry.
+
+      second: The second value.
+
+        An orphan line after a blank belongs to no entry.
+
+    Notes:
+      third: Not an attribute.
+    """
+
+    first: int = 1
+    second: int = 2
+    third: int = Field(default=3, description="From Field.")
+
+
+def test_docstring_entries_follow_the_first_entry_indent() -> None:
+    first, second, third = iter_settings(_TwoSpaceDocstring)
+    assert first.description == (
+        "The first value, which note: continues here rather than starting an"
+        " entry."
+    )
+    assert second.description == "The second value."
+    assert third.description == "From Field."
+
+
+class _OnlySections(BaseModel):
+    """A model with sections and no top-level settings.
+
+    Attributes:
+        inner: A section.
+    """
+
+    inner: _DocDescribed = _DocDescribed()
+
+
+def test_model_without_top_level_settings_has_no_top_level_table() -> None:
+    rendered = render_settings_tables(iter_settings(_OnlySections))
+    assert TOP_LEVEL_SECTION not in rendered
+    assert "### `inner:` section" in rendered
+    assert "| `inner.value` | `VULTRON_INNER__VALUE` |" in rendered
+
+
+class _Literals(BaseModel):
+    """Python literals in descriptions.
+
+    Attributes:
+        url: When ``None``, nothing happens; ``True`` and ``False`` read as
+            JSON (CP-08-001, #1872).  See :class:`_Literals`.
+    """
+
+    url: str | None = None
+
+
+def test_python_literals_and_issue_refs_are_rewritten() -> None:
+    (url,) = iter_settings(_Literals)
+    assert url.description == (
+        "When unset, nothing happens; `true` and `false` read as JSON"
+        " (CP-08-001)."
+    )

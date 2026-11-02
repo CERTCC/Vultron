@@ -62,11 +62,12 @@ An environment variable always carries a string, so a setting whose type is not 
 | string, URL | A YAML string | The text itself |
 | integer, number | A YAML number | The number as text, for example `300` or `0.25` |
 | boolean | `true` or `false` | `true` or `false` |
-| duration | An ISO 8601 duration string, for example `PT72H` or `P7D` | The same ISO 8601 string; a bare number of seconds is refused |
+| duration | An ISO 8601 duration string, for example `PT72H` or `P7D`, or a number of seconds | The ISO 8601 string only; a bare number of seconds is refused |
 | list | A YAML sequence | A JSON array, for example `["vendor", "coordinator"]` |
 | unset | `null`, or the key left out | No form: a variable left out of the environment leaves the setting at its file value or default |
 
-A value that does not match its setting's type or bounds stops the node at startup with an error that names the setting (CFG-04-006).
+A value that does not match its setting's type or bounds stops the node at startup with an error that names the setting.
+So does `ledger.invite_resend_max_cooldown_seconds` set below `ledger.invite_resend_cooldown_seconds`, the one check that compares two settings.
 
 ---
 

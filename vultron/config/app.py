@@ -100,13 +100,13 @@ class ServerConfig(BaseModel):
 
     Attributes:
         base_url: Base URL of the Vultron server, used for constructing
-            object IDs.  MUST include the API path prefix: an actor's id is the
-            URL that reaches it, and a hosted actor is named
+            object IDs.  It starts with ``http://`` or ``https://``.  The value includes the API path prefix: an actor's id
+            is the URL that reaches it, and a hosted actor is named
             ``{base_url}/actors/{slug}``, so a value without ``/api/v2`` mints
-            ids that address nothing (DL-07-006).  Defaults to
-            ``"http://localhost:7999/api/v2"``, matching the shape the compose
-            files set, so a local run resolves actors the way a deployed one
-            does.
+            ids that address nothing (DL-07-006).  The default has the shape
+            the compose files set, so a local run resolves actors the way a
+            deployed one does.  Defaults to
+            ``"http://localhost:7999/api/v2"``.
         log_level: Root log level name.  Must be one of ``DEBUG``, ``INFO``,
             ``WARNING``, ``ERROR``, or ``CRITICAL``.  Defaults to ``"INFO"``.
         ledger_stream_poll_seconds: How often (in seconds) an open demo case
@@ -168,9 +168,9 @@ class AppConfig(BaseSettings):
         pre_bootstrap_queue_timeout_seconds: How long (in seconds) a
             pre-bootstrap inbox queue is held before it expires.  When the
             window lapses, queued activity IDs are dropped and a warning
-            is logged (CBT-03-003, CBT-03-006).  Override via
+            is logged (CBT-03-003, CBT-03-005, CBT-03-006).  Override via
             ``VULTRON_PRE_BOOTSTRAP_QUEUE_TIMEOUT_SECONDS``.  Defaults to
-            300 (5 minutes) (CBT-03-005).
+            300 (5 minutes).
         max_inbox_retry_attempts: Maximum cumulative processing attempts for
             a single inbox activity before it is moved to the dead-letter
             store (IE-06-004).  Matches the outbox default of 12 so that
@@ -182,9 +182,9 @@ class AppConfig(BaseSettings):
             exponentially; a 4xx answer ends the fetch at once.  Override via
             ``VULTRON_MAX_OBJECT_FETCH_ATTEMPTS``.  Defaults to 3.
         object_fetch_timeout_seconds: Timeout of each fetch attempt, in
-            seconds (AKM-05-008).  Override via
-            ``VULTRON_OBJECT_FETCH_TIMEOUT_SECONDS``.  Defaults to 30, the
-            delivery timeout (SYNC-05-004).
+            seconds (AKM-05-008).  It matches the delivery timeout
+            (SYNC-05-004).  Override via
+            ``VULTRON_OBJECT_FETCH_TIMEOUT_SECONDS``.  Defaults to 30.
     """
 
     server: ServerConfig = ServerConfig()

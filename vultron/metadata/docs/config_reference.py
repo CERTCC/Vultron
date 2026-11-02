@@ -28,9 +28,13 @@ is the fuller of the two where both exist. A field with neither raises
 :class:`ConfigReferenceError`, which fails the strict docs build rather than
 publishing a blank row.
 
-Sentences stating the default or the overriding variable are dropped from a
-description, because the table prints both from the model; keeping them would
-give one row two sources for the same fact.
+A description is split into sentences, and a sentence that starts by stating
+the default (``Default ...``, ``Defaults to ...``) or the overriding variable
+(``Override via ...``) is dropped, because the table prints both from the
+model; keeping them would give one row two sources for the same fact. Python
+literals in code spans become the page's vocabulary (``None`` reads ``unset``,
+``True`` reads ``true``), and issue numbers are dropped, since they are
+project-record pointers, not facts about the setting.
 
 Usage (in a markdown-exec Python block)::
 
@@ -51,9 +55,8 @@ from typing import Any, Literal, Union, get_args, get_origin
 
 import annotated_types
 import yaml
-from pydantic import BaseModel, HttpUrl, TypeAdapter
+from pydantic import BaseModel, HttpUrl
 from pydantic.fields import FieldInfo
-from pydantic_core import PydanticUndefined
 
 from vultron.config.app import AppConfig
 
@@ -68,11 +71,35 @@ TOP_LEVEL_SECTION = "Top-level settings"
 
 _ATTRIBUTES_HEADER = "Attributes:"
 _ATTRIBUTE_ENTRY = re.compile(r"^(?P<name>\w+):\s*(?P<text>.*)$")
-_DEFAULT_SENTENCE = re.compile(r"\s*Defaults?(?: to|:)\s.*?\.(?=\s|$)")
-_OVERRIDE_SENTENCE = re.compile(r"\s*Override via\s.*?\.(?=\s|$)")
-_SEE_CODE_SENTENCE = re.compile(r"\s*See :\w+:`[^`]+`\.")
+# A sentence ends at a period followed by space, except after "e.g." / "i.e.".
+_SENTENCE_BREAK = re.compile(r"(?<!e\.g\.)(?<!i\.e\.)(?<=\.)\s+")
+_DROPPED_SENTENCE = re.compile(r"^(?:Defaults?\b|Override via\b|See ``)")
 _SPHINX_ROLE = re.compile(r":(?:class|func|data|attr|meth|mod):`~?([\w.]+)`")
+_ISSUE_REF = re.compile(r"[,;]?\s*(?:issue\s+)?#\d+")
 _DOUBLE_BACKTICK = re.compile(r"``(.+?)``")
+
+#: Python literals in code spans, rewritten into the page's vocabulary. ``None``
+#: becomes the plain word the Type and Default columns use, not a code span.
+_LITERAL_WORDS = {"None": "unset", "True": "`true`", "False": "`false`"}
+
+#: Labels for scalar types, checked in order: ``bool`` before ``int`` because
+#: ``bool`` subclasses ``int``. An ``Enum`` is labeled before these by its values.
+_SCALAR_LABELS: tuple[tuple[type, str], ...] = (
+    (bool, "boolean"),
+    (int, "integer"),
+    (float, "number"),
+    (timedelta, "duration"),
+    (HttpUrl, "HTTP(S) URL"),
+    (str, "string"),
+)
+
+#: Numeric bound constraints the page renders, with their symbols.
+_BOUND_SYMBOLS: tuple[tuple[type, str, str], ...] = (
+    (annotated_types.Ge, "ge", "≥"),
+    (annotated_types.Gt, "gt", ">"),
+    (annotated_types.Le, "le", "≤"),
+    (annotated_types.Lt, "lt", "<"),
+)
 
 
 class ConfigReferenceError(ValueError):
@@ -86,7 +113,8 @@ class ConfigSetting:
     Attributes:
         path: Field names from ``AppConfig`` down to the setting, for example
             ``("ledger", "staleness_window_days")``.
-        type_label: Markdown label for the value the setting accepts.
+        type_label: Markdown label for the value the setting accepts, bounds
+            included, for example ``integer (≥ 1), or unset``.
         default: Markdown rendering of the default value.
         default_value: The default in JSON form, as ``config.yaml`` holds it.
         bounds: Markdown rendering of the numeric bounds, or empty.
@@ -111,11 +139,21 @@ class ConfigSetting:
         return ENV_PREFIX + ENV_NESTED_DELIMITER.join(self.path).upper()
 
 
+def _field_ref(model: type[BaseModel], name: str) -> str:
+    return f"{model.__name__}.{name}"
+
+
 def _docstring_attributes(model: type[BaseModel]) -> dict[str, str]:
-    """Return the ``Attributes:`` entries of *model*'s docstring by field name."""
+    """Return the ``Attributes:`` entries of *model*'s docstring by field name.
+
+    An entry starts at the indent of the section's first entry; a deeper line
+    continues the current entry. A blank line ends the current entry, and the
+    next line at the docstring's own indent ends the section.
+    """
     doc = inspect.cleandoc(model.__doc__ or "")
     entries: dict[str, list[str]] = {}
     current: str | None = None
+    entry_indent: int | None = None
     in_section = False
     for line in doc.splitlines():
         if line.strip() == _ATTRIBUTES_HEADER:
@@ -124,15 +162,16 @@ def _docstring_attributes(model: type[BaseModel]) -> dict[str, str]:
         if not in_section:
             continue
         if line and not line.startswith(" "):
-            break  # the next unindented line ends the section
+            break
         stripped = line.strip()
         if not stripped:
             current = None
             continue
-        # An entry starts at the section's first indent; a continuation is deeper.
         indent = len(line) - len(line.lstrip())
+        if entry_indent is None:
+            entry_indent = indent
         match = _ATTRIBUTE_ENTRY.match(stripped)
-        if match and indent <= 4:
+        if match and indent == entry_indent:
             name = match.group("name")
             entries[name] = [match.group("text")]
             current = name
@@ -141,16 +180,25 @@ def _docstring_attributes(model: type[BaseModel]) -> dict[str, str]:
     return {name: " ".join(parts) for name, parts in entries.items()}
 
 
+def _literal_span(match: re.Match[str]) -> str:
+    text = match.group(1)
+    return _LITERAL_WORDS.get(text, f"`{text}`")
+
+
 def _clean_description(text: str) -> str:
     """Turn docstring prose into table-cell Markdown without the default."""
     text = " ".join(text.split())
-    text = _SEE_CODE_SENTENCE.sub("", text)  # points into code, not the reader
     text = _SPHINX_ROLE.sub(
         lambda m: f"``{m.group(1).rsplit('.', 1)[-1]}``", text
     )
-    text = _DEFAULT_SENTENCE.sub("", text)
-    text = _OVERRIDE_SENTENCE.sub("", text)
-    text = _DOUBLE_BACKTICK.sub(r"`\1`", text)
+    text = _ISSUE_REF.sub("", text).replace("()", "")
+    kept = [
+        sentence
+        for sentence in _SENTENCE_BREAK.split(text)
+        if sentence and not _DROPPED_SENTENCE.match(sentence)
+    ]
+    text = " ".join(kept)
+    text = _DOUBLE_BACKTICK.sub(_literal_span, text)
     return text.strip().replace("|", "\\|")
 
 
@@ -164,10 +212,10 @@ def _description(model: type[BaseModel], name: str, field: FieldInfo) -> str:
     raw = _docstring_attributes(model).get(name) or field.description
     if not raw:
         raise ConfigReferenceError(
-            f"{model.__name__}.{name} has no entry under the"
+            f"{_field_ref(model, name)} has no entry under the"
             f" {model.__name__} docstring's Attributes: section and no"
-            " Field(description=...); the configuration reference page needs one to describe"
-            " the setting."
+            " Field(description=...); the configuration reference page needs"
+            " one to describe the setting."
         )
     return _clean_description(raw)
 
@@ -186,24 +234,27 @@ def _choices(values: list[str]) -> str:
     return "one of " + ", ".join(f"`{value}`" for value in values)
 
 
-def _type_label(annotation: Any) -> str:
-    """Return a reader-facing label for the values *annotation* accepts."""
-    members, nullable = _non_null_args(annotation)
-    labels = [_member_label(member) for member in members]
-    label = " or ".join(labels)
-    return f"{label}, or unset" if nullable else label
+def _unlabeled(annotation: Any) -> ConfigReferenceError:
+    return ConfigReferenceError(
+        f"no reference-page type label for annotation {annotation!r}; add one"
+        " to vultron.metadata.docs.config_reference."
+    )
 
 
-#: Labels for scalar types, checked in order: ``bool`` before ``int`` because
-#: ``bool`` subclasses ``int``. An ``Enum`` is labeled before these by its values.
-_SCALAR_LABELS: tuple[tuple[type, str], ...] = (
-    (bool, "boolean"),
-    (int, "integer"),
-    (float, "number"),
-    (timedelta, "duration"),
-    (HttpUrl, "HTTP(S) URL"),
-    (str, "string"),
-)
+def _scalar_label(annotation: Any) -> str | None:
+    for scalar, label in _SCALAR_LABELS:
+        if isinstance(annotation, type) and issubclass(annotation, scalar):
+            return label
+    return None
+
+
+def _literal_label(annotation: Any) -> str:
+    values = get_args(annotation)
+    labels = {_scalar_label(type(value)) for value in values}
+    if len(labels) != 1 or None in labels:
+        raise _unlabeled(annotation)
+    (label,) = labels
+    return f"{label}, " + _choices([str(value) for value in values])
 
 
 def _member_label(annotation: Any) -> str:
@@ -213,11 +264,9 @@ def _member_label(annotation: Any) -> str:
         ConfigReferenceError: The renderer has no label for *annotation*.
     """
     if get_origin(annotation) is Literal:
-        return "string, " + _choices(
-            [str(arg) for arg in get_args(annotation)]
-        )
+        return _literal_label(annotation)
     if get_origin(annotation) is list:
-        (item,) = get_args(annotation)
+        (item,) = get_args(annotation)  # list[X] always has exactly one
         item_label = _member_label(item)
         if item_label.startswith("string, "):
             return "list of strings, each " + item_label.removeprefix(
@@ -226,42 +275,67 @@ def _member_label(annotation: Any) -> str:
         return f"list of {item_label}"
     if isinstance(annotation, type) and issubclass(annotation, Enum):
         return "string, " + _choices([str(m.value) for m in annotation])
-    for scalar, label in _SCALAR_LABELS:
-        if isinstance(annotation, type) and issubclass(annotation, scalar):
-            return label
-    raise ConfigReferenceError(
-        f"no reference-page type label for annotation {annotation!r}; add one"
-        " to vultron.metadata.docs.config_reference._SCALAR_LABELS."
-    )
+    label = _scalar_label(annotation)
+    if label is None:
+        raise _unlabeled(annotation)
+    return label
 
 
-def _bounds(field: FieldInfo) -> str:
-    """Return the field's numeric bounds as Markdown, e.g. ``≥ 1``."""
+def _type_label(annotation: Any, bounds: str) -> str:
+    """Return a reader-facing label for the values *annotation* accepts.
+
+    Bounds attach to the value type, before any ``or unset``, so they never
+    read as applying to the unset case.
+    """
+    members, nullable = _non_null_args(annotation)
+    label = " or ".join(_member_label(member) for member in members)
+    if bounds:
+        label = f"{label} ({bounds})"
+    return f"{label}, or unset" if nullable else label
+
+
+def _bounds(model: type[BaseModel], name: str, field: FieldInfo) -> str:
+    """Return the field's numeric bounds as Markdown, e.g. ``≥ 1``.
+
+    Raises:
+        ConfigReferenceError: The field carries a constraint the page cannot
+            render, which would otherwise be dropped from the page silently.
+    """
     parts: list[str] = []
     for item in field.metadata:
-        if isinstance(item, annotated_types.Ge):
-            parts.append(f"≥ {item.ge}")
-        elif isinstance(item, annotated_types.Gt):
-            parts.append(f"> {item.gt}")
-        elif isinstance(item, annotated_types.Le):
-            parts.append(f"≤ {item.le}")
-        elif isinstance(item, annotated_types.Lt):
-            parts.append(f"< {item.lt}")
+        for kind, attr, symbol in _BOUND_SYMBOLS:
+            if isinstance(item, kind):
+                parts.append(f"{symbol} {getattr(item, attr)}")
+                break
+        else:
+            raise ConfigReferenceError(
+                f"{_field_ref(model, name)} carries constraint {item!r}, which"
+                " the configuration reference page cannot render; add it to"
+                " vultron.metadata.docs.config_reference._BOUND_SYMBOLS."
+            )
     return ", ".join(parts)
 
 
-def _default_value(field: FieldInfo) -> Any:
-    """Return the field's default in JSON form, as ``config.yaml`` holds it."""
-    if field.default_factory is not None:
-        value = field.default_factory()  # type: ignore[call-arg]
-    elif field.default is PydanticUndefined:
+def _default_value(model: type[BaseModel], name: str, field: FieldInfo) -> Any:
+    """Return the field's default in JSON form, as ``config.yaml`` holds it.
+
+    The value is serialized through *model*, so a field serializer the model
+    declares shapes it exactly as the node would. ``model_construct`` builds
+    the model without reading any settings source.
+
+    Raises:
+        ConfigReferenceError: The field has no default (CFG-02-005).
+    """
+    if field.is_required():
         raise ConfigReferenceError(
-            "every AppConfig field has a default (CFG-02-005); found one"
-            " without"
+            f"{_field_ref(model, name)} has no default; every node setting"
+            " needs one so a node starts with no configuration (CFG-02-005)."
         )
-    else:
-        value = field.default
-    return TypeAdapter(field.annotation).dump_python(value, mode="json")
+    value = field.get_default(call_default_factory=True, validated_data={})
+    dumped = model.model_construct(**{name: value}).model_dump(
+        mode="json", include={name}
+    )
+    return dumped[name]
 
 
 def _render_default(value: Any) -> str:
@@ -270,11 +344,6 @@ def _render_default(value: Any) -> str:
         return "unset"
     text = value if isinstance(value, str) else json.dumps(value)
     return f"`{text}`".replace("|", "\\|")
-
-
-def _is_section(field: FieldInfo) -> bool:
-    annotation = field.annotation
-    return isinstance(annotation, type) and issubclass(annotation, BaseModel)
 
 
 def iter_settings(
@@ -291,19 +360,19 @@ def iter_settings(
     settings: list[ConfigSetting] = []
     for name, field in model.model_fields.items():
         path = (*prefix, name)
-        if _is_section(field):
-            section = field.annotation
-            assert isinstance(section, type) and issubclass(section, BaseModel)
+        section = field.annotation
+        if isinstance(section, type) and issubclass(section, BaseModel):
             settings.extend(iter_settings(section, path))
             continue
-        default_value = _default_value(field)
+        default_value = _default_value(model, name, field)
+        bounds = _bounds(model, name, field)
         settings.append(
             ConfigSetting(
                 path=path,
-                type_label=_type_label(field.annotation),
+                type_label=_type_label(field.annotation, bounds),
                 default=_render_default(default_value),
                 default_value=default_value,
-                bounds=_bounds(field),
+                bounds=bounds,
                 description=_description(model, name, field),
             )
         )
@@ -318,7 +387,8 @@ def render_settings_tables(settings: list[ConfigSetting] | None = None) -> str:
     """Return one Markdown table per ``config.yaml`` section.
 
     Top-level settings come first, then each section in ``AppConfig`` order,
-    headed by its key.
+    headed by its key. A model with no top-level settings gets no top-level
+    table.
     """
     settings = iter_settings() if settings is None else settings
     sections: dict[str, list[ConfigSetting]] = {TOP_LEVEL_SECTION: []}
@@ -336,11 +406,8 @@ def render_settings_tables(settings: list[ConfigSetting] | None = None) -> str:
             "|---|---|---|---|---|",
         ]
         for s in members:
-            value_type = (
-                f"{s.type_label} ({s.bounds})" if s.bounds else s.type_label
-            )
             lines.append(
-                f"| `{s.yaml_key}` | `{s.env_var}` | {value_type}"
+                f"| `{s.yaml_key}` | `{s.env_var}` | {s.type_label}"
                 f" | {s.default} | {s.description} |"
             )
         lines.append("")
