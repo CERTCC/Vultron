@@ -356,8 +356,9 @@ class TestEmitCreateVulnerabilityCaseNode:
         strict=True,
         raises=AssertionError,
         reason=(
-            "#5371: the creation copy travels in the bootstrap Create "
-            "(CBT-01-002, ADR-0157), not in an Announce(VulnerabilityCase)"
+            "the creation copy travels in the bootstrap Create (CBT-01-002, "
+            "ADR-0157), not in an Announce(VulnerabilityCase); rewording "
+            "PCR-02-005 and removing this xfail is tracked by #5377"
         ),
     )
     def test_the_creation_copy_is_not_delivered_in_the_create(self):
