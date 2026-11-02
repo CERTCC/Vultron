@@ -2022,9 +2022,11 @@ groups:
       record of SYNC-15-008 names only where a replay started, not how far it reached.
     verification: >-
       `test/core/behaviors/sync/test_reject_tree.py`
-      (`test_genesis_reject_for_an_entry_the_last_genesis_replay_sent_is_declined`, a
-      strict xfail until #5556 lands) confirms that a Reject of an entry the last
-      replay sent is told apart from one it did not.
+      (`test_genesis_reject_for_an_entry_the_last_genesis_replay_sent_is_declined` and
+      `test_genesis_reject_for_an_entry_the_last_genesis_replay_did_not_send_replays`)
+      confirms that a Reject of an entry the last replay sent is told apart from one
+      it did not; `test/core/behaviors/sync/nodes/test_replay_guard.py`
+      (`TestGenesisReplayCoverage`) confirms the recorded index.
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-019
@@ -2072,11 +2074,11 @@ groups:
       the skip applies only while the recorded position is still genesis.
     verification: >-
       `test/core/behaviors/sync/test_reject_tree.py`
-      (`test_genesis_reject_for_an_entry_the_last_genesis_replay_sent_is_declined`, a
-      strict xfail until #5556 lands) confirms that such a Reject sends no replay and no
-      case; `test_genesis_reject_after_a_replay_from_another_position_is_not_declined`
-      and `test_genesis_reject_after_the_ceiling_replays_again` confirm the two
-      bounds of the skip.
+      (`test_genesis_reject_for_an_entry_the_last_genesis_replay_sent_is_declined`)
+      confirms that such a Reject sends no replay and no case;
+      `test_genesis_reject_after_a_replay_from_another_position_is_not_declined` and
+      `test_genesis_reject_after_the_ceiling_replays_again` confirm the two bounds of
+      the skip.
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-019
@@ -2096,8 +2098,8 @@ groups:
       empty replay.
     verification: >-
       `test/core/behaviors/sync/test_reject_tree.py`
-      (`test_declined_genesis_reject_leaves_the_replication_record_unchanged`, a strict
-      xfail until #5556 lands) confirms that the per-peer record is unchanged.
+      (`test_declined_genesis_reject_leaves_the_replication_record_unchanged`)
+      confirms that the per-peer record is unchanged.
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-024

@@ -18,7 +18,9 @@ tracks:
   - "#5535"
   - "#5536"
   - "#5537"
+  - "#5589"
   - "#5591"
+  - "#5613"
 description: >
   Design for the remaining scenario-tree work (#4726): the letter-grammar names
   and how a rename keeps old URLs, the generated tree index the demo UI reads,
@@ -52,7 +54,7 @@ relevant_packages:
 Vocabulary: the **Demo** section of `CONTEXT.md` (scenario tree, branch point,
 choice, ending, scenario, recording). Decision records: ADR-0098 and ADR-0104,
 both amended 2026-10-15; ADR-0098 amended again 2026-10-30. Requirements:
-DEMOCI-11-013 through DEMOCI-11-025.
+DEMOCI-11-013 through DEMOCI-11-025, DEMOCI-11-034 and DEMOCI-11-035.
 Parent Epic: #4747.
 
 The `@scenario(path=...)` declarations are the interim form. Composition
@@ -363,16 +365,26 @@ vendor-first half follows (#5536) and then `path=` and the hand-placed
   status at closure (#5534). A shared join helper therefore takes `triages=`:
   a vendor judges the report it was invited over, a coordinator joining to
   coordinate does not.
-- **Run `--report-changes` by hand; no gate will do it for you.** Nothing in
-  PR CI regenerates a recording — the freshness check runs daily on `main` and
-  files a refresh Task rather than failing (`demo-recordings.yml`) — and
+- **The plot manifest catches a reorder; nothing at PR time catches an edit.**
+  Nothing in PR CI regenerates a recording: the freshness check runs daily on
+  `main` and files a refresh Task rather than failing (`demo-recordings.yml`).
   `TestComposedFamilies` compares the two *committed* recordings with each
-  other, so a reordered shared fragment moves both alike and the check still
-  passes. Measured on the pilot: the reorder left every unit, architecture and
-  byte-identity test green, and only
-  `export-demo-recordings --scenario <a> --scenario <b> --report-changes`
-  caught it, with exit 3. That run is the evidence DEMOMA-17-002 asks for, so
-  make it in every composition PR until #5589 turns it into a gate.
+  other, so a reordered shared fragment moves both alike and still passes.
+  The plot manifest (DEMOCI-11-034, DEMOCI-11-035) closes the reorder half for
+  free: it lists each composed story's choices and fragment names, read
+  without running anything, and drift-fails on any change in order. In a
+  consolidation PR a manifest diff is a sign the PR may change what a scenario
+  passes or fails on, which DEMOMA-17-002 forbids; check it before merging. It
+  cannot see an edit inside a fragment's body, so run
+  `export-demo-recordings --scenario <a> --scenario <b> --report-changes` in a
+  composition PR that edits a fragment, and in every composition PR until the
+  manifest is built; that run is DEMOMA-17-002's evidence.
+- **Byte-comparing a fresh run with the committed files is a rejected gate.**
+  The recording clock ticks 10 ms on every read, so a refactor that adds one
+  `now_utc()` call shifts every later timestamp and digest, and #5591 makes
+  some reads race. Comparing on every PR would also undo #3901's rule that no
+  PR regenerates recordings. A fresh-versus-fresh comparison of base and head
+  that ignores timestamps and digests is the open alternative.
 
 ## Test starting points
 

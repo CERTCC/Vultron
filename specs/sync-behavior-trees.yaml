@@ -287,7 +287,9 @@ groups:
           After updating replication state, RejectLogEntryReceivedBT MUST
           replay all missing entries from the peer's last-accepted hash
           forward by queuing `Announce(CaseLedgerEntry)` activities via
-          SyncActivityPort.
+          SyncActivityPort, unless the replay rate bound suppresses the
+          replay (SYNC-15-009) or the Reject is declined as already
+          answered (SYNC-15-024).
         rationale: >-
           A peer that rejected an entry stays behind until it gets all entries after its
           last accepted entry. When the CASE_MANAGER replays that full range through the
