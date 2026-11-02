@@ -76,7 +76,7 @@ clean boundary needs an invariant test, not a target.
 ### ARCH-12-010 is a trap for wire-side callers
 
 Resolving an inline object's `type` inside a wire tree MUST consider wire-branch
-classes only (MV-04-003, VM-06-008). A hit in the core type map is a coincidence
+classes only (MV-04-004, VM-06-008). A hit in the core type map is a coincidence
 of naming, not a wire counterpart: it places a core class in a wire slot that the
 parent field then rejects, degrading the object to a bare `as_Link` (ISSUE-3217).
 

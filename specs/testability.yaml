@@ -595,7 +595,6 @@ groups:
   - id: TB-13-009
     priority: MUST
     kind: project
-    verification_debt: '#2574'
     statement: >-
       A meta-ratchet in `test/architecture/test_ratchet_hygiene.py` MUST fail when any
       sibling file contains a bare `ast.parse(` or `.rglob(` call outside `_corpus.py`.
@@ -603,6 +602,10 @@ groups:
       A rule with no check is broken without notice. The meta-ratchet searches the
       source text for those strings and parses nothing, so it obeys the rule it
       checks.
+    verification: >-
+      `test_no_raw_ast_parse_or_rglob_in_siblings` in
+      `test/architecture/test_ratchet_hygiene.py` is the meta-ratchet itself: it
+      fails on a sibling file that holds either call outside `_corpus.py`.
     relationships:
     - rel_type: implements
       spec_id: TB-13-003

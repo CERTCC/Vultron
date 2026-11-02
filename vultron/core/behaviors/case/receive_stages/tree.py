@@ -15,7 +15,7 @@
 
 """The received tree's type, its stage list and the guarded commit stage.
 
-Split out of ``receive_activity_tree.py`` (CS-18-001), which re-exports
+Split out of ``receive_activity_tree.py`` (CS-18-005), which re-exports
 every name here.
 """
 

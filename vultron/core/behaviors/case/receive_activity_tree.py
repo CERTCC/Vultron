@@ -76,7 +76,7 @@ the chain (CLP-09-001) and is a CLP-10-006 ordering violation caught by
 
 This tree-factory module sits at the area root as BTND-07-003 requires and
 holds the factory alone; the stage builders it composes live in
-``case/receive_stages/``, grouped by concern (CS-18-001), and the public names
+``case/receive_stages/``, grouped by concern (CS-18-005), and the public names
 among them are re-exported here.
 """
 
@@ -589,7 +589,7 @@ def create_receive_activity_tree(
     )
 
 
-# The stage builders moved to ``receive_stages`` (CS-18-001); the public
+# The stage builders moved to ``receive_stages`` (CS-18-005); the public
 # names stay importable from here.
 __all__ = [
     "ReceivedActivityTree",

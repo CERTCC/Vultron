@@ -378,9 +378,10 @@ def test_a_misaddressed_activity_writes_nothing_to_the_receivers_store(
     )
 
     assert resp.status_code == status.HTTP_400_BAD_REQUEST
-    assert _snapshot() == before
-    assert activity.id_ not in before[0]
-    assert note.id_ not in before[0]
+    after = _snapshot()
+    assert after == before
+    assert activity.id_ not in after[0]
+    assert note.id_ not in after[0]
 
 
 def test_post_inbox_returns_202_when_activity_addressed_to_actor(

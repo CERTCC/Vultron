@@ -109,7 +109,7 @@ stack and imports neither core nor config.
   construction.
 - **To only reset the cache, call `clear_config_cache()`**, never
   `reload_config()`, in teardown.
-- **The ordering footgun (CFG-06-007):** the cache is process-wide, and
+- **The ordering footgun (CFG-06-009):** the cache is process-wide, and
   `reload_config()` re-reads `os.environ` at once. `monkeypatch` undoes env
   changes *after* the teardown body runs, so `reload_config()` in teardown
   caches the test's patched values for every later test. Outside
