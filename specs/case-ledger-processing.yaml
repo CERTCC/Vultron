@@ -356,9 +356,10 @@ groups:
       choice of one handler. A coverage test then has a fixed set of grounds for an
       exemption.
     verification: >-
-      `test_exemptions_name_a_ground_or_an_issue` in
-      `test/architecture/test_ledger_commit_coverage.py` fails an exemption that names
-      neither a CLP-02-013 ground nor an open issue.
+      `test_every_ground_is_listed_in_clp_02_013_first` in
+      `test/architecture/test_ledger_commit_coverage.py` pins the coverage test's
+      exemption grounds to the kinds the CLP-02-013 statement lists, so a new ground
+      fails until the statement names it.
     relationships:
     - rel_type: extends
       spec_id: CLP-02-013
@@ -588,8 +589,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST write only canonical admitted entries to the case ledger,
-      never a refusal from any processing path.
+      The case ledger MUST contain only canonical admitted entries, never a refusal
+      from any processing path.
     rationale: >-
       Every replica applies every entry. A refusal in the ledger would make each replica
       tell a refusal from a change, and an implementation that fails to do this would
@@ -740,7 +741,7 @@ groups:
       `test/core/use_cases/received/test_refusal_notice.py` assert that no notice is
       queued in each case.
     relationships:
-    - rel_type: constrains
+    - rel_type: refines
       spec_id: CLP-05-005
     adr:
     - ADR-0141
@@ -1289,7 +1290,7 @@ groups:
       `test/architecture/test_embargo_consequences_in_one_act.py` holds the registered
       exemptions to equality with a pinned set in both directions.
     relationships:
-    - rel_type: constrains
+    - rel_type: refines
       spec_id: CLP-07-016
     adr:
     - ADR-0146
@@ -1639,7 +1640,10 @@ groups:
     verification: >-
       `test_last_accepted_hash_from_the_ledger_position` in
       `test/core/use_cases/received/test_reject_sync.py` confirms a requester states the
-      entry hash of its ledger position.
+      entry hash of its ledger position, and
+      `test_an_empty_ledgers_stated_position_starts_from_genesis` in
+      `test/core/test_sync_helpers.py` confirms a requester holding no entry states the
+      case-specific genesis hash.
     stories:
     - story_2022_045
     - story_2022_088
@@ -2673,8 +2677,7 @@ groups:
     kind: project
     statement: >-
       A receive-side tree MUST pass the factory, as `refusal_effects`, any further
-      feedback it owes the sender when a precondition guard refuses. It never places
-      that feedback as an emit beside the refusing guard.
+      feedback it owes the sender when a precondition guard refuses.
     rationale: >-
       An emit beside the guard would precede the commit on an admitted delivery
       (CLP-10-006). The factory's refusal stage runs the feedback only on a refused
@@ -3009,7 +3012,7 @@ groups:
       `test/core/use_cases/received/test_note_and_announce_sender_rules.py` asserts that
       a participant's note prompts the end-time decision for its case.
     relationships:
-    - rel_type: constrains
+    - rel_type: refines
       spec_id: CLP-10-054
     adr:
     - ADR-0135
@@ -3027,7 +3030,7 @@ groups:
       `test/core/use_cases/received/actor/test_ownership_deadline.py` asserts the
       claimed `published` time does not change the verdict.
     relationships:
-    - rel_type: constrains
+    - rel_type: refines
       spec_id: CLP-10-054
     adr:
     - ADR-0135
@@ -3293,7 +3296,7 @@ groups:
       `test/core/behaviors/case/nodes/test_diversion_stage.py` builds a receiver
       diversion that answers from the activity it holds.
     relationships:
-    - rel_type: constrains
+    - rel_type: refines
       spec_id: CLP-10-067
     adr:
     - ADR-0135
@@ -3365,12 +3368,10 @@ groups:
       The CASE_MANAGER's store holds the canonical ledger, so its own act is committed
       where it is sent, with no copy mailed to itself.
     verification: >-
-      `test_the_manager_queues_nothing_to_itself` in
-      `test/core/behaviors/embargo/nodes/test_abandon.py` asserts the CASE_MANAGER's
-      tree queues no copy to itself, and
       `test_note_is_recorded_and_announced_to_the_owner` in
-      `test/core/behaviors/case/nodes/test_suggest_actor_owner_recipient.py` asserts its
-      own note is committed as it is announced.
+      `test/core/behaviors/case/nodes/test_suggest_actor_owner_recipient.py` runs the
+      CASE_MANAGER's own note in its store and asserts the note is committed there and
+      its `Announce` queued from that store.
     relationships:
     - rel_type: implements
       spec_id: CLP-10-031
@@ -3994,9 +3995,10 @@ groups:
       needs the sender's value (CLP-14-007, CLP-14-008), so a sender that omits it makes
       those checks impossible.
     verification: >-
-      `test_an_emitted_activity_carries_published` in
-      `test/wire/as2/factories/test_report_factories.py` asserts a factory-built
-      activity carries `published` on the wire.
+      `test_a_built_activity_carries_published_by_default` in
+      `test/wire/as2/vocab/base/test_base_timestamps.py` asserts that an activity built
+      with no `published` is stamped by the `as_Object` field default, which every
+      activity class inherits.
     adr:
     - ADR-0079
     relationships:

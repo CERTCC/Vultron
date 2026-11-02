@@ -101,7 +101,7 @@ into `rejected` (MV-01-007).
 An inbound activity reaches the receiver's permanent store in three steps, and only
 the last one writes what it carries:
 
-1. **Ingress writes nothing** (DL-06-006, CLP-10-017). Not the activity: a row under
+1. **Ingress writes nothing** (DL-06-006, CLP-10-038). Not the activity: a row under
    the id its sender chose is read as one of the receiver's own by every "did I send
    it" scan (`case_is_announced`, `recorded_stub_invites`, #4866). Not its inline
    objects: a stored inline object *is* the receiver's record, so a stored case is a

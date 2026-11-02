@@ -110,7 +110,7 @@ def refusal_stage(
         raise VultronWiringError(
             f"create_receive_activity_tree({name}): {argument} must"
             f" emit and write no case state; not emit-capable:"
-            f" {not_emitters}, state writers: {writers} (CLP-10-022)"
+            f" {not_emitters}, state writers: {writers} (CLP-10-047, CLP-10-048)"
         )
     gate = create_case_manager_gated_tree(
         name=f"{name}{gate_suffix}",

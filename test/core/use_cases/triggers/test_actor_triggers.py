@@ -359,7 +359,7 @@ class TestSvcInviteActorToCaseUseCase:
         )
         assert "cc" not in activity
 
-    @pytest.mark.spec("CM-24-004", "CLP-10-027")
+    @pytest.mark.spec("CM-24-004", "CLP-10-072")
     @pytest.mark.spec("CM-24-010")
     def test_invite_is_queued_in_the_owners_outbox_only(self):
         """The Offer leaves from the owner's outbox; nothing is queued as the
@@ -1761,7 +1761,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
                 end_time=end_time if aware else end_time.replace(tzinfo=None),
             )
 
-    @pytest.mark.spec("CM-24-004", "CLP-10-027")
+    @pytest.mark.spec("CM-24-004", "CLP-10-072")
     @pytest.mark.spec("CM-24-010")
     def test_offer_is_queued_in_the_owners_outbox_only(self):
         """The proposal is stored and queued in the owner's store; nothing is

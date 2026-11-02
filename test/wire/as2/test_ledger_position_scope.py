@@ -113,7 +113,7 @@ def test_the_scope_table_names_only_received_semantics() -> None:
     assert set(OUT_OF_SCOPE) <= received
 
 
-@pytest.mark.spec("SYNC-18-003")
+@pytest.mark.spec("SYNC-18-016")
 def test_a_reject_of_an_entry_may_state_no_position() -> None:
     field = RejectLogEntryReceivedEvent.model_fields["ledger_position"]
 

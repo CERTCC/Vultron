@@ -250,6 +250,7 @@ def _to_field(activity_obj) -> list[str] | None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("PCR-03-006")
 class TestCaseTriggerToField:
     """SvcEngageCaseUseCase and SvcDeferCaseUseCase populate ``to``."""
 
@@ -378,6 +379,7 @@ class TestCaseTriggerToField:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("PCR-03-006")
 class TestEmbargoTriggerToField:
     """All embargo trigger use cases address only the Case Actor (PCR-08-001)."""
 

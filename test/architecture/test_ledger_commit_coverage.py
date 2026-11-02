@@ -110,13 +110,45 @@ def test_every_routed_use_case_reaches_a_commit_or_is_exempt(
 
 
 @pytest.mark.spec("CLP-02-013")
-@pytest.mark.spec("CLP-02-017")
 @pytest.mark.spec("CLP-09-006")
 def test_exemptions_name_a_ground_or_an_issue():
     for semantic, ground in EXEMPT.items():
         assert isinstance(ground, NotACaseEvent) or (
             ground.startswith("#") and ground[1:].isdigit()
         ), semantic
+
+
+#: Each ground and the words of the CLP-02-013 statement that list it.
+_GROUND_IN_CLP_02_013: dict[NotACaseEvent, str] = {
+    NotACaseEvent.PRE_CASE: "before a case exists",
+    NotACaseEvent.OUTSIDE_THE_CASE: "RK is not one",
+    NotACaseEvent.REPLICA_APPLY: "`Announce(CaseLedgerEntry)`",
+    NotACaseEvent.LEDGER_MECHANICS: "about the ledger itself",
+    NotACaseEvent.NOT_LEDGERED_BY_CLP_10_013: "`Announce(VulnerabilityCase)`",
+    NotACaseEvent.SENT_BY_CASE_MANAGER: "only the CASE_MANAGER",
+    NotACaseEvent.PROCESSING_FAULT: "`Create(ProcessingFault)`",
+    NotACaseEvent.UNMATCHED: "does not recognize",
+}
+
+
+@pytest.mark.spec("CLP-02-017")
+def test_every_ground_is_listed_in_clp_02_013_first():
+    """A ground exists only once CLP-02-013 lists it (CLP-02-017).
+
+    The pin is the list's closing gate: a new kind of unledgered activity
+    needs a new ground here, and this test fails until the CLP-02-013
+    statement names it too.
+    """
+    from vultron.metadata.specs.registry import load_registry
+
+    statement = load_registry().get("CLP-02-013").statement
+    assert set(_GROUND_IN_CLP_02_013) == set(NotACaseEvent)
+    missing = sorted(
+        ground.name
+        for ground, words in _GROUND_IN_CLP_02_013.items()
+        if words not in statement
+    )
+    assert missing == []
 
 
 @pytest.mark.spec("CLP-02-013")

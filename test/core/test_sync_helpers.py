@@ -36,6 +36,7 @@ from vultron.core.sync_helpers import (
     first_case_with_ledger,
     holds_ledger_position,
     is_ledger_fresh_for_case,
+    ledger_tail_position,
     reconstruct_tail_hash,
 )
 from vultron.errors import VultronValidationError
@@ -105,6 +106,22 @@ class TestReconstructTailHash:
         """CLP-08-005 fail-closed: no case in DataLayer raises VultronValidationError."""
         with pytest.raises(VultronValidationError, match="genesis hash"):
             reconstruct_tail_hash(CASE_ID, dl)
+
+
+@pytest.mark.spec("CLP-08-005")
+def test_an_empty_ledgers_stated_position_starts_from_genesis(dl):
+    """A requester holding no entry states the genesis hash (CLP-08-005).
+
+    The position it stamps on a request names the case-specific genesis hash
+    at index -1, so the request starts from a hash the chain knows.
+    """
+    case = _make_case()
+    dl.save(case)
+
+    position = ledger_tail_position(CASE_ID, dl)
+
+    assert position.log_index == -1
+    assert position.entry_hash == case.genesis_hash
 
 
 @pytest.mark.spec("CLP-04-008")

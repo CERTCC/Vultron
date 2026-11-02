@@ -146,16 +146,6 @@ def test_rm_submit_report_object_is_report(sample_report, sample_actor):
     assert result.object_ == sample_report
 
 
-@pytest.mark.spec("CLP-15-006")
-def test_an_emitted_activity_carries_published(sample_report, sample_actor):
-    """A factory-built activity carries ``published`` on the wire (CLP-15-006)."""
-    result = rm_submit_report_activity(
-        report=sample_report, to=_RECIPIENT_URI, actor=sample_actor
-    )
-    wire = result.model_dump(by_alias=True, exclude_none=True, mode="json")
-    assert wire.get("published")
-
-
 def test_rm_submit_report_to_is_normalized_list(sample_report, sample_actor):
     """The factory normalizes ``to`` to a single-element list."""
     result = rm_submit_report_activity(

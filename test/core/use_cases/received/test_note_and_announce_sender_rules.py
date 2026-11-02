@@ -351,7 +351,7 @@ def test_note_from_an_active_participant_is_attached() -> None:
     assert note_id in world.notes()
 
 
-@pytest.mark.spec("CLP-10-025")
+@pytest.mark.spec("CLP-10-055")
 @pytest.mark.spec("EMB-13-003")
 def test_note_from_a_participant_ends_an_overdue_embargo() -> None:
     world = _World(end_time=_overdue())

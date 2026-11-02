@@ -34,7 +34,7 @@ refusals instead: :data:`REFUSAL_NOTICE_EXEMPTIONS` is the whole list, and
 uses each one.
 The factory runs the notice only when a precondition guard refuses, only at
 the case's CASE_MANAGER, never for a sender-guard refusal, a repeat reported
-``SKIPPED`` or a redelivery (CLP-10-022).  It writes no state: the notice's
+``SKIPPED`` or a redelivery (CLP-10-042, CLP-10-044).  It writes no state: the notice's
 id is derived from the CASE_MANAGER and the refused activity, so a retry
 queues it once (ID-04-004, OX-06-002).
 

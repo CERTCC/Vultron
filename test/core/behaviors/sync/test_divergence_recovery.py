@@ -543,7 +543,7 @@ def test_a_backfill_without_a_sync_port_is_a_wiring_fault() -> None:
         )
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-027")
 def test_a_replica_with_no_entry_asks_for_a_replay_from_genesis() -> None:
     """With no stored entry there is nothing for a Reject to name, so the
     replica sends the Reject that names none: the empty chain's position
@@ -580,7 +580,7 @@ def test_a_replica_with_no_entry_asks_for_a_replay_from_genesis() -> None:
     assert event.last_accepted_hash == ""
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-028")
 def test_a_reject_naming_no_entry_but_a_hash_is_refused_at_parse() -> None:
     """Only a request for a replay from genesis may name no entry."""
     body = genesis_replay_reject_activity(
@@ -607,8 +607,8 @@ def test_a_reject_naming_no_entry_but_a_hash_is_refused_at_parse() -> None:
         parse_activity({**body, "target": note})
 
 
+@pytest.mark.spec("SYNC-16-024")
 @pytest.mark.spec("SYNC-16-016")
-@pytest.mark.spec("SYNC-16-007")
 def test_storing_an_entry_behind_the_case_position_leaves_it() -> None:
     """A case a copy put ahead of its chain stays at the copy's position
     while the entries it reflects are stored; the next one moves it on."""
@@ -627,7 +627,7 @@ def test_storing_an_entry_behind_the_case_position_leaves_it() -> None:
     )
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-023")
 @pytest.mark.spec("PCR-02-003")
 def test_a_first_seed_ahead_of_the_chain_stores_the_backfill_as_no_ops(
     caplog: pytest.LogCaptureFixture,
@@ -1131,7 +1131,7 @@ def _put_ahead(
     dl.save(_at(cast(as_VulnerabilityCase, dl.read(_CASE_ID)), position))
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-025")
 def test_storing_another_entry_at_the_case_position_is_refused() -> None:
     """The store never leaves the chain naming one entry at the case's
     position and the case another: it refuses, storing nothing."""
@@ -1147,7 +1147,7 @@ def test_storing_another_entry_at_the_case_position_is_refused() -> None:
     assert _position(dl) == named
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-026")
 @pytest.mark.spec("SYNC-16-006")
 def test_an_entry_conflicting_with_the_case_position_is_refused_at_error(
     caplog: pytest.LogCaptureFixture,

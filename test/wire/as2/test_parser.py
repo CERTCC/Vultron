@@ -106,11 +106,11 @@ def test_parse_activity_rejects_explicit_null_published():
 def test_parse_activity_rejects_blank_published(blank: str):
     """A blank ``published`` carries no claimed time, so it is absence.
 
-    CLP-15-006 refuses an inbound activity that "carries no ``published``", and
+    CLP-15-008 refuses an inbound activity that "carries no ``published``", and
     a field present but empty carries none — CS-08-001's "if present, then
     non-empty".  Asking only whether the *key* was absent let this reach
     ``model_validate``, which reported it as a schema fault and so replaced the
-    CLP-15-006 explanation with a Pydantic isoformat dump (ISSUE-3217).
+    CLP-15-008 explanation with a Pydantic isoformat dump (ISSUE-3217).
     """
     with pytest.raises(VultronParseMissingPublishedError):
         parse_activity(

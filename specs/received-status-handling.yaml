@@ -950,11 +950,12 @@ groups:
     - rel_type: extends
       spec_id: RSH-08-001
     verification: >-
-      Regression tests for the report-invalid and report-closed received-side use cases
+      `test_receiving_actor_participant_unchanged` in
+      `test/core/use_cases/received/test_report_routing_guard.py` and the other
+      regression tests for the report-invalid and report-closed received-side use cases
       assert the receiving actor's participant is unchanged.
     adr:
     - ADR-0108
-    - ADR-0162
     lint_suppress:
     - missing_story_reference
   - id: RSH-08-005
@@ -1010,8 +1011,10 @@ groups:
     - rel_type: extends
       spec_id: RSH-08-002
     verification: >-
-      A test delivers a declaration that disagrees with the act and asserts RSH-06
-      handling.
+      `TestDisagreeingDeclarationIsAdjudicated` in
+      `test/core/behaviors/report/test_rm_declaration_adjudication.py` delivers the act,
+      then a declaration that disagrees with it, and asserts that a forward declaration
+      is accepted and a backward one refused, as RSH-06 decides.
     adr:
     - ADR-0108
     lint_suppress:
@@ -1241,10 +1244,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: RSH-08-007
-    - rel_type: depends_on
-      spec_id: PRM-06-003
-    - rel_type: depends_on
-      spec_id: PRM-06-004
     verification: >-
       `test_on_behalf_v_to_V_is_admitted` and `test_on_behalf_d_to_D_is_admitted` in
       `test/core/use_cases/received/test_status.py` confirm an on-behalf v→V, from the

@@ -193,7 +193,7 @@ def test_a_case_manager_case_activity_carries_its_ledger_position():
     assert body.get("ledgerPosition") == _wire(_manager_tail(net))
 
 
-@pytest.mark.spec("SYNC-18-001")
+@pytest.mark.spec("SYNC-18-017")
 def test_a_sender_that_holds_no_ledger_for_the_case_states_none():
     LedgerNetwork(CASE_ID)
     stranger = "https://example.org/users/stranger"
@@ -235,7 +235,7 @@ def test_a_rebuilt_activity_keeps_the_position_it_was_first_sent_with():
     assert again["ledgerPosition"] == first["ledgerPosition"]
 
 
-@pytest.mark.spec("SYNC-18-003")
+@pytest.mark.spec("SYNC-18-015")
 def test_an_unstamped_case_activity_is_refused_and_writes_nothing():
     net = LedgerNetwork(CASE_ID)
     body = _add_note_body("https://example.org/notes/tail-3", net=net)
@@ -249,7 +249,7 @@ def test_an_unstamped_case_activity_is_refused_and_writes_nothing():
     assert _note_entries(net) == []
 
 
-@pytest.mark.spec("SYNC-18-003")
+@pytest.mark.spec("SYNC-18-015")
 def test_a_malformed_ledger_position_is_refused_and_writes_nothing():
     net = LedgerNetwork(CASE_ID)
     body = _add_note_body(

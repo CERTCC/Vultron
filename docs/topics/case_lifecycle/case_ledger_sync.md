@@ -134,7 +134,7 @@ An entry carries two timestamps, and the rules above do not all apply to the sam
 | Timestamp | Written by | Rules it answers to |
 |---|---|---|
 | `published` on the entry | the CASE_MANAGER, at commit time | CLP-14-002, CLP-14-003, CLP-14-006 read across the whole ledger |
-| `published` inside `payloadSnapshot` | the asserting participant | CLP-14-006 at the commit boundary, CLP-14-007, CLP-14-008, CLP-15-003, CLP-15-006 |
+| `published` inside `payloadSnapshot` | the asserting participant | CLP-14-013 at the commit boundary, CLP-14-007, CLP-14-008, CLP-15-003, CLP-15-006 |
 
 The distinction matters most for the "never move backwards" rule.
 Across the CASE_MANAGER's own commit timestamps, the rule holds because one writer stamps every entry from one clock.

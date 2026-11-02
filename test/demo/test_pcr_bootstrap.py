@@ -25,7 +25,7 @@ SQLite DataLayer — use cases are not mocked.  They are auto-marked as
 
 Coverage approach
 -----------------
-AC-1 tests (``TestBootstrapSequence.test_announce_creates_case_replica`` and
+AC-1 tests (``TestBootstrapSequence.test_create_seeds_case_replica`` and
 ``test_case_fields_preserved_in_replica``) use a **two-app setup** where a
 separate owner app creates a case for a submitted report and sends the
 participant its bootstrap ``Create(as_VulnerabilityCase)`` via the outbox,
@@ -422,7 +422,8 @@ class TestBootstrapSequence:
     - AC-2:  Subsequent case-scoped activity routes without deferral.
     """
 
-    def test_announce_creates_case_replica(self, two_app_setup):
+    @pytest.mark.spec("PCR-03-005")
+    def test_create_seeds_case_replica(self, two_app_setup):
         """AC-1: the bootstrap Create(as_VulnerabilityCase) seeds a replica.
 
         Exercises the full bootstrap sequence: participant submits a report →

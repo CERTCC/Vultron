@@ -420,7 +420,7 @@ def add_participant_status_tree(
         ),
         # A refused regression owes the sender the same note
         # (RSH-06-004); the factory runs it only on the refusal, at the
-        # CASE_MANAGER, once per received activity (CLP-10-022).
+        # CASE_MANAGER, once per received activity (CLP-10-043).
         refusal_effects=[rm_gap_note(actor_id, tree_case_id)],
     )
     logger.debug(

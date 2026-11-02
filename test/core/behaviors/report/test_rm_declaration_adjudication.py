@@ -419,6 +419,46 @@ class TestActAndDeclarationAreOneMove:
 
 
 @pytest.mark.executes_as(CASE_MANAGER_ID)
+class TestDisagreeingDeclarationIsAdjudicated:
+    """A declaration that disagrees with the act is judged by RSH-06 (RSH-08-009).
+
+    The disagreement alone is no ground for refusal: a forward declaration is
+    accepted as any other would be, and a backward one is refused as any
+    other would be.
+    """
+
+    @pytest.mark.spec("RSH-08-009")
+    def test_a_forward_declaration_after_the_act_is_accepted(
+        self, store_for, make_payload
+    ):
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, RM.RECEIVED)
+        act = _deliver(dl, RM.INVALID, make_payload)
+        assert act.disposition is HandlerDisposition.APPLIED, act.reason
+
+        declaration = _run_status_declaration(dl, RM.ACCEPTED, make_payload)
+
+        assert declaration.status.name == "SUCCESS"
+        assert _rm_history(dl)[-1] == RM.ACCEPTED
+
+    @pytest.mark.spec("RSH-08-009")
+    def test_a_backward_declaration_after_the_act_is_refused(
+        self, store_for, make_payload
+    ):
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, RM.RECEIVED)
+        act = _deliver(dl, RM.INVALID, make_payload)
+        assert act.disposition is HandlerDisposition.APPLIED, act.reason
+        before = status_count(dl)
+
+        declaration = _run_status_declaration(dl, RM.RECEIVED, make_payload)
+
+        assert declaration.status.name == "FAILURE"
+        assert status_count(dl) == before
+        assert _rm_history(dl)[-1] == RM.INVALID
+
+
+@pytest.mark.executes_as(CASE_MANAGER_ID)
 class TestAnomalyFlagDoesNotLeakAcrossRuns:
     """A gap flagged by one run posts no note in a later run (RSH-06-004).
 

@@ -937,7 +937,8 @@ def test_pending_case_queue_expiry_changes_no_local_state():
 
     Expiry removes the queue and the record holding the activity for its
     replay, and nothing else: every other record in the receiver's store
-    is as it was, and no case or object the activity named was written.
+    is as it was, field for field, and no case or object the activity
+    named was written.
     """
     import json
     from datetime import datetime, timedelta
@@ -962,7 +963,11 @@ def test_pending_case_queue_expiry_changes_no_local_state():
             id_="https://example.org/cases/already-held",
         )
     )
-    before = queue_dl.count_all()
+
+    def snapshot() -> dict[str, dict[str, Any]]:
+        return {t: queue_dl.by_type(t) for t in queue_dl.count_all()}
+
+    before = snapshot()
     queue_dl.save(
         DeferredInboxActivity(
             activity_id=activity_id,
@@ -993,7 +998,7 @@ def test_pending_case_queue_expiry_changes_no_local_state():
     )
 
     assert expired is True
-    assert queue_dl.count_all() == before
+    assert snapshot() == before
     assert queue_dl.read(case_id) is None
     assert queue_dl.read(note_id) is None
     assert queue_dl.inbox_list() == []

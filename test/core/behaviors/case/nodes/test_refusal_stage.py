@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The refusal-effects stage runs only on a refusal, once (CLP-10-022)."""
+"""The refusal-effects stage runs only on a refusal, once (CLP-10-042, CLP-10-044)."""
 
 import logging
 
@@ -72,7 +72,6 @@ def _stage(
 
 
 @pytest.mark.spec("CLP-10-006")
-@pytest.mark.spec("CLP-10-022")
 @pytest.mark.spec("CLP-10-042")
 def test_an_accepted_delivery_runs_no_refusal_effect() -> None:
     stage, guard, effect = _stage(Status.SUCCESS)
@@ -85,7 +84,6 @@ def test_an_accepted_delivery_runs_no_refusal_effect() -> None:
     assert effect.status == Status.INVALID
 
 
-@pytest.mark.spec("CLP-10-022")
 @pytest.mark.spec("CLP-10-042")
 @pytest.mark.spec("CLP-10-046")
 def test_a_refusal_runs_the_refusal_effects_and_still_fails() -> None:
@@ -98,7 +96,6 @@ def test_a_refusal_runs_the_refusal_effects_and_still_fails() -> None:
     assert BTBridge.get_failure_reason(stage) == "Guard said FAILURE"
 
 
-@pytest.mark.spec("CLP-10-022")
 @pytest.mark.spec("CLP-10-046")
 def test_a_failed_refusal_effect_keeps_the_guards_reason(caplog) -> None:
     stage, _, effect = _stage(Status.FAILURE, effect_status=Status.FAILURE)
@@ -116,7 +113,6 @@ def test_a_failed_refusal_effect_keeps_the_guards_reason(caplog) -> None:
     )
 
 
-@pytest.mark.spec("CLP-10-022")
 @pytest.mark.spec("CLP-10-044")
 def test_a_redelivery_skips_the_refusal_effects() -> None:
     stage, _, effect = _stage(
@@ -201,7 +197,6 @@ def _stage_with(guard: py_trees.behaviour.Behaviour, effect: _Counting):
     )
 
 
-@pytest.mark.spec("CLP-10-022")
 @pytest.mark.spec("CLP-05-001")
 @pytest.mark.spec("CLP-10-042")
 def test_a_skipped_repeat_runs_no_refusal_effect() -> None:

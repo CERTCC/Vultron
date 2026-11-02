@@ -132,6 +132,8 @@ def test_commit_tree_fans_out_only_after_it_persists():
         semantic_type="case_created",
     )
     _, mint = tree.children
+    # A Sequence runs a child only after the one before it succeeds.
+    assert type(mint) is py_trees.composites.Sequence
     kinds = [type(child) for child in mint.children]
     assert kinds.index(PersistLogEntryNode) < kinds.index(FanOutLogEntryNode)
     assert kinds[-1] is FanOutLogEntryNode

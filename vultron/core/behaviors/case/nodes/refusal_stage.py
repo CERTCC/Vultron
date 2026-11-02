@@ -187,13 +187,13 @@ class PreconditionGuardStage(py_trees.composites.Composite):
 
         A repeat (``skipped_as_repeat``), a diverted delivery
         (``skipped_as_diversion``) and a redelivery (``skipped_as_redelivery``)
-        are each already answered, or owe no answer (CLP-10-022, CLP-10-026).
+        are each already answered, or owe no answer (CLP-10-044, CLP-10-070).
         """
         if self._failed_as_repeat():
             self.skipped_as_repeat = True
             logger.debug(
                 "%s: guard failure is an idempotent repeat — refusal effects"
-                " skipped (CLP-10-022)",
+                " skipped (CLP-10-044)",
                 self.name,
             )
             return True

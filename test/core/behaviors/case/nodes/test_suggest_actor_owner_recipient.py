@@ -228,6 +228,7 @@ class TestDuplicateRecommendationNoteAddressesTheCaseOwner:
     @pytest.mark.spec("CM-16-016")
     @pytest.mark.spec("CLP-10-001")
     @pytest.mark.spec("CLP-10-031")
+    @pytest.mark.spec("CLP-10-071")
     def test_note_is_recorded_and_announced_to_the_owner(self, case_actor_dl):
         """The CaseActor records the note for the owner, never DMs itself.
 

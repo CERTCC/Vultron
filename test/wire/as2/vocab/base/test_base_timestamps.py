@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 import pytest
 
 from test.support.blank_strings import BLANKS
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 
 _TIMESTAMP_FIELDS = ("start_time", "end_time", "published", "updated")
@@ -84,3 +85,20 @@ def test_blank_timestamp_is_not_the_same_as_an_omitted_key():
     # None-defaulted fields: the two spellings genuinely coincide.
     assert omitted.start_time is None
     assert omitted.end_time is None
+
+
+@pytest.mark.spec("CLP-15-006")
+def test_a_built_activity_carries_published_by_default():
+    """Every activity a sender builds is stamped ``published`` (CLP-15-006).
+
+    The stamp is the ``as_Object`` field default, which every activity class
+    inherits, so no factory can emit an activity without one.
+    """
+    before = datetime.now(UTC).replace(microsecond=0)
+    activity = as_Activity(actor="https://example.org/actors/alice")
+
+    assert activity.published is not None
+    assert activity.published >= before
+    wire = activity.model_dump(by_alias=True, exclude_none=True, mode="json")
+    assert wire["published"]
+    assert issubclass(as_Activity, as_Object)

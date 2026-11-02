@@ -111,6 +111,7 @@ def _short_replica(net: LedgerNetwork) -> None:
     assert _tail(net, BYSTANDER) < _tail(net, MANAGER)
 
 
+@pytest.mark.spec("SYNC-16-024")
 @pytest.mark.spec("SYNC-16-006")
 @pytest.mark.spec("SYNC-16-007")
 @pytest.mark.spec("CM-23-016")
@@ -180,7 +181,7 @@ def test_a_late_copy_from_before_the_replicas_tail_changes_nothing() -> None:
     assert net.case(BYSTANDER).model_dump(mode="json") == before
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-029")
 @pytest.mark.spec("SYNC-15-015")
 def test_a_replica_with_no_entry_is_replayed_from_genesis() -> None:
     """A replica holding the case but no entry is replaced by a copy ahead
@@ -247,7 +248,7 @@ def test_a_genesis_request_for_a_case_the_manager_lacks_is_refused() -> None:
     ] == []
 
 
-@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-028")
 def test_a_reject_naming_neither_an_entry_nor_a_case_is_refused() -> None:
     """The parser admits no such Reject; one that reaches the use case all
     the same names nothing to replay, and is refused before any tree runs."""

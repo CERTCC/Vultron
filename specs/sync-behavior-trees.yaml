@@ -103,8 +103,7 @@ groups:
         verification_debt: '#2574'
         statement: >-
           BTBridge.setup_tree() MUST inject driven ports, such as SyncActivityPort and
-          DataLayer, into BT nodes through the blackboard. A BT node never constructs or
-          acquires a port itself.
+          DataLayer, into BT nodes through the blackboard.
         rationale: >-
           A node that gets its own ports binds core logic to one adapter, and the node
           cannot run against a test double. When the bridge injects ports through the
@@ -114,6 +113,20 @@ groups:
           - rel_type: extends
             spec_id: BT-07-001
             note: BT nodes use DataLayer via Protocol
+
+      - id: SBT-01-007
+        priority: MUST_NOT
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          A BT node MUST NOT construct or acquire a driven port itself.
+        rationale: >-
+          A node that builds or looks up its own port binds core logic to one adapter,
+          and the node cannot run against a test double. Taking every port from the
+          blackboard (SBT-01-004) keeps the choice of adapter with the caller.
+        relationships:
+          - rel_type: extends
+            spec_id: SBT-01-004
 
       - id: SBT-01-005
         priority: MUST_NOT

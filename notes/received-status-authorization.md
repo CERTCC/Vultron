@@ -189,7 +189,7 @@ sender check: authorization happened at adoption (ADR-0166).
 
 - **Only the CASE_MANAGER emits `Add(CaseStatus)`.** Other participants embed a
   suggested `CaseStatus` in `Add(ParticipantStatus)` and let the gate decide
-  (RSH-04-001).
+  (RSH-04-001, RSH-04-007).
 - **Refuse `Add(CaseStatus)` from anyone else, and at the CASE_MANAGER.**
   `add_case_status_tree` has no adoption gate, so admitting it from a
   participant skips the Case Owner's approval (RSH-04-005, RSH-07-001). The

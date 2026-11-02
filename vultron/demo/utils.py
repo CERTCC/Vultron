@@ -669,7 +669,7 @@ RECEIVED_ACTIVITY_RECORD_TYPE = ReceivedActivityRecord.__name__
 def received_activity_in(record: dict) -> dict:
     """The activity a served ``ReceivedActivityRecord`` *record* archives.
 
-    The record keeps the body that arrived, as JSON text (CLP-10-017,
+    The record keeps the body that arrived, as JSON text (CLP-10-036,
     ADR-0149), so the activity is that body decoded: its sender's own wire
     form.
 

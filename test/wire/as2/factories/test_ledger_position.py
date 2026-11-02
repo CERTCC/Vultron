@@ -162,7 +162,7 @@ def test_an_act_on_a_named_case_names_it_to_be_stamped() -> None:
     assert list(ledger_position_case_ids(join)) == [_CASE]
 
 
-@pytest.mark.spec("SYNC-18-001")
+@pytest.mark.spec("SYNC-18-017")
 def test_a_processing_fault_names_no_case() -> None:
     fault = create_processing_fault_activity(
         actor=_ACTOR,

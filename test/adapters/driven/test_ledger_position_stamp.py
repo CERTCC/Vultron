@@ -106,7 +106,7 @@ def test_something_that_is_no_activity_passes_through(dl) -> None:
     assert with_sender_ledger_position(dl, note) is note
 
 
-@pytest.mark.spec("SYNC-18-001")
+@pytest.mark.spec("SYNC-18-017")
 def test_a_processing_fault_from_a_case_holder_carries_no_position(
     dl,
 ) -> None:

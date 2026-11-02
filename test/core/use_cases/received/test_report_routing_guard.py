@@ -302,6 +302,7 @@ class TestInvalidateReportReceivedSubject:
 
     @pytest.mark.spec("RSH-08-001")
     @pytest.mark.spec("BT-17-006")
+    @pytest.mark.spec("RSH-08-008")
     def test_receiving_actor_participant_unchanged(self):
         """The receiving actor's own RM does not move on receipt."""
         dl = _make_dl(receiving_rm=RM.RECEIVED, sender_rm=RM.RECEIVED)

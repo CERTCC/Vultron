@@ -43,7 +43,6 @@ def test_entry_serializes_semantic_type_under_semantic_type_key() -> None:
     assert "eventType" not in dumped
 
 
-@pytest.mark.spec("CLP-02-014", "CLP-02-015")
 @pytest.mark.spec("CLP-02-019")
 def test_entry_carrying_retired_event_type_key_is_refused() -> None:
     # semanticType is present, so only the retired key can cause the refusal,
@@ -61,7 +60,6 @@ def test_entry_carrying_retired_event_type_key_is_refused() -> None:
         )
 
 
-@pytest.mark.spec("CLP-02-014", "CLP-02-015")
 @pytest.mark.spec("CLP-02-019")
 def test_stored_row_carrying_retired_event_type_field_is_refused() -> None:
     # A row dumped by field name, not alias, spells the old key event_type.
@@ -77,7 +75,7 @@ def test_stored_row_carrying_retired_event_type_field_is_refused() -> None:
         )
 
 
-@pytest.mark.spec("CLP-02-014", "CLP-02-015")
+@pytest.mark.spec("CLP-02-015")
 @pytest.mark.spec("CLP-02-018")
 def test_chain_record_hashes_semantic_type_under_field_name() -> None:
     record = HashChainLedgerRecord(

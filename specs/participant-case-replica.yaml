@@ -381,14 +381,17 @@ groups:
   - id: PCR-03-005
     priority: MUST
     kind: protocol
-    statement: The case owner actor MUST follow the same replica rules as all other participants.
+    statement: The Case Owner MUST follow the same replica rules as all other participants.
     rationale: >-
-      Exempting the case owner from replica rules would create an inconsistent
+      Exempting the Case Owner from replica rules would create an inconsistent
       update path that bypasses the CASE_MANAGER consistency checks.
     verification: >-
-      Integration tests in `test/demo/test_pcr_bootstrap.py` confirm that
-      the case owner receives and applies `Announce(VulnerabilityCase)` through
-      the same code path as all non-owner participants.
+      Inspection of `vultron/core/behaviors/case/` confirms that no received-side tree
+      branches on `CVDRole.CASE_OWNER` to write the replica, so a Case Owner that is not
+      the CASE_MANAGER takes its case copies through the same trees as every
+      participant. `test_create_seeds_case_replica` in `test/demo/test_pcr_bootstrap.py`
+      exercises that path: a participant seeds its replica from the bootstrap
+      `Create(VulnerabilityCase)`.
     relationships:
     - rel_type: refines
       spec_id: PCR-03-002
@@ -398,14 +401,16 @@ groups:
   - id: PCR-03-006
     priority: MUST
     kind: protocol
-    statement: The case owner actor MUST route all case-state changes through the CASE_MANAGER.
+    statement: The Case Owner MUST route all case-state changes through the CASE_MANAGER.
     rationale: >-
       Routing through the CASE_MANAGER ensures all case-state mutations go through the
       single-writer authority and are recorded in the case ledger.
     verification: >-
-      Integration tests in `test/demo/test_pcr_bootstrap.py` confirm that
-      the case owner's outbound case-state activities are addressed to the
-      CASE_MANAGER, not applied directly to its own replica.
+      `TestCaseTriggerToField` and `TestEmbargoTriggerToField` in
+      `test/core/use_cases/triggers/test_trignotify.py` confirm that the actor that owns
+      the case (its `attributedTo`) addresses each case-state activity to the
+      CASE_MANAGER alone. The RSH-08-006 tests confirm a sender, the Case Owner
+      included, leaves its own replica unchanged.
     relationships:
     - rel_type: refines
       spec_id: PCR-03-002
@@ -544,8 +549,9 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      A participant actor MUST receive case-scoped messages for every case it takes part
-      in at its one Actor inbox, never at a separate per-case inbox.
+      A participant actor MUST be the only externally-addressable entity that receives
+      case-scoped messages for the cases it takes part in. It has no separate per-case
+      inbox.
     rationale: >-
       Other actors reach a participant at its one Actor identity (PCR-01-001). A
       separate inbox for each case would be a second address that senders must
@@ -799,10 +805,12 @@ groups:
     priority: MUST_NOT
     kind: project
     verification: >-
-      `test_scenario_never_starts_a_ledger_commit` in
+      `test_demo_module_never_starts_a_ledger_commit` in
       `test/architecture/test_demo_scenarios_never_commit_ledger_entries.py` asserts that
-      no module under `vultron/demo/scenario/` calls, references or imports
-      `trigger_log_commit` or `sync_log_entry`.
+      no module under `vultron/demo/`, the scenarios and the helpers they call included,
+      calls, references or imports `trigger_log_commit` or `sync_log_entry`. The modules
+      that define the two names, and the package that re-exports the probe for tests,
+      are pinned exceptions.
     statement: >-
       Demo scenarios and external clients MUST NOT start the `CaseLedgerEntry` commit and
       its broadcast directly. The one exception is the prototype-only
