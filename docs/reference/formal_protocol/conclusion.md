@@ -81,7 +81,7 @@ stateDiagram-v2
 
 The Embargo Management (EM) state model is shown below.
 The EM process is more interactive than the RM process, as it involves Participants negotiating with each other
-to determine the appropriate embargo period for a given vulnerability report.
+to determine the appropriate embargo duration for a given vulnerability report.
 
 ```mermaid
 stateDiagram-v2

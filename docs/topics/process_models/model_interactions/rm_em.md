@@ -246,7 +246,7 @@ stateDiagram-v2
 
 As above, this rule covers the acceptance of a proposal made after case creation.
 The case-creation acceptance is atomic.
-At that point the case owner is in RM *Received*, which this rule allows anyway.
+At that point the Case Owner is in RM *Received*, which this rule allows anyway.
 The diagram below shows the RM states from which accepting a proposal is allowed.
 
 ```mermaid

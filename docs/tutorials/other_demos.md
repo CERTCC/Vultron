@@ -309,7 +309,7 @@ No proposal exchange occurs before the case.
 The comparison is settled when the case is created.
 
 The Case Actor then relays the pending revision to the party whose terms won, on behalf of the party whose terms lost (EP-04-011).
-When the Reporter proposed 60 days, that party is the Vendor, the case owner.
+When the Reporter proposed 60 days, that party is the Vendor, the Case Owner.
 The protocol requires no automatic answer.
 So the 30-day default of the Vendor stays active, and the longer terms of the Reporter stay pending until the owner answers.
 The case stays at `REVISE`.

@@ -633,7 +633,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[CM-02-001](../vultron-spec/requirements/case-management.md#cm-02-001)</td>
-<td markdown="span">Each VulnerabilityCase MUST have exactly one associated CaseActor — case ownership and identity.</td>
+<td markdown="span">Each VulnerabilityCase MUST have exactly one associated CASE_MANAGER — case ownership and identity.</td>
 </tr>
 <tr markdown="1">
 <td rowspan="4" markdown="span">[story_2022_030](story_2022_030.md)</td>
@@ -709,7 +709,7 @@ Source specifications: `specs/*.yaml`
 <td rowspan="2" markdown="span">[story_2022_046](story_2022_046.md)</td>
 <td rowspan="2" markdown="span">As a Participant, want the case to have a leader</td>
 <td markdown="span">[CM-02-004](../vultron-spec/requirements/case-management.md#cm-02-004)</td>
-<td markdown="span">CASE_MANAGER MUST know the case owner — leadership/ownership model.</td>
+<td markdown="span">CASE_MANAGER MUST know the Case Owner — leadership/ownership model.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-08-003](../vultron-spec/requirements/vultron-protocol.md#vp-08-003)</td>
@@ -719,7 +719,7 @@ Source specifications: `specs/*.yaml`
 <td rowspan="3" markdown="span">[story_2022_047](story_2022_047.md)</td>
 <td rowspan="3" markdown="span">As a Participant, propose a case leader, possibly myself</td>
 <td markdown="span">[CM-02-004](../vultron-spec/requirements/case-management.md#cm-02-004)</td>
-<td markdown="span">CASE_MANAGER MUST know the case owner — ownership field populated by leader proposal.</td>
+<td markdown="span">CASE_MANAGER MUST know the Case Owner — ownership field populated by leader proposal.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-08-012](../vultron-spec/requirements/vultron-protocol.md#vp-08-012)</td>
@@ -741,7 +741,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[CM-02-005](../vultron-spec/requirements/case-management.md#cm-02-005)</td>
-<td markdown="span">CASE_MANAGER MUST restrict certain activities to the case owner (`PROD_ONLY`) — ownership enforcement.</td>
+<td markdown="span">CASE_MANAGER MUST restrict certain activities to the Case Owner (`PROD_ONLY`) — ownership enforcement.</td>
 </tr>
 <tr markdown="1">
 <td rowspan="2" markdown="span">[story_2022_049](story_2022_049.md)</td>
@@ -757,11 +757,11 @@ Source specifications: `specs/*.yaml`
 <td rowspan="3" markdown="span">[story_2022_050](story_2022_050.md)</td>
 <td rowspan="3" markdown="span">As a Participant, transfer case leadership to another</td>
 <td markdown="span">[CM-02-004](../vultron-spec/requirements/case-management.md#cm-02-004)</td>
-<td markdown="span">CASE_MANAGER MUST know the case owner — ownership transfer.</td>
+<td markdown="span">CASE_MANAGER MUST know the Case Owner — ownership transfer.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[CM-02-005](../vultron-spec/requirements/case-management.md#cm-02-005)</td>
-<td markdown="span">CASE_MANAGER MUST restrict certain activities to the case owner (`PROD_ONLY`) — ownership change restriction.</td>
+<td markdown="span">CASE_MANAGER MUST restrict certain activities to the Case Owner (`PROD_ONLY`) — ownership change restriction.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[RF-02-001](../vultron-spec/requirements/message-processing.md#rf-02-001)</td>
@@ -771,7 +771,7 @@ Source specifications: `specs/*.yaml`
 <td rowspan="3" markdown="span">[story_2022_051](story_2022_051.md)</td>
 <td rowspan="3" markdown="span">As a Participant, depose or step down as case leader</td>
 <td markdown="span">[CM-02-004](../vultron-spec/requirements/case-management.md#cm-02-004)</td>
-<td markdown="span">CASE_MANAGER MUST know the case owner — leader identity tracked.</td>
+<td markdown="span">CASE_MANAGER MUST know the Case Owner — leader identity tracked.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-08-011](../vultron-spec/requirements/vultron-protocol.md#vp-08-011)</td>

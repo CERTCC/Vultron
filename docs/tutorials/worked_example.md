@@ -360,7 +360,7 @@ sequenceDiagram
 
 !!! tip inline end "Embargo Termination is not Publication"
 
-    Our protocol only sets a discrete end to the embargo period.
+    Our protocol only sets a discrete end to the embargo.
     It intentionally does *not* address a publication schedule.
     After the embargo has been exited, *any* Participant may publish at any time.
 
