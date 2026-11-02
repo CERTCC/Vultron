@@ -179,6 +179,7 @@ adr/0167-times-keep-microseconds-and-serialize-six-fractional-digits.md
 adr/0168-a-replay-from-the-start-is-asked-once-per-wait-and-answered-once-per-need.md
 adr/0169-case-roles-split-into-position-authority-and-standing.md
 adr/0170-the-bootstrap-create-carries-its-case-and-nested-objects-inline.md
+adr/0171-publish-the-site-on-a-weekday-schedule-from-tags.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
 adr/archived/0017-domain-wire-object-separation.md
