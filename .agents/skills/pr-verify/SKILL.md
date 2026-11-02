@@ -114,14 +114,17 @@ cannot be ready to merge no matter what those checks find.
      (PAD-18-014), so a live `BEHIND` here means the base moved again after
      execute's last check: re-run `/pr-execute`, which clears it.
    - `PR-IS-DRAFT` — report the `needs_rebase=` line: whether the
-     `needs-rebase` label is still attached.
+     `needs-rebase` label is still attached. `unknown` means the labels could
+     not be read: say so, never report it as absent.
    - `note=blocked` — note it in the comment (missing required review, etc.).
      It does *not* block the verdict: it is a repo policy state a human
      resolves, not a defect in the PR.
 
 3. On `MERGE-CONFLICT`, list the `conflict=` lines (the trial merge's
-   `CONFLICT` messages) and any `marker=` hits as evidence. Verify does not
-   resolve them. Report and stop after posting the comment.
+   `CONFLICT` messages) and any `marker=` hits as evidence. On
+   `conflict_evidence=unavailable`, state that no evidence could be gathered;
+   the conflict verdict stands. Verify does not resolve them. Report and stop
+   after posting the comment.
 
 ### Phase 3 — CI and Test Suite Check
 

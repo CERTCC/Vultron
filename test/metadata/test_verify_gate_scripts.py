@@ -134,6 +134,25 @@ def test_a_conflict_without_a_fetchable_base_says_evidence_is_unavailable(
     assert "conflict" not in out
 
 
+def test_a_conflict_with_no_base_ref_says_evidence_is_unavailable(
+    tmp_path: Path, repo: Path
+) -> None:
+    rules = [pr_view("CONFLICTING", "DIRTY", base="")]
+    out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
+    assert out["verdict"] == ["conflicts-found"]
+    assert out["conflict_evidence"] == ["unavailable"]
+
+
+def test_markers_alone_are_evidence_enough(tmp_path: Path, repo: Path) -> None:
+    commit(repo, "m.txt", "<<<<<<< HEAD\n")
+    result = run_script(
+        tmp_path, MERGE, "7", "--check-markers", cwd=repo, rules=[pr_view()]
+    )
+    out = fields(result)
+    assert out["marker"] == ["m.txt:1"]
+    assert "conflict_evidence" not in out
+
+
 def test_a_gh_failure_is_unknown_not_clear(tmp_path: Path, repo: Path) -> None:
     rules = [{"match": ["pr view"], "stdout": "", "exit": 1}]
     out = fields(run_script(tmp_path, MERGE, "7", cwd=repo, rules=rules))
@@ -163,7 +182,8 @@ def test_markers_are_not_checked_unless_asked(
     assert out["verdict"] == ["clear"]
 
 
-def test_a_conflict_lists_the_trial_merge_evidence(tmp_path: Path) -> None:
+def _clone_behind_origin(tmp_path: Path, name: str) -> Path:
+    """A PR branch cut from a fetchable origin whose main changed `s.txt`."""
     origin = tmp_path / "origin.git"
     seed = tmp_path / "seed"
     seed.mkdir()
@@ -175,12 +195,30 @@ def test_a_conflict_lists_the_trial_merge_evidence(tmp_path: Path) -> None:
     work = tmp_path / "work"
     git(tmp_path, "clone", "-q", str(origin), str(work))
     git(work, "checkout", "-qb", "task/7-x", "HEAD~1")
-    commit(work, "s.txt", "BRANCH\n")
+    commit(work, name, "BRANCH\n")
+    return work
+
+
+def test_a_conflict_lists_the_trial_merge_evidence(tmp_path: Path) -> None:
+    work = _clone_behind_origin(tmp_path, "s.txt")
     rules = [pr_view("CONFLICTING", "DIRTY")]
     out = fields(run_script(tmp_path, MERGE, "7", cwd=work, rules=rules))
     assert out["verdict"] == ["conflicts-found"]
     assert len(out["conflict"]) == 1
     assert "s.txt" in out["conflict"][0]
+    assert "conflict_evidence" not in out
+
+
+def test_a_stale_dirty_whose_trial_merge_is_clean_says_evidence_is_unavailable(
+    tmp_path: Path,
+) -> None:
+    """The fetch succeeds, but the trial merge names no CONFLICT."""
+    work = _clone_behind_origin(tmp_path, "other.txt")
+    rules = [pr_view("MERGEABLE", "DIRTY")]
+    out = fields(run_script(tmp_path, MERGE, "7", cwd=work, rules=rules))
+    assert out["verdict"] == ["conflicts-found"]
+    assert out["conflict_evidence"] == ["unavailable"]
+    assert "conflict" not in out
 
 
 def test_merge_gate_refuses_an_unknown_option(

@@ -26,7 +26,9 @@
 #   needs_rebase=<true|false|unknown>  (PR-IS-DRAFT only; unknown on a gh error)
 #   note=blocked                (status BLOCKED)
 #   conflict=<merge-tree CONFLICT line>  evidence, MERGE-CONFLICT only
-#   conflict_evidence=unavailable  MERGE-CONFLICT with no base ref or a failed fetch
+#   conflict_evidence=unavailable  MERGE-CONFLICT with no conflict= or marker=
+#                               line (no base ref, a failed fetch, or a trial
+#                               merge that names no CONFLICT)
 #   marker=<file:line>          --check-markers hits
 # Exit: 0 a verdict was printed; 2 usage error or jq missing.
 set -uo pipefail
@@ -85,11 +87,13 @@ if has PR-IS-DRAFT; then
 fi
 [ "${status}" = BLOCKED ] && echo "note=blocked"
 if has MERGE-CONFLICT; then
+  conflicts=""
   if [ -n "${base}" ] && git fetch -q origin "${base}" 2>/dev/null; then
-    git merge-tree --write-tree HEAD "origin/${base}" 2>&1 | grep -i '^CONFLICT' | sed 's/^/conflict=/'
-  else
-    echo "conflict_evidence=unavailable"
+    conflicts="$(git merge-tree --write-tree HEAD "origin/${base}" 2>&1 | grep -i '^CONFLICT')"
   fi
+  [ -z "${conflicts}" ] || printf '%s\n' "${conflicts}" | sed 's/^/conflict=/'
+  # A conflict with no line to show for it says so, never stays silent.
+  [ -n "${conflicts}" ] || [ -n "${marker_hits}" ] || echo "conflict_evidence=unavailable"
 fi
 [ -z "${marker_hits}" ] || printf '%s\n' "${marker_hits}" | sed 's/^/marker=/'
 exit 0
