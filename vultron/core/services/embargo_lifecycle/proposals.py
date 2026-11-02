@@ -112,7 +112,7 @@ class _ProposalOperationsMixin(_PecActivationMixin):
         (EP-05-002, ADR-0093): while a revision is merely proposed the prior
         embargo is still in force and every signatory to it stays one.
         Carry-over to a shorter revision happens only when the owner activates
-        it (``accept_embargo_invite`` / ``activate_embargo``, EP-05-001).
+        it (``accept_embargo_invite`` / ``activate_embargo``, EP-05-003).
         Proposing terms is consenting to them, so when *actor_id* is a
         participant of the case its row for the proposed embargo is marked
         ``AGREED`` (MSM-07-022).

@@ -154,7 +154,7 @@ A participant that joined the case by invitation never saw the report offer, so 
     `RK` carries no report management state, so it tells the reporter nothing about whether the recipient has examined the content.
 
     ```python exec="true" idprefix=""
-    from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RMB-08-003", "VP-03-009"))
+    from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RMB-08-003", "RMB-08-005", "RMB-08-006", "RMB-08-007", "VP-03-009"))
     ```
 
 ### 4.6 Case Proposal Messages

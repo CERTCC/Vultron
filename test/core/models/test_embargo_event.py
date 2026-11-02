@@ -14,7 +14,7 @@
 """``EmbargoEvent`` — the core embargo object (ARCH-25-003, ADR-0099).
 
 Covers the fail-fast field contract (``context`` and ``end_time`` required,
-no default duration — EP-04-010, #3404) and the UTC contract on its time
+no default duration — EP-04-023, #3404) and the UTC contract on its time
 fields (CS-13-001, #3784), including the inbound path where a nested
 ``EmbargoEvent`` inside an ``Invite`` validates straight into this class.
 """
@@ -67,7 +67,7 @@ class TestCoreEmbargoEventNoDefaultDuration:
     construction error, not a 45-day embargo.
     """
 
-    @pytest.mark.spec("EP-04-010")
+    @pytest.mark.spec("EP-04-023")
     def test_end_time_is_required(self):
         with pytest.raises(ValidationError) as exc_info:
             EmbargoEvent(context=_CONTEXT)
@@ -76,7 +76,7 @@ class TestCoreEmbargoEventNoDefaultDuration:
             for err in exc_info.value.errors()
         )
 
-    @pytest.mark.spec("EP-04-010")
+    @pytest.mark.spec("EP-04-023")
     def test_end_time_field_has_no_default(self):
         """Inspection clause of EP-04-023: no default, no default_factory."""
         field = EmbargoEvent.model_fields["end_time"]

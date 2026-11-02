@@ -22,7 +22,7 @@ rejects the proposal's register entry and writes no consent.  The owner's
 (:mod:`.activation`).  Consent is per embargo (CM-10-001): a signatory's
 answer to a *proposed* revision is about those terms only, and consent to
 the active embargo is re-evaluated only when the owner activates a revision
-(EP-05-001).  A ``Reject(Invite(EmbargoEvent))`` is recorded by
+(EP-05-001, EP-05-003).  A ``Reject(Invite(EmbargoEvent))`` is recorded by
 ``record_embargo_rejection`` (:mod:`.consent`).
 """
 

@@ -15,7 +15,7 @@
 """Hold a received case's active embargo before the case is saved (EMB-18-003).
 
 A case that names an embargo its store cannot read breaks the invariant the
-EP-05-001 comparison rests on, so every path that saves a received case —
+EP-05-001/EP-05-003 comparison rests on, so every path that saves a received case —
 the announce seed and the create replica store — calls
 :func:`store_carried_embargo` *first*, as does the inbox's routing stage for
 the throwaway store it rebuilds the activity in.  It stores the

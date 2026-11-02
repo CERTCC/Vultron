@@ -98,7 +98,7 @@ It adds these to the Case Observer capability set:
 - The Case Owner can transfer case ownership, by a proposal to the CASE_MANAGER ([§12.3 Case Ownership Transfer](../interactions.md#123-case-ownership-transfer-n)).
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-02-005", "MSM-07-008", "MSM-07-027", "MSM-07-009", "MSM-07-030", "CM-21-005"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-02-005", "MSM-07-008", "MSM-07-028", "MSM-07-029", "MSM-07-027", "MSM-07-009", "MSM-07-031", "MSM-07-032", "MSM-07-033", "MSM-07-030", "CM-21-005"))
 ```
 
 A human Coordinator typically provides the Case Decision capability set while a service actor provides Case Hosting.

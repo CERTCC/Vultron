@@ -22,7 +22,7 @@ follows the copy model (ADR-0124, #4294):
 1. **Decide** —
    :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle.decide_activation`
    checks the proposal is open and P/X/A is clear (EMB-02-002), decides the
-   EP-05-001 arm and names every change; nothing is written.
+   EP-05-001 / EP-05-003 arm and names every change; nothing is written.
 2. **Trial, commit, apply** —
    :func:`~vultron.core.behaviors.embargo.copy_commit.commit_and_apply_embargo_entries`
    trial-applies every change through the one apply function, commits the

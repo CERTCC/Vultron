@@ -83,10 +83,6 @@ groups:
       use.
     adr:
     - ADR-0082
-    relationships:
-    - rel_type: depends_on
-      spec_id: ARCH-23-002
-      note: Disjoint wire and core registry keys are what this requirement's key form delivers.
   - id: VM-01-009
     priority: MUST
     kind: project

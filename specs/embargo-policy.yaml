@@ -985,8 +985,9 @@ groups:
       states the end it means, and the protocol default resolved at case creation is the
       only fallback duration in the implementation.
     verification: >-
-      Inspection of `vultron/core/models/embargo_event.py` confirms no independent
-      default embargo duration remains on `EmbargoEvent.end_time`.
+      `test/core/models/test_embargo_event.py` (`test_end_time_is_required`,
+      `test_end_time_field_has_no_default`) confirms `EmbargoEvent.end_time` is
+      required and carries no default embargo duration.
     adr:
     - ADR-0096
   - id: EP-04-011
@@ -2077,12 +2078,12 @@ groups:
       This rule covers an actor that holds the CASE_MANAGER role but not `CASE_OWNER`.
       It also has an embargo stake of its own, through a role beyond `CASE_MANAGER` and
       `COORDINATOR`. At the commit of a revision proposal, the CASE_MANAGER MUST write
-      that actor's own row for the proposed embargo.
+      that actor's own row for the proposed embargo. The row is `AGREED` when the actor
+      is the proposer. Otherwise the actor's own embargo-proposal policy decides
+      `AGREED` or `DECLINED` (EMB-15-001).
     rationale: >-
       The CASE_MANAGER relays the Invite and never mails an actor it hosts (ADR-0109),
-      so a stakeholder that holds the role would never be asked. Its row is `AGREED`
-      when it is the proposer, otherwise `AGREED` or `DECLINED` as its own
-      embargo-proposal policy decides (EMB-15-001).
+      so a stakeholder that holds the role would never be asked.
     note: >-
       The CASE_MANAGER role alone carries no embargo stake: no consent is solicited or
       recorded for a bare container. When the actor holding the role also holds

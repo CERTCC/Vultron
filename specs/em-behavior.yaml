@@ -2006,9 +2006,6 @@ groups:
     - testable_without_steps
     adr:
     - ADR-0122
-    relationships:
-    - rel_type: extends
-      spec_id: EMB-13-005
     stories:
     - story_2022_080
     - story_2022_026
@@ -2298,9 +2295,6 @@ groups:
     rationale: >-
       A policy engine can block termination on grounds orthogonal to the stated
       reason, such as an active revision negotiation or a pending approval.
-    relationships:
-    - rel_type: extends
-      spec_id: EMB-14-002
 
   - id: EMB-14-003
     priority: SHOULD

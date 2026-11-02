@@ -737,6 +737,10 @@ groups:
       Circumstances change during a case: fixes slip, vendors join, exploitation
       appears. Revisions let participants change the terms without first ending the
       embargo and leaving a gap with no terms in force.
+    verification: >-
+      `test/core/states/test_em_transition_table.py`
+      (`test_an_accepted_embargo_can_be_revised_and_the_revision_answered`)
+      confirms EM moves from ACTIVE to REVISE when a revision is proposed.
     stories:
     - story_2022_014
   - id: VP-04-006
@@ -789,6 +793,10 @@ groups:
     rationale: >-
       Requiring agreed justification beyond 90 days makes a long embargo a deliberate
       exception rather than a default, since a long embargo keeps users exposed.
+    note: >-
+      Not met today: `EmbargoEvent` has no field to carry a justification (#5637).
+      The strict xfail `test_an_embargo_over_90_days_carries_a_justification` in
+      `test/core/models/test_embargo_event.py` carries this ID.
   - id: VP-05-003
     priority: MUST
     kind: protocol

@@ -137,7 +137,7 @@ The CASE_MANAGER's `Reject` is its abandonment, not its consent.
 A CASE_MANAGER that has a stake in an embargo therefore records its own answer as its own update of the row, never as a `Reject`.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-16-001"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-16-001", "EMB-16-003", "EMB-16-004", "EMB-16-005"))
 ```
 
 A participant lapses when the case owner activates a revision that ends later than the embargo that the participant agreed to, and the participant has not agreed to the revision.
@@ -173,7 +173,7 @@ The case owner does not leave an embargo.
 The case owner ends an embargo by terminating it.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MSM-07-010", "MSM-07-034", "MSM-07-036", "VAM-05-011"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MSM-07-010", "MSM-07-035", "MSM-07-034", "MSM-07-036", "VAM-05-011"))
 ```
 
 Only the case owner's decision changes the embargo on the case.
@@ -195,7 +195,7 @@ If the activation makes the invitation of an `INVITED` participant stale, that p
 If the owner rejects the revision instead, the old terms stand and nobody's consent changes.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-09-005", "MSM-07-008", "MSM-07-009", "MSM-07-031", "EP-05-001", "EP-05-003", "MSM-07-005", "MSM-07-019", "MSM-07-020"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-09-005", "MSM-07-008", "MSM-07-027", "MSM-07-028", "MSM-07-029", "MSM-07-009", "MSM-07-030", "MSM-07-032", "MSM-07-033", "MSM-07-031", "EP-05-001", "EP-05-003", "MSM-07-005", "MSM-07-021", "MSM-07-022", "MSM-07-023", "MSM-07-024", "MSM-07-019", "MSM-07-020"))
 ```
 
 ### 9.4 Deadlines and the Pocket Veto
@@ -208,7 +208,7 @@ The protocol also does not record silence as a refusal.
 Only an explicit refusal reaches `DECLINED`.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-18-002", "CM-28-004", "MSM-07-007"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-18-002", "CM-28-004", "MSM-07-007", "MSM-07-026"))
 ```
 
 The deadline is explicit or defaulted:
@@ -297,7 +297,7 @@ Three cases apply:
   The participant keeps its place in the case either way.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-17-001", "EMB-17-012", "EMB-17-002", "EMB-17-003", "EMB-17-004", "EMB-17-015", "EMB-17-016", "EMB-17-017", "EMB-17-008"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-17-001", "EMB-17-012", "EMB-17-002", "EMB-17-003", "EMB-17-013", "EMB-17-014", "EMB-17-004", "EMB-17-015", "EMB-17-016", "EMB-17-017", "EMB-17-008"))
 ```
 
 **A time-out and a refusal reach different states.**

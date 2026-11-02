@@ -76,7 +76,7 @@ Every cause is `EARLY`, and an `END_TIME_REACHED` termination has none.
 The termination message carries the what as `content` and the why as `terminationCause`.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-13-004", "EMB-13-010", "EMB-13-011", "EMB-13-005"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-13-004", "EMB-13-009", "EMB-13-010", "EMB-13-011", "EMB-13-005", "EMB-13-012", "EMB-13-013", "EMB-13-014", "EMB-13-015", "EMB-13-016", "EMB-13-017"))
 ```
 
 !!! note "Register status is not EM state"
@@ -176,7 +176,7 @@ An early termination takes Case Owner authorization by default, on the same term
 The one exception is an embargo whose end time has passed: the CASE_MANAGER itself terminates it, with the reason `END_TIME_REACHED`.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-02-005", "EMB-13-003", "EMB-14-001"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-02-005", "EMB-13-003", "EMB-13-006", "EMB-13-007", "EMB-13-008", "EMB-14-001", "EMB-14-005", "EMB-14-006"))
 ```
 
 {% include-markdown "./_oq-embargo-termination-authority.md" %}

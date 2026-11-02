@@ -2953,9 +2953,6 @@ groups:
       `test/core/states/test_cs_invariants.py` (`test_accepted_prefixes`) confirms
       that prefix validation accepts a prefix that ends in an ephemeral state.
     testable: true
-    relationships:
-    - rel_type: extends
-      spec_id: CSB-17-010
     stories:
     - story_2022_045
     - story_2022_074
