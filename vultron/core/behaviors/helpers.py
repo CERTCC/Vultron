@@ -37,7 +37,6 @@ Per specs/behavior-tree-node-design.yaml BTND-03-009 through BTND-03-011:
 
 import json
 import logging
-from collections.abc import Callable
 from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING, Any, cast, overload
 
@@ -761,14 +760,6 @@ class DataLayerActionWithPorts(BehaviourWithPorts):
         )
 
 
-class SendNotQueuedError(Exception):
-    """An emit node's build or outbox write failed, so nothing was queued.
-
-    Raised by :meth:`_EmitSingleActivityBase._send_in_one_act`; the node
-    reports it as ``FAILURE``.
-    """
-
-
 class _EmitSingleActivityBase(DataLayerActionWithPorts, EmitCapable):
     """Base class for emit nodes that create one activity and queue it in the actor's outbox.
 
@@ -886,48 +877,33 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts, EmitCapable):
         if (f := self._require_factory()) is not None:
             self.logger.error("%s", self.feedback_message)
             return f
-        try:
-            activity_id, activity_blob = self._send_in_one_act(
-                self._call_factory, self._record_sent
-            )
-        except SendNotQueuedError as e:
-            self.feedback_message = f"{self.__class__.__name__} failed: {e}"
-            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
-            return Status.FAILURE
-        self._on_success(activity_id, activity_blob)
-        return Status.SUCCESS
-
-    def _send_in_one_act(
-        self,
-        build: Callable[[], tuple[str, str]],
-        record: Callable[[str, str], None],
-    ) -> tuple[str, str]:
-        """Build, queue and *record* one activity in one act (:meth:`_one_act`).
-
-        Returns ``(activity_id, activity_blob)`` once the act commits.  A
-        build or outbox write that raises queues nothing, so no answer is
-        out: the act keeps what the build stored, for a redelivery to queue
-        (CBT-01-001), and :class:`SendNotQueuedError` is raised, which the
-        caller turns into ``FAILURE``.  A *record* that raises is not
-        wrapped: the activity was queued in this act, so a ``FAILURE`` would
-        let an enclosing Selector fall through to another arm and send a
-        second, contradictory answer.  The act rolls back, taking the queued
-        activity with it, and the error escapes to ``BTBridge`` as an
-        internal error instead (BT-14-001, ARCH-15-001), as in the relay
-        node and ``_CommitCaseManagerActivityBase``.
-        """
         failure: Exception | None = None
         with self._one_act():
             try:
-                activity_id, activity_blob = build()
+                activity_id, activity_blob = self._call_factory()
                 self._emit_through_seam(activity_id, activity_blob)
             except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+                # Nothing was queued, so no answer is out.  The act keeps
+                # what the build stored, for a redelivery to queue
+                # (CBT-01-001).
                 failure = e
             else:
-                record(activity_id, activity_blob)
+                # Not caught: the activity is queued in this act, so a
+                # FAILURE here would let an enclosing Selector fall through to
+                # another arm and send a second, contradictory answer after
+                # it.  A failed commit rolls the act back, taking the queued
+                # activity with it, and escapes to ``BTBridge`` as an internal
+                # error instead (BT-14-001, ARCH-15-001), as in the relay node
+                # and ``_CommitCaseManagerActivityBase``.
+                self._record_sent(activity_id, activity_blob)
         if failure is not None:
-            raise SendNotQueuedError(str(failure)) from failure
-        return activity_id, activity_blob
+            self.feedback_message = (
+                f"{self.__class__.__name__} failed: {failure}"
+            )
+            self.logger.error("%s", self.feedback_message)
+            return Status.FAILURE
+        self._on_success(activity_id, activity_blob)
+        return Status.SUCCESS
 
 
 class FindParticipantByActorIdNode(DataLayerConditionWithPorts):

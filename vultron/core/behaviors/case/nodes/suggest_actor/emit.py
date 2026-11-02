@@ -39,7 +39,6 @@ from vultron.core.behaviors.case.nodes.participant.roles import (
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
-    SendNotQueuedError,
     _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.node_logger import port_wiring_logger
@@ -159,7 +158,8 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
     (namespaced per BTND-03-004); falls back to ``[CVDRole.VENDOR]`` when the
     key is absent.
 
-    The Offer is queued and then committed (ADR-0119, CM-16-010).
+    The Offer is queued and then committed, in one act (ADR-0119, CM-16-010,
+    OX-03-002).
 
     Returns SUCCESS on success, FAILURE if any required dependency is missing.
     """
@@ -207,80 +207,65 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
             return roles
         return [CVDRole.VENDOR]
 
-    def _fail(self, message: str) -> Status:
-        """Report *message* at ERROR and fail; no Offer was queued."""
-        self.feedback_message = message
-        self.logger.error("%s", self.feedback_message)
-        return Status.FAILURE
+    def _call_factory(self) -> tuple[str, str]:
+        """Build the ``Offer(CaseParticipant)`` addressed to the Case Owner.
 
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-        if (f := self._require_factory()) is not None:
-            self.logger.error("%s", self.feedback_message)
-            return f
+        Raises ``ValueError`` when no role is suggested or the case names no
+        Case Owner but this actor; the base ``update()`` reports it as
+        ``FAILURE`` with nothing queued.
+        """
+        assert self.datalayer is not None and self.actor_id is not None
         assert self.trigger_activity_factory is not None
-
-        factory = self.trigger_activity_factory  # guaranteed non-None
         roles = self._read_suggested_roles()
         if not roles:
-            return self._fail(
+            raise ValueError(
                 f"suggested_roles for actor '{self.recommended_id}' is empty "
                 "— cannot emit Offer(CaseParticipant) without at least one role"
             )
-        try:
-            owner_id = _resolve_owner_recipient(
-                self.datalayer, self.case_id, self.actor_id
-            )
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
-            return self._fail(f"EmitOfferCaseParticipantToOwner failed: {e}")
+        owner_id = _resolve_owner_recipient(
+            self.datalayer, self.case_id, self.actor_id
+        )
         if not owner_id:
-            return self._fail(
+            raise ValueError(
                 f"case '{self.case_id}' names no Case Owner other than "
                 f"'{self.actor_id}' — cannot address Offer(CaseParticipant)"
             )
-        actor_id = self.actor_id
+        # The id is derived from the recommendation the Offer forwards, so a
+        # retry for the same recommendation rebuilds this Offer and the
+        # outbox does not queue it twice (OX-06-002).
+        return self.trigger_activity_factory.offer_actor_to_case(
+            recommender_id=self.recommender_id,
+            recommended_id=self.recommended_id,
+            case_id=self.case_id,
+            actor=self.actor_id,
+            origin=self.recommendation_id,
+            to=[owner_id],
+            roles=roles,
+            id_=derived_activity_id(
+                OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE,
+                self.actor_id,
+                self.case_id,
+                self.recommendation_id,
+            ),
+        )
 
-        def _build() -> tuple[str, str]:
-            # The id is derived from the recommendation the Offer forwards,
-            # so a retry for the same recommendation rebuilds this Offer and
-            # the outbox does not queue it twice (OX-06-002).
-            return factory.offer_actor_to_case(
-                recommender_id=self.recommender_id,
-                recommended_id=self.recommended_id,
-                case_id=self.case_id,
-                actor=actor_id,
-                origin=self.recommendation_id,
-                to=[owner_id],
-                roles=roles,
-                id_=derived_activity_id(
-                    OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE,
-                    actor_id,
-                    self.case_id,
-                    self.recommendation_id,
-                ),
-            )
+    def _record_sent(self, activity_id: str, activity_blob: str) -> None:
+        """Record the queued Offer (ADR-0119, CM-16-010), in the same act.
 
-        def _record(activity_id: str, activity_blob: str) -> None:
-            # Record the sent Offer (ADR-0119, CM-16-010).  The exact blob is
-            # the snapshot (VM-08-003): the factory sets context.
-            commit_emitted_activity(
-                datalayer=cast(CaseOutboxPersistence, self.datalayer),
-                actor_id=actor_id,
-                case_id=self.case_id,
-                activity_id=activity_id,
-                activity_blob=activity_blob,
-                semantic_type=OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE,
-            )
+        The exact blob is the snapshot (VM-08-003): the factory sets
+        context.
+        """
+        assert self.actor_id is not None
+        commit_emitted_activity(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer),
+            actor_id=self.actor_id,
+            case_id=self.case_id,
+            activity_id=activity_id,
+            activity_blob=activity_blob,
+            semantic_type=OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE,
+        )
 
-        # Built (which stores it), queued and committed in one act, so no
-        # drain delivers the Offer before its entry commits (OX-03-002).
-        try:
-            activity_id, _ = self._send_in_one_act(_build, _record)
-        except SendNotQueuedError as e:
-            return self._fail(f"EmitOfferCaseParticipantToOwner failed: {e}")
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(
             "%s: queued Offer(CaseParticipant) '%s' to Case Owner outbox"
             " for case '%s'",
@@ -288,7 +273,6 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
             activity_id,
             self.case_id,
         )
-        return Status.SUCCESS
 
 
 class EmitNoteDuplicateRecommendationToOwnerNode(_CommitCaseManagerNoteBase):
