@@ -863,8 +863,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: CM-05-001
-    lint_suppress:
-    - missing_story_reference
   - id: CM-05-013
     priority: MUST
     kind: project

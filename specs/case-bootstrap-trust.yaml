@@ -417,8 +417,9 @@ groups:
       `test/core/behaviors/case/test_create_case_received_tree.py` confirms the
       introduction carries the owner's stored case inline, with its participants,
       the CASE_MANAGER and the submitted report.
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_012
+    - story_2022_090
   - id: CBT-01-010
     priority: MUST
     kind: protocol

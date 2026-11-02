@@ -888,8 +888,6 @@ groups:
       after acceptance produces no second `VulnerabilityCase`.
     adr:
     - ADR-0080
-    lint_suppress:
-    - missing_story_reference
   - id: CP-05-014
     priority: MUST
     kind: protocol
@@ -913,8 +911,8 @@ groups:
       `Accept`.
     adr:
     - ADR-0080
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_101
   - id: CP-05-015
     priority: MUST_NOT
     kind: protocol
@@ -935,8 +933,6 @@ groups:
       `CaseLedgerEntry` for the case and no change to case or participant state.
     adr:
     - ADR-0080
-    lint_suppress:
-    - missing_story_reference
   - id: CP-05-007
     priority: MUST
     kind: protocol
