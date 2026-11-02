@@ -611,6 +611,7 @@ class TestReceivedRejectPrunesOpenProposals:
 
     @pytest.mark.spec("EP-08-003")
     @pytest.mark.spec("MSM-07-004")
+    @pytest.mark.spec("MSM-07-013")
     def test_owners_reject_of_an_invite_prunes_nothing(self):
         dl, case, embargo, proposal, received_reject_by = (
             self._replica_with_open_proposal()

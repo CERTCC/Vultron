@@ -5,7 +5,7 @@
 #   ISSUE_NUMBER  issue or Epic being claimed
 #   MESSAGE       claim comment body (names the branch, or the epic run)
 #
-# The one place a claim is announced (PAD-04-002, PAD-19-001): claim-issue.sh
+# The one place a claim is announced (PAD-04-002/005/006, PAD-19-001): claim-issue.sh
 # calls it after the lock is taken, claim-epic.sh calls it as the Epic claim.
 #   - non-Epic: assign @me, comment, set Status = In Progress
 #   - Epic, --epic-run: assign @me and comment (an Epic has no Status,

@@ -8,6 +8,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from vultron.demo.helpers import notes
+from vultron.errors import DemoStoryError
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 
 @pytest.mark.spec("DEMOMA-16-001")
@@ -179,39 +181,90 @@ def test_reporter_asks_gates_on_the_reporter_replica_and_asks_first():
     assert rest == replies
 
 
-@pytest.mark.parametrize(
-    ("module", "posters"),
-    [
-        ("rcv_demo", ["reporter", "vendor", "coordinator"]),
-        ("rcv_reject_demo", ["reporter", "coordinator"]),
-        ("rccv_extension_demo", ["reporter", "c1", "c2", "vendor"]),
-        ("rccv_handoff_demo", ["reporter", "c1", "c2", "vendor"]),
-    ],
-)
+# The phase-form of this check covered ``rccv-extension`` and
+# ``rccv-handoff``, which are now written as composition (#5535): their one
+# thread is asserted by ``TestFourWayNoteThread`` in
+# ``test/demo/test_two_coordinator_story.py``, which owns the shared half of
+# the thread, and by each scenario's own ``TestTheFourExchangeNotes``.  The
+# composed form below is the shape every scenario's check now takes.
+
+
 @pytest.mark.spec("DEMOMA-17-001")
-def test_scenario_notes_exchange_is_one_thread(
-    module: str, posters: list[str]
-) -> None:
-    """Each scenario's exchange posts one thread, in order, from each poster."""
-    import importlib
-    import inspect
+def test_the_rejection_fragment_posts_one_thread() -> None:
+    """The composed form of the check above (#5533).
 
-    demo = importlib.import_module(f"vultron.demo.scenario.{module}")
-    params = inspect.signature(demo._phase_notes_exchange).parameters
-    kwargs = {name: MagicMock(name=name) for name in params}
+    ``rcv-reject`` assembles its story, so its note exchange is a fragment
+    taking the story's state rather than a phase taking one keyword per actor.
+    The Vendor declined, so nothing gates the thread on its replica and the
+    posts go straight to ``add_note_thread``.
+    """
+    from test.demo._helpers import mock_case, story_state
+    from vultron.demo.helpers import coordinated_story
 
-    with patch.object(demo, "add_note_thread") as thread:
-        demo._phase_notes_exchange(**kwargs)
+    state = story_state("reporter", "coordinator", "vendor", case=mock_case())
 
-    (_watching, case, posts), _ = thread.call_args
-    assert case is kwargs["case"]
-    assert [p.poster.client for p in posts] == [
-        kwargs[f"{name}_client"] for name in posters
-    ]
-    assert [p.poster.actor for p in posts] == [
-        kwargs[f"{name}_in_{name}"] for name in posters
+    with patch.object(coordinated_story, "add_note_thread") as thread:
+        coordinated_story.reporter_asks_about_the_rejection(state)
+
+    watching, case, posts = thread.call_args.args
+    assert watching is state.client("coordinator")
+    assert case is state.case
+    assert [post.poster for post in posts] == [
+        state.actor(name) for name in ("reporter", "coordinator")
     ]
     assert posts[0].name == "Question from Reporter"
+
+
+@pytest.mark.spec("DEMOMA-17-001")
+@pytest.mark.spec("DEMOMA-22-001")
+def test_the_timeline_fragment_gates_its_thread_on_the_vendors_replica() -> (
+    None
+):
+    """The ask-vendor thread waits for the Vendor's replica, then posts (#5534).
+
+    The Vendor posts the middle note from its own container, so that replica
+    holding the case is the thread's cause: the fragment goes through
+    ``gated_note_thread`` rather than posting straight away, and the
+    Coordinator's closing note is kept for a continuation to answer
+    (``rcvcv``'s late joiners reply to it).
+    """
+    from test.demo._helpers import mock_case, story_state
+    from vultron.demo.helpers import coordinated_story
+
+    state = story_state("reporter", "coordinator", "vendor", case=mock_case())
+    answer = as_Note(name="Coordinator Summary", content="x")
+
+    with patch.object(
+        coordinated_story, "gated_note_thread", return_value=answer
+    ) as thread:
+        coordinated_story.reporter_asks_about_the_timeline(state)
+
+    kwargs = thread.call_args.kwargs
+    assert kwargs["replica_client"] is state.client("vendor")
+    assert kwargs["watching_client"] is state.client("coordinator")
+    assert kwargs["case"] is state.case
+    assert [post.poster for post in kwargs["posts"]] == [
+        state.actor(name) for name in ("reporter", "vendor", "coordinator")
+    ]
+    assert kwargs["posts"][0].name == "Question from Reporter"
+    assert state.kept(coordinated_story.TIMELINE_ANSWER) is answer
+
+
+@pytest.mark.spec("DEMOMA-17-001")
+def test_the_timeline_fragment_keeps_nothing_when_its_thread_fails() -> None:
+    """A continuation that answers the thread then stops rather than guessing."""
+    from test.demo._helpers import mock_case, story_state
+    from vultron.demo.helpers import coordinated_story
+
+    state = story_state("reporter", "coordinator", "vendor", case=mock_case())
+
+    with patch.object(
+        coordinated_story, "gated_note_thread", return_value=None
+    ):
+        coordinated_story.reporter_asks_about_the_timeline(state)
+
+    with pytest.raises(DemoStoryError):
+        state.kept(coordinated_story.TIMELINE_ANSWER)
 
 
 def test_the_timeline_thread_asks_then_the_vendor_and_coordinator_answer():

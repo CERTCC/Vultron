@@ -19,7 +19,7 @@ SR-09-004, DF-12-002). A ``kind:`` relabel or a catalog placement change moves t
 anchor, and every prose link to the old page then dangles. This module finds
 each Markdown link whose target is a requirements page and rewrites it to the
 page and fragment :func:`~vultron.metadata.docs.requirement_catalog.anchor_homes`
-gives:
+gives (DF-12-010):
 
 1. **A requirement cited by its group anchor.** A link whose text is one
    requirement ID, or a comma-separated list of them, all of the anchored
@@ -41,8 +41,8 @@ stay relative to the fragment, as ``include-markdown`` expects. Lines inside
 fenced code are left alone. An anchor the registry does not know is reported
 and left unchanged.
 
-:func:`anchor_definition_faults` is the other half of DF-12-002: no page but
-a catalog page and ``full.md`` defines a catalog anchor.
+:func:`anchor_definition_faults` enforces DF-12-002 itself: no page but a
+catalog page and ``full.md`` defines a catalog anchor.
 
 The CLI is ``scripts/relink_requirement_anchors.py``; the gate that holds
 ``docs/`` to both rules is ``test/metadata/docs/test_requirement_links.py``.

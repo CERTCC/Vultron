@@ -21,6 +21,7 @@ flow is exercised separately in ``test/demo/test_submit_report_tutorial.py``.
 
 import json
 
+from vultron.core.models._helpers import format_timestamp
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.examples import submit_report_tutorial as t
@@ -118,7 +119,7 @@ def test_submit_command_body_matches_payload_and_is_deterministic():
     JSON, it carries the pinned timestamp, and no build-time date leaks in.
     """
     body = t.create_report_activity_body()
-    assert body["published"] == t._FIXED_TS.isoformat()
+    assert body["published"] == format_timestamp(t._FIXED_TS)
     assert "updated" not in body
 
     # The command shows the same message the payload block shows.

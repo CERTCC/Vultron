@@ -162,7 +162,7 @@ A signatory that agrees to the revision records that agreement on the revision's
 A signatory that declines the revision refuses those terms and nothing more, on that row only.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-05-002", "MSM-07-003", "MSM-07-004"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-05-002", "MSM-07-003", "MSM-07-004", "MSM-07-015"))
 ```
 
 A signatory withdraws by leaving the embargo in force with `Leave(EmbargoEvent)`, not by rejecting an invitation to it.

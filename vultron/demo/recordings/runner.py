@@ -38,7 +38,11 @@ from vultron.adapters.driving.fastapi.outbox_lanes import (
     StallOrder,
 )
 from vultron.config import config_override
-from vultron.demo.determinism import deterministic_run
+from vultron.demo.determinism import (
+    TREE_RECORDING_SEED,
+    deterministic_run,
+    reset_blackboard,
+)
 from vultron.demo.helpers.actor_roles import ActorRole
 from vultron.demo.in_process import (
     InProcessRouter,
@@ -110,8 +114,14 @@ def _scenario_nodes(
     Restores the default emitter and drops every cached store on exit, so a
     later run in the same process starts empty.  The router is installed as
     the default emitter because the routes of an isolated app fall back to it.
+
+    The py_trees blackboard is reset too (:func:`reset_blackboard`): with one
+    tree-wide seed (DEMOCI-11-025) the second run in a process redraws the
+    first run's blackboard-client ids, and py_trees refuses an id it already
+    holds with "this unique identifier has already been registered".
     """
     reset_datalayer()
+    reset_blackboard()
     router = InProcessRouter()
     nodes = _Nodes()
     try:
@@ -134,6 +144,7 @@ def _scenario_nodes(
             yield nodes
     finally:
         reset_datalayer()
+        reset_blackboard()
 
 
 def _one_row_at_a_time(
@@ -203,7 +214,10 @@ def record_scenario(
 
     with tempfile.TemporaryDirectory(prefix="vultron-recording-") as devlogs:
         with (
-            deterministic_run(seed=spec.name),
+            # One seed for the whole tree, not this scenario's name, so
+            # siblings draw the same ids for a shared opening
+            # (DEMOCI-11-025, DEMOCI-11-018).
+            deterministic_run(seed=TREE_RECORDING_SEED),
             _scenario_nodes(bases, topology) as nodes,
             patch.dict(os.environ, {"DEVLOGS_DIR": devlogs}),
             patch.object(demo_utils, "DEFAULT_WAIT_SECONDS", 0.0),

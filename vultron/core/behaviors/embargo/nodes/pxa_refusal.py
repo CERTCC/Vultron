@@ -17,15 +17,16 @@
 
 Once the case is public, an exploit is public or attacks are observed, a
 received ``Invite(EmbargoEvent)`` (EMB-01-002) or ``Accept`` of one
-(EMB-02-002) is refused and answered with ER, a ``Reject`` of the Invite.
+(EMB-02-004) is refused and answered with a ``Reject`` of the Invite, the
+receiver's own answer and not ER (MSM-02-010).
 :func:`~vultron.core.behaviors.embargo.refusal_tree.pxa_invite_refusal` and
 :func:`~vultron.core.behaviors.embargo.refusal_tree.pxa_accept_refusal`
 compose these nodes into the diversion the two received trees carry.
 
-The ER is the receiver's record of its decision: its id derives from the
+The ``Reject`` is the receiver's record of its decision: its id derives from the
 rejecting actor and the Invite, so a redelivery finds it already sent and is
-skipped rather than answered twice (HP-01-003, CLP-13-001), and an ER sealed
-but never queued is queued again (ID-04-005).
+skipped rather than answered twice (HP-01-003, CLP-13-001), and a ``Reject``
+sealed but never queued is queued again (ID-04-005).
 """
 
 from py_trees.common import Status
@@ -42,7 +43,7 @@ from vultron.core.predicates.embargo import pxa_is_embargo_eligible
 
 __all__ = [
     "EmbargoInviteNotYetRefusedNode",
-    "ErFactoryAvailableNode",
+    "RefusalFactoryAvailableNode",
     "PxaBarsEmbargoNode",
     "ReceiverIsInviteeNode",
     "SendEmbargoProposalRefusalNode",
@@ -53,7 +54,7 @@ class PxaBarsEmbargoNode(DataLayerConditionWithPorts):
     """Condition: the case is public, an exploit is public or attacks are seen.
 
     SUCCESS when the receiver's copy of the case has any of P, X or A set, so
-    no embargo may be proposed or accepted (EMB-01-002, EMB-02-002); its
+    no embargo may be proposed or accepted (EMB-01-002, EMB-02-004); its
     feedback message is the refusal's reason.  FAILURE otherwise, and when
     this store holds no such case, which bars nothing.  Read-only.
     """
@@ -98,16 +99,16 @@ class ReceiverIsInviteeNode(DataLayerConditionWithPorts):
             return Status.SUCCESS
         self.feedback_message = (
             f"Invite '{self._invite_id}' is addressed to '{self.invitee_id}',"
-            f" not to '{self.actor_id}' — no ER sent (EP-09-010)"
+            f" not to '{self.actor_id}' — no Reject sent (EP-09-010)"
         )
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
 
-class ErFactoryAvailableNode(DataLayerActionWithPorts):
-    """Guard: the trigger-activity port that builds the ER is wired.
+class RefusalFactoryAvailableNode(DataLayerActionWithPorts):
+    """Guard: the trigger-activity port that builds the Reject is wired.
 
-    Without it nothing can be built, so the refusal stands without its ER and
+    Without it nothing can be built, so the refusal stands without its Reject and
     the WARNING says so; FAILURE.  Reads only its wiring.
     """
 
@@ -122,7 +123,7 @@ class ErFactoryAvailableNode(DataLayerActionWithPorts):
         if self.trigger_activity_factory is not None:
             return Status.SUCCESS
         self.feedback_message = (
-            f"trigger_activity unavailable — ER not emitted by actor"
+            f"trigger_activity unavailable — Reject not emitted by actor"
             f" '{self.actor_id}' for invite '{self._invite_id}' on case"
             f" '{self._case_id}'"
         )
@@ -133,11 +134,11 @@ class ErFactoryAvailableNode(DataLayerActionWithPorts):
 class EmbargoInviteNotYetRefusedNode(
     SilentIdempotencyGuardMixin, DataLayerActionWithPorts
 ):
-    """Idempotency guard: this actor has not yet sent ER for this Invite.
+    """Idempotency guard: this actor has not yet refused this Invite.
 
-    FAILURE means the ER was already sent; the handler reads it as a
-    re-delivery (CLP-13-001, HP-01-003).  The ER is sealed before it is
-    queued, so an ER sealed but no longer pending is queued again under its
+    FAILURE means the ``Reject`` was already sent; the handler reads it as a
+    re-delivery (CLP-13-001, HP-01-003).  The ``Reject`` is sealed before
+    it is queued, so one sealed but no longer pending is queued again under its
     own id rather than taken as delivered (ID-04-005).  A missing
     trigger-activity port sends nothing, so there is nothing to repeat.
     """
@@ -153,7 +154,7 @@ class EmbargoInviteNotYetRefusedNode(
             self.actor_id, self._invite_id
         ):
             self.feedback_message = (
-                f"ER for Invite '{self._invite_id}' was already sent by"
+                f"Reject of Invite '{self._invite_id}' was already sent by"
                 f" '{self.actor_id}'"
             )
             return self._idempotent_failure(
@@ -166,7 +167,7 @@ class EmbargoInviteNotYetRefusedNode(
 
 
 class SendEmbargoProposalRefusalNode(SendEmbargoInviteAnswerNode):
-    """Queue the ER to a refused ``Invite(EmbargoEvent)`` where its answer goes.
+    """Queue the ``Reject`` of a refused ``Invite(EmbargoEvent)`` where it goes.
 
     The CASE_MANAGER answers the proposer that sent the Invite; any other
     actor answers the CASE_MANAGER, never a peer (EP-09-003, PCR-08-001).

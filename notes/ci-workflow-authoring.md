@@ -50,7 +50,7 @@ Only one job per workflow runs that pair. The close step closes every open issue
 carrying the label, so a passing job closes the issue a sibling job just filed.
 When several jobs can run in the same run, the pair moves to a final `notify` job
 that `needs:` all of them and keys on `needs.*.result`, as `python-app.yml` does
-(CISEC-05-003).
+(CISEC-05-012, CISEC-05-013).
 
 The job that runs the pair MUST hold `issues: write` (CISEC-02-002), or the
 action's issue calls fail with 403. Grant it on the aggregate `notify` job and
@@ -77,7 +77,7 @@ the list-issues REST endpoint (`gh api "repos/$REPO/issues?labels=a,b"`), never
 index lags: it once returned nothing while a tracker was open, and a second one
 was filed (#5105). Read the result through a command substitution, not
 `mapfile < <(...)`, so an API error fails the step under `set -e` instead of
-reading as "none open" (CISEC-05-003).
+reading as "none open" (CISEC-05-011).
 
 ## Events Raised With `GITHUB_TOKEN` Never Trigger Other Workflows
 
@@ -89,8 +89,8 @@ A workflow that needs a typed issue calls
 `.github/scripts/ensure-issue-type.sh <repo> <issue> <type>` on both its create
 and update arms. The script resolves the type by name, applies it with
 `updateIssue`, leaves a typed issue alone, and fails the step when the type does
-not exist (CISEC-05-007). `notify-failure` and `demo-recordings.yml` use it;
-never copy its body into a workflow.
+not exist (CISEC-05-017 to CISEC-05-019). `notify-failure` and
+`demo-recordings.yml` use it; never copy its body into a workflow.
 
 ## A Bot-Filed Issue Gets a Theme From the Filer, and No Parent
 

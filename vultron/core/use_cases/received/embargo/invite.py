@@ -280,7 +280,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         ) is not None:
             if node_failed(tree, ReceiverIsInviteeNode):
                 return HandlerResult.refused(
-                    f"{refusal.reason}; no ER sent, the Invite is addressed"
+                    f"{refusal.reason}; no Reject sent, the Invite is addressed"
                     f" to '{subjects.invitee_id}' (EP-09-010)"
                 )
             return refusal

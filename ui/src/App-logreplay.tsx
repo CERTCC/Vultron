@@ -40,7 +40,7 @@ import rvcvHandoffLedgerRaw from './recordings/rvcv-handoff/case-actor.jsonl?raw
 import rccvHandoffLedgerRaw from './recordings/rccv-handoff/case-actor.jsonl?raw'
 // rcv-reject: the rcv path where the invited vendor DECLINES
 // (reject_invite_actor_to_case). rcvcv: a five-actor case (reporter, coordinator,
-// vendor, second coordinator, second vendor via actor6/vendor-deployer).
+// vendor, second coordinator, the VendorDeployer on cast slot actor4).
 import rcvRejectLedgerRaw from './recordings/rcv-reject/case-actor.jsonl?raw'
 import rcvcvLedgerRaw from './recordings/rcvcv/case-actor.jsonl?raw'
 // Embargo scenarios: rcv-embargo revises an embargo and terminates it on purpose;

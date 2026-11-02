@@ -12,10 +12,10 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Check over the built ``site/`` that every page renders its reading-path boxes.
 
-Requirements: DF-11-023 (a box reaches a page only through an
-``include-markdown`` line its author places, and a built-site check finds a
-missing or misplaced one), DF-11-022 (a section member's box sits in its
-section), DF-09-009 (an empty target set fails). Design:
+Requirements: DF-11-044 (a box reaches a page only through an
+``include-markdown`` line its author places), DF-11-045 (a built-site check
+finds a missing or misplaced one), DF-11-043 (a section member's box sits in
+its section), DF-09-009 (an empty target set fails). Design:
 ``notes/site-information-architecture.md`` § "Threads: staged data, rendered
 at both ends" (ADR-0150).
 
@@ -30,7 +30,7 @@ the check fails when:
   missing — the message names the ``include-markdown`` line to add;
 * the page renders a box made for another page, or the same box twice;
 * a section member's box does not sit after the element carrying its anchor
-  and before the next heading of the same or a higher level (DF-11-022);
+  and before the next heading of the same or a higher level (DF-11-045);
 * a rendered box has no matching ``include-markdown`` directive in the page's
   source, which is how a box something other than the author added shows.
 
@@ -219,7 +219,7 @@ def _placement_fault(box: ExpectedBox, scan: PageScan, at: int) -> str | None:
         return (
             f"renders the {box.thread} box for #{box.anchor}, but no element "
             "carries that id; restore the section, or change the thread and "
-            f"rerun `{WRITE_COMMAND}` (DF-11-022)"
+            f"rerun `{WRITE_COMMAND}` (DF-11-045)"
         )
     start, level = anchor
     bound_level = level if level is not None else 6
@@ -237,7 +237,7 @@ def _placement_fault(box: ExpectedBox, scan: PageScan, at: int) -> str | None:
         f"renders the {box.thread} box for #{box.anchor} outside that "
         f"section; move {include_line(box.page, box.fragment)} to the end of "
         "the section, before the next heading of the same or a higher level "
-        "(DF-11-022)"
+        "(DF-11-045)"
     )
 
 
@@ -248,7 +248,7 @@ def page_faults(
     expected: list[ExpectedBox],
     fragments: dict[tuple[str, str], str],
 ) -> list[str]:
-    """Every finding for one built *page*, each naming the page (DF-11-023)."""
+    """Every finding for one built *page*, each naming the page (DF-11-045)."""
     faults: list[str] = []
     included = included_fragments(source, page)
     wanted = {(box.thread, box.target) for box in expected}
@@ -293,7 +293,7 @@ def page_faults(
                 f"renders the {rendered.thread} box for {rendered.target} with "
                 "no matching include-markdown directive in its source; a box "
                 f"reaches a page only through {include_line(page, fragment)} "
-                "placed by hand, never from the build (DF-11-023)"
+                "placed by hand, never from the build (DF-11-044)"
             )
     return faults
 
@@ -308,7 +308,7 @@ class BoxReport:
 
 
 def check_boxes(root: Path | None = None) -> BoxReport:
-    """Check every built page's reading-path boxes (DF-11-023).
+    """Check every built page's reading-path boxes (DF-11-045).
 
     Raises:
         FileNotFoundError: If ``site/`` is absent or empty.
@@ -325,7 +325,7 @@ def check_boxes(root: Path | None = None) -> BoxReport:
     if not expected:
         raise MetadataLoadError(
             "resolved no reading-path boxes to check; an empty target set is "
-            "a failure, not a pass (DF-11-023, DF-09-009)",
+            "a failure, not a pass (DF-11-045, DF-09-009)",
             path="docs/start",
         )
     fragments = {
@@ -368,7 +368,7 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description=(
             "Check that every built page renders its reading-path boxes "
-            "(DF-11-023). Run after 'uv run mkdocs build'."
+            "(DF-11-045). Run after 'uv run mkdocs build'."
         )
     )
     parser.parse_args(argv)

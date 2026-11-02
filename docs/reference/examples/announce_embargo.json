@@ -1,21 +1,21 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Announce",
-  "id": "urn:uuid:b0ded2c1-4bf3-49ad-a96e-6989bd75af86",
-  "name": "https://vultron.example/organizations/vendorco Announce Embargo for VendorCo Case #12759345",
-  "context": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
-  "to": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927/participants",
+  "id": "urn:uuid:b5b5f101-d250-4cff-87ce-8fe339423c6d",
+  "name": "https://vultron.example/organizations/vendorco Announce Embargo for VendorCo Case #83288480",
+  "context": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
+  "to": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454/participants",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "id": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927/embargo_events/2026-12-29T00:00:00+00:00",
+    "id": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454/embargo_events/2026-08-30T00:00:00+00:00",
     "type": "EmbargoEvent",
-    "name": "Embargo for VendorCo Case #12759345",
-    "context": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
-    "startTime": "2026-09-30T16:00:00+00:00",
-    "endTime": "2026-12-29T00:00:00+00:00",
-    "published": "2026-09-30T16:00:59+00:00",
-    "updated": "2026-09-30T16:00:59+00:00",
-    "content": "We propose to embargo VendorCo Case #12759345 for 90 days.",
+    "name": "Embargo for VendorCo Case #83288480",
+    "context": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
+    "startTime": "2026-06-01T19:12:00.000000+00:00",
+    "endTime": "2026-08-30T00:00:00.000000+00:00",
+    "published": "2026-06-01T19:12:00.000000+00:00",
+    "updated": "2026-06-01T19:12:00.000000+00:00",
+    "content": "We propose to embargo VendorCo Case #83288480 for 90 days.",
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }
 }

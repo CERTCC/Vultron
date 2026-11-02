@@ -1,7 +1,7 @@
 """Check that each normative-status banner marks exactly its declared pages.
 
-Requirements: specs/diataxis-requirements.yaml DF-12-006, DF-12-007,
-DF-11-025, DF-09-009; attribution per MS-17 via
+Requirements: specs/diataxis-requirements.yaml DF-12-006, DF-12-016 to
+DF-12-018, DF-12-007, DF-11-025, DF-09-009; attribution per MS-17 via
 :mod:`vultron.metadata.file_loading`.
 
 The banner ``docs/includes/normative.md`` says "This page is normative". It is
@@ -77,7 +77,7 @@ GOVERNS_BANNER = "includes/specification_governs.md"
 #: :data:`GOVERNS_BANNER` carries instead of (DF-12-007).
 NOT_NORMATIVE_BANNER = "includes/not_normative.md"
 
-#: The normative set, ``docs/``-relative (DF-12-006): the body section pages,
+#: The normative set, ``docs/``-relative (DF-12-017): the body section pages,
 #: the Requirements Catalog's among them. The catalog's landing and themed
 #: pages come from its placement table, so a page added there joins the set.
 NORMATIVE_PAGES: tuple[str, ...] = (
@@ -387,7 +387,7 @@ def check_normative_banner(
                 "is listed in BANNER_EXAMPLE_PAGES in "
                 "vultron/metadata/docs/normative_banner.py but does not "
                 "exist; name the page that now documents the banners there "
-                "instead (DF-12-006)",
+                "instead (DF-12-016)",
                 path=f"docs/{rel}",
             )
     rules = (
@@ -400,7 +400,7 @@ def check_normative_banner(
             elsewhere=(
                 f'use "{GOVERNS_BANNER}" on a page that explains the '
                 f'protocol\'s design (DF-12-007) or "{NOT_NORMATIVE_BANNER}" '
-                "(DF-12-006)"
+                "(DF-12-016)"
             ),
         ),
         _BannerRule(

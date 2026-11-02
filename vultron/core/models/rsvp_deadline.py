@@ -32,7 +32,7 @@ from enum import StrEnum
 
 from pydantic import ConfigDict
 
-from vultron.core.models._helpers import now_utc
+from vultron.core.models._helpers import now_utc, timestamp_serializer
 from vultron.core.models.base import ValidatedAssignmentMixin
 
 DEFAULT_MIN_RSVP_WINDOW = timedelta(hours=72)
@@ -71,6 +71,9 @@ class RsvpDeadline(ValidatedAssignmentMixin):
     computed: datetime
     minimum: datetime
     effective: datetime
+    _serialize_rsvp_deadline_times = timestamp_serializer(
+        "requested", "computed", "minimum", "effective"
+    )
     clamp: RsvpDeadlineClamp
 
 

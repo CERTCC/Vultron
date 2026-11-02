@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # prepush-delta.sh — locate a branch's pre-push triage artifact and decide
-# whether the post-push triage may review only the delta (PAD-07-007/008).
+# whether the post-push triage may review only the delta (PAD-07-008/012).
 #
 # Usage: prepush-delta.sh --path [<branch>]   print the artifact path, exit 0
 #                                             (default branch: the current one)

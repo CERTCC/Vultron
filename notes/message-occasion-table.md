@@ -17,6 +17,7 @@ related_specs:
   - specs/semantic-extraction.yaml
   - specs/handler-protocol.yaml
   - specs/project-documentation.yaml
+  - specs/diataxis-requirements.yaml
   - specs/case-management.yaml
 related_notes:
   - notes/message-type-reference.md
@@ -129,7 +130,7 @@ lookup table is mostly links.
   wire activity keeps at least one row.
 - **Occasion prose is docs prose.** It renders on reference pages and how-to
   guides, so it follows the docs style guide, glossary terms, and no "you"
-  (DF-09-008, MSM-08-007).
+  (DF-09-012, MSM-08-007).
 - **Details link** names the formal message and code ("Fix Readiness (CF)")
   (DF-09-010, MSM-08-008). Expansion rows (`GI`, `RV`, `RI`, `RC`) link by
   section heading instead, since one label would repeat on every row; so do

@@ -1,9 +1,10 @@
 """Tests for the generated docs-site artifacts (``uv run docs-site``).
 
-Requirements: DF-11-005 (landing pages generated and check gated; every
-group-opening index declares its shape; routing pages link every member),
-DF-11-008 (the coverage matrix), DF-11-011 (the stakeholder-type fragment),
-DF-09-009 (an empty target set fails), DF-11-004 (a level is never rendered).
+Requirements: DF-11-005 (landing pages generated and check gated), DF-11-028
+(every group-opening index declares its shape), DF-11-029 (routing pages link
+every member), DF-11-008 (the coverage matrix), DF-11-011 (the stakeholder-type
+fragment), DF-09-009 (an empty target set fails), DF-11-004 (a level is never
+rendered).
 """
 
 from __future__ import annotations
@@ -376,7 +377,7 @@ class TestProsePreservation:
             splice_listing("# Guides\n\n- [A](a.md)\n", page)
 
 
-@pytest.mark.spec("DF-11-005")
+@pytest.mark.spec("DF-11-005", "DF-11-028", "DF-11-029")
 class TestSectionIndexDecisions:
     """Every ``index.md`` that opens a nav group declares how it carries its
     contents; the three shapes are handled as declared (#3617)."""
@@ -754,6 +755,7 @@ class TestCoverageMatrix:
                 {"a.md": _page("A", level=250, stakeholder_type="ALL")},
             )
 
+    @pytest.mark.spec("DF-11-031")
     def test_empty_cells_render_and_pass(self, tmp_path):
         root = _guides_repo(tmp_path, a=_page("A"))
         text = render_matrix(measure_coverage(root))
@@ -895,6 +897,7 @@ class TestSiteSync:
         assert exc.value.code == 1
         assert "DF-09-009" in capsys.readouterr().err
 
+    @pytest.mark.spec("DF-11-042", "DF-11-046")
     def test_committed_site_artifacts_are_in_sync(self):
         """The CI check for the ``docs-site-sync`` hook on a ``vultron/`` change.
 
@@ -904,6 +907,7 @@ class TestSiteSync:
             "run 'uv run docs-site --write' and commit the result"
         )
 
+    @pytest.mark.spec("DF-11-028")
     def test_committed_generated_pages_are_the_decided_set(self):
         """Pins the indexes decided as ``contents: generated`` (#3617); the
         decision table is archived in ``plan/history/2610/note/``. The old
@@ -937,6 +941,7 @@ class TestSiteSync:
         }
         assert set(indexes.rendered) == {"topics/scenarios/index.md"}
 
+    @pytest.mark.spec("DF-11-029")
     def test_committed_routing_pages_link_every_member(self):
         root = repo_root()
         faults = [
@@ -946,6 +951,7 @@ class TestSiteSync:
         ]
         assert faults == []
 
+    @pytest.mark.spec("DF-11-029")
     def test_the_activity_guides_index_is_required_to_route_its_leaves(self):
         """The thirteen guides are out of the nav (DF-11-006, #3627), so only
         the sibling rule makes their routing page accountable for them."""

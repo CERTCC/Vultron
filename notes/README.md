@@ -24,7 +24,7 @@ summary; `uv run notes-tracks` lists plan notes whose tracked issues have all
 closed.
 
 Update this index in the same change that adds, archives, or re-scopes a note
-(PD-03-004).
+(PD-03-004, PD-03-010).
 
 ---
 
@@ -301,8 +301,10 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   Catalog of known flaky tests mapped to open issues, plus flakiness triage rules.
   **Load when**: triaging a test failure that may be pre-existing.
 - **`architecture-ratchet-corpus.md`** · `guidance`
-  The shared corpus behind `test/architecture/` ratchets, and baseline rules.
-  **Load when**: adding or changing an architecture ratchet test.
+  The shared corpus behind `test/architecture/` ratchets, how a ratchet selects
+  its subjects, and baseline rules.
+  **Load when**: adding or changing an architecture ratchet test, or
+  refactoring away a name one selects on.
 - **`devcontainer-tooling.md`** · `guidance`
   `uv run`, no image `PYTHONPATH`, bare `ruff`, hanging hooks, pushing to origin.
   **Load when**: a tool fails to start, `git push` fails, or editing a skill file.

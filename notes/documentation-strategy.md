@@ -204,15 +204,16 @@ The publication and reference axes compare one build with itself; neither sees
 a URL an earlier build served and this one dropped. `uv run docs-legacy-urls`
 (DOCBW-03-008) is that comparison. Easy to get wrong:
 
-- **The evidence is committed before `publish` advances.**
+- **The evidence is committed before the deploy replaces it.**
   `vultron/metadata/docs/legacy_urls_baseline.txt` only grows (`--snapshot
-  <ref>` adds a ref's pages, drops none): a URL cited once can be cited forever.
-- **Snapshot the incoming publish, not the outgoing one.** A pull request to
-  `publish` fails until every page its merge result builds is recorded
-  (DOCBW-03-012), whatever paths the pull request changes: run
-  `--snapshot origin/main` on a branch from `main` and merge it into `main`.
-  Recording each publish as it ships covers every earlier one, and the check
-  reuses the snapshot's definition of a built page, so the two cannot disagree.
+  <ref>` adds a ref's pages, drops none): a URL cited once can be cited forever
+  (DOCBW-03-022, DOCBW-03-023).
+- **Record a page in the pull request that adds it.** A page goes live at the
+  next deploy after it merges, whatever triggers that deploy. Every
+  site-building workflow fails until each page the commit builds is recorded
+  (DOCBW-03-012): commit the page, run `--snapshot HEAD`, commit the baseline.
+  The check reuses the snapshot's definition of a built page, so the two cannot
+  disagree, and `_`-prefixed fragments count, because they build as pages too.
 - **A snapshot records what the ref built, not what it held** — it applies that
   ref's own `draft_docs` and `exclude_docs`.
 - **The baseline lists built pages, not nav entries.** Fragments built as their
@@ -225,20 +226,21 @@ a URL an earlier build served and this one dropped. `uv run docs-legacy-urls`
 - **Confirm a rename by content, not filename** — a look-alike successor page
   may cover different material.
 
-Both publication-side checks run through one composite action,
-`.github/actions/check-site-publication`, in `docs-build-check.yml` and in
-`deploy_site.yml`, so the workflow that ships is gated by exactly what the
-workflow that reviews is gated by. The `--require-recorded` step stays out of
-that action: it is a `docs-build-check.yml` step conditioned on a `publish` base
-branch, and `docs-publish-check.yml` calls that workflow on every pull request
-to `publish`, because the reviewing workflow's own trigger carries a `paths:`
-filter and a workflow has only one `pull_request` trigger.
+Every publication-side check, `--require-recorded` included, runs through one
+composite action, `.github/actions/check-site-publication`, in
+`docs-build-check.yml` and in `deploy_site.yml`, so the workflow that ships is
+gated by exactly what the workflow that reviews is gated by. The deploy's run
+is the backstop for the review workflow's `paths:` filter: a page that became
+built through a change the filter missed fails the deploy, not just a review.
+Two gates share the `docs-legacy-urls` tool, so a test that looks for a gate by
+its command must match the whole command, or one step stands in for the other.
 
 ## Nav Visibility Is Not a Content Class: Fragments vs. Assembly Units
 
 `not_in_nav` (and the `_` prefix that keeps a file out of nav) answers "does
 this file get a nav entry", not "do prose rules apply to it". Prose delivered
-as fragments is still prose (DF-09-007 through DF-09-009, ADR-0092).
+as fragments is still prose (DF-09-007 to DF-09-009, DF-09-011, DF-09-012,
+ADR-0092).
 `lint-docs` § "Fragments and assembly units" implements the split below;
 collapsing it either way reintroduces false positives on every fragment or no
 coverage at all.

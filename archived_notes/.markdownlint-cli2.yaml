@@ -1,5 +1,5 @@
 # archived_notes/ holds notes retired before plan/history/ took over, kept as
-# they were, so the root config's 88-character MD013 stops here (PD-10-001).
+# they were, so the root config's 88-character MD013 stops here (PD-10-004).
 # markdownlint-cli2 merges this file over the root config, so every other rule
 # still applies.
 config:

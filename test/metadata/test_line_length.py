@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for :mod:`vultron.metadata.line_length` and the configs that share it.
 
-Specs: PD-10-001, PD-10-002, PD-10-003.
+Specs: PD-10-001 to PD-10-004, PD-10-006.
 """
 
 from __future__ import annotations
@@ -272,6 +272,7 @@ def _markdownlint_config(rel_dir: str = "") -> dict:
 
 
 @pytest.mark.spec("PD-10-001")
+@pytest.mark.spec("PD-10-004")
 class TestMarkdownlintConfig:
     def test_root_md013_is_on_at_the_limit(self):
         md013 = _markdownlint_config()["config"]["MD013"]
@@ -300,7 +301,7 @@ class TestMarkdownlintConfig:
         assert found == {".", *MD013_EXEMPT_DIRS}
 
 
-@pytest.mark.spec("PD-10-003")
+@pytest.mark.spec("PD-10-006")
 class TestLimitsAgree:
     def test_ruff_max_doc_length_is_the_limit(self):
         pyproject = tomllib.loads(

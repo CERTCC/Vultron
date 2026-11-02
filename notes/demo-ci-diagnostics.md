@@ -50,8 +50,8 @@ them.
 
 | Layer | Meaning | Container log | Log line |
 |---|---|---|---|
-| **1 — Sent** | Outbound delivery succeeded | Sender (`reporter`, `vendor`, …) | `Delivered activity <id> to <url> (HTTP 202)` (INFO, `vultron.adapters.driven.http_delivery`) |
-| **2 — Received** | Inbox accepted the activity | Receiver (`case-actor`, `vendor`, …) | `Parsing activity from request body (type=…)` (DEBUG, `uvicorn.error`) |
+| **1 — Sent** | Outbound delivery succeeded | Sender (`actor0` … `actor4`) | `Delivered activity <id> to <url> (HTTP 202)` (INFO, `vultron.adapters.driven.http_delivery`) |
+| **2 — Received** | Inbox accepted the activity | Receiver (`case-actor`, `actor0` … `actor4`) | `Parsing activity from request body (type=…)` (DEBUG, `uvicorn.error`) |
 | **3 — Committed** | Ledger entry written | `case-actor` | `PersistLogEntryNode: committed log entry case_id=… semantic_type=… log_index=… actor_id=…` (INFO) |
 
 Walk the layers 1→2→3 and stop at the first missing line:

@@ -2028,18 +2028,14 @@ def _case_status_entries(dl: SqliteDataLayer) -> list:
 
 
 def _seed_case_pxa(dl: SqliteDataLayer, pxa: CS_pxa) -> None:
-    """Record *pxa* as the case's status, stamped to the whole second as the
-    status the tree commits is, so that one sorts after it (CM-29-001)."""
-    from datetime import UTC, datetime
+    """Record *pxa* as the case's status.
 
+    ``append_case_status`` stamps it from the clock, so the status the tree
+    commits later sorts after it (CM-29-001).
+    """
     case = dl.read(CASE_ID)
     assert isinstance(case, VulnerabilityCase)
     case.append_case_status(pxa=pxa)
-    earlier = datetime.now(UTC).replace(microsecond=0)
-    seeded = case.case_statuses[-1]
-    assert isinstance(seeded, CaseStatus)
-    seeded.published = earlier
-    seeded.updated = earlier
     dl.save(case)
 
 
@@ -2322,7 +2318,6 @@ class TestAdoptedPxa:
     )
     def test_adopted_pxa(self, current, reported, expected):
         from vultron.core.behaviors.case_status_snapshot import adopted_pxa
-        from vultron.core.models.case_status import CaseStatus
 
         status = (
             None

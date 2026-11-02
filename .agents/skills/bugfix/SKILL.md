@@ -277,7 +277,7 @@ Once the plan is confirmed:
      inline is deferred to a `type:Task` issue listing the pages, and
      recorded as `Docs: deferred to #N` — only with the user's approval
      (Gate 1); unattended, run `write-docs` inline or hold the PR.
-   - **Record the outcome** (PD-03-008): edit the PR body to replace the
+   - **Record the outcome** (PD-03-013): edit the PR body to replace the
      `Docs: pending check-docs-sync` placeholder `create-pr` wrote with the
      `Docs:` line `check-docs-sync` reported, and push any docs commit. Then
      run `pr-body-lint --pr-json` at the final stage, with
@@ -312,6 +312,6 @@ Once the plan is confirmed:
 - Several issue numbers is a bundle, not a menu: fix every member in one PR
   (`.agents/skills/shared/bundling.md`). Each member keeps its own failing test.
 - The session is not done while the PR body still reads
-  `Docs: pending check-docs-sync` (Phase 4 finalize, PD-03-008).
+  `Docs: pending check-docs-sync` (Phase 4 finalize, PD-03-013).
 - **If the session is interrupted**: invoke `bugfix-handoff` immediately.
   Do not attempt further resolution.

@@ -215,6 +215,7 @@ def _matches(bridge, node, semantic_type: str, actor: str) -> Status:
     ],
     ids=["case-manager", "participant"],
 )
+@pytest.mark.spec("MSM-07-016")
 def test_a_reject_is_the_abandonment_only_from_the_case_manager(
     bridge, datalayer, proposed_case, actor, abandonment, participant_reject
 ):

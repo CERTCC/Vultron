@@ -41,13 +41,45 @@ groups:
   - id: DF-01-003
     priority: SHOULD_NOT
     kind: process
-    statement: 'Documentation pages SHOULD NOT combine multiple Diataxis content types within a single page or section; where a combined view is temporarily unavoidable, the parts MUST be clearly separated and each part MUST link to the canonical full page of the appropriate type.'
+    statement: >-
+      A documentation page SHOULD NOT combine more than one Diataxis content type in
+      one page or section.
     rationale: >-
       Each content type has its own rules for voice and content (DF-03 to DF-06). When
       one page mixes two types, the reader cannot tell which part to follow and which
-      part to study, and a reviewer cannot apply one set of rules to the page. Where a
-      combined view is necessary, separated parts and a link to the full page keep each
-      part true to its type.
+      part to study, and a reviewer cannot apply one set of rules to the page.
+  - id: DF-01-006
+    priority: MUST
+    kind: process
+    statement: >-
+      Where a combined view of Diataxis content types is temporarily unavoidable, the
+      page's author MUST separate the parts clearly.
+    rationale: >-
+      A reader of a combined page must see where one content type stops and the next
+      starts. Clear separation lets the reader find the part that serves their need, and
+      lets a reviewer apply the rules of one type to each part.
+    verification: >-
+      Inspection of a page that combines content types confirms that a reader can see
+      where each part starts and stops.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-01-003
+  - id: DF-01-007
+    priority: MUST
+    kind: process
+    statement: >-
+      Where a combined view of Diataxis content types is temporarily unavoidable, the
+      author MUST link each part to the canonical full page of its type.
+    rationale: >-
+      A part of a combined page is a short view of one content type, not the full
+      content. A link to the full page lets the reader go to the complete material, and
+      keeps the full page as the one source for that content.
+    verification: >-
+      Inspection of a page that combines content types confirms each part links to the
+      full page of its content type.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-01-003
   - id: DF-01-004
     priority: SHOULD
     kind: process
@@ -299,38 +331,67 @@ groups:
     priority: SHOULD
     kind: process
     statement: >-
-      A how-to guide MAY cover the same demonstration as a tutorial. When it does, it
-      SHOULD lead with the task — what the reader's actor sends, in order, with its
-      branches, and how to verify the result — and place the demonstration's invocation
-      last, as confirmation. A how-to guide with nothing to place before the
-      demonstration's invocation SHOULD be a tutorial instead.
+      A how-to guide that covers the same demonstration as a tutorial SHOULD lead with
+      the task and place the demonstration's invocation last, as confirmation. The task
+      is what the reader's actor sends, in order, with its branches, and how to verify
+      the result.
     rationale: >-
-      Overlap across quadrants is not duplication when each page answers its own
-      reader's question: "I need my actor to propose an embargo" is work, answered by
-      the activities to send; "I want to see an embargo negotiation happen" is study,
-      answered by the demo. Leading a how-to with the command the tutorial opens with
-      writes it to the tutorial's question. DF-01-003 forbids mixing quadrants within a
-      page and says nothing about two pages; this item covers the pair.
+      Each page answers its own reader's question: "I need my actor to propose an
+      embargo" is work, answered by the activities to send; "I want to see an embargo
+      negotiation happen" is study, answered by the demo. Leading a how-to with the
+      command the tutorial opens with writes it to the tutorial's question. DF-01-003
+      forbids mixing quadrants within a page and says nothing about two pages; this item
+      covers the pair.
     relationships:
     - rel_type: refines
       spec_id: DF-01-003
+  - id: DF-04-011
+    priority: MAY
+    kind: process
+    statement: >-
+      A how-to guide MAY cover the same demonstration as a tutorial.
+    rationale: >-
+      Overlap across quadrants is not duplication when each page answers its own
+      reader's question. A reader who must do a task and a reader who wants to study it
+      can both need the same demonstration, so neither page has to give it up.
+  - id: DF-04-012
+    priority: SHOULD
+    kind: process
+    statement: >-
+      A how-to guide that covers a tutorial's demonstration, with nothing to place before
+      that demonstration's invocation, SHOULD be a tutorial instead.
+    rationale: >-
+      A how-to guide that only runs the demonstration has no task steps for the reader
+      to follow. It answers the tutorial's question, so it belongs in the tutorial's
+      content type.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-04-009
   - id: DF-04-010
     priority: SHOULD
     kind: process
     statement: >-
       When a how-to guide and a tutorial show the same demonstration, the section both
-      pages show SHOULD be one `{% include-markdown %}` fragment that both include, and
-      the how-to guide's `level` SHOULD be higher than the tutorial's.
+      pages show SHOULD be one `{% include-markdown %}` fragment that both include.
     rationale: >-
       Two copies of a demo invocation and its expected result drift apart; one fragment
       cannot (DF-10-002), and placement stays with each host page, so DF-04-009's
       ordering survives. A fragment with two hosts satisfies both hosts' quadrant rules
-      (DF-09-008). A how-to assumes a competent reader (DF-04-002), and the tutorial is
-      where that competence comes from, so the how-to sits above it and may link down to
-      it (DF-11-002).
+      (DF-09-012).
     relationships:
     - rel_type: refines
       spec_id: DF-04-009
+  - id: DF-04-013
+    priority: SHOULD
+    kind: process
+    statement: >-
+      When a how-to guide and a tutorial show the same demonstration, the how-to
+      guide's `level` SHOULD be higher than the tutorial's.
+    rationale: >-
+      A how-to assumes a competent reader (DF-04-002), and the tutorial is where that
+      competence comes from, so the how-to sits above it and may link down to it
+      (DF-11-002).
+    relationships:
     - rel_type: depends_on
       spec_id: DF-11-002
 - id: DF-05
@@ -556,7 +617,7 @@ groups:
       links rather than by reading in nav order. Site-wide `abbr` tooltips do not
       survive print output and are invisible in raw Markdown. "Page" names the rendered
       artifact because an assembled page has one first use, not one per fragment
-      (DF-09-007). A generated listing reuses navigation labels as link text, so each
+      (DF-09-011). A generated listing reuses navigation labels as link text, so each
       entry's description carries the expansion.
     verification: >-
       Inspection of a page assembled from `{% include-markdown %}` fragments confirms
@@ -601,48 +662,79 @@ groups:
     adr:
       - ADR-0092
     statement: >-
-      Style rules whose scope is a page MUST be evaluated against the rendered page, and style
-      rules whose scope is a sentence or a block MUST be evaluated against the source file that
-      contains them, including source files that are `{% include-markdown %}` fragments rather
-      than pages in their own right.
+      A reviewer or style check MUST evaluate a sentence-scoped or block-scoped rule
+      against the source file that holds it, including an `{% include-markdown %}`
+      fragment.
     rationale: >-
       A fragment is prose, so it must be checked. If the check skips fragments, a large
       part of a page that is assembled from fragments, such as the Protocol
-      Specification, gets no check. But a fragment is not a page. A rule about a page,
-      such as the first use of an acronym (DF-09-003) or the order of concepts
-      (DF-09-005), gives false findings when it is applied to one part of a page. For
-      the same reason, `.markdownlint-cli2.yaml` turns off MD041, which wants a
-      top-level heading as the first line.
+      Specification, gets no check.
     verification: >-
       Resolving the lint target set over a directory of `{% include-markdown %}` fragments yields
       a non-empty list, and findings cite the fragment's own line numbers.
+  - id: DF-09-011
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0092
+    statement: >-
+      A reviewer or style check MUST evaluate a rule whose scope is a page against the
+      rendered page.
+    rationale: >-
+      A fragment is not a page. A rule about a page, such as the first use of an acronym
+      (DF-09-003) or the order of concepts (DF-09-005), gives false findings when it is
+      applied to one part of a page. For the same reason, `.markdownlint-cli2.yaml`
+      turns off MD041, which wants a top-level heading as the first line.
+    verification: >-
+      Inspection of a page assembled from `{% include-markdown %}` fragments confirms a
+      page-scoped rule, such as acronym first use, is assessed once over the rendered
+      page and not once per fragment.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-09-007
   - id: DF-09-008
     priority: MUST
     kind: process
     adr:
       - ADR-0092
     statement: >-
-      The Diátaxis quadrant of an `{% include-markdown %}` fragment MUST be taken from the pages
-      that include it, and a fragment with more than one host MUST satisfy the quadrant rules of
-      each host.
+      A reviewer or style check MUST take the Diátaxis quadrant of an
+      `{% include-markdown %}` fragment from the pages that include it.
     rationale: >-
       Quadrant selects the voice rules (DF-03-004, DF-04-004, DF-05-001, DF-06-007), and a
       fragment's own path does not determine it. `docs/tutorials/worked_example.md` and
       `docs/topics/measuring_cvd/possible_histories.md` are both included into the reference
-      Protocol Specification's annexes, and `includes/_rm-states-table.md` has four host pages.
-      Inferring quadrant from the fragment's directory would apply tutorial voice rules to
-      reference content and vice versa.
+      Protocol Specification's annexes. Inferring quadrant from the fragment's directory
+      would apply tutorial voice rules to reference content and vice versa.
     verification: >-
-      Inspection confirms each fragment's voice is assessed against the quadrant of every page
-      that includes it, not against its own directory.
+      Inspection confirms each fragment's voice is assessed against the quadrant of the
+      pages that include it, not against its own directory.
+  - id: DF-09-012
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0092
+    statement: >-
+      The author of an `{% include-markdown %}` fragment with more than one host MUST
+      make it satisfy the quadrant rules of each host.
+    rationale: >-
+      A fragment renders in every page that includes it, and each reader sees it under
+      that page's quadrant. `includes/_rm-states-table.md` has four host pages. A
+      fragment that fits only one host breaks the voice rules on the others.
+    verification: >-
+      Inspection confirms the voice of a fragment with more than one host is assessed
+      against the quadrant of every host, not one of them.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-09-008
   - id: DF-09-009
     priority: MUST
     kind: process
     adr:
       - ADR-0092
     statement: >-
-      A documentation check that acts as a blocking gate MUST report an empty target set as a
-      distinct failure, and MUST NOT report success when it has resolved no targets.
+      A documentation check that acts as a blocking gate MUST report an empty target set
+      as a distinct failure, not as success.
     rationale: >-
       A gate that checks nothing and reports success is worse than no gate. It gives a
       false clean signal, and reviewers then skip the review that the gate replaced. A
@@ -658,30 +750,54 @@ groups:
     adr:
       - ADR-0083
     statement: >-
-      Reader-facing `docs/` MUST name a protocol activity by its formal protocol message name and
-      code paired with its AS2 wire form — "Report Valid (RV) is implemented in ActivityStreams as
-      `Accept(Offer(VulnerabilityReport))`" — and MUST NOT name it by its prototype class name.
-      Where a shorthand has no formal name, or one shorthand expands across several activities, the
-      plain-English name from the corresponding `docs/reference/messages/` heading stands in for the
-      formal name. The prototype class name MAY survive only as a non-rendered identifier, such as a
-      mermaid node id.
+      A reader-facing `docs/` page MUST name a protocol activity by its formal protocol
+      message name and code, paired with its AS2 wire form. An example is "Report Valid
+      (RV) is implemented in ActivityStreams as `Accept(Offer(VulnerabilityReport))`".
+      Where a shorthand has no formal name, or expands across several activities, the
+      page uses the plain-English name from the matching `docs/reference/messages/`
+      heading.
     rationale: >-
       Three names identify each activity: the formal protocol message, the prototype
       class and the AS2 wire form. Only the first and the last are for readers. The wire
-      form does not give the protocol meaning: `Accept(Offer(VulnerabilityReport))`,
-      `TentativeReject(Offer(VulnerabilityReport))` and
-      `Reject(Offer(VulnerabilityReport))` mean valid, invalid and closed, and nothing
-      in the wire form tells which. Thus, a page that uses only the wire form loses the
-      protocol layer. The prototype class name is not used, because an implementer who
-      builds a peer in a different language has no `RmValidateReport` class (ADR-0083).
-      A spec ID for the pairing lets the check in
-      `test/architecture/test_docs_activity_verbs.py` cite the rule, as DF-09-001 does
-      for the style guide.
+      form alone does not give the protocol meaning: `Accept(Offer(...))`,
+      `TentativeReject(Offer(...))` and `Reject(Offer(...))` mean valid, invalid and
+      closed, and nothing in the wire form tells which. A page that uses only the wire
+      form loses the protocol layer.
     verification: >-
       `test/architecture/test_docs_activity_verbs.py` derives each activity's wire form from the
       registered `ActivityPattern` and fails when a guide's mermaid label or prose states a form no
       pattern produces, when a labelled node resolves to no known activity, or when the scan
       resolves fewer targets than the corpus carries.
+  - id: DF-09-013
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0083
+    statement: >-
+      A reader-facing `docs/` page MUST NOT name a protocol activity by its prototype
+      class name.
+    rationale: >-
+      An implementer who builds a peer in a different language has no
+      `RmValidateReport` class (ADR-0083). A prototype class name tells that reader
+      nothing about the protocol, and it ties the page to one implementation.
+    verification: >-
+      Inspection of a reader-facing `docs/` page confirms that no rendered text names a
+      protocol activity by its prototype class name.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-09-010
+  - id: DF-09-014
+    priority: MAY
+    kind: process
+    adr:
+      - ADR-0083
+    statement: >-
+      A reader-facing `docs/` page MAY keep a prototype class name only as a
+      non-rendered identifier, such as a mermaid node id.
+    rationale: >-
+      A non-rendered identifier is not shown to the reader, so it does not break
+      DF-09-013. The checks in `test/architecture/test_docs_activity_verbs.py` read the
+      mermaid node id to identify the activity, so the class name is useful there.
 
 - id: DF-10
   title: Sweep verification
@@ -739,28 +855,45 @@ groups:
       - ADR-0102
     statement: >-
       Every reader-facing `docs/` page MUST declare an audience `stakeholder_type` and a
-      prerequisite `level` in its YAML frontmatter, where `stakeholder_type` is a list whose
-      members are drawn from cvd-practitioner, platform-developer, process-researcher, and
-      project-contributor — or the bare scalar `ALL`, never `[ALL]`, which MUST be used in
-      place of a list naming every type — and `level` is one of 100, 200, 300, 400, or 500.
-      A reader-facing page is a published page under `docs/` that is neither a project
-      working-record page (DF-11-003) nor an `{% include-markdown %}` fragment (DF-11-010).
+      prerequisite `level` in its YAML frontmatter. The `stakeholder_type` value is a
+      list whose members are drawn from cvd-practitioner, platform-developer,
+      process-researcher, and project-contributor, or the bare scalar `ALL`. The `level`
+      value is one of 100, 200, 300, 400, or 500. A reader-facing page is a published
+      page under `docs/` that is neither a project working-record page (DF-11-003) nor
+      an `{% include-markdown %}` fragment (DF-11-010).
     rationale: >-
       Both axes must be machine readable so ordering can be checked and landing
       pages generated rather than hand-maintained. The key is list-valued because
-      a page may serve exactly two audiences; requiring `ALL` over a full
-      enumeration stops one fact having two forms. No member is a `CVDRole` value,
+      a page may serve exactly two audiences. No member is a `CVDRole` value,
       making the reader-type versus case-role conflation structurally impossible.
       This item is the normative enumeration; its derivation chain is in
       `notes/site-information-architecture.md`.
     verification: >-
       A frontmatter validator resolves every reader-facing page under `docs/` and confirms
-      each declares both keys with permitted values, rejecting a `stakeholder_type` list that
-      enumerates every type instead of using `ALL` and rejecting `[ALL]`. Project
-      working-record pages declare `[project-contributor]` and are confirmed to declare no
-      `level` per DF-11-003.
-  - id: DF-11-002
+      each declares both keys with permitted values. Project working-record pages
+      declare `[project-contributor]` and are confirmed to declare no `level` per
+      DF-11-033.
+  - id: DF-11-027
     priority: MUST
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      A reader-facing page that serves every stakeholder type MUST declare the bare
+      scalar `stakeholder_type: ALL`, not a list naming every type and not `[ALL]`.
+    rationale: >-
+      Requiring `ALL` over a full enumeration stops one fact having two forms. A tool
+      or reviewer that looks for the pages that serve every reader then needs to match
+      only one value.
+    verification: >-
+      `test/metadata/docs/test_page_frontmatter.py::TestPageSchema` accepts the bare
+      scalar `ALL` and rejects a `stakeholder_type` list that enumerates every type and
+      the list `[ALL]`.
+    relationships:
+    - rel_type: refines
+      spec_id: DF-11-001
+  - id: DF-11-002
+    priority: MUST_NOT
     kind: process
     adr:
       - ADR-0102
@@ -820,18 +953,35 @@ groups:
       - ADR-0102
     statement: >-
       A project working-record page (DF-11-003) MUST declare
-      `stakeholder_type: [project-contributor]` and MUST NOT be assigned a `level`.
+      `stakeholder_type: [project-contributor]`.
     rationale: >-
-      A level on the working record has no meaning, because the working record is not
-      part of the reader path that levels order. But the working record is for a
-      specific audience, contributors, so it declares a type. The absent level is then a
-      property of the material for one audience, not an exemption. This rule is separate
-      from DF-11-003 because it is checked against page frontmatter, and DF-11-003 is
-      checked against `mkdocs.yml`. One combined rule could pass on the navigation while
-      every declaration is missing.
+      The working record is for a specific audience, contributors, so it declares a
+      type. This rule is separate from DF-11-003 because it is checked against page
+      frontmatter, and DF-11-003 is checked against `mkdocs.yml`. One combined rule
+      could pass on the navigation while every declaration is missing.
     verification: >-
       The frontmatter validator confirms each working-record page declares
-      `[project-contributor]` and enforces the absence of `level` rather than defaulting one.
+      `[project-contributor]`.
+  - id: DF-11-033
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      A project working-record page (DF-11-003) MUST NOT be assigned a `level`.
+    rationale: >-
+      A level on the working record has no meaning, because the working record is not
+      part of the reader path that levels order. Because the page still declares its
+      audience (DF-11-012), the absent level is a property of the material for one
+      audience, not an exemption.
+    verification: >-
+      The frontmatter validator enforces the absence of `level` on each working-record
+      page rather than defaulting one. `test/metadata/docs/test_page_frontmatter.py`
+      covers it in `TestWorkingRecordSchema::test_any_declared_level_is_rejected` and
+      `TestCheck::test_working_record_page_with_a_level_fails`.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-11-012
   - id: DF-11-004
     priority: MUST_NOT
     kind: process
@@ -858,40 +1008,73 @@ groups:
     adr:
       - ADR-0102
     statement: >-
-      Section landing pages that enumerate their section's contents MUST be generated from
-      page frontmatter and gated by a check mode, and MUST NOT be hand-maintained. Every
-      `index.md` that opens a navigation group, or that is the only navigation entry for a
-      directory holding reader pages the navigation omits, MUST declare in its frontmatter
-      which of three shapes it is: `generated`, the enumeration above; `routing`, an index
-      whose links to its members are part of its framing or of a themed grouping that is
-      editorial content, which is exempt from generation and MUST instead be checked to link
-      every member of its section; or `rendered`, an enumeration produced at build time from
-      a registry (DEMOCI-11-009), which is exempt because nothing is committed to drift.
+      This codebase MUST generate each section landing page that enumerates its contents
+      from page frontmatter, gated by a check mode, not by hand.
     rationale: >-
       A hand-written landing page is a second copy of the navigation, and it becomes
       different from the navigation when a page is added, moved or removed. A fix to
       each missing entry does not stop the next one, because the copy is the cause. A
       generated page that a check mode gates cannot drift without a failure, as
       `vultron/metadata/adr/index_gen.py` (from ADR frontmatter) and
-      `demo-scenarios-sync` (from the scenario registry, ADR-0098) already show. The two
-      exempt shapes exist because generation can only list pages, and it cannot give an
-      argument or a theme. A routing page must still link every member of its section.
-      That completeness can be derived, so a check enforces it. DEMOCI-11-007 makes the
-      same split between what is generated and what is checked. The shape is a required
-      declaration, so that no section can be left without a decision. Each index records
-      its decision in its `contents:` frontmatter, and
-      `test/metadata/docs/test_site_sync.py` pins that set.
+      `demo-scenarios-sync` (from the scenario registry, ADR-0098) already show.
     verification: >-
       The generator's `--check` mode (`uv run docs-site --check`) runs as a pre-commit hook
       and in CI, failing when a generated landing page differs from what frontmatter
-      implies, when a section index declares no shape or an unknown one, or when a routing
-      index does not link a member of its section — the group's navigation members plus any
-      reader page in its own directory the navigation omits. A link counts when the index
-      writes it or carries it in a fragment it includes uncut (no `start=` or `end=`), so
-      cards shared with another page route both (DF-10-002). Per DF-09-009 the check fails
-      rather than passes when it resolves no generated page.
-      `test/metadata/docs/test_site_sync.py` pins the committed set of generated, routing,
-      and rendered indexes.
+      implies. Per DF-09-009 the check fails rather than passes when it resolves no
+      generated page.
+  - id: DF-11-028
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      Every section index MUST declare its shape in its frontmatter as `generated`,
+      `routing` or `rendered`. A section index is an `index.md` that opens a navigation
+      group, or the only navigation entry for a directory holding reader pages the
+      navigation omits. The `generated` shape is the enumeration DF-11-005 requires. The
+      `routing` shape is an index whose links to its members are part of its framing, or
+      of a themed grouping that is editorial content. The `rendered` shape is an
+      enumeration produced at build time from a registry (DEMOCI-11-009). A `routing` or
+      `rendered` index is exempt from DF-11-005.
+    rationale: >-
+      The shape is a required declaration, so that no section can be left without a
+      decision. The two exempt shapes exist because generation can only list pages, and
+      it cannot give an argument or a theme. A `rendered` index is exempt because
+      nothing is committed to drift. Each index records its decision in its `contents:`
+      frontmatter, and `test/metadata/docs/test_site_sync.py` pins that set.
+    verification: >-
+      `uv run docs-site --check` fails when a section index declares no shape or an
+      unknown one. `test/metadata/docs/test_site_sync.py::TestSectionIndexDecisions`
+      covers each shape, and
+      `TestSiteSync::test_committed_generated_pages_are_the_decided_set` pins the
+      committed set of generated, routing, and rendered indexes.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: DF-11-005
+  - id: DF-11-029
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      `uv run docs-site --check` MUST fail when a `routing` section index (DF-11-028)
+      does not link every member of its section.
+    rationale: >-
+      A routing page is exempt from generation, but it must still link every member of
+      its section. That completeness can be derived, so a check enforces it.
+      DEMOCI-11-007 makes the same split between what is generated and what is checked.
+    verification: >-
+      The check, run as a pre-commit hook and in CI, fails when a routing index does
+      not link a member of its section — the group's navigation members plus any
+      reader page in its own directory the navigation omits. A link counts when the
+      index writes it or carries it in a fragment it includes uncut (no `start=` or
+      `end=`), so cards shared with another page route both (DF-10-002).
+      `test/metadata/docs/test_site_sync.py::TestSectionIndexDecisions` covers the
+      routing faults, and `TestSiteSync::test_committed_routing_pages_link_every_member`
+      runs the check over the committed tree.
+    relationships:
+    - rel_type: depends_on
+      spec_id: DF-11-028
   - id: DF-11-006
     priority: SHOULD
     kind: process
@@ -917,69 +1100,129 @@ groups:
       - ADR-0102
     statement: >-
       A rendered `docs/` page MUST remain self-sufficient for a reader arriving directly
-      at it; repeated openings, restated prerequisites, and re-expanded acronyms on
-      adjacent pages MUST NOT be removed from the rendered page in order to make those
-      pages read as a continuous sequence. Sourcing a repeated block from one
-      `{% include-markdown %}` fragment that each page includes satisfies this
-      requirement.
+      at it.
     rationale: >-
       Readers arrive from search results and deep links rather than in navigation order
-      (DF-09-003, SG-12), so a block repeated between neighbors is usually the rule
-      working, and removing it degrades every deep-link arrival. Nav order carries
-      dependency and prominence, not narrative. The requirement is on what the reader
-      sees, not on the source: a block one authority owns, such as a banner, a pointer,
-      or a shared prerequisite list, is sourced once (DF-10-002) and still renders on
-      every page.
+      (DF-09-003, SG-12). A page that needs its predecessor fails every reader who
+      arrives at it by a deep link. Nav order carries dependency and prominence, not
+      narrative.
+    verification: >-
+      Inspection of a rendered page confirms it stands alone for a reader who did not
+      read its predecessor.
+  - id: DF-11-030
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      An author MUST NOT remove a repeated opening, restated prerequisite, or
+      re-expanded acronym from a rendered page to make adjacent pages read continuously.
+      Sourcing a repeated block from one `{% include-markdown %}` fragment that each
+      page includes satisfies this requirement.
+    rationale: >-
+      A block repeated between neighbors is usually DF-11-007 working, and removing it
+      degrades every deep-link arrival. The requirement is on what the reader sees, not
+      on the source: a block one authority owns, such as a banner, a pointer, or a
+      shared prerequisite list, is sourced once (DF-10-002) and still renders on every
+      page.
     verification: >-
       Inspection of any change that removes an opening, a prerequisite statement, or an
       acronym expansion from a rendered page confirms the page still stands alone for a
       reader who did not read its predecessor. A change that replaces such a block with
       an include of a fragment carrying it is not a removal.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-11-007
   - id: DF-11-008
     priority: MUST
     kind: process
     adr:
       - ADR-0102
     statement: >-
-      A `stakeholder_type` × `level` coverage matrix MUST be generated from page frontmatter
-      into an unpublished location outside `docs/` and gated by a check mode that fails when
-      the committed matrix disagrees with the tree. The check MUST NOT fail because a cell is
-      empty.
+      This codebase MUST generate a `stakeholder_type` × `level` coverage matrix from
+      page frontmatter into an unpublished location outside `docs/`.
     rationale: >-
       The matrix turns "we do not serve audience X" from an impression into a
-      recorded fact planning can act on. Gating currency rather than fullness
-      keeps it a checked object rather than an advisory one; requiring fullness
-      would harden into "every type at every level", which the
-      divergence-above-100 shape contradicts. It sits outside `docs/` because it is a
+      recorded fact planning can act on. It sits outside `docs/` because it is a
       planning artifact, and a per-page level table shown to readers would defeat
       DF-11-004 page by page.
     verification: >-
+      `uv run docs-site --write` generates `notes/site-coverage-matrix.md` from page
+      frontmatter; `TestCoverageMatrix` in `test/metadata/docs/test_site_sync.py`
+      checks the rendered cells.
+  - id: DF-11-046
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      A check mode MUST fail when the committed coverage matrix (DF-11-008) disagrees
+      with the page frontmatter.
+    rationale: >-
+      Gating currency keeps the matrix a checked object rather than an advisory one. A
+      matrix that drifts from the tree records a site that does not exist.
+    verification: >-
       The generator's `--check` mode runs as a pre-commit hook and in CI, failing when the
-      committed matrix differs from what page frontmatter implies, and passing a tree in which
-      one or more cells are empty. Per DF-09-009 the check fails rather than passes when it
-      resolves no targets.
+      committed matrix differs from what page frontmatter implies. Per DF-09-009 the
+      check fails rather than passes when it resolves no targets.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-11-008
+  - id: DF-11-031
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      The coverage matrix check (DF-11-008) MUST NOT fail because a cell is empty.
+    rationale: >-
+      The check gates currency, not fullness. Requiring fullness would harden into
+      "every type at every level", which the divergence-above-100 shape contradicts. An
+      empty cell is a recorded fact about the site, not a fault.
+    verification: >-
+      In `test/metadata/docs/test_site_sync.py`,
+      `TestCoverageMatrix::test_empty_cells_render_and_pass` passes a tree in which one
+      or more cells are empty.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-11-008
   - id: DF-11-009
     priority: MUST_NOT
     kind: process
     adr:
       - ADR-0102
     statement: >-
-      A page's own `stakeholder_type` MUST NOT appear in its rendered content or in the site
-      navigation, and a routing page generated for a stakeholder type MUST be titled by the
-      reader's situation instead. Documenting the vocabulary itself — in the glossary, in an
-      ADR, or in a shared fragment they include — is not a page declaring its own audience and
-      is unaffected.
+      A page's own `stakeholder_type` MUST NOT appear in its rendered content or in the
+      site navigation. This rule does not cover the vocabulary itself, documented in the
+      glossary, in an ADR, or in a shared fragment they include.
     rationale: >-
-      Extends DF-11-004's reasoning one step. A reader should not have to classify themselves
-      before their first click, and a situation is recognizable without asking anyone to
-      identify with a label. It also keeps the enumeration free to change: `cvd-practitioner`
-      may be split later on evidence, and a reader never taught the term loses nothing when it
-      happens, whereas a published label would make the split a change to something readers
-      had been taught.
+      Extends DF-11-004's reasoning one step. A reader should not have to classify
+      themselves before their first click. Documenting the vocabulary itself is not a
+      page declaring its own audience. The rule also keeps the enumeration free to
+      change: `cvd-practitioner` may be split later on evidence, and a reader never
+      taught the term loses nothing when it happens, whereas a published label would
+      make the split a change to something readers had been taught.
     verification: >-
       Inspection of rendered output and of `mkdocs.yml` confirms no page presents its own
-      stakeholder type or a label derived from it, and that each generated routing page's title
+      stakeholder type or a label derived from it.
+  - id: DF-11-032
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      A routing page generated for a stakeholder type MUST be titled by the reader's
+      situation, not by the stakeholder type.
+    rationale: >-
+      A situation is recognizable without asking anyone to identify with a label. A
+      title that named the type would show the reader the label that DF-11-009 keeps
+      off the page.
+    verification: >-
+      Inspection of rendered output confirms that each generated routing page's title
       states a reader situation.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-11-009
   - id: DF-11-010
     priority: MUST_NOT
     kind: process
@@ -1005,8 +1248,8 @@ groups:
     adr:
       - ADR-0102
     statement: >-
-      The shared fragment defining the `stakeholder_type` members MUST be generated from the
-      frontmatter schema and gated by a check mode, and MUST NOT be hand-maintained.
+      This codebase MUST generate the shared fragment defining the `stakeholder_type`
+      members from the frontmatter schema, gated by a check mode, not by hand.
     rationale: >-
       The fragment has a different source from a landing page. A landing page comes from
       the frontmatter of many pages, but this fragment comes from the schema that
@@ -1046,9 +1289,9 @@ groups:
     adr:
       - ADR-0150
     statement: >-
-      A start page's listing of its thread MUST be generated from the thread's data and
-      gated by a check mode, and MUST NOT be hand-maintained; framing prose outside the
-      generated block stays hand-written.
+      This codebase MUST generate a start page's thread listing from the thread's data,
+      gated by a check mode, not by hand. Framing prose outside the generated block
+      stays hand-written.
     rationale: >-
       The listing is an enumeration of the thread, the defect class DF-11-005 exists to
       remove when it is hand-maintained. Generating it into the committed source keeps
@@ -1063,36 +1306,69 @@ groups:
       - ADR-0150
     statement: >-
       Every page that is a member of a thread, and every start page, MUST show one box
-      per thread it is on, titled by the reader's situation rather than by
-      `stakeholder_type` (DF-11-009), naming the stage the page belongs to (a start
-      page's box names none) and holding a table with the columns start, previous,
-      current and next. Each cell MUST be a list: start holds the thread's start page,
-      previous the set of thread pages immediately before the page, current the page
-      itself as text and not a link, and next the set immediately after it; an empty set
-      is shown as `---`. On a start page, start and current are the start page as text,
-      previous is `---`, and next is the first stage's entry pages. The set before a
-      member page is the preceding member of its chain, or else the previous stage's
-      exit pages; the set after it is the next member of its chain, or else the next
-      stage's entry pages. A set stage's entry and exit pages are all its members; a
-      chain's entry page is its first member and its exit page its last. The rendered
-      page MUST be the same for every reader.
+      per thread it is on. Each box is titled by the reader's situation rather than by
+      `stakeholder_type` (DF-11-009). It names the stage the page belongs to, and a
+      start page's box names none. It holds a table with the columns start, previous,
+      current and next.
+    rationale: >-
+      A reader who followed a thread into a page needs directions onward. A page on
+      several threads shows each, so it never needs to know which thread a reader is
+      on, and it still stands alone (DF-11-007).
+    verification: >-
+      A test renders the boxes of a fixture tree with a page on two threads and a start
+      page, and confirms one box per thread with the expected stage name, the four
+      columns, a title taken from the start page's situation, and no
+      `stakeholder_type` or `level` value. That every member page and start page shows
+      its boxes is checked over the built site by DF-11-045. Covered by
+      `test/metadata/docs/test_thread_boxes.py::TestBoxTable`.
+  - id: DF-11-034
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      Each cell of a thread box's table (DF-11-015) MUST be a list. Start holds the
+      thread's start page. Previous holds the set of thread pages immediately before the
+      page. Current holds the page itself as text, not a link. Next holds the set
+      immediately after it. An empty set is shown as `---`. On a start page, start and
+      current are the start page as text, previous is `---`, and next is the first
+      stage's entry pages. The set before a member page is the preceding member of its
+      chain, or else the previous stage's exit pages. The set after it is the next
+      member of its chain, or else the next stage's entry pages. A set stage's entry and
+      exit pages are all its members. A chain's entry page is its first member, and its
+      exit page is its last.
     rationale: >-
       A reader who followed a thread into a page needs directions onward without being
       forced down one next page, so predecessors and successors are sets. The start
       column gives a deep-linked reader the way back, and the same table on the start
-      page shows the first step. A page on several threads shows each, so it never needs
-      to know which thread a reader is on: no query parameter, script or referrer is
-      involved, the page renders the same on a deep link, and it still stands alone
-      (DF-11-007).
+      page shows the first step.
     verification: >-
-      A test renders the boxes of a fixture tree with a page on two threads, one in a
-      chain and one in a set stage, a first and a last member, and a start page, and
-      confirms one box per thread with the expected stage name and start, previous,
-      current and next lists, `---` for an empty set, an unlinked current cell, a
-      title taken from the start page's situation, no `stakeholder_type` or `level`
-      value, no script element, and no link carrying a query string. That every
-      member page and start page shows its boxes is checked over the built site by
-      DF-11-023. Covered by `test/metadata/docs/test_thread_boxes.py::TestBoxTable`.
+      `test/metadata/docs/test_thread_boxes.py::TestBoxTable` renders a fixture tree
+      with a page in a chain and one in a set stage, a first and a last member, and a
+      start page. It confirms the expected start, previous, current and next lists,
+      `---` for an empty set, and an unlinked current cell.
+    relationships:
+    - rel_type: refines
+      spec_id: DF-11-015
+  - id: DF-11-035
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      The build MUST render a page that shows thread boxes (DF-11-015) the same for
+      every reader.
+    rationale: >-
+      A page that rendered differently by reader would need to know which thread the
+      reader is on. With no query parameter, script or referrer involved, the page
+      renders the same on a deep link.
+    verification: >-
+      In `test/metadata/docs/test_thread_boxes.py`,
+      `TestBoxTable::test_titled_by_situation_and_the_same_for_every_reader` confirms a
+      rendered box has no script element and no link carrying a query string.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-11-015
   - id: DF-11-016
     priority: MUST
     kind: process
@@ -1117,27 +1393,44 @@ groups:
       - ADR-0136
     statement: >-
       Every reader-facing `docs/` page (DF-11-001) MUST declare exactly one `page_type`
-      in its YAML frontmatter, one of `tutorial`, `how-to`, `explanation`,
-      `reference` or `routing`, where `routing` is for a page that mainly gives
-      directions — the home page, the start pages, and indexes that only route. A
-      page's `page_type` is independent of its `contents:` shape (DF-11-005): an index
-      whose prose mostly explains is `explanation`. A project working-record page
-      (DF-11-003) and an `{% include-markdown %}` fragment (DF-11-010) MUST NOT declare
-      a `page_type`.
+      in its YAML frontmatter: `tutorial`, `how-to`, `explanation`, `reference` or
+      `routing`. The `routing` type is for a page that mainly gives directions, such as
+      the home page, the start pages, and indexes that only route. A page's `page_type`
+      is independent of its `contents:` shape (DF-11-028), so an index whose prose
+      mostly explains is `explanation`.
     rationale: >-
       Once the navigation stops grouping pages by Diátaxis type, the type survives
       only as a declaration on the page. A required key makes a missing one a fault
       rather than a silent gap, for the same reason `contents:` is required on landing
-      pages. The working record's door already says what kind of page it is, and a
-      fragment takes its declarations from its hosts.
+      pages.
     verification: >-
       `test/metadata/docs/test_page_frontmatter.py::TestPageTypeSchema` covers the
       permitted values and rejects every other spelling;
-      `TestCheck::test_reader_facing_page_without_a_page_type_fails`,
+      `TestCheck::test_reader_facing_page_without_a_page_type_fails` covers the
+      check; `test_committed_tree_passes` runs it over the committed tree, and
+      `docs-frontmatter` runs as a pre-commit hook and in CI.
+  - id: DF-11-036
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      A project working-record page (DF-11-003) and an `{% include-markdown %}`
+      fragment (DF-11-010) MUST NOT declare a `page_type` (DF-11-018).
+    rationale: >-
+      The working record's door already says what kind of page it is, and a fragment
+      takes its declarations from its hosts, so a `page_type` on either would be a
+      declaration nothing reads.
+    verification: >-
+      In `test/metadata/docs/test_page_frontmatter.py`,
+      `TestWorkingRecordSchema::test_any_declared_page_type_is_rejected`,
       `TestCheck::test_working_record_page_with_a_page_type_fails` and
       `TestFragments::test_fragment_declaring_a_page_type_is_reported` cover the
       check; `test_committed_tree_passes` runs it over the committed tree, and
       `docs-frontmatter` runs as a pre-commit hook and in CI.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-11-018
   - id: DF-11-025
     priority: MUST
     kind: process
@@ -1163,7 +1456,7 @@ groups:
       check; `test_committed_tree_passes` runs it over the committed tree, and
       `docs-frontmatter` runs as a pre-commit hook and in CI.
   - id: DF-11-026
-    priority: MUST
+    priority: MUST_NOT
     kind: process
     adr:
       - ADR-0136
@@ -1186,28 +1479,54 @@ groups:
     adr:
       - ADR-0136
     statement: >-
-      The built site MUST show, on every reader-facing page whose `page_type`
-      (DF-11-018) is not `routing`, a badge naming that type, rendered from the page's
-      own frontmatter, and MUST show no badge on a `routing` page. A page-type badge
-      MUST NOT be written by hand beside a link unless a check fails when it differs
-      from the linked page's declared `page_type`.
+      On every reader-facing page whose `page_type` (DF-11-018) is not `routing`, the
+      built site MUST show a badge naming that type. The badge is rendered from the
+      page's own frontmatter.
     rationale: >-
       A badge tells a reader arriving from search what kind of page they landed on. A
-      badge read from the page's own declaration cannot drift from it; a hand-written
-      badge beside a link restates the target's declaration and drifts silently when
-      the target changes type. A routing page only gives directions, so a badge there
-      would be noise.
+      badge read from the page's own declaration cannot drift from it.
     verification: >-
       `test/metadata/docs/test_page_type_badge.py` renders the badge template for
       every `page_type`, confirming the label for each rendered type and no output for
-      `routing`, an undeclared page or a malformed value; confirms a stylesheet rule
-      for every rendered type, that the theme override includes the template in the
-      content block every page renders, and that no reader-facing page replaces that
-      template; and fails on any `docs/` Markdown file that writes the badge markup
-      by hand. With
-      `test/metadata/docs/test_page_frontmatter.py::test_committed_tree_passes`
+      an undeclared page or a malformed value; confirms a stylesheet rule for every
+      rendered type, that the theme override includes the template in the content
+      block every page renders, and that no reader-facing page replaces that template.
+      With `test/metadata/docs/test_page_frontmatter.py::test_committed_tree_passes`
       (every reader-facing page declares a valid `page_type`), a page that rendered
       the wrong badge or none would fail one of these.
+  - id: DF-11-037
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      The built site MUST NOT show a page-type badge on a `routing` page.
+    rationale: >-
+      A routing page only gives directions, so a badge there would be noise.
+    verification: >-
+      `test/metadata/docs/test_page_type_badge.py` confirms the badge template renders
+      no output for `routing` and that the stylesheet has no rule for it.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-11-019
+  - id: DF-11-038
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      An author MUST NOT hand-write a page-type badge beside a link unless a check fails
+      when the badge differs from the linked page's `page_type`.
+    rationale: >-
+      A hand-written badge beside a link restates the target's declaration and drifts
+      silently when the target changes type. A check that compares the two is the only
+      thing that keeps such a badge true.
+    verification: >-
+      `test/metadata/docs/test_page_type_badge.py::test_no_page_writes_a_badge_by_hand`
+      fails on any `docs/` Markdown file that writes the badge markup by hand.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-11-019
   - id: DF-11-020
     priority: MUST_NOT
     kind: process
@@ -1237,106 +1556,318 @@ groups:
       - ADR-0136
     statement: >-
       The site MUST have one lookup page, linked from the home page and from every
-      start page, that lists the reader-facing pages whose `page_type` (DF-11-018) is
-      `reference`, grouped by top-level navigation section in navigation order, each
-      with its `description:`. The lookup page MUST NOT be a start page (DF-11-013).
-      A reference page inside a navigation group below the top level MUST be listed
-      once, through the `index.md` that opens the outermost such group containing it;
-      a reference page with no such group, or whose groups below the top level have
-      no opening `index.md`, is listed on its own. A reference page the navigation
-      omits MUST be placed by the navigation-reachable `index.md` of its own
-      directory and then follow the same rule. The listing MUST be generated and
-      gated by a check mode that also fails when a reference page has no such entry
-      or when the home page or a start page does not link the lookup page.
+      start page, that lists the reader-facing `reference` pages (DF-11-018). The
+      lookup page groups them by top-level navigation section, in navigation order,
+      each with its `description:`.
     rationale: >-
       Reference is not a top-level tab (ADR-0136), so a returning reader has no view of
-      the site by content type. One generated page gives that view without a top level
-      organized by type. A subgroup listed through its index keeps the page short enough
-      to scan (DF-11-006). The check mode fails when the listing differs from the
-      navigation and the frontmatter, so the page stays current (DF-11-005).
+      the site by content type. One page gives that view without a top level organized
+      by type.
+    verification: >-
+      `test/metadata/docs/test_lookup_page.py::TestListing` covers the grouping and
+      each entry's description, and
+      `TestCommittedLookupPage::test_home_and_every_start_page_link_the_lookup_page`
+      confirms the links on the committed tree.
+    tracking_issue: '#5150'
+  - id: DF-11-039
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      The lookup page (DF-11-021) MUST NOT be a start page (DF-11-013).
+    rationale: >-
+      A start page opens one reading-path thread for one reader situation. The lookup
+      page serves a returning reader of any kind who wants a view by content type, so it
+      does not fit one thread.
+    verification: >-
+      Inspection of `docs/lookup.md` confirms its frontmatter declares no `thread:`.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-11-021
+    tracking_issue: '#5150'
+  - id: DF-11-040
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      The lookup page MUST list a reference page in a navigation group below the top
+      level once, through the `index.md` opening the outermost such group. A reference
+      page with no such group, or whose groups below the top level have no opening
+      `index.md`, is listed on its own.
+    rationale: >-
+      A subgroup listed through its index keeps the page short enough to scan
+      (DF-11-006).
+    verification: >-
+      `test/metadata/docs/test_lookup_page.py::TestSubgroups` covers a nested group
+      listed through its outermost index and a group without an index, and
+      `TestCommittedLookupPage::test_subgroups_are_one_entry_each` checks the committed
+      page.
+    relationships:
+    - rel_type: refines
+      spec_id: DF-11-021
+    tracking_issue: '#5150'
+  - id: DF-11-041
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      The lookup page MUST place a reference page the navigation omits by the
+      navigation-reachable `index.md` of its directory, then list it by DF-11-040.
+    rationale: >-
+      A page the navigation omits has no navigation group of its own. The index of its
+      directory is the nearest place in the navigation, so the page is listed where a
+      reader would look for it.
+    verification: >-
+      `test/metadata/docs/test_lookup_page.py::TestOmittedPages` covers an omitted page
+      placed beside its directory's index and one that cannot be placed, which
+      `uv run docs-site --check` reports as a fault.
+    relationships:
+    - rel_type: refines
+      spec_id: DF-11-021
+    tracking_issue: '#5150'
+  - id: DF-11-042
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      This codebase MUST generate the lookup page's listing and gate it with a check
+      mode.
+    rationale: >-
+      The check mode fails when the listing differs from the navigation and the
+      frontmatter, so the page stays current (DF-11-005).
     verification: >-
       `uv run docs-site --check` (the `docs-site-sync` pre-commit hook, and
-      `test/metadata/docs/test_site_sync.py::TestSiteSync::test_committed_site_artifacts_are_in_sync`
-      in CI) regenerates the listing
-      between the markers on `docs/lookup.md` from the nav and frontmatter
-      (`vultron/metadata/docs/lookup_page.py`) and fails when the committed
-      listing differs, when an omitted reference page cannot be placed, when an
-      entry's page declares no `description:`, or when the home page or a start
-      page does not link the lookup page.
-      `test/metadata/docs/test_lookup_page.py` covers the grouping, a nested
-      group listed through its outermost index, an omitted page placed beside
-      its directory's index and one that cannot be placed, staleness on a new
-      reference page and on a changed description, and a missing link.
+      `TestSiteSync::test_committed_site_artifacts_are_in_sync` in
+      `test/metadata/docs/test_site_sync.py` in CI) regenerates the listing between the
+      markers on `docs/lookup.md` from the nav and frontmatter
+      (`vultron/metadata/docs/lookup_page.py`). It fails when the committed listing
+      differs, when an omitted reference page cannot be placed, when an entry's page
+      declares no `description:`, or when the home page or a start page does not link
+      the lookup page. `test/metadata/docs/test_lookup_page.py` covers staleness on a
+      new reference page and on a changed description, and a missing link.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-11-021
     tracking_issue: '#5150'
+  - id: DF-11-047
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      The lookup page's check mode (DF-11-042) MUST fail when a reference page has no
+      entry on the lookup page.
+    rationale: >-
+      A reference page with no entry is one a reader cannot find from the lookup page,
+      which defeats the page's purpose (DF-11-021).
+    verification: >-
+      `TestLookupArtifact` in `test/metadata/docs/test_lookup_page.py` fails the check
+      on a new reference page that the committed listing lacks.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-11-042
+  - id: DF-11-048
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      The lookup page's check mode (DF-11-042) MUST fail when the home page or a start
+      page does not link the lookup page.
+    rationale: >-
+      A lookup page that the home page and start pages do not link is reachable only by
+      search, so a reader who needs it does not find it (DF-11-021).
+    verification: >-
+      `TestLinks` in `test/metadata/docs/test_lookup_page.py` fails the check when the
+      home page or a start page lacks the link.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-11-042
   - id: DF-11-022
     priority: MUST
     kind: process
     adr:
       - ADR-0150
     statement: >-
-      A thread member whose page path names a section (`page.md#anchor`) MUST have
-      its box (DF-11-015) say that the section, not the page, is on the thread, and
-      its page's author MUST place the box at the end of that section (DF-11-023).
+      The box (DF-11-015) of a thread member whose path names a section
+      (`page.md#anchor`) MUST say the section, not the page, is on the thread.
     rationale: >-
-      A box at the end of a long page is out of reach for a reader who followed the
-      thread to one section of it. The end of the section is where that reader
-      looks for directions onward. No build pass can find it reliably (DF-11-023),
-      but the page's author knows where the section ends, and the built site, where
-      the anchor is an id, can check it.
+      A reader who followed the thread to one section of a page must know that the
+      thread goes through that section, not the whole page. Otherwise the reader
+      reads parts of the page the thread does not need.
     verification: >-
       A test renders a section member's box and confirms the section wording, and
-      that a whole-page member's box keeps the page wording. The DF-11-023 built-site
-      check fails when a section member's box is not inside its section. Covered by
-      `test/metadata/docs/test_thread_boxes.py::TestSectionWording` and
-      `test/metadata/docs/test_path_boxes.py::TestBuiltSiteCheck::test_a_section_box_outside_its_section_fails`.
+      that a whole-page member's box keeps the page wording. Covered by
+      `test/metadata/docs/test_thread_boxes.py::TestSectionWording`.
     relationships:
     - rel_type: refines
       spec_id: DF-11-015
+  - id: DF-11-043
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      The author of a page with a section member (DF-11-022) MUST place that member's
+      box at the end of the section (DF-11-045).
+    rationale: >-
+      A box at the end of a long page is out of reach for a reader who followed the
+      thread to one section of it. The end of the section is where that reader
+      looks for directions onward. No build pass can find it reliably (DF-11-044),
+      but the page's author knows where the section ends, and the built site, where
+      the anchor is an id, can check it.
+    verification: >-
+      The DF-11-045 built-site check fails when a section member's box is not inside
+      its section. Covered by `TestBuiltSiteCheck` in
+      `test/metadata/docs/test_path_boxes.py`, in
+      `test_a_section_box_outside_its_section_fails`,
+      `test_a_section_box_before_its_heading_fails` and
+      `test_a_section_box_whose_anchor_is_gone_fails`.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-11-022
   - id: DF-11-023
     priority: MUST
     kind: process
     adr:
       - ADR-0150
     statement: >-
-      Each box (DF-11-015) MUST be a committed fragment, one per thread and member
-      (a section member's anchor is part of its fragment's name), under
-      `docs/start/_paths/<thread>/`, generated from the thread's data and gated
-      by a check mode, and excluded from the build as a page. A box MUST reach a page
-      only through an `include-markdown` directive its author places, and the build
-      MUST NOT add one. A check over the built site MUST fail, naming the page and
-      the directive to add, when a member page or start page does not render its box
-      for each thread it is on, when a page renders a box made for another page, and
-      when a section member's box (DF-11-022) does not sit after the element carrying
-      its anchor and before the next heading of the same or a higher level.
+      This codebase MUST commit each box (DF-11-015) as a fragment under
+      `docs/start/_paths/<thread>/`, generated from the thread's data and gated by a
+      check mode. There is one fragment per thread and member, and a section member's
+      anchor is part of its fragment's name.
     rationale: >-
-      The author knows where on a page the directions to the next page belong. An
-      automatic insert can only guess, and the only safe guess is the end of the page,
-      which is wrong for a long page. A committed fragment shows the box in a diff. The
-      generator's check mode fails when the fragment differs from the thread, so a box
-      that the author places by hand keeps the content of the thread. The
-      message-vocabulary fragments use the same pattern (ADR-0128). A check over the
-      built site finds a missing box however the page is assembled, and the placement
-      does not need to be mechanical.
+      A committed fragment shows the box in a diff. The generator's check mode fails
+      when the fragment differs from the thread, so a box that the author places by
+      hand keeps the content of the thread. The message-vocabulary fragments use the
+      same pattern (ADR-0128).
     verification: >-
       The generator's check mode fails when a committed fragment differs from what its
       thread implies, or when a fragment exists for a page no longer on its thread.
-      A test confirms `docs/start/_paths/` is in `exclude_docs`. Unit tests over a
-      fixture site cover each built-site check failure, asserting that the message
-      names the page and the `include-markdown` line to add: a member page with no
-      box, a start page with no box, a page on two threads with one box, a page that
-      includes another page's fragment, a section member's box outside its section,
-      and a rendered box with no matching `include-markdown` directive in its page's
-      source, which is how a box added by the build shows; the check fails when it
-      resolves no targets (DF-09-009). The check runs in CI beside the other
-      built-site checks, not as a pre-commit hook, since it needs a full site build.
-      Covered by `test/metadata/docs/test_thread_boxes.py::TestFragments` (generation,
-      check mode, stale-fragment deletion and `exclude_docs`) and
-      `test/metadata/docs/test_path_boxes.py` (`TestBuiltSiteCheck`, one test per
-      failure, and `test_the_check_runs_in_ci_beside_the_built_site_checks`).
+      A test confirms `docs/start/_paths/` is in `exclude_docs`. Covered by
+      `test/metadata/docs/test_thread_boxes.py::TestFragments` (generation, check
+      mode, stale-fragment deletion and `exclude_docs`).
     lint_suppress:
     - phantom_path_ref
-  - id: DF-11-024
+  - id: DF-11-052
     priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      The documentation build MUST exclude each box fragment (DF-11-023) as a page.
+    rationale: >-
+      A box fragment is part of the pages that include it. Built as a page of its own,
+      it would publish a page with no frontmatter, no navigation entry and no reader.
+    verification: >-
+      Inspection: `exclude_docs` in `mkdocs.yml` lists `start/_paths/`.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-11-023
+  - id: DF-11-044
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      A box (DF-11-023) MUST reach a page only through an `include-markdown` directive
+      that the page's author places, never through one the build adds.
+    rationale: >-
+      The author knows where on a page the directions to the next page belong. An
+      automatic insert can only guess, and the only safe guess is the end of the page,
+      which is wrong for a long page.
+    verification: >-
+      In `test/metadata/docs/test_thread_boxes.py`,
+      `TestFragments::test_the_build_adds_no_box` confirms no build hook adds a box.
+      In `test/metadata/docs/test_path_boxes.py`,
+      `TestBuiltSiteCheck::test_a_box_with_no_include_directive_fails` covers a
+      rendered box with no matching directive in its page's source, which is how a box
+      added by the build shows.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-11-023
+  - id: DF-11-045
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      A built-site check MUST fail when a member page or start page does not render its
+      box for each of its threads.
+    rationale: >-
+      A check over the built site finds a missing box however the page is assembled,
+      and the placement does not need to be mechanical.
+    verification: >-
+      Unit tests over a fixture site cover each built-site check failure, asserting that
+      the message names the page and the `include-markdown` line to add: a member page
+      with no box, a start page with no box, a page on two threads with one box, a page
+      that includes another page's fragment, and a section member's box outside its
+      section. The check fails when it resolves no targets (DF-09-009). The check runs
+      in CI beside the other built-site checks, not as a pre-commit hook, since it
+      needs a full site build. Covered by `test/metadata/docs/test_path_boxes.py`
+      (`TestBuiltSiteCheck`, one test per failure, and
+      `test_the_check_runs_in_ci_beside_the_built_site_checks`).
+    relationships:
+    - rel_type: verifies
+      spec_id: DF-11-015
+  - id: DF-11-049
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      The built-site box check (DF-11-045) MUST fail when a page renders a box made
+      for another page.
+    rationale: >-
+      A box made for another page shows the reader the wrong previous and next pages,
+      so the thread sends them somewhere it should not.
+    verification: >-
+      `TestBuiltSiteCheck` in `test/metadata/docs/test_path_boxes.py` covers a page
+      that includes another page's fragment.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-11-045
+  - id: DF-11-050
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      The box check (DF-11-045) MUST fail when a section member's box (DF-11-022)
+      sits outside the section its anchor opens.
+    rationale: >-
+      A section runs from the anchor's element to the next heading of the same or a
+      higher level, and a section member's box belongs at its end (DF-11-043). A box
+      outside it tells the reader that a different part of the page is on the thread.
+    verification: >-
+      `TestBuiltSiteCheck` in `test/metadata/docs/test_path_boxes.py` covers a section
+      member's box outside its section.
+    relationships:
+    - rel_type: verifies
+      spec_id: DF-11-043
+  - id: DF-11-051
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      Each failure of the built-site box check (DF-11-045) MUST name the page and the
+      `include-markdown` directive to add.
+    rationale: >-
+      A failure that names the page and the line to add can be fixed at once. A bare
+      failure makes the author search the site for the missing box.
+    verification: >-
+      `TestBuiltSiteCheck` in `test/metadata/docs/test_path_boxes.py` asserts that each
+      failure message names the page and the `include-markdown` line to add.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-11-045
+  - id: DF-11-024
+    priority: MUST_NOT
     kind: process
     adr:
       - ADR-0150
@@ -1380,26 +1911,61 @@ groups:
     adr:
       - ADR-0147
     statement: >-
-      The Protocol Specification MUST contain a Requirements Catalog body section,
-      placed after the Conformance section and before the back matter, that renders
-      every requirement of kind `protocol` or `foundation` exactly once. A catalog
-      subsection MUST be one requirement file, and `foundation` requirements MUST be
-      rendered on a catalog page of their own.
+      The Protocol Specification MUST contain a Requirements Catalog body section that
+      renders every requirement of kind `protocol` or `foundation` exactly once. The
+      section is placed after the Conformance section and before the back matter.
     rationale: >-
       The specification is the complete normative text only if every rule a
       conformant implementation must obey renders in it, and normative content
       belongs in the body rather than in an annex, which the specification declares
-      informative. Keeping the inherited `foundation` rules apart keeps visible what
-      Vultron adds and what it takes unchanged from the standards beneath it.
+      informative.
     verification: >-
       A test loads the requirement registry and the catalog's placement table and
       fails when any `protocol` or `foundation` requirement renders in the catalog
-      zero times or more than once, when a catalog subsection holds requirements from
-      more than one requirement file, or when a `foundation` requirement renders on a
-      page other than the inherited-requirements page; a test over the specification's
-      navigation fails when the catalog section is not placed directly after the
-      Conformance section and before the back matter. Not yet written; owned by
-      #4895 (placement and rendering) and #4901 (section placement).
+      zero times or more than once; a test over the specification's navigation fails
+      when the catalog section is not placed directly after the Conformance section
+      and before the back matter. Not yet written; owned by #4895 (placement and
+      rendering) and #4901 (section placement).
+    tracking_issue: '#4895'
+  - id: DF-12-008
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      A Requirements Catalog subsection (DF-12-001) MUST be one requirement file.
+    rationale: >-
+      A subsection that matches one requirement file gives each rule one predictable
+      place in the catalog. A reader who knows the file a rule comes from can find the
+      rule, and an author who adds a file knows where it renders.
+    verification: >-
+      A test loads the requirement registry and the catalog's placement table and fails
+      when a catalog subsection holds requirements from more than one requirement
+      file. Not yet written; owned by #4895. In
+      `test/metadata/specs/test_docs_render.py`,
+      `test_catalog_page_has_one_subsection_per_file` covers the renderer.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-12-001
+    tracking_issue: '#4895'
+  - id: DF-12-009
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      The Requirements Catalog MUST render `foundation` requirements on a catalog page
+      of their own.
+    rationale: >-
+      Keeping the inherited `foundation` rules apart keeps visible what Vultron adds and
+      what it takes unchanged from the standards beneath it.
+    verification: >-
+      A test loads the requirement registry and the catalog's placement table and fails
+      when a `foundation` requirement renders on a page other than the
+      inherited-requirements page. Not yet written; owned by #4895.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-12-001
     tracking_issue: '#4895'
   - id: DF-12-002
     priority: MUST
@@ -1407,24 +1973,64 @@ groups:
     adr:
       - ADR-0147
     statement: >-
-      The anchor of a `protocol` or `foundation` requirement MUST be defined only by
-      its Requirements Catalog row and by that row's copy in the single-page edition
-      of the specification (`full.md`), which includes the catalog in document order.
-      Every other page that shows or links the requirement, including the inline
-      callouts of DF-12-003 and the requirement pages for the other kinds, MUST link
-      to that row; on the single-page edition the link MUST target the in-page copy.
+      The build MUST define a `protocol` or `foundation` requirement's anchor only in
+      its Requirements Catalog row and that row's copy in the single-page edition
+      (`full.md`). The single-page edition of the specification includes the catalog in
+      document order.
     rationale: >-
       A requirement with two published anchors gives two answers to where it lives,
       and links written against either can disagree. One home also lets the
       retired per-kind pages for the two tiers redirect to a single place.
     verification: >-
-      A test fails when a rendered page other than a catalog page or the single-page
-      edition defines a requirement anchor, and a test fails when a rendered
-      requirement link on any page does not resolve to its catalog row (or, on the
-      single-page edition, to the in-page copy). Both tests read the rendered output,
-      because links printed by an exec block are invisible to the strict build. Not
-      yet written; owned by #4901.
-    tracking_issue: '#4901'
+      In `test/metadata/docs/test_requirement_links.py`,
+      `test_only_the_catalog_defines_catalog_anchors` fails when a `docs/` page other
+      than a catalog page or the single-page edition defines a catalog anchor, and
+      the anchor-fault tests pin each fault on small trees.
+  - id: DF-12-010
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      Every page that shows or links a `protocol` or `foundation` requirement without
+      defining its anchor (DF-12-002) MUST link to its Requirements Catalog row. This
+      includes the inline callouts of DF-12-003 and the requirement pages for the
+      other kinds.
+    rationale: >-
+      A link to the one anchor that DF-12-002 defines keeps every reference to a
+      requirement pointing at the same place, so no page can send a reader to a stale
+      or second copy.
+    verification: >-
+      In `test/metadata/docs/test_requirement_links.py`,
+      `test_every_requirement_link_targets_the_page_defining_it` fails when a link in
+      a `docs/` source page misses the row that defines its anchor. In
+      `test/metadata/docs/test_requirement_catalog.py`,
+      `test_catalog_tiers_link_the_catalog_row` covers the link the renderer prints.
+    relationships:
+    - rel_type: depends_on
+      spec_id: DF-12-002
+  - id: DF-12-011
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      On the single-page edition of the specification, a requirement link (DF-12-010)
+      MUST target the in-page copy of the catalog row.
+    rationale: >-
+      The single-page edition holds its own copy of the catalog. A link that left the
+      page would take a reader of the one-page view away from the text they are
+      reading.
+    verification: >-
+      In `test/metadata/docs/test_requirement_catalog.py`,
+      `test_full_page_links_the_in_page_catalog_copy` covers only the link the
+      renderer prints, and in `test/metadata/specs/test_docs_render.py`,
+      `test_catalog_page_on_full_page_links_in_page` and
+      `test_callout_on_full_page_links_in_page` cover the catalog page and callout.
+      No test yet reads the rendered single-page edition.
+    relationships:
+    - rel_type: refines
+      spec_id: DF-12-010
   - id: DF-12-003
     priority: MUST
     kind: process
@@ -1432,17 +2038,36 @@ groups:
       - ADR-0147
     statement: >-
       Outside the Requirements Catalog, the Protocol Specification MUST present a
-      normative requirement only as a callout rendered by ID from its YAML entry, in
-      the catalog's row format. Rendering a callout MUST fail the documentation build
-      when an ID names no requirement of kind `protocol` or `foundation`.
+      normative requirement only as a callout rendered by ID from its YAML entry. The
+      callout uses the catalog's row format.
     rationale: >-
       A callout shows the YAML's own words, so the narrative cannot paraphrase a rule
-      into something different. Failing on a non-normative ID stops the
-      specification from presenting a Project or Architecture rule as protocol.
+      into something different.
     verification: >-
       A test renders a callout for a `protocol` ID and checks its text equals the
-      YAML statement and links the catalog row, and renders one for a `project` ID
-      and checks that it raises. Not yet written; owned by #4895.
+      YAML statement and links the catalog row. Not yet written; owned by #4895.
+    tracking_issue: '#4895'
+  - id: DF-12-012
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      The callout renderer (DF-12-003) MUST fail the documentation build when a
+      callout ID names no requirement of kind `protocol` or `foundation`.
+    rationale: >-
+      Failing on a non-normative ID stops the specification from presenting a Project
+      or Architecture rule as protocol.
+    verification: >-
+      A test renders a callout for a non-normative ID and checks that it raises:
+      `test_callout_refuses_another_kind` in
+      `test/metadata/specs/test_docs_render.py`. In
+      `test/metadata/docs/test_requirement_catalog.py`,
+      `test_catalog_location_refuses_another_kind` covers the lookup the renderer
+      uses.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-12-003
     tracking_issue: '#4895'
   - id: DF-12-004
     priority: MUST_NOT
@@ -1451,20 +2076,55 @@ groups:
       - ADR-0147
     statement: >-
       A fragment of the Protocol Specification MUST NOT contain an RFC 2119 keyword
-      outside a rendered requirement block, except in the §1.4 Document Conventions
-      paragraph that states the keyword convention. A check MUST enforce this, and
-      MUST report an empty target set as a failure (DF-09-009).
+      outside a rendered requirement block. The exception is the §1.4 Document
+      Conventions paragraph that states the keyword convention.
     rationale: >-
       Every hand-written normative sentence is a restatement that can drift from the
       YAML, and an unlabeled one may have no YAML counterpart at all. Banning the
       keywords in prose makes the YAML the only place a normative sentence can be
       written.
     verification: >-
-      The check runs in the test suite over the specification's fragments and fails
-      on a keyword in prose, passes on the same keyword inside a rendered block or
-      the convention paragraph, and fails when it resolves no fragments. Not yet
-      written; owned by #4895 (the check, over reconciled fragments) and #4902 (every
+      The DF-12-013 check runs in the test suite over the specification's fragments
+      and fails on a keyword in prose, and passes on the same keyword inside a
+      rendered block or the convention paragraph. Not yet written; owned by #4895
+      (the check, over reconciled fragments) and #4902 (every fragment).
+    tracking_issue: '#4895'
+  - id: DF-12-013
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      A check MUST enforce DF-12-004 over the fragments of the Protocol Specification.
+    rationale: >-
+      A rule against keywords in prose that only reviewers apply lets a keyword slip
+      through. A check finds each one on every change.
+    verification: >-
+      `test/metadata/docs/test_rfc2119_keywords.py` runs the check in the test suite
+      over the specification's fragments:
+      `test_reconciled_fragments_hold_no_keyword_in_prose` runs it over the reconciled
+      fragments. Owned by #4895 (the check, over reconciled fragments) and #4902 (every
       fragment).
+    relationships:
+    - rel_type: verifies
+      spec_id: DF-12-004
+    tracking_issue: '#4895'
+  - id: DF-12-014
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      The DF-12-013 check MUST report an empty target set as a failure.
+    rationale: >-
+      A keyword check that resolves no fragments and reports success gives a false
+      clean signal, the fault DF-09-009 exists to stop.
+    verification: >-
+      `test/metadata/docs/test_rfc2119_keywords.py::test_empty_target_set_fails` fails
+      the check when it resolves no fragments.
+    relationships:
+    - rel_type: refines
+      spec_id: DF-09-009
     tracking_issue: '#4895'
   - id: DF-12-005
     priority: MUST
@@ -1472,20 +2132,38 @@ groups:
     adr:
       - ADR-0147
     statement: >-
-      The placement of requirement files on Requirements Catalog pages MUST be
-      declared once, on the documentation side, without a field in the requirement
-      files. A check MUST fail when a requirement file that holds `protocol` or
-      `foundation` requirements is placed on no catalog page, or on more than one
-      catalog page for the same tier.
+      This codebase MUST declare the placement of requirement files on Requirements
+      Catalog pages once, on the documentation side, without a field in the requirement
+      files.
     rationale: >-
-      A new requirement file would otherwise be silently missing from the catalog.
       Declaring the placement where it is rendered keeps the requirement file format
       unchanged, and one declaration lets callouts and the other kinds' pages find
       the catalog page that holds a requirement.
     verification: >-
+      Inspection confirms that `CATALOG_PAGES` in
+      `vultron/metadata/docs/requirement_catalog.py` is the only declaration of where
+      each requirement file renders, and that no requirement file carries a placement
+      field.
+    tracking_issue: '#4895'
+  - id: DF-12-015
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      A check MUST fail when a requirement file holding `protocol` or `foundation`
+      requirements is on no catalog page (DF-12-005), or on two for one tier.
+    rationale: >-
+      A new requirement file would otherwise be silently missing from the catalog, and
+      a file placed twice would render its requirements twice.
+    verification: >-
       A test fails when a requirement file holding either tier is absent from the
-      placement table, or appears in it twice for one tier. Not yet written; owned by
-      #4895.
+      placement table, or appears in it twice for one tier:
+      `test_real_placement_table_is_sound` in
+      `test/metadata/docs/test_requirement_catalog.py`.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-12-005
     tracking_issue: '#4895'
   - id: DF-12-006
     priority: MUST
@@ -1494,28 +2172,79 @@ groups:
       - ADR-0136
       - ADR-0147
     statement: >-
-      Every page of the normative set — the Protocol Specification's body section
-      pages and the `protocol` and `foundation` requirement-tier pages, but not the
-      specification's landing page, its single-page full view, its annexes or its
-      open-questions page — MUST include the shared normative banner
+      Every page of the normative set MUST include the shared normative banner
       (`docs/includes/normative.md`) in the page itself, not through a shared
-      fragment, and every other page MUST NOT include it except the page that
-      documents the banners. The normative-set pages MUST be declared once, in the
-      check that enforces this, and the check MUST fail when a declared page does
-      not exist.
+      fragment. The normative set is the Protocol Specification's body section pages
+      and the `protocol` and `foundation` requirement-tier pages. It excludes the
+      specification's landing page, its single-page full view, its annexes and its
+      open-questions page.
     rationale: >-
-      A reader trusts the normative banner only if it is true. Banners that authors
-      place by hand can stay on pages after those pages leave the normative set, so a
-      page outside the set can call itself normative. A check against one declared list
-      of normative pages finds each wrong banner and each missing banner. A failure on a
-      declared page that does not exist keeps the list current when pages move, as
-      they did when the Requirements Catalog replaced the per-tier pages.
+      A reader trusts the normative banner only if it is true. A check against one
+      declared list of normative pages finds each missing banner.
     verification: >-
       A check over the `include-markdown` directives in `docs/` fails, naming
-      `path:line`, when a declared page does not include the banner, when any other
-      page or a shared fragment includes it, when a declared page is missing, or
-      when it resolves no targets: `docs-normative-banner`, run as a pre-commit
+      `path:line`, when a declared page does not include the banner in the page itself,
+      or when it resolves no targets: `docs-normative-banner`, run as a pre-commit
       hook and by `test/metadata/docs/test_normative_banner.py`.
+  - id: DF-12-016
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0136
+      - ADR-0147
+    statement: >-
+      A page outside the normative set (DF-12-006) MUST NOT include the shared
+      normative banner, except the page that documents the banners.
+    rationale: >-
+      Banners that authors place by hand can stay on pages after those pages leave the
+      normative set, so a page outside the set can call itself normative. A check
+      against one declared list of normative pages finds each wrong banner.
+    verification: >-
+      `docs-normative-banner`, run as a pre-commit hook and by
+      `test/metadata/docs/test_normative_banner.py::TestNormativeSet`, fails, naming
+      `path:line`, when any other page or a shared fragment includes the banner.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-12-006
+  - id: DF-12-017
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0136
+      - ADR-0147
+    statement: >-
+      This codebase MUST declare the normative-set pages (DF-12-006) once, in the check
+      that enforces DF-12-006 and DF-12-016.
+    rationale: >-
+      One declared list is what lets the check find both a wrong banner and a missing
+      one. A second list could drift from the first and let a page pass one check while
+      it fails the other.
+    verification: >-
+      Inspection confirms that `NORMATIVE_PAGES` in
+      `vultron/metadata/docs/normative_banner.py` is the only declaration of the
+      normative set.
+    relationships:
+    - rel_type: extends
+      spec_id: DF-12-006
+  - id: DF-12-018
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0136
+      - ADR-0147
+    statement: >-
+      The normative banner check MUST fail when a declared normative-set page
+      (DF-12-017) does not exist.
+    rationale: >-
+      A failure on a declared page that does not exist keeps the list current when
+      pages move, as they did when the Requirements Catalog replaced the per-tier pages.
+    verification: >-
+      In `test/metadata/docs/test_normative_banner.py`,
+      `TestNormativeSet::test_missing_declared_page_fails` fails
+      `docs-normative-banner` when a declared page is missing.
+    relationships:
+    - rel_type: depends_on
+      spec_id: DF-12-017
   - id: DF-12-007
     priority: SHOULD
     kind: process

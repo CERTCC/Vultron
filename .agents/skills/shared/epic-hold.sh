@@ -34,7 +34,7 @@ fi
 TYPE=$(jq -r '.data.repository.issue.issueType.name // ""' <<<"$DATA")
 case "$TYPE" in
   Task|Feature) ;;
-  *) exit 0 ;;  # only the build lane is held (PAD-19-002)
+  *) exit 0 ;;  # only the build lane is held (PAD-19-002, PAD-19-009)
 esac
 
 # The nearest ancestor whose type is Epic, as "<number> <login,login>", or

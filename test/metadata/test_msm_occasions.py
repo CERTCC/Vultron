@@ -1226,7 +1226,7 @@ def test_section_lists_seen_in_pages_and_omits_the_line_without_any(table):
 
 def test_embed_links_its_canonical_section_and_collapses_the_example(table):
     """AC-1: separated from the host's prose, linked to its canonical
-    section, the example JSON collapsed (DF-01-003)."""
+    section, the example JSON collapsed (DF-01-006, DF-01-007)."""
     group, row = _rows(table)["fix-readiness"]
     embed = gen.render_embed(group, row)
     lines = embed.splitlines()

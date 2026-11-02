@@ -37,12 +37,17 @@ The devcontainer image MUST NOT export `PYTHONPATH`. Each checkout's editable
 install already maps `vultron` to that checkout; an exported `PYTHONPATH=/app`
 outranks it for every console script and script-path run, so hooks, tests and
 `spec-dump` in a worktree silently check `/app`'s code instead (#5571).
-`test/architecture/test_hook_vultron_resolution.py` guards both the image and
-the live environment.
+`test/architecture/test_hook_vultron_resolution.py` guards the image always, and
+the live environment only when run in a worktree: from `/app` itself the stale
+path still names the running checkout, so that check passes.
 A container built before that fix still exports it: if `echo $PYTHONPATH`
 prints `/app`, rebuild with `./start-dev.sh <slot> --rebuild`. Until then,
 prefix `uv run` and worktree `git commit` with `PYTHONPATH=`; the prefixes in
-skills do exactly this and are a no-op in a rebuilt container.
+skills do exactly this and are a no-op in a rebuilt container. In such a
+container a worktree hook failure wears two faces, and neither names the cause:
+a stale-artifact report for a file that is in sync, and a `ModuleNotFoundError`
+for a module the worktree has but `/app` does not. Re-run the hook's own command
+with `PYTHONPATH=` before believing either (#5532).
 A test's child Python process takes its environment from `child_env()`
 regardless ([testing-pitfalls](testing-pitfalls.md) § "A Child Python
 Process Gets Its Environment From `child_env()`").

@@ -58,7 +58,33 @@ Sub-modules
   ``verify_reporter_trusts_introduction``.
 - :mod:`~vultron.demo.helpers.invite_chain` — ``run_case_invite_chain``,
   ``CaseInviter``, and ``EmittedBy``: the invite → deliver → answer → replica
-  chain every scenario joins an invitee through (DEMOMA-17-001).
+  chain every scenario joins an invitee through (DEMOMA-17-001), and
+  ``invite_and_await_delivery`` / ``answer_case_invite``, the same chain in the
+  two halves a composed story needs around the invitee's branch point.
+- :mod:`~vultron.demo.helpers.story` — ``choose``, ``story``, ``StoryState``,
+  ``StoryProp``, ``UnseatedContainer`` and ``run_story``: a branching demo
+  story written once, with the scenario's path read off its choices
+  (DEMOCI-11-019). Not re-exported here, because it imports the harness, which
+  imports the scenario registry.
+- :mod:`~vultron.demo.helpers.coordinated_story` — the story fragments and the
+  nested named prefixes (``REPORTER_TELLS_THE_COORDINATOR``,
+  ``COORDINATOR_INVITES_VENDOR``, ``VENDOR_JOINS_THE_CASE``,
+  ``REPORTER_ASKS_THE_VENDOR``) of the coordinator-first family, one per
+  stretch two of its scenarios share. Not re-exported here, for the same
+  reason.
+- :mod:`~vultron.demo.helpers.coordinated_embargo_story` — the fragments and
+  the ``REPORTER_PROPOSES_EMBARGO`` prefix of that family's embargo pair.
+  Not re-exported here, for the same reason.
+- :mod:`~vultron.demo.helpers.two_coordinator_story` — the fragments and the
+  ``C1_INVITES_C2`` prefix of the two-coordinator pair, which continues
+  ``REPORTER_TELLS_THE_COORDINATOR`` by inviting a second Coordinator
+  instead of the Vendor. Not re-exported here, for the same reason.
+- :mod:`~vultron.demo.helpers.owner_decision_story` — the two continuations of
+  the ``owner-keep-case`` decision, which both halves of the tree tell:
+  ``the_owner_approves_a_suggested_actor`` and
+  ``the_owner_hands_the_case_over`` / ``the_new_owner_invites``, each taking
+  its cast as ``Part``\\ s off the running story. Not re-exported here, for
+  the same reason.
 - :mod:`~vultron.demo.helpers.notes` — ``participant_adds_note_to_case``.
 - :mod:`~vultron.demo.helpers.milestones` — lifecycle milestone verifiers
   (``verify_case_active``, ``verify_fix_ready``, ``verify_fix_deployed``,
@@ -99,6 +125,8 @@ from vultron.demo.helpers.embargo_outcome import (
 from vultron.demo.helpers.invite_chain import (
     CaseInviter,
     EmittedBy,
+    answer_case_invite,
+    invite_and_await_delivery,
     run_case_invite_chain,
 )
 from vultron.demo.helpers.ledger_commit import (

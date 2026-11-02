@@ -215,8 +215,8 @@ groups:
       its `type`, so a receiver still routes by it (ADR-0165).
     note: >-
       The rule binds the activity's own `object`. An `Invite(EmbargoEvent)` nested as the
-      object of an ER may name its terms by URI: the ER answers the Invite by id and type,
-      both inline, and needs no terms (ADR-0123).
+      object of a `Reject` of the Invite may name its terms by URI: the `Reject` answers
+      the Invite by id and type, both inline, and needs no terms (ADR-0123).
     verification: >-
       Integration tests in `test/demo/` confirm that outbound initiating activities
       include a fully serialized `object` field rather than a bare URI reference.

@@ -1,8 +1,9 @@
 """Generate or check the contents of every ``index.md`` that opens a nav group.
 
 Requirements: specs/diataxis-requirements.yaml DF-11-005 (generated, check
-gated, never hand-maintained; the two exempt shapes), DF-09-009 (an empty
-target set fails), DF-11-004 (a level is never rendered). Design rationale:
+gated, never hand-maintained), DF-11-028 (the two exempt shapes), DF-11-029 (a
+routing page links every member), DF-09-009 (an empty target set fails),
+DF-11-004 (a level is never rendered). Design rationale:
 ``notes/site-information-architecture.md`` § "Landing pages are generated,
 never hand-maintained" and § "An ``index.md`` is a routing surface"
 (ADR-0102, #3617).
@@ -30,7 +31,7 @@ fault, so no sub-section can be left undecided by omission.
   the markers is generated and ``--check`` fails when it is stale.
 * ``contents: routing`` — the page links its group's members inside framing
   prose or a themed grouping that is editorial content. Nothing is generated;
-  ``--check`` fails when the page fails to link a member (DF-11-005's
+  ``--check`` fails when the page fails to link a member (DF-11-029's
   routing-page exemption). The members it must link are the group's nav
   members plus any reader page in its own directory the nav does not carry
   (DF-11-006's routing-page pattern), so a page added to the directory without
@@ -76,7 +77,7 @@ BEGIN_MARKER = (
 #: Closing marker of a generated listing.
 END_MARKER = "<!-- END GENERATED SECTION CONTENTS -->"
 
-#: Frontmatter key on every ``index.md`` that opens a nav group (DF-11-005).
+#: Frontmatter key on every ``index.md`` that opens a nav group (DF-11-028).
 CONTENTS_KEY = "contents"
 
 _INDEX_NAME = "index.md"
@@ -360,7 +361,7 @@ def _contents_of(facts: _PageFacts, landing: str) -> Contents:
         raise MetadataLoadError(
             f"opens a mkdocs.yml nav group but declares no `{CONTENTS_KEY}:`; "
             f"declare one of {permitted} so the decision is recorded "
-            "(DF-11-005, #3617)",
+            "(DF-11-028, #3617)",
             path=f"docs/{landing}",
         )
     try:
@@ -368,7 +369,7 @@ def _contents_of(facts: _PageFacts, landing: str) -> Contents:
     except ValueError:
         raise MetadataLoadError(
             f"declares `{CONTENTS_KEY}: {facts.contents}`; permitted values "
-            f"are {permitted} (DF-11-005)",
+            f"are {permitted} (DF-11-028)",
             path=f"docs/{landing}",
         ) from None
 
@@ -433,7 +434,7 @@ class _Walk:
                     f"({', '.join(orphans)}), but declares no "
                     f"`{CONTENTS_KEY}:`; declare `{CONTENTS_KEY}: "
                     f"{Contents.ROUTING.value}` and link each of them "
-                    "(DF-11-005, DF-11-006)",
+                    "(DF-11-028, DF-11-006)",
                     path=f"docs/{landing}",
                 )
             return
@@ -544,7 +545,7 @@ def routing_faults(root: Path, page: RoutingPage) -> list[MetadataLoadError]:
         MetadataLoadError(
             f"declares `{CONTENTS_KEY}: {Contents.ROUTING.value}` but does not "
             f"link {member}; a routing page must link every member of its "
-            "section (DF-11-005)",
+            "section (DF-11-029)",
             path=f"docs/{page.path}",
         )
         for member in page.required

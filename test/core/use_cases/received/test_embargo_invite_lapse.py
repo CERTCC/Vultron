@@ -949,7 +949,7 @@ class TestInviteeIsTheAddressee:
         The third participant is neither the sender nor named in ``to`` or
         ``cc``, so the door check refuses it (ADR-0118, #4132): no tree
         runs, so ``CanAnswerEmbargoInviteNode`` never warns "is not the
-        invitee", nothing is written and no ER is sent — EMB-01-002's ER
+        invitee", nothing is written and no Reject is sent — EMB-01-002's Reject
         duty binds only the addressee.  The reason names the receiver and
         the recipients the sender chose, so the misrouting can be traced.
         """
@@ -1032,7 +1032,7 @@ class TestInviteeIsTheAddressee:
         )
         assert all(node.rejecting_actor_id == _INVITEE for node in recorders)
 
-    @pytest.mark.spec("MSM-07-004")
+    @pytest.mark.spec("MSM-07-014")
     @pytest.mark.spec("CM-18-003")
     def test_reject_from_signatory_of_the_embargo_in_force_is_refused(
         self, make_payload
@@ -1090,6 +1090,7 @@ class TestInviteeIsTheAddressee:
         )
 
     @pytest.mark.spec("MSM-07-004")
+    @pytest.mark.spec("MSM-07-015")
     def test_reject_of_a_proposed_revision_leaves_a_signatory_bound(
         self, make_payload
     ):
@@ -1160,6 +1161,7 @@ class TestInviteeIsTheAddressee:
         assert case_after.proposed_embargo_ids == [revision.id_]
 
     @pytest.mark.spec("MSM-07-004")
+    @pytest.mark.spec("MSM-07-013")
     def test_owner_reject_of_an_invite_is_only_its_own_consent(
         self, make_payload
     ):

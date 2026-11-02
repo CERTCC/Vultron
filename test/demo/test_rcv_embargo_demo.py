@@ -11,72 +11,123 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for the RCV embargo demo scenario (#2071, DEMOMA-20).
+"""Unit tests for the RCV embargo demo scenario (#2071, DEMOMA-20, #5534).
 
 The scenario drives four containers, so these tests pin its shape instead of a
-running stack: the registration, the phase order, and the EM state each phase
-asserts before the next begins.
+running stack: its registration, the path its story walks, the order of its
+fragments, the CLI options it offers, and the EM state each fragment asserts
+before the next one runs.
+
+``rcv-embargo`` is now composed (``STORY``), so what used to be a test of a
+``_phase_*`` function is a test of the fragment that phase became, run against
+a stand-in :class:`~vultron.demo.helpers.story.StoryState`
+(:func:`~test.demo._helpers.story_state`).  The fragments of the opening the
+embargo pair shares live in
+:mod:`vultron.demo.helpers.coordinated_embargo_story` and are tested here,
+where ``rcv-embargo`` is the first scenario to reach each of them; the
+sibling's module tests only what ``rcvv-embargo`` alone tells.
+
+Every test patches the collaborators out, so no HTTP happens.  ``demo_gate`` /
+``demo_check`` / ``demo_step`` are left real: the failure accumulator is what
+tells a recorded failure from a raise, and ``test_demo_context_managers.py``
+owns their own behaviour.
 """
 
+from collections.abc import Sequence
 from unittest.mock import MagicMock, patch
 
 import pytest
+from click.testing import CliRunner
 
-import vultron.demo.helpers.embargo_phases as phases
+import vultron.demo.helpers.coordinated_embargo_story as embargo_story
 import vultron.demo.scenario.rcv_embargo_demo as demo
-from test.demo._helpers import stub_scenario_harness
+from test.demo._helpers import mock_case, story_state
 from vultron.core.states.em import EM
+from vultron.demo.cli import main as demo_cli
+from vultron.demo.helpers.coordinated_embargo_story import (
+    PROPOSED_EMBARGO,
+    REPORTER_PROPOSES_EMBARGO,
+    assert_canonical_em_state,
+    coordinator_ends_the_embargo,
+    embargo_stays_ended_through_closure,
+    embargo_stays_ended_through_publication,
+    embargo_survives_the_fix,
+    reporter_revises_the_default_embargo,
+    the_default_embargo_is_in_force,
+)
+from vultron.demo.helpers.coordinated_story import (
+    COORDINATOR,
+    REPORTER,
+    VENDOR,
+)
+from vultron.demo.helpers.story import Choose, Fragment, StoryState
 from vultron.demo.scenario.registry import discover_scenarios
 from vultron.demo.utils import _demo_failures, reset_demo_failures
+from vultron.errors import DemoStoryError
 
-CASE_ID = "http://case-actor:7999/api/v2/VulnerabilityCases/abc"
+#: The cast ``rcv-embargo``'s fragments read, by the names the family seats
+#: its three fixed-role members under.
+_CAST = (REPORTER, COORDINATOR, VENDOR)
+
+#: The path this scenario used to declare as ``@scenario(path=...)``, before
+#: the registry started reading it off the story's choices (DEMOCI-11-019).
+#: Pinned against literals rather than against the registry, which would
+#: compare the derivation with itself.
+EXPECTED_PATH = (
+    ("reporter-whom-to-tell", "coordinator"),
+    ("coordinator-invite-whom", "vendor"),
+    ("vendor-join", "accept"),
+    ("reporter-after-join", "propose-embargo"),
+    ("vendor-after-embargo", "report-fix-ready"),
+)
 
 
 @pytest.fixture(autouse=True)
 def _clean_failures():
+    """Clear the process-global failure accumulator around every test.
+
+    ``vultron.demo.utils._demo_failures`` is process-global, and a fragment
+    that records a failure leaves it there for the next test — where it also
+    changes what ``demo_gate`` does, since a gate skips its body once anything
+    is recorded.
+    """
     reset_demo_failures()
     yield
     reset_demo_failures()
 
 
-def _session(name: str) -> MagicMock:
-    session = MagicMock()
-    session.actor.id_ = f"http://{name}:7999/api/v2/actors/{name}"
-    session.client.base_url = f"http://{name}:7999/api/v2"
-    return session
-
-
-@pytest.fixture
-def cast() -> demo._Cast:
-    return demo._Cast(
-        reporter=_session("reporter"),
-        coordinator=_session("coordinator"),
-        vendor=_session("vendor"),
-        case_manager=MagicMock(),
-    )
-
-
-@pytest.fixture
-def case() -> MagicMock:
-    case = MagicMock()
-    case.id_ = CASE_ID
-    return case
-
-
-@pytest.fixture
-def em_waits():
-    """Stub the EM poll; the mock records ``(expected, active_embargo_id)``."""
-    with (
-        patch.object(phases, "wait_for_case_em_state") as wait,
-    ):
-        yield wait
+def _item_names(items: Sequence[Choose | Fragment]) -> list[str]:
+    """Each story item named: a fragment by name, a choice as ``point:choice``."""
+    return [
+        f"{item.branch_point}:{item.choice}"
+        if isinstance(item, Choose)
+        else getattr(item, "__name__", repr(item))
+        for item in items
+    ]
 
 
 def _states_asserted(wait: MagicMock) -> list[EM]:
+    """The EM state of each canonical-case assertion, in order.
+
+    ``assert_canonical_em_state`` passes it positionally as the third argument
+    of ``wait_for_case_em_state``.
+    """
     return [c.args[2] for c in wait.call_args_list]
 
 
+def _opened_state() -> StoryState:
+    """A story state with the three fixed-role members and an open case."""
+    return story_state(*_CAST, case=mock_case())
+
+
+# ---------------------------------------------------------------------------
+# Registration and the place on the tree
+# ---------------------------------------------------------------------------
+
+
 class TestRegistration:
+    """The scenario is discoverable, in the PR set, and where the spec says."""
+
     @pytest.mark.spec("DEMOMA-20-004")
     def test_registered_as_rcv_embargo_in_the_pr_set(self):
         registered = {s.name: s for s in discover_scenarios()}
@@ -98,59 +149,301 @@ class TestRegistration:
             "vultron/demo/scenario/rcv_embargo_demo.py"
         )
 
+    @pytest.mark.spec("DEMOCI-11-019")
+    def test_the_registered_path_is_read_off_the_story(self):
+        """The scenario declares a story, so its path is the story's choices.
 
-class TestPhaseOrder:
-    @staticmethod
-    def _run(cast, case, revised_embargo_id):
-        """Run the scenario with stubbed phases; return the phases that ran."""
-        order: list[str] = []
+        ``composed`` is what the registry records about having derived it; a
+        scenario still typing ``path=`` would register ``False``.
+        """
+        spec = {s.name: s for s in discover_scenarios()}["rcv-embargo"]
+        assert spec.composed is True
+        assert spec.path == demo.STORY.path
 
-        def phase(name: str, result=None):
-            def _run(*_a, **_kw):
-                order.append(name)
-                return result
 
-            return _run
+class TestStoryPath:
+    """Composition moved the code, not the scenario's place on the tree."""
+
+    @pytest.mark.spec("DEMOCI-11-019")
+    @pytest.mark.spec("DEMOMA-17-002")
+    def test_the_story_walks_the_path_the_scenario_declared(self):
+        assert demo.STORY.path == EXPECTED_PATH
+
+    @pytest.mark.spec("DEMOMA-17-001")
+    def test_the_story_opens_with_the_shared_prefix_objects_items(self):
+        """The opening is the prefix *object*, not a copy of its steps.
+
+        Identity of the whole shared stretch, item by item: a sibling that
+        slipped a fragment in before ``vendor-after-embargo`` would still walk
+        a valid path, and only this comparison would see it (DEMOCI-11-018).
+        """
+        shared = len(REPORTER_PROPOSES_EMBARGO.items)
+        assert demo.STORY.items[:shared] == REPORTER_PROPOSES_EMBARGO.items
+        # The first item of its own is the decision it parts from the sibling
+        # at, so the prefix is the whole of what the two share.
+        assert isinstance(demo.STORY.items[shared], Choose)
+
+    @pytest.mark.spec("DEMOMA-20-007")
+    @pytest.mark.spec("DEMOMA-20-008")
+    def test_the_fragments_run_in_the_specified_order(self):
+        """DEMOMA-20-007's order, with its EM assertion after each act.
+
+        Each ``embargo_*`` fragment is the assertion DEMOMA-20-008 asks for
+        between two acts, so their placement in this list is the property that
+        the next act never starts before the EM state is checked.
+        """
+        shared = len(REPORTER_PROPOSES_EMBARGO.items)
+        assert _item_names(demo.STORY.items[shared:]) == [
+            "vendor-after-embargo:report-fix-ready",
+            "vendor_reports_the_fix_ready",
+            "embargo_survives_the_fix",
+            "coordinator_ends_the_embargo",
+            "everyone_publishes",
+            "embargo_stays_ended_through_publication",
+            "everyone_closes",
+            "embargo_stays_ended_through_closure",
+        ]
+
+
+class TestCliOptionSurface:
+    """``vultron-demo rcv-embargo`` offers one option per role, plus the skip.
+
+    The CLI derives them from ``ROLES`` (DEMOCI-11-011), and composition left
+    ``main()``'s signature alone, so the surface is pinned here rather than
+    inferred from the role list.
+    """
+
+    @pytest.mark.spec("DEMOCI-11-011")
+    @pytest.mark.parametrize(
+        "option",
+        [
+            "--skip-health-check",
+            "--reporter-url",
+            "--coordinator-url",
+            "--vendor-url",
+            "--case-actor-url",
+            "--reporter-id",
+            "--coordinator-id",
+            "--vendor-id",
+        ],
+    )
+    def test_the_option_is_offered(self, option: str):
+        result = CliRunner().invoke(demo_cli, ["rcv-embargo", "--help"])
+        assert result.exit_code == 0, result.output
+        assert option in result.output
+
+
+# ---------------------------------------------------------------------------
+# The opening the embargo pair shares (coordinated_embargo_story)
+# ---------------------------------------------------------------------------
+
+
+class TestTheSharedEmbargoOpening:
+    """Case creation activates the default embargo; the proposal revises it.
+
+    These fragments are the opening ``rcv-embargo`` and ``rcvv-embargo``
+    share, so they are tested once, here.
+    """
+
+    @pytest.mark.spec("EP-04-001")
+    @pytest.mark.spec("DEMOMA-20-008")
+    def test_the_case_opens_under_the_default_embargo(self):
+        """EM.ACTIVE before anyone proposes, read on the canonical case."""
+        state = _opened_state()
+
+        with patch.object(embargo_story, "wait_for_case_em_state") as em_wait:
+            the_default_embargo_is_in_force(state)
+
+        assert _states_asserted(em_wait) == [EM.ACTIVE]
+        # The canonical case lives on the dedicated case-actor container, and
+        # no participant's replica stands in for it (DEMOMA-20-011, #1876).
+        assert em_wait.call_args.args[0] is state.case_actor_client
+        # The default embargo's id is the case's, not the story's, so this
+        # assertion pins no particular embargo — the proposal's does.
+        assert em_wait.call_args.kwargs["active_embargo_id"] is None
+        assert not _demo_failures
+
+    @pytest.mark.spec("EP-09-001")
+    @pytest.mark.spec("DEMOMA-20-002")
+    @pytest.mark.spec("DEMOMA-20-008")
+    def test_the_reporters_proposal_revises_the_default_embargo(self):
+        """The relayed proposal takes effect, and the revision is kept.
+
+        ``EM.ACTIVE`` alone cannot tell the revision from the embargo it
+        revised, so the fragment reads the active embargo before and after and
+        keeps the new one for the fragments that end it.
+        """
+        state = _opened_state()
+        canonical = [
+            MagicMock(active_embargo_id="urn:embargo:default"),
+            MagicMock(active_embargo_id="urn:embargo:revised"),
+        ]
 
         with (
-            # The real harness writes a dump manifest under devlogs/ on exit,
-            # which the invariant harness would then read as an aborted run.
-            patch.object(demo, "scenario_harness", stub_scenario_harness),
             patch.object(
-                demo,
-                "_phase_report_submission",
-                side_effect=phase("report_submission", (cast, case)),
+                embargo_story, "canonical_case", side_effect=canonical
             ),
+            patch.object(embargo_story, "wait_for_case_em_state") as em_wait,
             patch.object(
-                demo,
-                "_phase_embargo_proposal",
-                side_effect=phase("embargo_proposal", revised_embargo_id),
-            ),
+                embargo_story, "demo_propose_and_activate_embargo"
+            ) as helper,
+        ):
+            reporter_revises_the_default_embargo(state)
+
+        helper.assert_called_once_with(
+            state.actor(REPORTER),
+            state.actor(COORDINATOR),
+            state.actor(VENDOR),
+            state.case,
+            case_manager_client=state.case_actor_client,
+        )
+        assert state.kept(PROPOSED_EMBARGO) == "urn:embargo:revised"
+        assert _states_asserted(em_wait) == [EM.ACTIVE]
+        assert em_wait.call_args.args[0] is state.case_actor_client
+        assert (
+            em_wait.call_args.kwargs["active_embargo_id"]
+            == "urn:embargo:revised"
+        )
+        assert not _demo_failures
+
+    @pytest.mark.spec("DEMOMA-20-008")
+    def test_a_proposal_that_took_no_effect_keeps_nothing(self):
+        """An unchanged embargo is a recorded failure, not a revision.
+
+        The fragment keeps nothing, which is how the fragments that end the
+        embargo stop instead of terminating the wrong one (DEMOCI-01-007).
+        """
+        state = _opened_state()
+        unchanged = MagicMock(active_embargo_id="urn:embargo:default")
+
+        with (
             patch.object(
-                demo,
-                "_notes_exchange",
-                side_effect=phase("notes_exchange"),
+                embargo_story, "canonical_case", return_value=unchanged
             ),
+            patch.object(embargo_story, "wait_for_case_em_state"),
+            patch.object(embargo_story, "demo_propose_and_activate_embargo"),
+        ):
+            reporter_revises_the_default_embargo(state)
+
+        assert _demo_failures
+        with pytest.raises(DemoStoryError, match="embargo the Reporter"):
+            state.kept(PROPOSED_EMBARGO)
+
+    @pytest.mark.spec("DEMOCI-01-003")
+    def test_a_missed_em_state_is_recorded_not_raised(self):
+        """A failed EM assertion lands in the accumulator, not as a raise."""
+        state = _opened_state()
+
+        with patch.object(
+            embargo_story,
+            "wait_for_case_em_state",
+            side_effect=AssertionError("timed out"),
+        ):
+            assert_canonical_em_state(state, EM.ACTIVE, "phase")
+
+        assert _demo_failures
+
+
+# ---------------------------------------------------------------------------
+# The continuation ``rcv-embargo`` alone tells
+# ---------------------------------------------------------------------------
+
+
+class TestTheDeliberateTermination:
+    """The fix leaves the embargo alone; the Coordinator then ends it."""
+
+    @pytest.mark.spec("DEMOMA-20-008")
+    def test_the_fix_being_ready_leaves_the_embargo_active(self):
+        state = _opened_state()
+
+        with patch.object(embargo_story, "wait_for_case_em_state") as em_wait:
+            embargo_survives_the_fix(state)
+
+        assert _states_asserted(em_wait) == [EM.ACTIVE]
+        assert em_wait.call_args.args[0] is state.case_actor_client
+
+    @pytest.mark.spec("DEMOMA-20-003")
+    @pytest.mark.spec("DEMOMA-20-008")
+    def test_the_coordinator_ends_the_embargo_in_force(self):
+        """The owner terminates, and canonical plus replicas read EM.EXITED."""
+        state = _opened_state()
+        state.keep(PROPOSED_EMBARGO, "urn:embargo:revised")
+
+        with (
+            patch.object(embargo_story, "demo_terminate_embargo") as terminate,
+            patch.object(embargo_story, "wait_for_case_em_state") as em_wait,
             patch.object(
-                demo,
-                "_phase_fix_lifecycle",
-                side_effect=phase("fix_lifecycle"),
-            ),
-            patch.object(
-                demo,
-                "_phase_embargo_termination",
-                side_effect=phase("embargo_termination"),
-            ),
-            patch.object(
-                demo,
-                "_phase_publication",
-                side_effect=phase("publication"),
-            ),
-            patch.object(
-                demo,
-                "_phase_case_closure",
-                side_effect=phase("case_closure"),
-            ),
+                embargo_story, "wait_for_case_em_terminated"
+            ) as replica_wait,
+        ):
+            coordinator_ends_the_embargo(state)
+
+        terminate.assert_called_once_with(
+            state.actor(COORDINATOR),
+            state.case,
+            case_manager_client=state.case_actor_client,
+        )
+        assert _states_asserted(em_wait) == [EM.EXITED]
+        assert em_wait.call_args.args[0] is state.case_actor_client
+        # The replicas learn it from the fan-out after the commit, so they are
+        # read through their own containers, in turn (EDF-06-006).
+        assert [c.kwargs["client"] for c in replica_wait.call_args_list] == [
+            state.client(REPORTER),
+            state.client(VENDOR),
+        ]
+        assert not _demo_failures
+
+    @pytest.mark.spec("DEMOCI-01-007")
+    def test_ending_an_embargo_no_fragment_kept_raises(self):
+        """Without the revision there is nothing to end, so the story stops.
+
+        This is what the old nested ``demo_gate`` did: a failed proposal
+        skipped termination, publication and closure.  The fragment raises
+        before terminating anything, and ``run_story`` turns that into the
+        stop (``_run_fragment``).
+        """
+        state = _opened_state()
+
+        with (
+            patch.object(embargo_story, "demo_terminate_embargo") as terminate,
+            patch.object(embargo_story, "wait_for_case_em_state") as em_wait,
+            patch.object(embargo_story, "wait_for_case_em_terminated"),
+            pytest.raises(DemoStoryError, match="embargo the Reporter"),
+        ):
+            coordinator_ends_the_embargo(state)
+
+        terminate.assert_not_called()
+        em_wait.assert_not_called()
+
+    @pytest.mark.spec("DEMOMA-20-008")
+    def test_publication_keeps_the_embargo_exited(self):
+        state = _opened_state()
+
+        with patch.object(embargo_story, "wait_for_case_em_state") as em_wait:
+            embargo_stays_ended_through_publication(state)
+
+        assert _states_asserted(em_wait) == [EM.EXITED]
+
+    @pytest.mark.spec("DEMOMA-20-008")
+    def test_closure_keeps_the_embargo_exited(self):
+        state = _opened_state()
+
+        with patch.object(embargo_story, "wait_for_case_em_state") as em_wait:
+            embargo_stays_ended_through_closure(state)
+
+        assert _states_asserted(em_wait) == [EM.EXITED]
+
+
+class TestTheScenarioRunsItsOwnStory:
+    """``run_rcv_embargo_demo`` hands ``run_story`` its name and its story."""
+
+    def test_the_run_plays_this_scenarios_story(self):
+        played: list[tuple[str, object]] = []
+
+        with patch.object(
+            demo,
+            "run_story",
+            side_effect=lambda name, plot, _open: played.append((name, plot)),
         ):
             demo.run_rcv_embargo_demo(
                 reporter_client=MagicMock(),
@@ -159,139 +452,4 @@ class TestPhaseOrder:
                 case_actor_client=MagicMock(),
             )
 
-        return order
-
-    @pytest.mark.spec("DEMOMA-20-007")
-    def test_phases_run_in_the_specified_order(self, cast, case):
-        order = self._run(cast, case, "urn:test:embargo:revised")
-        # #4759: the notes exchange follows the proposal, so the Reporter's
-        # branch point is between proposing and asking.
-        assert order == [
-            "report_submission",
-            "embargo_proposal",
-            "notes_exchange",
-            "fix_lifecycle",
-            "embargo_termination",
-            "publication",
-            "case_closure",
-        ]
-
-    @pytest.mark.spec("DEMOMA-20-007")
-    def test_a_failed_proposal_skips_termination_publication_and_closure(
-        self, cast, case
-    ):
-        """No revised embargo: phases 4-6 are skipped, the failure is recorded."""
-        order = self._run(cast, case, None)
-        assert order == [
-            "report_submission",
-            "embargo_proposal",
-            "notes_exchange",
-            "fix_lifecycle",
-        ]
-        assert _demo_failures
-
-
-class TestEmStateAfterEachPhase:
-    """DEMOMA-20-008: each phase asserts EM before the next starts."""
-
-    @pytest.mark.spec("DEMOMA-20-008")
-    def test_proposal_phase_asserts_the_revision_is_active(
-        self, cast, case, em_waits
-    ):
-        canonical = [
-            MagicMock(active_embargo_id="urn:embargo:default"),
-            MagicMock(active_embargo_id="urn:embargo:revised"),
-        ]
-        with (
-            patch.object(phases, "canonical_case", side_effect=canonical),
-            patch.object(
-                phases, "demo_propose_and_activate_embargo"
-            ) as helper,
-        ):
-            revised = demo._phase_embargo_proposal(cast, case)
-
-        helper.assert_called_once_with(
-            cast.reporter,
-            cast.coordinator,
-            cast.vendor,
-            case,
-            case_manager_client=cast.case_manager,
-        )
-        assert revised == "urn:embargo:revised"
-        assert _states_asserted(em_waits) == [EM.ACTIVE]
-        # The canonical case is read on the dedicated case-actor container.
-        assert em_waits.call_args.args[0] is cast.case_manager
-        assert (
-            em_waits.call_args.kwargs["active_embargo_id"]
-            == "urn:embargo:revised"
-        )
-        assert not _demo_failures
-
-    @pytest.mark.spec("DEMOMA-20-008")
-    def test_unchanged_embargo_is_recorded_as_a_failure(
-        self, cast, case, em_waits
-    ):
-        """A proposal that never took effect must not pass as a revision."""
-        same = MagicMock(active_embargo_id="urn:embargo:default")
-        with (
-            patch.object(phases, "canonical_case", return_value=same),
-            patch.object(phases, "demo_propose_and_activate_embargo"),
-        ):
-            demo._phase_embargo_proposal(cast, case)
-
-        assert _demo_failures
-
-    @pytest.mark.spec("DEMOMA-20-008")
-    def test_fix_lifecycle_leaves_the_embargo_active(
-        self, cast, case, em_waits
-    ):
-        with patch.object(demo, "vendor_reports_fix_ready") as fix_ready:
-            demo._phase_fix_lifecycle(cast, case)
-        fix_ready.assert_called_once()
-        assert _states_asserted(em_waits) == [EM.ACTIVE]
-
-    @pytest.mark.spec("DEMOMA-20-003")
-    @pytest.mark.spec("DEMOMA-20-008")
-    def test_termination_asserts_exited_on_canonical_and_replicas(
-        self, cast, case, em_waits
-    ):
-        with (
-            patch.object(demo, "demo_terminate_embargo") as terminate,
-            patch.object(demo, "wait_for_case_em_terminated") as replica_wait,
-        ):
-            demo._phase_embargo_termination(cast, case)
-
-        terminate.assert_called_once_with(
-            cast.coordinator, case, case_manager_client=cast.case_manager
-        )
-        assert _states_asserted(em_waits) == [EM.EXITED]
-        assert em_waits.call_args.args[0] is cast.case_manager
-        read_through = [
-            c.kwargs["client"] for c in replica_wait.call_args_list
-        ]
-        assert read_through == [cast.reporter.client, cast.vendor.client]
-
-    @pytest.mark.spec("DEMOMA-20-008")
-    def test_publication_keeps_the_embargo_exited(self, cast, case, em_waits):
-        with patch.object(demo, "everyone_reports_published") as published:
-            demo._phase_publication(cast, case)
-        published.assert_called_once()
-        assert _states_asserted(em_waits) == [EM.EXITED]
-
-    @pytest.mark.spec("DEMOMA-20-008")
-    def test_closure_keeps_the_embargo_exited(self, cast, case, em_waits):
-        with patch.object(demo, "everyone_closes_case") as closed:
-            demo._phase_case_closure(cast, case)
-        closed.assert_called_once()
-        assert _states_asserted(em_waits) == [EM.EXITED]
-
-    @pytest.mark.spec("DEMOMA-20-008")
-    def test_a_missed_em_state_is_recorded_not_raised(
-        self, cast, case, em_waits
-    ):
-        """A failed EM assertion lands in the accumulator, not as a raise."""
-        em_waits.side_effect = AssertionError("timed out")
-        phases.assert_canonical_em_state(
-            cast.coordinator, case, EM.ACTIVE, "phase"
-        )
-        assert _demo_failures
+        assert played == [("rcv-embargo", demo.STORY)]

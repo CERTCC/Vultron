@@ -1,6 +1,6 @@
 """Tests for the incoming-learnings frontmatter validator.
 
-Covers: BW-02-001, BW-02-002, BW-02-004, BW-02-006.
+Covers: BW-02-001, BW-02-002, BW-02-004, BW-02-006, BW-02-007.
 """
 
 from __future__ import annotations
@@ -177,7 +177,7 @@ class TestRenderLearningsIndex:
 class TestLearningsIndexCli:
     """``learnings-index`` is what orient-agent reads instead of the queue."""
 
-    @pytest.mark.spec("BW-02-006")
+    @pytest.mark.spec("BW-02-006", "BW-02-007")
     def test_malformed_file_does_not_cost_the_valid_entries(
         self, tmp_path: Path, monkeypatch, capsys
     ) -> None:
@@ -197,7 +197,7 @@ class TestLearningsIndexCli:
         assert "20260902-bad.md" in err
         assert "20260901-good.md" not in err
 
-    @pytest.mark.spec("BW-02-006")
+    @pytest.mark.spec("BW-02-006", "BW-02-007")
     def test_clean_queue_writes_nothing_to_stderr(
         self, tmp_path: Path, monkeypatch, capsys
     ) -> None:

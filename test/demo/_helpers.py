@@ -13,8 +13,10 @@
 
 """Shared helpers for demo test fixtures."""
 
+import ast
 import contextlib
 import importlib
+import inspect
 import logging
 import re
 from collections.abc import Iterator, Mapping, Sequence
@@ -48,6 +50,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers import invite_chain, runner, workflow
+from vultron.demo.helpers.story import StoryState, UnseatedContainer
 from vultron.demo.in_process import response_value
 from vultron.demo.utils import DataLayerClient
 from vultron.errors import VultronError
@@ -97,6 +100,132 @@ def mock_case(id_: str = "urn:test:case") -> MagicMock:
     case = MagicMock()
     case.id_ = id_
     return case
+
+
+def mock_client() -> MagicMock:
+    """A stand-in container client whose reads return an empty record."""
+    client = MagicMock()
+    client.get.return_value = {}
+    return client
+
+
+def story_state(
+    *names: str,
+    case: MagicMock | None = None,
+    unseated: Sequence[str] = (),
+) -> StoryState:
+    """A :class:`StoryState` whose cast is one stand-in session per name.
+
+    For the call-shape tests of a story fragment (#5533): each name gets its
+    own client and an actor whose id is ``urn:test:<name>``, and the harness is
+    a mock, so a test observes what the fragment calls rather than driving a
+    real run.
+
+    Args:
+        names: The cast names the fragment under test reads, e.g. ``"reporter"``.
+        case: When given, the state is opened on it so ``state.case`` resolves.
+        unseated: Cast names whose container is waiting for a character actor
+            the fragment under test seeds and seats (#5534); each gets its own
+            client and the deterministic id ``urn:test:<name>``.
+
+    Returns:
+        The state, with ``state.client(name)`` and ``state.actor(name)`` live.
+    """
+    state = StoryState(
+        cast={
+            name: ActorSession(
+                client=mock_client(), actor=mock_actor(f"urn:test:{name}")
+            )
+            for name in names
+        },
+        case_actor_client=mock_client(),
+        harness=MagicMock(),
+        dump=lambda _state: None,
+        unseated={
+            name: UnseatedContainer(
+                label=name,
+                client=mock_client(),
+                actor_id=f"urn:test:{name}",
+            )
+            for name in unseated
+        },
+    )
+    if case is not None:
+        state.open_case(case=case, report=MagicMock(), offer=MagicMock())
+    return state
+
+
+@contextlib.contextmanager
+def no_demo_banners(*modules: ModuleType) -> Iterator[None]:
+    """Make every demo context manager in *modules* a pass-through.
+
+    For the tests that observe call parameters and ordering rather than gate
+    control flow.  A composed scenario's fragment reaches several modules —
+    its own, its family's, and a shared continuation's — and each opens its
+    own ``demo_step`` / ``demo_check`` / ``demo_gate``, so every one a
+    fragment reaches is patched or the banner it opens stays real.  A module
+    imports only the names it uses, so a name it never opens is skipped
+    rather than patched into existence.
+
+    Never use it in a test about control flow: patching a gate out makes its
+    assertion propagate and the test pass while proving nothing
+    (``vultron/demo/AGENTS.md`` § "Test gates against the real context
+    manager").
+    """
+    with contextlib.ExitStack() as stack:
+        for module in modules:
+            null_demo_contexts(stack, module)
+        yield
+
+
+def devlogs_name_of(
+    state: StoryState,
+    client: object,
+    replicas: Sequence[tuple[str, str]],
+) -> str:
+    """The devlogs name of the seated cast member *client* belongs to.
+
+    For a test that reads an ordering through the names the invariant harness
+    loads, which in the two-coordinator pair deliberately cross the parts
+    (``vendor`` is C1, ``vendor2`` is the Vendor), so reading an order through
+    them also holds the dump mapping honest.
+
+    Args:
+        state: The running story's state.
+        client: The container client to name.
+        replicas: The scenario's ``(devlogs name, cast name)`` pairs.
+
+    Returns:
+        The devlogs name, or ``"unknown"`` when no seated member holds that
+        client — an unseated member has no replica, so naming it would raise
+        instead of reporting the order the test is about.
+    """
+    for devlogs_name, member in replicas:
+        if member in state.cast and state.client(member) is client:
+            return devlogs_name
+    return "unknown"
+
+
+def functions_referencing(module: ModuleType, name: str) -> list[str]:
+    """The names of *module*'s functions whose body mentions *name*.
+
+    For a sole-caller assertion: a scenario's own ``seed_containers_*`` must be
+    called by the one step that brings its character actors into the case, and
+    by nothing earlier, because every record written before the case exists is
+    one more read of the recording clock (DEMOCI-11-018, #5532).  Read from the
+    source rather than by patching, so the claim holds for the code as written
+    and not only for the path a test happens to drive.
+    """
+    tree = ast.parse(inspect.getsource(module))
+    return [
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef)
+        and any(
+            isinstance(child, ast.Name) and child.id == name
+            for child in ast.walk(node)
+        )
+    ]
 
 
 @contextlib.contextmanager
@@ -643,8 +772,13 @@ def null_demo_contexts(stack: contextlib.ExitStack, demo: ModuleType) -> None:
 
     For call-shape tests that observe which client a scenario hands a helper,
     never gate control flow (``test_demo_context_managers.py`` covers that).
+    A module imports only the names it uses, so a name it never opens is
+    skipped rather than patched into existence.  :func:`no_demo_banners` is
+    this over several modules, as its own context manager.
     """
     for name in ("demo_gate", "demo_check", "demo_step"):
+        if not hasattr(demo, name):
+            continue
         stack.enter_context(
             patch.object(
                 demo, name, side_effect=lambda _: contextlib.nullcontext()

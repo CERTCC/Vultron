@@ -8,7 +8,7 @@
 #
 # The assignee check and the assignment are two calls, not one atomic step, so
 # two runs started at the same moment can both pass. Runs are started by a
-# person, so this is accepted rather than locked (PAD-19-001).
+# person, so this is accepted rather than locked (PAD-19-008).
 #
 # Exit codes: 0 claimed; 1 not an Epic, already claimed, or API error.
 set -euo pipefail

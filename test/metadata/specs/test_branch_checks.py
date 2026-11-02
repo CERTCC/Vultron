@@ -15,7 +15,7 @@
 Each test builds a throwaway git repository whose ``base`` branch is the merge
 base, then edits the working tree, which is the head side.
 
-Specs: MS-10-011, PD-10-003, PAD-20-003.
+Specs: MS-10-011, PD-10-005, PAD-20-003.
 """
 
 from __future__ import annotations
@@ -127,7 +127,7 @@ class TestChangedMarkers:
         assert _errors(repo) == []
 
 
-@pytest.mark.spec("PD-10-003")
+@pytest.mark.spec("PD-10-005")
 class TestAddedYamlLines:
     def test_an_added_long_line_is_reported(self, repo):
         _write_specs(

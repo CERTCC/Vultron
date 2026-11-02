@@ -2,7 +2,7 @@
 
 The placement table decides which Requirements Catalog page shows each
 requirement file (DF-12-005), and the lookup and linker decide where a
-requirement's row is and how a rendered row links it (DF-12-002). The first
+requirement's row is and how a rendered row links it (DF-12-002, DF-12-010). The first
 tests are gates on the real ``specs/`` corpus; the rest pin each fault, the
 lookup's refusals, and every link path, including the single-page edition.
 """
@@ -103,7 +103,7 @@ PAGES = (
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("DF-12-005", "DF-12-001")
+@pytest.mark.spec("DF-12-015", "DF-12-001")
 def test_real_placement_table_is_sound() -> None:
     faults = placement_faults(load_registry())
     assert not faults, "\n".join(faults)
@@ -141,7 +141,7 @@ def test_unplaced_file_fails(registry: SpecRegistry) -> None:
     pages = PAGES[1:]
     assert placement_faults(registry, pages) == [
         "AAA holds protocol requirements but no protocol catalog page "
-        "places it (DF-12-005)"
+        "places it (DF-12-015)"
     ]
 
 
@@ -154,7 +154,7 @@ def test_file_unplaced_for_one_of_its_tiers_fails(
     )
     assert placement_faults(registry, pages) == [
         "BBB holds foundation requirements but no foundation catalog page "
-        "places it (DF-12-005)"
+        "places it (DF-12-015)"
     ]
 
 
@@ -164,7 +164,7 @@ def test_file_placed_twice_for_one_tier_fails(registry: SpecRegistry) -> None:
         *PAGES[1:],
     )
     assert placement_faults(registry, pages) == [
-        "BBB is placed 2 times for the protocol tier (DF-12-005)"
+        "BBB is placed 2 times for the protocol tier (DF-12-015)"
     ]
 
 
@@ -174,7 +174,7 @@ def test_file_placed_twice_on_one_page_fails(registry: SpecRegistry) -> None:
         *PAGES[1:],
     )
     assert placement_faults(registry, pages) == [
-        "AAA is placed 2 times for the protocol tier (DF-12-005)"
+        "AAA is placed 2 times for the protocol tier (DF-12-015)"
     ]
 
 
@@ -254,7 +254,7 @@ def test_catalog_location_of_foundation_requirement(
     assert location.page.key == "foundation"
 
 
-@pytest.mark.spec("DF-12-003")
+@pytest.mark.spec("DF-12-012")
 def test_catalog_location_refuses_another_kind(registry: SpecRegistry) -> None:
     with pytest.raises(NotInCatalogError, match="architecture requirement"):
         catalog_location(_rid("CCC", 1), registry, PAGES)
@@ -304,7 +304,7 @@ def test_site_href(from_page: str, to_page: str, expected: str) -> None:
     assert site_href(from_page, to_page, "x") == expected
 
 
-@pytest.mark.spec("DF-12-002")
+@pytest.mark.spec("DF-12-010")
 def test_catalog_tiers_link_the_catalog_row(registry: SpecRegistry) -> None:
     href = requirement_linker(registry, _SPEC_PAGE, pages=PAGES)
     assert href(_rid("AAA", 1)) == "../requirements/one/#aaa-01-001"
@@ -325,7 +325,7 @@ def test_catalog_row_from_a_sibling_catalog_page(
     assert href(_rid("BBB", 1)) == "../two/#bbb-01-001"
 
 
-@pytest.mark.spec("DF-12-002")
+@pytest.mark.spec("DF-12-011")
 def test_full_page_links_the_in_page_catalog_copy(
     registry: SpecRegistry,
 ) -> None:

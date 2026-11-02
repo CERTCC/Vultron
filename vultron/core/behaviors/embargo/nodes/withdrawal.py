@@ -19,7 +19,7 @@ Withdrawal is ``Leave(EmbargoEvent)[context=VulnerabilityCase]``
 (ADR-0122): a participant whose consent row for the embargo in force is
 ``AGREED`` ends its own consent, and the embargo stays in force for
 everyone else (VP-13-017).  It is not an answer to an Invite, so a
-``Reject(Invite(EmbargoEvent))`` never withdraws (MSM-07-004).
+``Reject(Invite(EmbargoEvent))`` never withdraws (MSM-07-014).
 
 - :class:`IsWithdrawableEmbargoNode` — the received tree's read-only guard
   ahead of the commit (CLP-10-009).
@@ -193,7 +193,7 @@ class RejectIsNotWithdrawalNode(_EmbargoRefusalGuardNode):
 
     Refuses a Reject of the embargo in force from the rejecting actor's
     ``AGREED`` row: that would be a withdrawal, and withdrawal is
-    ``Leave(EmbargoEvent)`` (MSM-07-004, MSM-07-010).  Every other Reject
+    ``Leave(EmbargoEvent)`` (MSM-07-014, MSM-07-010).  Every other Reject
     passes.
     """
 
@@ -358,7 +358,7 @@ class WithdrawEmbargoLifecycleNode(_EmbargoLifecycleNode):
     ``CommitEmbargoDecisionNode`` commits the ``Leave(EmbargoEvent)``, then
     each row it declines as its own ``Update(EmbargoConsent)`` entry, and
     applies them by copying (ADR-0124).  Any other participant sends the
-    Leave to the CASE_MANAGER and writes nothing (EP-09-008).  Moves no
+    Leave to the CASE_MANAGER and writes nothing (EP-09-017).  Moves no
     register entry (MSM-07-010).
     """
 

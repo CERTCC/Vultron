@@ -33,7 +33,7 @@ artifacts, and ``--check`` fails on any difference (MSM-06-001):
   occasion: what a page outside the reference includes at the step that sends
   the occasion.  It is a box with no heading, holding the facts a sender acts
   on, a link to the canonical section and the example JSON collapsed, so one
-  source renders in two places, separated and linked (DF-01-003, ADR-0128).
+  source renders in two places, separated and linked (DF-01-006, DF-01-007, ADR-0128).
 
 Each section's "Seen in" lists the pages that include its embed.  It is read
 from the include directives of every page under ``docs/`` outside the
@@ -679,7 +679,7 @@ def render_embed(group: OccasionGroup, row: OccasionRow) -> str:
     the example JSON collapsed.  It carries no heading, so it adds no anchor
     and no table-of-contents entry to its host, and leaves out the reference
     facts (formal definition, mapping status, notes and "Seen in") that the
-    linked section holds (DF-01-003).
+    linked section holds (DF-01-007).
     """
     to_pages = "../../"
     facts = _send_facts(row)
