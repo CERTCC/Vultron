@@ -1,10 +1,11 @@
 """CI verification test — the scheduled publish from tags (DOCBW-06, ADR-0169).
 
 The decisions are functions in ``.github/scripts/publish_gate.py``, tested here
-without GitHub; the skip rule and the tagging run against real tags in a
-scratch repository. The workflow that wires them together,
-``deploy_site.yml``, is pinned here too: its triggers, its blocking list, the
-order of its jobs and steps, its concurrency group and its report.
+without GitHub; the skip rule, the rollback target check and the tagging run
+against real commits and tags in a scratch repository with a bare ``origin``.
+The workflow that wires them together, ``deploy_site.yml``, is pinned here
+too: its triggers, its blocking list, the order and permissions of its jobs,
+its concurrency group and its report.
 """
 
 from __future__ import annotations
@@ -41,6 +42,8 @@ _MAIN_CI = {
     "actions-lint.yml",
 }
 DAY = "2026-11-02"
+MAIN = "refs/heads/main"
+RUN_URL = "https://github.com/O/R/actions/runs/5"
 
 
 def _load_script() -> ModuleType:
@@ -115,37 +118,47 @@ class _Calls:
 
 @pytest.mark.spec("DOCBW-06-007", "DOCBW-06-018", "DOCBW-06-020")
 @pytest.mark.parametrize(
-    ("event", "ref", "skip", "expected"),
+    ("event", "skip", "rollback_to", "expected"),
     [
-        ("schedule", "refs/heads/main", False, "scheduled"),
-        # The input exists only on a manual run; a schedule never skips.
-        ("schedule", "refs/heads/main", True, "scheduled"),
-        ("workflow_dispatch", "refs/heads/main", False, "manual"),
-        ("workflow_dispatch", "refs/heads/main", True, "manual-ungated"),
-        ("workflow_dispatch", f"refs/tags/publish-{DAY}.1", False, "rollback"),
-        ("workflow_dispatch", "refs/tags/v2026.10.0", True, "rollback"),
+        ("schedule", False, "", "scheduled"),
+        # The inputs exist only on a manual run; a schedule ignores them.
+        ("schedule", True, f"publish-{DAY}.1", "scheduled"),
+        ("workflow_dispatch", False, "", "manual"),
+        ("workflow_dispatch", True, "", "manual-ungated"),
+        ("workflow_dispatch", False, f"publish-{DAY}.1", "rollback"),
+        # A rollback never checks CI, whatever the other input says.
+        ("workflow_dispatch", True, "v2026.10.0", "rollback"),
     ],
 )
 def test_classify_trigger(
-    event: str, ref: str, skip: bool, expected: str
+    event: str, skip: bool, rollback_to: str, expected: str
 ) -> None:
-    assert _gate.classify_trigger(event, ref, skip) == expected
+    assert _gate.classify_trigger(event, MAIN, skip, rollback_to) == expected
 
 
+@pytest.mark.spec("DOCBW-06-026")
 @pytest.mark.parametrize(
-    ("event", "ref"),
+    ("event", "ref", "rollback_to"),
     [
-        ("push", "refs/heads/main"),
-        ("push", "refs/heads/publish"),
-        ("workflow_dispatch", "refs/heads/feature"),
-        ("workflow_dispatch", "refs/tags/snapshot-2026Q4"),
-        # A branch named like a tag is still a branch.
-        ("workflow_dispatch", "refs/heads/publish-2026-11-02.1"),
+        ("push", MAIN, ""),
+        ("push", "refs/heads/publish", ""),
+        ("workflow_dispatch", "refs/heads/feature", ""),
+        # A run from a tag would execute that tag's copy of the workflow.
+        ("workflow_dispatch", f"refs/tags/publish-{DAY}.1", ""),
+        ("workflow_dispatch", "refs/tags/v2026.10.0", ""),
+        ("workflow_dispatch", "refs/tags/v2026.10.0", "v2026.10.0"),
+        # Only a publish or release tag can be a rollback target.
+        ("workflow_dispatch", MAIN, "snapshot-2026Q4"),
+        ("workflow_dispatch", MAIN, "main"),
+        ("workflow_dispatch", MAIN, f"publish-{DAY}"),
+        ("workflow_dispatch", MAIN, "vNext"),
     ],
 )
-def test_an_unsupported_run_is_refused(event: str, ref: str) -> None:
+def test_an_unsupported_run_is_refused(
+    event: str, ref: str, rollback_to: str
+) -> None:
     with pytest.raises(_gate.UnsupportedRunError):
-        _gate.classify_trigger(event, ref, False)
+        _gate.classify_trigger(event, ref, False, rollback_to)
 
 
 # --- the CI gate ---------------------------------------------------------------
@@ -223,45 +236,36 @@ def test_green_main_publishes() -> None:
     assert calls.issue_reads == 2 and calls.waits == 1
 
 
+def _run(
+    run_id: int, path: str, status: str, head: str = "old", name: str = "W"
+) -> dict[str, object]:
+    return {
+        "id": run_id,
+        "name": name,
+        "path": path,
+        "status": status,
+        "head_sha": head,
+    }
+
+
 @pytest.mark.spec("DOCBW-06-010")
-def test_pending_runs_waits_only_for_blocking_workflows() -> None:
+def test_pending_runs_waits_only_for_blocking_runs_in_history() -> None:
+    py, ui = ".github/workflows/python-app.yml", ".github/workflows/ui.yml"
     runs = [
-        {
-            "id": 1,
-            "name": "Python application",
-            "path": ".github/workflows/python-app.yml",
-            "status": "in_progress",
-        },
-        {
-            "id": 2,
-            "name": "UI",
-            "path": ".github/workflows/ui.yml@refs/heads/main",
-            "status": "queued",
-        },
-        {
-            "id": 3,
-            "name": "ADR Status Drift",
-            "path": ".github/workflows/adr-status-drift.yml",
-            "status": "in_progress",
-        },
-        {
-            "id": 4,
-            "name": "Python application",
-            "path": ".github/workflows/python-app.yml",
-            "status": "completed",
-        },
+        _run(1, py, "in_progress", name="Python application"),
+        _run(2, f"{ui}@refs/heads/main", "queued", name="UI"),
+        _run(3, ".github/workflows/adr-status-drift.yml", "in_progress"),
+        _run(4, py, "completed"),
+        # A run for a later commit cannot judge the candidate's code.
+        _run(5, py, "in_progress", head="newer"),
         # This run itself.
-        {
-            "id": 99,
-            "name": "UI",
-            "path": ".github/workflows/ui.yml",
-            "status": "in_progress",
-        },
+        _run(99, ui, "in_progress"),
+        # A run with no name is reported by its workflow file.
+        _run(6, ui, "waiting", name=""),
     ]
-    assert _gate.pending_runs(runs, BLOCKING, 99) == [
-        "Python application",
-        "UI",
-    ]
+    assert _gate.pending_runs(
+        runs, BLOCKING, 99, lambda head: head == "old"
+    ) == [".github/workflows/ui.yml", "Python application", "UI"]
 
 
 class _FakeClock:
@@ -299,7 +303,7 @@ def test_wait_for_runs_stops_when_the_runs_finish() -> None:
     assert clock.now == 2 * _gate.POLL_SECONDS
 
 
-# --- the skip rule, against real tags ------------------------------------------
+# --- real repositories --------------------------------------------------------------
 
 
 @pytest.fixture
@@ -347,17 +351,38 @@ def _head(repo: Path) -> str:
     return _git(repo, "rev-parse", "HEAD")
 
 
-def _tag_as_bot(repo: Path, name: str) -> None:
+def _commit(repo: Path, message: str) -> str:
+    _git(repo, "commit", "--allow-empty", "-q", "-m", message)
+    return _head(repo)
+
+
+def _tag_as_bot(repo: Path, name: str, target: str = "HEAD") -> None:
     _git(
         repo,
         "tag",
         "-a",
         name,
+        target,
         "-m",
         "scheduled publish.",
         name=_gate.BOT_NAME,
         email=_gate.BOT_EMAIL,
     )
+
+
+@pytest.mark.spec("DOCBW-06-010")
+def test_is_in_history(repo: Path) -> None:
+    first = _head(repo)
+    second = _commit(repo, "second")
+    assert _gate.is_in_history(first, second)
+    assert _gate.is_in_history(second, second)
+    assert not _gate.is_in_history(second, first)
+    # A commit this clone has never seen is not in the tip's history.
+    assert not _gate.is_in_history("0" * 40, second)
+    assert not _gate.is_in_history("", second)
+
+
+# --- the skip rule -------------------------------------------------------------------
 
 
 @pytest.mark.spec("DOCBW-06-013")
@@ -406,7 +431,7 @@ def test_publish_tags_on_reads_only_publish_tags_on_the_commit(
     _tag_as_bot(repo, "v2026.10.0")
     _tag_as_bot(repo, f"publish-{DAY}.1")
     first = _head(repo)
-    _git(repo, "commit", "--allow-empty", "-q", "-m", "second")
+    _commit(repo, "second")
     assert [t.name for t in _gate.publish_tags_on(first)] == [
         f"publish-{DAY}.1"
     ]
@@ -436,31 +461,52 @@ def test_a_rollback_skips_the_gate() -> None:
     assert calls.issue_reads == 0 and calls.waits == 0
 
 
+@pytest.mark.spec("DOCBW-06-026")
+def test_a_rollback_target_must_be_on_main(repo: Path) -> None:
+    """Only a commit in main's history is redeployed: any account that can
+    push can create a tag, on any commit."""
+    old = _head(repo)
+    _tag_as_bot(repo, f"publish-{DAY}.1")
+    tip = _commit(repo, "tip")
+    _git(repo, "checkout", "-q", "-b", "unreviewed", old)
+    stray = _commit(repo, "never merged")
+    _git(repo, "tag", "v9.9.9")
+    _git(repo, "checkout", "-q", "-")
+
+    def resolve(tag: str) -> str:
+        return _gate.resolve_rollback(
+            tag, tip, tag_commit=_gate.tag_commit, on_main=_gate.is_in_history
+        )
+
+    assert resolve(f"publish-{DAY}.1") == old
+    with pytest.raises(_gate.UnsupportedRunError, match="not on main"):
+        resolve("v9.9.9")
+    with pytest.raises(_gate.UnsupportedRunError, match="names no tag"):
+        resolve("v1.0.0")
+    assert _gate.tag_commit("v9.9.9") == stray
+
+
 @pytest.mark.spec("DOCBW-06-020", "DOCBW-06-013")
 def test_a_rolled_back_commit_is_not_republished(repo: Path) -> None:
     """Main's tip X was published, then the site rolled back to W.
 
-    The next scheduled run still finds the tip X tagged by the workflow, so it
-    does not undo the rollback.
+    The rollback tag lands on W, so it is the newest tag and names what is
+    live. X keeps its own tag, so the next scheduled run, which finds X still
+    at the tip of main, skips it instead of undoing the rollback.
     """
-    _tag_as_bot(repo, f"publish-{DAY}.1")  # W
-    _git(repo, "commit", "--allow-empty", "-q", "-m", "X")
-    _tag_as_bot(repo, f"publish-{DAY}.2")  # X, the tip
-    _git(
-        repo,
-        "tag",
-        "-a",
-        f"publish-{DAY}.3",
-        f"publish-{DAY}.1^{{}}",
-        "-m",
-        "rollback",
-        name=_gate.BOT_NAME,
-        email=_gate.BOT_EMAIL,
-    )
-    decision = _Calls(tags=_gate.publish_tags_on(_head(repo))).decide(
+    w = _head(repo)
+    _tag_as_bot(repo, f"publish-{DAY}.1")
+    x = _commit(repo, "X")
+    _tag_as_bot(repo, f"publish-{DAY}.2")
+    _tag_as_bot(repo, f"publish-{DAY}.3", target=w)  # the rollback
+    newest = _gate.next_tag_name(DAY, _git(repo, "tag").split())
+    assert newest == f"publish-{DAY}.4"
+    assert _gate.tag_commit(f"publish-{DAY}.3") == w
+    decision = _Calls(tags=_gate.publish_tags_on(x)).decide(
         _ctx(Trigger.SCHEDULED)
     )
     assert not decision.publish
+    assert f"`publish-{DAY}.2`" in decision.reason
 
 
 @pytest.mark.spec("DOCBW-06-017", "DOCBW-06-020")
@@ -479,11 +525,9 @@ def test_a_rolled_back_commit_is_not_republished(repo: Path) -> None:
 def test_tag_message_records_trigger_and_actor(
     trigger: Any, first_line: str
 ) -> None:
-    message = _gate.tag_message(
-        _ctx(trigger, f"publish-{DAY}.1"), "https://run/1"
-    )
+    message = _gate.tag_message(_ctx(trigger, f"publish-{DAY}.1"), RUN_URL)
     assert message.splitlines()[0] == first_line
-    assert "Commit: abc123" in message and "Run: https://run/1" in message
+    assert "Commit: abc123" in message and f"Run: {RUN_URL}" in message
 
 
 # --- tagging -----------------------------------------------------------------------
@@ -520,14 +564,32 @@ def _remote_tags(repo: Path) -> dict[str, str]:
 @pytest.mark.spec("DOCBW-06-016", "DOCBW-06-017")
 def test_create_tag_pushes_one_annotated_tag(repo: Path) -> None:
     sha = _head(repo)
-    name = _gate.create_tag(sha, "scheduled publish.\n", today=DAY)
+    name = _gate.create_tag(
+        sha, f"scheduled publish.\n\nRun: {RUN_URL}\n", RUN_URL, today=DAY
+    )
     assert name == f"publish-{DAY}.1"
     assert list(_remote_tags(repo)) == [name]
     tag = _gate.publish_tags_on(sha)
     assert len(tag) == 1 and tag[0].made_by_workflow
+    contents = _git(repo, "tag", "-l", "--format=%(contents)", name)
+    assert contents.splitlines()[0] == "scheduled publish."
+
+
+@pytest.mark.spec("DOCBW-06-016", "DOCBW-06-025")
+def test_a_rerun_finds_the_tag_it_pushed(repo: Path) -> None:
+    """Re-running a failed tag job makes no second tag for the same run."""
+    sha = _head(repo)
+    message = _gate.tag_message(
+        _gate.RunContext(Trigger.MANUAL, sha, "octocat"), RUN_URL
+    )
+    first = _gate.create_tag(sha, message, RUN_URL, today=DAY)
+    again = _gate.create_tag(sha, message, RUN_URL, today=DAY)
+    assert again == first
+    assert list(_remote_tags(repo)) == [first]
+    # Another run on the same commit is a new publish, with a new tag.
+    other = "https://github.com/O/R/actions/runs/6"
     assert (
-        _git(repo, "tag", "-l", "--format=%(contents)", name)
-        == "scheduled publish."
+        _gate.create_tag(sha, message, other, today=DAY) == f"publish-{DAY}.2"
     )
 
 
@@ -549,98 +611,162 @@ def test_create_tag_renumbers_past_a_taken_name(
     _git(other, "tag", "-a", f"publish-{DAY}.1", "-m", "by hand")
     _git(other, "push", "-q", "origin", f"publish-{DAY}.1")
     before = _remote_tags(repo)[f"publish-{DAY}.1"]
-    real = _gate._remote_tag_names
+    real = _gate._remote_tags
     reads: list[int] = []
 
-    def stale_then_real() -> list[str]:
-        # The first read predates the hand-made tag; later reads see it.
+    def stale_for_numbering() -> dict[str, str]:
+        # The reads before the first push predate the hand-made tag.
         reads.append(1)
-        return [] if len(reads) == 1 else real()
+        return {} if len(reads) <= 2 else real()
 
-    monkeypatch.setattr(_gate, "_remote_tag_names", stale_then_real)
-    name = _gate.create_tag(_head(repo), "manual publish.\n", today=DAY)
+    monkeypatch.setattr(_gate, "_remote_tags", stale_for_numbering)
+    name = _gate.create_tag(
+        _head(repo), "manual publish.\n", RUN_URL, today=DAY
+    )
     assert name == f"publish-{DAY}.2"
     remote = _remote_tags(repo)
     assert remote[f"publish-{DAY}.1"] == before
     assert set(remote) == {f"publish-{DAY}.1", f"publish-{DAY}.2"}
 
 
-def test_create_tag_fails_after_its_attempts(
+@pytest.mark.spec("DOCBW-06-016")
+def test_create_tag_accepts_a_push_that_landed(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """A push that reached the remote but reported failure is not repeated."""
+    real_run = _gate.run
+
+    def push_then_fail(*argv: str) -> str:
+        out = real_run(*argv)
+        if argv[:2] == ("git", "push"):
+            raise subprocess.CalledProcessError(1, list(argv))
+        return out
+
+    monkeypatch.setattr(_gate, "run", push_then_fail)
+    name = _gate.create_tag(_head(repo), "x\n", RUN_URL, today=DAY)
+    assert name == f"publish-{DAY}.1"
+    assert list(_remote_tags(repo)) == [name]
+
+
+def test_create_tag_raises_a_push_failure_that_is_no_collision(
+    repo: Path,
+) -> None:
+    """An unreachable remote is a real failure, never a reason to renumber."""
+    sha = _head(repo)
     _git(repo, "remote", "set-url", "origin", str(repo.parent / "missing.git"))
-    monkeypatch.setattr(_gate, "_remote_tag_names", lambda: [])
     with pytest.raises(subprocess.CalledProcessError):
-        _gate.create_tag(_head(repo), "x\n", today=DAY)
+        _gate.create_tag(sha, "x\n", RUN_URL, today=DAY)
+    assert _git(repo, "tag", "--list", "publish-*").split() == []
 
 
-# --- the gate command ---------------------------------------------------------------
+# --- the gate and tag commands ------------------------------------------------------
+
+
+@pytest.fixture
+def outputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> dict[str, Path]:
+    paths = {"out": tmp_path / "out", "summary": tmp_path / "summary"}
+    monkeypatch.setenv("GITHUB_OUTPUT", str(paths["out"]))
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(paths["summary"]))
+    monkeypatch.setenv("BLOCKING_WORKFLOWS", _blocking_env())
+    return paths
+
+
+def _gate_main(
+    *, event: str = "workflow_dispatch", sha: str = "abc123", **inputs: str
+) -> int:
+    argv = [
+        "gate", "--repo", "O/R", "--sha", sha, "--event", event,
+        "--ref", inputs.pop("ref", MAIN), "--actor", "octocat", "--run-id", "5",
+    ]  # fmt: skip
+    for key, value in inputs.items():
+        argv += [f"--{key.replace('_', '-')}", value]
+    return int(_gate.main(argv))
+
+
+def _no_github(
+    monkeypatch: pytest.MonkeyPatch,
+    issues: list[dict[str, object]] | None = None,
+) -> None:
+    monkeypatch.setattr(
+        _gate, "list_failure_issues", lambda repo: issues or []
+    )
+    monkeypatch.setattr(_gate, "list_main_runs", lambda repo: [])
 
 
 @pytest.mark.spec("DOCBW-06-011")
 def test_gate_command_writes_its_verdict(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    outputs: dict[str, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    out, summary = tmp_path / "out", tmp_path / "summary"
-    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
-    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
-    monkeypatch.setenv("BLOCKING_WORKFLOWS", _blocking_env())
     monkeypatch.setattr(_gate, "publish_tags_on", lambda sha: [])
-    monkeypatch.setattr(
-        _gate,
-        "list_failure_issues",
-        lambda repo: [
-            {"number": 41, "labels": ["ci:main-failure", "ci:workflow-ui"]}
-        ],
+    _no_github(
+        monkeypatch,
+        [{"number": 41, "labels": ["ci:main-failure", "ci:workflow-ui"]}],
     )
-    monkeypatch.setattr(_gate, "list_runs", lambda repo, sha: [])
-    code = _gate.main(
-        [
-            "gate",
-            "--repo",
-            "O/R",
-            "--sha",
-            "abc123",
-            "--event",
-            "schedule",
-            "--ref",
-            "refs/heads/main",
-            "--actor",
-            "octocat",
-            "--run-id",
-            "5",
-        ]
-    )
-    assert code == 0
-    assert "Skipped" in summary.read_text()
-    assert "blocked by #41 (ci:workflow-ui)" in summary.read_text()
-    outputs = out.read_text()
-    assert "publish=false\n" in outputs and "trigger=scheduled\n" in outputs
-    assert "scheduled publish, by github-actions[bot]." in outputs
+    assert _gate_main(event="schedule") == 0
+    summary = outputs["summary"].read_text()
+    assert "Skipped" in summary
+    assert "blocked by #41 (ci:workflow-ui)" in summary
+    out = outputs["out"].read_text()
+    assert "publish=false\n" in out and "trigger=scheduled\n" in out
+    assert "commit=abc123\n" in out
+    assert "scheduled publish, by github-actions[bot]." in out
 
 
-def test_gate_command_refuses_an_unsupported_run(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.spec("DOCBW-06-018")
+def test_gate_command_skips_the_gate_on_request(
+    outputs: dict[str, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("BLOCKING_WORKFLOWS", _blocking_env())
-    code = _gate.main(
-        [
-            "gate",
-            "--repo",
-            "O/R",
-            "--sha",
-            "a",
-            "--event",
-            "workflow_dispatch",
-            "--ref",
-            "refs/heads/feature",
-            "--actor",
-            "o",
-            "--run-id",
-            "5",
-        ]
+    monkeypatch.setattr(_gate, "publish_tags_on", lambda sha: [])
+    _no_github(
+        monkeypatch,
+        [{"number": 41, "labels": ["ci:main-failure", "ci:workflow-ui"]}],
     )
-    assert code == 1
+    assert _gate_main(skip_ci_gate="true") == 0
+    out = outputs["out"].read_text()
+    assert "publish=true\n" in out and "trigger=manual-ungated\n" in out
+    assert "manual publish with the CI gate skipped, by @octocat." in out
+
+
+@pytest.mark.spec("DOCBW-06-020")
+def test_gate_command_rolls_back_to_a_commit_on_main(
+    repo: Path, outputs: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    old = _head(repo)
+    _tag_as_bot(repo, f"publish-{DAY}.1")
+    tip = _commit(repo, "tip")
+    _no_github(
+        monkeypatch,
+        [{"number": 41, "labels": ["ci:main-failure", "ci:workflow-ui"]}],
+    )
+    assert _gate_main(sha=tip, rollback_to=f"publish-{DAY}.1") == 0
+    out = outputs["out"].read_text()
+    assert "publish=true\n" in out and "trigger=rollback\n" in out
+    assert f"commit={old}\n" in out
+    assert f"rollback to publish-{DAY}.1, by @octocat." in out
+
+
+@pytest.mark.spec("DOCBW-06-026")
+def test_gate_command_refuses_a_rollback_off_main(
+    repo: Path, outputs: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tip = _head(repo)
+    _git(repo, "checkout", "-q", "-b", "unreviewed")
+    _commit(repo, "never merged")
+    _git(repo, "tag", "v9.9.9")
+    _no_github(monkeypatch)
+    assert _gate_main(sha=tip, rollback_to="v9.9.9") == 1
+    assert "not on main" in outputs["summary"].read_text()
+    assert not outputs["out"].exists()
+
+
+@pytest.mark.spec("DOCBW-06-026")
+def test_gate_command_refuses_a_run_from_a_tag(
+    outputs: dict[str, Path],
+) -> None:
+    assert _gate_main(ref="refs/tags/v2026.10.0") == 1
+    assert "refused" in outputs["summary"].read_text()
 
 
 @pytest.mark.parametrize(
@@ -649,6 +775,113 @@ def test_gate_command_refuses_an_unsupported_run(
 def test_parse_blocking_refuses_an_empty_or_malformed_list(text: str) -> None:
     with pytest.raises(ValueError):
         _gate.parse_blocking(text)
+
+
+def test_tag_command_writes_the_tag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = tmp_path / "out"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    made: list[tuple[str, str, str]] = []
+
+    def create_tag(sha: str, message: str, run_url: str) -> str:
+        made.append((sha, message, run_url))
+        return f"publish-{DAY}.1"
+
+    monkeypatch.setattr(_gate, "create_tag", create_tag)
+    argv = ["tag", "--sha", "abc123", "--message", "m\n", "--run-url", RUN_URL]
+    assert _gate.main(argv) == 0
+    assert made == [("abc123", "m\n", RUN_URL)]
+    assert out.read_text() == f"tag=publish-{DAY}.1\n"
+
+
+# --- GitHub plumbing ---------------------------------------------------------------
+
+
+@pytest.fixture
+def fake_gh_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Callable[..., Any]:
+    def install(**kwargs: Any) -> Any:
+        gh = install_fake_gh(tmp_path, **kwargs)
+        for key, value in gh.env.items():
+            monkeypatch.setenv(key, value)
+        return gh
+
+    return install
+
+
+def test_list_failure_issues_reads_the_list_endpoint(
+    fake_gh_env: Callable[..., Any],
+) -> None:
+    """The list endpoint, never search (#5105), through the script's own jq."""
+    page = [
+        {
+            "number": 41,
+            "labels": [
+                {"name": "ci:main-failure"},
+                {"name": "ci:workflow-ui"},
+            ],
+        },
+        {
+            "number": 42,
+            "labels": [{"name": "ci:main-failure"}],
+            "pull_request": {"url": "x"},
+        },
+    ]
+    gh = fake_gh_env(issues_page=page)
+    issues = _gate.list_failure_issues("O/R")
+    assert issues == [
+        {"number": 41, "labels": ["ci:main-failure", "ci:workflow-ui"]},
+        {
+            "number": 42,
+            "labels": ["ci:main-failure"],
+            "pull_request": {"url": "x"},
+        },
+    ]
+    assert _gate.blocking_issues(issues, BLOCKING) == [(41, "ci:workflow-ui")]
+    (call,) = gh.calls()
+    assert "repos/O/R/issues?labels=ci:main-failure&state=open" in call
+    assert "--paginate" in call
+
+
+@pytest.mark.spec("DOCBW-06-008")
+def test_an_api_error_fails_the_gate(fake_gh_env: Callable[..., Any]) -> None:
+    """An unreadable issue list never reads as "no issue open"."""
+    fake_gh_env(api_fails=True)
+    with pytest.raises(subprocess.CalledProcessError):
+        _gate.list_failure_issues("O/R")
+
+
+def test_list_main_runs_extracts_each_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    page = json.dumps(
+        {
+            "workflow_runs": [
+                {**_run(1, ".github/workflows/ui.yml", "queued"), "extra": 0},
+                _run(2, ".github/workflows/spec-check.yml", "completed"),
+            ]
+        }
+    )
+    seen: list[tuple[str, ...]] = []
+
+    def run_jq(*args: str) -> str:
+        seen.append(args)
+        return subprocess.run(
+            ["jq", args[-1]],
+            input=page,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    monkeypatch.setattr(_gate, "gh", run_jq)
+    runs = _gate.list_main_runs("O/R")
+    assert [r["id"] for r in runs] == [1, 2]
+    assert set(runs[0]) == {"id", "name", "path", "status", "head_sha"}
+    assert "repos/O/R/actions/runs?branch=main&per_page=100" in seen[0]
 
 
 # --- the workflow -----------------------------------------------------------------
@@ -662,8 +895,17 @@ def _blocking_env() -> str:
     return str(_workflow()["env"]["BLOCKING_WORKFLOWS"])
 
 
-def _job_steps(job: str) -> list[dict[str, Any]]:
-    return list(_workflow()["jobs"][job]["steps"])
+def _job(name: str) -> dict[str, Any]:
+    return dict(_workflow()["jobs"][name])
+
+
+def _job_steps(name: str) -> list[dict[str, Any]]:
+    return list(_job(name)["steps"])
+
+
+def _needs(name: str) -> set[str]:
+    needs = _job(name).get("needs", [])
+    return {needs} if isinstance(needs, str) else set(needs)
 
 
 @pytest.mark.spec("DOCBW-06-007")
@@ -673,11 +915,13 @@ def test_publication_workflow_triggers() -> None:
     assert on["schedule"] == [{"cron": "7 6 * * 1-5"}]
 
 
-@pytest.mark.spec("DOCBW-06-018")
+@pytest.mark.spec("DOCBW-06-018", "DOCBW-06-020")
 def test_skip_ci_gate_input_defaults_off() -> None:
     inputs = triggers(_workflow())["workflow_dispatch"]["inputs"]
+    assert set(inputs) == {"skip-ci-gate", "rollback-to"}
     assert inputs["skip-ci-gate"]["type"] == "boolean"
     assert inputs["skip-ci-gate"]["default"] is False
+    assert inputs["rollback-to"]["default"] == ""
 
 
 @pytest.mark.spec("DOCBW-06-009")
@@ -706,29 +950,62 @@ def test_blocking_list_omits_the_publication_workflow() -> None:
 
 @pytest.mark.spec("DOCBW-06-012")
 def test_deploy_runs_only_on_the_gate_verdict() -> None:
-    jobs = _workflow()["jobs"]
-    gate_run = " ".join(str(s.get("run", "")) for s in jobs["gate"]["steps"])
+    """The build runs only when the gate says to, on the commit it chose."""
+    gate_run = " ".join(str(s.get("run", "")) for s in _job_steps("gate"))
     assert "publish_gate.py gate" in gate_run
-    assert "github.sha" in str(jobs["gate"]["steps"][-1]["env"]["SHA"])
-    deploy = jobs["deploy"]
-    assert deploy["needs"] == "gate"
-    assert deploy["if"] == "needs.gate.outputs.publish == 'true'"
-    # Both checkouts take the run's commit: neither names another ref.
-    for step in deploy["steps"]:
-        assert "ref" not in step.get("with", {}), step
+    build = _job("build")
+    assert build["needs"] == "gate"
+    assert build["if"] == "needs.gate.outputs.publish == 'true'"
+    (shared,) = [
+        s
+        for s in build["steps"]
+        if s.get("uses") == "./.github/actions/build-site"
+    ]
+    assert shared["with"] == {"ref": "${{ needs.gate.outputs.commit }}"}
+    # The other checkouts take the run's own commit, main's tip.
+    for name in ("gate", "build", "tag"):
+        for step in _job_steps(name):
+            if step.get("uses") != shared["uses"]:
+                assert "ref" not in step.get("with", {}), (name, step)
+    assert _needs("deploy") == {"gate", "build"}
+    assert _needs("tag") == {"gate", "deploy"}
+    tag_env = _job_steps("tag")[-1]["env"]
+    assert tag_env["SHA"] == "${{ needs.gate.outputs.commit }}"
 
 
 @pytest.mark.spec("DOCBW-06-016", "DOCBW-06-002")
-def test_the_tag_step_follows_the_deploy() -> None:
-    steps = _job_steps("deploy")
+def test_the_tag_job_follows_the_deploy() -> None:
+    steps = _job_steps("build")
     build = index_of(steps, "./.github/actions/build-site", "uses")
     check = index_of(steps, "./.github/actions/check-site-publication", "uses")
     upload = index_of(steps, "actions/upload-pages-artifact", "uses")
-    deploy = index_of(steps, "actions/deploy-pages", "uses")
-    tag = index_of(steps, "publish_gate.py tag", "run")
-    assert None not in (build, check, upload, deploy, tag)
-    assert build < check < upload < deploy < tag  # type: ignore[operator]
-    assert "if" not in steps[tag]  # type: ignore[index]
+    assert None not in (build, check, upload)
+    assert build < check < upload  # type: ignore[operator]
+    assert [s["uses"].split("@")[0] for s in _job_steps("deploy")] == [
+        "actions/deploy-pages"
+    ]
+    tag = _job_steps("tag")[-1]
+    assert "publish_gate.py tag" in tag["run"]
+    assert "if" not in tag and "if" not in _job("tag")
+    assert "continue-on-error" not in tag
+
+
+@pytest.mark.spec("DOCBW-06-024", "DOCBW-06-027")
+def test_each_job_holds_only_its_permissions() -> None:
+    wf = _workflow()
+    assert wf["permissions"] == {"contents": "read"}
+    expected = {
+        "gate": {"contents": "read", "issues": "read", "actions": "read"},
+        "build": {"contents": "read", "pages": "read"},
+        "deploy": {"pages": "write", "id-token": "write"},
+        "tag": {"contents": "write"},
+        "notify": {"contents": "read", "issues": "write"},
+    }
+    assert {n: j.get("permissions") for n, j in wf["jobs"].items()} == expected
+    # Only the deploy job may deploy to the Pages environment.
+    assert [n for n, j in wf["jobs"].items() if "environment" in j] == [
+        "deploy"
+    ]
 
 
 @pytest.mark.spec("DOCBW-06-021")
@@ -742,7 +1019,8 @@ def test_one_concurrency_group_never_cancels() -> None:
 
 
 _TAG_REWRITES = re.compile(
-    r"--delete|--force|\s-[df]\b|\"-[df]\"|:refs/tags|\+refs/tags|tag\s+-[a-z]*[df]"
+    r"--delete|--force|\s-[df]\b|\"-[df]\"|:refs/tags|\+refs/tags"
+    r"|tag\s+-[a-z]*[df]"
 )
 
 
@@ -776,148 +1054,31 @@ def test_the_tag_rewrite_detector_catches_each_form(text: str) -> None:
 
 @pytest.mark.spec("DOCBW-06-003", "DOCBW-06-020")
 def test_a_rollback_or_skip_does_not_close_a_failure() -> None:
-    close = next(
-        s
-        for s in _job_steps("notify")
-        if s.get("with", {}).get("mode") == "close"
-    )
+    steps = _job_steps("notify")
+    close = next(s for s in steps if s.get("with", {}).get("mode") == "close")
     guard = " ".join(str(close["if"]).split())
-    assert "needs.deploy.result == 'success'" in guard
+    assert "needs.tag.result == 'success'" in guard
     assert "needs.gate.outputs.trigger != 'rollback'" in guard
     notify = next(
-        s
-        for s in _job_steps("notify")
-        if s.get("with", {}).get("mode") == "notify"
+        s for s in steps if s.get("with", {}).get("mode") == "notify"
     )
     assert notify["with"]["workflow-label"] == "ci:workflow-deploy-site"
+    assert _needs("notify") == {"gate", "build", "deploy", "tag"}
 
 
-# --- GitHub plumbing ---------------------------------------------------------------
-
-
-def test_list_failure_issues_reads_the_list_endpoint(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The list endpoint, never search (#5105), through the script's own jq."""
-    page = [
-        {
-            "number": 41,
-            "labels": [
-                {"name": "ci:main-failure"},
-                {"name": "ci:workflow-ui"},
-            ],
-        },
-        {
-            "number": 42,
-            "labels": [{"name": "ci:main-failure"}],
-            "pull_request": {"url": "x"},
-        },
-    ]
-    gh = install_fake_gh(tmp_path, issues_page=page)
-    for key, value in gh.env.items():
-        monkeypatch.setenv(key, value)
-    issues = _gate.list_failure_issues("O/R")
-    assert issues == [
-        {"number": 41, "labels": ["ci:main-failure", "ci:workflow-ui"]},
-        {
-            "number": 42,
-            "labels": ["ci:main-failure"],
-            "pull_request": {"url": "x"},
-        },
-    ]
-    assert _gate.blocking_issues(issues, BLOCKING) == [(41, "ci:workflow-ui")]
-    (call,) = gh.calls()
-    assert "repos/O/R/issues?labels=ci:main-failure&state=open" in call
-    assert "--paginate" in call
-
-
-def test_list_runs_extracts_each_run(monkeypatch: pytest.MonkeyPatch) -> None:
-    page = json.dumps(
-        {
-            "workflow_runs": [
-                {
-                    "id": 1,
-                    "name": "UI",
-                    "path": ".github/workflows/ui.yml",
-                    "status": "queued",
-                    "extra": 0,
-                },
-                {
-                    "id": 2,
-                    "name": "Spec Check",
-                    "path": ".github/workflows/spec-check.yml",
-                    "status": "completed",
-                },
-            ]
-        }
+@pytest.mark.spec("DOCBW-06-025")
+def test_an_untagged_deploy_is_reported() -> None:
+    steps = _job_steps("notify")
+    describe = next(
+        s for s in steps if "untagged-deploy.md" in str(s.get("run"))
     )
-    seen: list[tuple[str, ...]] = []
-
-    def run_jq(*argv: str) -> str:
-        seen.append(argv)
-        return subprocess.run(
-            ["jq", argv[-1]],
-            input=page,
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout
-
-    monkeypatch.setattr(_gate, "_run", run_jq)
-    runs = _gate.list_runs("O/R", "abc123")
-    assert [r["id"] for r in runs] == [1, 2]
-    assert set(runs[0]) == {"id", "name", "path", "status"}
-    assert "repos/O/R/actions/runs?head_sha=abc123&per_page=100" in seen[0]
-
-
-def _failing_then(answers: list[str | None]) -> Callable[..., str]:
-    calls = iter(answers)
-
-    def run(*argv: str) -> str:
-        answer = next(calls)
-        if answer is None:
-            raise subprocess.CalledProcessError(1, list(argv))
-        return answer
-
-    return run
-
-
-def test_gh_reads_are_retried(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        _gate, "_run", _failing_then([None, '{"number": 1}\n{"number": 2}\n'])
+    guard = " ".join(str(describe["if"]).split())
+    assert guard == (
+        "needs.deploy.result == 'success' && needs.tag.result == 'failure'"
     )
-    monkeypatch.setattr(_gate.time, "sleep", lambda seconds: None)
-    assert _gate._gh_lines("repos/O/R/issues", ".[]") == [
-        {"number": 1},
-        {"number": 2},
-    ]
-
-
-def test_gh_reads_fail_after_their_attempts(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """An API error fails the gate; it never reads as "no issue open"."""
-    monkeypatch.setattr(
-        _gate, "_run", _failing_then([None] * _gate.GH_ATTEMPTS)
+    assert "does not name what is live" in describe["run"]
+    notify = next(
+        s for s in steps if s.get("with", {}).get("mode") == "notify"
     )
-    monkeypatch.setattr(_gate.time, "sleep", lambda seconds: None)
-    with pytest.raises(subprocess.CalledProcessError):
-        _gate._gh_lines("repos/O/R/issues", ".[]")
-
-
-def test_tag_command_writes_the_tag(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    out = tmp_path / "out"
-    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
-    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
-    made: list[tuple[str, str]] = []
-
-    def create_tag(sha: str, message: str) -> str:
-        made.append((sha, message))
-        return f"publish-{DAY}.1"
-
-    monkeypatch.setattr(_gate, "create_tag", create_tag)
-    assert _gate.main(["tag", "--sha", "abc123", "--message", "m\n"]) == 0
-    assert made == [("abc123", "m\n")]
-    assert out.read_text() == f"tag=publish-{DAY}.1\n"
+    assert notify["with"]["details-file"] == "untagged-deploy.md"
+    assert steps.index(describe) < steps.index(notify)

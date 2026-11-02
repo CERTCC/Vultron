@@ -3,26 +3,30 @@
 
 The publish workflow (``deploy_site.yml``, ADR-0169, DOCBW-06) deploys the
 site from ``publish-YYYY-MM-DD.N`` tags. This script holds its logic, so the
-workflow only wires steps together:
+workflow only wires jobs together. Every run starts from ``main``, so the
+workflow and this script are always ``main``'s reviewed copies:
 
 - ``gate`` classifies the run (scheduled, manual, manual with the CI gate
-  skipped, rollback), applies the skip rule and the CI gate, and writes
-  ``publish``, ``trigger`` and ``tag-message`` to ``$GITHUB_OUTPUT`` and its
-  reason to ``$GITHUB_STEP_SUMMARY``. A skip is a green run, never a failure.
+  skipped, rollback), picks the commit to publish, applies the skip rule and
+  the CI gate, and writes ``publish``, ``trigger``, ``commit`` and
+  ``tag-message`` to ``$GITHUB_OUTPUT`` and its reason to
+  ``$GITHUB_STEP_SUMMARY``. A skip is a green run, never a failure; a run it
+  cannot serve (an unknown rollback target, a manual run off ``main``) fails.
 - ``tag`` creates one annotated ``publish-*`` tag on the deployed commit and
   pushes it. It only ever creates a tag: nothing here moves or deletes one,
-  which the tag ruleset would refuse (#5545).
+  which the tag ruleset would refuse (#5545). A re-run of the same workflow
+  run finds the tag it already pushed instead of making a second.
 
-The decisions (``classify_trigger``, ``split_publish_tags``,
-``blocking_issues``, ``pending_runs``, ``next_tag_name``, ``tag_message``,
-``wait_for_runs``, ``decide``) are pure or take their I/O as arguments, so the
-test suite pins them without GitHub; the rest is thin ``gh`` and ``git``
-plumbing.
+The decisions (``classify_trigger``, ``resolve_rollback``,
+``split_publish_tags``, ``blocking_issues``, ``pending_runs``,
+``next_tag_name``, ``tag_message``, ``wait_for_runs``, ``decide``) are pure or
+take their I/O as arguments, so the test suite pins them without GitHub; the
+rest is thin ``gh`` and ``git`` plumbing.
 
 Usage:
   publish_gate.py gate --repo OWNER/NAME --sha SHA --event EVENT --ref REF
-      --actor LOGIN --run-id ID [--skip-ci-gate true|false]
-  publish_gate.py tag --sha SHA --message TEXT
+      --actor LOGIN --run-id ID [--skip-ci-gate true|false] [--rollback-to TAG]
+  publish_gate.py tag --sha SHA --message TEXT --run-url URL
 """
 
 from __future__ import annotations
@@ -38,15 +42,20 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from gh_cli import CALL_TIMEOUT_SECONDS, gh, run  # see gh_cli
 
 TAG_PREFIX = "publish-"
+MAIN_REF = "refs/heads/main"
 # The identity this workflow tags as. git records it as the tagger of every
 # annotated tag the workflow creates; the skip rule recognises a tag the
 # workflow made by it (ADR-0169).
 BOT_NAME = "github-actions[bot]"
 BOT_EMAIL = "41898282+github-actions[bot]@users.noreply.github.com"
 FAILURE_LABEL = "ci:main-failure"
-# Wait this long for runs still going on the candidate commit, then skip.
+# Wait this long for unfinished blocking runs, then skip.
 WAIT_SECONDS = 3600
 POLL_SECONDS = 60
 # Workflow-run statuses that mean "not finished yet".
@@ -56,9 +65,10 @@ PENDING_STATUSES = frozenset(
 # A push of a freshly numbered tag can lose to a tag of the same name made in
 # between; renumber and try again this many times.
 TAG_PUSH_ATTEMPTS = 5
-GH_ATTEMPTS = 3
 
 _TAG_NAME_RE = re.compile(r"^publish-(\d{4}-\d{2}-\d{2})\.(\d+)$")
+# What a rollback may name: a publish tag, or a release tag (ADR-0006).
+_ROLLBACK_TAG_RE = re.compile(r"^(publish-\d{4}-\d{2}-\d{2}\.\d+|v\d\S*)$")
 
 
 class Trigger(StrEnum):
@@ -69,7 +79,7 @@ class Trigger(StrEnum):
 
 
 class UnsupportedRunError(ValueError):
-    """The run's event or ref is not one the publish workflow serves."""
+    """The run asks for something the publish workflow does not serve."""
 
 
 @dataclass(frozen=True)
@@ -100,7 +110,11 @@ class PublishTag:
 
 @dataclass(frozen=True)
 class RunContext:
-    """What one run of the publish workflow was asked to do."""
+    """What one run of the publish workflow was asked to do.
+
+    ``sha`` is the commit to publish: the tip of ``main`` the run started on,
+    or a rollback's target.
+    """
 
     trigger: Trigger
     sha: str
@@ -120,26 +134,54 @@ class Decision:
 # --- pure decisions -----------------------------------------------------------
 
 
-def classify_trigger(event: str, ref: str, skip_ci_gate: bool) -> Trigger:
-    """What kind of run this is, from its event and the ref it runs on.
+def classify_trigger(
+    event: str, ref: str, skip_ci_gate: bool, rollback_to: str = ""
+) -> Trigger:
+    """What kind of run this is, from its event, ref and inputs.
 
-    A scheduled run publishes ``main``. A manual run publishes ``main``, or
-    rolls back when started from a ``publish-*`` or ``v*`` tag. Anything else
-    (a push, a manual run from another branch) is refused.
+    A scheduled run publishes ``main``. A manual run must start from ``main``,
+    so the workflow that runs is ``main``'s reviewed copy, never one stored at
+    a tag (ADR-0169); it rolls back when it names a ``rollback-to`` tag, and
+    publishes ``main`` otherwise. Anything else is refused.
     """
     if event == "schedule":
         return Trigger.SCHEDULED
     if event != "workflow_dispatch":
         raise UnsupportedRunError(f"event {event!r} does not publish")
-    if ref == "refs/heads/main":
-        return Trigger.MANUAL_UNGATED if skip_ci_gate else Trigger.MANUAL
-    tag = ref.removeprefix("refs/tags/")
-    if tag != ref and (tag.startswith(TAG_PREFIX) or tag.startswith("v")):
+    if ref != MAIN_REF:
+        raise UnsupportedRunError(
+            f"a manual run starts from main, not {ref!r}; to roll back, "
+            "start from main and name the tag in rollback-to"
+        )
+    if rollback_to:
+        if not _ROLLBACK_TAG_RE.match(rollback_to):
+            raise UnsupportedRunError(
+                f"rollback-to {rollback_to!r} is not a {TAG_PREFIX}* or v* tag"
+            )
         return Trigger.ROLLBACK
-    raise UnsupportedRunError(
-        f"a manual run publishes from main, or rolls back from a "
-        f"{TAG_PREFIX}* or v* tag; {ref!r} is neither"
-    )
+    return Trigger.MANUAL_UNGATED if skip_ci_gate else Trigger.MANUAL
+
+
+def resolve_rollback(
+    tag: str,
+    main_sha: str,
+    *,
+    tag_commit: Callable[[str], str | None],
+    on_main: Callable[[str, str], bool],
+) -> str:
+    """The commit a rollback to *tag* redeploys.
+
+    Anyone who can push can create a tag (#5545), so a tag alone is no sign
+    of review. Only a commit already in ``main``'s history is redeployed.
+    """
+    commit = tag_commit(tag)
+    if commit is None:
+        raise UnsupportedRunError(f"rollback-to names no tag {tag!r}")
+    if not on_main(commit, main_sha):
+        raise UnsupportedRunError(
+            f"{tag!r} points at {commit}, which is not on main"
+        )
+    return commit
 
 
 def split_publish_tags(
@@ -193,29 +235,34 @@ def _label_names(labels: object) -> set[str]:
     }
 
 
-def _workflow_path(run: dict[str, object]) -> str:
+def _workflow_path(run_: dict[str, object]) -> str:
     """A run's workflow file path, without any ``@ref`` suffix."""
-    return str(run.get("path", "")).split("@", 1)[0]
+    return str(run_.get("path", "")).split("@", 1)[0]
 
 
 def pending_runs(
     runs: Iterable[dict[str, object]],
     blocking: Sequence[BlockingWorkflow],
     own_run_id: int,
+    in_history: Callable[[str], bool],
 ) -> list[str]:
-    """Names of unfinished blocking-workflow runs on the candidate commit.
+    """Unfinished blocking-workflow runs on the candidate or an earlier commit.
 
     A run that has not finished may yet turn its workflow red, so the gate
-    cannot read its verdict. Runs of non-blocking workflows, and this run
-    itself, cannot change the verdict and are not waited for.
+    cannot read its verdict. Push CI is path-filtered, so the run that judges
+    the candidate's code may be on an earlier commit than the candidate
+    itself; *in_history* says whether a run's commit is the candidate or one
+    of its ancestors. Runs of non-blocking workflows, runs on later commits,
+    and this run itself cannot change the verdict and are not waited for.
     """
     paths = {w.path for w in blocking}
     return sorted(
-        str(run.get("name", _workflow_path(run)))
-        for run in runs
-        if run.get("id") != own_run_id
-        and _workflow_path(run) in paths
-        and run.get("status") in PENDING_STATUSES
+        str(run_.get("name") or _workflow_path(run_))
+        for run_ in runs
+        if run_.get("id") != own_run_id
+        and _workflow_path(run_) in paths
+        and run_.get("status") in PENDING_STATUSES
+        and in_history(str(run_.get("head_sha", "")))
     )
 
 
@@ -230,7 +277,11 @@ def next_tag_name(day: str, existing: Iterable[str]) -> str:
 
 
 def tag_message(ctx: RunContext, run_url: str) -> str:
-    """The annotated tag's message: what started the publish, and who."""
+    """The annotated tag's message: what started the publish, and who.
+
+    The ``Run:`` line also lets a re-run of the tag job find the tag its
+    first attempt pushed.
+    """
     first = {
         Trigger.SCHEDULED: f"scheduled publish, by {BOT_NAME}.",
         Trigger.MANUAL: f"manual publish, by @{ctx.actor}.",
@@ -239,7 +290,11 @@ def tag_message(ctx: RunContext, run_url: str) -> str:
         ),
         Trigger.ROLLBACK: f"rollback to {ctx.source_tag}, by @{ctx.actor}.",
     }[ctx.trigger]
-    return f"{first}\n\nCommit: {ctx.sha}\nRun: {run_url}\n"
+    return f"{first}\n\nCommit: {ctx.sha}\n{_run_line(run_url)}\n"
+
+
+def _run_line(run_url: str) -> str:
+    return f"Run: {run_url}"
 
 
 def wait_for_runs(
@@ -280,7 +335,9 @@ def decide(
     """
     if ctx.trigger is Trigger.ROLLBACK:
         return Decision(
-            True, f"rollback to `{ctx.source_tag}`; the CI gate is skipped."
+            True,
+            f"rollback to `{ctx.source_tag}` ({ctx.sha}); "
+            "the CI gate is skipped.",
         )
     notes: list[str] = []
     own, ignored = split_publish_tags(tags_on_commit())
@@ -345,12 +402,6 @@ def parse_blocking(text: str) -> list[BlockingWorkflow]:
 # --- plumbing -----------------------------------------------------------------
 
 
-def _run(*argv: str) -> str:
-    return subprocess.run(  # noqa: S603 - fixed argv, no shell
-        list(argv), check=True, capture_output=True, text=True
-    ).stdout
-
-
 def _json_stream(text: str) -> list[dict[str, object]]:
     """Every JSON value in *text*, whether one per line or pretty-printed."""
     decoder = json.JSONDecoder()
@@ -368,39 +419,64 @@ def _skip_space(text: str, index: int) -> int:
     return index
 
 
-def _gh_lines(endpoint: str, jq: str) -> list[dict[str, object]]:
-    """Each item of a paginated REST list, through *jq*, retried (bounded)."""
-    for attempt in range(1, GH_ATTEMPTS + 1):
-        try:
-            return _json_stream(
-                _run("gh", "api", "--paginate", endpoint, "--jq", jq)
-            )
-        except subprocess.CalledProcessError:
-            if attempt == GH_ATTEMPTS:
-                raise
-            time.sleep(5 * attempt)
-    raise AssertionError("unreachable")  # pragma: no cover
-
-
 def list_failure_issues(repo: str) -> list[dict[str, object]]:
     # The list endpoint, never the search index, which lags (#5105).
-    return _gh_lines(
-        f"repos/{repo}/issues?labels={FAILURE_LABEL}&state=open&per_page=100",
-        ".[] | {number, labels: [.labels[].name], pull_request}"
-        " | with_entries(select(.value != null))",
+    return _json_stream(
+        gh(
+            "api",
+            "--paginate",
+            f"repos/{repo}/issues?labels={FAILURE_LABEL}&state=open&per_page=100",
+            "--jq",
+            ".[] | {number, labels: [.labels[].name], pull_request}"
+            " | with_entries(select(.value != null))",
+        )
     )
 
 
-def list_runs(repo: str, sha: str) -> list[dict[str, object]]:
-    return _gh_lines(
-        f"repos/{repo}/actions/runs?head_sha={sha}&per_page=100",
-        ".workflow_runs[] | {id, name, path, status}",
+def list_main_runs(repo: str) -> list[dict[str, object]]:
+    """The newest runs on ``main``: every unfinished run is among them."""
+    return _json_stream(
+        gh(
+            "api",
+            f"repos/{repo}/actions/runs?branch=main&per_page=100",
+            "--jq",
+            ".workflow_runs[] | {id, name, path, status, head_sha}",
+        )
     )
+
+
+def is_in_history(commit: str, tip: str) -> bool:
+    """Whether *commit* is *tip* or one of its ancestors in this clone.
+
+    The clone holds *tip*'s whole history, so a commit it does not know is
+    not in that history.
+    """
+    if not commit:
+        return False
+    return (
+        subprocess.run(  # noqa: S603 - fixed argv, no shell
+            ["git", "merge-base", "--is-ancestor", commit, tip],  # noqa: S607
+            capture_output=True,
+            check=False,
+            timeout=CALL_TIMEOUT_SECONDS,
+        ).returncode
+        == 0
+    )
+
+
+def tag_commit(tag: str) -> str | None:
+    """The commit *tag* points at in this clone, or ``None``."""
+    try:
+        return run(
+            "git", "rev-parse", "--verify", f"refs/tags/{tag}^{{commit}}"
+        ).strip()
+    except subprocess.CalledProcessError:
+        return None
 
 
 def publish_tags_on(sha: str) -> list[PublishTag]:
     """Every ``publish-*`` tag that points at *sha* in the local clone."""
-    out = _run(
+    out = run(
         "git",
         "for-each-ref",
         f"--points-at={sha}",
@@ -415,33 +491,54 @@ def publish_tags_on(sha: str) -> list[PublishTag]:
     return tags
 
 
-def _remote_tag_names() -> list[str]:
-    out = _run(
+def _remote_tags() -> dict[str, str]:
+    """The remote's ``publish-*`` tags, by name, with their object ids."""
+    out = run(
         "git", "ls-remote", "--tags", "origin", f"refs/tags/{TAG_PREFIX}*"
     )
-    return [
-        line.split("\t", 1)[1].removeprefix("refs/tags/").removesuffix("^{}")
-        for line in out.splitlines()
-        if "\t" in line
-    ]
+    tags: dict[str, str] = {}
+    for line in out.splitlines():
+        oid, _, ref = line.partition("\t")
+        if ref and not ref.endswith("^{}"):
+            tags[ref.removeprefix("refs/tags/")] = oid
+    return tags
 
 
-def create_tag(sha: str, message: str, *, today: str | None = None) -> str:
+def _tag_from_this_run(
+    sha: str, run_url: str, remote: dict[str, str]
+) -> str | None:
+    """A tag this workflow run already pushed on *sha*, if a re-run finds one."""
+    marker = _run_line(run_url)
+    for tag in publish_tags_on(sha):
+        if not tag.made_by_workflow or tag.name not in remote:
+            continue
+        message = run("git", "tag", "--list", "--format=%(contents)", tag.name)
+        if marker in message.splitlines():
+            return tag.name
+    return None
+
+
+def create_tag(
+    sha: str, message: str, run_url: str, *, today: str | None = None
+) -> str:
     """Create and push one annotated ``publish-*`` tag on *sha*; return it.
 
-    The concurrency group keeps two runs of this workflow apart, but anyone
-    can create a ``publish-*`` tag, so a push can still find its name taken.
-    The number is taken from the remote's tags and this clone's, so a push
-    refused that way is renumbered and tried again; the refused tag stays in
-    this clone only, and the next number skips it. No tag is ever moved or
-    deleted, here or on the remote.
+    A re-run of the same workflow run returns the tag the first attempt
+    pushed. The concurrency group keeps two runs of this workflow apart, but
+    anyone can create a ``publish-*`` tag, so a push can still find its name
+    taken: then the tag is renumbered and pushed again. A push that reports
+    failure but landed is recognised by its object id, so it is never pushed
+    twice. Any other push failure raises. No tag is ever moved or deleted,
+    here or on the remote.
     """
     day = today or datetime.now(UTC).strftime("%Y-%m-%d")
+    if found := _tag_from_this_run(sha, run_url, _remote_tags()):
+        return found
     as_bot = ("-c", f"user.name={BOT_NAME}", "-c", f"user.email={BOT_EMAIL}")
     for attempt in range(1, TAG_PUSH_ATTEMPTS + 1):
-        local = _run("git", "tag", "--list", f"{TAG_PREFIX}*").split()
-        name = next_tag_name(day, [*local, *_remote_tag_names()])
-        _run(
+        local = run("git", "tag", "--list", f"{TAG_PREFIX}*").split()
+        name = next_tag_name(day, [*local, *_remote_tags()])
+        run(
             "git",
             *as_bot,
             "tag",
@@ -452,12 +549,14 @@ def create_tag(sha: str, message: str, *, today: str | None = None) -> str:
             sha,
         )
         try:
-            _run("git", "push", "origin", f"refs/tags/{name}")
+            run("git", "push", "origin", f"refs/tags/{name}")
+            return name
         except subprocess.CalledProcessError:
-            if attempt == TAG_PUSH_ATTEMPTS:
+            remote = _remote_tags().get(name)
+            if remote == run("git", "rev-parse", f"refs/tags/{name}").strip():
+                return name
+            if remote is None or attempt == TAG_PUSH_ATTEMPTS:
                 raise
-            continue
-        return name
     raise AssertionError("unreachable")  # pragma: no cover
 
 
@@ -475,55 +574,69 @@ def _summary(decision: Decision) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _run_url(repo: str, run_id: int) -> str:
+    server = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
+    return f"{server}/{repo}/actions/runs/{run_id}"
+
+
 def cmd_gate(args: argparse.Namespace) -> int:
     try:
         trigger = classify_trigger(
-            args.event, args.ref, args.skip_ci_gate == "true"
+            args.event, args.ref, args.skip_ci_gate == "true", args.rollback_to
+        )
+        commit = (
+            resolve_rollback(
+                args.rollback_to,
+                args.sha,
+                tag_commit=tag_commit,
+                on_main=is_in_history,
+            )
+            if trigger is Trigger.ROLLBACK
+            else args.sha
         )
     except UnsupportedRunError as error:
         print(f"::error::{error}", file=sys.stderr)
+        _write(
+            "GITHUB_STEP_SUMMARY", f"### Publish gate: refused\n\n{error}\n"
+        )
         return 1
     blocking = parse_blocking(os.environ.get("BLOCKING_WORKFLOWS", ""))
     ctx = RunContext(
         trigger=trigger,
-        sha=args.sha,
+        sha=commit,
         actor=args.actor,
-        source_tag=(
-            args.ref.removeprefix("refs/tags/")
-            if trigger is Trigger.ROLLBACK
-            else ""
-        ),
+        source_tag=args.rollback_to if trigger is Trigger.ROLLBACK else "",
     )
     decision = decide(
         ctx,
-        tags_on_commit=lambda: publish_tags_on(args.sha),
+        tags_on_commit=lambda: publish_tags_on(commit),
         open_blocking_issues=lambda: blocking_issues(
             list_failure_issues(args.repo), blocking
         ),
         still_pending=lambda: wait_for_runs(
             lambda: pending_runs(
-                list_runs(args.repo, args.sha), blocking, args.run_id
+                list_main_runs(args.repo),
+                blocking,
+                args.run_id,
+                lambda head: is_in_history(head, commit),
             )
         ),
     )
-    run_url = (
-        f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/"
-        f"{args.repo}/actions/runs/{args.run_id}"
-    )
-    message = tag_message(ctx, run_url)
+    message = tag_message(ctx, _run_url(args.repo, args.run_id))
     print(_summary(decision))
     _write("GITHUB_STEP_SUMMARY", _summary(decision))
     _write(
         "GITHUB_OUTPUT",
         f"publish={'true' if decision.publish else 'false'}\n"
         f"trigger={trigger}\n"
+        f"commit={commit}\n"
         f"tag-message<<EOF_TAG_MESSAGE\n{message}EOF_TAG_MESSAGE\n",
     )
     return 0
 
 
 def cmd_tag(args: argparse.Namespace) -> int:
-    name = create_tag(args.sha, args.message)
+    name = create_tag(args.sha, args.message, args.run_url)
     print(f"Tagged {args.sha} as {name}")
     _write("GITHUB_STEP_SUMMARY", f"Published as `{name}`.\n")
     _write("GITHUB_OUTPUT", f"tag={name}\n")
@@ -543,10 +656,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     gate.add_argument("--actor", required=True)
     gate.add_argument("--run-id", required=True, type=int)
     gate.add_argument("--skip-ci-gate", default="false")
+    gate.add_argument("--rollback-to", default="")
     gate.set_defaults(func=cmd_gate)
     tag = sub.add_parser("tag")
     tag.add_argument("--sha", required=True)
     tag.add_argument("--message", required=True)
+    tag.add_argument("--run-url", required=True)
     tag.set_defaults(func=cmd_tag)
     args = parser.parse_args(argv)
     return int(args.func(args))

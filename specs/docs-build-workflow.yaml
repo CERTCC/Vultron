@@ -661,13 +661,15 @@ groups:
           the same thing. Two workflows that each set up their own build can
           differ in the dependency group, in whether they fetch git tags, and in
           the build flags. Then a green review does not show that the published
-          site builds.
+          site builds. Which commit is built is not part of how it is built, so
+          the action may take the commit as its one input, which a rollback
+          needs (DOCBW-06-020).
         verification: >-
           `test/ci/test_site_build_shared_action.py` fails when a site-building
           workflow does not use `.github/actions/build-site`, when it runs a
           step other than its checkout before the shared build, and when the
-          action takes inputs or stops fixing the checkout, the dependency set
-          or the single build.
+          action takes an input other than the commit to check out, or stops
+          fixing the checkout, the dependency set or the single build.
         relationships:
           - rel_type: refines
             spec_id: DOCBW-03-009
@@ -773,19 +775,25 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          While a blocking workflow's run on the candidate commit is unfinished,
-          the CI gate MUST wait up to one hour for it, and MUST skip the publish
-          when it is still unfinished after the hour.
+          While a blocking workflow's run on `main` is unfinished on the
+          candidate commit or one of its ancestors, the CI gate MUST wait up to
+          one hour for it, and MUST skip the publish when it is still unfinished
+          after the hour.
         rationale: >-
           An unfinished run can still turn its workflow red, so the gate cannot
-          read the commit's state until it ends. The hour covers the slowest
-          push workflow; past it the run is treated as red rather than published
-          unchecked. A run of a non-blocking workflow cannot change the verdict,
-          so it is not waited for.
+          read the commit's state until it ends. Push CI is path-filtered, so the
+          run that judges the candidate's code can be on an earlier commit: a
+          docs-only tip starts no Python run, while the run for the commit before
+          it may still be going. The hour covers the slowest push workflow; past
+          it the run is treated as red rather than published unchecked. A run of
+          a non-blocking workflow, or on a later commit, cannot change the
+          verdict, so it is not waited for.
         verification: >-
           `test_unfinished_runs_are_waited_for_then_skip`,
-          `test_issues_are_read_again_after_the_wait` and
-          `test_wait_for_runs_*` in `test/ci/test_publish_gate.py`.
+          `test_issues_are_read_again_after_the_wait`,
+          `test_pending_runs_waits_only_for_blocking_runs_in_history`,
+          `test_is_in_history` and `test_wait_for_runs_*` in
+          `test/ci/test_publish_gate.py`.
         adr:
           - ADR-0169
       - id: DOCBW-06-011
@@ -884,11 +892,14 @@ groups:
           The newest `publish-*` tag then always names what is live, and a failed
           deploy leaves no tag for the skip rule to honour. A push that finds its
           name taken by a hand-made tag is renumbered, so the counter cannot
-          collide.
+          collide. A push that reports failure but landed, and a re-run of the
+          tag job, find the tag already pushed, so neither makes a second one.
         verification: >-
           `test_next_tag_name`, `test_create_tag_pushes_one_annotated_tag`,
-          `test_create_tag_renumbers_past_a_taken_name` and
-          `test_the_tag_step_follows_the_deploy` in
+          `test_create_tag_renumbers_past_a_taken_name`,
+          `test_create_tag_accepts_a_push_that_landed`,
+          `test_a_rerun_finds_the_tag_it_pushed` and
+          `test_the_tag_job_follows_the_deploy` in
           `test/ci/test_publish_gate.py`.
         adr:
           - ADR-0169
@@ -919,8 +930,9 @@ groups:
           A workflow can be red for a reason that does not touch the site, such
           as a flaky demo, and an urgent docs fix cannot wait for it.
         verification: >-
-          `test_skip_ci_gate_input_defaults_off` and
-          `test_a_manual_ungated_run_skips_the_gate` in
+          `test_skip_ci_gate_input_defaults_off`,
+          `test_a_manual_ungated_run_skips_the_gate` and
+          `test_gate_command_skips_the_gate_on_request` in
           `test/ci/test_publish_gate.py`.
         adr:
           - ADR-0169
@@ -947,17 +959,24 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          A manual run from a `publish-*` or `v*` tag MUST redeploy that tag's
-          commit without the CI gate and create a new `publish-*` tag on it whose
-          message reads "rollback to <tag>, by @<user>."
+          A manual run from `main` whose `rollback-to` input names a `publish-*`
+          or `v*` tag MUST redeploy that tag's commit without the CI gate and
+          create a new `publish-*` tag on it whose message reads "rollback to
+          <tag>, by @<user>."
         rationale: >-
           A rollback restores a site that was published before, so the state of
           today's `main` is beside the point. The new tag keeps the newest
-          `publish-*` tag naming what is live, and makes the next scheduled run
-          skip the commit rolled back from.
+          `publish-*` tag naming what is live. The commit rolled back from keeps
+          its own `publish-*` tag, so the next scheduled run, which finds that
+          tag on the tip of `main`, does not publish it again. The run starts
+          from `main` rather than from the tag, because a manual run executes
+          the workflow file stored at the ref it starts from: a run from a tag
+          would execute that tag's copy, which for every tag made before this
+          design has no gate and no tag step.
         verification: >-
-          `test_a_rollback_skips_the_gate`,
-          `test_a_rolled_back_commit_is_not_republished` and
+          `test_classify_trigger`, `test_a_rollback_skips_the_gate`,
+          `test_a_rolled_back_commit_is_not_republished`,
+          `test_gate_command_rolls_back_to_a_commit_on_main` and
           `test_tag_message_records_trigger_and_actor` in
           `test/ci/test_publish_gate.py`.
         adr:
@@ -992,3 +1011,80 @@ groups:
           `test/ci/test_publish_gate.py`.
         adr:
           - ADR-0169
+      - id: DOCBW-06-026
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A rollback MUST NOT redeploy a commit that is not in `main`'s history,
+          and a manual run that does not start from `main` MUST NOT publish.
+        rationale: >-
+          Anyone who can push can create a `publish-*` or `v*` tag (#5545), so a
+          tag is no sign of review. A commit in `main`'s history was merged
+          through review; any other commit was not. A run started from another
+          ref would also execute that ref's copy of the workflow, with the
+          deploy's permissions.
+        verification: >-
+          `test_a_rollback_target_must_be_on_main`,
+          `test_an_unsupported_run_is_refused` and
+          `test_gate_command_refuses_a_rollback_off_main` in
+          `test/ci/test_publish_gate.py`, the first against real commits.
+        adr:
+          - ADR-0169
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-020
+      - id: DOCBW-06-024
+        priority: MUST
+        kind: project
+        statement: >-
+          In the publication workflow, `contents: write` MUST be held only by
+          the job that pushes the DOCBW-06-016 tag.
+        rationale: >-
+          That job runs `main`'s tag script and nothing else. Every other job
+          either runs project code or needs no write access (CISEC-02-002).
+        verification: >-
+          `test_each_job_holds_only_its_permissions` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0169
+        relationships:
+          - rel_type: refines
+            spec_id: CISEC-02-002
+      - id: DOCBW-06-025
+        priority: MUST
+        kind: project
+        statement: >-
+          When a publish reached Pages but its tag was not pushed, the failure
+          notice MUST say that the newest `publish-*` tag does not name the live
+          site, and how to recover.
+        rationale: >-
+          The deploy and the tag cannot succeed or fail together. A deploy left
+          untagged breaks the rule that the newest `publish-*` tag names what is
+          live. Re-running the tag job repairs it, and finds a tag an earlier
+          attempt pushed instead of adding a second.
+        verification: >-
+          `test_an_untagged_deploy_is_reported` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0169
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-016
+      - id: DOCBW-06-027
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          The job that builds the site MUST NOT hold a token that can write to
+          the repository or deploy to Pages.
+        rationale: >-
+          The build runs project code and third-party plugins. A token that can
+          push a tag or deploy, saved by the build's checkout, would let a
+          compromised build step do either (CISEC-02-002).
+        verification: >-
+          `test_each_job_holds_only_its_permissions` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0169
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-024

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -46,6 +47,8 @@ def _load_script() -> ModuleType:
 
 
 _script = _load_script()
+# The script's ``_gh`` is the shared helper in ``.github/scripts/gh_cli.py``.
+_gh_cli = sys.modules[_script._gh.__module__]
 
 
 # ---------------------------------------------------------------------------
@@ -434,7 +437,7 @@ def test_a_failed_gh_call_logs_its_stderr(
         )
 
     monkeypatch.setattr(_script.subprocess, "run", fail)
-    monkeypatch.setattr(_script.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(_gh_cli.time, "sleep", lambda _s: None)
     with pytest.raises(_script.subprocess.CalledProcessError):
         _script._gh("api", "repos/OWNER/REPO/issues/1")
     assert "HTTP 502" in capsys.readouterr().err
@@ -466,7 +469,7 @@ def test_a_transient_gh_failure_is_retried_with_backoff(
     flaky = _Flaky(failures=2)
     waits: list[float] = []
     monkeypatch.setattr(_script.subprocess, "run", flaky)
-    monkeypatch.setattr(_script.time, "sleep", waits.append)
+    monkeypatch.setattr(_gh_cli.time, "sleep", waits.append)
     monkeypatch.delenv("GH_RETRY_ATTEMPTS", raising=False)
     monkeypatch.delenv("GH_RETRY_DELAY", raising=False)
     assert _script._gh("issue", "edit", "12") == "ok"
@@ -477,7 +480,7 @@ def test_a_transient_gh_failure_is_retried_with_backoff(
 def test_retries_are_bounded_and_skippable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(_script.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(_gh_cli.time, "sleep", lambda _s: None)
     monkeypatch.delenv("GH_RETRY_ATTEMPTS", raising=False)
     always = _Flaky(failures=99)
     monkeypatch.setattr(_script.subprocess, "run", always)

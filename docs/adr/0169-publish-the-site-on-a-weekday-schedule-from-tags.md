@@ -53,13 +53,15 @@ The decision has these parts:
   The blocking workflows are the ones whose failure means `main` is broken: Python application, Demo Integration, Spec Check, UI, Lint Markdown and Actions Lint.
   Scheduled bookkeeping workflows do not block, and neither does the publication workflow itself, which would block its own recovery.
   The list lives in the publication workflow.
-  While a blocking workflow's run on the candidate commit is unfinished, the gate waits up to one hour, then treats the commit as red.
+  While a blocking workflow's run on `main` is unfinished, on the candidate commit or on one of its ancestors, the gate waits up to one hour, then treats the commit as red.
+  The ancestors count because push CI is path-filtered: a docs-only tip starts no Python run, so the run that judges its code can be the one for an earlier commit.
 - **When blocked.** The run skips, writes the reason to its run summary, and stays green.
   It never falls back to an older commit: an older commit was either already published or was skipped for a reason of its own.
 - **Tag.** Each publish creates one annotated tag `publish-YYYY-MM-DD.N` (UTC date, N from 1 and always present) on the deployed commit, after the deploy succeeds.
   Its message records the trigger (scheduled, manual, manual with the CI gate skipped, rollback) and the actor.
   The newest `publish-*` tag therefore always names what is live.
   Every tag is kept, and nothing moves or deletes one.
+  The deploy and the tag cannot succeed or fail together; when the tag push fails after a deploy, the failure notice says the live site is untagged, and re-running the tag job finds any tag an earlier attempt pushed instead of adding a second.
 - **Skip rule.** A scheduled run skips a commit that already has a `publish-*` tag that this workflow made, so the schedule never publishes a commit twice and never undoes a rollback.
   "This workflow made it" means an annotated tag whose tagger is `github-actions[bot]`.
   A tag with any other tagger, or a lightweight tag with no tagger, does not trigger the skip; the run publishes and names the ignored tag in its summary.
@@ -68,8 +70,15 @@ The decision has these parts:
 - **Manual publish.** A manual run from `main` applies the same CI gate, unless its "skip CI gate" input is set, which the tag message records.
   It does not apply the skip rule: a manual run is a deliberate request, for example to roll forward after a rollback.
   No trigger skips the site's publication checks.
-- **Rollback.** A manual run from a `publish-*` or `v*` tag redeploys that commit without the CI gate and creates a new `publish-*` tag on it whose message reads "rollback to `<tag>`, by `@user`."
+- **Rollback.** A manual run from `main` whose `rollback-to` input names a `publish-*` or `v*` tag redeploys that tag's commit without the CI gate and creates a new `publish-*` tag on it whose message reads "rollback to `<tag>`, by `@user`."
+  The run starts from `main`, not from the tag, because a manual run executes the copy of the workflow file stored at the ref it starts from.
+  A run from a tag would execute the tag's copy: for every tag made before this decision, a workflow with no gate and no tag step.
+  It would also let anyone who can push a tag deploy a commit carrying an edited workflow, since tag creation is unrestricted.
+  For the same reason the target commit must be in `main`'s history, so only reviewed content is redeployed.
+  The rollback builds and checks the target commit with that commit's own publication checks: a newer record of served URLs names pages the older commit never built.
   Rollback creates a tag; it never moves one.
+- **Least privilege.** Building, deploying and tagging run as separate jobs.
+  The build runs project code with a read-only token; only the deploy job can deploy, and only the tag job can push.
 - **One run at a time.** Scheduled, manual and rollback runs share one concurrency group that never cancels a running publish.
   The tag counter is computed inside it, and a push that finds its name already taken by a hand-made tag is renumbered and retried.
 - **Release by promotion.** A formal release is a `v*` tag promoted from a `publish-*` tag, built in a follow-up (#5543).
@@ -89,9 +98,9 @@ The decision has these parts:
 
 ## Validation
 
-`test/ci/test_publish_gate.py` tests the gate's decisions (blocked, wait-then-skip, already tagged, foreign tag ignored, publish, CI gate skipped, rollback) against real annotated and lightweight tags in a scratch repository.
-It also checks the publication workflow's triggers, blocking list, job order, concurrency group and failure notification.
+`test/ci/test_publish_gate.py` tests the gate's decisions (blocked, wait-then-skip, already tagged, foreign tag ignored, publish, CI gate skipped, rollback, rollback target off `main`) and the tagging, against real annotated and lightweight tags in a scratch repository.
+It also checks the publication workflow's triggers, blocking list, job order and permissions, concurrency group and failure notification.
 
 ## More Information
 
-Generated spec requirements: `docs-build-workflow.yaml` DOCBW-06-007 through DOCBW-06-023.
+Generated spec requirements: `docs-build-workflow.yaml` DOCBW-06-007 through DOCBW-06-027.

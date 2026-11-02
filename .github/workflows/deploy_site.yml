@@ -1,10 +1,11 @@
 # Publishes the site to GitHub Pages from `publish-YYYY-MM-DD.N` tags (ADR-0169,
 # DOCBW-06). On weekday mornings it takes the tip of `main`, checks that `main`
 # CI is green, deploys that commit and tags it. A manual run from `main` does the
-# same on demand, optionally without the CI gate; a manual run from a
-# `publish-*` or `v*` tag rolls the site back to that commit. The gate logic
-# lives in .github/scripts/publish_gate.py, with its unit tests in
-# test/ci/test_publish_gate.py.
+# same on demand, optionally without the CI gate, or rolls the site back to the
+# commit of the `publish-*` or `v*` tag named in `rollback-to`. Every run starts
+# from `main`, so the workflow that runs is always main's reviewed copy, never
+# one stored at a tag. The gate logic lives in .github/scripts/publish_gate.py,
+# with its unit tests in test/ci/test_publish_gate.py.
 name: Publish site to Pages
 
 on:
@@ -20,6 +21,12 @@ on:
           checks CI.
         type: boolean
         default: false
+      rollback-to:
+        description: >-
+          Roll back: the publish-* or v* tag whose commit to redeploy. The
+          commit must be on main. Leave empty to publish main.
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -49,9 +56,9 @@ jobs:
   gate:
     name: Decide whether to publish
     runs-on: ubuntu-latest
-    # The gate waits up to 60 min for unfinished runs on the candidate commit
-    # (DOCBW-06-010); the rest takes seconds. Cap above the wait so a hang fails
-    # instead of holding a runner until GitHub's 6-h limit (TB-14-006).
+    # The gate waits up to 60 min for unfinished blocking runs (DOCBW-06-010);
+    # the rest takes seconds. Cap above the wait so a hang fails instead of
+    # holding a runner until GitHub's 6-h limit (TB-14-006).
     timeout-minutes: 75
     permissions:
       contents: read
@@ -60,9 +67,12 @@ jobs:
     outputs:
       publish: ${{ steps.gate.outputs.publish }}
       trigger: ${{ steps.gate.outputs.trigger }}
+      commit: ${{ steps.gate.outputs.commit }}
       tag-message: ${{ steps.gate.outputs.tag-message }}
     steps:
-      # Every tag, so the skip rule sees the `publish-*` tags on the commit.
+      # Full history and every tag: the skip rule reads the publish-* tags on
+      # the commit, and the gate checks a rollback target and each unfinished
+      # run's commit against main's history.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -80,39 +90,43 @@ jobs:
           ACTOR: ${{ github.actor }}
           RUN_ID: ${{ github.run_id }}
           SKIP_CI_GATE: ${{ inputs.skip-ci-gate || false }}
+          ROLLBACK_TO: ${{ inputs.rollback-to }}
         run: |
           python3 .github/scripts/publish_gate.py gate \
             --repo "$REPO" --sha "$SHA" --event "$EVENT" --ref "$REF" \
-            --actor "$ACTOR" --run-id "$RUN_ID" --skip-ci-gate "$SKIP_CI_GATE"
+            --actor "$ACTOR" --run-id "$RUN_ID" --skip-ci-gate "$SKIP_CI_GATE" \
+            --rollback-to "$ROLLBACK_TO"
 
-  deploy:
-    name: Build, check, deploy and tag
+  build:
+    name: Build and check the site
     needs: gate
     if: needs.gate.outputs.publish == 'true'
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     # Observed: 2.1 min on its only successful run; it runs the docs-build-check
     # build, seen at up to 16 min (2026-10-30). Cap at 30 min so a hang fails fast
     # instead of holding a runner until GitHub's 6-h limit (TB-14-006).
     timeout-minutes: 30
+    # Read-only: the build runs project code, so it gets no token that can
+    # push a tag or deploy (DOCBW-06-027).
     permissions:
-      contents: write # push the publish-* tag
-      pages: write
-      id-token: write
+      contents: read
+      pages: read
     steps:
-      # Only loads the local actions: build-site re-checks out the repository
-      # with the history and tags the build needs (DOCBW-06-004). Both check
-      # out github.sha, the commit the gate judged.
+      # Only loads the local actions, from main: build-site re-checks out the
+      # commit the gate chose, with the history and tags the build needs
+      # (DOCBW-06-004).
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # The same build docs-build-check.yml reviews: checkout, dependency set
       # and the strict mkdocs build all live in the action (DOCBW-06-004,
-      # DOCBW-03-009, DOCBW-03-010).
+      # DOCBW-03-009, DOCBW-03-010). For a rollback the commit is the
+      # target's, so the steps below run that commit's own checks: a newer URL
+      # record names pages the older commit never built.
       - name: Build Site
         uses: ./.github/actions/build-site
+        with:
+          ref: ${{ needs.gate.outputs.commit }}
 
       - name: Setup Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
@@ -133,25 +147,59 @@ jobs:
         with:
           path: 'site'
 
+  deploy:
+    name: Deploy to Pages
+    needs: [gate, build]
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    # The deploy itself takes under a minute. Cap at 15 min so a hang fails
+    # fast (TB-14-006).
+    timeout-minutes: 15
+    permissions:
+      pages: write
+      id-token: write
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 
+  tag:
+    name: Tag the published commit
+    needs: [gate, deploy]
+    runs-on: ubuntu-latest
+    # A fetch and a push. Cap at 10 min so a hang fails fast (TB-14-006).
+    timeout-minutes: 10
+    # The only job that can push: it runs main's script and nothing else
+    # (DOCBW-06-024).
+    permissions:
+      contents: write
+    steps:
+      # Full history, so the deployed commit is present even for a rollback.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
       # After the deploy, so the newest publish-* tag always names what is live
       # and a failed deploy leaves no tag for the skip rule to honour
       # (DOCBW-06-016). It only creates a tag; nothing here moves or deletes
-      # one (DOCBW-06-022).
+      # one (DOCBW-06-022). Re-running this job after a failure finds the tag
+      # an earlier attempt pushed rather than making a second.
       - name: Tag the published commit
         env:
-          SHA: ${{ github.sha }}
+          SHA: ${{ needs.gate.outputs.commit }}
           TAG_MESSAGE: ${{ needs.gate.outputs.tag-message }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           python3 .github/scripts/publish_gate.py tag \
-            --sha "$SHA" --message "$TAG_MESSAGE"
+            --sha "$SHA" --message "$TAG_MESSAGE" --run-url "$RUN_URL"
 
   notify:
     name: Report the publish
-    needs: [gate, deploy]
+    needs: [gate, build, deploy, tag]
     if: always()
     runs-on: ubuntu-latest
     # The notify-failure action makes a few API calls. Cap at 10 min so a hang
@@ -164,6 +212,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # A deploy that reached Pages but was never tagged leaves the newest
+      # publish-* tag naming something that is no longer live, so the notice
+      # says so and how to recover (DOCBW-06-025).
+      - name: Describe an untagged deploy
+        if: needs.deploy.result == 'success' && needs.tag.result == 'failure'
+        env:
+          COMMIT: ${{ needs.gate.outputs.commit }}
+        run: |
+          {
+            echo "The site was deployed from \`$COMMIT\`, but tagging it failed,"
+            echo "so the newest \`publish-*\` tag does not name what is live."
+            echo "Re-run the failed **Tag the published commit** job of this run;"
+            echo "it finds a tag an earlier attempt pushed instead of adding one."
+          } > untagged-deploy.md
+
       # Every trigger reports a failure: a failed scheduled, manual or rollback
       # publish each leaves the site other than intended (DOCBW-06-003).
       - name: Notify CI failure
@@ -173,14 +236,15 @@ jobs:
           mode: notify
           workflow-label: ci:workflow-deploy-site
           token: ${{ secrets.GITHUB_TOKEN }}
-      # Closed only by a publish of main that reached Pages. A skip publishes
-      # nothing, and a rollback says nothing about whether main publishes, so
-      # neither clears an earlier failure.
+          details-file: untagged-deploy.md
+      # Closed only by a publish of main that reached Pages and was tagged. A
+      # skip publishes nothing, and a rollback says nothing about whether main
+      # publishes, so neither clears an earlier failure.
       - name: Close CI failure issue
         if: >-
           !contains(needs.*.result, 'failure')
           && !contains(needs.*.result, 'cancelled')
-          && needs.deploy.result == 'success'
+          && needs.tag.result == 'success'
           && needs.gate.outputs.trigger != 'rollback'
         uses: ./.github/actions/notify-failure
         with:
