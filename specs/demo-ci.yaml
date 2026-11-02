@@ -2302,9 +2302,9 @@ groups:
         kind: project
         statement: >-
           The flattened story of every scenario written as composition MUST be
-          committed as a generated plot manifest, which lists the story's items
-          in order: each choice by its branch point, choice and deciding cast
-          member, and each fragment by its qualified name.
+          committed as a generated plot manifest. An entry lists the story's
+          items in order: each choice by branch point, choice and deciding cast
+          member, and each fragment by qualified name.
         rationale: >-
           A reorder inside a shared fragment moves every scenario of its family
           alike, so DEMOCI-11-018 still passes, and no PR check regenerates the
