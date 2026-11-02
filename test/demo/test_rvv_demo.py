@@ -790,7 +790,7 @@ class TestTheCaseIsActive:
         assert "≥4" in check, check
 
 
-@pytest.mark.spec("DEMOMA-09-004")
+@pytest.mark.spec("DEMOMA-09-010")
 class TestEveryReplicaConverges:
     """M2: LedgerFanout reached the Reporter and the second Vendor."""
 
@@ -891,7 +891,7 @@ class TestEveryReplicaConverges:
         ``wait_for_participants_on_replicas`` wraps each per-replica poll in
         its own ``demo_check``, so a timeout accumulates to ``_demo_failures``
         and the fragment returns — and the ``verify_replica_state`` checks
-        after it still run for both replicas (DEMOCI-01-011).
+        after it still run for both replicas (DEMOCI-01-014).
         """
         state = _three_party_state()
 
@@ -963,12 +963,12 @@ class TestTheSecondVendorAddsItsNote:
         assert post.poster is state.actor(VENDOR2)
         assert post.name == f"{VENDOR2_LABEL} Status Update"
         # Vendor2 speaks for its own component and its own fix timeline
-        # (DEMOMA-09-003), which is what makes it a second fix path.
+        # (DEMOMA-09-009), which is what makes it a second fix path.
         assert "fix timeline" in post.content.lower()
 
 
 # ---------------------------------------------------------------------------
-# Both vendors fix the vul (DEMOMA-09-003, CSB-15-002)
+# Both vendors fix the vul (DEMOMA-09-003, DEMOMA-09-009, CSB-15-002)
 # ---------------------------------------------------------------------------
 
 
@@ -1054,7 +1054,7 @@ class TestEveryonePublishes:
         ], order
 
     def test_the_final_milestone_is_this_scenarios_m6(self):
-        """The last check reads the Reporter's replica (DEMOMA-09-004)."""
+        """The last check reads the Reporter's replica (DEMOMA-09-010)."""
         state = _three_party_state()
 
         with (
@@ -1254,7 +1254,7 @@ class TestARosterThatNeverFillsStopsTheStory:
 
 
 # ---------------------------------------------------------------------------
-# The devlogs the invariant harness reads (DEMOMA-06-005, DEMOMA-23-002)
+# The devlogs the invariant harness reads (DEMOMA-06-005, DEMOMA-06-009, DEMOMA-23-002)
 # ---------------------------------------------------------------------------
 
 
@@ -1340,6 +1340,7 @@ class TestRvvLedgerDump:
         }
 
     @pytest.mark.spec("DEMOMA-06-005")
+    @pytest.mark.spec("DEMOMA-06-009")
     def test_the_canonical_ledger_is_read_on_the_dedicated_container(
         self, tmp_path, monkeypatch
     ):
@@ -1440,7 +1441,7 @@ class TestRvvCliCommand:
         assert option in help_text
 
     def test_the_case_actor_carries_no_id_option(self, help_text: str):
-        """Only ``rccv-handoff`` exposes one (DEMOMA-14-008).
+        """Only ``rccv-handoff`` exposes one (DEMOMA-14-023).
 
         The case-actor container seeds its own identity on reset
         (DEMOMA-06-004), so there is nothing here for an override to name.

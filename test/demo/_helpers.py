@@ -486,7 +486,7 @@ def route_exchange_demo_at_testclient(
     through the TestClient.  The runner (``run_exchange_demos``) builds its own
     ``DataLayerClient()`` at ``localhost:7999``, but the in-process node hosts
     actors under ``http://testserver``, and ``ActorSession`` refuses a client
-    whose base URL is not the authority that hosts the actor (DEMOMA-26-002).
+    whose base URL is not the authority that hosts the actor (DEMOMA-26-008).
     So the runner's client is also *built* at the test server's base.
 
     *also* names further demo modules (e.g. ``initialize_case_demo``) whose

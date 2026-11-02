@@ -7,7 +7,7 @@ authoritative case-actor log of *every* multi-actor demo scenario.  Each
 scenario harness implements that requirement as the leading entries of its
 ``_XXX_EXPECTED_SEMANTIC_TYPES`` constant.
 
-DEMOMA-16-008 requires the spec requirement and the test constants to change
+DEMOMA-16-018 requires the spec requirement and the test constants to change
 in the same PR.  Nothing enforced that structurally: ``engage_case`` was added
 to ``test_rvcv_handoff_invariants.py`` alone (PR #2018) without amending the
 spec, leaving an engage-case regression silent in every other scenario
@@ -44,7 +44,7 @@ _SPECS_DIR = _REPO_ROOT / "specs"
 
 #: The DEMOMA-16-001 universal semantic types, in the order the harnesses list
 #: them.  Amending this tuple requires amending DEMOMA-16-001 in the same PR
-#: (DEMOMA-16-008) — ``test_demoma_16_001_enumerates_the_universal_types``
+#: (DEMOMA-16-018) — ``test_demoma_16_001_enumerates_the_universal_types``
 #: fails otherwise.
 _UNIVERSAL_SEMANTIC_TYPES = (
     "validate_report",

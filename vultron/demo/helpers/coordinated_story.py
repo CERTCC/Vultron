@@ -31,7 +31,7 @@ before a branch point (``notes/demo-scenario-tree.md`` § "Composition"):
 * :data:`COORDINATOR_INVITES_VENDOR` stops where the Vendor's decision falls.
   The Invite has been delivered, so the CASE_MANAGER has seated the Vendor's
   inert participant with the role the Invite offers and the harness can read
-  it (CM-17-003, DEMOCI-11-013), and the Vendor has not answered yet.
+  it (CM-17-003, DEMOCI-11-047), and the Vendor has not answered yet.
   ``rcv-reject`` parts here.
 * :data:`VENDOR_JOINS_THE_CASE` continues through the Vendor's acceptance and
   the replica convergence, and stops where the Reporter's decision falls.
@@ -908,7 +908,7 @@ def vendor_rejects_invite(state: StoryState) -> None:
     inert participant (``joined=False``, RM ``RECEIVED``; ADR-0114,
     CM-11-006); after the Reject, CM-11-007 moves that record to RM
     ``CLOSED``.  The Vendor is in the index and was never active, and no case
-    content is delivered to it (DEMOMA-27-002).
+    content is delivered to it (DEMOMA-27-008, DEMOMA-27-010).
     """
     vendor = state.actor(VENDOR).actor
     answer_case_invite(
@@ -967,7 +967,7 @@ def vendor_rejects_invite(state: StoryState) -> None:
         )
         with demo_check(
             f"{VENDOR_LABEL} participant at RM.CLOSED after rejection "
-            "(never active, DEMOMA-27-002)"
+            "(never active, DEMOMA-27-008)"
         ):
             _check_participant_rm_state_in(
                 client=state.case_actor_client,
@@ -978,7 +978,7 @@ def vendor_rejects_invite(state: StoryState) -> None:
             )
     logger.info(
         "✓ M2: %s rejected invite — inert record at RM.CLOSED, never active"
-        " (DEMOMA-27-002)",
+        " (DEMOMA-27-008)",
         VENDOR_LABEL,
     )
 

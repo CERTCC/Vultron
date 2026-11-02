@@ -422,7 +422,7 @@ class TestFriendlyNaming:
         assert event.summary == "Vendor validated the report"
 
     def test_summary_no_uri_or_uuid(self):
-        """DRPT-03-001: summaries must not contain bare URIs/UUIDs."""
+        """DRPT-03-009: summaries must not contain bare URIs/UUIDs."""
         event = CaseTimelineEvent.from_raw(_camel_entry())
         assert "http" not in event.summary
         assert "urn:uuid" not in event.summary
@@ -656,7 +656,7 @@ class TestFormatDelta:
 
 
 # ---------------------------------------------------------------------------
-# DRPT-02-004 / DRPT-02-005 — merge, dedup, presence
+# DRPT-02-004 / DRPT-02-005 / DRPT-02-015 — merge, dedup, presence
 # ---------------------------------------------------------------------------
 
 
@@ -927,7 +927,7 @@ class TestHtmlRenderer:
         """DRPT-04-002: no external CSS/JS/font/network references.
 
         Full URIs may appear only inside ``title=`` tooltips (secondary
-        detail per DRPT-03-001), never as loaded assets — so this asserts the
+        detail per DRPT-03-011), never as loaded assets — so this asserts the
         absence of ``<link>``/``<script>`` tags and of any ``src``/``href``
         attribute, rather than the absence of the substring ``http``.
         """
@@ -949,7 +949,7 @@ class TestHtmlRenderer:
         assert "⬜" in out  # absent (reporter lacks the vendor-only entry)
 
     def test_full_uri_retained_as_tooltip(self):
-        """DRPT-03-001: full ids allowed only as secondary detail (title=)."""
+        """DRPT-03-011: full ids allowed only as secondary detail (title=)."""
         events, actors = _sample_events()
         out = render_html(events, actors)
         assert 'title="http://vendor:7999/api/v2/actors/vendor"' in out
@@ -1698,7 +1698,7 @@ class TestActorNameResolution:
         assert events[0].target_label == "case → Vendor"
 
     def test_summary_no_hex_fragments_with_uuid_actor(self):
-        """DRPT-03-001: summaries must not contain hex fragments for UUID actors."""
+        """DRPT-03-009: summaries must not contain hex fragments for UUID actors."""
         entry = _entry_with_named_actor()
         replicas = {"vendor": [entry]}
         events = build_timeline(replicas)
@@ -1713,7 +1713,10 @@ class TestActorNameResolution:
 
 
 class TestConsoleScript:
-    """Guard the ``vultron-demo-report`` console-script wiring (DRPT-01-005).
+    """Guard the ``vultron-demo-report`` console-script wiring.
+
+    DRPT-01-005 names the script; DRPT-01-008 makes ``main`` run with no
+    arguments.
 
     Console-script wrappers invoke the target ``main`` with **no** arguments
     and propagate its return value via ``sys.exit`` — so the entry point must

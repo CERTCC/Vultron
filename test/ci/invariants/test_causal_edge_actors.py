@@ -1,6 +1,6 @@
 """Tests for the ``consequent_actor`` check in ``check_causal_edges`` (#4248).
 
-A tag that disagrees with the recorded ledger actor fails (DEMOMA-22-005).
+A tag that disagrees with the recorded ledger actor fails (DEMOMA-22-013).
 
 Synthetic ledgers and dump manifests only; no ``devlogs/`` needed.  Not tagged
 ``case_ledger_invariants``, so they run in the regular unit suite.

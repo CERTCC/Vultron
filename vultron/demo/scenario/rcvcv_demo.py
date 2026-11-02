@@ -386,7 +386,7 @@ def the_joiners_add_their_notes(state: StoryState) -> None:
 
 
 def both_vendors_run_the_fix_lifecycle(state: StoryState) -> None:
-    """Advance V1 to VFd and V2 to VFD (DEMOMA-19-004).
+    """Advance V1 to VFd and V2 to VFD (DEMOMA-19-004, DEMOMA-19-026).
 
     V1 (VENDOR only) stops at VFd — fix-ready, no deploy step.  V2 (VENDOR +
     DEPLOYER) advances to VFD — fix-ready then fix-deployed.  ``rcv``'s own
@@ -461,7 +461,9 @@ def both_vendors_run_the_fix_lifecycle(state: StoryState) -> None:
 
 
 def v1_publishes_then_the_others(state: StoryState) -> None:
-    """V1 publishes first, triggering the embargo teardown (DEMOMA-19-005).
+    """V1 publishes first, triggering the embargo teardown.
+
+    DEMOMA-19-005 sets the order and DEMOMA-19-027 the wait for the teardown.
 
     The scenario waits for the CaseActor to process V1's publication and emit
     ``EM.EXITED`` before V2 publishes, so the ledger order is deterministic.

@@ -192,7 +192,7 @@ def test_pre_commit_runs_the_check() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Shape (DEMOCI-11-016)
+# Shape (DEMOCI-11-016, DEMOCI-11-052, DEMOCI-11-053)
 # ---------------------------------------------------------------------------
 
 
@@ -290,7 +290,7 @@ def test_at_least_one_family_is_composed() -> None:
     )
 
 
-@pytest.mark.spec("DEMOCI-11-016", "DEMOCI-11-019")
+@pytest.mark.spec("DEMOCI-11-016", "DEMOCI-11-019", "DEMOCI-11-052")
 @pytest.mark.parametrize("name", _COMPOSED_NAMES)
 def test_a_composed_scenarios_derived_path_is_the_committed_one(
     name: str,

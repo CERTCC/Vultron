@@ -788,11 +788,12 @@ class TestBothVendorsFixTheVul:
 
 
 # ---------------------------------------------------------------------------
-# Publication and closure (DEMOMA-11-006, DEMOMA-07-003)
+# Publication and closure (DEMOMA-11-006, DEMOMA-11-018, DEMOMA-07-003)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.spec("DEMOMA-11-006")
+@pytest.mark.spec("DEMOMA-11-018")
 class TestEveryonePublishes:
     """The Coordinator, the Case Owner since the handoff, publishes last."""
 
@@ -1022,6 +1023,7 @@ class TestRvcvHandoffLedgerDump:
         }
 
     @pytest.mark.spec("DEMOMA-06-005")
+    @pytest.mark.spec("DEMOMA-06-009")
     def test_the_canonical_ledger_is_read_on_the_dedicated_container(
         self, tmp_path, monkeypatch
     ):

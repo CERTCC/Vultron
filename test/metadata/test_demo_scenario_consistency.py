@@ -123,7 +123,7 @@ def prose_root(tmp_path: Path) -> Path:
     # finds no file, returns ``None``, and both checks skip every row — so a
     # fixture missing them would make those mutations look unreported.
     paths.update(spec.harness_path for spec in discover_scenarios())
-    # Each scenario's narrative page and the index, because DEMOCI-11-012 checks
+    # Each scenario's narrative page and the index, because DEMOCI-11-012 and DEMOCI-11-046 check
     # the pages under ``docs/topics/scenarios/`` and a missing directory there is
     # a structural failure rather than an empty result.
     paths.update(spec.narrative_path for spec in discover_scenarios())
@@ -521,7 +521,7 @@ def test_partition_reports_a_planned_row_with_no_spec_group(
 def test_partition_reports_an_incomplete_planned_row(
     prose_root: Path, cell: str, expected: str, real_registry: SpecRegistry
 ) -> None:
-    """DEMOCI-11-010 requires both the tracking issue and the spec IDs.
+    """DEMOCI-11-043 requires both the tracking issue and the spec IDs.
 
     The whole cell is emptied, not one ID within it: clearing ``DEMOMA-25``
     alone leaves ``DEMOMA-16-015`` behind, and the row still names *a* spec ID.
@@ -557,7 +557,7 @@ def test_nav_check_reports_an_unnavved_scenario() -> None:
 
 
 # ---------------------------------------------------------------------------
-# the scenario narrative pages (DEMOCI-11-012)
+# the scenario narrative pages (DEMOCI-11-012, DEMOCI-11-046)
 # ---------------------------------------------------------------------------
 
 
@@ -604,7 +604,7 @@ def test_narrative_page_check_fails_when_the_directory_moved(
     """A missing narrative directory is an error, not zero findings.
 
     Reporting success over an absent directory would drop every page out of
-    DEMOCI-11-012 coverage at once, which is the vacuous pass DF-09-009 forbids.
+    DEMOCI-11-046 coverage at once, which is the vacuous pass DF-09-009 forbids.
     """
     with pytest.raises(FileNotFoundError, match=NARRATIVE_DIR):
         unregistered_narrative_pages(tmp_path)

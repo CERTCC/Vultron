@@ -291,7 +291,7 @@ def case_actor_dump_target(
 
     The CaseActor lives in the dedicated case-actor container in every Docker
     scenario (DEMOMA-06-004, CP-08-008), so its ledger is read there and nowhere
-    else (DEMOMA-06-005). There is no fallback to a participant's container: a
+    else (DEMOMA-06-009). There is no fallback to a participant's container: a
     participant holds a replica, not the canonical ledger, and dumping that as
     ``case-actor`` would hide exactly the topology fault this target exists to
     expose.
@@ -401,7 +401,7 @@ def case_ledger_length(
 ) -> int:
     """Return how many entries the canonical ledger of *case_id* holds now.
 
-    Reads the CaseActor's own ledger, the canonical one (DEMOMA-06-005),
+    Reads the CaseActor's own ledger, the canonical one (DEMOMA-06-009),
     through the same route :func:`dump_case_ledgers` exports it from.  Unlike
     the dump, a 404 is not read as an empty ledger: the case exists when a
     scenario follows its ledger, so a 404 means the client or the case is

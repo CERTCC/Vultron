@@ -19,30 +19,52 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The report tool MUST be implemented as a standalone module at
-      `vultron/demo/report.py`, importable as `vultron.demo.report`, and MUST
-      provide an `if __name__ == "__main__"` entry point so it is directly
-      invokable (`python -m vultron.demo.report ...`).
+      The report tool MUST be a standalone module at `vultron/demo/report.py`,
+      importable as `vultron.demo.report`.
     rationale: >-
       A standalone module keeps the read-only reporting utility decoupled from
       the demo-run CLI (DC-01) while remaining colocated with the demo code that
       produces the ledger files.
+  - id: DRPT-01-006
+    priority: MUST
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      The `vultron.demo.report` module MUST provide an `if __name__ == "__main__"`
+      entry point, so that `python -m vultron.demo.report` runs the tool.
+    rationale: >-
+      A direct entry point lets a developer run the report on a devlogs directory
+      without installing the package and without the demo CLI.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-01-001
   - id: DRPT-01-002
     priority: MUST
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The tool MUST accept a directory path (defaulting to the `DEVLOGS_DIR`
-      environment variable, or `devlogs/` relative to the repository root when
-      unset) and MUST discover input files by recursively globbing
-      `**/*-case-ledger.jsonl` beneath it.
+      The tool MUST accept an input directory path. Without one, it uses the
+      `DEVLOGS_DIR` environment variable, or `devlogs/` under the repository root
+      when that variable is unset.
+    rationale: >-
+      The demo run writes each replica under `DEVLOGS_DIR`, and the invariant checks
+      in `test/ci/invariants/` read the same place. When the tool uses the same
+      default directory, it reads the output of a demo run with no extra arguments.
+  - id: DRPT-01-007
+    priority: MUST
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      The tool MUST discover its input files by a recursive glob of
+      `**/*-case-ledger.jsonl` beneath the input directory.
     rationale: >-
       The demo run writes each replica to
-      `{DEVLOGS_DIR}/{demo_name}/{actor_name}/{case_id_slug}-case-ledger.jsonl`, and
-      the invariant checks in `test/ci/invariants/` read the same layout. When the tool
-      uses the same default directory and the same file pattern, it reads the output of
-      a demo run with no extra arguments, and it does not read other files in the
-      directory.
+      `{DEVLOGS_DIR}/{demo_name}/{actor_name}/{case_id_slug}-case-ledger.jsonl`.
+      The same file pattern finds every replica of a run, and it does not read the
+      other files in the directory.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-01-002
   - id: DRPT-01-003
     priority: MUST
     kind: project
@@ -71,20 +93,50 @@ groups:
     priority: SHOULD
     kind: project
     statement: >-
-      The tool SHOULD also be exposed as a `vultron-demo-report` console-script
-      entry point in `pyproject.toml` (`[project.scripts]`), resolving to
-      `vultron.demo.report:main`. Its `main` MUST be invocable with no
-      arguments (defaulting to `sys.argv`) so the console-script wrapper works,
-      and MUST return the process exit code.
+      The tool SHOULD also have a `vultron-demo-report` console-script entry point in
+      the `[project.scripts]` table of `pyproject.toml` that resolves to
+      `vultron.demo.report:main`.
     rationale: >-
       A console script matches the other demo entry points (`vultron-demo`,
       `vultrabot_*`), and a user can run the tool after install without `python -m`.
-      The console-script wrapper calls `main()` with no arguments and uses its return
-      value as the exit status. A `main` that needs an argument fails when the console
-      script starts, and a `main` that returns no code cannot report a failure.
+    verification: >-
+      `test/demo/test_report.py::TestConsoleScript::test_entry_point_registered_and_resolves_to_main`
+      asserts that the `vultron-demo-report` console script is registered and loads
+      `vultron.demo.report:main`.
     relationships:
     - rel_type: extends
       spec_id: DRPT-01-001
+  - id: DRPT-01-008
+    priority: MUST
+    kind: project
+    statement: >-
+      `vultron.demo.report:main` MUST run when it is called with no arguments, and
+      then read its arguments from `sys.argv`.
+    rationale: >-
+      The console-script wrapper calls `main()` with no arguments. A `main` that needs
+      an argument fails as soon as the console script starts.
+    verification: >-
+      `test/demo/test_report.py::TestConsoleScript::test_main_callable_with_no_args`
+      calls `main()` with no arguments and a patched `sys.argv`, and asserts exit code
+      0 and the default report file.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-01-005
+  - id: DRPT-01-009
+    priority: MUST
+    kind: project
+    statement: >-
+      `vultron.demo.report:main` MUST return the process exit code.
+    rationale: >-
+      The console-script wrapper uses the return value of `main()` as the exit status.
+      A `main` that returns no code cannot report a failure.
+    verification: >-
+      `test/demo/test_report.py::TestCli::test_exit_zero_and_file_written` and
+      `test/demo/test_report.py::TestCli::test_missing_dir_nonzero_exit` assert that
+      `main` returns 0 on success and a non-zero code for a missing input directory.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-01-005
 - id: DRPT-02
   title: Distilled Timeline Model
   specs:
@@ -93,14 +145,26 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The tool MUST define a first-class `pydantic.BaseModel` (v2) distilled
-      event type (e.g. `CaseTimelineEvent`) that represents one canonical
-      timeline event in friendly-readable form. Both the markdown and HTML
-      renderers MUST consume this model rather than raw JSONL dicts.
+      The tool MUST define a first-class `pydantic.BaseModel` (v2) distilled event
+      type, such as `CaseTimelineEvent`, for one canonical timeline event in
+      friendly-readable form.
     rationale: >-
       One typed model between the parser and the renderers keeps the JSONL parsing
-      details in one place. Both renderers then show the same fields with the same
-      meaning, and a test can check the parsed events without a renderer.
+      details in one place, and a test can check the parsed events without a renderer.
+  - id: DRPT-02-014
+    priority: MUST
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      The markdown renderer and the HTML renderer MUST consume the distilled event
+      model, not raw JSONL dicts.
+    rationale: >-
+      When both renderers read the same typed model, they show the same fields with
+      the same meaning. A renderer that reads raw dicts repeats the parsing and can
+      drift from the other renderer.
+    relationships:
+    - rel_type: depends_on
+      spec_id: DRPT-02-001
   - id: DRPT-02-002
     priority: MUST
     kind: project
@@ -133,12 +197,23 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The tool MUST merge entries from all discovered actors into a single
-      canonical timeline, de-duplicating replicated entries by `entry_hash`, and
-      MUST order the timeline by `log_index` ascending.
+      The tool MUST merge the entries of all discovered actors into a single
+      canonical timeline, and de-duplicate replicated entries by `entry_hash`.
     rationale: >-
       Replicas hold copies of the same canonical entries; de-duplication yields
       the single case story rather than N near-identical per-actor logs.
+  - id: DRPT-02-015
+    priority: MUST
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      The tool MUST order the canonical timeline by `log_index` ascending.
+    rationale: >-
+      `log_index` is the order in which the CASE_MANAGER committed the entries. A
+      timeline in that order tells the case story in the sequence it happened.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-02-004
   - id: DRPT-02-005
     priority: MUST
     kind: project
@@ -167,24 +242,6 @@ groups:
       DRPT-02-004's "single canonical timeline" is well-defined only within one
       case; partitioning by `case_id` preserves that guarantee when the input
       directory holds more than one.
-    relationships:
-    - rel_type: refines
-      spec_id: DRPT-02-004
-  - id: DRPT-02-007
-    priority: MUST
-    kind: project
-    verification_debt: '#2573'
-    statement: >-
-      `build_timeline` MUST skip entries whose `disposition` field is not
-      `"recorded"` (e.g. `"rejected"`). Rejected entries are local-only
-      correlation markers with empty `payloadSnapshot` values; including them
-      in the report produces `—` actor labels and empty target columns that
-      violate the CLP spec and mislead readers.
-    rationale: >-
-      An entry that the ledger did not record is not a case event. It has no actor and
-      no target in its snapshot. If the report shows it, the report shows `—` labels
-      and empty columns, and a reader can think that the case history contains an event
-      that it does not contain.
     relationships:
     - rel_type: refines
       spec_id: DRPT-02-004
@@ -217,11 +274,23 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      Timeline ordering MUST be case-contiguous: events MUST be grouped by
-      `case_id` and ordered by `log_index` ascending within each case group.
+      The tool MUST group timeline events by `case_id`, so that the events of each
+      case are contiguous.
     rationale: >-
-      Case-contiguous ordering preserves the causal sequence within each case
-      while preventing cross-case log_index comparisons.
+      Case-contiguous ordering prevents a comparison of `log_index` values across
+      cases, because `log_index` is case-local.
+    testable: true
+  - id: DRPT-02-016
+    priority: MUST
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      Within each case group, the tool MUST order events by `log_index` ascending.
+    rationale: >-
+      The `log_index` order within a case keeps the causal sequence of that case.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-02-011
     testable: true
 
   - id: DRPT-02-012
@@ -256,16 +325,48 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      Human-readable output MUST render actors and target objects by short,
-      friendly names (e.g. "Finder", "report", "note"), MUST NOT use bare URIs
-      or opaque UUID identifiers as the primary noun in event summaries, and
-      SHOULD derive actor labels from the actor directory name. Full identifiers
-      MAY be retained as secondary detail (e.g. a tooltip, title attribute, or
-      trailing reference column).
+      Human-readable output MUST render actors and target objects by short, friendly
+      names, such as "Reporter", "report" or "note".
     rationale: >-
       A reader can follow "Reporter submitted report" at a glance. A reader cannot
-      follow a long URI or a UUID in the same position. The full identifier stays
-      available as secondary detail, so a reader can still find the exact object.
+      follow a long URI or a UUID in the same position.
+  - id: DRPT-03-009
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      An event summary MUST NOT use a bare URI or an opaque UUID identifier as its
+      primary noun.
+    rationale: >-
+      A URI or a UUID as the subject or object of a summary hides who did what. The
+      friendly name of DRPT-03-001 goes in that position instead.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-03-001
+  - id: DRPT-03-010
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The tool SHOULD derive actor labels from the actor directory name.
+    rationale: >-
+      The demo run writes the replica of each actor into a directory with the name of
+      that actor (DRPT-01-003). That name is short and reads as a role, such as
+      `reporter` or `vendor`.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-03-001
+  - id: DRPT-03-011
+    priority: MAY
+    kind: project
+    statement: >-
+      Human-readable output MAY keep a full identifier as secondary detail, such as a
+      tooltip, a title attribute or a trailing reference column.
+    rationale: >-
+      The full identifier stays available as secondary detail, so a reader can still
+      find the exact object while the summary uses its friendly name.
+    relationships:
+    - rel_type: refines
+      spec_id: DRPT-03-001
   - id: DRPT-03-003
     priority: MUST
     kind: project
@@ -278,7 +379,7 @@ groups:
     rationale: >-
       Actor URIs may be UUID-based when the actor was created with a generated
       identifier rather than a slug.  Without name resolution, `friendly_actor_name`
-      produces labels like "A1e7 421f B727" that violate DRPT-03-001's prohibition
+      produces labels like "A1e7 421f B727" that violate DRPT-03-009's prohibition
       on opaque identifiers.  The `name` field is present on inline actor objects
       in wire payloads (e.g. `Organization` objects in `Invite` or `Accept`
       activities), making payload-scan the correct extraction point.
@@ -305,11 +406,21 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      When rendering a phrase template, the tool MUST supply slot values for
-      `{actor}`, `{object}`, and `{target}` drawn from the event record's
-      resolved display labels. Missing slots (e.g. `{context}` when no context
-      was recorded) MUST render as an em-dash (`"—"`) rather than raising a
-      `KeyError`.
+      When it renders a phrase template, the tool MUST fill the `{actor}`, `{object}`
+      and `{target}` slots from the resolved display labels of the event record.
+    rationale: >-
+      The resolved display labels are the friendly names of DRPT-03-001. Slots filled
+      from them give a summary such as "Reporter submitted report".
+    relationships:
+    - rel_type: refines
+      spec_id: DRPT-03-002
+  - id: DRPT-03-012
+    priority: MUST
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      The tool MUST render a missing slot, such as `{context}` when no context was
+      recorded, as an em-dash (`"—"`) instead of raising a `KeyError`.
     rationale: >-
       `CaseLedgerEventRecord` is constructed from JSONL data and may not carry
       all slot values present in a live `VultronEvent`. A `defaultdict` fallback
@@ -317,8 +428,8 @@ groups:
       to {target}`) degrade gracefully to `"{actor} invited {object} to —"` when
       the destination is absent rather than surfacing a runtime error.
     relationships:
-    - rel_type: refines
-      spec_id: DRPT-03-002
+    - rel_type: extends
+      spec_id: DRPT-03-004
 
   - id: DRPT-03-005
     priority: MUST
@@ -355,7 +466,7 @@ groups:
       URI-to-display-name map when available.
     rationale: >-
       Resolved display names prevent opaque UUID-based actor labels in output,
-      satisfying DRPT-03-001's prohibition on bare identifiers.
+      satisfying DRPT-03-009's prohibition on bare identifiers.
     testable: true
 
   - id: DRPT-03-008
@@ -415,24 +526,49 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The output format MUST be selectable (e.g. `--format markdown|html`), and
-      the tool MUST write the report to a file (path configurable).
+      The tool MUST let the user select the output format, for example with
+      `--format markdown|html`.
     rationale: >-
       Different readers need different formats: markdown for a terminal or for GitHub,
-      and HTML for a browser. A report written to a file can be kept as a CI artifact
-      or shared after the run.
+      and HTML for a browser.
+  - id: DRPT-04-017
+    priority: MUST
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      The tool MUST write the report to a file at a configurable path.
+    rationale: >-
+      A report written to a file can be kept as a CI artifact or shared after the run.
+      A configurable path lets a CI job put it where the artifact upload looks.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-04-004
   - id: DRPT-04-005
     priority: SHOULD
     kind: project
     statement: >-
-      After writing an HTML report, the tool SHOULD open it in the default
-      browser via `webbrowser.open()`, and MUST provide a flag (e.g.
-      `--no-open`) that suppresses the browser launch (required for
-      non-interactive and CI use).
+      After it writes an HTML report, the tool SHOULD open the report in the default
+      browser with `webbrowser.open()`.
     rationale: >-
-      A user who runs the tool on a desktop wants to see the report at once. In CI and
-      in other non-interactive runs, there is no browser, so the flag must stop the
+      A user who runs the tool on a desktop wants to see the report at once.
+    verification: >-
+      `test/demo/test_report.py::TestCli::test_html_opens_browser_without_no_open`
+      asserts that an HTML run without `--no-open` calls `webbrowser.open()`.
+  - id: DRPT-04-018
+    priority: MUST
+    kind: project
+    statement: >-
+      The tool MUST provide a flag, such as `--no-open`, that suppresses the browser
       launch.
+    rationale: >-
+      In CI and in other non-interactive runs there is no browser, so a run must be
+      able to stop the launch.
+    verification: >-
+      `test/demo/test_report.py::TestCli::test_no_open_suppresses_browser` asserts
+      that an HTML run with `--no-open` never calls `webbrowser.open()`.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-04-005
   - id: DRPT-04-006
     priority: SHOULD
     kind: project
@@ -590,14 +726,24 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      Unit tests MUST cover JSONL-to-distilled-model parsing against fixtures
-      that include both camelCase and snake_case field spellings, and MUST
-      assert field extraction, merge/de-duplication by `entry_hash`, and the
-      per-actor replica-presence computation.
+      Unit tests MUST cover JSONL-to-distilled-model parsing against fixtures that
+      include both camelCase and snake_case field spellings.
     rationale: >-
       The parser is the part of the tool that is most likely to lose data without an
-      error. Fixtures with both field spellings, and checks of merge and presence, find
-      the data loss that a renderer test cannot see.
+      error. Fixtures with both field spellings find a spelling the parser drops.
+  - id: DRPT-05-008
+    priority: MUST
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      Unit tests MUST assert field extraction, merge and de-duplication by
+      `entry_hash`, and the per-actor replica-presence computation.
+    rationale: >-
+      Checks of extraction, merge and presence find the data loss that a renderer
+      test cannot see.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-05-001
   - id: DRPT-05-002
     priority: MUST
     kind: project

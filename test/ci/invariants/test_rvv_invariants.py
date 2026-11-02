@@ -113,7 +113,7 @@ def test_rvv_vendor2_late_joiner_has_full_history(
     """Vendor2 replica contains all logIndex values present in vendor replica.
 
     Vendor2 is a late joiner and must receive the full ledger backfill.
-    Spec: DEMOMA-09-004 (LedgerFanout convergence).
+    Spec: DEMOMA-09-010 (LedgerFanout convergence).
     """
     if not rvv_replicas.get("vendor") or not rvv_replicas.get("vendor2"):
         pytest.skip(
@@ -134,7 +134,7 @@ def test_rvv_reporter_late_joiner_has_full_history(
     Reporter is seeded by the CaseActor's trust-bootstrap Announce after
     Vendor1 validates the report; the CaseActor must backfill all prior
     entries to Reporter.
-    Spec: DEMOMA-09-004 (LedgerFanout convergence).
+    Spec: DEMOMA-09-010 (LedgerFanout convergence).
     """
     if not rvv_replicas.get("vendor") or not rvv_replicas.get("reporter"):
         pytest.skip(

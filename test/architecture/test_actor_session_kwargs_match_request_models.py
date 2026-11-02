@@ -14,7 +14,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """Architecture invariant: an ``ActorSession`` verb method cannot accept a keyword
-the trigger endpoint would silently drop (DEMOMA-26-004).
+the trigger endpoint would silently drop (DEMOMA-26-012).
 
 Each ``ActorSession`` trigger method builds a request body and posts it to a
 trigger endpoint whose body is validated by a request model with
@@ -150,3 +150,33 @@ def test_every_public_verb_method_is_mapped():
         " METHOD_TO_MODEL; add one so their keywords are ratcheted against the"
         " request model (DEMOMA-26-004)."
     )
+
+
+def _var_keyword_params(method) -> set[str]:
+    """Return the name of *method*'s ``**kwargs`` parameter, if it has one."""
+    params = inspect.signature(method).parameters
+    return {name for name, p in params.items() if p.kind is p.VAR_KEYWORD}
+
+
+@pytest.mark.spec("DEMOMA-26-011")
+@pytest.mark.parametrize("method_name", sorted(METHOD_TO_MODEL))
+def test_method_takes_no_var_keyword(method_name):
+    """A ``**kwargs`` parameter would bypass the subset check above."""
+    method = getattr(ActorSession, method_name)
+    catch_all = _var_keyword_params(method)
+    assert not catch_all, (
+        f"ActorSession.{method_name} takes **{sorted(catch_all)[0]}, so any"
+        " keyword reaches the request body and a misspelled one is dropped"
+        " silently (TRIG-03-002). Declare each keyword by name (DEMOMA-26-011)."
+    )
+
+
+def test_var_keyword_detector_sees_a_catch_all():
+    """Non-vacuity: the detector finds a ``**kwargs`` parameter."""
+
+    def with_catch_all(self, note: str, **extra: str) -> None: ...
+
+    def without_catch_all(self, note: str) -> None: ...
+
+    assert _var_keyword_params(with_catch_all) == {"extra"}
+    assert _var_keyword_params(without_catch_all) == set()

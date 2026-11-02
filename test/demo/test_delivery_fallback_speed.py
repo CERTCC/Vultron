@@ -47,7 +47,7 @@ def demo_env(client: TestClient):
     """Route the demo's clients, the runner's included, at the TestClient.
 
     The reporter submits through its own trigger (#4675), and ``ActorSession``
-    refuses a client whose base URL does not host the actor (DEMOMA-26-002),
+    refuses a client whose base URL does not host the actor (DEMOMA-26-008),
     so the runner's client must be built at the test server's base too.
     """
     with route_exchange_demo_at_testclient(client, demo):

@@ -134,7 +134,7 @@ class TestRegistration:
         assert "rcv-embargo" in registered
         assert registered["rcv-embargo"].in_pr_set is True
 
-    @pytest.mark.spec("DEMOMA-20-005")
+    @pytest.mark.spec("DEMOMA-20-015")
     def test_roles_follow_the_scenario_role_naming(self):
         assert [r.name for r in demo.ROLES] == [
             "reporter",
@@ -169,7 +169,7 @@ class TestStoryPath:
     def test_the_story_walks_the_path_the_scenario_declared(self):
         assert demo.STORY.path == EXPECTED_PATH
 
-    @pytest.mark.spec("DEMOMA-17-001")
+    @pytest.mark.spec("DEMOMA-17-001", "DEMOMA-17-003")
     def test_the_story_opens_with_the_shared_prefix_objects_items(self):
         """The opening is the prefix *object*, not a copy of its steps.
 
@@ -264,7 +264,7 @@ class TestTheSharedEmbargoOpening:
         assert not _demo_failures
 
     @pytest.mark.spec("EP-09-001")
-    @pytest.mark.spec("DEMOMA-20-002")
+    @pytest.mark.spec("DEMOMA-20-014")
     @pytest.mark.spec("DEMOMA-20-008")
     def test_the_reporters_proposal_revises_the_default_embargo(self):
         """The relayed proposal takes effect, and the revision is kept.

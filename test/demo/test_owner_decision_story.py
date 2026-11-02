@@ -194,7 +194,7 @@ class TestCaseActorParticipant:
 
 
 @pytest.mark.spec("DEMOMA-13-004")
-@pytest.mark.spec("DEMOMA-13-005")
+@pytest.mark.spec("DEMOMA-13-005", "DEMOMA-13-016", "DEMOMA-13-017")
 class TestTheOwnerApprovesASuggestedActor:
     """The joiner suggests, the owner approves, the CaseActor invites."""
 
@@ -520,11 +520,11 @@ class TestTheOwnerApprovesASuggestedActor:
 
 
 # ---------------------------------------------------------------------------
-# owner-keep-case:offer-ownership (TRIG-11-001/002, DEMOMA-14-004/011)
+# owner-keep-case:offer-ownership (TRIG-11-001/002, DEMOMA-14-004/011/020)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("DEMOMA-14-004")
+@pytest.mark.spec("DEMOMA-14-004", "DEMOMA-14-020")
 class TestTheOwnerHandsTheCaseOver:
     """The owner offers, the new owner accepts, the CASE_MANAGER commits."""
 

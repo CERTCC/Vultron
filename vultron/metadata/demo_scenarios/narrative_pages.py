@@ -32,7 +32,7 @@ is visible from the page itself:
 Both are aggregated by :func:`.prose_checks.consistency_problems`, so they reach
 ``uv run demo-scenarios --check`` (the pre-commit hook) and the unit suite.
 
-Requirements: ``specs/demo-ci.yaml`` DEMOCI-11-003, DEMOCI-11-012;
+Requirements: ``specs/demo-ci.yaml`` DEMOCI-11-003, DEMOCI-11-012, DEMOCI-11-046;
 ``specs/meta-specifications.yaml`` MS-16-002.
 Guidance: ``notes/demo-scenario-registry.md``.
 """
@@ -83,7 +83,7 @@ def unregistered_narrative_pages(
     """Return narrative pages that no registered scenario derives.
 
     Every ``*.md`` under :data:`NARRATIVE_DIR` other than :data:`NARRATIVE_INDEX`
-    must be some registered scenario's ``narrative_path`` (DEMOCI-11-012).  A
+    must be some registered scenario's ``narrative_path`` (DEMOCI-11-046).  A
     ``_``-prefixed file is an ``{% include-markdown %}`` fragment the narratives
     share (SG-43), not a page, so it is not checked (DF-09-011).  The
     converse — a registered scenario whose page is missing — is

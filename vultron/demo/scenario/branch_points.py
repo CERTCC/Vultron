@@ -101,7 +101,7 @@ class Choice:
             raise DemoScenarioRegistryError(
                 f"choice {self.id!r} has trigger {self.trigger!r}, which is "
                 "not a trigger verb; a choice is exactly one trigger POST "
-                "(DEMOCI-11-013), never a wait, a skip or a fall-through."
+                "(DEMOCI-11-049), never a wait, a skip or a fall-through."
             )
 
 

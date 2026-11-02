@@ -132,7 +132,7 @@ and call it from both places (DEMOMA-17-001, the MUST-level form of CS-22-001).
 
 Scenario and exchange demos make every trigger call through `ActorSession`
 (`vultron/demo/actor_session.py`) typed methods, never `post_to_trigger`
-(DEMOMA-26-001).
+(DEMOMA-26-001, DEMOMA-26-007).
 
 **Why:** `post_to_trigger` takes a bare behavior string and an untyped body. A
 misspelled behavior is a runtime 404, and a misspelled body key is silently

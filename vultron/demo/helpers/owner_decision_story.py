@@ -185,7 +185,7 @@ def the_owner_approves_a_suggested_actor(
 
     The owner keeping the case is what makes this the ``keep`` continuation:
     it is the owner, not the joiner, that converts the suggestion into an
-    invitation, so ownership never moves (DEMOMA-13-002).
+    invitation, so ownership never moves (DEMOMA-13-014).
 
     Reads *joined* first: the suggestion comes from a participant, so a join
     whose roster never filled stops the story here rather than suggesting

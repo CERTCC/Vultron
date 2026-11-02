@@ -224,7 +224,7 @@ class TestChoose:
         with pytest.raises(DemoScenarioRegistryError, match="no choice"):
             choose("reporter-whom-to-tell", "nobody", by="reporter")
 
-    @pytest.mark.spec("DEMOCI-11-013")
+    @pytest.mark.spec("DEMOCI-11-013", "DEMOCI-11-047")
     @pytest.mark.parametrize("by", ["", None])
     def test_a_choice_names_the_actor_that_decides(self, by: Any) -> None:
         with pytest.raises(DemoStoryError, match="as the actor that decides"):
@@ -565,7 +565,7 @@ class _FakeHarness:
         if self.refuse == branch_point:
             raise DemoScenarioStepError(
                 f"{branch_point} is decided by {by!r}, which is not a "
-                "participant in the case (DEMOCI-11-013)."
+                "participant in the case (DEMOCI-11-047)."
             )
         self.marks.append((branch_point, choice, by))
         self.log.append(f"mark:{branch_point}")
@@ -920,7 +920,7 @@ class TestRunStoryOnTheRealHarness:
         (harness,) = seen
         assert harness.marks == []
 
-    @pytest.mark.spec("DEMOCI-11-013")
+    @pytest.mark.spec("DEMOCI-11-013", "DEMOCI-11-047")
     def test_a_later_step_before_the_case_ledger_is_refused(self) -> None:
         """The second refusal it cannot make: no ledger to mark the step in."""
         seen: list[ScenarioHarness] = []

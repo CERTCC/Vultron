@@ -142,7 +142,7 @@ class Choose:
                 f"{self.by!r} as the actor that decides it; the name is the "
                 "one its scenario's ROLES seats the actor under, and the "
                 "harness reads that actor's role from the canonical case "
-                "(DEMOCI-11-013)."
+                "(DEMOCI-11-047)."
             )
 
     @property
@@ -421,7 +421,7 @@ class StoryState:
         if not actor_id:
             raise DemoStoryError(
                 f"the cast member {name!r} has no actor id, so no step it "
-                "decides can be checked against its role (DEMOCI-11-013)."
+                "decides can be checked against its role (DEMOCI-11-047)."
             )
         return actor_id
 
@@ -679,7 +679,7 @@ def _mark_step(
 ) -> bool:
     """Record *item*'s step mark; return whether the story may go on.
 
-    A step's role is read from the canonical case (DEMOCI-11-013), so a
+    A step's role is read from the canonical case (DEMOCI-11-047), so a
     decision cannot be checked when the act that granted the role failed: an
     invitee holds the role of an Invite that was never sent no more than it
     holds any other.  A mark is therefore a dependent step like any other, and

@@ -138,7 +138,7 @@ def test_every_registered_scenario_is_in_the_table() -> None:
     scenario missing from it is a scenario nobody checks still writes a dump
     manifest when it dies before the case exists — and the omission looks
     exactly like a green run.  Compared against the registry rather than a
-    count, which cannot say *which* scenario drifted (DEMOCI-11-002).
+    count, which cannot say *which* scenario drifted (DEMOCI-11-038).
     """
     from vultron.demo.scenario.registry import discover_scenarios
 

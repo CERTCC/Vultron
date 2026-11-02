@@ -377,7 +377,7 @@ def wait_for_participants_on_replicas(
     so the identity-based participant check (EDF-06-002) applies unchanged.
 
     Each per-replica poll runs inside its own ``demo_check`` context
-    (DEMOCI-01-011): :func:`wait_for_case_participants` raises ``AssertionError``
+    (DEMOCI-01-014): :func:`wait_for_case_participants` raises ``AssertionError``
     on timeout, and a bare raise from scenario ``_phase_*`` code would crash the
     whole run at the first failure — defeating the failure-accumulation model
     (DEMOCI-01-003/004).  Wrapping here, in the shared helper, means all seven
