@@ -244,6 +244,48 @@ def test_an_activation_with_pxa_set_is_refused_uncommitted(make_payload):
     assert _ledger(dl) == []
 
 
+@pytest.mark.spec("EMB-05-002")
+@pytest.mark.spec("EMB-02-002")
+@pytest.mark.parametrize(
+    "pxa", [CS_pxa.Pxa, CS_pxa.pXa, CS_pxa.pxA], ids=["P", "X", "A"]
+)
+def test_an_accepted_revision_with_pxa_set_is_refused_without_et(
+    make_payload, pxa
+):
+    """The owner's EC of a revision after P/X/A changes nothing.
+
+    The CASE_MANAGER refuses the activation before committing it and emits
+    no ET: the embargo in force and the open revision stay as they were,
+    since the P/X/A teardown ends the embargo (RSH-03-001).
+    """
+    dl, _case_obj, embargo = _store(active=True)
+    case = _case(dl)
+    prior_id = case.active_embargo_id
+    assert case.em_state == EM.REVISE
+    case.current_status.pxa.state = pxa
+    dl.save(case)
+    outbox_before = set(dl.outbox_list())
+
+    result = _receive(
+        dl,
+        make_payload,
+        activate_embargo_activity,
+        ActivateEmbargoOnCaseReceivedUseCase,
+        embargo,
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "EMB-02-002" in (result.reason or "")
+    # Nothing is sent: no ET, and no announcement of an activation.
+    assert set(dl.outbox_list()) == outbox_before
+    after = _case(dl)
+    assert after.em_state == EM.REVISE
+    assert after.active_embargo_id == prior_id
+    assert after.proposed_embargo_ids == [embargo.id_]
+    # No entry at all: neither the revision's activation nor a termination.
+    assert _ledger(dl) == []
+
+
 @pytest.mark.spec("CM-18-003")
 @pytest.mark.spec("CLP-10-009")
 def test_an_activation_the_owner_declined_changes_its_answer(

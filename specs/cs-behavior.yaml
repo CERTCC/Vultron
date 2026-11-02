@@ -442,6 +442,10 @@ groups:
     testable: true
     adr:
     - ADR-0166
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-12-001
+      note: The adoption of a received CP
 
     stories:
     - story_2022_023
@@ -744,6 +748,10 @@ groups:
     testable: true
     adr:
     - ADR-0166
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-13-002
+      note: The adoption of a received CX
 
     stories:
     - story_2022_023
@@ -1084,6 +1092,10 @@ groups:
     testable: true
     adr:
     - ADR-0166
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-14-001
+      note: The adoption of a received CA
 
     stories:
     - story_2022_023
@@ -1419,15 +1431,78 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant entering CS Public Aware (q^cs → ···P··) with an active
-      embargo (q^em ∈ {A, R}) SHALL terminate the embargo immediately by
-      emitting ET.
+      This rule covers the CASE_MANAGER when it adopts a P value
+      (q^cs → ···P··) while an embargo is active (q^em ∈ {A, R}).
+      Acting for the Case Owner, it MUST end the embargo immediately, by
+      emitting ET in the act that adopts the value.
     rationale: >-
       VP-09-001 requires immediate embargo termination upon public
-      disclosure. CSB-12-004 orders the CS transition before the teardown.
+      disclosure. Ending an embargo is the Case Owner's decision, and only
+      the CASE_MANAGER writes shared EM state; it can be the Case Owner itself
+      (EMB-03-003, ADR-0118). Adopting P also authorizes the termination
+      (ADR-0166). A non-manager Participant reports P instead (CSB-12-005),
+      and CSB-04-007 covers a received CP. CSB-12-004 orders the CS
+      transition before the teardown.
+    adr:
+    - ADR-0118
+    - ADR-0166
     verification: >-
-      Integration tests in `test/demo/` confirm that entering CS Public Aware with an
-      active embargo emits ET and that EM reaches EXITED.
+      Unit tests marked CSB-12-001 in
+      `test/core/behaviors/status/test_add_participant_status_bt.py`
+      (`TestAdoptedThreatTeardown`) confirm that the CASE_MANAGER that adopts
+      a P value with EM Active or Revise ends the embargo in the same act, so
+      EM reaches EXITED.
+    testable: true
+    preconditions:
+    - cs_pattern: "...P.."
+      em_state:
+        - ACTIVE
+        - REVISE
+      description: EM state is Active or Revise; CS matches pattern ...P..
+    steps:
+    - order: 1
+      actor: CASE_MANAGER
+      action: Adopt the P value into the canonical case status
+      expected: Case CS public bit set to P
+    - order: 2
+      actor: CASE_MANAGER
+      action: Emit ET to terminate the embargo, in the same act
+      expected: ET queued for participants; EM transitions to EXITED
+    postconditions:
+    - description: >-
+        CS public bit is P; the CASE_MANAGER has emitted ET; EM is EXITED
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-09-001
+      note: Embargoes SHALL terminate immediately when information becomes public
+
+    stories:
+    - story_2022_023
+    - story_2022_081
+  - id: CSB-12-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      This rule covers a Participant that is not the CASE_MANAGER and enters
+      CS Public Aware (q^cs → ···P··) while an embargo is active
+      (q^em ∈ {A, R}).
+      It MUST report the P value to the CASE_MANAGER instead of emitting ET.
+    rationale: >-
+      VP-11-003 has a Participant that learns the vulnerability is public
+      initiate embargo termination. Ending the embargo is the Case Owner's
+      decision, carried out by the CASE_MANAGER (EMB-03-003, ADR-0118,
+      VP-11-012), so the Participant's part is the report. The CASE_MANAGER
+      then ends the embargo in the act that adopts the P value (CSB-12-001,
+      ADR-0166). Participants message only the CASE_MANAGER (PCR-08-001).
+    adr:
+    - ADR-0118
+    - ADR-0166
+    verification: >-
+      Tests marked CSB-12-005 in
+      `test/core/use_cases/triggers/case/test_add_participant_status.py`
+      confirm that a non-manager Participant that reports P with EM Active or
+      Revise sends one status report, addressed only to the CASE_MANAGER,
+      and sends no ET, its EM state unchanged.
     testable: true
     preconditions:
     - cs_pattern: "...P.."
@@ -1438,20 +1513,17 @@ groups:
     steps:
     - order: 1
       actor: participant
-      action: Record CS Public Aware transition in local state
-      expected: Receiver CS public bit set to P
-    - order: 2
-      actor: participant
-      action: Emit ET to terminate the embargo
-      expected: ET queued for participants; EM begins transitioning to EXITED
+      action: Report the P value to the CASE_MANAGER
+      expected: Status report queued for the CASE_MANAGER only; no ET queued
     postconditions:
     - description: >-
-        CS public bit is P; ET emitted; EM is EXITED
+        The CASE_MANAGER has the P report; the Participant has emitted no ET
     relationships:
     - rel_type: satisfies
-      spec_id: VP-09-001
-      note: Embargoes SHALL terminate immediately when information becomes public
-
+      spec_id: VP-11-003
+      note: >-
+        Participants SHALL initiate embargo termination on learning that
+        information about the vulnerability is public
     stories:
     - story_2022_023
     - story_2022_081
@@ -1459,9 +1531,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant entering CS Public Aware (q^cs → ···P··) with an active
-      embargo (q^em ∈ {A, R}) MUST record the CS transition before it initiates
-      the embargo teardown of CSB-12-001.
+      This rule covers the CASE_MANAGER when it adopts a P value
+      (q^cs → ···P··) while an embargo is active (q^em ∈ {A, R}).
+      It MUST record the adopted P value before it ends the embargo under
+      CSB-12-001.
     rationale: >-
       Every replica replays the ledger in order, so a teardown committed ahead
       of its cause would show the embargo ending for no recorded reason.
@@ -1588,15 +1661,79 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant entering CS Exploit Public (q^cs → ···PX·) with an active
-      embargo (q^em ∈ {A, R}) SHALL terminate the embargo immediately by
-      emitting ET.
+      This rule covers the CASE_MANAGER when it adopts an X value
+      (q^cs → ···PX·) while an embargo is active (q^em ∈ {A, R}).
+      Acting for the Case Owner, it MUST end the embargo immediately, by
+      emitting ET in the act that adopts the value.
     rationale: >-
       VP-09-001 requires immediate embargo termination upon exploit
-      publication. CSB-13-004 orders the CS transition before the teardown.
+      publication. Ending an embargo is the Case Owner's decision, and only
+      the CASE_MANAGER writes shared EM state; it can be the Case Owner itself
+      (EMB-03-003, ADR-0118). Adopting X also authorizes the termination
+      (ADR-0166). A non-manager Participant reports X instead (CSB-13-005),
+      and CSB-05-008 covers a received CX. CSB-13-004 orders the CS
+      transition before the teardown.
+    adr:
+    - ADR-0118
+    - ADR-0166
     verification: >-
-      Integration tests in `test/demo/` confirm that entering CS ···PX· with an active
-      embargo emits ET and that EM reaches EXITED.
+      Unit tests marked CSB-13-002 in
+      `test/core/behaviors/status/test_add_participant_status_bt.py`
+      (`TestAdoptedThreatTeardown`) confirm that the CASE_MANAGER that adopts
+      an X value with EM Active or Revise ends the embargo in the same act, so
+      EM reaches EXITED.
+    testable: true
+    preconditions:
+    - cs_pattern: "...PX."
+      em_state:
+        - ACTIVE
+        - REVISE
+      description: EM state is Active or Revise; CS matches pattern ...PX.
+    steps:
+    - order: 1
+      actor: CASE_MANAGER
+      action: Adopt the X value into the canonical case status
+      expected: Case CS exploit bit set to X
+    - order: 2
+      actor: CASE_MANAGER
+      action: Emit ET to terminate the embargo, in the same act
+      expected: ET queued for participants; EM transitions to EXITED
+    postconditions:
+    - description: >-
+        CS exploit bit is X; the CASE_MANAGER has emitted ET; EM is EXITED
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-09-001
+      note: >-
+        Embargoes SHALL terminate immediately when exploit becomes public
+
+    stories:
+    - story_2022_023
+    - story_2022_014
+  - id: CSB-13-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      This rule covers a Participant that is not the CASE_MANAGER and enters
+      CS Exploit Public (q^cs → ···PX·) while an embargo is active
+      (q^em ∈ {A, R}).
+      It MUST report the X value to the CASE_MANAGER instead of emitting ET.
+    rationale: >-
+      VP-11-003 has a Participant that learns of public exploit code initiate
+      embargo termination. Ending the embargo is the Case Owner's decision,
+      carried out by the CASE_MANAGER (EMB-03-003, ADR-0118, VP-11-012), so
+      the Participant's part is the report. The CASE_MANAGER then ends the
+      embargo in the act that adopts the X value (CSB-13-002, ADR-0166).
+      Participants message only the CASE_MANAGER (PCR-08-001).
+    adr:
+    - ADR-0118
+    - ADR-0166
+    verification: >-
+      Tests marked CSB-13-005 in
+      `test/core/use_cases/triggers/case/test_add_participant_status.py`
+      confirm that a non-manager Participant that reports X with EM Active or
+      Revise sends one status report, addressed only to the CASE_MANAGER,
+      and sends no ET, its EM state unchanged.
     testable: true
     preconditions:
     - cs_pattern: "...PX."
@@ -1607,21 +1744,17 @@ groups:
     steps:
     - order: 1
       actor: participant
-      action: Record CS Exploit Public transition in local state
-      expected: Receiver CS exploit bit set to X
-    - order: 2
-      actor: participant
-      action: Emit ET to terminate the embargo
-      expected: ET queued for participants; EM begins transitioning to EXITED
+      action: Report the X value to the CASE_MANAGER
+      expected: Status report queued for the CASE_MANAGER only; no ET queued
     postconditions:
     - description: >-
-        CS exploit bit is X; ET emitted; EM is EXITED
+        The CASE_MANAGER has the X report; the Participant has emitted no ET
     relationships:
     - rel_type: satisfies
-      spec_id: VP-09-001
+      spec_id: VP-11-003
       note: >-
-        Embargoes SHALL terminate immediately when exploit becomes public
-
+        Participants SHALL initiate embargo termination on learning of public
+        exploit code
     stories:
     - story_2022_023
     - story_2022_014
@@ -1629,9 +1762,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant entering CS Exploit Public (q^cs → ···PX·) with an active
-      embargo (q^em ∈ {A, R}) MUST record the CS transition before it initiates
-      the embargo teardown of CSB-13-002.
+      This rule covers the CASE_MANAGER when it adopts an X value
+      (q^cs → ···PX·) while an embargo is active (q^em ∈ {A, R}).
+      It MUST record the adopted X value before it ends the embargo under
+      CSB-13-002.
     rationale: >-
       Every replica replays the ledger in order, so a teardown committed ahead
       of its cause would show the embargo ending for no recorded reason. The
@@ -1685,17 +1819,78 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      A Participant entering CS Attacks Observed (q^cs → ·····A) with an
-      active embargo (q^em ∈ {A, R}) SHOULD terminate the embargo by emitting
-      ET.
+      This rule covers the CASE_MANAGER when it learns of an A value
+      (q^cs → ·····A) while an embargo is active (q^em ∈ {A, R}).
+      Acting for the Case Owner, it SHOULD end the embargo by adopting the
+      value, in an act that emits ET.
     rationale: >-
-      VP-09-003 recommends immediate embargo termination when attacks
-      are observed. Unlike P and X, the attacks case is SHOULD (not SHALL) to
-      allow for judgment in cases where other factors may apply. CSB-14-005
-      orders the CS transition before any teardown.
+      VP-09-003 recommends ending the embargo when attacks are observed. It is
+      SHOULD, not SHALL, to leave room for judgment. Under ADR-0166 that
+      judgment is whether to adopt A: an adopted A ends the embargo in the
+      same act (CSB-06-008, RSH-03-001). The Case Owner may delegate that
+      decision in advance (RSH-07-003) and keeps the authority (VP-11-006).
+      A non-manager Participant reports A instead (CSB-14-006).
+    adr:
+    - ADR-0118
+    - ADR-0166
     verification: >-
-      Integration tests in `test/demo/` confirm that a participant entering CS Attacks
-      Observed with an active embargo records the A transition and emits ET.
+      Unit tests marked CSB-14-001 in
+      `test/core/behaviors/status/test_add_participant_status_bt.py`
+      (`TestAdoptedThreatTeardown`) confirm that the CASE_MANAGER that adopts
+      an A value with EM Active or Revise ends the embargo in the same act, so
+      EM reaches EXITED.
+    testable: true
+    preconditions:
+    - cs_pattern: ".....A"
+      em_state:
+        - ACTIVE
+        - REVISE
+      description: EM state is Active or Revise; CS matches pattern .....A
+    steps:
+    - order: 1
+      actor: CASE_MANAGER
+      action: Adopt the A value into the canonical case status
+      expected: Case CS attacks bit set to A
+    - order: 2
+      actor: CASE_MANAGER
+      action: Emit ET to terminate the embargo, in the same act
+      expected: ET queued for participants; EM transitions to EXITED
+    postconditions:
+    - description: >-
+        CS attacks bit is A; the CASE_MANAGER has emitted ET; EM is EXITED
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-09-003
+      note: >-
+        Embargoes SHOULD terminate immediately when there is evidence of active
+        exploitation
+    stories:
+    - story_2022_014
+  - id: CSB-14-006
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      This rule covers a Participant that is not the CASE_MANAGER and enters
+      CS Attacks Observed (q^cs → ·····A) while an embargo is active
+      (q^em ∈ {A, R}).
+      It SHOULD report the A value to the CASE_MANAGER instead of emitting ET.
+    rationale: >-
+      VP-11-007 has a Participant that learns of attacks initiate embargo
+      termination. Ending the embargo is the Case Owner's decision, carried
+      out by the CASE_MANAGER (EMB-03-003, ADR-0118, VP-11-012), so the
+      Participant's part is the report, sent to the CASE_MANAGER (PCR-08-001).
+      The Case Owner may delegate in advance the decision to adopt a reported
+      A (RSH-07-003); it then decides ahead of time and keeps the authority
+      (VP-11-006).
+    adr:
+    - ADR-0118
+    - ADR-0166
+    verification: >-
+      Tests marked CSB-14-006 in
+      `test/core/use_cases/triggers/case/test_add_participant_status.py`
+      confirm that a non-manager Participant that reports A with EM Active or
+      Revise sends one status report, addressed only to the CASE_MANAGER,
+      and sends no ET, its EM state unchanged.
     testable: true
     preconditions:
     - cs_pattern: ".....A"
@@ -1706,20 +1901,16 @@ groups:
     steps:
     - order: 1
       actor: participant
-      action: Record CS Attacks Observed transition in local state
-      expected: Receiver CS attacks bit set to A
-    - order: 2
-      actor: participant
-      action: Emit ET to terminate the embargo
-      expected: ET queued for participants; EM begins transitioning to EXITED
+      action: Report the A value to the CASE_MANAGER
+      expected: Status report queued for the CASE_MANAGER only; no ET queued
     postconditions:
-    - description: CS attacks bit is A; ET emitted; EM is EXITED
+    - description: >-
+        The CASE_MANAGER has the A report; the Participant has emitted no ET
     relationships:
     - rel_type: satisfies
-      spec_id: VP-09-003
+      spec_id: VP-11-007
       note: >-
-        Embargoes SHOULD terminate immediately when there is evidence of active
-        exploitation
+        Participants SHOULD initiate embargo termination on learning of attacks
     stories:
     - story_2022_014
 
@@ -1728,9 +1919,10 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      A Participant that terminates an active embargo (q^em ∈ {A, R}) on
-      entering CS Attacks Observed (q^cs → ·····A) SHOULD record the CS
-      transition before it initiates the embargo teardown of CSB-14-001.
+      This rule covers the CASE_MANAGER when it adopts an A value
+      (q^cs → ·····A) while an embargo is active (q^em ∈ {A, R}).
+      It SHOULD record the adopted A value before it ends the embargo under
+      CSB-14-001.
     rationale: >-
       Every replica replays the ledger in order, so a teardown committed ahead
       of its cause would show the embargo ending for no recorded reason. The
@@ -2706,7 +2898,7 @@ groups:
     - ADR-0079
     relationships:
     - rel_type: depends_on
-      spec_id: CSB-12-001
+      spec_id: CSB-12-004
     lint_suppress:
     - missing_story_reference
   - id: CSB-19-002
@@ -2734,14 +2926,13 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      The CP-before-ET ordering constraint (CSB-12-001: CS→P MUST be recorded
-      before ET is emitted) is preserved under out-of-order ledger delivery
-      because the CASE_MANAGER commits entries in causal order (CLP-14-001). The
-      P-state ledger entry always carries a lower log_index than the ET entry
-      that follows it; the drain therefore always processes P before ET
-      when both are held.
+      Under out-of-order ledger delivery, the CP-before-ET constraint of
+      CSB-12-004 MUST still hold. It holds because the CASE_MANAGER commits in
+      causal order (CLP-14-001): the P-state entry has a lower log_index than
+      the ET entry after it. The drain therefore processes P before ET when it
+      holds both.
     rationale: >-
-      CSB-12-001 is enforced at the CASE_MANAGER write-side: the CASE_MANAGER commits
+      CSB-12-004 is enforced at the CASE_MANAGER write-side: the CASE_MANAGER commits
       the P-state entry before committing the ET entry. This means the P-state
       entry's log_index is strictly lower than the ET entry's log_index. The
       ADR-0037 drain replays in log_index order, so the constraint cannot be
@@ -2752,7 +2943,7 @@ groups:
     - rel_type: refines
       spec_id: CSB-19-001
     - rel_type: depends_on
-      spec_id: CSB-12-001
+      spec_id: CSB-12-004
     - rel_type: depends_on
       spec_id: CLP-14-001
     lint_suppress:

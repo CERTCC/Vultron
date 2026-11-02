@@ -491,6 +491,89 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         assert status.vf is None
         assert status.d is None
 
+    @pytest.mark.spec("PCR-08-001")
+    @pytest.mark.parametrize(
+        "reported",
+        [
+            pytest.param(
+                CS_pxa.Pxa, id="P", marks=pytest.mark.spec("CSB-12-005")
+            ),
+            pytest.param(
+                CS_pxa.pXa, id="X", marks=pytest.mark.spec("CSB-13-005")
+            ),
+            pytest.param(
+                CS_pxa.pxA, id="A", marks=pytest.mark.spec("CSB-14-006")
+            ),
+        ],
+    )
+    @pytest.mark.parametrize("revising", [False, True], ids=["A", "R"])
+    def test_a_threat_under_an_active_embargo_is_reported_not_ended(
+        self, reported, revising
+    ):
+        """A non-manager Participant that enters P, X or A while an embargo
+        is active reports the CS change to the CASE_MANAGER and sends
+        nothing else: no ET, and the embargo stays in force in its store
+        until the CASE_MANAGER ends it (CSB-12-005, CSB-13-005, CSB-14-006,
+        EMB-03-003)."""
+        from test.support.embargo_register import activate, propose
+        from vultron.core.models._helpers import days_from_now_utc
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.em import EM
+        from vultron.core.use_cases.triggers.case import (
+            SvcAddParticipantStatusUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AddParticipantStatusTriggerRequest,
+        )
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_TransitiveActivity,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
+
+        embargo = as_EmbargoEvent(
+            context=self.case.id_, end_time=days_from_now_utc(30)
+        )
+        self.dl.create(embargo)
+        case = cast(VulnerabilityCase, self.dl.read(self.case.id_))
+        activate(case, embargo.id_)
+        if revising:
+            revision = as_EmbargoEvent(
+                context=self.case.id_, end_time=days_from_now_utc(60)
+            )
+            self.dl.create(revision)
+            propose(case, revision.id_)
+        self.dl.save(case)
+        em_before = case.em_state
+        assert em_before == (EM.REVISE if revising else EM.ACTIVE)
+
+        request = AddParticipantStatusTriggerRequest(
+            actor_id=self.actor.id_,
+            case_id=self.case.id_,
+            pxa_state=reported,
+        )
+        before = set(self.dl.outbox_list())
+        SvcAddParticipantStatusUseCase(
+            self.dl, request, trigger_activity=self.trigger_activity
+        ).execute()
+
+        (activity_id,) = set(self.dl.outbox_list()) - before
+        activity = self.dl.read(activity_id)
+        assert isinstance(activity, as_TransitiveActivity)
+        assert self._to_ids(activity) == [self.case_actor.id_]
+        status = activity.object_
+        if isinstance(status, str):
+            status = self.dl.read(status)
+        assert isinstance(status, ParticipantStatus)
+        bit = next(letter for letter in reported.name if letter.isupper())
+        assert status.case_status is not None
+        assert bit in status.case_status.pxa.state.name
+        after = cast(VulnerabilityCase, self.dl.read(self.case.id_))
+        assert after.em_state == em_before
+        assert after.active_embargo_id == embargo.id_
+
     @pytest.mark.spec("RSH-08-003")
     @pytest.mark.spec("RSH-08-006")
     def test_execute_stores_status_without_appending_to_sender_record(self):
