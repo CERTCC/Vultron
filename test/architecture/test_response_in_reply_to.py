@@ -38,14 +38,17 @@ from pydantic import ValidationError
 
 import vultron.wire.as2.vocab.activities as activities_pkg
 from test.architecture._vocab_example_corpus import activity_examples
-from vultron.wire.as2.vocab.activities.case import _RmRejectCloseCaseActivity
+from vultron.wire.as2.vocab.activities.case import (
+    _RmCloseCaseActivity,
+    _RmRejectCloseCaseActivity,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Reject,
     as_TentativeAccept,
     as_TentativeReject,
 )
-from vultron.wire.as2.vocab.examples.case import close_case
+from vultron.wire.as2.vocab.examples.case import case, vendor
 
 _RESPONSE_BASES = (
     as_Accept,
@@ -99,10 +102,11 @@ def _samples() -> dict[str, Any]:
     for activity in activity_examples().values():
         samples.setdefault(type(activity).__name__, activity)
     # The decline of an owner's close has no vocab example.
+    close = _RmCloseCaseActivity(actor=vendor().id_, object_=case())
     samples.setdefault(
         _RmRejectCloseCaseActivity.__name__,
         _RmRejectCloseCaseActivity(
-            actor="https://example.org/case-actor", object_=close_case()
+            actor="https://example.org/case-actor", object_=close
         ),
     )
     return samples
