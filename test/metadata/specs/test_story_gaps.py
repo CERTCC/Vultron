@@ -15,9 +15,9 @@ from vultron.metadata.specs.registry import SpecRegistry
 from vultron.metadata.specs.schema import SpecFile
 from vultron.metadata.specs.story_gaps import (
     SUPPRESSED_MARK,
+    gap_report,
     listing_lines,
     main,
-    report,
     story_gaps,
     summary_lines,
 )
@@ -131,7 +131,7 @@ class TestSelection:
 @pytest.mark.spec("TRACE-03-004")
 class TestRendering:
     def test_the_default_report_is_one_line_per_spec_file(self, registry):
-        lines = report(registry)
+        lines = gap_report(registry)
         assert [line.split()[0] for line in lines[:-1]] == ["AKM", "CM"]
         assert lines[-1].startswith("5 requirement(s) in 2 spec file(s)")
 
@@ -164,10 +164,10 @@ class TestRendering:
         ]
 
     def test_an_empty_selection_says_so(self, registry):
-        assert report(registry, ("ZZZ",)) == [
+        assert gap_report(registry, ("ZZZ",)) == [
             "No kind: protocol requirement is missing a story."
         ]
-        assert report(registry, ("ZZZ",), detail=True) == [
+        assert gap_report(registry, ("ZZZ",), detail=True) == [
             "No kind: protocol requirement is missing a story."
         ]
 

@@ -183,7 +183,7 @@ def listing_lines(gaps: tuple[Gap, ...]) -> list[str]:
     return lines
 
 
-def report(
+def gap_report(
     registry: SpecRegistry,
     selectors: tuple[str, ...] = (),
     *,
@@ -229,9 +229,21 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     spec_dir = args.spec_dir or repo_root() / "specs"
     registry = load_registry(spec_dir)
-    for line in report(registry, tuple(args.selector), detail=args.detail):
+    for line in gap_report(registry, tuple(args.selector), detail=args.detail):
         print(line)
     return 0
+
+
+__all__ = [
+    "PRIORITY_ORDER",
+    "SUPPRESSED_MARK",
+    "Gap",
+    "gap_report",
+    "listing_lines",
+    "main",
+    "story_gaps",
+    "summary_lines",
+]
 
 
 if __name__ == "__main__":
