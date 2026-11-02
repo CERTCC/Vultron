@@ -169,6 +169,7 @@ from vultron.core.behaviors.sync.nodes.receive import (
     CheckHashOrRejectOnMismatchNode,
     LogDeliveryConfirmationNode,
     PersistReceivedLogEntryNode,
+    SendGenesisRejectOnMissingCaseNode,
     SendRejectLogEntryNode,
 )
 from vultron.core.behaviors.sync.nodes.replay import (
@@ -252,6 +253,7 @@ __all__ = [
     # replay_held
     "ReplayHeldSuccessorNode",
     "SendRejectLogEntryNode",
+    "SendGenesisRejectOnMissingCaseNode",
     "CheckHashOrRejectOnMismatchNode",
     # chain
     "ReconstructChainTailNode",

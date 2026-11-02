@@ -33,6 +33,7 @@ from vultron.core.behaviors.case.nodes.addressee import (
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
+from vultron.core.behaviors.sync.nodes import receive as _receive
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     MAX_REPLAY_COOLDOWN_SECONDS,
@@ -2231,11 +2232,6 @@ def _early_entries(count: int) -> list[CaseLedgerEntry]:
     return entries
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SYNC-15-016: one genesis Reject per interval per missing case."
-    " Tracked by #5555.",
-)
 @pytest.mark.spec("SYNC-15-001")
 @pytest.mark.spec("SYNC-15-016")
 @pytest.mark.spec("SYNC-15-020")
@@ -2258,11 +2254,6 @@ def test_early_entries_within_the_interval_send_one_genesis_reject(
     assert len(_queued_rejects(datalayer)) == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SYNC-15-017: a genesis Reject after the interval is a new"
-    " activity. Tracked by #5555.",
-)
 @pytest.mark.spec("SYNC-15-001")
 @pytest.mark.spec("SYNC-15-017")
 @pytest.mark.spec("SYNC-15-018")
@@ -2285,11 +2276,6 @@ def test_early_entry_after_the_interval_sends_a_new_genesis_reject(
     assert rejects[0] != rejects[1]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SYNC-15-023: seeding the case deletes the genesis Reject"
-    " record. Tracked by #5555.",
-)
 @pytest.mark.spec("SYNC-15-023")
 def test_seeding_the_case_clears_the_genesis_reject_record(
     datalayer, monkeypatch
@@ -2335,3 +2321,30 @@ def test_seeding_the_case_clears_the_genesis_reject_record(
     _deliver_early_entry(datalayer, third)
 
     assert len(_queued_rejects(datalayer)) == 2
+
+
+@pytest.mark.spec("SYNC-15-016")
+def test_an_unheld_early_entry_inside_the_interval_names_the_withheld_reject(
+    datalayer, monkeypatch
+):
+    """An entry the holding area dropped, inside the interval, says why.
+
+    The Reject already sent asks for the whole ledger, so the dropped entry
+    is not lost; the verdict names the withheld Reject, not a sent one.
+    """
+    first, second = _early_entries(2)
+    _set_clock(monkeypatch, _GENESIS_WAIT_START)
+    _deliver_early_entry(datalayer, first)
+    monkeypatch.setattr(_receive, "hold_received_announce", lambda *a: False)
+
+    py_trees.blackboard.Blackboard.storage.clear()
+    result = AnnounceLedgerEntryReceivedUseCase(
+        datalayer,
+        _make_event(second, actor_id=CASE_ACTOR_ACTOR_ID),
+        sync_port=SyncActivityAdapter(datalayer),
+        trigger_activity=TriggerActivityAdapter(datalayer),
+    ).execute()
+
+    assert result.disposition == HandlerDisposition.REFUSED
+    assert result.reason is not None and "SYNC-15-016" in result.reason
+    assert len(_queued_rejects(datalayer)) == 1

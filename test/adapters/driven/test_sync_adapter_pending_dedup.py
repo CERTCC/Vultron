@@ -23,6 +23,7 @@ duplicates *in the queue*, not against ever re-sending.
 """
 
 import json
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -141,6 +142,31 @@ def test_a_different_tail_hash_is_a_new_rejection(dl):
     adapter.send_reject_log_entry(entry, "b" * 64, OWNER, [PEER_A])
 
     assert len(dl.outbox_list()) == 2
+
+
+@pytest.mark.spec("SYNC-15-017")
+@pytest.mark.spec("ID-04-004")
+def test_a_genesis_reject_asked_at_another_time_is_a_new_activity(dl):
+    """The ask time keys a genesis Reject's id; the same time reuses it."""
+    adapter = SyncActivityAdapter(dl)
+    entry = _entry(0)
+    first_ask = datetime(2026, 1, 1, tzinfo=UTC)
+    later_ask = first_ask + timedelta(seconds=601)
+
+    adapter.send_reject_log_entry(
+        entry, "", OWNER, [PEER_A], asked_at=first_ask
+    )
+    adapter.send_reject_log_entry(
+        entry, "", OWNER, [PEER_A], asked_at=first_ask
+    )
+    adapter.send_reject_log_entry(
+        entry, "", OWNER, [PEER_A], asked_at=later_ask
+    )
+    adapter.send_reject_log_entry(entry, "", OWNER, [PEER_A])
+
+    queued = dl.outbox_list()
+    assert len(queued) == 3
+    assert len(set(queued)) == 3
 
 
 def _queue_announce(dl: SqliteDataLayer, entry: CaseLedgerEntry, to: str):

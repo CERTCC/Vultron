@@ -260,6 +260,12 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
             "vultron.core.behaviors.sync.nodes.receive",
             "SendRejectLogEntryNode",
         ),
+        # The same Reject, from a participant that does not hold the case,
+        # at most once per case per interval (SYNC-15-001, SYNC-15-016).
+        (
+            "vultron.core.behaviors.sync.nodes.receive",
+            "SendGenesisRejectOnMissingCaseNode",
+        ),
         # The replica's Create(ProcessingFault) about an entry it refused,
         # to the CASE_MANAGER that announced it: replication signalling like
         # the Reject, never ledgered (SYNC-03-007, SYNC-16-001, SYNC-16-002).

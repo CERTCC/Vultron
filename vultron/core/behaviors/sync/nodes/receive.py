@@ -30,8 +30,18 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.sync.nodes._helpers import hold_received_announce
 from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
+from vultron.core.behaviors.sync.nodes.replay_guard import (
+    MAX_REPLAY_COOLDOWN_SECONDS,
+    cooldown_elapsed,
+)
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_ledger import ledger_entry_hash_intact
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.services.genesis_reject_limit import (
+    last_genesis_reject_at,
+    record_genesis_reject,
+)
 from vultron.core.sync_helpers import store_ledger_entry
 from vultron.errors import (
     VultronError,
@@ -279,9 +289,10 @@ class BufferPreGenesisEntryNode(DataLayerActionWithPorts):
     hash and therefore replays first once the case is seeded.
 
     Returns SUCCESS when the ``Announce`` is held, FAILURE when the size bound
-    dropped it.  Its status only structures the enclosing tree — a
-    ``Reject(CaseLedgerEntry)`` is sent on every pre-genesis entry regardless,
-    so the CaseActor's replay remains the backstop (SYNC-15-001).  The entry
+    dropped it.  Its status only structures the enclosing tree —
+    :class:`SendGenesisRejectOnMissingCaseNode` runs either way, and asks for
+    the case unless it already asked within the interval, so the CaseActor's
+    replay remains the backstop (SYNC-15-001, SYNC-15-016).  The entry
     is deliberately NOT persisted here; its replay applies effects before
     persisting, honouring SYNC-12-001 / SYNC-14-005.
     """
@@ -373,6 +384,17 @@ class SendRejectLogEntryNode(DataLayerActionWithPorts):
                 f"{self.name}: activity.actor_id missing for rejection target"
             )
 
+        self._reject(entry, self._sync_port, self.actor_id, sender_id)
+        return Status.FAILURE
+
+    def _reject(
+        self,
+        entry: CaseLedgerEntry,
+        sync_port: SyncActivityPort,
+        actor_id: str,
+        sender_id: str,
+    ) -> None:
+        """Queue the ``Reject(CaseLedgerEntry)`` of *entry* to *sender_id*."""
         self.logger.warning(
             "%s: log entry '%s' prev_log_hash %.16s… does not match local tail "
             "%.16s…; sending Reject(CaseLedgerEntry)",
@@ -381,13 +403,92 @@ class SendRejectLogEntryNode(DataLayerActionWithPorts):
             entry.prev_log_hash,
             self.tail_hash,
         )
-        self._sync_port.send_reject_log_entry(
+        sync_port.send_reject_log_entry(
             entry=entry,
             tail_hash=self.tail_hash,
-            actor_id=self.actor_id,
+            actor_id=actor_id,
             to=[sender_id],
         )
-        return Status.FAILURE
+
+
+class SendGenesisRejectOnMissingCaseNode(SendRejectLogEntryNode):
+    """Ask for a missing case once per interval, not once per early entry.
+
+    Runs when the participant does not hold the entry's case (CLP-08-005),
+    after :class:`BufferPreGenesisEntryNode` has held the ``Announce``.  It
+    sends the genesis Reject, a ``Reject(CaseLedgerEntry)`` with
+    ``last_accepted_hash=""`` asking for the case and its whole ledger
+    (SYNC-15-001), unless it sent one for the same case less than
+    :data:`~vultron.core.behaviors.sync.nodes.replay_guard.MAX_REPLAY_COOLDOWN_SECONDS`
+    ago: one such Reject asks for everything the next would (SYNC-15-016,
+    SYNC-15-020).  The first early entry after the interval sends one again,
+    as a new activity, keyed on the time it asked (SYNC-15-017).
+
+    The time of the last one is a
+    :class:`~vultron.core.models.genesis_reject_record.GenesisRejectRecord`
+    in the participant's store (SYNC-15-021), written in one transaction
+    with the queued Reject, so neither lands without the other (ADR-0146).
+    Seeding the case deletes it (SYNC-15-023).
+
+    Returns ``FAILURE`` whether it sends or withholds, like
+    :class:`SendRejectLogEntryNode`: the entry is not stored this pass.
+    ``withheld`` says which, for the handler's verdict.
+    """
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name)
+        self.withheld = False
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.withheld = False
+
+    def _reject(
+        self,
+        entry: CaseLedgerEntry,
+        sync_port: SyncActivityPort,
+        actor_id: str,
+        sender_id: str,
+    ) -> None:
+        if self.datalayer is None:
+            raise VultronWiringError(
+                f"{self.name}: a DataLayer must be injected to limit genesis"
+                " Rejects (SYNC-15-021)"
+            )
+        last_sent_at = last_genesis_reject_at(self.datalayer, entry.case_id)
+        if not cooldown_elapsed(last_sent_at, MAX_REPLAY_COOLDOWN_SECONDS):
+            self.logger.info(
+                "%s: holding entry '%s' (index=%d) for missing case '%s'"
+                " without a genesis Reject: actor '%s' sent one at %s, less"
+                " than %.0f s ago (SYNC-15-016)",
+                self.name,
+                entry.id_,
+                entry.log_index,
+                entry.case_id,
+                actor_id,
+                last_sent_at,
+                MAX_REPLAY_COOLDOWN_SECONDS,
+            )
+            self.withheld = True
+            return
+        asked_at = now_utc()
+        self.logger.warning(
+            "%s: case '%s' of log entry '%s' is not held; sending a genesis"
+            " Reject(CaseLedgerEntry) to '%s' (SYNC-15-001)",
+            self.name,
+            entry.case_id,
+            entry.id_,
+            sender_id,
+        )
+        with self.datalayer.transaction():
+            sync_port.send_reject_log_entry(
+                entry=entry,
+                tail_hash=self.tail_hash,
+                actor_id=actor_id,
+                to=[sender_id],
+                asked_at=asked_at,
+            )
+            record_genesis_reject(self.datalayer, entry.case_id, asked_at)
 
 
 class CheckHashOrRejectOnMismatchNode(py_trees.composites.Selector):

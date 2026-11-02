@@ -71,7 +71,7 @@ from vultron.core.behaviors.sync.nodes import (
     PersistReceivedLogEntryNode,
     ReconstructChainTailNode,
     ReplayHeldSuccessorNode,
-    SendRejectLogEntryNode,
+    SendGenesisRejectOnMissingCaseNode,
 )
 from vultron.core.behaviors.sync.nodes.case_copy_effect import (
     StoreRecordsReflectedEntryCarriesNode,
@@ -403,10 +403,15 @@ def create_announce_log_entry_tree(
                             name="BufferPreGenesisEntry"
                         ),
                     ),
-                    # Fallback: send the Reject, with the sentinel tail_hash=""
-                    # ReconstructChainTailNode wrote before failing keying its
-                    # id; it states no ledger position (SYNC-18-001).
-                    SendRejectLogEntryNode(name="RejectOnMissingCase"),
+                    # Fallback: send the genesis Reject, with the sentinel
+                    # tail_hash="" ReconstructChainTailNode wrote before
+                    # failing keying its id; it states no ledger position
+                    # (SYNC-18-001).  At most one per case per interval, the
+                    # held entries draining once the case arrives
+                    # (SYNC-15-016, SYNC-15-017).
+                    SendGenesisRejectOnMissingCaseNode(
+                        name="RejectOnMissingCase"
+                    ),
                 ],
             ),
         ],

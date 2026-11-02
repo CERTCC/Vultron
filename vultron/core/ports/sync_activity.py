@@ -26,6 +26,7 @@ See also:
     - ``vultron/wire/as2/factories/AGENTS.md`` — Architecture Violation section
 """
 
+from datetime import datetime
 from enum import StrEnum
 from typing import Protocol
 
@@ -64,6 +65,8 @@ class SyncActivityPort(Protocol):
         tail_hash: str,
         actor_id: str,
         to: list[str],
+        *,
+        asked_at: datetime | None = None,
     ) -> None:
         """Build and queue a ``Reject(CaseLedgerEntry)`` activity.
 
@@ -78,6 +81,11 @@ class SyncActivityPort(Protocol):
                 reject's derived id (ID-04-004).
             actor_id: URI of the actor sending the rejection.
             to: List of recipient actor URIs (typically the CaseActor).
+            asked_at: For a genesis Reject from a receiver that holds no
+                case yet, when it asked; it keys the id too, so a request
+                after the interval is a new activity, not a redelivery the
+                CASE_MANAGER drops (SYNC-15-017, ID-02-001).  ``None`` for
+                every other Reject.
         """
         ...
 
