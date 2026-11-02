@@ -988,7 +988,13 @@ groups:
           that does not cancel a run in progress.
         rationale: >-
           Two publishes at once would race for the tag counter and for Pages,
-          and a cancelled deploy can leave Pages and the tags disagreeing.
+          and a cancelled deploy can leave Pages and the tags disagreeing. The
+          group covers the whole run, the gate's wait included: a group on the
+          build, deploy and tag jobs alone would let two runs interleave, so the
+          newest tag could name a deploy that is no longer live. The cost is
+          GitHub's rule of one pending run per group: while a run holds the
+          group, a newer queued run replaces an older queued one, which ends as
+          cancelled with no failure notice, and its starter runs it again.
         verification: >-
           `test_one_concurrency_group_never_cancels` in
           `test/ci/test_publish_gate.py`.
@@ -1022,6 +1028,26 @@ groups:
         verification: >-
           `test_a_rollback_target_must_be_on_main` (against real commits) and
           `test_gate_command_refuses_a_rollback_off_main` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0169
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-020
+      - id: DOCBW-06-030
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A rollback MUST NOT pass the CI gate when its target commit lacks a
+          local action that the site build loads from that commit.
+        rationale: >-
+          The build loads `setup-python-uv` and `check-site-publication` from
+          the commit it builds, and the releases up to `v2024.4.3` predate them.
+          Refused at the gate, such a rollback writes its reason to the run
+          summary (DOCBW-06-011); let through, it would report "Publishing" and
+          then fail in the build.
+        verification: >-
+          `test_a_rollback_target_must_carry_the_build_actions` in
           `test/ci/test_publish_gate.py`.
         adr:
           - ADR-0169

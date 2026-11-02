@@ -494,6 +494,23 @@ def test_retries_are_bounded_and_skippable(
     assert once.calls == 1
 
 
+def test_a_hung_gh_call_times_out_without_a_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[dict[str, object]] = []
+
+    def hang(argv: list[str], **kwargs: object) -> None:
+        seen.append(kwargs)
+        raise _script.subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+    monkeypatch.setattr(_script.subprocess, "run", hang)
+    monkeypatch.setattr(_gh_cli.time, "sleep", lambda _s: None)
+    monkeypatch.delenv("GH_RETRY_ATTEMPTS", raising=False)
+    with pytest.raises(_script.subprocess.TimeoutExpired):
+        _script._gh("issue", "edit", "12")
+    assert [call["timeout"] for call in seen] == [_gh_cli.CALL_TIMEOUT_SECONDS]
+
+
 def test_findings_still_return_the_report(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

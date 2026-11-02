@@ -69,6 +69,13 @@ TAG_PUSH_ATTEMPTS = 5
 _TAG_NAME_RE = re.compile(r"^publish-(\d{4}-\d{2}-\d{2})\.(\d+)$")
 # What a rollback may name: a publish tag, or a release tag (ADR-0006).
 _ROLLBACK_TAG_RE = re.compile(r"^(publish-\d{4}-\d{2}-\d{2}\.\d+|v\d\S*)$")
+# The local actions the build job loads from the commit it builds, not from
+# main: a commit without them cannot be built the way every publish is built
+# (DOCBW-06-004), so a rollback to it is refused before anything runs.
+BUILD_ACTIONS = (
+    ".github/actions/setup-python-uv/action.yml",
+    ".github/actions/check-site-publication/action.yml",
+)
 
 
 class Trigger(StrEnum):
@@ -168,11 +175,14 @@ def resolve_rollback(
     *,
     tag_commit: Callable[[str], str | None],
     on_main: Callable[[str, str], bool],
+    missing_actions: Callable[[str], list[str]],
 ) -> str:
     """The commit a rollback to *tag* redeploys.
 
     Anyone who can push can create a tag (#5545), so a tag alone is no sign
-    of review. Only a commit already in ``main``'s history is redeployed.
+    of review. Only a commit already in ``main``'s history is redeployed, and
+    only one that carries the ``BUILD_ACTIONS`` its build loads: an older
+    release would pass the gate and then fail in the build.
     """
     commit = tag_commit(tag)
     if commit is None:
@@ -180,6 +190,11 @@ def resolve_rollback(
     if not on_main(commit, main_sha):
         raise UnsupportedRunError(
             f"{tag!r} points at {commit}, which is not on main"
+        )
+    if missing := missing_actions(commit):
+        raise UnsupportedRunError(
+            f"{tag!r} points at {commit}, which predates the build this "
+            f"workflow runs: it has no {', '.join(missing)}"
         )
     return commit
 
@@ -464,6 +479,21 @@ def is_in_history(commit: str, tip: str) -> bool:
     )
 
 
+def missing_build_actions(commit: str) -> list[str]:
+    """The ``BUILD_ACTIONS`` that *commit*'s tree does not have."""
+    return [
+        path
+        for path in BUILD_ACTIONS
+        if subprocess.run(  # noqa: S603 - fixed argv, no shell
+            ["git", "cat-file", "-e", f"{commit}:{path}"],  # noqa: S607
+            capture_output=True,
+            check=False,
+            timeout=CALL_TIMEOUT_SECONDS,
+        ).returncode
+        != 0
+    ]
+
+
 def tag_commit(tag: str) -> str | None:
     """The commit *tag* points at in this clone, or ``None``."""
     try:
@@ -590,6 +620,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
                 args.sha,
                 tag_commit=tag_commit,
                 on_main=is_in_history,
+                missing_actions=missing_build_actions,
             )
             if trigger is Trigger.ROLLBACK
             else args.sha

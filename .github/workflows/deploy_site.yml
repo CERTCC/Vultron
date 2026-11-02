@@ -24,7 +24,8 @@ on:
       rollback-to:
         description: >-
           Roll back: the publish-* or v* tag whose commit to redeploy. The
-          commit must be on main. Leave empty to publish main.
+          commit must be on main and carry the build's local actions, which
+          no release before v2026.10.0 does. Leave empty to publish main.
         type: string
         default: ''
 
@@ -33,7 +34,10 @@ permissions:
 
 # One publish at a time, scheduled, manual and rollback alike, and a running
 # publish is never cancelled: the `.N` counter is computed inside this group,
-# and a half-finished deploy is worse than a late one (DOCBW-06-021).
+# and a half-finished deploy is worse than a late one (DOCBW-06-021). The group
+# covers the gate's wait too, so two runs never interleave deploy and tag.
+# GitHub keeps one pending run per group: a newer queued run replaces an older
+# queued one, which ends as cancelled with no failure notice.
 concurrency:
   group: "pages"
   cancel-in-progress: false

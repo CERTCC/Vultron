@@ -28,6 +28,7 @@ from test.ci._workflows import (
     WORKFLOWS_DIR,
     index_of,
     load_workflow,
+    steps,
     triggers,
 )
 
@@ -332,7 +333,10 @@ def _git(
 def repo(
     tmp_path: Path, git_env: None, monkeypatch: pytest.MonkeyPatch
 ) -> Path:
-    """A clone of a bare ``origin``, with one commit, as the current directory."""
+    """A clone of a bare ``origin``, with one commit, as the current directory.
+
+    The commit carries the ``BUILD_ACTIONS``, as every buildable commit does.
+    """
     origin = tmp_path / "origin.git"
     subprocess.run(["git", "init", "--bare", "-q", str(origin)], check=True)
     work = tmp_path / "work"
@@ -341,7 +345,11 @@ def repo(
         check=True,
         capture_output=True,
     )
-    _git(work, "commit", "--allow-empty", "-q", "-m", "first")
+    for action in _gate.BUILD_ACTIONS:
+        (work / action).parent.mkdir(parents=True)
+        (work / action).write_text("name: stub\n")
+    _git(work, "add", ".")
+    _git(work, "commit", "-q", "-m", "first")
     _git(work, "push", "-q", "origin", "HEAD")
     monkeypatch.chdir(work)
     return work
@@ -480,6 +488,7 @@ def test_a_rollback_target_must_be_on_main(repo: Path) -> None:
                 tip,
                 tag_commit=_gate.tag_commit,
                 on_main=_gate.is_in_history,
+                missing_actions=_gate.missing_build_actions,
             )
         )
 
@@ -489,6 +498,27 @@ def test_a_rollback_target_must_be_on_main(repo: Path) -> None:
     with pytest.raises(_gate.UnsupportedRunError, match="names no tag"):
         resolve("v1.0.0")
     assert _gate.tag_commit("v9.9.9") == stray
+
+
+@pytest.mark.spec("DOCBW-06-030", "DOCBW-06-011")
+def test_a_rollback_target_must_carry_the_build_actions(
+    repo: Path, outputs: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A release older than the local build actions (v2024.4.3 and before)
+    is refused by the gate, with its reason, instead of failing the build."""
+    _git(repo, "rm", "-q", "-r", ".github")
+    _git(repo, "commit", "-q", "-m", "before the build actions")
+    _git(repo, "tag", "v2024.4.3")
+    old = _head(repo)
+    _git(repo, "checkout", "-q", "HEAD~1", "--", ".github")
+    tip = _commit(repo, "the build actions again")
+    assert _gate.missing_build_actions(old) == list(_gate.BUILD_ACTIONS)
+    assert _gate.missing_build_actions(tip) == []
+    _no_github(monkeypatch)
+    assert _gate_main(sha=tip, rollback_to="v2024.4.3") == 1
+    summary = outputs["summary"].read_text()
+    assert "refused" in summary and "predates the build" in summary
+    assert not outputs["out"].exists()
 
 
 @pytest.mark.spec("DOCBW-06-020", "DOCBW-06-013")
@@ -1042,6 +1072,20 @@ def test_no_step_moves_or_deletes_a_tag() -> None:
     for where, text in texts.items():
         found = _TAG_REWRITES.findall(text)
         assert not found, f"The {where} can move or delete a tag: {found}"
+
+
+def test_no_run_step_expands_an_expression() -> None:
+    """Inputs, outputs and context values reach a shell only through ``env:``.
+
+    A ``${{ }}`` inside ``run:`` is pasted into the script before the shell
+    parses it, so a crafted ``rollback-to`` would run as code in the gate job.
+    """
+    inlined = [
+        str(s.get("name", s.get("id", "?")))
+        for s in steps(_workflow())
+        if "${{" in str(s.get("run", ""))
+    ]
+    assert not inlined, f"run: expands an expression in {inlined}"
 
 
 @pytest.mark.parametrize(

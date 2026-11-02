@@ -76,11 +76,14 @@ The decision has these parts:
   It would also let anyone who can push a tag deploy a commit carrying an edited workflow, since tag creation is unrestricted.
   For the same reason the target commit must be in `main`'s history, so only reviewed content is redeployed.
   The rollback builds and checks the target commit with that commit's own publication checks: a newer record of served URLs names pages the older commit never built.
+  A target commit that lacks the local actions its build loads, as the releases up to `v2024.4.3` do, is refused before anything is built.
   Rollback creates a tag; it never moves one.
 - **Least privilege.** Building, deploying and tagging run as separate jobs.
   The build runs project code with a read-only token; only the deploy job can deploy, and only the tag job can push.
 - **One run at a time.** Scheduled, manual and rollback runs share one concurrency group that never cancels a running publish.
   The tag counter is computed inside it, and a push that finds its name already taken by a hand-made tag is renumbered and retried.
+  The group covers the whole run, the gate's wait included, so two runs never interleave their deploy and tag steps.
+  GitHub keeps one pending run per group, so a newer queued run replaces an older queued one, which ends as cancelled with no failure notice.
 - **Release by promotion.** A formal release is a `v*` tag promoted from a `publish-*` tag, built in a follow-up (#5543).
   The `v*` tags and setuptools-scm's `tag_regex` (ADR-0006) are unchanged; `publish-*` tags match neither `tag_regex` nor `git_describe_command`, so they never change the package version.
 - **Retiring `publish`.** No workflow deploys from the `publish` branch.
