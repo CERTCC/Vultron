@@ -113,8 +113,9 @@ class _CommitCaseManagerNoteBase(
             return super().update()
         except RuntimeError as exc:
             if self._entry_committed:
-                # The entry exists, so this is no refused commit to log as
-                # "not recorded": the BT bridge reports it as internal.
+                # A step after the commit failed, not the commit itself, so
+                # this is no refusal to log as "not recorded": the act rolled
+                # back and the BT bridge reports it as internal.
                 raise
             # The ledger refused the commit, so nothing was attached.
             return self._skip(str(exc))
