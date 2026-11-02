@@ -196,8 +196,8 @@ groups:
           fragment, and, every scenario being written as composition, it fails
           too when it resolves a `_phase_*` function: the scan keeps that arm
           so one written again is covered rather than silently exempt, and the
-          assertion is what says it must not be. So a migration that moved the last one would not
-          leave it passing over an empty set.
+          assertion is what says it must not be. So a migration that moved the
+          last one would not leave it passing over an empty set.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-01-003
