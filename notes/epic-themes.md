@@ -9,10 +9,11 @@ description: >
   classify by outcome, one theme per leaf, an Epic's second theme only when its
   body names the split, the theme contains the grain, the `Theme:` reason line;
   Epic titles as done-state claims, one job per Epic body line, and Epic size
-  for fusing and splitting; borderline examples; the `theme-fit` structural check, its untriaged list,
-  the split line and the auto-calved marker it reads, the standing report Issue
-  the daily workflow rewrites; the `theme-gate` check
-  that refuses a new Issue breaking these rules; how to act on a theme-fit finding; and
+  for fusing and splitting; borderline examples; the `theme-fit` structural
+  check, its untriaged list, the split line and the auto-calved marker it
+  reads, the standing report Issue the daily workflow rewrites; the
+  `theme-gate` check that refuses a new Issue breaking these rules; how to act
+  on a theme-fit finding; and
   triage-label rules (`needs-info`, `ready-for-human`, and retired labels).
 related_specs:
   - specs/parallel-development.yaml
@@ -282,8 +283,9 @@ themes:
 ## The Theme Contains the Grain
 
 - **Rule**: every child of an Epic carries a theme the Epic carries
-  (PAD-02-017). Epics are still cut by design idea (`calve-epics`), but each
-  design idea sits inside one theme.
+  (PAD-02-017). Epics are still cut by design idea (`calve-epics`), or split by
+  size into slices of one outcome (PAD-02-037), but each design idea sits
+  inside one theme.
 - **Reason**: an Epic whose children span themes cannot be ranked as one body of
   work, because its children serve different outcomes.
 - **A child in another theme** gets moved to an Epic with its theme, gets
@@ -313,17 +315,18 @@ Theme: theme:dev-workflow — gives every skill one shared definition of the the
 - **Reason**: the board shows the title alone. A claim says what the Epic
   changes, tells siblings apart, and is the Epic's close test: read it and ask
   "is this true yet?"
-- **Other title styles fail on the board.** A feature name ("Actor signing")
-  names the area; an imperative ("Reconcile … specs") names the activity, so
-  siblings blur; a problem statement reads like a bug and says the opposite of
-  the done state; a "name: outcome" title loses the outcome when shortened and
-  its name drifts toward mechanism.
+- **Other title styles fail on the board** (PAD-02-030). A feature name
+  ("Actor signing") names the area; an imperative ("Reconcile … specs") names
+  the activity, so siblings blur; a problem statement reads like a bug and says
+  the opposite of the done state; a "name: outcome" title loses the outcome when
+  shortened and its name drifts toward mechanism.
 - **Short enough to read in a board column.** No length rule beyond GitHub's
   256-character cap; a claim that runs long usually needs a sharper verb.
 - **The title is written, not derived.** Do not trim the `Design idea:` line
-  into a title; they say different things.
+  into a title; the line states the approach (PAD-02-038), the title the done
+  state (PAD-02-030).
 
-| Today | Claim |
+| Not a claim | Claim |
 |---|---|
 | Actor signing (prototype) | Participants can verify who sent each message (prototype keys) |
 | Trigger endpoint observability contract | Trigger callers can see whether their action succeeded, was refused, or failed |
@@ -337,22 +340,25 @@ Theme: theme:dev-workflow — gives every skill one shared definition of the the
 | `Theme:` line | Why the claim matters to the theme | `Theme: theme:protocol-correctness — callers stop mistaking a dropped action for success` |
 | `Design idea:` line | The approach tying the children together, with mechanism and IDs | `Design idea: each trigger records an outcome the caller can poll` |
 
-- **Rule**: no line or section restates another (PAD-02-033, PAD-02-034). A
-  `## Design idea` section that repeats the line is removed.
-- **Reason**: copies drift, and the approach had no home once the title gave
-  up mechanism. The design idea as an approach is the grain `calve-epics` cuts
-  along.
+- **Rule**: the `Theme:` line says why the claim matters to the theme
+  (PAD-02-033); the `Design idea:` line holds the approach, with any mechanism
+  and IDs (PAD-02-038).
+- **Reason**: the title carries no mechanism, so the approach needs one home.
+  The design idea as an approach is the grain `calve-epics` cuts along.
+- **No line or section restates another** (PAD-02-034). A `## Design idea`
+  section that repeats the line is removed: copies drift.
 
 ### Size, fusing and splitting
 
 - **Rule**: an Epic holds about as many open leaf Issues as one
   `work-epic-tasks` run drains, about 10 (PAD-02-035).
-- **Fuse only same-claim Epics that fit together** (PAD-02-036). Coherence is
-  not enough: two Epics with one outcome that would be too big together stay
+- **Fuse only Epics that share an outcome and fit together** (PAD-02-036). A
+  shared outcome is not enough: two Epics that would be too big together stay
   separate.
-- **Size-split siblings claim their own slice** (PAD-02-037): a layer, a set of spec groups,
-  or a phase. For example, "Internal errors in the code surface; none pass as
-  success or refusal" and "Lint stops new silent catches from landing".
+- **Size-split siblings claim their own slice** (PAD-02-037): a layer, a set of
+  spec groups, or a phase. For example, "Internal errors in the code surface;
+  none pass as success or refusal" and "Lint stops new silent catches from
+  landing".
 
 ## Borderline Examples
 

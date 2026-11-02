@@ -546,9 +546,8 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          An Epic's title MUST be a done-state claim: a present-tense sentence,
-          in domain terms, that is false when the Epic opens and true when it
-          closes.
+          An Epic's title MUST be a done-state claim: a present-tense sentence
+          in domain terms, false when the Epic opens and true when it closes.
         rationale: >-
           The board shows Epics by title alone. A feature name, an activity or
           a mechanism says what area is being worked, not what changes, so
@@ -556,9 +555,6 @@ groups:
           board whether one is done. A claim says what the Epic changes and
           doubles as its close test. It fits a guarantee ("X never happens")
           as well as a feature ("X can do Y").
-        relationships:
-        - rel_type: refines
-          spec_id: PAD-02-013
         verification: >-
           A reviewer checks each new or retitled Epic's title when
           `calve-epics` proposes it or `create-epic` creates it.
@@ -566,17 +562,17 @@ groups:
         priority: SHOULD
         kind: process
         statement: >-
-          An Epic's title SHOULD name the audience the claim serves as its
-          subject when one is natural: a reporter, vendor, coordinator,
-          participant or the CASE_MANAGER for protocol work, and a maintainer,
-          agent or docs reader for project work.
+          An Epic's title SHOULD name, as its subject, the audience its claim
+          serves when one is natural. For protocol work the audience is a
+          reporter, vendor, coordinator, participant or the CASE_MANAGER; for
+          project work it is a maintainer, agent or docs reader.
         rationale: >-
           A named audience tells a board reader whom the Epic serves. It is a
           SHOULD because a guarantee often has no natural subject, and a
           forced one ("case managers can count on…") reads worse than the
           claim alone.
         relationships:
-        - rel_type: refines
+        - rel_type: extends
           spec_id: PAD-02-030
         verification: >-
           A reviewer checks the title with PAD-02-030.
@@ -587,9 +583,9 @@ groups:
           An Epic's title MUST NOT contain an ADR number or a spec ID.
         rationale: >-
           A bare ID means nothing to a board reader and turns the title toward
-          mechanism. IDs belong in the `Design idea:` line (PAD-02-033).
+          mechanism. IDs belong in the `Design idea:` line (PAD-02-038).
         relationships:
-        - rel_type: refines
+        - rel_type: extends
           spec_id: PAD-02-030
         verification: >-
           A reviewer checks the title with PAD-02-030 until a `theme-gate`
@@ -598,16 +594,12 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          An Epic body MUST give each of its lines one job: the `Theme:` line
-          says why the title's claim matters to the theme, and a
-          `Design idea:` line says the approach that ties the Epic's children
-          together, including any mechanism, ADR numbers and spec IDs.
+          An Epic's `Theme:` line MUST give, as the outcome PAD-02-018 asks
+          for, why the title's claim matters to the theme.
         rationale: >-
-          Epic bodies stated one sentence up to three times, in the `Theme:`
-          line, a `Design idea:` line and a `## Design idea` section. With the
-          claim in the title, a repeat adds nothing, while the approach had no
-          home once the title gave up mechanism. The design idea as an
-          approach is also the grain `calve-epics` cuts Epics along.
+          The title already states the claim, so the `Theme:` line adds what
+          the title cannot show: how the claim serves the theme the Epic is
+          ranked in.
         relationships:
         - rel_type: refines
           spec_id: PAD-02-018
@@ -624,7 +616,7 @@ groups:
           and copies drift. Every section of the body has to add something the
           others do not say.
         relationships:
-        - rel_type: refines
+        - rel_type: extends
           spec_id: PAD-02-033
         verification: >-
           A reviewer checks the body with PAD-02-033.
@@ -641,45 +633,59 @@ groups:
           `work-epic-tasks` already uses this bound, so the Epic size and the
           way Epics are worked agree.
         relationships:
-        - rel_type: refines
+        - rel_type: uses_definition
           spec_id: PAD-01-002
         verification: >-
           A reviewer checks the open child count when `calve-epics` proposes,
           fuses or splits an Epic.
       - id: PAD-02-036
-        priority: MUST
+        priority: SHOULD
         kind: process
         statement: >-
-          Two Epics MUST be fused only when they make the same claim and the
+          Two Epics SHOULD be fused only when they share an outcome and the
           fused Epic fits PAD-02-035.
         rationale: >-
           A shared outcome is not a reason to merge when the result is too big
           to work. Epics that share an outcome but would be too large together
-          stay separate, split by size (PAD-02-037).
+          stay separate, split by size (PAD-02-037). It is a SHOULD because
+          the size bound it tests against is approximate.
         relationships:
-        - rel_type: refines
-          spec_id: PAD-02-030
-        - rel_type: depends_on
+        - rel_type: uses_definition
           spec_id: PAD-02-035
         verification: >-
-          A reviewer checks the claims and child counts when `calve-epics`
+          A reviewer checks the outcomes and child counts when `calve-epics`
           fuses Epics.
       - id: PAD-02-037
         priority: MUST
         kind: process
         statement: >-
-          Each of two or more Epics that share an outcome but stay separate
-          for size MUST claim its own slice of that outcome in its title.
+          Epics that share an outcome but stay separate for size MUST each
+          claim their own slice of that outcome in their titles.
         rationale: >-
           A size split is a valid cut, but two titles that make the same claim
           cannot be told apart on the board. Each sibling names the slice it
           makes true: a layer, a set of spec groups, or a phase.
         relationships:
-        - rel_type: refines
-          spec_id: PAD-02-036
+        - rel_type: uses_definition
+          spec_id: PAD-02-030
         verification: >-
           A reviewer checks sibling titles when `calve-epics` splits an Epic
           or proposes one beside a sibling with the same outcome.
+      - id: PAD-02-038
+        priority: MUST
+        kind: process
+        statement: >-
+          An Epic body MUST include a `Design idea:` line that states the
+          approach tying the Epic's children together, including any
+          mechanism, ADR numbers and spec IDs.
+        rationale: >-
+          The title carries no mechanism and no IDs (PAD-02-032), so the
+          approach needs one home in the body. The design idea as an approach
+          is also the grain `calve-epics` cuts Epics along.
+        verification: >-
+          A reviewer checks the body when `calve-epics` proposes the Epic,
+          until a `theme-gate --epic` check for the `Design idea:` line
+          exists.
 
   - id: PAD-03
     title: Priority Ordering Authority
