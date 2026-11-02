@@ -231,7 +231,7 @@ The pocket veto is the implicit form of this one mechanism, not a second mechani
     The embargo event nested inside the invitation has its own `endTime`, which is when the **embargo** would expire.
     They sit one nesting level apart and mean different things.
 
-    An implementation that reads the embargo's expiry as the RSVP deadline will hold invitations open for the entire embargo period.
+    An implementation that reads the embargo's expiry as the RSVP deadline will hold invitations open for the embargo's full duration.
     An implementation that reads the RSVP deadline as the embargo expiry will end embargoes days after they were agreed.
 
 **Recording the deadline.**

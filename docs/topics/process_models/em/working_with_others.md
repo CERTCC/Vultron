@@ -190,7 +190,7 @@ Unfortunately, not all potential CVD Participants are equally trustworthy with v
     We can provide a few examples of potentially untrustworthy Participants:
     
     - A Participant might have sub-par operational security, or even sub-par business practices.
-    As a result, adversaries can often find out about vulnerabilities in their products before the end of an embargo period.
+    As a result, adversaries can often find out about vulnerabilities in their products before an embargo ends.
     - Participants might be subject to regulatory regimes.
     In these regimes, the law requires them to share known vulnerabilities with government agencies that have oversight responsibilities.
     Depending on the jurisdiction, these agencies might not be bound by the same embargoes as the other Participants in the case.

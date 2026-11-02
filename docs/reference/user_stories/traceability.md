@@ -353,7 +353,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-07-006](../vultron-spec/requirements/vultron-protocol.md#vp-07-006)</td>
-<td markdown="span">Report Recipients SHOULD post a default embargo period as part of their policy — embargo policy post.</td>
+<td markdown="span">Report Recipients SHOULD post a default embargo as part of their policy — embargo policy post.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[EP-01-001](../vultron-spec/requirements/state-behavior.md#ep-01-001)</td>
@@ -432,7 +432,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-07-006](../vultron-spec/requirements/vultron-protocol.md#vp-07-006)</td>
-<td markdown="span">Report Recipients SHOULD post a default embargo period as part of their policy — default sharing.</td>
+<td markdown="span">Report Recipients SHOULD post a default embargo as part of their policy — default sharing.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[EP-01-002](../vultron-spec/requirements/state-behavior.md#ep-01-002)</td>

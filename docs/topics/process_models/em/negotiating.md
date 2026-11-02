@@ -123,7 +123,7 @@ After an embargo negotiation fails the first time, Participants have no further 
 
 !!! note ""
 
-    In a case where the embargo state is _None_ and for which an embargo has been *proposed* and either explicitly or tacitly *rejected*, Participants MAY take any action they choose with the report in question, including immediate publication.
+    In a case where the EM state is *None* and for which an embargo has been proposed and either explicitly or tacitly rejected, Participants MAY take any action they choose with the report, including immediate publication.
 
 !!! tip "Incentives Matter"
 
@@ -176,7 +176,7 @@ Participants can then extend the embargo with a revision.
 
 !!! note ""
 
-    Participants MAY use short embargo periods to cover their report validation process, and subsequently revise the embargo terms pending the outcome of their report validation and/or prioritization processes.
+    Participants MAY use short embargoes to cover their report validation process and subsequently revise the embargo terms pending the outcome of their validation or prioritization processes.
 
 !!! note ""
 

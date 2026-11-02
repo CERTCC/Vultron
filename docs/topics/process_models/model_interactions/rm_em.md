@@ -33,7 +33,7 @@ The EM process is *per case*, so before a case exists there is no EM state machi
 Two mechanisms give the Sender what they need instead:
 
 1. **Read the Recipient's published default.**
-   A Report Recipient's published default embargo period is a [standing proposal](../em/defaults.md#embargoes-are-active-at-case-creation).
+   A Report Recipient's published default embargo is a [standing proposal](../em/defaults.md#embargoes-are-active-at-case-creation).
    A Sender that reads this default knows the terms in advance, with no exchange at all.
    If the Recipient has published nothing, the short [protocol default](../em/defaults.md#no-defaults-no-proposals-the-protocol-default) applies.
    The Sender then still knows the floor.
@@ -46,7 +46,7 @@ Two mechanisms give the Sender what they need instead:
 !!! note ""
 
     The [EM](../em/index.md) process SHALL NOT begin before a case exists.
-    A Sender that wishes to fix terms before sharing a report SHALL either rely on the Recipient's published default embargo period or include a proposed embargo with the report submission.
+    A Sender that wishes to fix terms before sharing a report SHALL either rely on the Recipient's published default embargo or include a proposed embargo with the report submission.
 
 !!! info "This Guidance Changed"
 

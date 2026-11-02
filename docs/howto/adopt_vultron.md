@@ -93,12 +93,12 @@ The developer-facing version of this exercise, with the messages each transition
 
 ## Step 4: Write your embargo defaults into your disclosure policy
 
-A case under Vultron begins with an embargo already in force when the report recipient has published a default embargo period and the Reporter proposed nothing else ([Default Embargoes](../topics/process_models/em/defaults.md)).
+A case under Vultron begins with an embargo already in force when the report recipient has published a default embargo and the Reporter proposed nothing else ([Default Embargoes](../topics/process_models/em/defaults.md)).
 Publishing your default is therefore the one adoption step that changes how your first case starts.
 
 Add the following to your vulnerability disclosure policy.
 
-1. Your default embargo period, as a duration from the report's arrival.
+1. Your default embargo duration, measured from the report's arrival.
    If your policy already states a disclosure timeline, that is your default.
 2. How you answer a Reporter's proposed terms.
    The protocol's guidance is to accept the terms a Reporter proposes, and to take the shortest proposed embargo as accepted while negotiating a longer one as a revision ([Negotiating Embargoes](../topics/process_models/em/negotiating.md)).

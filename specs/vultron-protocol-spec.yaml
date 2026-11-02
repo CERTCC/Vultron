@@ -1208,9 +1208,9 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      In a case where the embargo state is None and for which an embargo has been proposed
-      and either explicitly or tacitly rejected, Participants MAY take any action they choose
-      with the report, including immediate publication
+      In a case where the EM state is *None* and for which an embargo has been
+      proposed and either explicitly or tacitly rejected, Participants MAY take any
+      action they choose with the report, including immediate publication
     rationale: >-
       When negotiation has failed, there is no agreement to keep the information
       private. Participants then need to be free to act in users' interest, which may
@@ -1228,8 +1228,8 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      Participants MAY use short embargo periods to cover their report validation process
-      and subsequently revise the embargo terms pending the outcome of their validation or
+      Participants MAY use short embargoes to cover their report validation process and
+      subsequently revise the embargo terms pending the outcome of their validation or
       prioritization processes
     rationale: >-
       A recipient often cannot judge how much time it needs until it has validated the
@@ -1354,7 +1354,7 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      Report Recipients SHOULD post a default embargo period as part of their Vulnerability
+      Report Recipients SHOULD post a default embargo as part of their Vulnerability
       Disclosure Policy to set expectations with potential Reporters
     rationale: >-
       Reporters decide how and whether to report based on what they expect. A published
@@ -1398,7 +1398,7 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      Participants MAY include a default embargo period as part of a published Vulnerability
+      Participants MAY include a default embargo as part of a published Vulnerability
       Disclosure Policy
     rationale: >-
       A published default sets reporters' expectations and lets VP-07-002 apply. Keeping
