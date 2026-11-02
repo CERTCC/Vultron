@@ -751,9 +751,10 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
 
         Transforms the original ``Offer(Actor)[target=VulnerabilityCase]`` into an
         ``Offer(CaseParticipant)[target=VulnerabilityCase]`` naming the actor and
-        its roles, addressed to the Case Owner.  ``roles`` defaults to ``[CVDRole.VENDOR]`` when
-        ``None`` (CM-16-003).  ``origin`` carries the original recommender
-        Offer ID so the Case Owner can trace the causal chain (CM-16-004).
+        its roles, addressed to the Case Owner.  ``roles`` defaults to
+        ``[CVDRole.VENDOR]`` when ``None`` (CM-16-003).  ``origin`` carries the
+        original recommender Offer ID so the Case Owner can trace the causal
+        chain (CM-16-004).
         Returns ``(activity_id, activity_dict)``.
         """
         ...
