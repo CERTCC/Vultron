@@ -300,18 +300,33 @@ groups:
   - id: PRM-05-004
     priority: SHOULD
     kind: project
-    lint_suppress:
-    # compound_statement: the one-second MUST budgets the test this SHOULD asks for.
-    # Split out, it would be a MUST with no check and no debt marker it may inherit
-    # (MS-10-016), and a 1 s pytest timeout would flake under parallel CI. Split it
-    # once a timing check exists.
-    - compound_statement
     statement: 'An architecture test SHOULD enforce that no Python source file under `vultron/core/` (outside `vultron/core/models/case_participant.py`)
-      contains a direct `case_roles` mutation pattern (i.e. `\.case_roles\s*=` or `\.case_roles\.append`). The test MUST complete
-      within one second.'
-    rationale: 'A machine-checkable rule prevents regression; the one-second budget ensures it does not slow the test suite.
-      Using a targeted file-content scan (e.g. ripgrep or stdlib pathlib glob + str search) on a small, bounded directory
-      satisfies the budget constraint.'
+      contains a direct `case_roles` mutation pattern (i.e. `\.case_roles\s*=` or `\.case_roles\.append`).'
+    rationale: >-
+      A machine-checkable rule prevents regression. Using a targeted file-content
+      scan (e.g. ripgrep or stdlib pathlib glob + str search) on a small, bounded
+      directory keeps it cheap (PRM-05-005).
+    verification: >-
+      `test_no_direct_case_roles_mutation_in_core` in
+      `test/architecture/test_participant_case_roles.py` scans `vultron/core/` for the
+      two mutation patterns and fails on any match outside `case_participant.py`.
+    tags:
+    - testing
+    - tooling
+  - id: PRM-05-005
+    priority: MUST
+    kind: project
+    statement: 'The architecture test of PRM-05-004 MUST complete within one second.'
+    rationale: >-
+      The one-second budget keeps the check from slowing the test suite, so it
+      stays cheap enough to run on every change.
+    verification: >-
+      `test_case_roles_mutation_scan_completes_within_one_second` in
+      `test/architecture/test_participant_case_roles.py` times the PRM-05-004 scan and
+      fails when it takes one second or more.
+    relationships:
+    - rel_type: refines
+      spec_id: PRM-05-004
     tags:
     - testing
     - tooling
