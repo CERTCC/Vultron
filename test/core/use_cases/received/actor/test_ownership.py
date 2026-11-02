@@ -2799,6 +2799,7 @@ def _close_coordinator(dl, case_id: str) -> None:
 
 @pytest.mark.spec("CM-23-018")
 @pytest.mark.spec("CM-21-011")
+@pytest.mark.spec("CM-21-022")
 @pytest.mark.parametrize("answer", ["accept", "reject"])
 def test_a_closed_transferees_answer_is_refused(make_payload, answer):
     """A transferee that left the case after the Offer answers nothing.
@@ -2851,7 +2852,7 @@ def test_a_proposal_naming_a_transferee_that_is_not_active_is_refused(
     assert _owner(dl, case_id) == _VENDOR_ID
 
 
-@pytest.mark.spec("CM-21-021")
+@pytest.mark.spec("CM-21-022")
 @pytest.mark.spec("CM-21-011")
 @pytest.mark.parametrize("standing", INACTIVE_STANDINGS, ids=lambda s: s.name)
 def test_an_accept_from_a_transferee_no_longer_active_is_refused(
@@ -2879,7 +2880,7 @@ def test_an_accept_from_a_transferee_no_longer_active_is_refused(
 
     assert result.disposition is HandlerDisposition.REFUSED, result.reason
     expected = (
-        "CM-23-018" if standing is TransfereeStanding.CLOSED else "CM-21-021"
+        "CM-23-018" if standing is TransfereeStanding.CLOSED else "CM-21-022"
     )
     assert expected in (result.reason or ""), result.reason
     _assert_nothing_changed(dl, case_id, roles_before, entries_before)
@@ -2888,12 +2889,12 @@ def test_an_accept_from_a_transferee_no_longer_active_is_refused(
     assert _announces(dl, outbox_before) == []
 
 
-@pytest.mark.spec("CM-21-021")
+@pytest.mark.spec("CM-21-022")
 @pytest.mark.spec("CM-21-013")
 def test_a_reject_from_a_lapsed_transferee_still_closes_the_offer(
     make_payload,
 ):
-    """CM-21-021 governs the Accept, which moves ownership; a Reject moves
+    """CM-21-022 governs the Accept, which moves ownership; a Reject moves
     nothing, so a transferee removed since the Offer may still decline it.
 
     The Reject is ledgered and closes the Offer, and ownership is unchanged.
@@ -2916,7 +2917,7 @@ def test_a_reject_from_a_lapsed_transferee_still_closes_the_offer(
     assert _owner(dl, case_id) == _VENDOR_ID
 
 
-@pytest.mark.spec("CM-21-021")
+@pytest.mark.spec("CM-21-022")
 @pytest.mark.spec("HP-01-003")
 def test_a_redelivered_accept_is_skipped_after_the_new_owner_lapses(
     make_payload,

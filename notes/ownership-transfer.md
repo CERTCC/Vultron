@@ -26,7 +26,6 @@ related_notes:
   - notes/case-ledger-authority.md
   - notes/demo-scenario-authoring.md
   - notes/event-driven-control-flow.md
-  - notes/ownership-transfer-close-paths.md
 relevant_packages:
   - vultron/core/behaviors/case/nodes/
   - vultron/core/use_cases/received/actor/
@@ -41,9 +40,11 @@ Requirements: CM-21, CM-24, TRIG-11. Decision: ADR-0053, partially superseded by
 ADR-0148 (proposed), whose revision 2 narrows the transferee check to an active
 participant, entitled to case content and holding the case, which the Offer names
 by typed reference (ADR-0165). The participant-facing
-description is `docs/topics/case_lifecycle/ownership_transfer.md`. The close paths
-without an answer (withdrawal and the binding deadline, both built) are in
-[ownership-transfer-close-paths](ownership-transfer-close-paths.md). A
+description is `docs/topics/case_lifecycle/ownership_transfer.md`. An Offer can
+also close without an answer, by the owner's withdrawal or its binding deadline
+(CM-21-015 to CM-21-017). Every closing entry's `semantic_type` is in
+`OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, which every "is it open?" reader uses,
+so a new way to close an Offer needs no other change to close it. A
 participant's `Reject` is a case event, ledgered like its `Accept` (CLP-02-012;
 [case-ledger-authority](case-ledger-authority.md#two-meanings-of-reject)).
 
@@ -96,7 +97,7 @@ CASE_MANAGER inbox receives Accept
       sender: transferee of an open Offer it recorded      ← CM-21-011
               (anyone else: REFUSED, nothing written or sent)
       guards: the Offer is open; the transferee is still an active
-              participant (OwnershipTransfereeActiveNode)  ← CM-21-021
+              participant (OwnershipTransfereeActiveNode)  ← CM-21-022
       1. Commits CaseLedgerEntry (ownership-transferred).  ← CM-21-007
       2. Announce(CaseLedgerEntry) → all participants.
       3. AcceptRecordedOwnershipOfferNode applies role changes (CM-21-001–004)
@@ -127,7 +128,7 @@ before the Offer's state is read (#4437).
   check is a precondition guard after the open-Offer guard, not part of the
   sender check:
   a redelivered Accept stays `SKIPPED` after the new owner lapses (HP-01-003).
-  The Reject moves nothing, so it is not checked: CM-21-021 names the Accept.
+  The Reject moves nothing, so it is not checked: CM-21-022 names the Accept.
 - **A new owner with no participant record raises** in
   `_TransferCaseOwnershipNode`, before the role move changes anything (the
   Accept entry is already committed): stripping the old owner

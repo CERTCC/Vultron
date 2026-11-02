@@ -35,6 +35,7 @@ See ``specs/demo-ci.yaml`` DEMOCI-10 and ``specs/multi-actor-demo.yaml``
 DEMOMA-23.
 """
 
+import contextlib
 import importlib
 import inspect
 import json
@@ -44,29 +45,40 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
+from vultron.demo.helpers import story_cast, vendor_story
 from vultron.demo.helpers.ledger_dump import DUMP_MANIFEST_FILENAME
+from vultron.demo.helpers.story import Story, StoryState, story
 from vultron.demo.utils import reset_demo_failures
 from vultron.errors import DemoFailureError
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 #: What the scenario does before a case exists, as a patch target: a bare name
 #: is read off the scenario's own module, a dotted one is taken as written.
-#: A scenario still written as phases opens with ``_phase_report_submission``
-#: on its own module; one written as composition (#5533, #5534) opens with the
-#: shared cast opening its story runs against, which is the first thing that
-#: can die.  That opening is named on the shared helper module rather than on
-#: the scenario's, which holds only the factory that closes over it — and the
-#: factory runs *before* ``run_story`` enters the harness, so breaking it
-#: would test nothing about the dump.  Every scenario of the tree is listed: a
-#: composed one that slipped out of the table would leave the artifact promise
-#: unchecked for the half of the tree that dies in a shared opening
+#: Every scenario is written as composition (#5533–#5536), so each opens with
+#: the shared cast opening its story runs against, which is the first thing
+#: that can die: :data:`_CAST_ONE` for the coordinator-first half,
+#: :data:`_VENDOR_CAST_ONE` for the vendor-first one.  That opening is named
+#: on the shared helper module rather than on the scenario's, which holds only
+#: the factory that closes over it — and the factory runs *before*
+#: ``run_story`` enters the harness, so breaking it would test nothing about
+#: the dump.  Every scenario of the tree is listed: one that slipped out of
+#: the table would leave the artifact promise unchecked for the half of the
+#: tree that dies in that opening
 #: (:func:`test_every_registered_scenario_is_in_the_table`).
-_PHASE_ONE = "_phase_report_submission"
 _CAST_ONE = "vultron.demo.helpers.coordinated_story.open_coordinated_cast"
+_VENDOR_CAST_ONE = "vultron.demo.helpers.vendor_story.open_vendor_cast"
 
 # (module path, run function name, devlogs sub-directory name, first step)
 SCENARIOS: list[tuple[str, str, str, str]] = [
-    ("vultron.demo.scenario.rv_demo", "run_rv_demo", "rv", _PHASE_ONE),
-    ("vultron.demo.scenario.rvv_demo", "run_rvv_demo", "rvv", _PHASE_ONE),
+    ("vultron.demo.scenario.rv_demo", "run_rv_demo", "rv", _VENDOR_CAST_ONE),
+    (
+        "vultron.demo.scenario.rvv_demo",
+        "run_rvv_demo",
+        "rvv",
+        _VENDOR_CAST_ONE,
+    ),
     ("vultron.demo.scenario.rcv_demo", "run_rcv_demo", "rcv", _CAST_ONE),
     (
         "vultron.demo.scenario.rcv_reject_demo",
@@ -102,7 +114,7 @@ SCENARIOS: list[tuple[str, str, str, str]] = [
         "vultron.demo.scenario.rvcv_extension_demo",
         "run_rvcv_extension_demo",
         "rvcv-extension",
-        _PHASE_ONE,
+        _VENDOR_CAST_ONE,
     ),
     (
         "vultron.demo.scenario.rccv_handoff_demo",
@@ -114,7 +126,7 @@ SCENARIOS: list[tuple[str, str, str, str]] = [
         "vultron.demo.scenario.rvcv_handoff_demo",
         "run_rvcv_handoff_demo",
         "rvcv-handoff",
-        _PHASE_ONE,
+        _VENDOR_CAST_ONE,
     ),
 ]
 
@@ -200,96 +212,117 @@ class TestManifestWrittenWhenScenarioDiesEarly:
         assert payload["reason"]
 
 
-class TestDumpRunsAfterMidPhaseFailure:
-    """A scenario that dies after the case exists still dumps its ledgers."""
+class TestDumpRunsAfterMidStoryFailure:
+    """A scenario that dies after the case exists still dumps its ledgers.
 
-    def test_rvv_dumps_ledgers_when_a_later_phase_raises(
+    The promise is the harness's, not a phase's: ``StoryState.open_case``
+    registers the scenario's dump the instant the triage returns a case
+    (DEMOMA-23-003), and ``scenario_harness`` runs it on the way out however
+    the run ends.  So the subject is a composed scenario driven through its
+    own ``run_*_demo`` with a two-fragment story in place of its real one:
+    one fragment opens the case, the next raises.  ``rvv`` stands for the
+    vendor-first half, whose factory regressed once to building the opening
+    inline instead of calling ``open_vendor_cast``, which left
+    :class:`TestManifestWrittenWhenScenarioDiesEarly`'s patch target inert.
+    """
+
+    @staticmethod
+    def _story_that_opens_then_raises(
+        case: as_VulnerabilityCase, cause: Exception
+    ) -> Story:
+        """Two fragments: open the case, then die."""
+
+        def the_case_opens(state: StoryState) -> None:
+            state.open_case(case=case, report=MagicMock(), offer=MagicMock())
+
+        def the_next_step_dies(_state: StoryState) -> None:
+            raise cause
+
+        return story(the_case_opens, the_next_step_dies)
+
+    @contextlib.contextmanager
+    def _stubbed_cast(self, module: ModuleType):
+        """Let the real cast opening run without touching a container.
+
+        The reset and the actor read-back are resolved in ``story_cast``,
+        where ``open_story_cast`` looks them up; the seeder is the one name
+        the family's own module binds.
+        """
+        actors = [MagicMock(name="reporter"), MagicMock(name="vendor")]
+        with (
+            patch.object(
+                story_cast, "reset_datalayer", return_value={"status": "ok"}
+            ),
+            patch("vultron.demo.helpers.seeding.seed_case_actor_identity"),
+            patch.object(
+                vendor_story, "seed_containers", return_value=tuple(actors)
+            ),
+            patch.object(
+                story_cast, "get_actor_by_id", side_effect=list(actors)
+            ),
+        ):
+            yield
+
+    def test_rvv_dumps_ledgers_when_a_later_fragment_raises(
         self, tmp_path, monkeypatch
     ) -> None:
         module = importlib.import_module("vultron.demo.scenario.rvv_demo")
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
-        case = module.as_VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/issue-2239",
         )
-        # rvv phase 1 returns (reporter, vendor, vendor_in_vendor, vendor2,
-        # report, offer, case, reply_note).
-        phase_one_result = (
-            MagicMock(),
-            MagicMock(),
-            MagicMock(),
-            MagicMock(),
-            MagicMock(),
-            MagicMock(),
-            case,
-            MagicMock(),
-        )
+        cause = RuntimeError("wait_for_case_participants timeout")
 
         with (
+            self._stubbed_cast(module),
             patch.object(
                 module,
-                "_phase_report_submission",
-                return_value=phase_one_result,
+                "STORY",
+                self._story_that_opens_then_raises(case, cause),
             ),
-            patch.object(module, "get_actor_by_id", return_value=MagicMock()),
-            patch.object(
-                module,
-                "_phase_sync_verification",
-                side_effect=RuntimeError("wait_for_case_participants timeout"),
-            ),
-            patch.object(module, "_phase_dump_case_ledgers") as dump,
+            patch.object(module, "dump_vendor_ledgers") as dump,
+            pytest.raises(RuntimeError, match="timeout"),
         ):
-            with pytest.raises((RuntimeError, DemoFailureError)):
-                run_fn = module.run_rvv_demo
-                run_fn(**_client_kwargs(run_fn))
+            run_fn = module.run_rvv_demo
+            run_fn(**_client_kwargs(run_fn))
 
         assert dump.called, (
-            "run_rvv_demo skipped the case-ledger dump when a phase raised; "
-            "the forensic artifacts the invariant harness needs were lost"
+            "run_rvv_demo skipped the case-ledger dump when a fragment "
+            "raised; the forensic artifacts the invariant harness needs were "
+            "lost (ISSUE-2239, DEMOMA-23-001)"
         )
-        assert dump.call_args.kwargs["case"] is case
+        assert dump.call_args.args[0].case is case, (
+            "the dump ran on a different case from the one the story opened"
+        )
 
-    def test_dump_failure_does_not_mask_the_phase_exception(
+    def test_dump_failure_does_not_mask_the_fragment_exception(
         self, tmp_path, monkeypatch
     ) -> None:
         """A broken dump must not replace the exception that caused the failure."""
         module = importlib.import_module("vultron.demo.scenario.rvv_demo")
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
-        case = module.as_VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/issue-2239-mask",
         )
-        phase_one_result = (
-            MagicMock(),
-            MagicMock(),
-            MagicMock(),
-            MagicMock(),
-            MagicMock(),
-            MagicMock(),
-            case,
-            MagicMock(),
-        )
+        cause = RuntimeError("the real cause")
 
         with (
+            self._stubbed_cast(module),
             patch.object(
                 module,
-                "_phase_report_submission",
-                return_value=phase_one_result,
-            ),
-            patch.object(module, "get_actor_by_id", return_value=MagicMock()),
-            patch.object(
-                module,
-                "_phase_sync_verification",
-                side_effect=RuntimeError("the real cause"),
+                "STORY",
+                self._story_that_opens_then_raises(case, cause),
             ),
             patch.object(
                 module,
-                "_phase_dump_case_ledgers",
+                "dump_vendor_ledgers",
                 side_effect=OSError("devlogs volume is read-only"),
             ),
+            pytest.raises(RuntimeError, match="the real cause"),
         ):
-            with pytest.raises(RuntimeError, match="the real cause"):
-                run_fn = module.run_rvv_demo
-                run_fn(**_client_kwargs(run_fn))
+            run_fn = module.run_rvv_demo
+            run_fn(**_client_kwargs(run_fn))

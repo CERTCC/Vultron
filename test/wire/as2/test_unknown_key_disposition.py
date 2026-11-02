@@ -666,11 +666,10 @@ def test_normalisation_is_lowercase_and_strip_non_alphanumerics(
     assert normalise(key) == expected
 
 
-@pytest.mark.spec("MV-11-004")
 @pytest.mark.spec("SDO-03-009")
 @pytest.mark.spec("MV-11-011", "MV-11-012")
 def test_no_core_module_names_a_retired_key() -> None:
-    """The retired-name list lives wire-side only (MV-11-004, AC-4).
+    """The retired-name list lives wire-side only (MV-11-011, AC-4).
 
     A per-class reject-guard has to spell the retired key as a string to test
     for it, as ``ParticipantStatus._reject_retired_vfd_keys`` did; no string

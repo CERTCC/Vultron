@@ -23,17 +23,13 @@ valid until the next recording.  So a dropped call would pass every PR check.
 These tests read each scenario module's source instead, so a dropped or
 misspelled report fails here.
 
-The two declaration forms are checked differently, because the defect each can
-have is different:
-
-* a scenario still declaring ``@scenario(path=...)`` places one
-  ``reach_step`` or ``step_reporter`` call per declared step by hand, and can
-  drop one;
-* a scenario written as composition declares its steps as the ``choose(...)``
-  items of its story, which is also what the runner emits the marks from
-  (DEMOCI-11-019), so a mark cannot go missing — what it can do is place a
-  ``reach_step`` by hand beside the runner's, which would mark one step twice.
-  That is what is forbidden here.
+Every scenario is written as composition (#5533 through #5536), so each
+declares its steps as the ``choose(...)`` items of its story, which is also
+what the runner emits the marks from (DEMOCI-11-019): a mark cannot go
+missing.  What a scenario can still do is place a ``reach_step`` by hand
+beside the runner's, which would mark one step twice, and that is what is
+forbidden here.  The ``path=`` form that placed each call by hand has no
+declarer left; retiring the form itself from the registry is #5537.
 """
 
 import ast
@@ -44,13 +40,14 @@ import pytest
 from test.architecture import _corpus
 from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
 
-#: The modules holding the story fragments of a composed family.  Globbed
-#: rather than listed, so a family composed later is covered the moment its
-#: fragment module lands beside the others.
+#: The modules holding the story fragments of a composed family, and the
+#: continuations more than one family shares.  Globbed on the ``*_story.py``
+#: suffix every one of them carries, rather than listed, so a family composed
+#: later is covered the moment its fragment module lands beside the others —
+#: a narrower glob had already stopped covering ``two_coordinator_story`` and
+#: ``owner_decision_story`` (#5535) before #5536 widened it.
 _FRAGMENT_MODULES = sorted(
-    (_corpus.REPO_ROOT / "vultron" / "demo" / "helpers").glob(
-        "coordinated_*.py"
-    )
+    (_corpus.REPO_ROOT / "vultron" / "demo" / "helpers").glob("*_story.py")
 )
 
 
@@ -164,17 +161,25 @@ def test_a_call_that_names_no_literal_pair_counts_as_no_step(
     assert _steps_in(_corpus.parse_inline(source)) == Counter()
 
 
-def test_both_declaration_forms_are_still_in_use() -> None:
-    """Neither check below is a zero-target gate while the migration runs.
+def test_every_scenario_is_written_as_composition() -> None:
+    """The check below is not a zero-target gate, and no scenario declares a path.
 
-    When the last family is composed (#5537) the ``path=`` form goes away with
-    it, and this assertion is what says so out loud rather than letting its
-    check pass over nothing.
+    The last family was composed in #5536, so every registered scenario
+    declares a story and the hand-placed ``reach_step`` the ``path=`` form
+    needed has no declarer left.  Both halves are asserted: an empty composed
+    set would leave the check below passing over nothing
+    (``notes/documentation-strategy.md`` § "A gate that resolves zero targets
+    must fail"), and a scenario that went back to ``path=`` would place its
+    marks by hand again, which nothing here would check.  Retiring the
+    ``path=`` form from the registry itself is #5537.
     """
     assert _specs(composed=True), "no scenario is written as composition"
-    assert _specs(composed=False), (
-        "every scenario is composed: drop the path= form and this test's "
-        "interim half with it (#5537)"
+    assert not _specs(composed=False), (
+        "a scenario declares @scenario(path=...) rather than a story; every "
+        "scenario reads its path off its story's choices (DEMOCI-11-019), and "
+        "a hand-placed path brings back the hand-placed reach_step calls this "
+        "module's deleted half used to check: "
+        f"{[spec.name for spec in _specs(composed=False)]}"
     )
 
 
@@ -185,21 +190,6 @@ def _fragment_steps() -> Counter[tuple[str, str]]:
     for path in _FRAGMENT_MODULES:
         total += _steps_in(_corpus.tree_of(path))
     return total
-
-
-@pytest.mark.parametrize(
-    "spec", _specs(composed=False), ids=lambda spec: spec.name
-)
-def test_each_declared_step_is_reported_once(spec: ScenarioSpec) -> None:
-    reported = _reported_steps(spec.module_name)
-    declared = Counter(spec.path)
-    assert reported == declared, (
-        f"{spec.demo_path} reports {dict(reported)}, but its path declares "
-        f"{dict(declared)}. Call harness.reach_step(branch_point, choice, "
-        "by=actor_id) once per declared step, where the scenario makes the "
-        "decision "
-        "(notes/demo-scenario-tree.md § Shared-prefix check)."
-    )
 
 
 @pytest.mark.parametrize(

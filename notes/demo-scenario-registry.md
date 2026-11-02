@@ -238,8 +238,9 @@ decorator to facts every derived artifact uses. Each scenario module declares
 instead:
 
 - `ROLES: list[ActorRole]` (`vultron/demo/helpers/actor_roles.py`), in `main()`
-  parameter order, each actor seated in a cast slot. It also defines the
-  module's `*_BASE_URL` constants, so the address is read from the slot once.
+  parameter order, each actor seated in a cast slot. Its `role_map()` is what
+  the family's shared client factory reads each address from, so a scenario
+  module declares no `*_BASE_URL` constant of its own.
 - `CLI_HELP: str`, the sub-command's `--help` body.
 
 Load-bearing details:

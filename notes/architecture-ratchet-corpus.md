@@ -103,9 +103,14 @@ written as a story fragment; keyed on the offer trigger it covers both
 
 A guard on "the subject set is non-empty" is not enough for the same reason:
 it cannot tell one subject from two. A ratchet whose subjects come in known
-shapes asserts that **each shape is still found** — as
-`test_demo_scenario_waits_in_demo_context.py` does for its `_phase_*` and
-story-fragment arms — so retiring an arm is a deliberate edit (#5535).
+shapes asserts something per shape, so retiring an arm is a deliberate edit
+(#5535): **each shape is still found** while both are live, and, once a
+migration has emptied one, **that shape is found no more** — which is what
+`test_demo_scenario_waits_in_demo_context.py` and
+`test_handoff_scenarios_verify_broadcast.py` now assert for their `_phase_*`
+arms, every scenario being written as composition (#5536). Flipping the arm
+beats deleting it: the scan still covers the shape, so one written again is
+reported rather than silently exempt.
 
 ## Check a Ratchet's Goal State Against the Spec Corpus Before Adding the `xfail`
 

@@ -19,8 +19,8 @@ import importlib
 import inspect
 import logging
 import re
-from collections.abc import Iterator, Mapping, Sequence
-from types import ModuleType, SimpleNamespace
+from collections.abc import Iterator, Sequence
+from types import ModuleType
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -73,19 +73,6 @@ def patch_chain_shared(
     with patch.object(demo, name, **kwargs) as mock:
         with patch.object(invite_chain, name, new=mock):
             yield mock
-
-
-@contextlib.contextmanager
-def stub_scenario_harness(_demo_name: str) -> Iterator[MagicMock]:
-    """Stand in for ``scenario_harness`` in a test that patches out phases.
-
-    The real harness checks each reported step against the declared path and
-    reads the deciding actor's role from the CaseActor's store
-    (DEMOCI-11-013), and it writes a dump manifest under ``devlogs/`` on exit,
-    which the invariant harness would read as an aborted run.  A test of a
-    scenario's phase order has neither the steps nor the store.
-    """
-    yield MagicMock()
 
 
 def mock_actor(id_: str = "urn:test:actor") -> MagicMock:
@@ -226,102 +213,6 @@ def functions_referencing(module: ModuleType, name: str) -> list[str]:
             for child in ast.walk(node)
         )
     ]
-
-
-@contextlib.contextmanager
-def patched_report_submission(
-    demo: ModuleType,
-    *,
-    seed_fn: str,
-    seeded_actors: Sequence[MagicMock],
-    actor_lookups: Sequence[MagicMock],
-    case: MagicMock,
-    demo_patches: Mapping[str, Mapping[str, Any]],
-    session_patches: Sequence[str] = (),
-) -> Iterator[dict[str, MagicMock]]:
-    """Patch every collaborator of a scenario's ``_phase_report_submission``.
-
-    One patch stack for the call-shape tests of every scenario module (CS-22-001):
-    the seeding, report-submission and RM-triage collaborators are stubbed the
-    same way in each, and the scenario's own ``demo_gate`` / ``demo_check`` /
-    ``demo_step`` become ``nullcontext`` so a test observes call shapes, never
-    gate control flow.  ``ActorSession.invite_actor_to_case`` returns a
-    successful invite; further ``ActorSession`` methods named in
-    *session_patches* are stubbed bare.
-
-    *demo_patches* maps a name on *demo* to the ``patch.object`` kwargs for it
-    (``{}`` for a bare ``MagicMock``).  A collaborator left out of it runs for
-    real — that is how a test lets ``wait_for_replica_ledger_coverage`` execute
-    while stubbing its primitives elsewhere.
-
-    Yields the mocks by name so the test asserts on the one it cares about.
-    """
-    with contextlib.ExitStack() as stack:
-        mocks: dict[str, MagicMock] = {}
-        stack.enter_context(patch.object(demo, "reset_containers"))
-        stack.enter_context(
-            patch.object(demo, seed_fn, return_value=tuple(seeded_actors))
-        )
-        # Append a placeholder for the case-actor lookup added in #4165: the
-        # CASE_MANAGER actor looked up to call set-stub-summary before each
-        # invite in _phase_report_submission.
-        stack.enter_context(
-            patch.object(
-                demo,
-                "get_actor_by_id",
-                side_effect=[*list(actor_lookups), MagicMock()],
-            )
-        )
-        # set_stub_summary is seeding infrastructure not under test here;
-        # stub it so tests do not fail on Pydantic validation of a MagicMock.
-        stack.enter_context(patch.object(ActorSession, "set_stub_summary"))
-        stack.enter_context(
-            patch.object(
-                demo,
-                "reporter_submits_report",
-                return_value=(MagicMock(), MagicMock(id_="urn:test:offer")),
-            )
-        )
-        stack.enter_context(
-            patch.object(demo, "run_direct_path_rm_triage", return_value=case)
-        )
-        for name, kwargs in demo_patches.items():
-            # The invite chain owns the invite lookup and the invitee's
-            # replica wait (#4192); the scenario still owns its other waits.
-            if name in _CHAIN_OWNED:
-                mocks[name] = stack.enter_context(
-                    patch.object(invite_chain, name, **kwargs)
-                )
-            else:
-                mocks[name] = stack.enter_context(
-                    patch.object(demo, name, **kwargs)
-                )
-            if name in _CHAIN_SHARED:
-                stack.enter_context(
-                    patch.object(invite_chain, name, new=mocks[name])
-                )
-        mocks["invite_actor_to_case"] = stack.enter_context(
-            patch.object(
-                ActorSession,
-                "invite_actor_to_case",
-                return_value=SimpleNamespace(
-                    activity=MagicMock(id_="urn:test:invite")
-                ),
-            )
-        )
-        for name in session_patches:
-            mocks[name] = stack.enter_context(patch.object(ActorSession, name))
-        mock_vc = stack.enter_context(
-            patch.object(demo, "as_VulnerabilityCase")
-        )
-        mock_vc.model_validate.return_value = case
-        for name in ("demo_gate", "demo_check", "demo_step"):
-            stack.enter_context(
-                patch.object(
-                    demo, name, side_effect=lambda _: contextlib.nullcontext()
-                )
-            )
-        yield mocks
 
 
 def make_testclient_call(client: TestClient, base: str):
@@ -784,41 +675,6 @@ def null_demo_contexts(stack: contextlib.ExitStack, demo: ModuleType) -> None:
                 demo, name, side_effect=lambda _: contextlib.nullcontext()
             )
         )
-
-
-def assert_reset_reseeds_case_actor(
-    demo: ModuleType, participant_clients: Mapping[str, MagicMock]
-) -> None:
-    """Run *demo*'s ``reset_containers`` and check the case-actor half (#1876).
-
-    The participants are reset in the order given, the dedicated case-actor
-    container after them, and its CaseActor identity is then re-seeded — the
-    reset wipes it, and every proposal is delivered to it.
-
-    Args:
-        demo: The scenario module under test.
-        participant_clients: ``reset_containers`` keyword → client, in the
-            scenario's reset order.
-    """
-    case_actor_client = MagicMock(name="case_actor_client")
-    for client in (*participant_clients.values(), case_actor_client):
-        client.get.return_value = {}
-
-    with (
-        patch.object(
-            demo, "reset_datalayer", return_value={"status": "ok"}
-        ) as reset_mock,
-        patch(
-            "vultron.demo.helpers.seeding.seed_case_actor_identity"
-        ) as reseed_mock,
-    ):
-        demo.reset_containers(
-            case_actor_client=case_actor_client, **participant_clients
-        )
-
-    reset_clients = [c.kwargs["client"] for c in reset_mock.call_args_list]
-    assert reset_clients == [*participant_clients.values(), case_actor_client]
-    reseed_mock.assert_called_once_with(case_actor_client)
 
 
 def _reporter_links(

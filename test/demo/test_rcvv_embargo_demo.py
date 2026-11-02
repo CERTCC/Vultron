@@ -58,7 +58,7 @@ from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main as demo_cli
-from vultron.demo.helpers import coordinated_story
+from vultron.demo.helpers import coordinated_story, story_cast
 from vultron.demo.helpers.coordinated_embargo_story import (
     PROPOSED_EMBARGO,
     REPORTER_PROPOSES_EMBARGO,
@@ -319,7 +319,7 @@ class TestTheSharedOpeningSeedsOnlyTheThree:
         def _capture(_name, _plot, open_cast):
             with (
                 patch.object(
-                    coordinated_story,
+                    story_cast,
                     "reset_datalayer",
                     return_value={"status": "ok"},
                 ) as reset,
@@ -331,7 +331,7 @@ class TestTheSharedOpeningSeedsOnlyTheThree:
                 ) as seed_three,
                 patch.object(demo, "seed_containers_rcvv") as seed_four,
                 patch.object(
-                    coordinated_story,
+                    story_cast,
                     "get_actor_by_id",
                     side_effect=list(actors),
                 ),
