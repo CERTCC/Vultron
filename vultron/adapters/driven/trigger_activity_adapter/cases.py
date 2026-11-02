@@ -99,9 +99,9 @@ class _CasesMixin:
         ``Create`` built here as an announcement of its case.
 
         Raises:
-            VultronValidationError: If the case names a participant the
-                sender's own store cannot read: the bootstrap carries every
-                participant inline (CBT-01-007, CBT-05-008).
+            VultronValidationError: If the case names a participant or
+                report the sender's own store cannot read: the bootstrap
+                carries every nested object inline (CBT-01-007, CBT-05-008).
         """
         case = _case_for_wire(self._dl, case_id)
         _require_bootstrap_inline(case, case_id)

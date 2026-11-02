@@ -5,7 +5,8 @@ kind: guidance
 description: >
   Rules for enforcing the Actor Knowledge Model: no cross-actor DataLayer
   access, this codebase's full-inline-object rule for outbound activities (a
-  prototype shortcut, not a protocol rule), the outbox last-resort guard, and
+  prototype shortcut, not a protocol rule, except in the bootstrap `Create`,
+  where the protocol requires it, CBT-01-007), the outbox last-resort guard, and
   the use-case-level actor-discovery seam, and how an actor known only by URI
   travels (AKM-05, AKM-02-006).
 related_specs:

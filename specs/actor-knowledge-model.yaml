@@ -525,7 +525,7 @@ groups:
       `test/core/services/test_dereference.py::TestReferencesToFetch::test_nothing_is_fetched_for_a_case_the_receiver_does_not_hold`
       checks nothing is fetched for a case the receiver does not hold, and
       `test/core/use_cases/received/case/test_helpers.py::test_bootstrap_bare_uri_participant_is_refused`
-      checks a bootstrap participant named by bare URI is refused, not fetched.
+      checks a bootstrap participant named by bare URI is refused.
     relationships:
     - rel_type: implements
       spec_id: AKM-05-003

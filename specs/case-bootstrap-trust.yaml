@@ -190,9 +190,10 @@ groups:
     verification: >-
       `test/adapters/driven/trigger_activity_adapter/test_cases.py::TestCaseOnTheWireCarriesItsParticipants::test_create_case_carries_participants_and_reports`
       confirms every `CaseParticipant` of the case is present in the bootstrap payload,
-      `test_create_case_refuses_a_participant_the_sender_cannot_read` in the same
-      class confirms a case naming a participant the sender cannot read is not sent
-      with a bare id, and integration tests in
+      `test_create_case_refuses_a_participant_the_sender_cannot_read` and
+      `test_create_case_refuses_a_report_the_sender_cannot_read` in the same class
+      confirm a case naming a participant or report the sender cannot read is not
+      sent with a bare id, and integration tests in
       `test/demo/test_case_proposal_round_trip.py` confirm the receiver can persist
       each participant record.
     relationships:

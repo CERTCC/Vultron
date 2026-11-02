@@ -5,7 +5,8 @@ kind: guidance
 description: >
   Mechanical rules for authoring spec YAML: the five kinds and the MS-12
   decision tree (who must obey a rule decides its kind, ADR-0134), the ruling
-  that inline-object requirements are `project`, which HTTP status codes are
+  that inline-object requirements are `project` unless a protocol purpose
+  such as the bootstrap's (CBT-01-007) demands them, which HTTP status codes are
   `foundation` and which are `project`, splitting a spec that mixes
   kinds, what a kind change moves, and the scoping of MS-12-006;
   the enum values spec-lint accepts for `kind`, `priority` and `rel_type`, and

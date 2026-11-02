@@ -1253,10 +1253,8 @@ groups:
       `Create(VulnerabilityCase)`, and it cannot read the CASE_MANAGER's store
       (PCR-01-003). Without the participant records, the replica starts with no
       participants, and checks that need them, such as role checks and embargo consent,
-      fail. The report receiver seeds from this `Create` before it trusts the
-      CASE_MANAGER, so it has no trusted source to fetch a participant record from;
-      the records travel inline, as in the bootstrap it relays to the reporter
-      (CBT-01-007, ADR-0170).
+      fail. It seeds from this `Create` before it trusts the CASE_MANAGER, so it
+      has no trusted source to fetch a record from (CBT-01-007, ADR-0170).
     verification: >-
       In `test/core/behaviors/case/test_case_proposal_received_tree.py`,
       `TestADR0041InlineParticipantsPayload::test_create_payload_has_inline_participants`

@@ -417,7 +417,11 @@ class TestEmitCreateVulnerabilityCaseNode:
 
         assert status == py_trees.common.Status.FAILURE
         assert dl.outbox_list() == []
-        assert any("EMB-18-003" in r.getMessage() for r in caplog.records)
+        messages = [r.getMessage() for r in caplog.records]
+        assert any(
+            "names active embargo" in m and "EMB-18-003" in m for m in messages
+        )
+        assert not any("CP-09-004" in m for m in messages)
 
     @pytest.mark.spec("CP-09-004")
     def test_unreadable_participant_fails_and_queues_nothing(self, caplog):
@@ -438,7 +442,42 @@ class TestEmitCreateVulnerabilityCaseNode:
 
         assert status == py_trees.common.Status.FAILURE
         assert dl.outbox_list() == []
-        assert any("CP-09-004" in r.getMessage() for r in caplog.records)
+        messages = [r.getMessage() for r in caplog.records]
+        assert any(
+            "names participant" in m and "CP-09-004" in m for m in messages
+        )
+        assert not any("EMB-18-003" in m for m in messages)
+
+    @pytest.mark.spec("CP-09-004")
+    @pytest.mark.spec("CP-01-004")
+    def test_unreadable_report_is_sent_as_its_id_with_a_warning(self, caplog):
+        """A report this store lacks arises only from a proposal that did not
+        inline it (CP-01-004); the case is still made (ADR-0041 AC-2), so the
+        Create is queued with the report's id and a WARNING, not refused."""
+        dl = self._dl()
+        case_id = "https://example.org/cases/c-unheld-report"
+        report_id = "https://example.org/reports/unheld"
+        dl.save(
+            VulnerabilityCase(
+                id_=case_id,
+                attributed_to=_CASE_ACTOR_URI,
+                vulnerability_reports=[report_id],
+            )
+        )
+
+        with caplog.at_level(logging.WARNING):
+            status = self._run_node(dl, case_id=case_id, seed=False)
+
+        assert status == py_trees.common.Status.SUCCESS
+        assert _queued_create(dl)["object"]["vulnerabilityReports"] == [
+            report_id
+        ]
+        assert any(
+            r.levelno == logging.WARNING
+            and report_id in r.getMessage()
+            and "CP-01-004" in r.getMessage()
+            for r in caplog.records
+        )
 
     def test_the_create_uses_case_id_as_context(self):
         """AC-1 (ADR-0045): Create(VulnerabilityCase) carries context=case_uri.

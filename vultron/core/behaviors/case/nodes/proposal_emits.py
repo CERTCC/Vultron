@@ -268,9 +268,19 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
         # when this store cannot read it — sending the bare id would only
         # hand every recipient a case it must refuse.
         if isinstance(raw_case.active_embargo, str):
+            try:
+                embargo = read_embargo_event(
+                    self.datalayer, raw_case.active_embargo
+                )
+            except (VultronNotFoundError, VultronValidationError) as exc:
+                raise VultronValidationError(
+                    f"case '{raw_case.id_}' names active embargo"
+                    f" '{raw_case.active_embargo}', which this store cannot"
+                    " read, so the Create(VulnerabilityCase) cannot carry it"
+                    f" inline (EMB-18-003): {exc}"
+                ) from exc
             updates["embargo_register"] = carry_embargo_inline(
-                raw_case.embargo_register,
-                read_embargo_event(self.datalayer, raw_case.active_embargo),
+                raw_case.embargo_register, embargo
             )
         case_copy = raw_case.model_copy(update=updates)
         # A missing port is a composition fault, not the sender's: raise
@@ -356,11 +366,9 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
         try:
             case_object = self._build_case_object(case)
         except (VultronNotFoundError, VultronValidationError) as exc:
-            self.feedback_message = (
-                f"Invariant violation: case '{case.id_}' names an object this"
-                f" store cannot read, so it cannot be carried inline"
-                f" (EMB-18-003, CP-09-004): {exc}"
-            )
+            # Each refusal in _build_case_object names its own cause and
+            # requirement, so the message cites only the one that fired.
+            self.feedback_message = f"Invariant violation: {exc}"
             logger.exception("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
         # The report receiver (the Case Owner) is the only addressee

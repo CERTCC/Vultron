@@ -159,7 +159,9 @@ def _case_for_wire(
     is left as the id with a WARNING: this function's job is to carry what is
     there, and a sender-side gap is the business of whoever wrote the
     dangling reference. ``announce_vulnerability_case`` then refuses to send
-    a case whose report is missing (AKM-02-004). An unreadable active embargo
+    a case whose report is missing (AKM-02-004), and ``create_case`` one with
+    any bare participant or report (CBT-01-007,
+    :func:`_require_bootstrap_inline`). An unreadable active embargo
     is the exception: it raises (EMB-18-003, :func:`_carried_embargo`).
     """
     case = _to_wire(dl.read(case_id), as_VulnerabilityCase)
@@ -187,28 +189,30 @@ _CARRIED_LIST_FIELDS: frozenset[str] = _AS_LIST_REF_FIELDS | {
 
 
 def _require_bootstrap_inline(case: Any, case_id: str) -> None:
-    """Refuse a bootstrap case that still names a participant by bare id.
+    """Refuse a bootstrap case that still names a nested object by bare id.
 
-    The bootstrap ``Create(VulnerabilityCase)`` carries every participant
-    inline (CBT-01-007), and its receiver refuses one named by id rather than
-    fetch it (CBT-05-008, AKM-05-007). :func:`_case_for_wire` leaves an id it
-    cannot resolve as the id, so a case it returns with a bare participant is
-    one every receiver would refuse.
+    The bootstrap ``Create(VulnerabilityCase)`` carries every nested domain
+    object inline (CBT-01-007), and its receiver refuses a participant named
+    by id rather than fetch it (CBT-05-008, AKM-05-007). :func:`_case_for_wire`
+    leaves an id it cannot resolve as the id, so a case it returns with a
+    bare participant or report is one the bootstrap may not carry.
 
     Raises:
-        VultronValidationError: If ``case_participants`` still holds a bare id.
+        VultronValidationError: If a field in ``_CARRIED_LIST_FIELDS`` still
+            holds a bare id.
     """
-    bare = [
-        item
-        for item in getattr(case, "case_participants", None) or []
-        if isinstance(item, str)
-    ]
+    bare = {
+        field_name: [item for item in items if isinstance(item, str)]
+        for field_name in sorted(_CARRIED_LIST_FIELDS)
+        if isinstance(items := getattr(case, field_name, None), list)
+    }
+    bare = {name: ids for name, ids in bare.items() if ids}
     if bare:
         raise VultronValidationError(
-            f"case '{case_id}' names participants {bare}, which the sending"
-            " actor's own store cannot read, so the bootstrap"
-            " Create(VulnerabilityCase) cannot carry them inline"
-            " (CBT-01-007, CBT-05-008); refusing to send it"
+            f"case '{case_id}' names {bare}, which the sending actor's own"
+            " store cannot read, so the bootstrap Create(VulnerabilityCase)"
+            " cannot carry them inline (CBT-01-007, CBT-05-008); refusing to"
+            " send it"
         )
 
 

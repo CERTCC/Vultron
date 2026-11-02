@@ -74,7 +74,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 As AS2 allows, an Activity carries an object inline or names it by URI, and a receiver copes with either form.
 An object the recipient cannot be expected to hold is carried inline, or named by a reference the recipient can dereference ([§4.2 Knowledge Model and Actor Isolation](layers.md#42-knowledge-model-and-actor-isolation)).
 A production implementation can fetch an object named by a URI it holds no record of.
-The case-creation message that bootstraps a case is the exception: it carries the case and every object nested in it inline, and its receiver fetches none of them ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)).
+The case-creation message that bootstraps a case is an exception: it carries the case and every object nested in it inline, and its receiver fetches none of them ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)).
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("SE-01-002", "AKM-05-004"))

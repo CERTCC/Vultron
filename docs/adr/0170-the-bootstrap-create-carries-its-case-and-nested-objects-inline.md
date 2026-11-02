@@ -59,7 +59,7 @@ Every other message keeps the general rule: an object may travel inline or by re
 - Good, because the protocol now states the refusal the reference implementation already performs, so the refusal is no longer a prototype shortcut.
 - Good, because the receiver's checks run on one message, with nothing left to fetch.
 - Bad, because a large case makes a large bootstrap message.
-- Neutral, because the receiver's refusal covers participant records, which its later checks read; a report the receiver already holds, such as the one it submitted, it can still read from its own store when the sender names it by reference.
+- Neutral, because the receiver's refusal covers participant records, which its later checks read; a report the receiver already holds, such as the one it submitted, it can still read from its own store if a non-conforming sender names it by reference.
 - Neutral, because a `Create` whose own `object` is a bare URI cannot be recognised as a bootstrap until its type is known, and a receiver that holds no case has no host to fetch it from, so it is not processed.
 
 ## Validation

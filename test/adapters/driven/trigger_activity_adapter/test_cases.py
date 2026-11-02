@@ -658,6 +658,24 @@ class TestCaseOnTheWireCarriesItsParticipants:
             adapter.create_case(case_id=case.id_, actor=_ACTOR, to=[_PEER])
         assert dl.outbox_list() == []
 
+    @pytest.mark.spec("CBT-01-007")
+    def test_create_case_refuses_a_report_the_sender_cannot_read(
+        self, adapter, dl
+    ):
+        """The bootstrap carries every nested object inline, the case's
+        reports too, so a case naming a report the sender's own store lacks
+        is not sent with a bare id."""
+        from vultron.errors import VultronValidationError
+
+        case, _, report_id = self._case_with_participant_ids(dl)
+        assert dl.delete("VulnerabilityReport", report_id)
+
+        with pytest.raises(
+            VultronValidationError, match="vulnerability_reports"
+        ):
+            adapter.create_case(case_id=case.id_, actor=_ACTOR, to=[_PEER])
+        assert dl.outbox_list() == []
+
     @pytest.mark.spec("SYNC-16-006")
     @pytest.mark.spec("PCR-02-004")
     def test_an_inline_participant_is_carried_as_the_store_holds_it(
