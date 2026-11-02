@@ -4790,16 +4790,15 @@ groups:
       Reporter's revision of it and the note thread that follows, which
       rcvv-embargo tells identically (DEMOMA-21-015). Each shared stretch is
       one copy of the code, so the two recordings agree to the
-      `vendor-after-embargo` branch point — isomorphically today
-      (DEMOCI-11-017), byte for byte once #5591 lands.
+      `vendor-after-embargo` branch point byte for byte (DEMOCI-11-018), and
+      isomorphically as every sharing pair does (DEMOCI-11-017).
     verification: >-
       The scenario's own test module asserts that its story begins with the
-      items of `REPORTER_PROPOSES_EMBARGO`, which is what carries this clause
-      while the byte comparison is held open: `COMPOSED_FAMILIES` does not
-      name `{rcv-embargo, rcvv-embargo}` in one family, because their shared
-      prefix runs past the embargo activation and #5591 is the read that moves
-      it. `TestComposedFamilies` does compare each of the two against the
-      narrower siblings it is in a family with.
+      items of `REPORTER_PROPOSES_EMBARGO`, and `TestComposedFamilies`
+      compares the two recordings byte for byte up to the
+      `vendor-after-embargo` branch point: `COMPOSED_FAMILIES` names
+      `{rcv-embargo, rcvv-embargo}` in one family with their
+      coordinator-first siblings (DEMOCI-11-018).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
@@ -5273,17 +5272,17 @@ groups:
     rationale: >-
       The revision cycle is the first thing this scenario tells differently, so
       everything before it is one copy of the code shared with rcv-embargo, so
-      the two recordings agree up to the `vendor-after-embargo` branch point —
-      isomorphically today (DEMOCI-11-017), and byte for byte once #5591
-      lands. Naming the opening here keeps this group a whole story.
+      the two recordings agree up to the `vendor-after-embargo` branch point
+      byte for byte (DEMOCI-11-018), and isomorphically as every sharing pair
+      does (DEMOCI-11-017). Naming the opening here keeps this group a whole
+      story.
     verification: >-
       The scenario's own test module asserts that its story begins with the
-      items of `REPORTER_PROPOSES_EMBARGO`, which is what carries this clause
-      while the byte comparison is held open: `COMPOSED_FAMILIES` does not
-      name `{rcv-embargo, rcvv-embargo}` in one family, because their shared
-      prefix runs past the embargo activation and #5591 is the read that moves
-      it. `TestComposedFamilies` does compare each of the two against the
-      narrower siblings it is in a family with.
+      items of `REPORTER_PROPOSES_EMBARGO`, and `TestComposedFamilies`
+      compares the two recordings byte for byte up to the
+      `vendor-after-embargo` branch point: `COMPOSED_FAMILIES` names
+      `{rcv-embargo, rcvv-embargo}` in one family with their
+      coordinator-first siblings (DEMOCI-11-018).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
