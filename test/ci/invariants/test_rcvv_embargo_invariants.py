@@ -114,7 +114,7 @@ globals().update(
 def test_rcvv_embargo_semantic_type_literals_match_the_commit_path() -> None:
     """The literals in the expected list are the strings the manager commits.
 
-    DEMOMA-21-007 requires the invariant check to use the semantic types the
+    DEMOMA-21-022 requires the invariant check to use the semantic types the
     CASE_MANAGER's commit path emits, read from the code.  The expected list
     must be a literal for the notes ratchet, so this pins it to the code.
     """
@@ -140,7 +140,7 @@ def test_rcvv_embargo_proposal_then_revision_then_teardown_in_order(
     teardown comes last.  The owner's activation has its own type,
     ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122), so this is the owner's
     decision, not a participant's consent; the participants' consent is
-    asserted by the scenario (DEMOMA-21-002, DEMOMA-21-012).
+    asserted by the scenario (DEMOMA-21-018, DEMOMA-21-012).
 
     Spec: DEMOMA-21-007.
     """
@@ -198,7 +198,7 @@ def test_rcvv_embargo_torn_down_exactly_once(
     The Reporter's publication is the only thing that ends the embargo, so
     exactly one teardown is committed.
 
-    Spec: DEMOMA-21-004, DEMOMA-21-014.
+    Spec: DEMOMA-21-004, DEMOMA-21-014, DEMOMA-21-024.
     """
     violations = check_semantic_type_count(
         rcvv_embargo_replicas,

@@ -1022,7 +1022,7 @@ class TestARosterThatNeverFillsStopsTheStory:
 
 
 # ---------------------------------------------------------------------------
-# The devlogs the invariant harness reads (DEMOMA-06-005, DEMOMA-23-002)
+# The devlogs the invariant harness reads (DEMOMA-06-005, DEMOMA-06-009, DEMOMA-23-002)
 # ---------------------------------------------------------------------------
 
 
@@ -1115,6 +1115,7 @@ class TestRvLedgerDump:
         }
 
     @pytest.mark.spec("DEMOMA-06-005")
+    @pytest.mark.spec("DEMOMA-06-009")
     def test_the_canonical_ledger_is_read_on_the_dedicated_container(
         self, tmp_path, monkeypatch
     ):
@@ -1207,7 +1208,7 @@ class TestRvCliCommand:
         assert option in help_text
 
     def test_the_case_actor_carries_no_id_option(self, help_text: str):
-        """Only ``rccv-handoff`` exposes one (DEMOMA-14-008)."""
+        """Only ``rccv-handoff`` exposes one (DEMOMA-14-023)."""
         assert "--case-actor-id" not in help_text
 
     def test_main_builds_one_client_per_container_and_runs_the_story(self):
@@ -2613,7 +2614,7 @@ class TestDeliveryIsolation:
         assert offer.id_ is not None
 
         # Under ADR-0041 this writes a VultronReportCaseLink and sends
-        # Create(as_CaseProposal) to the CaseActor.
+        # Create(CaseProposal) to the CaseActor.
         vendor_actor_fresh = get_actor_by_id(vendor_dc, vendor_id)
         receiver_validates_report(
             receiver_client=vendor_dc,

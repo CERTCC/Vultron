@@ -22,7 +22,7 @@ their ``Scenario`` column is registry-derived, and a markdown column cannot be
 spliced independently of the row it heads.  A generator would therefore have to
 emit whole rows — including the hand-written cells it cannot know — so adding a
 scenario would make it write a placeholder row and call the artifact
-"generated".  DEMOCI-11-006 and DEMOCI-11-007 say *checked in place* for exactly
+"generated".  DEMOCI-11-042 and DEMOCI-11-007 say *checked in place* for exactly
 this case, and what a check costs relative to generation is one edit by the
 author who knows the hand-written cells; what it buys is that the file never
 contains a cell nobody wrote.
@@ -114,7 +114,7 @@ class ScenarioTable:
 #:
 #: The tuple is not the authority on *which* tables exist — it cannot be, since a
 #: hand-maintained list reintroduces the silent omission the registry exists to
-#: remove (DEMOCI-11-002).  ``undeclared_scenario_tables()`` closes that by
+#: remove (DEMOCI-11-038).  ``undeclared_scenario_tables()`` closes that by
 #: scanning the consumer files for any table whose first column is scenario
 #: names, so a new one fails rather than being quietly unratcheted.
 SCENARIO_TABLES: tuple[ScenarioTable, ...] = (
@@ -171,7 +171,7 @@ def undeclared_scenario_tables(
     """Return scenario tables in the consumer files that no entry declares.
 
     :data:`SCENARIO_TABLES` is hand-maintained, so on its own it has the defect
-    DEMOCI-11-002's rationale names: a table absent from it is unratcheted and
+    DEMOCI-11-038's rationale names: a table absent from it is unratcheted and
     nothing says so.  This is the ratchet over the list itself — a table is
     "a scenario table" when its first column holds two or more registered
     scenario names, which is a property of the content rather than of anybody
@@ -205,7 +205,7 @@ def undeclared_scenario_tables(
                 "scenarios but no SCENARIO_TABLES entry declares it, so it is "
                 "unratcheted. Add one in "
                 "vultron/metadata/demo_scenarios/prose_tables.py "
-                "(DEMOCI-11-002, DEMOCI-11-007)."
+                "(DEMOCI-11-038, DEMOCI-11-007)."
             )
     return findings
 

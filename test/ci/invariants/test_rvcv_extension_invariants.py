@@ -110,7 +110,7 @@ def test_rvcv_extension_invite_actor_to_case_at_least_twice(
 ) -> None:
     """``invite_actor_to_case`` appears at least twice (Coordinator + Vendor2 invitations).
 
-    Spec: DEMOMA-10-003 (Vendor1 invites the Coordinator), DEMOMA-10-005
+    Spec: DEMOMA-10-012 (Vendor1 invites the Coordinator), DEMOMA-10-014
     (CaseActor invites Vendor2).
     """
     violations = check_semantic_type_count(
@@ -140,7 +140,7 @@ def test_rvcv_extension_vendor2_late_joiner_has_full_history(
     """Vendor2 replica contains all logIndex values present in vendor replica.
 
     Vendor2 is a late joiner and must receive the full ledger backfill.
-    Spec: DEMOMA-10-007 (LedgerFanout convergence).
+    Spec: DEMOMA-10-016 (LedgerFanout convergence).
     """
     if not rvcv_extension_replicas.get(
         "vendor"
@@ -162,7 +162,7 @@ def test_rvcv_extension_reporter_late_joiner_has_full_history(
 
     Reporter is seeded by the CaseActor's trust-bootstrap Announce; the
     CaseActor must backfill all prior entries to Reporter.
-    Spec: DEMOMA-10-007 (LedgerFanout convergence).
+    Spec: DEMOMA-10-016 (LedgerFanout convergence).
     """
     if not rvcv_extension_replicas.get(
         "vendor"
@@ -184,7 +184,7 @@ def test_rvcv_extension_coordinator_late_joiner_has_full_history(
 
     Coordinator joins after case creation when Vendor1 invites them; the
     CaseActor must backfill all prior entries to Coordinator.
-    Spec: DEMOMA-10-007 (LedgerFanout convergence).
+    Spec: DEMOMA-10-016 (LedgerFanout convergence).
     """
     if not rvcv_extension_replicas.get(
         "vendor"

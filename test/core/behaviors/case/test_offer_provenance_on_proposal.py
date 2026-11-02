@@ -197,7 +197,7 @@ def _run_received_bt(
     offer_id: str | None,
     offer_actor_id: str | None,
 ) -> None:
-    """Deliver ``Create(as_CaseProposal)`` to the CaseActor and run its tree."""
+    """Deliver ``Create(CaseProposal)`` to the CaseActor and run its tree."""
     from vultron.core.models.events.case_proposal import (
         CreateCaseProposalReceivedEvent,
     )

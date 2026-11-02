@@ -82,8 +82,8 @@ jobs:
           set -euo pipefail
           changed=$(cat changed.txt)
           # The Task type is set by the helper notify-failure also uses
-          # (CISEC-05-007); it leaves a typed issue alone and repairs an
-          # untyped one, so it runs on both arms.
+          # (CISEC-05-017); it leaves a typed issue alone and repairs an
+          # untyped one (CISEC-05-018), so it runs on both arms.
           ensure_type=.github/scripts/ensure-issue-type.sh
           # Its theme label and Theme: line (PAD-02-014, PAD-02-018) are set
           # the same way, on both arms. No parent: the Task starts untriaged

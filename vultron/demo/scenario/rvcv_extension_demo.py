@@ -197,7 +197,7 @@ def the_coordinator_suggests_the_second_vendor(state: StoryState) -> None:
     Vendor1 keeping the case is what makes the suggestion the route in: it is
     Vendor1, the owner, that converts the Coordinator's
     ``Offer(Actor)[target=VulnerabilityCase]`` into an invitation
-    (DEMOMA-10-004, DEMOMA-10-005).  The Coordinator must
+    (DEMOMA-10-004, DEMOMA-10-005, DEMOMA-10-014).  The Coordinator must
     be a participant to suggest anyone, so the shared continuation reads the
     join the opening's roster gate kept (DEMOMA-10-003).
     """

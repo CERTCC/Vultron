@@ -191,7 +191,7 @@ VENDOR2_SIGNED: StoryProp[str] = StoryProp(
 def vendor1_proposes_a_revision(state: StoryState) -> None:
     """Vendor1 revises the embargo; the Reporter consents; the owner activates.
 
-    The relayed revision sequence (EP-09, DEMOMA-21-002).  Vendor2 signs
+    The relayed revision sequence (EP-09, DEMOMA-21-018).  Vendor2 signs
     whatever is in force when it joins, so without this second revision the
     late invite would assert about the wrong embargo — which is why the
     revision it put in force is kept rather than inferred from ``EM.ACTIVE``.

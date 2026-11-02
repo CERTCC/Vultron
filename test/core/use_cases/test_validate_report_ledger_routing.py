@@ -28,8 +28,8 @@ Chain under test (three layers):
 3. **Full chain** — end-to-end: vendor trigger → CaseActor receives →
    entry in CaseActor's DataLayer.
 
-Context: the case is created at RM.RECEIVED (when the Offer(Report) arrives),
-so a case with a CASE_MANAGER participant already exists by the time
+Context: the case is created at RM.RECEIVED (when the Offer(VulnerabilityReport)
+arrives), so a case with a CASE_MANAGER participant already exists by the time
 ``validate-report`` is triggered (ADR-0015).
 
 Spec refs: ADR-0021, CLP-10-001, CLP-10-027, CLP-09-001, CLP-10-003.
@@ -476,7 +476,9 @@ class TestCaseActorReceivedWritesLedgerEntry:
         )
 
     def _make_invalidate_event(self) -> InvalidateReportReceivedEvent:
-        """The TentativeReject(Offer(Report)) twin of the validate event."""
+        """The TentativeReject(Offer(VulnerabilityReport)) twin of the validate
+        event.
+        """
         validate = self._make_validate_event()
         assert validate.activity is not None
         return with_evidence(
@@ -556,7 +558,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
     ) -> ValidateReportReceivedEvent:
         """Construct a ValidateReportReceivedEvent for the CaseActor's inbox.
 
-        The wire format is Accept(Offer(as_VulnerabilityReport)).  The activity
+        The wire format is Accept(Offer(VulnerabilityReport)).  The activity
         must carry an ``object_`` with ``type_="Offer"`` so the canonical
         signature check in ``_validate_canonical_entry`` sees
         ``("Accept", "Offer")``.

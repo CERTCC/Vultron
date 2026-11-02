@@ -13,11 +13,11 @@
 
 """Integration tests for PCR-07-006: full case-replica bootstrap sequence.
 
-Verifies: the owner's bootstrap Create(as_VulnerabilityCase) reaches the
+Verifies: the owner's bootstrap Create(VulnerabilityCase) reaches the
 participant → participant creates its local replica from the case copy the
 Create carries → subsequent case-scoped activities route without deferral.
 The creation copy travels in the Create (CBT-01-002, PCR-02-005); every later
-full copy is an Announce(as_VulnerabilityCase) (PCR-02-001).
+full copy is an Announce(VulnerabilityCase) (PCR-02-001).
 
 These tests exercise the full inbox dispatch path against a real in-memory
 SQLite DataLayer — use cases are not mocked.  They are auto-marked as
@@ -28,7 +28,7 @@ Coverage approach
 AC-1 tests (``TestBootstrapSequence.test_create_seeds_case_replica`` and
 ``test_case_fields_preserved_in_replica``) use a **two-app setup** where a
 separate owner app creates a case for a submitted report and sends the
-participant its bootstrap ``Create(as_VulnerabilityCase)`` via the outbox,
+participant its bootstrap ``Create(VulnerabilityCase)`` via the outbox,
 which is routed to the participant app via ``InProcessRouter``.  This
 exercises the full create-case → deliver-Create → seed-replica path, catching
 regressions where case creation no longer delivers the case copy
@@ -247,7 +247,7 @@ def _bootstrap_case_for_participant(
        the preliminary ``as_VulnerabilityCase`` with embargo.
     2. Owner creates the case (``trigger/create-case``) with the
        participant as its addressee, which queues the bootstrap
-       ``Create(as_VulnerabilityCase)`` carrying the case copy.
+       ``Create(VulnerabilityCase)`` carrying the case copy.
     3. The Create is delivered via the outbox → ``InProcessRouter`` →
        participant inbox chain, and the participant's inbox handler seeds
        its replica from it.
@@ -300,7 +300,7 @@ def _bootstrap_case_for_participant(
     )
 
     # ADR-0041: receive_report_case_tree writes a VultronReportCaseLink and
-    # sends Create(as_CaseProposal) to CaseActor — no VulnerabilityCase yet.
+    # sends Create(CaseProposal) to CaseActor — no VulnerabilityCase yet.
     # Simulate the CaseActor's Create(VulnerabilityCase) response by calling
     # trigger/create-case directly.  Pass participant as `to` so the outbound
     # Create(VulnerabilityCase) satisfies OX-08-001.
@@ -319,7 +319,7 @@ def _bootstrap_case_for_participant(
 
     # Find the case that the CaseActor created for this report.
     # Under ADR-0041, case_proposal_received_tree creates the canonical case
-    # when Create(as_CaseProposal) is processed; trigger/create-case above
+    # when Create(CaseProposal) is processed; trigger/create-case above
     # may add a second case — find by report_id to avoid ambiguity.
     # The owner's own store, not `owner_iso.dl`: this test creates its actor
     # under a per-test slug, while `dl` is the app's default-slug store, so
@@ -424,11 +424,11 @@ class TestBootstrapSequence:
 
     @pytest.mark.spec("PCR-03-005")
     def test_create_seeds_case_replica(self, two_app_setup):
-        """AC-1: the bootstrap Create(as_VulnerabilityCase) seeds a replica.
+        """AC-1: the bootstrap Create(VulnerabilityCase) seeds a replica.
 
         Exercises the full bootstrap sequence: participant submits a report →
         owner creates the case → owner's bootstrap
-        ``Create(as_VulnerabilityCase)`` goes out via the outbox →
+        ``Create(VulnerabilityCase)`` goes out via the outbox →
         participant's inbox receives and processes the Create.
 
         The participant's ``DataLayer`` must contain a local case replica
@@ -466,14 +466,14 @@ class TestBootstrapSequence:
         # and the next read fails with "no such table: vultron_objects".
         assert actor_dl.inbox_list() == [], (
             "Participant actor's inbox queue was not drained after "
-            "processing Create(as_VulnerabilityCase).  The inbox handler "
+            "processing Create(VulnerabilityCase).  The inbox handler "
             "may not have run (PCR-07-006 AC-1)."
         )
 
         replica = actor_dl.read(case_id)
         assert replica is not None, (
             f"Expected as_VulnerabilityCase '{case_id}' in participant's "
-            f"DataLayer after Create(as_VulnerabilityCase) delivery, but "
+            f"DataLayer after Create(VulnerabilityCase) delivery, but "
             f"DataLayer has no record of it.  Bootstrap sequence may be "
             f"broken (PCR-07-006 AC-1)."
         )

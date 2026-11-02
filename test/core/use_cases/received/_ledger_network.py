@@ -286,6 +286,20 @@ class LedgerNetwork:
                 items.append(activity)
         return items
 
+    def lose(self, sender: str, *, to: str, type_: str | None = None) -> None:
+        """Drop every item *sender* queued for *to*: lost in transit.
+
+        Every other pending item stays queued, in its order.
+        """
+        dl = self.stores[sender]
+        lost = {a.id_ for a in self.queued(sender, to=to, type_=type_)}
+        kept: list[str] = []
+        while (activity_id := dl.outbox_pop()) is not None:
+            if activity_id not in lost:
+                kept.append(activity_id)
+        for activity_id in kept:
+            dl.outbox_append(activity_id)
+
     def deliver(self, sender: str, *, to: str, type_: str | None = None):
         """Deliver every not-yet-delivered item *sender* queued for *to*."""
         verdicts = []

@@ -1,7 +1,7 @@
 """Vocabulary examples for the ledger-replication message flow.
 
-Demonstrates ``Announce(as_CaseLedgerEntry)``,
-``Reject(as_CaseLedgerEntry)`` and ``Read(as_CaseLedgerEntry)`` activities as
+Demonstrates ``Announce(CaseLedgerEntry)``,
+``Reject(CaseLedgerEntry)`` and ``Read(CaseLedgerEntry)`` activities as
 specified in ADR-0077, ADR-0155 and ``specs/sync-ledger-replication.yaml``
 SYNC-09-002, SYNC-03-001, SYNC-03-002, SYNC-17-001.
 """

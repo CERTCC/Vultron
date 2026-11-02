@@ -47,7 +47,7 @@ dependencies = [
     "networkx>=3.5",
     "pandas>=3.0.5",
     "pathspec>=0.12.1",
-    "pydantic==2.13.5",
+    "pydantic==2.14.2",
     "py-trees>=2.6.0",
     "scipy>=1.18.0",
     "uvicorn>=0.52.3",
@@ -104,6 +104,7 @@ pr-size="vultron.metadata.planning.size_bands:main"
 ratchet-owners="vultron.metadata.ratchet_owners:main"
 pr-body-lint="vultron.metadata.planning.pr_body_lint:cli"
 targeted-tests="vultron.metadata.planning.targeted_tests:main"
+build-context="vultron.metadata.planning.build_context:cli"
 glossary-index="vultron.metadata.docs.glossary_index:main"
 learnings-index="vultron.metadata.history.incoming:main"
 notes-tracks="vultron.metadata.notes.tracks:main"

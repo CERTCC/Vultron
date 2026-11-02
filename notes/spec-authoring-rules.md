@@ -5,7 +5,8 @@ kind: guidance
 description: >
   Mechanical rules for authoring spec YAML: the five kinds and the MS-12
   decision tree (who must obey a rule decides its kind, ADR-0134), the ruling
-  that inline-object requirements are `project`, which HTTP status codes are
+  that inline-object requirements are `project` unless a protocol purpose
+  such as the bootstrap's (CBT-01-007) demands them, which HTTP status codes are
   `foundation` and which are `project`, splitting a spec that mixes
   kinds, what a kind change moves, and the scoping of MS-12-006;
   the enum values spec-lint accepts for `kind`, `priority` and `rel_type`, and
@@ -27,7 +28,7 @@ related_specs:
   - specs/meta-specifications.yaml
   - specs/spec-registry.yaml
   - specs/testability.yaml
-  - specs/architecture.yaml (ARCH-18-004)
+  - specs/architecture.yaml (ARCH-18-004, ARCH-18-009)
   - specs/actor-knowledge-model.yaml (AKM-05-003, the inline-object ruling)
   - specs/http-protocol.yaml (HTTP-03, the status-code ruling)
   - specs/inbox-endpoint.yaml (IE-07-001, IE-07-002, IE-11-001)
@@ -98,7 +99,9 @@ by reference" (MS-12-020); the inline demand moves to a new `project` ID
 (MS-12-021; RF-02-004 / RF-02-006).
 An inline rule stays `protocol` only when inlining serves a protocol purpose the
 prototype does not explain, and its rationale names that purpose: ledger snapshot
-content the hash chain must cover is one (CLP-07-006). If no such purpose is
+content the hash chain must cover is one (CLP-07-006); the bootstrap's case and
+nested objects, which the receiver has no trusted source to fetch before it
+accepts the bootstrap, are another (CBT-01-007, ADR-0170). If no such purpose is
 evident, ask; do not invent one.
 
 **An HTTP status code is `foundation` only when HTTP itself defines it for the
@@ -302,7 +305,7 @@ The MS-10 verification rule is built so it can only end at zero:
 2. **Each marker names an open owning issue** of its kind in
    `VERIFICATION_DEBT_OWNERS`. A PR that closes an owner while a marker still
    names it fails; an owner closed by hand is reported by the
-   `verification-debt-owners` workflow and never fails the build (ARCH-18-004).
+   `verification-debt-owners` workflow and never fails the build (ARCH-18-009).
 3. **Zero is terminal.** When a kind has no markers, delete its owner entry
    (MS-10-007); a marker of that kind is then a hard error (MS-10-026). While an entry
    exists, a PR-only growth guard fails any marker a branch adds or re-points

@@ -105,7 +105,7 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
     the fault is the manager's own, never a refusal of the sender's proposal.
 
     Args:
-        proposal_id: The ``Create(as_CaseProposal)``'s proposal; the relay
+        proposal_id: The ``Create(CaseProposal)``'s proposal; the relay
             answers it.
         report_id: The report the case is created from; its author is the
             reporter (EP-04-004).

@@ -84,7 +84,7 @@ def mounted_trigger_verbs() -> set[str]:
     }
 
 
-@pytest.mark.spec("DEMOCI-11-013")
+@pytest.mark.spec("DEMOCI-11-047", "DEMOCI-11-049")
 @pytest.mark.parametrize(
     ("branch_point_id", "choice_id"),
     [
@@ -160,7 +160,7 @@ def test_malformed_branch_point_is_refused(
         BranchPoint(**fields)
 
 
-@pytest.mark.spec("DEMOCI-11-013")
+@pytest.mark.spec("DEMOCI-11-013", "DEMOCI-11-047")
 @pytest.mark.parametrize(
     ("kwargs", "match"),
     [
@@ -179,7 +179,7 @@ def test_malformed_choice_is_refused(
         Choice(**fields)
 
 
-@pytest.mark.spec("DEMOCI-11-013")
+@pytest.mark.spec("DEMOCI-11-050")
 def test_scenario_decorator_takes_no_prompt_or_choice_label() -> None:
     """Prompts and choice labels live only in the table, never on ``@scenario``.
 

@@ -221,8 +221,8 @@ Entries marked (Sentinel) are not capabilities: they are call-in patterns that w
 
 - **EvaluateCaseProposal** (Evaluator) — should this service open and manage a case for this proposal?
 
-This is the admission decision a case actor service makes on an inbound `Create(as_CaseProposal)`, and the only place admission policy lives.
-Returning FAILURE sends `Reject(as_CaseProposal)`; the default admits.
+This is the admission decision a case actor service makes on an inbound `Create(CaseProposal)`, and the only place admission policy lives.
+Returning FAILURE sends `Reject(CaseProposal)`; the default admits.
 
 Build this one if you run a case actor service for others.
 The [Propose case](../behavior_logic/use-cases/propose-case.md#where-judgment-enters) page carries the full reasoning — what the policy decides, why the decision sits ahead of every write, and the two ways a refusal gate can be defeated.
@@ -332,7 +332,7 @@ The [Trigger API Reference](../../reference/trigger-api.md) gives each endpoint'
 - `ack-report` — acknowledge a received report to its sender
 - `validate-report` — mark a received report as valid
 - `invalidate-report` — mark a received report as invalid
-- `reject-report` — hard-close a report before validation completes; it also sends `Close(Report)`, so it fails once a case holds the report, which by default happens on receipt; from then on you leave the case with `leave-case`
+- `reject-report` — hard-close a report before validation completes; it also sends `Reject(Offer(VulnerabilityReport))`, so it fails once a case holds the report, which by default happens on receipt; from then on you leave the case with `leave-case`
 
 ### Case management
 

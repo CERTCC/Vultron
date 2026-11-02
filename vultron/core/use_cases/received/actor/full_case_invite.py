@@ -52,7 +52,7 @@ logger = logging.getLogger(__name__)
 
 
 class InviteActorToFullCaseReceivedUseCase:
-    """The invitee receives the full-case ``Invite(Actor)[target=Case]``.
+    """The invitee receives the full-case ``Invite(Actor)[target=VulnerabilityCase]``.
 
     Intake archives the Invite so the invitee can answer it; the ledger
     position it carries is the floor the reply must reach (CM-11-031).  The

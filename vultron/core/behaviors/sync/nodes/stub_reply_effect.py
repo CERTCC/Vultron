@@ -14,7 +14,8 @@
 """Replica replay of the invitee's reply to the stub Invite.
 
 The ledger holds the wire messages exchanged (ADR-0114).  The invitee's
-``Accept(Invite(stub))`` and ``Reject(Invite(stub))`` are already entries
+``Accept(Invite(Actor)[target=VulnerabilityCaseStub])`` and
+``Reject(Invite(Actor)[target=VulnerabilityCaseStub])`` are already entries
 (``accept_invite_actor_to_case``, ``reject_invite_actor_to_case``), and each
 carries the reply verbatim: the replying actor, the stub Invite and the reply's
 ``published``.  They are the entries for the reply's own effects on the

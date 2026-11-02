@@ -191,7 +191,7 @@ def test_rccv_handoff_vendor_late_joiner_has_full_history(
     """Vendor (vendor2) replica contains all logIndex values present in C1 (vendor) replica.
 
     Vendor is the last actor to join (after the ownership handoff) and must
-    receive the full ledger backfill (LedgerFanout convergence, DEMOMA-14-006).
+    receive the full ledger backfill (LedgerFanout convergence, DEMOMA-14-022).
     """
     if not rccv_handoff_replicas.get(
         "vendor"

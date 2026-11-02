@@ -182,7 +182,7 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that the report-receiving actor is the
       case's `attributed_to` when a `VulnerabilityCase` is created from an
-      `Offer(Report)`.
+      `Offer(VulnerabilityReport)`.
     stories:
     - story_2022_012
     - story_2022_013
@@ -390,10 +390,11 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      When a `VulnerabilityCase` is created via the direct-mint path (e.g. `trigger/create-case`,
-      without a `Create(as_CaseProposal)` round-trip), the creating actor MUST be registered as a
-      `CaseParticipant` carrying both `CVDRole.CASE_OWNER` and `CVDRole.CASE_MANAGER` as part of
-      the same atomic case-creation operation.
+      When a `VulnerabilityCase` is created via the direct-mint path (e.g.
+      `trigger/create-case`, without a `Create(CaseProposal)` round-trip), the
+      creating actor MUST be registered as a `CaseParticipant` carrying both
+      `CVDRole.CASE_OWNER` and `CVDRole.CASE_MANAGER` as part of the same atomic
+      case-creation operation.
     rationale: >-
       In the direct-mint path there is no intermediary proposer; the creating actor is the sole
       authority holder from the start and holds both roles until it delegates `CASE_MANAGER` via
@@ -2673,8 +2674,10 @@ groups:
       RM state, from `RM.RECEIVED` onward. The receiver does not create the case itself,
       because the CASE_MANAGER is the case's authoritative creator (ADR-0041). With
       `auto_create_case` set to `False`, no case starts (CM-15-003).
-    verification: Integration tests in `test/demo/` confirm that receiving an `Offer(Report)`
-      activity causes a `VulnerabilityCase` to be created, and
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving an
+      `Offer(VulnerabilityReport)` activity causes a `VulnerabilityCase` to be
+      created, and
       `test/core/behaviors/case/test_receive_report_case_tree.py` confirms the
       receiver's tree proposes the case instead of creating it.
     note: >-
@@ -2709,8 +2712,11 @@ groups:
   - id: CM-12-003
     priority: MUST
     kind: protocol
-    statement: When a case is created from an `Offer(Report)`, the case owner (the report receiver) MUST queue a `Create(Case)`
-      activity to notify the reporter that a case has been opened, naming the CASE_MANAGER it delegated to (CBT-01-001)
+    statement: >-
+      When a case is created from an `Offer(VulnerabilityReport)`, the case owner (the
+      report receiver) MUST queue a `Create(VulnerabilityCase)` activity to notify the
+      reporter that a case has been opened, naming the CASE_MANAGER it delegated to
+      (CBT-01-001)
     rationale: >-
       The reporter must learn that its report became a case, and which actor coordinates
       the case. The reporter does not know the CASE_MANAGER. It trusts only the actor
@@ -2718,8 +2724,10 @@ groups:
       reporter (CBT-01-001, ADR-0132).
     adr:
     - ADR-0132
-    verification: Integration tests in `test/demo/` confirm that a `Create(Case)` activity is
-      queued for the reporter when a case is created from an `Offer(Report)`.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a `Create(VulnerabilityCase)`
+      activity is queued for the reporter when a case is created from an
+      `Offer(VulnerabilityReport)`.
     relationships:
     - rel_type: depends_on
       spec_id: OX-02-001
@@ -2882,8 +2890,11 @@ groups:
       `note.id_` in `VulnerabilityCase.notes`.
 - id: CM-14
   title: Case Initialization Sequence
-  description: Defines the canonical ordered sequence of initialization steps that MUST occur when a VulnerabilityCase is
-    created at Offer(Report) receipt (CM-12-001). All steps MUST complete before the case is considered fully initialized.
+  description: >-
+    Defines the canonical ordered sequence of initialization steps that MUST occur
+    when a VulnerabilityCase is created at Offer(VulnerabilityReport) receipt
+    (CM-12-001). All steps MUST complete before the case is considered fully
+    initialized.
   specs:
   - id: CM-14-001
     priority: MUST
@@ -2892,9 +2903,12 @@ groups:
       The case initialization sequence MUST execute exactly 6 ordered steps
       (CM-14-008 through CM-14-013) before the case is considered fully initialized.
       No step may be omitted or reordered.
-    rationale: Step CM-14-009 precedes CM-14-010 so that the embargo is always created by a participant (the case owner). The
-      Create(Case) notification in CM-14-011 is flushed before the reporter is added in CM-14-012 so the reporter's system
-      receives the case object before any subsequent Announce(CaseLedgerEntry) fan-out that references it.
+    rationale: >-
+      Step CM-14-009 precedes CM-14-010 so that the embargo is always created by a
+      participant (the case owner). The Create(VulnerabilityCase) notification in
+      CM-14-011 is flushed before the reporter is added in CM-14-012 so the reporter's
+      system receives the case object before any subsequent Announce(CaseLedgerEntry)
+      fan-out that references it.
     verification: Integration tests in `test/demo/` confirm that the case initialization
       sequence completes exactly 6 ordered steps (CM-14-008 through CM-14-013) and that no step
       is skipped or reordered.
@@ -2947,14 +2961,16 @@ groups:
   - id: CM-14-004
     priority: MUST
     kind: protocol
-    statement: The `Create(Case)` notification MUST be queued and the outbox flushed before the reporter is added as a `CaseParticipant`
-      in step 5 of CM-14-001
+    statement: >-
+      The `Create(VulnerabilityCase)` notification MUST be queued and the outbox
+      flushed before the reporter is added as a `CaseParticipant` in step 5 of
+      CM-14-001
     rationale: The reporter's system must receive and store the case object before any Announce(CaseLedgerEntry) fan-out that
       lists them as a participant. Reversing this order causes "case not found" errors on the reporter side when the log entry
       arrives referencing a case the reporter has not yet seen.
-    verification: Integration tests in `test/demo/` confirm that the `Create(Case)` outbox flush
-      occurs before the reporter `CaseParticipant` record is created during case
-      initialization.
+    verification: Integration tests in `test/demo/` confirm that the
+      `Create(VulnerabilityCase)` outbox flush occurs before the reporter
+      `CaseParticipant` record is created during case initialization.
     relationships:
     - rel_type: depends_on
       spec_id: CM-14-001
@@ -2984,9 +3000,12 @@ groups:
   - id: CM-14-006
     priority: SHOULD
     kind: protocol
-    statement: If the reporter included an embargo proposal with their `Offer(Report)`, the case initialization SHOULD reconcile
-      the reporter's proposed duration against the CASE_OWNER's published embargo policy (its actor default, EP-04-003) and
-      initialize the embargo at the shorter of the two durations
+    statement: >-
+      If the reporter included an embargo proposal with their
+      `Offer(VulnerabilityReport)`, the case initialization SHOULD reconcile the
+      reporter's proposed duration against the CASE_OWNER's published embargo policy
+      (its actor default, EP-04-003) and initialize the embargo at the shorter of the
+      two durations
     rationale: >-
       An agreement to an embargo of N days is also an agreement to every shorter
       embargo. Thus the shorter of the two terms is the term that both the reporter and
@@ -3107,14 +3126,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Step 4 of the case initialization sequence MUST queue a `Create(Case)` activity
-      addressed to the reporter and flush the outbox.
+      Step 4 of the case initialization sequence MUST queue a
+      `Create(VulnerabilityCase)` activity addressed to the reporter and flush the
+      outbox.
     rationale: The reporter's system must receive and store the case object before any
       Announce(CaseLedgerEntry) fan-out that references it.
     adr:
     - ADR-0119
-    verification: Integration tests in `test/demo/` confirm that step 4 queues `Create(Case)`
-      addressed to the reporter and flushes the outbox.
+    verification: Integration tests in `test/demo/` confirm that step 4 queues
+      `Create(VulnerabilityCase)` addressed to the reporter and flushes the outbox.
     stories:
     - story_2022_012
     - story_2022_038
@@ -3125,9 +3145,9 @@ groups:
       Step 5 of the case initialization sequence MUST add the reporter as a
       `CaseParticipant` with `RM.ACCEPTED` and the `REPORTER` role, and seed them as a
       signatory on any active embargo.
-    rationale: The reporter is added after the Create(Case) notification is flushed
-      (CM-14-011) so that the case object exists on the reporter's system before the
-      fan-out of the ledger entry that records their participation.
+    rationale: The reporter is added after the Create(VulnerabilityCase) notification is
+      flushed (CM-14-011) so that the case object exists on the reporter's system
+      before the fan-out of the ledger entry that records their participation.
     verification: Integration tests in `test/demo/` confirm that step 5 adds the reporter as a
       `CaseParticipant` with `RM.ACCEPTED` and seeds them as a signatory (an `AGREED` row)
       on any active embargo.
@@ -3149,17 +3169,22 @@ groups:
     - story_2022_041
 - id: CM-15
   title: Case Creation Policy
-  description: Requirements for the configurable auto_create_case policy on ActorConfig, which controls whether a VulnerabilityCase
-    is created automatically upon receipt of an Offer(Report).
+  description: >-
+    Requirements for the configurable auto_create_case policy on ActorConfig, which
+    controls whether a VulnerabilityCase is created automatically upon receipt of an
+    Offer(VulnerabilityReport).
   specs:
   - id: CM-15-001
     priority: MUST
     kind: project
     statement: 'ActorConfig MUST expose an `auto_create_case` boolean field with a default value of `True`.'
-    rationale: Receivers that acknowledge a report (send Read(Offer(Report)), VAM-02-003) before deciding to accept or reject
-      it require the ability to delay case creation. The default (True) starts a case at every `Offer(Report)` receipt
-      (RM.RECEIVED) for all existing actors and demos; the receiver proposes it and the CASE_MANAGER creates it
-      (CM-12-001, CM-22-001).
+    rationale: >-
+      Receivers that acknowledge a report (send Read(Offer(VulnerabilityReport)),
+      VAM-02-003) before deciding to accept or reject it require the ability to delay
+      case creation. The default (True) starts a case at every
+      `Offer(VulnerabilityReport)` receipt (RM.RECEIVED) for all existing actors and
+      demos; the receiver proposes it and the CASE_MANAGER creates it (CM-12-001,
+      CM-22-001).
     verification: Inspection of `vultron/core/` confirms that `ActorConfig` declares an
       `auto_create_case` boolean field defaulting to `True`.
     relationships:
@@ -3173,25 +3198,25 @@ groups:
     kind: project
     statement: >-
       When a receiver's `auto_create_case` is `False`, processing an inbound
-      `Offer(Report)` MUST store the `VulnerabilityReport` and the `Offer(Report)`
-      activity in the DataLayer.
+      `Offer(VulnerabilityReport)` MUST store the `VulnerabilityReport` and the
+      `Offer(VulnerabilityReport)` activity in the DataLayer.
     rationale: The report materials must be persisted even when case creation is suppressed
       so that they can be retrieved if the operator later enables case creation or reviews
       the offer manually.
     verification: Integration tests in `test/demo/` confirm that when `auto_create_case` is
-      `False`, processing an `Offer(Report)` persists the report and offer in the DataLayer
-      without creating a `VulnerabilityCase`.
+      `False`, processing an `Offer(VulnerabilityReport)` persists the report and offer
+      in the DataLayer without creating a `VulnerabilityCase`.
   - id: CM-15-003
     priority: MUST_NOT
     kind: project
     verification: >-
       `test/core/behaviors/case/test_receive_report_case_tree.py::TestPolicyGate`
       confirms that with `auto_create_case=False` the receive tree returns FAILURE and
-      writes no `VultronReportCaseLink`; inspection confirms no `Offer(Report)` receive
-      path creates a `VulnerabilityCase`.
+      writes no `VultronReportCaseLink`; inspection confirms no
+      `Offer(VulnerabilityReport)` receive path creates a `VulnerabilityCase`.
     statement: >-
       When a receiver's `auto_create_case` is `False`, processing an inbound
-      `Offer(Report)` MUST NOT create a `VulnerabilityCase`.
+      `Offer(VulnerabilityReport)` MUST NOT create a `VulnerabilityCase`.
     rationale: The purpose of the flag is to suppress automatic case creation; creating a
       case anyway would make the flag meaningless.
   - id: CM-15-004
@@ -3199,12 +3224,14 @@ groups:
     kind: project
     statement: >-
       When a receiver's `auto_create_case` is `False`, processing an inbound
-      `Offer(Report)` MUST leave the receiver's outbox unchanged (no outbound activities
-      are enqueued).
+      `Offer(VulnerabilityReport)` MUST leave the receiver's outbox unchanged (no
+      outbound activities are enqueued).
     rationale: Suppressing case creation also suppresses the associated outbound activities
-      (e.g., Create(Case) to the reporter); the observable outcome is no outbound messages.
+      (e.g., Create(VulnerabilityCase) to the reporter); the observable outcome is no
+      outbound messages.
     verification: Integration tests in `test/demo/` confirm that when `auto_create_case` is
-      `False`, processing an `Offer(Report)` leaves the actor's outbox empty.
+      `False`, processing an `Offer(VulnerabilityReport)` leaves the actor's outbox
+      empty.
   - id: CM-15-005
     priority: MUST
     kind: project
@@ -3213,7 +3240,8 @@ groups:
       `create_receive_report_case_tree`, after the intake node and ahead of any
       case-creating effect. A routing-level short-circuit in
       `SubmitReportReceivedUseCase` is not a conforming enforcement location, because
-      it stores the report and the `Offer(Report)` before any tree runs (CLP-10-019).
+      it stores the report and the `Offer(VulnerabilityReport)` before any tree runs
+      (CLP-10-019).
       The observable outcome (no case, no outbound activities; report and Offer
       stored per CM-15-002) remains normative.
     rationale: >-
@@ -3221,12 +3249,12 @@ groups:
       condition node in the behavior tree. A short-circuit in the use case must store
       the report and the Offer before it returns. That is a store path outside the tree,
       which CLP-10-019 forbids. The intake node stores the report and the Offer for
-      every inbound `Offer(Report)` (ADR-0111). Thus a gate outside the tree has nothing
-      to do.
-    verification: A received-side handler test posts an `Offer(Report)` to a receiver
-      with `auto_create_case=False`, asserts the disposition is SKIPPED, that no case
-      and no outbound activity exist, and that the report and the Offer are readable
-      from the receiver's DataLayer. The mutation ratchet
+      every inbound `Offer(VulnerabilityReport)` (ADR-0111). Thus a gate outside the
+      tree has nothing to do.
+    verification: A received-side handler test posts an `Offer(VulnerabilityReport)`
+      to a receiver with `auto_create_case=False`, asserts the disposition is
+      SKIPPED, that no case and no outbound activity exist, and that the report and
+      the Offer are readable from the receiver's DataLayer. The mutation ratchet
       `test/architecture/test_no_dl_mutations_in_execute.py` (CLP-10-020) fails if
       `SubmitReportReceivedUseCase.execute()` reaches a store helper.
     adr:
@@ -3247,14 +3275,14 @@ groups:
       The protocol does not say when to create a case. Thus `auto_create_case=True` is a
       choice of this reference implementation, and other implementations do not have to
       copy it (ADR-0085). When a case holds the report, its Case Owner closes the case
-      with Leave, as for a case created automatically. No trigger sends `Close(Report)`
-      for the case (CM-23-019, ADR-0145). With one closure path, a case created in a
-      later step does not need a second path.
+      with Leave, as for a case created automatically. No trigger sends
+      `Reject(Offer(VulnerabilityReport))` for the case (CM-23-019, ADR-0145). With one
+      closure path, a case created in a later step does not need a second path.
     verification: >-
       The `leave-case` tests in `test/core/use_cases/triggers/case/test_leave.py`
       assert the Case Owner's Leave is sent, the reject-report tests in
-      `test/core/use_cases/triggers/test_trignotify.py` assert no `Close(Report)`
-      is sent on a case, and the Leave tests in
+      `test/core/use_cases/triggers/test_trignotify.py` assert no
+      `Reject(Offer(VulnerabilityReport))` is sent on a case, and the Leave tests in
       `test/core/use_cases/received/test_close_case_role_semantics.py` cover the
       closure path.
     adr:
@@ -7447,10 +7475,10 @@ groups:
       sender and asserts `REFUSED` with no ledger entry and no outbound activity. For
       every use case whose rule names the `CASE_OWNER` standing, a test composes its
       guard and asserts a Case Owner whose closure the case records is refused, and
-      received-use-case tests drive an `Add(Report)`, an owner embargo decision and a
-      `Remove(EmbargoEvent)` from a closed owner and assert `REFUSED` with nothing
-      committed or sent. A test drives a closed sender's `Close(Report)` and asserts
-      `REFUSED`.
+      received-use-case tests drive an `Add(VulnerabilityReport)`, an owner embargo
+      decision and a `Remove(EmbargoEvent)` from a closed owner and assert `REFUSED`
+      with nothing committed or sent. A test drives a closed sender's
+      `Reject(Offer(VulnerabilityReport))` and asserts `REFUSED`.
     relationships:
     - rel_type: refines
       spec_id: CM-23-004
@@ -7500,8 +7528,8 @@ groups:
       The CASE_MANAGER MUST report as `SKIPPED` a repeated act that would close a closed
       sender, whatever its activity id, committing no entry and sending nothing. Such an
       act is a Leave(VulnerabilityCase), or a `Reject` of the sender's stub or full-case
-      Invite. A `Close(Report)` closes no sender on a case, so it is not such a repeat
-      (CM-23-019).
+      Invite. A `Reject(Offer(VulnerabilityReport))` closes no sender on a case, so it
+      is not such a repeat (CM-23-019).
     rationale: >-
       A second closing act changes nothing, whichever act closed the sender first: its
       effect is already in place (ID-05-003). The effect of an act, not its activity
@@ -7517,7 +7545,7 @@ groups:
       and assert `SKIPPED` with no ledger entry and no outbound activity.
       `test_close_report_from_a_closed_sender_is_refused_not_skipped` in
       `test/core/use_cases/received/test_close_report_on_case.py` asserts a closed
-      sender's `Close(Report)` is `REFUSED`.
+      sender's `Reject(Offer(VulnerabilityReport))` is `REFUSED`.
     relationships:
     - rel_type: extends
       spec_id: CM-23-018
@@ -7612,23 +7640,25 @@ groups:
     statement: >-
       Once a report belongs to a case, only that case's Case Owner holds the report. The
       Case Owner closes the case by Leave(VulnerabilityCase) (CM-23-001, CM-23-002),
-      never by `Close(Report)`. The CASE_MANAGER, and each participant holding a case
-      replica, MUST refuse a `Close(Report)` for a report that belongs to the case, from
+      never by `Reject(Offer(VulnerabilityReport))`. The CASE_MANAGER, and each
+      participant holding a case replica, MUST refuse a
+      `Reject(Offer(VulnerabilityReport))` for a report that belongs to the case, from
       every sender. From the Case Owner it is the wrong closing act. From any other
       sender it is a message about a report that sender does not hold. A
-      `Close(Report)` for a report that belongs to no case is unaffected.
+      `Reject(Offer(VulnerabilityReport))` for a report that belongs to no case is
+      unaffected.
     rationale: >-
-      A `Close(Report)` moves its sender to `RM.CLOSED` without the Leave round trip.
-      Thus a Case Owner that sends one can close itself while its case stays open. It
-      can then continue to act as Case Owner, and the case is never fully closed. If the
-      Case Owner's `Close(Report)` became a full close, the case would have two closing
-      messages. If only the later acts of a closed Case Owner were refused, the wrong
-      message would stay admitted (ADR-0144).
+      A `Reject(Offer(VulnerabilityReport))` moves its sender to `RM.CLOSED` without the
+      Leave round trip. Thus a Case Owner that sends one can close itself while its case
+      stays open. It can then continue to act as Case Owner, and the case is never fully
+      closed. If the Case Owner's `Reject(Offer(VulnerabilityReport))` became a full
+      close, the case would have two closing messages. If only the later acts of a
+      closed Case Owner were refused, the wrong message would stay admitted (ADR-0144).
     verification: >-
       `test/core/use_cases/received/test_close_report_on_case.py` drives a
-      `Close(Report)` on an open case from the Case Owner and from a participant that
-      is not the owner, at the CASE_MANAGER and at a participant holding a replica,
-      and asserts `REFUSED`.
+      `Reject(Offer(VulnerabilityReport))` on an open case from the Case Owner and from
+      a participant that is not the owner, at the CASE_MANAGER and at a participant
+      holding a replica, and asserts `REFUSED`.
     relationships:
     - rel_type: refines
       spec_id: CM-23-001
@@ -7643,8 +7673,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      On refusing a `Close(Report)` (CM-23-019), the CASE_MANAGER or replica holder MUST
-      write no RM state, commit no entry and send nothing, a refusal notice included.
+      On refusing a `Reject(Offer(VulnerabilityReport))` (CM-23-019), the CASE_MANAGER
+      or replica holder MUST write no RM state, commit no entry and send nothing, a
+      refusal notice included.
       The refusal is the sender guard's: no sender is entitled to send it to a case
       actor (CLP-02-005, HP-01-006).
     rationale: >-
@@ -7652,7 +7683,8 @@ groups:
       trace. A refusal notice would answer a message that no sender may send.
     verification: >-
       `test/core/use_cases/received/test_close_report_on_case.py` asserts no RM change,
-      no ledger entry and no outbound activity for each refused `Close(Report)`.
+      no ledger entry and no outbound activity for each refused
+      `Reject(Offer(VulnerabilityReport))`.
       `test_close_on_a_case_commits_nothing_anywhere` in
       `test/core/use_cases/received/test_receive_tree_ledger_commit.py` asserts nothing
       is committed at any actor.
@@ -7668,19 +7700,20 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      An actor MUST NOT send `Close(Report)` for a report that belongs to a case it
-      holds.
+      An actor MUST NOT send `Reject(Offer(VulnerabilityReport))` for a report that
+      belongs to a case it holds.
     rationale: >-
-      Every case actor refuses such a `Close(Report)` (CM-23-019). The actor closes its
-      part in the case by Leave(VulnerabilityCase) instead (CM-23-001).
+      Every case actor refuses such a `Reject(Offer(VulnerabilityReport))` (CM-23-019).
+      The actor closes its part in the case by Leave(VulnerabilityCase) instead
+      (CM-23-001).
     verification: >-
       `test_close_report_is_sent_to_no_one_when_a_case_exists` in
       `test/core/use_cases/triggers/test_trignotify.py` and
       `test_reject_report_on_a_case_raises_and_sends_nothing` in
       `test/core/use_cases/triggers/test_report_triggers.py` assert that no
-      `Close(Report)` is sent for a report that belongs to a case. The `leave-case`
-      tests in `test/core/use_cases/triggers/case/test_leave.py` cover how an actor on a
-      case closes its part in it instead.
+      `Reject(Offer(VulnerabilityReport))` is sent for a report that belongs to a case.
+      The `leave-case` tests in `test/core/use_cases/triggers/case/test_leave.py`
+      cover how an actor on a case closes its part in it instead.
     relationships:
     - rel_type: extends
       spec_id: CM-23-019
@@ -7696,9 +7729,9 @@ groups:
       An actor's report-closing trigger MUST fail, before it writes or sends anything,
       for a report that belongs to a case the actor holds.
     rationale: >-
-      The trigger is where the actor would build the `Close(Report)` that CM-23-052
-      forbids. Failing there, before any write, leaves no local closure that the case
-      never recorded.
+      The trigger is where the actor would build the
+      `Reject(Offer(VulnerabilityReport))` that CM-23-052 forbids. Failing there, before
+      any write, leaves no local closure that the case never recorded.
     verification: >-
       Tests in `test/core/use_cases/triggers/test_trignotify.py`,
       `test/core/use_cases/triggers/test_report_triggers.py`,

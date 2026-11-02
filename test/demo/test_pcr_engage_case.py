@@ -264,7 +264,7 @@ def _bootstrap_and_engage(
     )
 
     # ADR-0041: receive_report_case_tree writes a VultronReportCaseLink and
-    # sends Create(as_CaseProposal) — no VulnerabilityCase yet.
+    # sends Create(CaseProposal) — no VulnerabilityCase yet.
     # Simulate the CaseActor's Create(VulnerabilityCase) response directly.
     # Pass reporter as `to` so the outbound activity satisfies OX-08-001.
     resp = owner_tc.post(

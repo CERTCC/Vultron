@@ -205,7 +205,7 @@ def test_invitee_response_edge_is_not_attributed_to_the_inviter(
     """An accept or reject of an invitation is never attributed to the inviter.
 
     ``consequent_actor`` names the actor whose act the consequent entry
-    records (DEMOMA-22-004).  An invitation is answered by its invitee, so
+    records (DEMOMA-22-011).  An invitation is answered by its invitee, so
     the actor on an ``invite_actor_to_case → accept/reject`` edge must differ
     from the actor on the invite edge it answers (the Case Actor, which sends
     every invitation, PCR-08-007).  Edges carry no invite identity, so the
@@ -245,7 +245,7 @@ def test_every_invite_edge_is_emitted_by_the_case_actor() -> None:
 
     The CASE_MANAGER is the ActivityStreams actor on every invitation
     (PCR-08-007, CM-24-001); the participant who asked for it is in the
-    entry's ``attributedTo``, not in the label (DEMOMA-22-004).
+    entry's ``attributedTo``, not in the label (DEMOMA-22-011).
     """
     mislabelled = [
         f"{_rel(page)}: {edge.get('consequent_actor')!r}"

@@ -25,7 +25,7 @@ ADR-0118, #4132).
 :func:`addressed_to_receiver`, and everything that asks the question reads
 it: the door guard here, and the late check an exempt tree runs in its own
 place (``CheckOfferAddressedToReceiverNode``, CM-15-002), which reads its
-``to`` half, :func:`named_in_to`, because an ``Offer(Report)`` makes its
+``to`` half, :func:`named_in_to`, because an ``Offer(VulnerabilityReport)`` makes its
 receiver eligible to create a case from ``to`` alone (HP-09-001).  The
 receiver is addressed when
 
@@ -170,9 +170,9 @@ def named_in_to(
 
     The ``to`` half of :func:`addressed_to_receiver`: the receiver is named
     in *to*, or *to* names a case participants collection the receiver's
-    store records it in.  An ``Offer(Report)`` reads this half alone, because
-    its case-creation eligibility comes from ``to`` only (HP-09-001): a
-    sender's own copy proposes no case.
+    store records it in.  An ``Offer(VulnerabilityReport)`` reads this half
+    alone, because its case-creation eligibility comes from ``to`` only
+    (HP-09-001): a sender's own copy proposes no case.
 
     Args:
         dl: The receiver's store, read for collection membership only.

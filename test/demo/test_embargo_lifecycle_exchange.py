@@ -137,6 +137,7 @@ def polls():
         yield mocks, log
 
 
+@pytest.mark.spec("DEMOMA-20-002")
 class TestProposeAndActivate:
     def _run(self, case, log):
         reporter, coordinator, vendor = (
@@ -147,7 +148,7 @@ class TestProposeAndActivate:
         )
         return reporter, coordinator, vendor
 
-    @pytest.mark.spec("DEMOMA-20-002")
+    @pytest.mark.spec("DEMOMA-20-014")
     def test_relayed_sequence_runs_in_causal_order(self, case, polls):
         """The reporter proposes; the vendor answers, then the owner decides."""
         _, log = polls
@@ -162,7 +163,7 @@ class TestProposeAndActivate:
             "coordinator:accept",
         ]
 
-    @pytest.mark.spec("DEMOMA-20-002")
+    @pytest.mark.spec("DEMOMA-20-014")
     def test_no_participant_polls_for_anothers_message(self, case, polls):
         """Each answerer polls its own replica for an Invite to itself."""
         mocks, log = polls
@@ -180,7 +181,7 @@ class TestProposeAndActivate:
             for c in mocks["invite"].call_args_list
         )
 
-    @pytest.mark.spec("DEMOMA-20-002")
+    @pytest.mark.spec("DEMOMA-20-014")
     def test_every_replica_and_the_manager_are_checked_for_active(
         self, case, polls
     ):
@@ -244,7 +245,7 @@ class TestProposeAndActivate:
         coordinator.accept_embargo.assert_not_called()
         assert _demo_failures
 
-    @pytest.mark.spec("DEMOMA-20-002")
+    @pytest.mark.spec("DEMOMA-20-014")
     def test_a_missing_invite_skips_the_answer_and_is_recorded(
         self, case, polls
     ):
@@ -269,7 +270,7 @@ class TestProposeAndActivate:
             if "dl_actor_id" in c.kwargs
         ]
 
-    @pytest.mark.spec("DEMOMA-20-002")
+    @pytest.mark.spec("DEMOMA-20-014")
     def test_a_failed_proposal_skips_everything_after_it(self, case, polls):
         mocks, log = polls
         reporter = _session("reporter", log)
@@ -302,7 +303,7 @@ class TestProposeRevision:
         )
         return proposing, accepting, owner
 
-    @pytest.mark.spec("DEMOMA-21-002")
+    @pytest.mark.spec("DEMOMA-21-018")
     def test_revision_is_confirmed_before_anyone_waits_for_active(
         self, case, polls
     ):
@@ -382,7 +383,7 @@ class TestProposeRevision:
         assert active[0].kwargs["dl_actor_id"] == MANAGER
         assert all(c.kwargs["active_embargo_id"] == EMBARGO_ID for c in active)
 
-    @pytest.mark.spec("DEMOMA-21-002")
+    @pytest.mark.spec("DEMOMA-21-017", "DEMOMA-21-018")
     def test_owner_who_proposed_answers_without_an_invite(self, case, polls):
         """The CASE_MANAGER never invites the proposer (EP-09-002)."""
         mocks, log = polls
@@ -405,7 +406,7 @@ class TestProposeRevision:
             accepting.client,
         ]
 
-    @pytest.mark.spec("DEMOMA-21-002")
+    @pytest.mark.spec("DEMOMA-21-018")
     def test_a_revision_that_never_reaches_revise_stops_the_sequence(
         self, case, polls
     ):
@@ -465,7 +466,7 @@ class TestDedicatedCaseManagerContainer:
         assert em_call.kwargs["dl_actor_id"] is None
         mocks["store"].assert_not_called()
 
-    @pytest.mark.spec("DEMOMA-20-002")
+    @pytest.mark.spec("DEMOMA-20-014")
     def test_propose_and_activate_reads_canonical_state_there(
         self, case, polls
     ):
@@ -484,7 +485,7 @@ class TestDedicatedCaseManagerContainer:
         assert mocks["em"].call_args_list[0].args[0] is manager
         mocks["store"].assert_not_called()
 
-    @pytest.mark.spec("DEMOMA-21-002")
+    @pytest.mark.spec("DEMOMA-21-018")
     def test_revision_reads_canonical_state_there(self, case, polls):
         mocks, log = polls
         manager = MagicMock()

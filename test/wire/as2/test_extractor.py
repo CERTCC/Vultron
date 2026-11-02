@@ -468,7 +468,7 @@ def test_extract_intent_participant_status_rm_and_d():
 
 
 def _make_embargo_invite(end_time=None, embargo_end=None, published=None):
-    """Build an as_Invite(as_EmbargoEvent) with optional activity-level end_time.
+    """Build an Invite(EmbargoEvent) with optional activity-level end_time.
 
     The invited embargo ends *embargo_end* (default: 90 days out).
     """

@@ -225,7 +225,7 @@ def _demo_never_reached_a_case(manifest: dict) -> bool:
     """True when the dump had nothing to target because no case ever existed.
 
     The dump writes ``caseId: null`` and ``targetCount: 0`` when the scenario
-    aborted before a case was created (DEMOCI-10-002) — the same shape as the
+    aborted before a case was created (DEMOCI-10-015) — the same shape as the
     pre-run sentinel (DEMOCI-10-012) and as the harness's crashed-dump
     backstop, which is excluded here because it does not know whether a case
     existed.  A manifest that names a case but captured nothing is a
@@ -1411,9 +1411,9 @@ def check_causal_edges(
     When *actor_names* is given (``{routeKey: actorName}`` from the dump
     manifest, see ``load_actor_names``) and the edge carries a
     ``consequent_actor`` tag, the consequent candidates are restricted to
-    entries whose recorded actor resolves to that tag (DEMOMA-22-004,
-    DEMOMA-22-005).  An edge whose tag matches no recorded consequent entry, or
-    whose consequent actor is absent from the manifest, is a violation.
+    entries whose recorded actor resolves to that tag (DEMOMA-22-011,
+    DEMOMA-22-012).  An edge whose tag matches no recorded consequent entry, or
+    whose consequent actor is absent from the manifest, is a violation (DEMOMA-22-013).
     Passing ``None`` skips the actor check (structural callers with synthetic
     ledgers); passing ``{}`` means "no manifest", so every tagged edge is
     unresolvable and fails.

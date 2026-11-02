@@ -41,8 +41,9 @@ Agents MAY: implement small–medium features, refactor without behavior change,
 add/update tests, improve typing/validation/error handling, update docs/specs,
 implement against `proposed` ADRs (the human touch is the epoch-2 ask, ADR-0120).
 
-Agents MUST NOT: introduce breaking API changes, modify auth/crypto logic,
-change persistence schemas without explicit instruction, touch CI/deployment/secrets.
+Agents MUST NOT: introduce breaking API changes, modify auth/crypto logic, change
+persistence schemas without explicit instruction, touch production deployment or
+secrets (CI workflows are in scope; follow `notes/ci-workflow-authoring.md`).
 **Crypto carve-out (ADR-0164):** agents MAY build the prototype's seeded-key signing
 and verification (epic #1156); production key handling (#1184) stays excluded, and
 a crypto PR waits for human review before merge.

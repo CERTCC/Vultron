@@ -579,7 +579,7 @@ def test_reject_at_advanced_hash_replays_again(
 def test_unknown_case_reject_leaves_replication_state_unchanged(
     bridge, datalayer
 ):
-    """Reject(LedgerEntry) for an unknown case must not write replication state.
+    """Reject(CaseLedgerEntry) for an unknown case must not write replication state.
 
     FindCaseActorNode must run before UpdateReplicationStateNode so that a
     failing case lookup leaves nothing behind (ID-04-005, BT-19-001).

@@ -24,7 +24,7 @@ Submodules:
 - ``conditions``: Validation and prioritization condition nodes
 - ``close_conditions``: Report-closure guard nodes
 - ``rm_transitions``: Report-management transition action nodes
-- ``case_creation``: Case creation and Create(Case) activity nodes
+- ``case_creation``: Case creation and Create(VulnerabilityCase) activity nodes
 - ``participant``: Case participant RM transition action nodes
 - ``develop_fix_conditions``: Fix-development guard/condition nodes
 - ``develop_fix``: Fix-development action nodes and emit base (DevelopFixBT)

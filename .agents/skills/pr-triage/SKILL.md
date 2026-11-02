@@ -111,7 +111,13 @@ not re-emitted, so `pr-execute` sees only what still stands.
 
 ### Phase 1 — Orient
 
-1. Invoke `orient-agent` to load baseline context.
+1. Load baseline context. Every mode first runs
+   `PYTHONPATH= uv run build-context check` on the branch
+   (`.agents/skills/shared/build-context.md` § "Reading it"). On exit 0
+   (`mode=reuse`), skip `orient-agent`, read the completeness doctrine, and keep
+   the file's lists for Phase 4. On any other exit, invoke `orient-agent` as
+   usual. Either way, record the result in `pr_metadata.build_context`: its
+   `mode` and `reason`. The comment header names it (PAD-07-019).
 
    **Pre-push mode** stops this phase here: there is no PR. The branch, the
    issue numbers and the draft body file come from the arguments; record
@@ -176,6 +182,11 @@ The `Docs:` line itself is judged in Phase 9, against the diff.
    `## Specs` section) plus the closed issues' `Governing specs:` lines;
    `deepen-context` adds targeted `--topic`/`--group` loads for the changed
    domains. Do not run `spec-dump` with no filters.
+
+   When Phase 1 found a reusable build context, load what it lists instead and
+   run `deepen-context` only for domains that no `hint=` line covers, plus any
+   floor ID the file does not list (`build-context.md` § "Reading it"). The
+   checks below run the same in both cases.
 3. **Flag a missing or placeholder Spec manifest** (IMPROVE). Then, on the PR
    branch, save the manifest to a file and run
    `PYTHONPATH= uv run spec-backstop --base origin/<base> --manifest <file>`.

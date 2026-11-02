@@ -286,7 +286,7 @@ answer, clock decisions, guards, commit, effects.
    a `{case_id}/participants` collection `to` names; `cc` and an empty `to`
    address nobody. Never write a tree's own copy of the check or a Python
    pre-check in `execute()`; a tree that must differ passes a registered
-   `AddresseeExemption` with its reason (an `Offer(Report)` keeps what it
+   `AddresseeExemption` with its reason (an `Offer(VulnerabilityReport)` keeps what it
    carried first, CM-15-002), and
    `test/architecture/test_received_tree_addressee_guard.py` pins each use.
    The check reads `event.activity`, so a registry entry must set
@@ -508,7 +508,7 @@ Each `CaseParticipant` carries its own RM state in
 `participant_statuses[].rm.state`. Handlers such as engage/defer update
 participant-level RM state; there is no case-level or flat report RM status. The
 CASE_MANAGER creates the case and its participants from the report receiver's
-`Create(as_CaseProposal)` (ADR-0041; `notes/case-proposal.md`).
+`Create(CaseProposal)` (ADR-0041; `notes/case-proposal.md`).
 
 ---
 

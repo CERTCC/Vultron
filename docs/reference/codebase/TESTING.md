@@ -82,7 +82,7 @@ timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&
     Imports under `if TYPE_CHECKING:` are exempt.
   - Case-ledger invariant tests require `devlogs/` JSONL artifacts (skipped when absent; `case_ledger_invariants` marker).
     The structural ratchets in the same directory (`test_universal_semantic_types.py`, `test_diagnostic_map_sync.py`) and the `test_common.py` helper tests carry no marker and run everywhere.
-    The `_AllSkipGuard` in that directory's `conftest.py` (DEMOCI-10-005) fails a session in which every test skipped, so CI invokes one harness file at a time rather than the whole directory.
+    The `_AllSkipGuard` in that directory's `conftest.py` (DEMOCI-10-017) fails a session in which every test skipped, so CI invokes one harness file at a time rather than the whole directory.
   - Demo CI integration tests run against Docker Compose and are not part of `uv run pytest`.
   - Content signing (ADR-0164) is pinned by strict-`xfail` tests that turn green when signing and verification land: `test/adapters/driving/fastapi/test_signed_delivery_refusal.py` and `test/core/use_cases/received/test_signed_ledger_entries.py`.
   - TB-14-006 requires a `timeout-minutes` cap on every job in every workflow, but `test/metadata/test_gate_ceiling.py` still checks only `python-app.yml`, and most other workflows have uncapped jobs (see `CONCERNS.md`).

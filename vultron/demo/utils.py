@@ -576,7 +576,7 @@ def post_to_trigger(
     The ``(client, actor_id)`` pairing is no longer checked here: demo callers
     reach this through :class:`vultron.demo.actor_session.ActorSession`, which
     verifies that the client's container hosts the actor once at construction
-    (DEMOMA-26-002).  ``post_to_trigger`` MUST NOT be called directly outside
+    (DEMOMA-26-008).  ``post_to_trigger`` MUST NOT be called directly outside
     this module and ``actor_session`` (DEMOMA-26-001).
     """
     actor_obj_id = parse_id(actor_id)["object_id"]
@@ -977,7 +977,7 @@ def demo_environment(
     """Context manager providing an isolated, clean DataLayer environment.
 
     Sets up a clean environment on entry and tears it down on exit, even
-    when the demo raises an exception (DC-03-001, DC-03-003).
+    when the demo raises an exception (DC-03-001, DC-03-005).
 
     Yields:
         Tuple of (reporter, vendor, coordinator) actors.

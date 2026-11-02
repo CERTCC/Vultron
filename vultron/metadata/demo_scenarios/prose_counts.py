@@ -260,7 +260,7 @@ def stray_scenario_includes(root: Path | None = None) -> list[str]:
                 f'{{% include-markdown "{target}" %}} sources a scenario '
                 "table outside the MkDocs tree, where it renders literally. "
                 "Generate the table between markers instead, or check it in "
-                "place (DEMOCI-11-006)."
+                "place (DEMOCI-11-006, DEMOCI-11-042)."
             )
     return findings
 

@@ -198,7 +198,7 @@ def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
     ``ActorConfig`` defaults in force.
 
     The trigger-activity port is needed only on the decline path, where
-    ``_EmitRejectCaseProposalNode`` builds ``Reject(as_CaseProposal)`` through
+    ``_EmitRejectCaseProposalNode`` builds ``Reject(CaseProposal)`` through
     the shared emit seam (CP-05-002, CP-05-004).  The accept path never reads it.
     The accept path's sync port comes from
     :func:`with_received_baseline_ports`, as a constructor argument, so the

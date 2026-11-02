@@ -1,0 +1,67 @@
+# Alarms when the site falls behind `main` (DOCBW-07-008). The site is stale
+# when the newest `publish-*` tag the publish workflow made is more than four
+# weekdays older than the newest commit on `main`, and `main` has commits the
+# site does not show. Then the run fails and `notify-failure` keeps one issue
+# open; the first check after the next publish closes it. It runs after every
+# run of the publish workflow, and on a weekday schedule of its own in case the
+# publish workflow stops running. The logic lives in .github/scripts/release.py.
+name: Site staleness alarm
+
+on:
+  schedule:
+    # 09:37 UTC, Monday to Friday: after the 06:07 publish and its hour-long
+    # wait for CI.
+    - cron: '37 9 * * 1-5'
+  workflow_run:
+    workflows: ['Publish site to Pages']
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Checks run one at a time, so a report and a close never race.
+concurrency:
+  group: site-staleness
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check how far the site is behind main
+    runs-on: ubuntu-latest
+    # A fetch and a few git reads. Cap at 10 min so a hang fails fast instead
+    # of holding a runner until GitHub's 6-h limit (TB-14-006).
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      # main's tip, with full history and every tag: the check counts the
+      # commits after the newest publish.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Check the site against main
+        run: |
+          python3 -I .github/scripts/release.py staleness \
+            --details-file stale-site.md
+
+      - name: Notify CI failure
+        if: failure()
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-site-staleness
+          token: ${{ secrets.GITHUB_TOKEN }}
+          details-file: stale-site.md
+      - name: Close CI failure issue
+        if: success()
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-site-staleness
+          token: ${{ secrets.GITHUB_TOKEN }}

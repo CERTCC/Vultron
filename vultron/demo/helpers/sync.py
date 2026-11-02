@@ -301,7 +301,7 @@ def wait_for_replica_ledger_coverage(
     Each per-replica wait runs inside its own ``demo_gate`` — the wait is a
     precondition for the steps that follow (EDF-06-005, DEMOCI-01-007) — so a
     timeout is recorded by the failure accumulator and the loop continues to
-    the next replica instead of propagating (DEMOCI-01-011).
+    the next replica instead of propagating (DEMOCI-01-014).
 
     Timeouts (EDF-06-008): the chain being bounded is the authority's outbox →
     ``Announce(CaseLedgerEntry)`` ``BackgroundTasks`` delivery → replica inbox,

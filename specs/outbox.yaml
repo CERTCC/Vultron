@@ -214,8 +214,15 @@ groups:
       A response activity reports the result of the handler that made it. If delivery
       starts before that handler completes, a recipient can receive a response for work
       that later fails or changes.
-    verification: Integration tests confirm that outbox delivery does not begin until the inbox handler returns, and
-      the HTTP response is sent before delivery is attempted.
+    verification: >-
+      Integration tests confirm that outbox delivery does not begin until the inbox
+      handler returns, and the HTTP response is sent before delivery is attempted.
+      `test/core/behaviors/test_send_delivered_after_its_act_commits.py` runs each
+      node frame that sends an activity and then commits the entry recording it,
+      outside any `ActTransaction`, with a drain woken by the enqueue (OX-09-001)
+      that takes every pending activity at once; it asserts that an act whose
+      commit fails delivers nothing and that a committed act is delivered only
+      after its entry commits.
   - id: OX-03-003
     priority: MUST_NOT
     kind: project

@@ -326,7 +326,8 @@ class EmitCloseReportActivity(_EmitCaseActorReportActivityBase):
 
 
 class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
-    """Emit RmReadReportActivity (``Read(Offer(Report))``, RK) to the reporter.
+    """Emit RmReadReportActivity (``Read(Offer(VulnerabilityReport))``, RK) to the
+    reporter.
 
     RK goes from an actor the ``Offer(VulnerabilityReport)`` was addressed to,
     to the reporter, and never to the CASE_MANAGER (RMB-08-005), so unlike its

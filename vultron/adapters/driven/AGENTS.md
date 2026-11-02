@@ -17,7 +17,7 @@ standard FastAPI test tool and is not an inter-actor delivery mechanism
 > inter-actor delivery bugs and required accidental complexity (reentrancy
 > guard, locality check, mount-prefix stripping). Do not reintroduce it.
 
-### `create_app()` Per-App State Isolation (DEMOMA-01-004)
+### `create_app()` Per-App State Isolation (DEMOMA-01-004, DEMOMA-01-006)
 
 Each `create_app()` call MUST produce a fully isolated app:
 

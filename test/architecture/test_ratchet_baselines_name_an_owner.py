@@ -20,7 +20,7 @@ or ``# permanent: <issue, ADR or spec ID>`` (a pinned exemption set,
 ARCH-18-005). The marker parser is :mod:`vultron.metadata.ratchet_markers`;
 this test feeds it the shared corpus's cached trees (TB-13-001, TB-13-003) and
 makes no network call. Whether a cited owner is still open is a scheduled CI
-check, which never fails the build (ARCH-18-004).
+check (ARCH-18-004), which never fails the build (ARCH-18-009).
 """
 
 import pytest

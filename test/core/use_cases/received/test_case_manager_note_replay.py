@@ -141,7 +141,7 @@ def _assert_note_reaches(
 @pytest.mark.spec("RSH-06-004", "RSH-06-005", "SYNC-02-002", "CLP-10-001")
 @pytest.mark.spec("RSH-06-007")
 def test_rm_gap_note_reaches_the_declaring_participants_replica():
-    """Join(Case) from RECEIVED, an accepted non-adjacent RM jump: the
+    """Join(VulnerabilityCase) from RECEIVED, an accepted non-adjacent RM jump: the
     clarification note replicates."""
     net = LedgerNetwork(
         "https://example.org/cases/manager-note-rm-gap", em_state=EM.NONE

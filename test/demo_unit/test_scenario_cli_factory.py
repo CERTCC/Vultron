@@ -125,7 +125,7 @@ def _command_decorator_names(tree: ast.Module) -> set[str]:
 
     Missing any of the last three would let a hand-wired block shadow a
     generated command with every other check in this file still green, which is
-    the one failure this guard exists for (DEMOCI-11-011).
+    the one failure this guard exists for (DEMOCI-11-045).
     """
     names: set[str] = set()
     for node in ast.walk(tree):
@@ -152,7 +152,7 @@ def _command_decorator_names(tree: ast.Module) -> set[str]:
 def test_no_scenario_subcommand_is_hand_declared() -> None:
     """No ``@main.command`` in ``cli.py`` names a registered scenario.
 
-    This is the half of DEMOCI-11-011 that click cannot answer: a hand-declared
+    This is the half of DEMOCI-11-045 that click cannot answer: a hand-declared
     block alongside the factory would give a scenario *two* declarations, the
     second silently shadowing the generated one in ``main.commands``, and every
     other check here would still pass.
@@ -169,7 +169,7 @@ def test_no_scenario_subcommand_is_hand_declared() -> None:
     assert not offenders, (
         f"{_CLI_SOURCE.name} hand-declares sub-command(s) for registered "
         f"scenario(s) {offenders}. Scenario sub-commands are generated from the "
-        "registry by _make_scenario_command (DEMOCI-11-011); delete the block "
+        "registry by _make_scenario_command (DEMOCI-11-045); delete the block "
         "and declare what it carried on the scenario module (ROLES, CLI_HELP)."
     )
 
@@ -234,7 +234,7 @@ def test_scenario_subcommands_are_exactly_the_registered_set() -> None:
         f"  exposed but not registered: {unregistered}\n"
         f"  registered but not exposed: {unexposed}\n"
         "The CLI builds one sub-command per registered scenario and must not be "
-        "a place a scenario can be added independently (DEMOCI-11-011). If a "
+        "a place a scenario can be added independently (DEMOCI-11-044). If a "
         "genuinely non-scenario command was added, list it in "
         "_NON_SCENARIO_COMMANDS."
     )
@@ -244,7 +244,7 @@ def test_registry_is_the_only_source_of_scenario_subcommands() -> None:
     """``cli.py`` imports no scenario demo module by name.
 
     A named import list would let the CLI's scenario set drift from the
-    registry's — the silent-omission hazard DEMOCI-11-002 removes from
+    registry's — the silent-omission hazard DEMOCI-11-038 removes from
     discovery, reintroduced one layer up.
     """
     tree = ast.parse(_CLI_SOURCE.read_text(encoding="utf-8"))
@@ -265,7 +265,7 @@ def test_registry_is_the_only_source_of_scenario_subcommands() -> None:
         f"{_CLI_SOURCE.name} imports scenario demo module(s) by name: "
         f"{offenders}. The scenario set comes from discover_scenarios(); a "
         "named import here can omit a scenario without failing anything "
-        "(DEMOCI-11-011)."
+        "(DEMOCI-11-044)."
     )
 
 
@@ -308,7 +308,7 @@ def test_generated_options_match_the_declared_roles(
             role.id_param,
             # Env-bound to the container, not to the part it plays here, so
             # two scenarios that seat one container read one variable
-            # (DEMOMA-14-008, DEMOCI-11-020).
+            # (DEMOMA-14-024, DEMOCI-11-020).
             role.id_env,
             None,
             role.id_help,
@@ -534,7 +534,7 @@ class TestOptionsComeFromTheCast:
     def test_case_actor_id_only_on_the_handoff_scenarios(self) -> None:
         """Only the ownership-handoff scenarios take ``--case-actor-id``.
 
-        Required by DEMOMA-14-008; the cast fixes the id every other scenario
+        Required by DEMOMA-14-023; the cast fixes the id every other scenario
         uses, so none of them offers an override.
         """
         with_id = {

@@ -206,7 +206,7 @@ def create_receive_activity_tree(
     CLP-10-018).  A tree opts out only with ``addressee_exemption``, a
     registered
     :class:`~vultron.core.behaviors.case.nodes.addressee.AddresseeExemption`
-    that records why (an ``Offer(Report)`` stores what it carried first and
+    that records why (an ``Offer(VulnerabilityReport)`` stores what it carried first and
     checks later, CM-15-002); no tree writes its own copy of the check.
 
     ``closed_sender`` places the closed-sender door guard

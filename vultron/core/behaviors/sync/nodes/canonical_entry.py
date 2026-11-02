@@ -65,14 +65,14 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Offer", "VulnerabilityReport"),
     # The CASE_MANAGER's ownership-transfer Offer (CM-21-005, ADR-0148).
     ("Offer", "VulnerabilityCase"),
-    # The Case Owner's ownership-transfer proposal, Offer(Offer(Case)),
+    # The Case Owner's ownership-transfer proposal, Offer(Offer(VulnerabilityCase)),
     # committed as received (ADR-0148).  Owner-authored.
     ("Offer", "Offer"),
     ("Accept", "Offer"),  # validate_report (RV) — object_ is the Offer
     ("TentativeReject", "Offer"),  # invalidate_report (RI)
     # A Reject of an Offer: the ownership transferee's decline (CLP-02-016),
     # and close_report (RC) entries already in a ledger, though no
-    # Close(Report) on a case is admitted now (CM-23-019).
+    # Reject(Offer(VulnerabilityReport)) on a case is admitted now (CM-23-019).
     ("Reject", "Offer"),
     # No ``("Read", "Offer")``: RK is never ledgered (RMB-08-007, CLP-02-013).
     # The Case Owner's withdrawal of its ownership-transfer proposal

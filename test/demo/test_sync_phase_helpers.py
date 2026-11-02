@@ -191,7 +191,7 @@ class TestWaitForReplicaLedgerCoverage:
         assert timeouts[id(late)] == LATE_JOINER_COVERAGE_TIMEOUT
 
     def test_replica_timeout_is_accumulated_and_the_loop_continues(self):
-        """A raising per-replica wait is recorded, not propagated (DEMOCI-01-011)."""
+        """A raising per-replica wait is recorded, not propagated (DEMOCI-01-014)."""
         first, second = _client("first"), _client("second")
         polled: list[int] = []
 

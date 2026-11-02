@@ -75,7 +75,7 @@ def _submit_report_verdict(
     request: SubmitReportReceivedEvent,
     receiving_actor_id: str,
 ) -> HandlerResult:
-    """Classify the one ``Offer(Report)`` tree's outcome (#2255).
+    """Classify the one ``Offer(VulnerabilityReport)`` tree's outcome (#2255).
 
     The tree keeps the report, the Offer and the offer record, refuses an
     Offer not addressed to the receiver (HP-01-005), and, when the Offer
@@ -281,7 +281,8 @@ class ValidateReportReceivedUseCase:
                 request.activity_id,
             )
             return HandlerResult.refused(
-                "Accept(Offer(Report)) is missing its report id or offer id"
+                "Accept(Offer(VulnerabilityReport)) is missing its report id "
+                "or offer id"
             )
 
         receiving_actor_id = resolve_receiving_actor_id(
@@ -406,7 +407,7 @@ class InvalidateReportReceivedUseCase:
 
 
 class AckReportReceivedUseCase:
-    # RK goes from an actor the Offer(Report) was addressed to, to the
+    # RK goes from an actor the Offer(VulnerabilityReport) was addressed to, to the
     # reporter, which holds the Offer and checks the sender against it; it is
     # never sent to the CASE_MANAGER (RMB-08-004, RMB-08-005).
     sender_entitlement: ClassVar[SenderRule] = SenderRule.before_case(
@@ -455,14 +456,17 @@ class AckReportReceivedUseCase:
 
 
 class CloseReportReceivedUseCase:
-    """Refuse a ``Close(Report)``: no receiver applies one (CM-23-019).
+    """Refuse a report closure: no receiver applies one (CM-23-019).
+
+    A report closure is a ``Reject(Offer(VulnerabilityReport))``.
 
     A report that belongs to a case is held by the case's Case Owner alone,
     and the Case Owner closes the case by ``Leave(VulnerabilityCase)``
-    (CM-23-001).  A ``Close(Report)`` for it is the wrong closing act from
-    the owner and a message no other sender has a report to send, so the
-    declared rule admits no sender on either case side: the tree's sender
-    guard refuses every one, and nothing is written, committed or sent.
+    (CM-23-001).  A ``Reject(Offer(VulnerabilityReport))`` for it is the wrong
+    closing act from the owner and a message no other sender has a report to
+    send, so the declared rule admits no sender on either case side: the
+    tree's sender guard refuses every one, and nothing is written, committed
+    or sent.
     Before any case exists the receiver holds no case to apply the sender's
     closure to, so the tree refuses the activity as one about a case it does
     not hold (#2255), as it always has.  Either way intake archives what

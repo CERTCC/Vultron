@@ -196,15 +196,3 @@ class DataLayer(Protocol):
     def outbox_list(self) -> list[str]: ...
 
     def outbox_pop(self) -> str | None: ...
-
-    def outbox_withdraw(self, activity_id: str) -> bool:
-        """Remove *activity_id* if it is still pending; ``True`` if removed.
-
-        ``False`` means the id is not pending: delivery already took it, or
-        it was never queued.  Only a send whose act turned out not to happen
-        is withdrawn: a CASE_MANAGER activity whose ledger entry did not
-        commit and whose act opens no transaction
-        (``_CommitCaseManagerActivityBase._withdraw_unrecorded``).  An act in
-        a transaction rolls its queued activity back instead (ADR-0146).
-        """
-        ...

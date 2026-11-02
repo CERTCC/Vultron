@@ -16,15 +16,15 @@
 """Typed ``(container, actor, case)`` binding for demo trigger calls.
 
 :class:`ActorSession` is the single API through which demo scenarios and
-exchanges invoke trigger endpoints (DEMOMA-26-001).  It replaces the
+exchanges invoke trigger endpoints (DEMOMA-26-007).  It replaces the
 stringly-typed :func:`vultron.demo.utils.post_to_trigger` at every call site:
 
 - The ``(client, actor)`` pairing is checked **once** at construction rather
   than on every call, so a mismatched pair is unconstructible instead of a
-  guard that silently passes in unit tests (DEMOMA-26-002).
+  guard that silently passes in unit tests (DEMOMA-26-008).
 - Each trigger verb is a typed method: a misspelled behavior name is now a
   ``AttributeError`` at import/lint time, and a misspelled body key is
-  impossible because the method's keyword parameters are fixed (DEMOMA-26-004).
+  impossible because the method's keyword parameters are fixed (DEMOMA-26-011).
   ``test/architecture/test_actor_session_kwargs_match_request_models.py``
   ratchets those parameters against the trigger request models.
 - The case is bound separately with :meth:`with_case`, because a case does not
@@ -162,7 +162,7 @@ class ActorSession:
         check to construction (formerly ``_assert_client_hosts_actor``) makes a
         mismatched session unconstructible rather than a per-call guard that
         silently passes wherever neither side is a real absolute URI
-        (DEMOMA-26-002).
+        (DEMOMA-26-008).
 
         Also refuses a blank ``case_id``: a bound case ID is non-empty
         (CS-08-002), or the trigger URL would name no case.

@@ -485,7 +485,7 @@ def test_invite_with_a_case_stub_target_resolves_to_the_stub_signature():
 @pytest.mark.spec("CLP-07-011")
 @pytest.mark.spec("VAM-07-003")
 def test_remove_note_snapshot_is_a_canonical_signature():
-    """``Remove(Note)[target=case]`` is accepted as a canonical payload."""
+    """``Remove(Note)[target=VulnerabilityCase]`` is accepted as a canonical payload."""
     snapshot = {
         "type": "Remove",
         "actor": OWNER_ACTOR_ID,

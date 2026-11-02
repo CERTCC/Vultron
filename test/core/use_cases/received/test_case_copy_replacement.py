@@ -190,8 +190,7 @@ def test_a_replica_with_no_entry_is_replayed_from_genesis() -> None:
     net = LedgerNetwork("https://example.org/cases/copy-genesis")
     _send(net, net.pxa_report(OWNER, CS_pxa.pXa))
     # The fan-out left the outbox and was lost in transit.
-    for activity in net.queued(MANAGER, to=BYSTANDER, type_="Announce"):
-        net.stores[MANAGER].outbox_withdraw(activity.id_)
+    net.lose(MANAGER, to=BYSTANDER, type_="Announce")
     assert ledger_entries(net.stores[BYSTANDER], net.case_id) == []
 
     verdict = net.receive(BYSTANDER, _case_copy(net))

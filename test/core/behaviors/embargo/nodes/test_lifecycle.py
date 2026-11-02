@@ -213,14 +213,14 @@ class TestTerminateEmbargoBT:
     @pytest.mark.spec("SYNC-09-002")
     @pytest.mark.spec("CLP-07-013")
     @pytest.mark.parametrize("use_builder", [True, False])
-    def test_a_teardown_whose_commit_fails_is_withdrawn_from_the_outbox(
+    def test_a_teardown_whose_commit_fails_leaves_nothing_in_the_outbox(
         self, monkeypatch: pytest.MonkeyPatch, use_builder: bool
     ):
         """No ``Remove`` reaches a participant without the entry recording it.
 
-        The ``Remove`` is queued before it is committed (ADR-0119), and no
-        retry rebuilds it, so a failed commit withdraws it — trigger and
-        cascade alike.
+        The ``Remove`` is queued before it is committed (ADR-0119), in the
+        same act, so a failed commit rolls it back out of the outbox —
+        trigger and cascade alike (OX-03-002, ADR-0146).
         """
         from test.support.ledger import fail_commits
         from vultron.core.behaviors.sync import commit_tree
@@ -247,35 +247,6 @@ class TestTerminateEmbargoBT:
         assert EMBARGO_TEARDOWN_SEMANTIC_TYPE not in committed_semantic_types(
             dl, case.id_
         )
-
-    @pytest.mark.spec("CLP-07-013")
-    def test_a_teardown_delivery_already_took_is_reported(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-    ):
-        """A ``Remove`` that cannot be withdrawn is logged at ERROR."""
-        from test.support.ledger import fail_commits
-        from vultron.core.behaviors.sync import commit_tree
-
-        fail_commits(
-            monkeypatch,
-            commit_tree,
-            when=lambda kw: (
-                kw["semantic_type"] == EMBARGO_TEARDOWN_SEMANTIC_TYPE
-            ),
-        )
-        monkeypatch.setattr(
-            SqliteDataLayer, "outbox_withdraw", lambda _self, _id: False
-        )
-        with caplog.at_level("ERROR"):
-            self._run_as_manager(
-                "teb12", expect=py_trees.common.Status.FAILURE
-            )
-
-        assert any(
-            r.levelname == "ERROR"
-            and "already taken for delivery" in r.message
-            for r in caplog.records
-        ), caplog.text
 
     @pytest.mark.spec("EP-09-008")
     def test_non_manager_asks_and_writes_nothing(self):

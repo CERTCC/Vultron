@@ -481,12 +481,12 @@ def test_polling_module_has_raising_and_wrapping_helpers():
     assert "wait_for_case_participants" in _RAISING_WAITS
     assert "wait_for_participants_on_replicas" in _WRAPPING_WAITS, (
         "wait_for_participants_on_replicas must wrap its raising poll "
-        f"internally (DEMOCI-01-011); got {_WRAPPING_WAITS}"
+        f"internally (DEMOCI-01-014); got {_WRAPPING_WAITS}"
     )
     assert "wait_for_replica_ledger_coverage" in _WRAPPING_WAITS, (
         "wait_for_replica_ledger_coverage must wrap its raising poll "
         "internally through its variable-bound demo context "
-        f"(DEMOCI-01-011); got {_WRAPPING_WAITS}"
+        f"(DEMOCI-01-014); got {_WRAPPING_WAITS}"
     )
     assert _WRAPPING_WAITS, "at least one real wrapping helper must exist"
 

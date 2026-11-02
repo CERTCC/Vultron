@@ -89,7 +89,7 @@ def test_the_delivered_create_is_the_genesis_entry(make_payload):
 
 
 @pytest.mark.spec("CLP-07-011")
-@pytest.mark.spec("CBT-01-012")
+@pytest.mark.spec("CBT-01-007")
 def test_the_proposer_seeds_its_replica_from_the_genesis_entry(make_payload):
     """The proposer, given the genesis entry's body as its bootstrap, holds
     the case with its records and embargo as the CASE_MANAGER does."""
