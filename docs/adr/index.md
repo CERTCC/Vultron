@@ -260,6 +260,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0166 Adopting P, X or A and Ending the Embargo Are One Authorized Step](0166-adopting-p-x-or-a-and-ending-the-embargo-are-one-authorized-step.md) *(provisional)* — partially supersedes 0046-received-status-authorization.md
 - [ADR-0167 Times Keep Microseconds and Always Serialize Six Fractional Digits](0167-times-keep-microseconds-and-serialize-six-fractional-digits.md) *(provisional)*
 - [ADR-0168 A Replay from the Start Is Asked Once per Wait and Answered Once per Need](0168-a-replay-from-the-start-is-asked-once-per-wait-and-answered-once-per-need.md) *(provisional)*
+- [ADR-0169 Publish the Site on a Weekday Schedule From Tags](0169-publish-the-site-on-a-weekday-schedule-from-tags.md) *(provisional)*
 
 ## Proposed ADRs
 

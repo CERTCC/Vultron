@@ -184,10 +184,12 @@ groups:
           including `.github/workflows/deploy_site.yml`.
         rationale: >-
           `deploy_site.yml` is the workflow that actually publishes: it builds
-          `site/` on a push to `publish` and uploads it to Pages. A gate present
-          only in the pull-request workflow does not bind the publishing path, so
-          a withheld artifact reintroduced by a direct push to `publish`, or by a
-          plugin or dependency change that alters the build, would ship.
+          `site/` from a scheduled, manual or rollback run (DOCBW-06-007) and
+          uploads it to Pages. A gate present only in the pull-request workflow
+          does not bind the publishing path, so a withheld artifact on a commit
+          the publish takes without a pull request (a direct push to `main`, or a
+          rollback to an older tag), or one a plugin or dependency change brings
+          into the build, would ship.
         verification: >-
           `test/ci/test_publication_gates_in_workflows.py` asserts every
           workflow running `mkdocs build` also runs `docs-withheld`, directly or
@@ -270,8 +272,9 @@ groups:
           site, on the same terms as DOCBW-03-006.
         rationale: >-
           A check present only in the pull-request workflow does not bind the
-          publishing path, so a dead reference that a direct push to `publish`
-          adds would ship.
+          publishing path, so a dead reference on a commit that reached `main`
+          without a pull request, or on an older commit a rollback redeploys,
+          would ship.
         verification: >-
           `test/ci/test_publication_gates_in_workflows.py` asserts that both
           site-building workflows run the step through
@@ -353,9 +356,9 @@ groups:
           The continuity step MUST NOT derive the record at check time from the
           branch the publish replaces.
         rationale: >-
-          That branch holds only the last publish, and it is gone when `publish`
-          advances. A record derived from it at check time loses every URL that
-          an older publish served.
+          That ref holds only the last publish, and the next publish replaces it.
+          A record derived from it at check time loses every URL that an older
+          publish served.
         verification: >-
           `docs-legacy-urls` reads the URLs it checks from the committed record
           through `load_baseline` and reads no git ref; only its `--snapshot`
@@ -389,8 +392,8 @@ groups:
           on the same terms as DOCBW-03-006.
         rationale: >-
           A check present only in the pull-request workflow does not bind the
-          publishing path, so a direct push to `publish` that breaks a served
-          URL would ship.
+          publishing path, so a commit that reached `main` without a pull request
+          and breaks a served URL would ship.
         verification: >-
           `test/ci/test_publication_gates_in_workflows.py` asserts the step's
           presence in every site-building workflow and, in `deploy_site.yml`,
@@ -590,9 +593,9 @@ groups:
     description: >-
       Obligations of the publication workflow, `.github/workflows/deploy_site.yml`,
       beyond the build and gate obligations DOCBW-03 places on every site-building
-      workflow. What triggers publication (a push to a release branch, a cadence on
-      `main`, or both) is an open decision, tracked as Concern #3560, and is
-      deliberately not specified here.
+      workflow. Publication runs on a weekday schedule from `publish-*` tags, gated
+      on `main` CI, with manual publish and rollback (ADR-0169). The gate's
+      decisions live in `.github/scripts/publish_gate.py`.
     specs:
       - id: DOCBW-06-001
         priority: MUST
@@ -640,9 +643,9 @@ groups:
           to notice it, so the failure has to be reported by the run itself.
         verification: >-
           `test/ci/test_workflow_failure_notification.py` asserts the notify and
-          close steps for every workflow that triggers on a push to `main` or
-          `publish` or on a schedule, and `test_publication_workflow_qualifies`
-          asserts `deploy_site.yml` is in that set.
+          close steps for every workflow that triggers on a push to `main` or on
+          a schedule, and `test_publication_workflow_qualifies` asserts
+          `deploy_site.yml` is in that set.
         relationships:
           - rel_type: implements
             spec_id: CISEC-05-001
@@ -693,3 +696,299 @@ groups:
         relationships:
           - rel_type: extends
             spec_id: DOCBW-06-004
+      - id: DOCBW-06-007
+        priority: MUST
+        kind: project
+        statement: >-
+          The publication workflow MUST run on the schedule `7 6 * * 1-5` (06:07
+          UTC, Monday to Friday) and on `workflow_dispatch`, and on no other event.
+        rationale: >-
+          A manual merge to a release branch was skipped for seventeen months, so
+          the site fell 6,966 commits behind `main`. A weekday schedule keeps the
+          site within a working day of green `main` with no person in the loop,
+          and a manual run covers an urgent publish or a rollback (ADR-0169).
+        verification: >-
+          `test_publication_workflow_triggers` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0169
+      - id: DOCBW-06-008
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A scheduled run, and a manual run from `main` that does not skip the CI
+          gate, MUST NOT publish while a blocking workflow (DOCBW-06-009) has an
+          open issue carrying both `ci:main-failure` and that workflow's label.
+        rationale: >-
+          Push CI on `main` is path-filtered and cancels superseded runs, so
+          whether every check passed on one commit cannot be read per commit. The
+          open failure issue that `notify-failure` keeps per workflow says the
+          workflow is red on `main`, and that state carries over path filters
+          (CISEC-05-003).
+        verification: >-
+          `test_an_open_blocking_issue_blocks` and
+          `test_a_non_blocking_issue_does_not_block` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0169
+        relationships:
+          - rel_type: depends_on
+            spec_id: CISEC-05-003
+      - id: DOCBW-06-009
+        priority: MUST
+        kind: project
+        statement: >-
+          The publication workflow MUST declare its blocking list itself, naming
+          each blocking workflow's file and failure label: Python application,
+          Demo Integration, Spec Check, UI, Lint Markdown and Actions Lint.
+        rationale: >-
+          These are the workflows whose failure means `main` is broken.
+          Scheduled bookkeeping workflows, such as ADR Status Drift, report on
+          the project rather than the code, so they do not block. Declared in the
+          workflow, the list is reviewed with the publication it governs.
+        verification: >-
+          `test_blocking_list_names_the_main_ci_workflows` in
+          `test/ci/test_publish_gate.py` checks each entry against the label that
+          workflow's own notify step uses.
+        adr:
+          - ADR-0169
+      - id: DOCBW-06-023
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          The blocking list MUST NOT name the publication workflow.
+        rationale: >-
+          A failed publish files an issue under the publication workflow's label.
+          If that label blocked, the failure would stop every later publish,
+          including the one that would close the issue.
+        verification: >-
+          `test_blocking_list_omits_the_publication_workflow` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0169
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-009
+      - id: DOCBW-06-010
+        priority: MUST
+        kind: project
+        statement: >-
+          While a blocking workflow's run on the candidate commit is unfinished,
+          the CI gate MUST wait up to one hour for it, and MUST skip the publish
+          when it is still unfinished after the hour.
+        rationale: >-
+          An unfinished run can still turn its workflow red, so the gate cannot
+          read the commit's state until it ends. The hour covers the slowest
+          push workflow; past it the run is treated as red rather than published
+          unchecked. A run of a non-blocking workflow cannot change the verdict,
+          so it is not waited for.
+        verification: >-
+          `test_unfinished_runs_are_waited_for_then_skip`,
+          `test_issues_are_read_again_after_the_wait` and
+          `test_wait_for_runs_*` in `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0169
+      - id: DOCBW-06-011
+        priority: MUST
+        kind: project
+        statement: >-
+          A run that does not publish MUST write its reason to the run summary,
+          naming each blocking issue or unfinished run.
+        rationale: >-
+          A skip is a green run, so nothing else reports it. The summary is
+          where a maintainer looks to find out why the site did not change.
+        verification: >-
+          `test_gate_command_writes_its_verdict` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0169
+      - id: DOCBW-06-012
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A run whose candidate commit is blocked or skipped MUST NOT publish any
+          other commit instead.
+        rationale: >-
+          An older commit was either published already or skipped for a reason
+          of its own. Falling back would publish a commit nobody chose.
+        verification: >-
+          `test_deploy_runs_only_on_the_gate_verdict` in
+          `test/ci/test_publish_gate.py`: the deploy job runs only when the gate
+          says to, and builds the run's own commit.
+        adr:
+          - ADR-0169
+      - id: DOCBW-06-013
+        priority: MUST
+        kind: project
+        statement: >-
+          A scheduled run MUST skip a candidate commit that already has a
+          `publish-*` tag that the publication workflow made: an annotated tag
+          whose tagger is `github-actions[bot]`.
+        rationale: >-
+          The schedule then never publishes one commit twice, and never undoes a
+          rollback by publishing again the commit it rolled back from. A manual
+          run is a deliberate request, so the rule does not apply to it.
+        verification: >-
+          `test_a_bot_tag_skips_a_scheduled_run` and
+          `test_a_bot_tag_does_not_skip_a_manual_run` in
+          `test/ci/test_publish_gate.py`, against real tags.
+        adr:
+          - ADR-0169
+      - id: DOCBW-06-014
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A `publish-*` tag whose tagger is not `github-actions[bot]`, or a
+          lightweight `publish-*` tag, MUST NOT trigger the DOCBW-06-013 skip.
+        rationale: >-
+          The tag ruleset restricts the update and deletion of a `publish-*`
+          tag, not its creation (#5545), so any account that can push can create
+          one. Without this rule a hand-pushed tag on the tip of `main` would
+          suppress a publish with no failing check. The tagger is what the tag's
+          author wrote, so the rule guards against an accidental tag, not a
+          deliberate forgery.
+        verification: >-
+          `test_a_foreign_tag_is_ignored` in `test/ci/test_publish_gate.py`
+          covers a bot-made annotated tag, a human-made annotated tag and a
+          lightweight tag in a scratch repository.
+        adr:
+          - ADR-0169
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-013
+      - id: DOCBW-06-015
+        priority: MUST
+        kind: project
+        statement: >-
+          A run that ignores a `publish-*` tag under DOCBW-06-014 MUST name the
+          ignored tag in its run summary.
+        rationale: >-
+          An ignored tag is a sign that someone tagged by hand; naming it lets a
+          maintainer find out why.
+        verification: >-
+          `test_a_foreign_tag_is_ignored` in `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0169
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-014
+      - id: DOCBW-06-016
+        priority: MUST
+        kind: project
+        statement: >-
+          Each publish MUST create exactly one annotated tag
+          `publish-YYYY-MM-DD.N` on the deployed commit, after the deploy
+          succeeds, where the date is the UTC date and `N` starts at 1 and is
+          always present.
+        rationale: >-
+          The newest `publish-*` tag then always names what is live, and a failed
+          deploy leaves no tag for the skip rule to honour. A push that finds its
+          name taken by a hand-made tag is renumbered, so the counter cannot
+          collide.
+        verification: >-
+          `test_next_tag_name`, `test_create_tag_pushes_one_annotated_tag`,
+          `test_create_tag_renumbers_past_a_taken_name` and
+          `test_the_tag_step_follows_the_deploy` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0169
+      - id: DOCBW-06-017
+        priority: MUST
+        kind: project
+        statement: >-
+          The DOCBW-06-016 tag's message MUST record the trigger (scheduled,
+          manual, manual with the CI gate skipped, or rollback) and the actor.
+        rationale: >-
+          The tag is the record of the publish. Its message says why a commit
+          went live and who asked, without a search through workflow runs.
+        verification: >-
+          `test_tag_message_records_trigger_and_actor` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0169
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-016
+      - id: DOCBW-06-018
+        priority: MAY
+        kind: project
+        statement: >-
+          A manual run from `main` MAY skip the CI gate through a boolean
+          `skip-ci-gate` input that defaults to off.
+        rationale: >-
+          A workflow can be red for a reason that does not touch the site, such
+          as a flaky demo, and an urgent docs fix cannot wait for it.
+        verification: >-
+          `test_skip_ci_gate_input_defaults_off` and
+          `test_a_manual_ungated_run_skips_the_gate` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0169
+      - id: DOCBW-06-019
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A trigger or input of the publication workflow MUST NOT skip the
+          publication gates of DOCBW-06-002.
+        rationale: >-
+          The CI gate is about `main`; the publication gates are about the site
+          that is about to ship. Skipping the first is a judgment about a red
+          workflow, and it says nothing about whether the site is fit to publish.
+        verification: >-
+          `test_gate_is_not_neutered` in
+          `test/ci/test_publication_gates_in_workflows.py` fails on a
+          conditional publication-gate step.
+        adr:
+          - ADR-0169
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-002
+      - id: DOCBW-06-020
+        priority: MUST
+        kind: project
+        statement: >-
+          A manual run from a `publish-*` or `v*` tag MUST redeploy that tag's
+          commit without the CI gate and create a new `publish-*` tag on it whose
+          message reads "rollback to <tag>, by @<user>."
+        rationale: >-
+          A rollback restores a site that was published before, so the state of
+          today's `main` is beside the point. The new tag keeps the newest
+          `publish-*` tag naming what is live, and makes the next scheduled run
+          skip the commit rolled back from.
+        verification: >-
+          `test_a_rollback_skips_the_gate`,
+          `test_a_rolled_back_commit_is_not_republished` and
+          `test_tag_message_records_trigger_and_actor` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0169
+      - id: DOCBW-06-021
+        priority: MUST
+        kind: project
+        statement: >-
+          Scheduled, manual and rollback runs MUST share one concurrency group
+          that does not cancel a run in progress.
+        rationale: >-
+          Two publishes at once would race for the tag counter and for Pages,
+          and a cancelled deploy can leave Pages and the tags disagreeing.
+        verification: >-
+          `test_one_concurrency_group_never_cancels` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0169
+      - id: DOCBW-06-022
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A step of the publication workflow MUST NOT move or delete a `publish-*`
+          or `v*` tag.
+        rationale: >-
+          A published tag is the record of what was live. The tag ruleset
+          refuses a move or a deletion (#5545), and a repository ruleset cannot
+          grant the GitHub Actions app a bypass, so such a step could only fail.
+        verification: >-
+          `test_no_step_moves_or_deletes_a_tag` and
+          `test_create_tag_renumbers_past_a_taken_name` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0169

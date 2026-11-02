@@ -1,30 +1,94 @@
-# Simple workflow for deploying static content to GitHub Pages
-name: Deploy static content to Pages
+# Publishes the site to GitHub Pages from `publish-YYYY-MM-DD.N` tags (ADR-0169,
+# DOCBW-06). On weekday mornings it takes the tip of `main`, checks that `main`
+# CI is green, deploys that commit and tags it. A manual run from `main` does the
+# same on demand, optionally without the CI gate; a manual run from a
+# `publish-*` or `v*` tag rolls the site back to that commit. The gate logic
+# lives in .github/scripts/publish_gate.py, with its unit tests in
+# test/ci/test_publish_gate.py.
+name: Publish site to Pages
 
 on:
-  # Runs on pushes targeting the default publish branch
-  push:
-    branches: [publish]
-
-  # Allows you to run this workflow manually from the Actions tab
+  schedule:
+    # 06:07 UTC, Monday to Friday (DOCBW-06-007).
+    - cron: '7 6 * * 1-5'
   workflow_dispatch:
+    inputs:
+      skip-ci-gate:
+        description: >-
+          Publish main without checking that its CI is green. The site's
+          publication checks still run. Ignored for a rollback, which never
+          checks CI.
+        type: boolean
+        default: false
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
-  pages: write
-  id-token: write
-  issues: write
 
-# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+# One publish at a time, scheduled, manual and rollback alike, and a running
+# publish is never cancelled: the `.N` counter is computed inside this group,
+# and a half-finished deploy is worse than a late one (DOCBW-06-021).
 concurrency:
   group: "pages"
   cancel-in-progress: false
 
+env:
+  # The workflows whose red state on `main` blocks a publish: one
+  # `<workflow file> <failure label>` per line (DOCBW-06-009). A workflow is red
+  # while it has an open `ci:main-failure` issue carrying its label. Scheduled
+  # bookkeeping workflows (ADR Status Drift and the like) are not listed, and
+  # neither is this workflow, which would block its own recovery (DOCBW-06-023).
+  BLOCKING_WORKFLOWS: |
+    .github/workflows/python-app.yml ci:workflow-python-app
+    .github/workflows/demo-integration.yml ci:workflow-demo-integration
+    .github/workflows/spec-check.yml ci:workflow-spec-check
+    .github/workflows/ui.yml ci:workflow-ui
+    .github/workflows/lint_md_all.yml ci:workflow-lint-md
+    .github/workflows/actions-lint.yml ci:workflow-actions-lint
+
 jobs:
-  # Single deploy job since we're just deploying
+  gate:
+    name: Decide whether to publish
+    runs-on: ubuntu-latest
+    # The gate waits up to 60 min for unfinished runs on the candidate commit
+    # (DOCBW-06-010); the rest takes seconds. Cap above the wait so a hang fails
+    # instead of holding a runner until GitHub's 6-h limit (TB-14-006).
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      issues: read
+      actions: read
+    outputs:
+      publish: ${{ steps.gate.outputs.publish }}
+      trigger: ${{ steps.gate.outputs.trigger }}
+      tag-message: ${{ steps.gate.outputs.tag-message }}
+    steps:
+      # Every tag, so the skip rule sees the `publish-*` tags on the commit.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Apply the skip rule and the CI gate
+        id: gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          ACTOR: ${{ github.actor }}
+          RUN_ID: ${{ github.run_id }}
+          SKIP_CI_GATE: ${{ inputs.skip-ci-gate || false }}
+        run: |
+          python3 .github/scripts/publish_gate.py gate \
+            --repo "$REPO" --sha "$SHA" --event "$EVENT" --ref "$REF" \
+            --actor "$ACTOR" --run-id "$RUN_ID" --skip-ci-gate "$SKIP_CI_GATE"
+
   deploy:
+    name: Build, check, deploy and tag
+    needs: gate
+    if: needs.gate.outputs.publish == 'true'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -33,9 +97,14 @@ jobs:
     # build, seen at up to 16 min (2026-10-30). Cap at 30 min so a hang fails fast
     # instead of holding a runner until GitHub's 6-h limit (TB-14-006).
     timeout-minutes: 30
+    permissions:
+      contents: write # push the publish-* tag
+      pages: write
+      id-token: write
     steps:
       # Only loads the local actions: build-site re-checks out the repository
-      # with the history and tags the build needs (DOCBW-06-004).
+      # with the history and tags the build needs (DOCBW-06-004). Both check
+      # out github.sha, the commit the gate judged.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -53,29 +122,66 @@ jobs:
       # Upload artifact: after the build so site/ exists, before the upload so
       # a withheld artifact, a dead internal reference, a dropped URL or an
       # unrecorded page cannot reach Pages. Same action as docs-build-check.yml
-      # (DOCBW-03-006, DOCBW-03-007, DOCBW-03-008, DOCBW-03-012).
+      # (DOCBW-03-006, DOCBW-03-020, DOCBW-03-026, DOCBW-03-012, DOCBW-06-002).
+      # No trigger skips it, not even a manual run that skips the CI gate
+      # (DOCBW-06-019).
       - name: Check site publication
         uses: ./.github/actions/check-site-publication
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          # Upload entire repository
           path: 'site'
 
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 
+      # After the deploy, so the newest publish-* tag always names what is live
+      # and a failed deploy leaves no tag for the skip rule to honour
+      # (DOCBW-06-016). It only creates a tag; nothing here moves or deletes
+      # one (DOCBW-06-022).
+      - name: Tag the published commit
+        env:
+          SHA: ${{ github.sha }}
+          TAG_MESSAGE: ${{ needs.gate.outputs.tag-message }}
+        run: |
+          python3 .github/scripts/publish_gate.py tag \
+            --sha "$SHA" --message "$TAG_MESSAGE"
+
+  notify:
+    name: Report the publish
+    needs: [gate, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    # The notify-failure action makes a few API calls. Cap at 10 min so a hang
+    # fails fast (TB-14-006).
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Every trigger reports a failure: a failed scheduled, manual or rollback
+      # publish each leaves the site other than intended (DOCBW-06-003).
       - name: Notify CI failure
-        if: failure() && github.event_name == 'push'
+        if: contains(needs.*.result, 'failure')
         uses: ./.github/actions/notify-failure
         with:
           mode: notify
           workflow-label: ci:workflow-deploy-site
           token: ${{ secrets.GITHUB_TOKEN }}
+      # Closed only by a publish of main that reached Pages. A skip publishes
+      # nothing, and a rollback says nothing about whether main publishes, so
+      # neither clears an earlier failure.
       - name: Close CI failure issue
-        if: success() && github.event_name == 'push'
+        if: >-
+          !contains(needs.*.result, 'failure')
+          && !contains(needs.*.result, 'cancelled')
+          && needs.deploy.result == 'success'
+          && needs.gate.outputs.trigger != 'rollback'
         uses: ./.github/actions/notify-failure
         with:
           mode: close
