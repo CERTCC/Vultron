@@ -123,7 +123,7 @@ After an embargo negotiation fails the first time, Participants have no further 
 
 !!! note ""
 
-    In a case where the EM state is *None* and for which an embargo has been *proposed* and either explicitly or tacitly *rejected*, Participants MAY take any action they choose with the report, including immediate publication.
+    In a case where the EM state is *None* and for which an embargo has been proposed and either explicitly or tacitly rejected, Participants MAY take any action they choose with the report, including immediate publication.
 
 !!! tip "Incentives Matter"
 

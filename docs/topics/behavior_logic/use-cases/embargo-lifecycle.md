@@ -22,7 +22,7 @@ This page explains the two-scope model, the negotiation steps and what each one 
 
 ## Two scopes, not one state
 
-The case carries **one** embargo, and each Participant records its **own consent** to it.
+The case carries **one** embargo, and each Participant has its **own consent** to it.
 
 | Scope | What it tracks | States |
 |---|---|---|

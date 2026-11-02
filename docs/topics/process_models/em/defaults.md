@@ -151,7 +151,7 @@ The protocol default is deliberately short.
 Its purpose is not to provide a comfortable embargo.
 Its purpose is to reward publishing a default embargo.
 A Participant who publishes nothing gets a few days.
-A Participant who publishes a considered period gets the period they asked for.
+A Participant who publishes a considered default gets the duration it asked for.
 A generous fallback would remove the reason to publish at all.
 
 !!! warning "The Protocol Default Is Not a Proposal"
