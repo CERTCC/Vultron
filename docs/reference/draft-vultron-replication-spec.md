@@ -470,14 +470,15 @@ It MUST send a `Reject(CaseLedgerEntry)` with `last_accepted_hash = ""` to the C
 
 One such Reject asks for the case and its whole ledger, so the participant sends one per wait, not one per early entry.
 After it sends one for a case it still does not hold, it SHOULD NOT send another for that case until a bounded interval has passed. (SYNC-15-016)
-The interval is the ceiling of the CASE_MANAGER's replay cooldown (§5.4), 600 seconds. (SYNC-15-020)
 The participant still holds each early entry it withholds a Reject for (§8.2); one the holding area's size bound drops (§6.4) is recovered by the whole-ledger replay the earlier Reject asked for.
 
 The first early entry for the missing case that arrives after the interval MUST send a Reject again. (SYNC-15-017)
 That Reject MUST be a new activity with an id of its own, not a redelivery of the earlier Reject, because the CASE_MANAGER drops an activity whose id it already knows. (SYNC-15-017)
 
-The participant records, per missing case, when it last sent such a Reject, as a record of its own kind in its own store, so the interval holds across a restart. (SYNC-15-021)
-It deletes that record when it seeds the case, so a later wait for the same case asks at once. (SYNC-15-023)
+How the participant measures the interval, and which records it keeps for that, are implementation choices, not protocol requirements.
+The reference implementation sets the interval to the ceiling of the CASE_MANAGER's replay cooldown (§5.4), 600 seconds.
+It records, per missing case, when it last sent such a Reject, so the interval holds across a restart, and deletes that record when it seeds the case, so a later wait for the same case asks at once.
+`specs/sync-ledger-replication.yaml` carries those rules and their current values as `project` requirements.
 
 A `CaseLedgerEntry` received when the per-case genesis hash is unavailable
 MUST NOT be persisted (SYNC-15-002), MUST NOT be treated as committed
