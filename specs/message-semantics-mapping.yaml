@@ -1224,7 +1224,7 @@ groups:
     statement: >-
       The wire activity ACCEPT_INVITE_TO_EMBARGO_ON_CASE (wire form:
       Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])) is always its sender's own
-      consent, the case owner's included. An actor applying it MUST apply the PEC AGREE
+      consent, the Case Owner's included. An actor applying it MUST apply the PEC AGREE
       trigger to the sender's row for the accepted embargo. The row advances from
       UNINVITED, INVITED, DECLINED or TIMED_OUT to AGREED. The accepted embargo may be
       the active embargo, a first proposal (EM PROPOSED) or a *proposed revision* of an
@@ -1237,17 +1237,18 @@ groups:
       active embargo nor an open proposal records nothing (CM-18-003), and MSM-07-012
       refuses it.
     rationale: >-
-      The case owner's decision for the case has its own activity (MSM-07-008, ADR-0122), so
-      an Accept of an Invite means one thing whoever sends it and no handler branches on the
-      sender to learn what it means. The PEC AGREE trigger is valid directly from UNINVITED
-      because consent can be self-determined without an invitation (ADR-0048, ADR-0091,
-      CM-18-003). Consent is per embargo (CM-10-001, ADR-0093, ADR-0122): an Accept is always
-      a statement about the embargo it names, so it always marks that embargo's row and there
-      is no first-proposal versus revision asymmetry to special-case.
+      The Case Owner's decision for the case has its own activity (MSM-07-008,
+      ADR-0122), so an Accept of an Invite means one thing whoever sends it and no
+      handler branches on the sender to learn what it means. The PEC AGREE trigger is
+      valid directly from UNINVITED because consent can be self-determined without an
+      invitation (ADR-0048, ADR-0091, CM-18-003). Consent is per embargo (CM-10-001,
+      ADR-0093, ADR-0122): an Accept is always a statement about the embargo it names,
+      so it always marks that embargo's row and there is no first-proposal versus
+      revision asymmetry to special-case.
     verification: >-
       Unit tests in `test/core/services/embargo_lifecycle/test_answers.py` assert that a
       participant accepting the embargo in force, a first proposal and a proposed revision each
-      marks exactly that embargo's row AGREED, that the case owner's Accept of an Invite
+      marks exactly that embargo's row AGREED, that the Case Owner's Accept of an Invite
       records only its own consent, that a signatory accepting a proposed revision keeps
       its AGREED row for the active embargo, and that a DECLINED participant's Accept
       moves its row directly to AGREED.
@@ -1265,23 +1266,23 @@ groups:
     statement: >-
       The wire activity REJECT_INVITE_TO_EMBARGO_ON_CASE (wire form:
       Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])) is its sender's own consent
-      whenever a participant sends it, the case owner included. Unless MSM-07-014
+      whenever a participant sends it, the Case Owner included. Unless MSM-07-014
       refuses it, an actor applying it MUST apply the PEC DECLINE trigger to the
       sender's row for the rejected embargo. DECLINE is valid from UNINVITED, INVITED,
       AGREED or TIMED_OUT. A Reject of the active embargo from any row but AGREED
       refuses the terms in force and declines that row only. The CASE_MANAGER's own
       Reject of a proposal is not its consent but its abandonment (MSM-07-016).
     rationale: >-
-      Symmetric with MSM-07-003: the case owner's rejection of a proposal for the case has its
-      own activity (MSM-07-009, ADR-0122), so a Reject of an Invite is the sender's consent
-      and nothing else. The PEC DECLINE trigger is valid directly from UNINVITED for symmetric
-      reasons to AGREE (ADR-0048, ADR-0091, CM-18-003).
+      Symmetric with MSM-07-003: the Case Owner's rejection of a proposal for the case
+      has its own activity (MSM-07-009, ADR-0122), so a Reject of an Invite is the
+      sender's consent and nothing else. The PEC DECLINE trigger is valid directly from
+      UNINVITED for symmetric reasons to AGREE (ADR-0048, ADR-0091, CM-18-003).
     verification: >-
       Inspection of vultron/core/use_cases/received/embargo/reject.py and
       vultron/core/services/embargo_lifecycle/consent.py confirms
       RejectInviteToEmbargoOnCaseReceivedUseCase applies
       EmbargoLifecycle.record_embargo_rejection, which declines the rejecting actor's row
-      for the rejected embargo and applies the same rule to the case owner; unit tests in
+      for the rejected embargo and applies the same rule to the Case Owner; unit tests in
       `test/core/services/embargo_lifecycle/test_consent.py` and `test_answers.py` assert
       the DECLINED row.
     relationships:
@@ -1296,7 +1297,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      This rule covers the case owner's Accept(EmbargoEvent)[target=VulnerabilityCase]
+      This rule covers the Case Owner's Accept(EmbargoEvent)[target=VulnerabilityCase]
       (MSM-07-008) that replaces active embargo A with revision B. The register activates
       B and supersedes A, so the derived EM goes REVISE → ACTIVE, or stays REVISE while
       another proposal is open (EMB-18-005). Implementations MUST settle every
@@ -1569,7 +1570,7 @@ groups:
       silent participant. The entry already reaches every owner entitled to case
       content, so a second message would only duplicate it.
     note: >-
-      The case owner learns of the expiry, as of an explicit refusal (MSM-07-004), from
+      The Case Owner learns of the expiry, as of an explicit refusal (MSM-07-004), from
       that entry. It gets the entry by its `Announce(CaseLedgerEntry)` fan-out while it
       is an active participant (CM-10-004), or from its own ledger when it holds the
       CASE_MANAGER role. No separate notification activity is sent to the owner; for an
@@ -1579,7 +1580,7 @@ groups:
       (`test_the_expiry_is_committed_before_the_decision`,
       `test_the_owner_learns_of_both_from_the_fan_out_alone`) confirms the
       CASE_MANAGER commits the expiry's TIMED_OUT `Update(EmbargoConsent)` entry, that
-      an active case owner without the CASE_MANAGER role is among its recipients, and
+      an active Case Owner without the CASE_MANAGER role is among its recipients, and
       that the commit emits no activity other than the Announce fan-out.
     relationships:
     - rel_type: derives_from
@@ -1596,7 +1597,7 @@ groups:
       The wire activity ACTIVATE_EMBARGO_ON_CASE (wire form:
       Accept(EmbargoEvent)[target=VulnerabilityCase], the EmbargoEvent itself as
       the object) is
-      the case owner's decision for the case. It MUST activate the named proposal's
+      the Case Owner's decision for the case. It MUST activate the named proposal's
       embargo register entry and supersede any entry in force in the same step. The
       derived EM becomes ACTIVE (EA, or EC for a revision).
     rationale: >-
@@ -1606,7 +1607,7 @@ groups:
       (ADR-0122). When it replaces an embargo in force, the MSM-07-005 consent rule settles
       the rows.
     verification: >-
-      Unit tests in `test/core/use_cases/received/` assert that the case owner's
+      Unit tests in `test/core/use_cases/received/` assert that the Case Owner's
       Accept(EmbargoEvent)[target=VulnerabilityCase] at the CASE_MANAGER activates
       the proposal and
       carries signatories over to a shorter revision, and that a replica replaying the
@@ -1630,10 +1631,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST accept ACTIVATE_EMBARGO_ON_CASE only from the case owner. It
+      The CASE_MANAGER MUST accept ACTIVATE_EMBARGO_ON_CASE only from the Case Owner. It
       refuses any other sender with REFUSED before any write (HP-01-006).
     rationale: >-
-      Activating an embargo is the case owner's decision for the case (CM-02-005), so no
+      Activating an embargo is the Case Owner's decision for the case (CM-02-005), so no
       other participant's activity may make it.
     verification: >-
       `test/core/use_cases/received/test_sender_entitlement.py`
@@ -1650,7 +1651,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      ACTIVATE_EMBARGO_ON_CASE MUST mark the case owner's row for the activated embargo
+      ACTIVATE_EMBARGO_ON_CASE MUST mark the Case Owner's row for the activated embargo
       AGREED unless it already is. This includes a DECLINED row, since activating is the
       owner changing its answer (CM-18-003).
     rationale: >-
@@ -1699,7 +1700,7 @@ groups:
       The wire activity REJECT_EMBARGO_PROPOSAL_ON_CASE (wire form:
       Reject(EmbargoEvent)[target=VulnerabilityCase], the EmbargoEvent itself as
       the object) is
-      the case owner's decision for the case. It MUST reject the named proposal's
+      the Case Owner's decision for the case. It MUST reject the named proposal's
       embargo register entry. Once no other proposal is open, the derived EM becomes
       NONE (ER) or stays ACTIVE with the prior terms in force (EJ). It stays PROPOSED or
       REVISE while another proposal is open (EP-08-001).
@@ -1709,7 +1710,7 @@ groups:
       Keeping the two apart lets the owner keep the prior terms without declining them
       (ADR-0122).
     verification: >-
-      Unit tests in `test/core/use_cases/received/` assert that the case owner's
+      Unit tests in `test/core/use_cases/received/` assert that the Case Owner's
       Reject(EmbargoEvent)[target=VulnerabilityCase] at the CASE_MANAGER rejects
       the proposal and
       leaves another open proposal open.
@@ -1730,10 +1731,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST accept REJECT_EMBARGO_PROPOSAL_ON_CASE only from the case
-      owner. It refuses any other sender with REFUSED before any write (HP-01-006).
+      The CASE_MANAGER MUST accept REJECT_EMBARGO_PROPOSAL_ON_CASE only from the Case
+      Owner. It refuses any other sender with REFUSED before any write (HP-01-006).
     rationale: >-
-      Deciding a proposal for the case is the case owner's authority, so no other
+      Deciding a proposal for the case is the Case Owner's authority, so no other
       participant's activity may reject it for the case.
     verification: >-
       `test/core/use_cases/received/test_sender_entitlement.py`
@@ -1751,7 +1752,7 @@ groups:
     kind: protocol
     statement: >-
       REJECT_EMBARGO_PROPOSAL_ON_CASE MUST NOT change any participant's consent rows, the
-      case owner's included.
+      Case Owner's included.
     rationale: >-
       The owner's decision for the case is not its consent as a participant; that is a
       Reject of the Invite (MSM-07-004).
@@ -1898,10 +1899,10 @@ groups:
     statement: >-
       The receiver MUST refuse a Leave(EmbargoEvent), with a reported reason, in three
       cases. Its embargo is not the active one, the sender's row for it is not AGREED, or
-      the sender is the case owner. The case owner ends an embargo by terminating it
+      the sender is the Case Owner. The Case Owner ends an embargo by terminating it
       (CM-02-005).
     rationale: >-
-      Only a signatory of the embargo in force can withdraw from it, and the case owner
+      Only a signatory of the embargo in force can withdraw from it, and the Case Owner
       holds the termination instead.
     verification: >-
       `test/core/use_cases/received/test_embargo_withdrawal.py`
@@ -1922,15 +1923,15 @@ groups:
     kind: protocol
     statement: >-
       An actor that receives ACCEPT_INVITE_TO_EMBARGO_ON_CASE MUST NOT change any embargo
-      register entry for it, whoever sent it, the case owner included.
+      register entry for it, whoever sent it, the Case Owner included.
     rationale: >-
-      The Accept is the sender's consent (MSM-07-003), and the case owner's decision for
+      The Accept is the sender's consent (MSM-07-003), and the Case Owner's decision for
       the case is a separate activity (MSM-07-008, ADR-0122). If an Accept moved a register
       entry, one Participant's answer would decide the embargo for everyone (MSM-02-010).
     verification: >-
       Unit tests in `test/core/services/embargo_lifecycle/test_answers.py` assert that a
       participant's Accept of the embargo in force, of a first proposal and of a proposed
-      revision moves no register entry, the case owner's Accept of an Invite included.
+      revision moves no register entry, the Case Owner's Accept of an Invite included.
     relationships:
     - rel_type: extends
       spec_id: MSM-07-003
@@ -1969,17 +1970,17 @@ groups:
     kind: protocol
     statement: >-
       An actor that receives REJECT_INVITE_TO_EMBARGO_ON_CASE from any sender but the
-      CASE_MANAGER MUST NOT change any embargo register entry for it, the case owner's
+      CASE_MANAGER MUST NOT change any embargo register entry for it, the Case Owner's
       Reject included.
     rationale: >-
       Symmetric with MSM-07-011: the Reject is the sender's consent (MSM-07-004), and the
-      case owner's rejection of a proposal for the case is a separate activity
+      Case Owner's rejection of a proposal for the case is a separate activity
       (MSM-07-009, ADR-0122). If a Reject moved a register entry, one Participant's
       answer would decide the embargo for everyone (MSM-02-010).
     verification: >-
       Unit tests in `test/core/services/embargo_lifecycle/test_answers.py` assert that a
-      participant's Reject of a first proposal and of a proposed revision, the case
-      owner's included, moves no register entry.
+      participant's Reject of a first proposal and of a proposed revision, the Case
+      Owner's included, moves no register entry.
     relationships:
     - rel_type: extends
       spec_id: MSM-07-004
@@ -2026,7 +2027,7 @@ groups:
       participant's AGREED rows for other open proposals stay AGREED.
     rationale: >-
       Consent is per embargo, so a signatory who refuses proposed terms is still bound
-      by, and still consents to, the embargo that remains active; only the case owner
+      by, and still consents to, the embargo that remains active; only the Case Owner
       decides whether the proposal replaces it (MSM-07-009, ADR-0122).
     verification: >-
       Unit tests in `test/core/services/embargo_lifecycle/test_answers.py` assert that a
@@ -2395,7 +2396,7 @@ groups:
     kind: process
     statement: >-
       The lookup table's "Sent by" value MUST state an entry with no received use case
-      as internal to the case manager (SE-05-002).
+      as internal to the CASE_MANAGER (SE-05-002).
     rationale: >-
       An entry with no received use case is an act the CASE_MANAGER role performs on
       its own case, whichever actor holds that role. No receiver handles it, though it
@@ -2403,7 +2404,7 @@ groups:
       an unsupported message.
     verification: >-
       A test asserts that the rendered "Sent by" value of an entry with no received use
-      case is the internal-to-the-case-manager wording.
+      case is the "internal to the CASE_MANAGER" wording.
     relationships:
     - rel_type: extends
       spec_id: MSM-08-005

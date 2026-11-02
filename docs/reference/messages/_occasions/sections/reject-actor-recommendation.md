@@ -6,10 +6,10 @@ Declines the recommender's suggestion, with `inReplyTo` naming it. The suggested
 
 === "Details"
 
-    - **When…** the Case Manager tells a recommender that the Case Owner declined the actor it suggested
+    - **When…** the CASE_MANAGER tells a recommender that the Case Owner declined the actor it suggested
     - **Send:** `Reject(Offer(Actor)[target=VulnerabilityCase])`
     - **Send to:** a participant
-    - **Sent by:** the case manager
+    - **Sent by:** the CASE_MANAGER
     - **Seen in:** [How to Suggest an Actor for a Case](../../../../howto/activitypub/activities/suggest_actor.md)
     - **Formal definition:** [General Inquiry (GI)](../../../formal_protocol/messages.md#other-message-types)
     - **Mapping status:** [expansion](../../index.md#mapping-status)

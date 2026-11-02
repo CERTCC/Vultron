@@ -53,7 +53,7 @@ Answer two questions about the cases in your list.
 1. Did you open the case, or make the disclosure decisions in it?
    If so, you were the [**Case Owner**](../reference/vultron-spec/introduction.md#22-roles) in that case.
 2. Did you run the case on behalf of others, keeping its record and admitting participants?
-   If so, you were acting as its [**Case Manager**](../topics/case_lifecycle/case_manager_and_ledger.md).
+   If so, you were acting as its [**CASE_MANAGER**](../topics/case_lifecycle/case_manager_and_ledger.md).
 
 The answers pick the **capability sets** the system you run must provide ([§13.2 Capability Sets](../reference/vultron-spec/conformance.md#132-capability-sets)).
 

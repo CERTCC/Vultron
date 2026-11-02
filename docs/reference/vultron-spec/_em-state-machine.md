@@ -30,9 +30,9 @@ Entries are appended and never removed, so the register is the whole embargo his
 
 | Status | Meaning |
 |---|---|
-| `PROPOSED` | An open proposal, awaiting the case owner's decision |
+| `PROPOSED` | An open proposal, awaiting the Case Owner's decision |
 | `ACTIVE` | In force |
-| `REJECTED` | The case owner declined the proposal |
+| `REJECTED` | The Case Owner declined the proposal |
 | `SUPERSEDED` | Was in force, then a revision replaced it |
 | `CANCELLED` | Closed with no owner decision, because the embargo question became moot |
 | `TERMINATED` | Was in force when the case's embargo ended |
@@ -163,7 +163,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
     No terms were ever in force, so refusing them leaves the case with no embargo.
 
     From **Revised**, rejecting the last open revision returns the case to **Active**, not to None.
-    The case owner is refusing the *proposed change*, not the embargo.
+    The Case Owner is refusing the *proposed change*, not the embargo.
     The previously agreed terms remain in force.
     An implementation that returns to None here silently drops an embargo that everyone still expects to hold.
 

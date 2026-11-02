@@ -124,7 +124,9 @@ class _World:
         )
         dl.create(self.participant)
         # The case names its participant and report by id, as a stored case
-        # does; a case put on the wire must carry them inline (CBT-01-007, AKM-02-004).
+        # does; a case put on the wire carries them inline: the participant
+        # because its receiver cannot hold it (CBT-01-007), the report because
+        # this prototype carries every report its sender holds (AKM-02-004).
         self.case = as_VulnerabilityCase(
             id_=self.case_id,
             name="CVE-2026-1",
@@ -250,9 +252,10 @@ class _World:
 
     def prepared_create_case(self) -> dict[str, Any]:
         # Mirrors ``EmitCreateVulnerabilityCaseNode._build_case_object``: the
-        # prepared payload carries the participants and reports as objects
-        # (ADR-0041 AC-5, CBT-01-007); the adapter persists it unchanged
-        # (CP-05-005), so the audit hands it the shape production does.
+        # prepared payload carries the participants (ADR-0041 AC-5, CP-09-004)
+        # and the reports it holds (AKM-02-004) as objects; the adapter
+        # persists it unchanged (CP-05-005), so the audit hands it the shape
+        # production does.
         stored = self.dl.read(self.case_id, raise_on_missing=True)
         assert stored is not None
         case_dict = As2WireRenderAdapter().render(
@@ -711,9 +714,11 @@ def test_the_activity_is_sealed_complete(world, method):
     # URI or the selective-disclosure stub — never the full object.  Checked
     # at every depth: an Accept embeds the Offer or Invite it answers, and a
     # read-back-rehydrated embedded activity is where a full case leaked.
-    # CBT-01-007, AKM-02-004: a case carried as the ``object`` carries its
-    # participants and reports as objects — the recipient seeds its replica
-    # from them, and the outbox no longer expands ids at delivery time.
+    # A case carried as the ``object`` carries its participants (CBT-01-007)
+    # and, as this prototype's choice, the reports its sender holds
+    # (AKM-02-004) as objects — the recipient seeds its replica from them, and
+    # the outbox no longer expands ids at delivery time.  The world holds its
+    # report, so a bare report id here is a regression too.
     obj = body.get("object")
     if (
         isinstance(obj, dict)
@@ -724,7 +729,8 @@ def test_the_activity_is_sealed_complete(world, method):
             bare = [x for x in obj.get(field, []) if not isinstance(x, dict)]
             assert not bare, (
                 f"{method} put a VulnerabilityCase in object whose {field}"
-                f" holds bare ids {bare} (CBT-01-007, AKM-02-004)"
+                f" holds bare ids {bare} (CBT-01-007 for participants,"
+                " AKM-02-004 for reports)"
             )
     leaks = _full_case_paths(body)
     assert not leaks, (

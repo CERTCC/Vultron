@@ -5,7 +5,7 @@
 
     - A case status is attached by `Add(CaseStatus)`, and a participant status by `Add(ParticipantStatus)`.
     - A proposed embargo event travels on the `Invite` that proposes it.
-    - A participant record is made by the Case Manager as a consequence of an act it records.
+    - A participant record is made by the CASE_MANAGER as a consequence of an act it records.
     - A note is attached by `Add(Note)` with the case as `target`.
 
     A received `Create` of any of these objects is not a protocol message, and its receiver does not change the case file because of it.
@@ -17,9 +17,9 @@
     - A `Create` whose `context` names the case, which attaches the object in one message.
       ActivityPub servers post content this way with `Create(Note)`.
     - A note that is not part of any case.
-    - A private note from the Case Manager to one participant about a case, which the case record does not carry.
+    - A private note from the CASE_MANAGER to one participant about a case, which the case record does not carry.
       Because the note does not travel through the case record, it could also reach an inert participant, which receives no case content.
-      If the protocol adds this form, the Case Manager may send it but is never required to.
+      If the protocol adds this form, the CASE_MANAGER may send it but is never required to.
 
     A participant that a precondition guard refused already learns why from the [refusal notice](../../reference/messages/faults_and_acknowledgements.md#refusal-notice), which is sent to that participant alone and is not recorded in the case.
 

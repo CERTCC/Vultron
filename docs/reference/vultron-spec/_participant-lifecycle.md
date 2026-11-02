@@ -17,25 +17,25 @@ A self-declared role would let an actor take on authority the Case Owner never g
    case exists to serve. Case ownership is not delegated, though it can be
    transferred ([§12.3 Case Ownership Transfer](interactions.md#123-case-ownership-transfer-n)).
 2. The Case Owner can offer an additional role to an actor that is already a participant.
-   The offer is an `Offer(CaseParticipantRole)` addressed to the case's Case Manager only, never to the receiving actor.
-   The Case Manager records the offer and forwards it to the receiving actor, which answers the Case Manager with `Accept` or `Reject`.
-   The Case Manager records the answer and grants the role on an `Accept`.
+   The offer is an `Offer(CaseParticipantRole)` addressed to the case's CASE_MANAGER only, never to the receiving actor.
+   The CASE_MANAGER records the offer and forwards it to the receiving actor, which answers the CASE_MANAGER with `Accept` or `Reject`.
+   The CASE_MANAGER records the answer and grants the role on an `Accept`.
    The Case Owner makes role offers.
-   A Case Manager whose policy delegates role offers to it can also make one, under the same checks.
-   The Case Owner and Case Manager roles cannot be offered.
+   A CASE_MANAGER whose policy delegates role offers to it can also make one, under the same checks.
+   The Case Owner and CASE_MANAGER roles cannot be offered.
    Ownership moves by transfer.
-   How the Case Manager role is handed to another actor is not yet specified.
-3. The Case Manager records each actor's roles on that actor's
+   How the CASE_MANAGER role is handed to another actor is not yet specified.
+3. The CASE_MANAGER records each actor's roles on that actor's
    `CaseParticipant` entry in the case.
 
 ```python exec="true" idprefix=""
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-33-001", "CM-33-007", "CM-33-008", "CM-33-009", "CM-33-002", "CM-33-010", "CM-33-011", "CM-33-003", "CM-33-012", "CM-33-013", "CM-33-014", "CM-33-004", "CM-33-015", "CM-33-005", "CM-33-016", "CM-33-017", "CM-33-018", "CM-33-006", "CM-33-019", "CM-33-020", "CM-33-021"))
 ```
 
-Together these rules mean that an actor holds only a role it accepted, from an offer that the Case Owner made, or that a Case Manager made where its policy delegates role offers to it.
+Together these rules mean that an actor holds only a role it accepted, from an offer that the Case Owner made, or that a CASE_MANAGER made where its policy delegates role offers to it.
 The role an `Accept` grants is the one the recorded offer names, not one the accepting actor's reply names.
 Otherwise, an actor could widen its own grant on the way back.
-An invitee's roles are those its stub Invite names, recorded when the Case Manager sends that Invite ([§12.2 Invitation and Acceptance](interactions.md#122-invitation-and-acceptance-n)).
+An invitee's roles are those its stub Invite names, recorded when the CASE_MANAGER sends that Invite ([§12.2 Invitation and Acceptance](interactions.md#122-invitation-and-acceptance-n)).
 
 An implementation can check that an actor has the capability prerequisites for a
 role ([§13.3.1 Process Roles](conformance.md#1331-process-roles)) before completing the assignment.
@@ -154,7 +154,7 @@ The previous owner loses the Case Owner role, and keeps its other roles and its 
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-21-011", "CM-21-031", "CM-21-002", "CM-21-024", "CM-21-003", "CM-21-008", "CM-21-009"))
 ```
 
-!!! note "Open: cryptographic identity across a change of case manager"
+!!! note "Open: cryptographic identity across a change of CASE_MANAGER"
     Authority over the canonical ledger follows the `CASE_MANAGER` role, not any
     actor's name or Uniform Resource Identifier (URI). Transferring case ownership, or moving the
     `CASE_MANAGER` role to a different actor, therefore does not by itself

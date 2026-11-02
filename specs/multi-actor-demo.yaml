@@ -832,6 +832,11 @@ groups:
       to typed domain objects; the referenced objects are never written to the receiver's
       DataLayer. Downstream BT nodes (e.g., `SenderIsParticipantNode`) then fail because
       participant records are absent.
+    note: >-
+      This demo rule is wider than CBT-01-007, which requires only the participant
+      records inline (ADR-0170, amended 2026-11-02). Inlining the report here is a
+      choice of the demo, whose sender holds the report; the protocol lets the
+      bootstrap name it by reference.
     relationships:
     - rel_type: refines
       spec_id: CBT-01-007
@@ -1771,7 +1776,7 @@ groups:
       After the RVCV-handoff ownership transfer, the Coordinator MUST hold
       CVDRole.CASE_OWNER.
     rationale: >-
-      The ownership transfer postcondition for the Coordinator: it becomes the case owner.
+      The ownership transfer postcondition for the Coordinator: it becomes the Case Owner.
   - id: DEMOMA-11-012
     priority: MUST
     kind: project
@@ -1800,7 +1805,7 @@ groups:
       After the RVCV-handoff ownership transfer, Vendor1 MUST become a plain
       participant (no longer holding CVDRole.CASE_OWNER).
     rationale: >-
-      The ownership transfer postcondition for Vendor1: it relinquishes the case-owner
+      The ownership transfer postcondition for Vendor1: it relinquishes the Case Owner
       role and becomes an ordinary participant.
   - id: DEMOMA-11-015
     priority: MUST
@@ -1993,7 +1998,7 @@ groups:
     rationale: >-
       Coordinator is CASE_OWNER, so a direct `invite-actor-to-case` is correct;
       the ADR-0026 suggest/approve chain is for participants recommending actors to
-      the case owner, not for the owner inviting directly.
+      the Case Owner, not for the owner inviting directly.
     preconditions:
     - description: >-
         Reporter is a signatory with a case replica (DEMOMA-12-020 postconditions
@@ -3613,10 +3618,10 @@ groups:
       as reporter at case creation (DEMOMA-12-003).
     rationale: >-
       RCVD exercises a four-actor coordination chain with one full invitation
-      cycle per non-case-owner actor; `invite_actor_to_case` and
+      cycle per actor other than the Case Owner; `invite_actor_to_case` and
       `accept_invite_actor_to_case` confirm the invitation/accept path was
       exercised for each. Unlike scenarios with ADR-0026 suggest-actor flows,
-      RCVD uses only direct case-owner invitations.
+      RCVD uses only direct invitations from the Case Owner.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -4451,7 +4456,7 @@ groups:
     report submission and case setup, R proposes an embargo (EP). Case creation
     has already activated the default embargo (EP-04-001), so the case is at
     EM.ACTIVE before R proposes and R's proposal revises that embargo
-    (ACTIVE → REVISE). V and C accept the Invite; C, as case owner, activates the
+    (ACTIVE → REVISE). V and C accept the Invite; C, as Case Owner, activates the
     revision (EC), returning EM to ACTIVE with the revision as the active embargo and
     all three parties as signatories to it. The fix lifecycle then proceeds. Before
     the natural embargo window expires, C deliberately terminates the embargo
@@ -4521,7 +4526,7 @@ groups:
       sequence (EP-09). First, the reporter posts `trigger_propose_embargo`, which sends
       the proposal to the CASE_MANAGER. Then the coordinator and the vendor each poll
       their own replica for the `Invite(EmbargoEvent)` the CASE_MANAGER relays to them.
-      Each posts `trigger_accept_embargo`. The coordinator's answer, as case owner,
+      Each posts `trigger_accept_embargo`. The coordinator's answer, as Case Owner,
       activates the embargo, and the vendor's answer records its consent. Last, the
       helper polls every replica for `em_state == EM.ACTIVE`. No participant polls for
       another participant's message.
@@ -4886,7 +4891,7 @@ groups:
       The `owner` argument of `demo_propose_embargo_revision` MAY be the same session as
       its `proposing` argument.
     rationale: >-
-      In rcvv-embargo the Coordinator proposes the revision and, as case owner, also
+      In rcvv-embargo the Coordinator proposes the revision and, as Case Owner, also
       decides it. The CASE_MANAGER does not invite the proposer (EP-09-002), so one
       session can play both parts.
     adr:
@@ -4905,7 +4910,7 @@ groups:
       manager). Then `accepting` polls its own replica for the relayed
       `Invite(EmbargoEvent)` and posts `trigger_accept_embargo`. That answer records its
       consent and moves no EM state. Then `owner` posts `trigger_accept_embargo`. As the
-      case owner's answer, it activates the revision (canonical
+      Case Owner's answer, it activates the revision (canonical
       `em_state: REVISE → ACTIVE`). Last, the helper polls every replica for
       `em_state == EM.ACTIVE`.
     rationale: >-
@@ -5115,7 +5120,7 @@ groups:
         embargo_revision phase — call demo_propose_embargo_revision
         (DEMOMA-21-002): C posts trigger_propose_embargo_revision to the
         CASE_MANAGER (canonical ACTIVE → REVISE); V1 answers the relayed
-        Invite with trigger_accept_embargo (consent); C, as case owner, posts
+        Invite with trigger_accept_embargo (consent); C, as Case Owner, posts
         trigger_accept_embargo (canonical REVISE → ACTIVE)
       expected: >-
         em_state returns to EM.ACTIVE with the revised terms on every replica

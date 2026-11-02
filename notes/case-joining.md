@@ -134,7 +134,7 @@ from its role (CLP-09).
   (`case_owner_completes=True`, CM-23-002). A failed owner `Leave` keeps none of
   its closure (CLP-07-015), so no redelivery has a half-done closure to finish.
   Any other invitee reply from it is `REFUSED` at the same door, before its
-  `INVITEE` guard runs. A `Close(Report)`
+  `INVITEE` guard runs. A `Reject(Offer(VulnerabilityReport))`
   on a case is refused from every sender, closed or not (CM-23-019).
 - **A closed Case Owner holds no `CASE_OWNER` standing.** The factory composes the
   closure check ahead of the role check for that kind (`_case_owner_node()`), and

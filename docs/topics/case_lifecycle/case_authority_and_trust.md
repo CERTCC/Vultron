@@ -471,7 +471,7 @@ A repeat of an act that closed it, such as a second `Leave(VulnerabilityCase)`, 
 The Case Owner's second `Leave` is the exception while the case is not fully closed.
 The Case Owner's `Leave` also closes the case, so a repeat completes a closure that a failed first delivery left unfinished.
 
-A `Close(Report)` closes no one once a case holds the report.
+A `Reject(Offer(VulnerabilityReport))` closes no one once a case holds the report.
 The CASE_MANAGER refuses it from every sender, and the Case Owner closes the case with `Leave(VulnerabilityCase)` ([CM-23-019](../../reference/vultron-spec/requirements/case-management.md#cm-23-019)).
 
 A participant that expects to come back should move to RM `DEFERRED` instead ([RMB-14-007](../../reference/vultron-spec/requirements/state-behavior.md#rmb-14-007)).

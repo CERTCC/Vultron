@@ -194,7 +194,7 @@ export function handleDeferReport(state: DemoState, vendorId: string): DemoState
     type: 'decision' as const,
     timestamp: now + timestampOffset++,
     consequences: [
-      'Defer(Report) activity created',
+      'Ignore(VulnerabilityCase) activity created',
       `${vendor.name} RM state: VALID → DEFERRED`,
       'Report deferred for later consideration',
       'Work paused pending re-prioritization',

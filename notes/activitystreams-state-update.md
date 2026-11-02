@@ -5,7 +5,7 @@ kind: guidance
 description: >
   Case state update path and CASE_MANAGER authoritativeness, outbound activity
   naming and addressing, unresolvable-object dead letters, serialization and
-  parsing traps, the bootstrap embedded-object contract, and semantic registry
+  parsing traps, the bootstrap embedded-participant contract, and semantic registry
   pattern rules.
 related_specs:
   - specs/semantic-extraction.yaml
@@ -98,12 +98,13 @@ be parsed to typed objects, or `ActivityPattern` matching on subtypes fails. A
 case stub is recognized by its `type` (`VulnerabilityCaseStub`, CM-11-038),
 never by its sparseness: a sparse `VulnerabilityCase` is always a case.
 
-## Bootstrap Embeds Nested Objects Inline
+## Bootstrap Embeds Participant Records Inline
 
-Every nested domain object in a `Create(VulnerabilityCase)` bootstrap (for
-example the `case_participants` records) MUST be a full inline object, never a
-URI string: the protocol requires it, because the receiver has no trusted source
-to fetch from yet (CBT-01-007, ADR-0170).
+Each `case_participants` record in a `Create(VulnerabilityCase)` bootstrap MUST
+be a full inline object, never a URI string: the protocol requires it, because
+the receiver cannot hold the record and has no trusted source to fetch from yet
+(CBT-01-007, ADR-0170). A report may go by id, since the receiver offered it;
+this codebase inlining a held report is a prototype choice (AKM-02-004).
 `ActivityStreamRef` accepts the string, but the receiver persists only
 materialized entries, so the participant is never stored and later participant
 guards fail. Serialize the snapshot with

@@ -737,7 +737,9 @@ class TestReportTriggerToField:
     @pytest.mark.spec("CM-23-052")
     @pytest.mark.spec("CM-23-053")
     def test_close_report_is_sent_to_no_one_when_a_case_exists(self, owner):
-        """Once a case holds the report, reject-report queues no Close(Report).
+        """Once a case holds the report, reject-report queues no report closure.
+
+        It queues no ``Reject(Offer(VulnerabilityReport))``.
 
         Owner or not, an actor closes its part in the case by
         ``Leave(VulnerabilityCase)`` through ``leave-case`` (CM-23-019,

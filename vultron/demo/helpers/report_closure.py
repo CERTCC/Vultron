@@ -42,7 +42,8 @@ def receiver_invalidates_and_closes(
     """Invalidate the report, then close the case opened for it on receipt.
 
     Once a case holds the report, its Case Owner closes the case by
-    ``Leave(VulnerabilityCase)``, never by ``Close(Report)`` (CM-23-019).
+    ``Leave(VulnerabilityCase)``, never by
+    ``Reject(Offer(VulnerabilityReport))`` (CM-23-019).
     Every act goes through its actor's own trigger to the case's
     CASE_MANAGER (#5438):
 

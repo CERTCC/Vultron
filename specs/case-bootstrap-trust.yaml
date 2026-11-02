@@ -51,11 +51,16 @@ groups:
       a partial case leaves it nothing complete to seed from. A reference leaves it
       nothing to read: it has no trusted source to fetch the case from, because it
       trusts the CASE_MANAGER only after it accepts this activity (ADR-0170).
+    note: >-
+      "Complete" means the case object with all its own fields, not a stub. Which
+      objects the case names must also travel inline is CBT-01-007's rule: the
+      participant records do, and the report the receiver offered may go by
+      reference.
     verification: >-
       `test_report_receiver_introduces_the_case_manager_to_the_reporter` in
       `test/core/behaviors/case/test_create_case_received_tree.py` confirms that the
       bootstrap `Create(VulnerabilityCase)` the report receiver sends carries the
-      case inline, with its participants and reports as full objects, not a stub.
+      case inline, with its participants as full objects, not a stub.
     relationships:
     - rel_type: implements
       spec_id: AKM-03-001
@@ -283,22 +288,29 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The bootstrap `Create(VulnerabilityCase)` payload MUST carry every nested domain
-      object of the case (e.g., each `CaseParticipant` the case lists) inline.
+      The bootstrap `Create(VulnerabilityCase)` payload MUST carry each
+      `CaseParticipant` record the case lists inline.
     rationale: >-
       The receiver seeds its replica from this payload, and later guards read the
-      nested records it seeds, such as the participant checks on a sender. A nested
-      object the payload leaves out is a record the replica lacks when a guard needs
-      it. A nested object named only by reference is left out too: the receiver
-      does not fetch it (AKM-05-007), because before it accepts this activity it has
-      no trusted source to fetch it from (ADR-0170).
+      participant records it seeds, such as the participant checks on a sender. A
+      record the payload leaves out is one the replica lacks when a guard needs it.
+      A record named only by reference is left out too: the receiver does not fetch
+      it (AKM-05-007), because before it accepts this activity it has no trusted
+      source to fetch it from (ADR-0170).
+    note: >-
+      The rule names the participant records and not the reports: the receiver
+      offered the report, so it already holds it, and the bootstrap may name it by
+      reference. This codebase's sender still carries inline each report its own
+      store holds (AKM-02-004), a choice of the prototype, not a protocol
+      requirement; a report it cannot read goes as its id, with a WARNING.
     verification: >-
       `test/adapters/driven/trigger_activity_adapter/test_cases.py::TestCaseOnTheWireCarriesItsParticipants::test_create_case_carries_participants_and_reports`
       confirms every `CaseParticipant` of the case is present in the bootstrap payload,
-      `test_create_case_refuses_a_participant_the_sender_cannot_read` and
-      `test_create_case_refuses_a_report_the_sender_cannot_read` in the same class
-      confirm a case naming a participant or report the sender cannot read is not
-      sent with a bare id, and integration tests in
+      `test_create_case_refuses_a_participant_the_sender_cannot_read` in the same
+      class confirms a case naming a participant the sender cannot read is not sent
+      with a bare id, `test_create_case_names_a_report_the_sender_cannot_read_by_id`
+      in the same class confirms a report the sender cannot read is sent by id with
+      its participants still inline, and integration tests in
       `test/demo/test_case_proposal_round_trip.py` confirm the receiver can persist
       each participant record.
     relationships:

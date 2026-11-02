@@ -2,12 +2,12 @@
 
 !!! info "Update case participant"
 
-    Carries the changed participant record in full, as the Case Manager stored it.
+    Carries the changed participant record in full, as the CASE_MANAGER stored it.
 
-    - **When…** the Case Manager changes a participant record, such as moving the CASE_OWNER role on an ownership transfer
+    - **When…** the CASE_MANAGER changes a participant record, such as moving the CASE_OWNER role on an ownership transfer
     - **Send:** `Update(CaseParticipant)`
     - **Send to:** a participant
-    - **Sent by:** internal to the case manager
+    - **Sent by:** internal to the CASE_MANAGER
     - **Reference:** [Update case participant](../../case_management.md#update-case-participant)
 
     ??? example "Example activity"

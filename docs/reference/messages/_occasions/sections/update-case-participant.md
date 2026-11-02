@@ -2,14 +2,14 @@
 
 ## Update case participant { #update-case-participant }
 
-Carries the changed participant record in full, as the Case Manager stored it.
+Carries the changed participant record in full, as the CASE_MANAGER stored it.
 
 === "Details"
 
-    - **When…** the Case Manager changes a participant record, such as moving the CASE_OWNER role on an ownership transfer
+    - **When…** the CASE_MANAGER changes a participant record, such as moving the CASE_OWNER role on an ownership transfer
     - **Send:** `Update(CaseParticipant)`
     - **Send to:** a participant
-    - **Sent by:** internal to the case manager
+    - **Sent by:** internal to the CASE_MANAGER
     - **Mapping status:** [none](../../index.md#mapping-status)
 
     Each participant learns of it from the case ledger, so it is addressed to nobody.

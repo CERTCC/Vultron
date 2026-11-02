@@ -81,8 +81,10 @@ class TestVocabCaseObjectExamples(unittest.TestCase):
         # Each call to create_case() uses a fresh random-ID case, so we assert
         # the id is non-empty rather than equal to the shared singleton.
         self.assertTrue(case_from_activity.id_)
-        # The report travels inline too: the receiver seeds its replica from
-        # this one activity (CBT-01-007, AKM-02-004).
+        # The example carries the report inline too, a prototype choice: the
+        # protocol lets a bootstrap name the report its receiver offered by
+        # id (CBT-01-007), but an example an implementer copies shows the
+        # report in full (AKM-02-004).
         carried_report = case_from_activity.vulnerability_reports[0]
         self.assertIsInstance(carried_report, as_VulnerabilityReport)
         self.assertEqual(

@@ -79,7 +79,7 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "the Case Manager has refused a participant's assertion"
+                    "the CASE_MANAGER has refused a participant's assertion"
                     " because a precondition did not hold"
                 ),
                 anchor="refusal-notice",

@@ -65,7 +65,7 @@ Two conformant implementations may legitimately differ here; every call-out poin
 
     A call-out point asks a service *you* run, so it is answered while the BT is still running (BT-18-011).
     Some questions cannot be answered that way, because they need a **decision from another actor in the case**.
-    An example is whether the case owner permits a change to the case's agreed state.
+    An example is whether the Case Owner permits a change to the case's agreed state.
     No service can answer that on the owner's behalf, and the answer may take days.
     There the actor does not wait: it sends a request and finishes, and the reply starts new work when it arrives.
     See [Protocol Event Flow](../protocol_flow.md#when-an-actor-must-ask-permission).
@@ -239,7 +239,7 @@ The [Propose case](../behavior_logic/use-cases/propose-case.md#where-judgment-en
 - **StopProposingEmbargo** (Evaluator) — should we stop trying to negotiate an embargo?
 - **ExitEmbargoWhenFixReady** / **ExitEmbargoWhenDeployed** / **ExitEmbargoForOtherReason** (Evaluators) — should the embargo end early?
 - **EmbargoTimerExpired** (Retriever; whether a Sentinel should replace this call-out point is open — see [Still open](#still-open) and [#1893](https://github.com/CERTCC/Vultron/issues/1893)) — has the embargo end date passed?
-- **CaseOwnerApprovesEmbargoResponse** (Evaluator) — security gate: does the case owner approve this action?
+- **CaseOwnerApprovesEmbargoResponse** (Evaluator) — security gate: does the Case Owner approve this action?
 - **OnEmbargoAccept** / **OnEmbargoReject** / **OnEmbargoExit** (Actuators) — notification hooks for embargo lifecycle events
 
 ### CVE / Vulnerability ID Assignment
@@ -299,7 +299,7 @@ This domain has one extra level because the ID assignment workflow has distinct 
 
 *See also: [Closure behavior](../behavior_logic/rm_closure_bt.md)*
 
-An actor closes its part in a case by calling the `leave-case` trigger, which sends `Leave(VulnerabilityCase)` to the case manager.
+An actor closes its part in a case by calling the `leave-case` trigger, which sends `Leave(VulnerabilityCase)` to the CASE_MANAGER.
 
 - **PreCloseAction** (Actuator) — perform any pre-closure integration actions, such as closing your own ticket; `leave-case` runs it before it sends the Leave, for every caller, and a failure stops the trigger with nothing sent
 - **OtherCloseCriteriaMet** (Evaluator) — superseded: the decision to close is the act of calling `leave-case`, so Vultron no longer asks it
@@ -332,7 +332,7 @@ The [Trigger API Reference](../../reference/trigger-api.md) gives each endpoint'
 - `ack-report` — acknowledge a received report to its sender
 - `validate-report` — mark a received report as valid
 - `invalidate-report` — mark a received report as invalid
-- `reject-report` — hard-close a report before validation completes; it also sends `Close(Report)`, so it fails once a case holds the report, which by default happens on receipt; from then on you leave the case with `leave-case`
+- `reject-report` — hard-close a report before validation completes; it also sends `Reject(Offer(VulnerabilityReport))`, so it fails once a case holds the report, which by default happens on receipt; from then on you leave the case with `leave-case`
 
 ### Case management
 
@@ -340,8 +340,8 @@ The [Trigger API Reference](../../reference/trigger-api.md) gives each endpoint'
 - `engage-case` — accept a case (transitions to ACCEPTED state)
 - `defer-case` — defer a case (transitions to DEFERRED state)
 - `add-report-to-case` — link a report to an existing case
-- `add-object-to-case` — ask the case manager to add an existing report or note to a case; other object types are refused
-- `leave-case` — leave a case: runs your `PreCloseAction`, then sends `Leave(VulnerabilityCase)` to the case manager; the Case Owner's Leave closes the case, so it fails while the case has an active embargo, and you terminate the embargo first
+- `add-object-to-case` — ask the CASE_MANAGER to add an existing report or note to a case; other object types are refused
+- `leave-case` — leave a case: runs your `PreCloseAction`, then sends `Leave(VulnerabilityCase)` to the CASE_MANAGER; the Case Owner's Leave closes the case, so it fails while the case has an active embargo, and you terminate the embargo first
 
 ### Embargo
 
@@ -353,13 +353,13 @@ The [Trigger API Reference](../../reference/trigger-api.md) gives each endpoint'
 
 ### Participants and actors
 
-- `suggest-actor-to-case` — recommend another actor to the case owner
+- `suggest-actor-to-case` — recommend another actor to the Case Owner
 - `invite-actor-to-case` — directly invite an actor to a case
 - `accept-case-invite` / `reject-case-invite` — respond to a case invitation
-- `accept-actor-recommendation` / `reject-actor-recommendation` — approve or decline a suggested actor (case owner only)
+- `accept-actor-recommendation` / `reject-actor-recommendation` — approve or decline a suggested actor (Case Owner only)
 - `offer-case-participant-role` — offer a CVD role to another actor
 - `offer-case-ownership-transfer` / `accept-case-ownership-transfer` / `reject-case-ownership-transfer` / `withdraw-case-ownership-transfer` — transfer case ownership, decline the transfer, or withdraw an open offer
-- `add-on-behalf-status` — as Case Manager or Case Owner, record a vendor's awareness (the *V* event) on behalf of a vendor participant, typically an invitee that has not yet replied, or a deployer's deployment (the *D* event) on behalf of a deployer participant that has accepted, deferred or closed the case, when the evidence is in hand; the target must already be a participant, because a status update never adds an actor to the case (invite the actor first); fix readiness is never recorded on another actor's behalf
+- `add-on-behalf-status` — as CASE_MANAGER or Case Owner, record a vendor's awareness (the *V* event) on behalf of a vendor participant, typically an invitee that has not yet replied, or a deployer's deployment (the *D* event) on behalf of a deployer participant that has accepted, deferred or closed the case, when the evidence is in hand; the target must already be a participant, because a status update never adds an actor to the case (invite the actor first); fix readiness is never recorded on another actor's behalf
 
 ### Typical Sentinel patterns
 
@@ -391,7 +391,7 @@ A decision that takes days is not a call-out point: it is a request to another a
 Every call-out point is built through a backend factory, and the default backend is a deterministic one, so a deployment that plugs in nothing still runs (BT-18-004, BT-23-001, [ADR-0025](../../adr/0025-call-out-point-abstraction-layer.md)).
 The default is usually the permissive answer, on the reasoning that a stub should not silently hold up progress.
 One class of gate inverts that.
-Where a permissive default would let a party other than the case owner force the adoption of a case state or the teardown of an embargo, the default is the conservative answer instead (BT-23-012, [ADR-0076](../../adr/0076-security-significant-gates-default-require-case-owner-approval.md)).
+Where a permissive default would let a party other than the Case Owner force the adoption of a case state or the teardown of an embargo, the default is the conservative answer instead (BT-23-012, [ADR-0076](../../adr/0076-security-significant-gates-default-require-case-owner-approval.md)).
 So when a page says a call-out point "defaults to accept", that describes the stub, not a protocol requirement to accept.
 
 **What the shape classes are called in code.**

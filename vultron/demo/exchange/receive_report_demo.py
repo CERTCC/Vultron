@@ -261,10 +261,11 @@ def demo_invalidate_and_close_report(
 
     Uses VultronActivity (TentativeReject) followed by a Leave(VulnerabilityCase):
     the vendor opened a case for the report on receipt, and once a case holds
-    the report its owner closes the case by Leave, never by ``Close(Report)``
-    (CM-23-019).  The Case Owner first ends the case's embargo, which blocks
-    its Leave (TRIG-13-003), and leaves after the reporter (CM-23-015).  Each
-    act goes through the actor's own trigger to the case's CASE_MANAGER.
+    the report its owner closes the case by Leave, never by
+    ``Reject(Offer(VulnerabilityReport))`` (CM-23-019).  The Case Owner first
+    ends the case's embargo, which blocks its Leave (TRIG-13-003), and leaves
+    after the reporter (CM-23-015).  Each act goes through the actor's own
+    trigger to the case's CASE_MANAGER.
 
     This follows the "Receiver Invalidates and Closes Offered Report" sequence diagram from
     docs/howto/activitypub/activities/report_vulnerability.md.

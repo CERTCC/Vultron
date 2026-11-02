@@ -1,6 +1,6 @@
 """Actor and case-membership semantic registry entries.
 
-Covers actor suggestions, case manager role negotiation, ownership transfer,
+Covers actor suggestions, CASE_MANAGER role negotiation, ownership transfer,
 invite/accept/reject to case, and vulnerability case announcements.
 """
 
@@ -151,7 +151,7 @@ ENTRIES: list[SemanticEntry] = [
                 addressee=AddresseeSide.CASE_MANAGER,
                 heading="Suggest actor to case",
                 description=(
-                    "Recommends an actor to the Case Manager for the case "
+                    "Recommends an actor to the CASE_MANAGER for the case "
                     "named by the target."
                 ),
                 example="recommend_actor",
@@ -165,14 +165,14 @@ ENTRIES: list[SemanticEntry] = [
                 when=("the Case Owner decides to invite an actor to the case"),
                 anchor="request-invite-actor-to-case",
                 addressee=AddresseeSide.CASE_MANAGER,
-                heading="Ask the Case Manager to invite an actor",
+                heading="Ask the CASE_MANAGER to invite an actor",
                 description=(
-                    "Asks the Case Manager to invite the actor named by the "
+                    "Asks the CASE_MANAGER to invite the actor named by the "
                     "object to the case named by the target, with the roles "
                     "in `suggestedRoles`. For an actor with no record on the "
-                    "case, or an invitee that has not answered, the Case "
-                    "Manager answers with the Stub Invite to that actor, not "
-                    "with an offer to the Case Owner."
+                    "case, or an invitee that has not answered, the "
+                    "CASE_MANAGER answers with the Stub Invite to that actor, "
+                    "not with an offer to the Case Owner."
                 ),
                 example="request_invite_actor_to_case",
                 distinguisher=SenderStanding(
@@ -195,7 +195,7 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "the Case Manager presents a suggested actor to the Case "
+                    "the CASE_MANAGER presents a suggested actor to the Case "
                     "Owner"
                 ),
                 anchor="offer-case-participant",
@@ -229,7 +229,7 @@ ENTRIES: list[SemanticEntry] = [
                 addressee=AddresseeSide.CASE_MANAGER,
                 heading="Accept case participant offer",
                 description=(
-                    "Accepts the proposed participant record. The Case Manager"
+                    "Accepts the proposed participant record. The CASE_MANAGER"
                     " then invites the suggested actor."
                 ),
                 example="accept_case_participant_offer",
@@ -254,7 +254,7 @@ ENTRIES: list[SemanticEntry] = [
                 addressee=AddresseeSide.CASE_MANAGER,
                 heading="Reject case participant offer",
                 description=(
-                    "Rejects the proposed participant record. The Case Manager"
+                    "Rejects the proposed participant record. The CASE_MANAGER"
                     " tells the recommender."
                 ),
                 example="reject_case_participant_offer",
@@ -276,7 +276,7 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "the Case Manager tells a recommender that the actor it "
+                    "the CASE_MANAGER tells a recommender that the actor it "
                     "suggested will be invited"
                 ),
                 anchor="accept-actor-recommendation",
@@ -284,7 +284,7 @@ ENTRIES: list[SemanticEntry] = [
                 heading="Accept actor recommendation",
                 description=(
                     "Accepts the recommender's suggestion, with `inReplyTo` "
-                    "naming it. The Case Manager sends it once the Case Owner"
+                    "naming it. The CASE_MANAGER sends it once the Case Owner"
                     " approves, or at once when the suggested actor is "
                     "already invited or has joined."
                 ),
@@ -306,7 +306,7 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "the Case Manager tells a recommender that the Case "
+                    "the CASE_MANAGER tells a recommender that the Case "
                     "Owner declined the actor it suggested"
                 ),
                 anchor="reject-actor-recommendation",
@@ -342,7 +342,7 @@ ENTRIES: list[SemanticEntry] = [
                 heading="Offer case participant role",
                 description=(
                     "Offers one role on the case to the participant named by"
-                    " the target. The Case Manager records the offer and"
+                    " the target. The CASE_MANAGER records the offer and"
                     " forwards it to that participant."
                 ),
                 example="offer_case_participant_role",
@@ -367,7 +367,7 @@ ENTRIES: list[SemanticEntry] = [
                 heading="Accept case participant role",
                 description=(
                     "Accepts the offered role. The participant holds the role"
-                    " once the Case Manager records the acceptance."
+                    " once the CASE_MANAGER records the acceptance."
                 ),
                 example="accept_case_participant_role",
                 howto=HowToGuide.ROLE_DELEGATION,
@@ -418,15 +418,15 @@ ENTRIES: list[SemanticEntry] = [
                 addressee=AddresseeSide.CASE_MANAGER,
                 heading="Propose case ownership transfer",
                 description=(
-                    "Asks the Case Manager to offer the case to another "
+                    "Asks the CASE_MANAGER to offer the case to another "
                     "participant, for example from a Reporter to a "
-                    "Coordinator. The Case Manager offers the case only to "
+                    "Coordinator. The CASE_MANAGER offers the case only to "
                     "an active participant, so the Case Owner invites any "
                     "other actor first. The inner Offer names the case, the "
                     "new owner as its target and, optionally, an `endTime` "
-                    "after which the Case Manager refuses an answer: the "
+                    "after which the CASE_MANAGER refuses an answer: the "
                     "offer is then closed, with nothing recorded or sent. "
-                    "The Case Manager makes the offer itself."
+                    "The CASE_MANAGER makes the offer itself."
                 ),
                 example="propose_case_ownership_transfer",
             ),
@@ -444,7 +444,7 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "the Case Manager offers the case to the actor the Case "
+                    "the CASE_MANAGER offers the case to the actor the Case "
                     "Owner proposed"
                 ),
                 anchor="offer-case-ownership-transfer",
@@ -523,7 +523,7 @@ ENTRIES: list[SemanticEntry] = [
                 addressee=AddresseeSide.CASE_MANAGER,
                 heading="Withdraw case ownership transfer",
                 description=(
-                    "Withdraws the proposal, and with it the Case Manager's "
+                    "Withdraws the proposal, and with it the CASE_MANAGER's "
                     "offer, before the offer is answered. The current Case "
                     "Owner keeps the case."
                 ),
@@ -542,7 +542,7 @@ ENTRIES: list[SemanticEntry] = [
         include_activity=True,
         occasions=(
             Occasion(
-                when="the Case Manager invites an actor to join the case",
+                when="the CASE_MANAGER invites an actor to join the case",
                 anchor="invite-actor-to-case",
                 addressee=AddresseeSide.PARTICIPANT,
                 heading="Invite actor to case",
@@ -615,7 +615,7 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "the Case Manager has replayed the case ledger to a newly "
+                    "the CASE_MANAGER has replayed the case ledger to a newly "
                     "joined Participant"
                 ),
                 anchor="invite-actor-to-full-case",
@@ -623,7 +623,7 @@ ENTRIES: list[SemanticEntry] = [
                 heading="Send Full-Case Invite",
                 description=(
                     "Sends the Full-Case Invite, which asks the Participant to"
-                    " judge the case. It carries the Case Manager's ledger "
+                    " judge the case. It carries the CASE_MANAGER's ledger "
                     "position as the floor the reply must reach."
                 ),
                 example="invite_to_full_case",
@@ -726,7 +726,7 @@ ENTRIES: list[SemanticEntry] = [
         occasions=(
             Occasion(
                 when=(
-                    "the Case Manager has admitted a new Participant to the "
+                    "the CASE_MANAGER has admitted a new Participant to the "
                     "case"
                 ),
                 anchor="announce-vulnerability-case",

@@ -69,7 +69,7 @@
     {
       "semanticType": "update_case_owner",
       "wire": "Update(VulnerabilityCase)",
-      "phrase": "{actor} named a new case owner"
+      "phrase": "{actor} named a new Case Owner"
     },
     {
       "semanticType": "offer_actor_to_case",
