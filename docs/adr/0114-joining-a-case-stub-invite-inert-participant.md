@@ -12,6 +12,7 @@ consulted: >-
   specs/sync-ledger-replication.yaml SYNC-10, SYNC-14, SYNC-15;
   docs/topics/process_models/rm/formal_model.md
 informed: []
+partially_superseded_by: 0171-an-active-participant-is-not-closed.md
 stakeholder_type: [project-contributor]
 ---
 
