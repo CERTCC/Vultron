@@ -702,8 +702,9 @@ groups:
     rationale: >
       Demo and trusted-participant deployments legitimately need automated
       sentinel behavior without ceremony. The conservative posture applies by
-      default; permissive is an explicit operator choice with documented
-      consequences (RSH-07-007). Other valid alternative backends include
+      default. With a permissive backend the Case Owner delegates its approval
+      in advance and keeps the authority (VP-11-006); the operator configures
+      and documents it (RSH-07-007). Other valid alternative backends include
       role-differentiated policy, probabilistic approval, and any
       `CallOutBackendFactory`-conformant implementation. See ADR-0076. It
       relaxes the teardown too, which adoption authorizes (ADR-0166).
