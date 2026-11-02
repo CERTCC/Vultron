@@ -1491,7 +1491,8 @@ groups:
     statement: >-
       A Participant SHOULD NOT close a report (q^rm ∈ {R,I,D,A} → C) while an
       active embargo is in force (q^em ∈ {A,R}) unless they first communicate
-      their closure intent and continued embargo stance to other Participants.
+      their closure intent, and whether their Embargo Consent continues, to other
+      Participants.
     rationale: >-
       Closing while an embargo is active may signal withdrawal from the
       coordinated timeline without proper notification, potentially undermining

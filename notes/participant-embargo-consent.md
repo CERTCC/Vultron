@@ -84,7 +84,7 @@ predates ADR-0122 and is wrong.
   (`TERMINATED`), answers to it can no longer change: `apply_pec_transition()`
   takes the entry status (`entry_status=`) and refuses every trigger. This also
   covers "nothing is recorded after termination". A late Accept of stale terms is
-  answered with an invitation to the current embargo (EMB-17-003).
+  answered with an invitation to the Active Embargo (EMB-17-003).
 
 ### Every Row Is Written (CM-18-001)
 
@@ -369,8 +369,8 @@ an entry attributed to the invitee (ADR-0140; trees in
 |---|---|
 | `INVITED` row past its deadline | `Update(EmbargoConsent)` carrying the `TIMED_OUT` row, that row only (CM-28-005, CM-28-009, CM-28-014) |
 | Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: commit the Accept itself, as an on-time Accept is, its entry carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED`; no `Update(EmbargoConsent)` follows (EMB-17-002, EMB-17-009, EMB-17-018, ADR-0152) |
-| Accepted embargo is stale | relay a fresh Invite to the current embargo, `attributedTo` its proposer (the CASE_MANAGER for terms it made itself), with a fresh deadline; the answer recorded for the stale terms can no longer change (EMB-17-003, EMB-17-013) |
-| No current embargo (EM `EXITED`/`NONE`) | a no-op: no entry, no reply, rows and case participation unchanged; reported `SKIPPED` (EMB-17-004, EMB-17-015 through EMB-17-017) |
+| Accepted embargo is stale | relay a fresh Invite to the Active Embargo, `attributedTo` its proposer (the CASE_MANAGER for terms it made itself), with a fresh deadline; the answer recorded for the stale terms can no longer change (EMB-17-003, EMB-17-013) |
+| No Active Embargo and no Proposed Embargo (EM `EXITED`/`NONE`) | a no-op: no entry, no reply, rows and case participation unchanged; reported `SKIPPED` (EMB-17-004, EMB-17-015 through EMB-17-017) |
 
 A late Accept is never refused (EMB-17): the accepter has signalled willingness
 to coordinate. Each decision follows decide → commit → apply (CLP-10-006,

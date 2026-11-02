@@ -314,16 +314,16 @@ They model the negotiation, evaluation, and lifecycle management of coordinated 
 - **Source file**: `vultron/demo/fuzzer/embargo.py`
 - **Parent tree**: `AuthorizeSelector` (within `create_embargo_response_decision_tree`).
   It is the second child of the `AuthorizeSelector` Selector, and the tree reaches it only when the deciding actor is NOT a `CVDRole.CASE_OWNER`
-- **Semantic function**: Condition — a non-CASE_OWNER actor asks the case owner for authorization before it accepts or counters.
+- **Semantic function**: Condition — a non-CASE_OWNER actor asks the Case Owner for authorization before it accepts or counters.
   An example is the CASE_MANAGER when it processes an inbound overture on behalf of the owner.
   Defaults to approval in simulation, because the simulation assumes owner approval.
 - **Input dependency**: Human approval / adjudication.
-  Final authority rests with the case owner (a human or a configured policy agent)
+  Final authority rests with the Case Owner (a human or a configured policy agent)
 - **Notes**: Gate only.
   The node places no content artifact on the blackboard.
   In production, an Evaluator-type Coordination Agent would fulfill this seam and return the decision of the owner.
   This agent can be a user interface (UI) prompt, a large language model (LLM) adjudicator, or a policy rule.
-- **Automation potential**: **Low** — final authority rests with the case owner.
+- **Automation potential**: **Low** — final authority rests with the Case Owner.
   By default, approval is not automatic.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.CaseOwnerApprovesEmbargoResponse`
 - **Call-out point shape**: Evaluator — records an adjudication decision (approve/deny).
@@ -337,8 +337,8 @@ They model the negotiation, evaluation, and lifecycle management of coordinated 
 - **btz type**: `AlmostAlwaysSucceed` (p=0.90)
 - **Source file**: `embargo_management/fuzzer.py`
 - **Parent tree**: `_ChooseEmActiveResponse` (within `_EmActive`)
-- **Semantic function**: Condition — is the participant satisfied with the terms of the current active embargo, or does the participant want to propose a revision?
-- **Input dependency**: Human judgment, or an automated policy check that compares the current embargo terms against organizational preferences
+- **Semantic function**: Condition — is the participant satisfied with the terms of the Active Embargo, or does the participant want to propose a revision?
+- **Input dependency**: Human judgment, or an automated policy check that compares the embargo terms against organizational preferences
 - **Notes**: Modeled as usually acceptable.
   Revision proposals are relatively uncommon
 - **Automation potential**: **Medium** — an automated comparison of the current terms against policy preferences is possible.
