@@ -102,7 +102,7 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   (`is_em_transition()`; `create_em_machine()` / `em_transition_rows()` for
   tools). `apply_register_step()` names the step's EM trigger
   (`register_step_em_trigger()`; none or several is refused) and refuses a move
-  not in the table (`em_move_violations()`, EMB-18-006); the check is in the
+  not in the table (`em_move_violations()`, EMB-18-013/014); the check is in the
   step, so the CASE_MANAGER and every replica apply it alike. With several
   proposals open, `reject` and `accept` self-loop, and activating one proposal
   leaves the others open as revisions.
@@ -110,7 +110,7 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   never the copy. `append_case_status(em=...)` is refused, and a received
   `Add(CaseStatus)` whose EM differs is refused whole (RSH-09-005,
   SDO-03-006).
-- **A termination records what and why (ADR-0122, EMB-13-004).** The what
+- **A termination records what and why (ADR-0122, EMB-13-004, EMB-13-010).** The what
   (`TerminationReason`: `END_TIME_REACHED` or `EARLY`) is the `Remove`'s
   `content`, parsed at the edge (`termination_reason_from_content()`); the why
   is a structured cause (`vultron/core/models/embargo_termination.py`), a
@@ -122,12 +122,12 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   triggering status, or, when unknown at build time, the case's PXA at the
   write. A voluntary termination passes `ChosenTermination`, set by the
   `ChooseTerminationCauseNode` after the reason call-out that succeeded and
-  read at the write, so the choice and the commit are one act (EMB-14-001,
-  EMB-14-004);
+  read at the write, so the choice and the commit are one act (EMB-14-001/006,
+  EMB-14-004/007);
   the trigger records the request's cause, or `OTHER` when it names none.
   The `Remove` carries the why as `terminationCause` (a field on the
   base `as_Remove`, marked a Vultron property so `context.jsonld` names it),
-  checked at the parse edge (EMB-13-005), because a replica learns the why
+  checked at the parse edge (EMB-13-005, EMB-13-012), because a replica learns the why
   only from the ledger entry: it copies the cause, never works it out from its
   own PXA (`ApplyEmbargoTeardownNode`). Every `Remove` the CASE_MANAGER sends
   passes the cause it records to `terminate_embargo(cause=...)`. An owner's
@@ -177,7 +177,7 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   consent.
 - An owner whose row is `DECLINED` may still activate: activating is the
   owner changing its answer, so its row moves straight to `AGREED`, in either
-  mode, with one ledger entry (MSM-07-008). The received owner-decision trees
+  mode, with one ledger entry (MSM-07-028). The received owner-decision trees
   check P/X/A with a read-only guard ahead of the commit
   (`OwnerMayActivateEmbargoNode`), because a replica copies the step and does
   not re-check.
@@ -204,12 +204,12 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   records the `REJECT` step and then terminates the embargo in the same act
   (`end_embargo_outliving_disclosure_bt` around `terminate_embargo_bt`), so
   the revision ends `REJECTED` and the embargo `TERMINATED` with the threat
-  signals as the cause its `Remove` carries (MSM-07-009, EMB-13-005).
+  signals as the cause its `Remove` carries (MSM-07-032, EMB-13-005).
   `OwnerRejectionAppliesNode` trial-applies both steps among the guards, and
   the act is one transaction, so a refused termination commits neither entry.
   Only the CASE_MANAGER reads `rejection_ends_embargo`
   (`vultron/core/predicates/embargo.py`); replicas copy both entries and
-  decide nothing (CM-23-016).
+  decide nothing (CM-23-044).
 
 ## A Case Never Points at an Embargo Its Store Cannot Read (EMB-18-003)
 
@@ -250,7 +250,7 @@ catch-up path.
   `TIMED_OUT`/`DECLINED` — first commits the CASE_MANAGER's
   `Update(EmbargoConsent)` carrying the `TIMED_OUT` row if the row still needs
   `TIME_OUT` (the Accept tree's clock decision,
-  CLP-10-025), then routes to honour (EMB-17-001),
+  CLP-10-025), then routes to honour (EMB-17-001, EMB-17-012),
   re-invite (EMB-17-003) or no-op (EMB-17-004). The honour commits the Accept
   itself, as an on-time Accept is, and the re-invite a relayed Invite
   attributed to the embargo's proposer, so replicas learn the outcome
@@ -295,7 +295,8 @@ catch-up path.
   archive, never a copy under the sender's id (DL-06-006). It answers where
   any Invite answer goes: the CASE_MANAGER answers the proposer, a participant
   answers the CASE_MANAGER, never a peer (PCR-08-001). An Invite naming its
-  terms by URI only is still answered (ADR-0123).
+  terms by URI only is answered once its terms are fetched, and not when the
+  fetch fails (EMB-01-002, AKM-05-015).
 - **Skip an Invite already answered** (`pending_embargo_proposal_index` maps its
   embargo to it), so a later P/X/A never contradicts an earlier answer.
   "Already archived" is not that signal: intake archives the Invite before
@@ -305,7 +306,7 @@ catch-up path.
   sealed `Reject` is written before the queue append (EMB-01-006), so a
   redelivery is `SKIPPED`.
 - An Invite naming no `to` recipient, several, or no embargo is answered with
-  `Create(ProcessingFault)`, not a `Reject` (EP-09-010, MSM-05-001), by the one tree
+  `Create(ProcessingFault)`, not a `Reject` (EP-09-026, MSM-05-001), by the one tree
   `received_embargo_invite_tree` builds for it (`invite_received_tree.py`),
   after the post-close boundary.
 
@@ -342,8 +343,8 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
    (`vultron/core/services/embargo_lifecycle/`, `embargo_apply.py`). A
    committed step is written through `apply_embargo_change()`; BT nodes MUST
    NOT otherwise apply a register step, assign `case.current_status.em`, and
-   `dl.save(case)` themselves (EMB-18-001). A refused step raises or fails the
-   node without a write (EMB-18-002). Lifecycle nodes catch `VultronError` and
+   `dl.save(case)` themselves (EMB-18-001, EMB-18-008). A refused step raises or
+   fails the node without a write (EMB-18-009). Lifecycle nodes catch `VultronError` and
    return `FAILURE`; triggers are thin orchestrators over the service.
 2. **On `VultronInvalidStateTransitionError` from a P/X/A guard**, the case is no
    longer embargo-eligible: do not retry; answer the proposer with a `Reject` of
@@ -352,18 +353,18 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
    except recording the proposer's (ADR-0093). An activation records the
    owner's agreement; a *shorter* replacement carries every signatory over
    (`CARRY_OVER`), and under *longer* terms non-agreeing signatories lapse by
-   derivation (MSM-07-005). The CASE_MANAGER decides these
+   derivation (MSM-07-020). The CASE_MANAGER decides these
    (`decide_activation()`) and commits each carried-over row as its own
    `Update(EmbargoConsent)` entry after the `Accept`; replicas copy them and
    run no carry-over (ADR-0124, #4716). Termination (`decide_termination()`,
    then the `TERMINATE` step through the one apply function) cancels every
-   open proposal and writes no consent (MSM-07-006). Callers do none of this
+   open proposal and writes no consent (MSM-07-025). Callers do none of this
    by hand.
 4. **Replay copies.** The proposal, relay, answer, re-invite, abandonment,
    teardown, withdrawal, activation, owner's-rejection and expiry slots copy
    the entry's step or row (a `Leave` carries none), and every other row
    arrives as its own CASE_MANAGER entry (ADR-0124). No slot decides to skip
-   an entry (CM-23-016, MSM-07-009; see the P/X/A guards above). One path
+   an entry (CM-23-044, MSM-07-009; see the P/X/A guards above). One path
    still passes
    `transition_mode=TransitionMode.OBSERVED`: a paused replica applying a
    CM-31-010 notice, which is outside the ledger (`ending_notice_replica.py`).
@@ -388,7 +389,7 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
 ## Open Proposals Resolve Earliest-Expiration First (EP-08)
 
 `EM.PROPOSED` means one or more proposals under negotiation; a counter-proposal
-goes through the ordinary propose path (EMB-15-003), so several open entries are
+goes through the ordinary propose path (EMB-15-011), so several open entries are
 routine. A participant SHOULD accept the **earliest-expiring** and handle the
 rest as revisions (`docs/topics/process_models/em/defaults.md`).
 
@@ -434,14 +435,15 @@ every other participant learns the result from the ledger.
 3. The CASE_MANAGER relays an Invite to **every participant except the
    proposer** (`actor=CASE_MANAGER`, `attributed_to=proposer`, CM-24), each with
    its own RSVP `end_time` (CM-28-012), commits each emission, and applies PEC
-   `INVITE` where legal (EP-09-002, CM-28-013). The proposer is not invited
-   (proposing is consenting, ADR-0093). The same commit writes the rows no Invite
-   will: the proposer's `AGREED`, and a stakeholder manager's own row by policy
-   call-out (EP-09-005, `nodes/manager_consent.py`), in the manager's store only.
+   `INVITE` where legal (EP-09-002, EP-09-022, CM-28-013). The proposer is not
+   invited (proposing is consenting, ADR-0093). The same commit writes the rows no
+   Invite will: the proposer's `AGREED` (EP-09-023), and a stakeholder manager's
+   own row by policy call-out (EP-09-024, EP-09-005, `nodes/manager_consent.py`),
+   in the manager's store only.
 4. A participant answers the Invite addressed to it through the response
    decision tree and writes **no** case, consent or deadline state on receipt;
    consent moves when the CASE_MANAGER commits the answer (EP-09-003). Anything
-   but the sole `to` recipient is refused as misrouting (EP-09-010). A revision
+   but the sole `to` recipient is refused as misrouting (EP-09-026). A revision
    Invite lands on the revision's own row; the signatory keeps its `AGREED` row
    (EP-09-004).
 5. The owner's answer is consent *and* decision. The owner MAY decide without
@@ -475,7 +477,7 @@ arms built by `_by_role()` (BT-17-001). Ratchet:
   queues it. Nothing is addressed to the manager itself (CLP-10-001): an
   `Accept`/`Reject` is only committed, its own proposal is relayed as one Invite
   per other participant, its teardown goes to every other participant
-  (EMB-19-001). `EmitCaseStatusUpdateNode` follows, because RSH-04-002 requires a
+  (EMB-19-003). `EmitCaseStatusUpdateNode` follows, because RSH-04-002 requires a
   `CaseStatus` write after every EM mutation on a trigger path.
 - **As anyone else**: the tree writes and declares no EM state; it queues the
   activity to the CASE_MANAGER and `SvcEmbargoTriggerBase` records it with
@@ -521,7 +523,7 @@ participant that believes P/X/A is set is still answered with its own `Reject`
 of the Invite, manager or not. Participant self-status (RM) keeps its local
 write.
 
-**The role is never unfilled** (CM-24-006, CM-24-008). No "no manager" arm belongs
+**The role is never unfilled** (CM-24-006, CM-24-008, CM-24-015). No "no manager" arm belongs
 in any embargo tree; a resolver that finds nobody fails.
 
 **Only the CASE_MANAGER records an answer, and only one it can apply.** Answer
@@ -535,7 +537,7 @@ its persist (SYNC-12-001) and stalls every later entry (SYNC-14-001).
 `PROPOSED`/`REVISE` while another is open (EP-08-003). Rejecting the last open
 revision after P/X/A rejects it and then, in the same act, runs the terminate
 path (ET), so the prior terms do not stand when the act ends (EMB-04-002,
-MSM-07-009).
+MSM-07-032).
 
 **RSH-04-002 on the relay trees.** These received trees add no
 `EmitCaseStatusUpdateNode`: the guarded commit records the causing activity and

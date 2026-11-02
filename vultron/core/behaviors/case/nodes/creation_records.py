@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 #: ``semantic_type`` of a case's genesis ledger entry, the root of the
 #: CASE_MANAGER's hash chain.  Its presence is what "the case's creation
-#: entries are committed" means to a later step (CM-14-007, CM-14-011).
+#: entries are committed" means to a later step (CM-14-014, CM-14-011).
 CREATE_CASE_SEMANTIC_TYPE = MessageSemantics.CREATE_CASE.value
 
 

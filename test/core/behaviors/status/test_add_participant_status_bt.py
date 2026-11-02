@@ -1708,7 +1708,7 @@ class TestEmitRMGapNoteNode:
         assert len(outbox) == 0, "No anomaly → no outbox entry expected"
 
     @pytest.mark.spec("RSH-06-004")
-    @pytest.mark.spec("VAM-01-010")
+    @pytest.mark.spec("VAM-01-015")
     @pytest.mark.spec("CLP-10-001")
     def test_gap_anomaly_records_note(self, populated_dl):
         """BB_RM_ANOMALY=gap → SUCCESS + one committed inline Add(Note)."""
@@ -1727,7 +1727,7 @@ class TestEmitRMGapNoteNode:
         assert "non-adjacent forward" in note["content"]
 
     @pytest.mark.spec("RSH-06-004")
-    @pytest.mark.spec("VAM-01-010")
+    @pytest.mark.spec("VAM-01-015")
     @pytest.mark.spec("CLP-10-001")
     def test_regression_anomaly_records_note(self, populated_dl):
         """BB_RM_ANOMALY=regression → SUCCESS + one committed inline Add(Note)."""
@@ -2299,10 +2299,10 @@ class TestAdoptedPxaReachesTheCaseStatus:
 
 class TestAdoptedPxa:
     """``adopted_pxa`` adds the report's latches and clears none, promoted
-    (SM-09-001)."""
+    (SM-09-003)."""
 
     @pytest.mark.spec("RSH-01-003")
-    @pytest.mark.spec("SM-09-001")
+    @pytest.mark.spec("SM-09-003")
     @pytest.mark.parametrize(
         ("current", "reported", "expected"),
         [
@@ -2563,7 +2563,7 @@ class TestAdoptedThreatTeardown:
     @pytest.mark.spec("CSB-18-002")
     @pytest.mark.spec("CSB-18-003")
     @pytest.mark.spec("CSB-18-004")
-    @pytest.mark.spec("VAM-01-010")
+    @pytest.mark.spec("VAM-01-015")
     def test_a_failed_teardown_is_reported_in_a_note(
         self, make_payload, monkeypatch, caplog
     ):

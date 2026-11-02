@@ -10,7 +10,7 @@ related_specs:
   - specs/stub-objects.yaml
   - specs/message-validation.yaml
   - specs/case-management.yaml (CM-11-013, CM-17-002, CM-17-010, CM-17-011, MV-10-001)
-  - specs/actor-knowledge-model.yaml (AKM-05-005)
+  - specs/actor-knowledge-model.yaml (AKM-05-017)
 related_notes:
   - vultron/core/ports/AGENTS.md
   - notes/wire-core-boundary.md
@@ -25,7 +25,7 @@ relevant_packages:
 
 The `VulnerabilityCase` stub (`as_VulnerabilityCaseStub`) is the only stub type
 the protocol permits (MV-10-001, narrowed by ADR-0090). Requirements: MV-10 in
-`specs/message-validation.yaml`. The id-and-type actor reference of AKM-05-005
+`specs/message-validation.yaml`. The id-and-type actor reference of AKM-05-017
 (ADR-0159) is MV-10-001's one other exception, and it is not a stub: it claims
 only the two fields its sender knows. Referencing other objects without inlining
 them, and explicit redaction, are not built: see
@@ -70,13 +70,13 @@ already held (MV-10-003) and never creates a new domain record (MV-10-004).
   `as_VulnerabilityCaseStub._refuse_absent_summary` refuses an inbound stub with
   no `summary` key.
 - The stub's `caseStatus` is built for the stub, not read from the case, and
-  serializes only its identity and `emState` (CM-17-002). A `pxaState` on the wire
+  serializes only its identity and `emState` (CM-17-013). A `pxaState` on the wire
   would state a PXA value nobody observed.
 - "In force" means the register holds an `ACTIVE` entry: EM `ACTIVE` or `REVISE`,
   never the exact EM state alone. Gate on `case.embargo_in_force`, which reads
   `active_embargo_id`, the embargo the consent row and the Accept's signing name
   (CM-11-001, CM-11-006), or a `REVISE` invitee is bound to terms it never saw
-  (CM-17-002, #4697). The open revision stays out of the stub; EP-09-011 relays it
+  (CM-17-014, #4697). The open revision stays out of the stub; EP-09-011 relays it
   after joining.
 - The stub's `activeEmbargo` is the full `EmbargoEvent` as the sender holds it,
   never a copy rebuilt from its ID and `end_time` (CM-17-011). The protocol lets a

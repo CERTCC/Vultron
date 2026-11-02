@@ -16,7 +16,7 @@
 
 Activation: EM to ACTIVE, the proposal that carried the embargo decided
 (EP-08-003), and — when it replaces an embargo already in force — the
-EP-05-001 containment carry-over.  Also covers decide_termination
+EP-05-003 containment carry-over.  Also covers decide_termination
 (decide-only, no write).
 """
 
@@ -104,6 +104,8 @@ def test_activate_embargo_prunes_the_proposal_from_both_records(
 
 @pytest.mark.spec("EP-05-001")
 @pytest.mark.spec("MSM-07-005")
+@pytest.mark.spec("EP-05-003")
+@pytest.mark.spec("MSM-07-019")
 def test_activate_embargo_replacing_a_longer_one_carries_signatories_over(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -149,6 +151,7 @@ def test_activate_embargo_replacing_a_longer_one_carries_signatories_over(
 @pytest.mark.spec("EP-05-001")
 @pytest.mark.spec("MSM-07-005")
 @pytest.mark.spec("CM-18-016")
+@pytest.mark.spec("MSM-07-020")
 def test_activate_embargo_replacing_a_shorter_one_lapses_non_acceptors(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -290,6 +293,7 @@ def test_activate_embargo_records_the_owners_acceptance_of_a_longer_revision(
 
 
 @pytest.mark.spec("EP-05-001")
+@pytest.mark.spec("EP-05-003")
 def test_activate_embargo_of_equal_terms_carries_signatories_over(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -320,6 +324,8 @@ def test_activate_embargo_of_equal_terms_carries_signatories_over(
 @pytest.mark.parametrize(
     "mode", [TransitionMode.STRICT, TransitionMode.OBSERVED], ids=str
 )
+@pytest.mark.spec("EMB-18-010")
+@pytest.mark.spec("EMB-18-011")
 def test_activate_embargo_with_an_unreadable_previous_embargo_changes_nothing(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
     mode: TransitionMode,
@@ -355,6 +361,8 @@ def test_activate_embargo_with_an_unreadable_previous_embargo_changes_nothing(
 @pytest.mark.parametrize(
     "replaces", [False, True], ids=["first-activation", "revision"]
 )
+@pytest.mark.spec("EMB-18-010")
+@pytest.mark.spec("EMB-18-011")
 def test_activation_of_an_unheld_embargo_writes_nothing(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
     mode: TransitionMode,
@@ -431,7 +439,7 @@ def test_activate_embargo_by_an_owner_that_declined_it_changes_its_answer(
 
     The owner's row moves straight from DECLINED to AGREED, with no re-invite
     first, in both modes, so a replica replaying the entry agrees with the
-    CASE_MANAGER (CM-18-003, MSM-07-008).
+    CASE_MANAGER (CM-18-003, MSM-07-028).
     """
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)

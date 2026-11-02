@@ -86,7 +86,7 @@ def test_evidence_is_taken_before_the_parser_expands_the_body(
     assert activity.received_evidence == received
 
 
-@pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("VM-08-005")
 def test_mutating_the_parsed_nested_object_leaves_the_evidence():
     """The nested core object is mutable by design; the evidence is not."""
     body = _offer_report()
@@ -100,7 +100,7 @@ def test_mutating_the_parsed_nested_object_leaves_the_evidence():
     assert activity.received_evidence == body
 
 
-@pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("VM-08-005")
 def test_mutating_the_callers_body_after_parse_leaves_the_evidence():
     """The evidence is a copy, not a view of the ``dict`` the caller passed."""
     body = _offer_report()

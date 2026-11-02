@@ -15,7 +15,7 @@
 
 ``EmbargoLifecycle.decide_activation`` returns the ``ACTIVATE`` step, the
 owner's agreement its ``Accept`` states and one ``CARRY_OVER`` row per
-signatory a shorter revision keeps (EP-05-001, MSM-07-008, ADR-0124).
+signatory a shorter revision keeps (EP-05-003, MSM-07-019, ADR-0124).
 """
 
 from typing import cast
@@ -124,6 +124,7 @@ def test_a_longer_revision_carries_nobody_over():
 
 
 @pytest.mark.spec("CM-18-001")
+@pytest.mark.spec("CM-18-021")
 def test_a_missing_row_for_the_replaced_embargo_raises():
     """Every register entry has a row on every participant (ADR-0122)."""
     dl = _store()

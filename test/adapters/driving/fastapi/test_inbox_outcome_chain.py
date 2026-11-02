@@ -466,7 +466,9 @@ def _case_manager_acts() -> list[Any]:
     ]
 
 
-@pytest.mark.spec("SE-05-002", "CLP-07-013", "VAM-01-010")
+@pytest.mark.spec(
+    "SE-05-002", "CLP-07-013", "VAM-01-018", "VAM-01-019", "VAM-01-020"
+)
 @pytest.mark.parametrize(("build", "semantics"), _case_manager_acts())
 def test_a_received_case_manager_act_is_recognized_and_unhandled(
     dl, build, semantics
@@ -521,7 +523,7 @@ def _retired_create_activities() -> list[Any]:
     the CASE_MANAGER's own act, which the registry recognizes (#4724), and
     neither is ``Create(EmbargoEvent)`` (VAM-05-016).  A ``Create`` of a plain
     ``Event`` is among them: only an ``EmbargoEvent`` object is recognized
-    (VAM-01-010).  ``Create(Note)`` is sent
+    (VAM-01-017).  ``Create(Note)`` is sent
     twice: once with the note's ``context`` naming the case (the form the
     removed route attached) and once with no case context at all.
     """
@@ -595,12 +597,14 @@ def _retired_create_activities() -> list[Any]:
     ]
 
 
-@pytest.mark.spec("CLP-07-013", "CLP-02-013", "VAM-01-010", "VAM-01-011")
+@pytest.mark.spec(
+    "CLP-07-013", "CLP-02-013", "VAM-01-017", "VAM-01-011", "VAM-01-019"
+)
 @pytest.mark.parametrize("activity", _retired_create_activities())
 def test_received_create_of_a_case_record_is_refused_case_unchanged(
     dl, activity
 ):
-    """A received ``Create`` of a case record is not a protocol message (VAM-01-010, VAM-01-011).
+    """A received ``Create`` of a case record is not a protocol message (VAM-01-017, VAM-01-019).
 
     The protocol names one form for each act: ``Add(CaseStatus)``,
     ``Add(ParticipantStatus)``, ``Add(Note)``, and the CASE_MANAGER's own

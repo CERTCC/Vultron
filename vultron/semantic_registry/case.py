@@ -261,7 +261,7 @@ ENTRIES: list[SemanticEntry] = [
         ),
         page=MessagePage.CASE_MANAGEMENT,
     ),
-    # The CASE_MANAGER's own act on an ownership transfer (CM-21-002): the
+    # The CASE_MANAGER's own act on an ownership transfer (CM-21-024): the
     # case with its new attributedTo, committed as its own entry
     # (CLP-07-013).  Only the CASE_MANAGER sends it, and a participant
     # learns it from the ledger, so no received use case handles it

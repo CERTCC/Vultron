@@ -61,7 +61,7 @@ class TestAllParticipantsRmClosed:
     def test_empty_list_returns_true(self):
         assert all_participants_rm_closed([]) is True
 
-    @pytest.mark.spec("CM-11-014")
+    @pytest.mark.spec("CM-11-041")
     def test_inert_invitee_is_not_counted(self):
         """An invitee that never accepted its stub Invite is skipped."""
         closed = _make_participant(RM.CLOSED, actor_id="urn:uuid:a")
@@ -69,7 +69,7 @@ class TestAllParticipantsRmClosed:
         silent.joined = False
         assert all_participants_rm_closed([closed, silent]) is True
 
-    @pytest.mark.spec("CM-11-014")
+    @pytest.mark.spec("CM-11-041")
     def test_joined_participant_at_received_still_counts(self):
         closed = _make_participant(RM.CLOSED, actor_id="urn:uuid:a")
         joined = _make_participant(RM.RECEIVED, actor_id="urn:uuid:b")

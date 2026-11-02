@@ -570,11 +570,11 @@ def test_trigger_offer_case_participant_role_missing_required_fields_returns_422
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
-@pytest.mark.spec("CM-33-003")
+@pytest.mark.spec("CM-33-014")
 def test_trigger_offer_case_participant_role_missing_role_returns_422(
     client_triggers, actor, case_obj, target_actor
 ):
-    """``role`` is required: no role is read as a default (CM-33-003)."""
+    """``role`` is required: no role is read as a default (CM-33-014)."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/offer-case-participant-role",
         json={
@@ -804,7 +804,7 @@ def test_trigger_invite_actor_to_case_unknown_invitee_is_accepted(
     record lives in its own store (ADR-0073#peer-records-in-knowers-store) — so refusing meant
     refusing every cross-node invitee. The injectable ActorDiscoveryCallOutBundle
     seam (ADR-0025) handles the gap; with the DETERMINISTIC default it logs at
-    DEBUG rather than WARNING (AKM-05-002).
+    DEBUG rather than WARNING (AKM-05-016).
 
     Not a HTTP-03-005 case either: that rule is about a missing resource *of
     this API*, and a peer's own actor record is not one.

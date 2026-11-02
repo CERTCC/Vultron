@@ -183,7 +183,7 @@ class TestVulnerabilityCaseCurrentStatus:
     def test_current_status_prefers_newer_timestamp_over_id_scheme(self):
         """A newer ``updated`` wins even when its ``id_`` sorts lower.
 
-        Guards CM-29-001: the ``id_`` scheme must never arbitrate recency. A
+        Guards CM-29-002: the ``id_`` scheme must never arbitrate recency. A
         urn:uuid ID (``'u'``) sorts lexically above an https ID (``'h'``), so
         this catches any regression that reintroduced ``id_`` as a tiebreaker
         overriding an authoritative timestamp.
@@ -448,6 +448,7 @@ def _case_with_register() -> VulnerabilityCase:
 
 
 @pytest.mark.spec("CM-18-001")
+@pytest.mark.spec("CM-18-020")
 def test_add_participant_writes_an_uninvited_row_per_register_entry() -> None:
     from vultron.core.states.participant_embargo_consent import (
         EmbargoConsentState,
@@ -511,6 +512,7 @@ def test_embargo_register_status_raises_for_an_unregistered_embargo() -> None:
 
 
 @pytest.mark.spec("CM-18-001")
+@pytest.mark.spec("CM-18-021")
 def test_a_case_refuses_an_inline_participant_missing_a_row() -> None:
     from pydantic import ValidationError
 

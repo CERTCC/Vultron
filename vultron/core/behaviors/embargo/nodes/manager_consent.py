@@ -63,7 +63,7 @@ from vultron.enums.roles import CVDRole
 from vultron.errors import BtNodePreconditionError, VultronWiringError
 
 #: Roles of a case container that holds no embargo stake of its own: the
-#: manager role, and the coordinator role a manager SHOULD also hold (CBT-01-003).
+#: manager role, and the coordinator role a manager SHOULD also hold (CBT-01-015).
 _CONTAINER_ROLES = frozenset({CVDRole.CASE_MANAGER, CVDRole.COORDINATOR})
 
 
@@ -115,7 +115,7 @@ class ManagerHoldsUndecidedEmbargoStakeNode(DataLayerConditionWithPorts):
         stake_roles = set(participant.case_roles) - _CONTAINER_ROLES
         if not stake_roles:
             # The bare container (manager, usually with the coordinator
-            # role, CBT-01-003) carries no stake of its own (EP-09-002).
+            # role, CBT-01-015) carries no stake of its own (EP-09-024).
             return "the manager holds only container roles"
         if CVDRole.CASE_OWNER in stake_roles or is_case_owner(
             case, self.actor_id

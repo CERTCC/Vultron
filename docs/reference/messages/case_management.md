@@ -45,13 +45,13 @@ The 300-level introduction is [The Case Manager and the Case Ledger](../../topic
 
 {% include-markdown "./_occasions/sections/create-case.md" %}
 
-- **Recipients:** the CASE_MANAGER sends the completed case to the report receiver (the Case Owner) only ([CBT-01-010](../vultron-spec/requirements/ledger-replication.md#cbt-01-010), [CM-22-001](../vultron-spec/requirements/case-management.md#cm-22-001), [CM-22-002](../vultron-spec/requirements/case-management.md#cm-22-002)).
+- **Recipients:** the CASE_MANAGER sends the completed case to the report receiver (the Case Owner) only ([CBT-01-010](../vultron-spec/requirements/ledger-replication.md#cbt-01-010), [CM-22-006](../vultron-spec/requirements/case-management.md#cm-22-006), [CM-22-002](../vultron-spec/requirements/case-management.md#cm-22-002)).
   The report receiver then sends the report submitter a `Create(VulnerabilityCase)` as itself.
   That message names the CASE_MANAGER and is the trust bootstrap (spec [§10.3 Case Bootstrap and the Trust Root](../vultron-spec/interactions.md#103-case-bootstrap-and-the-trust-root); [CBT-01-001](../vultron-spec/requirements/ledger-replication.md#cbt-01-001), [ADR-0132](../../adr/0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md)).
-- **Who is named where:** the `actor` of the `Create` is the CASE_MANAGER that mints the case, and the case's `attributedTo` is the Case Owner ([CP-09-001](../vultron-spec/requirements/case-management.md#cp-09-001), [CM-02-008](../vultron-spec/requirements/case-management.md#cm-02-008)).
+- **Who is named where:** the `actor` of the `Create` is the CASE_MANAGER that mints the case, and the case's `attributedTo` is the Case Owner ([CP-09-001](../vultron-spec/requirements/case-management.md#cp-09-001), [CP-09-011](../vultron-spec/requirements/case-management.md#cp-09-011), [CM-02-008](../vultron-spec/requirements/case-management.md#cm-02-008)).
   The two coincide when the Case Owner creates its own case, as in the example above.
   When a case-actor service creates the case from a [Case Proposal](case_proposal.md), the service is the `actor` and `attributedTo` names the proposing actor, never the service itself.
-  Every owner check reads `attributedTo`, and an ownership transfer rewrites it ([CM-21-002](../vultron-spec/requirements/case-management.md#cm-21-002)).
+  Every owner check reads `attributedTo`, and an ownership transfer rewrites it ([CM-21-024](../vultron-spec/requirements/case-management.md#cm-21-024)).
 - **Triggering transition:** none — object construction precedes protocol state.
 - **Example artifact:** [create_case.json](../examples/create_case.json).
 
@@ -65,16 +65,16 @@ The 300-level introduction is [The Case Manager and the Case Ledger](../../topic
 {% include-markdown "./_occasions/sections/offer-case-participant-role.md" %}
 
 - **Routing:** the offer is addressed to the CASE_MANAGER only, never to the target ([CM-33-001](../vultron-spec/requirements/case-management.md#cm-33-001)).
-  The CASE_MANAGER records it in the ledger.
-  Then it forwards it to the target as its own `Offer(CaseParticipantRole)`, with the Case Owner in `attributedTo` and `inReplyTo` naming the recorded offer.
-  The target acts only on that forward, and answers the CASE_MANAGER, not the Case Owner ([CM-33-004](../vultron-spec/requirements/case-management.md#cm-33-004)).
+  The CASE_MANAGER records it in the ledger ([CM-33-007](../vultron-spec/requirements/case-management.md#cm-33-007)).
+  Then it forwards it to the target as its own `Offer(CaseParticipantRole)`, with the Case Owner in `attributedTo` and `inReplyTo` naming the recorded offer ([CM-33-008](../vultron-spec/requirements/case-management.md#cm-33-008)).
+  The target acts only on that forward, and answers the CASE_MANAGER, not the Case Owner ([CM-33-004](../vultron-spec/requirements/case-management.md#cm-33-004), [CM-33-015](../vultron-spec/requirements/case-management.md#cm-33-015)).
   Nothing is granted until the CASE_MANAGER records the target's `Accept` ([CM-02-016](../specs/project.md#cm-02-016)).
 - **Who may send:** the Case Owner only.
   The CASE_MANAGER refuses an offer from any other sender ([CM-33-002](../vultron-spec/requirements/case-management.md#cm-33-002)).
   `CASE_OWNER` and `CASE_MANAGER` cannot be offered.
   The CASE_MANAGER also refuses an offer with no readable role, or of a role the target already holds.
   It also refuses an offer whose target is not a participant, or whose target is the CASE_MANAGER itself ([CM-33-003](../vultron-spec/requirements/case-management.md#cm-33-003)).
-  A refused offer is not recorded and not forwarded.
+  A refused offer is not recorded and not forwarded ([CM-33-012](../vultron-spec/requirements/case-management.md#cm-33-012), [CM-33-013](../vultron-spec/requirements/case-management.md#cm-33-013)).
   The CASE_MANAGER answers an offer refused for its role or target with the refusal notice, and an offer from any other sender with nothing.
 - **Object type:** the object type alone identifies the activity as a role offer rather than an ownership-transfer offer (ADR-0039).
   Roles are granted through the case's authority chain ([§12.1 Role Assignment](../vultron-spec/interactions.md#121-role-assignment-n)).
@@ -89,28 +89,28 @@ This offer is distinct from `Offer(CaseParticipant)`, which forwards an actor re
 
 {% include-markdown "./_occasions/sections/accept-case-participant-role.md" %}
 
-- **Routing:** the `Accept` goes to the CASE_MANAGER only, never to the Case Owner that made the offer ([CM-33-004](../vultron-spec/requirements/case-management.md#cm-33-004)).
-  Its `object` is the CASE_MANAGER's forward, which the CASE_MANAGER matches to the recorded offer through the forward's `inReplyTo`, never through the copy the `Accept` carries.
+- **Routing:** the `Accept` goes to the CASE_MANAGER only, never to the Case Owner that made the offer ([CM-33-015](../vultron-spec/requirements/case-management.md#cm-33-015)).
+  Its `object` is the CASE_MANAGER's forward, which the CASE_MANAGER matches to the recorded offer through the forward's `inReplyTo`, never through the copy the `Accept` carries ([CM-33-017](../vultron-spec/requirements/case-management.md#cm-33-017)).
 - **Who may send:** the target of the recorded offer only, and only while that offer is open: until the CASE_MANAGER records an `Accept` or `Reject` of it ([CM-33-005](../vultron-spec/requirements/case-management.md#cm-33-005)).
   The CASE_MANAGER refuses an `Accept` from any other sender, or to an offer that is no longer open.
   It also refuses an `Accept` whose carried offer names another role or target.
-  For a refused `Accept`, the CASE_MANAGER writes no ledger entry and changes no role.
+  For a refused `Accept`, the CASE_MANAGER writes no ledger entry and changes no role ([CM-33-016](../vultron-spec/requirements/case-management.md#cm-33-016)).
   When the CASE_MANAGER refuses an `Accept` because the offer is no longer open or its carried offer differs, it answers with the refusal notice.
   It answers an `Accept` from any other sender with nothing.
-  A redelivery of the `Accept` that closed the offer changes nothing.
+  A redelivery of the `Accept` that closed the offer changes nothing ([CM-33-018](../vultron-spec/requirements/case-management.md#cm-33-018)).
 - **Effect:** the CASE_MANAGER records the `Accept` in the ledger as `accept_case_participant_role`, and grants the role on its own copy of the case.
   It announces the entry to every participant.
-  Each participant grants the role when it replays the entry ([CM-33-006](../vultron-spec/requirements/case-management.md#cm-33-006), [CM-02-016](../specs/project.md#cm-02-016)).
+  Each participant grants the role when it replays the entry ([CM-33-006](../vultron-spec/requirements/case-management.md#cm-33-006), [CM-33-019](../vultron-spec/requirements/case-management.md#cm-33-019), [CM-33-020](../vultron-spec/requirements/case-management.md#cm-33-020), [CM-02-020](../specs/project.md#cm-02-020)).
 - **Triggering transition:** none — roster action.
 - **Example artifact:** [accept_case_participant_role.json](../examples/accept_case_participant_role.json).
 
 {% include-markdown "./_occasions/sections/reject-case-participant-role.md" %}
 
-- **Routing:** as for the `Accept`, the `Reject` goes to the CASE_MANAGER only, and names the forward it answers ([CM-33-004](../vultron-spec/requirements/case-management.md#cm-33-004)).
+- **Routing:** as for the `Accept`, the `Reject` goes to the CASE_MANAGER only, and names the forward it answers ([CM-33-015](../vultron-spec/requirements/case-management.md#cm-33-015)).
 - **Who may send:** as for the `Accept`, the target of the recorded offer only, while that offer is open ([CM-33-005](../vultron-spec/requirements/case-management.md#cm-33-005)).
   The CASE_MANAGER answers a refused `Reject` as it does a refused `Accept`.
-- **Effect:** the CASE_MANAGER records the `Reject` in the ledger as `reject_case_participant_role` and announces the entry to every participant ([CM-33-006](../vultron-spec/requirements/case-management.md#cm-33-006)).
-  The entry closes the offer, and no role changes.
+- **Effect:** the CASE_MANAGER records the `Reject` in the ledger as `reject_case_participant_role` and announces the entry to every participant ([CM-33-006](../vultron-spec/requirements/case-management.md#cm-33-006), [CM-33-019](../vultron-spec/requirements/case-management.md#cm-33-019)).
+  The entry closes the offer, and no role changes ([CM-33-021](../vultron-spec/requirements/case-management.md#cm-33-021)).
 - **Triggering transition:** none — roster action.
 - **Example artifact:** [reject_case_participant_role.json](../examples/reject_case_participant_role.json).
 
@@ -149,14 +149,14 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 
 - **Routing:** the `Reject` is addressed to the CASE_MANAGER, not to the actor that made the offer ([CM-21-010](../vultron-spec/requirements/case-management.md#cm-21-010)).
   The CASE_MANAGER acts on it only when it comes from the proposed owner of an open offer it recorded ([CM-21-013](../vultron-spec/requirements/case-management.md#cm-21-013)).
-  It records the `Reject` in the ledger and sends the entry to every participant, which closes the offer ([CM-21-012](../vultron-spec/requirements/case-management.md#cm-21-012)).
+  It records the `Reject` in the ledger and sends the entry to every participant, which closes the offer ([CM-21-012](../vultron-spec/requirements/case-management.md#cm-21-012), [CM-21-032](../vultron-spec/requirements/case-management.md#cm-21-032)).
 - **Trigger:** the recipient sends it with `POST /actors/{actor_id}/trigger/reject-case-ownership-transfer`, whose body names the `offer_id` it declines ([TRIG-11-005](../specs/project.md#trig-11-005), [Trigger API Reference](../trigger-api.md#actor-participation)).
 - **Triggering transition:** none — roster operation.
 - **Example artifact:** [reject_case_ownership_transfer.json](../examples/reject_case_ownership_transfer.json).
 
 {% include-markdown "./_occasions/sections/withdraw-case-ownership-transfer.md" %}
 
-- **Routing:** the withdrawal is addressed to the CASE_MANAGER ([CM-21-015](../vultron-spec/requirements/case-management.md#cm-21-015)).
+- **Routing:** the withdrawal is addressed to the CASE_MANAGER ([CM-21-036](../vultron-spec/requirements/case-management.md#cm-21-036)).
   It is an `Undo` of the owner's own proposal.
   The CASE_MANAGER withdraws the offer that it made from that proposal.
   It acts only when the withdrawal comes from the Case Owner that the offer was made for, and only while the offer is open.
@@ -177,14 +177,14 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 - **Object and target:** the `object` is the actor being invited, and the `target` is the case stub, of type `VulnerabilityCaseStub`.
   The stub carries the case identifier in its `caseId` and a required `summary` field: the owner-chosen description the invitee reads before deciding whether to accept ([CM-11-013](../vultron-spec/requirements/case-management.md#cm-11-013), [CM-17-010](../vultron-spec/requirements/case-management.md#cm-17-010), [MV-10-001](../vultron-spec/requirements/messages.md#mv-10-001)).
   The factory raises `VultronActivityConstructionError` when `VulnerabilityCase.stub_summary` is not set, and the receiver refuses a stub with an absent or blank `summary`.
-  The Invite names at least one CVD role for the invitee, and the CASE_MANAGER refuses to send one with an empty role list ([CM-11-019](../vultron-spec/requirements/case-management.md#cm-11-019)).
+  The Invite names at least one CVD role for the invitee, and the CASE_MANAGER refuses to send one with an empty role list ([CM-11-019](../vultron-spec/requirements/case-management.md#cm-11-019), [CM-11-048](../vultron-spec/requirements/case-management.md#cm-11-048)).
   The Invite carries its reply deadline in `endTime`.
   The CASE_MANAGER sets that deadline the same way it sets an embargo Invite's deadline.
   The deadline is the Invite's `published` time plus the configured RSVP window, capped at the end of the active embargo ([CM-11-014](../vultron-spec/requirements/case-management.md#cm-11-014), [CM-28-012](../vultron-spec/requirements/case-management.md#cm-28-012)).
   When the deadline passes, the Invite closes and the invitee's record does not change.
   A reply after the deadline is still processed: an `Accept` joins the invitee and a `Reject` closes the record.
   The CASE_MANAGER can re-invite an actor with a fresh stub Invite on the same record and a new deadline.
-  The fresh Invite's `inReplyTo` names the earlier one ([CM-11-015](../vultron-spec/requirements/case-management.md#cm-11-015)).
+  The fresh Invite's `inReplyTo` names the earlier one ([CM-11-042](../vultron-spec/requirements/case-management.md#cm-11-042)).
   A re-invite of a participant that has closed is refused.
   When the active embargo is activated, revised or terminated while a stub Invite is outstanding, the CASE_MANAGER sends a replacement with the current terms and a new deadline.
   The replacement names the Invite it supersedes in the standard AS2 `inReplyTo` property.
@@ -192,14 +192,14 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
   The CASE_MANAGER marks the invitee's consent row for that embargo `INVITED` with the replacement's deadline.
   It records the row as its own ledger entry, after the replacement's entry.
   With no embargo in force, no consent row changes.
-  An `Accept` of the superseded Invite is refused, naming the replacement, and a `Reject` of it is honored ([CM-11-016](../vultron-spec/requirements/case-management.md#cm-11-016)).
+  An `Accept` of the superseded Invite is refused, naming the replacement, and a `Reject` of it is honored ([CM-11-045](../vultron-spec/requirements/case-management.md#cm-11-045), [CM-11-046](../vultron-spec/requirements/case-management.md#cm-11-046)).
 - **Ask kind:** the Invite closes on `Accept` or `Reject` of it (`INVITE_ACTOR_TO_CASE_REPLY_TYPES`), and its expiry is stale: a late reply is still processed ([ASK-03-008](../vultron-spec/requirements/case-management.md#ask-03-008)).
 - **Example artifact:** [invite_to_case.json](../examples/invite_to_case.json).
 
 {% include-markdown "./_occasions/sections/accept-invite-to-case.md" %}
 
 - **Effects:** the CASE_MANAGER records the acceptance in the ledger, marks the participant's existing record joined, and then sends `Announce(VulnerabilityCase)` to seed the new participant's replica ([CM-17-004](../vultron-spec/requirements/case-management.md#cm-17-004)).
-  An Accept from an invitee with no participant record is refused with a reported reason and writes nothing, because an Accept never creates a participant ([CM-11-021](../vultron-spec/requirements/case-management.md#cm-11-021)).
+  An Accept from an invitee with no participant record is refused with a reported reason and writes nothing, because an Accept never creates a participant ([CM-11-021](../vultron-spec/requirements/case-management.md#cm-11-021), [CM-11-052](../vultron-spec/requirements/case-management.md#cm-11-052)).
   The Accept is the ledger entry for its own effects (the consent row and `joined`), which a replica applies.
   The record's creation and a vendor's VF status have their own entries.
   The CASE_MANAGER sends no `Add(CaseParticipant)` for it ([CM-31-012](../vultron-spec/requirements/case-management.md#cm-31-012)).
@@ -231,12 +231,12 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 - **Effects:** the participant judges the case valid ([Validate report](rm.md#report-valid)), and the CASE_MANAGER records RM Received → Valid ([CM-11-011](../vultron-spec/requirements/case-management.md#cm-11-011)).
 - **Ledger position:** the reply carries the participant's own ledger position as its `ledgerPosition`, in the same form as the Invite ([VAM-04-012](../vultron-spec/requirements/messages.md#vam-04-012)).
   The CASE_MANAGER refuses a reply whose position is behind the Invite's, or names an entry its ledger does not hold, and writes nothing ([CM-11-012](../vultron-spec/requirements/case-management.md#cm-11-012)).
-  It also refuses, and writes nothing for, a reply from an inert participant that has not joined the case (CM-11-012).
+  It also refuses, and writes nothing for, a reply from an inert participant that has not joined the case (CM-11-036).
 
 {% include-markdown "./_occasions/sections/tentatively-reject-full-case-invite.md" %}
 
 - **Effects:** the participant judges the case invalid ([Invalidate report](rm.md#report-invalid)), and the CASE_MANAGER records RM Received → Invalid.
-  The stub Invite has no `TentativeReject`, because accepting a stub judges nothing ([CM-11-007](../vultron-spec/requirements/case-management.md#cm-11-007)).
+  The stub Invite has no `TentativeReject`, because accepting a stub judges nothing ([CM-11-028](../vultron-spec/requirements/case-management.md#cm-11-028)).
 - **Ledger position:** the reply carries the participant's ledger position as its `ledgerPosition` ([VAM-04-013](../vultron-spec/requirements/messages.md#vam-04-013)).
 
 {% include-markdown "./_occasions/sections/reject-full-case-invite.md" %}
@@ -311,7 +311,7 @@ Only `caseRoles` on the attached object differs.
 
 - **Protocol role:** every change the CASE_MANAGER makes to the case file is its own ledger entry ([CLP-07-013](../vultron-spec/requirements/ledger-replication.md#clp-07-013)).
   An `Update` carrying the case in full is the shape that such an entry takes for a change to a case field.
-  The prototype commits one such entry, `update_case_owner`, when an ownership transfer changes the case owner ([CM-21-002](../vultron-spec/requirements/case-management.md#cm-21-002)), and replicas copy it from the ledger fan-out ([§10.2 Routing Topology](../vultron-spec/interactions.md#102-routing-topology)).
+  The prototype commits one such entry, `update_case_owner`, when an ownership transfer changes the case owner ([CM-21-024](../vultron-spec/requirements/case-management.md#cm-21-024)), and replicas copy it from the ledger fan-out ([§10.2 Routing Topology](../vultron-spec/interactions.md#102-routing-topology)).
   A participant that wants a change made asks the CASE_MANAGER.
   It does not send `Update` to the CASE_MANAGER or to its peers.
 - **On receipt:** the activity is recognized, but no use case handles it, so an inbox reports "no use case found" and changes nothing.
@@ -319,11 +319,11 @@ Only `caseRoles` on the attached object differs.
 
 {% include-markdown "./_occasions/sections/create-case-participant.md" %}
 
-- **Protocol role:** a participant record comes into existence only as the CASE_MANAGER's consequence of an act it records ([ADR-0137](../../adr/0137-case-records-are-attached-by-one-message-never-created-first.md), VAM-01-011).
+- **Protocol role:** a participant record comes into existence only as the CASE_MANAGER's consequence of an act it records ([ADR-0137](../../adr/0137-case-records-are-attached-by-one-message-never-created-first.md), VAM-01-020).
   The CASE_MANAGER creates the invitee's participant record when it sends a stub Invite, and commits that creation as its own entry, carrying the record in full ([CLP-07-013](../vultron-spec/requirements/ledger-replication.md#clp-07-013)).
   Replicas copy the record from the ledger fan-out ([§10.2 Routing Topology](../vultron-spec/interactions.md#102-routing-topology)).
   An actor joins a case by accepting its stub Invite (see [Accept Invite to Case](#accept-invite-to-case)).
-- **On receipt:** the activity is recognized, but no use case handles it, so an inbox reports "no use case found" and changes nothing (VAM-01-010).
+- **On receipt:** the activity is recognized, but no use case handles it, so an inbox reports "no use case found" and changes nothing (VAM-01-018).
 - **Triggering transition:** none — object construction.
 
 {% include-markdown "./_occasions/sections/update-case-participant.md" %}

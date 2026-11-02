@@ -25,7 +25,7 @@ case: the invitee already holds an *inert* participant record at RM
   (passing: implemented by #4045).
 - CM-11-011 — the three full-case replies are R → V, R → I and R → C.
 - CM-11-012 — a full-case reply is checked against the Invite's floor.
-- CM-11-002, CM-11-004 — ``Join``/``Ignore`` engage or defer; joining alone
+- CM-11-022, CM-11-004 — ``Join``/``Ignore`` engage or defer; joining alone
   is not RM.ACCEPTED (passing markers: already true today).
 - RMB-14-005 — ``Leave`` from RM.VALID is recorded as V → D → C
   (passing: implemented by #4044).
@@ -286,6 +286,7 @@ def test_stub_invite_reject_closes_and_keeps_the_record(joining_case) -> None:
 
 
 @pytest.mark.spec("CM-23-018", "ID-05-003")
+@pytest.mark.spec("CM-23-049")
 def test_a_repeated_stub_reject_from_the_closed_invitee_is_skipped(
     joining_case,
 ) -> None:
@@ -546,7 +547,7 @@ def _ledger_tail(joining: _JoiningCase) -> list[Any]:
 
 
 def _position(log_index: int, entry_hash: str) -> LedgerPosition:
-    """A ledger position (CM-11-010, CM-11-011)."""
+    """A ledger position (CM-11-031, CM-11-034)."""
     return LedgerPosition(log_index=log_index, entry_hash=entry_hash)
 
 
@@ -579,7 +580,7 @@ def _full_case_invite_at(
 def _full_case_reply_at(
     kind: str, joining: _JoiningCase, invite: as_Invite, *, position: Any
 ) -> as_Activity:
-    """A reply to *invite* carrying the replier's ledger position (CM-11-011)."""
+    """A reply to *invite* carrying the replier's ledger position (CM-11-034)."""
     build = {
         "accept": rm_accept_full_case_invite_activity,
         "tentative_reject": rm_tentative_reject_full_case_invite_activity,
@@ -650,6 +651,7 @@ def test_full_case_invite_reply_moves_rm_from_received(
     assert _rm_history(joining_case)[-2:] == [RM.RECEIVED, expected]
 
 
+@pytest.mark.spec("CM-11-035")
 @pytest.mark.spec("CM-11-012")
 @pytest.mark.parametrize(
     ("floor", "reply_at", "forge_hash", "refused"),
@@ -770,6 +772,7 @@ def test_joined_participant_is_not_accepted_until_it_sends_join(
     assert _rm_history(joining_case)[-1] == RM.ACCEPTED
 
 
+@pytest.mark.spec("CM-11-022")
 @pytest.mark.spec("CM-11-002")
 @pytest.mark.parametrize(
     ("decision", "expected"),
@@ -809,6 +812,7 @@ def test_valid_participant_engages_or_defers_with_join_or_ignore(
 
 
 @pytest.mark.spec("RMB-14-005")
+@pytest.mark.spec("RMB-14-009")
 def test_leave_from_valid_is_recorded_through_deferred(joining_case) -> None:
     """``V → C`` is not in the RM table, so Leave from VALID passes through D."""
     from vultron.wire.as2.factories import rm_close_case_activity

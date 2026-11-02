@@ -18,7 +18,7 @@
 Provides :class:`ApplyOwnershipTransferFromLedgerNode`, which copies the new
 Case Owner onto the local ``VulnerabilityCase.attributed_to`` when a
 participant receives the CASE_MANAGER's ``update_case_owner`` entry
-(CM-21-002, CLP-07-013, SYNC-02-002).
+(CM-21-024, CLP-07-013, SYNC-02-002).
 """
 
 from __future__ import annotations
@@ -107,7 +107,7 @@ class ApplyOwnershipTransferFromLedgerNode(_LedgerEffectNode):
         )  # CM-21-004, BTND-06-008: attributed_to must use save_many
         self.logger.info(
             "%s: copied the new owner of case '%s' from the ledger:"
-            " attributed_to = '%s' (CM-21-002, CM-23-016, SYNC-02-002)",
+            " attributed_to = '%s' (CM-21-024, CM-23-016, SYNC-02-002)",
             self.name,
             case_id,
             new_owner_id,

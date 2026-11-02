@@ -46,8 +46,8 @@ Lapsed status is also read from the rows and the register, and it needs three co
 Neither signatory nor lapsed is a consent state.
 
 Every row is written.
-Proposing an embargo gives every current Participant an `UNINVITED` row for it (CM-18-001).
-A new Participant record gets an `UNINVITED` row for every embargo already in the register (CM-18-001).
+Proposing an embargo gives every current Participant an `UNINVITED` row for it (CM-18-019).
+A new Participant record gets an `UNINVITED` row for every embargo already in the register (CM-18-020).
 `UNINVITED` means *not asked about this embargo*, not "has not answered yet".
 A missing row is a defect: a read of a missing row raises an error.
 An actor may agree or decline directly from `UNINVITED`, without an invitation first ([ADR-0048](../../../adr/0048-pec-no-embargo-is-absence-not-pre-consent.md), CM-18-003).
@@ -156,15 +156,15 @@ A Participant never declares its own consent state.
 
 | Activity | Effect on the case's EM state | Effect on consent |
 |---|---|---|
-| Embargo Proposal (EP) or Revision (EV), `Invite(EmbargoEvent)` on the case | `NONE` to `PROPOSED`, or `ACTIVE` to `REVISE`; a further proposal leaves it where it is | every other Participant gets an `UNINVITED` row for the proposed embargo, the proposer's row is `AGREED`, because proposing terms is consenting to them, and no row for the embargo in force changes (CM-18-001, MSM-07-005, EP-05-002) |
+| Embargo Proposal (EP) or Revision (EV), `Invite(EmbargoEvent)` on the case | `NONE` to `PROPOSED`, or `ACTIVE` to `REVISE`; a further proposal leaves it where it is | every other Participant gets an `UNINVITED` row for the proposed embargo, the proposer's row is `AGREED`, because proposing terms is consenting to them, and no row for the embargo in force changes (CM-18-019, MSM-07-005, EP-05-002) |
 | A relayed `Invite(EmbargoEvent)` to one Participant | none | the invitee's row for that embargo moves from `UNINVITED`, `DECLINED` or `TIMED_OUT` to `INVITED`, carrying the invitation's RSVP Deadline; a signatory asked about a revision keeps its `AGREED` row for the embargo in force (MSM-07-002, EP-09-004, CM-28-013) |
 | `Accept(Invite(EmbargoEvent))`, from any Participant, the Case Owner included | none | the sender's row for those terms becomes `AGREED`; that makes it a signatory only once they are the embargo in force (MSM-07-003) |
 | `Reject(Invite(EmbargoEvent))`, from any Participant, the Case Owner included | none | the sender's row for those terms becomes `DECLINED`; refused from an `AGREED` row for the embargo in force, because withdrawal is `Leave(EmbargoEvent)` (MSM-07-004, MSM-07-010, MSM-07-014) |
 | The Case Owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]` (EA, or EC for a revision) | to `ACTIVE`, or to `REVISE` while another proposal stays open | the owner's row for the activated embargo becomes `AGREED` unless it already is; a revision that ends no later than the embargo it replaces carries over every Participant whose row for the replaced embargo is `AGREED`, and one that ends later writes nothing, so a signatory that has not agreed to it has lapsed (MSM-07-005, MSM-07-008) |
 | The Case Owner's `Reject(EmbargoEvent)[target=VulnerabilityCase]` (ER, or EJ for a revision) | `PROPOSED` to `NONE`, or `REVISE` to `ACTIVE` with the prior terms standing, once no other proposal is open; once public disclosure, a public exploit or an attack is known, the rejection of the last open revision is followed in the same act by the CASE_MANAGER's termination (ET, EMB-04-002), so the revision ends `REJECTED` and the embargo `TERMINATED` | none, the owner's included (MSM-07-009) |
 | Withdrawal, `Leave(EmbargoEvent)` of the embargo in force | none | the withdrawing Participant's `AGREED` row for the embargo in force becomes `DECLINED`, as does every row it had marked `AGREED` for an open revision; the embargo stays in force for everyone else (MSM-07-010) |
-| Embargo Termination (ET), `Remove(EmbargoEvent)` | `ACTIVE` or `REVISE` to `EXITED` | none is written: with no `ACTIVE` entry nobody is a signatory, and no message is sent for consent (MSM-07-006) |
-| Invitation deadline passes | none | that invitation's `INVITED` row moves to `TIMED_OUT`, recorded in the case ledger (MSM-07-007) |
+| Embargo Termination (ET), `Remove(EmbargoEvent)` | `ACTIVE` or `REVISE` to `EXITED` | none is written: with no `ACTIVE` entry nobody is a signatory, and no message is sent for consent (MSM-07-025) |
+| Invitation deadline passes | none | that invitation's `INVITED` row moves to `TIMED_OUT`, recorded in the case ledger (MSM-07-007, MSM-07-026) |
 
 One activity can therefore move both scopes at once: the Case Owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]` activates the embargo *and* makes the owner a signatory.
 
@@ -209,11 +209,11 @@ An act whose entry fails to commit changes nothing.
 | Relayed invitation, `Invite(EmbargoEvent)` to one Participant | no register change | an `Update(EmbargoConsent)` moving the invitee's row to `INVITED`, with its RSVP Deadline (CM-28-013) |
 | The CASE_MANAGER's own answer to a proposal, by its policy or by its own `accept` or `reject` request | no register change, and no `Accept` or `Reject` is sent | an `Update(EmbargoConsent)` for the CASE_MANAGER's own row, `AGREED` or `DECLINED` (MSM-07-017) |
 | Participant's answer, `Accept` or `Reject` of `Invite(EmbargoEvent)` | the row the answer states, `AGREED` or `DECLINED` | nothing: the answer is that row's entry |
-| Owner's activation, `Accept(EmbargoEvent)[target=VulnerabilityCase]` | the activation, the supersession of the embargo it replaces, and the owner's own `AGREED` row | an `Update(EmbargoConsent)` for each signatory carried over to terms that end no later (EP-05-001) |
+| Owner's activation, `Accept(EmbargoEvent)[target=VulnerabilityCase]` | the activation, the supersession of the embargo it replaces, and the owner's own `AGREED` row | an `Update(EmbargoConsent)` for each signatory carried over to terms that end no later (EP-05-003) |
 | Owner's rejection, `Reject(EmbargoEvent)[target=VulnerabilityCase]` | the rejected proposal | nothing |
 | Abandonment once the case is public: the CASE_MANAGER's `Reject(Invite(EmbargoEvent))` of a proposal it received, or its `Undo(Invite(EmbargoEvent))` of one it sent itself | the canceled proposal | an `Undo(Invite(EmbargoEvent))` of each invitation the CASE_MANAGER relayed for that proposal, which changes nothing more |
 | Withdrawal, `Leave(EmbargoEvent)` | no register change | an `Update(EmbargoConsent)` moving the withdrawing Participant's row for the embargo in force to `DECLINED`, and one for each open revision it had agreed to (MSM-07-010) |
-| Termination, `Remove(EmbargoEvent)` | the end of the embargo in force and the cancellation of every open proposal (EP-08-004) | nothing: a termination writes no consent row (MSM-07-006) |
+| Termination, `Remove(EmbargoEvent)` | the end of the embargo in force and the cancellation of every open proposal (EP-08-004) | nothing: a termination writes no consent row (MSM-07-025) |
 | Invitation deadline passes | the expiry of that invitation (CM-28-009) | an `Update(EmbargoConsent)` moving the row to `TIMED_OUT` |
 | Late `Accept` of the Active Embargo | the `Accept` itself, as for an on-time `Accept`: the row it states, `AGREED` | nothing: the `Accept` is that row's entry |
 | Late `Accept` of a superseded embargo | the fresh invitation, relayed on behalf of the Active Embargo's proposer | an `Update(EmbargoConsent)` moving the row to `INVITED`, with its deadline |
@@ -236,7 +236,7 @@ The `Remove` entry carries what ended the embargo: `EARLY` or `END_TIME_REACHED`
 For an early end, it also carries the structured cause, such as a threat signal.
 A replica copies both onto its own register, so its record of the termination matches the CASE_MANAGER's.
 
-When the owner rejects the last open revision after the case went public, the CASE_MANAGER records the rejection and then ends the embargo in the same act (EMB-04-002, MSM-07-009).
+When the owner rejects the last open revision after the case went public, the CASE_MANAGER records the rejection and then ends the embargo in the same act (EMB-04-002, MSM-07-032).
 The ledger holds two entries: the `Reject`, which leaves the revision `REJECTED`, and then the CASE_MANAGER's own `Remove`, which leaves the embargo `TERMINATED` with the threat signals as its cause.
 A replica copies both entries in order and decides nothing.
 If the termination is refused, neither entry is committed.
@@ -332,7 +332,7 @@ They produce nothing that the protocol reads.
     Every "defaults to accept" above describes the stub backend that a deployment gets when it wires nothing (BT-23-001).
     None of them is a protocol obligation to accept.
     The one place where the protocol *does* mandate an answer is the public/exploit/attacks condition.
-    That condition is enforced independently of any call-out outcome (EMB-15-004, EMB-15-008).
+    That condition is enforced independently of any call-out outcome (EMB-15-004, EMB-15-010).
 
 ---
 
@@ -341,22 +341,22 @@ They produce nothing that the protocol reads.
 An `Invite(EmbargoEvent)` carries an RSVP Deadline.
 Silence past that deadline ends the invitation, which is the **pocket veto**.
 When a Participant with an `INVITED` row does not answer within the window, its row moves to `TIMED_OUT`, not `DECLINED`.
-Silence is not a decision, and `DECLINED` records only an explicit refusal (CM-28-004, [ADR-0118](../../../adr/0118-pec-expired-and-unbound-exited-states.md)).
+Silence is not a decision, and `DECLINED` records only an explicit refusal (CM-28-020, [ADR-0118](../../../adr/0118-pec-expired-and-unbound-exited-states.md)).
 The deadline belongs to one invitation and is recorded on that invitation's `INVITED` row.
 A Participant can therefore hold several open invitations with different deadlines.
 When one deadline passes, it times out only its own row (CM-28-013).
 
 The window has two forms, but they are one mechanism, not two ([ADR-0065](../../../adr/0065-embargo-invite-rsvp-deadline.md)).
 When the invitation carries an explicit `Invite.end_time`, that value governs (CM-28-002).
-When it does not, the policy default applies: seven days, measured from the invitation's `published` timestamp (EP-07-001).
+When it does not, the policy default applies: seven days, measured from the invitation's `published` timestamp (EP-07-001, EP-07-009).
 The CASE_MANAGER stamps `Invite.end_time` on every invitation it relays.
 It then records the invitee's `INVITED` consent row, deadline included, as its own ledger entry right after the Invite's entry.
-Every replica copies that row from the entry (CM-28-012, CM-28-013).
+Every replica copies that row from the entry (CM-28-012, CM-28-023).
 A Participant that receives an invitation derives no deadline of its own.
 
 There is a floor.
 An inviting actor must not send a window shorter than the minimum (EP-07-002).
-The minimum defaults to 72 hours (EP-07-002) and is configurable (EP-07-008).
+The minimum defaults to 72 hours (EP-07-010) and is configurable (EP-07-008).
 As the actor that stamps the relayed invitation, the CASE_MANAGER clamps a too-short window up to the minimum and logs the clamp.
 It does **not** reject the proposal as malformed (EP-07-003, EP-07-004, EP-07-005).
 Refusing a too-short invitation would punish the invitee for the inviter's error.
@@ -406,14 +406,14 @@ A Closed Participant is left out, as it is from all case content (CM-23-004).
 A teardown the CASE_MANAGER starts itself, including one at the embargo's end time, sends no announcement.
 When the CASE_MANAGER is the only Participant, the announcement is skipped rather than sent with an empty recipient list (EMB-19-002).
 
-On entering `EM.EXITED`, no Participant is bound by an embargo any more, and no later invitation can bind one (EMB-13-001, MSM-07-006).
+On entering `EM.EXITED`, no Participant is bound by an embargo any more, and no later invitation can bind one (EMB-13-001, MSM-07-025).
 No consent row is written for this: the register holds no `ACTIVE` entry, and the register is the fact.
 The embargo is over for everyone at once, which is the one thing about the EM scope that is genuinely global.
 
 ### The case status EM copy is read-only
 
 A `CaseStatus` carries one EM copy — a stamped read of the case's embargo register.
-That copy is **read-only**: `CaseStatus.em` is a frozen field and `EmDimension` is a frozen model (SDO-03-006, EMB-18-001).
+That copy is **read-only**: `CaseStatus.em` is a frozen field and `EmDimension` is a frozen model (SDO-03-010, EMB-18-001).
 Every in-place write path raises a `ValidationError` at runtime: `status.em = …`, `status.em.state = …`, and the retired flat spelling `status.em_state = …`, which `CaseStatus` no longer defines (SDO-03-003).
 
 The only writer is the case itself.

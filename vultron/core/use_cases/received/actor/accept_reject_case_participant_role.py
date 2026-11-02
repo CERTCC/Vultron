@@ -1,12 +1,12 @@
 """Use cases for Accept/Reject of the canonical role-delegation format (ADR-0039).
 
 Handles ``Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])`` and
-``Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])``, which the target of a
-role offer
-addresses to the case's CASE_MANAGER (CM-33-004).  The CASE_MANAGER acts on
-an answer only from the target of an open role Offer it recorded (CM-33-005),
-commits it and broadcasts ``Announce(CaseLedgerEntry)``, and on an Accept
-grants the role on its own replica (CM-33-006, CM-02-016).
+``Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])``, which the
+target of a role offer addresses to the case's CASE_MANAGER (CM-33-015).
+The CASE_MANAGER acts on an answer only from the target of an open role Offer
+it recorded (CM-33-005), commits it and broadcasts
+``Announce(CaseLedgerEntry)``, and on an Accept grants the role on its own
+replica (CM-33-020, CM-02-016).
 See SE-08-003, ADR-0039.
 """
 
@@ -55,7 +55,7 @@ def _carried_role_and_target(
 
     Read only to check them against the recorded Offer, never to find it
     (CM-33-005): the entry the CASE_MANAGER commits carries this copy, and
-    every replica grants what it names (CM-02-016).  The target is
+    every replica grants what it names (CM-02-016, CM-02-020).  The target is
     normalised, since the CASE_MANAGER's grant looks it up in the case's
     participant index, as every replica does (OID-01-006).
     """
@@ -77,7 +77,7 @@ class AcceptCaseParticipantRoleReceivedUseCase:
 
     The sender must be the target of an open role Offer the CASE_MANAGER
     recorded for the case; an answer naming the CASE_MANAGER's forward is
-    resolved to that Offer through the forward's ``inReplyTo`` (CM-33-005).
+    resolved to that Offer through the forward's ``inReplyTo`` (CM-33-017).
     Anyone else, or an answer to an Offer already answered, is ``REFUSED``
     with no entry and no role change; a redelivery of the Accept that closed
     the Offer is ``SKIPPED`` (HP-01-003).  An admitted Accept is committed as
@@ -87,7 +87,7 @@ class AcceptCaseParticipantRoleReceivedUseCase:
     """
 
     # The target of the recorded role Offer is the addressee of the request
-    # (ADR-0129).  The answer goes to the CASE_MANAGER only (CM-33-004), so
+    # (ADR-0129).  The answer goes to the CASE_MANAGER only (CM-33-015), so
     # no sender is admitted at any other store: a participant learns the
     # answer from the CASE_MANAGER's entry, never from the answer itself
     # (CM-02-016).
@@ -144,7 +144,7 @@ class RejectCaseParticipantRoleReceivedUseCase:
 
     The Accept's sender rule and open-Offer check (CM-33-005).  An admitted
     Reject is committed as ``reject_case_participant_role`` and announced to
-    the participants (CM-33-006, CLP-02-012); that entry closes the Offer,
+    the participants (CM-33-006, CM-33-019, CLP-02-012); that entry closes the Offer,
     and no role changes.  See SE-08-003, ADR-0039.
     """
 

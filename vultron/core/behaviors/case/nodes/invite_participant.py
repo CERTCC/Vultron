@@ -19,7 +19,7 @@
 Guards a duplicate ``Accept(Invite(Actor)[target=VulnerabilityCaseStub])`` from a joined
 or removed
 participant (CM-17-012), and refuses an Accept whose invitee has no
-participant record (CM-11-021): the record is created when the stub Invite is
+participant record (CM-11-052): the record is created when the stub Invite is
 sent (CM-11-006), never on the Accept.  The activation step
 lives in ``invite_participant_persist.py``. Composed by
 ``create_accept_invite_actor_to_case_tree`` (BTND-07-003).

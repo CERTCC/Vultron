@@ -24,7 +24,7 @@ copy of the case names the CaseActor, and the owner would never see it.
 
 ``attributed_to`` names the CASE_OWNER (CP-09-001), but the nodes resolve the
 owner from the ``CASE_OWNER`` participant role, the authoritative record
-(CM-21-002).  These tests seed a store whose ``attributed_to`` names the
+(CM-21-024).  These tests seed a store whose ``attributed_to`` names the
 CaseActor, so a node that reads ``attributed_to`` first fails here.
 The defect only ever surfaced in the rcvcv Docker scenario, as a chain of five
 failures starting at "Offer(CaseParticipant) for V2 arrived in C1's DataLayer"
@@ -246,7 +246,7 @@ class TestDuplicateRecommendationNoteAddressesTheCaseOwner:
         assert CASE_ACTOR_ID not in recipients, recipients
 
     @pytest.mark.spec("CM-16-016")
-    @pytest.mark.spec("VAM-01-010")
+    @pytest.mark.spec("VAM-01-015")
     def test_note_travels_inline_on_the_add(self, case_actor_dl):
         """The reinforcing-suggestion note rides inline on its Add(Note),
         naming the second recommender (CM-16-016, #4706)."""

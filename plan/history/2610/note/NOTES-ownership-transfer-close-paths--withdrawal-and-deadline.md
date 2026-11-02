@@ -1,24 +1,17 @@
 ---
-title: Ownership Transfer — Closing an Offer Without an Answer (Withdrawal, Deadline)
-status: active
-kind: plan
-tracks:
-  - "#4491"
-  - "#4055"
-description: >
-  Design for the ways an ownership-transfer Offer closes without the transferee's
-  answer: owner withdrawal, and a binding answer deadline with lazy expiry.
-related_specs:
-  - specs/case-management.yaml
-  - specs/case-ledger-processing.yaml
-  - specs/triggerable-behaviors.yaml
-  - specs/handler-protocol.yaml
-  - specs/received-status-handling.yaml
-  - specs/vultron-as2-mapping.yaml
-  - specs/protocol-asks.yaml
-related_notes:
-  - notes/ownership-transfer.md
-  - notes/bt-integration.md
+source: NOTES-ownership-transfer-close-paths--withdrawal-and-deadline
+timestamp: '2026-10-30T20:17:51.612462+00:00'
+title: Ownership Transfer — Closing an Offer Without an Answer
+type: note
+---
+
+**Archived:** 2026-10-30
+**Reason:** delivered — withdrawal, deadline and expiry are all built (#4491, #4055
+closed); the rules are CM-21-015 to CM-21-017, and the one design rule (closing
+entries live in `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`) moved to
+`notes/ownership-transfer.md`.
+**Superseded by:** CM-21-015, CM-21-016, CM-21-017; `notes/ownership-transfer.md`.
+
 ---
 
 # Ownership Transfer — Closing an Offer Without an Answer
@@ -82,8 +75,8 @@ an Offer can also close without an answer (#4490):
     treats an Offer past it as closed, so a new proposal is admitted
     (`RecordedOwnershipOffer.is_open_at`). Both run behind the CASE_MANAGER
     gate and compare against one `now` per delivery, read from `now_utc()`.
-- **Expiry (CM-21-017) — implemented.** The expiry is an observation, not an
-  act: nothing is ledgered or sent for it, because every holder of the ledger
+- **Expiry (CM-21-017, CM-21-043) — implemented.** The expiry is an observation,
+  not an act: nothing is ledgered or sent for it, because every holder of the ledger
   can read the deadline from the Offer and no replica changes when it passes
   (ADR-0152). The CASE_MANAGER reads it lazily, when it next processes an
   Accept, Reject or Undo of the Offer or a new proposal for the case; it is no

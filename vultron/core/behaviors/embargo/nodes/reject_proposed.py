@@ -22,7 +22,7 @@ received tree's guards, with the termination it causes after disclosure
 ``REJECT`` step as the CASE_MANAGER (a replica copies the committed step,
 ``activation_effect.py``); :class:`EmbargoOutlivesDisclosureNode` tells,
 after that step, that the CASE_MANAGER must now terminate the embargo in
-the same act (MSM-07-009).  The P/X/A abandonment of open
+the same act (MSM-07-032).  The P/X/A abandonment of open
 proposals (EMB-16-001) is the CASE_MANAGER's decision, not an owner's
 Reject, and lives in :mod:`.abandon`.
 
@@ -76,7 +76,7 @@ class DecideRejectedEmbargoProposalNode(
 
     With P/X/A set, rejecting the last revision leaves the prior terms in
     force only until :class:`EmbargoOutlivesDisclosureNode`'s termination
-    later in the same act (EMB-04-002, MSM-07-009).
+    later in the same act (EMB-04-002, MSM-07-032).
 
     Returns SUCCESS and changes nothing when the embargo is no longer an
     open proposal (already decided), so a repeated Reject is idempotent.
@@ -149,7 +149,7 @@ class OwnerRejectionAppliesNode(DataLayerConditionWithPorts):
     applied in order to a copy of the case file through the one apply
     function.  FAILURE when the decision or either step is refused, so the
     act is refused before its entry is committed and a refused termination
-    commits neither entry (MSM-07-009).  Read-only.
+    commits neither entry (MSM-07-032).  Read-only.
     """
 
     def __init__(
@@ -199,7 +199,7 @@ class EmbargoOutlivesDisclosureNode(DataLayerConditionWithPorts):
     or attacked (:func:`~vultron.core.predicates.embargo.embargo_outlives_disclosure`).
     The rejection then decided the last revision after disclosure, and
     returning to the prior terms is not allowed, so the CASE_MANAGER
-    terminates the embargo before the act ends (MSM-07-009).  FAILURE in
+    terminates the embargo before the act ends (MSM-07-032).  FAILURE in
     every other case.  Read-only.
     """
 

@@ -344,7 +344,7 @@ def create_announce_log_entry_tree(
             # No CloseCase slot: close_case records the received Leave, and
             # the RM moves it caused arrive as the participant-status entries
             # after it, copied above.  A replica never walks a closure path
-            # from its own stored state (CM-23-001, CM-23-016, #4091).
+            # from its own stored state (CM-23-023, CM-23-044, #4091).
             _event_effect_slot(
                 "OfferReport",
                 IsSubmitReportEventNode,
@@ -369,7 +369,7 @@ def create_announce_log_entry_tree(
             # its own proposal, and a bystander never answers, so the entry
             # has nothing to apply at a replica (ADR-0148, SYNC-12-001).
             # Accepting a delegated role grants it to the target participant
-            # (CM-02-016, ADR-0039); the offer half carries no grant (#3764).
+            # (CM-02-020, ADR-0039); the offer half carries no grant (#3764).
             _event_effect_slot(
                 "RoleGrant",
                 IsAcceptCaseParticipantRoleEventNode,

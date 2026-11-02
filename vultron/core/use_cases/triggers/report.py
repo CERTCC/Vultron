@@ -125,7 +125,7 @@ class SvcAckReportUseCase(SvcActivityTriggerBase):
     to the reporter, at any time after the report arrived, whether or not a
     case exists: it answers the reporter's Offer outside the case, so it is
     the stated exception to PCR-08-001.  Nobody sends it to the CASE_MANAGER
-    (RMB-08-003).  An actor the Offer was not sent to is refused before
+    (RMB-08-005).  An actor the Offer was not sent to is refused before
     anything is emitted.
     """
 

@@ -64,7 +64,7 @@ A **primary event** comes from outside the protocol. Something in the world chan
 
 - A finder submits a vulnerability report.
 - A vendor decides the report is valid.
-- A participant proposes an embargo period.
+- A participant proposes an embargo.
 
 A **cascade** is everything that follows automatically from a primary event. The actor that received the primary event updates its own state and sends the messages the protocol requires. Each actor that receives one of those messages runs its own cascade. Together these form a chain.
 
@@ -118,19 +118,19 @@ If you write tests or monitoring for a Vultron implementation, check the recorde
 
 ## When an actor must ask permission
 
-Some steps in a cascade cannot be automatic, because the actor is not allowed to decide alone. A participant may report that a vulnerability is now public. Whether that report becomes the shared, agreed state of the case is not the reporting participant's decision. The case owner decides.
+Some steps in a cascade cannot be automatic, because the actor is not allowed to decide alone. A participant may report that a vulnerability is now public. Whether that report becomes the shared, agreed state of the case is not the reporting participant's decision. The Case Owner decides.
 
 Here Vultron does something that surprises people. The actor **asks, and then it stops.**
 
 1. The actor needs permission.
-2. The actor sends the case owner a request that carries a deadline.
+2. The actor sends the Case Owner a request that carries a deadline.
 3. The actor finishes. Its work succeeded, because asking was the work.
-4. Later, the case owner replies: agreed, or refused.
+4. Later, the Case Owner replies: agreed, or refused.
 5. That reply is a new message. It arrives in an inbox, and it starts new work.
 
 Step 3 is the part worth understanding. **Success means "I asked", not "I was told yes."** Nothing is left waiting or held open. The work is divided at the question rather than paused there. Asking is one complete piece of work; acting on the answer is another piece of work, and the answer's arrival is what starts it.
 
-This is why the request carries a **deadline**. The deadline is part of the message, so the case owner can see how long they have, and the asking actor knows when the question has gone stale.
+This is why the request carries a **deadline**. The deadline is part of the message, so the Case Owner can see how long they have, and the asking actor knows when the question has gone stale.
 
 ### What happens while the actor waits
 
@@ -176,7 +176,7 @@ Both lists matter, for different reasons.
 
 The **questions I asked** list stops an actor asking the same thing twice, and lets it notice when a deadline has passed.
 
-The **questions I owe** list is more important than it first appears. It is the list a person, an interface, or an automated service works from. Without it, a case owner has no way to discover that a decision is waiting for them, so permission could only ever be granted by accident. This list is what makes the case owner's role something they can actually perform.
+The **questions I owe** list is more important than it first appears. It is the list a person, an interface, or an automated service works from. Without it, a Case Owner has no way to discover that a decision is waiting for them, so permission could only ever be granted by accident. This list is what makes the Case Owner's role something they can actually perform.
 
 Both lists are working notes. They say what is outstanding. They never say what was permitted — for that, an actor reads the recorded history of the case, which is the shared, verifiable record. Keeping these apart matters: a working note could be rebuilt or damaged, and it must never be able to authorize anything on its own.
 

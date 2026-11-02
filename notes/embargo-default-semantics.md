@@ -7,7 +7,7 @@ description: >
   tacit-acceptance path; actor default versus protocol default and why only
   the actor default competes under shortest-wins; whose policy the actor
   default is and how it reaches creation (CP-01-010); the creation-time
-  revision and its relay in the creation act (EP-04-011); why
+  revision and its relay in the creation act (EP-04-011, EP-04-016); why
   initialization runs once per case keyed on EM state and commits in one
   write (EP-04-012); and why an RSVP deadline may not outlive its embargo
   (EP-07-006).
@@ -54,10 +54,10 @@ to `EM.ACTIVE` with no `EP`/`EA` exchange (EP-04-001). The intermediate
 | Scenario | EM outcome |
 |---|---|
 | Receiver has actor default, reporter states no terms | `EM.ACTIVE` at the default (EP-04-001) |
-| Reporter's terms shorter than the default | Reporter's → `ACTIVE`; default → `REVISE` (EP-04-003) |
-| Reporter's terms longer than the default | Default → `ACTIVE`; reporter's → `REVISE` (EP-04-003) |
-| Neither party has terms | `ACTIVE` at the protocol default (EP-04-005, ADR-0096) |
-| Neither has terms and P/X/A is set | `EM.NONE` (EP-04-008) |
+| Reporter's terms shorter than the default | Reporter's → `ACTIVE`; default → `REVISE` (EP-04-003, EP-04-016) |
+| Reporter's terms longer than the default | Default → `ACTIVE`; reporter's → `REVISE` (EP-04-003, EP-04-016) |
+| Neither party has terms | `ACTIVE` at the protocol default (EP-04-019, ADR-0096) |
+| Neither has terms and P/X/A is set | `EM.NONE` (EP-04-008, EP-04-020) |
 
 - **A demo that reaches `EM.ACTIVE` with no proposal activity is correct**, not
   missing a step. A demo of the negotiated path (terms stated on the report
@@ -80,14 +80,14 @@ to `EM.ACTIVE` with no `EP`/`EA` exchange (EP-04-001). The intermediate
   candidate** (EP-04-006): a short default that competed would cap every
   embargo at its own length. It is **not a minimum** either (EP-04-007): agreed
   12-hour terms give 12 hours. `resolve_initial_embargo_duration()` owns this.
-- **Keep the three durations under distinct names** (EP-04-010):
+- **Keep the three durations under distinct names** (EP-04-022):
   `actor_default_embargo_duration`, `protocol_default_embargo_duration`, and the
   resolved `initial_embargo_duration` (duration plus source). A shared key
   cannot tell "published 90 days" from "published nothing" (#3390).
 - **No model field may default a duration.** `EmbargoEvent.end_time` is
   required; a field default applies at every construction site with no call
   site to inspect, so the protocol default would stop being the single source
-  (EP-04-010, #3404).
+  (EP-04-023, #3404).
 - **The actor default is the CASE_OWNER's policy and no one else's.** The
   CASE_OWNER is the actor the report was offered to, named by
   `case.attributed_to` on every creation path (CM-02-008). The CASE_MANAGER,
@@ -111,7 +111,7 @@ to `EM.ACTIVE` with no `EP`/`EA` exchange (EP-04-001). The intermediate
   unreadable case or store raises, because FAILURE would run creation
   (`notes/bt-pitfalls.md` § "A Refusal Arm in a Selector Fails Toward 'Admit'").
 - **The sender's event keeps its id, with `context` rewritten to the case**
-  (EP-04-004). An id is sender-supplied, so `persist_creation_time_embargo`
+  (EP-04-017). An id is sender-supplied, so `persist_creation_time_embargo`
   refuses a stored twin that is not the same embargo (same case, same
   `end_time`) rather than treating it as a replay. A proposal whose `context` is
   not its report is read as no proposal (EP-04-009). An exact tie registers no
@@ -130,7 +130,7 @@ The losing terms are a revision like any other and follow the relay in
 - **Relayed after initialization, in the same act.** `RelayCreationTimeRevisionNode`
   runs after `CommitNativeLedgerEntriesNode`, inside the creation's
   `ActTransaction`, because no modification may start before the creation
-  sequence completes (CM-14-007) and a failed relay must roll the creation back
+  sequence completes (CM-14-014) and a failed relay must roll the creation back
   (CLP-07-015). It queues the relayed Invite, commits it, and only then indexes
   it, so the index never names an Invite that was not emitted. It relays only
   when this execution's registration published `creation_time_revision_candidate`,
@@ -141,7 +141,7 @@ The losing terms are a revision like any other and follow the relay in
   (MSM-07-005), so the proposer's row, not the executing actor's, gains the
   revision (`creation_revision_parties`). A reporter that is the CASE_OWNER has
   nobody to invite: nothing is relayed. A missing reporter, a missing
-  CASE_OWNER, or a winner who is not an invitation recipient (CM-10-007) raises
+  CASE_OWNER, or a winner who is not an invitation recipient (CM-10-009) raises
   as the manager's internal error, never a REFUSED verdict (ADR-0095).
 - **A failed relay keeps nothing.** The whole creation rolls back, so the
   inbox's redelivery of the proposal creates the case, registers the revision
@@ -156,7 +156,7 @@ The losing terms are a revision like any other and follow the relay in
 `InitializeDefaultEmbargoNode` is reached on both branches of
 `ResolveCaseIdSelector`, including a redelivered `Create(CaseProposal)` that
 reuses a case (CP-05-006). Its first arm, `CaseEmbargoAlreadyInitializedNode`,
-skips creation when EM has left `NONE` (EP-04-012).
+skips creation when EM has left `NONE` (EP-04-028).
 
 - **Key on EM state, never on `case.active_embargo`.** Termination clears the
   reference but leaves EM `EXITED`, so a reference-keyed guard re-runs creation
@@ -191,7 +191,7 @@ it.
 
 ## An RSVP Deadline May Not Outlive Its Embargo
 
-An RSVP deadline is clamped **down** to the embargo's `end_time` (EP-07-006,
+An RSVP deadline is clamped **down** to the embargo's `end_time` (EP-07-011,
 CM-28-011), so the minimum window is "72 hours, or the remaining embargo,
 whichever is shorter" (EP-07-002). Otherwise a 24-hour embargo would carry a
 7-day pocket veto that fires long after the embargo ended.

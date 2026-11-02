@@ -260,6 +260,7 @@ class TestOwnerDecision:
     @pytest.mark.spec("CM-28-015")
     @pytest.mark.spec("CM-28-009")
     @pytest.mark.parametrize(("factory", "use_case", "decided"), _DECISIONS)
+    @pytest.mark.spec("MSM-07-026")
     def test_the_expiry_is_committed_before_the_decision(
         self, make_payload, factory, use_case, decided
     ):
@@ -295,7 +296,7 @@ class TestOwnerDecision:
 class TestDoorGuardsFirst:
     """AC-3 (reworded): the sweep runs only once the door guards admit."""
 
-    @pytest.mark.spec("CM-28-015")
+    @pytest.mark.spec("CM-28-026")
     @pytest.mark.spec("HP-01-006")
     @pytest.mark.parametrize(("factory", "use_case", "decided"), _DECISIONS)
     def test_a_non_owners_decision_is_refused_with_no_expiry(
@@ -311,7 +312,7 @@ class TestDoorGuardsFirst:
         assert _ledger(dl) == []
         assert _consent(dl, _INVITEE) == EmbargoConsentState.INVITED
 
-    @pytest.mark.spec("CM-28-015")
+    @pytest.mark.spec("CM-28-027")
     @pytest.mark.spec("CLP-10-025")
     @pytest.mark.parametrize(("factory", "use_case", "decided"), _DECISIONS)
     def test_a_decision_on_no_open_proposal_is_refused_after_the_expiry(
@@ -358,7 +359,7 @@ class TestSweepScope:
         assert _row_actor(entry) == _INVITEE
         assert _consent(dl, _OTHER) == EmbargoConsentState.INVITED
 
-    @pytest.mark.spec("CM-28-015")
+    @pytest.mark.spec("CM-28-025")
     def test_a_row_of_a_replaced_embargo_is_frozen(self):
         """An overdue row on a rejected proposal is left as it is."""
         dl, embargo = _store()
@@ -494,7 +495,7 @@ class TestOtherEmbargoActivity:
             dl, event, **_ports(dl, sync)
         ).execute()
 
-    @pytest.mark.spec("CM-28-015")
+    @pytest.mark.spec("CM-28-028")
     def test_a_participants_reject_of_its_invite_sweeps_first(
         self, make_payload
     ):
@@ -511,6 +512,7 @@ class TestOtherEmbargoActivity:
         assert _consent(dl, _OTHER) == EmbargoConsentState.DECLINED
 
     @pytest.mark.spec("CM-28-015")
+    @pytest.mark.spec("CM-28-020")
     def test_a_late_reject_times_out_then_declines(self, make_payload):
         """The sender's own overdue row is swept too, as the CASE_MANAGER's
         own act on its own clock; the Reject then declines the timed-out
@@ -529,6 +531,7 @@ class TestOtherEmbargoActivity:
 
     @pytest.mark.spec("CM-28-015")
     @pytest.mark.spec("MSM-07-007")
+    @pytest.mark.spec("MSM-07-026")
     def test_the_owner_learns_of_both_from_the_fan_out_alone(
         self, make_payload
     ):
@@ -558,7 +561,7 @@ class TestOtherEmbargoActivity:
 class TestOwnerTrigger:
     """AC-5: the owner's own decision trigger, run on the CASE_MANAGER."""
 
-    @pytest.mark.spec("CM-28-015")
+    @pytest.mark.spec("CM-28-029")
     @pytest.mark.spec("EP-09-008")
     @pytest.mark.parametrize(
         ("use_case", "request_model", "decided"),
@@ -603,7 +606,7 @@ class TestOwnerTrigger:
         assert _consent(dl, _INVITEE) == EmbargoConsentState.TIMED_OUT
 
 
-@pytest.mark.spec("CM-28-015")
+@pytest.mark.spec("CM-28-028")
 @pytest.mark.spec("CLP-10-025")
 def test_every_received_embargo_tree_with_a_case_takes_the_sweep():
     """AC-2: every received embargo tree that runs a clock-decision stage —

@@ -490,7 +490,7 @@ def test_a_revision_is_stored_and_proposed_in_the_same_commit(
     assert stored.proposed_embargo_ids == [revision.id_]
     assert isinstance(dl.read(revision.id_), as_EmbargoEvent)
     # The owner both proposed the revision and is seeded on the active
-    # terms: one record carries both through the commit (MSM-07-005).
+    # terms: one record carries both through the commit (MSM-07-022).
     assert _consents_of(dl, owner_p.id_) == {
         embargo.id_: "AGREED",
         revision.id_: "AGREED",
@@ -499,6 +499,7 @@ def test_a_revision_is_stored_and_proposed_in_the_same_commit(
 
 
 @pytest.mark.spec("MSM-07-005")
+@pytest.mark.spec("MSM-07-022")
 def test_the_revision_is_consented_to_by_its_proposer_not_the_executor(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:

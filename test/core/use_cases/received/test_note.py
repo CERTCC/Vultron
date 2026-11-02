@@ -134,7 +134,7 @@ class TestNoteUseCases:
         assert result.disposition == HandlerDisposition.APPLIED
 
     @pytest.mark.spec("HP-08-006")
-    @pytest.mark.spec("VAM-01-010")
+    @pytest.mark.spec("VAM-01-015")
     def test_add_note_to_case_stores_the_inline_note(self, make_payload):
         """An Add(Note) carrying a note the CASE_MANAGER has never seen
         stores that note, then attaches it (#4706): the case never names a
@@ -346,7 +346,7 @@ class TestNoteUseCases:
         assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
 
     @pytest.mark.spec("HP-08-006")
-    @pytest.mark.spec("VAM-01-010")
+    @pytest.mark.spec("VAM-01-015")
     def test_add_reply_note_through_ingress_is_applied(self):
         """A reply note sent through the inbox ingress is stored and attached
         with its ``in_reply_to``: the event carries the note as received, so
@@ -646,6 +646,7 @@ class TestNoteUseCases:
         assert note.id_ not in case.notes
 
     @pytest.mark.spec("CM-30-001")
+    @pytest.mark.spec("CM-30-004")
     def test_remove_note_by_author_who_left_is_refused(self, make_payload):
         """An author who is no longer a participant has no standing."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
@@ -689,7 +690,7 @@ class TestNoteUseCases:
         assert note.id_ in case.notes
         assert dl.list_objects("CaseLedgerEntry") == []
 
-    @pytest.mark.spec("CM-30-001")
+    @pytest.mark.spec("CM-30-003")
     def test_remove_note_at_replica_from_non_manager_is_refused(
         self, make_payload
     ):

@@ -220,8 +220,9 @@ class BTBridge:
         sanctioned: a container executes trees only as actors it hosts, and a
         participant reaches a CASE_MANAGER on another container by sending it
         its own activity, never by executing a tree in its name (BT-05-005,
-        CM-24-004, ADR-0109).  ``execute_with_setup`` classifies the raise as
-        an internal error, so a trigger that tries answers 500, not 422.
+        CM-24-010, CM-24-011, ADR-0109).  ``execute_with_setup`` classifies
+        the raise as an internal error, so a trigger that tries answers 500,
+        not 422.
 
         Reconciling the store is necessary but not sufficient — see
         :meth:`_ports_for_store` for the other half.
@@ -250,7 +251,7 @@ class BTBridge:
         "not found in DataLayer for actor …", skips delivery, and the invitee is
         never told it was invited (ISSUE-2548).
 
-        No trigger runs a delegated emit any more (CM-24-004, ADR-0109): the
+        No trigger runs a delegated emit any more (CM-24-010, ADR-0109): the
         invite and the ownership-transfer offer both send the requester's own
         activity to the CASE_MANAGER.  The reconciliation stays for any tree
         that runs as a co-hosted actor other than the injected store's own.

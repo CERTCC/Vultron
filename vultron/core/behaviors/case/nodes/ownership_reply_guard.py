@@ -24,7 +24,7 @@ Provides:
   redelivery of the reply that closed it (CM-21-014, CM-21-016).
 - :class:`OwnershipTransfereeActiveNode` — precondition guard that refuses
   an Accept from a transferee that is no longer an active participant
-  (CM-21-021).
+  (CM-21-022).
 - :func:`case_manager_ownership_offer_open_guard` — the open-Offer guard,
   and for an Accept the active-transferee guard after it, behind the
   CASE_MANAGER gate, for the reply trees' ``precondition_guards``.
@@ -73,7 +73,7 @@ _CLOSED_SPEC: dict[OfferParty, str] = {
 
 #: The requirements a refusal of a reply after the deadline cites, per party:
 #: the deadline binds an answer (CM-21-016), and an expired Offer is closed
-#: (CM-21-017), so it cannot be withdrawn (CM-21-015).
+#: (CM-21-017), so it cannot be withdrawn (CM-21-039).
 _LATE_SPEC: dict[OfferParty, str] = {
     OfferParty.TRANSFEREE: "CM-21-016",
     OfferParty.OFFERER: "CM-21-015, CM-21-017",
@@ -251,17 +251,17 @@ class OwnershipTransfereeActiveNode(DataLayerConditionWithPorts):
     lapsed since: removed, left the case, or not agreed to an embargo that
     became active while the Offer was open.  Its Accept is then refused, so
     ownership never moves to an actor the case would send no content to
-    (CM-21-021, CM-10-004).
+    (CM-21-022, CM-10-004).
 
     The transferee is the one the recorded Offer names, the same actor the
     role change grants ``CASE_OWNER`` to, never the sender id; the sender
     check has already established they are the same.  Runs after
     :class:`OwnershipOfferOpenNode`, so a redelivery of the Accept that
     closed the Offer stays ``SKIPPED`` whatever the transferee's standing now
-    (HP-01-003).  Only the Accept runs it: CM-21-021 governs the answer that
+    (HP-01-003).  Only the Accept runs it: CM-21-022 governs the answer that
     moves ownership, and a Reject moves nothing.
 
-    Spec: CM-21-021, CM-10-004.
+    Spec: CM-21-022, CM-10-004.
     """
 
     def __init__(
@@ -307,7 +307,7 @@ class OwnershipTransfereeActiveNode(DataLayerConditionWithPorts):
             f"the transferee '{offer.transferee_id}' of ownership-transfer"
             f" Offer '{offer.offer_id}' {why}, so it may no longer act on"
             f" case '{self._case_id}' and may not take ownership"
-            " — REFUSED (CM-21-021, CM-10-004)"
+            " — REFUSED (CM-21-022, CM-10-004)"
         )
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
@@ -327,12 +327,12 @@ def case_manager_ownership_offer_open_guard(
 
     With *transferee_must_be_active*, the Accept's case, the transferee must
     also still be an active participant
-    (:class:`OwnershipTransfereeActiveNode`, CM-21-021), checked after the
+    (:class:`OwnershipTransfereeActiveNode`, CM-21-022), checked after the
     Offer is found open so a redelivery is still recognised first.
 
     A replica skips it as ``SUCCESS``: it takes the change from the
     CASE_MANAGER alone, which the sender check establishes (PCR-03-001),
-    and changes nothing when an Offer expires (CM-21-017).  A
+    and changes nothing when an Offer expires (CM-21-043).  A
     receiver that does not hold the case is not its CASE_MANAGER (ADR-0087
     Regime 3).
     """

@@ -107,7 +107,7 @@ def demo_case_proposal_round_trip(
     """
     # Step 1: through the reporter's own submit-report trigger, which writes
     # the anchor the vendor's case introduction is checked against
-    # (CBT-01-005, #4675).  The helper records its own steps and raises when
+    # (CBT-01-017, #4675).  The helper records its own steps and raises when
     # the trigger fails, so nothing below runs on a missing report.
     report, _offer = reporter_submits_report(
         client,

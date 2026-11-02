@@ -155,7 +155,7 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
         assert self.datalayer is not None
         if not case.proposal_is_undecided(embargo_id):
             return
-        # Normalised: the snapshot keeps the relay's spelling (OID-01-006).
+        # Normalised: the snapshot keeps the relay's spelling (OID-01-008).
         proposer_id = snapshot_actor_id(
             snapshot.get(wire_key("attributed_to"))
         )
@@ -358,7 +358,7 @@ class _ApplyEmbargoAnswerFromLedgerNode(_CopiedEmbargoEntryNode):
         self, entry: CaseLedgerEntry, embargo: EmbargoEvent
     ) -> EmbargoChange:
         # The answerer's row is keyed by its canonical id; the snapshot keeps
-        # the sender's spelling (OID-01-006).
+        # the sender's spelling (OID-01-008).
         actor_id = snapshot_actor_id(entry.payload_snapshot.get("actor"))
         if not actor_id:
             raise TypeError("the answer names no actor")
@@ -384,7 +384,7 @@ class ApplyEmbargoInviteFromLedgerNode(_EmbargoRelayEffectNode):
 
     The invitee's PEC ``INVITE`` and the Invite's RSVP deadline are the
     CASE_MANAGER's next entry, an ``Update(EmbargoConsent)`` carrying the
-    row, which the consent slot copies (ADR-0124, CM-28-013); this slot
+    row, which the consent slot copies (ADR-0124, CM-28-023); this slot
     writes no row.  It stores the embargo the entry carries.
 
     On the proposer's own replica — the Invite's ``attributedTo`` — the Invite
@@ -416,7 +416,7 @@ class ApplyEmbargoInviteFromLedgerNode(_EmbargoRelayEffectNode):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
         if case.embargo_register_entry(embargo_id) is None:
-            # The proposal is committed before its relay (EP-09-002), so a
+            # The proposal is committed before its relay (EP-09-001, EP-09-002), so a
             # replica replaying the relay holds the entry; one that does not
             # has a gap, and the entry is not marked applied (SYNC-12-001).
             self.feedback_message = (

@@ -249,7 +249,7 @@ def demo_manage_participants_accept(
     # helpers/verification.py when a second scenario removes a participant
     # (DEMOMA-17-001).
     with demo_step("Step 6: Verify coordinator record is kept and inert"):
-        with demo_check("Coordinator still on the case roster (CM-31-001)"):
+        with demo_check("Coordinator still on the case roster (CM-31-015)"):
             final_case = log_case_state(
                 client, case.id_, "after RemoveParticipantFromCaseActivity"
             )
@@ -344,7 +344,7 @@ def demo_manage_participants_accept(
                     f" coordinator, found {len(notices)}"
                 )
             logger.info(
-                "✓ Coordinator reinstated; it did not accept again (CM-31-011)"
+                "✓ Coordinator reinstated; it did not accept again (CM-31-035)"
             )
 
     logger.info(

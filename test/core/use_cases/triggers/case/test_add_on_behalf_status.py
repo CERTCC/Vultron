@@ -217,7 +217,10 @@ class TestAddOnBehalfStatusVtoV:
         assert "PRM-06-006" in message
         assert _store_state(self.dl, self.case.id_) == before
 
+    @pytest.mark.spec("CM-11-030")
+    @pytest.mark.spec("CM-11-029")
     @pytest.mark.spec("PRM-06-003")
+    @pytest.mark.spec("PRM-06-007")
     @pytest.mark.spec("RSH-08-006")
     def test_changes_only_vf_of_an_inert_vendor_invitee(self):
         """v→V moves VF only; the invitee's RM stays at RECEIVED.
@@ -384,6 +387,7 @@ class TestAddOnBehalfStatusDtoD:
 
     @pytest.mark.spec("PRM-06-004")
     @pytest.mark.parametrize("rm", [RM.ACCEPTED, RM.DEFERRED, RM.CLOSED])
+    @pytest.mark.spec("PRM-06-008")
     def test_succeeds_for_deployer_at_rm_consistent_with_deployment(
         self, rm: RM
     ):
@@ -413,6 +417,7 @@ class TestAddOnBehalfStatusDtoD:
     @pytest.mark.spec("BTND-10-002")
     @pytest.mark.spec("RSH-08-006")
     @pytest.mark.parametrize("rm", [RM.RECEIVED, RM.INVALID, RM.VALID])
+    @pytest.mark.spec("PRM-06-008")
     def test_refused_by_entailment_at_any_other_rm(self, rm: RM):
         """D entails RM ∈ {ACCEPTED, DEFERRED, CLOSED}; nothing is written."""
         _add_participant(

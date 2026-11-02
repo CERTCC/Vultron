@@ -41,6 +41,9 @@ import pytest
 
 from test.architecture import _corpus
 from vultron.core.behaviors.call_out import unwrap_call_out
+from vultron.core.models.fault_classes import (
+    VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -226,6 +229,7 @@ def test_no_gate_reads_authorization_from_an_ask_register() -> None:
     ),
 )
 @pytest.mark.spec("ASK-02-005")
+@pytest.mark.spec("ASK-02-006")
 def test_gate_records_a_defined_not_yet_state_before_asking() -> None:
     """The ask branch MUST leave the case in a defined protocol state (ASK-02-005)."""
     from vultron.core.behaviors.call_out.bundles.status_authorization import (
@@ -290,6 +294,7 @@ def test_ask_kinds_declare_an_expiry_consequence() -> None:
 
 
 @pytest.mark.spec("ASK-03-003")
+@pytest.mark.spec("ASK-03-009")
 def test_expiry_consequence_is_not_deployment_configurable() -> None:
     """Expiry consequence MUST NOT be configurable or carried on the wire (ASK-03-003).
 
@@ -370,6 +375,7 @@ def test_void_expiry_ask_refuses_a_late_reply() -> None:
     ),
 )
 @pytest.mark.spec("ASK-05-004")
+@pytest.mark.spec("ASK-05-005")
 def test_reaping_an_expired_ask_does_not_re_emit_it() -> None:
     """Reaping MUST NOT automatically re-emit an expired ask (ASK-05-004).
 
@@ -406,6 +412,7 @@ def test_reaping_an_expired_ask_does_not_re_emit_it() -> None:
     ),
 )
 @pytest.mark.spec("ASK-06-001")
+@pytest.mark.spec("ASK-06-003")
 def test_case_scoped_ask_is_recorded_as_a_canonical_entry() -> None:
     """A case-scoped ask MUST be a recorded CaseLedgerEntry (ASK-06-001)."""
     register = _ask_register()
@@ -493,18 +500,57 @@ def test_processing_fault_references_the_failed_activity() -> None:
     assert names & {"in_reply_to", "instance", "failed_activity_id"}
 
 
+@pytest.mark.spec("ASK-07-012")
+def test_processing_fault_validates_without_an_inline_failed_activity() -> (
+    None
+):
+    """ProcessingFault MUST NOT require an inline copy of the failed activity (ASK-07-012).
+
+    A fault for a payload that failed to parse can only name it, so a fault
+    with a failure class and a reference, and nothing else, has to validate.
+    """
+    fault = _processing_fault()
+    assert fault is not None, "No ProcessingFault type is importable."
+    built = fault(
+        failure_class=VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
+        in_reply_to="urn:uuid:failed-activity",
+    )
+    assert getattr(built, "object_", None) is None
+
+
+@pytest.mark.spec("ASK-07-005")
+def test_failure_classes_are_uris_in_the_vultron_namespace() -> None:
+    """Each failure class MUST be a URI in the Vultron namespace (ASK-07-005)."""
+    from vultron.core.models import fault_classes
+
+    classes = {
+        name: value
+        for name, value in vars(fault_classes).items()
+        if name.startswith("VULTRON_FAILURE_")
+    }
+    assert classes, "No VULTRON_FAILURE_* failure classes are defined."
+    outside = sorted(
+        name
+        for name, value in classes.items()
+        if not value.startswith("https://certcc.github.io/Vultron/ns/")
+    )
+    assert not outside, (
+        f"Failure classes outside the Vultron namespace: {outside}"
+    )
+
+
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "ASK-07-005: as_ProcessingFault exists but lacks RFC 9457 `title` and "
+        "ASK-07-013: as_ProcessingFault exists but lacks RFC 9457 `title` and "
         "`detail` fields. Tracked by #2889."
     ),
 )
-@pytest.mark.spec("ASK-07-005")
+@pytest.mark.spec("ASK-07-013")
 def test_processing_fault_uses_rfc9457_with_namespaced_failure_classes() -> (
     None
 ):
-    """Failure classes MUST be Vultron-namespace URIs in RFC 9457 form (ASK-07-005)."""
+    """A ProcessingFault MUST take the RFC 9457 Problem Details form (ASK-07-013)."""
     fault = _processing_fault()
     assert fault is not None, "No ProcessingFault type is importable."
     names = _field_names(fault)
@@ -708,6 +754,7 @@ def test_no_status_gate_default_is_an_unconditional_failure_node() -> None:
 
 @pytest.mark.spec("RSH-07-005")
 @pytest.mark.spec("RSH-07-007")
+@pytest.mark.spec("ASK-01-005")
 def test_production_status_authorization_default_is_conservative() -> None:
     """A gate MUST NOT be relaxed to permissive to unblock a path (RSH-07-005).
 
@@ -777,6 +824,7 @@ def test_embargo_invite_is_a_declared_ask_kind() -> None:
     ),
 )
 @pytest.mark.spec("ASK-04-010")
+@pytest.mark.spec("ASK-04-013")
 def test_relayed_ask_is_recorded_by_the_relaying_case_manager() -> None:
     """The CASE_MANAGER records relayed Invites as its own asks (ASK-04-010)."""
     register = _first_available(_ASK_REGISTER_CANDIDATES)

@@ -344,6 +344,7 @@ def test_faults_are_partitioned_by_failure_mode_not_state_machine():
 
 
 @pytest.mark.spec("MSM-05-002")
+@pytest.mark.spec("MSM-05-007")
 @pytest.mark.spec("MSM-02-009")
 @pytest.mark.spec("MSM-03-008")
 def test_ledger_acknowledgement_is_negative_and_cumulative():
@@ -367,8 +368,9 @@ def test_ledger_acknowledgement_is_negative_and_cumulative():
 
 
 @pytest.mark.spec("MSM-05-002")
+@pytest.mark.spec("MSM-05-008")
 def test_ledger_hash_mismatch_rejects_and_replays_from_last_accepted():
-    """The behaviour MSM-05-002 mandates, not just the enum registration.
+    """The behaviour MSM-05-008 mandates, not just the enum registration.
 
     A mismatched `prev_log_hash` must produce a `Reject(CaseLedgerEntry)` and the
     CaseActor must replay from the last accepted hash. Asserting only that two

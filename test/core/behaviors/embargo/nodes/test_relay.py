@@ -280,7 +280,7 @@ class TestCollectEmbargoInviteRecipientsNode:
         assert sorted(_collected_recipients()) == sorted([OTHER_A, OTHER_B])
 
     @pytest.mark.executes_as(MANAGER)
-    @pytest.mark.spec("CM-10-007")
+    @pytest.mark.spec("CM-10-009")
     def test_reaches_inert_participants_but_not_a_closed_one(
         self, bt_scenario: BTTestScenario
     ) -> None:
@@ -491,6 +491,7 @@ class TestRelayEmbargoInviteToEachNode:
 
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("EP-09-002")
+    @pytest.mark.spec("EP-09-022")
     def test_each_emission_is_committed_as_a_canonical_entry(
         self, bt_scenario: BTTestScenario
     ) -> None:
@@ -508,6 +509,7 @@ class TestRelayEmbargoInviteToEachNode:
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("EP-09-002")
     @pytest.mark.spec("SYNC-09-002")
+    @pytest.mark.spec("EP-09-022")
     def test_each_invite_is_queued_before_it_is_committed(
         self, bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
     ) -> None:

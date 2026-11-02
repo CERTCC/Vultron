@@ -48,7 +48,6 @@ related_notes:
   - notes/domain-validation.md
   - notes/protocol-asks.md
   - notes/structured-logging.md
-  - notes/ownership-transfer-close-paths.md
 relevant_packages:
   - py_trees
   - vultron/bt
@@ -123,7 +122,7 @@ drift, the gate evaluates against an actor holding no role and returns
 SUCCESS-by-skip with nothing written.
 
 Gate on the role (`create_case_manager_gated_tree`), never by comparing
-`actor_id` against a computed `case_actor_id` (CM-24-004). Once the emit is
+`actor_id` against a computed `case_actor_id` (CM-24-009). Once the emit is
 role-gated, the executing actor *is* the case manager, so the activity and its
 outbox entry land in one store by construction.
 
@@ -276,7 +275,7 @@ answer, clock decisions, guards, commit, effects.
    `PostCloseExemption`. `post_close_reply` takes emit-only nodes that answer
    the refusal; only the close-case tree passes one (`Reject(Leave)` under
    `ActorConfig.post_close_reply = reject`). Every other late activity is
-   dropped with no reply (ADR-0131, CM-23-017). The addressee check, the
+   dropped with no reply (ADR-0131, CM-23-045). The addressee check, the
    closed-sender door and the sender guard follow.
 
    The factory places the addressee check, `ActivityAddressedToReceiverNode`
@@ -333,7 +332,7 @@ answer, clock decisions, guards, commit, effects.
    before the guards, because it is ledgered even when the activity is then refused (an
    overdue invitation timed out before a late Accept is judged, CM-28-015). A deadline
    whose passing changes no case-file record, the ownership Offer's `end_time`, is no
-   clock decision: the guard reads it and nothing is ledgered (CM-21-017, ADR-0152). It
+   clock decision: the guard reads it and nothing is ledgered (CM-21-043, ADR-0152). It
    runs only at the CASE_MANAGER, commits only its own entries — one per AS2 activity it
    needs, never the received activity's — and reads only the clock, policy and the
    case's ledger and file. The end-time check is about the case, so the factory adds it

@@ -34,7 +34,7 @@ Provides:
 - :class:`MakeOwnershipTransferOfferNode` — CASE_MANAGER-only effect node
   that makes the one ``Offer(VulnerabilityCase)`` of the transfer from the
   owner's proposal, queues it in the CASE_MANAGER's outbox and commits it
-  (CM-21-005, ADR-0148).
+  (CM-21-028, CM-21-029, ADR-0148).
 
 These leaf nodes are assembled into trigger/receive trees in the parent
 ``actor_trigger_trees.py`` and ``ownership_transfer_tree.py`` modules per
@@ -79,7 +79,7 @@ class EmitProposeCaseOwnershipTransferNode(_EmitSingleActivityBase):
 
     Calls ``trigger_activity_factory.propose_case_ownership_transfer()``
     with ``actor=self.actor_id`` — the proposing Case Owner, never the
-    CASE_MANAGER (CM-24-004, ADR-0109) — ``case_id`` and ``transferee_id``,
+    CASE_MANAGER (CM-24-010, ADR-0109) — ``case_id`` and ``transferee_id``,
     addressed ``to`` the case's CASE_MANAGER (CM-21-005), then queues it in
     the owner's own outbox (TRIG-11-001).  The proposal is
     ``Offer(Offer(VulnerabilityCase))``: the CASE_MANAGER's received tree
@@ -141,9 +141,9 @@ class MakeOwnershipTransferOfferNode(_EmitSingleActivityBase):
     """CASE_MANAGER effect: make the ownership-transfer Offer a proposal asks for.
 
     The one ``Offer(VulnerabilityCase)`` of the transfer (ADR-0148,
-    CM-21-005): the CASE_MANAGER builds it from what it validated in the
+    CM-21-028): the CASE_MANAGER builds it from what it validated in the
     owner's proposal — the case, the transferee as ``target`` and ``to``,
-    and the deadline as ``end_time`` (CM-21-016) — with ``actor`` itself and
+    and the deadline as ``end_time`` (CM-21-041) — with ``actor`` itself and
     ``attributedTo`` the owner, from the shared delegated-authorship helper
     (CM-24-001, CM-24-002, CM-24-005).  Nothing else of the inner Offer is
     copied: its id is
@@ -243,7 +243,7 @@ class MakeOwnershipTransferOfferNode(_EmitSingleActivityBase):
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(
             "%s: CASE_MANAGER '%s' offered case '%s' to '%s' as Offer '%s',"
-            " made from '%s''s proposal '%s' (CM-21-005, ADR-0148)",
+            " made from '%s''s proposal '%s' (CM-21-028, ADR-0148)",
             self.name,
             self.actor_id,
             self.case_id,

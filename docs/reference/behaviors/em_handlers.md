@@ -21,7 +21,7 @@ The behavioral requirements for these trees are specified in the
 ## Manage Embargo Tree
 
 The top-level trigger-side embargo management tree. Evaluates whether to propose,
-accept, revise, or exit the current embargo. Constructed from
+accept, revise, or exit the case's embargo. Constructed from
 `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`.
 
 ```python exec="true" idprefix=""

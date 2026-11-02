@@ -114,6 +114,7 @@ def env() -> Iterator[_Fixture]:
 @pytest.mark.spec("RMB-08-003")
 @pytest.mark.spec("TRIG-02-001")
 @pytest.mark.spec("VP-03-009")
+@pytest.mark.spec("RMB-08-005")
 def test_ack_is_sent_to_the_reporter_alone(env: _Fixture):
     before = set(env.dl.outbox_list())
 
@@ -131,6 +132,7 @@ def test_ack_is_sent_to_the_reporter_alone(env: _Fixture):
 
 @pytest.mark.spec("RMB-08-003")
 @pytest.mark.spec("PCR-08-001")
+@pytest.mark.spec("RMB-08-005")
 def test_ack_still_goes_to_the_reporter_alone_once_a_case_exists(
     env: _Fixture,
 ):

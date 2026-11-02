@@ -301,7 +301,7 @@ def the_owner_hands_the_case_over(
     TRIG-11-001 then TRIG-11-002: the owner's proposal,
     ``Offer(Offer(VulnerabilityCase))``, is addressed to the CaseActor, which
     makes the one Offer of the transfer under an id of its own and sends it to
-    *new_owner* (CM-21-005, ADR-0148) — so polling for the proposal's id would
+    *new_owner* (CM-21-028, ADR-0148) — so polling for the proposal's id would
     never match.  The delivery gate and the accept nest inside the offer step,
     so a failed trigger or lookup skips them instead of accepting an offer
     that was never made (ADR-0058, EDF-06-005, #3038).
@@ -345,14 +345,14 @@ def the_owner_hands_the_case_over(
         DemoStoryError: When *joined* was never kept, or when *witness* is
             the old or the new owner — a party to the exchange learns of the
             transfer from the round-trip itself, so reading the ledger entry
-            on its replica would prove nothing about the CM-21-007 broadcast
+            on its replica would prove nothing about the CM-21-030 broadcast
             (ADR-0053).
     """
     if witness.name in {owner.name, new_owner.name}:
         raise DemoStoryError(
             f"the handover's witness is {witness.name!r}, which is a party to"
             " the transfer; ADR-0053's criterion is that an actor outside the"
-            " negotiation learns of it from the CM-21-007 broadcast alone, so"
+            " negotiation learns of it from the CM-21-030 broadcast alone, so"
             " the witness is neither the old nor the new owner"
         )
     state.kept(joined)
@@ -443,7 +443,7 @@ def the_owner_hands_the_case_over(
 
         with demo_check(
             f"{witness.label} replica received the ownership-transfer ledger"
-            " entry via Announce(CaseLedgerEntry) (CM-21-007, ADR-0053)"
+            " entry via Announce(CaseLedgerEntry) (CM-21-030, ADR-0053)"
         ):
             wait_for_semantic_type_in_ledger(
                 client=state.client(witness.name),
@@ -455,7 +455,7 @@ def the_owner_hands_the_case_over(
 
         # The case as the old owner now stores it: the transfer moved
         # attributed_to, and the id it is keyed on is unchanged, which is what
-        # restate_case checks (CM-21-002).
+        # restate_case checks (CM-21-024).
         owner_client = state.client(owner.name)
         state.restate_case(
             as_VulnerabilityCase.model_validate(

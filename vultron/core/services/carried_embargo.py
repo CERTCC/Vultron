@@ -15,7 +15,7 @@
 """Hold a received case's active embargo before the case is saved (EMB-18-003).
 
 A case that names an embargo its store cannot read breaks the invariant the
-EP-05-001 comparison rests on, so every path that saves a received case —
+EP-05-001/EP-05-003 comparison rests on, so every path that saves a received case —
 the announce seed and the create replica store — calls
 :func:`store_carried_embargo` *first*, as does the inbox's routing stage for
 the throwaway store it rebuilds the activity in.  It stores the
@@ -32,7 +32,7 @@ participant kept an embargo already torn down, with EM stuck at ACTIVE.
 a ledger entry that names an embargo, for the replica slots that apply it.
 Every path checks the inline copy and the record already held under its id
 alike (:func:`hold_embargo_for_case` for a case, EMB-18-004): its ``context``
-must be the case or one of the case's reports (EP-04-009).
+must be the case or one of the case's reports (EP-04-009, EP-04-021).
 """
 
 from pydantic import ValidationError

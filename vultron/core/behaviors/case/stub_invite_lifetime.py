@@ -188,7 +188,7 @@ def superseded_reason(
 ) -> str | None:
     """Why an ``Accept`` of *invite* must be refused, or ``None`` if it may stand.
 
-    Only a superseded stub is refused, naming its replacement (CM-11-016): the
+    Only a superseded stub is refused, naming its replacement (CM-11-045): the
     replacement carries the current terms, so accepting the old one would
     consent to stale terms.  An *expired* stub is not refused: expiry only
     means the CASE_MANAGER stopped waiting, and its consequence is stale, not
@@ -201,7 +201,7 @@ def superseded_reason(
     return (
         f"Invite '{invite.invite_id}' was superseded by"
         f" '{replacement.invite_id}' (an embargo change or a re-invite) —"
-        f" Accept '{replacement.invite_id}' instead (CM-11-016)"
+        f" Accept '{replacement.invite_id}' instead (CM-11-045)"
     )
 
 
@@ -209,7 +209,7 @@ def current_stub_embargo_id(case: VulnerabilityCase) -> str | None:
     """The embargo whose terms a stub Invite sent now would carry.
 
     A stub carries the embargo in force whenever there is one: EM ``ACTIVE``
-    or ``REVISE``, never the open revision (CM-17-002).  With none in force it
+    or ``REVISE``, never the open revision (CM-17-002, CM-17-014).  With none in force it
     carries none.
     """
     return case.active_embargo_id

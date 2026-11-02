@@ -495,7 +495,7 @@ groups:
       `test/core/behaviors/sync/nodes/test_send_side_hash_check_sites.py` runs the same
       cases through each send path and asserts that the sending node returns `FAILURE`,
       except the fan-out's held-back catch-up of a paused peer, which skips that peer
-      and returns `SUCCESS` (decided on #5120), and
+      and returns `SUCCESS` (BT-14-003), and
       `test/architecture/test_send_announce_log_entry_has_one_caller.py` asserts no other
       code in `vultron/core/` calls `send_announce_log_entry`.
     stories:
@@ -2985,7 +2985,7 @@ groups:
       Only an answer that can still change something is worth asking for again; an
       answered Invite, a decided or withdrawn proposal and a passed deadline cannot. An
       Invite for the embargo in force is still owed: a reinstated participant
-      (CM-31-013), or a joiner whose proposal was activated first, is asked to sign it.
+      (CM-31-040), or a joiner whose proposal was activated first, is asked to sign it.
       The stating activity may be the answer itself, committed after its position is
       read, so its Invite is excluded by name.
     relationships:

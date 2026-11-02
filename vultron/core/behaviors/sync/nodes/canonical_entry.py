@@ -16,16 +16,19 @@
 
 Guards every ``CaseLedgerEntry`` before it reaches the hash chain: the
 ``payloadSnapshot`` must name its actor, carry its object inline under a
-registered ``(activity_type, object_type)`` signature, name no case but the
-entry's own in ``context``, and — per CLP-07-003 — name a CaseActor actor
-only for signatures the CaseActor is authorized to author.  The snapshot is
-checked, never changed: a received one is the body as it arrived
-(CLP-07-011).
+registered ``(activity_type, object_type)`` signature, and name no case but
+the entry's own in ``context``.  The snapshot is checked, never changed: a
+received one is the body as it arrived (CLP-07-011).
+
+Which actor may author a signature is not checked here.  Sender entitlement
+refuses a participant's CASE_MANAGER-only act at receipt (HP-01-006,
+HP-01-007), and the role gate refuses a commit by any actor that does not
+hold the CASE_MANAGER role (CLP-09-001).
 
 Extracted from ``chain.py`` to keep that module within the BTND-07-004
 500-line leaf limit; grouped here as its own semantic concern per BTND-07-006.
 
-Spec: CLP-07, CLP-12.
+Spec: CLP-07.
 """
 
 from __future__ import annotations
@@ -56,15 +59,14 @@ _PAYLOAD_SNAPSHOT = wire_key("payload_snapshot", CaseLedgerEntry)
 # ``Add(ParticipantStatus)``, ``Add(CaseStatus)``) are all still required —
 # ``case_proposal_received_tree`` now commits them natively where the deleted
 # ``WritePrologueLedgerEntriesNode`` used to back-fill them (CM-22-003).  No
-# entry in either collection is prologue-only.
+# entry in the collection is prologue-only.
 _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Create", "VulnerabilityCase"),
     ("Offer", "VulnerabilityReport"),
     # The CASE_MANAGER's ownership-transfer Offer (CM-21-005, ADR-0148).
     ("Offer", "VulnerabilityCase"),
     # The Case Owner's ownership-transfer proposal, Offer(Offer(Case)),
-    # committed as received (ADR-0148).  Owner-authored, so not in
-    # ``_CASE_AUTHORED_SIGNATURES``.
+    # committed as received (ADR-0148).  Owner-authored.
     ("Offer", "Offer"),
     ("Accept", "Offer"),  # validate_report (RV) — object_ is the Offer
     ("TentativeReject", "Offer"),  # invalidate_report (RI)
@@ -72,11 +74,11 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # and close_report (RC) entries already in a ledger, though no
     # Close(Report) on a case is admitted now (CM-23-019).
     ("Reject", "Offer"),
-    # No ``("Read", "Offer")``: RK is never ledgered (RMB-08-003, CLP-02-013).
+    # No ``("Read", "Offer")``: RK is never ledgered (RMB-08-007, CLP-02-013).
     # The Case Owner's withdrawal of its ownership-transfer proposal
-    # (CM-21-015, ADR-0148).  Owner-authored, so not in
-    # ``_CASE_AUTHORED_SIGNATURES``: an Offer that passes its end_time is
-    # closed by that time alone, with no entry (CM-21-017, ADR-0152).
+    # (CM-21-015, ADR-0148).  Owner-authored: an Offer that passes its
+    # end_time is closed by that time alone, with no entry (CM-21-043,
+    # ADR-0152).
     ("Undo", "Offer"),
     # No ``("Create", "Note")``: a received Create(Note) is not a protocol
     # message, so ``Add(Note)`` is a note's one entry (VAM-01-011).
@@ -96,7 +98,7 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Accept", "EmbargoEvent"),
     ("Reject", "EmbargoEvent"),
     # A signatory's withdrawal from the embargo in force (MSM-07-010).
-    # Participant-authored, so not in ``_CASE_AUTHORED_SIGNATURES``.
+    # Participant-authored.
     ("Leave", "EmbargoEvent"),
     ("Join", "VulnerabilityCase"),
     ("Ignore", "VulnerabilityCase"),
@@ -111,7 +113,7 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # abandons an open proposal (EMB-16-001, ADR-0152).
     ("Undo", "Invite"),
     # RI: the full-case Invite's tentative refusal (VAM-04-013).  A stub
-    # Invite has no TentativeReject (CM-11-007).
+    # Invite has no TentativeReject (CM-11-028).
     ("TentativeReject", "Invite"),
     ("Announce", "VulnerabilityCase"),
     ("Offer", "CaseParticipant"),
@@ -126,10 +128,10 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # for a stub Invite's invitee (ADR-0114).
     ("Create", "CaseParticipant"),
     # The Case Owner's removal request, committed as received (CM-31-005,
-    # ADR-0116).  Owner-authored, so not in ``_CASE_AUTHORED_SIGNATURES``.
+    # ADR-0116).  Owner-authored.
     ("Remove", "CaseParticipant"),
     # CASE_MANAGER-authored record of a new owner after an ownership
-    # transfer (update_case_owner, CM-21-002, CLP-07-013).
+    # transfer (update_case_owner, CM-21-024, CLP-07-013).
     ("Update", "VulnerabilityCase"),
     # CASE_MANAGER-authored change to a participant record, carrying the
     # record (update_case_participant, CM-21-002, CLP-07-013).
@@ -138,44 +140,6 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # (create_embargo_consent, update_embargo_consent; ADR-0122, CLP-07-013).
     ("Create", "EmbargoConsent"),
     ("Update", "EmbargoConsent"),
-)
-# Signatures the CaseActor itself is authorized to author (CLP-07-003).  Per
-# CLP-12-002 this MUST be a superset of every pair the CaseActor emits during
-# native case initialization, so that single-actor deployments — where the
-# vendor IS the CaseActor — are not rejected for entries the CaseActor is
-# legitimately responsible for.
-_CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
-    {
-        ("Announce", "VulnerabilityCase"),
-        ("Add", "EmbargoEvent"),
-        ("Remove", "EmbargoEvent"),
-        ("Invite", "EmbargoEvent"),
-        # its withdrawal of an embargo Invite it sent (EMB-16-001, ADR-0152)
-        ("Undo", "Invite"),
-        ("Offer", "CaseParticipant"),
-        ("Invite", "VulnerabilityCase"),
-        ("Invite", "VulnerabilityCaseStub"),
-        ("Offer", "VulnerabilityCase"),
-        ("Leave", "VulnerabilityCase"),
-        ("Accept", "Offer"),
-        ("Reject", "Offer"),
-        ("Add", "CaseParticipant"),
-        ("Create", "CaseParticipant"),
-        # CASE_MANAGER-authored new owner after an ownership transfer
-        # (CM-21-002)
-        ("Update", "VulnerabilityCase"),
-        # CASE_MANAGER-authored participant-record change (CLP-07-013)
-        ("Update", "CaseParticipant"),
-        # CASE_MANAGER-authored consent-row changes (ADR-0122, CLP-07-013)
-        ("Create", "EmbargoConsent"),
-        ("Update", "EmbargoConsent"),
-        # native case-initialization entries (ADR-0041, CM-22-003)
-        ("Create", "VulnerabilityCase"),
-        ("Create", "EmbargoEvent"),  # create_embargo_event (CLP-07-013)
-        ("Add", "VulnerabilityReport"),
-        ("Add", "ParticipantStatus"),
-        ("Add", "CaseStatus"),  # add_case_status_to_case (CLP-12-001, #1767)
-    }
 )
 #: The snapshot slots that carry the object the entry is about.  Its type is
 #: half of the entry's signature, so it must travel inline (AKM-02-004).

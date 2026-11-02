@@ -302,6 +302,7 @@ class TestSvcAddReportToCaseUseCase:
         activity_dict = activity_of(result)
         assert activity_dict.get("type") == "Add"
 
+    @pytest.mark.spec("CM-05-017")
     def test_add_multiple_reports_to_case(self):
         """SvcAddReportToCaseUseCase can add multiple reports (called multiple times)."""
         report1 = as_VulnerabilityReport(

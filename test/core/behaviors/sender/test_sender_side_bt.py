@@ -130,7 +130,7 @@ class TestSenderSideBT:
         assert result.status == Status.SUCCESS
         assert addressed_to == [CASE_ACTOR_ID]
 
-    @pytest.mark.spec("CM-24-006")
+    @pytest.mark.spec("CM-24-014")
     def test_bt_failure_when_case_manager_absent(self, dl, bridge):
         store, actor = dl
         case = as_VulnerabilityCase(

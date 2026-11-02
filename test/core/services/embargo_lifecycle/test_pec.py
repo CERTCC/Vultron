@@ -3,7 +3,7 @@
 Consent is per (participant, embargo) (ADR-0122): "signatory" and "lapsed"
 are derived from the rows and the case's active embargo, never written.  The
 operations' own tests cover these helpers through ``accept_embargo_invite``
-and ``activate_embargo`` (the containment carry-over, EP-05-001) and
+and ``activate_embargo`` (the containment carry-over, EP-05-003) and
 accept/reject (single-actor consent).  These pin the contract of the shared
 helpers directly, so a change to the carry-over filter, the Accept/Reject row
 rules or the actor lookup fails here by name rather than somewhere in a

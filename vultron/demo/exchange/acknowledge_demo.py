@@ -28,7 +28,7 @@ The reporter submits through its ``submit-report`` trigger, so it holds the
 Offer and admits the ack only from the Offer's addressee, the vendor
 (RMB-08-004).  The vendor sends the ack through its ``ack-report`` trigger,
 which addresses the reporter alone, never the CASE_MANAGER, case or no case
-(RMB-08-003).  The vendor validates or invalidates through its own
+(RMB-08-003, RMB-08-005).  The vendor validates or invalidates through its own
 ``validate-report`` or ``invalidate-report`` trigger, which sends the answer to
 the CASE_MANAGER of the case opened on receipt (#5438).
 
@@ -111,7 +111,7 @@ def _vendor_acknowledges_to_reporter(
     """The vendor, the Offer's addressee, sends RK to the reporter.
 
     The vendor's ``ack-report`` trigger emits the ``Read(Offer)`` to the
-    reporter alone, never to the CASE_MANAGER (RMB-08-003), whether or not a
+    reporter alone, never to the CASE_MANAGER (RMB-08-005), whether or not a
     case exists yet, and its outbox delivers it.  The reporter admits it
     because the vendor is an addressee of the Offer the reporter recorded
     (RMB-08-004).

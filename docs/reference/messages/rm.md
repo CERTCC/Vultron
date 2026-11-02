@@ -53,7 +53,7 @@ The CASE_MANAGER sends no notice when the sender is not a participant of the cas
 - **Triggering transition:** receipt of `RS`; Vultron sends `RK` only to acknowledge a report submission (RMB-08-003).
 - **Receiver:** the reporter, which holds the Offer, accepts `RK` only from one of the Offer's addressees and refuses any other sender (RMB-08-004).
   `RK` may go to the reporter at any time after the report arrives, whether or not a case exists (RMB-08-003).
-  `RK` never goes to the CASE_MANAGER, and it writes no ledger entry (RMB-08-003, PCR-08-001).
+  `RK` never goes to the CASE_MANAGER, and it writes no ledger entry (RMB-08-005, RMB-08-007, PCR-08-001).
 - **Object:** the report's original `Offer`, not the report itself; a bare `Read(VulnerabilityReport)` matches no pattern.
   `RK` survives as a dedicated wire activity because report submission is not ledger-replicated (MSM-01-008).
 
@@ -61,7 +61,7 @@ The CASE_MANAGER sends no notice when the sender is not a participant of the cas
 
 - **Triggering transition:** Received or Invalid → Valid ({R,I} → V).
 - **Second wire form:** a participant that joined through an Invite sends `Accept(Invite(Actor)[target=VulnerabilityCase])` instead, answering the full-case Invite ([VAM-04-012](../vultron-spec/requirements/messages.md#vam-04-012)); see [Accept Full-Case Invite](case_management.md#accept-full-case-invite).
-  It never validates the original report Offer ([CM-11-020](../vultron-spec/requirements/case-management.md#cm-11-020)).
+  It never validates the original report Offer ([CM-11-020](../vultron-spec/requirements/case-management.md#cm-11-020), [CM-11-051](../vultron-spec/requirements/case-management.md#cm-11-051)).
 
 {% include-markdown "./_occasions/sections/report-invalid.md" %}
 

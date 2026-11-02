@@ -23,7 +23,7 @@ Invite the participant still owes an answer to (SYNC-20-001, ADR-0163).
 
 - **Who** — any participant on the roster that is not removed and not
   closed, active or inert (SYNC-20-001): an Invite asks for an answer, it is
-  not case content (CM-10-007), and a resent Invite is one the participant
+  not case content (CM-10-009), and a resent Invite is one the participant
   was already sent.
 - **What is owed** (:func:`owed_invites`, SYNC-20-002) — an
   ``Invite(EmbargoEvent)`` whose consent row is still ``INVITED``, for an
@@ -81,7 +81,7 @@ __all__ = [
 
 #: Register statuses of an embargo whose Invite can still be answered: an
 #: open proposal, or the embargo in force, which a reinstated or late
-#: participant is asked to sign (CM-31-013, EMB-17-003).
+#: participant is asked to sign (CM-31-040, EMB-17-003).
 _ANSWERABLE_EMBARGO: frozenset[EmbargoRegisterStatus] = frozenset(
     {EmbargoRegisterStatus.PROPOSED, EmbargoRegisterStatus.ACTIVE}
 )
@@ -199,7 +199,7 @@ def owed_invites(
     """The Invites *manager_id* sent *peer_id* that *peer_id* still owes.
 
     Empty for a participant the CASE_MANAGER may not invite: one removed,
-    closed or not on the roster (CM-31-013, CM-10-007).  Otherwise each
+    closed or not on the roster (CM-31-013, CM-10-009).  Otherwise each
     ``Invite(EmbargoEvent)`` whose answer still counts, the last one sent
     for each embargo, then the unanswered full-case Invite, minus the ids in
     *excluding* (the Invite the stating activity answers).  Read from the

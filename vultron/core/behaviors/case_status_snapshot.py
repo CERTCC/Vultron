@@ -23,7 +23,7 @@ purpose-built shared module rather than in either domain's ``nodes`` package
 lifecycle nodes that compose the embargo trigger trees, so an embargo tree
 importing from it would close an import cycle (CS-05-003).
 
-:func:`promote_pxa` is the SM-09-001 persistence-boundary promotion this node
+:func:`promote_pxa` is the SM-09-003 persistence-boundary promotion this node
 applies.  :func:`adopted_pxa` is the case ``pxa`` after a participant's
 adopted report, the union of the two sets of latches (RSH-01-003).
 :func:`last_committed_case_status` is the status the node measures a change
@@ -62,7 +62,7 @@ logger = logging.getLogger(__name__)
 
 
 def promote_pxa(pxa: CS_pxa) -> CS_pxa:
-    """SM-09-001: promote ephemeral pX states at the persistence boundary."""
+    """SM-09-003: promote ephemeral pX states at the persistence boundary."""
     if pxa is CS_pxa.pXa:
         return CS_pxa.PXa
     if pxa is CS_pxa.pXA:
@@ -89,7 +89,7 @@ def adopted_pxa(current: CS_pxa, reported: CaseStatus | None) -> CS_pxa:
     either *current* or *reported* sets, and clears none: a report that
     omits a latch the case holds still adds the ones it newly sets.  With no
     report the result is *current*.  It is promoted at the persistence
-    boundary either way (SM-09-001).
+    boundary either way (SM-09-003).
     """
     if reported is None:
         return promote_pxa(current)
@@ -230,7 +230,7 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
         self, current: CaseStatus, reported: CaseStatus | None
     ) -> CS_pxa:
         """The snapshot's ``pxa``: *reported*'s latches added, none cleared."""
-        # AC-1: pX → PX forced promotion at persistence boundary (SM-09-001)
+        # AC-1: pX → PX forced promotion at persistence boundary (SM-09-003)
         pxa_state = adopted_pxa(current.pxa.state, reported)
         if cleared := latches_cleared_by(current.pxa.state, reported):
             self.logger.info(

@@ -32,7 +32,7 @@ stakeholder_type: [project-contributor]
      The factory wraps `manager_effects` in the CASE_MANAGER gate and refuses an emit node in `replica_effects` that no named exemption covers (BT-17-008).
      The sender-guard stage is the per-use-case sender-entitlement check declared via `sender_entitlement` on the use-case class (HP-01-006, HP-01-007).
      The factory composes it from the declared `SenderRule` and a `SenderCheckContext` for the receiver's addressee side (`vultron/core/behaviors/sender_guard.py`, HP-01-025); a tree cannot pass a guard of its own, and the ratchet's allow-list of guards not yet migrated is empty.
-     A tree whose sender may already be closed on the case passes `closed_sender=ClosedSenderCheck(...)`, and its handler reads the door's result with `closed_sender_verdict()` in `vultron/core/use_cases/received/_bt_verdict.py`: a repeat of a closing act is `SKIPPED`, and any other act is `REFUSED` (CM-23-018, ID-05-003).
+     A tree whose sender may already be closed on the case passes `closed_sender=ClosedSenderCheck(...)`, and its handler reads the door's result with `closed_sender_verdict()` in `vultron/core/use_cases/received/_bt_verdict.py`: a repeat of a closing act is `SKIPPED`, and any other act is `REFUSED` (CM-23-018, CM-23-049, ID-05-003).
      A tree whose case is resolved at run time passes the read-only `CaseResolving` steps that resolve it as `case_resolution`, which run just before the guard, or, for a ledger activity, a `LedgerActivityContext`, whose nodes read the case from the carried entry.
 
 ### 2) System Flow
@@ -56,7 +56,7 @@ HTTP POST /actors/{actor_id}/inbox  (wire: AS2 JSON)
   -> use_case_map() lookup         `vultron/semantic_registry/`
   -> *ReceivedUseCase.execute()    `vultron/core/use_cases/received/`
   -> BTBridge runs the received tree  `vultron/core/behaviors/bridge.py`
-     intake -> door guards -> [clock decisions] -> precondition guards -> commit -> effects; nodes write through DataLayer
+     intake -> door guards -> [ledger-position answer] -> [clock decisions] -> precondition guards -> commit -> effects; nodes write through DataLayer
   -> DataLayer                     `vultron/adapters/driven/datalayer_sqlite/` (one store per actor, ADR-0073)
   -> outbox handler + lanes        `vultron/adapters/driving/fastapi/outbox_handler.py`, `outbox_lanes.py`
      (sealed body relayed as stored; per-recipient order, ADR-0112)
@@ -120,12 +120,15 @@ The `OutboxMonitor` in `vultron/adapters/driving/fastapi/outbox_monitor.py` also
 - **State machine coupling via the transitions library**: `vultron/core/states/` and `vultron/core/services/embargo_lifecycle/base.py` import `transitions` directly, so a third-party state machine library sits in core.
 - **Process-global py_trees blackboard**: BT executions share `py_trees.blackboard.Blackboard.storage`.
   `BTBridge` serializes executions with a module-level `RLock`, and `blackboard_scope.py` snapshots and restores execution-scoped keys, but any key outside those managed sets can leak between trees.
-- **Core modules over the CS-18 size cap**: several core files (for example `vultron/core/behaviors/helpers.py`, `vultron/core/behaviors/bridge.py`) exceed the 500-line threshold of CS-18-001 (see `CONCERNS.md`).
+- **Core modules over the CS-18 size cap**: several core files exceed the 500-line threshold of CS-18-001, the largest being `vultron/core/behaviors/sender_entitlement.py` (a single home by design, ADR-0115), `vultron/core/behaviors/helpers.py` and `vultron/core/ports/trigger_activity.py` (see `CONCERNS.md`).
+- **Content signing decided but not built**: ADR-0164 (`accepted-provisional`) chooses object-level proofs inside each activity (FEP-8b32, `eddsa-jcs-2022`) from seeded keys, with strict verification and no switch.
+  Nothing signs or verifies yet; the inbox accepts any well-formed body, and the expected behavior is pinned by strict-`xfail` tests (`test/adapters/driving/fastapi/test_signed_delivery_refusal.py`, `test/core/use_cases/received/test_signed_ledger_entries.py`).
 - **Demo layer mixed into `vultron/demo/`**: demo code imports from adapters, which is appropriate, but the boundary between "demo" and "production use case" is not always clear.
 
 ### 6) Evidence
 
 - `notes/architecture-hexagonal.md`
+- `docs/adr/0164-actors-sign-content-with-object-level-proofs-from-seeded-keys.md`
 - `AGENTS.md`
 - `vultron/core/AGENTS.md`
 - `specs/architecture.yaml` (ARCH spec group)

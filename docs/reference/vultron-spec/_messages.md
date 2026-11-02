@@ -58,7 +58,7 @@ What a participant knows about another comes from the messages it has received, 
 This is what makes a participant's knowledge independent of any other participant being reachable.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("AKM-01-002", "PCR-01-003"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("AKM-01-002", "AKM-01-003", "PCR-01-003"))
 ```
 
 **A recipient can obtain what a message names.**
@@ -154,7 +154,7 @@ A participant that joined the case by invitation never saw the report offer, so 
     `RK` carries no report management state, so it tells the reporter nothing about whether the recipient has examined the content.
 
     ```python exec="true" idprefix=""
-    from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RMB-08-003", "VP-03-009"))
+    from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RMB-08-003", "RMB-08-005", "RMB-08-006", "RMB-08-007", "VP-03-009"))
     ```
 
 ### 4.6 Case Proposal Messages
@@ -188,7 +188,7 @@ That `Accept` joins the case; it is not `RV`.
 The joined participant judges the case by answering the full-case `Invite`, `Invite(Actor)[target=VulnerabilityCase]`, and that answer is `RV`, `RI` or `RC`.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-16-001", "CM-16-004", "CM-11-011", "CM-11-020"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-16-001", "CM-16-004", "CM-11-011", "CM-11-034", "CM-11-020", "CM-11-051"))
 ```
 
 ### 4.8 Embargo Management Messages
@@ -266,7 +266,7 @@ A received `Create(Note)` is not a protocol message, and its receiver does not c
 General Acknowledgment (`GK`) and General Error (`GE`) have no wire activity of their own; the mechanisms of [§4.11 Faults and Acknowledgments](layers.md#411-faults-and-acknowledgments) serve their purposes.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VAM-01-011"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VAM-01-011", "VAM-01-019", "VAM-01-020"))
 ```
 
 ### 4.11 Faults and Acknowledgments
@@ -336,7 +336,7 @@ A participant that wants to check its replica is current, after a restart for ex
 Whenever a participant states a position, the CASE_MANAGER also resends each Invite that participant still owes an answer to, as first sent, so an Invite lost before the participant could answer it reaches it again.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MSM-05-002", "SYNC-17-001", "SYNC-17-004", "SYNC-20-001"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MSM-05-002", "MSM-05-007", "MSM-05-008", "SYNC-17-001", "SYNC-17-004", "SYNC-20-001"))
 ```
 
 ### 4.13 Formal Message Set

@@ -42,7 +42,7 @@ into :class:`EmbargoLifecycle` in ``service.py``:
   ``ParticipantConsentChange``
 - ``base.py``       — persistence handle, case lookup, P/X/A guard, EM driver
 - ``pec.py``        — participant-consent side effects of EM transitions,
-  including the shorter-revision carry-over (EP-05-001)
+  including the shorter-revision carry-over (EP-05-003)
 - ``proposals.py``  — ``propose_embargo``
 - ``answers.py``    — ``accept_embargo_invite`` (a sender's consent),
   ``reject_embargo_proposal`` (the case owner's decision, ADR-0122)

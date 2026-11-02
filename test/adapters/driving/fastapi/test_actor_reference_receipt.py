@@ -15,7 +15,8 @@
 """A received actor reference never replaces a fuller held record (ADR-0159).
 
 Spec coverage:
-- AKM-05-005: a receiver reads the fields an actor reference lacks as unknown.
+- AKM-05-018: a receiver reads the fields an actor reference lacks as unknown.
+- AKM-05-019: an actor reference never replaces a fuller held record.
 
 Drives the real FastAPI ingress and dispatch adapters with an ``Offer(Actor)``
 whose actor is an id-and-type reference, sent to a CASE_MANAGER that already
@@ -94,7 +95,8 @@ def _recommendation_with_reference() -> dict[str, Any]:
     return body
 
 
-@pytest.mark.spec("AKM-05-005")
+@pytest.mark.spec("AKM-05-018")
+@pytest.mark.spec("AKM-05-019")
 def test_a_received_actor_reference_keeps_the_held_profile(case_actor_dl):
     outcome = process_payload(
         _recommendation_with_reference(),

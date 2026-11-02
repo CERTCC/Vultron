@@ -174,7 +174,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
         """Whether the ledger already records *activity* as this semantic.
 
         A redelivery routed as the copy the receiver archived carries the
-        first delivery's body (IE-10-001, VM-08-002), so a tree with no
+        first delivery's body (IE-10-001, VM-08-009), so a tree with no
         repeat guard of its own, such as RM engage, reaches this commit with
         a body to record.  The ledger's entry for the activity is its
         record: the first entry stands and no second one is committed
@@ -199,7 +199,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
         return True
 
     def _refuse_unrecordable(self, activity: Any, case_id: str) -> Status:
-        """Refuse an activity routed with no received body (VM-08-002).
+        """Refuse an activity routed with no received body (VM-08-010).
 
         It has no body to record: its id is recorded for a different
         activity, which a copy rebuilt from a different body would otherwise

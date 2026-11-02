@@ -44,7 +44,7 @@ class CommitRMClosureEntriesNode(CommitParticipantStatusEntriesNode):
     the ledger entries since (CM-23-016).  It applies these status entries
     through the ordinary participant-status effect and never works out a
     closure path from its own stored state: the ``close_case`` entry that
-    records the Leave changes no RM state anywhere (CM-23-001).  A replica
+    records the Leave changes no RM state anywhere (CM-23-024).  A replica
     that walked the RM table instead would write a step no entry backs when
     it held an older status for the actor (#4091).  The entries are not the
     Leave's duplicate: the Leave is the act, these are the transitions the
@@ -82,7 +82,7 @@ class CommitRMClosureEntriesNode(CommitParticipantStatusEntriesNode):
     already exists for the same object (the status id), and the node no-ops
     when the advance wrote nothing (the actor was already ``RM.CLOSED``).
 
-    **A step with no committed entry is not kept** (CLP-07-013, CM-23-001).
+    **A step with no committed entry is not kept** (CLP-07-013, CM-23-025).
     The advance writes each step before this node commits it, the order
     CLP-07-013 gives a consequence, and both run in the Leave's
     ``ActTransaction``: a commit that fails fails the act, which keeps no
@@ -97,8 +97,8 @@ class CommitRMClosureEntriesNode(CommitParticipantStatusEntriesNode):
     fails that check by design
     (SYNC-10-001/002), and it must not block case closure (CM-23-002).
 
-    Per CM-23-001, CM-23-002 steps 1-2, CM-23-003, CM-23-005, CLP-07-013;
-    ADR-0051.
+    Per CM-23-022, CM-23-025, CM-23-002 steps 1-2, CM-23-003, CM-23-033,
+    CLP-07-013; ADR-0051.
     """
 
     #: A gapped local prefix must not block case closure (CM-23-002,

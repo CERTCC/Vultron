@@ -43,7 +43,7 @@ class DeclineForeignLedgerCommitNode(DataLayerActionWithPorts):
     No sanctioned path reaches this node with a foreign store.  A container
     executes trees only as actors it hosts, and a participant whose container
     does not host the CASE_MANAGER reaches it by sending the CASE_MANAGER its
-    own activity (CM-24-004, ADR-0109); ``BTBridge._store_for_actor`` already
+    own activity (CM-24-010, ADR-0109); ``BTBridge._store_for_actor`` already
     refuses an unhosted executing actor before any tree ticks (BT-05-005).
     Reaching this node as one is therefore a programming error, and it raises
     :class:`~vultron.errors.VultronUnhostedActorError` having written nothing,

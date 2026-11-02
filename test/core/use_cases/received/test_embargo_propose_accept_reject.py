@@ -273,7 +273,10 @@ class TestEmbargoProposalLifecycle:
     def test_accept_invite_to_embargo_records_embargo_on_participant(
         self, monkeypatch, make_payload
     ):
-        """accept_invite_to_embargo_on_case records an AGREED consent row for the embargo (CM-10-002, CM-10-003)."""
+        """accept_invite_to_embargo_on_case records an AGREED consent row.
+
+        The row is for the embargo (CM-10-001, CM-10-002).
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.wire.as2.vocab.objects.embargo_event import (
@@ -539,7 +542,7 @@ def _make_pxa_case(
     """Return (case, embargo, proposal) with pxa_state set.
 
     *to* addresses the proposal; omitted, it goes to *coordinator_id*,
-    since an Invite naming no recipient is refused (EP-09-010).
+    since an Invite naming no recipient is refused (EP-09-026).
     """
     from vultron.core.states.cs import CS_pxa
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -689,7 +692,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
         """A misrouted EP is refused before the P/X/A check answers it.
 
         EMB-01-002's Reject answers a proposal this receiver was sent; an Invite
-        naming no recipient or several is a misrouting (EP-09-010), received
+        naming no recipient or several is a misrouting (EP-09-026), received
         but not understood, so it is refused with the count and answered with
         a ProcessingFault, never a Reject (MSM-05-001).  Nothing is accepted, so
         EMB-01-002's MUST NOT still holds.

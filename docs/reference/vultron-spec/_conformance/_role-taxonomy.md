@@ -15,7 +15,7 @@ An actor can hold several process roles, and what it may do is the union of what
 | Observer | Holds no drive obligations for VFD; can report PXA observations ([§13.4.2 Participant-Agnostic CS Transitions (PXA)](../conformance.md#1342-participant-agnostic-cs-transitions-pxa)) |
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-26-001", "CSB-15-001", "CSB-15-002", "CM-25-005"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-26-001", "CSB-15-001", "CSB-15-007", "CSB-15-002", "CSB-15-009", "CM-25-005"))
 ```
 
 **Capability prerequisites.** Every case Participant, whatever its roles, provides the Case Observer capability set ([§13.2 Capability Sets](../conformance.md#132-capability-sets), [§13.3.3 Roles and Capability Sets Are Independent](../conformance.md#1333-roles-and-capability-sets-are-independent)).
@@ -41,7 +41,7 @@ They describe what an actor *controls* within the protocol machinery, not what i
 | Case Manager | Holds the case's single-writer authority ([§10.1 Single-Writer Authority](../interactions.md#101-single-writer-authority)): writes the canonical case ledger, relays case-scoped messages, and manages the roster on the Case Owner's behalf ([§2.2 Roles](../introduction.md#22-roles)). Authority follows the role, not the actor that holds it; the role is commonly co-held with Coordinator but need not be ([§13.3.3 Roles and Capability Sets Are Independent](../conformance.md#1333-roles-and-capability-sets-are-independent)) |
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-21-001", "CM-02-004", "CM-02-005"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-21-001", "CM-21-023", "CM-02-004", "CM-02-005"))
 ```
 
 **Delegation scenarios**: Protocol responsibilities can transfer during a case lifecycle.

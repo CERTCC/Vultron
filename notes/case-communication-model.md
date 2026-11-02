@@ -5,7 +5,8 @@ kind: guidance
 description: >
   Rules for post-creation case messaging: every participant message routes
   through the CASE_MANAGER and state reaches replicas only via CaseLedgerEntry
-  broadcast; which resolver to use; Invite/Accept routing; the embargo relay
+  broadcast; which resolver to use; "active participant" excludes closed
+  participants (ADR-0172); Invite/Accept routing; the embargo relay
   (EP-09, ADR-0113), where ledger entries carry state but never ask; the
   delegated-message pattern; and identity-spoofing antipatterns, including
   reading the CASE_MANAGER gate as a sender check (HP-01-006, ADR-0115).
@@ -99,6 +100,20 @@ and `invitation_recipients()` for consent Invites.
 `test/architecture/test_active_participant_recipient_selection.py` keeps every other
 module from listing roster ids for addressing.
 
+## "Active Participant" Excludes Closed Participants (ADR-0172)
+
+Write "active participant" for a participant that may still act and receive new case
+content, and never add "and not closed": an active participant is one whose closure
+the ledger does not record, so a closed participant is inert. A rule that needs a
+closed participant reached names the exception instead. There are three: the entries
+that record its own closure (CM-23-004), the capped replay that answers its
+`Reject(CaseLedgerEntry)` (SYNC-03-005, CM-23-018), and the direct notice to a closed
+signatory (CM-31-009). The first two admit it on "entitled apart from its closure",
+which never widens entitlement. The published `activeParticipants` follows the same
+meaning. Reason: while "active" included closed participants, a rule that said only
+"active" let a closed participant be offered the case (CM-21-021, #5189). Until #5661
+lands, CM-10-004 and the code still carry the broad meaning and the combined test.
+
 ---
 
 ## Implementation: Resolving the CASE_MANAGER ID
@@ -152,7 +167,7 @@ Case Owner triggers SvcInviteActorToCaseUseCase
     the creation to the ledger (CM-11-006)
   → CASE_MANAGER sends Invite(Actor)[target=VulnerabilityCaseStub]
     (sent by case_actor_id, attributedTo case_owner_id), commits it in the
-    emitting tree, no cc: (CM-17-006) → invitee's inbox
+    emitting tree, no cc: (CM-17-006, CM-17-015) → invitee's inbox
 
 Invitee sends Accept(Invite(Actor)[target=VulnerabilityCaseStub])
   (sent by invitee_id, addressed to case_actor_id)
@@ -168,7 +183,7 @@ AcceptInviteActorToCaseReceivedUseCase, at every receiver of a copy:
   4. Emits Announce(VulnerabilityCase) to the participant and replays the
      prior ledger to it (CM-11-008)
   5. Queues the full-case Invite(Actor)[target=VulnerabilityCase] after the last
-     replayed entry, carrying its ledger tail position (CM-11-010)
+     replayed entry, carrying its ledger tail position (CM-11-031)
 
 Participant replies to the full-case Invite, carrying its own ledger position:
   Accept (RV) → RM.VALID · TentativeReject (RI) → RM.INVALID ·
@@ -203,11 +218,11 @@ Reject(Invite(stub)) instead of Accept → RM.CLOSED on the kept, inert record
 
 Put the emit inside `create_case_manager_gated_tree`. Never resolve a `case_actor_id`
 and compare it with `actor_id`: the authority is a *role*, and an ungated helper is
-identity spoofing (CM-24-004). Once gated, the executing actor *is* the CASE_MANAGER and
+identity spoofing (CM-24-009). Once gated, the executing actor *is* the CASE_MANAGER and
 `dl` is its store, so the activity and its outbox entry land in one store (BT-05-006):
 **`dl` determines the queue**, and `add_activity_to_outbox`'s actor argument is only a
 log label. A case always has a CASE_MANAGER (CM-24-006): a resolver that finds none
-fails; there is no un-delegated fallback (CM-24-008).
+fails; there is no un-delegated fallback (CM-24-008, CM-24-014).
 
 ---
 
@@ -242,7 +257,7 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
   committed entry and never compute it (CM-28-014, ADR-0118).
 - **`Announce(CaseLedgerEntry)` is a channel for case state, not a protocol
   interaction.** A proposal or Invite *inside an entry* tells the participant the case's
-  state; it answers only an Invite addressed to it (EP-09-003). A non-manager that
+  state; it answers only an Invite addressed to it (EP-09-025). A non-manager that
   receives a peer's proposal *directly* stores it and writes nothing (RSH-08-003).
 - **The owner MAY decide without waiting** for answers and SHOULD wait for some; there
   is no quorum (EP-09-005, EP-09-006). The answers are still the consent records the
@@ -264,7 +279,7 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
   are the rows a withdrawal declines. No slot decides to skip an entry: a
   `Reject` the CASE_MANAGER answers with ET is its `REJECT` step, and the
   CASE_MANAGER's own `Remove` that follows is the `TERMINATE` step, so the
-  replica copies both in order (MSM-07-009):
+  replica copies both in order (MSM-07-032):
 
 | Entry (`semantic_type`) | Slot | Replica effect |
 |---|---|---|
@@ -272,19 +287,19 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
 | relayed Invite, re-invites included (same type, `actor` the CASE_MANAGER, `attributedTo` the proposer) | `EmbargoInviteRelay` | stores B, proposer's index; the invitee's `INVITED` row and RSVP deadline follow (CM-28-013) |
 | `accept_invite_to_embargo_on_case` | `EmbargoAcceptance` | stores B; copies the `AGREED` row the Accept states, the owner's included; no register change (ADR-0122) |
 | `reject_invite_to_embargo_on_case` from a participant | `EmbargoRejection` | stores B; copies the `DECLINED` row the Reject states; no register change |
-| `reject_invite_to_embargo_on_case` from the CASE_MANAGER | `EmbargoAbandonment` | copies the `CANCEL` step of the proposal it rejects (EMB-16-001, ADR-0152) |
-| `undo_invite_to_embargo_on_case` (the CASE_MANAGER's `Undo` of an Invite it sent) | `EmbargoInviteWithdrawal` | copies the `CANCEL` step of the proposal; in place after the abandonment's first entry (EMB-16-001) |
+| `reject_invite_to_embargo_on_case` from the CASE_MANAGER | `EmbargoAbandonment` | copies the `CANCEL` step of the proposal it rejects (EMB-16-001, EMB-16-005, ADR-0152) |
+| `undo_invite_to_embargo_on_case` (the CASE_MANAGER's `Undo` of an Invite it sent) | `EmbargoInviteWithdrawal` | copies the `CANCEL` step of the proposal; in place after the abandonment's first entry (EMB-16-001, EMB-16-005) |
 | `withdraw_from_embargo_on_case` (`Leave(EmbargoEvent)`) | `EmbargoWithdrawal` | stores the embargo if absent; writes no row: each row it declines follows as its own `update_embargo_consent` (MSM-07-010) |
 | `create_embargo_consent` / `update_embargo_consent` | `EmbargoConsent` | copies the row the CASE_MANAGER changed, an invitation expiry (`TIMED_OUT`, CM-28-014) and the CASE_MANAGER's own consent change (MSM-07-017) included; a no-op when the seed is past it, else refuses it and holds its Announce |
 | `activate_embargo_on_case` (owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]`) | `EmbargoActivation` | copies the `ACTIVATE` step (B `ACTIVE`, A `SUPERSEDED`) and the owner's `AGREED` row; each `CARRY_OVER` row follows as its own `update_embargo_consent` |
 | `reject_embargo_proposal_on_case` (owner's `Reject(EmbargoEvent)[target=VulnerabilityCase]`) | `EmbargoProposalRejection` | copies the `REJECT` step: B `REJECTED`, EM back to A (or `NONE`) once no proposal is open; no consent. After disclosure the CASE_MANAGER's teardown entry follows in the same act and terminates A (EMB-04-002, MSM-07-009); the replica copies both and decides nothing |
-| `remove_embargo_event_from_case` | `EmbargoTeardown` | copies the `TERMINATE` step for the embargo the entry names, with the `CANCEL` of every open proposal (EP-08-004); writes no row (MSM-07-006); an entry naming an embargo not in force here changes nothing |
+| `remove_embargo_event_from_case` | `EmbargoTeardown` | copies the `TERMINATE` step for the embargo the entry names, with the `CANCEL` of every open proposal (EP-08-004); writes no row (MSM-07-025); an entry naming an embargo not in force here changes nothing |
 
 - A proposal and a relay share one semantic type; `is_relayed_embargo_invite()` reads a
   relay only when `actor` is the case's CASE_MANAGER and `attributedTo` names someone
   else, or names the CASE_MANAGER and the register already holds the embargo decided,
-  as for a re-invite (EMB-17-003, ADR-0152). A third party in `attributedTo` from a
-  participant is still a proposal (PCR-08-010).
+  as for a re-invite (EMB-17-003, EMB-17-014, ADR-0152). A third party in
+  `attributedTo` from a participant is still a proposal (PCR-08-010).
 - The CASE_MANAGER never commits a `Reject(Invite(EmbargoEvent))` as its own consent:
   that shape from it is the abandonment, so its own consent change is its
   `Update(EmbargoConsent)` of the row (MSM-07-017).

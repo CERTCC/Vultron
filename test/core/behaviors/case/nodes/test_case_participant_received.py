@@ -75,7 +75,7 @@ REMOVE_ID = "https://example.org/activities/remove-coord"
 
 
 class TestRemoveCaseParticipantFromCaseReceivedNode:
-    """Removal sets the fact and keeps the record (CM-31-001, ADR-0116)."""
+    """Removal sets the fact and keeps the record (CM-31-001, CM-31-015, ADR-0116)."""
 
     def _run(self, bridge, case_id: str = CASE_ID):
         tree = RemoveCaseParticipantFromCaseReceivedNode(
@@ -85,7 +85,7 @@ class TestRemoveCaseParticipantFromCaseReceivedNode:
         )
         return bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
 
-    @pytest.mark.spec("CM-31-001")
+    @pytest.mark.spec("CM-31-015")
     def test_keeps_the_participant_on_the_roster(
         self, bridge, dl, case, participant
     ) -> None:
@@ -156,7 +156,7 @@ class TestRemoveCaseParticipantFromCaseReceivedNode:
 
 
 class TestReinstateCaseParticipantReceivedNode:
-    """Reinstatement clears the removal fact and nothing else (CM-31-011)."""
+    """Reinstatement clears the removal fact and nothing else (CM-31-034)."""
 
     def _run(self, bridge, case_id: str = CASE_ID):
         tree = ReinstateCaseParticipantReceivedNode(
@@ -165,6 +165,7 @@ class TestReinstateCaseParticipantReceivedNode:
         return bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
 
     @pytest.mark.spec("CM-31-011")
+    @pytest.mark.spec("CM-31-034")
     def test_clears_the_removal_fact(
         self, bridge, dl, case, participant
     ) -> None:
@@ -208,13 +209,13 @@ class TestReinstateCaseParticipantReceivedNode:
 
 
 class TestReinstatementGuards:
-    """``Add`` only reinstates: each guard refuses a request to seat (CM-31-011)."""
+    """``Add`` only reinstates: each guard refuses a request to seat (CM-31-036)."""
 
     @staticmethod
     def _run(bridge, node):
         return bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
-    @pytest.mark.spec("CM-31-011")
+    @pytest.mark.spec("CM-31-036")
     def test_is_removed_guard_refuses_a_participant_that_is_not_removed(
         self, bridge, dl, case, participant
     ) -> None:
@@ -246,7 +247,7 @@ class TestReinstatementGuards:
 
         assert self._run(bridge, node).status == Status.SUCCESS
 
-    @pytest.mark.spec("CM-31-011")
+    @pytest.mark.spec("CM-31-036")
     def test_has_joined_guard_refuses_an_invitee_that_never_joined(
         self, bridge, dl, case
     ) -> None:

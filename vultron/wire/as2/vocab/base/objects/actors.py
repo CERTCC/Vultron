@@ -117,7 +117,7 @@ def actor_reference(actor_id: str) -> "as_Actor":
     """Return the actor reference for an actor known only by *actor_id*.
 
     An inline object with exactly the actor's ``id`` and a ``type``
-    (AKM-05-005, ADR-0159): enough for a receiver to route the activity by
+    (AKM-05-017, ADR-0159): enough for a receiver to route the activity by
     its object's ``type``, and nothing the sender does not know.  ``as_Object``
     would stamp ``published``/``updated`` from this process's clock, so both
     are cleared; the actor did not publish them (AKM-02-006).

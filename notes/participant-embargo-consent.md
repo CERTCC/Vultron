@@ -62,7 +62,7 @@ predates ADR-0122 and is wrong.
 |---|---|
 | `UNINVITED` | Not asked about this embargo. The start state |
 | `INVITED` | Asked; no answer yet. Carries the invitation's RSVP deadline |
-| `AGREED` | Agreed — explicitly, as proposer, by seeding (CM-14-003, CM-14-005), or by carry-over (EP-05-001) |
+| `AGREED` | Agreed — explicitly, as proposer, by seeding (CM-14-003, CM-14-005), or by carry-over (EP-05-003) |
 | `DECLINED` | Explicitly refused it, or withdrew from it (ADR-0093) |
 | `TIMED_OUT` | Invited; the RSVP deadline passed with no answer (pocket veto, ADR-0118) |
 
@@ -77,14 +77,14 @@ predates ADR-0122 and is wrong.
 - **`CARRY_OVER` agrees for a participant without its asking.** Agreeing to N
   days is agreeing to every shorter period, so a signatory of the replaced
   embargo is bound by a shorter revision even if it declined the revision
-  (EP-05-001).
+  (EP-05-003).
 - **Answers to a closed embargo version can no longer change.** Each embargo
   version has its own record of each participant's answer. Once a version is
   replaced (`SUPERSEDED`), rejected (`REJECTED`), cancelled (`CANCELLED`) or ended
   (`TERMINATED`), answers to it can no longer change: `apply_pec_transition()`
   takes the entry status (`entry_status=`) and refuses every trigger. This also
   covers "nothing is recorded after termination". A late Accept of stale terms is
-  answered with an invitation to the current embargo (EMB-17-003).
+  answered with an invitation to the Active Embargo (EMB-17-003).
 
 ### Every Row Is Written (CM-18-001)
 
@@ -102,7 +102,7 @@ Two writes create rows, both at `UNINVITED`, and neither records an answer:
 never "not asked".
 
 A late joiner is invited only to the `ACTIVE` embargo (the stub Invite's
-`INVITED` row, CM-11-006) and to open revisions (`RelayOpenProposalsToJoinerNode`).
+`INVITED` row, CM-11-026) and to open revisions (`RelayOpenProposalsToJoinerNode`).
 
 **`UNINVITED` does not mean an invitation is owed.** `AGREE` and `DECLINE` are
 legal from it because consent is not always mediated by an invitation (the
@@ -146,7 +146,7 @@ agreed to.**
 | Revision B proposed | every participant gets an `UNINVITED` row for B; the proposer's becomes `AGREED`; nothing else |
 | A participant (owner included) accepts the Invite to B | its row for B becomes `AGREED`; its row for A is untouched |
 | A participant (owner included) rejects the Invite to B | its row for B becomes `DECLINED`; refusing B is not withdrawing from A |
-| A non-owner withdraws from the *active* embargo | its row for A becomes `DECLINED`, and so does every open proposal's row it had agreed to (MSM-07-010) |
+| A non-owner withdraws from the *active* embargo | its row for A becomes `DECLINED`, and so does every open proposal's row it had agreed to (MSM-07-010, MSM-07-034) |
 | A participant that declined an embargo accepts its Invite | its row for that embargo becomes `AGREED` directly; no new invitation first (CM-18-003) |
 | Owner rejects B for the case (`Reject(EmbargoEvent)`) | nothing — the owner is keeping A, not declining it |
 | Owner activates B, and B ends **no later than** A | owner's row for B → `AGREED`; `CARRY_OVER` makes B's row `AGREED` for every signatory of A, a `DECLINED` row for B included |
@@ -218,7 +218,7 @@ answers nothing; `cc` addresses nobody (ADR-0109).
 
 ---
 
-## Pitfall: Never Assign `embargo_consents` Directly (CM-18-005)
+## Pitfall: Never Assign `embargo_consents` Directly (CM-18-026)
 
 Change consent by applying a `PEC_Trigger` through
 `CaseParticipant.apply_pec_transition(embargo_id, trigger, entry_status=...)`,
@@ -306,14 +306,15 @@ raises `VultronEntryRefusedError` otherwise. It never runs `apply_pec_transition
 
 `INVITED → TIMED_OUT` is timer-based, so one silent invitee cannot stall the
 case. Silence is never recorded as `DECLINED`, which only an explicit refusal
-reaches (CM-28-004). `TIMED_OUT` is a state, not ledger provenance, because code,
+reaches (CM-28-020). `TIMED_OUT` is a state, not ledger provenance, because code,
 logs and replicas read the state: a silent invitee must not read as a refuser
 (ADR-0118). Both are re-invitable and excluded from embargoed content, and
 both move straight to `AGREED` on an Accept.
 
 **The pocket veto and the RSVP deadline are one mechanism.** An `Invite.end_time`
 is authoritative (CM-28-002); the configured window is the fallback for an Invite
-without one (EP-07-001, default 7 days). Do not add a second timeout notion.
+without one (CM-28-019, EP-07-001, default 7 days per EP-07-009). Do not add a
+second timeout notion.
 
 **A lapse is not the timer destination.** The timer ends at `TIMED_OUT`, and only
 from an `INVITED` row; lapsed is a read (the owner activated longer terms). Each
@@ -337,7 +338,7 @@ recipient (EP-09-010) — never to whichever store processes the message. The
 CASE_MANAGER stamps `Invite.end_time` on every embargo Invite it sends with
 `stamp_invite_rsvp_deadline()` (`vultron/core/behaviors/embargo/rsvp_stamp.py`,
 CM-28-012) and writes it on the invitee's `INVITED` row at its commit; the replica
-replay writes the same value (CM-28-013). Record the deadline read back from the
+replay writes the same value (CM-28-023). Record the deadline read back from the
 sealed body, which is what the committed entry carries.
 
 - **Write and read must name the same participant.** `detect_and_apply_expiry()`
@@ -352,7 +353,7 @@ sealed body, which is what the committed entry carries.
 - **The receiver-side fallback is logged, never stored.** The wire extractor
   (`_effective_rsvp_deadline`) computes an effective deadline for every inbound
   embargo Invite, applying the default window and clamps (EP-07-003, EP-07-005),
-  but no received use case writes it (CM-28-013).
+  but no received use case writes it (CM-28-024).
 
 Only `Invite(EmbargoEvent)` is enforced; there is no `Offer` in the embargo path.
 
@@ -368,9 +369,9 @@ an entry attributed to the invitee (ADR-0140; trees in
 | Situation | Behaviour |
 |---|---|
 | `INVITED` row past its deadline | `Update(EmbargoConsent)` carrying the `TIMED_OUT` row, that row only (CM-28-005, CM-28-009, CM-28-014) |
-| Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: commit the Accept itself, as an on-time Accept is, its entry carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED`; no `Update(EmbargoConsent)` follows (EMB-17-002, EMB-17-009, ADR-0152) |
-| Accepted embargo is stale | relay a fresh Invite to the current embargo, `attributedTo` its proposer (the CASE_MANAGER for terms it made itself), with a fresh deadline; the answer recorded for the stale terms can no longer change (EMB-17-003) |
-| No current embargo (EM `EXITED`/`NONE`) | a no-op: no entry, no reply, rows and case participation unchanged; reported `SKIPPED` (EMB-17-004) |
+| Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: commit the Accept itself, as an on-time Accept is, its entry carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED`; no `Update(EmbargoConsent)` follows (EMB-17-002, EMB-17-009, EMB-17-018, ADR-0152) |
+| Accepted embargo is stale | relay a fresh Invite to the Active Embargo, `attributedTo` its proposer (the CASE_MANAGER for terms it made itself), with a fresh deadline; the answer recorded for the stale terms can no longer change (EMB-17-003, EMB-17-013) |
+| No Active Embargo and no Proposed Embargo (EM `EXITED`/`NONE`) | a no-op: no entry, no reply, rows and case participation unchanged; reported `SKIPPED` (EMB-17-004, EMB-17-015 through EMB-17-017) |
 
 A late Accept is never refused (EMB-17): the accepter has signalled willingness
 to coordinate. Each decision follows decide → commit → apply (CLP-10-006,
@@ -379,7 +380,7 @@ then the row's own `Update(EmbargoConsent)` entry, and only then writes the row
 through the one apply function, so a failed commit leaves the row `INVITED`. A
 non-manager writes nothing and gets `REFUSED` from the gate. A replica copies
 the row from its `Update` entry and treats the act's entry as a record, reading
-no clock: a replica learns an expiry and never computes one (CM-23-016).
+no clock: a replica learns an expiry and never computes one (CM-23-044).
 
 ### Sweep due expiries before the owner decides (CM-28-015)
 
@@ -387,8 +388,9 @@ An invitee that never answers sends nothing, so a late-`Accept` check never sees
 it: its row stays `INVITED` until owner close expires it (CM-23-014). The
 CASE_MANAGER therefore expires every overdue `INVITED` row of an open proposal or
 the embargo in force before it commits the owner's decision, and on every other
-received embargo activity and embargo trigger (CM-28-015). Rows of a replaced,
-rejected, cancelled or ended embargo are frozen: skip them.
+received embargo activity and embargo trigger (CM-28-015, CM-28-028, CM-28-029).
+Rows of a replaced, rejected, cancelled or ended embargo are frozen: skip them
+(CM-28-025).
 
 The sweep is a clock decision (CLP-10-025, ADR-0135), passed by each received
 embargo tree as `clock_decisions` and added by `SvcEmbargoTriggerBase` ahead of
@@ -406,7 +408,7 @@ backwards (CLP-15-003). The P/X/A refusal of an Invite or an `Accept` is a
 diversion of the Invite and Accept trees (CLP-10-026), so it runs after their
 clock decisions, the sweep included.
 
-### The ledger fan-out is the owner's notification (MSM-07-007)
+### The ledger fan-out is the owner's notification (MSM-07-026)
 
 The owner learns of a `DECLINED` or `TIMED_OUT` answer from the entry itself. An
 active owner gets the `Announce(CaseLedgerEntry)`, because `ledger_entry_recipients`
@@ -420,7 +422,7 @@ acknowledgement EP-09-009 forbids (#4548).
 A sub-floor deadline is raised to the floor on receipt, never refused: refusing
 would hand a hostile sender an invite that never takes effect. The floor is
 relative (ADR-0096): the lesser of the configured window (72h default) and the
-time left in the embargo, because EP-07-006 clamps any deadline down to the
+time left in the embargo, because EP-07-011 clamps any deadline down to the
 embargo's own `end_time`. Receivers with different windows compute different
 deadlines; the clamp guarantees safety, not identical arithmetic. Normalize an
 inbound `end_time` to UTC before comparing (CM-28-006).

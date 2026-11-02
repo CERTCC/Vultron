@@ -220,7 +220,7 @@ class TestRetiredVfdKeyRejection(unittest.TestCase):
     """A retired vfd key must raise ValidationError, not escape Pydantic (#2905).
 
     The per-class ``_reject_retired_vfd_keys`` guard these rows were written
-    for is gone (#3921, SDO-03-005): ``extra="forbid"`` alone now refuses the
+    for is gone (#3921, SDO-03-008): ``extra="forbid"`` alone now refuses the
     key on direct validation, and the parse edge refuses it by name on inbound
     data (MV-11-002).  The rows still pin that the refusal is a Pydantic
     ``ValidationError`` rather than an exception escaping ``model_validate()``.

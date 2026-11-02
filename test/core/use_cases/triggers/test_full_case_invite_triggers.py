@@ -126,7 +126,7 @@ def _run(use_case, request, dl):
     ).execute()
 
 
-@pytest.mark.spec("CM-11-011")
+@pytest.mark.spec("CM-11-034")
 @pytest.mark.parametrize(("use_case", "request_class", "kind"), _CASES)
 def test_reply_carries_the_participants_own_position(
     participant, use_case, request_class, kind

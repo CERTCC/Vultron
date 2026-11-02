@@ -48,6 +48,7 @@ def test_the_wire_what_has_exactly_two_values() -> None:
 
 @pytest.mark.spec("EMB-13-004")
 @pytest.mark.parametrize("content", [None, "", "THREAT_SIGNAL", "early", 1])
+@pytest.mark.spec("EMB-13-009")
 def test_content_that_is_not_a_reason_is_refused(content) -> None:
     with pytest.raises(ValueError, match="END_TIME_REACHED"):
         termination_reason_from_content(content)

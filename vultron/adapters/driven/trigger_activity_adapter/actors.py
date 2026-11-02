@@ -112,7 +112,8 @@ def _held_actor(
     """The actor *actor_id* as this sender holds it, else its URI.
 
     The factory carries a held profile as held and a URI as an actor
-    reference (``carried_actor``, AKM-05-005, ADR-0159).
+    reference (``carried_actor``, AKM-05-005, AKM-05-017,
+    ADR-0159).
     """
     held = dl.read(actor_id)
     if isinstance(held, (as_Actor, CoreActor)):
@@ -174,7 +175,7 @@ class _ActorsMixin:
 
         ``actor`` MUST be the CASE_MANAGER's ID (PCR-08-007); ``attributed_to``
         MAY carry the case owner's ID for attribution.  The Invite carries no
-        ``cc`` (CM-17-006, ADR-0109).
+        ``cc`` (CM-17-015, ADR-0109).
 
         ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
         ``target`` may be a core ``as_VulnerabilityCase`` (projected to an enriched
@@ -699,7 +700,7 @@ class _ActorsMixin:
 
         The canonical role-delegation wire format introduced by ADR-0039.
         *attributed_to* and *in_reply_to*, when given, make it the
-        CASE_MANAGER's forward of a recorded Offer (CM-33-001); a given *id_*
+        CASE_MANAGER's forward of a recorded Offer (CM-33-008); a given *id_*
         is kept so a retry rebuilds the same activity (OX-06-002).
 
         Returns ``(activity_id, activity_dict)``.
@@ -847,7 +848,7 @@ class _ActorsMixin:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership transfer.
 
         The CASE_MANAGER's Offer to ``transferee_id``, made from the owner's
-        proposal (ADR-0148, CM-21-005).  The case travels as its typed
+        proposal (ADR-0148, CM-21-028).  The case travels as its typed
         reference (ADR-0165): the transferee is an active participant that
         holds it (CM-21-021), and the reference's ``type`` tells this from a
         ``SUBMIT_REPORT`` offer.  *end_time*, when given, is the Offer's

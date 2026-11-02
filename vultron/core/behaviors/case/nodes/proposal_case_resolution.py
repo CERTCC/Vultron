@@ -56,7 +56,7 @@ class LoadExistingCaseNode(DataLayerActionWithPorts):
     The case is the first of ``proposal_case_ids`` that is in the store, the
     lookup ``CheckProposalCaseFullyClosedNode`` also uses (CS-22-001):
 
-    - **The proposer's own case for the report** (CP-05-008).  A
+    - **The proposer's own case for the report** (CP-05-017).  A
       ``Create(as_CaseProposal)`` under a new proposal id may name a report
       that already has a case.  The case is reused only when the proposer
       owns it (``attributed_to``); a case for the same report owned by anyone
@@ -175,8 +175,8 @@ class CreateCaseFromProposalNode(DataLayerActionWithPorts, StateWriteCapable):
     receiver, who becomes the CASE_OWNER — never to the CASE_MANAGER that
     creates it (CP-09-001, CM-22-001, CM-02-008).  ``attributed_to`` is the
     case's owner field: the status adoption gate and embargo consent and
-    answers all read it (MSM-07-008), and ownership transfer
-    rewrites it (CM-21-002), so naming the CASE_MANAGER there would make
+    answers all read it (MSM-07-027), and ownership transfer
+    rewrites it (CM-21-024), so naming the CASE_MANAGER there would make
     every one of those checks treat it as the owner.  The CASE_MANAGER's
     authorship is carried where AS2 puts it instead: it is the ``actor`` of
     the ``Create(VulnerabilityCase)`` it emits (CP-05-003).

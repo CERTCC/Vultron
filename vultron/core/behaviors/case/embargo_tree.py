@@ -26,9 +26,9 @@ Subtrees defined here:
 
 - ``InitializeDefaultEmbargoNode`` — composed subtree for initial embargo
   set-up on case creation.  A case with P/X/A set gets no embargo and stays
-  EM.NONE (EP-04-008); any other case runs the leaf steps: resolve
+  EM.NONE (EP-04-008, EP-04-020); any other case runs the leaf steps: resolve
   duration, create event, select a longer creation-time proposal as the
-  pending revision (EP-04-003), then advance EM state to ACTIVE with the
+  pending revision (EP-04-016), then advance EM state to ACTIVE with the
   embargo attached, the owner seeded as a signatory and that revision
   registered, in one commit (EP-04-002, EP-04-012).
 
@@ -62,7 +62,7 @@ class InitializeDefaultEmbargoNode(py_trees.composites.Selector):
     The first arm succeeds, doing nothing, when the case's EM state has left
     ``EM.NONE``: initialization ran when the case was created, and a
     redelivered proposal that reuses the case (CP-05-006) must not run it
-    again in any later state, ``EXITED`` included (EP-04-012).  The EM state,
+    again in any later state, ``EXITED`` included (EP-04-028).  The EM state,
     not the active-embargo reference, is the evidence — termination clears the
     reference but never returns the state to ``NONE``.  A case still at
     ``NONE`` was never initialized, so the arm falls through.  The second
@@ -97,7 +97,7 @@ class InitializeDefaultEmbargoNode(py_trees.composites.Selector):
                     children=[
                         ResolveEmbargoDurationNode(actor_config=actor_config),
                         CreateEmbargoEventNode(),
-                        # EP-04-003: when both parties proposed, the longer
+                        # EP-04-016: when both parties proposed, the longer
                         # candidate is selected here, before anything is
                         # written, to become a pending revision.
                         ResolveCreationTimeRevisionNode(),

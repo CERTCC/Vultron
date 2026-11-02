@@ -55,7 +55,7 @@ class OfferCaseParticipantRoleReceivedUseCase:
     (CM-33-004, PCR-03-001).  The CASE_MANAGER refuses an Offer whose role or
     target it may not record (CM-33-003); an admitted Offer is committed and
     forwarded to the target, and nothing is granted until the target's
-    Accept is committed (CM-33-001, CM-02-016).  The target answers the
+    Accept is committed (CM-33-009, CM-02-016).  The target answers the
     forward, to the CASE_MANAGER.  A refused Offer leaves no entry and sends
     nothing; a redelivery of an Offer the CASE_MANAGER recorded is
     ``SKIPPED`` (HP-01-003).
@@ -69,7 +69,7 @@ class OfferCaseParticipantRoleReceivedUseCase:
 
     # Only the Case Owner offers a role; a participant takes the forward from
     # the CASE_MANAGER alone (CM-33-002, CM-33-004, PCR-03-001).  The
-    # CASE_MANAGER-originated Offer CM-33-002 permits is omitted.
+    # CASE_MANAGER-originated Offer CM-33-010 permits is omitted (CM-33-011).
     sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
         SenderEntitlementKind.CASE_OWNER
     )

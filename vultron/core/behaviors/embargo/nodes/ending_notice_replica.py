@@ -107,7 +107,7 @@ class ApplyAnnouncedEmbargoRevisionNode(
     not yet held, EMB-18-003) and activates it through
     ``EmbargoLifecycle.activate_embargo`` in ``OBSERVED`` mode (EMB-18-001),
     which carries the replica's signatories over as the CASE_MANAGER did
-    (EP-05-001).
+    (EP-05-003).
 
     Nothing is written, and the node succeeds, when the replica has no
     embargo in force, already has the announced one, or the announced one
@@ -170,7 +170,7 @@ class ApplyAnnouncedEmbargoRevisionNode(
                 self.feedback_message = (
                     f"Announced embargo '{self.embargo_id}' ends later than"
                     f" '{current}' on case '{self.case_id}' — not a"
-                    " shortening, ignored (CM-31-009)"
+                    " shortening, ignored (CM-31-030)"
                 )
                 self.logger.warning("%s: %s", self.name, self.feedback_message)
                 return Status.SUCCESS

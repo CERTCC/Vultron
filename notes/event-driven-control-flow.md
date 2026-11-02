@@ -59,7 +59,7 @@ Committed layers to read a failed run.
    case exists" resolves during `validate-report`; "this participant reached
    `RM.VALID`" commits after the 202 (EDF-06-003, #2134).
 3. **Find a caused object by what it is, not by its cause's ID.** A forwarded
-   activity has a new id (CM-21-005); scan by type, target and object as
+   activity has a new id (CM-21-028); scan by type, target and object as
    `find_case_invite_for_actor`, `find_cp_offer_for_case` and
    `find_ownership_transfer_offer_for_actor` do (EDF-06-004).
 
@@ -120,7 +120,7 @@ When the input must come later, the node **asks and terminates**. It never retur
 tree down, so there is nothing to resume. The answer arrives as a trigger or an
 inbox message and starts a fresh evaluation that first finds where the exchange
 stands (EDF-04-003, ASK-02-001). Asking another actor is the protocol-ask
-primitive: emit the ask, return `SUCCESS` meaning *I asked* (ASK-01-002); see
+primitive: emit the ask, return `SUCCESS` meaning *I asked* (ASK-01-006); see
 `notes/protocol-asks.md`.
 
 A terminal status with no request emitted is the silent failure EDF-04-005

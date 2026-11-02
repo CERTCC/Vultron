@@ -52,7 +52,7 @@ class InviteActorToCaseReceivedUseCase:
     One path for every receiver (CLP-10-005, CLP-10-013): the use case builds
     ``InviteActorToCaseReceivedBT`` and runs it once as the receiving actor.
     The CASE_MANAGER emits the Invite from its own store and commits it in
-    the emitting tree, with no ``cc:`` copy to itself (CM-17-006, ADR-0109),
+    the emitting tree, with no ``cc:`` copy to itself (CM-17-006, CM-17-015, ADR-0109),
     so the receiver is the invitee.  Intake stores the Invite idempotently;
     the commit stays behind the CASE_MANAGER gate and skips; the invitee's
     effect nodes log the receipt (SL-04-006) and record the sender as the
@@ -186,7 +186,7 @@ class AcceptInviteActorToCaseReceivedUseCase:
                 " Invite id"
             )
         # The invitee is the reply's sender, never the actor the embedded
-        # copy of the Invite names (CM-11-017).
+        # copy of the Invite names (CM-11-047).
         invitee_id = request.actor_id
 
         # The BT runs as the *receiving* actor: the inbox-stamped
@@ -323,7 +323,7 @@ class RejectInviteActorToCaseReceivedUseCase:
         )
         # A Reject from an invitee the case already records as closed would
         # close it again: the tree's closed-sender door stops it with nothing
-        # committed or sent, so it is SKIPPED (CM-23-018, ID-05-003).
+        # committed or sent, so it is SKIPPED (CM-23-049, ID-05-003).
         closed = closed_sender_verdict(
             tree,
             result,

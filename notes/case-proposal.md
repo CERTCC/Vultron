@@ -167,7 +167,7 @@ identity `http://case-actor:7999/api/v2/actors/case-actor`.
   without it every proposal answers 404. Every `seed_containers*` call then gets
   the same client, so `seed_case_actor_peers` refills the CaseActor's address
   book; without it the CaseActor sends each participant as an id-and-type
-  reference, not its profile (AKM-05-005).
+  reference, not its profile (AKM-05-017).
 - **Canonical records live in the case-actor container.** Its store holds the
   case, ledger and participant records, with the CaseActor as the `CASE_MANAGER`
   participant; each participant container holds a replica plus an address-book
@@ -217,7 +217,8 @@ Rows of the retired marker types are refused at load like any deleted stored typ
 already-declined answer, closed-case decline, admission decision, accept flow.
 
 - **Same proposal id** (CP-05-006): re-send the stored `Accept` unchanged under its
-  proposal-derived id, unless still pending in the outbox; create no second case.
+  proposal-derived id, unless still pending in the outbox; create no second case
+  (CP-05-013).
   "Duplicate" means only this — an exact redelivery. A second report about the same
   vulnerability is a report-management question (RMB-11-002). The case is found
   through the stored `Accept`'s `result`, not only by owner: after an ownership
@@ -226,7 +227,7 @@ already-declined answer, closed-case decline, admission decision, accept flow.
   this delivery (`RecordProposalAdmissionNode`'s `admission_record_was_prior`), not
   on the report: the report id is sender-chosen, so a redelivery may name a report
   with no case.
-- **Same proposal id, another sender** (CP-05-010): the proposal id is
+- **Same proposal id, another sender** (CP-05-010, CP-05-022): the proposal id is
   sender-chosen, so the use case declares `SenderRule.before_case(AUTHOR)` and the
   factory composes `SenderIsProposalAuthorNode` ahead of every arm. A proposal id
   whose admission record, decline record or stored proposal (`attributed_to`) names
@@ -246,7 +247,7 @@ already-declined answer, closed-case decline, admission decision, accept flow.
   `participant_id_for_actor`, never `==` or `in`: a trailing-slash redelivery
   otherwise re-runs native initialization (#4772). The event's sender id is
   already normalised by the extractor, and the event refuses one with a trailing
-  slash (OID-01-007), but the activity snapshot keeps the sender's spelling. A
+  slash (OID-01-009), but the activity snapshot keeps the sender's spelling. A
   store written in the slash spelling before #4772 is unsupported: keep the
   tree's existing tolerant checks, but add none for it.
 - **New proposal id, same report** (CP-05-008): a new request, adjudicated and
@@ -256,7 +257,7 @@ already-declined answer, closed-case decline, admission decision, accept flow.
   (CBT-06-002), because the report id is sender-chosen. `find_case_by_report_id` is
   only the fast path; on another proposer's case the node scans for the proposer's
   own.
-- **Fully closed case** (CP-05-006, CP-05-008): a proposal that resolves to a case
+- **Fully closed case** (CP-05-014, CP-05-018): a proposal that resolves to a case
   whose ledger holds the CASE_MANAGER's own `RM.CLOSED` status entry gets
   `Reject(CaseProposal)`, and nothing is
   written for the case (CM-23-013). The factory's post-close guard cannot see it,
@@ -275,7 +276,7 @@ already-declined answer, closed-case decline, admission decision, accept flow.
   as owner also skips a proposer that is not the case's `attributed_to`: a former
   owner's redelivery must not make it CASE_OWNER again (CM-21-001, #4650).
   `CaseEmbargoAlreadyInitializedNode` is the embargo subtree's first arm and keys on EM
-  ≠ `NONE`, not the active-embargo reference, which termination clears (EP-04-012,
+  ≠ `NONE`, not the active-embargo reference, which termination clears (EP-04-028,
   #3393).
 - The receiver does not re-propose: `CheckProposalAlreadySentForReport` treats a
   linked `ReportCaseLink` as already proposed.

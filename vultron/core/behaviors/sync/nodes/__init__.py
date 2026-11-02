@@ -45,7 +45,7 @@ Submodules:
 - ``embargo_pause``: the CM-10-005/006 embargo pause and backfill helpers
 - ``embargo_backfill``: ``BackfillAdmittedParticipantsNode`` (CM-10-006)
 - ``fanout``: Fan-out action nodes; RM.CLOSED participants are skipped
-  except for the entries recording their own closure (CM-23-004)
+  except for the entries recording their own closure (CM-23-004, CM-23-031)
 - ``effects``: Ledger-apply side-effect nodes (note, invite-accept)
 - ``ledger_entry_fault``: the replica's ``Create(ProcessingFault)`` about a
   refused ledger entry, sent to the CASE_MANAGER and never ledgered (SYNC-16-002)
@@ -58,7 +58,7 @@ Submodules:
 
 A ``close_case`` entry has no effect slot: it records the received Leave, and
 the RM transitions the Leave caused arrive as the status entries after it
-(CM-23-001, CM-23-016).  The activity-typed RM moves (report verdicts,
+(CM-23-022, CM-23-024).  The activity-typed RM moves (report verdicts,
 engage/defer, the full-case Invite replies) have none either, for the same
 reason: the status the CASE_MANAGER wrote follows as its own entry
 (CLP-07-013).

@@ -21,17 +21,23 @@ from a CASE_MANAGER store holding a case with the CASE_MANAGER, a Case Owner,
 a joined vendor that is an ``AGREED`` row for the active embargo, and a
 second joined vendor.
 
-- CM-31-001 — removal keeps the record and makes the participant inert.
-- CM-31-003 — the case publishes a computed ``activeParticipants``.
-- CM-31-004 — only the Case Owner may remove, and never the manager or owner.
-- CM-31-005 — one ledger entry, under a canonical signature.
-- CM-31-006 — a direct notice to the removed participant.
+- CM-31-001, CM-31-015 to CM-31-017 — removal records the fact, keeps the
+  record and its history, and makes the participant inert.
+- CM-31-003, CM-31-020 — the case publishes a computed ``activeParticipants``
+  that reads back.
+- CM-31-004, CM-31-022 — only the Case Owner may remove, and never the manager
+  or owner; a repeat removal is skipped.
+- CM-31-005, CM-31-024, CM-31-025 — one ledger entry, under a canonical
+  signature.
+- CM-31-006, CM-31-027 — a direct notice to the removed participant, and the
+  removal entry's fan-out reaches it.
 - CM-31-007 — replicas apply the removal from its ledger entry.
 - CM-31-008 — removal leaves embargo consent untouched.
 - CM-31-009 — a removed signatory is told when the embargo is terminated.
-- CM-31-010 — a paused replica applies the CASE_MANAGER's embargo-ending
-  notice and ignores one from a non-manager.
-- CM-31-011 — ``Add(CaseParticipant)`` reinstates, and only reinstates.
+- CM-31-010, CM-31-032 — a paused replica applies the CASE_MANAGER's
+  embargo-ending notice and ignores one from a non-manager.
+- CM-31-011, CM-31-036 — ``Add(CaseParticipant)`` reinstates, and only
+  reinstates.
 - CM-31-012 — no ``Add(CaseParticipant)`` after a stub-Invite acceptance.
 - CM-31-013 — a removed participant is not sent an embargo Invite.
 
@@ -41,11 +47,13 @@ a test keeps working when the implementation adds new semantics.  See
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, cast
 
 import py_trees
 import pytest
 
+import vultron
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.core.use_cases.received.actor.test_case_joining_replies import (
     route_received,
@@ -263,7 +271,7 @@ def removal_case() -> _RemovalCase:
     return _RemovalCase(dl=dl, case=_seed(dl))
 
 
-@pytest.mark.spec("CM-31-001")
+@pytest.mark.spec("CM-31-015")
 def test_removal_keeps_the_record_on_the_roster(removal_case) -> None:
     """Removal withdraws entitlement; the record, and its index entry, stay."""
     result = removal_case.remove(VENDOR)
@@ -277,14 +285,41 @@ def test_removal_keeps_the_record_on_the_roster(removal_case) -> None:
     assert _participant_id(VENDOR) not in removal_case.active_ids()
 
 
+@pytest.mark.spec("CM-31-016")
+def test_removal_keeps_the_status_history_and_the_ledger() -> None:
+    """Removal rewrites no history: the record's statuses and every earlier
+    ledger entry stay as they were."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=MANAGER)
+    removal_case = _RemovalCase(dl=dl, case=_seed(dl, vendor_rm=RM.ACCEPTED))
+    # An earlier entry for the ledger half to keep: another removal.
+    assert removal_case.remove(OTHER).disposition is HandlerDisposition.APPLIED
+    statuses = [
+        status.model_dump(mode="json")
+        for status in removal_case.participant(VENDOR).participant_statuses
+    ]
+    entries = {entry.id_ for entry in removal_case.ledger()}
+    assert statuses and entries
+
+    result = removal_case.remove(VENDOR)
+
+    assert result.disposition is HandlerDisposition.APPLIED
+    assert removal_case.participant(VENDOR).removal_activity is not None
+    assert [
+        status.model_dump(mode="json")
+        for status in removal_case.participant(VENDOR).participant_statuses
+    ] == statuses
+    assert entries < {entry.id_ for entry in removal_case.ledger()}
+
+
 @pytest.mark.spec("CM-31-003")
+@pytest.mark.spec("CM-31-020")
 def test_case_publishes_active_participants_and_round_trips(
     removal_case,
 ) -> None:
     """``activeParticipants`` is computed, published, and read back cleanly.
 
     Every seeded vendor is active (joined and ``AGREED`` for the embargo); that a
-    removed one leaves the view is CM-31-001's test.  The view is read from
+    removed one leaves the view is CM-31-017's test.  The view is read from
     the case as it goes on the wire, carrying its participant records.
     """
     case = removal_case.carried_case()
@@ -348,21 +383,44 @@ def test_removal_naming_no_participant_of_the_case_is_refused(
     assert removal_case.read_case().case_participants == before
 
 
-@pytest.mark.spec("CM-31-004")
+@pytest.mark.spec("CM-31-022")
 def test_a_second_removal_is_skipped(removal_case) -> None:
     """Removing an already-removed participant is a no-op, reported as such."""
     assert removal_case.remove(VENDOR).disposition is (
         HandlerDisposition.APPLIED
     )
     # Today the first removal deletes the record, so the second is skipped
-    # for the wrong reason; removal must keep it (CM-31-001).
+    # for the wrong reason; removal must keep it (CM-31-015).
     assert VENDOR in removal_case.read_case().actor_participant_index
     second = removal_case.remove(VENDOR)
 
     assert second.disposition is HandlerDisposition.SKIPPED
 
 
+@pytest.mark.spec("CM-31-023")
+def test_only_the_owners_removal_records_a_removal_fact() -> None:
+    """The CASE_MANAGER never removes a participant on its own initiative.
+
+    The removal fact is written only where the Case Owner's received
+    ``Remove(CaseParticipant)``, or its ledger entry on a replica, is applied;
+    no trigger or other tree calls ``CaseParticipant.record_removal``.
+    """
+    root = Path(vultron.__file__).parent
+    callers = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*.py")
+        if ".record_removal(" in path.read_text(encoding="utf-8")
+    }
+
+    assert callers == {
+        "core/behaviors/case/nodes/case_participant_received.py",
+        "core/behaviors/sync/nodes/participant_removal_effect.py",
+    }
+
+
 @pytest.mark.spec("CM-31-005")
+@pytest.mark.spec("CM-31-025")
+@pytest.mark.spec("CM-31-024")
 def test_removal_is_one_canonical_ledger_entry_by_the_owner(
     removal_case,
 ) -> None:
@@ -393,7 +451,7 @@ def test_removed_participant_is_sent_a_direct_remove_naming_it(
     assert getattr(notices[0], "attributed_to", None) == OWNER
 
 
-@pytest.mark.spec("CM-31-006")
+@pytest.mark.spec("CM-31-027")
 def test_removal_entry_fans_out_to_the_removed_participant(
     removal_case,
 ) -> None:
@@ -513,7 +571,7 @@ def test_paused_replica_applies_the_managers_ending_notice() -> None:
     assert case.active_embargo is None
 
 
-@pytest.mark.spec("CM-31-010")
+@pytest.mark.spec("CM-31-032")
 @pytest.mark.spec("EP-09-003")
 def test_paused_replica_ignores_an_ending_notice_from_a_non_manager() -> None:
     """Only the CASE_MANAGER's notice moves a paused replica's embargo."""
@@ -538,7 +596,7 @@ def test_owner_add_reinstates_a_removed_participant(removal_case) -> None:
     assert _participant_id(VENDOR) in removal_case.active_ids()
 
 
-@pytest.mark.spec("CM-31-011")
+@pytest.mark.spec("CM-31-036")
 def test_add_naming_a_participant_that_is_not_removed_is_refused(
     removal_case,
 ) -> None:

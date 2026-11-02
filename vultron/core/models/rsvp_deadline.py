@@ -36,7 +36,7 @@ from vultron.core.models._helpers import now_utc, timestamp_serializer
 from vultron.core.models.base import ValidatedAssignmentMixin
 
 DEFAULT_MIN_RSVP_WINDOW = timedelta(hours=72)
-"""Default minimum RSVP window (EP-07-002)."""
+"""Default minimum RSVP window (EP-07-010)."""
 
 DEFAULT_RSVP_WINDOW = timedelta(days=7)
 """Default policy RSVP window when an invite names no deadline (EP-07-001)."""
@@ -47,7 +47,7 @@ class RsvpDeadlineClamp(StrEnum):
 
     NONE = "none"
     RAISED_TO_MINIMUM = "raised_to_minimum"  # EP-07-003
-    LOWERED_TO_EMBARGO_END = "lowered_to_embargo_end"  # EP-07-006
+    LOWERED_TO_EMBARGO_END = "lowered_to_embargo_end"  # EP-07-011
 
 
 class RsvpDeadline(ValidatedAssignmentMixin):
@@ -96,7 +96,7 @@ def resolve_rsvp_deadline(
             embargo has no end, in which case no down-clamp applies.
         min_window: Configured minimum RSVP window (EP-07-002).
         default_window: Configured policy window used when *requested* is
-            ``None`` (EP-07-001, CM-18-002).
+            ``None`` (EP-07-001, CM-18-023).
 
     Every datetime argument MUST be timezone-aware (CS-13-001); the objects
     they are read from guarantee it.  Results are correct instants and carry

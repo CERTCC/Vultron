@@ -29,15 +29,39 @@ groups:
     kind: protocol
     statement: >
       An actor that cannot perform an action on its own authority MUST request
-      authorization by emitting an ask activity addressed to the authorizing
-      actor, and MUST NOT perform the action before a reply authorizing it has
-      been recorded.
+      authorization with an ask activity addressed to the authorizing actor.
     rationale: >
       Separates requesting authority from holding it, so the action cannot occur
       on the asker's own initiative.
     verification: >
-      A gated tree executed by a non-authorized actor emits the ask and produces
-      no protocol effect from the gated action.
+      A gated tree executed by a non-authorized actor emits the ask.
+    adr:
+    - ADR-0080
+    tags:
+    - protocol
+    - security
+  - id: ASK-01-005
+    stories:
+    - story_2022_010
+    - story_2022_047
+    - story_2022_053
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An actor that asks for authorization of an action MUST NOT perform the action
+      before it has recorded a reply that authorizes it.
+    rationale: >-
+      An ask suspends nothing, so the action would otherwise run on the asker's own
+      initiative while the answer is still pending.
+    verification: >-
+      A gated tree executed by a non-authorized actor produces no protocol effect
+      from the gated action.
+      `test/architecture/test_protocol_asks_specs.py`
+      (`test_production_status_authorization_default_is_conservative`) confirms the
+      production status-adoption gate never permits the action on its own.
+    relationships:
+    - rel_type: extends
+      spec_id: ASK-01-001
     adr:
     - ADR-0080
     tags:
@@ -46,16 +70,31 @@ groups:
   - id: ASK-01-002
     priority: MUST
     kind: architecture
-    statement: >
-      A behavior that emits an ask MUST terminate with SUCCESS on the strength of
-      having emitted it; SUCCESS at an ask point means the ask was emitted and
-      MUST NOT be read as authorization having been granted.
+    statement: >-
+      A behavior that emits an ask MUST end with SUCCESS once it has emitted the ask.
     rationale: >
       The behavior is divided at the question rather than paused there, which is
       what makes an asynchronous exchange hostable in a single-shot executor.
     verification: >
       A gated tree whose ask branch fires returns SUCCESS and the ask appears in
       the emitting actor's outbox.
+    adr:
+    - ADR-0080
+  - id: ASK-01-006
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      Code that reads a behavior's SUCCESS at an ask point MUST NOT treat it as
+      authorization granted. That SUCCESS means only that the ask was emitted.
+    rationale: >-
+      The behavior ends when it has asked, before any answer exists, so its SUCCESS
+      carries no answer. Reading it as a grant would let the asker authorize itself.
+    verification: >-
+      A gated tree whose ask branch fires returns SUCCESS while the gated action
+      has no effect.
+    relationships:
+    - rel_type: derives_from
+      spec_id: ASK-01-002
     adr:
     - ADR-0080
   - id: ASK-01-003
@@ -80,10 +119,9 @@ groups:
     - story_2022_053
     priority: MUST
     kind: protocol
-    statement: >
-      The action authorized by a reply MUST be determined from the ask the
-      answerer was responding to, and MUST NOT be determined from the content of
-      the reply.
+    statement: >-
+      An actor MUST determine the action that a reply authorizes from the ask the
+      reply answers, not from the content of the reply.
     rationale: >
       Generalizes ADR-0026's trust rule; reading the action from the reply lets
       the answerer unilaterally alter what it authorizes.
@@ -156,7 +194,7 @@ groups:
     kind: protocol
     statement: >-
       An actor MUST NOT decide whether a gated action is authorized from its record of
-      outstanding asks; it MUST decide it from the case ledger.
+      outstanding asks, but only from the case ledger.
     rationale: >
       The register is a working set that may be rebuilt or corrupted; making it
       authoritative for authorization would let a forged entry permit an action.
@@ -173,17 +211,37 @@ groups:
     - story_2022_053
     priority: MUST
     kind: protocol
-    statement: >
-      An actor that asks for authorization of an action (ASK-01-001) MUST leave
-      the case, while the ask is outstanding, in a state the protocol defines; an
-      action whose not-yet-authorized state cannot be represented MUST be refused
-      rather than asked about.
+    statement: >-
+      While an ask for authorization (ASK-01-001) is outstanding, the asking actor
+      MUST leave the case in a state the protocol defines.
     rationale: >
       An ask suspends nothing, so the case sits in the pre-authorization state
       for the whole deadline; that state must be legitimate.
     verification: >
       For each gated action, the state after the ask branch runs is a defined
       protocol state.
+    adr:
+    - ADR-0080
+    tags:
+    - state-machine
+  - id: ASK-02-006
+    stories:
+    - story_2022_045
+    - story_2022_053
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An actor MUST refuse, not ask about, an action whose not-yet-authorized state
+      the protocol cannot represent.
+    rationale: >-
+      Asking would leave the case in an undefined state for the whole ask deadline
+      (ASK-02-005), so such an action can only be refused.
+    verification: >-
+      For each gated action, the ask branch runs only where the not-yet-authorized
+      state is a defined protocol state.
+    relationships:
+    - rel_type: derives_from
+      spec_id: ASK-02-005
     adr:
     - ADR-0080
     tags:
@@ -233,21 +291,38 @@ groups:
   - id: ASK-03-003
     priority: MUST_NOT
     kind: protocol
-    statement: >
-      The expiry consequence of an ask kind MUST NOT be deployment-configurable,
-      and MUST NOT be carried on the ask activity.
+    statement: >-
+      The expiry consequence of an ask kind MUST NOT be deployment-configurable.
     rationale: >
       Two actors disagreeing about whether a late reply authorized an action is a
-      divergence in canonical case state, not a deployment preference; letting
-      the asker declare it would let the asker extend its own authorization.
+      divergence in canonical case state, not a deployment preference.
     verification: >
-      No configuration key sets an ask kind's expiry consequence, and no ask
-      activity field carries it.
+      No configuration key sets an ask kind's expiry consequence.
     adr:
     - ADR-0080
     tags:
     - security
     - configuration
+  - id: ASK-03-009
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An ask activity MUST NOT carry the expiry consequence of its ask kind.
+    rationale: >-
+      Letting the asker declare the expiry consequence would let it extend its own
+      authorization, and two actors could then disagree about a late reply.
+    verification: >-
+      No ask activity field carries the expiry consequence.
+      `test/architecture/test_protocol_asks_specs.py`
+      (`test_expiry_consequence_is_not_deployment_configurable`) checks the AS2
+      object fields.
+    relationships:
+    - rel_type: extends
+      spec_id: ASK-03-003
+    adr:
+    - ADR-0080
+    tags:
+    - security
   - id: ASK-03-004
     stories:
     - story_2022_032
@@ -346,7 +421,7 @@ groups:
       The hazard a late `Accept` could carry is joining on stale embargo terms,
       and the supersede rule already covers it: an embargo change or a re-invite
       replaces the stub, naming the old one in `inReplyTo`, and an `Accept` of a
-      superseded stub is refused (CM-11-016). Voiding a late reply would add no
+      superseded stub is refused (CM-11-045). Voiding a late reply would add no
       protection and would turn away an invitee that answered after the CASE_MANAGER
       stopped waiting.
     verification: >
@@ -368,16 +443,29 @@ groups:
   - id: ASK-04-001
     priority: MUST
     kind: architecture
-    statement: >
-      An actor MUST record an entry in its outstanding-ask register when it emits
-      an ask, and MUST record an entry when it receives an ask addressed to it.
+    statement: >-
+      An actor MUST record an entry in its outstanding-ask register when it emits an
+      ask.
     rationale: >
-      The asker needs the entry to avoid re-asking and to notice expiry; the
-      answerer's entries are the queue of decisions it owes, which is the surface
-      a human, UI, or agent acts through.
+      The asker needs the entry to avoid re-asking and to notice expiry.
     verification: >
-      Emitting an ask and receiving an ask each produce a register entry in the
-      respective actor's store.
+      Emitting an ask produces a register entry in the emitting actor's store.
+    adr:
+    - ADR-0080
+  - id: ASK-04-011
+    priority: MUST
+    kind: architecture
+    statement: >-
+      An actor MUST record an entry in its outstanding-ask register when it receives
+      an ask addressed to it.
+    rationale: >-
+      The answerer's entries are the queue of decisions it owes, which is the
+      surface a human, UI, or agent acts through.
+    verification: >-
+      Receiving an ask produces a register entry in the receiving actor's store.
+    relationships:
+    - rel_type: extends
+      spec_id: ASK-04-001
     adr:
     - ADR-0080
   - id: ASK-04-002
@@ -439,15 +527,31 @@ groups:
   - id: ASK-04-006
     priority: MUST
     kind: architecture
-    statement: >
-      The outstanding-ask register MUST be reconstructible from the case ledger
-      for case-scoped asks, and the ledger MUST prevail where the two disagree.
+    statement: >-
+      The outstanding-ask register MUST be reconstructible from the case ledger for
+      case-scoped asks.
     rationale: >
-      A register that cannot be rebuilt makes lost entries unrecoverable; the
-      same index-plus-authority division governs `actor_participant_index`.
+      A register that cannot be rebuilt makes lost entries unrecoverable.
     verification: >
       A register rebuilt from the ledger yields the same outstanding case-scoped
       entries as the maintained register.
+    adr:
+    - ADR-0080
+  - id: ASK-04-012
+    priority: MUST
+    kind: architecture
+    statement: >-
+      Where the outstanding-ask register and the case ledger disagree, the actor MUST
+      treat the case ledger as authoritative.
+    rationale: >-
+      The register is an index and the ledger is the authority, the same division
+      that governs `actor_participant_index`.
+    verification: >-
+      A register entry that the ledger contradicts gives way to the ledger's record
+      when the register is rebuilt from the ledger.
+    relationships:
+    - rel_type: extends
+      spec_id: ASK-04-006
     adr:
     - ADR-0080
   - id: ASK-04-007
@@ -505,22 +609,40 @@ groups:
   - id: ASK-04-010
     priority: MUST
     kind: protocol
-    statement: >
-      When the CASE_MANAGER relays an ask on a participant's behalf (CM-24-001,
-      CM-24-002; EP-09-002) it MUST record each relayed ask in its own
-      outstanding-ask register as the asker. The participant whose proposal was
-      relayed records only its own proposal to the CASE_MANAGER and MUST NOT
-      record the relayed Invites, which it did not emit.
+    statement: >-
+      This rule covers the CASE_MANAGER relaying an ask on a participant's behalf
+      (CM-24-001, CM-24-002; EP-09-002). It MUST record each relayed ask in its own
+      outstanding-ask register as the asker.
     rationale: >
       ASK-04-001 says the emitter records; a relayed Invite's `actor` is the
       CASE_MANAGER with the proposer in `attributedTo`, so the manager is the
-      emitter and the one that owes the bookkeeping. Giving the proposer a
-      register entry for each relayed Invite would let it reap or re-ask on the
-      manager's behalf.
+      emitter and the one that owes the bookkeeping.
     verification: >
       When the register lands, a relay test asserts the CASE_MANAGER's register
-      holds one outgoing entry per relayed Invite and the proposer's holds only
-      its proposal; until then a strict `xfail` names the tracking issue.
+      holds one outgoing entry per relayed Invite; until then a strict `xfail`
+      names the tracking issue.
+    adr:
+    - ADR-0080
+    - ADR-0113
+    stories:
+    - story_2022_014
+  - id: ASK-04-013
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant whose proposal the CASE_MANAGER relays MUST NOT record the relayed
+      Invites in its outstanding-ask register. It records only its own proposal to the
+      CASE_MANAGER.
+    rationale: >-
+      The participant did not emit the relayed Invites (ASK-04-001). Giving it a
+      register entry for each one would let it reap or re-ask on the manager's
+      behalf.
+    verification: >-
+      When the register lands, a relay test asserts the proposer's register holds
+      only its proposal; until then a strict `xfail` names the tracking issue.
+    relationships:
+    - rel_type: extends
+      spec_id: ASK-04-010
     adr:
     - ADR-0080
     - ADR-0113
@@ -581,17 +703,33 @@ groups:
     stories:
     - story_2022_032
     - story_2022_074
-    priority: MUST
+    priority: MUST_NOT
     kind: protocol
-    statement: >
-      Reaping an expired ask MUST NOT automatically re-emit it; the actor MUST
-      re-ask only when it decides anew to perform the gated action.
+    statement: >-
+      Reaping an expired ask MUST NOT re-emit it automatically.
     rationale: >
-      Mirrors CLP-06-005 — a timeout is a signal, not an instruction to retry;
-      the tree owns the decision because only it knows whether the action is
-      still wanted.
+      Mirrors CLP-06-005 — a timeout is a signal, not an instruction to retry.
     verification: >
       Reaping an expired ask adds no activity to the outbox.
+    adr:
+    - ADR-0080
+  - id: ASK-05-005
+    stories:
+    - story_2022_032
+    - story_2022_074
+    priority: MUST
+    kind: protocol
+    statement: >-
+      After an ask expires, the actor MUST re-ask only when it decides anew to perform
+      the gated action.
+    rationale: >-
+      The tree owns the decision because only it knows whether the action is still
+      wanted.
+    verification: >-
+      After a reap, a new ask is emitted only by a fresh run of the gated tree.
+    relationships:
+    - rel_type: extends
+      spec_id: ASK-05-004
     adr:
     - ADR-0080
 - id: ASK-06
@@ -606,16 +744,32 @@ groups:
     - story_2022_045
     priority: MUST
     kind: protocol
-    statement: >
-      A case-scoped ask MUST be recorded as a canonical `CaseLedgerEntry` and MUST
-      replicate to case participants on the normal fan-out path.
+    statement: >-
+      A case-scoped ask MUST be recorded as a canonical `CaseLedgerEntry`.
     rationale: >
       An outstanding decision, and a stalled one, is protocol-relevant to every
-      participant; a directed-delivery variant would require redaction with
-      proofs, which does not exist.
+      participant.
     verification: >
-      An emitted case-scoped ask appears as a recorded entry and is announced to
-      participants.
+      An emitted case-scoped ask appears as a recorded entry.
+    adr:
+    - ADR-0080
+  - id: ASK-06-003
+    stories:
+    - story_2022_041
+    - story_2022_045
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The ledger entry of a case-scoped ask MUST replicate to case participants on
+      the normal fan-out path.
+    rationale: >-
+      Every participant needs to see an outstanding decision. A directed-delivery
+      variant would require redaction with proofs, which does not exist.
+    verification: >-
+      An emitted case-scoped ask is announced to participants.
+    relationships:
+    - rel_type: extends
+      spec_id: ASK-06-001
     adr:
     - ADR-0080
   - id: ASK-06-002
@@ -701,16 +855,33 @@ groups:
     - story_2022_039
     priority: MUST
     kind: protocol
-    statement: >
-      `ProcessingFault` MUST identify the activity that failed by reference, and
-      MUST NOT require an inline copy of it.
+    statement: >-
+      `ProcessingFault` MUST identify the activity that failed by reference.
     rationale: >
+      A reference names the failed activity without the receiver having to rebuild
+      or echo it.
+    verification: >
+      A `ProcessingFault` declares a field that references the failed activity.
+    adr:
+    - ADR-0080
+  - id: ASK-07-012
+    stories:
+    - story_2022_039
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      `ProcessingFault` MUST NOT require an inline copy of the activity that failed.
+    rationale: >-
       When a payload fails validation, a typed copy of it cannot be constructed —
       constructing it is what failed — and echoing sender-supplied content is a
       reflection hazard.
-    verification: >
-      A `ProcessingFault` for an unparseable payload validates without an inline
-      failed activity.
+    verification: >-
+      `test/architecture/test_protocol_asks_specs.py`
+      (`test_processing_fault_validates_without_an_inline_failed_activity`)
+      confirms a `ProcessingFault` validates without an inline failed activity.
+    relationships:
+    - rel_type: extends
+      spec_id: ASK-07-004
     adr:
     - ADR-0080
   - id: ASK-07-005
@@ -719,18 +890,37 @@ groups:
     - story_2022_039
     priority: MUST
     kind: protocol
-    statement: >
-      The failure classes of `ProcessingFault` MUST be identified by URIs minted
-      in the Vultron namespace, and the fault MUST be structured according to
-      RFC 9457 Problem Details.
+    statement: >-
+      Each failure class of `ProcessingFault` MUST be identified by a URI minted in
+      the Vultron namespace.
     rationale: >
       A URI-identified, dereferenceable problem type is extensible without a
       schema change and lets a receiver that does not recognise a class resolve
-      its meaning; RFC 9457 is the standard for machine-readable error reporting
-      over HTTP.
+      its meaning.
     verification: >
-      Each failure class resolves to a documented URI under the Vultron
-      namespace, and fault payloads carry the RFC 9457 members.
+      `test/architecture/test_protocol_asks_specs.py`
+      (`test_failure_classes_are_uris_in_the_vultron_namespace`) confirms each
+      failure class is a URI under the Vultron namespace.
+    adr:
+    - ADR-0080
+    - ADR-0069
+    tags:
+    - wire-format
+  - id: ASK-07-013
+    stories:
+    - story_2022_036
+    - story_2022_039
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A `ProcessingFault` MUST be structured according to RFC 9457 Problem Details.
+    rationale: >-
+      RFC 9457 is the standard for machine-readable error reporting over HTTP.
+    verification: >-
+      Fault payloads carry the RFC 9457 members.
+    relationships:
+    - rel_type: extends
+      spec_id: ASK-07-005
     adr:
     - ADR-0080
     - ADR-0069
@@ -814,70 +1004,151 @@ groups:
     - story_2022_077
     priority: MUST
     kind: protocol
-    statement: >
-      When a receiver fails on its own internal error while processing an
-      inbound activity from an authenticated sender, it MUST answer that sender
-      with `Create(ProcessingFault)` of an internal-error failure class, sent
-      only after the receiver has undone every change the failed processing
-      made. A failure the receiver will retry MUST NOT be answered until the
-      receiver stops retrying it. A repeated failure of the same activity MUST
-      NOT produce a second fault: a fault sent again carries the identifier of
-      the first.
+    statement: >-
+      This rule covers a receiver that fails on its own internal error while it
+      processes an inbound activity from an authenticated sender. The receiver MUST
+      answer that sender with an internal-error `Create(ProcessingFault)`. It sends the
+      fault only after it has undone every change the failed processing made.
     rationale: >
       A failed received act keeps only intake's archive (CLP-07-015), and the
       inbox answered before processing, so without this fault the sender waits
       out its ask deadline in silence. Emitting after the rollback keeps the
-      fault from being undone with the act; answering only when no retry
-      follows keeps a retry that later succeeds from sending a false fault that
-      closes the ask early (ASK-07-007). ASK-07-008 decides whether the fault
+      fault from being undone with the act. ASK-07-008 decides whether the fault
       is ledgered, as for any fault.
     verification: >
       A received act whose consequence raises through the inbox leaves one
       queued `Create(ProcessingFault)` to the sender with the internal-error
-      class and no diagnostics; a second failing delivery of the same body
-      builds no new fault and queues at most the same fault again, with the
-      same id and body. A deferred activity whose replay raises queues no
-      fault while it is re-queued, and one fault when it is dead-lettered.
+      class and no diagnostics.
     adr:
     - ADR-0080
     - ADR-0151
     relationships:
     - rel_type: refines
       spec_id: ASK-07-001
+    tags:
+    - error-handling
+  - id: ASK-07-014
+    stories:
+    - story_2022_039
+    - story_2022_077
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A receiver MUST NOT answer a failure that it will retry until it stops retrying
+      that failure.
+    rationale: >-
+      Answering only when no retry follows keeps a retry that later succeeds from
+      sending a false fault that closes the ask early (ASK-07-007).
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_queue_drain.py`
+      (`test_a_failing_replay_is_answered_only_when_dead_lettered`,
+      `test_a_retry_that_succeeds_is_never_answered`) confirms a deferred activity
+      whose replay raises queues no fault while it is re-queued, and one fault when
+      it is dead-lettered.
+    relationships:
+    - rel_type: extends
+      spec_id: ASK-07-010
     - rel_type: depends_on
       spec_id: IE-06-004
+    adr:
+    - ADR-0080
+    tags:
+    - error-handling
+  - id: ASK-07-015
+    stories:
+    - story_2022_039
+    - story_2022_077
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A repeated failure of the same activity MUST NOT produce a second fault. A fault
+      sent again carries the identifier of the first.
+    rationale: >-
+      One fault per failed activity answers the sender once, however often the
+      activity fails.
+    verification: >-
+      `test/adapters/driving/fastapi/test_failed_act_redelivery.py`
+      (`test_a_failed_proposal_is_applied_when_posted_again`) confirms a second
+      failing delivery of the same body builds no new fault and queues at most the
+      same fault again, with the same id and body.
+    relationships:
+    - rel_type: extends
+      spec_id: ASK-07-010
+    adr:
+    - ADR-0080
     tags:
     - error-handling
   - id: ASK-07-011
     priority: MUST
     kind: project
-    statement: >
-      In this implementation, the inbox MUST send the fault of ASK-07-010 when
-      the received use case dispatched for an activity raises, whichever use
-      case it is, and not only for the trees that commit an act. It MUST queue
-      the fault after the DataLayer transaction the act opened has rolled back.
-      A deferred activity replayed from the pending queue (IE-06-004) MUST be
-      answered only when it is dead-lettered. The fault id MUST be derived from
-      the failed activity's id and the failure class.
+    statement: >-
+      In this implementation, the inbox MUST send the fault of ASK-07-010 when the
+      received use case dispatched for an activity raises. This holds for every use
+      case, not only for the trees that commit an act.
     rationale: >
       The receiver's internal failure is a raise out of the use case, and the
       inbox is the one place every dispatch passes through, so answering there
-      covers every use case at once. A fault queued inside the rolled-back
-      transaction would be undone with the act. A derived id makes a repeated
-      failure rebuild the same fault, so the sender is answered once.
+      covers every use case at once.
     verification: >
       `test/core/behaviors/inbox/test_process_payload.py::TestARaisedDispatchIsAnsweredWithAFault::test_the_sender_gets_one_internal_error_fault`
-      confirms a raising use case is answered with one internal-error fault;
-      `test/adapters/driving/fastapi/test_inbox_queue_drain.py::test_a_failing_replay_is_answered_only_when_dead_lettered`
-      confirms a deferred replay is answered only on dead-lettering; and
-      `test/adapters/driving/fastapi/test_failed_act_redelivery.py::test_a_failed_proposal_is_applied_when_posted_again`
-      confirms two failing deliveries of one body keep nothing and are
-      answered with one fault.
+      confirms a raising use case is answered with one internal-error fault.
     relationships:
     - rel_type: implements
       spec_id: ASK-07-010
+    tags:
+    - error-handling
+  - id: ASK-07-016
+    priority: MUST
+    kind: project
+    statement: >-
+      The inbox MUST queue the fault of ASK-07-010 after the DataLayer transaction
+      that the act opened has rolled back.
+    rationale: >-
+      A fault queued inside the rolled-back transaction would be undone with the act.
+    verification: >-
+      `test/adapters/driving/fastapi/test_failed_act_redelivery.py::test_a_failed_proposal_is_applied_when_posted_again`
+      confirms a failing delivery keeps nothing of the act and still leaves its
+      fault queued.
+    relationships:
+    - rel_type: implements
+      spec_id: ASK-07-010
+    tags:
+    - error-handling
+  - id: ASK-07-017
+    priority: MUST
+    kind: project
+    statement: >-
+      The inbox MUST answer a deferred activity replayed from the pending queue
+      (IE-06-004) only when that activity is dead-lettered.
+    rationale: >-
+      A replay that fails is retried until it is dead-lettered, so the dead-letter
+      step is the first point at which no retry follows (ASK-07-014).
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_queue_drain.py::test_a_failing_replay_is_answered_only_when_dead_lettered`
+      confirms a deferred replay is answered only on dead-lettering.
+    relationships:
+    - rel_type: implements
+      spec_id: ASK-07-014
     - rel_type: depends_on
       spec_id: IE-06-008
+    tags:
+    - error-handling
+  - id: ASK-07-018
+    priority: MUST
+    kind: project
+    statement: >-
+      The inbox MUST derive the fault id from the failed activity's id and the failure
+      class.
+    rationale: >-
+      A derived id makes a repeated failure rebuild the same fault, so the sender is
+      answered once (ASK-07-015).
+    verification: >-
+      `test/adapters/driving/fastapi/test_failed_act_redelivery.py::test_a_failed_proposal_is_applied_when_posted_again`
+      confirms two failing deliveries of one body keep nothing and are answered
+      with one fault.
+    relationships:
+    - rel_type: implements
+      spec_id: ASK-07-015
     tags:
     - error-handling
 - id: ASK-08
@@ -898,7 +1169,7 @@ groups:
     rationale: >
       Re-sending the frozen original (VM-08-003) reads to the requester as the
       original arriving late rather than a second decision, which is what
-      CP-05-005's irrevocability rule requires.
+      CP-05-012's irrevocability rule requires.
     verification: >
       A duplicate request produces an outbound reply identical to the stored
       original, including its identifier.

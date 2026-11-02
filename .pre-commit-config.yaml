@@ -238,7 +238,7 @@ repos:
         entry: uv run msm-occasions --check
         language: system
         # Every input of the generated YAML and fragments is watched
-        # (MSM-06-001): the registry modules that declare the occasions, the
+        # (MSM-06-006): the registry modules that declare the occasions, the
         # wire patterns and type enums behind "Send", the received use cases
         # and sender rules behind "Sent by", the MessageSemantics enum, the
         # state enums behind "Distinguished by", the example modules the

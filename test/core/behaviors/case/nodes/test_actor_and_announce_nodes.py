@@ -204,7 +204,7 @@ class TestAcceptCaseOwnershipTransferNode:
 
     @pytest.mark.spec("CM-21-001")
     @pytest.mark.spec("CM-21-004")
-    @pytest.mark.spec("CM-21-021")
+    @pytest.mark.spec("CM-21-022")
     def test_raises_when_the_new_owner_has_no_participant_record(
         self, bridge, dl
     ) -> None:
@@ -243,7 +243,7 @@ class TestAcceptCaseOwnershipTransferNode:
         assert CVDRole.CASE_OWNER in stored_old_owner.case_roles
 
     @pytest.mark.spec("CM-21-002")
-    @pytest.mark.spec("CM-21-021")
+    @pytest.mark.spec("CM-21-022")
     def test_grants_the_role_to_a_new_owner_held_only_inline(
         self, bridge, dl
     ) -> None:
@@ -284,6 +284,7 @@ class TestAcceptCaseOwnershipTransferNode:
 
     @pytest.mark.spec("CM-21-003")
     @pytest.mark.spec("CM-21-004")
+    @pytest.mark.spec("CM-21-023")
     def test_strips_the_role_from_an_old_owner_held_only_inline(
         self, bridge, dl
     ) -> None:
@@ -422,6 +423,7 @@ class TestAcceptCaseOwnershipTransferNode:
         assert CVDRole.COORDINATOR in refreshed_old.case_roles
 
     @pytest.mark.spec("CM-21-001")
+    @pytest.mark.spec("CM-21-023")
     def test_at_most_one_case_owner_after_transfer(self, bridge, dl) -> None:
         """Exactly one participant holds CVDRole.CASE_OWNER after transfer (CM-21-001)."""
         old_owner_participant = CaseParticipant(
@@ -927,6 +929,7 @@ class TestEmitInviteActorToCaseNodeQueuesBeforeCommitting:
     def dl(self, store_for):
         return store_for(ACTOR_ID)
 
+    @pytest.mark.spec("CM-17-015")
     @pytest.mark.spec("CM-17-006")
     def test_invite_has_no_cc_and_is_appended_to_the_outbox_before_the_commit(
         self, dl, monkeypatch
@@ -1164,7 +1167,7 @@ class TestEmitOwnershipTransferNodes:
             f"proposal must be addressed to the CaseActor ({_OT_CASE_ACTOR_ID}); "
             f"got to={activity.get('to')!r}"
         )
-        # CM-24-004, ADR-0109: the owner sends its own proposal, naming no
+        # CM-24-010, ADR-0109: the owner sends its own proposal, naming no
         # one else as its author; the CASE_MANAGER's Offer is the delegated
         # emit (ADR-0148).
         assert activity.get("actor") == _OT_OWNER_ID

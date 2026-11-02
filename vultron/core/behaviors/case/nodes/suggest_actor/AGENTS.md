@@ -25,7 +25,7 @@ guard, `RequireRecordedOfferAnswerNode`, looks up the recorded
   `update()` checks for the published answer before the node runs, so a tree
   without the lookup guard is an internal error, not a refusal. A node that
   replaces `update()` without `super()` must call `_recorded_answer()` first.
-- **Roles come from the recorded Offer, never the Accept** (CM-16-019). An
+- **Roles come from the recorded Offer, never the Accept** (CM-16-023). An
   Offer that carries none seats no participant (CM-11-019).
 
 **Blackboard key contrast**:

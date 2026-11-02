@@ -11,13 +11,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Relay the creation-time revision to the party whose terms won (EP-04-011).
+"""Relay the creation-time revision to the party whose terms won (EP-04-027).
 
 ``InitializeCreationEmbargoNode`` registers the shortest-wins loser as a
 pending revision inside ``InitializeDefaultEmbargoNode``.
 :class:`RelayCreationTimeRevisionNode` sends the revision like any other
 (EP-09, ADR-0113) once the case tree has finished its initialization sequence
-(CM-14-007), and indexes it so the owner's default selection reaches it
+(CM-14-014), and indexes it so the owner's default selection reaches it
 (EP-08-002).
 
 The relay is part of the creation act: the case tree runs it in the same
@@ -63,7 +63,7 @@ logger = logging.getLogger(__name__)
 
 
 class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
-    """Relay the creation-time revision to the party whose terms won (EP-04-011).
+    """Relay the creation-time revision to the party whose terms won (EP-04-027).
 
     The #3913 relay emit, fed from the case rather than from a received
     embargo proposal: the CASE_MANAGER emits ``Invite(EmbargoEvent)`` as
@@ -74,7 +74,7 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
     Invite (EP-09-007).  The losing party is the proposer and is not invited
     (EP-09-002).  The case tree places this node after its ledger commit, so
     no modification is initiated before the initialization sequence is
-    complete (CM-14-007).
+    complete (CM-14-014).
 
     **What it relays.**  ``ResolveCreationTimeRevisionNode`` publishes the
     contested proposal and whose terms lost (``CANDIDATE_KEY``) only in the
@@ -229,7 +229,7 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
         """Set the proposer (the loser) and the one invitee (the winner)."""
         assert self.datalayer is not None
         assert self.actor_id is not None
-        # The loser proposed the revision (MSM-07-005, #4152); the reporter's
+        # The loser proposed the revision (MSM-07-022, #4152); the reporter's
         # terms arrived as the sender proposal (EP-04-004).
         self._proposer_id, winner_id = creation_revision_parties(
             self.datalayer, case, candidate.losing_source, self._report_id
@@ -257,7 +257,7 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
             )
             return
         if not self._recipients:
-            # EP-04-011 says MUST relay; a registered revision whose Invite is
+            # EP-04-027 says MUST relay; a registered revision whose Invite is
             # never sent is a revision nobody can answer.
             raise BtNodePreconditionError(
                 f"winning party '{winner_id}' is not an invitation recipient"

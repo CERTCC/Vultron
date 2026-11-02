@@ -100,7 +100,7 @@ No `vultron-demo` scenario exercises role delegation yet; drive it through the [
 Act only on a role offer the Case Manager sent you.
 A role offer from any other actor, the Case Owner included, is refused with no answer ([CM-33-004](../../../reference/vultron-spec/requirements/case-management.md#cm-33-004)).
 
-Reply to the Case Manager only, never to the Case Owner, with the forwarded `Offer` as your `object`.
+Reply to the Case Manager only, never to the Case Owner, with the forwarded `Offer` as your `object` ([CM-33-015](../../../reference/vultron-spec/requirements/case-management.md#cm-33-015)).
 
 - If you are taking the role, send `Accept(Offer(CaseParticipantRole))`.
 
@@ -113,7 +113,7 @@ Reply to the Case Manager only, never to the Case Owner, with the forwarded `Off
 
 The Case Manager acts on your answer only if you are the target of a role offer it recorded, and only while that offer is open ([CM-33-005](../../../reference/vultron-spec/requirements/case-management.md#cm-33-005)).
 The offer is open until the Case Manager records an `Accept` or `Reject` of it.
-An answer that names the forward is matched to the recorded offer through the forward's `inReplyTo`, never through the copy of the offer your answer carries.
+An answer that names the forward is matched to the recorded offer through the forward's `inReplyTo`, never through the copy of the offer your answer carries ([CM-33-017](../../../reference/vultron-spec/requirements/case-management.md#cm-33-017)).
 That copy must still name the offered role and you as the target, because every participant reads the grant from it.
 Thus the role granted is always the one the case offered, and never one your answer names.
 
@@ -125,10 +125,10 @@ The Case Manager refuses these answers and records nothing for them:
 
 It can refuse your own answer because the offer is no longer open or your copy differs.
 In that case, it sends you the [refusal notice](../../../reference/messages/faults_and_acknowledgements.md#refusal-notice): a `Reject` of your answer, with the reason in `summary`.
-If your answer is delivered again after the Case Manager recorded it, the Case Manager changes nothing.
+If your answer is delivered again after the Case Manager recorded it, the Case Manager changes nothing ([CM-33-018](../../../reference/vultron-spec/requirements/case-management.md#cm-33-018)).
 
-When it admits your answer, the Case Manager records it in the case ledger and announces the entry to every participant in the case ([CM-33-006](../../../reference/vultron-spec/requirements/case-management.md#cm-33-006)).
-On an `Accept`, the Case Manager grants the role on its own copy of the case, and every other participant grants it when it replays the entry.
+When it admits your answer, the Case Manager records it in the case ledger and announces the entry to every participant in the case ([CM-33-006](../../../reference/vultron-spec/requirements/case-management.md#cm-33-006), [CM-33-019](../../../reference/vultron-spec/requirements/case-management.md#cm-33-019)).
+On an `Accept`, the Case Manager grants the role on its own copy of the case, and every other participant grants it when it replays the entry ([CM-33-020](../../../reference/vultron-spec/requirements/case-management.md#cm-33-020)).
 You hold the role once the Case Manager records your `Accept` in the case ledger ([CM-02-016](../../../reference/specs/project.md#cm-02-016)).
 Consider what the role obliges you to do before accepting.
 

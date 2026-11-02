@@ -483,7 +483,7 @@ class VultronUnhostedActorError(VultronWiringError):
     in hand: ``clone_for_actor`` on another authority's actor would mint an
     empty local store in its name.  No sanctioned path executes a tree, or
     enqueues an activity, as an actor the running container does not host
-    (BT-05-005, CM-24-004, CLP-10-014, ADR-0109), so reaching one is a
+    (BT-05-005, CM-24-011, CLP-10-014, ADR-0109), so reaching one is a
     composition fault, not a protocol outcome.
     """
 
@@ -556,6 +556,19 @@ class DemoActorRoleError(VultronError):
     ``main()`` signature is ratcheted against (DEMOCI-11-011), so a role list
     that is quietly wrong yields a sub-command whose options look complete and
     point at the wrong container.
+    """
+
+
+class DemoCaseActorUnconfiguredError(VultronError):
+    """Raised when a demo helper needs the CaseActor identity and none is set.
+
+    Raised by :func:`~vultron.demo.utils.configured_case_actor_id` when
+    ``ActorConfig.case_actor_service_url`` is unset.  The CaseActor identity
+    comes from configuration only (CP-08-001, CP-08-009): a demo that guessed
+    it from its own ``server.base_url`` would name a CaseActor that no
+    container hosts in a multi-container topology, and the CaseProposal
+    round-trip would never start.  The message names
+    ``VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL``, the variable that fixes it.
     """
 
 

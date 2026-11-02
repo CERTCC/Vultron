@@ -261,7 +261,7 @@ groups:
       A refusal under MV-04-003 is safe only when resolution looks at wire classes
       alone. A `CORE_TYPE_MAP` fallback (ARCH-12-014) resolves an inline actor's
       `inbox` to a core instance that its wire parent refuses (ARCH-22-001). The core
-      fallback is opt-in (VM-06-008).
+      fallback is opt-in (VM-06-013).
     verification: >-
       `test_parse_activity_keeps_inline_actor_subtype_with_inline_collections` and
       `test_inline_ordered_collection_resolves_to_the_wire_class` in
@@ -395,14 +395,14 @@ groups:
       An invitee must decide whether to join a case before it can receive the case
       (MV-10-005). The stub represents the case until the participant is active
       (CM-10-004). The summary tells the invitee which case it is asked to join. The
-      sender decides what the summary says (CM-17-010).
+      sender decides what the summary says (CM-17-020).
     note: >-
       Partial inline objects of other types were never designed — a parser fallback
       swallowed their validation failures and handed the parent a raw dict, which
       MV-04-003 now refuses. Reading MV-10-001 as a general licence for partial inline
       objects would entrench a workaround for a capability Vultron lacks: dereferencing a
       URI in another actor's message into the resolved object. Design discussion:
-      `notes/selective-disclosure.md`. The actor reference of AKM-05-005 is not a stub:
+      `notes/selective-disclosure.md`. The actor reference of AKM-05-017 is not a stub:
       it claims no field beyond the two the sender knows, and keeps the `type` a
       receiver routes `Offer(Actor)` and `Invite(Actor)` by (ADR-0159).
     verification: >-
@@ -868,10 +868,15 @@ groups:
     kind: architecture
     statement: >-
       Core types MUST NOT carry a per-class retired-key reject-guard (SDO-03-005).
+      The shared `RetiredFieldsRecord` base, which refuses a stored row's retired
+      field with a named reason, is not such a guard.
     rationale: >-
       A retired-key guard on a core class copies the wire-side list into a second
       place, and the two lists can become different. `extra="forbid"` already refuses a
-      retired key in in-process and stored data.
+      retired key in in-process and stored data, but only as a bare "extra inputs"
+      error that never says a field was renamed, so the store reset a stored row needs
+      goes unexplained (CLP-02-014). Before 1.0 only the current protocol version is
+      supported, so retired-name tracking is to be dropped on both sides (#5573).
     verification: >-
       A grep of `vultron/core/models/` finds no `mode="before"` validator that rejects a
       retired key by name: #3921 deleted `ParticipantStatus._reject_retired_vfd_keys`.

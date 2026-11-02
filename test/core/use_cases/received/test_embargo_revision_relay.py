@@ -475,7 +475,7 @@ def test_manager_stores_invitee_deadline_at_its_commit(make_payload):
     )
 
 
-@pytest.mark.spec("CM-28-013")
+@pytest.mark.spec("CM-28-024")
 @pytest.mark.spec("EP-09-003")
 def test_participant_stores_no_deadline_on_receipt(make_payload):
     """A relayed Invite is stored; the deadline arrives by replay, not receipt."""
@@ -498,6 +498,7 @@ def test_participant_stores_no_deadline_on_receipt(make_payload):
 
 
 @pytest.mark.spec("EP-09-010")
+@pytest.mark.spec("EP-09-026")
 def test_invite_with_several_recipients_is_refused(make_payload):
     """The invitee is the sole ``to`` recipient; several is a misrouting."""
     case_id = "https://example.org/cases/relay-two-recipients"
@@ -521,6 +522,7 @@ def test_invite_with_several_recipients_is_refused(make_payload):
 
 
 @pytest.mark.spec("EP-09-010")
+@pytest.mark.spec("EP-09-026")
 def test_invite_with_no_recipient_is_refused(make_payload):
     """No ``to`` recipient means no invitee; refuse rather than guess."""
     case_id = "https://example.org/cases/relay-no-recipient"
@@ -600,6 +602,7 @@ def _proposal(revision, case_id: str, *, actor: str = PROPOSER, **kwargs):
 
 @pytest.mark.spec("EP-09-001")
 @pytest.mark.spec("EMB-01-003")
+@pytest.mark.spec("EP-09-020")
 def test_counter_proposal_at_proposed_commits_without_a_transition(
     make_payload,
 ):
@@ -642,6 +645,7 @@ def test_counter_proposal_at_proposed_commits_without_a_transition(
 
 @pytest.mark.spec("EP-09-001")
 @pytest.mark.spec("EMB-03-002")
+@pytest.mark.spec("EP-09-020")
 def test_counter_revision_at_revise_commits_without_a_transition(make_payload):
     """A second EV while REVISE is recorded; EM stays REVISE."""
     case_id = "https://example.org/cases/relay-counter-revise"
@@ -711,11 +715,12 @@ def test_an_exited_case_refuses_a_proposal_before_committing(make_payload):
 @pytest.mark.spec("EP-09-001")
 @pytest.mark.spec("EMB-03-003")
 @pytest.mark.spec("EMB-03-004")
+@pytest.mark.spec("EP-09-021")
 def test_a_revision_of_a_public_case_is_refused_with_a_reject(make_payload):
     """P/X/A set: the manager refuses the revision and the case stays ACTIVE.
 
     The CASE_MANAGER refuses a proposal on a public, exploited or attacked
-    case (EP-09-001) with a ``Reject`` of it to the proposer, and adopts nothing: the
+    case (EP-09-021) with a ``Reject`` of it to the proposer, and adopts nothing: the
     revision enters no register step and no Invite is relayed.  EP-09-001
     is how the CASE_MANAGER topology realises EMB-03-004's refusal; the
     clause itself binds the participants a relayed Invite reaches, pinned in
@@ -766,7 +771,7 @@ def test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo(
     not torn the embargo down yet, so the case is still ``ACTIVE`` (or
     ``REVISE``, with an earlier revision open) when a revision arrives.
     The proposal is at most the occasion on which the CASE_MANAGER finds the
-    case public: it is refused (EP-09-001) and ends nothing.  The embargo
+    case public: it is refused (EP-09-021) and ends nothing.  The embargo
     ends when the cascade runs, and its termination records the threat
     signal as its cause, not the proposal (EMB-03-003).
     """
@@ -1267,6 +1272,7 @@ def test_a_received_proposal_whose_relay_faults_keeps_no_consequence(
 
 @pytest.mark.spec("CLP-07-015")
 @pytest.mark.spec("EP-09-002")
+@pytest.mark.spec("EP-09-022")
 def test_a_received_proposal_whose_relay_commit_fails_keeps_no_consequence(
     make_payload,
 ):

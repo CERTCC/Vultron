@@ -135,7 +135,7 @@ def test_with_no_embargo_every_joined_open_participant_is_active(
     assert case_content_recipients(case, dl) == [_SIGNATORY, _INVITED]
 
 
-@pytest.mark.spec("CM-10-007")
+@pytest.mark.spec("CM-10-009")
 def test_invitations_reach_inert_participants_but_not_closed_ones(
     dl: SqliteDataLayer,
 ) -> None:
@@ -247,7 +247,7 @@ def test_case_content_participants_pairs_each_recipient_with_its_record(
 _REMOVED = "https://example.org/actors/removed"
 
 
-@pytest.mark.spec("CM-31-001", "CM-10-007")
+@pytest.mark.spec("CM-31-017", "CM-10-007")
 @pytest.mark.parametrize("embargo", [False, True])
 def test_removed_participant_gets_no_case_content(
     dl: SqliteDataLayer, embargo: bool
@@ -274,7 +274,8 @@ def test_removed_participant_gets_no_case_content(
 
 
 # ---------------------------------------------------------------------------
-# CM-23-004: a closed participant receives its own closure entries only
+# CM-23-004, CM-23-031: a closed participant receives its own closure
+# entries only
 # ---------------------------------------------------------------------------
 
 
@@ -320,6 +321,7 @@ def _closed_status_id(record: CaseParticipant) -> str:
 
 
 @pytest.mark.spec("CM-23-004", "CM-23-001")
+@pytest.mark.spec("CM-23-031")
 def test_leaver_receives_the_entries_recording_its_own_closure(
     dl: SqliteDataLayer,
 ) -> None:
@@ -356,8 +358,9 @@ def test_closed_participant_receives_nothing_about_anyone_else(
         ) == [_SIGNATORY]
 
 
-@pytest.mark.spec("CM-23-004", "CM-10-004", "CM-31-001")
+@pytest.mark.spec("CM-23-004", "CM-10-004", "CM-31-017")
 @pytest.mark.parametrize("why_inert", ["embargo-withheld", "removed"])
+@pytest.mark.spec("CM-23-031")
 def test_own_closure_entries_never_widen_entitlement(
     dl: SqliteDataLayer, why_inert: str
 ) -> None:
@@ -395,6 +398,7 @@ def test_own_closure_entries_never_widen_entitlement(
 
 @pytest.mark.spec("CM-23-004")
 @pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("CM-23-031")
 def test_a_slash_spelled_leave_still_records_the_leavers_own_closure(
     dl: SqliteDataLayer,
 ) -> None:
@@ -503,6 +507,7 @@ def test_a_closed_participant_keeps_the_recipient_check_but_not_the_sender_one(
 
 
 @pytest.mark.spec("CM-23-018")
+@pytest.mark.spec("CM-23-054")
 def test_the_sender_predicate_matches_the_case_content_selection(
     dl: SqliteDataLayer,
 ) -> None:

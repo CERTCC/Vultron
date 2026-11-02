@@ -194,6 +194,25 @@ class TestCoreEmbargoPolicySerialization:
         assert data["minimum_duration"] == "P45D"
         assert data["maximum_duration"] == "P180D"
 
+    @pytest.mark.spec("DUR-03-004")
+    def test_a_whole_day_duration_carries_no_time_units(self):
+        """A whole-day policy duration is written in days alone, never mixed
+        with hours, minutes or seconds."""
+        p = EmbargoPolicy(
+            actor_id=ACTOR_ID,
+            inbox=INBOX,
+            preferred_duration=_P90D,
+            minimum_duration=_P45D,
+            maximum_duration=_P180D,
+        )
+        data = json.loads(p.model_dump_json())
+        for field in (
+            "preferred_duration",
+            "minimum_duration",
+            "maximum_duration",
+        ):
+            assert "T" not in data[field], data[field]
+
     def test_none_duration_serializes_to_null(self):
         p = EmbargoPolicy(
             actor_id=ACTOR_ID,

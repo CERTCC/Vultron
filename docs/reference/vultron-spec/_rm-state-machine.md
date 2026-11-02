@@ -80,7 +80,7 @@ Closed has no transition out of it.
 A participant that expects to resume work on a report defers it instead of closing it.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RMB-14-004", "RMB-14-005", "RMB-14-006", "RMB-14-007", "VP-02-004"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RMB-14-004", "RMB-14-008", "RMB-14-005", "RMB-14-009", "RMB-14-006", "RMB-14-007", "VP-02-004"))
 ```
 
 !!! info "See also"
@@ -110,7 +110,7 @@ RM stays at Received.
 Neither answer is a validation of the report.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-006", "CM-11-001", "CM-11-007"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-006", "CM-11-026", "CM-11-023", "CM-11-024", "CM-11-025", "CM-11-001", "CM-11-007", "CM-11-027", "CM-11-028"))
 ```
 
 After the participant joins, the CASE_MANAGER sends the case and the ledger.
@@ -120,7 +120,7 @@ The answer is `Accept` (RV, Received → Valid), `TentativeReject` (RI, Received
 A reply behind the floor, or naming a ledger entry the CASE_MANAGER does not hold, is refused.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-010", "CM-11-011", "CM-11-012"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-010", "CM-11-031", "CM-11-032", "CM-11-033", "CM-11-011", "CM-11-034", "CM-11-012", "CM-11-035", "CM-11-036"))
 ```
 
 The triage cycle (`RECEIVED → VALID | INVALID → ACCEPTED | DEFERRED`) is a different, later step.
@@ -138,7 +138,7 @@ The participant runs it **after** it receives the full case replica.
     See [§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery) for why this matters to case delivery.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-002", "CM-11-004"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-002", "CM-11-022", "CM-11-004"))
 ```
 
 ---

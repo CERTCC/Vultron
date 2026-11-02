@@ -72,6 +72,8 @@ def test_serialized_type_validates_as_itself(name: str) -> None:
 
 
 @pytest.mark.spec("CM-05-001")
+@pytest.mark.spec("CM-05-015")
+@pytest.mark.spec("CM-05-016")
 @pytest.mark.parametrize(
     ("carried", "expected"), list(permutations(_NAMES, 2))
 )

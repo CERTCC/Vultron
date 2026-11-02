@@ -160,6 +160,7 @@ class TestLeaveCaseTriggersOutboxActivity:
         reset_datalayer(self.finder.id_)
         reset_datalayer(self.case_actor.id_)
 
+    @pytest.mark.spec("CM-23-041")
     def test_leave_case_queues_activity_in_outbox(self):
         request = LeaveCaseTriggerRequest(
             actor_id=self.vendor.id_,

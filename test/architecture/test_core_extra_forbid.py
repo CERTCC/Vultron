@@ -68,6 +68,7 @@ def test_every_core_vocabulary_entry_is_actually_exercised() -> None:
     )
 
 
+@pytest.mark.spec("MV-11-004")
 def test_every_core_object_forbids_extra_with_no_exemption_list() -> None:
     """AC-2: every ``CoreObject`` subclass resolves ``extra="forbid"``.
 

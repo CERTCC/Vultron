@@ -825,6 +825,7 @@ class TestPostCloseStage:
             assert guard._case_id == CASE_ID
 
     @pytest.mark.spec("CM-23-013")
+    @pytest.mark.spec("CM-23-042")
     def test_an_exempt_tree_carries_no_guard(self) -> None:
         from vultron.core.behaviors.case.nodes.post_close import (
             PostCloseExemption,

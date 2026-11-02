@@ -27,11 +27,11 @@ The removal nodes implement the Case Owner's ``Remove(CaseParticipant)``
   case's roster, holds neither ``CASE_MANAGER`` nor ``CASE_OWNER``, and is
   not already removed (the idempotency guard, read as ``SKIPPED``);
 - one effect, :class:`RemoveCaseParticipantFromCaseReceivedNode`, which sets
-  the removal fact and keeps the record on the roster (CM-31-001), on the
+  the removal fact and keeps the record on the roster (CM-31-001, CM-31-015), on the
   shared effect frame (:class:`ParticipantMoveEffectNode`);
 - the direct notice to the removed participant,
   :class:`EmitParticipantRemovalNoticeNode`, which is not ledgered
-  (CM-31-006).
+  (CM-31-006, CM-31-026).
 
 The reinstatement nodes, for its ``Add(CaseParticipant)`` (CM-31-011), are in
 :mod:`~vultron.core.behaviors.case.nodes.participant_reinstatement` and reuse
@@ -78,7 +78,7 @@ def require_roster_record(
 ) -> CaseParticipant:
     """The stored record *participant_id* names on *case*'s roster.
 
-    The canonical set is ``case_participants`` (CM-19-003); a record that
+    The canonical set is ``case_participants`` (CM-19-004); a record that
     is not on it, or that the store cannot read, names no participant of
     the case.
 
@@ -259,7 +259,7 @@ def case_manager_admits_removal_guard(
     (CLP-10-009), in the shape of ``case_manager_admits_proposal_guard``: a
     replica skips it as ``SUCCESS`` (it writes nothing, RSH-08-003), and the
     CASE_MANAGER runs the three removal guards in order, so a removal it
-    refuses or skips leaves no ledger entry (CM-31-004, CLP-13-001).
+    refuses or skips leaves no ledger entry (CM-31-004, CM-31-022, CLP-13-001).
     *claimed_actor_id* is the actor the inline participant is attributed
     to, when it names one.
     """
@@ -366,7 +366,7 @@ class RemoveCaseParticipantFromCaseReceivedNode(ParticipantMoveEffectNode):
     def _log_applied(self) -> None:
         self.logger.info(
             "%s: removed participant '%s' from active participation in"
-            " case '%s' by '%s'; the record stays on the roster (CM-31-001)",
+            " case '%s' by '%s'; the record stays on the roster (CM-31-015)",
             self.name,
             self.participant_id,
             self.case_id,
@@ -454,8 +454,8 @@ class EmitParticipantRemovalNoticeNode(EmitParticipantMoveNoticeNode):
     """Send the removed participant its direct ``Remove(CaseParticipant)`` notice.
 
     The removed participant learns the removal as case state from the
-    removal entry's fan-out, which it is still sent (CM-31-006); its replica
-    applies that entry, not this notice (CM-31-007, RSH-08-003).
+    removal entry's fan-out, which it is still sent (CM-31-027); its replica
+    applies that entry, not this notice (CM-31-029, RSH-08-003).
     """
 
     _MOVE: ParticipantMove = "removal"

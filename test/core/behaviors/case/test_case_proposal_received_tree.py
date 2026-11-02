@@ -356,8 +356,9 @@ class TestEmitCreateVulnerabilityCaseNode:
         strict=True,
         raises=AssertionError,
         reason=(
-            "#5371: the creation copy travels in the bootstrap Create "
-            "(CBT-01-002, ADR-0157), not in an Announce(VulnerabilityCase)"
+            "the creation copy travels in the bootstrap Create (CBT-01-002, "
+            "ADR-0157), not in an Announce(VulnerabilityCase); rewording "
+            "PCR-02-005 and removing this xfail is tracked by #5377"
         ),
     )
     def test_the_creation_copy_is_not_delivered_in_the_create(self):
@@ -461,6 +462,7 @@ class TestEmitCreateVulnerabilityCaseNode:
 
     @pytest.mark.spec("CBT-01-010")
     @pytest.mark.spec("CM-22-001")
+    @pytest.mark.spec("CM-22-006")
     def test_case_manager_create_is_addressed_to_the_owner_only(self) -> None:
         """The CASE_MANAGER's Create goes to the report receiver alone.
 
@@ -601,6 +603,7 @@ class TestCreateCaseProposalReceivedBTCreateWiring:
         )
 
     @pytest.mark.spec("OX-13-001")
+    @pytest.mark.spec("CP-05-011")
     def test_a_failed_first_delivery_of_the_create_is_retried_by_the_outbox(
         self, make_payload, monkeypatch
     ):
@@ -772,6 +775,7 @@ def _owner_roles(dl: SqliteDataLayer) -> list:
 @pytest.mark.spec("CP-09-002")
 @pytest.mark.spec("CM-14-009")
 @pytest.mark.spec("CBT-01-003")
+@pytest.mark.spec("CBT-01-013")
 class TestADR0041OwnerParticipant:
     """ADR-0041 AC-1: report receiver added as CASE_OWNER at RM.RECEIVED.
 
@@ -905,6 +909,7 @@ class TestCP09001CaseAttributedToOwner:
         assert case.attributed_to == _VENDOR_URI
         assert case.attributed_to != _CASE_ACTOR_URI
 
+    @pytest.mark.spec("CM-02-017")
     def test_owner_field_and_case_owner_participant_name_the_same_actor(
         self, make_payload
     ):
@@ -916,6 +921,22 @@ class TestCP09001CaseAttributedToOwner:
         assert isinstance(participant, CaseParticipant)
         assert CVDRole.CASE_OWNER in participant.case_roles
 
+    @pytest.mark.spec("CM-22-007")
+    def test_the_create_carries_the_participants_written_before_it(
+        self, make_payload
+    ):
+        """The participant records exist before the Create is emitted.
+
+        The sealed Create carries the case as stored when it was queued, so
+        the owner's and the reporter's records in it were written first.
+        """
+        dl, _case = _run_proposal_to_case(make_payload)
+        carried = _queued_create(dl)["object"]["caseParticipants"]
+        actors = {p["attributedTo"] for p in carried if isinstance(p, dict)}
+        assert {_VENDOR_URI, _REPORTER_URI} <= actors, carried
+
+    @pytest.mark.spec("CM-22-005")
+    @pytest.mark.spec("CP-09-011")
     def test_create_is_by_the_case_manager_about_an_owner_attributed_case(
         self, make_payload
     ):
@@ -1146,7 +1167,7 @@ class TestOwnerChecksOnACaseTheCaseActorCreated:
         """Neither the owner's decline nor the case actor's blocks activation.
 
         An owner that declined and then activates has changed its answer
-        (MSM-07-008, maintainer ruling 2026-10-14).
+        (MSM-07-028, maintainer ruling 2026-10-14).
         """
         from test.core.behaviors.bt_harness import BTTestScenario
         from vultron.core.behaviors.embargo.nodes import (
@@ -1307,6 +1328,7 @@ class TestADR0041ReporterParticipant:
         )
 
     @pytest.mark.spec("CM-14-012")
+    @pytest.mark.spec("CBT-01-018")
     def test_reporter_participant_rm_accepted(self, make_payload):
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.models.case_participant import CaseParticipant
@@ -1639,6 +1661,7 @@ class TestADR0041EmbargoInit:
             assert abs(embargo.end_time - (now + expected[report_id])) < slack
 
     @pytest.mark.spec("EP-04-008")
+    @pytest.mark.spec("EP-04-020")
     def test_ineligible_case_is_created_without_an_embargo(
         self, make_payload, monkeypatch
     ):
@@ -1999,8 +2022,8 @@ class TestADR0041LedgerEntries:
             assert actor != _CASE_ACTOR_URI, (
                 "add_case_status_to_case must NOT use CaseActor as actor"
                 " — the vendor set the genesis status, so the vendor URI is"
-                " the correct provenance (the signature IS case-authored per"
-                " CLP-12-001, so the guard would not have caught this)"
+                " the correct provenance (the guard checks the signature, not"
+                " its author, so it would not have caught this)"
             )
             assert actor == _VENDOR_URI, (
                 f"add_case_status_to_case actor must be vendor URI, got {actor!r}"
@@ -2367,6 +2390,7 @@ class TestARedeliveryAnnouncesTheCaseOnce:
 
     @pytest.mark.spec("ID-04-004")
     @pytest.mark.spec("CP-05-006")
+    @pytest.mark.spec("CP-05-012")
     def test_a_redelivered_proposal_resends_the_same_accept(
         self, make_payload
     ):
@@ -2543,6 +2567,7 @@ class TestADR0041GenesisCommitFailure:
 
     @pytest.mark.spec("CLP-07-013")
     @pytest.mark.spec("CP-09-009")
+    @pytest.mark.spec("CM-14-007")
     def test_each_creation_entry_that_fails_leaves_nothing_of_the_case(
         self, make_payload, monkeypatch
     ):
@@ -3274,18 +3299,18 @@ def test_store_proposal_report_falls_back_to_the_wire_dict(caplog):
 
 
 # ---------------------------------------------------------------------------
-# CM-02-001 / CM-02-010 — one CaseActor per case; two actors keep distinct IDs
+# CM-02-001 / CM-02-019 — one CaseActor per case; two actors keep distinct IDs
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.spec("CM-02-001")
-@pytest.mark.spec("CM-02-010")
+@pytest.mark.spec("CM-02-019")
 @pytest.mark.spec("CBT-01-003")
 class TestCaseActorIsOneParticipantDistinctFromTheOwner:
     """The proposal flow's snapshot names exactly one CaseActor, and it is not the owner.
 
     CM-02-010 lets one actor hold both roles; when the proposal flow yields two
-    actors, each keeps its own actor ID, and that is what is asserted here.
+    actors, each keeps its own actor ID (CM-02-019), and that is what is asserted here.
 
     Under ADR-0041 "CaseActor" is the participant holding
     ``CVDRole.CASE_MANAGER``, not a per-case ``Service`` object — the earlier
@@ -3294,7 +3319,7 @@ class TestCaseActorIsOneParticipantDistinctFromTheOwner:
     Both requirements survive the rewording and are asserted here against the
     snapshot the CaseActor actually builds.
 
-    Co-location is what makes CM-02-010 worth asserting: this store belongs to
+    Co-location is what makes CM-02-019 worth asserting: this store belongs to
     the CaseActor and the vendor is a participant in it, so nothing about the
     layout would stop the two from collapsing into one identity. Under ADR-0073
     that collapse would also merge two stores that must stay separate.
@@ -3334,6 +3359,7 @@ class TestCaseActorIsOneParticipantDistinctFromTheOwner:
         return managers
 
     @pytest.mark.spec("PCR-01-002")
+    @pytest.mark.spec("CBT-01-014")
     def test_exactly_one_participant_holds_case_manager(self, make_payload):
         """CM-02-001, read as the role rather than as a ``Service`` record.
 
@@ -3343,8 +3369,21 @@ class TestCaseActorIsOneParticipantDistinctFromTheOwner:
         case = self._bootstrap_case(make_payload)
         assert self._managers(case) == [_CASE_ACTOR_URI]
 
+    @pytest.mark.spec("CBT-01-015")
+    def test_the_case_manager_also_holds_coordinator(self, make_payload):
+        """The participant holding CASE_MANAGER also carries COORDINATOR."""
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.enums.roles import CVDRole
+
+        case = self._bootstrap_case(make_payload)
+        manager = self._dl.read(case.actor_participant_index[_CASE_ACTOR_URI])
+        assert isinstance(manager, CaseParticipant)
+        assert CVDRole.CASE_MANAGER in manager.roles
+        assert CVDRole.COORDINATOR in manager.roles
+
+    @pytest.mark.spec("CBT-01-016")
     def test_the_case_manager_is_not_the_case_owner(self, make_payload):
-        """CM-02-010: when two actors enact the roles, their IDs are distinct.
+        """CM-02-019: when two actors enact the roles, their IDs are distinct.
 
         If these ever coincided, the CaseActor's replication to the owner would
         become a message an actor sends itself — delivery discards those, so the
@@ -3378,8 +3417,8 @@ class TestEP04SenderProposalAtCaseCreation:
     (CP-01-008).  Shortest-wins runs between it and the case owner's actor
     default (EP-04-003); the protocol default is never a candidate
     (EP-04-006); the winning sender event keeps its identity with its
-    ``context`` rewritten to the case (EP-04-004); the loser becomes a pending
-    revision (EP-04-003).  #3392.
+    ``context`` rewritten to the case (EP-04-017); the loser becomes a pending
+    revision (EP-04-016).  #3392.
     """
 
     _SENDER_END_DAYS = 10
@@ -3508,8 +3547,10 @@ class TestEP04SenderProposalAtCaseCreation:
         _seed_report(dl)
         return dl
 
+    @pytest.mark.spec("CP-01-021")
     @pytest.mark.spec("EP-04-004")
     @pytest.mark.spec("EP-04-007")
+    @pytest.mark.spec("EP-04-017")
     def test_a_lone_sender_proposal_becomes_the_active_embargo_about_the_case(
         self, make_payload
     ):
@@ -3532,6 +3573,7 @@ class TestEP04SenderProposalAtCaseCreation:
         assert case.proposed_embargo_ids == []
 
     @pytest.mark.spec("EP-04-003")
+    @pytest.mark.spec("EP-04-016")
     def test_shorter_sender_proposal_wins_and_the_actor_default_is_a_revision(
         self, make_payload
     ):
@@ -3586,6 +3628,7 @@ class TestEP04SenderProposalAtCaseCreation:
 
     @pytest.mark.spec("EP-04-003")
     @pytest.mark.spec("EP-04-004")
+    @pytest.mark.spec("EP-04-016")
     def test_shorter_actor_default_wins_and_the_sender_proposal_is_a_revision(
         self, make_payload
     ):
@@ -3655,7 +3698,7 @@ class TestEP04SenderProposalAtCaseCreation:
         assert isinstance(invitee, CaseParticipant)
         assert invitee.is_signatory(stored.active_embargo_id)
         assert invitee.consent_for(revision_id) == EmbargoConsentState.INVITED
-        # Proposing the revision is the loser's consent to it (MSM-07-005):
+        # Proposing the revision is the loser's consent to it (MSM-07-022):
         # the executing CaseActor and the winner record nothing (#4152).
         proposer = dl.read(stored.actor_participant_index[loser])
         assert isinstance(proposer, CaseParticipant)
@@ -3683,7 +3726,11 @@ class TestEP04SenderProposalAtCaseCreation:
     @pytest.mark.spec("EP-04-011")
     @pytest.mark.spec("CM-24-001")
     @pytest.mark.spec("CM-24-002")
-    @pytest.mark.spec("CM-14-007")
+    @pytest.mark.spec("CM-14-014")
+    @pytest.mark.spec("EP-04-024")
+    @pytest.mark.spec("EP-04-025")
+    @pytest.mark.spec("EP-04-026")
+    @pytest.mark.spec("EP-04-027")
     def test_the_owners_losing_default_is_relayed_to_the_reporter(
         self, make_payload
     ):
@@ -3691,7 +3738,7 @@ class TestEP04SenderProposalAtCaseCreation:
         owner's longer default to the Reporter on the owner's behalf, under
         the id derived from the case proposal (OX-06-002), commits it, and
         only then indexes it
-        (EP-04-011, EP-08-002)."""
+        (EP-04-025, EP-04-026, EP-08-002)."""
         dl = self._store()
         self._publish_owner_policy()
         case, _ = self._run(
@@ -3703,6 +3750,10 @@ class TestEP04SenderProposalAtCaseCreation:
     @pytest.mark.spec("EP-04-011")
     @pytest.mark.spec("CM-24-001")
     @pytest.mark.spec("CM-24-002")
+    @pytest.mark.spec("EP-04-024")
+    @pytest.mark.spec("EP-04-025")
+    @pytest.mark.spec("EP-04-026")
+    @pytest.mark.spec("EP-04-027")
     def test_the_reporters_losing_terms_are_relayed_to_the_owner(
         self, make_payload
     ):
@@ -3865,6 +3916,8 @@ class TestEP04SenderProposalAtCaseCreation:
 
     @pytest.mark.spec("EP-04-003")
     @pytest.mark.spec("CP-05-006")
+    @pytest.mark.spec("EP-04-016")
+    @pytest.mark.spec("EP-04-029")
     def test_a_second_proposal_for_the_same_report_registers_no_second_revision(
         self, make_payload
     ):
@@ -3909,7 +3962,7 @@ class TestEP04SenderProposalAtCaseCreation:
         """The same proposal redelivered after the case's embargo has ended
         reuses the case and is answered, and the terms it carries are not
         reconciled against the case: EM stays ``EXITED``, no embargo is
-        attached and no ``EmbargoEvent`` is stored (EP-04-012, #3986).
+        attached and no ``EmbargoEvent`` is stored (EP-04-028, EP-04-029, #3986).
 
         Before the guard read the EM state, termination's cleared reference
         let the creation arm run: an orphan event, then the EM machine's

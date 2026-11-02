@@ -11,10 +11,10 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Select the losing side of shortest-wins as a pending revision (EP-04-003).
+"""Select the losing side of shortest-wins as a pending revision (EP-04-016).
 
 When both the sender and the case owner carried a proposal at case creation,
-``ResolveEmbargoDurationNode`` made the shorter one active.  EP-04-003 says the
+``ResolveEmbargoDurationNode`` made the shorter one active.  EP-04-016 says the
 longer SHOULD be registered as a pending revision, so the party that wanted
 more can negotiate the contested tail inside the agreed embargo rather than
 losing it outright (ADR-0096).  ``ResolveCreationTimeRevisionNode`` picks that
@@ -27,7 +27,7 @@ The revision then follows the relay like any other (EP-04-011, ADR-0113):
 ``RelayCreationTimeRevisionNode`` (``embargo_revision_relay``) emits its
 ``Invite`` on the losing party's behalf, and indexes it for the owner's default
 selection (EP-08-002), once the initialization sequence is complete
-(CM-14-007).  Both run in the creation act's one transaction (ADR-0146), so a
+(CM-14-014).  Both run in the creation act's one transaction (ADR-0146), so a
 failed relay rolls the registration back with the rest of the creation.
 """
 
@@ -69,8 +69,8 @@ def creation_revision_parties(
     terms arrived as the sender proposal (EP-04-004).  The party whose terms
     lost shortest-wins proposed the revision (``losing_source``): the reporter
     for ``SENDER_PROPOSAL``, the owner for ``ACTOR_DEFAULT``.  The proposer's
-    consent record gains the revision (MSM-07-005, #4152) and the relay is
-    attributed to it (EP-04-011), so both read it here.
+    consent record gains the revision (MSM-07-022, #4152) and the relay is
+    attributed to it (EP-04-024), so both read it here.
 
     Raises:
         BtNodePreconditionError: If *report_id* is missing, or the report
@@ -112,7 +112,7 @@ class ResolveCreationTimeRevisionNode(DataLayerActionWithPorts):
       a fresh ``EmbargoEvent`` for the actor default is the candidate;
     - the **actor default** won and the sender's proposal was longer: the
       sender's own ``EmbargoEvent`` is, its ``context`` rewritten to the case
-      (EP-04-004, EP-04-009).
+      (EP-04-017, EP-04-009).
 
     A tie, a protocol-default outcome, or a lone candidate selects nothing.
     The node writes nothing to the store: ``InitializeCreationEmbargoNode``

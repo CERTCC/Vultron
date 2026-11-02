@@ -137,7 +137,7 @@ An example is a vendor that transfers its case to a coordinator when the case co
 2. Propose the transfer to the Case Manager, which can be your own system, and name the new owner ([CM-21-005](../reference/vultron-spec/requirements/case-management.md#cm-21-005)).
    The Case Manager refuses a transfer to an actor that is not an active participant ([CM-21-021](../reference/vultron-spec/requirements/case-management.md#cm-21-021)).
 3. Wait for the new owner to accept the transfer.
-   It must be an active participant when it accepts ([CM-21-021](../reference/vultron-spec/requirements/case-management.md#cm-21-021)).
+   It must be an active participant, and not closed, when it accepts ([CM-21-022](../reference/vultron-spec/requirements/case-management.md#cm-21-022)).
 
 After the transfer, the case keeps its history, its embargo, and its participants.
 Only the Case Owner role moves ([CM-21-002](../reference/vultron-spec/requirements/case-management.md#cm-21-002), [CM-21-003](../reference/vultron-spec/requirements/case-management.md#cm-21-003)).

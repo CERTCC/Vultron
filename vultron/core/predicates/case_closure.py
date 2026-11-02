@@ -21,14 +21,15 @@ entry the CASE_MANAGER commits for its own closure, the last step of the
 owner-close sequence (CM-23-002 step 2, CM-23-005).  That entry is the
 owner-close write boundary: after it, no inbound activity for the case is
 recorded (CM-23-013).  No separate entry marks the closure: anything that
-holds the case and its ledger can see it (ADR-0152).
+holds the case and its ledger can see it (CM-23-027, ADR-0152).
 
 Every check of that boundary uses :func:`entry_closes_case_manager`, through
 :func:`ledger_records_full_closure` or :func:`closure_boundary_indices`, so the
 BT guard, the demo checks, the invariant harness and the tests cannot
-disagree about what "closed" means (CS-22-001).  The entry is read as the
-ledger carries it, a ``semantic_type`` and a ``payloadSnapshot``, so a
-core ``CaseLedgerEntry`` and an exported ledger row are judged alike.
+disagree about what "closed" means (CM-23-028, CS-22-001).  The entry is
+read as the ledger carries it, a ``semantic_type`` and a
+``payloadSnapshot``, so a core ``CaseLedgerEntry`` and an exported ledger
+row are judged alike.
 """
 
 from collections.abc import Iterable, Mapping

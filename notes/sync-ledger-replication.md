@@ -37,6 +37,7 @@ related_notes:
   - notes/case-communication-model.md
   - notes/participant-case-replica.md
   - notes/demo-ci-diagnostics.md
+  - notes/peer-broadcast-failure-semantics.md
 relevant_packages:
   - vultron/core/behaviors
   - vultron/wire/as2
@@ -100,7 +101,7 @@ everything after the last hash a participant reports.
   catch-up of a let-back-in, paused peer: that peer keeps its pause and is skipped
   for the new entry, every other recipient gets it, and the fan-out succeeds.
   Failing there would refuse every later commit in the case, since the peer's
-  pause brings the same catch-up back each time (decided on #5120).
+  pause brings the same catch-up back each time (BT-14-003, #5120).
 - **A hash refusal is reported, not recovered.** The replica sends
   `LedgerEntryRefused/HashMismatch`; the CASE_MANAGER logs it at ERROR and checks its
   own copy, and does nothing else. Replay and re-seed resend the same content, so
@@ -235,7 +236,7 @@ and seeds no case.
 - **A closed peer keeps this one act**: the use case declares `LEDGER_PEER`, not
   `ACTIVE_PARTICIPANT`, because every `ACTIVE_PARTICIPANT` guard refuses a sender
   at RM `CLOSED` (CM-23-018). Its replay stops at its own closure entries
-  (`closed_participant_ledger_cutoff()`, CM-23-004).
+  (`closed_participant_ledger_cutoff()`, CM-23-048).
 - **Answering a Reject is the CASE_MANAGER's act alone.** Replication state,
   pre-seed and replay sit in the reject tree's `manager_effects`, in that order,
   behind the factory gate (BT-17-008). A pre-seed whose gate is undecidable fails
@@ -591,7 +592,7 @@ answered (CBT-03-003).
 
 - **Runs apart from the active check** (SYNC-20-001). An inert joiner whose Invite
   to the embargo now in force was dropped is the one to ask again; a resent Invite
-  is not case content (CM-10-007). Put `ResendOwedInvitesNode` before
+  is not case content (CM-10-009). Put `ResendOwedInvitesNode` before
   `PeerActiveParticipantNode`, in the `Read` tree and in the stamp stage.
 - **Owed is read from the ledger** (SYNC-20-002, `owed_invites`): the last
   `invite_to_embargo_on_case` entry per embargo whose row is `INVITED`, embargo

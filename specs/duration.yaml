@@ -109,13 +109,27 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      Embargo policy durations SHOULD use only integer day units when possible; mixed day/time
-      representations SHOULD be avoided
+      An embargo policy duration SHOULD use whole-day units only, where it can.
     rationale: >-
       Embargo terms are negotiated and compared in days, and policy ranges are read by
-      people as well as code. A value such as `P29DT23H` is hard to compare against a
-      policy range at a glance and usually signals an arithmetic leftover rather than an
-      intended term.
+      people as well as code. A whole number of days compares against a policy range at
+      a glance.
+  - id: DUR-03-004
+    priority: SHOULD_NOT
+    kind: protocol
+    statement: >-
+      An embargo policy duration SHOULD NOT mix day and time units, as in `P29DT23H`.
+    rationale: >-
+      A mixed value such as `P29DT23H` is hard to compare against a policy range at a
+      glance, and it usually signals an arithmetic leftover rather than an intended
+      term.
+    verification: >-
+      `test/core/models/test_embargo_policy.py`
+      (`test_a_whole_day_duration_carries_no_time_units`) confirms a whole-day policy
+      duration serializes in days alone, with no time units.
+    relationships:
+    - rel_type: extends
+      spec_id: DUR-03-002
   - id: DUR-03-003
     priority: SHOULD_NOT
     kind: protocol
@@ -200,8 +214,8 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Duration fields MUST serialize to ISO 8601 duration strings at the JSON wire layer;
-      the internal `timedelta` MUST NOT be serialized as a plain number
+      This codebase MUST serialize each duration field to an ISO 8601 duration string at
+      the JSON wire layer, never to a plain number.
     rationale: >-
       Pydantic can be configured to serialize a `timedelta` as a number of seconds,
       which would put a unitless value on the wire and break DUR-01-002. Fixing the wire
@@ -248,18 +262,34 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Timestamps used in interval composition MUST conform to RFC 3339 (UTC recommended);
-      local timezone arithmetic is NOT RECOMMENDED
+      A timestamp used in interval composition MUST conform to RFC 3339.
     rationale: >-
       A timestamp without an offset is read in each participant's local zone, so the
-      same start time names different instants on different servers. RFC 3339 timestamps
-      carry their offset, and UTC avoids daylight-saving shifts, so every participant
-      computes the same end instant.
+      same start time names different instants on different servers. An RFC 3339
+      timestamp carries its offset, so every participant reads the same instant.
     verification: >-
       A unit test confirms that timestamps used in interval composition are parsed
-      as RFC 3339 values and that local-timezone arithmetic is not applied.
+      as RFC 3339 values.
     lint_suppress:
     - missing_story_reference
+  - id: DUR-06-004
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      An implementation SHOULD compose intervals in UTC, not in a local time zone.
+    rationale: >-
+      Local time zones shift for daylight saving, so the same start and duration can
+      give different end instants on different servers. UTC has no such shift, so
+      every participant computes the same end instant.
+    verification: >-
+      `test/core/models/test_helpers.py`
+      (`test_an_interval_composed_from_now_is_in_utc`) confirms an interval composed
+      from now ends at a UTC instant, never a local-zone one.
+    relationships:
+    - rel_type: extends
+      spec_id: DUR-06-003
+    stories:
+    - story_2022_010
 - id: DUR-07
   title: Embargo Duration Semantics
   specs:

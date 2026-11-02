@@ -148,7 +148,7 @@ class _UpdateCaseActivity(as_Update):
     """Update a VulnerabilityCase.
 
     The CASE_MANAGER's own act naming a new Case Owner, committed as its
-    ``update_case_owner`` ledger entry (CM-21-002, CLP-07-013).  The registry
+    ``update_case_owner`` ledger entry (CM-21-024, CLP-07-013).  The registry
     recognizes it, but no received use case handles it, so an inbox reports
     a received one as "no use case found" (ADR-0140).
 
@@ -219,7 +219,7 @@ class _OfferCaseParticipantRoleActivity(as_Offer):
 
     object_: as_CaseParticipantRole (required — carries the CVDRole)
     target: the Actor receiving the role offer (required), as the sender
-        holds it or as an actor reference (AKM-05-005)
+        holds it or as an actor reference (AKM-05-005, AKM-05-017)
     context: as_VulnerabilityCase or str URI (required)
 
     Declares **both** ``object_`` and ``target`` in
@@ -303,7 +303,7 @@ class _OfferCaseOwnershipTransferActivity(as_Offer):
     refused the bare ``target`` (CLP-07-006, #4843).
     :func:`~vultron.wire.as2.factories.offer_case_ownership_transfer_activity`
     carries a transferee known only by id as an actor reference, so it
-    travels inline (AKM-05-005).
+    travels inline (AKM-05-017).
     """
 
     object_: NamedCase = Field(
@@ -505,7 +505,7 @@ class _RmAcceptFullCaseInviteActivity(as_Accept):
     """The participant judges the case valid: RV, ``RECEIVED → VALID``.
 
     `object_`: the `_RmInviteToFullCaseActivity` being accepted.  Carries the
-    replier's ledger position (VAM-04-012, CM-11-011).
+    replier's ledger position (VAM-04-012, CM-11-034).
     """
 
     object_: _RmInviteToFullCaseActivity = Field(
@@ -521,7 +521,7 @@ class _RmAcceptFullCaseInviteActivity(as_Accept):
 class _RmTentativeRejectFullCaseInviteActivity(as_TentativeReject):
     """The participant judges the case invalid: RI, ``RECEIVED → INVALID``.
 
-    Carries the replier's ledger position (VAM-04-013, CM-11-011).
+    Carries the replier's ledger position (VAM-04-013, CM-11-034).
     """
 
     object_: _RmInviteToFullCaseActivity = Field(
@@ -537,7 +537,7 @@ class _RmTentativeRejectFullCaseInviteActivity(as_TentativeReject):
 class _RmRejectFullCaseInviteActivity(as_Reject):
     """The participant closes the case: RC, ``RECEIVED → CLOSED``.
 
-    Carries the replier's ledger position (VAM-04-014, CM-11-011).
+    Carries the replier's ledger position (VAM-04-014, CM-11-034).
     """
 
     object_: _RmInviteToFullCaseActivity = Field(

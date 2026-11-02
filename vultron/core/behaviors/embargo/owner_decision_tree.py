@@ -104,7 +104,7 @@ def activate_embargo_on_case_tree(
     Activating a revision can admit a participant that had already accepted
     it after the entry was fanned out, so the CASE_MANAGER then sends what
     the gate withheld (CM-10-006), tells any signatory a shorter revision
-    dropped and the ledger no longer reaches (CM-31-009), and re-issues each
+    dropped and the ledger no longer reaches (CM-31-030), and re-issues each
     outstanding stub Invite against the now-active embargo (CM-11-016).
 
     Args:
@@ -121,7 +121,7 @@ def activate_embargo_on_case_tree(
     """
     # The owner's activation of a shorter revision drops bound signatories the
     # ledger no longer reaches; capture them before the write, tell them after
-    # (CM-31-009).
+    # (CM-31-030).
     capture, notices = embargo_ending_notice_nodes(
         case_id, requested_by=sender_actor_id
     )
@@ -201,7 +201,7 @@ def reject_embargo_proposal_on_case_tree(
     ``terminate_embargo_bt`` (BT-19-002), which announces the end to every
     other participant.  The guard trial-applies both steps before the
     commit, and the act is one transaction, so a refused termination
-    commits neither entry (MSM-07-009).  A replica copies both entries in
+    commits neither entry (MSM-07-032).  A replica copies both entries in
     order and decides nothing (CM-23-016).
 
     Args:

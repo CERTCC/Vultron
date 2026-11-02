@@ -168,7 +168,7 @@ Rejecting a revision normally keeps the prior terms in force and returns to *Act
 
 Sometimes the CS is already public, exploited, or attacked when the Case Owner rejects the last open revision.
 In that condition, the Case Manager follows the rejection with a termination in the same act.
-EM then ends in *eXited*, not in *Active* (MSM-07-009, EMB-04-002).
+EM then ends in *eXited*, not in *Active* (MSM-07-032, EMB-04-002).
 
 ```mermaid
 ---
@@ -246,7 +246,7 @@ stateDiagram-v2
 
 As above, this rule covers the acceptance of a proposal made after case creation.
 The case-creation acceptance is atomic.
-At that point the case owner is in RM *Received*, which this rule allows anyway.
+At that point the Case Owner is in RM *Received*, which this rule allows anyway.
 The diagram below shows the RM states from which accepting a proposal is allowed.
 
 ```mermaid
