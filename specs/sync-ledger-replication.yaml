@@ -1536,9 +1536,8 @@ groups:
       last_accepted_hash="" to the CASE_MANAGER;
       `test/core/behaviors/sync/test_announce_tree.py`
       (`test_early_entries_within_the_interval_send_one_genesis_reject` and
-      `test_early_entry_after_the_interval_sends_a_new_genesis_reject`, strict xfails
-      until #5555 lands) confirm the withheld Reject and the request after the
-      interval.
+      `test_early_entry_after_the_interval_sends_a_new_genesis_reject`) confirm the
+      withheld Reject and the request after the interval.
     relationships:
     - rel_type: depends_on
       spec_id: CLP-08-005
@@ -1879,6 +1878,13 @@ groups:
       did not. On a loaded host the CASE_MANAGER answered each of them with a full
       replay, and the duplicates delayed unrelated messages by about 20 seconds
       (#5552).
+    verification: >-
+      `test/core/behaviors/sync/test_announce_tree.py`
+      (`test_early_entries_within_the_interval_send_one_genesis_reject`) confirms
+      that three early entries for one missing case, delivered inside the interval,
+      are all held and draw one genesis Reject;
+      `test_an_unheld_early_entry_inside_the_interval_names_the_withheld_reject`
+      confirms that an entry the holding area drops inside the interval draws none.
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-001
@@ -1901,9 +1907,9 @@ groups:
       duplicate (ID-02-001), so a request after the interval must be its own activity.
     verification: >-
       `test/core/behaviors/sync/test_announce_tree.py`
-      (`test_early_entry_after_the_interval_sends_a_new_genesis_reject`, a strict
-      xfail until #5555 lands) confirms that an entry redelivered after the interval
-      draws a second genesis Reject whose id differs from the first.
+      (`test_early_entry_after_the_interval_sends_a_new_genesis_reject`) confirms
+      that an entry redelivered after the interval draws a second genesis Reject
+      whose id differs from the first.
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-016
@@ -1928,9 +1934,8 @@ groups:
       (`test_genesis_reject_after_the_ceiling_replays_again`) confirms the
       CASE_MANAGER replays again after the ceiling;
       `test/core/behaviors/sync/test_announce_tree.py`
-      (`test_early_entry_after_the_interval_sends_a_new_genesis_reject`, a strict
-      xfail until #5555 lands) confirms the participant asks again after its
-      interval.
+      (`test_early_entry_after_the_interval_sends_a_new_genesis_reject`) confirms
+      the participant asks again after its interval.
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-003
@@ -1976,9 +1981,9 @@ groups:
     verification: >-
       `test/core/behaviors/sync/test_announce_tree.py`
       (`test_early_entries_within_the_interval_send_one_genesis_reject` and
-      `test_early_entry_after_the_interval_sends_a_new_genesis_reject`, strict xfails
-      until #5555 lands) confirm that a participant withholds a genesis Reject just
-      under the ceiling and sends one just over it.
+      `test_early_entry_after_the_interval_sends_a_new_genesis_reject`) confirm that
+      a participant withholds a genesis Reject just under the ceiling and sends one
+      just over it.
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-016
@@ -1998,9 +2003,8 @@ groups:
       Announce has no timestamp. Keeping it in the store survives a restart.
     verification: >-
       `test/core/behaviors/sync/test_announce_tree.py`
-      (`test_early_entries_within_the_interval_send_one_genesis_reject`, a strict
-      xfail until #5555 lands) confirms that the limit holds across fresh trees on
-      one store.
+      (`test_early_entries_within_the_interval_send_one_genesis_reject`) confirms
+      that the limit holds across fresh trees on one store.
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-016
@@ -2042,8 +2046,12 @@ groups:
       request.
     verification: >-
       `test/core/behaviors/sync/test_announce_tree.py`
-      (`test_seeding_the_case_clears_the_genesis_reject_record`, a strict xfail until
-      #5555 lands) confirms that a new wait after the seed asks at once.
+      (`test_seeding_the_case_clears_the_genesis_reject_record`) confirms that a new
+      wait after the seed asks at once;
+      `test/core/behaviors/case/test_create_case_received_tree.py`
+      (`test_seeding_from_a_create_clears_the_genesis_reject_record` and
+      `test_a_failed_record_delete_leaves_the_case_unseeded`) confirms that the
+      Create seed deletes the record with the case write.
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-021

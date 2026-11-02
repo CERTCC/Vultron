@@ -197,6 +197,8 @@ A participant whose replica starts for the first time receives `Announce(Vulnera
 This happens after it accepts an `Invite`, or after a `Create(CaseProposal)` is accepted.
 The participant holds any `Announce(CaseLedgerEntry)` that arrives before the seed as a `HeldLedgerAnnounce`, keyed by `prev_log_hash`.
 It replays that `Announce` when it can compute the genesis hash from the seeded case (ADR-0059).
+While it waits, it sends the CASE_MANAGER one `Reject(CaseLedgerEntry)` with an empty `last_accepted_hash` per case, not one per held entry, and another, under a new id, only for an entry that arrives once 600 seconds have passed (SYNC-15-016, SYNC-15-017).
+It records the time of the last one as a `GenesisRejectRecord` and deletes that record when it seeds the case (SYNC-15-021, SYNC-15-023).
 A report submitter's replica is seeded by the report receiver's `Create(VulnerabilityCase)` instead (CBT-01-001), and that seed replays the held `Announce` the same way (SYNC-15-005).
 The report receiver's own seed, the CASE_MANAGER's `Create(VulnerabilityCase)`, replays held entries the same way too.
 The receiver and the CASE_MANAGER are separate senders, so the CASE_MANAGER's entries often arrive before that `Create`.

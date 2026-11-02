@@ -117,6 +117,9 @@ from vultron.core.behaviors.sync.nodes.genesis_announce import (
     AnnounceCaseOnGenesisRejectNode,
     GenesisRejectAlreadyAnsweredNode,
 )
+from vultron.core.behaviors.sync.nodes.genesis_reject import (
+    SendGenesisRejectOnMissingCaseNode,
+)
 from vultron.core.behaviors.sync.nodes.hash_mismatch import (
     ReportHashMismatchNode,
 )
@@ -253,6 +256,7 @@ __all__ = [
     # replay_held
     "ReplayHeldSuccessorNode",
     "SendRejectLogEntryNode",
+    "SendGenesisRejectOnMissingCaseNode",
     "CheckHashOrRejectOnMismatchNode",
     # chain
     "ReconstructChainTailNode",
