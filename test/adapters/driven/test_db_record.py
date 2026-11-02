@@ -799,9 +799,9 @@ def _ownership_transfer_case() -> Any:
 def _ownership_offer_naming_a_peer():
     """An ``Offer(VulnerabilityCase)`` — the ownership transfer.
 
-    Names the transferee by a bare id, as the trigger adapter passes it; the
-    factory wraps it as an ``as_Actor`` (DL-08-003, #4843).  The case travels
-    as its typed reference (ADR-0165).
+    Names the transferee in ``target`` by a bare id, as the trigger adapter
+    passes it; the factory wraps it as an ``as_Actor`` (DL-08-003, #4843).  The
+    case travels as its typed reference (ADR-0165).
     """
     from vultron.wire.as2.factories import (
         offer_case_ownership_transfer_activity,

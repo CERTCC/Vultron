@@ -261,7 +261,7 @@ class TestCaseTimelineEventParsing:
         assert event.target_type is None
 
     def test_accept_wrapper_unwrapped_to_inner_object(self):
-        """Accept(object=VulnerabilityReport) → target_type is the report, not Accept."""
+        """Accept(VulnerabilityReport) → target_type is the report, not Accept."""
         raw = _camel_entry(
             payloadSnapshot={
                 "type": "Add",
@@ -299,7 +299,7 @@ class TestCaseTimelineEventParsing:
         assert event.target_ref == "urn:uuid:rep3"
 
     def test_invite_wrapper_surfaces_inner_target(self):
-        """Accept(Invite(Actor)[target=VulnerabilityCase]) → org → case label."""
+        """Accept(Invite(Actor)[target=VulnerabilityCase]) → org → case arrow."""
         raw = _camel_entry(
             semanticType="accept_invite_actor_to_case",
             payloadSnapshot={

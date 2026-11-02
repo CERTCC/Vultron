@@ -625,7 +625,9 @@ class _ActorsMixin:
         attributed_to: str,
         to: list[str],
     ) -> tuple[str, str]:
-        """Persist the ``Remove(CaseParticipant)[target=VulnerabilityCase]`` notice.
+        """Create and persist a ``Remove(CaseParticipant)[target=VulnerabilityCase]``.
+
+        The ``Remove`` is the removal notice.
 
         The participant goes inline as the store holds it, removal fact
         included.  Returns ``(activity_id, activity_blob)`` (CM-31-006).

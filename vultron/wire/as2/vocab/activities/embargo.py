@@ -63,7 +63,7 @@ class _EmAcceptEmbargoActivity(as_Accept):
     It is the sender's own consent to those terms and carries no protocol
     shorthand: EA and EC are the Case Owner's decision,
     ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` (MSM-02-010).
-    Per ActivityStreams convention: Accept(object=<Invite>) — the actor accepts
+    Per ActivityStreams convention: Accept(Invite(EmbargoEvent)) — the actor accepts
     the proposal activity itself, not the as_EmbargoEvent being proposed.
 
     object_: the _EmProposeEmbargoActivity activity being accepted (inline typed
@@ -84,7 +84,7 @@ class _EmRejectEmbargoActivity(as_Reject):
     ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (MSM-02-010).  The
     CASE_MANAGER's own Reject abandons the proposal and is ER (MSM-02-006,
     EMB-16-001).
-    Per ActivityStreams convention: Reject(object=<Invite>) — the actor rejects
+    Per ActivityStreams convention: Reject(Invite(EmbargoEvent)) — the actor rejects
     the proposal activity itself, not the as_EmbargoEvent being proposed.
 
     object_: the _EmProposeEmbargoActivity activity being rejected (inline typed

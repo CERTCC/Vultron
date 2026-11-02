@@ -44,7 +44,8 @@ logger = logging.getLogger(__name__)
 class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):
     """Queue Announce(VulnerabilityCase) to a peer that rejected from genesis.
 
-    When a peer sends ``Reject(last_accepted_hash="")`` it has no copy of
+    When a peer sends ``Reject(CaseLedgerEntry)`` with an empty
+    ``last_accepted_hash``, it has no copy of
     VulnerabilityCase yet.  Replaying ledger entries without first seeding the
     case object causes ReconstructChainTailNode to fail again on every entry,
     producing an exponential reject-replay loop (SYNC-15-015).  This node

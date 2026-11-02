@@ -317,7 +317,7 @@ class _OfferCaseOwnershipTransferActivity(as_Offer):
 class _ProposeCaseOwnershipTransferActivity(as_Offer):
     """The Case Owner proposes an ownership transfer to the CASE_MANAGER.
 
-    Wire format: ``Offer(Offer(VulnerabilityCase))[context=VulnerabilityCase]``
+    Wire format: ``Offer(Offer(VulnerabilityCase))``, its ``context`` the case
     (ADR-0148).  The inner Offer is the template of the one Offer the
     CASE_MANAGER makes to the transferee: its object is the case, its
     ``target`` the transferee and its ``endTime`` the deadline to answer.

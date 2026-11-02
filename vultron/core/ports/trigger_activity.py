@@ -937,7 +937,9 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         published: datetime | None = None,
         min_rsvp_window: timedelta | None = None,
     ) -> tuple[str, str]:
-        """Persist an ``Invite(EmbargoEvent)[context=VulnerabilityCase]`` proposal.
+        """Create and persist an ``Invite(EmbargoEvent)[context=VulnerabilityCase]``.
+
+        The Invite is the embargo proposal.
 
         ``attributed_to`` carries the proposer when the CASE_MANAGER relays a
         proposal on a participant's behalf (CM-24-002, EP-09-002): ``actor`` is

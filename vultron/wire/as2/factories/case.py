@@ -685,7 +685,7 @@ def propose_case_ownership_transfer_activity(
     end_time: datetime | None = None,
     **kwargs,
 ) -> as_Offer:
-    """Build Offer(Offer(VulnerabilityCase))[context=VulnerabilityCase]: the proposal.
+    """Build Offer(Offer(VulnerabilityCase)), the owner's proposal; context is the case.
 
     The Case Owner sends it to the CASE_MANAGER, which makes the one
     ``Offer(VulnerabilityCase)`` the transferee answers (ADR-0148,
