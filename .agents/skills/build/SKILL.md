@@ -197,6 +197,12 @@ explicitly empty floor).
 `deepen-context` returns a **Spec manifest**. Keep it: it goes into the PR
 body (Phase 8), and reviewers use it as their spec floor.
 
+Then, before the first commit, write the build context file that the pre-push
+reviewer and the pr-ship phases reuse instead of loading context again
+(`.agents/skills/shared/build-context.md` § "Writing it", PAD-07-015). Save the
+manifest to `/tmp/spec-manifest-<N>.txt` and run `build-context write` with the
+focus hints, notes and glossary sections `deepen-context` read.
+
 ### Phase 4 — Verify Before Coding
 
 1. **Compose-before-create gate (all domain types — blocking)**:

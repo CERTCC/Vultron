@@ -157,6 +157,11 @@ Invoke `deepen-context` with focus hints derived from the investigation
 the issue body, comments, or code you traced. Keep the **Spec manifest** it
 returns: it goes in the Phase 3 briefing and the PR body.
 
+Then, before the first commit, write the build context file the pr-ship phases
+reuse (`.agents/skills/shared/build-context.md` § "Writing it", PAD-07-015): save
+the manifest to `/tmp/spec-manifest-<N>.txt` and run `build-context write` with
+the focus hints, notes and glossary sections `deepen-context` read.
+
 ## Phase 3 — Present Findings (BLOCKING)
 
 Present the briefing as a **plain-text message** and end your turn — do

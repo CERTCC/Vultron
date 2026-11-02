@@ -1147,6 +1147,98 @@ groups:
         relationships:
         - rel_type: extends
           spec_id: PAD-07-009
+      - id: PAD-07-015
+        priority: MUST
+        kind: process
+        statement: >-
+          After `deepen-context`, before the branch's first commit, the `build`
+          and `bugfix` skills MUST write the build context file with
+          `build-context write`. The file records the branch, the head and base
+          commits, the Spec manifest's loaded IDs, the domain hints, and the
+          notes and glossary sections loaded, and no other field.
+        rationale: >-
+          Each later pipeline phase is a fresh agent that would load the same
+          context again. A list of facts found, with no reasoning, lets the
+          phase skip that work and still review with a fresh eye (PAD-07-001).
+        verification: >-
+          Test: `test/metadata/test_build_context.py` checks that the file
+          holds the listed fields and that a record carrying any other field is
+          refused. Inspection: `build` Phase 3 and `bugfix` Phase 2g run
+          `build-context write`.
+      - id: PAD-07-016
+        priority: MUST
+        kind: process
+        statement: >-
+          A pull-request pipeline phase (`pr-triage` in every mode,
+          `pr-execute`) MUST reuse the build context file only when
+          `build-context check` reports it usable. Usable means that the file
+          exists, holds a valid record, names the PR's branch, and was recorded
+          at a commit that is an ancestor of the PR head.
+        rationale: >-
+          pr-ship often runs from another agent system or machine, or on a
+          branch whose file was written for older work. Only a file that
+          provably describes this branch may stand in for loading context.
+        verification: >-
+          Test: `test/metadata/test_build_context.py` checks that `check` reports
+          `mode=reuse` only for a valid file of the current branch recorded at
+          an ancestor of `HEAD`.
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-07-015
+      - id: PAD-07-017
+        priority: MUST
+        kind: process
+        statement: >-
+          When `build-context check` reports the build context file unusable,
+          the phase MUST load its context with `orient-agent` and
+          `deepen-context`, as it does when no file exists.
+        rationale: >-
+          The file is an optimization. A phase that cannot use it must reach
+          the same context, and so the same verdict, as before the file
+          existed.
+        verification: >-
+          Test: `test/metadata/test_build_context.py` checks that `check` reports
+          `mode=fallback` with a reason for an absent, malformed, other-branch
+          and stale file. Inspection: `pr-triage` Phase 1 and `pr-execute`
+          Phase 1 run `orient-agent` or `deepen-context` on that result.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-07-016
+      - id: PAD-07-018
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          A pull-request pipeline phase MUST NOT fail, skip a check, or narrow a
+          check because the build context file is missing or unusable.
+        rationale: >-
+          A PR shipped from a checkout that never ran `build` is the ordinary
+          case, not an error. Making the file a precondition would block those
+          PRs or review them less.
+        verification: >-
+          Inspection: `.agents/skills/shared/build-context.md` § "Reading it"
+          sends exit 2 and exit 3 to the same context load as no file, and no
+          `pr-triage`, `pr-execute` or `pr-verify` step reads the file for a
+          check.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-07-016
+      - id: PAD-07-019
+        priority: MUST
+        kind: process
+        statement: >-
+          `pr-triage` MUST name in its comment header whether it reused the
+          build context file, and the `build-context check` reason when it did
+          not.
+        rationale: >-
+          A reviewer reading the triage needs to know which context the findings
+          rest on. When the file was unusable, the reason shows why.
+        verification: >-
+          Inspection: the `pr-triage` REFERENCE.md comment format carries a
+          `**Context**:` line, and `pr_metadata.build_context` records the mode
+          and reason.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-07-016
 
   - id: PAD-08
     title: Build Skill — Issue-Based Task Selection
@@ -2287,9 +2379,11 @@ groups:
           most merges to a full local suite run for paths that the merge did not
           change.
         verification: >-
-          Inspection: `pr-execute` Phase 5 Step 2 merges the base locally on
-          `CONFLICTING`, `DIRTY`, or a `git merge-tree` conflict only, and
-          records an overlap as `merge_reason: "deferred"` without merging.
+          Test: `test/metadata/test_sync_decision_script.py` runs
+          `sync-decision.sh`, which `pr-execute` Phase 5 Step 2 calls, and checks
+          that it answers `merge` on `CONFLICTING`, `DIRTY`, or a
+          `git merge-tree` conflict only, and `no-merge` with
+          `merge_reason=deferred` on an overlap alone.
         relationships:
         - rel_type: extends
           spec_id: PAD-11-001
@@ -2367,6 +2461,10 @@ groups:
           Inspection: `pr-verify`'s `UNSYNCED-EXECUTE` check reads the
           execute artifact's conflict-free result and GitHub's reported merge
           state, and performs no base-tip containment comparison of its own.
+          Test: `test/metadata/test_verify_gate_scripts.py` checks that
+          `verify-merge-gate.sh` answers `clear` for a branch behind its base
+          that GitHub reports `CLEAN`, and raises `BRANCH-BEHIND` only when
+          GitHub reports `BEHIND`.
         relationships:
         - rel_type: depends_on
           spec_id: PAD-18-004

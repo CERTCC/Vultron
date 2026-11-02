@@ -83,68 +83,67 @@ comment.
 This is a hard gate and runs before the per-finding spot checks: a conflicted PR
 cannot be ready to merge no matter what those checks find.
 
-1. Re-check merge state live — never reuse the value from either artifact:
+1. Re-check merge state live — never reuse the value from either artifact.
+   Add `--check-markers` when `execute.merge_state.conflicts_resolved` is
+   non-empty: a resolved-then-recommitted marker passes CI lint on some file
+   types and would otherwise ship.
 
    ```bash
-   bash .agents/skills/shared/merge-state.sh <number>
+   bash .agents/skills/shared/verify-merge-gate.sh <number> [--check-markers]
    ```
 
-2. Map the result:
+   The script runs `merge-state.sh` once and applies the flag table in its
+   header. `CONFLICTING`, `DIRTY` or a surviving `<<<<<<<`/`>>>>>>>` marker
+   raises `MERGE-CONFLICT`, even if `mergeable` says `MERGEABLE`. `UNKNOWN`
+   raises `MERGE-STATE-UNKNOWN`, `BEHIND` raises `BRANCH-BEHIND`, and `DRAFT`
+   raises `PR-IS-DRAFT`. `BLOCKED` is a note only. It prints one `verdict=`
+   line, one `flag=` line per flag, and the supporting fields.
 
-   | Exit | `mergeable` | Flag | Effect on overall verdict |
-   |---|---|---|---|
-   | `0` | `MERGEABLE` | none | No block from this phase |
-   | `1` | `CONFLICTING` | `MERGE-CONFLICT` | Forces `CONFLICTS-FOUND` |
-   | `2` | `UNKNOWN` | `MERGE-STATE-UNKNOWN` | Forces `PENDING-MERGE-CHECK` |
+2. Act on the verdict:
 
-3. Check `merge_state_status` independently of `mergeable`:
-   - `DIRTY` → flag `MERGE-CONFLICT` even if `mergeable` says `MERGEABLE`
-   - `BEHIND` → flag `BRANCH-BEHIND`; blocks `READY-TO-MERGE`. GitHub reports
-     it only when a ruleset requires up-to-date branches, which this
-     repository does not set (ADR-0126). `pr-execute` updates the branch on
-     GitHub when it sees `BEHIND` (PAD-18-014), so a live `BEHIND` here means
-     the base moved again after execute's last check: re-run `/pr-execute`,
-     which clears it.
-   - `DRAFT` → flag `PR-IS-DRAFT`; blocks `READY-TO-MERGE`. Report whether the
+   | `verdict=` | Flags | Effect on overall verdict |
+   |---|---|---|
+   | `conflicts-found` | `MERGE-CONFLICT` | Forces `CONFLICTS-FOUND` |
+   | `pending-merge-check` | `MERGE-STATE-UNKNOWN` | Forces `PENDING-MERGE-CHECK` |
+   | `blocks-ready` | `BRANCH-BEHIND`, `PR-IS-DRAFT` | Blocks `READY-TO-MERGE` |
+   | `clear` | none | No block from this phase |
+
+   - `BRANCH-BEHIND` — GitHub reports `BEHIND` only when a ruleset requires
+     up-to-date branches, which this repository does not set (ADR-0126).
+     `pr-execute` updates the branch on GitHub when it sees `BEHIND`
+     (PAD-18-014), so a live `BEHIND` here means the base moved again after
+     execute's last check: re-run `/pr-execute`, which clears it.
+   - `PR-IS-DRAFT` — report the `needs_rebase=` line: whether the
      `needs-rebase` label is still attached.
-   - `BLOCKED` → note it in the comment (missing required review, etc.). This
-     does *not* block the verdict — it is a repo policy state a human resolves,
-     not a defect in the PR.
+   - `note=blocked` — note it in the comment (missing required review, etc.).
+     It does *not* block the verdict: it is a repo policy state a human
+     resolves, not a defect in the PR.
 
-4. If `MERGE-CONFLICT` is flagged, list the conflicting paths as evidence:
-
-   ```bash
-   git fetch origin <base_ref>
-   git merge-tree --write-tree HEAD origin/<base_ref> 2>&1 | grep -i "^CONFLICT" || true
-   ```
-
-   Verify does not resolve them. Report and stop after posting the comment.
-
-5. If `execute.merge_state.conflicts_resolved` is non-empty, confirm no markers
-   survived the resolution — a resolved-then-recommitted marker passes CI lint on
-   some file types and would otherwise ship:
-
-   ```bash
-   git grep -nE '^(<<<<<<<|>>>>>>>) ' -- . || echo "clean"
-   ```
-
-   Any hit is a `MERGE-CONFLICT` flag regardless of what GitHub reports.
-
-   > Match only the `<<<<<<<` and `>>>>>>>` markers, each followed by a space.
-   > Do **not** grep for `=======` — a bare row of equals signs is a valid
-   > markdown setext heading underline, and this repo is docs-heavy.
+3. On `MERGE-CONFLICT`, list the `conflict=` lines (the trial merge's
+   `CONFLICT` messages) and any `marker=` hits as evidence. Verify does not
+   resolve them. Report and stop after posting the comment.
 
 ### Phase 3 — CI and Test Suite Check
 
-1. `gh pr checks <number>` — fetch current CI status.
-2. If `execute.integration_tests_run == true`: confirm the integration test CI
-   job is green, not just unit tests.
-3. If CI is still failing after execute's pushes: mark all findings as
-   `UNVERIFIED-CI-FAILING` and set overall verdict to `GAPS-FOUND` — the code
-   changes may be correct but CI must be green before the PR can be considered
-   ready.
+1. Wait for and read CI. Add `--integration` when
+   `execute.integration_tests_run == true`. The integration-bearing check must
+   then be green, not just the unit tests.
 
-   **Never merge on red.** This gate has no override: a check that failed stays
+   ```bash
+   bash .agents/skills/shared/verify-ci-gate.sh <number> [--integration]
+   ```
+
+   The script waits with `wait-for-ci.sh` and applies the rule table in its
+   header. It prints one `verdict=` line, one `failing_check=` line per failed
+   check, and, with `--integration`, the integration check's bucket.
+
+   | `verdict=` | Action |
+   |---|---|
+   | `ci-green` | Proceed with CI green |
+   | `ci-failing` | Mark all findings `UNVERIFIED-CI-FAILING`; set verdict to `GAPS-FOUND`. The code changes may be correct, but CI must be green before the PR is ready |
+   | `ci-pending` | Note it; proceed with spot-checks; set overall verdict to `PENDING-CI` |
+
+2. **Never merge on red.** This gate has no override: a check that failed stays
    failed whether it is labelled "pre-existing", "unrelated" or "flaky", and
    `skipped` findings do not clear it (`completeness-doctrine.md` § "Never Merge
    on Red"). A check that is red on `main` too is fixed by the single fix PR
@@ -153,19 +152,8 @@ cannot be ready to merge no matter what those checks find.
    re-run of a check already tracked by an open `flaky-test` issue holding a
    reproduction: name that issue in the verdict comment. A pass on re-run with no
    such issue is not evidence — the verdict stays `GAPS-FOUND`.
-4. If CI is pending: wait for completion before proceeding:
 
-   ```bash
-   bash .agents/skills/shared/wait-for-ci.sh <number>
-   ```
-
-   | Exit | Meaning | Action |
-   |---|---|---|
-   | `0` | All checks passed | Proceed with CI green |
-   | `1` | One or more checks failed | Mark all findings `UNVERIFIED-CI-FAILING`; set verdict to `GAPS-FOUND` |
-   | `2` | Timed out (10 min) | Note it; proceed with spot-checks; set overall verdict to `PENDING-CI` |
-
-   A `PENDING-CI` verdict here is a fallback for a genuine race condition (CI
+   A `ci-pending` verdict is a fallback for a genuine race condition (CI
    re-triggered after execute finished, or unusually slow CI). Under normal
    operation execute already waited for CI, so this path should be rare.
 
@@ -289,7 +277,11 @@ Do **not** clean up on `PENDING-CI`, `CONFLICTS-FOUND`, or `PENDING-MERGE-CHECK`
    present, at the path
    `bash .agents/skills/pr-triage/prepush-delta.sh --path <head_ref>` prints
    for the PR's `pr_metadata.head_ref`
-3. Print:
+3. Delete the build context file if present, at the path
+   `PYTHONPATH= uv run build-context path --branch <head_ref>` prints. It is
+   the only use verify makes of it: verify loads no task context
+   (`.agents/skills/shared/build-context.md`).
+4. Print:
 
    ```text
    Artifacts cleaned up.
