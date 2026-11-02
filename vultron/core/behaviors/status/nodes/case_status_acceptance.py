@@ -15,7 +15,7 @@
 
 """Whole accept or reject for a received CaseStatus (RSH-09-005, ADR-0107).
 
-A received ``Add(CaseStatus, VulnerabilityCase)`` is accepted as sent or
+A received ``Add(CaseStatus)[target=VulnerabilityCase]`` is accepted as sent or
 refused whole, like a participant status (RSH-09-001): the EM it carries must
 be the EM the case derives from its embargo register, and its P/X/A must
 confirm or advance the case's.  :class:`CheckCaseStatusAcceptableNode` is the

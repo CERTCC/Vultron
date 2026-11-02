@@ -525,7 +525,7 @@ groups:
     statement: >-
       The system MUST expose an `add-object-to-case` general trigger at `POST
       /actors/{actor_id}/trigger/add-object-to-case` that accepts any object type the
-      protocol routes as `Add(object, target=VulnerabilityCase)`. The exceptions are the
+      protocol routes as `Add(object)[target=VulnerabilityCase]`. The exceptions are the
       types whose addition the protocol carries by its own flow: `EmbargoEvent`,
       `CaseParticipant` and `CaseStatus`.
     rationale: >-

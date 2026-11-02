@@ -112,7 +112,7 @@ def test_non_manager_reject_embargo_asks_the_case_manager(
 def test_manager_reject_embargo_commits_the_decision(
     owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """The owner-manager's reject is Reject(EmbargoEvent, target=Case).
+    """The owner-manager's reject is Reject(EmbargoEvent)[target=VulnerabilityCase].
 
     It rejects the proposal and is committed as the owner's decision
     (ADR-0122, #4085), never as a consent answer to the Invite.  Every
@@ -156,7 +156,7 @@ def test_non_manager_owner_reject_asks_the_manager_to_reject(
 ) -> None:
     """An owner that is not the CASE_MANAGER sends its rejection to it.
 
-    The queued activity is Reject(EmbargoEvent, target=Case), recorded as a
+    The queued activity is Reject(EmbargoEvent)[target=VulnerabilityCase], recorded as a
     pending ``reject_embargo_proposal_on_case`` assertion; nothing moves on
     the owner's replica, its own consent row included (ADR-0122).
     """

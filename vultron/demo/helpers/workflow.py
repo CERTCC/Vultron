@@ -502,7 +502,7 @@ def run_invite_path_rm_triage(
 ) -> None:
     """Run the RM triage cycle for an invite-path participant (CM-11-011).
 
-    An invited actor joins via ``Accept(Invite(Actor, VulnerabilityCaseStub))``
+    An invited actor joins via ``Accept(Invite(Actor)[target=VulnerabilityCaseStub])``
     and receives the case, then the ledger replay, then the CASE_MANAGER's
     full-case Invite.  It never answers the reporter's
     ``Offer(VulnerabilityReport)``: it was not sent that Offer (CM-11-020,
@@ -952,7 +952,8 @@ def create_case_via_trigger(
     The trigger registers *vendor* as CASE_OWNER and CASE_MANAGER
     (CM-02-014, CM-02-015).
     A case injected as ``Create(VulnerabilityCase)`` has no CASE_MANAGER, so
-    the CASE_MANAGER-gated received handlers (``Add(Report, Case)``) refuse
+    the CASE_MANAGER-gated received handlers (``Add(Report)[target=VulnerabilityCase]``)
+    refuse
     it.
 
     Returns:

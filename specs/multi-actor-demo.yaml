@@ -452,11 +452,12 @@ groups:
     verification_debt: '#2573'
     statement: >-
       CS state transitions (fix-ready, fix-deployed, published) MUST be driven through
-      participant status updates via Add(ParticipantStatus, target=Case) sent to the Case
+      participant status updates via Add(ParticipantStatus)[target=VulnerabilityCase]
+      sent to the Case
       Actor inbox, not through dedicated low-level state-machine endpoints.
       RM case closure is explicitly excluded from this requirement: RM.CLOSED MUST be
       reached via the Leave(VulnerabilityCase) round-trip (CM-23-001), not via
-      Add(ParticipantStatus, rmState=CLOSED).
+      Add(ParticipantStatus)[rmState=CLOSED].
     rationale: >-
       CS transitions are participant facts, so they travel as `Add(ParticipantStatus)`
       to the CASE_MANAGER, which commits them to the case ledger. A dedicated
@@ -610,7 +611,8 @@ groups:
     kind: project
     statement: >-
       The participant status trigger implementation SHOULD be layered: SvcAddObjectToCaseUseCase
-      (generic Add(object, target=Case)) as the base, SvcAddParticipantStatusUseCase (new core
+      (generic Add(object)[target=VulnerabilityCase]) as the base,
+      SvcAddParticipantStatusUseCase (new core
       use case) above it, and demo-specific endpoints in demo_triggers.py at the top
     rationale: >-
       Each layer adds one thing: the generic case use case adds an object to a case, the
@@ -759,11 +761,11 @@ groups:
       actor: vendor1
       action: POST invite-actor-to-case trigger for Vendor2
       expected: >-
-        CaseActor receives and queues Invite(Actor, VulnerabilityCaseStub) for Vendor2
+        CaseActor receives and queues Invite(Actor)[target=VulnerabilityCaseStub] for Vendor2
     - order: 2
       actor: demo-script
       action: >-
-        Poll Vendor2 DataLayer until Invite(Actor, VulnerabilityCaseStub) is visible
+        Poll Vendor2 DataLayer until Invite(Actor)[target=VulnerabilityCaseStub] is visible
       expected: Invite activity present in Vendor2 DataLayer
     - order: 3
       actor: vendor2
@@ -896,11 +898,11 @@ groups:
       actor: vendor1
       action: POST invite-actor-to-case trigger targeting Coordinator
       expected: >-
-        CaseActor queues Invite(Actor, VulnerabilityCaseStub) for Coordinator inbox
+        CaseActor queues Invite(Actor)[target=VulnerabilityCaseStub] for Coordinator inbox
     - order: 2
       actor: demo-script
       action: >-
-        Poll Coordinator DataLayer until Invite(Actor, VulnerabilityCaseStub) is visible
+        Poll Coordinator DataLayer until Invite(Actor)[target=VulnerabilityCaseStub] is visible
       expected: Invite activity present in Coordinator DataLayer
     - order: 3
       actor: coordinator
@@ -936,10 +938,12 @@ groups:
     - order: 1
       actor: coordinator
       action: POST suggest-actor-to-case trigger for Vendor2
-      expected: Coordinator sends Offer(Actor, Case) to CaseActor inbox
+      expected: Coordinator sends Offer(Actor)[target=VulnerabilityCase] to CaseActor inbox
     - order: 2
       actor: case-actor
-      action: Transform Offer(Actor, Case) to Offer(CaseParticipant{Vendor2, roles=[vendor]}, Case)
+      action: >-
+        Transform Offer(Actor)[target=VulnerabilityCase] to
+        Offer(CaseParticipant{Vendor2, roles=[vendor]}, Case)
       expected: Transformed offer forwarded to Vendor1 (Case Owner) inbox
     - order: 3
       actor: demo-script
@@ -1146,11 +1150,11 @@ groups:
     - order: 1
       actor: coordinator
       action: POST invite-actor-to-case trigger for Vendor2
-      expected: CaseActor queues Invite(Actor, VulnerabilityCaseStub) for Vendor2
+      expected: CaseActor queues Invite(Actor)[target=VulnerabilityCaseStub] for Vendor2
     - order: 2
       actor: demo-script
       action: >-
-        Poll Vendor2 DataLayer until Invite(Actor, VulnerabilityCaseStub) is visible
+        Poll Vendor2 DataLayer until Invite(Actor)[target=VulnerabilityCaseStub] is visible
       expected: Invite activity present in Vendor2 DataLayer
     - order: 3
       actor: vendor2
@@ -1284,7 +1288,7 @@ groups:
       actor: demo-script
       action: >-
         After Coordinator invites Vendor2: poll Vendor2's DataLayer until
-        Invite(Actor, VulnerabilityCaseStub) is visible
+        Invite(Actor)[target=VulnerabilityCaseStub] is visible
       expected: Invite activity present in Vendor2 DataLayer
     - order: 4
       actor: demo-script
@@ -1517,11 +1521,11 @@ groups:
     - order: 1
       actor: coordinator
       action: POST invite-actor-to-case trigger for Vendor
-      expected: Invite(Actor, VulnerabilityCaseStub) delivered to Vendor inbox
+      expected: Invite(Actor)[target=VulnerabilityCaseStub] delivered to Vendor inbox
     - order: 2
       actor: demo_script
       action: >-
-        Poll Vendor DataLayer until Invite(Actor, VulnerabilityCaseStub) is visible
+        Poll Vendor DataLayer until Invite(Actor)[target=VulnerabilityCaseStub] is visible
       expected: Invitation record present in Vendor replica
     - order: 3
       actor: vendor
@@ -1877,10 +1881,10 @@ groups:
     - order: 1
       actor: c1
       action: POST invite-actor-to-case trigger targeting C2
-      expected: CaseActor queues Invite(Actor, VulnerabilityCaseStub) for C2's inbox
+      expected: CaseActor queues Invite(Actor)[target=VulnerabilityCaseStub] for C2's inbox
     - order: 2
       actor: demo-script
-      action: Poll C2 DataLayer until Invite(Actor, VulnerabilityCaseStub) is visible
+      action: Poll C2 DataLayer until Invite(Actor)[target=VulnerabilityCaseStub] is visible
       expected: Invite activity present in C2 DataLayer
     - order: 3
       actor: c2
@@ -1919,11 +1923,11 @@ groups:
     - order: 1
       actor: c2
       action: POST suggest-actor-to-case trigger for Vendor with roles=["vendor"]
-      expected: C2 sends Offer(Actor, Case) to CaseActor inbox
+      expected: C2 sends Offer(Actor)[target=VulnerabilityCase] to CaseActor inbox
     - order: 2
       actor: case-actor
       action: >-
-        Transform Offer(Actor, Case) to
+        Transform Offer(Actor)[target=VulnerabilityCase] to
         Offer(CaseParticipant{Vendor, roles=[vendor]}, Case)
       expected: Transformed offer forwarded to C1 (Case Owner) inbox
     - order: 3
@@ -2731,11 +2735,11 @@ groups:
       The RCV-reject scenario expected-semantic-types list MUST include
       `invite_actor_to_case` and `reject_invite_actor_to_case` in addition to the
       universal types (DEMOMA-16-001), because the Coordinator invites the Vendor and
-      the Vendor sends `Reject(Invite(Actor, VulnerabilityCaseStub))` (an
+      the Vendor sends `Reject(Invite(Actor)[target=VulnerabilityCaseStub])` (an
       invitation-layer rejection), which triggers
       `RejectInviteActorToCaseReceivedUseCase` on the CaseActor and produces the
       `reject_invite_actor_to_case` ledger entry. The Vendor never sends
-      `Accept(Invite(Actor, VulnerabilityCaseStub))`, so `accept_invite_actor_to_case`
+      `Accept(Invite(Actor)[target=VulnerabilityCaseStub])`, so `accept_invite_actor_to_case`
       does NOT appear in this scenario.
     rationale: >-
       The rejection is the step that this scenario exists to show, so its ledger entry
@@ -5080,11 +5084,11 @@ groups:
     - order: 1
       actor: vendor
       action: POST invite-actor-to-case trigger for Coordinator with OBSERVER role
-      expected: Invite(Actor, VulnerabilityCaseStub) sent to Coordinator inbox
+      expected: Invite(Actor)[target=VulnerabilityCaseStub] sent to Coordinator inbox
     - order: 2
       actor: demo_script
       action: >-
-        Poll Coordinator DataLayer until Invite(Actor, VulnerabilityCaseStub) is visible
+        Poll Coordinator DataLayer until Invite(Actor)[target=VulnerabilityCaseStub] is visible
       expected: Invitation record present in Coordinator replica
     - order: 3
       actor: coordinator
@@ -5355,7 +5359,7 @@ groups:
       divergence — the invitation response — so every other variable is held
       equal. The Vendor needs a real identity and container because the rejection
       is a protocol message it must author; a placeholder actor could not send
-      `Reject(Invite(Actor, VulnerabilityCaseStub))`, and the point of the
+      `Reject(Invite(Actor)[target=VulnerabilityCaseStub])`, and the point of the
       scenario is that the rejection travels the wire.
     relationships:
     - rel_type: refines
@@ -5370,7 +5374,7 @@ groups:
     verification_debt: '#2573'
     statement: >-
       The Vendor MUST reject the case invitation by sending
-      `Reject(Invite(Actor, VulnerabilityCaseStub))`, and the CaseActor MUST
+      `Reject(Invite(Actor)[target=VulnerabilityCaseStub])`, and the CaseActor MUST
       record a `reject_invite_actor_to_case` ledger entry. The Vendor's
       participant record, created by the stub Invite, MUST end at `RM.CLOSED`;
       the Vendor MUST NOT become active, MUST NOT receive a case ledger replica,
@@ -5426,14 +5430,15 @@ groups:
       actor: coordinator
       action: >-
         invite_vendor_reject phase — Coordinator sends
-        `Invite(Actor, VulnerabilityCaseStub)` to the Vendor with CVDRole.VENDOR
+        `Invite(Actor)[target=VulnerabilityCaseStub]` to the Vendor with CVDRole.VENDOR
       expected: >-
         `invite_actor_to_case` recorded in the case-actor log
         (DEMOMA-16-011)
     - order: 3
       actor: vendor
       action: >-
-        Vendor responds with `Reject(Invite(Actor, VulnerabilityCaseStub))` rather than
+        Vendor responds with `Reject(Invite(Actor)[target=VulnerabilityCaseStub])`
+        rather than
         `Accept(...)`
       expected: >-
         `reject_invite_actor_to_case` recorded; the Vendor's participant record

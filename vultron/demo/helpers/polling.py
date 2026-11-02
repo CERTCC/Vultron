@@ -963,7 +963,8 @@ def find_case_invite_for_actor(
     timeout_seconds: float = 15.0,
     poll_interval: float = 0.5,
 ) -> str:
-    """Poll until the CaseActor's Invite(Actor, CaseStub) for *invitee_id* arrives.
+    """Poll until the CaseActor's Invite(Actor)[target=VulnerabilityCaseStub] for
+    *invitee_id* arrives.
 
     The CASE_MANAGER emits every case Invite — after the Case Owner accepts a
     recommendation (ADR-0026) and on the owner's direct invite alike
@@ -1206,7 +1207,8 @@ def find_cp_offer_for_case(
     """Poll until an Offer(CaseParticipant) for *case_id* appears in DataLayer.
 
     After a Coordinator sends suggest-actor-to-case, the CaseActor processes the
-    Offer(Actor, Case) and forwards an Offer(CaseParticipant) to the Case
+    Offer(Actor)[target=VulnerabilityCase] and forwards an Offer(CaseParticipant) to the
+    Case
     Owner's inbox (ADR-0026).  This helper polls the Case Owner's DataLayer for
     any received Offer whose ``target`` matches *case_id* and whose ``object``
     resembles a CaseParticipant, so the demo can drive the approve step.  It

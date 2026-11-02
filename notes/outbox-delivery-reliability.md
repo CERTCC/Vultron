@@ -146,7 +146,7 @@ emission, or every redelivery grows the store and outbox (ID-04-004, #4215).
 - Derive the id with `derived_activity_id(kind, actor, <what it answers>, ...)` in
   `vultron/core/models/activity_ids.py`, kind label first so two kinds of response
   to one activity never collide. Core derives too: the stub Invite answering an
-  owner's `Offer(Actor, Case)` takes its id from that Offer.
+  owner's `Offer(Actor)[target=VulnerabilityCase]` takes its id from that Offer.
 - Ask "was this already sent?" with `is_sealed(dl, id)`: the sealed body outlives the
   outbox entry, so it still answers after delivery popped the queue (see
   `notes/bt-pitfalls.md` § "A Refusal Arm in a Selector Fails Toward 'Admit'").

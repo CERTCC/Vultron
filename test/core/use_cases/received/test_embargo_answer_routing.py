@@ -213,7 +213,7 @@ def test_the_owner_rejecting_one_of_two_revisions_keeps_the_other_open():
 def test_the_owner_rejecting_a_revision_after_disclosure_ends_the_embargo():
     """EJ with P/X/A set ends EXITED in every store, not ACTIVE again.
 
-    The owner's ``Reject(EmbargoEvent, target=Case)`` of the last open
+    The owner's ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` of the last open
     revision (ADR-0122, EMB-04-002): the revision ends ``REJECTED`` and the
     embargo ``TERMINATED`` with the threat signal as its cause, as two
     entries every replica copies (MSM-07-009, EMB-13-005).

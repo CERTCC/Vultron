@@ -656,7 +656,8 @@ groups:
       traffic ($GI$) from state-changing traffic, so the boundary covers every message
       (ADR-0085).
     verification: >-
-      A test sends a $GI$ `Add(Note, target=Case)` to the CASE_MANAGER after the
+      A test sends a $GI$ `Add(Note)[target=VulnerabilityCase]` to the CASE_MANAGER
+      after the
       owner has closed the case, and confirms it is refused and the case ledger gains
       no entry.
     adr:
@@ -2506,7 +2507,8 @@ groups:
     rationale: >-
       Ledger replay is the intended propagation mechanism for keeping participant replicas
       consistent with canonical case state. Direct mutation from inbound messages (e.g.,
-      Add(Note, Case)) would bypass the ledger ordering guarantees and create divergence.
+      Add(Note)[target=VulnerabilityCase]) would bypass the ledger ordering guarantees
+      and create divergence.
       This path is distinct from VP-17-001 and is not a bypass of the CASE_MANAGER write constraint.
     relationships:
     - rel_type: refines

@@ -210,7 +210,8 @@ def _archived(rows: dict[str, dict]) -> dict[str, dict]:
 class TestFindCaseInviteForActor:
     """Test the helper that locates the CaseActor's Invite for the invitee.
 
-    In the ADR-0026 flow the CaseActor auto-delivers an Invite(Actor, CaseStub) to
+    In the ADR-0026 flow the CaseActor auto-delivers an
+    Invite(Actor)[target=VulnerabilityCaseStub] to
     the suggested actor; the demo must find it so it can drive Vendor2's
     accept-case-invite step (MV-10-004 seeds the replica only after Accept).
     """

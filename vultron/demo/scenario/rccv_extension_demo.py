@@ -168,7 +168,7 @@ def c2_suggests_the_vendor(state: StoryState) -> None:
     """C2 suggests the Vendor via ADR-0026; C1 approves; the Vendor joins.
 
     C1 keeping the case is what makes the suggestion the route in: it is C1,
-    the owner, that converts C2's ``Offer(Actor, Case)`` into an invitation
+    the owner, that converts C2's ``Offer(Actor)[target=VulnerabilityCase]`` into an invitation
     (DEMOMA-13-004, DEMOMA-13-005).  C2 must be a participant to suggest
     anyone, so the shared continuation reads the join the opening's roster
     gate kept (DEMOMA-13-003).

@@ -95,7 +95,7 @@ class _NotesMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Add(Note, target=Case)`` activity.
+        """Create and persist an ``Add(Note)[target=VulnerabilityCase]`` activity.
 
         The ``Add`` carries the stored note inline as its ``object``, so the
         receiver gets the note itself and not a URI it cannot dereference

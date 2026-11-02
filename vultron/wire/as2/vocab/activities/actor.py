@@ -81,7 +81,7 @@ class _RejectActorRecommendationActivity(as_Reject):
 class _OfferCaseParticipantActivity(as_Offer):
     """CaseActor offers a CaseParticipant (with roles) to the Case Owner.
 
-    Transforms the original ``Offer(Actor, Case)`` from a recommending
+    Transforms the original ``Offer(Actor)[target=VulnerabilityCase]`` from a recommending
     participant into this ``Offer(CaseParticipant{actor, roles}, Case)``
     with ``origin`` carrying the original Offer ID for causal traceability
     (CM-16-004, ADR-0026).

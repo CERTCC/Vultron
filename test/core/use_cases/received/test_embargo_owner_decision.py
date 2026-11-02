@@ -12,8 +12,8 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The case owner's decision on an embargo proposal, received (ADR-0122).
 
-``Accept(EmbargoEvent, target=Case)`` activates a proposal and
-``Reject(EmbargoEvent, target=Case)`` rejects it.  The CASE_MANAGER applies
+``Accept(EmbargoEvent)[target=VulnerabilityCase]`` activates a proposal and
+``Reject(EmbargoEvent)[target=VulnerabilityCase]`` rejects it.  The CASE_MANAGER applies
 either only when it names an open proposal and nothing refuses it; a
 refusal is decided before the commit, so nothing is ledgered for it
 (CLP-10-009, SYNC-12-001).  The non-owner sender, door check and missing ids

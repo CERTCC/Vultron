@@ -62,7 +62,7 @@ def _case_ref(case_id: str) -> as_VulnerabilityCase:
 
 
 class TestOfferActorToCaseReceivedUseCase:
-    """Tests for the CaseActor-inbox Offer(Actor,Case) use case (CM-16)."""
+    """Tests for the CaseActor-inbox Offer(Actor)[target=VulnerabilityCase] use case (CM-16)."""
 
     _RECOMMENDER_ID = "https://example.org/actors/finder"
 
@@ -106,7 +106,8 @@ class TestOfferActorToCaseReceivedUseCase:
     def test_offer_actor_to_case_emits_offer_case_participant(
         self, make_payload, seed_case_manager
     ):
-        """CaseActor receives Offer(Actor, Case) and emits Offer(CaseParticipant) to owner."""
+        """CaseActor receives Offer(Actor)[target=VulnerabilityCase] and emits
+        Offer(CaseParticipant) to owner."""
         from vultron.core.models.events.actor import (
             OfferActorToCaseReceivedEvent,
         )
@@ -116,7 +117,7 @@ class TestOfferActorToCaseReceivedUseCase:
         recommended_id = "https://example.org/actors/vendor-new"
         recommended = as_Actor(id_=recommended_id)
 
-        # Build Offer(Actor, Case) — the wire activity matched by OFFER_ACTOR_TO_CASE.
+        # Build Offer(Actor)[target=VulnerabilityCase] — the wire activity matched by OFFER_ACTOR_TO_CASE.
         # CM-11-019: roles must be explicit; no default to VENDOR.
         activity = recommend_actor_activity(
             recommended,
@@ -466,7 +467,7 @@ class TestOfferActorToCaseAtNonCaseManager:
 
 
 class TestOwnerDirectInviteAtCaseManager:
-    """The Case Owner's Offer(Actor, Case) at the CASE_MANAGER (CM-17-007).
+    """The Case Owner's Offer(Actor)[target=VulnerabilityCase] at the CASE_MANAGER (CM-17-007).
 
     When the recommender holds ``CVDRole.CASE_OWNER``, the recommendation is
     already the owner's decision, so the CASE_MANAGER emits the ``Invite``

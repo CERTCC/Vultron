@@ -447,7 +447,7 @@ def test_invite_with_a_bare_case_target_resolves_to_the_case_signature():
 
 @pytest.mark.spec("CM-11-013")
 def test_invite_with_a_case_stub_target_resolves_to_the_stub_signature():
-    """``Invite(Actor, target=VulnerabilityCaseStub)`` is its own signature.
+    """``Invite(Actor)[target=VulnerabilityCaseStub]`` is its own signature.
 
     The stub Invite is told apart from the full-case Invite by its target's
     ``type`` (CM-11-013), and the ledger records it under that type.

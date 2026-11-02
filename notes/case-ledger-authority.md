@@ -165,7 +165,7 @@ replica decides nothing:
   in full. A stub Invite is the Invite's entry plus a `Create(CaseParticipant)`
   for the inert invitee.
 - **An act whose activity states the change is that change's entry.**
-  `Add(Note, target=Case)` is applied by copying the note; an invitee's `Accept`
+  `Add(Note)[target=VulnerabilityCase]` is applied by copying the note; an invitee's `Accept`
   of the stub Invite is the entry for its consent row and `joined` mark
   (CM-31-012). No second entry records either again (CLP-07-002).
 - **A replica copies.** Applying an entry mints no id, reads no clock, reads no

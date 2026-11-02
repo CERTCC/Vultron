@@ -343,7 +343,7 @@ def add_note_to_case_activity(
     target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Add:
-    """Build an Add(Note, target=as_VulnerabilityCase).
+    """Build an Add(Note)[target=VulnerabilityCase].
 
     The note travels inline as the ``Add``'s ``object``: the ``object``
     field takes an ``as_Note`` and refuses a URI or a ``Link``, so this is
@@ -505,11 +505,11 @@ def offer_case_participant_role_activity(
     case: as_VulnerabilityCase | str,
     **kwargs,
 ) -> as_Offer:
-    """Build Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase).
+    """Build Offer(CaseParticipantRole)[context=VulnerabilityCase].
 
     This is the canonical role-delegation wire format introduced in ADR-0039.
     It replaces the deprecated ``offer_case_manager_role_activity`` format
-    (``Offer(VulnerabilityCase, target=CaseParticipant)``) which was structurally
+    (``Offer(VulnerabilityCase)[target=CaseParticipant]``) which was structurally
     ambiguous with ownership-transfer offers.
 
     The ``as_CaseParticipantRole`` object carries the specific ``CVDRole`` being
@@ -878,7 +878,7 @@ def rm_invite_to_case_activity(
     embargo_obj: Any = None,
     **kwargs,
 ) -> as_Invite:
-    """Build an Invite(Actor, target=VulnerabilityCaseStub) — the stub Invite.
+    """Build an Invite(Actor)[target=VulnerabilityCaseStub] — the stub Invite.
 
     Invites an actor to join a case that already exists.  It is not an RM
     message: it records no RM transition (CM-11-001, ADR-0114).  See

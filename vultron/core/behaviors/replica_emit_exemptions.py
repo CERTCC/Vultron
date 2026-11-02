@@ -121,7 +121,7 @@ EMBARGO_INVITE_ANSWER: Final = ReplicaEmitExemption(
         " actor is the Invite's sole addressee, and is that actor's own"
         " answer addressed to the CASE_MANAGER (EP-09-003, EP-09-010,"
         " PCR-08).  When the addressee is the case owner its answer is its"
-        " decision for the case, Accept/Reject(EmbargoEvent, target=Case)"
+        " decision for the case, Accept/Reject(EmbargoEvent)[target=VulnerabilityCase]"
         " (SendOwnerEmbargoDecisionNode, ADR-0122), likewise addressed to the"
         " CASE_MANAGER."
     ),

@@ -15,8 +15,9 @@
 
 """The case owner's decision on an embargo proposal (nodes/owner_decision.py).
 
-``Accept(EmbargoEvent, target=Case)`` activates and
-``Reject(EmbargoEvent, target=Case)`` rejects (ADR-0122).  The guards refuse a
+``Accept(EmbargoEvent)[target=VulnerabilityCase]`` activates and
+``Reject(EmbargoEvent)[target=VulnerabilityCase]`` rejects (ADR-0122).  The guards
+refuse a
 decision before the commit; the lifecycle nodes write ``STRICT``; the send
 node queues the owner's decision to the CASE_MANAGER and fails by raising.
 """

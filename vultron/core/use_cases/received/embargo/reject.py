@@ -1,7 +1,7 @@
 """Received ``Reject(Invite(EmbargoEvent))``: the sender's own consent.
 
 The case owner's rejection of a proposal for the case is
-``Reject(EmbargoEvent, target=Case)`` (:mod:`.owner_decision`, ADR-0122).
+``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (:mod:`.owner_decision`, ADR-0122).
 """
 
 import logging

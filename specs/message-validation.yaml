@@ -478,8 +478,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a participant accepts the stub Invite (`Accept(Invite(Actor,
-      VulnerabilityCaseStub))`) and the case has an active embargo, the acceptance MUST
+      When a participant accepts the stub Invite
+      (`Accept(Invite(Actor)[target=VulnerabilityCaseStub])`) and the case has an active
+      embargo, the acceptance MUST
       imply consent to the active embargo, marking that participant's consent row
       for it `AGREED` (CM-11-001).
     rationale: >-

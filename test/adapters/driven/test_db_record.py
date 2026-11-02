@@ -691,7 +691,8 @@ _CASE_ACTOR_ID = "http://coordinator:7999/api/v2/actors/case-actor"
 
 
 def _invite_naming_a_peer():
-    """An ``Invite(Actor, CaseStub)`` as the Case Actor builds it for a peer.
+    """An ``Invite(Actor)[target=VulnerabilityCaseStub]`` as the Case Actor builds it
+    for a peer.
 
     Built through the factory, not the internal vocab class, per the
     AF-05-001 boundary (``test/architecture/test_activity_factory_imports.py``).
@@ -708,7 +709,7 @@ def _invite_naming_a_peer():
 
 
 def _recommendation_naming_a_peer():
-    """An ``Offer(Actor, Case)`` — the other activity that names a peer."""
+    """An ``Offer(Actor)[target=VulnerabilityCase]`` — the other activity that names a peer."""
     from vultron.wire.as2.factories import recommend_actor_activity
 
     return recommend_actor_activity(
@@ -758,7 +759,7 @@ def test_invited_peer_round_trips_as_an_object():
 
 
 def _role_offer_naming_a_peer():
-    """An ``Offer(CaseParticipantRole, target=Actor, context=Case)`` (ADR-0039).
+    """An ``Offer(CaseParticipantRole)[context=VulnerabilityCase]`` (ADR-0039).
 
     Names a peer in ``target`` rather than ``object_`` — same rule, other field.
     """
@@ -796,7 +797,7 @@ def _ownership_transfer_case() -> Any:
 
 
 def _ownership_offer_naming_a_peer():
-    """An ``Offer(VulnerabilityCase, target=Actor)`` — the ownership transfer.
+    """An ``Offer(VulnerabilityCase)`` — the ownership transfer.
 
     Names the transferee by a bare id, as the trigger adapter passes it; the
     factory wraps it as an ``as_Actor`` (DL-08-003, #4843).  The case travels

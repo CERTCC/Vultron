@@ -57,7 +57,7 @@ class _OwnerEmbargoDecisionEvent(LedgerPositionedEvent):
 class ActivateEmbargoOnCaseReceivedEvent(_OwnerEmbargoDecisionEvent):
     """The case owner activated a proposed embargo on the case.
 
-    ``Accept(EmbargoEvent, target=VulnerabilityCase)`` (ADR-0122).
+    ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122).
     """
 
     semantic_type: Literal[MessageSemantics.ACTIVATE_EMBARGO_ON_CASE] = (
@@ -68,7 +68,7 @@ class ActivateEmbargoOnCaseReceivedEvent(_OwnerEmbargoDecisionEvent):
 class RejectEmbargoProposalOnCaseReceivedEvent(_OwnerEmbargoDecisionEvent):
     """The case owner rejected a proposed embargo on the case.
 
-    ``Reject(EmbargoEvent, target=VulnerabilityCase)`` (ADR-0122).
+    ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122).
     """
 
     semantic_type: Literal[
@@ -240,7 +240,7 @@ class InviteToEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
         Note this is *not* the same derivation as
         ``AcceptInviteActorToCaseReceivedEvent.invitee_id``, which reads the
         accepted Invite's ``object`` (``inner_object_id``).  An
-        ``Invite(EmbargoEvent, Case)`` carries the embargo as its ``object``
+        ``Invite(EmbargoEvent)[target=VulnerabilityCase]`` carries the embargo as its ``object``
         and the case as its ``context``, so ``to:`` is the only place the
         invited actor appears.
         """

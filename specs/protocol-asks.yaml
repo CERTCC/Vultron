@@ -328,9 +328,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      `Invite(Actor, CaseStub)` (the stub Invite) is an ask kind. Its closing
-      replies are `Accept(Invite(Actor, CaseStub))` and
-      `Reject(Invite(Actor, CaseStub))` from the invitee; its deadline is
+      `Invite(Actor)[target=VulnerabilityCaseStub]` (the stub Invite) is an ask kind.
+      Its closing
+      replies are `Accept(Invite(Actor)[target=VulnerabilityCaseStub])` and
+      `Reject(Invite(Actor)[target=VulnerabilityCaseStub])` from the invitee; its
+      deadline is
       the Invite's `endTime` (CM-11-014); its expiry consequence is stale, not
       void: expiry only means the CASE_MANAGER stops waiting, so a reply that
       arrives after the deadline is processed like a live one (an `Accept`

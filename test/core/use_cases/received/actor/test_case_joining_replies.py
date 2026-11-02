@@ -482,7 +482,7 @@ def test_stub_invite_accept_is_followed_by_full_case_invite(
     )
 
     assert _full_case_invites_to(joining_case), (
-        "no Invite(Actor, VulnerabilityCase) was sent to the participant"
+        "no Invite(Actor)[target=VulnerabilityCase] was sent to the participant"
     )
 
 

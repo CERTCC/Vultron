@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 
-"""Received-side BT factory for ``Add(VulnerabilityReport, Case)``.
+"""Received-side BT factory for ``Add(VulnerabilityReport)[target=VulnerabilityCase]``.
 
 Only the CASE_MANAGER attaches the report to ``case.vulnerability_reports`` and
 commits the canonical ledger entry; every other participant learns of the report
@@ -42,7 +42,7 @@ def create_add_report_to_case_received_tree(
     *,
     sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
-    """Single-BT received-side tree for ``Add(Report, Case)`` (ADR-0111).
+    """Single-BT received-side tree for ``Add(Report)[target=VulnerabilityCase]`` (ADR-0111).
 
     Structure (the CLP-10-010 stages)::
 

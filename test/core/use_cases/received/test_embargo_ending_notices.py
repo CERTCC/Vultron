@@ -572,7 +572,7 @@ def test_owner_termination_after_the_end_time_sends_no_announce() -> None:
 
 
 def _activate_by_owner_decision(manager: _Manager, revision: Any) -> None:
-    # The owner's Accept(EmbargoEvent, target=Case) is the one activation
+    # The owner's Accept(EmbargoEvent)[target=VulnerabilityCase] is the one activation
     # path (ADR-0122); the revision must be an open proposal first.
     invite = em_propose_embargo_activity(
         revision,

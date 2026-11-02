@@ -73,7 +73,8 @@ def _view(net: LedgerNetwork, holder: str) -> dict[str, Any]:
 def _the_owner_invites_the_joiner(
     net: LedgerNetwork, roles: list[CVDRole] | None = None
 ) -> None:
-    """The owner's Offer(Actor, Case) makes the CASE_MANAGER send the stub."""
+    """The owner's Offer(Actor)[target=VulnerabilityCase] makes the CASE_MANAGER send
+    the stub."""
     owner_dl = net.stores[OWNER]
     for store in (net.stores[MANAGER], owner_dl):
         case = cast(VulnerabilityCase, store.read(net.case_id))

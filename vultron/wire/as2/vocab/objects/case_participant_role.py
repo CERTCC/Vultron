@@ -1,10 +1,10 @@
 """Wire-layer vocabulary type for the CaseParticipantRole object.
 
 Provides :class:`as_CaseParticipantRole`, the AS2 Object type used in the
-``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``
+``Offer(CaseParticipantRole)[context=VulnerabilityCase]``
 role-delegation wire format defined in ADR-0039.
 
-This type replaces the ambiguous ``Offer(VulnerabilityCase, target=CaseParticipant)``
+This type replaces the ambiguous ``Offer(VulnerabilityCase)[target=CaseParticipant]``
 format previously used for CASE_MANAGER role delegation. It generalises the
 protocol to support offering any ``CVDRole`` to any Actor in a Case context.
 
@@ -41,10 +41,10 @@ class as_CaseParticipantRole(as_VultronObject):
     Carries a single ``CVDRole`` value to be offered to an Actor within a
     Case context.  The wire format is::
 
-        Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)
+        Offer(CaseParticipantRole)[context=VulnerabilityCase]
 
     This eliminates the structural ambiguity of the deprecated
-    ``Offer(VulnerabilityCase, target=CaseParticipant)`` format and
+    ``Offer(VulnerabilityCase)[target=CaseParticipant]`` format and
     generalises role delegation beyond CASE_MANAGER.
 
     All classes in ``vultron/wire/as2/vocab/objects/`` use the ``as_``

@@ -134,7 +134,8 @@ def create_add_case_participant_received_tree(
     name = "AddCaseParticipantReceivedBT"
     if participant_id is None or case_id is None:
         return create_incomplete_activity_received_tree(
-            name, _missing_ids("Add(CaseParticipant, Case)")
+            name,
+            _missing_ids("Add(CaseParticipant)[target=VulnerabilityCase]"),
         )
     root = create_receive_activity_tree(
         name=name,
@@ -231,7 +232,8 @@ def create_remove_case_participant_received_tree(
     name = "RemoveCaseParticipantReceivedBT"
     if participant_id is None or case_id is None:
         return create_incomplete_activity_received_tree(
-            name, _missing_ids("Remove(CaseParticipant, Case)")
+            name,
+            _missing_ids("Remove(CaseParticipant)[target=VulnerabilityCase]"),
         )
     root = create_receive_activity_tree(
         name=name,

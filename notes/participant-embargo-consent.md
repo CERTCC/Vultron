@@ -166,7 +166,7 @@ Invite, and never falls back to it when no Invite is named (EP-09-015, #4373;
 see § "Answering the Embargo in Force").
 
 Only the owner's decision changes the embargo on the case, through
-`Accept`/`Reject(EmbargoEvent, target=Case)` (MSM-07-008/009). Every
+`Accept`/`Reject(EmbargoEvent)[target=VulnerabilityCase]` (MSM-07-008/009). Every
 `Accept`/`Reject` of an Invite, the owner's included, is the sender's consent
 (MSM-07-003/004) and moves no register entry (MSM-07-011/013). The only
 activation writes are the owner's own agreement and the carry-over
@@ -256,7 +256,7 @@ deadline, reaches the carried state; a final entry's rows are frozen) and
 raises `VultronEntryRefusedError` otherwise. It never runs `apply_pec_transition`.
 
 - **Entries follow activity/object pairs.** A register step rides on the
-  act's own activity (`RegisterStep`: the `Accept(EmbargoEvent, target=Case)`
+  act's own activity (`RegisterStep`: the `Accept(EmbargoEvent)[target=VulnerabilityCase]`
   is `ACTIVATE` with its supersede, the `Remove` is `TERMINATE` with its
   cancels); each changed consent row is its own CASE_MANAGER
   `Create`/`Update(EmbargoConsent)` entry (`ConsentRowChange`, semantic types in
@@ -500,13 +500,13 @@ The owner's decision and each participant's consent are different messages
   row entry, because each is committed before the rows make it inactive.
   A redelivery of a Leave the ledger already records is `SKIPPED`, not
   refused (HP-01-003); a new Leave after the withdrawal is still refused.
-- `ActivateEmbargoOnCaseReceivedUseCase` (`Accept(EmbargoEvent, target=Case)`,
+- `ActivateEmbargoOnCaseReceivedUseCase` (`Accept(EmbargoEvent)[target=VulnerabilityCase]`,
   owner only) activates the proposal (EM derives `ACTIVE`, or `REVISE` while
   another proposal stays open, ADR-0130), marks the owner's row `AGREED` unless it
   already is, and applies the carry-over above.
 - **Triggers pick the activity by ownership.** The case owner's
-  `accept-embargo`/`reject-embargo` send `Accept`/`Reject(EmbargoEvent,
-  target=Case)`; a non-owner's send `Accept`/`Reject(Invite(EmbargoEvent))`,
+  `accept-embargo`/`reject-embargo` send
+  `Accept`/`Reject(EmbargoEvent)[target=VulnerabilityCase]`; a non-owner's send `Accept`/`Reject(Invite(EmbargoEvent))`,
   which move only its own row.
 - **A repeated answer changes nothing.** A repeat of the same answer from the
   same participant (Accept after Accept, Reject after Reject, under any activity

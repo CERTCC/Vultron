@@ -79,7 +79,7 @@ def test_trigger_accept_embargo_response_contains_activity_key(
 def test_trigger_accept_embargo_by_owner_accepts_the_embargo_itself(
     client_triggers, actor, case_with_proposal
 ):
-    """ADR-0122: the case owner's accept is Accept(EmbargoEvent, target=Case).
+    """ADR-0122: the case owner's accept is Accept(EmbargoEvent)[target=VulnerabilityCase].
 
     The owner decides for the case, so its activity's object is the proposed
     embargo itself, not the Invite that proposed it.

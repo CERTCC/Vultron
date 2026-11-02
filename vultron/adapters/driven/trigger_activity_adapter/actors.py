@@ -170,7 +170,7 @@ class _ActorsMixin:
         published: datetime | None = None,
         in_reply_to: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(Actor, CaseStub)`` activity.
+        """Create and persist an ``Invite(Actor)[target=VulnerabilityCaseStub]`` activity.
 
         ``actor`` MUST be the CASE_MANAGER's ID (PCR-08-007); ``attributed_to``
         MAY carry the case owner's ID for attribution.  The Invite carries no
@@ -454,7 +454,8 @@ class _ActorsMixin:
         id_: str | None = None,
         roles: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Offer(Actor, Case)`` recommendation activity."""
+        """Create and persist a ``Offer(Actor)[target=VulnerabilityCase]``
+        recommendation activity."""
         extra = _addressing(actor, to, id_)
         # The factory accepts a string for target (case ID).
         activity = recommend_actor_activity(
@@ -478,7 +479,7 @@ class _ActorsMixin:
     ) -> tuple[str, str]:
         """Create and persist an Offer(as_CaseParticipant{actor, roles}, Case).
 
-        Transforms the original Offer(Actor, Case) from a recommending
+        Transforms the original Offer(Actor)[target=VulnerabilityCase] from a recommending
         participant into an Offer(as_CaseParticipant) addressed to the Case Owner.
         ``roles`` defaults to ``[CVDRole.VENDOR]`` when ``None`` (CM-16-003).
         ``origin`` carries the original Offer ID for causal traceability
@@ -691,7 +692,7 @@ class _ActorsMixin:
         in_reply_to: str | None = None,
         id_: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``.
+        """Create and persist ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``.
 
         The canonical role-delegation wire format introduced by ADR-0039.
         *attributed_to* and *in_reply_to*, when given, make it the

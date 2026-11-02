@@ -107,7 +107,7 @@ def _announced(dl: SqliteDataLayer) -> dict[str, set[str]]:
 def test_owner_offer_actor_dispatched_by_inbox_fans_out_every_commit(
     monkeypatch,
 ):
-    """Both commits the owner's Offer(Actor, Case) makes reach the finder.
+    """Both commits the owner's Offer(Actor)[target=VulnerabilityCase] makes reach the finder.
 
     The finder is a participant that neither sent the Offer nor holds the
     CASE_MANAGER role, so every entry the CASE_MANAGER commits is announced to

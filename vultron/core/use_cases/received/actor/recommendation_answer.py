@@ -14,9 +14,9 @@
 """Use cases for the CASE_MANAGER's answer to a recommender (ADR-0026).
 
 - :class:`AcceptActorRecommendationReceivedUseCase` — the recommender received
-  ``Accept(Offer(Actor, Case))`` (CM-16-006, CM-16-009).
+  ``Accept(Offer(Actor)[target=VulnerabilityCase])`` (CM-16-006, CM-16-009).
 - :class:`RejectActorRecommendationReceivedUseCase` — the recommender received
-  ``Reject(Offer(Actor, Case))`` (CM-16-007).
+  ``Reject(Offer(Actor)[target=VulnerabilityCase])`` (CM-16-007).
 
 Both archive the answer and change nothing else: the CASE_MANAGER ledgered the
 answer when it sent it (CM-16-010), and the recommender takes the change from

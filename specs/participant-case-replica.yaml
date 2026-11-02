@@ -907,7 +907,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The invitee's `Accept(Invite(Actor, VulnerabilityCaseStub))` is a join and
+      The invitee's `Accept(Invite(Actor)[target=VulnerabilityCaseStub])` is a join and
       embargo-consent decision, not an RM engagement decision. The CASE_MANAGER MUST NOT
       record any RM transition from it (CM-11-001), and MUST record the invitee as
       RM.ACCEPTED only on receiving `Join(VulnerabilityCase)` from it (CM-11-004).

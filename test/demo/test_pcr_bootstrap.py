@@ -627,7 +627,8 @@ class TestBootstrapSequence:
         assert note.id_ not in replica_note_ids, (
             f"Note '{note.id_}' was unexpectedly attached to a non-CaseActor "
             f"case replica. Non-CaseActors must not update replica notes "
-            f"directly from Add(Note, Case) messages (SYNC-02-002, ADR-0022). "
+            f"directly from Add(Note)[target=VulnerabilityCase] messages "
+            f"(SYNC-02-002, ADR-0022). "
             f"Replica notes: {replica_note_ids!r}"
         )
 

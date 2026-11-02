@@ -52,7 +52,7 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
 
     This is the canonical mechanism by which non-CaseActor participants
     learn about note additions — they must NOT update ``notes`` directly from
-    ``Add(Note, Case)`` messages; only the CASE_MANAGER does that (ADR-0022,
+    ``Add(Note)[target=VulnerabilityCase]`` messages; only the CASE_MANAGER does that (ADR-0022,
     SYNC-02-002).
 
     The note **object** is persisted alongside the reference, from the same

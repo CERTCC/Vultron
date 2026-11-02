@@ -25,7 +25,7 @@ else:
 
 
 class OfferActorToCaseReceivedEvent(LedgerPositionedEvent):
-    """CaseActor received Offer(Actor, Case) from a recommending participant.
+    """CaseActor received Offer(Actor)[target=VulnerabilityCase] from a recommending participant.
 
     Routed to the CaseActor inbox per ADR-0026/CM-16-001.
     """
@@ -40,7 +40,7 @@ class OfferCaseParticipantRoleReceivedEvent(LedgerPositionedEvent):
     """Actor offered a CVDRole to a target Actor in a VulnerabilityCase context.
 
     Canonical ADR-0039 role-delegation wire format:
-    ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``.
+    ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``.
     Replaces the deprecated ``OfferCaseManagerRoleReceivedEvent`` wire format.
     See SE-08-003, ADR-0039.
     """
@@ -52,7 +52,7 @@ class OfferCaseParticipantRoleReceivedEvent(LedgerPositionedEvent):
 
 
 class AcceptCaseParticipantRoleReceivedEvent(LedgerPositionedEvent):
-    """The CASE_MANAGER received Accept(Offer(CaseParticipantRole, ...)).
+    """The CASE_MANAGER received Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase]).
 
     The ADR-0039 canonical role-delegation acceptance: the target of the
     role offer accepted it, answering the CASE_MANAGER (CM-33-004).
@@ -73,7 +73,7 @@ class AcceptCaseParticipantRoleReceivedEvent(LedgerPositionedEvent):
 
 
 class RejectCaseParticipantRoleReceivedEvent(LedgerPositionedEvent):
-    """The CASE_MANAGER received Reject(Offer(CaseParticipantRole, ...)).
+    """The CASE_MANAGER received Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase]).
 
     The ADR-0039 canonical role-delegation rejection: the target of the
     role offer declined it, answering the CASE_MANAGER (CM-33-004).
@@ -403,7 +403,7 @@ class OfferCaseParticipantReceivedEvent(LedgerPositionedEvent):
     """Case Owner received Offer(CaseParticipant) from the CaseActor.
 
     Sent by the CaseActor to the Case Owner's inbox after transforming
-    Offer(Actor, Case) into Offer(CaseParticipant{actor, roles}, Case)
+    Offer(Actor)[target=VulnerabilityCase] into Offer(CaseParticipant{actor, roles}, Case)
     (CM-16-003, CM-16-004, ADR-0026).
     """
 
@@ -442,7 +442,7 @@ class RejectOfferCaseParticipantReceivedEvent(LedgerPositionedEvent):
 
 
 class AcceptActorRecommendationReceivedEvent(LedgerPositionedEvent):
-    """A recommender received the CASE_MANAGER's Accept(Offer(Actor, Case)).
+    """A recommender received the CASE_MANAGER's Accept(Offer(Actor)[target=VulnerabilityCase]).
 
     The CASE_MANAGER's answer to a suggestion, sent once the Case Owner has
     accepted it (CM-16-006) or when the suggested actor is already invited or
@@ -456,7 +456,7 @@ class AcceptActorRecommendationReceivedEvent(LedgerPositionedEvent):
 
 
 class RejectActorRecommendationReceivedEvent(LedgerPositionedEvent):
-    """A recommender received the CASE_MANAGER's Reject(Offer(Actor, Case)).
+    """A recommender received the CASE_MANAGER's Reject(Offer(Actor)[target=VulnerabilityCase]).
 
     The CASE_MANAGER's answer to a suggestion the Case Owner declined
     (CM-16-007).  ``in_reply_to`` is the recommender's Offer.

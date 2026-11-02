@@ -209,8 +209,7 @@ class _RmCloseCaseActivity(as_Leave):
 class _OfferCaseParticipantRoleActivity(as_Offer):
     """Offer a CVDRole to an Actor in a VulnerabilityCase context (ADR-0039).
 
-    Wire format: ``Offer(CaseParticipantRole, target=Actor,
-    context=VulnerabilityCase)``
+    Wire format: ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``
 
     Replaces the deprecated ``_OfferCaseManagerRoleActivity`` for role
     delegation.  The ``object_`` carries the specific ``CVDRole`` being

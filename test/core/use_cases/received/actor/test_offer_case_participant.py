@@ -1255,7 +1255,8 @@ class TestRolesFromStoredOffer:
     """Regression test for ISSUE-1745: roles must come from stored Offer, not blackboard.
 
     The suggest-actor path (ADR-0026) runs in two separate BT executions:
-    1. CaseActor receives Offer(Actor, Case) → stores Offer(CaseParticipant) with roles
+    1. CaseActor receives Offer(Actor)[target=VulnerabilityCase] → stores
+    Offer(CaseParticipant) with roles
     2. CaseActor receives Accept(Offer(CaseParticipant)) → emits Invite with those roles
 
     The blackboard is not shared between executions, so roles must be read from
@@ -1729,7 +1730,7 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
 def _seed_a_recommendation_at_the_case_manager() -> tuple[
     SqliteDataLayer, Any
 ]:
-    """The CASE_MANAGER's store and a participant's ``Offer(Actor, Case)``.
+    """The CASE_MANAGER's store and a participant's ``Offer(Actor)[target=VulnerabilityCase]``.
 
     The recommendation is not yet recorded, so the CASE_MANAGER forwards it to
     the Case Owner as ``Offer(CaseParticipant)`` (CM-16-004).

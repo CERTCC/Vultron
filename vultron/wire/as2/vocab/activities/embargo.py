@@ -122,7 +122,7 @@ class _EmUndoEmbargoInviteActivity(as_Undo):
 class _ActivateEmbargoActivity(as_Accept):
     """The case owner activates a proposed embargo on the case (ADR-0122).
 
-    ``Accept(EmbargoEvent, target=VulnerabilityCase)``: the owner's decision
+    ``Accept(EmbargoEvent)[target=VulnerabilityCase]``: the owner's decision
     for the case, distinct from ``Accept(Invite(EmbargoEvent))``, which is
     always the sender's own consent.  Only the case owner sends it.
     object_: the as_EmbargoEvent being activated (inline, so a recipient
@@ -139,7 +139,7 @@ class _ActivateEmbargoActivity(as_Accept):
 class _RejectEmbargoProposalActivity(as_Reject):
     """The case owner rejects a proposed embargo on the case (ADR-0122).
 
-    ``Reject(EmbargoEvent, target=VulnerabilityCase)``: the owner's decision
+    ``Reject(EmbargoEvent)[target=VulnerabilityCase]``: the owner's decision
     for the case, distinct from ``Reject(Invite(EmbargoEvent))``, which is
     always the sender's own consent.  Only the case owner sends it.
     object_: the as_EmbargoEvent being rejected (inline, VAM-05-010)

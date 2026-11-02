@@ -260,7 +260,8 @@ SuggestActorToCasePattern = ActivityPattern(
 )
 AcceptSuggestActorToCasePattern = ActivityPattern(
     description=(
-        "CASE_MANAGER Accept(Offer(Actor, Case)) answering a recommender, "
+        "CASE_MANAGER Accept(Offer(Actor)[target=VulnerabilityCase])"
+        " answering a recommender, "
         "received on the recommender's inbox (ACCEPT_ACTOR_RECOMMENDATION; "
         "CM-16-006, CM-16-009)."
     ),
@@ -269,7 +270,8 @@ AcceptSuggestActorToCasePattern = ActivityPattern(
 )
 RejectSuggestActorToCasePattern = ActivityPattern(
     description=(
-        "CASE_MANAGER Reject(Offer(Actor, Case)) answering a recommender, "
+        "CASE_MANAGER Reject(Offer(Actor)[target=VulnerabilityCase])"
+        " answering a recommender, "
         "received on the recommender's inbox (REJECT_ACTOR_RECOMMENDATION; "
         "CM-16-007)."
     ),
@@ -312,9 +314,9 @@ RejectActorRecommendationPattern = ActivityPattern(
 )
 OfferCaseParticipantRolePattern = ActivityPattern(
     description=(
-        "Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase) "
+        "Offer(CaseParticipantRole)[context=VulnerabilityCase] "
         "— the canonical role-delegation wire format introduced in ADR-0039. "
-        "Replaces the deprecated Offer(VulnerabilityCase, target=CaseParticipant) "
+        "Replaces the deprecated Offer(VulnerabilityCase)[target=CaseParticipant] "
         "format. Self-describing: the object type unambiguously identifies this "
         "as a role offer. See SE-08-003."
     ),
@@ -324,7 +326,8 @@ OfferCaseParticipantRolePattern = ActivityPattern(
 )
 AcceptCaseParticipantRolePattern = ActivityPattern(
     description=(
-        "Accept(Offer(CaseParticipantRole, ...)) — acceptance of the canonical "
+        "Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])"
+        " — acceptance of the canonical "
         "role-delegation wire format (ADR-0039). Received by the case's "
         "CASE_MANAGER when the target actor accepts the role (CM-33-004). "
         "See SE-08-003."
@@ -334,7 +337,8 @@ AcceptCaseParticipantRolePattern = ActivityPattern(
 )
 RejectCaseParticipantRolePattern = ActivityPattern(
     description=(
-        "Reject(Offer(CaseParticipantRole, ...)) — rejection of the canonical "
+        "Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])"
+        " — rejection of the canonical "
         "role-delegation wire format (ADR-0039). Received by the case's "
         "CASE_MANAGER when the target actor declines the role (CM-33-004). "
         "See SE-08-003."

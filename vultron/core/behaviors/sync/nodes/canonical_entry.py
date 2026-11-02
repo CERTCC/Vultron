@@ -116,7 +116,7 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Announce", "VulnerabilityCase"),
     ("Offer", "CaseParticipant"),
     # Role-delegation offer (ADR-0039, SE-08-003): the CASE_MANAGER records an
-    # ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``
+    # ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``
     # it receives as a protocol-significant assertion (CLP-07-001).  Like its
     # sibling ``Offer(CaseParticipant)`` recommendation it moves no replica
     # state — the offer is a proposal, not the grant (CLP-07-005, #3764).

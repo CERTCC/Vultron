@@ -47,11 +47,11 @@ _STORE_ACTOR = "https://test.example/api/v2/actors/test-actor"
 _MOVES = {
     "add": (
         AddCaseParticipantToCaseReceivedUseCase,
-        "Add(CaseParticipant, Case)",
+        "Add(CaseParticipant)[target=VulnerabilityCase]",
     ),
     "remove": (
         RemoveCaseParticipantFromCaseReceivedUseCase,
-        "Remove(CaseParticipant, Case)",
+        "Remove(CaseParticipant)[target=VulnerabilityCase]",
     ),
 }
 
