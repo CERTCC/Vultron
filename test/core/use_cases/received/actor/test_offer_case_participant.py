@@ -1376,7 +1376,11 @@ class TestRolesFromStoredOffer:
             for obj in (dl.read(a) for a in dl.outbox_list())
             if obj is not None and str(getattr(obj, "type_", "")) == "Invite"
         ]
-        roles = {r for invite in invites for r in (invite.roles or [])}
+        roles = {
+            r
+            for invite in invites
+            for r in (getattr(invite, "roles", None) or [])
+        }
         assert CVDRole.CASE_MANAGER.value not in roles, roles
         assert CVDRole.CASE_OWNER.value not in roles, roles
 
