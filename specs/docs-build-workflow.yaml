@@ -777,8 +777,7 @@ groups:
         statement: >-
           While a blocking workflow's run on `main` is unfinished on the
           candidate commit or one of its ancestors, the CI gate MUST wait up to
-          one hour for it, and MUST skip the publish when it is still unfinished
-          after the hour.
+          one hour for it.
         rationale: >-
           An unfinished run can still turn its workflow red, so the gate cannot
           read the commit's state until it ends. Push CI is path-filtered, so the
@@ -1015,19 +1014,15 @@ groups:
         priority: MUST_NOT
         kind: project
         statement: >-
-          A rollback MUST NOT redeploy a commit that is not in `main`'s history,
-          and a manual run that does not start from `main` MUST NOT publish.
+          A rollback MUST NOT redeploy a commit that is not in `main`'s history.
         rationale: >-
           Anyone who can push can create a `publish-*` or `v*` tag (#5545), so a
           tag is no sign of review. A commit in `main`'s history was merged
-          through review; any other commit was not. A run started from another
-          ref would also execute that ref's copy of the workflow, with the
-          deploy's permissions.
+          through review; any other commit was not.
         verification: >-
-          `test_a_rollback_target_must_be_on_main`,
-          `test_an_unsupported_run_is_refused` and
+          `test_a_rollback_target_must_be_on_main` (against real commits) and
           `test_gate_command_refuses_a_rollback_off_main` in
-          `test/ci/test_publish_gate.py`, the first against real commits.
+          `test/ci/test_publish_gate.py`.
         adr:
           - ADR-0169
         relationships:
@@ -1088,3 +1083,37 @@ groups:
         relationships:
           - rel_type: extends
             spec_id: DOCBW-06-024
+      - id: DOCBW-06-028
+        priority: MUST
+        kind: project
+        statement: >-
+          When a DOCBW-06-010 run is still unfinished after the hour, the CI gate
+          MUST skip the publish.
+        rationale: >-
+          Past the hour the run is treated as red rather than published
+          unchecked; the next scheduled run tries again.
+        verification: >-
+          `test_unfinished_runs_are_waited_for_then_skip` and
+          `test_wait_for_runs_gives_up_after_the_wait` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0169
+        relationships:
+          - rel_type: extends
+            spec_id: DOCBW-06-010
+      - id: DOCBW-06-029
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A manual run of the publication workflow that does not start from
+          `main` MUST NOT publish.
+        rationale: >-
+          A manual run executes the copy of the workflow file stored at the ref
+          it starts from. A run started from another ref, a tag included, would
+          execute that ref's copy with the deploy's permissions.
+        verification: >-
+          `test_an_unsupported_run_is_refused` and
+          `test_gate_command_refuses_a_run_from_a_tag` in
+          `test/ci/test_publish_gate.py`.
+        adr:
+          - ADR-0169

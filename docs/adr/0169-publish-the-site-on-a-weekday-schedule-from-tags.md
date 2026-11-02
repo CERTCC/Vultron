@@ -103,4 +103,4 @@ It also checks the publication workflow's triggers, blocking list, job order and
 
 ## More Information
 
-Generated spec requirements: `docs-build-workflow.yaml` DOCBW-06-007 through DOCBW-06-027.
+Generated spec requirements: `docs-build-workflow.yaml` DOCBW-06-007 through DOCBW-06-029.

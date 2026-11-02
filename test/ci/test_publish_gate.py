@@ -136,7 +136,7 @@ def test_classify_trigger(
     assert _gate.classify_trigger(event, MAIN, skip, rollback_to) == expected
 
 
-@pytest.mark.spec("DOCBW-06-026")
+@pytest.mark.spec("DOCBW-06-029")
 @pytest.mark.parametrize(
     ("event", "ref", "rollback_to"),
     [
@@ -210,7 +210,7 @@ def test_blocking_issues_reads_both_label_shapes() -> None:
     ]
 
 
-@pytest.mark.spec("DOCBW-06-010")
+@pytest.mark.spec("DOCBW-06-010", "DOCBW-06-028")
 def test_unfinished_runs_are_waited_for_then_skip() -> None:
     calls = _Calls(pending=["Python application"])
     decision = calls.decide(_ctx(Trigger.MANUAL))
@@ -281,7 +281,7 @@ class _FakeClock:
         self.now += seconds
 
 
-@pytest.mark.spec("DOCBW-06-010")
+@pytest.mark.spec("DOCBW-06-010", "DOCBW-06-028")
 def test_wait_for_runs_gives_up_after_the_wait() -> None:
     clock = _FakeClock()
     left = _gate.wait_for_runs(
@@ -766,7 +766,7 @@ def test_gate_command_refuses_a_rollback_off_main(
     assert not outputs["out"].exists()
 
 
-@pytest.mark.spec("DOCBW-06-026")
+@pytest.mark.spec("DOCBW-06-029")
 def test_gate_command_refuses_a_run_from_a_tag(
     outputs: dict[str, Path],
 ) -> None:
