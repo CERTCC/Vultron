@@ -710,13 +710,14 @@ def test_an_exited_case_refuses_a_proposal_before_committing(make_payload):
 
 @pytest.mark.spec("EP-09-001")
 @pytest.mark.spec("EMB-03-003")
-def test_a_revision_of_a_public_case_is_refused_with_er(make_payload):
+@pytest.mark.spec("EMB-03-004")
+def test_a_revision_of_a_public_case_is_refused_with_a_reject(make_payload):
     """P/X/A set: the manager refuses the revision and the case stays ACTIVE.
 
     The CASE_MANAGER refuses a proposal on a public, exploited or attacked
-    case (EP-09-001) with an ER to the proposer, and adopts nothing: the
+    case (EP-09-001) with a ``Reject`` of it to the proposer, and adopts nothing: the
     revision enters no register step and no Invite is relayed.  EP-09-001
-    is how the CASE_MANAGER topology realises EMB-03-003's refusal; the
+    is how the CASE_MANAGER topology realises EMB-03-004's refusal; the
     clause itself binds the participants a relayed Invite reaches, pinned in
     ``test_embargo_relay_replay.py``.  The proposal does not end the embargo
     either: the public, exploit or attack fact does, through the CS
@@ -734,8 +735,8 @@ def test_a_revision_of_a_public_case_is_refused_with_er(make_payload):
     verdict = _deliver(dl, _proposal(revision, case_id), make_payload, MANAGER)
 
     assert verdict.disposition is HandlerDisposition.REFUSED
-    # The refusal cites EMB-01-002: EMB-03-003 answers a revision with the
-    # ER that EMB-01-002 requires for a proposal.
+    # The refusal cites EMB-01-002: EMB-03-004 answers a revision with the
+    # Reject of the Invite that EMB-01-002 requires for a proposal.
     assert "EMB-01-002" in (verdict.reason or "")
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.current_status.em.state == EM.ACTIVE

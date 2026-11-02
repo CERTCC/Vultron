@@ -1,10 +1,10 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Offer",
-  "id": "urn:uuid:d52aafe0-ad0b-4e5d-aeb0-3b7ca4810a94",
-  "name": "https://vultron.example/organizations/vendorco Offer urn:uuid:75a4a72c-0622-4f60-98a2-95272c14ed43 to Coordinator LLC",
-  "context": "urn:uuid:39e6d4b7-ad4c-4310-aa08-23c7e148357f",
-  "content": "We're offering the coordinator role on case VendorCo Case #68056456 to Coordinator LLC.",
+  "id": "urn:uuid:86311069-2624-4e5a-a32c-ca4edcd3d9c7",
+  "name": "https://vultron.example/organizations/vendorco Offer urn:uuid:20332910-a153-4b14-a6ff-cb0d4b2f734d to Coordinator LLC",
+  "context": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
+  "content": "We're offering the coordinator role on case VendorCo Case #83288480 to Coordinator LLC.",
   "to": [
     "https://vultron.example/case-actors/vendorco-case-actor"
   ],
@@ -14,8 +14,8 @@
     "type": "Organization",
     "id": "https://vultron.example/organizations/coordinator",
     "name": "Coordinator LLC",
-    "published": "2026-10-16T14:01:35+00:00",
-    "updated": "2026-10-16T14:01:35+00:00",
+    "published": "2026-10-30T15:17:57.490868+00:00",
+    "updated": "2026-10-30T15:17:57.490870+00:00",
     "inbox": {
       "@context": "https://www.w3.org/ns/activitystreams",
       "type": "OrderedCollection",
@@ -32,9 +32,9 @@
   "object": {
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "CaseParticipantRole",
-    "id": "urn:uuid:75a4a72c-0622-4f60-98a2-95272c14ed43",
-    "published": "2026-10-16T14:01:43+00:00",
-    "updated": "2026-10-16T14:01:43+00:00",
+    "id": "urn:uuid:20332910-a153-4b14-a6ff-cb0d4b2f734d",
+    "published": "2026-10-30T15:17:58.183253+00:00",
+    "updated": "2026-10-30T15:17:58.183255+00:00",
     "role": "coordinator"
   }
 }

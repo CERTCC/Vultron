@@ -192,6 +192,7 @@ def test_scenario_decorator_takes_no_prompt_or_choice_label() -> None:
         "feature",
         "in_pr_set",
         "path",
+        "story",
     }
 
 

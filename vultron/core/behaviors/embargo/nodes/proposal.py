@@ -220,8 +220,8 @@ class RecordParticipantAcceptanceNode(_RecordParticipantAnswerNode):
 
     Uses ``EmbargoLifecycle.accept_embargo_invite`` to decide the sender's
     own consent — the case owner's included — moving no register entry
-    (MSM-07-003, ADR-0122), and applies the ``AGREED`` row the committed
-    Accept states (:class:`_RecordParticipantAnswerNode`).
+    (MSM-07-003, MSM-07-011, ADR-0122), and applies the ``AGREED`` row the
+    committed Accept states (:class:`_RecordParticipantAnswerNode`).
 
     ``accepting_actor_id`` names the message's actor: the tree executes as
     the receiving CASE_MANAGER (ADR-0022), which authors the row's entry,

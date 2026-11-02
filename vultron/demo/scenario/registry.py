@@ -55,6 +55,13 @@ against it when the spec is built; :func:`discover_scenarios` then merges every
 path into one tree (:mod:`vultron.demo.scenario.tree`) and fails unless each
 scenario is exactly one ending (DEMOCI-11-023).
 
+**A composed scenario registers its story, not a path.** A scenario written as
+composition (:mod:`vultron.demo.helpers.story`) passes ``story=`` and the
+registry reads the path off the story's choices, so the path is not typed a
+second time beside the code that walks it (DEMOCI-11-019). Declaring both
+fails here, where the second copy is written (DEMOCI-11-024). The ``path=``
+form stays until every family is composed (#5537).
+
 **Registration means built.** A scenario that has a spec group but no module
 is declared by the planned-scenario register in ``notes/demo-future-ideas.md``
 instead, never here (DEMOCI-11-010).
@@ -70,7 +77,7 @@ import pkgutil
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import TypeVar
+from typing import Protocol, TypeVar
 
 from vultron.demo.scenario.branch_points import validate_path
 from vultron.demo.scenario.tree import PathStep, TreeNode, build_scenario_tree
@@ -100,6 +107,23 @@ _NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*\Z")
 F = TypeVar("F", bound=Callable[..., None])
 
 
+class StoryPath(Protocol):
+    """A scenario's assembled story, seen only as the path it walks.
+
+    A composed scenario registers its story instead of a ``path=``, and the
+    registry reads the path off the story's choices (DEMOCI-11-019).  Declared
+    structurally rather than imported so the registry keeps no dependency on
+    the demo helper library that owns stories
+    (:mod:`vultron.demo.helpers.story`), which imports the harness, which
+    imports this module.
+    """
+
+    @property
+    def path(self) -> tuple[PathStep, ...]:
+        """The ordered ``(branch point, choice)`` pairs the story decides."""
+        ...
+
+
 def is_scenario_name(value: str) -> bool:
     """Whether *value* is a well-formed scenario name.
 
@@ -108,6 +132,70 @@ def is_scenario_name(value: str) -> bool:
     names inside prose still use the pattern itself — a predicate cannot scan.
     """
     return _NAME_RE.match(value) is not None
+
+
+def _require_table_cell(
+    scenario_name: str, field_name: str, value: object
+) -> None:
+    """Refuse a prose field that would render as a broken markdown table cell.
+
+    Every one of ``label``, ``participants`` and ``feature`` is rendered into
+    one cell of three generated tables, so the ways it can go wrong are the
+    same for all three and the check is stated once here.
+
+    Args:
+        scenario_name: The scenario the field belongs to, for the message.
+        field_name: Which field is being checked.
+        value: Its declared value.
+
+    Raises:
+        DemoScenarioRegistryError: When the value is not a single stripped,
+            non-empty line of plain prose.
+    """
+    if not isinstance(value, str) or not value.strip():
+        raise DemoScenarioRegistryError(
+            f"scenario {scenario_name!r} has an empty {field_name}; "
+            "it renders as a table cell and there is nowhere else for "
+            "a reader to get it."
+        )
+    # A newline splits the markdown row mid-cell in all three generated
+    # consumers, and the result is a *valid* generated file — so --check keeps
+    # the corrupted table in sync rather than reporting it. Refuse here, where
+    # the value is written.
+    #
+    # Compared against the stripped value rather than by counting lines:
+    # `len("Baseline\n".splitlines())` is 1, so a line-count test accepts the
+    # single likeliest spelling of this mistake — a value with one trailing
+    # newline — and the corrupted row reaches the artifact anyway.
+    if value != value.strip():
+        raise DemoScenarioRegistryError(
+            f"scenario {scenario_name!r} has a {field_name} with leading "
+            f"or trailing whitespace ({value!r}); a newline splits the "
+            "markdown row mid-cell and the surrounding whitespace "
+            "renders inconsistently across the three consumers. Strip it."
+        )
+    if len(value.splitlines()) > 1:
+        raise DemoScenarioRegistryError(
+            f"scenario {scenario_name!r} has a multi-line {field_name} "
+            f"({value!r}); every generated consumer renders it as one "
+            "markdown table cell, which a line break would break in "
+            "half. Keep it to a single line."
+        )
+    # `markdownlint-cli2 --fix` runs ahead of the demo-scenarios-sync hook and
+    # rewrites `_x_` to `*x*` (MD049) and a bare URL to `<url>` (MD034)
+    # *inside* a table cell. Either rewrite makes the committed artifact
+    # disagree with the registry, and neither command the --check error names
+    # can settle it: --write restores the unlinted spelling and markdownlint
+    # re-fixes it. Refuse the characters here, where the value is written.
+    if any(ch in value for ch in "_<>") or "://" in value:
+        raise DemoScenarioRegistryError(
+            f"scenario {scenario_name!r} has a {field_name} containing an "
+            f"underscore, angle bracket, or URL ({value!r}); "
+            "`markdownlint-cli2 --fix` rewrites those inside a "
+            "markdown table cell, which would leave the "
+            "demo-scenarios-sync hook and markdownlint undoing each "
+            "other. Use plain prose."
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,6 +224,14 @@ class ScenarioSpec:
     #: (DEMOCI-11-014). The prompts and choice labels are read from that table,
     #: never declared here (DEMOCI-11-013).
     path: tuple[PathStep, ...]
+    #: Whether :attr:`path` was read off an assembled story rather than typed
+    #: on ``@scenario(path=...)`` (DEMOCI-11-019). It is not a second way to
+    #: declare anything: ``scenario()`` sets it from which argument it was
+    #: given. The ``path=`` form, and so a ``False`` here, goes away when the
+    #: last family is composed (#5537); until then this is how a check tells
+    #: the two forms apart — a composed scenario places no ``reach_step`` by
+    #: hand, where one still declaring ``path=`` must place one per step.
+    composed: bool = False
 
     def __post_init__(self) -> None:
         if not _NAME_RE.match(self.name):
@@ -146,54 +242,16 @@ class ScenarioSpec:
                 "path is built from this value."
             )
         for field_name in ("label", "participants", "feature"):
-            value = getattr(self, field_name)
-            if not isinstance(value, str) or not value.strip():
-                raise DemoScenarioRegistryError(
-                    f"scenario {self.name!r} has an empty {field_name}; "
-                    "it renders as a table cell and there is nowhere else for "
-                    "a reader to get it."
-                )
-            # A newline splits the markdown row mid-cell in all three generated
-            # consumers, and the result is a *valid* generated file — so
-            # --check keeps the corrupted table in sync rather than reporting
-            # it. Refuse here, where the value is written.
-            #
-            # Compared against the stripped value rather than by counting
-            # lines: `len("Baseline\n".splitlines())` is 1, so a line-count
-            # test accepts the single likeliest spelling of this mistake — a
-            # value with one trailing newline — and the corrupted row reaches
-            # the artifact anyway.
-            if value != value.strip():
-                raise DemoScenarioRegistryError(
-                    f"scenario {self.name!r} has a {field_name} with leading "
-                    f"or trailing whitespace ({value!r}); a newline splits the "
-                    "markdown row mid-cell and the surrounding whitespace "
-                    "renders inconsistently across the three consumers. Strip "
-                    "it."
-                )
-            if len(value.splitlines()) > 1:
-                raise DemoScenarioRegistryError(
-                    f"scenario {self.name!r} has a multi-line {field_name} "
-                    f"({value!r}); every generated consumer renders it as one "
-                    "markdown table cell, which a line break would break in "
-                    "half. Keep it to a single line."
-                )
-            # `markdownlint-cli2 --fix` runs ahead of the demo-scenarios-sync
-            # hook and rewrites `_x_` to `*x*` (MD049) and a bare URL to
-            # `<url>` (MD034) *inside* a table cell. Either rewrite makes the
-            # committed artifact disagree with the registry, and neither
-            # command the --check error names can settle it: --write restores
-            # the unlinted spelling and markdownlint re-fixes it. Refuse the
-            # characters here, where the value is written.
-            if any(ch in value for ch in "_<>") or "://" in value:
-                raise DemoScenarioRegistryError(
-                    f"scenario {self.name!r} has a {field_name} containing an "
-                    f"underscore, angle bracket, or URL ({value!r}); "
-                    "`markdownlint-cli2 --fix` rewrites those inside a "
-                    "markdown table cell, which would leave the "
-                    "demo-scenarios-sync hook and markdownlint undoing each "
-                    "other. Use plain prose."
-                )
+            _require_table_cell(
+                self.name, field_name, getattr(self, field_name)
+            )
+        if not isinstance(self.composed, bool):
+            raise DemoScenarioRegistryError(
+                f"scenario {self.name!r} has a non-boolean composed "
+                f"({self.composed!r}); a check reads it to decide which "
+                "declaration form the scenario uses, and a truthy "
+                "non-boolean would silently pick the composed one."
+            )
         if not isinstance(self.in_pr_set, bool):
             raise DemoScenarioRegistryError(
                 f"scenario {self.name!r} has a non-boolean in_pr_set "
@@ -270,13 +328,19 @@ def scenario(
     participants: str,
     feature: str,
     in_pr_set: bool,
-    path: Sequence[PathStep],
+    path: Sequence[PathStep] | None = None,
+    story: StoryPath | None = None,
 ) -> Callable[[F], F]:
     """Register the decorated ``main()`` as a demo scenario.
 
     Keyword-only by design: four same-typed prose arguments are trivially
     swappable positionally, and a swapped ``label``/``participants`` pair would
     render as a plausible-looking wrong table rather than failing.
+
+    Exactly one of ``path`` and ``story`` states where the scenario sits on the
+    tree.  ``story`` is the composed form and the one new work takes; ``path``
+    is the interim form the scenarios not yet composed still use (#5537
+    retires it).
 
     Args:
         name: Sub-command spelling; the stem of all derived paths.
@@ -288,15 +352,20 @@ def scenario(
             ordered ``(branch point id, choice id)`` pairs (DEMOCI-11-014).
             Prompts and choice labels come from the branch-point table, so
             this decorator takes neither (DEMOCI-11-013).
+        story: The scenario's assembled story
+            (:mod:`vultron.demo.helpers.story`), whose choices are read as the
+            path (DEMOCI-11-019).
 
     Returns:
         A decorator that registers the spec and returns the function unchanged.
 
     Raises:
-        DemoScenarioRegistryError: If the spec is malformed, if the name is
+        DemoScenarioRegistryError: If neither or both of ``path`` and ``story``
+            are given (DEMOCI-11-024), if the spec is malformed, if the name is
             already registered with a different spec, or if the decorator is
             applied in a module whose name contradicts ``name``.
     """
+    declared = _declared_path(name, path, story)
 
     def register(func: F) -> F:
         spec = ScenarioSpec(
@@ -305,12 +374,40 @@ def scenario(
             participants=participants,
             feature=feature,
             in_pr_set=in_pr_set,
-            path=tuple(path),
+            path=declared,
+            composed=story is not None,
         )
         _register(spec, func.__module__)
         return func
 
     return register
+
+
+def _declared_path(
+    name: str, path: Sequence[PathStep] | None, story: StoryPath | None
+) -> tuple[PathStep, ...]:
+    """Return the path *name* declares, from its story or its ``path=``.
+
+    Raises:
+        DemoScenarioRegistryError: When both forms are given or neither is.
+    """
+    if story is not None and path is not None:
+        raise DemoScenarioRegistryError(
+            f"scenario {name!r} declares both a story and a path=. A composed "
+            "scenario's path is read off its story's choices, so a path "
+            "typed beside the story is a second copy of the same fact and "
+            "the two can disagree; drop the path= declaration "
+            "(DEMOCI-11-019, DEMOCI-11-024)."
+        )
+    if story is not None:
+        return tuple(story.path)
+    if path is not None:
+        return tuple(path)
+    raise DemoScenarioRegistryError(
+        f"scenario {name!r} declares neither a story nor a path=, so nothing "
+        "places it on the scenario tree. Give it story=<its assembled story>, "
+        "or path= while it is not composed yet (DEMOCI-11-014)."
+    )
 
 
 def _register(spec: ScenarioSpec, origin_module: str) -> None:
@@ -401,7 +498,8 @@ def discover_scenarios() -> tuple[ScenarioSpec, ...]:
     Raises:
         DemoScenarioRegistryError: If a discovered module registered nothing,
             or if the declared paths do not make one tree in which every
-            scenario is exactly one ending (:func:`scenario_tree`). Failing
+            scenario is exactly one ending (:func:`scenario_tree`,
+            DEMOCI-11-023). Failing
             here rather than returning a short tuple is the point: a
             generator that silently omits a scenario produces a table that
             looks complete and is wrong, which is the defect ADR-0098 exists
@@ -444,6 +542,7 @@ __all__ = [
     "SCENARIO_DIR",
     "SCENARIO_PACKAGE",
     "ScenarioSpec",
+    "StoryPath",
     "discover_scenarios",
     "is_scenario_name",
     "registered_scenarios",

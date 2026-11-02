@@ -182,9 +182,10 @@ def test_detector_refuses_a_workflow_with_no_jobs(
 
 def test_discovery_finds_every_workflow_file() -> None:
     names = {p.name for p in workflow_files()}
-    # python-app.yml has the gate jobs; docs-publish-check.yml has only a
-    # reusable-workflow call, so it must be read and skipped, not missed.
-    assert {"python-app.yml", "docs-publish-check.yml"} <= names
+    # python-app.yml has the gate jobs and deploy_site.yml the deploy. A job
+    # that only calls a reusable workflow is skipped, not missed: see
+    # test_detector_flags_an_uncapped_job_and_skips_a_reusable_call.
+    assert {"python-app.yml", "deploy_site.yml"} <= names
 
 
 def test_every_workflow_job_has_a_timeout() -> None:

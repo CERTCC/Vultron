@@ -624,7 +624,7 @@ def test_a_case_manager_answering_records_its_own_row(
     else:
         # The CASE_MANAGER's own Reject is its row's Update(EmbargoConsent),
         # so no Reject is built, and the Update is what it reports
-        # (MSM-07-004, ADR-0152, TRIG-04-001).
+        # (MSM-07-017, ADR-0152, TRIG-04-001).
         activity = activity_of(result)
         assert activity["type"] == "Update"
         assert activity["object"]["state"] == row_after.value

@@ -34,7 +34,7 @@ Output contract (stable; pipeline skills parse it):
   per path that forced the full suite. ``--pytest`` prints instead a single
   runnable command line; it carries ``-m ""`` to override the
   ``-m 'not integration'`` default in ``addopts``, so integration-marked tests
-  among the selected files still run (PAD-18-002). ``--json`` prints
+  among the selected files still run (PAD-18-011). ``--json`` prints
   ``{"mode", "tests", "triggers", "unmapped", "pytest"}``.
 - **Overlap mode** (``--overlap``) prints the paths the base changed since
   the merge base that this branch also changes, one per line, and exits 1
@@ -42,7 +42,7 @@ Output contract (stable; pipeline skills parse it):
   prints ``{"base", "merge_base", "overlap"}``.
 - **Paths mode** (``--paths``) prints the same selection output for the
   named files instead of the branch diff: the gate after resolving a merge
-  conflict, run on the conflicted files (PAD-18-004). Each file counts as
+  conflict, run on the conflicted files (PAD-18-015). Each file counts as
   wholly changed, since both sides edited it, and only
   :func:`conflict_suite_trigger` paths force the full suite: CI runs the full
   suite on the push, so the test-support trigger that guards a fix commit
@@ -62,7 +62,7 @@ against the working tree, so a fix commit landing on top of an earlier
 counts. Overlap mode reads the same branch side on purpose: the gate runs
 before a push, so work not yet committed is about to be part of the PR.
 
-Escalation is for shared test infrastructure only (PAD-18-003): files whose
+Escalation is for shared test infrastructure only (PAD-18-003, PAD-18-012): files whose
 effect no import or mirror lookup can bound. A change to an integration-bearing
 layer (``vultron/core/behaviors/``, ``vultron/adapters/``, …) is gated by its
 importers like any other change, integration-marked ones included; the reach
@@ -91,11 +91,11 @@ unless it imports ``a`` too. That reach is CI's (ADR-0126). Changed symbols
 are read from both sides of the diff, so a deleted or renamed function
 selects the tests that imported its old name.
 
-PAD-18-003's CI clause — a CI failure in a test the targeted set does not
+PAD-18-013 — a CI failure in a test the targeted set does not
 include joins the gate — is the caller's to apply: this command cannot see CI.
 
 Requirements: specs/parallel-development.yaml PAD-18-002, PAD-18-003,
-PAD-18-004, PAD-18-009.
+PAD-18-004, PAD-18-009, PAD-18-011 to PAD-18-015, PAD-18-019.
 """
 
 from __future__ import annotations
@@ -204,7 +204,7 @@ def conflict_suite_trigger(path: str) -> FullSuiteTrigger | None:
     merge (``--paths``): files that configure every test run, whose effect no
     import or mirror lookup can bound. A conflict anywhere else is gated by
     its importers and mirror tests; CI runs the rest on the push
-    (PAD-18-003, PAD-18-004).
+    (PAD-18-003, PAD-18-015).
     """
     name = PurePosixPath(path).name
     if name == "conftest.py":
@@ -519,7 +519,7 @@ def pytest_argv(selection: Selection) -> list[str]:
 
     ``-m ""`` replaces the ``-m 'not integration'`` in ``addopts``: pytest
     keeps the last ``-m``, so marker-bearing tests among the selected files
-    are not deselected (PAD-18-002). The full suite is the same command with
+    are not deselected (PAD-18-011). The full suite is the same command with
     no paths. It runs under :data:`GATE_CEILING`.
     """
     return list(PYTEST_BASE) + ([] if selection.full else selection.tests)

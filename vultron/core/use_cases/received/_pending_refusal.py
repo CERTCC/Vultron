@@ -17,12 +17,12 @@
 
 A participant that is not the CASE_MANAGER asks the manager for embargo
 terms, or answers an embargo Invite, and records the activity it queued in
-its pending-assertion store (EP-09-008, SYNC-11-002).  The manager's commit
+its pending-assertion store (EP-09-018, SYNC-11-002).  The manager's commit
 of an *admitted* ask clears that entry when it is announced (SYNC-11-003).  A
 *refused* one is never committed, so the entry closes when the CASE_MANAGER's
 ``Reject(Invite(EmbargoEvent))`` reaches the participant: of the proposal it
-sent (EP-09-008, last sentence, CLP-05-001), or of the Invite whose Accept
-it refuses with ER once P/X/A is set (EMB-02-002).  A ``Reject`` from anybody
+sent (EP-09-017, CLP-05-001), or of the Invite whose Accept it refuses
+once P/X/A is set (EMB-02-004).  A ``Reject`` from anybody
 else is a participant's answer, not the manager's refusal, and closes
 nothing.
 """
@@ -76,7 +76,7 @@ def close_refused_embargo_ask(
         store.clear(case_id, _ACCEPT_SEMANTIC_TYPE, accept.object_id)
     logger.info(
         "CASE_MANAGER '%s' refused '%s''s embargo ask about Invite '%s' on"
-        " case '%s'; closed its pending assertion (EP-09-008, EMB-02-002)",
+        " case '%s'; closed its pending assertion (EP-09-019, EMB-02-004)",
         request.actor_id,
         receiving_actor_id,
         invite_id,

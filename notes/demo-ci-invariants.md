@@ -148,8 +148,12 @@ Each scenario has one self-contained harness,
 `test/ci/invariants/test_<scenario>_invariants.py`, with no shared base class.
 Copy an existing one:
 
-1. Declare `_DEMO_NAME`, `_CHAIN_ACTORS` (scenario-role names, not docker service
-   names) and `_<SCENARIO>_EXPECTED_SEMANTIC_TYPES`.
+1. Declare `_DEMO_NAME`, `_CHAIN_ACTORS` (devlog directory names, not docker
+   service names) and `_<SCENARIO>_EXPECTED_SEMANTIC_TYPES`. A directory name is
+   usually the part the actor plays, but not always: the `rccv-*` scenarios keep
+   RVCV-legacy names, where `vendor` is C1, `coordinator` is C2 and `vendor2` is
+   the Vendor. Read the scenario's own dump call before assuming the name is the
+   part, and rename nothing here without renaming the dump with it.
 2. Define a module-scoped replicas fixture calling
    `load_devlogs(demo_name=_DEMO_NAME)`.
 3. Inject the universal invariants with
@@ -310,7 +314,7 @@ Every push-to-`main` or scheduled workflow wires `.github/actions/notify-failure
 once with `mode: notify` and once with `mode: close` (ADR-0055), both in one job.
 A single-job workflow keys them on `failure()` and `success()`; a workflow with
 several jobs runs them in a final `notify` job that `needs:` every other job and
-keys on `needs.*.result` (CISEC-05-003).
+keys on `needs.*.result` (CISEC-05-012, CISEC-05-013).
 `test/ci/test_workflow_failure_notification.py` enforces the wiring. The wiring
 rule is in [ci-workflow-authoring](ci-workflow-authoring.md).
 
@@ -324,32 +328,40 @@ rule is in [ci-workflow-authoring](ci-workflow-authoring.md).
 ### Cancellation Safety (CISEC-05-006)
 
 A run cancelled by the concurrency group is not a failure on that ground alone,
-but a genuine failure observed before the cancellation still files (#3294).
+but a genuine failure observed before the cancellation still files
+(CISEC-05-014, #3294).
 
 - A step keyed on **`failure()`** is already safe: it is false on cancellation.
 - A step keyed on **`needs.*.result`** uses `contains(needs.*.result,
-  'failure')` alone. Never add `|| contains(needs.*.result, 'cancelled')`, and
+  'failure')` alone (CISEC-05-015). Never add
+  `|| contains(needs.*.result, 'cancelled')`, and
   never add `&& !contains(needs.*.result, 'cancelled')`: the exclusion cannot
   tell a laundered failure from a real one, so it suppresses a real failure
   whenever a newer push cancels a sibling job afterwards.
 - Close the laundering path at its source instead: skip artifact-consuming jobs
-  when their producer was cancelled (see "Separate CI Job Pattern").
+  when their producer was cancelled (see "Separate CI Job Pattern";
+  CISEC-05-016).
 - **Only the `close` step keeps a cancellation exclusion**, because a superseded
-  run must not declare recovery either (CISEC-05-002,
+  run must not declare recovery either (CISEC-05-009,
   `test_close_step_does_not_close_on_cancellation`).
 
 ---
 
-## Keeping the Per-Scenario Dump Phase Thin (DEMOMA-23-002)
+## Keeping the Per-Scenario Dump Step Thin (DEMOMA-23-002)
 
-A scenario's `_phase_dump_case_ledgers` builds `LedgerDumpTarget`s and delegates
-to `vultron.demo.helpers.ledger_dump.dump_case_ledgers()`. It MUST NOT carry its
+A scenario's dump step builds `LedgerDumpTarget`s and delegates to
+`vultron.demo.helpers.ledger_dump.dump_case_ledgers()`. It MUST NOT carry its
 own fetch/write loop, or one scenario's dump fix fails to reach the others
-(DEMOMA-17-001).
+(DEMOMA-17-001). It is a `_phase_dump_case_ledgers` in a scenario written as
+phases and a `_dump_ledgers` fragment in one written as composition, which
+reaches the helper through `coordinated_story.dump_coordinated_ledgers()` where
+a family shares its participant map.
 
-- **Register the dump the moment a case exists**: right after the phase that
-  creates it, call `harness.dump_with(lambda: _phase_dump_case_ledgers(...))`, so
-  every later phase can fail without losing the ledgers (DEMOMA-23-003).
+- **Register the dump the moment a case exists**, so every later step can fail
+  without losing the ledgers (DEMOMA-23-003): a phase scenario calls
+  `harness.dump_with(lambda: _phase_dump_case_ledgers(...))` right after the
+  phase that creates the case; a story calls `state.open_case(...)`, which arms
+  the `dump=` fragment its cast opening was built with.
 - **Do not add `try/finally: assert_demo_success()` to `main()`.** The harness
   owns the accumulator; a second owner asserts before the dump runs
   (DEMOMA-23-001).

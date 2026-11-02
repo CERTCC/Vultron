@@ -43,11 +43,11 @@ BT-17-001):
   ask.  Only the case owner, or the CASE_MANAGER it delegates to, decides
   the abandonment.  The participant's P/X/A signal already reached the
   manager as its status declaration, and the manager abandons on its own
-  detection.  An ER sent as the abandonment would be read as that
+  detection.  A ``Reject`` sent as the abandonment would be read as that
   participant declining the proposal (MSM-07-004).  This covers only the
   proposals already open on the case: a proposal, Invite or revision the
-  participant *receives* at P/X/A is still answered with ER on the received
-  path (EMB-01-002).
+  participant *receives* at P/X/A is still answered with its own ``Reject``
+  of the Invite on the received path (EMB-01-002).
 - On a replica, :class:`ApplyEmbargoAbandonmentFromLedgerNode` copies the
   ``CANCEL`` step of the embargo the entry's Invite names through the same
   function (EP-09-007, RSH-08-004, CM-23-016).  The CASE_MANAGER's
@@ -439,15 +439,16 @@ class LeaveAbandonmentToCaseManagerNode(DataLayerActionWithPorts):
     """The non-CASE_MANAGER arm of the abandonment: write nothing, ask nothing.
 
     A participant that is not the CASE_MANAGER writes no shared EM state
-    (EP-09-008), and it sends no ER either (EMB-16-002, #4148).  The P/X/A
+    (EP-09-008), and it sends no ``Reject`` either (EMB-16-002, #4148).  The P/X/A
     status that brought it here is its own declaration to the manager, or
     the manager's declaration to it, so the manager has the signal and
-    abandons on its own detection.  An ER sent as the abandonment would
+    abandons on its own detection.  A ``Reject`` sent as the abandonment would
     reach the manager as this participant declining the proposal
     (MSM-07-004).  Its replica moves when the manager's abandonment entry is
     replayed (EP-09-007).  A proposal, Invite or revision it *receives* at
-    P/X/A is answered with ER on the received path instead (EMB-01-002), so
-    this node does not stand for "never send ER".  Always SUCCESS.
+    P/X/A is answered with a ``Reject`` of the Invite on the received path
+    instead (EMB-01-002), so this node does not stand for "never send a
+    Reject".  Always SUCCESS.
     """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:

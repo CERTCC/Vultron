@@ -1,18 +1,18 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Reject",
-  "id": "urn:uuid:7106b2d6-2fa8-4639-8d23-c663dce6ffad",
-  "name": "https://vultron.example/organizations/coordinator Reject https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:2ff77bba-c8e8-4b48-b1d5-6c21657f66ae to https://vultron.example/organizations/coordinator",
-  "content": "We're declining your offer to transfer ownership of case VendorCo Case #63962330 to us.",
+  "id": "urn:uuid:78d082ea-f83f-42ad-b3e0-ee5995ca6db3",
+  "name": "https://vultron.example/organizations/coordinator Reject https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454 to https://vultron.example/organizations/coordinator",
+  "content": "We're declining your offer to transfer ownership of case VendorCo Case #83288480 to us.",
   "actor": "https://vultron.example/organizations/coordinator",
   "object": {
     "@context": "https://www.w3.org/ns/activitystreams",
     "type": "Offer",
-    "id": "urn:uuid:707f526c-32a3-424d-af3d-3f1e38a68323",
-    "name": "https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:2ff77bba-c8e8-4b48-b1d5-6c21657f66ae to https://vultron.example/organizations/coordinator",
-    "published": "2026-10-29T14:42:24+00:00",
-    "updated": "2026-10-29T14:42:24+00:00",
-    "content": "We're offering to transfer ownership of case VendorCo Case #63962330 to you.",
+    "id": "urn:uuid:77229dd8-4253-4fb3-9f3b-0ae9ec5435e4",
+    "name": "https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454 to https://vultron.example/organizations/coordinator",
+    "published": "2026-10-30T15:17:58.170013+00:00",
+    "updated": "2026-10-30T15:17:58.170015+00:00",
+    "content": "We're offering to transfer ownership of case VendorCo Case #83288480 to you.",
     "to": [
       "https://vultron.example/organizations/coordinator"
     ],
@@ -24,9 +24,9 @@
       "id": "https://vultron.example/organizations/coordinator"
     },
     "object": {
-      "@context": "https://www.w3.org/ns/activitystreams",
+      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "VulnerabilityCase",
-      "id": "urn:uuid:2ff77bba-c8e8-4b48-b1d5-6c21657f66ae"
+      "id": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454"
     }
   }
 }

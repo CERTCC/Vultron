@@ -42,7 +42,10 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from vultron.core.models._helpers import require_future_aware
+from vultron.core.models._helpers import (
+    require_future_aware,
+    timestamp_serializer,
+)
 from vultron.core.models.base import NonEmptyString, UriString
 from vultron.core.models.embargo_termination import (
     CASE_MANAGER_ONLY_CAUSE_KINDS,
@@ -145,6 +148,7 @@ class ProposeEmbargoRequest(CaseTriggerRequest):
 
     note: NonEmptyString | None = None
     end_time: datetime
+    _serialize_end_time = timestamp_serializer("end_time")
 
     @field_validator("end_time")
     @classmethod
@@ -272,6 +276,9 @@ class SubmitReportRequest(BaseModel):
     #: present the Offer carries a ``proposedEmbargo`` ending then; absent
     #: means no terms are stated and the receiver's default applies.
     proposed_embargo_end_time: datetime | None = None
+    _serialize_proposed_embargo_end_time = timestamp_serializer(
+        "proposed_embargo_end_time"
+    )
 
     @field_validator("proposed_embargo_end_time")
     @classmethod
@@ -480,6 +487,7 @@ class OfferCaseOwnershipTransferRequest(CaseTriggerRequest):
     transferee_id: UriString
     content: NonEmptyString | None = None
     end_time: datetime | None = None
+    _serialize_end_time = timestamp_serializer("end_time")
 
     @field_validator("end_time")
     @classmethod

@@ -195,7 +195,7 @@ It puts the initial activity in an AS2 `Announce` and signs the `Announce`.
   "type": "Announce",
   "id": "https://vendorb.example/cases/1234/actor/outbox/relay/88",
   "actor": "https://vendorb.example/cases/1234/actor",
-  "published": "2025-03-08T12:00:00Z",
+  "published": "2025-03-08T12:00:00.000000+00:00",
   "logIndex": 3,
   "prevLogHash": "sha256-of-entry-2",
   "to": "https://vendora.example/users/alice",

@@ -316,6 +316,7 @@ class TestSizeBudget:
         assert len(bundle.members) == 5
         assert bundle.weight == 5
 
+    @pytest.mark.spec("PAD-15-015")
     def test_member_ceiling_applies_under_budget(self):
         cands = [task(n, size="size:S") for n in range(1, 8)]
         bundle = select_bundle(cands, epic_schedule="Now", budget=99)
@@ -410,6 +411,7 @@ class TestEpicClaim:
             bundle
         )
 
+    @pytest.mark.spec("PAD-19-009")
     @pytest.mark.parametrize("issue_type", ["Bug", "Idea", "Concern"])
     def test_other_lanes_stay_open(self, issue_type):
         bundle = select_bundle(
@@ -417,6 +419,7 @@ class TestEpicClaim:
         )
         assert [c.number for c in bundle.members] == [1]
 
+    @pytest.mark.spec("PAD-19-009")
     def test_a_held_epic_still_bundles_its_bugs(self):
         """The build lane's hold must not pick /bugfix for it either."""
         bundle = select_bundle(
@@ -485,7 +488,7 @@ class TestCoherenceHints:
 
     def test_shared_file_path_is_surfaced(self):
         """Path overlap is advertised in the module docstring, `bundling.md` and
-        PAD-15-007, but the `_PATH_RE` branch had no test at all."""
+        PAD-15-016, but the `_PATH_RE` branch had no test at all."""
         members = [
             task(1, title="Harden specs/outbox.yaml retry caps"),
             task(2, title="Document specs/outbox.yaml in notes/outbox.md"),

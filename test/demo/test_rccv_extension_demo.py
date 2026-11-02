@@ -11,998 +11,550 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for the RCCV-extension four-actor CVD demo (DEMOMA-13).
+"""Unit tests for the RCCV-extension four-actor CVD demo (DEMOMA-13, #5535).
 
-Uses a single TestClient (one FastAPI app instance) to simulate four containers.
-All four DataLayerClient instances route through the same TestClient but address
-different actor namespaces via their respective actor IDs.
+``rccv-extension`` is written as composition (ADR-0098,
+:mod:`vultron.demo.helpers.story`): its opening is the shared
+:data:`~vultron.demo.helpers.two_coordinator_story.C1_INVITES_C2` prefix,
+which itself continues the rcv family's ``REPORTER_TELLS_THE_COORDINATOR``,
+and its own story is the continuation after C1 decides to **keep** the case
+(DEMOMA-13-012).  The checks that used to sit on its ``_phase_*`` functions
+therefore sit here on three things:
 
-True multi-container isolation is validated by the acceptance test runnable via:
-    DEMO=rccv-extension docker compose -f docker/docker-compose-multi-actor.yml up --abort-on-container-exit
+* the **story's shape** — the path read off its choices, the identity of the
+  stretch it shares with ``rccv-handoff``, and the order of its own fragments;
+* each of its **own fragments**, driven against a
+  :func:`~test.demo._helpers.story_state` stand-in cast, so a test observes
+  what the fragment calls;
+* the **surfaces around the story** — the CLI option set, the registry entry,
+  the dedicated case-actor container and the devlogs names the invariant
+  harness reads.
 
-AC-4 of ISSUE-1976: milestone assertion tests at each phase boundary.
+What the shared opening does is not re-tested here: ``test_coordinated_story``
+owns the rcv family's stretch, ``test_two_coordinator_story`` owns the pair's
+prefix and the continuations both scenarios tell, and
+``test_owner_decision_story`` owns the ``owner-keep-case`` continuations.
+Every test patches the collaborators out, so no HTTP happens; ``demo_gate`` /
+``demo_check`` / ``demo_step`` stay real wherever the test is about control
+flow and are stubbed to ``nullcontext`` only where it is about call shape
+(``test_demo_context_managers.py`` owns their behaviour).
 """
 
-import importlib
+import contextlib
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
-from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.rccv_extension_demo as demo
+import vultron.demo.utils as demo_utils
 from test.demo._helpers import (
-    assert_reset_reseeds_case_actor,
-    make_testclient_call,
     mock_actor,
     mock_case,
-    null_demo_contexts,
+    mock_client,
+    no_demo_banners,
     patch_chain_shared,
-    patched_report_submission,
+    story_state,
     stub_closure_gate,
 )
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.cli import main
-from vultron.demo.helpers import invite_chain
+from vultron.demo.cli import main as cli_main
+from vultron.demo.helpers import (
+    coordinated_story,
+    owner_decision_story,
+    story as story_module,
+    two_coordinator_story,
+)
+from vultron.demo.helpers.coordinated_story import (
+    COORDINATOR,
+    REPORTER,
+    REPORTER_TELLS_THE_COORDINATOR,
+    VENDOR,
+)
+from vultron.demo.helpers.notes import (
+    WORKAROUND_ANSWER,
+    WORKAROUND_QUESTION,
+)
+from vultron.demo.helpers.owner_decision_story import Part
+from vultron.demo.helpers.story import (
+    Choose,
+    UnseatedContainer,
+    choose,
+    run_story,
+    story,
+)
+from vultron.demo.helpers.two_coordinator_story import (
+    C1_INVITES_C2,
+    SECOND_COORDINATOR_JOINED,
+)
+from vultron.demo.scenario.registry import registered_scenarios
+from vultron.demo.utils import reset_demo_failures
+from vultron.enums.roles import CVDRole
+from vultron.errors import DemoStoryError
 
-# ---------------------------------------------------------------------------
-# Module-level fixtures
-# ---------------------------------------------------------------------------
+#: The scenario's four cast names, in ``ROLES`` order.
+_CAST = (REPORTER, demo.C1, demo.C2, VENDOR)
 
-
-@pytest.fixture(scope="module")
-def base(client: TestClient) -> str:
-    return str(client.base_url).rstrip("/") + "/api/v2"
-
-
-@pytest.fixture(scope="module", autouse=True)
-def patch_datalayer_call(client: TestClient, base: str):
-    mp = MonkeyPatch()
-    try:
-        mp.setattr(
-            demo.DataLayerClient, "call", make_testclient_call(client, base)
-        )
-        yield
-    finally:
-        mp.undo()
-        importlib.reload(demo)
-
-
-# ---------------------------------------------------------------------------
-# CLI command smoke tests
-# ---------------------------------------------------------------------------
-
-
-class TestRccvExtensionCliCommand:
-    """Test that the 'rccv-extension' CLI sub-command is registered."""
-
-    def test_rccv_extension_command_exists(self):
-        runner = CliRunner()
-        result = runner.invoke(main, ["rccv-extension", "--help"])
-        assert result.exit_code == 0, result.output
-
-    def test_rccv_extension_command_skip_health_check_option(self):
-        runner = CliRunner()
-        result = runner.invoke(main, ["rccv-extension", "--help"])
-        assert "--skip-health-check" in result.output
-
-    def test_rccv_extension_command_reporter_url_option(self):
-        runner = CliRunner()
-        result = runner.invoke(main, ["rccv-extension", "--help"])
-        assert "--reporter-url" in result.output
-
-    def test_rccv_extension_command_c1_url_option(self):
-        runner = CliRunner()
-        result = runner.invoke(main, ["rccv-extension", "--help"])
-        assert "--c1-url" in result.output
-
-    def test_rccv_extension_command_c2_url_option(self):
-        runner = CliRunner()
-        result = runner.invoke(main, ["rccv-extension", "--help"])
-        assert "--c2-url" in result.output
-
-    def test_rccv_extension_command_vendor_url_option(self):
-        runner = CliRunner()
-        result = runner.invoke(main, ["rccv-extension", "--help"])
-        assert "--vendor-url" in result.output
+#: How many items of ``STORY`` are the shared opening.
+_PREFIX_LEN = len(C1_INVITES_C2.items)
 
 
-# ---------------------------------------------------------------------------
-# Milestone assertion tests — AC-4 of ISSUE-1976
-# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def _fresh_failures():
+    """Clear the process-global failure accumulator around every test.
 
-
-class TestRccvExtensionMilestoneAssertions:
-    """Verify that _phase_* functions call the required milestone helpers.
-
-    All network/DataLayer calls are patched so no real HTTP is performed.
+    ``vultron.demo.utils._demo_failures`` is process-global, so a fragment
+    that records a failure would otherwise leave it for the next test to read
+    as its own (``notes/testing-pitfalls.md``).
     """
+    reset_demo_failures()
+    yield
+    reset_demo_failures()
 
-    def _actor(self, id_: str = "urn:test:actor"):
-        a = MagicMock()
-        a.id_ = id_
-        return a
 
-    def _case(self, id_: str = "urn:test:case"):
-        c = MagicMock()
-        c.id_ = id_
-        return c
+@contextlib.contextmanager
+def _no_banners():
+    """Every module a fragment of this scenario reaches, patched once."""
+    with no_demo_banners(
+        demo, coordinated_story, two_coordinator_story, owner_decision_story
+    ):
+        yield
 
-    def _client(self):
-        c = MagicMock()
-        c.get.return_value = {}
-        return c
 
-    def test_phase_report_submission_calls_verify_case_active(self):
-        """_phase_report_submission calls verify_case_active at M1."""
-        import contextlib
+def _four_party_state(joined: bool = True):
+    """A story state seating all four, on an open case."""
+    state = story_state(*_CAST, case=mock_case())
+    if joined:
+        # The shared opening's roster gate keeps it; the keep continuation
+        # reads it, so every test past that read needs it (#5535).
+        state.keep(SECOND_COORDINATOR_JOINED, str(state.case.id_))
+    return state
 
-        reporter_client = self._client()
-        c1_client = self._client()
-        c2_client = self._client()
-        vendor_client = self._client()
-        reporter = self._actor("urn:test:reporter")
-        c1 = self._actor("urn:test:c1")
-        c2 = self._actor("urn:test:c2")
-        vendor = self._actor("urn:test:vendor")
-        c1_in_c1 = self._actor("urn:test:c1")
-        c2_in_c2 = self._actor("urn:test:c2")
-        report = MagicMock()
-        offer = MagicMock()
-        offer.id_ = "urn:test:offer"
-        invite = MagicMock()
-        invite.id_ = "urn:test:invite"
-        case = self._case()
+
+# ---------------------------------------------------------------------------
+# The story's shape (DEMOCI-11-019, DEMOCI-11-024, DEMOMA-13-012)
+# ---------------------------------------------------------------------------
+
+
+class TestRccvExtensionStoryShape:
+    """``STORY`` places the scenario on the tree, and nothing else does."""
+
+    #: The path ``rccv-extension`` declared as ``@scenario(path=...)`` before
+    #: it was composed.  The composed form must walk exactly the same tree
+    #: ending, or the recordings, the generated index and the invariant
+    #: harness all move with it.
+    DECLARED_PATH = (
+        ("reporter-whom-to-tell", "coordinator"),
+        ("coordinator-invite-whom", "coordinator"),
+        ("owner-keep-case", "keep"),
+    )
+
+    def test_the_story_walks_the_path_the_scenario_used_to_declare(self):
+        """The path is read off the choices, not typed beside them."""
+        assert demo.STORY.path == self.DECLARED_PATH
+
+    def test_the_opening_is_the_shared_prefix_itself(self):
+        """``rccv-extension`` starts with the pair's prefix object.
+
+        Identity of the shared stretch, not merely a matching sequence: the
+        two scenarios' recordings must be byte-identical up to the
+        ``owner-keep-case`` branch point (DEMOCI-11-018), which only holds
+        while the opening is one copy of the code.  Comparing against
+        ``C1_INVITES_C2.items`` is what stops a sibling slipping a step in
+        before the branch point.
+        """
+        assert demo.STORY.items[:_PREFIX_LEN] == C1_INVITES_C2.items
+        # Identity only: ``Choose`` is a frozen dataclass, so a hand-copied
+        # duplicate compares equal and an equality arm would make this loop a
+        # second spelling of the tuple comparison above.
+        for mine, theirs in zip(
+            demo.STORY.items[:_PREFIX_LEN],
+            C1_INVITES_C2.items,
+            strict=True,
+        ):
+            assert mine is theirs
+
+    @pytest.mark.spec("DEMOMA-13-012")
+    def test_the_prefix_itself_starts_with_the_rcv_familys_opening(self):
+        """The nesting DEMOMA-13-012 names, asserted end to end.
+
+        Every coordinator-first scenario shares the report submission and
+        C1's triage, so the chain of prefixes has to reach from this
+        scenario's story back to ``REPORTER_TELLS_THE_COORDINATOR``.
+        """
+        shared = len(REPORTER_TELLS_THE_COORDINATOR.items)
+        assert (
+            demo.STORY.items[:shared] == REPORTER_TELLS_THE_COORDINATOR.items
+        )
+
+    def test_the_siblings_part_at_the_owners_decision(self):
+        """The first item after the prefix is the choice, and it differs."""
+        import vultron.demo.scenario.rccv_handoff_demo as handoff
+
+        branch = demo.STORY.items[_PREFIX_LEN]
+        assert branch == Choose(
+            branch_point="owner-keep-case",
+            choice="keep",
+            by=COORDINATOR,
+        )
+        assert branch != handoff.STORY.items[_PREFIX_LEN], (
+            "rccv-extension and rccv-handoff must take different choices at"
+            " owner-keep-case, or they are the same scenario"
+        )
+
+    def test_the_prefix_ends_with_c2_joining(self):
+        """C1 decides only once C2 is a participant (DEMOMA-13-003)."""
+        assert C1_INVITES_C2.items[-1] is two_coordinator_story.c1_invites_c2
+
+    def test_the_continuation_runs_in_the_declared_order(self):
+        """One assertion for the whole continuation, so a reordering shows.
+
+        The order is load-bearing: the M1 milestone and the drain both read
+        state the suggestion then changes, and the suggestion is what brings
+        the Vendor in, so every later fragment depends on it.
+        """
+        assert demo.STORY.items[_PREFIX_LEN:] == (
+            choose("owner-keep-case", "keep", by=demo.C1),
+            two_coordinator_story.required_participants_are_present,
+            demo.replicas_drain_before_the_vendor,
+            demo.c2_suggests_the_vendor,
+            two_coordinator_story.every_replica_converges,
+            demo.the_four_exchange_notes,
+            coordinated_story.vendor_reports_the_fix_ready,
+            demo.everyone_publishes,
+            demo.everyone_closes,
+        )
+
+    def test_c1_and_the_vendor_are_seated_under_the_family_role_names(self):
+        """One copy of the rcv opening serves ``rcv`` and this pair alike."""
+        assert demo.C1 == COORDINATOR
+        assert demo.VENDOR_PART.name == VENDOR
+        # The devlogs and the CLI keep the scenario's own names.
+        assert [role.name for role in demo.ROLES] == [
+            "reporter",
+            "c1",
+            "c2",
+            "vendor",
+            "case-actor",
+        ]
+
+
+# ---------------------------------------------------------------------------
+# C2 suggests the Vendor; C1, keeping the case, approves (DEMOMA-13-004/005)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("DEMOMA-13-004")
+@pytest.mark.spec("DEMOMA-13-005")
+class TestC2SuggestsTheVendor:
+    """The ADR-0026 suggest-actor flow, with C1 as the approving owner."""
+
+    def test_the_fragment_names_the_parts_and_the_vendor_role(self):
+        """The shared continuation takes this scenario's cast as data.
+
+        AC-2 of #5535: the continuation is not hard-wired to the
+        two-coordinator cast, so the scenario is what names C1 as the owner,
+        C2 as the suggester and the Vendor as the newcomer.
+        """
+        state = _four_party_state()
+
+        with patch.object(
+            demo, "the_owner_approves_a_suggested_actor"
+        ) as keep:
+            demo.c2_suggests_the_vendor(state)
+
+        kwargs = keep.call_args.kwargs
+        assert keep.call_args.args == (state,)
+        assert kwargs["owner"] == Part(demo.C1, "C1")
+        assert kwargs["suggester"] == Part(demo.C2, "C2")
+        assert kwargs["newcomer"] == Part(VENDOR, "Vendor")
+        # Roles must be explicit, or EvaluateDefaultRolesNode falls back to
+        # its hardcoded [VENDOR] default (#1969) — which happens to be right
+        # here, so only an explicit list keeps it honest.
+        assert kwargs["roles"] == [CVDRole.VENDOR]
+        assert kwargs["seated"] == (REPORTER, demo.C1, demo.C2, VENDOR)
+
+    def test_the_chain_runs_suggest_then_approve_then_invite_and_triage(self):
+        """One ordered pass of the flow, the real continuation running."""
+        state = _four_party_state()
+        order: list[str] = []
 
         with (
-            patch.object(demo, "reset_containers"),
-            patch.object(
-                demo,
-                "seed_containers_rccv",
-                return_value=(reporter, c1, c2, vendor),
-            ),
-            patch.object(
-                demo, "get_actor_by_id", side_effect=[c1_in_c1, c2_in_c2]
-            ),
-            patch.object(
-                demo, "reporter_submits_report", return_value=(report, offer)
-            ),
-            patch.object(demo, "run_direct_path_rm_triage", return_value=case),
-            patch.object(demo, "wait_for_case_participants"),
-            patch.object(demo, "wait_for_replica_ledger_coverage"),
             patch.object(
                 ActorSession,
-                "invite_actor_to_case",
-                return_value=SimpleNamespace(activity=invite),
+                "suggest_actor_to_case",
+                autospec=True,
+                side_effect=lambda *a, **kw: order.append("suggest"),
+            ) as suggest,
+            patch.object(
+                ActorSession,
+                "accept_actor_recommendation",
+                autospec=True,
+                side_effect=lambda *a, **kw: order.append("approve"),
+            ) as approve,
+            patch(
+                "vultron.demo.helpers.owner_decision_story"
+                ".find_cp_offer_for_case",
+                return_value="urn:test:cp-offer",
+            ) as cp_offer,
+            patch(
+                "vultron.demo.helpers.owner_decision_story"
+                ".find_case_actor_participant_id",
+                return_value="urn:test:case-actor-participant",
             ),
-            patch.object(ActorSession, "accept_case_invite"),
+            patch(
+                "vultron.demo.helpers.owner_decision_story"
+                ".run_case_invite_chain",
+                side_effect=lambda **kw: order.append("invite-chain"),
+            ) as chain,
+            patch(
+                "vultron.demo.helpers.owner_decision_story"
+                ".invitee_triages_after_joining",
+                side_effect=lambda *a, **kw: order.append("triage"),
+            ) as triage,
+            patch_chain_shared(
+                coordinated_story, "wait_for_case_on_container"
+            ),
+            _no_banners(),
+        ):
+            demo.c2_suggests_the_vendor(state)
+
+        assert order == ["suggest", "approve", "invite-chain", "triage"]
+
+        assert suggest.call_args.kwargs == {
+            "suggested_actor_id": state.actor_id(VENDOR),
+            "roles": [CVDRole.VENDOR],
+        }
+        assert suggest.call_args.args[0].actor is state.actor(demo.C2).actor
+        assert approve.call_args.args[0].actor is state.actor(demo.C1).actor
+        assert approve.call_args.kwargs == {
+            "cp_offer_id": "urn:test:cp-offer",
+            "case_actor_id": "urn:test:case-actor-participant",
+        }
+        # The recommendation is polled for on C1's own container, where the
+        # CaseActor forwards it (ADR-0026).
+        assert cp_offer.call_args.kwargs["client"] is state.client(demo.C1)
+
+        # The CaseActor invites on its own, so the chain is given no inviter
+        # and reads the canonical ledger through the case-actor container.
+        kwargs = chain.call_args.kwargs
+        assert "inviter" not in kwargs
+        assert kwargs["ledger_client"] is state.case_actor_client
+        assert kwargs["invitee_client"] is state.client(VENDOR)
+        assert kwargs["invitee"] is state.actor(VENDOR).actor
+
+        # The roster is read from C1, which keeps the case, and the triage
+        # authority is the canonical store.
+        assert triage.call_args.kwargs["owner"] == demo.C1
+        assert triage.call_args.kwargs["seated"] == (
+            REPORTER,
+            demo.C1,
+            demo.C2,
+            VENDOR,
+        )
+
+    @pytest.mark.spec("CLP-08-005")
+    def test_the_reporter_holds_the_case_before_the_vendors_triage(self):
+        """Bug #2120: the Vendor's triage broadcasts to the Reporter too.
+
+        The triage cycle broadcasts ``Announce(CaseLedgerEntry)`` to all
+        participants, so a Reporter without the case replica has no genesis
+        hash to anchor the chain on.
+        """
+        state = _four_party_state()
+        order: list[str] = []
+
+        def _wait_for_case(client, case_id, **_kwargs):
+            if client is state.client(REPORTER):
+                order.append("reporter_wait")
+
+        with (
             patch.object(ActorSession, "suggest_actor_to_case"),
             patch.object(ActorSession, "accept_actor_recommendation"),
-            patch.object(demo, "post_to_inbox_and_wait"),
-            patch.object(demo, "verify_object_stored"),
-            patch_chain_shared(demo, "wait_for_case_on_container"),
-            patch.object(
-                invite_chain,
-                "find_case_invite_for_actor",
-                return_value="urn:test:invite",
+            patch(
+                "vultron.demo.helpers.owner_decision_story"
+                ".find_cp_offer_for_case",
+                return_value="urn:test:cp-offer",
             ),
-            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
-            patch.object(demo, "run_invite_path_rm_triage"),
-            patch.object(demo, "verify_case_active") as mock_m1,
-            patch.object(
-                demo,
-                "demo_gate",
-                side_effect=lambda _: contextlib.nullcontext(),
+            patch(
+                "vultron.demo.helpers.owner_decision_story"
+                ".find_case_actor_participant_id",
+                return_value="urn:test:case-actor-participant",
+            ),
+            patch(
+                "vultron.demo.helpers.owner_decision_story"
+                ".run_case_invite_chain"
             ),
             patch.object(
-                demo,
-                "demo_check",
-                side_effect=lambda _: contextlib.nullcontext(),
+                coordinated_story,
+                "run_invite_path_rm_triage",
+                side_effect=lambda **_kw: order.append("triage"),
+            ) as triage,
+            patch.object(coordinated_story, "wait_for_case_participants"),
+            patch_chain_shared(
+                coordinated_story,
+                "wait_for_case_on_container",
+                side_effect=_wait_for_case,
             ),
-            patch.object(
-                demo,
-                "demo_step",
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
+            _no_banners(),
         ):
-            mock_vc.model_validate.return_value = case
-            demo._phase_report_submission(
-                reporter_client=reporter_client,
-                c1_client=c1_client,
-                c2_client=c2_client,
-                vendor_client=vendor_client,
-                case_actor_client=MagicMock(),
-                reporter_id=None,
-                c1_id=None,
-                c2_id=None,
-                vendor_id=None,
-            )
-        mock_m1.assert_called()
+            demo.c2_suggests_the_vendor(state)
 
-    def test_phase_fix_lifecycle_runs_vfd_checks(self):
-        """_phase_fix_lifecycle advances vendor through fix-ready VFD states."""
-        import contextlib
+        assert "reporter_wait" in order, (
+            "wait_for_case_on_container(reporter_client) was never called"
+            " before the Vendor's triage"
+        )
+        assert "triage" in order, "run_invite_path_rm_triage was never called"
+        assert order.index("reporter_wait") < order.index("triage"), (
+            f"the Reporter's case-replica wait must precede the Vendor's RM"
+            f" triage; order was {order} — Bug #2120 (CLP-08-005)"
+        )
+        # The triage's waits read the canonical store, not C1's replica.
+        assert (
+            triage.call_args.kwargs["auth_client"] is state.case_actor_client
+        )
+        assert triage.call_args.kwargs["invited_client"] is state.client(
+            VENDOR
+        )
 
-        c1_client = self._client()
-        vendor_client = self._client()
-        vendor = self._actor("urn:test:vendor")
-        vendor_in_vendor = self._actor("urn:test:vendor")
-        case = self._case()
+
+# ---------------------------------------------------------------------------
+# The note thread this scenario's joiners add to (DEMOMA-13-006)
+# ---------------------------------------------------------------------------
+
+
+class TestTheFourExchangeNotes:
+    """C2 and the Vendor follow the Reporter's question and C1's answer."""
+
+    def test_the_updates_follow_the_shared_question_and_answer(self):
+        """One thread of four, with this scenario's own two updates.
+
+        The Reporter's question and C1's answer are the pair's shared half
+        (``four_way_note_thread``); what C2 and the Vendor add is this
+        scenario's, because C1 still owns the case here.
+        """
+        state = _four_party_state()
+
+        with patch.object(two_coordinator_story, "add_note_thread") as thread:
+            demo.the_four_exchange_notes(state)
+
+        watching_client, case, posts = thread.call_args.args
+        assert watching_client is state.client(demo.C1)
+        assert case is state.case
+        assert [post.name for post in posts] == [
+            "Question from Reporter",
+            "C1 Response",
+            "C2 Update",
+            "Vendor Status Update",
+        ]
+        assert [post.content for post in posts[:2]] == [
+            WORKAROUND_QUESTION,
+            WORKAROUND_ANSWER,
+        ]
+        # Each poster acts from its own container.
+        assert [post.poster.client for post in posts] == [
+            state.client(REPORTER),
+            state.client(demo.C1),
+            state.client(demo.C2),
+            state.client(VENDOR),
+        ]
+        # C2's update does not claim ownership moved: C1 keeps the case.
+        assert "new case owner" not in posts[2].content.lower()
+
+
+# ---------------------------------------------------------------------------
+# Publication and closure with C1 still the owner (DEMOMA-13-002/006)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("DEMOMA-13-002")
+class TestEveryonePublishes:
+    """C1 never hands the case over, so C1 publishes first."""
+
+    def test_c1_is_the_owner_and_c2_is_the_other_coordinator(self):
+        """The shared step takes who owns the case as data (#5535 AC-2)."""
+        state = _four_party_state()
+
+        with patch.object(demo, "all_four_publish") as publish:
+            demo.everyone_publishes(state)
+
+        assert publish.call_args.args == (state,)
+        assert publish.call_args.kwargs == {
+            "owner": Part(demo.C1, "C1"),
+            "other": Part(demo.C2, "C2"),
+        }
+
+    @pytest.mark.spec("DEMOMA-07-003")
+    def test_c1_publishes_before_every_other_participant(self):
+        """The real shared step runs, so the whole order is checked."""
+        state = _four_party_state()
+        published: list[str] = []
 
         with (
-            patch.object(demo, "wait_for_participant_rm_state"),
-            patch.object(ActorSession, "notify_fix_ready") as mock_fix_ready,
+            patch.object(two_coordinator_story, "wait_for_case_em_terminated"),
             patch.object(
-                demo, "wait_for_participant_vf_state"
-            ) as mock_wait_vfd,
-            patch.object(
-                demo, "_check_participant_vf_state_in"
-            ) as mock_check_vfd,
-            patch.object(
-                demo,
-                "demo_check",
-                side_effect=lambda _: contextlib.nullcontext(),
+                two_coordinator_story, "wait_for_participant_vf_state"
             ),
-        ):
-            demo._phase_fix_lifecycle(
-                c1_client=c1_client,
-                vendor_client=vendor_client,
-                vendor=vendor,
-                vendor_in_vendor=vendor_in_vendor,
-                case=case,
-            )
-        mock_fix_ready.assert_called()
-        mock_wait_vfd.assert_called()
-        mock_check_vfd.assert_called()
-
-    def test_phase_fix_lifecycle_gates_on_rm_accepted(self):
-        """_phase_fix_lifecycle polls vendor RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (ADR-0058/CSB-18-001)."""
-        from vultron.core.states.rm import RM
-
-        c1_client = self._client()
-        vendor_client = self._client()
-        vendor = self._actor("urn:test:vendor")
-        vendor_in_vendor = self._actor("urn:test:vendor")
-        case = self._case()
-
-        call_order = []
-        rm_calls = []
-
-        def _rm_wait(*a, **kw):
-            rm_calls.append(kw)
-            call_order.append("rm_wait")
-
-        with (
-            patch.object(demo, "wait_for_participant_rm_state", _rm_wait),
+            patch.object(two_coordinator_story, "verify_publicly_disclosed"),
             patch.object(
                 ActorSession,
-                "notify_fix_ready",
-                side_effect=lambda *a, **kw: call_order.append("fix_ready"),
+                "notify_published",
+                autospec=True,
+                side_effect=lambda session: published.append(
+                    session.actor.id_
+                ),
             ),
-            patch.object(demo, "wait_for_participant_vf_state"),
-            patch.object(demo, "_check_participant_vf_state_in"),
+            _no_banners(),
         ):
-            demo._phase_fix_lifecycle(
-                c1_client=c1_client,
-                vendor_client=vendor_client,
-                vendor=vendor,
-                vendor_in_vendor=vendor_in_vendor,
-                case=case,
-            )
+            demo.everyone_publishes(state)
 
-        assert rm_calls, (
-            "wait_for_participant_rm_state must be called (ADR-0058/CSB-18-001)"
-        )
-        assert all(
-            c.get("expected_states") == {RM.ACCEPTED, RM.DEFERRED, RM.CLOSED}
-            for c in rm_calls
-        ), "expected_states must be {ACCEPTED, DEFERRED, CLOSED} (CSB-18-001)"
-        assert "rm_wait" in call_order and "fix_ready" in call_order
-        assert call_order.index("rm_wait") < call_order.index("fix_ready"), (
-            "wait_for_participant_rm_state must precede actor_notifies_fix_ready (ADR-0058)"
-        )
+        assert published == [
+            state.actor_id(demo.C1),
+            state.actor_id(VENDOR),
+            state.actor_id(demo.C2),
+            state.actor_id(REPORTER),
+        ]
 
-    def test_phase_publication_calls_verify_publicly_disclosed(self):
-        """_phase_publication calls verify_publicly_disclosed at M7."""
-        import contextlib
 
-        reporter_client = self._client()
-        c1_client = self._client()
-        c2_client = self._client()
-        vendor_client = self._client()
-        c1 = self._actor("urn:test:c1")
-        c1_in_c1 = self._actor("urn:test:c1")
-        c2_in_c2 = self._actor("urn:test:c2")
-        vendor = self._actor("urn:test:vendor")
-        vendor_in_vendor = self._actor("urn:test:vendor")
-        reporter_in_reporter = self._actor("urn:test:reporter")
-        case = self._case()
+@pytest.mark.spec("CM-23-015")
+class TestEveryoneCloses:
+    """Three participants leave in order, then C1, the Case Owner."""
 
-        with (
-            patch.object(ActorSession, "notify_published"),
-            patch.object(demo, "wait_for_case_em_terminated"),
-            patch.object(demo, "wait_for_participant_vf_state"),
-            patch.object(demo, "verify_publicly_disclosed") as mock_m7,
-            patch.object(
-                demo,
-                "demo_check",
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-        ):
-            demo._phase_publication(
-                reporter_client=reporter_client,
-                c1_client=c1_client,
-                c2_client=c2_client,
-                vendor_client=vendor_client,
-                c1=c1,
-                c1_in_c1=c1_in_c1,
-                c2_in_c2=c2_in_c2,
-                vendor=vendor,
-                vendor_in_vendor=vendor_in_vendor,
-                reporter_in_reporter=reporter_in_reporter,
-                case=case,
-            )
-        mock_m7.assert_called()
+    def test_c1_leaves_last_and_the_departures_are_read_on_the_case_actor(
+        self,
+    ):
+        """The owner's ``Leave`` is gated on the CASE_MANAGER's store.
 
-    def test_phase_case_closure_runs_the_closure_milestone(self):
-        """_phase_case_closure runs the shared closure milestone (CM-23-004).
-
-        The milestone checks the CASE_MANAGER's store and each leaver's own
-        replica inside ``close_case_owner_last``; the scenario only names it.
+        That store lives on the dedicated case-actor container
+        (DEMOMA-06-005), so the authority client must be that one and not
+        C1's own.
         """
-        import contextlib
-
-        reporter_client = self._client()
-        c1_client = self._client()
-        c2_client = self._client()
-        vendor_client = self._client()
-        c1_in_c1 = self._actor("urn:test:c1")
-        c2_in_c2 = self._actor("urn:test:c2")
-        vendor_in_vendor = self._actor("urn:test:vendor")
-        reporter_in_reporter = self._actor("urn:test:reporter")
-        case = self._case()
-        case.id_ = "urn:test:case"
-        c1_client.get.return_value = {
-            "e0": {
-                "case_id": case.id_,
-                "log_index": 0,
-                "entry_hash": "h0",
-                "semantic_type": "close_case",
-            }
-        }
+        state = _four_party_state()
 
         with (
             patch.object(ActorSession, "leave_case"),
             stub_closure_gate(),
-            patch.object(demo, "close_case_owner_last") as mock_m8,
             patch.object(
-                demo,
-                "demo_check",
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
+                coordinated_story, "close_case_owner_last"
+            ) as closure,
         ):
-            demo._phase_case_closure(
-                reporter_client=reporter_client,
-                c1_client=c1_client,
-                c2_client=c2_client,
-                vendor_client=vendor_client,
-                case_actor_client=MagicMock(),
-                c1_in_c1=c1_in_c1,
-                c2_in_c2=c2_in_c2,
-                vendor_in_vendor=vendor_in_vendor,
-                reporter_in_reporter=reporter_in_reporter,
-                case=case,
-            )
-        mock_m8.assert_called_once()
-        assert mock_m8.call_args.kwargs.get("milestone") == "M8"
+            demo.everyone_closes(state)
 
-
-@pytest.mark.spec("CLP-08-005")
-class TestReporterCaseReplicaWaitBeforeVendorTriage:
-    """CLP-08-005: Reporter replica wait must precede invite-path RM triage in rccv-extension."""
-
-    def _actor(self, id_: str = "urn:test:actor"):
-        a = MagicMock()
-        a.id_ = id_
-        return a
-
-    def _case(self, id_: str = "urn:test:case"):
-        c = MagicMock()
-        c.id_ = id_
-        return c
-
-    def _client(self):
-        c = MagicMock()
-        c.get.return_value = {}
-        return c
-
-    def test_reporter_client_in_signature(self):
-        import inspect
-
-        sig = inspect.signature(demo._phase_c2_suggests_vendor)
-        assert "reporter_client" in sig.parameters
-
-    def test_reporter_wait_before_vendor_triage(self):
-        import contextlib
-
-        reporter_client = self._client()
-        c1_client = self._client()
-        c2_client = self._client()
-        vendor_client = self._client()
-        c1_in_c1 = self._actor("urn:test:c1")
-        c2_in_c2 = self._actor("urn:test:c2")
-        vendor = self._actor("urn:test:vendor")
-        vendor_in_vendor = self._actor("urn:test:vendor")
-        case = self._case()
-        offer = MagicMock()
-        report = MagicMock()
-        reporter = self._actor("urn:test:reporter")
-
-        call_order: list[str] = []
-
-        def _wait_for_case(client, case_id, **_kw):
-            if client is reporter_client:
-                call_order.append("reporter_wait")
-
-        def _triage(**_kw):
-            call_order.append("triage")
-
-        with (
-            patch_chain_shared(
-                demo,
-                "wait_for_case_on_container",
-                side_effect=_wait_for_case,
-            ),
-            patch.object(
-                demo, "run_invite_path_rm_triage", side_effect=_triage
-            ),
-            patch(
-                "vultron.demo.actor_session.post_to_trigger",
-                return_value={"activity": {"id": "urn:test:activity"}},
-            ),
-            patch.object(
-                demo, "find_cp_offer_for_case", return_value="urn:test:offer"
-            ),
-            patch.object(
-                demo,
-                "find_case_actor_participant_id",
-                return_value="urn:test:case-actor",
-            ),
-            patch.object(
-                invite_chain,
-                "find_case_invite_for_actor",
-                return_value="urn:test:invite",
-            ),
-            patch.object(demo, "wait_for_case_participants"),
-            patch.object(
-                demo,
-                "demo_check",
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-            patch.object(
-                demo,
-                "demo_step",
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-        ):
-            demo._phase_c2_suggests_vendor(
-                reporter_client=reporter_client,
-                c1_client=c1_client,
-                c2_client=c2_client,
-                vendor_client=vendor_client,
-                case_actor_client=MagicMock(),
-                c1_in_c1=c1_in_c1,
-                c2_in_c2=c2_in_c2,
-                vendor=vendor,
-                vendor_in_vendor=vendor_in_vendor,
-                case=case,
-                offer=offer,
-                report=report,
-                reporter=reporter,
-            )
-
-        assert "reporter_wait" in call_order, (
-            "wait_for_case_on_container(reporter_client) never called"
-        )
-        assert "triage" in call_order, "run_invite_path_rm_triage never called"
-        reporter_idx = next(
-            i for i, v in enumerate(call_order) if v == "reporter_wait"
-        )
-        triage_idx = next(i for i, v in enumerate(call_order) if v == "triage")
-        assert reporter_idx < triage_idx, (
-            "Reporter replica wait must precede run_invite_path_rm_triage; "
-            f"got order: {call_order}"
-        )
-
-
-class TestRccvExtensionCausalGates:
-    """Verify causal demo_gate sites skip dependent steps on timeout.
-
-    Each test simulates an async-commit timeout at the precondition and
-    confirms the dependent step is never reached.
-    """
-
-    def _actor(self, id_: str = "urn:test:actor"):
-        a = MagicMock()
-        a.id_ = id_
-        return a
-
-    def _case(self, id_: str = "urn:test:case"):
-        c = MagicMock()
-        c.id_ = id_
-        return c
-
-    def _client(self):
-        c = MagicMock()
-        c.get.return_value = {}
-        return c
-
-    def test_accept_not_called_when_cp_offer_gate_fails(self):
-        """demo_gate skips accept-actor-recommendation when find_cp_offer_for_case times out."""
-        reporter_client = self._client()
-        c1_client = self._client()
-        c2_client = self._client()
-        vendor_client = self._client()
-        c1_in_c1 = self._actor("urn:test:c1-in-c1")
-        c2_in_c2 = self._actor("urn:test:c2-in-c2")
-        vendor = self._actor("urn:test:vendor")
-        vendor_in_vendor = self._actor("urn:test:vendor-in-vendor")
-        reporter = self._actor("urn:test:reporter")
-        case = self._case()
-
-        mock_post_to_trigger = MagicMock()
-
-        with (
-            patch.object(
-                demo,
-                "find_cp_offer_for_case",
-                side_effect=AssertionError(
-                    "timed out polling for Offer(CaseParticipant)"
-                ),
-            ),
-            patch.object(
-                demo,
-                "find_case_actor_participant_id",
-                return_value="urn:test:case-actor",
-            ),
-            patch(
-                "vultron.demo.actor_session.post_to_trigger",
-                mock_post_to_trigger,
-            ),
-            patch.object(
-                invite_chain,
-                "find_case_invite_for_actor",
-                return_value="urn:test:invite",
-            ),
-            patch_chain_shared(demo, "wait_for_case_on_container"),
-            patch.object(demo, "wait_for_case_participants"),
-            patch.object(demo, "run_invite_path_rm_triage"),
-        ):
-            demo._phase_c2_suggests_vendor(
-                reporter_client=reporter_client,
-                c1_client=c1_client,
-                c2_client=c2_client,
-                vendor_client=vendor_client,
-                case_actor_client=MagicMock(),
-                c1_in_c1=c1_in_c1,
-                c2_in_c2=c2_in_c2,
-                vendor=vendor,
-                vendor_in_vendor=vendor_in_vendor,
-                case=case,
-                offer=MagicMock(),
-                report=MagicMock(),
-                reporter=reporter,
-            )
-
-        accept_calls = [
-            c
-            for c in mock_post_to_trigger.call_args_list
-            if c.kwargs.get("behavior") == "accept-actor-recommendation"
+        kwargs = closure.call_args.kwargs
+        assert kwargs["milestone"] == "M8"
+        assert kwargs["authority_client"] is state.case_actor_client
+        assert [leaver.client for leaver in kwargs["others"]] == [
+            state.client(VENDOR),
+            state.client(demo.C2),
+            state.client(REPORTER),
         ]
-        assert not accept_calls, (
-            "accept-actor-recommendation must not be called when "
-            f"cp_offer gate fails: {accept_calls}"
-        )
-
-    def test_vendor_accept_not_called_when_invite_gate_fails(self):
-        """demo_gate skips Vendor's accept-case-invite when find_case_invite_for_actor times out (#3038)."""
-        reporter_client = self._client()
-        c1_client = self._client()
-        c2_client = self._client()
-        vendor_client = self._client()
-        c1_in_c1 = self._actor("urn:test:c1-in-c1")
-        c2_in_c2 = self._actor("urn:test:c2-in-c2")
-        vendor = self._actor("urn:test:vendor")
-        vendor_in_vendor = self._actor("urn:test:vendor-in-vendor")
-        reporter = self._actor("urn:test:reporter")
-        case = self._case()
-
-        accept_invite = MagicMock()
-
-        with (
-            patch.object(ActorSession, "suggest_actor_to_case"),
-            patch.object(ActorSession, "accept_actor_recommendation"),
-            patch.object(ActorSession, "accept_case_invite", accept_invite),
-            patch.object(
-                demo,
-                "find_cp_offer_for_case",
-                return_value="urn:test:cp-offer",
-            ),
-            patch.object(
-                demo,
-                "find_case_actor_participant_id",
-                return_value="urn:test:case-actor",
-            ),
-            patch.object(
-                invite_chain,
-                "find_case_invite_for_actor",
-                side_effect=AssertionError("timed out polling for Invite"),
-            ),
-            patch_chain_shared(
-                demo, "wait_for_case_on_container"
-            ) as replica_wait,
-            patch.object(demo, "wait_for_case_participants"),
-            patch.object(demo, "run_invite_path_rm_triage"),
-        ):
-            demo._phase_c2_suggests_vendor(
-                reporter_client=reporter_client,
-                c1_client=c1_client,
-                c2_client=c2_client,
-                vendor_client=vendor_client,
-                case_actor_client=MagicMock(),
-                c1_in_c1=c1_in_c1,
-                c2_in_c2=c2_in_c2,
-                vendor=vendor,
-                vendor_in_vendor=vendor_in_vendor,
-                case=case,
-                offer=MagicMock(),
-                report=MagicMock(),
-                reporter=reporter,
-            )
-
-        accept_invite.assert_not_called()
-        assert not [
-            c
-            for c in replica_wait.call_args_list
-            if c.kwargs.get("client") is vendor_client
-        ], "replica_wait ran for the skipped dependent: " + str(
-            replica_wait.call_args_list
-        )
+        assert kwargs["owner"].client is state.client(demo.C1)
+        assert kwargs["owner"].actor is state.actor(demo.C1).actor
 
 
 # ---------------------------------------------------------------------------
-# Regression test — ISSUE-2811 timeout fix
-# ---------------------------------------------------------------------------
-
-
-class TestRccvExtensionRmTriageTimeout:
-    """_phase_report_submission must forward timeout_seconds=60.0 to
-    run_direct_path_rm_triage so the causal gate (ADR-0058) does not race
-    under 4-container CI load (ISSUE-2811)."""
-
-    def _actor(self, id_: str = "urn:test:actor"):
-        a = MagicMock()
-        a.id_ = id_
-        return a
-
-    def _case(self, id_: str = "urn:test:case"):
-        c = MagicMock()
-        c.id_ = id_
-        return c
-
-    def _client(self):
-        c = MagicMock()
-        c.get.return_value = {}
-        return c
-
-    def test_phase_report_submission_passes_60s_timeout_to_rm_triage(self):
-        """Regression: rccv_extension CI timed out at 20 s default (ISSUE-2811)."""
-        import contextlib
-
-        reporter = self._actor("urn:test:reporter")
-        c1 = self._actor("urn:test:c1")
-        c2 = self._actor("urn:test:c2")
-        vendor = self._actor("urn:test:vendor")
-        c1_in_c1 = self._actor("urn:test:c1")
-        c2_in_c2 = self._actor("urn:test:c2")
-        report = MagicMock()
-        offer = MagicMock()
-        offer.id_ = "urn:test:offer"
-        invite = MagicMock()
-        invite.id_ = "urn:test:invite"
-        case = self._case()
-
-        with (
-            patch.object(demo, "reset_containers"),
-            patch.object(
-                demo,
-                "seed_containers_rccv",
-                return_value=(reporter, c1, c2, vendor),
-            ),
-            patch.object(
-                demo,
-                "get_actor_by_id",
-                side_effect=[c1_in_c1, c2_in_c2],
-            ),
-            patch.object(
-                demo, "reporter_submits_report", return_value=(report, offer)
-            ),
-            patch.object(
-                demo, "run_direct_path_rm_triage", return_value=case
-            ) as mock_rm_triage,
-            patch.object(demo, "wait_for_case_participants"),
-            patch.object(demo, "wait_for_replica_ledger_coverage"),
-            patch.object(
-                ActorSession,
-                "invite_actor_to_case",
-                return_value=SimpleNamespace(activity=invite),
-            ),
-            patch.object(ActorSession, "accept_case_invite"),
-            patch.object(ActorSession, "suggest_actor_to_case"),
-            patch.object(ActorSession, "accept_actor_recommendation"),
-            patch.object(demo, "post_to_inbox_and_wait"),
-            patch.object(demo, "verify_object_stored"),
-            patch_chain_shared(demo, "wait_for_case_on_container"),
-            patch.object(invite_chain, "find_case_invite_for_actor"),
-            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
-            patch.object(demo, "run_invite_path_rm_triage"),
-            patch.object(demo, "verify_case_active"),
-            patch.object(
-                demo,
-                "demo_gate",
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-            patch.object(
-                demo,
-                "demo_check",
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-            patch.object(
-                demo,
-                "demo_step",
-                side_effect=lambda _: contextlib.nullcontext(),
-            ),
-        ):
-            mock_vc.model_validate.return_value = case
-            demo._phase_report_submission(
-                reporter_client=self._client(),
-                c1_client=self._client(),
-                c2_client=self._client(),
-                vendor_client=self._client(),
-                case_actor_client=MagicMock(),
-                reporter_id=None,
-                c1_id=None,
-                c2_id=None,
-                vendor_id=None,
-            )
-
-        _call = mock_rm_triage.call_args
-        assert _call is not None
-        assert _call.kwargs.get("timeout_seconds") == 60.0, (
-            "run_direct_path_rm_triage must receive timeout_seconds=60.0; "
-            "the 20-second default races under 4-container CI load (ISSUE-2811)"
-        )
-
-
-class TestRccvExtensionInviteTriggerFailureSkipsDependents:
-    """A failed C2 invite trigger skips the lookup gate and everything under it.
-
-    Before the fix ``invite_result.activity`` was read after the suppressing
-    ``demo_step`` on a ``None`` sentinel, crashing the run with
-    ``AttributeError`` outside the accumulator (DEMOCI-01-003, #3038 sibling).
-    """
-
-    def _actor(self, id_: str = "urn:test:actor"):
-        a = MagicMock()
-        a.id_ = id_
-        return a
-
-    def _case(self, id_: str = "urn:test:case"):
-        c = MagicMock()
-        c.id_ = id_
-        return c
-
-    def _client(self):
-        c = MagicMock()
-        c.get.return_value = {}
-        return c
-
-    def _run_report_submission(self, *, invite_trigger, invite_lookup):
-        reporter_client = self._client()
-        c1_client = self._client()
-        c2_client = self._client()
-        vendor_client = self._client()
-        reporter = self._actor("urn:test:reporter")
-        c1 = self._actor("urn:test:c1")
-        c2 = self._actor("urn:test:c2")
-        vendor = self._actor("urn:test:vendor")
-        c1_in_c1 = self._actor("urn:test:c1")
-        c2_in_c2 = self._actor("urn:test:c2")
-        case = self._case()
-
-        with (
-            patch.object(demo, "reset_containers"),
-            patch.object(
-                demo,
-                "seed_containers_rccv",
-                return_value=(reporter, c1, c2, vendor),
-            ),
-            patch.object(
-                demo, "get_actor_by_id", side_effect=[c1_in_c1, c2_in_c2]
-            ),
-            patch.object(
-                demo,
-                "reporter_submits_report",
-                return_value=(MagicMock(), MagicMock(id_="urn:test:offer")),
-            ),
-            patch.object(demo, "run_direct_path_rm_triage", return_value=case),
-            patch.object(demo, "wait_for_case_participants"),
-            patch.object(demo, "wait_for_replica_ledger_coverage"),
-            patch.object(
-                ActorSession, "invite_actor_to_case", **invite_trigger
-            ),
-            patch.object(ActorSession, "accept_case_invite") as accept_invite,
-            patch.object(ActorSession, "suggest_actor_to_case"),
-            patch.object(ActorSession, "accept_actor_recommendation"),
-            patch.object(demo, "post_to_inbox_and_wait"),
-            patch.object(demo, "verify_object_stored"),
-            patch_chain_shared(
-                demo, "wait_for_case_on_container"
-            ) as replica_wait,
-            patch.object(
-                invite_chain, "find_case_invite_for_actor", **invite_lookup
-            ) as find_invite,
-            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
-            patch.object(demo, "run_invite_path_rm_triage"),
-            patch.object(demo, "verify_case_active"),
-        ):
-            mock_vc.model_validate.return_value = case
-            demo._phase_report_submission(
-                reporter_client=reporter_client,
-                c1_client=c1_client,
-                c2_client=c2_client,
-                vendor_client=vendor_client,
-                case_actor_client=MagicMock(),
-                reporter_id=None,
-                c1_id=None,
-                c2_id=None,
-                vendor_id=None,
-            )
-        return find_invite, accept_invite, replica_wait, c2_client
-
-    def test_c2_invite_trigger_failure_skips_lookup_and_accept(self):
-        find_invite, accept_invite, replica_wait, c2_client = (
-            self._run_report_submission(
-                invite_trigger={
-                    "side_effect": RuntimeError("invite trigger failed")
-                },
-                invite_lookup={"return_value": "urn:test:invite"},
-            )
-        )
-        find_invite.assert_not_called()
-        accept_invite.assert_not_called()
-        assert not [
-            c
-            for c in replica_wait.call_args_list
-            if c.kwargs.get("client") is c2_client
-        ], "replica_wait ran for the skipped dependent: " + str(
-            replica_wait.call_args_list
-        )
-
-    def test_c2_invite_lookup_failure_skips_accept_and_replica_wait(self):
-        _, accept_invite, replica_wait, c2_client = (
-            self._run_report_submission(
-                invite_trigger={
-                    "return_value": SimpleNamespace(
-                        activity=MagicMock(id_="urn:test:invite")
-                    )
-                },
-                invite_lookup={
-                    "side_effect": AssertionError(
-                        "timed out polling for Invite"
-                    )
-                },
-            )
-        )
-        accept_invite.assert_not_called()
-        assert not [
-            c
-            for c in replica_wait.call_args_list
-            if c.kwargs.get("client") is c2_client
-        ], "replica_wait ran for the skipped dependent: " + str(
-            replica_wait.call_args_list
-        )
-
-
-# ---------------------------------------------------------------------------
-# Phase 1 drain goes through the shared coverage helper (DEMOMA-23-005, #3906)
-# ---------------------------------------------------------------------------
-
-
-class TestRccvExtensionPhase1DrainViaSharedHelper:
-    """AC-1 (#3956): the Phase 1 drain is ``wait_for_replica_ledger_coverage``
-    with the same authority (C1) and replica pairs the deleted
-    ``drain_phase1_ledger`` received."""
-
-    def test_phase1_drain_calls_shared_helper_with_same_authority_and_replicas(
-        self,
-    ):
-        clients = {
-            k: MagicMock(name=k)
-            for k in (
-                "reporter_client",
-                "c1_client",
-                "c2_client",
-                "vendor_client",
-                "case_actor_client",
-            )
-        }
-        case = mock_case()
-        with patched_report_submission(
-            demo,
-            seed_fn="seed_containers_rccv",
-            seeded_actors=(
-                mock_actor("urn:test:reporter"),
-                mock_actor("urn:test:c1"),
-                mock_actor("urn:test:c2"),
-                mock_actor("urn:test:vendor"),
-            ),
-            actor_lookups=[
-                mock_actor("urn:test:c1"),
-                mock_actor("urn:test:c2"),
-            ],
-            case=case,
-            demo_patches={
-                name: {}
-                for name in (
-                    "wait_for_case_participants",
-                    "wait_for_replica_ledger_coverage",
-                    "post_to_inbox_and_wait",
-                    "verify_object_stored",
-                    "wait_for_case_on_container",
-                    "find_case_invite_for_actor",
-                    "run_invite_path_rm_triage",
-                    "verify_case_active",
-                )
-            },
-            session_patches=(
-                "accept_case_invite",
-                "suggest_actor_to_case",
-                "accept_actor_recommendation",
-            ),
-        ) as mocks:
-            demo._phase_report_submission(
-                reporter_id=None,
-                c1_id=None,
-                c2_id=None,
-                vendor_id=None,
-                **clients,
-            )
-
-        coverage = mocks["wait_for_replica_ledger_coverage"]
-        coverage.assert_called_once()
-        kwargs = coverage.call_args.kwargs
-        assert kwargs["auth_client"] is clients["c1_client"]
-        assert kwargs["replicas"] == [
-            (clients["reporter_client"], "Reporter"),
-            (clients["c2_client"], "C2"),
-        ]
-        assert kwargs["case_id"] == case.id_
-        assert kwargs["phase_label"] == "Phase 1 drain before Phase 2"
-        # The drain is a causal gate for Phase 2 (EDF-06-005), the helper's
-        # only mode.
-        assert set(kwargs) == {
-            "auth_client",
-            "replicas",
-            "case_id",
-            "phase_label",
-        }
-
-
-# ---------------------------------------------------------------------------
-# The dedicated case-actor container (DEMOMA-06-004, #1876)
+# The dedicated case-actor container (DEMOMA-06-004, DEMOMA-13-010, #1876)
 # ---------------------------------------------------------------------------
 
 
@@ -1010,177 +562,476 @@ class TestRccvExtensionDedicatedCaseActor:
     """Every CASE_MANAGER read and act goes to the case-actor container.
 
     C1 proposes the case to the dedicated case-actor container, so the
-    CaseActor's store is there and nowhere else: a C1 client cannot address it.
+    CaseActor's store is there and nowhere else: a C1 client cannot address
+    it (DEMOMA-13-001, DEMOMA-13-010).
     """
 
-    def test_reset_resets_and_reseeds_the_case_actor_container(self):
-        assert_reset_reseeds_case_actor(
-            demo,
-            {
-                name: MagicMock(name=name)
-                for name in (
-                    "reporter_client",
-                    "c1_client",
-                    "c2_client",
-                    "vendor_client",
-                )
-            },
-        )
+    def _open_the_cast(self, clients, case_actor_client):
+        """Run the scenario's ``open_cast`` with the seeding patched out.
 
-    def test_report_submission_routes_case_manager_to_case_actor(self):
-        clients = {
-            k: MagicMock(name=k)
-            for k in (
-                "reporter_client",
-                "c1_client",
-                "c2_client",
-                "vendor_client",
-                "case_actor_client",
-            )
-        }
-        with patched_report_submission(
-            demo,
-            seed_fn="seed_containers_rccv",
-            seeded_actors=(
-                mock_actor("urn:test:reporter"),
-                mock_actor("urn:test:c1"),
-                mock_actor("urn:test:c2"),
-                mock_actor("urn:test:vendor"),
+        ``run_story()`` is what plays the story; the cast opening is the
+        callable it is handed, so this runs that and nothing else.
+        """
+        seeded = [
+            mock_actor(f"urn:test:{name}")
+            for name in (REPORTER, demo.C1, VENDOR)
+        ]
+        captured = SimpleNamespace()
+
+        with (
+            patch.object(demo, "run_story") as run_story,
+            patch.object(
+                coordinated_story,
+                "reset_datalayer",
+                return_value={"status": "ok"},
+            ) as reset,
+            patch(
+                "vultron.demo.helpers.seeding.seed_case_actor_identity"
+            ) as reseed,
+            patch.object(
+                coordinated_story,
+                "seed_containers_rcv",
+                return_value=tuple(seeded),
+            ) as seed_three,
+            patch.object(
+                coordinated_story, "get_actor_by_id", side_effect=list(seeded)
             ),
-            actor_lookups=[
-                mock_actor("urn:test:c1"),
-                mock_actor("urn:test:c2"),
-            ],
-            case=mock_case(),
-            demo_patches={
-                name: {}
-                for name in (
-                    "wait_for_case_participants",
-                    "wait_for_replica_ledger_coverage",
-                    "run_case_invite_chain",
-                    "verify_case_active",
-                )
-            },
-        ) as mocks:
-            demo._phase_report_submission(
-                reporter_id=None,
-                c1_id=None,
-                c2_id=None,
-                vendor_id=None,
-                **clients,
-            )
-            reset_kwargs = demo.reset_containers.call_args.kwargs  # type: ignore[attr-defined]
-
-        assert (
-            reset_kwargs["case_actor_client"] is clients["case_actor_client"]
-        )
-        chain_kwargs = mocks["run_case_invite_chain"].call_args.kwargs
-        assert (
-            chain_kwargs["case_manager_client"] is clients["case_actor_client"]
-        )
-
-    def test_vendor_join_reads_case_manager_on_case_actor(self):
-        import contextlib
-
-        case_actor_client = MagicMock(name="case_actor_client")
-        with contextlib.ExitStack() as stack:
-            chain = stack.enter_context(
-                patch.object(demo, "run_case_invite_chain")
-            )
-            triage = stack.enter_context(
-                patch.object(demo, "run_invite_path_rm_triage")
-            )
-            for name in (
-                "wait_for_case_participants",
-                "wait_for_case_on_container",
-            ):
-                stack.enter_context(patch.object(demo, name))
-            stack.enter_context(
-                patch.object(
-                    demo, "find_cp_offer_for_case", return_value="urn:test:cp"
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    demo,
-                    "find_case_actor_participant_id",
-                    return_value="urn:test:case-actor",
-                )
-            )
-            for name in (
-                "suggest_actor_to_case",
-                "accept_actor_recommendation",
-            ):
-                stack.enter_context(patch.object(ActorSession, name))
-            null_demo_contexts(stack, demo)
-            demo._phase_c2_suggests_vendor(
-                reporter_client=MagicMock(),
-                c1_client=MagicMock(),
-                c2_client=MagicMock(),
-                vendor_client=MagicMock(),
+            patch.object(two_coordinator_story, "seed_containers_rccv") as (
+                seed_four
+            ),
+        ):
+            demo.run_rccv_extension_demo(
+                reporter_client=clients[REPORTER],
+                c1_client=clients[demo.C1],
+                c2_client=clients[demo.C2],
+                vendor_client=clients[VENDOR],
                 case_actor_client=case_actor_client,
-                c1_in_c1=mock_actor("urn:test:c1"),
-                c2_in_c2=mock_actor("urn:test:c2"),
-                vendor=mock_actor("urn:test:vendor"),
-                vendor_in_vendor=mock_actor("urn:test:vendor"),
-                case=mock_case(),
-                offer=MagicMock(),
-                report=MagicMock(),
-                reporter=mock_actor("urn:test:reporter"),
+                reporter_id="urn:test:reporter",
+                c1_id="urn:test:c1",
+                c2_id="urn:test:c2",
+                vendor_id="urn:test:vendor",
             )
+            captured.state = run_story.call_args.args[2](MagicMock())
+            captured.run_story = run_story
+        return captured, reset, reseed, seed_three, seed_four
 
-        assert chain.call_args.kwargs["ledger_client"] is case_actor_client
-        assert triage.call_args.kwargs["auth_client"] is case_actor_client
+    @pytest.mark.spec("DEMOMA-01-003")
+    def test_reset_clears_every_container_and_reseeds_the_case_actor(self):
+        """C2's container is reset with the rest, then left unseeded.
 
-    def test_closure_reads_departures_on_case_actor(self):
-        import contextlib
+        A run must start from a clean baseline on every container it will
+        touch, the character actor's included; the dedicated case-actor
+        container's identity is re-seeded after its wipe (#1876).
+        """
+        clients = {name: mock_client() for name in _CAST}
+        case_actor_client = mock_client()
 
-        case_actor_client = MagicMock(name="case_actor_client")
-        with contextlib.ExitStack() as stack:
-            close = stack.enter_context(
-                patch.object(demo, "close_case_owner_last")
-            )
-            null_demo_contexts(stack, demo)
-            demo._phase_case_closure(
-                reporter_client=MagicMock(),
-                c1_client=MagicMock(),
-                c2_client=MagicMock(),
-                vendor_client=MagicMock(),
-                c1_in_c1=mock_actor("urn:test:c1"),
-                c2_in_c2=mock_actor("urn:test:c2"),
-                vendor_in_vendor=mock_actor("urn:test:vendor"),
-                reporter_in_reporter=mock_actor("urn:test:reporter"),
-                case=mock_case(),
-                case_actor_client=case_actor_client,
-            )
-
-        assert close.call_args.kwargs["authority_client"] is case_actor_client
-
-    def test_dump_reads_case_actor_ledger_from_dedicated_container(self):
-        clients = {
-            k: MagicMock(name=k, actor_id=f"https://example.org/actors/{k}")
-            for k in (
-                "reporter_client",
-                "c1_client",
-                "c2_client",
-                "vendor_client",
-            )
-        }
-        case_actor_client = MagicMock(
-            name="case_actor_client",
-            actor_id="https://example.org/actors/case-actor",
+        _, reset, reseed, _, _ = self._open_the_cast(
+            clients, case_actor_client
         )
-        with patch.object(demo, "dump_case_ledgers") as dump:
-            demo._phase_dump_case_ledgers(
-                case_actor_client=case_actor_client,
-                case=mock_case(),
-                **clients,
+
+        assert [c.kwargs["client"] for c in reset.call_args_list] == [
+            clients[REPORTER],
+            clients[demo.C1],
+            clients[VENDOR],
+            clients[demo.C2],
+            case_actor_client,
+        ]
+        reseed.assert_called_once_with(case_actor_client)
+
+    @pytest.mark.spec("DEMOCI-11-018")
+    def test_the_opening_seeds_only_the_three_the_rcv_family_seeds(self):
+        """C2 is left as an unseated container for its own fragment.
+
+        Every actor and peer record the opening writes before the case exists
+        is one more read of the recording clock, so seeding C2 here would
+        move the first ledger entry away from ``rcv``'s (#5532).
+        """
+        clients = {name: mock_client() for name in _CAST}
+        case_actor_client = mock_client()
+
+        captured, _, _, seed_three, seed_four = self._open_the_cast(
+            clients, case_actor_client
+        )
+
+        seed_three.assert_called_once()
+        seeding = seed_three.call_args.kwargs
+        assert seeding["reporter_client"] is clients[REPORTER]
+        assert seeding["coordinator_client"] is clients[demo.C1]
+        assert seeding["vendor_client"] is clients[VENDOR]
+        seed_four.assert_not_called()
+
+        state = captured.state
+        assert sorted(state.cast) == sorted([REPORTER, demo.C1, VENDOR])
+        assert sorted(state.unseated) == [demo.C2]
+        assert state.container(demo.C2).client is clients[demo.C2]
+        assert state.container(demo.C2).actor_id == "urn:test:c2"
+
+    def test_the_run_plays_this_scenarios_story_under_its_own_name(self):
+        """``run_story(name, plot, open_cast)`` names the registered demo."""
+        clients = {name: mock_client() for name in _CAST}
+
+        captured, _, _, _, _ = self._open_the_cast(clients, mock_client())
+
+        run_story = captured.run_story
+        assert run_story.call_args.args[0] == "rccv-extension"
+        assert run_story.call_args.args[1] is demo.STORY
+
+    def test_the_unseated_container_is_declared_through_the_pair_helper(self):
+        """The cast opening is told which container to wait on.
+
+        Patched on ``coordinated_story``, where the shared
+        ``coordinated_open_cast`` factory looks the opening up: this scenario
+        builds its ``open_cast`` callable through that factory rather than
+        writing the closure out, so a patch on this module would not reach it.
+        """
+        with (
+            patch.object(demo, "run_story") as run_story,
+            patch.object(
+                coordinated_story, "open_coordinated_cast"
+            ) as open_coordinated_cast,
+        ):
+            demo.run_rccv_extension_demo(
+                reporter_client=mock_client(),
+                c1_client=mock_client(),
+                c2_client=mock_client(),
+                vendor_client=mock_client(),
+                case_actor_client=mock_client(),
+                c2_id="urn:test:c2",
             )
+            run_story.call_args.args[2](MagicMock())
+
+        unseated = open_coordinated_cast.call_args.kwargs["unseated"]
+        assert set(unseated) == {demo.C2}
+        assert isinstance(unseated[demo.C2], UnseatedContainer)
+        assert unseated[demo.C2].label == "C2"
+        assert unseated[demo.C2].actor_id == "urn:test:c2"
+
+    def test_the_dump_reads_the_canonical_ledger_on_the_dedicated_container(
+        self,
+    ):
+        """The scenario's dump is the pair's, which the harness loads."""
+        state = _four_party_state()
+        for name in state.cast:
+            state.client(name).actor_id = f"https://example.org/actors/{name}"
+        state.case_actor_client.actor_id = (
+            "https://example.org/actors/case-actor"
+        )
+
+        with patch.object(coordinated_story, "dump_case_ledgers") as dump:
+            demo.dump_two_coordinator_ledgers(state)
 
         targets = dump.call_args.kwargs["targets"]
         case_actor_targets = [
             t for t in targets if t.actor_name == "case-actor"
         ]
         assert len(case_actor_targets) == 1
-        assert case_actor_targets[0].client is case_actor_client
+        assert case_actor_targets[0].client is state.case_actor_client
         assert case_actor_targets[0].route_key == "case-actor"
+
+
+# ---------------------------------------------------------------------------
+# The CLI sub-command and the registry entry (DEMOCI-11-011, DEMOCI-11-019)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def help_text() -> str:
+    """``vultron-demo rccv-extension --help`` as the sub-command renders it."""
+    result = CliRunner().invoke(cli_main, ["rccv-extension", "--help"])
+    assert result.exit_code == 0, result.output
+    return result.output
+
+
+class TestRccvExtensionCliCommand:
+    """The generated sub-command offers one option per container."""
+
+    @pytest.mark.parametrize(
+        "option",
+        [
+            "--skip-health-check",
+            "--reporter-url",
+            "--c1-url",
+            "--c2-url",
+            "--vendor-url",
+            "--case-actor-url",
+            "--reporter-id",
+            "--c1-id",
+            "--c2-id",
+            "--vendor-id",
+        ],
+    )
+    def test_the_option_is_offered(self, help_text: str, option: str):
+        """One URL and one id option per container, plus the health skip."""
+        assert option in help_text
+
+    def test_the_case_actor_carries_no_id_option(self, help_text: str):
+        """Only ``rccv-handoff`` exposes one (DEMOMA-14-008)."""
+        assert "--case-actor-id" not in help_text
+
+    def test_main_builds_one_client_per_container_and_runs_the_story(self):
+        """``main()`` names its containers and passes their clients on."""
+        clients = {
+            name: MagicMock(name=name, base_url=f"http://{name}:7999/api/v2")
+            for name in ("reporter", "c1", "c2", "vendor", "case-actor")
+        }
+
+        with (
+            patch.object(
+                demo, "coordinated_clients", return_value=clients
+            ) as built,
+            patch.object(demo, "run_rccv_extension_demo") as run,
+        ):
+            demo.main(
+                skip_health_check=True,
+                c1_url="http://elsewhere:7999/api/v2",
+                case_actor_url="http://ca:7999/api/v2",
+                reporter_id="urn:test:reporter",
+                c1_id="urn:test:c1",
+                c2_id="urn:test:c2",
+                vendor_id="urn:test:vendor",
+            )
+
+        members = built.call_args.args[1]
+        assert [(m.role, m.label) for m in members] == [
+            ("reporter", "Reporter"),
+            ("c1", "C1"),
+            ("c2", "C2"),
+            ("vendor", "Vendor"),
+        ]
+        assert [m.url for m in members] == [
+            None,
+            "http://elsewhere:7999/api/v2",
+            None,
+            None,
+        ]
+        assert built.call_args.kwargs["skip_health_check"] is True
+        # The CaseActor's own container is addressed through its override,
+        # never through C1's (DEMOMA-13-010).
+        assert (
+            built.call_args.kwargs["case_actor_url"] == "http://ca:7999/api/v2"
+        )
+
+        kwargs = run.call_args.kwargs
+        assert kwargs["reporter_client"] is clients["reporter"]
+        assert kwargs["c1_client"] is clients["c1"]
+        assert kwargs["c2_client"] is clients["c2"]
+        assert kwargs["vendor_client"] is clients["vendor"]
+        assert kwargs["case_actor_client"] is clients["case-actor"]
+        assert kwargs["c2_id"] == "urn:test:c2"
+
+
+@pytest.fixture
+def spec():
+    """The one registry entry named ``rccv-extension``."""
+    entries = [s for s in registered_scenarios() if s.name == "rccv-extension"]
+    assert len(entries) == 1, entries
+    return entries[0]
+
+
+class TestRccvExtensionRegistryEntry:
+    """The registry is the sole declaration that the scenario exists."""
+
+    def test_the_entry_describes_the_second_coordinator_scenario(self, spec):
+        """Every field is rendered into the generated scenario tables."""
+        assert spec.label == "RCCV-extension"
+        assert spec.participants == "Reporter + C1 + C2 + Vendor"
+        assert spec.feature == "Second coordinator suggests vendor"
+        assert spec.in_pr_set is False
+
+    def test_the_path_is_read_off_the_story(self, spec):
+        """``composed=True`` is what tells a check it places no step marks."""
+        assert spec.composed is True
+        assert spec.path == demo.STORY.path
+
+    def test_the_derived_paths_point_at_this_module_and_its_harness(
+        self, spec
+    ):
+        """Every artifact path derives from the name (DEMOCI-11-003)."""
+        assert spec.demo_path == "vultron/demo/scenario/rccv_extension_demo.py"
+        assert spec.harness_path == (
+            "test/ci/invariants/test_rccv_extension_invariants.py"
+        )
+
+
+# ---------------------------------------------------------------------------
+# The replica drain this scenario alone tells (DEMOMA-23-005, #3906)
+# ---------------------------------------------------------------------------
+
+
+class TestReplicasDrainBeforeTheVendor:
+    """The drain goes through the one shared coverage helper.
+
+    DEMOMA-23-005 and DEMOMA-23-006: the
+    read-authority-tail-then-poll-each-replica loop lives in
+    ``vultron/demo/helpers/sync.py`` and nowhere else (#3906).
+    """
+
+    def test_the_drain_names_c1_as_authority_and_the_joined_replicas(self):
+        """Only the Reporter and C2 hold a replica before the Vendor joins."""
+        state = _four_party_state()
+
+        with patch.object(
+            demo, "wait_for_replica_ledger_coverage"
+        ) as coverage:
+            demo.replicas_drain_before_the_vendor(state)
+
+        coverage.assert_called_once()
+        kwargs = coverage.call_args.kwargs
+        assert kwargs["auth_client"] is state.client(two_coordinator_story.C1)
+        assert kwargs["replicas"] == [
+            (state.client(REPORTER), "Reporter"),
+            (state.client(two_coordinator_story.C2), "C2"),
+        ]
+        assert kwargs["case_id"] == state.case.id_
+        assert kwargs["phase_label"] == "opening drain before the Vendor joins"
+        # The drain is the helper's default causal gate; the fragment must not
+        # downgrade it to a temporal check or hand it a late joiner.
+        assert "causal" not in kwargs
+        assert "late_joiners" not in kwargs
+
+    def test_an_empty_authority_ledger_is_one_failure_naming_the_authority(
+        self,
+    ):
+        """The fault is the writer's, not the fan-out's (EDF-06-005).
+
+        The real ``wait_for_replica_ledger_coverage`` and the real
+        ``demo_gate`` run; only the authority-tail read and the per-replica
+        primitive are stubbed, so the recorded message is the helper's own.
+        """
+        import vultron.demo.helpers.sync as sync_module
+
+        state = _four_party_state()
+        state.client(
+            two_coordinator_story.C1
+        ).base_url = "http://c1.test/api/v2"
+
+        with (
+            patch.object(
+                sync_module, "_get_log_entries_for_case", return_value=[]
+            ),
+            patch.object(
+                sync_module, "wait_for_contiguous_ledger_coverage"
+            ) as per_replica,
+        ):
+            demo.replicas_drain_before_the_vendor(state)
+
+        per_replica.assert_not_called()
+        (failure,) = demo_utils._demo_failures
+        assert failure.startswith("GATE FAILED")
+        assert "http://c1.test/api/v2" in failure
+        assert "opening drain before the Vendor joins" in failure
+        assert "holds no CaseLedgerEntry" in failure
+
+
+# ---------------------------------------------------------------------------
+# A roster that never fills stops the keep continuation too (#5535)
+# ---------------------------------------------------------------------------
+
+
+class TestARosterThatNeverFillsSkipsTheSuggestion:
+    """The keep side of the guarantee nesting used to give (#5535).
+
+    ``test_rccv_handoff_demo.py`` drives the same chain for the
+    ``offer-ownership`` continuation.  Both branches of ``owner-keep-case``
+    read the same prop, so both are driven through the real ``run_story``,
+    the real ``demo_gate`` and the real fragments: a test of the read alone
+    is what let the guarantee go missing in the first place.
+    """
+
+    @pytest.fixture
+    def marks(self, monkeypatch):
+        """Stand in for ``scenario_harness``, which needs a real case."""
+        reset_demo_failures()
+        harness = MagicMock()
+        harness.demo_name = "rccv-extension"
+
+        @contextlib.contextmanager
+        def stub(_demo_name: str):
+            yield harness
+
+        monkeypatch.setattr(story_module, "scenario_harness", stub)
+        yield harness
+        reset_demo_failures()
+
+    @contextlib.contextmanager
+    def _roster(self, *, fills: bool):
+        """Run the join with its roster filling or timing out.
+
+        The roster gate in ``coordinated_story`` and the prop read in
+        ``owner_decision_story`` are the subject, so both stay real.  Every
+        poll after the suggestion trigger is stubbed: left real each would
+        spend the whole ``OWNER_DECISION_TIMEOUT`` against a ``MagicMock``
+        store and buy no assertion.
+        """
+        with (
+            patch.object(coordinated_story, "wait_for_case_on_container"),
+            patch.object(
+                coordinated_story,
+                "run_case_invite_chain",
+                side_effect=lambda **kw: kw["then"] and kw["then"](),
+            ),
+            patch.object(
+                coordinated_story,
+                "wait_for_case_participants",
+                side_effect=None
+                if fills
+                else AssertionError("roster never filled"),
+            ),
+            patch.object(
+                coordinated_story,
+                "demo_step",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+            patch.object(
+                owner_decision_story,
+                "find_cp_offer_for_case",
+                return_value="urn:test:cp-offer",
+            ),
+            patch.object(owner_decision_story, "run_case_invite_chain"),
+            patch.object(
+                owner_decision_story, "invitee_triages_after_joining"
+            ),
+            patch.object(
+                ActorSession, "suggest_actor_to_case", autospec=True
+            ) as suggest,
+        ):
+            yield suggest
+
+    def _play(self, state) -> None:
+        run_story(
+            "rccv-extension",
+            story(
+                two_coordinator_story.c1_invites_c2,
+                demo.c2_suggests_the_vendor,
+            ),
+            lambda _harness: state,
+        )
+
+    def test_a_timed_out_roster_leaves_the_vendor_unsuggested(self, marks):
+        """The suggest trigger never runs, and the roster is the one failure."""
+        state = story_state(
+            REPORTER, demo.C1, demo.C2, VENDOR, case=mock_case()
+        )
+
+        with self._roster(fills=False) as suggest:
+            self._play(state)
+
+        suggest.assert_not_called()
+        with pytest.raises(
+            DemoStoryError, match="no case the second Coordinator joined"
+        ):
+            state.kept(SECOND_COORDINATOR_JOINED)
+
+    def test_a_filled_roster_lets_the_suggestion_run(self, marks):
+        """The counterpart, so the test above is not vacuous."""
+        state = story_state(
+            REPORTER, demo.C1, demo.C2, VENDOR, case=mock_case()
+        )
+
+        with self._roster(fills=True) as suggest:
+            self._play(state)
+
+        assert state.kept(SECOND_COORDINATOR_JOINED) == str(state.case.id_)
+        suggest.assert_called_once()
+        assert suggest.call_args.args[0].client is state.client(demo.C2)

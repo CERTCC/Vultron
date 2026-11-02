@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 class RejectInviteToEmbargoOnCaseReceivedUseCase:
     # The invitee answers at the CASE_MANAGER (EP-09-010); a participant
     # takes a Reject of an Invite only from the CASE_MANAGER, refusing its
-    # proposal or its Accept (PCR-08-001, EP-09-008, EMB-02-002).
+    # proposal or its Accept (PCR-08-001, EP-09-017, EMB-02-004).
     sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
         SenderEntitlementKind.INVITEE
     )
@@ -138,7 +138,7 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             # The door guards admitted the Reject, so the sender has standing,
             # and a CASE_MANAGER's Reject closes the participant's pending
             # ask, whatever the tree then decided about the consent
-            # (EP-09-008, EMB-02-002).
+            # (EP-09-019, EMB-02-004).
             logger.info(
                 "'%s' rejected embargo '%s'", rejecting_actor_id, invite_id
             )

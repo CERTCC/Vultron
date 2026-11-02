@@ -45,6 +45,7 @@ from vultron.core.models._helpers import (
     absent_times_as_none,
     as_utc,
     blank_times_as_none,
+    format_timestamp,
     now_utc,
 )
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
@@ -496,23 +497,24 @@ class CoreObject(CoreRecord):
         "start_time", "end_time", "published", "updated", when_used="json"
     )
     def _serialize_datetime(self, value: datetime | None) -> str | None:
-        """Write timestamps with an explicit offset, as the wire classes did.
+        """Write timestamps in the one fixed form, as the wire classes do.
 
-        Pydantic's default JSON form for an aware UTC datetime is ``...Z``;
-        ``isoformat()`` gives ``...+00:00``.  Both denote the same instant and
-        both are valid ISO-8601, which is why swapping them is invisible in
-        review — but they are different *bytes*, and
+        Pydantic's default JSON form for an aware UTC datetime is ``...Z``,
+        with a fraction only when the microseconds are not zero;
+        :func:`format_timestamp` gives ``....000000+00:00``.  Both denote the
+        same instant and both are valid ISO-8601, which is why swapping them
+        is invisible in review — but they are different *bytes*, and
         ``CaseLedgerEntry.payloadSnapshot`` is compared across replicas, so two
-        actors on different spellings disagree about the canonical snapshot of an
-        identical event.
+        actors on different spellings disagree about the canonical snapshot of
+        an identical event (CS-13-007, ADR-0167).
 
-        Every timestamp in ``docs/reference/examples`` uses the offset form,
+        Every timestamp in ``docs/reference/examples`` uses the fixed form,
         so that is the published contract.  Promoting a core class
         onto the wire must not quietly renegotiate it.
         """
         if value is None:
             return None
-        return value.isoformat()
+        return format_timestamp(value)
 
     @model_serializer(mode="wrap")
     def _serialize_with_jsonld_context(

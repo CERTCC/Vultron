@@ -30,7 +30,7 @@ from typing import (
     overload,
 )
 
-from pydantic import BaseModel
+from pydantic import BaseModel, SerializerFunctionWrapHandler, field_serializer
 from pydantic.alias_generators import to_camel
 from pydantic.fields import FieldInfo
 
@@ -43,37 +43,93 @@ _datetime_type = datetime
 
 
 def now_utc() -> datetime:
-    return datetime.now(UTC).replace(microsecond=0)
+    """Return the current UTC instant, microseconds kept (CS-13-007)."""
+    return datetime.now(UTC)
 
 
 def now_utc_after(latest: datetime | None) -> datetime:
-    """Return ``now_utc()``, or the next whole second after *latest* if later.
+    """Return ``now_utc()``, or one microsecond after *latest* if later.
 
-    For a stamp that must sort strictly after *latest* on a clock that only
-    keeps whole seconds (CS-13-002, CS-13-003): when the clock has not passed
-    *latest* (two stamps in the same second, or a *latest* from a peer whose
-    clock runs ahead), the result is *latest* truncated to the second plus one
-    second, so it stays both second-precise and strictly greater.  The bump
-    is returned in UTC whatever offset *latest* carries (CS-13-001).
+    For a stamp that must sort strictly after *latest* (CS-13-002): when the
+    clock has not passed *latest* (two reads in one clock tick, or a *latest*
+    from a peer whose clock runs ahead), the result is *latest* plus the
+    smallest step a stored time can show.  The bump is returned in UTC
+    whatever offset *latest* carries (CS-13-001).
     """
     now = now_utc()
     if latest is None or latest < now:
         return now
-    return latest.astimezone(UTC).replace(microsecond=0) + timedelta(seconds=1)
+    return latest.astimezone(UTC) + timedelta(microseconds=1)
 
 
 def from_now_utc(delta: timedelta) -> datetime:
-    """Return the UTC instant *delta* from now, at second precision (CS-13-004).
+    """Return the UTC instant *delta* from now (CS-13-004).
 
     The one place embargo-deadline arithmetic lives: a resolved duration
     (``InitialEmbargoDuration.duration``) becomes an ``end_time`` here, so
-    every deadline the application produces is aware, UTC and second-precise.
+    every deadline the application produces is aware and UTC.
     """
     return now_utc() + delta
 
 
+def format_timestamp(value: datetime) -> str:
+    """Return *value* in the one serialized form a time has (CS-13-007).
+
+    RFC 3339 with exactly six fractional-second digits and the offset the
+    value carries: ``2026-10-30T12:00:00.000000+00:00``.  The digits are
+    written even when the microseconds are zero, so one instant at one offset
+    has one string; the case ledger hashes and compares that text
+    (ADR-0167).  A carried time keeps its own offset (CS-13-005), so the
+    same instant at ``+02:00`` is a different string, as it was received.
+    A value with no usable offset -- naive, or carrying a ``tzinfo`` whose
+    ``utcoffset()`` is ``None`` -- is read as UTC (CS-13-001), so no time
+    reaches the wire without an offset (CS-13-006).
+    """
+    if value.tzinfo is None or value.utcoffset() is None:
+        value = value.replace(tzinfo=UTC)
+    return value.isoformat(timespec="microseconds")
+
+
+def timestamp_serializer(*fields: str) -> Any:
+    """Return a ``field_serializer`` writing *fields* through :func:`format_timestamp`.
+
+    Assign it in the body of every model that declares a ``datetime`` field,
+    under a name of its own, so a subclass's assignment never replaces its
+    parent's::
+
+        received_at: datetime = Field(default_factory=now_utc)
+        _serialize_received_at = timestamp_serializer("received_at")
+
+    This factory is not the only route to the form.  The four AS2 timestamps
+    every object inherits (``start_time``, ``end_time``, ``published``,
+    ``updated``) are covered by hand-written ``field_serializer`` methods on
+    the two roots instead -- ``CoreObject._serialize_datetime`` and
+    ``as_Object.serialize_datetime`` -- which call :func:`format_timestamp`
+    directly and account for most of the fields the ratchet walks.  What
+    CS-13-007 rests on is that *every* ``datetime`` field has a serializer
+    routing through :func:`format_timestamp`, not that each one uses this
+    factory; ``test_every_model_datetime_field_serializes_in_the_fixed_form``
+    is what holds that line.
+
+    A decorator, not an ``Annotated`` serializer, because ``serialize_as_any``
+    dumps (outbox delivery uses one) skip an ``Annotated`` serializer and fall
+    back to Pydantic's own form, which drops the digits of a whole second
+    (CS-13-007).  A value that is not a ``datetime`` (``None``, or another
+    member of a union) is serialized as the field otherwise would be.
+    """
+
+    def _serialize(
+        self: Any, value: Any, handler: SerializerFunctionWrapHandler
+    ) -> Any:
+        if isinstance(value, _datetime_type):
+            return format_timestamp(value)
+        return handler(value)
+
+    return field_serializer(*fields, mode="wrap", when_used="json")(_serialize)
+
+
 def days_from_now_utc(days: int) -> datetime:
-    """Return a UTC datetime *days* in the future, at second precision."""
+    """Return a UTC datetime *days* in the future."""
     return from_now_utc(timedelta(days=days))
 
 
@@ -185,7 +241,7 @@ def claimed_published_iso(activity_obj: Any) -> str:
     covers synthesised and legacy callers only.
     """
     claimed = parse_published(getattr(activity_obj, "published", None))
-    return (claimed or now_utc()).isoformat()
+    return format_timestamp(claimed or now_utc())
 
 
 def status_recency_key(

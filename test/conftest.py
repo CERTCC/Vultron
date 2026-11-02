@@ -288,6 +288,12 @@ def clear_py_trees_blackboard() -> Iterator[None]:
     only in a few directory conftests, a received-side embargo test read the
     ``/participant`` an earlier test's tree had left behind and transitioned
     that participant instead of its own (#3996).
+
+    This clears ``storage`` only, not the blackboard's client registry, which
+    also outlives a tree and which
+    :func:`vultron.demo.determinism.reset_blackboard` does clear.  Widening an
+    autouse fixture changes isolation for the whole suite, so the two halves
+    are reconciled separately: #5572.
     """
     py_trees.blackboard.Blackboard.storage.clear()
     yield

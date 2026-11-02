@@ -15,7 +15,8 @@ description: >
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
   blackboard isolation, py_trees test patterns, CoreObject subclass isolation,
   assertion-quality traps (vacuous asserts, "falls back to" tests, bare
-  MagicMock), test layout rules for module splits, why a two-sided count pin
+  MagicMock), why turning nesting into sequence moves the skip nobody tests,
+  test layout rules for module splits, why a two-sided count pin
   races concurrent PRs (keep a per-item record and a PR-only growth guard
   instead), why a schema change that the merge base fails breaks every growth
   guard, when to delete a migration check, and why a child Python process
@@ -38,6 +39,7 @@ related_notes:
   - notes/domain-validation.md
   - notes/triggers-test-coverage.md
   - notes/demo-ci-invariants.md
+  - notes/demo-scenario-tree.md
   - notes/wire-artifact-immutability.md
   - notes/spec-authoring-rules.md
   - notes/architecture-ratchet-corpus.md
@@ -305,9 +307,9 @@ A test that runs `sys.executable` on code importing `vultron` MUST pass
 root first only on its own `sys.path`; a child inherits just `PYTHONPATH`, and
 in a worktree that can name another checkout. A script child's `sys.path[0]` is
 the script's directory, so the other checkout's `vultron` wins and a module it
-lacks fails to import (#5456). The devcontainer's `PYTHONPATH=/app` is the usual
-source ([devcontainer-tooling](devcontainer-tooling.md) § "Clear `PYTHONPATH`
-Before Every `uv run` and Worktree Commit").
+lacks fails to import (#5456). A devcontainer built before #5571 exports
+`PYTHONPATH=/app` ([devcontainer-tooling](devcontainer-tooling.md) § "The Image
+Exports No `PYTHONPATH`; Rebuild if `$PYTHONPATH` Is `/app`").
 
 ### Store Scoping
 
@@ -400,6 +402,31 @@ constructor, and pass `TriggerActivityAdapter(dl)` to every use case in chained
 integration tests.
 
 ## Assertion Quality
+
+### Turning Nesting Into Sequence Moves the Skip Nobody Tests
+
+A block whose nesting carried the behaviour — a `demo_gate`, a `try`/`finally`,
+a context manager, a BT composite — decided what got **skipped** on failure.
+Split it into two sequential pieces and that decision moves to the caller that
+now sequences them, which is a place neither piece's test reaches. Two passing
+per-piece tests then leave the one behaviour the split changed unchecked.
+
+Both witnesses so far are in the demo story runner (#5534). Splitting the
+case-invite chain so a branch point could sit between the invite and the answer
+put the step mark between them unnested, so a failed invite trigger died at the
+mark instead of skipping the answer. Moving `rcvcv`'s roster `demo_gate` into
+the shared opening, where the invite is a *different* fragment, turned the gate
+into a `demo_check`: a timeout recorded a failure and the invite went ahead
+anyway, where before it skipped the whole invite and admit chain.
+
+**How to apply.** When a diff turns nesting into sequence, name the guarantee
+the nesting gave — what did it skip, and on whose failure? — and write one test
+that exercises that guarantee *through the new caller*. The per-piece tests
+stay; they are not the ones at risk. In a flat sequence the guarantee needs a
+carrier: #5534's answer is a `StoryProp` the gate keeps and the dependent
+reads, so a failed gate leaves the artifact absent and the runner stops the
+story (`notes/demo-scenario-tree.md` § "Composition"). ADR-0135's "compose,
+never chain" rule for BT helpers is the same shape seen from the design side.
 
 ### A Test That Says "Falls Back To" for Malformed Input Is Asserting a Bug
 

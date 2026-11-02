@@ -12,6 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for AnnounceVulnerabilityCaseReceivedUseCase (DR-10 / MV-10-003,004)."""
 
+from datetime import UTC, datetime
 from typing import Any, cast
 from unittest.mock import MagicMock
 
@@ -71,6 +72,10 @@ _IMPOSTER_ID = "https://example.org/actors/imposter"
 _RECEIVER_ID = "https://test.example/api/v2/actors/test-actor"
 _VENDOR_ID = "https://example.org/actors/vendor"
 _CASE_ID = "https://example.org/cases/case-ann-001"
+#: One creation time for every copy of the case, so each derives the same
+#: genesis hash: the clock keeps microseconds, so two copies stamped by it
+#: would not (CLP-08-002, CS-13-007).
+_CASE_PUBLISHED = datetime(2026, 10, 30, 12, 0, 0, tzinfo=UTC)
 _CASE_ID2 = "https://example.org/cases/case-ann-002"
 _REPORT_ID = "https://example.org/reports/report-ann-001"
 _CASE_ACTOR_PARTICIPANT_ID = f"{_CASE_ID}/participants/case-actor"
@@ -813,6 +818,7 @@ def _joined_case(
         id_=_CASE_ID,
         name="SYNC-17-008 joined case",
         attributed_to=_OWNER_ID,
+        published=_CASE_PUBLISHED,
         case_participants=[manager, receiver],
         actor_participant_index={
             manager_id: _CASE_ACTOR_PARTICIPANT_ID,
@@ -906,7 +912,7 @@ class TestFirstSeedStatesLedgerPosition:
         """The empty ledger's position names no entry to state."""
         _anchor_expected_authority(dl)
         empty = as_VulnerabilityCase(
-            id_=_CASE_ID, attributed_to=_OWNER_ID
+            id_=_CASE_ID, attributed_to=_OWNER_ID, published=_CASE_PUBLISHED
         ).ledger_position
 
         result = self._seed(dl, make_payload, _joined_case(empty))

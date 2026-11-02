@@ -138,7 +138,7 @@ def test_a_reject_of_a_decided_proposal_gets_the_notice():
 
 @pytest.mark.spec("CLP-05-001")
 @pytest.mark.spec("CM-18-003")
-@pytest.mark.spec("MSM-07-003")
+@pytest.mark.spec("MSM-07-012")
 def test_an_accept_of_a_decided_proposal_is_refused_with_the_notice():
     """A row for a final register entry takes no trigger (CM-18-003)."""
     net = _net("accept-decided")
@@ -162,6 +162,7 @@ def test_an_accept_of_a_decided_proposal_is_refused_with_the_notice():
 
 @pytest.mark.spec("CLP-05-001")
 @pytest.mark.spec("CM-18-003")
+@pytest.mark.spec("MSM-07-012")
 def test_an_accept_of_an_embargo_missing_from_the_register_gets_the_notice():
     net = _net("accept-missing")
     _, invite_id = _invited(net, BYSTANDER, "accept-missing")
@@ -208,8 +209,8 @@ def test_a_repeat_answer_under_a_new_id_gets_no_notice(accept: bool):
 
 
 @pytest.mark.spec("CLP-10-026")
-@pytest.mark.spec("EMB-02-002")
-def test_an_accept_answered_with_er_gets_no_notice():
+@pytest.mark.spec("EMB-02-004")
+def test_an_accept_answered_with_a_reject_gets_no_notice():
     """The P/X/A diversion answers the Accept itself (CLP-10-026)."""
     net = _net("pxa-accept")
     _, invite_id = _invited(net, BYSTANDER, "pxa-accept")
@@ -276,7 +277,11 @@ def test_an_owner_decision_on_no_open_proposal_gets_the_notice(accept: bool):
 @pytest.mark.spec("CLP-05-001")
 @pytest.mark.spec("EMB-02-002")
 def test_an_owner_activation_with_pxa_set_gets_the_notice():
-    """EMB-02-002: refused before the commit, answered by the notice, no ER."""
+    """EMB-02-002: refused before the commit; the only answer is the notice.
+
+    The notice is a ``Reject`` of the refused activation, not a ``Reject`` of
+    the Invite (CLP-05-001).
+    """
     net = _net("owner-pxa")
     embargo_id = _propose(net, "owner-pxa", 90)
     net.deliver(MANAGER, to=OWNER, type_="Invite")
@@ -457,16 +462,17 @@ def test_the_notice_of_a_refused_accept_closes_the_accepters_ask():
 
 
 # ---------------------------------------------------------------------------
-# The CASE_MANAGER's ER to a participant's Accept (EMB-02-002)
+# The CASE_MANAGER's Reject of the Invite to a participant's Accept (EMB-02-004)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("EMB-02-002")
-@pytest.mark.spec("EP-09-008")
 @pytest.mark.spec("HP-01-006")
 @pytest.mark.spec("EP-09-014")
-def test_the_case_managers_er_to_an_accept_closes_the_accepters_ask():
-    """The ER reaches the participant and closes its pending Accept."""
+@pytest.mark.spec("EMB-02-004")
+@pytest.mark.spec("EP-09-017")
+@pytest.mark.spec("EP-09-019")
+def test_the_case_managers_reject_to_an_accept_closes_the_accepters_ask():
+    """The ``Reject`` of the Invite reaches the participant and closes its ask."""
     net = _net("pxa-er-read")
     _, invite_id = _invited(net, BYSTANDER, "pxa-er-read")
     _set_pxa(net, MANAGER)
@@ -484,7 +490,7 @@ def test_the_case_managers_er_to_an_accept_closes_the_accepters_ask():
 
     assert type_ == "Reject"
     # The sender guard admits the CASE_MANAGER at a participant (HP-01-006);
-    # the replica records no consent from the ER, since only the
+    # the replica records no consent from the Reject, since only the
     # CASE_MANAGER records an answer, so the tree still reports a refusal.
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert "not the invitee" not in (verdict.reason or ""), verdict.reason

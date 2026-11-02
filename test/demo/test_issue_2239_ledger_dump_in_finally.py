@@ -48,38 +48,95 @@ from vultron.demo.helpers.ledger_dump import DUMP_MANIFEST_FILENAME
 from vultron.demo.utils import reset_demo_failures
 from vultron.errors import DemoFailureError
 
-# (module path, run function name, devlogs sub-directory name)
-SCENARIOS: list[tuple[str, str, str]] = [
-    ("vultron.demo.scenario.rv_demo", "run_rv_demo", "rv"),
-    ("vultron.demo.scenario.rvv_demo", "run_rvv_demo", "rvv"),
-    ("vultron.demo.scenario.rcv_demo", "run_rcv_demo", "rcv"),
+#: What the scenario does before a case exists, as a patch target: a bare name
+#: is read off the scenario's own module, a dotted one is taken as written.
+#: A scenario still written as phases opens with ``_phase_report_submission``
+#: on its own module; one written as composition (#5533, #5534) opens with the
+#: shared cast opening its story runs against, which is the first thing that
+#: can die.  That opening is named on the shared helper module rather than on
+#: the scenario's, which holds only the factory that closes over it — and the
+#: factory runs *before* ``run_story`` enters the harness, so breaking it
+#: would test nothing about the dump.  Every scenario of the tree is listed: a
+#: composed one that slipped out of the table would leave the artifact promise
+#: unchecked for the half of the tree that dies in a shared opening
+#: (:func:`test_every_registered_scenario_is_in_the_table`).
+_PHASE_ONE = "_phase_report_submission"
+_CAST_ONE = "vultron.demo.helpers.coordinated_story.open_coordinated_cast"
+
+# (module path, run function name, devlogs sub-directory name, first step)
+SCENARIOS: list[tuple[str, str, str, str]] = [
+    ("vultron.demo.scenario.rv_demo", "run_rv_demo", "rv", _PHASE_ONE),
+    ("vultron.demo.scenario.rvv_demo", "run_rvv_demo", "rvv", _PHASE_ONE),
+    ("vultron.demo.scenario.rcv_demo", "run_rcv_demo", "rcv", _CAST_ONE),
     (
         "vultron.demo.scenario.rcv_reject_demo",
         "run_rcv_reject_demo",
         "rcv-reject",
+        _CAST_ONE,
     ),
-    ("vultron.demo.scenario.rcvcv_demo", "run_rcvcv_demo", "rcvcv"),
+    (
+        "vultron.demo.scenario.rcvcv_demo",
+        "run_rcvcv_demo",
+        "rcvcv",
+        _CAST_ONE,
+    ),
+    (
+        "vultron.demo.scenario.rcv_embargo_demo",
+        "run_rcv_embargo_demo",
+        "rcv-embargo",
+        _CAST_ONE,
+    ),
+    (
+        "vultron.demo.scenario.rcvv_embargo_demo",
+        "run_rcvv_embargo_demo",
+        "rcvv-embargo",
+        _CAST_ONE,
+    ),
     (
         "vultron.demo.scenario.rccv_extension_demo",
         "run_rccv_extension_demo",
         "rccv-extension",
+        _CAST_ONE,
     ),
     (
         "vultron.demo.scenario.rvcv_extension_demo",
         "run_rvcv_extension_demo",
         "rvcv-extension",
+        _PHASE_ONE,
     ),
     (
         "vultron.demo.scenario.rccv_handoff_demo",
         "run_rccv_handoff_demo",
         "rccv-handoff",
+        _CAST_ONE,
     ),
     (
         "vultron.demo.scenario.rvcv_handoff_demo",
         "run_rvcv_handoff_demo",
         "rvcv-handoff",
+        _PHASE_ONE,
     ),
 ]
+
+
+def test_every_registered_scenario_is_in_the_table() -> None:
+    """The table is the whole tree, or the promise goes unchecked for the rest.
+
+    :data:`SCENARIOS` is what parametrizes the artifact promise below, so a
+    scenario missing from it is a scenario nobody checks still writes a dump
+    manifest when it dies before the case exists — and the omission looks
+    exactly like a green run.  Compared against the registry rather than a
+    count, which cannot say *which* scenario drifted (DEMOCI-11-002).
+    """
+    from vultron.demo.scenario.registry import discover_scenarios
+
+    tabled = {demo_name for _, _, demo_name, _ in SCENARIOS}
+    registered = {spec.name for spec in discover_scenarios()}
+    assert tabled == registered, (
+        "the dump-manifest table and the scenario registry disagree; "
+        f"registered but untabled: {sorted(registered - tabled)}, "
+        f"tabled but not registered: {sorted(tabled - registered)}"
+    )
 
 
 def _client_kwargs(run_fn) -> dict[str, MagicMock]:
@@ -103,15 +160,16 @@ class TestManifestWrittenWhenScenarioDiesEarly:
     """A scenario that dies before the case exists still produces an artifact."""
 
     @pytest.mark.parametrize(
-        "module_path, run_name, demo_name",
+        "module_path, run_name, demo_name, first_step",
         SCENARIOS,
-        ids=[demo_name for _, _, demo_name in SCENARIOS],
+        ids=[demo_name for _, _, demo_name, _ in SCENARIOS],
     )
     def test_manifest_written_when_first_phase_raises(
         self,
         module_path: str,
         run_name: str,
         demo_name: str,
+        first_step: str,
         tmp_path,
         monkeypatch,
     ) -> None:
@@ -119,11 +177,10 @@ class TestManifestWrittenWhenScenarioDiesEarly:
         run_fn = getattr(module, run_name)
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
-        with patch.object(
-            module,
-            "_phase_report_submission",
-            side_effect=RuntimeError("phase 1 exploded"),
-        ):
+        target = (
+            first_step if "." in first_step else f"{module_path}.{first_step}"
+        )
+        with patch(target, side_effect=RuntimeError("phase 1 exploded")):
             with pytest.raises((RuntimeError, DemoFailureError)):
                 run_fn(**_client_kwargs(run_fn))
 

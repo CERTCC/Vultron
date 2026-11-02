@@ -1,6 +1,6 @@
 """Tests for the check that no ``docs/`` page depends above its own level.
 
-Requirements: DF-11-002 (the rule), DF-11-003/DF-11-012 (working record is
+Requirements: DF-11-002 (the rule), DF-11-003/DF-11-033 (working record is
 unleveled), DF-11-010 (fragments take their hosts' levels), DF-09-009 (an empty
 target set fails); findings are attributed per MS-17-001. The scanner, the
 ``introduces:`` declarations and the baseline have their own test modules.

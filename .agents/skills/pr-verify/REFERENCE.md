@@ -68,7 +68,7 @@ this PR. Please decide whether to fold them in before merge:
 | ⚠️ UNVERIFIED-CI-FAILING | CI still failing after execute's push; fix may be correct but cannot be confirmed |
 | 🔀 MERGE-CONFLICT | `mergeable: CONFLICTING`, `mergeStateStatus: DIRTY`, or conflict markers found at HEAD |
 | ⏳ MERGE-STATE-UNKNOWN | GitHub had not computed mergeability after polling |
-| ⚠️ BRANCH-BEHIND | `mergeStateStatus: BEHIND` — base advanced and a ruleset requires up-to-date branches; re-run `/pr-execute`, which clears it with `gh pr update-branch` (PAD-18-004) |
+| ⚠️ BRANCH-BEHIND | `mergeStateStatus: BEHIND` — base advanced and a ruleset requires up-to-date branches; re-run `/pr-execute`, which clears it with `gh pr update-branch` (PAD-18-014) |
 | ⚠️ UNSYNCED-EXECUTE | `execute.merge_state` missing, `conflict_free` not `true`, or `merge_required: true` with no `sync_commit_ref` — execute never established the PR was conflict-free. Not raised for a branch that is merely behind its base (PAD-18-005) |
 | 📝 PR-IS-DRAFT | PR is still a draft (check for a lingering `needs-rebase` label) |
 | 📄 STALE-DOCS-LINE | PR body's `Docs:` line is missing, still the placeholder, does not cover a fix commit that changed described behavior, or names a page the diff does not change (Phase 3b) |

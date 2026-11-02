@@ -25,6 +25,7 @@ AC-2, AC-3 of issue #3004.
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -182,3 +183,18 @@ def test_committed_example_timestamps_are_utc_offset(committed_files):
         if not stamp.endswith("+00:00")
     ]
     assert not bad, "Non-UTC-offset timestamps:\n  " + "\n  ".join(bad)
+
+
+@pytest.mark.spec("CS-13-007")
+def test_committed_example_timestamps_take_the_fixed_form(committed_files):
+    """Every example timestamp has six fractional digits (ADR-0167)."""
+    fixed = re.compile(r"\.\d{6}[+-]\d{2}:\d{2}$")
+    bad = [
+        f"{filename}: {stamp}"
+        for filename in sorted(committed_files)
+        for stamp in _times(
+            json.loads((_COMMITTED_DIR / filename).read_text())
+        )
+        if not fixed.search(stamp)
+    ]
+    assert not bad, "Timestamps not in the fixed form:\n  " + "\n  ".join(bad)

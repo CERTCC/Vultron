@@ -1,5 +1,5 @@
 # plan/history/ is append-only (HM-01-005): an entry is never rewrapped, so the
-# root config's 88-character MD013 stops here (PD-10-001). Every other rule
+# root config's 88-character MD013 stops here (PD-10-004). Every other rule
 # still applies; markdownlint-cli2 merges this file over the root config.
 config:
   "MD013": false

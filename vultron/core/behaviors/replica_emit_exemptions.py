@@ -134,11 +134,11 @@ EMBARGO_INVITE_REFUSAL: Final = ReplicaEmitExemption(
     name="embargo-invite-refusal",
     reason=(
         "Once P/X/A is set, a received Invite(EmbargoEvent) or Accept of one"
-        " is refused with ER, the executing actor's own Reject of that"
-        " Invite: a participant answers only an Invite addressed to it and"
-        " sends the ER to the CASE_MANAGER, and the CASE_MANAGER answers the"
+        " is refused with the executing actor's own Reject of that Invite:"
+        " a participant answers only an Invite addressed to it and sends"
+        " the Reject to the CASE_MANAGER, and the CASE_MANAGER answers the"
         " actor that sent it the Invite or the Accept (EMB-01-002,"
-        " EMB-02-002, EP-09-003, EP-09-010, PCR-08-001)."
+        " EMB-02-004, EP-09-003, EP-09-010, PCR-08-001)."
     ),
     covers=frozenset(
         {"SendEmbargoInviteAnswerNode", "SendEmbargoProposalRefusalNode"}

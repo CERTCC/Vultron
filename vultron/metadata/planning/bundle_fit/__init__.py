@@ -16,7 +16,8 @@ already exist on every candidate:
    is homogeneous by workflow (``work-issue`` routes Task/Feature to ``build``,
    Bug to ``bugfix``, Idea/Concern/Epic to ``plan-issue``).
 2. The ``Schedule`` field on Project #24 is the authoritative priority ordering
-   (PAD-03-001) — sub-issue list order is manual drag-order and means nothing.
+   (PAD-03-001, PAD-15-014) — sub-issue list order is manual drag-order and
+   means nothing.
    A leaf with no Schedule of its own inherits its Epic's tier.
 3. ``size:`` labels weigh a candidate's effort, and the bundle's total weight is
    capped, because a bundle is implemented as **one PR** closing every member.
@@ -46,7 +47,7 @@ vultron.metadata.planning.bundle_fit import select_bundle`` and the
 ``bundle-fit = vultron.metadata.planning.bundle_fit:main`` entry point both keep
 working (CS-18-003).
 
-CLI (``PYTHONPATH`` must be cleared in this devcontainer — see AGENTS.md)::
+CLI (clear ``PYTHONPATH`` in a devcontainer built before #5571 — see AGENTS.md)::
 
     bash .agents/skills/shared/query-epic-subissues.sh <EPIC> \\
       | PYTHONPATH= uv run bundle-fit

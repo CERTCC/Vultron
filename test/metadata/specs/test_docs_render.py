@@ -351,7 +351,7 @@ def _requirement_pages(registry) -> dict[str, str]:
     return pages
 
 
-@pytest.mark.spec("DF-12-002")
+@pytest.mark.spec("DF-12-010")
 def test_render_for_kind_cross_links_resolve():
     """Every ``#fragment`` the Related column prints exists on its target page.
 
@@ -362,7 +362,7 @@ def test_render_for_kind_cross_links_resolve():
     the real ``specs/`` registry, every per-kind page and every Requirements
     Catalog page, and the catalog's copy on ``full.md``: each link must land
     on an id its target page defines. A per-kind page links a ``protocol`` or
-    ``foundation`` requirement on its catalog row (DF-12-002). Zero collected
+    ``foundation`` requirement on its catalog row (DF-12-010). Zero collected
     links is a failure, not a pass (DF-09-009).
     """
     registry = load_registry()
@@ -966,7 +966,7 @@ def test_per_kind_and_catalog_rows_are_one_format(
     assert kind_rows and kind_rows == catalog_rows
 
 
-@pytest.mark.spec("DF-12-001")
+@pytest.mark.spec("DF-12-008")
 def test_catalog_page_has_one_subsection_per_file(catalog_registry):
     md = render_catalog_page(
         "general",
@@ -1039,7 +1039,7 @@ def test_catalog_page_with_missing_file_raises(catalog_registry):
         )
 
 
-@pytest.mark.spec("DF-12-002")
+@pytest.mark.spec("DF-12-011")
 def test_catalog_page_on_full_page_links_in_page(catalog_registry):
     md = render_catalog_page(
         "general",
@@ -1079,7 +1079,7 @@ def test_catalog_page_defaults_to_the_page_being_built(
     assert "[GEN-01-001](#gen-01-001)" in md
 
 
-@pytest.mark.spec("DF-12-003", "DF-12-002")
+@pytest.mark.spec("DF-12-003", "DF-12-010")
 def test_callout_is_an_info_admonition_linking_rows(catalog_registry):
     md = requirement_callout(
         "GEN-01-002",
@@ -1112,7 +1112,7 @@ def test_callout_title(catalog_registry):
     assert md.startswith('!!! info "Context"\n')
 
 
-@pytest.mark.spec("DF-12-002")
+@pytest.mark.spec("DF-12-011")
 def test_callout_on_full_page_links_in_page(catalog_registry, monkeypatch):
     monkeypatch.setenv(EXEC_PAGE_ENV, FULL_PAGE)
     md = requirement_callout(
@@ -1124,7 +1124,7 @@ def test_callout_on_full_page_links_in_page(catalog_registry, monkeypatch):
     assert "[GEN-01-001](#gen-01-001)" in md
 
 
-@pytest.mark.spec("DF-12-003")
+@pytest.mark.spec("DF-12-012")
 def test_callout_refuses_another_kind(catalog_registry):
     with pytest.raises(NotInCatalogError, match="architecture requirement"):
         requirement_callout(

@@ -19,6 +19,7 @@ from typing import TypeAlias
 
 from pydantic import Field, model_validator
 
+from vultron.core.models._helpers import timestamp_serializer
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.enums import as_IntransitiveActivityType as IA_type
 from vultron.wire.as2.vocab.base.links import as_Link
@@ -96,6 +97,7 @@ class as_Question(as_IntransitiveActivity):
     closed: as_Object | as_Link | NonEmptyString | datetime | bool | None = (
         None
     )
+    _serialize_closed = timestamp_serializer("closed")
 
     @model_validator(mode="after")
     def _options_are_exclusive(self) -> "as_Question":

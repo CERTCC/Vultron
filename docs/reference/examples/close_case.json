@@ -1,13 +1,13 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Leave",
-  "id": "urn:uuid:86863d5b-f2de-4fa3-bbd4-cc66d23261d1",
-  "name": "https://vultron.example/organizations/vendorco Leave urn:uuid:2ff77bba-c8e8-4b48-b1d5-6c21657f66ae",
+  "id": "urn:uuid:96fbfc64-ccaf-44fd-8e4c-d170c35dc294",
+  "name": "https://vultron.example/organizations/vendorco Leave urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
   "content": "We're closing this case.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "type": "VulnerabilityCase",
-    "id": "urn:uuid:2ff77bba-c8e8-4b48-b1d5-6c21657f66ae"
+    "id": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454"
   }
 }

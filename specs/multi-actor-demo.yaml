@@ -1718,6 +1718,59 @@ groups:
     rationale: >-
       Announce(CaseLedgerEntry) is the sole canonical propagation path for status
       updates to peers (SYNC-02-002); this invariant confirms the fan-out fired.
+  - id: DEMOMA-12-017
+    priority: MUST
+    kind: project
+    statement: >-
+      The RCV story MUST start with the shared "the Coordinator invites the
+      Vendor" opening and continue from the Vendor's acceptance.
+    rationale: >-
+      The opening is the Reporter telling the Coordinator, the Coordinator
+      engaging the case, and the Coordinator inviting the Vendor. RCV tells it
+      identically to RCV-reject, so it is one copy of the code and the
+      recordings of the two are byte-identical up to the Vendor's decision
+      (DEMOCI-11-018). Naming it here keeps this group a whole story: a reader
+      sees where RCV's own telling begins without reading the sibling's group.
+    verification: >-
+      `test/demo_unit/test_story.py::test_the_two_composed_scenarios_share_one_opening`
+      asserts that `rcv`'s story begins with the items of
+      `COORDINATOR_INVITES_VENDOR`, and `TestComposedFamilies` in
+      `test/demo_unit/test_recordings.py` compares the `rcv` and `rcv-reject`
+      recordings byte for byte up to the `vendor-join` branch point.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    - rel_type: depends_on
+      spec_id: DEMOCI-11-019
+    tags:
+    - demo
+  - id: DEMOMA-12-018
+    priority: MUST
+    kind: project
+    statement: >-
+      The RCV story MUST carry on from the shared "the Coordinator invites the
+      Vendor" opening. It continues through the Vendor's acceptance, the
+      replica convergence and the answered note thread.
+    rationale: >-
+      Those three steps are told identically by RCVCV (DEMOMA-19-024), so they
+      are one further stretch of shared code and the two recordings are
+      byte-identical to the `coordinator-after-answer` branch point
+      (DEMOCI-11-018). Naming the longer stretch as its own requirement leaves
+      DEMOMA-12-017's shorter opening, which RCV-reject also starts with
+      (DEMOMA-27-004), obliging exactly what it always did.
+    verification: >-
+      `test/demo/test_rcvcv_demo.py` asserts that `rcv`'s and `rcvcv`'s
+      stories begin with the items of `REPORTER_ASKS_THE_VENDOR`, and
+      `TestComposedFamilies` in `test/demo_unit/test_recordings.py` compares
+      the pairs of the family named in `COMPOSED_FAMILIES` byte for byte up to
+      the branch point where each pair's paths part.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-12-017
+    - rel_type: depends_on
+      spec_id: DEMOCI-11-019
+    tags:
+    - demo
 
 - id: DEMOMA-13
   title: RCCV-Extension Scenario (C1 retains ownership; C2 is participant; C2 suggests Vendor)
@@ -2041,6 +2094,40 @@ groups:
     rationale: >-
       Scenario-specific invariants prevent the RCCV-extension scenario from
       accidentally omitting protocol steps not covered by universal checks.
+  - id: DEMOMA-13-012
+    priority: MUST
+    kind: project
+    statement: >-
+      The RCCV-extension story MUST start with the shared "C1 invites a second
+      Coordinator" opening and continue from C1's decision to keep the case.
+    rationale: >-
+      The opening is the Reporter telling C1, C1 engaging the case, and C1
+      inviting C2, which joins. The shared "the Reporter tells the
+      Coordinator" opening is nested inside the one DEMOMA-12-017 names and
+      inside this one, so every coordinator-first scenario tells it
+      identically, and RCCV-handoff tells the whole of this one identically
+      (DEMOMA-14-017). One copy of the code, so the recordings are
+      byte-identical to where each pair's paths part (DEMOCI-11-018).
+    verification: >-
+      `test_the_opening_is_the_shared_prefix_itself` in
+      `test/demo/test_rccv_extension_demo.py` asserts that the scenario's
+      story begins with the items of `C1_INVITES_C2`, and
+      `test_the_prefix_itself_starts_with_the_rcv_familys_opening` in the
+      same module asserts that the story reaches back to the items of
+      `REPORTER_TELLS_THE_COORDINATOR`;
+      `test_a_named_prefix_nests_the_shorter_one_it_carries` in
+      `test/demo_unit/test_story.py` asserts that `C1_INVITES_C2` begins with
+      those items rather than restating them; `TestComposedFamilies` in
+      `test/demo_unit/test_recordings.py` compares the pairs of the family
+      named in `COMPOSED_FAMILIES` byte for byte up to the branch point where
+      each pair's paths part.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    - rel_type: depends_on
+      spec_id: DEMOCI-11-019
+    tags:
+    - demo
 
 - id: DEMOMA-14
   title: RCCV-Handoff Scenario (C1 transfers case ownership to C2; C2 invites Vendor)
@@ -2060,9 +2147,10 @@ groups:
     rationale: >-
       RCCV-handoff demonstrates the case-ownership-transfer flow between two
       coordinators.  C1 starts as CASE_OWNER, then transfers ownership to C2
-      via TRIG-11-001/002.  The five-container topology (Reporter, C1, C2,
-      Vendor, CaseActor) reuses the existing docker-compose-multi-actor.yml
-      services (vendor→C1, coordinator→C2, vendor2→Vendor).
+      via TRIG-11-001/002.  Its five containers come from the fixed cast: C1
+      in the first Coordinator slot, the Vendor in the first Vendor slot, C2 in
+      a character-actor slot, plus the Reporter slot and the dedicated
+      CaseActor container (DEMOCI-11-020).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001
@@ -2323,6 +2411,33 @@ groups:
     rationale: >-
       Scenario-specific invariants prevent the RCCV-handoff scenario from accidentally
       omitting protocol steps not covered by universal checks.
+  - id: DEMOMA-14-017
+    priority: MUST
+    kind: project
+    statement: >-
+      The RCCV-handoff story MUST start with the same shared opening as
+      RCCV-extension (DEMOMA-13-012) and continue from C1's decision to offer
+      ownership.
+    rationale: >-
+      The two scenarios part at one decision, so everything before it is one
+      copy of the code and their recordings are byte-identical up to the
+      `owner-keep-case` branch point (DEMOCI-11-018). It also makes C2 an
+      active participant holding the coordinating role before the transfer is
+      offered, which DEMOMA-14-010 requires. Naming it here keeps this group a
+      whole story.
+    verification: >-
+      `test/demo/test_rccv_handoff_demo.py` asserts that the scenario's story
+      begins with the items of `C1_INVITES_C2`, the same prefix
+      `rccv-extension` starts with, and `TestComposedFamilies` in
+      `test/demo_unit/test_recordings.py` compares the two recordings byte for
+      byte up to the `owner-keep-case` branch point.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    - rel_type: depends_on
+      spec_id: DEMOCI-11-019
+    tags:
+    - demo
 - id: DEMOMA-15
   title: Demo Helper Preconditions
   specs:
@@ -2941,23 +3056,44 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The RCVCV scenario MUST add an `actor6` service to
-      `docker/docker-compose-multi-actor.yml`, configured identically to
-      the existing `actor5` service (same `*actor-service` anchor, port
-      pattern, data volume) with `VULTRON_SERVER__BASE_URL=http://actor6:7999/api/v2/`,
-      `VULTRON_ACTOR_ID=http://actor6:7999/api/v2/actors/vendor-deployer`,
-      `VULTRON_ACTOR__DEFAULT_CASE_ROLES=["vendor","deployer"]`, and
-      `VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-actor6.yaml`.
+      The RCVCV scenario MUST seat V2 (VendorDeployer) in a character-actor
+      slot of the fixed cast (DEMOCI-11-020).
     rationale: >-
-      The RCVCV scenario requires five independent actor containers — one per
-      CVD-role actor — to force all inter-actor communication over the network
-      wire protocol (DEMOMA-01-001). The existing four non-CaseActor containers
-      are insufficient; a sixth container (`actor6`) carries V2 (VendorDeployer).
-      Keeping one actor per container preserves the architectural isolation
-      invariant that prevents intra-container data-layer shortcuts (ADR-0042).
+      The RCVCV scenario needs five independent actor containers — one per
+      scenario actor — to force all inter-actor communication over the network
+      wire protocol (DEMOMA-01-001). Keeping one actor per container preserves
+      the architectural isolation invariant that prevents intra-container
+      data-layer shortcuts (ADR-0042). V2 holds VENDOR and DEPLOYER from the
+      Invite that seats it, so its container declares no default case roles
+      (DEMOCI-11-021).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001
+    - rel_type: refines
+      spec_id: DEMOMA-02-001
+    - rel_type: refines
+      spec_id: DEMOCI-11-020
+
+  - id: DEMOMA-19-023
+    priority: MUST
+    kind: project
+    statement: >-
+      Each cast slot RCVCV seats MUST have a service built from the shared
+      `*actor-service` anchor, with its own volume, port variable and actor
+      id.
+    rationale: >-
+      One anchor for every actor service keeps the image build and the health
+      check identical across the cast, so a per-container stanza holds only
+      what actually differs. Its seed config is DEMOCI-11-028. One actor per
+      container preserves the isolation invariant that prevents
+      intra-container data-layer shortcuts (ADR-0042).
+    verification: >-
+      Tests assert, over every cast slot, that the compose file gives it its own
+      data volume, publishes it on its own host-port variable, and configures the
+      actor id its slot hosts. The shared anchor itself is the remaining debt.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-19-001
     - rel_type: refines
       spec_id: DEMOMA-02-001
 
@@ -3070,15 +3206,14 @@ groups:
     statement: >-
       The RCVCV scenario MUST be registered with the scenario registry
       (DEMOCI-11-001), so that its generated `.github/demo-scenarios.json`
-      entry (DEMOCI-11-004) adds it to the CI matrix, and `actor6` MUST be
-      defined in `docker/docker-compose-multi-actor.yml` alongside the existing
-      five actor services.
+      entry (DEMOCI-11-004) adds it to the CI matrix.
     rationale: >-
-      CI coverage of all demo scenarios is required by DEMOCI-04-001. The
-      RCVCV scenario introduces the actor6 container; CI starts the whole
-      multi-actor compose file, so defining the service there is what makes
-      it available to the run. Scenario-role names in devlogs match the names
-      used in scenario code, making log archaeology easier.
+      CI coverage of all demo scenarios is required by DEMOCI-04-001. RCVCV is
+      the widest scenario, so it is the one that sets the size of the cast.
+      DEMOMA-19-023 is what places each of those containers in the compose file
+      CI starts as a whole; this requirement no longer carries that half.
+      Scenario-role names in devlogs match the names used in scenario code,
+      making log archaeology easier.
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-04-001
@@ -3134,24 +3269,33 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      A `seed-actor6.yaml` seed config MUST be created in `docker/seed-configs/`
-      with `local_actor.id=http://actor6:7999/api/v2/actors/vendor-deployer`,
-      `local_actor.name=VendorDeployer`, and a peers list covering the five other
-      actors (reporter, vendor, coordinator, actor5, case-actor).
+      Every cast container the RCVCV scenario seats MUST have its own seed
+      config in `docker/seed-configs/`.
     rationale: >-
-      The seed config bootstraps actor6's identity and peer registry at container
-      startup, consistent with the pattern used by all other actor containers.
+      RCVCV is the widest scenario, so it is the first to need a seed config
+      for every cast container. The cast-wide shape of those configs is
+      DEMOCI-11-028 (the local actor), DEMOCI-11-029 (the peer mesh) and
+      DEMOCI-11-033 (the display name), which together replace the id, name
+      and peer list this requirement used to spell for one container.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-11-028
   - id: DEMOMA-19-011
     priority: MUST
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The `demo-runner` service MUST add `actor6` to its `depends_on` list and
-      expose `VULTRON_VENDOR_DEPLOYER_BASE_URL=http://actor6:7999/api/v2` in
-      its environment block.
+      The `demo-runner` service MUST wait for every cast container the RCVCV
+      scenario seats.
     rationale: >-
-      Without actor6 in depends_on, the demo runner may start before actor6 is
-      healthy; without the environment variable, the scenario cannot locate V2.
+      RCVCV seats every cast container, so its run is the one that waits for
+      all of them. The cast-wide form of the wait and of the matching
+      environment variables is DEMOCI-11-030 and DEMOCI-11-031.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-11-030
+    - rel_type: refines
+      spec_id: DEMOCI-11-031
   - id: DEMOMA-19-012
     priority: MUST
     kind: project
@@ -3182,14 +3326,17 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The RCVCV scenario MUST implement the following phases in order:
+      The RCVCV scenario MUST tell the following steps in order:
       report_submission, c2_suggests_v2, sync_verification, notes_exchange,
       fix_lifecycle, publication, case_closure, and dump_case_ledgers.
     rationale: >-
-      Each phase depends on the state that the phases before it create. Invitations
+      Each step depends on the state that the steps before it create. Invitations
       come before suggestions, the fix lifecycle comes before publication, and
       publication comes before closure. The ledger dump comes last so that it holds
-      the complete run. The fixed order makes a failure point to one phase.
+      the complete run. The fixed order makes a failure point to one step. The
+      scenario is written as composition (DEMOMA-19-024), so the steps are the
+      fragments of its story rather than phase functions of its own; the order is
+      the order they appear in it.
     preconditions:
     - description: >-
         All six containers running (Reporter, C1, V1, C2, V2, CaseActor); all
@@ -3350,6 +3497,58 @@ groups:
       The no-mail-carrying rule requires that the demo orchestrator never post
       directly to another actor's inbox; the invite must arrive via the normal
       routing path and be detected by polling.
+  - id: DEMOMA-19-024
+    priority: MUST
+    kind: project
+    statement: >-
+      The RCVCV story MUST start with the shared "the Reporter asks the Vendor"
+      opening (DEMOMA-12-018) and continue from C1's decision to invite a
+      second Coordinator.
+    rationale: >-
+      Everything up to C1's decision is told identically to RCV, so it is one
+      copy of the code and the two recordings are byte-identical to the
+      `coordinator-after-answer` branch point (DEMOCI-11-018). Naming it here
+      keeps this group a whole story.
+    verification: >-
+      `test/demo_unit/test_recordings.py::TestComposedFamilies` compares the
+      pairs of the family named in `COMPOSED_FAMILIES` byte for byte up to the
+      branch point where each pair's paths part — `{rcv, rcvcv}` among them —
+      and the scenario's own test module asserts that its story begins with
+      the items of the named prefix.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    - rel_type: depends_on
+      spec_id: DEMOCI-11-019
+    tags:
+    - demo
+
+  - id: DEMOMA-19-025
+    priority: MUST
+    kind: project
+    statement: >-
+      C2's and V2's actors MUST be seeded by the step that brings
+      them into the case, not by the shared opening
+      (DEMOMA-19-024).
+    rationale: >-
+      The shared opening writes the same records in every scenario that starts
+      with it, which is what makes their recordings byte-identical
+      (DEMOCI-11-018). Each actor and peer record written before the case
+      exists is one more read of the recording clock, so seeding five
+      containers in the opening stamped RCVCV's first ledger entry a third of
+      a second after RCV's (#5532). A character actor takes no part until it
+      is invited, so seeding it there costs the story nothing.
+    verification: >-
+      `test/demo/test_rcvcv_demo.py` asserts, in
+      `TestCharacterActorsSeededAfterTheBranchPoint`, that the scenario's cast
+      opening seeds only the three fixed-role containers and leaves C2's and
+      V2's waiting, and that the step that brings them in is the only caller
+      of `seed_containers_rcvcv`.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-19-024
+    tags:
+    - demo
 
 - id: DEMOMA-20
   title: RCV Embargo Scenario (Reporter + Coordinator + Vendor, deliberate termination)
@@ -3363,14 +3562,14 @@ groups:
     report submission and case setup, R proposes an embargo (EP). Case creation
     has already activated the default embargo (EP-04-001), so the case is at
     EM.ACTIVE before R proposes and R's proposal revises that embargo
-    (ACTIVE → REVISE). V and C accept (EA); C, as case owner, activates the
-    revision, returning EM to ACTIVE with the revision as the active embargo and
+    (ACTIVE → REVISE). V and C accept the Invite; C, as case owner, activates the
+    revision (EC), returning EM to ACTIVE with the revision as the active embargo and
     all three parties as signatories to it. The fix lifecycle then proceeds. Before
     the natural embargo window expires, C deliberately terminates the embargo
     (ET), advancing EM to EXITED. The case continues to the normal P-transition
     and closure sequence. This scenario is the first to exercise: (a) embargo
     proposal initiated after report submission (variation b), (b) the full
-    EP→EA→ET arc (propose, activate, terminate without a further revision),
+    EV→EC→ET arc (propose, activate, terminate without a further revision),
     (c) each party's consent row for the revised embargo passing through
     INVITED → AGREED (signatory to the active embargo) for all three parties.
   specs:
@@ -3525,13 +3724,18 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The rcv-embargo scenario MUST be structured with the following phases
+      The rcv-embargo scenario MUST be structured with the following steps
       executed in order: (1) report_submission, (2) embargo_proposal,
       (3) fix_lifecycle, (4) embargo_termination, (5) publication,
       (6) case_closure, and (7) dump_case_ledgers.
     rationale: >-
-      The phased structure mirrors prior RCV/RVCV scenarios while inserting
-      embargo lifecycle phases between report setup and fix-lifecycle.
+      The structure mirrors prior RCV/RVCV scenarios while inserting embargo
+      lifecycle steps between report setup and fix-lifecycle. The scenario is
+      written as composition (DEMOMA-20-013), so the steps are the fragments of
+      its story rather than phase functions of its own, and every step name but
+      the dump is still the label its EM-state assertion carries
+      (DEMOMA-20-008). The dump is the harness's, and has no EM state of its
+      own to assert.
     preconditions:
     - description: >-
         All four containers running (Reporter, Coordinator, Vendor, CaseActor);
@@ -3651,6 +3855,36 @@ groups:
     rationale: >-
       Asserting peer PEC states in the exchange helper introduces a race condition;
       propagation timing varies by topology and scenario.
+  - id: DEMOMA-20-013
+    priority: MUST
+    kind: project
+    statement: >-
+      The rcv-embargo story MUST start with the shared "the Reporter proposes
+      an embargo" opening and continue from the Vendor's decision to report the
+      fix ready.
+    rationale: >-
+      That opening nests the one RCV and RCV-reject start with and carries on
+      through the Vendor's acceptance, the default embargo's confirmation, the
+      Reporter's revision of it and the note thread that follows, which
+      rcvv-embargo tells identically (DEMOMA-21-015). Each shared stretch is
+      one copy of the code, so the two recordings agree to the
+      `vendor-after-embargo` branch point — isomorphically today
+      (DEMOCI-11-017), byte for byte once #5591 lands.
+    verification: >-
+      The scenario's own test module asserts that its story begins with the
+      items of `REPORTER_PROPOSES_EMBARGO`, which is what carries this clause
+      while the byte comparison is held open: `COMPOSED_FAMILIES` does not
+      name `{rcv-embargo, rcvv-embargo}` in one family, because their shared
+      prefix runs past the embargo activation and #5591 is the read that moves
+      it. `TestComposedFamilies` does compare each of the two against the
+      narrower siblings it is in a family with.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    - rel_type: depends_on
+      spec_id: DEMOCI-11-019
+    tags:
+    - demo
 
 - id: DEMOMA-21
   title: RCVV Embargo Scenario (Reporter + Coordinator + V1 + V2, revision and accidental collapse)
@@ -3661,18 +3895,19 @@ groups:
     Specifies the rcvv-embargo demo scenario: a 4-party CVD case with Reporter
     (R), Coordinator (C), Vendor1 (V1), and Vendor2 (V2), exercising embargo
     lifecycle variations (b) post-submission negotiation, (c) revision during
-    active embargo (EV→ER→EJ), (f) deliberate notification delay for V2
+    active embargo (EV→EC), (f) deliberate notification delay for V2
     (late invitation simulating a short-deadline vendor), and (d) accidental
     collapse via CS.P. After R proposes and C accepts an initial embargo (EP→EA),
     EM reaches ACTIVE with R, C, and V1 as signatories. C then proposes a
-    revision (EV), V1 accepts (EJ), and EM returns to ACTIVE with updated terms.
+    revision (EV), V1 accepts the revision Invite, C activates the revision (EC),
+    and EM returns to ACTIVE with updated terms.
     V2 is not invited until after the revision is accepted, simulating a
     coordinator holding off on inviting a short-deadline vendor until the
     embargo window is near its close. V2 accepts the case invite and becomes
     a signatory. Finally, R publishes (CS.P fires), triggering
     `ThreatTerminationBranchNode` which auto-terminates the embargo (EM→EXITED).
     This scenario is the first to exercise: (a) an embargo revision cycle
-    (EV→ER/EJ arc), (b) a late-invitee V2 joining an active embargo (consent
+    (EV→EC arc), (b) a late-invitee V2 joining an active embargo (consent
     row INVITED→AGREED after EM.ACTIVE), (c) accidental embargo collapse via
     external P-event rather than deliberate termination.
   specs:
@@ -3856,14 +4091,18 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The rcvv-embargo scenario MUST be structured with the following phases
+      The rcvv-embargo scenario MUST be structured with the following steps
       executed in order: (1) report_submission, (2) embargo_proposal,
       (3) embargo_revision, (4) v2_late_invite, (5) fix_lifecycle,
       (6) accidental_collapse, (7) case_closure, and (8) dump_case_ledgers.
     rationale: >-
-      Phase ordering reflects the temporal protocol constraints: revision
+      The ordering reflects the temporal protocol constraints: revision
       requires an ACTIVE embargo; V2 late-invite simulates a short-deadline
-      vendor held back until terms are settled.
+      vendor held back until terms are settled. The scenario is written as
+      composition (DEMOMA-21-015), so the steps are the fragments of its story
+      rather than phase functions of its own, and every step name but the dump
+      is still the label its EM-state assertion carries (DEMOMA-21-009). The
+      dump is the harness's, and has no EM state of its own to assert.
     preconditions:
     - description: >-
         All five containers running (Reporter, Coordinator, V1, V2, CaseActor);
@@ -4007,6 +4246,60 @@ groups:
       Variation (d) specifically exercises the automatic embargo collapse path
       via `ThreatTerminationBranchNode`; calling `trigger_terminate_embargo`
       directly would test variation (e) instead.
+  - id: DEMOMA-21-015
+    priority: MUST
+    kind: project
+    statement: >-
+      The rcvv-embargo story MUST start with the shared "the Reporter proposes
+      an embargo" opening (DEMOMA-20-013) and continue from Vendor1's revision.
+    rationale: >-
+      The revision cycle is the first thing this scenario tells differently, so
+      everything before it is one copy of the code shared with rcv-embargo, so
+      the two recordings agree up to the `vendor-after-embargo` branch point —
+      isomorphically today (DEMOCI-11-017), and byte for byte once #5591
+      lands. Naming the opening here keeps this group a whole story.
+    verification: >-
+      The scenario's own test module asserts that its story begins with the
+      items of `REPORTER_PROPOSES_EMBARGO`, which is what carries this clause
+      while the byte comparison is held open: `COMPOSED_FAMILIES` does not
+      name `{rcv-embargo, rcvv-embargo}` in one family, because their shared
+      prefix runs past the embargo activation and #5591 is the read that moves
+      it. `TestComposedFamilies` does compare each of the two against the
+      narrower siblings it is in a family with.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    - rel_type: depends_on
+      spec_id: DEMOCI-11-019
+    tags:
+    - demo
+
+  - id: DEMOMA-21-016
+    priority: MUST
+    kind: project
+    statement: >-
+      Vendor2's actor MUST be seeded by the step that invites it,
+      not by the shared opening (DEMOMA-21-015).
+    rationale: >-
+      The shared opening writes the same records in every scenario that starts
+      with it, which is what makes their recordings agree (DEMOCI-11-018).
+      Each actor and peer record written before the case exists is one more
+      read of the recording clock, so seeding four containers in the opening
+      stamped this scenario's first ledger entry a sixth of a second after
+      rcv-embargo's (#5532). Vendor2 takes no part until it is invited, so
+      seeding it there costs the story nothing.
+    verification: >-
+      `test/demo/test_rcvv_embargo_demo.py` asserts, in
+      `TestTheSharedOpeningSeedsOnlyTheThree`, that the scenario's cast
+      opening seeds only the three fixed-role containers and leaves Vendor2's
+      waiting, and that the step that invites Vendor2 is the only caller of
+      `seed_containers_rcvv`.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-21-015
+    tags:
+    - demo
+
 - id: DEMOMA-22
   title: Causal Gating and Scenario Narratives
   specs:
@@ -4223,19 +4516,33 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      A scenario's `_phase_dump_case_ledgers()` MUST be a thin wrapper over
+      A scenario's dump step MUST be a thin wrapper over
       `vultron.demo.helpers.ledger_dump.dump_case_ledgers()`, declaring only that
       scenario's dump targets (actor name, client, route key, and any fallback).
-      Per-actor fetching, 404 handling, JSONL writing, and manifest writing MUST
-      live in the shared helper, not in the scenario module.
     rationale: >-
       The export loop is the same for every scenario. A copy of it in each scenario
-      module is the duplication that DEMOMA-17-001 forbids, and a defect in it must
-      then be fixed in each copy. The scenario keeps only its own participant map, and
-      the helper keeps the mechanics, so each fact is in one place.
+      module is the duplication that DEMOMA-17-001 forbids. The step is a
+      `_phase_dump_case_ledgers()` in a scenario written as phases and a `dump=`
+      story fragment in one written as composition (DEMOCI-11-019).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-17-001
+    tags:
+    - demo
+  - id: DEMOMA-23-009
+    priority: MUST
+    kind: project
+    verification_debt: '#2573'
+    statement: >-
+      Per-actor fetching, 404 handling, JSONL writing and manifest writing MUST
+      live in the shared dump helper, not in a scenario module.
+    rationale: >-
+      The scenario keeps only its own participant map and the helper keeps the
+      mechanics, so each fact is in one place and a defect in the export is
+      fixed once (DEMOMA-23-002).
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-23-002
     tags:
     - demo
   - id: DEMOMA-23-003
@@ -4243,14 +4550,16 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      A scenario MUST register its dump with `harness.dump_with(...)` as soon as
-      a case exists — immediately after the report-submission phase returns —
-      rather than at the end of the run.
+      A scenario MUST register its dump with the harness as soon as a case
+      exists. That is the first instant there is anything to dump, and not the
+      end of the run.
     rationale: >-
       The harness can only dump what it has been given. Registering the dump at
-      the first point where a case exists is what makes every later phase failure
+      the first point where a case exists is what makes every later failure
       survivable: the ledgers that existed at the moment of failure are still
-      exported.
+      exported. A scenario written as phases calls `harness.dump_with(...)`
+      itself; one written as composition calls `state.open_case(...)`, which
+      arms the `dump=` fragment it was built with (DEMOCI-11-019).
     relationships:
     - rel_type: implements
       spec_id: DEMOCI-10-001
@@ -4357,17 +4666,18 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A scenario's replica sync-verification phase MUST be a thin call to a
-      shared phase helper in `vultron/demo/helpers/sync.py`, declaring only the
-      scenario's authority, replicas, late joiners, expected participant set, and
-      the replica pairs to state-check.
+      A scenario's replica sync-verification step MUST be a thin call to a
+      shared helper in `vultron/demo/helpers/sync.py`. It declares only the
+      scenario's authority, replicas, late joiners, expected participant set
+      and the replica pairs to state-check.
     rationale: >-
       Keeping the scenario's facts in the scenario and the mechanics in the
       helper puts each fact in one place, exactly as DEMOMA-23-002 does for the
       ledger dump. A scenario-specific extra — the rv scenario's check that its
       dedicated case-actor container holds the case — follows the helper call as
-      a separate step rather than becoming a per-scenario variant of the phase
-      body.
+      a separate step rather than becoming a per-scenario variant of the step's
+      body. The step is a `_phase_sync_verification()` in a scenario written as
+      phases and a story fragment in one written as composition.
     verification: >-
       Unit tests for the shared phase helper assert that it composes the
       Reporter-case gate, the coverage wait (DEMOMA-23-005), the participant-index
@@ -4698,9 +5008,9 @@ groups:
       Using the shared `case-actor` container for Vendor-owned cases matches the
       topology used by other scenarios where a non-Coordinator actor holds
       CASE_OWNER, keeps the CaseActor identity consistent across scenarios, and
-      exercises true multi-container message delivery. All three containers
-      (vendor, coordinator, case-actor) already exist in
-      `docker-compose-multi-actor.yml`; no new infrastructure is required.
+      exercises true multi-container message delivery. Every container it
+      needs is already in the fixed cast (DEMOCI-11-020); no new
+      infrastructure is required.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001
@@ -5169,5 +5479,30 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-27-001
+    tags:
+    - demo
+  - id: DEMOMA-27-004
+    priority: MUST
+    kind: project
+    statement: >-
+      The RCV-reject story MUST start with the same shared opening as RCV
+      (DEMOMA-12-017) and continue from the Vendor's rejection.
+    rationale: >-
+      The rejection is the only thing this scenario tells differently, so
+      everything before it is one copy of the code shared with RCV and the two
+      recordings are byte-identical up to the Vendor's decision
+      (DEMOCI-11-018). Naming it here keeps this group a whole story: a reader
+      sees where the rejection path begins without reading RCV's group.
+    verification: >-
+      `test/demo_unit/test_story.py::test_the_two_composed_scenarios_share_one_opening`
+      asserts that `rcv-reject`'s story begins with the items of
+      `COORDINATOR_INVITES_VENDOR`, and `TestComposedFamilies` in
+      `test/demo_unit/test_recordings.py` compares the `rcv` and `rcv-reject`
+      recordings byte for byte up to the `vendor-join` branch point.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    - rel_type: depends_on
+      spec_id: DEMOCI-11-019
     tags:
     - demo

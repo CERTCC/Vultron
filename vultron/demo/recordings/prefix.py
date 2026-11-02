@@ -46,11 +46,12 @@ from vultron.demo.scenario.tree import PathStep, TreeNode
 
 #: A string that names an object, wherever it occurs in an entry: an actor or
 #: other URL, a ``urn:uuid:`` id, a bare UUID, the actor part of a
-#: participant id (``<case>/participants/<uuid or actor slug>``: ``rcvcv``
-#: seeds named actor ids where its siblings seed UUIDs), or a SHA-256 hex
-#: digest (``entryHash``, ``prevLogHash``).  Each one is relabeled by first
-#: appearance, including inside a longer string such as an activity ``name``
-#: and in a mapping key such as an ``actorParticipantIndex`` entry.
+#: participant id (``<case>/participants/<uuid or actor slug>``, since the
+#: fixed cast seeds every container a slug rather than a UUID,
+#: DEMOCI-11-020), or a SHA-256 hex digest (``entryHash``, ``prevLogHash``).
+#: Each one is relabeled by first appearance, including inside a longer string
+#: such as an activity ``name`` and in a mapping key such as an
+#: ``actorParticipantIndex`` entry.
 _ID_RE = re.compile(
     r"https?://[^\s\"']+"
     r"|urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
@@ -70,10 +71,59 @@ _TIMESTAMP = "<timestamp>"
 
 #: Scenario families written as composition (#4733), each the names of its
 #: scenarios.  Every two scenarios in one family must be byte-identical up to
-#: the branch point where their paths part (DEMOCI-11-018).  Empty because no
-#: family is composed yet: until one is, every sibling pair seeds its own
-#: actor names, container slots and ports, so only isomorphism can hold.
-COMPOSED_FAMILIES: tuple[frozenset[str], ...] = ()
+#: the branch point where their paths part (DEMOCI-11-018).  A family is
+#: admitted here when its scenarios share one authored opening, not when two
+#: hand-placed openings happen to agree.
+#:
+#: The coordinator-first subtree — every scenario whose Reporter tells a
+#: Coordinator — is the first family, composed in three steps: ``rcv`` and
+#: ``rcv-reject`` piloted the story runner (#5533), the rest of the
+#: Reporter → Coordinator → Vendor branch followed (#5534), and the
+#: two-coordinator pair joined it on the opening all seven share (#5535).
+#: Each assembles its story from the nested prefixes in
+#: :mod:`vultron.demo.helpers.coordinated_story`,
+#: :mod:`vultron.demo.helpers.coordinated_embargo_story` and
+#: :mod:`vultron.demo.helpers.two_coordinator_story`, so the bytes before each
+#: pair's branch point come from one copy of the code and byte identity holds
+#: by construction.  The vendor-first families follow as they are composed
+#: (#5536); until then only the isomorphism check (DEMOCI-11-017) holds for
+#: them, because a hand-placed opening can still differ in setup length — it
+#: is the shared opening seeding only the containers every sibling uses that
+#: closed the gap here, each actor and peer record it writes being one more
+#: read of the recording clock (#5532).
+#:
+#: The subtree is named as **two overlapping families**, which is how this
+#: table says "every pair but one".  The one pair left out is
+#: ``{rcv-embargo, rcvv-embargo}``: their paths agree for four steps, so their
+#: shared prefix runs past the embargo activation, where the recording is not
+#: yet reproducible — the pending-assertion store reads the clock to check
+#: expiry, so a lookup racing the owner's accept trigger moves every later
+#: timestamp by 80 ms, and the two scenarios came out 80 ms apart in a
+#: whole-tree run and identical in solo runs (#5591).  Every other pair parts
+#: at or before ledger entry 26, ahead of that race, and is checked here.
+#: Merging the two entries into one is #5591's job.
+COMPOSED_FAMILIES: tuple[frozenset[str], ...] = (
+    frozenset(
+        {
+            "rcv",
+            "rcv-reject",
+            "rcvcv",
+            "rccv-extension",
+            "rccv-handoff",
+            "rcv-embargo",
+        }
+    ),
+    frozenset(
+        {
+            "rcv",
+            "rcv-reject",
+            "rcvcv",
+            "rccv-extension",
+            "rccv-handoff",
+            "rcvv-embargo",
+        }
+    ),
+)
 
 
 @dataclass(frozen=True)

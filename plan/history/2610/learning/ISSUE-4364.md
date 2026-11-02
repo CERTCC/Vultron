@@ -39,8 +39,11 @@ should they keep the shorthands as Invite answers and state that the
 EM-moving decision is a separate activity? Whichever it is, the docs
 table follows it.
 
-**Already closed**: 2026-10-30 — verified on main: MSM-02-004/005/006 map EJ, EC and ER
-to the owner's `Accept`/`Reject(EmbargoEvent)[target=VulnerabilityCase]` decision, and
-the docs table in `docs/topics/behavior_logic/use-cases/embargo-lifecycle.md` follows
-it. No promotion needed.
-Docs PR: <https://github.com/CERTCC/Vultron/pull/5581>.
+## Resolution
+
+**Resolved**: 2026-10-30. The first option was taken. MSM-02-002, MSM-02-004,
+MSM-02-005 and MSM-02-006 now map EA, EJ, EC and ER to the Case Owner's
+`Accept`/`Reject(EmbargoEvent, target=Case)`, and ER also to the CASE_MANAGER's
+abandoning Reject; a Participant's Invite answer carries no shorthand
+(MSM-02-010, #5309). #5310 reworded the remaining spec and docs uses, split
+MSM-07-003 and MSM-07-004, and fixed the docs tables.

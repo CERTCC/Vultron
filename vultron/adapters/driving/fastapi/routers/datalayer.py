@@ -150,7 +150,9 @@ def _serve_stored(obj: PersistableModel) -> AS2JSONResponse | dict[str, Any]:
     """
     if isinstance(obj, (as_Base, CoreObject)):
         return AS2JSONResponse(obj)
-    return obj.model_dump(by_alias=True, serialize_as_any=True)
+    # JSON mode, so a bookkeeping row's own serializers run and every time it
+    # carries is answered in the fixed form (CS-13-007).
+    return obj.model_dump(mode="json", by_alias=True, serialize_as_any=True)
 
 
 # Declared ahead of ``/{object_type}/{object_id}``: routes match in
@@ -415,12 +417,21 @@ def get_actor_outbox(
     # Instead, query the DataLayer queue directly for the actor's outbox IDs.
     activity_ids = cast(CaseOutboxPersistence, datalayer).outbox_list()
 
+    # ``published``/``updated`` are passed as ``None`` rather than left to
+    # ``as_Object``'s ``default_factory=now_utc``: this collection is a view
+    # the read synthesises, not a stored object, so a read that stamped it
+    # would read the clock and invent a time for a thing that has none
+    # (#5510).  ``AS2JSONResponse`` excludes ``None``, so neither key is
+    # serialised.  The clock read was invisible while every stamp was a whole
+    # second; keeping microseconds made it show (#5452).
     outbox = as_OrderedCollection(
         id_=f"{canonical_id}/outbox",
         items=[
             rehydrate(activity_id, dl=datalayer)
             for activity_id in activity_ids
         ],
+        published=None,
+        updated=None,
     )
 
     return AS2JSONResponse(outbox)

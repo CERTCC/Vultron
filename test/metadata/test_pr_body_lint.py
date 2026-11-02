@@ -15,7 +15,7 @@
 One class per rule, a check that ``pr-body-guide.md`` lists exactly the tool's
 rules, the CLI's fact gathering, and the skills that run it.
 
-Specs: PAD-20-001 through PAD-20-005, PD-03-008.
+Specs: PAD-20-001 through PAD-20-005, PD-03-013.
 """
 
 from __future__ import annotations
@@ -97,7 +97,7 @@ def test_a_well_formed_docs_body_has_no_findings():
     assert lint_body(body, DOCS) == []
 
 
-@pytest.mark.spec("PAD-20-001")
+@pytest.mark.spec("PAD-20-001", "PAD-20-006")
 class TestGuideListsTheRules:
     """pr-body-guide.md's rule table and ``RULES`` are one list."""
 
@@ -221,7 +221,7 @@ class TestSpecsManifest:
         assert _ids(_body(summary="x", specs=None), DOCS) == []
 
 
-@pytest.mark.spec("PAD-20-002")
+@pytest.mark.spec("PAD-20-008")
 class TestManifestVerbatim:
     def _facts(self, manifest: str) -> BodyFacts:
         return BodyFacts(
@@ -249,7 +249,7 @@ class TestVerificationSection:
 
 
 @pytest.mark.spec("PAD-20-005")
-@pytest.mark.spec("PD-03-008")
+@pytest.mark.spec("PD-03-013")
 class TestDocsLine:
     def test_a_missing_line_is_found(self):
         assert _ids(_body(docs=None)) == ["PRB-08"]
@@ -473,6 +473,7 @@ class TestCli:
             == 2
         )
 
+    @pytest.mark.spec("PAD-20-008")
     def test_the_manifest_file_is_checked_verbatim(self, repo, capsys):
         (repo / "body.md").write_text(_body())
         (repo / "manifest.txt").write_text(MANIFEST + "\nLoaded (extra): X\n")
@@ -549,7 +550,7 @@ def _section(path: Path, start: str, end: str) -> str:
 
 
 class TestSkillsRunTheGates:
-    @pytest.mark.spec("PAD-20-002")
+    @pytest.mark.spec("PAD-20-002", "PAD-20-007", "PAD-20-008")
     @pytest.mark.spec("PAD-20-003")
     def test_create_pr_runs_the_gates_before_the_push(self):
         gate = _section(

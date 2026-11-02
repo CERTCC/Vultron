@@ -1,17 +1,17 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Add",
-  "id": "urn:uuid:7d1ed403-3f41-4616-9a54-da524429e0be",
-  "name": "https://vultron.example/organizations/vendorco Add FDR-8675309 to urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
+  "id": "urn:uuid:e543d862-96b8-408a-80aa-19ff3f8da6e7",
+  "name": "https://vultron.example/organizations/vendorco Add FDR-8675309 to urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
   "content": "We're adding this report to this case.",
   "actor": "https://vultron.example/organizations/vendorco",
-  "target": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
+  "target": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
   "object": {
-    "id": "https://demo.vultron.local/VulnerabilityReport/fa9cabf8-70ff-4eb5-9182-8c210f77a57b",
+    "id": "https://demo.vultron.local/VulnerabilityReport/e3268eea-21a6-4e26-ac32-89aa50bd4b57",
     "type": "VulnerabilityReport",
     "name": "FDR-8675309",
-    "published": "2026-09-30T16:00:59+00:00",
-    "updated": "2026-09-30T16:00:59+00:00",
+    "published": "2026-10-30T15:17:57.492290+00:00",
+    "updated": "2026-10-30T15:17:57.492292+00:00",
     "content": "I found a vulnerability!",
     "attributedTo": "https://vultron.example/users/finndervul",
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"

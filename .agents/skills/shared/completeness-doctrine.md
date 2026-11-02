@@ -24,7 +24,7 @@ A task is not done until:
 - Linters pass clean (no `# type: ignore` or `# noqa` added without justification)
 - Specs, notes, AGENTS.md, and reader-facing `docs/` pages are consistent
   with the new behavior — for `docs/`, the PR body's `Docs:` line records
-  which pages were checked and updated (PD-03-008)
+  which pages were checked and updated (PD-03-013)
 
 A happy-path-only implementation is not done. A behavior with no test is not
 done. A changed interface with a stale type annotation is not done.
@@ -217,7 +217,7 @@ the failure (#4113) was a real fan-out bug.
 
 - **Red `main`** gets one fix PR. Other PRs wait for it to land, then re-run
   CI, which tests each PR merged into the fixed base; never rebase an open PR
-  onto it (PAD-11-001). None merges past it.
+  onto it (PAD-11-006). None merges past it.
 - **Pre-commit hooks are never skipped** (`--no-verify`, `SKIP=`). A hook that
   fails is fixed, not bypassed; #4033 and #4034 skipped the spec-lint hook. The
   one documented environmental exception is the devcontainer `actionlint` hang in

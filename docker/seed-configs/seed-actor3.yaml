@@ -1,0 +1,28 @@
+# Manual seed configuration for the actor3 container of the fixed demo
+# cast (DEMOCI-11-020).  Used by `vultron-demo seed`; the demo-runner
+# seeds the same actors programmatically (vultron/demo/helpers/seeding.py).
+#
+# Cast slot 3: a character actor.  Its CVD role comes from the act that
+# seats it, so neither its name nor its id names one (DEMOCI-11-021).
+
+local_actor:
+  name: Actor3
+  actor_type: Organization
+  id: http://actor3:7999/api/v2/actors/actor3
+
+peers:
+  - name: Reporter
+    actor_type: Person
+    id: http://actor0:7999/api/v2/actors/actor0
+  - name: Vendor
+    actor_type: Organization
+    id: http://actor1:7999/api/v2/actors/actor1
+  - name: Coordinator
+    actor_type: Service
+    id: http://actor2:7999/api/v2/actors/actor2
+  - name: Actor4
+    actor_type: Organization
+    id: http://actor4:7999/api/v2/actors/actor4
+  - name: CaseActor
+    actor_type: Service
+    id: http://case-actor:7999/api/v2/actors/case-actor

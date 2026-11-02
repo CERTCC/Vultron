@@ -309,7 +309,7 @@ def test_notify_failure_takes_no_epic_input() -> None:
 def test_notify_failure_closes_duplicates_and_themes_the_oldest(
     tmp_path: Path,
 ) -> None:
-    """Duplicate trackers are closed (CISEC-05-003) and the one that
+    """Duplicate trackers are closed (CISEC-05-011) and the one that
     remains is themed."""
     gh = install_fake_gh(
         tmp_path, issues_page=[{"number": 5087}, {"number": 5105}]

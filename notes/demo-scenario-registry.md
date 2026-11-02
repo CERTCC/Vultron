@@ -89,16 +89,18 @@ composition states no `path=`: its path is read off its story's choices
   and paths that decide different branch points at one node. Each has a test on a
   mutated registry in `test/demo_unit/test_scenario_tree.py`.
 - **The deciding actor must hold the branch point's role.** A scenario names
-  it in `reach_step(..., by=actor_id)`, and the harness reads its role from
-  its participant in the canonical case (DEMOCI-11-013,
+  it in `reach_step(..., by=actor_id)` — or, once composed, in
+  `choose(..., by=<cast name>)`, which `run_story` resolves to that actor's id
+  — and the harness reads its role from its participant in the canonical case
+  (DEMOCI-11-013,
   `vultron/demo/helpers/deciding_role.py`). Before an actor is a participant,
   its role comes from the act that brings it in: the root step's actor must
   be the report's author, and an invitee holds the role its Invite offers,
   which the CASE_MANAGER seats on an inert participant (CM-17-003). So report
   the root step after seeding, just before the report is submitted. A case
   owner holds only `case_owner` unless its container states default case
-  roles (CP-01-013), which is why the coordinator container states
-  `["coordinator"]`.
+  roles (CP-01-013), which is why the first-Coordinator slot (`actor2`) states
+  `["coordinator"]` and the first-Vendor slot (`actor1`) states `["vendor"]`.
 - **Every choice is a mounted trigger and is taken.** The same file checks each
   choice's verb against the routes the prototype app mounts, and that some
   registered scenario takes every choice; an untaken choice is a dead end in
@@ -206,10 +208,10 @@ so unpack it there, not at the repository root.
 Regenerate in the PR only when the change needs current recordings (a UI change,
 or a new scenario, which the `--check` hook requires). Then run
 `uv run export-demo-tree`: the tree index lists each recording's case ids, so a
-new or refreshed recording leaves it stale. Each role's `url_env` must
-name a container slot the `demo-runner` service in
-`docker/docker-compose-multi-actor.yml` sets: the recorder reads the container
-layout from there and refuses a role it cannot place (#3901).
+new or refreshed recording leaves it stale. The `demo-runner` service in
+`docker/docker-compose-multi-actor.yml` must set every cast slot's base-URL
+env var: the recorder reads the container layout from there and refuses a role
+it cannot place (#3901).
 
 **The mkdocs-tree boundary is load-bearing.** `include-markdown` expands only at
 build time and only under `docs/`; in `notes/` or `test/ci/` it renders as
@@ -221,24 +223,23 @@ whose stem names no registered scenario (no CI run exercises it) and refuses
 passes, and the live answer is the demo-integration workflow (MS-16-002). A
 missing page is `missing_derived_paths`'s finding, not this check's. A
 `_`-prefixed file in the directory is an include fragment the narratives share,
-not a page, so the check skips it (DEMOCI-11-012, DF-09-007).
+not a page, so the check skips it (DEMOCI-11-012, DF-09-011).
 
 ## The CLI is a registry consumer, and `ActorRole` is what lets it be one
 
 `vultron/demo/cli.py` builds one sub-command per discovered scenario
-(DEMOCI-11-011). The options are not derivable from the name: URL options key to
-container slots rather than roles (see
-[demo-scenario-authoring.md](demo-scenario-authoring.md) § "Docker Compose
-Service Names Are Not Actor Names"), and which actors take an id varies by
-scenario.
+(DEMOCI-11-011). The options are not derivable from the scenario name: each
+actor's flag stem is the part it plays while its container is a cast slot (see
+[demo-scenario-authoring.md](demo-scenario-authoring.md) § "Every Scenario Runs
+on the Fixed Cast"), and which actors take an id varies by scenario.
 
 **Do not move option metadata onto `@scenario`.** DEMOCI-11-001 confines the
 decorator to facts every derived artifact uses. Each scenario module declares
 instead:
 
 - `ROLES: list[ActorRole]` (`vultron/demo/helpers/actor_roles.py`), in `main()`
-  parameter order. It also defines the module's `*_BASE_URL` constants, so each
-  env-var/default pair is written once.
+  parameter order, each actor seated in a cast slot. It also defines the
+  module's `*_BASE_URL` constants, so the address is read from the slot once.
 - `CLI_HELP: str`, the sub-command's `--help` body.
 
 Load-bearing details:
@@ -253,9 +254,10 @@ Load-bearing details:
   shadow the generated one with every runtime check green;
   `test_no_scenario_subcommand_is_hand_declared` checks the AST, and a sibling
   test asserts `cli.py` imports no `*_demo` module by name.
-- **Per-scenario asymmetries are pinned by name** in
-  `test/demo_unit/test_scenario_cli_factory.py` § `TestDeclaredDivergences`, so
-  "regularising" them fails a test.
+- **Nothing about a container is per-scenario.** Every option's env var is its
+  slot's, and `test/demo_unit/test_scenario_cli_factory.py` §
+  `TestOptionsComeFromTheCast` fails a scenario that derives one from a role
+  name instead.
 
 ## Name order is the canonical order, everywhere
 

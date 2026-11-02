@@ -37,6 +37,8 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 CASE_ID = "https://example.org/cases/offsets"
 EMBARGO_ID = "https://example.org/embargoes/offsets"
 CARRIED_END = "2026-09-01T12:00:00+05:00"
+#: The same instant in the fixed six-digit form, its offset kept (CS-13-007).
+CARRIED_END_FIXED = "2026-09-01T12:00:00.000000+05:00"
 UTC_OFFSET = re.compile(r"(Z|\+00:00)$")
 #: RFC 3339 ``date-time``: an uppercase ``T`` and a mandatory offset.
 RFC3339_DATE_TIME = re.compile(
@@ -62,7 +64,12 @@ def _announce_embargo(end_time: str) -> dict[str, Any]:
 
 @pytest.mark.spec("CS-13-005")
 def test_carried_non_utc_offset_round_trips_through_storage() -> None:
-    """A peer's ``+05:00`` survives parse, store and serialise unchanged."""
+    """A peer's ``+05:00`` survives parse, store and serialise.
+
+    The offset is kept (CS-13-005); the fraction takes the fixed form
+    (CS-13-007), so a time the peer wrote at whole seconds gains six zero
+    digits.
+    """
     activity = parse_activity(_announce_embargo(CARRIED_END))
     assert isinstance(activity, as_Announce)
     embargo = activity.object_
@@ -74,7 +81,7 @@ def test_carried_non_utc_offset_round_trips_through_storage() -> None:
     assert isinstance(stored, EmbargoEvent)
 
     wire = json.loads(stored.model_dump_json(by_alias=True, exclude_none=True))
-    assert wire["endTime"] == CARRIED_END
+    assert wire["endTime"] == CARRIED_END_FIXED
 
 
 @pytest.mark.spec("CS-13-005")

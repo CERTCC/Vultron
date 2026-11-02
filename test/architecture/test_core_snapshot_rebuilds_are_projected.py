@@ -56,6 +56,14 @@ _NOT_A_SNAPSHOT_EXEMPTIONS: dict[tuple[str, str], str] = {
         "_entry_after",
     ): "revalidates this entry's own dump with the change applied",
     (
+        "vultron/core/models/case_ledger.py",
+        "_compute_entry_hash",
+    ): (
+        "reads the one `received_at` timestamp the hash input needs, with the"
+        " adapter the field itself uses, so the hash accepts exactly the"
+        " spellings the field accepts (CS-13-007)"
+    ),
+    (
         "vultron/core/behaviors/case/nodes/case_setup.py",
         "update",
     ): "spreads the endpoints this node hosts for its own CaseActor",

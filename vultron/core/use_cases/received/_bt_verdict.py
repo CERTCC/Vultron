@@ -672,17 +672,17 @@ def pxa_refusal_verdict(
 ) -> HandlerResult | None:
     """The verdict of a delivery the P/X/A refusal *name* diverted, else ``None``.
 
-    ``SKIPPED`` when the ER *answered* names was already sent, so the
-    redelivery is not refused twice (HP-01-003); otherwise ``REFUSED`` for
-    the condition's reason (EMB-01-002, EMB-02-002), whether or not the ER
-    could be sent.
+    ``SKIPPED`` when the ``Reject`` of the Invite *answered* names was
+    already sent, so the redelivery is not refused twice (HP-01-003);
+    otherwise ``REFUSED`` for the condition's reason (EMB-01-002,
+    EMB-02-004), whether or not the ``Reject`` could be sent.
     """
     stage = taken_diversion(tree, name)
     if stage is None:
         return None
     if node_failed(stage, EmbargoInviteNotYetRefusedNode):
         return HandlerResult.skipped(
-            f"{answered} not refused again: the ER was already sent"
+            f"{answered} not refused again: the Reject was already sent"
             " (HP-01-003)"
         )
     return HandlerResult.refused(
