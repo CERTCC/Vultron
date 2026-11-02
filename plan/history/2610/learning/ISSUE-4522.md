@@ -39,3 +39,8 @@ exception. Tests in `test_close_case_role_semantics.py` pin both sides:
 
 **How to apply.** Do not make a closed Case Owner's Leave a `SKIPPED` repeat
 while the case is not fully closed: it is how a part-way closure heals.
+
+**Already closed**: 2026-10-30 — verified on main: CM-23-018 carries the Case Owner
+exception (a closed owner's Leave is processed while the case is not fully closed). No
+promotion needed.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/5581>.

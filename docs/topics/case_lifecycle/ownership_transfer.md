@@ -70,7 +70,7 @@ It refuses a proposal from anyone else before it writes or sends anything ([CM-2
 The CASE_MANAGER checks the inner offer and does not copy it.
 The inner offer must name the proposal's case.
 Its `target` must be an actor the CASE_MANAGER can address, and must be neither the CASE_MANAGER nor the owner.
-The `target` must also be an [active participant](../../reference/glossary.md#cvd-roles-and-participants) of the case ([CM-21-021](../../reference/vultron-spec/requirements/case-management.md#cm-21-021)).
+The `target` must also be an [active participant](../../reference/glossary.md#cvd-roles-and-participants) of the case, and one whose closure the case's ledger does not record ([CM-21-021](../../reference/vultron-spec/requirements/case-management.md#cm-21-021)).
 An active participant has joined the case, has not been removed, and has agreed to the active embargo while one is in force ([CM-10-004](../../reference/vultron-spec/requirements/case-management.md#cm-10-004)).
 A participant whose closure is recorded is refused too, because it receives no further case content ([CM-23-004](../../reference/vultron-spec/requirements/case-management.md#cm-23-004)).
 The new owner administers the case and its embargo, so the CASE_MANAGER offers it only to an actor that may already see the case content and holds the case.
@@ -101,7 +101,7 @@ Accepting actor sends trigger: accept-case-ownership-transfer
 Case Actor inbox receives Accept:
   0. Checks the sender is the proposed owner of an open
      offer it recorded (anyone else: refused),          ← CM-21-011
-     and is still an active participant.                ← CM-21-021
+     and is still an active participant.                ← CM-21-022
   1. Commits CaseLedgerEntry (ownership-transferred).   ← CM-21-007
   2. Announce(CaseLedgerEntry) → all participants.
   3. Applies the CASE_OWNER role change (CM-21-001 through CM-21-004).
@@ -115,7 +115,7 @@ Case Actor inbox receives Accept:
 The proposed owner answers the CASE_MANAGER, not the participant who made the offer.
 The CASE_MANAGER acts on an acceptance only when its sender is the proposed owner named in an offer it recorded for the case ([CM-21-011](../../reference/vultron-spec/requirements/case-management.md#cm-21-011)).
 That offer must also still be open, with no other answer to it recorded.
-The proposed owner must also still be an active participant when its acceptance arrives ([CM-21-021](../../reference/vultron-spec/requirements/case-management.md#cm-21-021)).
+The proposed owner must also still be an active participant, and not closed, when its acceptance arrives ([CM-21-022](../../reference/vultron-spec/requirements/case-management.md#cm-21-022)).
 A proposed owner that was removed or left the case after the offer, or has not agreed to an embargo that became active since, is refused, and ownership stays where it was.
 
 The answer names the CASE_MANAGER's offer by its `id`, the same `id` the ledger records.

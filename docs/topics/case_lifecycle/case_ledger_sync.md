@@ -64,6 +64,9 @@ The CASE_MANAGER makes the same check before it sends an entry, whether it is se
 An entry that fails the check is not sent and is logged as an error.
 No later entry of that send goes out either, because the replica could hold those only as a gap.
 So a broken entry in the CASE_MANAGER's own store is found where it starts.
+In this implementation, a send that holds an entry back fails, and the act it belongs to commits nothing.
+The one exception is the catch-up of a participant whose updates were paused: that participant is skipped, and everyone else still gets the new entry ([BT-14-003](../../reference/specs/project.md#bt-14-003)).
+Otherwise one broken old entry would stop the case from committing anything.
 The replica's check still catches a fault in rendering or parsing the wire form, which only shows up after the entry is sent.
 
 ---

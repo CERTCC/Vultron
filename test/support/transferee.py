@@ -18,7 +18,7 @@
 An ownership-transfer Offer carries the case inline, so the CASE_MANAGER
 offers it only to an active participant whose closure is not recorded, and
 admits the transferee's Accept only while it still is (CM-21-021,
-CM-10-004).  Tests that offer a case seat the transferee with
+CM-21-022, CM-10-004).  Tests that offer a case seat the transferee with
 :func:`seat_transferee`; tests of the refusal seat it in each
 :data:`INACTIVE_STANDINGS` (CS-22-001).
 """
@@ -110,7 +110,7 @@ def make_inactive(
     """Move the already-seated, active *actor_id* into *standing*.
 
     For a transferee that was active when the case was offered to it and
-    lapsed before it accepted (CM-21-021).  Saves the case and the record.
+    lapsed before it accepted (CM-21-022).  Saves the case and the record.
     """
     record = dl.read(case.actor_participant_index[actor_id])
     assert isinstance(record, CaseParticipant)

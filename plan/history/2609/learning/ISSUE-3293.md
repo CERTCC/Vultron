@@ -38,3 +38,7 @@ instance appears, the fix is an MS rule: a statement names the property
 (here, "a `failure` in the aggregate is always genuine; consumers skip on a
 cancelled producer") and an `i.e.` example belongs in `rationale:` or
 `verification:`, never in the normative text.
+
+**Unreproduced**: 2026-10-30 — single-witness theme-candidate older than 30 days with no
+independent corroboration (BW-07-007). Archived without promotion.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/5581>.

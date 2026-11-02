@@ -295,7 +295,8 @@ catch-up path.
   archive, never a copy under the sender's id (DL-06-006). It answers where
   any Invite answer goes: the CASE_MANAGER answers the proposer, a participant
   answers the CASE_MANAGER, never a peer (PCR-08-001). An Invite naming its
-  terms by URI only is still answered (ADR-0123).
+  terms by URI only is answered once its terms are fetched, and not when the
+  fetch fails (EMB-01-002, AKM-05-015).
 - **Skip an Invite already answered** (`pending_embargo_proposal_index` maps its
   embargo to it), so a later P/X/A never contradicts an earlier answer.
   "Already archived" is not that signal: intake archives the Invite before

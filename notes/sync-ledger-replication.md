@@ -37,6 +37,7 @@ related_notes:
   - notes/case-communication-model.md
   - notes/participant-case-replica.md
   - notes/demo-ci-diagnostics.md
+  - notes/peer-broadcast-failure-semantics.md
 relevant_packages:
   - vultron/core/behaviors
   - vultron/wire/as2
@@ -100,7 +101,7 @@ everything after the last hash a participant reports.
   catch-up of a let-back-in, paused peer: that peer keeps its pause and is skipped
   for the new entry, every other recipient gets it, and the fan-out succeeds.
   Failing there would refuse every later commit in the case, since the peer's
-  pause brings the same catch-up back each time (decided on #5120).
+  pause brings the same catch-up back each time (BT-14-003, #5120).
 - **A hash refusal is reported, not recovered.** The replica sends
   `LedgerEntryRefused/HashMismatch`; the CASE_MANAGER logs it at ERROR and checks its
   own copy, and does nothing else. Replay and re-seed resend the same content, so

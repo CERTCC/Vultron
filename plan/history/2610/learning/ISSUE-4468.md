@@ -32,3 +32,7 @@ point. Its pre-PR spec review flagged both readings.
 enough, or whether the CM-23-017 statement needs the proposal carve-out and the
 CP-05-008 statement needs the closure-first order. A statement change alters
 what a MUST obliges, so it needs a human decision.
+
+**Already closed**: 2026-10-30 — #5378 makes the CP-05-008 statement fix
+(maintainer-decided); the CM-23-017 carve-out was added to its scope (comment on #5378).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/5581>.
