@@ -470,14 +470,15 @@ It MUST send a `Reject(CaseLedgerEntry)` with `last_accepted_hash = ""` to the C
 
 One such Reject asks for the case and its whole ledger, so the participant sends one per wait, not one per early entry.
 After it sends one for a case it still does not hold, it SHOULD NOT send another for that case until a bounded interval has passed. (SYNC-15-016)
-The interval is the ceiling of the CASE_MANAGER's replay cooldown (§5.4), 600 seconds. (SYNC-15-020)
 The participant still holds each early entry it withholds a Reject for (§8.2); one the holding area's size bound drops (§6.4) is recovered by the whole-ledger replay the earlier Reject asked for.
 
 The first early entry for the missing case that arrives after the interval MUST send a Reject again. (SYNC-15-017)
 That Reject MUST be a new activity with an id of its own, not a redelivery of the earlier Reject, because the CASE_MANAGER drops an activity whose id it already knows. (SYNC-15-017)
 
-The participant records, per missing case, when it last sent such a Reject, as a record of its own kind in its own store, so the interval holds across a restart. (SYNC-15-021)
-It deletes that record when it seeds the case, so a later wait for the same case asks at once. (SYNC-15-023)
+How the participant measures the interval, and which records it keeps for that, are implementation choices, not protocol requirements.
+The reference implementation sets the interval to the ceiling of the CASE_MANAGER's replay cooldown (§5.4), 600 seconds.
+It records, per missing case, when it last sent such a Reject, so the interval holds across a restart, and deletes that record when it seeds the case, so a later wait for the same case asks at once.
+`specs/sync-ledger-replication.yaml` carries those rules and their current values as `project` requirements.
 
 A `CaseLedgerEntry` received when the per-case genesis hash is unavailable
 MUST NOT be persisted (SYNC-15-002), MUST NOT be treated as committed
@@ -636,17 +637,16 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-14-009 | §6.3, §8.2 | Drain MUST replay each appliable held Announce, as received, through the receiver's own inbox as its own delivery |
 | SYNC-15-001 | §8.1 | Pre-genesis entry MUST NOT be silently dropped; MUST send Reject |
 | SYNC-15-002 | §8.1 | Participant MUST NOT persist entry when genesis hash unavailable |
-| SYNC-15-003 | §5.4 | CASE_MANAGER MUST bound replay rate for non-advancing peer |
+| SYNC-15-003 | §5.4 | CASE_MANAGER SHOULD bound replay rate for non-advancing peer |
 | SYNC-15-004 | §8.2 | Pre-genesis entry's Announce MUST be held pending case seed |
 | SYNC-15-005 | §8.2 | After case seed, MUST drain the pre-genesis holds |
 | SYNC-15-006 | §8.1 | Pre-genesis entry MUST NOT be treated as committed |
 | SYNC-15-007 | §8.1 | Pre-genesis entry domain effects MUST NOT be applied |
-| SYNC-15-008 | §5.4 | Leader MUST record per-peer position and timestamp of last non-empty replay |
-| SYNC-15-009 | §5.4 | Reject at unchanged position within cooldown MUST NOT trigger replay |
-| SYNC-15-010 | §5.4 | Reject at advanced position MUST always trigger replay |
-| SYNC-15-011 | §5.4 | Zero-entry replay MUST NOT update recorded position |
-| SYNC-15-013 | §5.4 | Cooldown MUST double per no-progress replay, capped; reset on progress |
-| SYNC-15-014 | §5.4 | Genesis case pre-seed MUST NOT be sent while its replay is suppressed |
+| SYNC-15-015 | §5.4 | On a genesis-Reject replay, CASE_MANAGER MUST first send Announce(VulnerabilityCase) to the peer |
+| SYNC-15-016 | §8.1 | Participant SHOULD NOT send a second genesis Reject for a still-missing case within the interval |
+| SYNC-15-017 | §8.1 | After the interval, participant MUST send a new genesis Reject for the first early entry it receives |
+| SYNC-15-018 | §5.4 | Rate limit MUST let through once a bounded interval has passed for the same case and position |
+| SYNC-15-019 | §5.4 | CASE_MANAGER MAY decline a genesis Reject if its entry was already covered by a recent genesis replay |
 | SYNC-16-001 | §5.5 | Participant MUST report a refused entry that extends its chain as a divergence fault |
 | SYNC-16-002 | §5.5 | A fault about applying an entry MUST NOT be ledgered |
 | SYNC-16-003 | §5.5 | CASE_MANAGER MUST re-seed an active participant that reports divergence |
