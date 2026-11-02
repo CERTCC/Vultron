@@ -18,7 +18,7 @@
 ``create_receive_activity_tree`` in ``case/receive_activity_tree.py`` is the
 one way to build a received-side tree; it composes the stages these modules
 build, in the CLP-10-010 order.  Split out of the factory module by concern
-(CS-18-001):
+(CS-18-005):
 
 - ``tree``: the built tree's type, its stage list and the guarded commit.
 - ``doors``: the door guards — post-close, addressee, closed sender, case

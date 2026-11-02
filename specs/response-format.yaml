@@ -416,11 +416,14 @@ groups:
       enforcement. A `model_validator` makes the invariant intrinsic to the type and
       impossible to bypass silently.
     verification: >-
+      `test_a_response_built_without_in_reply_to_names_what_it_answers` in
+      `test/architecture/test_response_in_reply_to.py` builds every response class
+      in `vultron/wire/as2/vocab/activities/` from its vocab example with no
+      `inReplyTo` and checks that the class itself sets it. The classes that do not
+      yet are listed by name in its `_KNOWN_GAP` record, owned by #5641.
       `test_rm_accept_invite_to_case_in_reply_to_auto_set` and
       `test_rm_reject_invite_to_case_in_reply_to_auto_set` in
-      `test/wire/as2/factories/test_case_factories.py` confirm that the class's
-      `model_validator`, not the caller, sets `in_reply_to` on an `Accept` and a
-      `Reject`.
+      `test/wire/as2/factories/test_case_factories.py` check the two Invite replies.
     relationships:
     - rel_type: refines
       spec_id: RF-08-001
@@ -434,11 +437,13 @@ groups:
       A response with no `inReplyTo` does not say which activity it answers. When the
       validator stops it at construction time, no code can send it.
     verification: >-
-      `test_rm_accept_invite_to_case_in_reply_to_auto_set` and
-      `test_rm_reject_invite_to_case_in_reply_to_auto_set` in
-      `test/wire/as2/factories/test_case_factories.py` construct an `Accept` and a
-      `Reject` without `in_reply_to` and confirm that each carries the answered
-      activity's id.
+      `test_a_response_built_without_in_reply_to_names_what_it_answers` in
+      `test/architecture/test_response_in_reply_to.py` builds every response class
+      with no `inReplyTo` and checks that the result carries one or that
+      construction fails on the missing field. The classes listed in its
+      `_KNOWN_GAP` record (#5641) do not meet this yet, and
+      `test_a_known_gap_class_still_builds_without_in_reply_to` keeps that record
+      current.
     relationships:
     - rel_type: extends
       spec_id: RF-08-002
