@@ -701,9 +701,10 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
 
 
 class TestSvcRejectReportOnACase(_ReportTriggerBase):
-    """Once a case holds the report, reject-report fails closed (CM-23-019)."""
+    """Once a case holds the report, reject-report fails closed (CM-23-053)."""
 
-    @pytest.mark.spec("CM-23-019")
+    @pytest.mark.spec("CM-23-052")
+    @pytest.mark.spec("CM-23-053")
     def test_reject_report_on_a_case_raises_and_sends_nothing(self):
         """The case's owner closes it by ``Leave``, never by Close(Report)."""
         request = RejectReportTriggerRequest(
@@ -734,6 +735,7 @@ class TestSvcRejectReportOnACase(_ReportTriggerBase):
 class TestReportTriggersRefuseAnActorNotSentTheOffer(_ReportTriggerBase):
     """validate/invalidate/reject-report refuse an actor the Offer was not sent to."""
 
+    @pytest.mark.spec("CM-11-051")
     @pytest.mark.spec("CM-11-020")
     @pytest.mark.parametrize(
         ("use_case", "request_cls", "verb"),

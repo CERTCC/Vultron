@@ -19,7 +19,7 @@ After the CASE_MANAGER commits its own status entry reaching ``RM.CLOSED``,
 the last step of the owner close, it behaves toward the case as if its
 process had exited: an inbound activity for the case commits no
 ``CaseLedgerEntry`` (the receipt entry included) and changes no case or
-participant state (CM-23-013, ADR-0085).
+participant state (CM-23-013, CM-23-039, ADR-0085).
 
 :class:`CaseOpenToExternalWritesNode` is that boundary.
 :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`

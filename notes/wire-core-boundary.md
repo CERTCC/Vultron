@@ -220,7 +220,7 @@ after the received evidence is sealed and before anything validates:
   sequences. Several model classes: the union of their spellings. A field that
   also admits `Any` or plain `dict`: no class decides and the dict is carried
   unexamined (its typed children are still partitioned).
-- **The case stub** is chosen by its `type`, `VulnerabilityCaseStub` (CM-11-013),
+- **The case stub** is chosen by its `type`, `VulnerabilityCaseStub` (CM-11-038),
   never by key-set guessing.
 - **One refusal names every near miss** at every depth, with dotted paths
   (EH-07-001).

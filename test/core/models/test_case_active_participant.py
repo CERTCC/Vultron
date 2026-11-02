@@ -238,7 +238,8 @@ def test_removal_fact_refuses_a_blank_value(blank: str) -> None:
     assert participant.removal_activity is None
 
 
-@pytest.mark.spec("CM-31-002")
+@pytest.mark.spec("CM-31-019")
+@pytest.mark.spec("CM-31-018")
 def test_no_participant_property_reads_as_active() -> None:
     """The active answer lives on the case; the record holds only its inputs."""
     names = set(dir(CaseParticipant)) | set(CaseParticipant.model_fields)
@@ -246,7 +247,7 @@ def test_no_participant_property_reads_as_active() -> None:
     assert not sorted(n for n in names if reads_as_active.search(n))
 
 
-@pytest.mark.spec("CM-31-001", "CM-31-002", "CM-10-004")
+@pytest.mark.spec("CM-31-017", "CM-31-002", "CM-10-004")
 @pytest.mark.parametrize("embargo", [False, True])
 @pytest.mark.parametrize(
     "consents",
@@ -349,6 +350,7 @@ def test_active_participants_is_published_by_alias_and_round_trips() -> None:
 
 
 @pytest.mark.spec("ARCH-23-005")
+@pytest.mark.spec("CM-31-021")
 def test_contradicting_active_participants_is_refused() -> None:
     """A supplied view that disagrees with the carried records is refused."""
     case = _carrying_case(

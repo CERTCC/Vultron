@@ -187,7 +187,7 @@ The CASE_MANAGER ends an embargo at the end time in one of two conditions (EMB-1
 - The CASE_MANAGER next handles the case.
 - An outside service, such as a monitor of embargo timers, tells the CASE_MANAGER to end the embargo.
 
-The CASE_MANAGER times out an unanswered Invite when it next processes an embargo activity for the case (CM-28-015).
+The CASE_MANAGER times out an unanswered Invite when it next processes an embargo activity for the case (CM-28-015, CM-28-028).
 
 The CASE_MANAGER stamps each of these changes when it makes the change.
 This time can be much later than the deadline.
@@ -203,7 +203,7 @@ The commit stamp of the termination is only the latest possible end.
 
 An offer to transfer case ownership carries an end time.
 When the end time passes, the CASE_MANAGER treats the offer as closed.
-The CASE_MANAGER does not record an entry for the expiry, because no participant's record changes (CM-21-017, ADR-0152).
+The CASE_MANAGER does not record an entry for the expiry, because no participant's record changes (CM-21-043, ADR-0152).
 A measure of the time from an offer to its expiry must get the expiry time from the end time on the ledgered offer.
 
 ### The case's public state is stamped when it is adopted

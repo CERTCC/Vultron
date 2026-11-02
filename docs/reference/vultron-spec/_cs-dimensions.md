@@ -12,7 +12,7 @@ The two are tracked separately, as VFD and PXA.
 Confusing them is the most consequential error in this part of the model: it leads an implementation to record one participant's action as a change to the state of the world, or to treat a world event as though some participant caused it.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-03-004", "CM-03-005", "CM-04-006"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-03-004", "CM-03-005", "CM-04-006", "CM-04-010"))
 ```
 
 ### 8.1 VFD — Vendor Aware, Fix Ready, Fix Deployed

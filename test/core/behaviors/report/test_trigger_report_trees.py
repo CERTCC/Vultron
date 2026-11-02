@@ -366,7 +366,7 @@ def _assert_failed_closed(
     rm_before: RM,
     outbox_before: set[str],
 ) -> None:
-    """The trigger failed before any RM write or emit (CM-23-019)."""
+    """The trigger failed before any RM write or emit (CM-23-053)."""
     scenario.assert_failure(result)
     error = result_out.get("error")
     assert isinstance(error, VultronInvalidStateTransitionError)
@@ -377,7 +377,7 @@ def _assert_failed_closed(
 
 
 class TestRejectReportOnACase:
-    @pytest.mark.spec("CM-23-019")
+    @pytest.mark.spec("CM-23-053")
     def test_reject_of_a_report_a_case_holds_fails_closed(
         self,
         scenario: BTTestScenario,

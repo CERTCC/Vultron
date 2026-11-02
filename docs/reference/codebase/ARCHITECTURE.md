@@ -32,7 +32,7 @@ stakeholder_type: [project-contributor]
      The factory wraps `manager_effects` in the CASE_MANAGER gate and refuses an emit node in `replica_effects` that no named exemption covers (BT-17-008).
      The sender-guard stage is the per-use-case sender-entitlement check declared via `sender_entitlement` on the use-case class (HP-01-006, HP-01-007).
      The factory composes it from the declared `SenderRule` and a `SenderCheckContext` for the receiver's addressee side (`vultron/core/behaviors/sender_guard.py`, HP-01-025); a tree cannot pass a guard of its own, and the ratchet's allow-list of guards not yet migrated is empty.
-     A tree whose sender may already be closed on the case passes `closed_sender=ClosedSenderCheck(...)`, and its handler reads the door's result with `closed_sender_verdict()` in `vultron/core/use_cases/received/_bt_verdict.py`: a repeat of a closing act is `SKIPPED`, and any other act is `REFUSED` (CM-23-018, ID-05-003).
+     A tree whose sender may already be closed on the case passes `closed_sender=ClosedSenderCheck(...)`, and its handler reads the door's result with `closed_sender_verdict()` in `vultron/core/use_cases/received/_bt_verdict.py`: a repeat of a closing act is `SKIPPED`, and any other act is `REFUSED` (CM-23-018, CM-23-049, ID-05-003).
      A tree whose case is resolved at run time passes the read-only `CaseResolving` steps that resolve it as `case_resolution`, which run just before the guard, or, for a ledger activity, a `LedgerActivityContext`, whose nodes read the case from the carried entry.
 
 ### 2) System Flow

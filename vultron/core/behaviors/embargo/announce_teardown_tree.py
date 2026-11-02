@@ -277,7 +277,7 @@ def remove_embargo_from_case_tree(
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=embargo_sender_context(sender_actor_id, case_id),
-        # Every overdue invitation expires first (CM-28-015).
+        # Every overdue invitation expires first (CM-28-028).
         clock_decisions=embargo_clock_decisions(case_id),
         precondition_guards=[
             ValidateCaseExistsNode(case_id=case_id),
@@ -516,7 +516,7 @@ def invite_to_embargo_on_case_tree(
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=embargo_sender_context(sender_actor_id, case_id),
-        # Every overdue invitation expires first (CM-28-015).
+        # Every overdue invitation expires first (CM-28-028).
         clock_decisions=embargo_clock_decisions(case_id),
         precondition_guards=[
             EmbargoProposalNotYetRecordedNode(

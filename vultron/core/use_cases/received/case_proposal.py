@@ -126,8 +126,8 @@ class CreateCaseProposalReceivedUseCase:
     delegated to leaf nodes of the BT tree.
 
     A proposal that resolves to a fully closed case is declined with
-    ``Reject(as_CaseProposal)`` and reported ``REFUSED`` (CP-05-006,
-    CP-05-008, CM-23-013).
+    ``Reject(as_CaseProposal)`` and reported ``REFUSED`` (CP-05-014,
+    CP-05-018, CM-23-013).
 
     Spec: CP-05-001 through CP-05-004, CP-05-006, CP-05-008, CP-05-010.
     """
@@ -333,7 +333,7 @@ class CreateCaseProposalReceivedUseCase:
             )
         closed = find_node(tree, CheckProposalCaseFullyClosedNode)
         if closed is not None and closed.closed_case_id is not None:
-            # CP-05-006, CP-05-008: the proposal's case is fully closed, so the
+            # CP-05-014, CP-05-018: the proposal's case is fully closed, so the
             # CASE_MANAGER declined it and wrote nothing for the case
             # (CM-23-013).
             return HandlerResult.refused(

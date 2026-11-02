@@ -18,11 +18,12 @@
 Builds the tree for ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``.  The
 Offer reaches two stores.  At the case's
 CASE_MANAGER it is the Case Owner's own Offer: the CASE_MANAGER checks it,
-commits it and forwards it to the target (CM-33-001 to CM-33-003).  At the
+commits it and forwards it to the target (CM-33-002, CM-33-003, CM-33-007,
+CM-33-008).  At the
 target it is the CASE_MANAGER's forward: the target answers it, to the
-CASE_MANAGER (CM-33-004).  The CASE_MANAGER never answers for the target and
+CASE_MANAGER (CM-33-015).  The CASE_MANAGER never answers for the target and
 never grants the role on the Offer: the grant is the committed Accept
-(CM-02-016, CM-33-006).
+(CM-02-016, CM-33-009).
 
 Structure::
 
@@ -88,7 +89,7 @@ def create_offer_case_participant_role_received_tree(
     store that does not hold the case (CM-33-002, CM-33-004, PCR-03-001).
     :class:`RoleOfferAdmissibleNode` then refuses an Offer the CASE_MANAGER
     may not record (CM-33-003), so a refused Offer leaves no entry and sends
-    nothing.  At the CASE_MANAGER the guarded commit records the Offer and
+    nothing (CM-33-012, CM-33-013).  At the CASE_MANAGER the guarded commit records the Offer and
     the gated :class:`ForwardRoleOfferToTargetNode` sends it on to the target.
     The commit records the received Offer, so it precedes the forward
     (CLP-10-006); the forward is not ledgered on its own, so SYNC-09-002's
@@ -105,7 +106,7 @@ def create_offer_case_participant_role_received_tree(
             that names no case, which intake archives and nothing else
             touches (CLP-10-018); its handler refuses it.
         role: The CVDRole offered; ``None`` when the Offer carries none,
-            which is refused, never read as a default (CM-33-003).
+            which is refused, never read as a default (CM-33-014).
         target_actor_id: Actor ID of the target the role is offered to.
         sender_id: The Offer's sender, which the sender guard checks.
         sender_rule: The use case's declared sender rule (HP-01-008).

@@ -802,13 +802,13 @@ groups:
     rationale: >-
       `TentativeReject` records RM Invalid, from which the participant's RM state can
       still become Valid, so it is the same tentative answer as for a direct report
-      (VAM-02-005). A stub Invite has no tentative reply (CM-11-007), so this form
+      (VAM-02-005). A stub Invite has no tentative reply (CM-11-028), so this form
       exists only for the full-case Invite.
     verification: >-
       A unit test confirms that
       `TentativeReject(Invite(Actor)[target=VulnerabilityCase])` matches the full-case
       Invite's RI pattern, and that a `TentativeReject` of a stub Invite matches no
-      pattern (CM-11-007).
+      pattern (CM-11-028).
     adr:
     - ADR-0121
     - ADR-0156

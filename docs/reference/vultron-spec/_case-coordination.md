@@ -6,7 +6,7 @@ The participant that holds it may be the actor that created the case, or an acto
 This section names the authority *the CASE_MANAGER*: whichever participant holds the role for the case ([§2.2 Roles](introduction.md#22-roles)).
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-24-006"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-24-006", "CM-24-014"))
 ```
 
 This section specifies what the CASE_MANAGER does for its case.
@@ -111,7 +111,7 @@ The reporter trusts the introduction because it came from the actor the reporter
 Every participant's trust in the ledger derives from it: a participant accepts entries from the CASE_MANAGER because it accepts the message that established which actor holds the role.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CBT-01-001", "CBT-01-005", "CBT-01-011"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CBT-01-001", "CBT-01-005", "CBT-01-017", "CBT-01-011"))
 ```
 
 **A late joiner inherits that trust transitively.**

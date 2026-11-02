@@ -130,7 +130,7 @@ _MINT = (
 _ENDING_NOTICE = (
     "a signatory the ledger no longer reaches applies the CASE_MANAGER's"
     " direct embargo-ending notice, its only channel; the sender guard admits"
-    " only the CASE_MANAGER (CM-31-010, PCR-03-001)"
+    " only the CASE_MANAGER (CM-31-010, CM-31-032, PCR-03-001)"
 )
 # permanent: RSH-08-003 (replay and bootstrap writes; see each reason)
 REPLICA_STATE_WRITES: dict[_Write, str] = {

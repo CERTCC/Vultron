@@ -49,7 +49,7 @@ this order:
 4. Send the full-case Invite, which asks the participant to judge the case.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-17-004", "CM-11-001", "CM-11-008", "CM-11-010"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-17-004", "CM-11-001", "CM-11-008", "CM-11-010", "CM-11-031", "CM-11-032", "CM-11-033"))
 ```
 
 !!! note "Recall: report management states"
@@ -79,7 +79,7 @@ No consent to the embargo in force changes: the prior embargo is still in force 
 The CASE_MANAGER records the proposer's row for the revision as `AGREED`, because proposing terms is consenting to them.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-18-001", "EP-05-002"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-18-001", "CM-18-019", "CM-18-020", "CM-18-021", "EP-05-002"))
 ```
 
 **The case owner activates the revision.**
@@ -123,7 +123,7 @@ The CASE_MANAGER then sends `Announce(EmbargoEvent)` to every other active parti
 No message is sent for consent, because none is written.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-09-009", "EMB-19-001", "CM-31-009"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-09-009", "EMB-19-001", "CM-31-009", "CM-31-030", "CM-31-031"))
 ```
 
 !!! note "Recall: participant embargo consent states"
@@ -141,7 +141,7 @@ That entry is a `Create(EmbargoConsent)` for a new row or an `Update(EmbargoCons
 A replica copies those rows and never decides a carry-over, an expiry or a lapse itself.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CLP-07-013", "CM-23-016"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CLP-07-013", "CM-23-016", "CM-23-044"))
 ```
 
 ### 11.3 Status Adoption: One Authorization Gate

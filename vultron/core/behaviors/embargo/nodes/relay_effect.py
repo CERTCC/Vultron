@@ -384,7 +384,7 @@ class ApplyEmbargoInviteFromLedgerNode(_EmbargoRelayEffectNode):
 
     The invitee's PEC ``INVITE`` and the Invite's RSVP deadline are the
     CASE_MANAGER's next entry, an ``Update(EmbargoConsent)`` carrying the
-    row, which the consent slot copies (ADR-0124, CM-28-013); this slot
+    row, which the consent slot copies (ADR-0124, CM-28-023); this slot
     writes no row.  It stores the embargo the entry carries.
 
     On the proposer's own replica — the Invite's ``attributedTo`` — the Invite

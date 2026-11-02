@@ -170,7 +170,7 @@ class ApplyAnnouncedEmbargoRevisionNode(
                 self.feedback_message = (
                     f"Announced embargo '{self.embargo_id}' ends later than"
                     f" '{current}' on case '{self.case_id}' — not a"
-                    " shortening, ignored (CM-31-009)"
+                    " shortening, ignored (CM-31-030)"
                 )
                 self.logger.warning("%s: %s", self.name, self.feedback_message)
                 return Status.SUCCESS

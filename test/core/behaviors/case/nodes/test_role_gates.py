@@ -104,6 +104,7 @@ class TestCaseManagerGate:
         assert result.status == Status.SUCCESS
         assert child.ticks == 1
 
+    @pytest.mark.spec("CM-24-009")
     def test_a_non_manager_skips_without_running_the_children(
         self, bt_scenario: BTTestScenario, case_with_manager: VulnerabilityCase
     ) -> None:

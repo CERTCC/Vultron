@@ -445,10 +445,10 @@ class RejectLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
     nothing (SYNC-03-005, HP-01-005).  A participant at RM ``CLOSED`` keeps
     this one act, so the use case declares the ``LEDGER_PEER`` standing, not
     ``ACTIVE_PARTICIPANT``: its rejection is answered with a replay that
-    stops at the entries recording its own closure (CM-23-004, CM-23-018).
+    stops at the entries recording its own closure (CM-23-031, CM-23-048).
 
     Spec: SYNC-03-001, SYNC-03-002, SYNC-03-005, SYNC-04-001, SYNC-04-002,
-    CM-23-018, CM-23-020.
+    CM-23-018, CM-23-020, CM-23-048, CM-23-055.
     """
 
     sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(

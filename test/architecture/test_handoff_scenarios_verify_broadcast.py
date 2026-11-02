@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Every ownership-handoff scenario must verify the CM-21-007 broadcast.
+"""Every ownership-handoff scenario must verify the CM-21-030 broadcast.
 
 ADR-0053's stated validation criterion is that an actor *outside* the
 ownership negotiation learns of the completed transfer from
@@ -191,6 +191,7 @@ def test_every_handoff_is_a_shared_story_fragment() -> None:
     _HANDOFF_FUNCTIONS,
     ids=lambda v: v if isinstance(v, str) else "",
 )
+@pytest.mark.spec("CM-21-030")
 def test_a_handoff_verifies_the_transfer_reached_a_non_party_replica(
     handoff_name: str, handoff: ast.FunctionDef
 ) -> None:
@@ -199,7 +200,7 @@ def test_a_handoff_verifies_the_transfer_reached_a_non_party_replica(
     assert waits, (
         f"{handoff_name} never waits for a {TRANSFER_SEMANTIC_TYPE!r} ledger"
         " entry. ADR-0053's validation criterion is that an actor outside the"
-        " negotiation learns of the transfer from the CM-21-007 broadcast;"
+        " negotiation learns of the transfer from the CM-21-030 broadcast;"
         " asserting attributed_to on the old and new owners does not establish"
         " that, because both are parties to it."
     )

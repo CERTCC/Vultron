@@ -209,7 +209,7 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   the act is one transaction, so a refused termination commits neither entry.
   Only the CASE_MANAGER reads `rejection_ends_embargo`
   (`vultron/core/predicates/embargo.py`); replicas copy both entries and
-  decide nothing (CM-23-016).
+  decide nothing (CM-23-044).
 
 ## A Case Never Points at an Embargo Its Store Cannot Read (EMB-18-003)
 
@@ -363,7 +363,7 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
    teardown, withdrawal, activation, owner's-rejection and expiry slots copy
    the entry's step or row (a `Leave` carries none), and every other row
    arrives as its own CASE_MANAGER entry (ADR-0124). No slot decides to skip
-   an entry (CM-23-016, MSM-07-009; see the P/X/A guards above). One path
+   an entry (CM-23-044, MSM-07-009; see the P/X/A guards above). One path
    still passes
    `transition_mode=TransitionMode.OBSERVED`: a paused replica applying a
    CM-31-010 notice, which is outside the ledger (`ending_notice_replica.py`).
@@ -521,7 +521,7 @@ participant that believes P/X/A is set is still answered with its own `Reject`
 of the Invite, manager or not. Participant self-status (RM) keeps its local
 write.
 
-**The role is never unfilled** (CM-24-006, CM-24-008). No "no manager" arm belongs
+**The role is never unfilled** (CM-24-006, CM-24-008, CM-24-015). No "no manager" arm belongs
 in any embargo tree; a resolver that finds nobody fails.
 
 **Only the CASE_MANAGER records an answer, and only one it can apply.** Answer

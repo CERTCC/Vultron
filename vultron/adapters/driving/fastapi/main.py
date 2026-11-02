@@ -35,7 +35,7 @@ from vultron.adapters.driving.fastapi.app import _make_lifespan, app_v2
 #: lifespan performs when that sub-app is served directly — logging, the inbox
 #: dispatcher, the default ``HttpDeliveryAdapter``, the ``OutboxMonitor``
 #: safety-net drain (OX-09-002) and the pending ``Create(VulnerabilityCase)``
-#: retry (CP-05-005) — has to run here for the served process.  A hand-written
+#: retry (CP-05-011) — has to run here for the served process.  A hand-written
 #: copy of that list drifted: it omitted the monitor, so no container ever ran
 #: the safety-net poll, and an activity queued in an outbox no inline drain
 #: was looping over waited for the next inbound activity to that actor

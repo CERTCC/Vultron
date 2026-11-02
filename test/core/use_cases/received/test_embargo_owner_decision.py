@@ -172,6 +172,39 @@ def test_the_case_manager_applies_and_commits_the_owners_activation(
     assert _ledger(dl) == ["activate_embargo_on_case"]
 
 
+def _participant_states(dl: SqliteDataLayer) -> dict[str, list[tuple]]:
+    """Each participant's RM and VFD status history, keyed by its actor."""
+    states: dict[str, list[tuple]] = {}
+    for actor_id, participant_id in _case(dl).actor_participant_index.items():
+        participant = dl.read(participant_id)
+        assert isinstance(participant, CaseParticipant)
+        states[actor_id] = [
+            (status.id_, status.rm.state, status.vf, status.d)
+            for status in participant.participant_statuses
+        ]
+    return states
+
+
+@pytest.mark.spec("CM-04-010")
+def test_an_embargo_activation_changes_no_participant_state(make_payload):
+    """An EM transition is case-level: no participant's RM or VFD moves."""
+    dl, _case_obj, embargo = _store()
+    before = _participant_states(dl)
+    assert any(before.values()), "the seeded participants carry statuses"
+
+    result = _receive(
+        dl,
+        make_payload,
+        activate_embargo_activity,
+        ActivateEmbargoOnCaseReceivedUseCase,
+        embargo,
+    )
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    assert _case(dl).em_state == EM.ACTIVE
+    assert _participant_states(dl) == before
+
+
 @pytest.mark.spec("EP-09-005")
 @pytest.mark.spec("EP-08-001")
 @pytest.mark.parametrize(

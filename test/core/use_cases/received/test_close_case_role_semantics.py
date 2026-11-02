@@ -19,9 +19,9 @@ Covers CM-23-002 (owner Leave) and CM-23-003 (non-owner Leave) across:
 
 1. The Case Actor's direct receive path (``create_close_case_received_tree``),
    which commits ``close_case`` and then one status entry per RM step it
-   writes for each closing actor (CM-23-001, CM-23-002, CM-23-005).
+   writes for each closing actor (CM-23-022, CM-23-002, CM-23-033).
 2. The replica path: the announce tree applies those status entries, and the
-   ``close_case`` entry alone changes no RM state (CM-23-001, CM-23-016).
+   ``close_case`` entry alone changes no RM state (CM-23-024, CM-23-023).
 """
 
 from __future__ import annotations
@@ -431,7 +431,7 @@ class TestOwnerLeaveReceivePath:
             == "VulnerabilityCase"
         ]
 
-    @pytest.mark.spec("CM-23-005")
+    @pytest.mark.spec("CM-23-033")
     def test_owner_leave_records_case_actor_rm_closed_as_ledger_entry(self):
         """Owner Leave: the CaseActor's own RM.CLOSED becomes a ledger entry.
 
@@ -551,6 +551,7 @@ class TestOwnerLeaveReceivePath:
         )
 
     @pytest.mark.spec("CM-23-004", "CM-23-001")
+    @pytest.mark.spec("CM-23-031")
     def test_closed_owner_receives_its_own_closure_and_nothing_after(self):
         """The owner gets close_case and its own steps, then nothing.
 
@@ -611,9 +612,9 @@ class TestNonOwnerLeaveReceivePath:
             f" rm_states={rm_states}"
         )
 
-    @pytest.mark.spec("CM-23-003")
+    @pytest.mark.spec("CM-23-030")
     def test_non_owner_leave_does_not_close_owner(self):
-        """Non-owner Leave: the case owner remains open (CM-23-003)."""
+        """Non-owner Leave: the case owner remains open (CM-23-030)."""
         dl = _make_full_dl()
         CloseCaseReceivedUseCase(
             dl=dl,
@@ -629,9 +630,9 @@ class TestNonOwnerLeaveReceivePath:
             f" rm_states={rm_states}"
         )
 
-    @pytest.mark.spec("CM-23-003")
+    @pytest.mark.spec("CM-23-030")
     def test_non_owner_leave_does_not_close_case_actor(self):
-        """Non-owner Leave: the CaseActor remains open (CM-23-003)."""
+        """Non-owner Leave: the CaseActor remains open (CM-23-030)."""
         dl = _make_full_dl()
         CloseCaseReceivedUseCase(
             dl=dl,
@@ -749,6 +750,7 @@ class TestPostCloseBoundary:
     """CM-23-013/014: nothing a participant does lands after the boundary."""
 
     @pytest.mark.spec("CM-23-013")
+    @pytest.mark.spec("CM-23-039")
     def test_bystander_leave_after_owner_close_is_refused(self):
         """A bystander Leave after owner close commits nothing and closes no one.
 
@@ -798,6 +800,7 @@ class TestPostCloseBoundary:
         )
 
     @pytest.mark.spec("CM-23-014")
+    @pytest.mark.spec("CM-23-043")
     def test_owner_close_expires_pending_invite_before_boundary(self):
         """An unanswered Invite is expired at close, not left waiting on its deadline."""
         dl = _make_full_dl()
@@ -884,7 +887,7 @@ class TestOwnerCloseSettlesPendingInvites:
         assert _boundary_is_last(dl)
         assert _expiry_entries(dl) == []
 
-    @pytest.mark.spec("CM-23-014")
+    @pytest.mark.spec("CM-23-043")
     def test_every_pending_invite_gets_one_entry(self):
         """Two pending Invites, two expiry entries, both before the boundary."""
         dl = _make_full_dl()
@@ -930,7 +933,7 @@ class TestOwnerCloseSettlesPendingInvites:
 
     @pytest.mark.spec("CM-23-014")
     def test_stub_invitee_row_on_the_ended_embargo_is_not_settled(self):
-        """A stub Invite's INVITED row needs no settling (CM-23-014, CM-11-006).
+        """A stub Invite's INVITED row needs no settling (CM-23-014, CM-11-026).
 
         A stub Invite leaves its invitee ``INVITED`` on the embargo in force.
         The close requires that embargo to end first (CM-23-011), which
@@ -996,7 +999,7 @@ class TestOwnerCloseSettlesPendingInvites:
             for r in caplog.records
         )
 
-    @pytest.mark.spec("CM-23-014")
+    @pytest.mark.spec("CM-23-043")
     def test_entry_names_the_invite_the_ledger_recorded(self):
         """The expiry entry's object is the last Invite sent to that invitee."""
         from vultron.core.behaviors.case.nodes.leave.settle import (
@@ -1158,6 +1161,11 @@ class TestPostCloseWriteBoundary:
         ("policy", "replies"),
         [(PostCloseReply.DROP, 0), (PostCloseReply.REJECT, 1)],
     )
+    @pytest.mark.spec("CM-23-040")
+    @pytest.mark.spec("CM-23-017")
+    @pytest.mark.spec("CM-23-046")
+    @pytest.mark.spec("CM-23-056")
+    @pytest.mark.spec("CM-23-057")
     def test_late_leave_follows_the_reply_policy(self, policy, replies):
         """A late Leave is REFUSED and records nothing; only REJECT replies."""
         dl = _closed_dl()
@@ -1183,6 +1191,8 @@ class TestPostCloseWriteBoundary:
             assert getattr(inner, "type_", None) == "Leave"
 
     @pytest.mark.spec("CM-23-013")
+    @pytest.mark.spec("CM-23-017")
+    @pytest.mark.spec("CM-23-056")
     def test_default_policy_drops_a_late_leave(self):
         """The default ActorConfig drops a late Leave with no reply (ADR-0131)."""
         assert ActorConfig().post_close_reply is PostCloseReply.DROP
@@ -1198,6 +1208,7 @@ class TestPostCloseWriteBoundary:
 
     @pytest.mark.spec("CM-23-013")
     @pytest.mark.spec("CM-23-018")
+    @pytest.mark.spec("CM-23-039")
     def test_a_repeat_owner_leave_after_full_close_is_refused(self):
         """After full closure, a repeat owner Leave with a new id is
         REFUSED and changes nothing (CM-23-018 owner exception ends here)."""
@@ -1219,6 +1230,7 @@ class TestPostCloseWriteBoundary:
         assert set(dl.outbox_list()) == outbox_before
 
     @pytest.mark.spec("CM-23-013")
+    @pytest.mark.spec("CM-23-047")
     def test_late_leave_drop_is_logged_with_activity_and_actor(self, caplog):
         """The drop names the activity id and the sender at INFO (SL-01)."""
         dl = _closed_dl()
@@ -1235,6 +1247,7 @@ class TestPostCloseWriteBoundary:
         assert VENDOR_ID in dropped[0]
 
     @pytest.mark.spec("CM-23-013")
+    @pytest.mark.spec("CM-23-057")
     def test_a_late_reply_is_answered_at_most_once(self):
         """A redelivered late Leave is not answered again under REJECT."""
         dl = _closed_dl()
@@ -1324,7 +1337,7 @@ class TestPostCloseWriteBoundary:
         assert node.update() == py_trees.common.Status.FAILURE
 
     @pytest.mark.spec("CM-23-013")
-    @pytest.mark.spec("CM-23-017")
+    @pytest.mark.spec("CM-23-045")
     def test_a_late_participant_status_gets_no_processing_fault(self):
         """A refused status claim is normally answered; after close it is not."""
         from vultron.core.models.events.status import (
@@ -1384,6 +1397,9 @@ class TestPostCloseWriteBoundary:
 
     @pytest.mark.spec("CM-23-013")
     @pytest.mark.parametrize("policy", ["drop", "reject"])
+    @pytest.mark.spec("CM-23-017")
+    @pytest.mark.spec("CM-23-045")
+    @pytest.mark.spec("CM-23-046")
     def test_dispatcher_wires_the_policy_point(self, policy):
         """End to end: the configured policy reaches the late-Leave reply.
 
@@ -1566,9 +1582,10 @@ _STATUS = "add_participant_status_to_participant"
 class TestLeaveCommitsEachClosureStep:
     """CM-23-001/002/003: close_case first, then one status entry per RM step."""
 
-    @pytest.mark.spec("CM-23-001")
     @pytest.mark.spec("CM-23-003")
     @pytest.mark.spec("RMB-14-005")
+    @pytest.mark.spec("CM-23-021")
+    @pytest.mark.spec("CM-23-022")
     def test_non_owner_leave_from_valid_commits_two_steps(self):
         """A non-owner Leave from Valid commits close_case, V → D, D → C."""
         dl = _make_full_dl()
@@ -1582,10 +1599,10 @@ class TestLeaveCommitsEachClosureStep:
             (_STATUS, VENDOR_ID, RM.CLOSED.value),
         ]
 
-    @pytest.mark.spec("CM-23-001")
     @pytest.mark.spec("CM-23-002")
     @pytest.mark.spec("CM-23-005")
     @pytest.mark.spec("CM-23-014")
+    @pytest.mark.spec("CM-23-022")
     def test_owner_leave_orders_every_entry_before_the_boundary(self):
         """Owner Leave: close_case, settle, owner steps, CASE_MANAGER's steps.
 
@@ -1620,6 +1637,7 @@ class TestLeaveCommitsEachClosureStep:
     @pytest.mark.parametrize(
         "leaver_id", [OWNER_ID, VENDOR_ID], ids=["owner", "non-owner"]
     )
+    @pytest.mark.spec("CM-23-031")
     def test_the_leaver_receives_every_step_entry(self, leaver_id: str):
         """Each of the leaver's status entries is announced to the leaver.
 
@@ -1650,9 +1668,9 @@ class TestLeaveCommitsEachClosureStep:
             f" steps={steps}, sent={sent_to_leaver}"
         )
 
-    @pytest.mark.spec("CM-23-001")
     @pytest.mark.spec("CLP-07-015")
     @pytest.mark.spec("RMB-14-005")
+    @pytest.mark.spec("CM-23-026")
     def test_a_refused_step_keeps_none_of_the_closure(self, monkeypatch):
         """V → D written, D → C refused: the act keeps nothing (CLP-07-015).
 
@@ -1686,8 +1704,9 @@ class TestLeaveCommitsEachClosureStep:
         assert _case_file(dl, VENDOR_ID) == before
         assert _ledger_shape(dl) == []
 
-    @pytest.mark.spec("CM-23-001")
     @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("CM-23-025")
+    @pytest.mark.spec("CM-23-026")
     def test_failed_step_commit_leaves_the_case_file_unchanged(
         self, monkeypatch
     ):
@@ -1716,8 +1735,8 @@ class TestLeaveCommitsEachClosureStep:
         assert _latest_rm(dl, VENDOR_ID) == RM.VALID
         assert _case_ledger(dl) == []
 
-    @pytest.mark.spec("CM-23-001")
     @pytest.mark.spec("CLP-07-015")
+    @pytest.mark.spec("CM-23-025")
     def test_a_later_step_failing_takes_back_the_committed_one(
         self, monkeypatch
     ):
@@ -1737,7 +1756,7 @@ class TestLeaveCommitsEachClosureStep:
         assert _ledger_shape(dl) == []
         assert all(dl.read(status_id) is None for status_id in calls)
 
-    @pytest.mark.spec("CM-23-001")
+    @pytest.mark.spec("CM-23-026")
     def test_a_redelivered_leave_completes_the_withdrawn_closure(
         self, monkeypatch
     ):
@@ -1761,7 +1780,7 @@ class TestLeaveCommitsEachClosureStep:
         assert _latest_rm(dl, VENDOR_ID) == RM.CLOSED
         assert _ledger_rm_steps(dl, VENDOR_ID)
 
-    @pytest.mark.spec("CM-23-001")
+    @pytest.mark.spec("CM-23-025")
     def test_crash_in_step_commit_is_an_internal_error_not_a_warning(
         self, monkeypatch
     ):
@@ -1793,8 +1812,8 @@ class TestLeaveCommitsEachClosureStep:
             "a crashed commit records nothing, so its step is taken back too"
         )
 
-    @pytest.mark.spec("CM-23-001")
     @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("CM-23-025")
     def test_a_raise_while_building_a_step_entry_takes_the_steps_back(
         self, monkeypatch
     ):
@@ -1909,16 +1928,17 @@ class TestTheBoundaryIsTheCaseManagersOwnClosure:
 class TestReplicaAppliesTheClosureSteps:
     """A replica advances the leaver only by applying the status entries.
 
-    CM-23-001, CM-23-016: the CASE_MANAGER commits one status entry per RM
-    transition it writes for the leaver; the ``close_case`` entry changes no
-    RM state; a replica never walks the RM table from its own view (#4091).
+    CM-23-022, CM-23-024, CM-23-044: the CASE_MANAGER commits one status
+    entry per RM transition it writes for the leaver; the ``close_case`` entry
+    changes no RM state; a replica never walks the RM table from its own view
+    (#4091).
     """
 
-    @pytest.mark.spec("CM-23-001")
     @pytest.mark.spec("CM-23-003")
     @pytest.mark.parametrize(
         "leaver_id", [OWNER_ID, VENDOR_ID], ids=["owner", "non-owner"]
     )
+    @pytest.mark.spec("CM-23-023")
     def test_replica_closes_the_leaver_from_the_ledger(self, leaver_id: str):
         """Replaying the CASE_MANAGER's ledger closes the leaver on a replica."""
         manager = _make_full_dl()
@@ -1931,10 +1951,10 @@ class TestReplicaAppliesTheClosureSteps:
         assert _latest_rm(replica, leaver_id) == RM.CLOSED
 
     @pytest.mark.spec("CM-23-004")
-    @pytest.mark.spec("CM-23-001")
     @pytest.mark.parametrize(
         "leaver_id", [OWNER_ID, VENDOR_ID], ids=["owner", "non-owner"]
     )
+    @pytest.mark.spec("CM-23-032")
     def test_leavers_replica_closes_only_from_what_it_is_sent(
         self, leaver_id: str
     ):
@@ -2003,8 +2023,8 @@ class TestReplicaAppliesTheClosureSteps:
             (e.semantic_type, to) for e, to in sent
         ]
 
-    @pytest.mark.spec("CM-23-001")
     @pytest.mark.spec("CM-23-016")
+    @pytest.mark.spec("CM-23-024")
     def test_close_case_entry_alone_changes_no_rm_state(self):
         """Applying only the close_case entry leaves every RM state as it was."""
         dl = _make_full_dl(store_owner_id=VENDOR_ID)
@@ -2029,10 +2049,9 @@ class TestReplicaAppliesTheClosureSteps:
         after = {a: _status_history(dl, a) for a in (OWNER_ID, VENDOR_ID)}
         assert after == before, (
             "a close_case entry must change no participant's RM state"
-            " (CM-23-001)"
+            " (CM-23-024)"
         )
 
-    @pytest.mark.spec("CM-23-001")
     @pytest.mark.spec("CM-23-012")
     @pytest.mark.spec("CM-23-016")
     @pytest.mark.spec("RMB-14-005")
@@ -2044,6 +2063,8 @@ class TestReplicaAppliesTheClosureSteps:
         [None, RM.RECEIVED, RM.ACCEPTED, RM.VALID],
         ids=["START", "RECEIVED", "ACCEPTED", "VALID"],
     )
+    @pytest.mark.spec("CM-23-023")
+    @pytest.mark.spec("CM-23-038")
     def test_replica_history_equals_the_case_managers(
         self, leaver_id: str, source: RM | None
     ):
@@ -2069,8 +2090,8 @@ class TestReplicaAppliesTheClosureSteps:
                 manager, actor_id
             ), actor_id
 
-    @pytest.mark.spec("CM-23-001")
     @pytest.mark.spec("RSH-09-006")
+    @pytest.mark.spec("CM-23-023")
     def test_replica_refusing_a_step_writes_no_step_of_its_own(
         self, monkeypatch, caplog
     ):
@@ -2079,7 +2100,7 @@ class TestReplicaAppliesTheClosureSteps:
         The replica's participant-status effect refuses the CLOSED entry (a
         stand-in for an impossible composite state, RSH-09-006).  It logs a
         WARNING, keeps the steps it did apply, and writes no CLOSED of its
-        own: nothing else on the ledger moves the leaver (CM-23-001).
+        own: nothing else on the ledger moves the leaver (CM-23-023).
         """
         from types import SimpleNamespace
 
@@ -2126,7 +2147,7 @@ class TestReplicaAppliesTheClosureSteps:
         )
 
     @pytest.mark.spec("CM-23-016")
-    @pytest.mark.spec("CM-23-001")
+    @pytest.mark.spec("CM-23-023")
     def test_lagging_replica_writes_no_step_the_ledger_lacks(self):
         """The #4091 case: the replica still has the leaver at VALID.
 
@@ -2162,11 +2183,10 @@ class TestReplicaAppliesTheClosureSteps:
 
 
 class TestClosureRMBoundary:
-    """CM-23-012: a Leave advances only the leaver's RM, through ordinary RM
-    transitions (RMB-14-005); owner-close leaves every bystander at its prior
-    RM rung."""
+    """CM-23-012, CM-23-038: a Leave advances only the leaver's RM, through
+    ordinary RM transitions (RMB-14-005); owner-close leaves every bystander
+    at its prior RM rung."""
 
-    @pytest.mark.spec("CM-23-012")
     @pytest.mark.spec("RMB-14-004")
     @pytest.mark.spec("RMB-14-005")
     @pytest.mark.parametrize(
@@ -2177,6 +2197,7 @@ class TestClosureRMBoundary:
         [RM.RECEIVED, RM.INVALID, RM.ACCEPTED, RM.DEFERRED],
         ids=lambda s: s.name,
     )
+    @pytest.mark.spec("CM-23-038")
     def test_leave_from_closable_rung_records_one_transition(
         self, leaver_id: str, source: RM
     ):
@@ -2204,12 +2225,12 @@ class TestClosureRMBoundary:
             f" and nothing else (RMB-14-005); rm_states={after}"
         )
 
-    @pytest.mark.spec("CM-23-012")
     @pytest.mark.spec("RMB-14-005")
     @pytest.mark.spec("VP-02-004")
     @pytest.mark.parametrize(
         "leaver_id", [OWNER_ID, VENDOR_ID], ids=["owner", "non-owner"]
     )
+    @pytest.mark.spec("CM-23-038")
     def test_leave_from_valid_is_recorded_through_deferred(
         self, leaver_id: str
     ):
@@ -2236,8 +2257,8 @@ class TestClosureRMBoundary:
             f" (RMB-14-005); rm_states={after}"
         )
 
-    @pytest.mark.spec("CM-23-012")
     @pytest.mark.spec("RMB-14-005")
+    @pytest.mark.spec("CM-23-038")
     def test_leave_from_start_receives_then_closes(self):
         """A leaver still at RM.START records START → RECEIVED → CLOSED.
 
@@ -2269,6 +2290,7 @@ class TestClosureRMBoundary:
         ],
         ids=lambda v: v.name if isinstance(v, RM) else None,
     )
+    @pytest.mark.spec("CM-23-033")
     def test_case_manager_closure_records_every_rung(
         self, source: RM, path: list[RM]
     ):
@@ -2404,8 +2426,8 @@ def _case_is_fully_closed(dl: SqliteDataLayer) -> bool:
 class TestOwnerLeaveDuringActiveEmbargo:
     """CM-23-011: owner Leave while an embargo is live is declined, not closed."""
 
-    @pytest.mark.spec("CM-23-011")
     @pytest.mark.parametrize("em_state", [EM.ACTIVE, EM.REVISE])
+    @pytest.mark.spec("CM-23-034")
     def test_owner_leave_during_embargo_runs_no_closure(self, em_state):
         """Owner Leave under an active/revise embargo advances no one to
         RM.CLOSED, so the case is not fully closed (AC-1)."""
@@ -2473,7 +2495,31 @@ class TestOwnerLeaveDuringActiveEmbargo:
             "as:Reject must decline the Leave activity itself"
         )
 
-    @pytest.mark.spec("CM-23-011")
+    @pytest.mark.spec("CM-23-035")
+    @pytest.mark.spec("CM-23-037")
+    def test_declined_owner_leave_commits_nothing_and_keeps_the_embargo(self):
+        """The decline commits no close_case entry and ends no embargo."""
+        dl = _make_full_dl()
+        _seed_active_embargo(dl, em_state=EM.ACTIVE)
+
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+        assert _case_ledger(dl) == [], (
+            "A declined owner-close commits no close_case entry (CM-23-035)"
+        )
+        case = dl.read_case(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        assert case.em_state == EM.ACTIVE, (
+            "Declining the close leaves the embargo active (CM-23-037)"
+        )
+
+    @pytest.mark.spec("CM-23-036")
     def test_close_proceeds_after_embargo_terminated(self):
         """After the embargo is terminated, re-issuing the owner Leave runs the
         full CM-23-002 closure sequence (AC-3)."""
@@ -2513,7 +2559,7 @@ class TestOwnerLeaveDuringActiveEmbargo:
             "After embargo termination the case must close"
         )
 
-    @pytest.mark.spec("CM-23-011")
+    @pytest.mark.spec("CM-23-034")
     def test_owner_close_not_closed_when_reject_emit_cannot_run(self):
         """If the as:Reject emit cannot run (no trigger_activity port), the
         embargoed owner close must still NOT close the case.
@@ -2837,7 +2883,7 @@ class TestCaseActorRMClosedRecordingFailsClosed:
         assert _boundary_is_last(dl)
 
     @pytest.mark.spec("CM-23-002")
-    @pytest.mark.spec("CM-23-018")
+    @pytest.mark.spec("CM-23-050")
     def test_a_closed_owners_leave_closes_the_open_case(self):
         """A Case Owner whose own closure is recorded on a case that is not
         fully closed is not repeating its Leave: the Leave closes the case

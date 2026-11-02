@@ -188,7 +188,7 @@ def _vendor_offers_ownership(
         .activity
     )
     logger.info("Vendor offered ownership: %s", logfmt(offer))
-    with demo_gate("Ownership offer recorded by the CaseActor (CM-21-005)"):
+    with demo_gate("Ownership offer recorded by the CaseActor (CM-21-029)"):
         wait_for_semantic_type_in_ledger(
             client=client,
             case_id=case.id_,
@@ -431,7 +431,7 @@ def demo_transfer_ownership_reject(
                     )
 
     # Gate on the cause (EDF-06): the CaseActor ledgers the decline and
-    # broadcasts it (CM-21-012), so its entry is the observable that the
+    # broadcasts it (CM-21-032), so its entry is the observable that the
     # Reject was processed.  Only then is "owner unchanged" a statement about
     # a processed decline rather than about a Reject not yet read.
     with demo_gate(
@@ -471,7 +471,7 @@ def demo_transfer_ownership_withdraw(
        discovers it
     4. Before the coordinator answers, the vendor withdraws the Offer through
        its ``withdraw-case-ownership-transfer`` trigger
-       (UndoCaseOwnershipTransferActivity → **CaseActor** inbox, CM-21-015,
+       (UndoCaseOwnershipTransferActivity → **CaseActor** inbox, CM-21-036,
        TRIG-11-006)
     5. Once the CaseActor has ledgered the withdrawal, verify
        case.attributed_to remains with vendor
@@ -519,7 +519,7 @@ def demo_transfer_ownership_withdraw(
             )
             logger.info("Vendor sent withdrawal: %s", logfmt(undo))
             with demo_check(
-                "Withdrawal addressed to the CaseActor (CM-21-015)"
+                "Withdrawal addressed to the CaseActor (CM-21-036)"
             ):
                 recipients = recipient_ids(undo.to)
                 if recipients != [case_actor_id]:
@@ -529,7 +529,7 @@ def demo_transfer_ownership_withdraw(
                     )
 
     # Gate on the cause (EDF-06): the CaseActor ledgers the withdrawal and
-    # broadcasts it (CM-21-015); that entry is what closes the Offer.
+    # broadcasts it (CM-21-015, CM-21-038); that entry is what closes the Offer.
     with demo_gate(
         "CaseActor committed undo_case_ownership_transfer (CM-21-015)"
     ):

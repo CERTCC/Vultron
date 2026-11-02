@@ -17,7 +17,7 @@
 pending revision inside ``InitializeDefaultEmbargoNode``.
 :class:`RelayCreationTimeRevisionNode` sends the revision like any other
 (EP-09, ADR-0113) once the case tree has finished its initialization sequence
-(CM-14-007), and indexes it so the owner's default selection reaches it
+(CM-14-014), and indexes it so the owner's default selection reaches it
 (EP-08-002).
 
 The relay is part of the creation act: the case tree runs it in the same
@@ -74,7 +74,7 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
     Invite (EP-09-007).  The losing party is the proposer and is not invited
     (EP-09-002).  The case tree places this node after its ledger commit, so
     no modification is initiated before the initialization sequence is
-    complete (CM-14-007).
+    complete (CM-14-014).
 
     **What it relays.**  ``ResolveCreationTimeRevisionNode`` publishes the
     contested proposal and whose terms lost (``CANDIDATE_KEY``) only in the

@@ -22,7 +22,7 @@ record's time).  Creating the record is the CASE_MANAGER's own act, with its own
 ``create_case_participant`` entry.  The vendor's VF status is a CASE_MANAGER
 -written object, so ``CommitInviteeAcceptEntriesNode`` ledgers it as an
 ``add_participant_status_to_participant`` entry.  VF is a vendor-only status: no
-entry carries one for any other role (CM-11-006, CM-11-009, CM-31-012).
+entry carries one for any other role (CM-11-006, CM-11-009, CM-31-041).
 """
 
 from datetime import UTC, datetime
@@ -138,7 +138,8 @@ def _accept(s: BTTestScenario, embargo: bool = True) -> Status:
     ).status
 
 
-@pytest.mark.spec("CM-11-006")
+@pytest.mark.spec("CM-11-024")
+@pytest.mark.spec("CM-11-023")
 @pytest.mark.parametrize("roles", ROLES)
 def test_creating_the_record_emits_its_own_entry_carrying_it(roles):
     s = _scenario(roles, embargo=True)
@@ -159,7 +160,7 @@ def test_creating_the_record_emits_its_own_entry_carrying_it(roles):
     assert any("vfState" in x for x in statuses) is (CVDRole.VENDOR in roles)
 
 
-@pytest.mark.spec("CM-31-012")
+@pytest.mark.spec("CM-31-041")
 @pytest.mark.spec("CM-11-009")
 @pytest.mark.parametrize("roles", ROLES)
 @pytest.mark.parametrize("embargo", [True, False])

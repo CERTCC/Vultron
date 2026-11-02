@@ -39,7 +39,6 @@ from pydantic import BaseModel
 
 # Vultron imports
 from vultron.adapters.utils import parse_id
-from vultron.config import get_config
 from vultron.core.behaviors.case.case_actor_identity import (
     case_actor_identity,
 )
@@ -48,7 +47,7 @@ from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
-from vultron.errors import DemoFailureError
+from vultron.errors import DemoCaseActorUnconfiguredError, DemoFailureError
 from vultron.wire.as2.factories import (
     ledger_position_case_ids,
     stamp_ledger_position,
@@ -1090,6 +1089,29 @@ def bound_case_actor_client(base_url: str) -> DataLayerClient:
     )
 
 
+def configured_case_actor_id() -> str:
+    """Return the configured CaseActor identity, or raise when none is set.
+
+    The identity comes from ``ActorConfig.case_actor_service_url``
+    (``VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL``) only, never from this node's
+    own ``server.base_url`` (CP-08-001, CP-08-009). A single-container
+    topology configures the variable to its own API base, as
+    ``docker/docker-compose.yml`` does.
+
+    Raises:
+        DemoCaseActorUnconfiguredError: No CaseActor service URL is
+            configured, so there is no CaseActor to propose a case to.
+    """
+    case_actor_id = case_actor_identity()
+    if not case_actor_id:
+        raise DemoCaseActorUnconfiguredError(
+            "No CaseActor service is configured: set "
+            "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL to the API base URL of the "
+            "CaseActor's container (CP-08-009)"
+        )
+    return case_actor_id
+
+
 def case_actor_id_for_report(report_id: str) -> str:
     """Return the CaseActor URI a report's CaseProposal will be sent to.
 
@@ -1098,16 +1120,12 @@ def case_actor_id_for_report(report_id: str) -> str:
     "the CaseActor for this report" and so the signature survives if the mapping
     ever stops being constant.
 
-    Falls back to this node's own base URL when no CaseActor service is
-    configured, which is the single-container demo topology.
+    Raises:
+        DemoCaseActorUnconfiguredError: No CaseActor service URL is configured
+            (:func:`configured_case_actor_id`).
     """
     del report_id  # one CaseActor per container, not per report
-    cfg = get_config()
-    return (
-        case_actor_identity()
-        or case_actor_identity(str(cfg.server.base_url))
-        or ""
-    )
+    return configured_case_actor_id()
 
 
 def _is_same_node(base_url: str, actor_id: str) -> bool:

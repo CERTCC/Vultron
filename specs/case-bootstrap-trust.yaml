@@ -65,11 +65,7 @@ groups:
     kind: protocol
     statement: >-
       The bootstrap case snapshot MUST distinguish the actor that *asked for* the case
-      from the actor that *created* it. The actor whose `CaseProposal` caused the case
-      to exist — the report receiver, whatever other roles it also holds — MUST be a
-      participant with the `CASE_OWNER` role. The actor that created the case MUST be a
-      participant with the `CASE_MANAGER` role, and SHOULD also carry the `COORDINATOR`
-      role. The `CASE_OWNER` role MUST NOT be delegated to the CASE_MANAGER.
+      from the actor that *created* it (CBT-01-013, CBT-01-014).
     rationale: >-
       The CASE_MANAGER creates the case (ADR-0041) and the report receiver asks for it,
       so the two roles can belong to two actors. CASE_OWNER is the standing of the party
@@ -78,21 +74,108 @@ groups:
       whose store holds the canonical case (ADR-0073). If the snapshot merged the roles,
       the ledger writer could also make the Case Owner's decisions.
     verification: >-
-      `test/core/behaviors/case/test_case_proposal_received_tree.py` asserts both halves
-      of the distinction on the bootstrap snapshot: `TestADR0041OwnerParticipant` that
-      the proposing report receiver is a participant carrying `CVDRole.CASE_OWNER`, and
-      `TestCaseActorIsOneParticipantDistinctFromTheOwner` that the creating actor is the
-      one participant carrying `CVDRole.CASE_MANAGER` and is not the case owner.
+      `TestCaseActorIsOneParticipantDistinctFromTheOwner` in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` asserts that the
+      creating actor and the proposing report receiver are distinct participants on
+      the bootstrap snapshot, the one carrying `CVDRole.CASE_MANAGER` and the other
+      `CVDRole.CASE_OWNER`.
     relationships:
     - rel_type: refines
       spec_id: CM-02-001
     - rel_type: refines
-      spec_id: CM-02-010
+      spec_id: CM-02-019
     - rel_type: refines
       spec_id: PCR-01-002
     adr:
     - ADR-0041
     - ADR-0073
+    stories:
+    - story_2022_046
+    - story_2022_092
+  - id: CBT-01-013
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The bootstrap case snapshot MUST record the actor whose `CaseProposal` caused the
+      case to exist as a participant with the `CASE_OWNER` role. That actor is the
+      report receiver, whatever other roles it also holds.
+    rationale: >-
+      CASE_OWNER is the standing of the party whose disclosure decisions the case
+      serves. The report receiver asked for the case, so the snapshot names it as the
+      Case Owner for every replica seeded from it.
+    relationships:
+    - rel_type: extends
+      spec_id: CBT-01-003
+    verification: >-
+      `TestADR0041OwnerParticipant` in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` asserts the
+      proposing report receiver is a participant carrying `CVDRole.CASE_OWNER`.
+    adr:
+    - ADR-0041
+    stories:
+    - story_2022_046
+    - story_2022_092
+  - id: CBT-01-014
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The bootstrap case snapshot MUST record the actor that created the case as a
+      participant with the `CASE_MANAGER` role.
+    rationale: >-
+      CASE_MANAGER is the right to write the canonical case ledger, held by the actor
+      whose store holds the canonical case (ADR-0073). Every participant finds the
+      CASE_MANAGER in the snapshot's participant records.
+    relationships:
+    - rel_type: extends
+      spec_id: CBT-01-003
+    verification: >-
+      `TestCaseActorIsOneParticipantDistinctFromTheOwner::test_exactly_one_participant_holds_case_manager`
+      in `test/core/behaviors/case/test_case_proposal_received_tree.py` asserts the
+      creating actor is the one participant carrying `CVDRole.CASE_MANAGER`.
+    adr:
+    - ADR-0041
+    - ADR-0073
+    stories:
+    - story_2022_046
+    - story_2022_092
+  - id: CBT-01-015
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      In the bootstrap case snapshot, the participant that holds `CASE_MANAGER` SHOULD
+      also carry the `COORDINATOR` role.
+    rationale: >-
+      The actor that manages the case also coordinates it. Carrying the role lets
+      checks that look for a coordinator find the CASE_MANAGER.
+    relationships:
+    - rel_type: extends
+      spec_id: CBT-01-014
+    verification: >-
+      `TestCaseActorIsOneParticipantDistinctFromTheOwner::test_the_case_manager_also_holds_coordinator`
+      in `test/core/behaviors/case/test_case_proposal_received_tree.py` asserts the
+      participant holding `CVDRole.CASE_MANAGER` also carries `CVDRole.COORDINATOR`.
+    adr:
+    - ADR-0041
+    stories:
+    - story_2022_046
+  - id: CBT-01-016
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The `CASE_OWNER` role MUST NOT pass to the CASE_MANAGER by delegation.
+    rationale: >-
+      CASE_OWNER is never delegated. If the snapshot merged the two roles by
+      delegation, the ledger writer could also make the Case Owner's decisions.
+    relationships:
+    - rel_type: extends
+      spec_id: CBT-01-003
+    verification: >-
+      `TestCaseActorIsOneParticipantDistinctFromTheOwner::test_the_case_manager_is_not_the_case_owner`
+      in `test/core/behaviors/case/test_case_proposal_received_tree.py` asserts the
+      CASE_MANAGER does not hold `CVDRole.CASE_OWNER` and the owner does not hold
+      `CVDRole.CASE_MANAGER`.
+    adr:
+    - ADR-0041
     stories:
     - story_2022_046
     - story_2022_092
@@ -115,12 +198,12 @@ groups:
     - story_2022_013
     - story_2022_052
   - id: CBT-01-005
-    priority: MUST
+    priority: MUST_NOT
     kind: protocol
-    statement: A report submitter MUST NOT trust a newly introduced CASE_MANAGER unless the bootstrap `Create(VulnerabilityCase)`
-      both comes from the same actor that received the report and references the previously submitted report. The
-      submitter MUST check this against a record it wrote itself before the case arrived; the roster in the snapshot,
-      which the sender wrote, MUST NOT serve as that record.
+    statement: >-
+      A report submitter MUST NOT trust a newly introduced CASE_MANAGER unless its
+      bootstrap `Create(VulnerabilityCase)` comes from the report's receiver and
+      references the submitted report.
     rationale: >-
       The report receiver is an actor the submitter chose when it sent the report. The
       record the submitter wrote when it sent the report ties the report to that actor,
@@ -134,8 +217,7 @@ groups:
       refused and seeds no case, and
       `test_bootstrap_not_naming_the_submitted_report_is_refused` in
       `test/core/behaviors/case/test_create_case_received_tree.py` confirms that one
-      without a matching report reference is refused and binds no link. The
-      record-it-wrote-itself rule is verified by CBT-01-011's test.
+      without a matching report reference is refused and binds no link.
     relationships:
     - rel_type: refines
       spec_id: PCR-05-001
@@ -147,6 +229,29 @@ groups:
     - story_2022_035
     - story_2022_089
     - story_2022_090
+  - id: CBT-01-017
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The report submitter MUST check the bootstrap of CBT-01-005 against a record it
+      wrote itself before the case arrived, never against the snapshot's roster.
+    rationale: >-
+      The sender writes the roster in the snapshot, so any actor can name itself
+      CASE_MANAGER there. The record the submitter wrote when it sent the report ties
+      the report to the actor it chose, so the sender cannot forge it (PCR-05-001).
+    relationships:
+    - rel_type: extends
+      spec_id: CBT-01-005
+    verification: >-
+      `test_bootstrap_from_an_actor_no_anchor_names_is_refused` in
+      `test/core/use_cases/received/case/test_helpers.py` sends the bootstrap from an
+      actor no local anchor names, with a snapshot naming that sender as
+      CASE_MANAGER, and asserts a refusal and an empty case store.
+    adr:
+    - ADR-0132
+    stories:
+    - story_2022_035
+    - story_2022_089
   - id: CBT-01-006
     priority: MUST
     kind: protocol
@@ -196,9 +301,11 @@ groups:
   - id: CBT-01-012
     priority: MUST
     kind: project
-    statement: This codebase MUST carry the bootstrap `VulnerabilityCase` inline in the `Create(VulnerabilityCase)`, with
-      every nested domain object (e.g., each `CaseParticipant` in `case_participants`) embedded as a full inline object;
-      it MUST NOT use a bare URI string for a nested object in this activity.
+    statement: >-
+      This codebase MUST carry the bootstrap `VulnerabilityCase` and every nested domain
+      object in it inline in the `Create(VulnerabilityCase)`, never as a bare URI
+      string. An example of a nested domain object is each `CaseParticipant` in
+      `case_participants`.
     rationale: >-
       This is how this codebase meets CBT-01-002 and CBT-01-007. The codebase fetches
       only the objects the note on AKM-05-007 lists, and a nested case object is not
@@ -220,10 +327,7 @@ groups:
     kind: protocol
     statement: >-
       The bootstrap case snapshot MUST include the original report submitter's
-      participant record with an RM state of `RM.ACCEPTED`. The CASE_MANAGER MUST
-      set this state directly rather than inserting intermediate transitions
-      (`RM.START`, `RM.RECEIVED`, `RM.VALID`) that the CASE_MANAGER never
-      observed for the reporter.
+      participant record with an RM state of `RM.ACCEPTED`.
     rationale: >-
       A report submitter can only be in `RM.ACCEPTED` at the time of submission:
       reporting is the act of accepting that the vulnerability warrants
@@ -237,9 +341,10 @@ groups:
     verification: >-
       Integration tests in `test/demo/test_case_proposal_round_trip.py`
       confirm that after a valid bootstrap exchange the reporter's participant
-      record carries `RM.ACCEPTED` in the CASE_MANAGER's DataLayer, and that no
-      intermediate RM records (`RM.START`, `RM.RECEIVED`, `RM.VALID`) appear
-      for the reporter in that DataLayer.
+      record carries `RM.ACCEPTED` in the CASE_MANAGER's DataLayer;
+      `TestADR0041ReporterParticipant` in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` asserts it on
+      the seeded record.
     relationships:
     - rel_type: refines
       spec_id: CBT-01-004
@@ -248,18 +353,37 @@ groups:
     stories:
     - story_2022_013
     - story_2022_038
+  - id: CBT-01-018
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST set the reporter's `RM.ACCEPTED` directly, never inserting
+      intermediate transitions (`RM.START`, `RM.RECEIVED`, `RM.VALID`) it never observed
+      for the reporter.
+    rationale: >-
+      The CASE_MANAGER cannot observe the reporter's internal state progression.
+      Intermediate RM records written on the reporter's behalf would place unobserved
+      events into the canonical case ledger.
+    relationships:
+    - rel_type: extends
+      spec_id: CBT-01-008
+    verification: >-
+      `TestADR0041ReporterParticipant::test_reporter_participant_rm_accepted` in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` asserts that the
+      reporter's first participant status is `RM.ACCEPTED`, so no intermediate RM
+      record precedes it.
+    stories:
+    - story_2022_013
+    - story_2022_038
   - id: CBT-01-009
     priority: MUST
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      The CASE_MANAGER MUST generate its `Create(VulnerabilityCase)` activity
-      only after the `VulnerabilityCase` domain object has been fully
-      initialized — all participants set to their correct initial RM states,
-      all roles assigned. The activity MUST be a faithful record of a completed
-      initialization, not an intent message constructed before initialization
-      is finished. The report receiver's introduction to the submitter (CBT-01-001)
-      MUST relay that completed snapshot.
+      The CASE_MANAGER MUST generate its `Create(VulnerabilityCase)` only after the
+      `VulnerabilityCase` is fully initialized, so the activity records a completed
+      initialization, not an intent. Fully initialized means every participant is at
+      its correct initial RM state and every role is assigned.
     rationale: >-
       ActivityStreams 2.0 activities represent completed events, not intentions.
       A `Create(VulnerabilityCase)` sent before the case is fully initialized
@@ -273,6 +397,26 @@ groups:
       spec_id: CBT-01-002
     - rel_type: refines
       spec_id: CBT-01-007
+    lint_suppress:
+    - missing_story_reference
+  - id: CBT-01-019
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The report receiver's introduction to the submitter (CBT-01-001) MUST relay the
+      completed snapshot of CBT-01-009.
+    rationale: >-
+      The submitter seeds its replica from the introduction. A relay that carried a
+      different or earlier snapshot would seed the submitter's replica with a state
+      the CASE_MANAGER never recorded.
+    relationships:
+    - rel_type: extends
+      spec_id: CBT-01-009
+    verification: >-
+      `test_report_receiver_introduces_the_case_manager_to_the_reporter` in
+      `test/core/behaviors/case/test_create_case_received_tree.py` confirms the
+      introduction carries the owner's stored case inline, with its participants,
+      the CASE_MANAGER and the submitted report.
     lint_suppress:
     - missing_story_reference
   - id: CBT-01-010
@@ -310,10 +454,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A participant MUST refuse a bootstrap `Create(VulnerabilityCase)` from an
-      actor that no trust anchor the participant wrote names as the expected
-      sender, and MUST store nothing from it. Naming the sender as CASE_MANAGER
-      in the carried snapshot MUST NOT make the sender trusted.
+      A participant MUST refuse a bootstrap `Create(VulnerabilityCase)` from a sender no
+      trust anchor it wrote names as the expected sender, and store nothing from it. A
+      snapshot naming that sender as CASE_MANAGER does not change this (CBT-01-017).
     rationale: >-
       The sender wrote the snapshot, so a roster in it proves nothing about the
       sender's authority (ADR-0132; `notes/participant-case-replica.md`).
@@ -380,8 +523,10 @@ groups:
   - id: CBT-02-003
     priority: MUST
     kind: protocol
-    statement: Once a CASE_MANAGER has been trusted for a case, that identity MUST NOT be replaced implicitly by ordinary case-update
-      traffic; CASE_MANAGER rotation or transfer MUST use an explicit transfer workflow.
+    statement: >-
+      A participant that trusts a CASE_MANAGER for a case MUST replace that identity
+      only through an explicit transfer workflow, never through ordinary case-update
+      traffic.
     rationale: >-
       If ordinary case traffic could replace the trusted CASE_MANAGER, a case
       snapshot that names a different manager would move trust with no decision by
@@ -698,12 +843,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a receiver processes a bootstrap `Create(VulnerabilityCase)` and
-      finds that required participant data is absent (in violation of
-      CBT-01-007), the receiver MUST reject the bootstrap as a protocol error.
-      The receiver MUST NOT silently skip the missing participant, infer
-      participant state from domain knowledge, or synthesize a participant
-      record from information not present in the bootstrap payload.
+      This rule covers a receiver that finds required participant data absent from a
+      bootstrap `Create(VulnerabilityCase)` (CBT-01-007). It MUST reject the bootstrap
+      as a protocol error, never skipping the participant, inferring its state, or
+      synthesizing a record from data the payload lacks.
     rationale: >-
       Silent reconstruction of missing protocol data masks protocol bugs.
       This system exists to demonstrate that the CVD protocol works correctly
@@ -732,9 +875,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      This codebase MUST treat a participant that arrives in a bootstrap
-      `Create(VulnerabilityCase)` as a bare URI reference as absent, and so
-      MUST reject the bootstrap under CBT-05-008.
+      This codebase MUST treat a participant in a bootstrap `Create(VulnerabilityCase)`
+      that arrives as a bare URI reference as absent, and so reject the bootstrap
+      (CBT-05-008).
     rationale: >-
       CBT-05-008 states only what other participants observe; this item states
       how this codebase meets it (MS-12-010). This codebase fetches only the
@@ -757,10 +900,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Each `Offer(VulnerabilityReport)` a reporter sends MUST address exactly
-      one recipient and MUST carry an activity id distinct from every other
-      `Offer` of the same report, so that each submission attempt is
-      identified by at least the pair (report, recipient).
+      Each `Offer(VulnerabilityReport)` a reporter sends MUST address exactly one
+      recipient.
     rationale: >-
       A reporter that gets no answer from its first recipient routinely offers
       the same report to a Coordinator, and either recipient may then accept
@@ -777,17 +918,35 @@ groups:
     stories:
     - story_2022_038
     - story_2022_088
+  - id: CBT-06-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Each `Offer(VulnerabilityReport)` a reporter sends MUST carry an activity id
+      distinct from every other `Offer` of the same report.
+    rationale: >-
+      With one recipient per `Offer` (CBT-06-001) and an id of its own, each
+      submission attempt is identified by at least the pair (report, recipient). The
+      cases that follow from two attempts can then be told apart.
+    relationships:
+    - rel_type: extends
+      spec_id: CBT-06-001
+    verification: >-
+      `test_rm_submit_report_offers_to_two_recipients_are_distinct` in
+      `test/wire/as2/factories/test_report_factories.py` confirms that two
+      `Offer(VulnerabilityReport)` activities built for the same report and different
+      recipients have distinct ids.
+    stories:
+    - story_2022_038
+    - story_2022_088
   - id: CBT-06-002
     priority: MUST
     kind: protocol
     statement: >-
-      A reporter that has offered one report to several recipients MUST accept
-      a valid bootstrap `Create(VulnerabilityCase)` from each of them, checking
-      each bootstrap (CBT-01-005) against the recipient that sent it and
-      recording the resulting case and CASE_MANAGER for that recipient alone.
-      Offering the report to a further recipient, or accepting one recipient's
-      bootstrap, MUST NOT change whether another recipient's bootstrap is
-      accepted or which case is recorded for it.
+      This rule covers a reporter that has offered one report to several recipients.
+      It MUST accept a valid bootstrap `Create(VulnerabilityCase)` from each, checking
+      each against its sender (CBT-01-005) and recording its case and CASE_MANAGER for
+      that recipient alone.
     rationale: >-
       A reporter often offers an unanswered report again to a Coordinator, and
       either recipient may then start a case. A reporter that trusts only one
@@ -804,6 +963,28 @@ groups:
       spec_id: CBT-01-006
     - rel_type: depends_on
       spec_id: CBT-01-005
+    stories:
+    - story_2022_096
+    - story_2022_104
+  - id: CBT-06-004
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      This rule covers a reporter that has offered one report to several recipients.
+      It MUST NOT let a further offer, or its acceptance of one bootstrap, change how it
+      treats another recipient's bootstrap. That covers whether it accepts the
+      bootstrap and which case it records for that recipient.
+    rationale: >-
+      Each recipient's case stands on its own trust anchor. If one recipient's
+      bootstrap could displace another's, the order in which the bootstraps arrive
+      would decide which case the reporter can join.
+    relationships:
+    - rel_type: extends
+      spec_id: CBT-06-002
+    verification: >-
+      Unit tests marked `CBT-06-004` confirm that after one report is offered to two
+      recipients, each recipient's bootstrap is accepted and seeds its own case in
+      either order, without affecting the other.
     stories:
     - story_2022_096
     - story_2022_104

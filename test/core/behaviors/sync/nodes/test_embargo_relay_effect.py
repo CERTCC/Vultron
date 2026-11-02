@@ -526,7 +526,7 @@ class TestApplyEmbargoInvite:
     ):
         """The invitee's ``INVITED`` row and RSVP deadline are the manager's
         next entry, an ``Update(EmbargoConsent)`` the consent slot copies
-        (ADR-0124, CM-28-013); the Invite's own slot changes no row."""
+        (ADR-0124, CM-28-023); the Invite's own slot changes no row."""
         before = list(
             _record(datalayer, PARTICIPANT_ACTOR_ID).embargo_consents
         )

@@ -65,7 +65,7 @@ def create_reject_log_entry_tree(
     """
     # The envelope is never a canonical entry (CLP-10-004): no commit stage.
     # Resync replays entries the ledger already holds, so it keeps working
-    # after the case closes (ADR-0085, CM-23-013).
+    # after the case closes (ADR-0085, CM-23-042).
     return create_receive_activity_tree(
         name="RejectLogEntryReceivedBT",
         case_id=None,

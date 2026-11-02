@@ -41,7 +41,7 @@ It stops and reports the fault.
 It does not fall back to sending a message directly.
 
 The `CASE_MANAGER` role is not the `CASE_OWNER` role.
-The **Case Owner** is the participant whose disclosure decision the case exists to serve: the report receiver whose proposal caused the case to exist ([CBT-01-003](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-003)).
+The **Case Owner** is the participant whose disclosure decision the case exists to serve: the report receiver whose proposal caused the case to exist ([CBT-01-013](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-013)).
 The CASE_MANAGER writes the history.
 The Case Owner decides.
 The Case Owner role is never delegated to the CASE_MANAGER, though it can move to another participant by [ownership transfer](ownership_transfer.md).
@@ -72,8 +72,8 @@ For two of them, the CASE_MANAGER or the Case Owner may assert the change on the
 
 | Change | Who may assert it on another's behalf | When |
 |---|---|---|
-| `v → V`, the Vendor is aware | The CASE_MANAGER or the Case Owner | The notification is evidenced: any acknowledgment from the Vendor, even a read receipt of its invitation ([PRM-06-003](../../reference/vultron-spec/requirements/case-management.md#prm-06-003)). The write does not change the Vendor's RM state |
-| `d → D`, the fix is deployed | The CASE_MANAGER or the Case Owner | The same evidenced pattern, and rarely — for example, a Deployer that joined and has since gone quiet ([PRM-06-004](../../reference/vultron-spec/requirements/case-management.md#prm-06-004)). The write succeeds only when the Deployer's RM state is consistent with deployment |
+| `v → V`, the Vendor is aware | The CASE_MANAGER or the Case Owner | The notification is evidenced: any acknowledgment from the Vendor, even a read receipt of its invitation ([PRM-06-003](../../reference/vultron-spec/requirements/case-management.md#prm-06-003)). The write does not change the Vendor's RM state ([PRM-06-007](../../reference/vultron-spec/requirements/case-management.md#prm-06-007)) |
+| `d → D`, the fix is deployed | The CASE_MANAGER or the Case Owner | The same evidenced pattern, and rarely — for example, a Deployer that joined and has since gone quiet ([PRM-06-004](../../reference/vultron-spec/requirements/case-management.md#prm-06-004)). The write succeeds only when the Deployer's RM state is consistent with deployment ([PRM-06-008](../../reference/vultron-spec/requirements/case-management.md#prm-06-008)) |
 | `f → F`, the fix is ready | Nobody | Fix readiness is not knowable from outside the Vendor, so only the Vendor asserts it ([PRM-06-005](../../reference/vultron-spec/requirements/case-management.md#prm-06-005)) |
 
 An on-behalf assertion targets an existing participant only.
@@ -157,7 +157,7 @@ A receiver then knows both who sent the message and who wanted it sent.
 
 A node sends only as the actors it hosts ([ADR-0109](../../adr/0109-a-container-emits-only-as-actors-it-hosts.md)).
 A Case Owner whose node does not host the CASE_MANAGER does not build the invitation itself.
-It sends its own request to the CASE_MANAGER, and the CASE_MANAGER sends the invitation and records it ([CM-24-004](../../reference/specs/architecture.md#cm-24-004)).
+It sends its own request to the CASE_MANAGER, and the CASE_MANAGER sends the invitation and records it ([CM-24-010](../../reference/specs/architecture.md#cm-24-010)).
 
 ### Who receives a broadcast
 
@@ -234,7 +234,7 @@ The bootstrap is a one-time `Create(VulnerabilityCase)` message ([CBT-01-001](..
 It carries the whole case and every participant record, inline or by reference ([CBT-01-002](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-002), [CBT-01-007](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-007)).
 The reference implementation embeds them in full rather than as bare links, because it fetches only a few objects by reference ([CBT-01-012](../../reference/specs/project.md#cbt-01-012)).
 It names the Case Owner and the CASE_MANAGER as distinct participants ([CBT-01-003](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-003)).
-It includes the reporter at RM `ACCEPTED`, set directly ([CBT-01-008](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-008)).
+It includes the reporter at RM `ACCEPTED`, set directly ([CBT-01-008](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-008), [CBT-01-018](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-01-018)).
 
 A receiver that finds a required participant missing rejects the whole bootstrap.
 It does not fill the gap from what it thinks the participant should be ([CBT-05-008](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-05-008)).
@@ -259,7 +259,7 @@ A different actor becomes the CASE_MANAGER only through an explicit delegation t
 
 A reporter may offer one report to several recipients, for example when the first one does not answer.
 Each recipient that creates a case sends its own bootstrap.
-The reporter checks each one against the recipient that sent it, and accepting one does not affect whether it accepts another ([CBT-06-002](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-06-002)).
+The reporter checks each one against the recipient that sent it, and accepting one does not affect whether it accepts another ([CBT-06-002](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-06-002), [CBT-06-004](../../reference/vultron-spec/requirements/ledger-replication.md#cbt-06-004)).
 
 ### A participant that joins later
 
@@ -428,7 +428,7 @@ Suppose some kinds of message were still accepted after close.
 Then every implementation would draw the line in a different place, and the history of a closed case would keep growing.
 
 The CASE_MANAGER may reply to a late message with `Reject`, or send nothing.
-A participant must not rely on getting a reply ([CM-23-013](../../reference/vultron-spec/requirements/case-management.md#cm-23-013)).
+A participant must not rely on getting a reply ([CM-23-041](../../reference/vultron-spec/requirements/case-management.md#cm-23-041)).
 The reference implementation sends nothing by default ([ADR-0131](../../adr/0131-post-close-traffic-is-dropped-and-only-a-late-leave-may-be-answered.md)).
 A setting lets it answer a late `Leave(VulnerabilityCase)` with `Reject(Leave(VulnerabilityCase))`, and every other late message is still dropped without a reply.
 
@@ -438,7 +438,7 @@ A sender that received one after close would read it as an answer to its request
 `Reject(Leave)` already means "close declined", so it cannot be misread.
 
 A new case proposal is not a late message about the case, because it names a report, not a case.
-When a proposal resolves to a closed case, the CASE_MANAGER answers it with `Reject(CaseProposal)` under either setting, and records nothing for the case ([CP-05-006](../../reference/vultron-spec/requirements/case-management.md#cp-05-006), [CP-05-008](../../reference/vultron-spec/requirements/case-management.md#cp-05-008)).
+When a proposal resolves to a closed case, the CASE_MANAGER answers it with `Reject(CaseProposal)` under either setting, and records nothing for the case ([CP-05-014](../../reference/vultron-spec/requirements/case-management.md#cp-05-014), [CP-05-015](../../reference/vultron-spec/requirements/case-management.md#cp-05-015), [CP-05-018](../../reference/vultron-spec/requirements/case-management.md#cp-05-018), [CP-05-019](../../reference/vultron-spec/requirements/case-management.md#cp-05-019)).
 That reply is a decision on the proposal, so it cannot be misread either.
 
 The boundary stops new writes, not reads.

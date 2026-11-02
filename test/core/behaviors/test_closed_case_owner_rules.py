@@ -230,8 +230,8 @@ def test_the_list_names_every_case_owner_use_case() -> None:
     } | set(CLOSING_CASE_OWNER_USE_CASES)
 
 
-@pytest.mark.spec("CM-23-018")
 @pytest.mark.spec("CM-23-002")
+@pytest.mark.spec("CM-23-050")
 def test_a_closed_case_owner_still_passes_the_leave_guard() -> None:
     """Its repeated Leave finishes the case's closure; the close-case
     tree's closed-sender door guard, not the sender guard, decides it."""

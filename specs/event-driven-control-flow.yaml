@@ -451,7 +451,7 @@ groups:
       activity under an id that the received-side use case derives, and not the sender's
       activity. For example, on an ownership-transfer proposal from the Case Owner, the
       CASE_MANAGER makes its own `Offer(VulnerabilityCase)` for the transferee under a
-      derived id (CM-21-005, ADR-0148). A poll for the id of the sender's activity can
+      derived id (CM-21-028, ADR-0148). A poll for the id of the sender's activity can
       never find the derived activity. A scan for its type, target and object can find
       it.
     adr:

@@ -253,9 +253,9 @@ class CaseParticipant(CoreObject):
         """Write an ``UNINVITED`` row for each of *embargo_ids* it has none for.
 
         The creation write of the consent table (ADR-0122): a participant
-        gets a row when an embargo is proposed and, when it joins, one for
-        every entry already in the register.  A row it already holds is left
-        as it is, so the call is idempotent.  It records no answer, so it is
+        gets a row when an embargo is proposed (CM-18-019) and, when it
+        joins, one for every entry already in the register (CM-18-020).  A
+        row it already holds is left as it is, so the call is idempotent.  It records no answer, so it is
         not a consent change (CM-18-005).  The caller persists the record.
 
         Returns:
@@ -540,7 +540,7 @@ class CaseParticipant(CoreObject):
         return True
 
     def clear_removal(self) -> bool:
-        """Clear the removal fact: the participant is reinstated (CM-31-011).
+        """Clear the removal fact: the participant is reinstated (CM-31-034).
 
         The one write that reverses :meth:`record_removal`.  The CASE_MANAGER
         calls it for the Case Owner's received ``Add(CaseParticipant)``, and a
@@ -819,7 +819,8 @@ class ObserverParticipant(CaseParticipant):
 class CaseActorParticipant(CaseParticipant):
     """A participant that acts as the CaseActor service for a VulnerabilityCase.
 
-    Holds both ``COORDINATOR`` and ``CASE_MANAGER`` roles (CBT-01-003).
+    Holds both ``COORDINATOR`` and ``CASE_MANAGER`` roles (CBT-01-014,
+    CBT-01-015).
     The ``attributed_to`` field identifies the ActivityStreams Service URI
     that will send ``Announce(VulnerabilityCase)`` updates on behalf of the
     case owner.  Receivers use this participant to establish trusted CaseActor

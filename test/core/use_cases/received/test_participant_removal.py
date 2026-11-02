@@ -52,8 +52,9 @@ from vultron.core.behaviors.case.case_participant_received_tree import (
 from vultron.core.behaviors.case.nodes.case_participant_received import (
     RemoveCaseParticipantFromCaseReceivedNode,
 )
-from vultron.core.behaviors.sync.nodes.canonical_entry import (
-    _CASE_AUTHORED_SIGNATURES,
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlementKind,
+    SenderRule,
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
@@ -99,6 +100,7 @@ def _owner_removes_vendor(case: _RemovalCase) -> Any:
 
 
 @pytest.mark.spec("CM-31-006")
+@pytest.mark.spec("CM-31-026")
 @pytest.mark.spec("CM-24-001")
 @pytest.mark.spec("CM-24-002")
 def test_notice_is_delegated_names_the_participant_and_is_not_ledgered(
@@ -118,9 +120,16 @@ def test_notice_is_delegated_names_the_participant_and_is_not_ledgered(
 
 
 @pytest.mark.spec("CM-31-005")
-def test_removal_signature_is_not_case_authored() -> None:
-    """The Case Owner authors the entry; the CASE_MANAGER only commits it."""
-    assert ("Remove", "CaseParticipant") not in _CASE_AUTHORED_SIGNATURES
+@pytest.mark.spec("HP-01-008")
+def test_only_the_case_owner_may_send_the_removal() -> None:
+    """The Case Owner authors the entry; the CASE_MANAGER only commits it.
+
+    The sender rule admits the removal only from the Case Owner, and only at
+    the CASE_MANAGER, so no other participant can author it (HP-01-006).
+    """
+    assert RemoveCaseParticipantFromCaseReceivedUseCase.sender_entitlement == (
+        SenderRule.to_case_manager(SenderEntitlementKind.CASE_OWNER)
+    )
 
 
 @pytest.mark.spec("CM-31-001")
@@ -135,7 +144,7 @@ def test_removal_fact_is_the_owners_activity_id(
     assert not removal.participant(OTHER).removed
 
 
-@pytest.mark.spec("CM-31-004")
+@pytest.mark.spec("CM-31-022")
 @pytest.mark.spec("CLP-13-001")
 def test_second_removal_commits_nothing_and_sends_no_second_notice(
     removal: _RemovalCase,
@@ -168,7 +177,7 @@ def test_refused_removal_writes_nothing_but_the_archive(
     assert removal.dl.read(ReceivedActivityRecord.build_id(activity.id_))
 
 
-@pytest.mark.spec("CM-31-006")
+@pytest.mark.spec("CM-31-028")
 @pytest.mark.spec("CM-10-004")
 def test_no_later_entry_reaches_the_removed_participant(
     removal: _RemovalCase,
@@ -183,7 +192,7 @@ def test_no_later_entry_reaches_the_removed_participant(
     assert removal.activities_to("Announce", OTHER)
 
 
-@pytest.mark.spec("CM-31-006")
+@pytest.mark.spec("CM-31-028")
 @pytest.mark.spec("CM-10-004")
 def test_replay_does_not_answer_the_removed_participant(
     removal: _RemovalCase,
@@ -301,7 +310,7 @@ def test_failed_fact_write_after_commit_is_an_internal_error(
     assert removal.ledger() == []
 
 
-@pytest.mark.spec("CM-24-006")
+@pytest.mark.spec("CM-24-014")
 def test_removal_on_a_case_without_a_case_manager_is_refused() -> None:
     """With no CASE_MANAGER on the roster, nobody may apply the removal."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR)
@@ -370,7 +379,7 @@ def _replica_state(dl: SqliteDataLayer) -> tuple[str, str]:
 
 @pytest.mark.spec("HP-01-005")
 @pytest.mark.spec("RSH-08-003")
-@pytest.mark.spec("CM-31-007")
+@pytest.mark.spec("CM-31-029")
 def test_replica_stores_the_managers_notice_and_writes_nothing(
     removal: _RemovalCase,
 ) -> None:

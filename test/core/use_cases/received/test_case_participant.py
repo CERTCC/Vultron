@@ -86,7 +86,7 @@ class TestCaseParticipantUseCases:
 
         A stored record that is not on the case's roster names no
         participant, so the Case Owner's ``Add`` is refused and the roster
-        is unchanged (CM-31-011, ADR-0116); joining is accepting a stub
+        is unchanged (CM-31-036, ADR-0116); joining is accepting a stub
         Invite (ADR-0114).
         """
         dl, case_id, _ = _removal_store()

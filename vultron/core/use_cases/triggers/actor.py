@@ -97,7 +97,7 @@ class _SvcRecommendActorBase(SvcActivityTriggerBase):
     yet have, with the roles the requester intends for it, and both reach the
     CASE_MANAGER the same way — the requester's own activity, from the
     requester's own identity and outbox, routed by the SenderSideBT
-    (PCR-08-001). Neither executes a tree as the CASE_MANAGER (CM-24-004,
+    (PCR-08-001). Neither executes a tree as the CASE_MANAGER (CM-24-011,
     ADR-0109); what the CASE_MANAGER does with the Offer is decided on its
     side, by the recommend-actor received tree.
 
@@ -208,8 +208,8 @@ class SvcInviteActorToCaseUseCase(_SvcRecommendActorBase):
     The Case Owner sends its own ``Offer(Actor)[target=VulnerabilityCase]`` carrying the
     intended
     roles to the CASE_MANAGER, from the owner's identity and outbox
-    (CM-17-007). It executes no tree as the CASE_MANAGER and never emits in
-    its name (CM-24-004, ADR-0109): the CASE_MANAGER's recommend-actor
+    (CM-17-007, CM-17-017). It executes no tree as the CASE_MANAGER and never emits in
+    its name (CM-24-010, ADR-0109): the CASE_MANAGER's recommend-actor
     received tree sees that the recommender holds ``CVDRole.CASE_OWNER`` and
     emits the ``Invite`` itself, from its own store, committing it in that
     emitting tree (CM-17-006).
@@ -232,7 +232,7 @@ class SvcInviteActorToCaseUseCase(_SvcRecommendActorBase):
     def _refuse_reinvite_of_closed(self, invitee_id: str) -> None:
         """Refuse before anything is queued: ``RM.CLOSED`` has no rejoin.
 
-        A participant at ``RM.CLOSED`` cannot be re-invited (CM-11-015,
+        A participant at ``RM.CLOSED`` cannot be re-invited (CM-11-043,
         ADR-0085), so the owner's Offer is never sent.  The CASE_MANAGER's
         received tree refuses it too, for an Offer that arrives from elsewhere.
         """
@@ -240,7 +240,7 @@ class SvcInviteActorToCaseUseCase(_SvcRecommendActorBase):
         if record is not None and record.rm_closed:
             raise VultronInvalidStateTransitionError(
                 f"Actor '{invitee_id}' is at RM.CLOSED in case"
-                f" '{self._case.id_}' and cannot be re-invited (CM-11-015,"
+                f" '{self._case.id_}' and cannot be re-invited (CM-11-043,"
                 " ADR-0085)"
             )
 
@@ -494,7 +494,7 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
     The Case Owner sends its proposal, ``Offer(Offer(VulnerabilityCase))``,
     to the case's CASE_MANAGER, from the owner's identity and outbox
     (CM-21-005, TRIG-11-001, ADR-0148).  It executes no tree as the
-    CASE_MANAGER and never emits in its name (CM-24-004, ADR-0109): the
+    CASE_MANAGER and never emits in its name (CM-24-010, ADR-0109): the
     CASE_MANAGER's received tree makes the one ``Offer(VulnerabilityCase)``
     the transferee answers, with ``attributedTo`` naming the owner
     (CM-24-005).
@@ -536,7 +536,7 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
             raise VultronNotFoundError(
                 "CASE_MANAGER", f"(for case '{self._case.id_}')"
             )
-        # Fail closed on a proposal the CASE_MANAGER must refuse (CM-21-005):
+        # Fail closed on a proposal the CASE_MANAGER must refuse (CM-21-026):
         # it sends itself no Offer (BT-17-008), and the owner already owns
         # the case.  Checked before anything is written.
         for refused, why in (
@@ -547,7 +547,7 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
                 raise VultronValidationError(
                     f"transferee_id '{request.transferee_id}' is {why};"
                     " ownership can be offered only to another actor"
-                    " (CM-21-005)"
+                    " (CM-21-026)"
                 )
         # The CASE_MANAGER offers the case only to an active participant
         # (CM-21-021), judged here on the owner's own replica before anything
@@ -680,7 +680,7 @@ class SvcRejectCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
 
     Emits ``Reject(Offer(VulnerabilityCase))`` from the declining actor to
     the case's CASE_MANAGER (TRIG-11-005, CM-21-010), which ledgers it and
-    broadcasts the decline (CM-21-012).
+    broadcasts the decline (CM-21-012, CM-21-032).
     """
 
     _verb = "rejected"
@@ -703,7 +703,7 @@ class SvcWithdrawCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
     it (ADR-0148).  The CASE_MANAGER admits it only from the owner that
     Offer was made for while it is still open, ledgers it and broadcasts the
     withdrawal.  The trigger does not pre-judge that: the CASE_MANAGER's
-    ledger is what says whether the Offer is open (CM-21-014).
+    ledger is what says whether the Offer is open (CM-21-034).
     """
 
     _verb = "withdrew"
@@ -747,7 +747,7 @@ class SvcWithdrawCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
 
     def _prepare(self) -> None:
         super()._prepare()
-        # The withdrawal goes to the CASE_MANAGER or nowhere (CM-21-015,
+        # The withdrawal goes to the CASE_MANAGER or nowhere (CM-21-036,
         # PCR-08-011).  The offerer holds the case it offered, and a case
         # always has a CASE_MANAGER (CM-24-006), so either missing is a
         # not-found, refused before any tree runs, as the offer trigger does.
@@ -780,7 +780,8 @@ class SvcOfferCaseParticipantRoleUseCase:
 
     Raises ``VultronNotFoundError`` before anything is built when the case is
     not held, or names no CASE_MANAGER (PCR-08-011): a case always has one
-    (CM-24-006), so its absence is a fault, never a direct send to the target.
+    (CM-24-006), so its absence is a fault, never a direct send to the target
+    (CM-24-014).
 
     See SE-08-003, ADR-0039.
     """

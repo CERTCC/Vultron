@@ -407,7 +407,7 @@ class TestRmRuleQuarantine:
     def test_quarantine_suppresses_the_rm_rule(self):
         """The case-closure exemption: RM.CLOSED from any rung.
 
-        Sanctioned self-declared-Leave override (CM-23-012, resolving #3106) —
+        Sanctioned self-declared-Leave override (CM-23-038, resolving #3106) —
         see ``force_rm_state`` on ``CreateParticipantStatusNode``.
         """
         assert (

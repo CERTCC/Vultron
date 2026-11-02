@@ -46,8 +46,8 @@ Lapsed status is also read from the rows and the register, and it needs three co
 Neither signatory nor lapsed is a consent state.
 
 Every row is written.
-Proposing an embargo gives every current Participant an `UNINVITED` row for it (CM-18-001).
-A new Participant record gets an `UNINVITED` row for every embargo already in the register (CM-18-001).
+Proposing an embargo gives every current Participant an `UNINVITED` row for it (CM-18-019).
+A new Participant record gets an `UNINVITED` row for every embargo already in the register (CM-18-020).
 `UNINVITED` means *not asked about this embargo*, not "has not answered yet".
 A missing row is a defect: a read of a missing row raises an error.
 An actor may agree or decline directly from `UNINVITED`, without an invitation first ([ADR-0048](../../../adr/0048-pec-no-embargo-is-absence-not-pre-consent.md), CM-18-003).
@@ -156,7 +156,7 @@ A Participant never declares its own consent state.
 
 | Activity | Effect on the case's EM state | Effect on consent |
 |---|---|---|
-| Embargo Proposal (EP) or Revision (EV), `Invite(EmbargoEvent)` on the case | `NONE` to `PROPOSED`, or `ACTIVE` to `REVISE`; a further proposal leaves it where it is | every other Participant gets an `UNINVITED` row for the proposed embargo, the proposer's row is `AGREED`, because proposing terms is consenting to them, and no row for the embargo in force changes (CM-18-001, MSM-07-005, EP-05-002) |
+| Embargo Proposal (EP) or Revision (EV), `Invite(EmbargoEvent)` on the case | `NONE` to `PROPOSED`, or `ACTIVE` to `REVISE`; a further proposal leaves it where it is | every other Participant gets an `UNINVITED` row for the proposed embargo, the proposer's row is `AGREED`, because proposing terms is consenting to them, and no row for the embargo in force changes (CM-18-019, MSM-07-005, EP-05-002) |
 | A relayed `Invite(EmbargoEvent)` to one Participant | none | the invitee's row for that embargo moves from `UNINVITED`, `DECLINED` or `TIMED_OUT` to `INVITED`, carrying the invitation's RSVP Deadline; a signatory asked about a revision keeps its `AGREED` row for the embargo in force (MSM-07-002, EP-09-004, CM-28-013) |
 | `Accept(Invite(EmbargoEvent))`, from any Participant, the Case Owner included | none | the sender's row for those terms becomes `AGREED`; that makes it a signatory only once they are the embargo in force (MSM-07-003) |
 | `Reject(Invite(EmbargoEvent))`, from any Participant, the Case Owner included | none | the sender's row for those terms becomes `DECLINED`; refused from an `AGREED` row for the embargo in force, because withdrawal is `Leave(EmbargoEvent)` (MSM-07-004, MSM-07-010, MSM-07-014) |
@@ -341,7 +341,7 @@ They produce nothing that the protocol reads.
 An `Invite(EmbargoEvent)` carries an RSVP Deadline.
 Silence past that deadline ends the invitation, which is the **pocket veto**.
 When a Participant with an `INVITED` row does not answer within the window, its row moves to `TIMED_OUT`, not `DECLINED`.
-Silence is not a decision, and `DECLINED` records only an explicit refusal (CM-28-004, [ADR-0118](../../../adr/0118-pec-expired-and-unbound-exited-states.md)).
+Silence is not a decision, and `DECLINED` records only an explicit refusal (CM-28-020, [ADR-0118](../../../adr/0118-pec-expired-and-unbound-exited-states.md)).
 The deadline belongs to one invitation and is recorded on that invitation's `INVITED` row.
 A Participant can therefore hold several open invitations with different deadlines.
 When one deadline passes, it times out only its own row (CM-28-013).
@@ -351,7 +351,7 @@ When the invitation carries an explicit `Invite.end_time`, that value governs (C
 When it does not, the policy default applies: seven days, measured from the invitation's `published` timestamp (EP-07-001).
 The CASE_MANAGER stamps `Invite.end_time` on every invitation it relays.
 It then records the invitee's `INVITED` consent row, deadline included, as its own ledger entry right after the Invite's entry.
-Every replica copies that row from the entry (CM-28-012, CM-28-013).
+Every replica copies that row from the entry (CM-28-012, CM-28-023).
 A Participant that receives an invitation derives no deadline of its own.
 
 There is a floor.

@@ -347,6 +347,7 @@ class TestCreateCaseProposalIdempotency:
         )
 
     @pytest.mark.spec("CP-05-006")
+    @pytest.mark.spec("CP-05-012")
     @pytest.mark.spec("ID-04-004")
     def test_duplicate_proposal_resends_the_original_accept(
         self, make_payload
@@ -835,6 +836,7 @@ class TestCaseProposalDisposition:
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("CP-05-006")
     @pytest.mark.spec("CM-23-013")
+    @pytest.mark.spec("CM-23-045")
     def test_proposal_for_a_fully_closed_case_is_refused(self, make_payload):
         """A redelivery after close is declined; the next one is a duplicate."""
         dl = self._case_actor_dl()
@@ -853,6 +855,7 @@ class TestCaseProposalDisposition:
 
     @pytest.mark.spec("HP-01-006")
     @pytest.mark.spec("CP-05-010")
+    @pytest.mark.spec("CP-05-022")
     def test_another_senders_reuse_of_a_proposal_id_is_refused(
         self, make_payload
     ):

@@ -18,7 +18,7 @@
 CM-16-006 step 4: once the Case Owner accepts an ``Offer(CaseParticipant)``,
 the CASE_MANAGER invites the recommended actor and seats its inert record
 (ADR-0114, CM-11-006).  The invitee and its roles are the recorded Offer's,
-never the Accept's copy (ISSUE-1745, CM-16-019), so both nodes here read the
+never the Accept's copy (ISSUE-1745, CM-16-023), so both nodes here read the
 :class:`~vultron.core.behaviors.case.nodes.suggest_actor.recorded_offer.RecordedOfferAnswer`
 that ``RequireRecordedOfferAnswerNode`` published for the Accept.
 

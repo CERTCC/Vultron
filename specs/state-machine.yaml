@@ -344,20 +344,23 @@ groups:
   - id: SM-10-001
     priority: MUST
     kind: protocol
-    statement: 'RM and VFD state transitions MUST update the sending actor''s `ParticipantStatus` record for the affected
-      `CaseParticipant`. These axes are participant-specific: each participant''s RM and VFD state evolves independently.'
+    statement: >-
+      A message that moves a participant-specific machine (RM, VF or D) MUST move it
+      for the participant whose state the message's occasion declares (ADR-0162). For
+      a participant-status message, that participant is the sender (CM-04-001,
+      CM-04-002). For a report's receipt, it is the receiver, whose own RM moves to
+      `RM.RECEIVED`.
     rationale: >-
-      RM and VFD state describe the progress of one participant: how that participant
-      handles the report, and its fix readiness or deployment (CM-04-001, CM-04-002). A
-      message reports the state of its sender. A record on the status of a different
-      participant would give that participant progress it did not make.
-    verification: Integration tests confirm that processing an RM or VFD state message updates the sending actor's
-      `ParticipantStatus` in the CaseActor's DataLayer before the handler exits.
-    relationships:
-    - rel_type: refines
-      spec_id: CM-04-001
-    - rel_type: refines
-      spec_id: CM-04-002
+      RM and VFD state describe the progress of one participant, so each participant's
+      RM and VFD state evolves independently. A status message reports its sender's
+      state; other messages move the receiver's own. No rule on the machine alone tells
+      which, so each occasion declares it. A record on the wrong participant would give
+      it progress it did not make.
+    verification: >-
+      Integration tests confirm that processing an RM or VFD participant-status message
+      updates the sending actor's `ParticipantStatus` in the CaseActor's DataLayer before
+      the handler exits, and that receiving a report moves the receiver's own RM to
+      `RM.RECEIVED`.
     stories:
     - story_2022_074
     - story_2022_088

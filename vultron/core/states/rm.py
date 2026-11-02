@@ -213,7 +213,7 @@ def rm_closure_path(source: RM) -> tuple[RM, ...]:
     Each consecutive pair, starting from *source*, is a transition the RM
     transition function permits, so a closure never overrides the table
     (RMB-14-005).  A ``Leave`` from ``VALID`` is therefore recorded as
-    ``V → D → C`` (CM-23-012), and a closure from ``CLOSED`` writes nothing.
+    ``V → D → C`` (CM-23-038), and a closure from ``CLOSED`` writes nothing.
 
     Examples::
 

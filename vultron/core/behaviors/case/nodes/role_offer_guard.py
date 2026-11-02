@@ -57,7 +57,8 @@ class RoleOfferAdmissibleNode(
 ):
     """Guard: the role Offer names a role the target may be offered.
 
-    Refuses, so nothing is committed or forwarded (CM-33-003):
+    Refuses, so nothing is committed or forwarded (CM-33-003, CM-33-012,
+    CM-33-013):
 
     - an Offer that carries no readable ``CVDRole``, which is never read as a
       default role;
@@ -204,7 +205,7 @@ class RoleOfferOpenNode(FlaggedRepeatGuardMixin, DataLayerConditionWithPorts):
       (CLP-07-015), so a recorded Accept's grant is always applied: a grant
       that failed kept no entry either, and its redelivery is a new answer.
     - An answer to an Offer another answer already closed is refused, with no
-      entry and no role change (CM-33-005).
+      entry and no role change (CM-33-016).
     - An answer whose carried Offer names another role or target than the
       recorded Offer is refused.  The entry the CASE_MANAGER commits is the
       answer as received, and every replica grants the role that entry's

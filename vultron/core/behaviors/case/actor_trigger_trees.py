@@ -161,7 +161,7 @@ def full_case_invite_reply_trigger_bt(
     """Return the trigger-side BT for a reply to the full-case Invite.
 
     Emits the reply (RV, RI or RC, by *emit_node*) from the participant's
-    identity, carrying its own ledger *position* (CM-11-011); the factory
+    identity, carrying its own ledger *position* (CM-11-034); the factory
     derives the recipient from the persisted Invite.
 
     Args:
@@ -284,7 +284,7 @@ def offer_case_ownership_transfer_trigger_bt(
     Emits the Case Owner's proposal, ``Offer(Offer(VulnerabilityCase))``, to
     the case's CASE_MANAGER (CM-21-005, TRIG-11-001).  The CASE_MANAGER's
     received tree makes the one ``Offer(VulnerabilityCase)`` the transferee
-    answers; no trigger tree emits as the CASE_MANAGER (CM-24-004,
+    answers; no trigger tree emits as the CASE_MANAGER (CM-24-010,
     ADR-0109, ADR-0148).
 
     Args:

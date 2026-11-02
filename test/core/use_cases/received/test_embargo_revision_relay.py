@@ -475,7 +475,7 @@ def test_manager_stores_invitee_deadline_at_its_commit(make_payload):
     )
 
 
-@pytest.mark.spec("CM-28-013")
+@pytest.mark.spec("CM-28-024")
 @pytest.mark.spec("EP-09-003")
 def test_participant_stores_no_deadline_on_receipt(make_payload):
     """A relayed Invite is stored; the deadline arrives by replay, not receipt."""

@@ -15,13 +15,13 @@
 
 A role Offer is ``Offer(CaseParticipantRole)`` (ADR-0039).  The CASE_MANAGER
 commits each one it admits as an ``offer_case_participant_role`` entry before
-it forwards the Offer to the target (CM-33-001), so the ledger is the record
+it forwards the Offer to the target (CM-33-008), so the ledger is the record
 of which Offers it holds (CLP-11-001).
 
 The target's ``Accept`` or ``Reject`` names one of two Offers: the recorded
 Offer itself, or the CASE_MANAGER's forward of it, which the target holds.
 :func:`answered_role_offer` resolves either to the recorded Offer, the
-forward through its ``inReplyTo`` (CM-33-005), and reads whether the Offer
+forward through its ``inReplyTo`` (CM-33-017), and reads whether the Offer
 is still open from the ledger.
 
 A case may hold several role Offers open at once, to different targets or
@@ -166,7 +166,7 @@ def answered_role_offer(
         case_id: The case the answer names.
         offer_id: The Offer the answer names: the recorded Offer, or the
             CASE_MANAGER's forward of it, resolved through the forward's
-            ``inReplyTo`` as this store holds it (CM-33-005).  The copy of
+            ``inReplyTo`` as this store holds it (CM-33-017).  The copy of
             the Offer the answer embeds is never read.
         issuer_id: The case's CASE_MANAGER, the only actor whose forward
             stands for a recorded Offer.

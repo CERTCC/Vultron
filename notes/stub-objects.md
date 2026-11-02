@@ -70,13 +70,13 @@ already held (MV-10-003) and never creates a new domain record (MV-10-004).
   `as_VulnerabilityCaseStub._refuse_absent_summary` refuses an inbound stub with
   no `summary` key.
 - The stub's `caseStatus` is built for the stub, not read from the case, and
-  serializes only its identity and `emState` (CM-17-002). A `pxaState` on the wire
+  serializes only its identity and `emState` (CM-17-013). A `pxaState` on the wire
   would state a PXA value nobody observed.
 - "In force" means the register holds an `ACTIVE` entry: EM `ACTIVE` or `REVISE`,
   never the exact EM state alone. Gate on `case.embargo_in_force`, which reads
   `active_embargo_id`, the embargo the consent row and the Accept's signing name
   (CM-11-001, CM-11-006), or a `REVISE` invitee is bound to terms it never saw
-  (CM-17-002, #4697). The open revision stays out of the stub; EP-09-011 relays it
+  (CM-17-014, #4697). The open revision stays out of the stub; EP-09-011 relays it
   after joining.
 - The stub's `activeEmbargo` is the full `EmbargoEvent` as the sender holds it,
   never a copy rebuilt from its ID and `end_time` (CM-17-011). The protocol lets a

@@ -169,7 +169,7 @@ So when a participant states a position the CASE_MANAGER's ledger holds, in `Rea
 
 The resend runs apart from the active-participant check.
 Any participant still on the roster is resent its Invites, even an inert one that has not consented to the embargo in force, because an Invite is how it is asked to consent.
-A resent Invite is one the participant was already sent, so it carries no withheld case content (CM-10-007).
+A resent Invite is one the participant was already sent, so it carries no withheld case content (CM-10-009).
 A removed participant is asked nothing (CM-31-013), and a closed one is sent nothing (SYNC-20-008).
 For an inert sender the rest of the answer is unchanged: nothing is replayed, no replication state is recorded, and its `Read` is still `REFUSED` (SYNC-17-002).
 
@@ -182,7 +182,7 @@ The Invite that the stating activity itself answers is not owed, and of several 
 
 A resend is the Invite as first sent: the same id, `ledgerPosition` and RSVP deadline, from the body sealed when it was first sent (SYNC-20-003, SYNC-18-002).
 A receiver that already handled it treats it as a redelivery and does nothing, and a receiver that dropped it handles it as new.
-A resend never extends a deadline, and the full-case Invite's ledger floor is unchanged, so a reply at or beyond it is still accepted (CM-11-012).
+A resend never extends a deadline, and the full-case Invite's ledger floor is unchanged, so a reply at or beyond it is still accepted (CM-11-035).
 
 Resends are rate-bounded per Invite and participant.
 The CASE_MANAGER does not resend an Invite whose earlier send is still pending in its outbox (SYNC-20-004).

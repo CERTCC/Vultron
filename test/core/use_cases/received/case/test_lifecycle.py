@@ -144,6 +144,7 @@ def test_report_at_non_manager_is_refused(dl):
 
 
 @pytest.mark.spec("CM-30-002")
+@pytest.mark.spec("CM-30-006")
 def test_report_from_non_owner_is_refused_and_commits_nothing(dl):
     dl.create(_managed_case(dl))
 
@@ -234,7 +235,7 @@ def test_late_joiner_receives_the_added_report_through_backfill(dl):
     assert _report_ids(joined) == [report.id_]
 
 
-@pytest.mark.spec("CM-30-002")
+@pytest.mark.spec("CM-30-005")
 def test_report_at_replica_from_non_manager_is_refused(dl):
     """At a replica only the CASE_MANAGER is an entitled sender."""
     case = as_VulnerabilityCase(

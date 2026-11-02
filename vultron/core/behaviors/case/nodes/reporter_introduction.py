@@ -50,7 +50,7 @@ class IntroduceCaseManagerToReporterNode(_EmitSingleActivityBase):
     its report to (CBT-01-005); the snapshot names the CASE_MANAGER, so the
     reporter then records it (CBT-01-006).  The factory carries the stored
     case with its participants, reports and active embargo inline
-    (CBT-01-007, CBT-01-012), which relays the completed snapshot (CBT-01-009).
+    (CBT-01-007, CBT-01-012), which relays the completed snapshot (CBT-01-019).
 
     Sends nothing, and returns ``SUCCESS``, when:
 

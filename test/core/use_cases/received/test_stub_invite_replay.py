@@ -8,7 +8,7 @@ their effects (consent, ``joined``, ``DECLINED``), and a vendor's VF ``Vf`` and 
 reject's closing status are ``add_participant_status_to_participant`` entries.  A
 replica that never sees the Invite or the reply directly stores what those
 entries carry, as received, and equals the CASE_MANAGER's whole record at the
-same ledger position (CM-11-006, CM-31-012, RSH-08-004).
+same ledger position (CM-11-006, CM-31-012, CM-31-037, RSH-08-004).
 """
 
 import json
@@ -159,7 +159,7 @@ def net() -> LedgerNetwork:
     return _net(EM.ACTIVE)
 
 
-@pytest.mark.spec("CM-11-006")
+@pytest.mark.spec("CM-11-025")
 @pytest.mark.spec("CM-31-012")
 @pytest.mark.spec("SYNC-02-002")
 def test_the_stub_invite_entry_fans_out_and_gives_a_replica_the_inert_record(
@@ -192,8 +192,8 @@ def test_the_stub_invite_entry_fans_out_and_gives_a_replica_the_inert_record(
     assert _view(net, BYSTANDER) == _view(net, MANAGER)
 
 
-@pytest.mark.spec("CM-11-006")
-@pytest.mark.spec("CM-31-012")
+@pytest.mark.spec("CM-11-025")
+@pytest.mark.spec("CM-31-037")
 @pytest.mark.parametrize(("roles", "em_state"), SCENARIOS)
 def test_replicas_hold_the_managers_whole_record_after_invite_and_accept(
     roles: list[CVDRole], em_state: EM
@@ -282,7 +282,7 @@ def _entry_types(net: LedgerNetwork) -> list[str]:
     ]
 
 
-@pytest.mark.spec("CM-11-006")
+@pytest.mark.spec("CM-11-023")
 @pytest.mark.spec("CM-31-012")
 def test_the_ledger_holds_the_messages_and_the_one_creation_entry() -> None:
     """The Invite, the CASE_MANAGER's creation, the Accept, and a vendor's VF.
@@ -308,7 +308,7 @@ def test_the_ledger_holds_the_messages_and_the_one_creation_entry() -> None:
     assert "update_case_participant" not in new
 
 
-@pytest.mark.spec("CM-11-007")
+@pytest.mark.spec("CM-11-027")
 @pytest.mark.parametrize(("roles", "em_state"), SCENARIOS)
 def test_replicas_hold_the_managers_whole_record_after_a_reject(
     roles: list[CVDRole], em_state: EM

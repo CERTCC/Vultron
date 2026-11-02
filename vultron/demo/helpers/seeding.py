@@ -26,9 +26,6 @@ from collections.abc import Callable, Sequence
 from urllib.parse import quote
 
 from vultron.config.app import get_config
-from vultron.core.behaviors.case.case_actor_identity import (
-    case_actor_identity,
-)
 from vultron.core.behaviors.case.nodes.embargo import creation_time_embargo_id
 from vultron.core.behaviors.store_scope import store_for_actor
 from vultron.core.models._helpers import from_now_utc
@@ -49,6 +46,7 @@ from vultron.core.states.rm import RM
 from vultron.demo.utils import (
     DataLayerClient,
     case_actor_id_on,
+    configured_case_actor_id,
     demo_check,
     demo_step,
     seed_actor,
@@ -1448,11 +1446,7 @@ def _seed_reporter_participant(
 def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
     case_id = case_obj.id_
     del report_id  # the CaseActor identity does not vary by report (#1872)
-    case_actor_id = case_actor_identity() or case_actor_identity(
-        str(get_config().server.base_url)
-    )
-    if not case_actor_id:
-        return
+    case_actor_id = configured_case_actor_id()
     if case_actor_id in case_obj.actor_participant_index:
         return
 
@@ -1470,9 +1464,9 @@ def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
     # that answers "which store belongs to this actor?" (DL-07-005), and the
     # demo seeders drifting from the bridge on that answer is what made the
     # three earlier copies disagree about test doubles.  The seeding actor and
-    # the CaseActor are always on this container here — `case_actor_identity()`
-    # computes the id from this node's own base URL — so the same-authority
-    # guard would never fire.
+    # the CaseActor are on this container here: the configured CaseActor
+    # service URL names this container's own API base (CP-08-009), so the
+    # same-authority guard does not fire.
     # One actor per container, not per case (ADR-0088): no `context` naming a
     # case and no `attributed_to`.
     actor_obj = VultronService(

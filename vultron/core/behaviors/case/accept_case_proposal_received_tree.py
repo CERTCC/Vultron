@@ -88,11 +88,11 @@ class RecordCaseActorAcceptanceNode(DataLayerAction):
             return Status.SUCCESS
 
         if link.case_id is not None:
-            # CP-06-005: once a case is established for the report, no reply
+            # CP-06-007: once a case is established for the report, no reply
             # replaces the trusted CASE_MANAGER.
             logger.info(
                 "%s: case '%s' already established for report '%s'"
-                " — leaving case_manager_id unchanged (CP-06-005)",
+                " — leaving case_manager_id unchanged (CP-06-007)",
                 self.name,
                 link.case_id,
                 self._report_id,

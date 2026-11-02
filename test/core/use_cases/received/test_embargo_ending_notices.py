@@ -49,6 +49,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.nodes.ending_notice import (
     EmbargoEndingKind,
@@ -599,7 +600,7 @@ _ACTIVATIONS = [
 ]
 
 
-@pytest.mark.spec("CM-31-009")
+@pytest.mark.spec("CM-31-030")
 @pytest.mark.spec("EP-05-001")
 @pytest.mark.parametrize("activate", _ACTIVATIONS)
 def test_shorter_revision_is_announced_to_each_unreached_signatory(
@@ -623,7 +624,7 @@ def test_shorter_revision_is_announced_to_each_unreached_signatory(
         assert sent[0].id_ not in manager.ledger_object_ids()
 
 
-@pytest.mark.spec("CM-31-009")
+@pytest.mark.spec("CM-31-030")
 @pytest.mark.spec("EP-05-001")
 @pytest.mark.parametrize("activate", _ACTIVATIONS)
 def test_longer_revision_sends_nothing(
@@ -639,7 +640,81 @@ def test_longer_revision_sends_nothing(
     assert manager.notices("Remove", EMBARGO_ID) == {}
 
 
+_CASE_CONTENT_TYPES = frozenset(
+    {
+        "VulnerabilityCase",
+        "VulnerabilityReport",
+        "Note",
+        "CaseParticipant",
+        "CaseStatus",
+        "ParticipantStatus",
+        "CaseLedgerEntry",
+    }
+)
+
+
+def _typed_objects(value: Any) -> list[str]:
+    """Every ``type`` carried by an inline object anywhere in *value*."""
+    if isinstance(value, dict):
+        found = [value["type"]] if isinstance(value.get("type"), str) else []
+        for item in value.values():
+            found.extend(_typed_objects(item))
+        return found
+    if isinstance(value, list):
+        return [t for item in value for t in _typed_objects(item)]
+    return []
+
+
+def _end_the_embargo(manager: _Manager) -> tuple[str, str]:
+    manager.terminate_as_owner()
+    return "Remove", EMBARGO_ID
+
+
+def _shorten_the_embargo(manager: _Manager) -> tuple[str, str]:
+    _activate_by_owner_decision(
+        manager, manager.stage_revision(end_in_days=30)
+    )
+    return "Announce", REVISION_ID
+
+
+@pytest.mark.spec("CM-31-031")
+@pytest.mark.parametrize(
+    "end",
+    [
+        pytest.param(_end_the_embargo, id="termination"),
+        pytest.param(_shorten_the_embargo, id="shorter-revision"),
+    ],
+)
+def test_an_ending_notice_carries_no_other_case_content(
+    end: Callable[[_Manager], tuple[str, str]],
+) -> None:
+    """A notice names only its recipient and carries the embargo alone.
+
+    Read from the sealed body the outbox delivers (OX-07-001): the stored
+    object rehydrates its ``origin`` reference into the whole case.
+    """
+    manager = _Manager()
+
+    type_, embargo_id = end(manager)
+
+    notices = manager.notices(type_, embargo_id)
+    assert set(notices) == _unreached_signatories()
+    for recipient, sent in notices.items():
+        (notice,) = sent
+        body = read_sealed_body_dict(manager.dl, notice.id_)
+        assert body is not None
+        assert body["to"] == [recipient]
+        assert not body.get("cc") and not body.get("bto")
+        assert _as_id(body["object"]) == embargo_id
+        carried = _typed_objects(
+            {key: value for key, value in body.items() if key != "type"}
+        )
+        assert carried == ["EmbargoEvent"], carried
+        assert not _CASE_CONTENT_TYPES & set(carried)
+
+
 @pytest.mark.spec("CM-31-009")
+@pytest.mark.spec("CM-31-030")
 def test_embargo_ending_notice_decision() -> None:
     """The one decision every path shares: terminated, shortened, or nothing."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=MANAGER)
@@ -812,7 +887,7 @@ def test_active_replica_takes_a_termination_from_the_ledger_not_the_remove() -> 
     assert replica.dl.outbox_list() == []
 
 
-@pytest.mark.spec("CM-31-010")
+@pytest.mark.spec("CM-31-032")
 @pytest.mark.spec("PCR-03-001")
 def test_paused_replica_ignores_a_termination_from_a_non_manager() -> None:
     replica = _Replica(REMOVED)
@@ -857,7 +932,7 @@ def test_paused_replica_applies_the_managers_shorter_revision() -> None:
     assert replica.record().is_signatory(REVISION_ID)
 
 
-@pytest.mark.spec("CM-31-010")
+@pytest.mark.spec("CM-31-032")
 @pytest.mark.spec("PCR-03-001")
 def test_paused_replica_ignores_a_revision_from_a_non_manager() -> None:
     replica = _Replica(REMOVED)
@@ -952,7 +1027,7 @@ def _replay(replica: _Replica, event: AnnounceLogEntryReceivedEvent) -> None:
     assert result.status == Status.SUCCESS, result.feedback_message
 
 
-@pytest.mark.spec("CM-31-010")
+@pytest.mark.spec("CM-31-033")
 @pytest.mark.spec("CM-31-011")
 def test_replaying_the_termination_after_reinstatement_changes_nothing() -> (
     None

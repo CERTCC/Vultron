@@ -263,7 +263,7 @@ class BindReportCaseLinkNode(DataLayerActionWithPorts):
     """Trusted route: record the trust anchors on the link (CBT-01-006).
 
     Sets ``case_id`` and the CASE_MANAGER the snapshot names
-    (``case_manager_id``, CBT-01-003).  A snapshot naming none is accepted, with
+    (``case_manager_id``, CBT-01-014).  A snapshot naming none is accepted, with
     a warning: the link then anchors no ``Announce(VulnerabilityCase)``, so
     the receiver checks one against its replica's CASE_MANAGER alone, or
     refuses it (PCR-03-004).  Idempotent, and

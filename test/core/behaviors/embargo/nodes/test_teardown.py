@@ -1009,12 +1009,12 @@ class TestSendAnnounceEmbargoEventNode:
     @pytest.mark.xfail(
         strict=True,
         reason=(
-            "CM-24-006: SendAnnounceEmbargoEventNode returns SUCCESS with a "
+            "CM-24-014: SendAnnounceEmbargoEventNode returns SUCCESS with a "
             "warning when the roster names no CASE_MANAGER. Tracked by #3964 "
             "(Concern #3918, ADR-0113)."
         ),
     )
-    @pytest.mark.spec("CM-24-006", "CM-24-008")
+    @pytest.mark.spec("CM-24-014", "CM-24-008")
     def test_fails_when_no_case_manager(self):
         """A roster with no CASE_MANAGER is a fault: FAILURE, not a skip."""
         dl = SqliteDataLayer(

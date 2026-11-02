@@ -395,7 +395,7 @@ def test_genesis_pre_seed_itself_withholds_case_from_non_signatory(
     trigger_activity.announce_vulnerability_case.assert_not_called()
 
 
-@pytest.mark.spec("CM-10-005")
+@pytest.mark.spec("CM-10-008")
 def test_embargo_invite_still_reaches_non_signatory(datalayer) -> None:
     """Embargo meta-protocol is not case content: the relayed Invite goes out."""
     seed_case(datalayer, embargo_active=True)
@@ -425,7 +425,7 @@ def _remove(datalayer, actor_id: str) -> None:
     datalayer.save(participant)
 
 
-@pytest.mark.spec("CM-31-001", "CM-10-005")
+@pytest.mark.spec("CM-31-017", "CM-10-005")
 @pytest.mark.parametrize("embargo_active", [False, True])
 def test_fanout_pauses_a_removed_signatory(
     bridge, datalayer, embargo_active: bool
@@ -446,7 +446,7 @@ def test_fanout_pauses_a_removed_signatory(
     assert paused_from(datalayer, SIGNATORY_ID) == 1
 
 
-@pytest.mark.spec("CM-31-001", "CM-10-005")
+@pytest.mark.spec("CM-31-017", "CM-10-005")
 def test_replay_sends_nothing_to_a_removed_signatory(
     bridge, datalayer
 ) -> None:
@@ -470,7 +470,8 @@ def test_replay_sends_nothing_to_a_removed_signatory(
 
 
 # ---------------------------------------------------------------------------
-# CM-23-004: a closed participant receives its own closure entries only
+# CM-23-004, CM-23-031: a closed participant receives its own closure
+# entries only
 # ---------------------------------------------------------------------------
 
 
@@ -556,12 +557,13 @@ def test_replay_to_a_closed_peer_past_its_closure_sends_nothing(
 
 
 @pytest.mark.spec("CM-23-018", "CM-23-004", "SYNC-03-005")
+@pytest.mark.spec("CM-23-048")
 def test_a_closed_peers_reject_is_answered_up_to_its_own_closure(
     datalayer,
 ) -> None:
     """The whole reject tree, sender guard included, answers a closed peer.
 
-    A closed participant keeps its resync request (CM-23-018): the guard is
+    A closed participant keeps its resync request (CM-23-048): the guard is
     the bare active check (SYNC-03-005), and the replay stops at the
     entries that record its own closure (CM-23-004).
     """

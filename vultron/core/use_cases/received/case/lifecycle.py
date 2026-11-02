@@ -53,12 +53,12 @@ class AddReportToCaseReceivedUseCase:
 
     Only the CASE_MANAGER attaches the report and commits; replicas apply the
     ledger fan-out.  The sender must be the Case Owner; anyone else is
-    ``REFUSED`` with the report not attached (CM-30-002).  A report the case
+    ``REFUSED`` with the report not attached (CM-30-006).  A report the case
     already lists is ``SKIPPED``.
     """
 
     # The Case Owner asks the CASE_MANAGER; a participant takes the report
-    # from the CASE_MANAGER alone (CM-30-002, PCR-03-001).
+    # from the CASE_MANAGER alone (CM-30-005, PCR-03-001).
     sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
         SenderEntitlementKind.CASE_OWNER
     )
@@ -171,7 +171,7 @@ class CloseCaseReceivedUseCase:
         self._sync_port = sync_port
         # trigger_activity lets the received-close tree emit an as:Reject when
         # it must decline an owner close during a live embargo (CM-23-011),
-        # or answer a late Leave under PostCloseReply.REJECT (CM-23-013).
+        # or answer a late Leave under PostCloseReply.REJECT (CM-23-057).
         self._trigger_activity = trigger_activity
         # actor_config carries post_close_reply, the one policy point for the
         # reply to a Leave after the case is fully closed (ADR-0131).
@@ -230,7 +230,7 @@ class CloseCaseReceivedUseCase:
         if (refusal := door_refusal(tree)) is not None:
             # The case is fully closed, or the copy was not addressed to this
             # receiver: nothing was recorded, and the sender got a Reject only
-            # under PostCloseReply.REJECT (CM-23-013, HP-01-005).
+            # under PostCloseReply.REJECT (CM-23-057, HP-01-005).
             return refusal
         closed = closed_sender_verdict(
             tree, result, closes=True, label="Leave(VulnerabilityCase)"

@@ -951,7 +951,7 @@ class TestInviteActorUseCases:
     def test_accept_invite_actor_to_case_records_active_embargo(
         self, monkeypatch, make_payload
     ):
-        """AcceptInviteActorToCaseReceivedUseCase records the active embargo ID on the new participant (CM-10-001, CM-10-003)."""
+        """AcceptInviteActorToCaseReceivedUseCase records the active embargo ID on the new participant (CM-10-001)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.case import VulnerabilityCase
         from vultron.enums.roles import CVDRole
@@ -2005,6 +2005,7 @@ class TestAcceptInviteRolesAC4:
             CVDRole.COORDINATOR,
         }
 
+    @pytest.mark.spec("CM-11-049")
     @pytest.mark.spec("CM-11-019")
     def test_no_roles_invite_refused_not_applied(self, make_payload):
         """CM-11-019: Accept of a no-roles Invite is REFUSED, no participant created.
@@ -2381,6 +2382,7 @@ class TestInviteDispositions:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and "unknown case" in result.reason
 
+    @pytest.mark.spec("CM-11-052")
     @pytest.mark.spec("CM-11-021")
     def test_accept_invite_refused_when_no_participant_record(
         self, make_payload

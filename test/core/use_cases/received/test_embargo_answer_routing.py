@@ -310,6 +310,7 @@ def test_a_participant_handed_an_answer_refuses_it_and_writes_nothing(answer):
 
 
 @pytest.mark.spec("CM-28-013")
+@pytest.mark.spec("CM-28-023")
 @pytest.mark.spec("EP-09-007")
 @pytest.mark.spec("CM-28-012")
 def test_the_relay_and_its_replay_record_the_same_rsvp_deadline():
@@ -317,7 +318,7 @@ def test_the_relay_and_its_replay_record_the_same_rsvp_deadline():
 
     The CASE_MANAGER stamps it as the Invite's ``published`` plus its default
     window (CM-28-012), records it at commit, and the replica records the same
-    value from the committed entry (CM-28-013).
+    value from the committed entry (CM-28-023).
     """
     net = _Network("https://example.org/cases/answer-rsvp-deadline")
     revision_id = _propose(net, "deadline", 90)

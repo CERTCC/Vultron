@@ -121,7 +121,7 @@ def extract_intent(
             (EP-07-002, EP-07-003); 72 h by default.  Pass
             ``ActorConfig.min_rsvp_window`` to apply the configured floor.
         default_rsvp_window: Policy window used when an inbound embargo
-            invite names no deadline (EP-07-001, CM-18-002); 7 days by
+            invite names no deadline (EP-07-001, CM-18-023); 7 days by
             default.  Pass ``ActorConfig.default_rsvp_window``.
 
     Returns:
@@ -322,7 +322,7 @@ def _activity_end_time(activity: object) -> datetime | None:
 
 
 def _answer_deadline(activity: object) -> datetime | None:
-    """The ownership-transfer Offer's deadline to answer, in UTC (CM-21-016).
+    """The ownership-transfer Offer's deadline to answer, in UTC (CM-21-042).
 
     The activity-level ``end_time``, normalised to UTC here, at the edge
     (ADR-0032), so core compares and reports one zone (CS-13-001).  ``None``

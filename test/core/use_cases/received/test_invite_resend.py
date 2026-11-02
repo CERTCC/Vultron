@@ -251,7 +251,7 @@ def test_a_read_resends_the_unanswered_full_case_invite(make_payload):
     assert _full_case_invite(dl) in dl.outbox_list()
 
 
-@pytest.mark.spec("SYNC-20-001", "SYNC-17-002", "CM-10-004", "CM-10-007")
+@pytest.mark.spec("SYNC-20-001", "SYNC-17-002", "CM-10-004", "CM-10-009")
 def test_an_inert_joiner_is_resent_its_invites_and_still_refused(
     make_payload,
 ):
@@ -450,6 +450,7 @@ def test_an_invite_past_its_rsvp_deadline_is_not_resent(make_payload):
     assert _full_case_invite(dl) in dl.outbox_list()
 
 
+@pytest.mark.spec("CM-11-035")
 @pytest.mark.spec("SYNC-20-002", "CM-11-012")
 def test_a_replied_full_case_invite_is_not_resent_and_a_reply_still_counts(
     make_payload,

@@ -629,7 +629,7 @@
         "type": "object"
       },
       "OfferCaseParticipantRoleRequest": {
-        "description": "Request body for the offer-case-participant-role trigger endpoint (ADR-0039).\n\nEmits ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``, whose\n``target`` is ``target_actor_id``, from the requesting actor.  ``role`` is\nrequired: it has no default, since the CASE_MANAGER refuses an Offer of\n``CASE_OWNER`` or ``CASE_MANAGER`` and reads no missing role as a default\n(CM-33-003).",
+        "description": "Request body for the offer-case-participant-role trigger endpoint (ADR-0039).\n\nEmits ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``\nfrom the requesting actor.  ``role`` is required: it has no default, since\nthe CASE_MANAGER refuses an Offer of ``CASE_OWNER`` or ``CASE_MANAGER``\nand reads no missing role as a default (CM-33-014).",
         "properties": {
           "case_id": {
             "title": "Case Id",

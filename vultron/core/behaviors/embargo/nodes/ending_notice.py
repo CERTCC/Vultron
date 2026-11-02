@@ -102,7 +102,7 @@ def embargo_ending_notice(
     before: str | None,
     after: str | None,
 ) -> EmbargoEndingNotice | None:
-    """Decide the CM-31-009 notice a change of active embargo owes.
+    """Decide the CM-31-009 or CM-31-030 notice a change of active embargo owes.
 
     *before* and *after* are the case's active embargo either side of one EM
     write.  ``None`` means no notice is owed: nothing was in force, nothing

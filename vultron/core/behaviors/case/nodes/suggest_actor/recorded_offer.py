@@ -19,7 +19,7 @@ The Case Owner answers an ``Offer(CaseParticipant)`` with an ``Accept`` or a
 ``Reject`` (CM-16-006, CM-16-007).  What the CASE_MANAGER does next comes from
 its own records, never from the answer's copy of the Offer: the invitee and
 its roles from the Offer it recorded when it forwarded the recommendation
-(ISSUE-1745, CM-16-019), and the recommender from the
+(ISSUE-1745, CM-16-023), and the recommender from the
 :class:`ActorRecommendationRecord` it kept for that recommendation.
 
 :class:`RequireRecordedOfferAnswerNode` looks both up as a precondition guard

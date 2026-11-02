@@ -147,7 +147,7 @@ class EmitWithdrawCaseOwnershipTransferNode(_EmitOwnershipAnswerNode):
             # No fallback: the stored proposal's ``actor`` is the owner
             # itself, so the port's last-resort addressing would send the
             # withdrawal to its own sender.  A
-            # withdrawal goes to the CASE_MANAGER or nowhere (CM-21-015,
+            # withdrawal goes to the CASE_MANAGER or nowhere (CM-21-036,
             # PCR-08-011).  The trigger refuses this case before the tree
             # runs; the check here keeps the node safe on its own.
             raise VultronNotFoundError(

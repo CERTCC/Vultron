@@ -61,7 +61,7 @@ The CASE_MANAGER sends no notice when the sender is not a participant of the cas
 
 - **Triggering transition:** Received or Invalid → Valid ({R,I} → V).
 - **Second wire form:** a participant that joined through an Invite sends `Accept(Invite(Actor)[target=VulnerabilityCase])` instead, answering the full-case Invite ([VAM-04-012](../vultron-spec/requirements/messages.md#vam-04-012)); see [Accept Full-Case Invite](case_management.md#accept-full-case-invite).
-  It never validates the original report Offer ([CM-11-020](../vultron-spec/requirements/case-management.md#cm-11-020)).
+  It never validates the original report Offer ([CM-11-020](../vultron-spec/requirements/case-management.md#cm-11-020), [CM-11-051](../vultron-spec/requirements/case-management.md#cm-11-051)).
 
 {% include-markdown "./_occasions/sections/report-invalid.md" %}
 

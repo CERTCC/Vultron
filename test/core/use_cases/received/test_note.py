@@ -646,6 +646,7 @@ class TestNoteUseCases:
         assert note.id_ not in case.notes
 
     @pytest.mark.spec("CM-30-001")
+    @pytest.mark.spec("CM-30-004")
     def test_remove_note_by_author_who_left_is_refused(self, make_payload):
         """An author who is no longer a participant has no standing."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_ACTOR)
@@ -689,7 +690,7 @@ class TestNoteUseCases:
         assert note.id_ in case.notes
         assert dl.list_objects("CaseLedgerEntry") == []
 
-    @pytest.mark.spec("CM-30-001")
+    @pytest.mark.spec("CM-30-003")
     def test_remove_note_at_replica_from_non_manager_is_refused(
         self, make_payload
     ):

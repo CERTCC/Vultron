@@ -65,7 +65,7 @@ sequenceDiagram
    The `Offer` has the invited actor as its `object` and the case as its `target`.
    It lists the roles you offer in `suggestedRoles`.
    With no roles given, the CASE_MANAGER assigns a non-empty default role list (CM-16-003).
-   A stub Invite always names at least one role, and the CASE_MANAGER refuses to send one with none (CM-11-019).
+   A stub Invite always names at least one role, and the CASE_MANAGER refuses to send one with none (CM-11-019, CM-11-048).
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/request-invite-actor-to-case.md" %}
 
@@ -79,7 +79,7 @@ sequenceDiagram
 
 3. Set the reply deadline on the activity's `end_time`.
    When that value is present, it takes precedence over the invitee's local policy window (CM-28-002, ADR-0065).
-   When it is absent, the policy window applies instead (CM-28-002, ADR-0065).
+   When it is absent, the policy window applies instead (CM-28-019, ADR-0065).
    In both cases, the effective deadline is clamped down to the embargo's own `end_time` (EP-07-006).
    An `end_time` that outlives the embargo does not give the invitee extra time.
 
@@ -125,8 +125,8 @@ Rule on the case afterwards — see [How to Advance a Case Through Report Manage
 A reply that arrives after the Invite's deadline is still processed.
 The one exception is an `Accept` of a stub Invite that a newer one replaced.
 The CASE_MANAGER refuses that `Accept` and answers with the name of the replacement.
-A `Reject` of the replaced Invite is honored (CM-11-014, CM-11-016).
-A replacement or re-invite names the Invite it replaces in `inReplyTo` (CM-11-015, CM-11-016).
+A `Reject` of the replaced Invite is honored (CM-11-014, CM-11-046).
+A replacement or re-invite names the Invite it replaces in `inReplyTo` (CM-11-042, CM-11-044).
 
 A `Reject` or an `Accept` from an actor with no participant record is refused (CM-11-018, CM-11-021).
 An actor can send an `Accept` of a stub Invite after it already joined the case, or after it was removed from it.

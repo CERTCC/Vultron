@@ -29,7 +29,7 @@ A self-declared role would let an actor take on authority the Case Owner never g
    `CaseParticipant` entry in the case.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-33-001", "CM-33-002", "CM-33-003", "CM-33-004", "CM-33-005", "CM-33-006"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-33-001", "CM-33-007", "CM-33-008", "CM-33-009", "CM-33-002", "CM-33-010", "CM-33-011", "CM-33-003", "CM-33-012", "CM-33-013", "CM-33-014", "CM-33-004", "CM-33-015", "CM-33-005", "CM-33-016", "CM-33-017", "CM-33-018", "CM-33-006", "CM-33-019", "CM-33-020", "CM-33-021"))
 ```
 
 Together these rules mean that an actor holds only a role it accepted, from an offer that the Case Owner made, or that a Case Manager made where its policy delegates role offers to it.
@@ -73,7 +73,7 @@ It carries exactly these fields:
   The case name itself can be sensitive to share with an actor not yet bound by the embargo.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-013", "CM-17-010", "CM-17-002", "EP-09-011", "MV-10-001"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-013", "CM-11-037", "CM-11-038", "CM-17-010", "CM-17-020", "CM-17-021", "CM-17-022", "CM-17-023", "CM-17-002", "CM-17-013", "CM-17-014", "EP-09-011", "MV-10-001"))
 ```
 
 The stub does not name the case's coordinator or Case Owner.
@@ -89,7 +89,7 @@ The CASE_MANAGER commits the record's creation to the case ledger, and a replica
 The record is not yet an active participant: it does not receive case content and is not included in embargo fan-out.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-006"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-006", "CM-11-026", "CM-11-023", "CM-11-024", "CM-11-025"))
 ```
 
 The actor answers `Accept(Invite)` or `Reject(Invite)`.
@@ -99,20 +99,20 @@ A participant that had declined the embargo joins but stays inert until it agree
 `Reject(Invite)` closes the inert record (RM Received → Closed) and keeps it as history, so the CASE_MANAGER can see that the invitation was extended and declined.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-001", "CM-11-007"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-001", "CM-11-007", "CM-11-027", "CM-11-028"))
 ```
 
 Every stub Invite carries a reply deadline.
 When it passes unanswered, the Invite closes as expired and the record is left unchanged: still inert, at RM Received, with its embargo consent row still `INVITED`.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-014"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-014", "CM-11-039", "CM-11-040", "CM-11-041"))
 ```
 
 After joining, the participant judges the case by answering the full-case Invite, not the original report Offer.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-011", "CM-11-020"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-11-011", "CM-11-034", "CM-11-020", "CM-11-051"))
 ```
 
 **Suggested actor.**
@@ -123,7 +123,7 @@ If the Case Owner accepts, the CASE_MANAGER then sends the stub `Invite` above.
 The CASE_MANAGER takes the actor to invite and its roles from the offer it recorded, never from the Case Owner's reply.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-16-001", "CM-16-004", "CM-16-006", "CM-16-018", "CM-16-019"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-16-001", "CM-16-004", "CM-16-006", "CM-16-021", "CM-16-018", "CM-16-019", "CM-16-023"))
 ```
 
 Both paths converge on `Accept(Invite)`.
@@ -143,7 +143,7 @@ The receiving actor is one already entitled to the case's content and holding th
 An owner that means to transfer a case to any other actor invites that actor first.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-21-005", "CM-21-021"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-21-005", "CM-21-025", "CM-21-026", "CM-21-027", "CM-21-028", "CM-21-029", "CM-21-021"))
 ```
 
 On acceptance, the receiving actor acquires Case Owner authority and
@@ -151,7 +151,7 @@ the associated protocol responsibilities.
 The previous owner loses the Case Owner role, and keeps its other roles and its place in the case.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-21-011", "CM-21-002", "CM-21-003", "CM-21-008", "CM-21-009"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-21-011", "CM-21-031", "CM-21-002", "CM-21-024", "CM-21-003", "CM-21-008", "CM-21-009"))
 ```
 
 !!! note "Open: cryptographic identity across a change of case manager"
@@ -173,7 +173,7 @@ The participant's record, its status history, and the ledger entries it authored
 A removed participant is inert: it receives no case content, and it has no authority to act on the case.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-31-001"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-31-001", "CM-31-015", "CM-31-016", "CM-31-017"))
 ```
 
 Only the Case Owner requests a removal.
@@ -189,7 +189,7 @@ The CASE_MANAGER never removes a participant on its own initiative.
 A participant that wants to stop taking part leaves the case with `Leave(VulnerabilityCase)`; that is not removal.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-31-004"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-31-004", "CM-31-022", "CM-31-023"))
 ```
 
 An accepted removal is one ledger entry: the Case Owner's received `Remove(CaseParticipant)`, committed by the CASE_MANAGER as received.
@@ -199,7 +199,7 @@ The notice has `actor` set to the CASE_MANAGER and `attributedTo` set to the Cas
 This notice is delivery, not a record, and is not ledgered.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-31-005", "CM-31-006"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-31-005", "CM-31-024", "CM-31-025", "CM-31-006", "CM-31-026", "CM-31-027", "CM-31-028"))
 ```
 
 The removal entry's fan-out selects its recipients before the removal is applied, so the removed participant receives that entry too.
@@ -208,7 +208,7 @@ Every replica, the removed participant's own included, applies the removal from 
 A replica never applies a removal from a directly received `Remove(CaseParticipant)`: it stores the notice and takes the removal from the ledger.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-31-007"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-31-007", "CM-31-029"))
 ```
 
 Removal does not change the participant's embargo consent.
@@ -216,7 +216,7 @@ A removed signatory stays bound by the embargo it accepted.
 A removed participant receives no Invite of any kind: not a stub Invite, not a full-case Invite, and not an embargo Invite.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-31-008", "CM-31-013"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-31-008", "CM-31-013", "CM-31-040"))
 ```
 
 Removal is reversible.
@@ -235,7 +235,7 @@ The CASE_MANAGER refuses an `Add` that names a participant that is not removed o
 `Add` does not seat a new member, and an actor joins only by accepting its stub Invite.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-31-011"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-31-011", "CM-31-034", "CM-31-035", "CM-31-036"))
 ```
 
 For the same reason, the CASE_MANAGER does not send `Add(CaseParticipant)` when an invitee accepts its stub Invite.
@@ -244,7 +244,7 @@ That Accept is the entry for the invitee's consent and `joined` mark.
 Every replica applies what the entries carry.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-31-012"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-31-012", "CM-31-037", "CM-31-038", "CM-31-039", "CM-31-041"))
 ```
 
 When the reinstated participant is active again, the CASE_MANAGER sends it every ledger entry committed after its removal entry, in log order.

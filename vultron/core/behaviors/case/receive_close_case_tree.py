@@ -21,20 +21,20 @@ Implements receiver-side role semantics for Leave(VulnerabilityCase):
   embargo Invite still awaiting a reply (CM-23-014), advances the leaving
   participant to ``RM.CLOSED``, then advances the CaseActor to ``RM.CLOSED``, committing
   one status entry per RM transition for each and fanning each out to the
-  participants not at ``RM.CLOSED`` (CM-23-001, CM-23-002, CM-23-004,
-  CM-23-005).  The CaseActor's own ``RM.CLOSED`` status entry is the last
+  participants not at ``RM.CLOSED`` (CM-23-022, CM-23-002, CM-23-004,
+  CM-23-033).  The CaseActor's own ``RM.CLOSED`` status entry is the last
   entry of the closure and the owner-close write boundary (ADR-0085); no
   entry marks the closure itself (ADR-0152) — **unless** an embargo is still
   live, in which case the close is declined with an ``as:Reject`` and none of
   the closure effects run (CM-23-011).
 - **Non-owner Leave**: advances only the leaving participant to ``RM.CLOSED``,
   committing one status entry per RM transition; the case remains open for
-  remaining participants (CM-23-003).
+  remaining participants (CM-23-003, CM-23-030).
 
 Every RM closure step the CASE_MANAGER writes is its own ledger entry, after
 the ``close_case`` entry that records the Leave.  A replica applies those
 status entries and never works out a closure path itself; applying
-``close_case`` changes no RM state (CM-23-001, CM-23-016).
+``close_case`` changes no RM state (CM-23-023, CM-23-024).
 - **Any Leave after the case is fully closed**: the factory's post-close guard
   refuses it ahead of both arms, so no ``close_case`` entry is committed or
   fanned out and no one advances (CM-23-013).  Under
@@ -45,7 +45,7 @@ status entries and never works out a closure path itself; applying
   close/decline decision, so nothing is committed, declined or sent
   (HP-01-006, HP-01-008).  A Leave from a sender whose closure the case
   already records never reaches this tree: the use case reports it
-  ``SKIPPED`` first (CM-23-018, ID-05-003).
+  ``SKIPPED`` first (CM-23-049, ID-05-003).
 
 The role check is performed by :class:`~vultron.core.behaviors.case.nodes
 .vfd_role_guards.SenderIsCaseOwnerNode` as a tree-level condition node, per
@@ -113,7 +113,7 @@ def _close_and_record(
     The two nodes share one ``closure_steps`` list: the advance fills it
     with the id of each status it writes, and the record commits one
     ``add_participant_status_to_participant`` entry per id, in order
-    (CM-23-001, CM-23-005).
+    (CM-23-022, CM-23-033).
     """
     closure_steps: list[str] = []
     advance: py_trees.behaviour.Behaviour = (
@@ -166,7 +166,7 @@ def create_close_case_received_tree(
       and run **none** of the CM-23-002 closure effects (CM-23-011). The owner
       must terminate the embargo first, then re-issue the close.
     - Non-owner Leave → advance only the leaving participant to ``RM.CLOSED``;
-      case remains open (non-owner path, CM-23-003).
+      case remains open (non-owner path, CM-23-003, CM-23-030).
     - Any Leave after the case is fully closed → refused by the post-close guard
       before the ``CloseOrDecline`` decision, so the receipt
       ``GuardedCommitOrSkip`` never runs: nothing is committed or fanned out
@@ -206,14 +206,14 @@ def create_close_case_received_tree(
                 │           │   └── OwnerLeaveSeq (Sequence)
                 │           │       ├── ExpirePendingInvitesOnCloseNode   # settle pending Invites (CM-23-014)
                 │           │       ├── AdvanceParticipantToRMClosedNode  # step 1: owner → RM.CLOSED
-                │           │       ├── CommitRMClosureEntriesNode   # step 1 on the ledger (CM-23-001)
+                │           │       ├── CommitRMClosureEntriesNode   # step 1 on the ledger (CM-23-022)
                 │           │       ├── AdvanceCaseActorToRMClosedNode    # step 2: CaseActor → RM.CLOSED
                 │           │       └── CommitRMClosureEntriesNode   # step 2: the boundary
                 │           └── NonOwnerLeaveArm (Selector)     # Non-owner (CM-23-003)
                 │               ├── SenderIsCaseOwnerNode            # skip: sender is CASE_OWNER
                 │               └── NonOwnerLeaveSeq (Sequence)
                 │                   ├── AdvanceParticipantToRMClosedNode  # departing → RM.CLOSED
-                │                   └── CommitRMClosureEntriesNode   # each step on the ledger (CM-23-001)
+                │                   └── CommitRMClosureEntriesNode   # each step on the ledger (CM-23-022)
                 └── DeclineOwnerCloseIfEmbargoed (Sequence)  # CM-23-011 decline arm
                     ├── CheckIsCaseOwner → ReadEmState
                     │        → IsCloseBlockedByActiveEmbargo  # decline decision
@@ -271,7 +271,7 @@ def create_close_case_received_tree(
             the guarded receipt commit run.
         post_close_reply: The CASE_MANAGER's reply policy for a Leave that
             arrives after the case is fully closed (``ActorConfig.post_close_reply``,
-            CM-23-013).  ``REJECT`` answers it with
+            CM-23-017).  ``REJECT`` answers it with
             ``Reject(Leave(VulnerabilityCase))``; ``DROP`` sends nothing.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it, on the case, ahead of the
@@ -282,7 +282,7 @@ def create_close_case_received_tree(
             ``case_actor_id`` argument of :class:`AdvanceCaseActorToRMClosedNode`
             and the closing actor of its :class:`CommitRMClosureEntriesNode`, so that on owner Leave
             the CaseActor's own RM state is advanced *and* that transition is
-            recorded as a canonical ledger entry (CM-23-005).  When ``None``,
+            recorded as a canonical ledger entry (CM-23-033).  When ``None``,
             both are omitted and the CaseActor's closure is neither applied nor
             recorded.
 

@@ -188,7 +188,7 @@ That `Accept` joins the case; it is not `RV`.
 The joined participant judges the case by answering the full-case `Invite`, `Invite(Actor)[target=VulnerabilityCase]`, and that answer is `RV`, `RI` or `RC`.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-16-001", "CM-16-004", "CM-11-011", "CM-11-020"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-16-001", "CM-16-004", "CM-11-011", "CM-11-034", "CM-11-020", "CM-11-051"))
 ```
 
 ### 4.8 Embargo Management Messages
