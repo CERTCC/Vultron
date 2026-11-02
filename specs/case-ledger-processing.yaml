@@ -2809,3 +2809,37 @@ groups:
       spec_id: CLP-15-006
     lint_suppress:
     - missing_story_reference
+  - id: CLP-15-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST treat an inbound activity that carries a `CaseStatus` with no
+      `published` as malformed and reject it at message validation, wherever the
+      status sits in the activity.
+    rationale: >-
+      The current status of a case is the one with the latest time (CM-29-001), so
+      every status must have one. A status without a time cannot be placed, and any
+      place a receiver chose for it would be a rule no sender agreed to. This is the
+      decision CLP-15-007 names, so the refusal happens at message validation, as for
+      an activity with no `published` (CLP-15-006), and CLP-15-007 already forbids
+      the receiver to supply its own clock instead. Participant statuses are not
+      covered: their current entry is the one appended last, so nothing reads their
+      time.
+    verification: >-
+      `test_parse_refuses_inline_case_status_without_published`,
+      `test_parse_refuses_case_status_without_published_in_case_statuses` and
+      `test_parse_refuses_case_status_without_published_in_a_participant_status`
+      in `test/wire/as2/test_nested_timestamps.py` assert `parse_activity` raises
+      `VultronParseMissingPublishedError` naming the status's position, and
+      `test_post_untimed_case_status_to_actor_inbox_returns_422` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` asserts the inbox
+      answers 422.
+    adr:
+    - ADR-0103
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-15-007
+    - rel_type: refines
+      spec_id: CM-29-001
+    stories:
+    - story_2022_075

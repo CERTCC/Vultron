@@ -855,9 +855,9 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
     def current_status(self) -> CaseStatus:
         """Return the most recent materialized :class:`CaseStatus`.
 
-        Recency is resolved by ``updated`` then ``published`` via
-        :func:`most_recent_status`. When both are absent the status sorts to
-        the bottom (``datetime.min``); among equals the last appended wins.
+        Recency is ``updated`` if present, else ``published``, via
+        :func:`most_recent_status` (CM-29-001); every status carries a
+        ``published``.  Among equal times the last appended wins (CM-29-003).
         ``id_`` MUST NOT be used as a tiebreaker because its scheme is an
         implementation artefact, not a time proxy (CM-29-002).
 

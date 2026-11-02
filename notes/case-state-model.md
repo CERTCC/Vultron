@@ -129,9 +129,12 @@ on-behalf trigger trees. The gate is deliberately case-wide, not per vendor
 ## Status Lists Are Append-Only History
 
 - `VulnerabilityCase.case_status` and `CaseParticipant.participant_status` are
-  append-only lists. The current entry is the one with the latest `updated`
-  timestamp; items may arrive out of order. Use `current_status`, never list
-  indexing.
+  append-only lists. Use `current_status`, never list indexing: a case's
+  current status is the one with the latest `updated`, else `published`
+  (CM-29-001), the last appended winning a tie (CM-29-003), because items may
+  arrive out of order. Every `CaseStatus` carries a `published`, and a received one without
+  it is refused at parse (CLP-15-008), so no status is ever placed by a
+  fallback.
 - A status update carrying a future timestamp is an error.
 - The CASE_MANAGER's trusted timestamp for a state-changing event is its
   `CaseLedgerEntry` commit, not an edit to the object's own timestamp, which

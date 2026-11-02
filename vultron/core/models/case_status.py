@@ -15,10 +15,12 @@
 
 """Domain representation of a case status snapshot."""
 
-from typing import Literal
+from datetime import datetime
+from typing import ClassVar, Literal
 
 from pydantic import AliasChoices, Field, model_validator
 
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.states.em import EM
@@ -37,6 +39,11 @@ class CaseStatus(CoreObject):
 
     ``em`` and ``pxa`` are dimension objects that own the EM and PXA state
     machines respectively (ADR-0036, SDO-03-001).
+
+    ``published`` is required: it is what ``VulnerabilityCase.current_status``
+    orders statuses by when ``updated`` is absent (CM-29-001).  A status this
+    process authors takes the local clock; a received status without one is
+    refused at message validation (CLP-15-008).
     """
 
     type_: Literal["CaseStatus"] = Field(
@@ -45,6 +52,12 @@ class CaseStatus(CoreObject):
         serialization_alias="type",
     )
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
+    # Re-narrowed from CoreObject's ``datetime | None`` (ARCH-10-001), as
+    # ``CaseLedgerEntry.published`` is: recency reads it (CM-29-001).  The
+    # narrowed type alone would refuse a received omission as a bare type
+    # fault; the flag makes the inbound read name the rule (CLP-15-008).
+    published: datetime = Field(default_factory=now_utc)
+    _inbound_requires_published: ClassVar[bool] = True
     attributed_to: NonEmptyString | None = None  # pyright: ignore[reportGeneralTypeIssues]
     # Each dimension serializes to its bare state value (ARCH-25-005, ADR-0099), so
     # the alias alone produces the flat wire shape the AS2 form has always used:

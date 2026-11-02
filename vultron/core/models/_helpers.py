@@ -166,11 +166,12 @@ def require_future_aware(
     return value
 
 
-#: Recency floor for statuses that carry no timestamps: they sort to the
-#: bottom. ``id_`` MUST NOT be used as a recency tiebreaker (CM-29-002) — its
-#: scheme (``urn:uuid`` vs ``https``) is an implementation artefact, not a
-#: time proxy.
-_MIN_UTC = datetime.min.replace(tzinfo=UTC)
+@overload
+def as_utc(value: datetime) -> datetime: ...
+
+
+@overload
+def as_utc(value: None) -> None: ...
 
 
 def as_utc(value: datetime | None) -> datetime | None:
@@ -245,17 +246,16 @@ def claimed_published_iso(activity_obj: Any) -> str:
 
 
 def status_recency_key(
-    updated: datetime | None, published: datetime | None
+    updated: datetime | None, published: datetime
 ) -> datetime:
     """Return the recency sort key for a status: ``updated`` else ``published``.
 
-    Both are normalised to timezone-aware UTC. When both are absent the key is
-    ``datetime.min`` (UTC) so timestampless statuses sort to the bottom rather
-    than by ``id_`` scheme (CM-29-002). Shared by the core and wire
-    ``VulnerabilityCase.current_status`` implementations so the invariant lives
-    in one place.
+    The key is normalised to timezone-aware UTC.  ``published`` is required:
+    every ``CaseStatus`` carries one, and a received status without it is
+    refused at message validation (CM-29-001, CLP-15-008), so there is no
+    untimed status to place.  ``id_`` is never part of the key (CM-29-002).
     """
-    return as_utc(updated) or as_utc(published) or _MIN_UTC
+    return as_utc(updated if updated is not None else published)
 
 
 class _Timestamped(Protocol):
@@ -263,7 +263,7 @@ class _Timestamped(Protocol):
     def updated(self) -> datetime | None: ...
 
     @property
-    def published(self) -> datetime | None: ...
+    def published(self) -> datetime: ...
 
 
 _StatusT = TypeVar("_StatusT", bound=_Timestamped)
@@ -273,8 +273,8 @@ def most_recent_status(statuses: Sequence[_StatusT]) -> _StatusT:
     """Return the most recent of *statuses*; a tie goes to the last appended.
 
     Recency is :func:`status_recency_key`.  Received statuses carry the
-    sender's time or none at all (ISSUE-3257), so equal keys are ordinary, and
-    append order is the only honest tiebreaker left: ``id_`` scheme is an
+    sender's time (ISSUE-3257), so equal keys are ordinary, and append order is
+    the only honest tiebreaker left: ``id_`` scheme is an
     implementation artefact (CM-29-002), and a bare ``max`` keeps the *first*
     maximal element, so a status appended with the same time as the one before
     it would never become current.
@@ -290,6 +290,37 @@ def most_recent_status(statuses: Sequence[_StatusT]) -> _StatusT:
         ),
     )
     return latest
+
+
+class MissingClaimedTimeError(ValueError):
+    """A received object that must carry its sender's time carries none.
+
+    Raised from an inbound ``mode="before"`` validator, so a
+    :class:`ValueError` subclass: pydantic converts only ``ValueError`` and
+    ``AssertionError`` into a ``ValidationError``.  The parser finds this cause
+    in the error list and refuses the activity as missing a ``published``,
+    naming where the object sat (CLP-15-008).
+    """
+
+
+def refuse_absent_published(
+    cls: type[BaseModel], data: Mapping[str, Any]
+) -> None:
+    """Raise :class:`MissingClaimedTimeError` when *data* has no ``published``.
+
+    Absent, ``None`` and blank are the same omission (CS-08-001).  For use on
+    the inbound path only, before ``absent_times_as_none`` would read the
+    omission as ``None``: an object this process authors takes the clock
+    default instead.
+    """
+    value = data.get("published")
+    if value is None or (isinstance(value, str) and not value.strip()):
+        raise MissingClaimedTimeError(
+            f"{cls.__name__} carries no 'published'; a received"
+            f" {cls.__name__} must carry the time its sender claims it was"
+            " made, and the receiver does not supply its own clock"
+            " (CM-29-001, CLP-15-008)"
+        )
 
 
 class DuplicateKeySpellingError(ValueError):

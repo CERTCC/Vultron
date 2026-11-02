@@ -46,7 +46,10 @@ from test.support.case_owner import INBOUND_CASE_OWNERSHIP
 from test.support.received import extract_stamped
 from vultron.core.models._helpers import absent_times_as_none
 from vultron.core.models.base import CoreObject
-from vultron.wire.as2.errors import VultronParseValidationError
+from vultron.wire.as2.errors import (
+    VultronParseMissingPublishedError,
+    VultronParseValidationError,
+)
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.base import as_Base
 
@@ -130,6 +133,8 @@ KINDS: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
             "type": "CaseStatus",
             "id": "https://example.org/case-statuses/1",
             "context": CASE_ID,
+            # Required on a received status (CLP-15-008).
+            "published": SENDER_PUBLISHED,
             "emState": "NONE",
             "pxaState": "pxa",
         },
@@ -189,6 +194,11 @@ def _parsed(obj: dict[str, Any], extra: dict[str, Any]) -> Any:
 #: ``as_Base.carry_absent_times_on_inbound`` which was written first (ISSUE-3589).
 CORE_KINDS = [k for k in KINDS if k != "Note"]
 
+#: The nested kinds whose ``published`` the sender may omit.  A ``CaseStatus``
+#: is not one: recency reads its time (CM-29-001), so a received status without
+#: one is refused (CLP-15-008) — pinned separately below.
+TIME_OPTIONAL_KINDS = [k for k in KINDS if k != "CaseStatus"]
+
 
 @pytest.mark.spec("ARCH-12-001")
 @pytest.mark.parametrize("kind", CORE_KINDS)
@@ -209,7 +219,7 @@ def test_collapsed_nested_kind_parses_into_a_core_class(kind: str):
 
 @pytest.mark.spec("CLP-15-007")
 @pytest.mark.parametrize("spelling", list(ABSENT))
-@pytest.mark.parametrize("kind", list(KINDS))
+@pytest.mark.parametrize("kind", TIME_OPTIONAL_KINDS)
 def test_parsed_nested_object_without_times_has_none(kind: str, spelling: str):
     """An omitted nested time is ``None`` straight out of the parser.
 
@@ -265,7 +275,7 @@ def test_extracted_object_carries_sender_published_and_updated(kind: str):
 @pytest.mark.spec("CLP-15-007")
 @pytest.mark.spec("MV-03-002")
 @pytest.mark.parametrize("spelling", list(ABSENT))
-@pytest.mark.parametrize("kind", list(KINDS))
+@pytest.mark.parametrize("kind", TIME_OPTIONAL_KINDS)
 def test_nested_object_without_published_extracts_with_no_published(
     kind: str, spelling: str
 ):
@@ -308,35 +318,83 @@ def test_nested_updated_is_not_filled_when_only_published_is_sent(
     assert domain.updated is None
 
 
-@pytest.mark.spec("CLP-15-007")
-@pytest.mark.parametrize("spelling", list(ABSENT))
-def test_status_nested_in_a_case_without_published_does_not_crash(
-    spelling: str,
-):
-    """A case status with no time, inside a case, extracts rather than raising.
-
-    ``as_CaseStatus.to_core`` handed ``None`` to a core ``published: datetime``
-    and raised an uncaught pydantic ``ValidationError`` out of the extractor.
-    """
+def _untimed_status(spelling: str, **extra: Any) -> dict[str, Any]:
+    """A case status whose ``published`` is absent in *spelling*."""
     status: dict[str, Any] = {
         "type": "CaseStatus",
         "id": "https://example.org/case-statuses/1",
         "context": CASE_ID,
+        "published": SENDER_PUBLISHED,
         "emState": "NONE",
         "pxaState": "pxa",
+        **extra,
     }
     ABSENT[spelling](status)
+    return status
+
+
+@pytest.mark.spec("CLP-15-008")
+@pytest.mark.parametrize("spelling", list(ABSENT))
+def test_parse_refuses_inline_case_status_without_published(spelling: str):
+    """A status the activity carries as its object needs its sender's time.
+
+    The refusal names the field and the status's position, so the sender can
+    tell it from the activity-level refusal of CLP-15-006.
+    """
+    body = _body(_untimed_status(spelling), "Add", target=CASE_ID)
+
+    with pytest.raises(
+        VultronParseMissingPublishedError, match=r"at 'object'.*CLP-15-008"
+    ):
+        parse_activity(body)
+
+
+@pytest.mark.spec("CLP-15-008")
+@pytest.mark.parametrize("typed", [True, False], ids=["typed", "untyped"])
+@pytest.mark.parametrize("spelling", list(ABSENT))
+def test_parse_refuses_case_status_without_published_in_case_statuses(
+    spelling: str, typed: bool
+):
+    """A status inside a case's ``caseStatuses`` is refused the same way.
+
+    Before CLP-15-008 it extracted with ``published = None`` and sorted to the
+    bottom of the history under a fallback no requirement stated.  A status
+    without ``type`` is validated by the parent field rather than the parser's
+    inline expansion, so both shapes are pinned.
+    """
+    status = _untimed_status(spelling)
+    if not typed:
+        del status["type"]
     case = {
         **KINDS["VulnerabilityCase"][0],
         "published": SENDER_PUBLISHED,
         "caseStatuses": [status],
     }
 
-    domain = _extracted(case, {})
+    with pytest.raises(
+        VultronParseMissingPublishedError,
+        match=r"at 'object\.caseStatuses\[0\]'",
+    ):
+        parse_activity(_body(case))
 
-    materialised = [s for s in domain.case_statuses if not isinstance(s, str)]
-    assert len(materialised) == 1
-    assert materialised[0].published is None
+
+@pytest.mark.spec("CLP-15-008")
+@pytest.mark.parametrize("spelling", list(ABSENT))
+def test_parse_refuses_case_status_without_published_in_a_participant_status(
+    spelling: str,
+):
+    """The rule holds at any depth: a participant status's ``caseStatus`` too."""
+    participant_status = {
+        **KINDS["ParticipantStatus"][0],
+        "caseStatus": _untimed_status(spelling),
+    }
+    extra = dict(KINDS["ParticipantStatus"][1])
+    activity_type = extra.pop("activity_type")
+
+    with pytest.raises(
+        VultronParseMissingPublishedError, match=r"at 'object\.caseStatus'"
+    ):
+        parse_activity(_body(participant_status, activity_type, **extra))
 
 
 @pytest.mark.spec("CLP-08-002")
@@ -502,12 +560,19 @@ def test_inline_object_without_a_type_is_not_stamped_either(spelling: str):
     # ``context`` is carried because the class the parent chooses is now the
     # core ``CaseStatus`` (ARCH-25-003, ADR-0099), which requires it; the looser
     # wire class it replaced did not.
+    #
+    # The status carries its ``published``, which CLP-15-008 requires, so the
+    # absence under test is ``updated``'s: the ``published`` spellings are
+    # reused on a scratch dict.
+    scratch = {"published": SENDER_UPDATED}
+    ABSENT[spelling](scratch)
     status: dict[str, Any] = {
         "id": "https://example.org/cases/c1/statuses/1",
         "context": CASE_ID,
         "published": SENDER_PUBLISHED,
     }
-    ABSENT[spelling](status)
+    if "published" in scratch:
+        status["updated"] = scratch["published"]
     case = dict(KINDS["VulnerabilityCase"][0])
     case["caseStatuses"] = [status]
 
@@ -516,7 +581,7 @@ def test_inline_object_without_a_type_is_not_stamped_either(spelling: str):
     parsed_case = getattr(parsed, "object_", None)
     assert parsed_case is not None
     nested = parsed_case.case_statuses[0]
-    assert nested.published is None
+    assert nested.published == datetime.fromisoformat(SENDER_PUBLISHED)
     assert nested.updated is None
 
 
@@ -534,3 +599,26 @@ def test_a_class_without_timestamps_is_untouched_by_the_inbound_read():
     result = absent_times_as_none(as_Base, dict(data))
 
     assert result == data
+
+
+@pytest.mark.spec("CLP-15-008")
+def test_extractor_refuses_a_case_status_that_bypassed_the_parser():
+    """The extractor never mints a status time the parser would have refused.
+
+    A parsed status always carries ``published``; one built without validation
+    (``model_construct``) does not, and the builder names it rather than
+    letting the core default stamp the receiver's clock.
+    """
+    from vultron.core.models.case_status import CaseStatus
+    from vultron.wire.as2.extractor._builders import _build_case_status_object
+
+    untimed = CaseStatus.model_construct(
+        id_="https://example.org/case-statuses/1",
+        context=CASE_ID,
+        published=None,
+    )
+
+    with pytest.raises(
+        VultronParseMissingPublishedError, match="case-statuses/1"
+    ):
+        _build_case_status_object(untimed)

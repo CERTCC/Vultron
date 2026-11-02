@@ -20,7 +20,7 @@ import types as _types
 import typing as _typing
 from datetime import datetime, timedelta
 from functools import cache
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import (
     BaseModel,
@@ -47,6 +47,7 @@ from vultron.core.models._helpers import (
     blank_times_as_none,
     format_timestamp,
     now_utc,
+    refuse_absent_published,
 )
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
 from vultron.errors import Violation, VultronProtocolViolationError
@@ -276,6 +277,9 @@ class CoreObject(CoreRecord):
     # its absence at the wire edge, not here.
     published: datetime | None = Field(default_factory=now_utc)
     updated: datetime | None = Field(default_factory=now_utc)
+    #: Set by a subclass whose received ``published`` a decision reads, so
+    #: :meth:`_carry_absent_times_on_inbound` refuses its absence (CLP-15-008).
+    _inbound_requires_published: ClassVar[bool] = False
 
     content: Any | None = None
     summary: NonEmptyString | None = None
@@ -447,6 +451,11 @@ class CoreObject(CoreRecord):
         holding for every collapsed type.  Gated on the same validation-context
         key, which ``parse_activity`` sets and Pydantic propagates to nested
         models.
+
+        A class whose ``published`` a decision reads sets
+        ``_inbound_requires_published``, and a received instance without one
+        is refused here with :class:`MissingClaimedTimeError` rather than
+        read as ``None`` (CLP-15-007, CLP-15-008).
         """
         if not isinstance(data, dict):
             return data
@@ -455,6 +464,8 @@ class CoreObject(CoreRecord):
             INBOUND_CONTEXT_KEY
         ):
             return data
+        if cls._inbound_requires_published:
+            refuse_absent_published(cls, data)
         return absent_times_as_none(cls, blank_times_as_none(cls, dict(data)))
 
     @field_validator("context_")

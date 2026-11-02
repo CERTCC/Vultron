@@ -10,6 +10,9 @@ import json
 import logging
 from typing import Any, cast
 
+from pydantic import ValidationError
+
+from vultron.core.models._helpers import MissingClaimedTimeError
 from vultron.wire.as2.case_proposal_envelope import (
     refuse_malformed_case_proposal_envelope,
 )
@@ -91,6 +94,7 @@ def _expand_inline_value(value: object, path: str = "") -> object:
     try:
         return inline_cls.model_validate(expanded, context=_INBOUND_CONTEXT)
     except Exception as exc:
+        _refuse_missing_claimed_time(exc, path)
         where = f" at {path!r}" if path else ""
         raise VultronParseValidationError(
             f"Inline {inline_cls.__name__} object{where} is malformed: {exc}"
@@ -102,6 +106,56 @@ def _expand_inline_object(body: dict[str, Any]) -> dict[str, Any]:
     return {
         key: _expand_inline_value(value, key) for key, value in body.items()
     }
+
+
+def _refuse_missing_claimed_time(
+    exc: Exception, path: str, prefix: str = ""
+) -> None:
+    """Re-raise a nested object's missing ``published`` as that refusal.
+
+    A ``CaseStatus`` must carry its sender's time at any depth (CLP-15-008),
+    and its own validator says so with :class:`MissingClaimedTimeError`.
+    Pydantic buries that cause in a ``ValidationError``; finding it here lets
+    the sender read the same refusal CLP-15-006 gives a top-level activity,
+    with the position of the untimed object.  Returns when *exc* holds no
+    such cause, leaving the caller's schema-fault refusal to run.
+
+    Args:
+        exc: The exception validation raised.
+        path: Dotted position of the object that was being validated, or
+            ``""`` for the activity itself.
+        prefix: Leading text naming the activity, as :func:`_named` gives.
+
+    Raises:
+        VultronParseMissingPublishedError: When *exc* carries the cause.
+    """
+    if not isinstance(exc, ValidationError):
+        return
+    for error in exc.errors():
+        cause = error.get("ctx", {}).get("error")
+        if not isinstance(cause, MissingClaimedTimeError):
+            continue
+        where = _join_location(path, error["loc"])
+        location = f" at {where!r}" if where else ""
+        raise VultronParseMissingPublishedError(
+            f"{prefix}Missing 'published'{location}: {cause}"
+        ) from exc
+
+
+def _join_location(path: str, loc: tuple[int | str, ...]) -> str:
+    """*path* extended by a pydantic error ``loc``, in :func:`_expand_inline_value` form.
+
+    An index becomes ``[n]``.  A step holding ``[`` or ``(`` is a schema tag
+    pydantic adds for a validator-wrapped member (``function-after[...]``),
+    not a position in the body, so it is left out.
+    """
+    where = path
+    for step in loc:
+        if isinstance(step, int):
+            where += f"[{step}]"
+        elif "[" not in step and "(" not in step:
+            where = f"{where}.{step}" if where else step
+    return where
 
 
 def _named(body: dict[str, Any]) -> str:
@@ -132,7 +186,8 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     Raises:
         VultronParseMissingTypeError: If the `type` field is absent or blank.
         VultronParseMissingPublishedError: If the `published` field is absent
-            or blank.
+            or blank, or a ``CaseStatus`` anywhere in the activity carries none
+            (CLP-15-008).
         VultronParseUnknownTypeError: If the `type` value is not in the vocabulary.
         VultronParseValidationError: If Pydantic validation fails, including
             when a recognised inline object fails its own class's validation,
@@ -241,6 +296,7 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         # the nested type that failed; re-wrapping would bury it.
         raise
     except Exception as exc:
+        _refuse_missing_claimed_time(exc, "", _named(body))
         # Named, so a refusal of a field such as ``ledgerPosition`` says which
         # activity it refused (SYNC-18-003).
         raise VultronParseValidationError(f"{_named(body)}{exc}") from exc

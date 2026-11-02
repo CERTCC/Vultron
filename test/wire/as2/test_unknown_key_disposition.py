@@ -582,7 +582,11 @@ def test_untyped_dict_in_a_core_slot_is_partitioned_by_the_slot(
             "type": "VulnerabilityCase",
             "id": "https://example.org/cases/1",
             "caseStatuses": [
-                {"context": "https://example.org/cases/1", FOREIGN_KEY: 2}
+                {
+                    "context": "https://example.org/cases/1",
+                    "published": "2026-01-01T00:00:00+00:00",
+                    FOREIGN_KEY: 2,
+                }
             ],
         }
     )
