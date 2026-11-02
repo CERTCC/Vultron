@@ -330,12 +330,23 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      Duplicate reports SHOULD pass through the Valid state, although they MAY be subsequently
-      deferred in favor of the original
+      A Participant SHOULD move a duplicate report through the RM Valid state.
     rationale: >-
-      Passing through Valid records that the duplicate describes a real vul. Deferring
-      it in favor of the first report of the same vul then avoids working it twice while
-      keeping the duplicate's reporter informed.
+      Passing through Valid records that the duplicate describes a real vul, so the
+      duplicate's reporter learns that the report was sound.
+  - id: VP-02-036
+    priority: MAY
+    kind: protocol
+    statement: >-
+      After a duplicate report reaches RM Valid, a Participant MAY defer it in favor of
+      the original report.
+    rationale: >-
+      Deferring a duplicate in favor of the first report of the same vul avoids working
+      the vul twice, while the duplicate's reporter stays informed.
+    verification: >-
+      `test/core/states/test_rm_duplicate_reports.py`
+      (`test_a_valid_report_can_be_deferred`) confirms the RM machine's `defer`
+      edge takes a report from Valid to Deferred.
   - id: VP-02-024
     priority: SHOULD
     kind: protocol
@@ -642,23 +653,19 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      Recipients MAY ignore messages received on Closed cases, whatever the
-      message class: RM ($R*$), EM, CS and general-inquiry ($GI$) messages
-      alike. For the CASE_MANAGER, owner close is a hard kill switch rather than
-      a permission: once its own RM.CLOSED status entry is committed it MUST NOT record
-      any
-      later inbound message for the case (CM-23-013).
+      A recipient MAY ignore any message it receives on a Closed case, whatever its
+      class: RM ($R*$), EM, CS or general-inquiry ($GI$).
     rationale: >-
       A closed case has no further work, so a recipient gains nothing by processing late
-      traffic of any class. The CASE_MANAGER, as the single writer of canonical case
-      state, must go further: anything it recorded after close would extend a case every
-      participant has been told is over, and no principled line separates note-like
+      traffic of any class. For the CASE_MANAGER, owner close is a hard kill switch,
+      not a permission: after its own RM.CLOSED entry is committed it records no later
+      inbound message for the case (CM-23-013). No principled line separates note-like
       traffic ($GI$) from state-changing traffic, so the boundary covers every message
       (ADR-0085).
     verification: >-
       A test sends a $GI$ `Add(Note, target=Case)` to the CASE_MANAGER after the
       owner has closed the case, and confirms it is refused and the case ledger gains
-      no entry.
+      no entry: the CASE_MANAGER ignores a $GI$ message on a Closed case.
     adr:
     - ADR-0085
 - id: VP-04
@@ -668,8 +675,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Every accepted embargo MUST specify an end time (`endTime`); an embargo without
-      one MUST NOT be accepted.
+      Every embargo that a Participant accepts MUST specify an end time (`endTime`).
     rationale: >-
       An embargo with no end time never frees participants to publish, so it can keep a
       vul secret indefinitely and leave users exposed. A required end time also gives
@@ -726,11 +732,25 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      Once accepted, revisions MAY be proposed, which MAY in turn be accepted or rejected
+      Once an embargo is accepted, a Participant MAY propose a revision of it.
     rationale: >-
       Circumstances change during a case: fixes slip, vendors join, exploitation
       appears. Revisions let participants change the terms without first ending the
       embargo and leaving a gap with no terms in force.
+    stories:
+    - story_2022_014
+  - id: VP-04-006
+    priority: MAY
+    kind: protocol
+    statement: >-
+      A proposed revision of an accepted embargo MAY be accepted or rejected.
+    rationale: >-
+      A revision is a proposal like any other, so the case can take the new terms or
+      keep the terms already in force.
+    verification: >-
+      `test/core/states/test_em_transition_table.py`
+      (`test_an_accepted_embargo_can_be_revised_and_the_revision_answered`)
+      confirms EM moves from REVISE back to ACTIVE on both accept and reject.
     stories:
     - story_2022_014
 - id: VP-05
@@ -752,16 +772,23 @@ groups:
     - story_2022_010
     - story_2022_074
   - id: VP-05-002
+    priority: SHOULD_NOT
+    kind: protocol
+    statement: >-
+      An embargo's end time SHOULD NOT fall more than one year (P1Y) after the date the
+      embargo is accepted.
+    rationale: >-
+      Long embargoes keep users exposed to a vul that attackers may find independently.
+      A one-year ceiling bounds that exposure.
+  - id: VP-05-021
     priority: SHOULD
     kind: protocol
     statement: >-
-      An embargo end time SHOULD NOT be more than one year (P1Y) from the date of
-      acceptance. Embargo durations exceeding 90 days (P90D) SHOULD include documented
-      justification agreed to by all Participants.
+      An embargo that lasts more than 90 days (P90D) SHOULD carry a documented
+      justification that all Participants agree to.
     rationale: >-
-      Long embargoes keep users exposed to a vul that attackers may find independently.
-      A one-year ceiling bounds that exposure, and requiring agreed justification beyond
-      90 days makes a long embargo a deliberate exception rather than a default.
+      Requiring agreed justification beyond 90 days makes a long embargo a deliberate
+      exception rather than a default, since a long embargo keeps users exposed.
   - id: VP-05-003
     priority: MUST
     kind: protocol
@@ -1207,14 +1234,11 @@ groups:
     kind: protocol
     statement: >-
       If neither Sender nor Receiver proposes an embargo and no actor default applies, the
-      protocol default embargo of EP-04-005 SHALL apply. No embargo SHALL exist only where the
-      case is not embargo-eligible, that is where any of P/X/A is set (EP-04-008).
+      protocol default embargo of EP-04-005 SHALL apply.
     rationale: >-
       A case with no embargo leaves the vul unprotected, and reaching that state only
       because nobody proposed terms is the least deliberate way to get there. A bounded
-      protocol default gives every eligible case protection; a case where the vul is
-      already public, exploited or attacked gains nothing from secrecy, so only there does
-      no embargo exist.
+      protocol default gives every eligible case protection.
     note: >-
       Amended by ADR-0096. This requirement previously read "no embargo SHALL exist" in the
       no-default, no-proposal case, which was the corpus encoding of
@@ -1227,6 +1251,30 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EP-04-005
+    adr:
+    - ADR-0096
+    stories:
+    - story_2022_004
+    - story_2022_079
+  - id: VP-07-014
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A case SHALL have no embargo only where it is not embargo-eligible, that is where
+      any of P/X/A is set (EP-04-008).
+    rationale: >-
+      A case where the vul is already public, exploited or attacked gains nothing from
+      secrecy, so only there does no embargo exist. Every other case has an embargo,
+      if only the protocol default (VP-07-001).
+    note: >-
+      Split from VP-07-001, whose ADR-0096 amendment note covers both halves.
+    verification: >-
+      `test/core/behaviors/case/nodes/test_embargo_resolution.py`
+      (`test_initial_embargo_resolution_table`) confirms initial resolution
+      yields no embargo exactly when P, X or A is set.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VP-07-001
     - rel_type: refines
       spec_id: EP-04-008
     adr:
@@ -2216,20 +2264,33 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      Upon receipt of a Participant's notification of intent to end their compliance with
-      an embargo, other Participants MAY choose to terminate their own compliance
-      (VP-13-017), and the Case Owner MAY choose to terminate the case-level embargo
-      (CM-02-005), which the CASE_MANAGER then effects (EMB-19-001)
+      When a Participant receives another Participant's notice that it intends to end its
+      compliance with an embargo, it MAY end its own compliance (VP-13-017).
     rationale: >-
       When one participant will stop keeping the embargo, others may judge that it has
-      stopped protecting them. Letting them end their own compliance, and the Case Owner
-      end the case-level embargo, lets the case respond without any participant acting
-      beyond its own authority.
+      stopped protecting them. Letting them end their own compliance lets the case
+      respond without any participant acting beyond its own authority.
     note: >-
       Rephrased from "other Participants MAY choose to terminate the embargo" (CONCERN-3280):
       a Participant other than the authorising Case Owner cannot effect the case-level
       teardown; it may terminate only its own compliance. Terminating the case-level embargo
-      is the Case Owner's authority.
+      is the Case Owner's authority (VP-13-019).
+  - id: VP-13-019
+    priority: MAY
+    kind: protocol
+    statement: >-
+      When a Participant gives notice that it intends to end its embargo compliance,
+      the Case Owner MAY terminate the case-level embargo (CM-02-005). The CASE_MANAGER
+      then carries out the termination (EMB-19-001).
+    rationale: >-
+      One participant leaving the embargo may leave it protecting no one. Terminating
+      the case-level embargo is the Case Owner's authority, so the Case Owner decides,
+      and the CASE_MANAGER, the single writer of case state, carries it out.
+    verification: >-
+      `test/core/use_cases/received/test_embargo_ending_notices.py`
+      (`test_owner_termination_sends_et_to_each_unreached_signatory`) confirms
+      the CASE_MANAGER carries out the Case Owner's termination, with departed
+      signatories among those it notifies.
 - id: VP-14
   title: RM-EM-CS Interactions
   specs:
@@ -2305,11 +2366,24 @@ groups:
     priority: SHOULD_NOT
     kind: protocol
     statement: >-
-      By the time a fix has been deployed ($q^{cs} \in VFD\cdots$), new embargoes SHOULD NOT
-      be sought and any existing embargo SHOULD terminate
+      Once a fix has been deployed ($q^{cs} \in VFD\cdots$), a Participant SHOULD NOT seek
+      a new embargo.
     rationale: >-
-      After the fix is deployed there is nothing left to protect by secrecy, so a new or
+      After the fix is deployed there is nothing left to protect by secrecy, so a new
+      embargo only delays user awareness.
+  - id: VP-14-015
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      Once a fix has been deployed ($q^{cs} \in VFD\cdots$), any existing embargo SHOULD
+      terminate.
+    rationale: >-
+      After the fix is deployed there is nothing left to protect by secrecy, so a
       continuing embargo only delays user awareness.
+    verification: >-
+      `test/core/behaviors/embargo/test_terminate_active_embargo_tree.py`
+      (`test_the_chosen_reason_is_recorded_as_the_cause`) confirms the
+      fix-deployed call-out ends the embargo with a `FIX_DEPLOYED` cause.
   - id: VP-14-011
     priority: SHOULD
     kind: protocol
@@ -2468,8 +2542,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      All changes to the canonical case state MUST go through the CASE_MANAGER; no
-      participant MAY change canonical case state directly.
+      Every change to the canonical case state MUST go through the CASE_MANAGER, so no
+      participant changes that state directly.
     rationale: >-
       This single-writer axiom prevents concurrent-write races and ensures that all shared
       state changes flow through the actor's consistency checks and persistence layer.
@@ -2494,18 +2568,38 @@ groups:
     priority: MUST_NOT
     kind: protocol
     verification_debt: '#3612'
-    statement: Participant-local case replicas MUST NOT be updated by direct mutation from inbound protocol messages; replicas
-      MUST be updated exclusively via ledger replay from `Announce(CaseLedgerEntry)` fan-out.
+    statement: >-
+      A participant MUST NOT update its local case replica by direct mutation from an
+      inbound protocol message.
     rationale: >-
-      Ledger replay is the intended propagation mechanism for keeping participant replicas
-      consistent with canonical case state. Direct mutation from inbound messages (e.g.,
-      Add(Note, Case)) would bypass the ledger ordering guarantees and create divergence.
-      This path is distinct from VP-17-001 and is not a bypass of the CASE_MANAGER write constraint.
+      Direct mutation from inbound messages (e.g., Add(Note, Case)) would bypass the
+      ledger ordering guarantees and create divergence from the canonical case state.
+      This path is distinct from VP-17-001 and is not a bypass of the CASE_MANAGER
+      write constraint.
     relationships:
     - rel_type: refines
       spec_id: VP-17-001
     - rel_type: constrains
       spec_id: SM-10-002
+  - id: VP-17-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A participant MUST update its local case replica only by replaying ledger entries
+      from `Announce(CaseLedgerEntry)` fan-out.
+    rationale: >-
+      Ledger replay is the intended propagation mechanism for keeping participant
+      replicas consistent with canonical case state, in the ledger's order.
+    verification: >-
+      `test/core/use_cases/received/test_embargo_ending_notices.py`
+      (`test_active_replica_takes_a_termination_from_the_ledger_not_the_remove`)
+      confirms an active replica keeps its embargo on the `Remove` and takes the
+      teardown from the ledger entry.
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-17-002
+    stories:
+    - story_2022_045
 - id: VP-18
   title: Routing Topology
   specs:

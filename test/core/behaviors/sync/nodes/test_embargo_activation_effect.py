@@ -395,7 +395,7 @@ def test_the_rejection_of_the_last_revision_after_disclosure_is_copied(
 
     The replica decides nothing: the revision ends ``REJECTED`` and the prior
     terms stand until the CASE_MANAGER's ``Remove`` entry that follows
-    carries the ``TERMINATE`` step (MSM-07-009).
+    carries the ``TERMINATE`` step (MSM-07-032).
     """
     case = _seed(datalayer, EM.REVISE)
     case.append_case_status(pxa=CS_pxa.Pxa)
@@ -434,7 +434,7 @@ def _ended_embargo(datalayer, *, reject_first: bool) -> VulnerabilityCase:
     """A replica whose embargo in force ended after P was set.
 
     With *reject_first* the revision was rejected before the termination,
-    as the CASE_MANAGER's ET-answered rejection leaves it (MSM-07-009);
+    as the CASE_MANAGER's ET-answered rejection leaves it (MSM-07-032);
     otherwise the termination cancelled it (EP-08-004).
     """
     case = _seed(datalayer, EM.REVISE)

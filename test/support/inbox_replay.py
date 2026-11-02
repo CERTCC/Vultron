@@ -90,7 +90,7 @@ def replayed_event(
     """The event the inbox routes when it replays the held *activity_id*.
 
     Rebuilt from the body held for it, as the inbox replay does, so it
-    carries the first delivery's received evidence (VM-08-002); the held
+    carries the first delivery's received evidence (VM-08-008); the held
     record is released.
     """
     activity = InlineObjectStaging(dl).rehydrate_deferred(activity_id)

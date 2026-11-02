@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Ingress rehydration carries the received evidence, untouched (VM-08-002).
+"""Ingress rehydration carries the received evidence, untouched (VM-08-007).
 
 ``FastAPIIngressAdapter.rehydrate`` returns a *different* object from the one
 the parser sealed: a by-ID re-read from a staging store, or an in-place hydration
@@ -97,6 +97,8 @@ def _offer_of_stored_report(dl: SqliteDataLayer) -> dict[str, Any]:
 
 
 @pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("VM-08-006")
+@pytest.mark.spec("VM-08-007")
 @pytest.mark.spec("SE-01-002")
 def test_by_id_rehydration_carries_the_evidence_as_received(
     dl: SqliteDataLayer,
@@ -248,7 +250,7 @@ def _assert_refused_through_the_inbox(
     assert len(_refusal_warnings(caplog, second["id"], sender)) == 1
 
 
-@pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("VM-08-010")
 @pytest.mark.spec("IE-10-001")
 def test_resend_of_the_held_body_under_a_deferred_id_routes_the_held_copy(
     dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
@@ -343,7 +345,7 @@ def test_a_body_that_differs_only_in_key_order_is_refused(
         adapter.rehydrate(artifact)
 
 
-@pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("VM-08-009")
 @pytest.mark.spec("IE-10-001")
 def test_resend_of_an_archived_body_routes_the_archived_copy(
     dl: SqliteDataLayer,
@@ -450,7 +452,7 @@ def test_an_unsealed_activity_under_a_held_id_is_a_wiring_fault(
         FastAPIIngressAdapter(dl=dl).rehydrate(unsealed)
 
 
-@pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("VM-08-008")
 def test_replay_of_a_deferred_activity_carries_its_own_evidence(
     dl: SqliteDataLayer,
 ):
@@ -494,6 +496,7 @@ def test_a_replayed_deferral_is_archived_as_its_first_delivery(
 
 
 @pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("VM-08-007")
 @pytest.mark.spec("SE-01-002")
 def test_in_place_hydration_carries_the_evidence(
     dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch

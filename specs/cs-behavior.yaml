@@ -1147,9 +1147,15 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      A Participant in a non-Closed RM state (q^rm ∉ C) receiving CE SHOULD
-      emit CK to acknowledge receipt and SHOULD emit GI to inquire about the
+      This rule covers a Participant in a non-Closed RM state (q^rm ∉ C) that receives
+      CE. It SHOULD emit CK to acknowledge it, and SHOULD emit GI to ask about the
       nature of the CS error.
+    lint_suppress:
+    # compound_statement: CE has no receive path in this codebase (MSM-03-007), so
+    # no test can carry a marker for a split child, and the marker-coverage guard
+    # (SR-05-005) fails a new protocol ID without one. Split it when CE handling is
+    # built and tested.
+    - compound_statement
     rationale: >-
       CE signals a protocol error in the CS process. Acknowledging with CK and
       following up with GI allows the sender to explain the error and enables
@@ -1361,7 +1367,7 @@ groups:
       embargo (q^em ∈ {A, R}), the Case Owner, or the CASE_MANAGER it delegates
       to, SHOULD terminate the embargo by emitting ET.
     rationale: >-
-      VP-14-010 recommends terminating any existing embargo once the fix has
+      VP-14-015 recommends terminating any existing embargo once the fix has
       been deployed. Constraint C-35: embargo termination SHOULD follow fix
       deployment. Ending an embargo is the Case Owner's decision, or the
       delegated CASE_MANAGER's, so the Participant that deploys the fix reports
@@ -1387,7 +1393,7 @@ groups:
     - description: ET emitted; EM is EXITED
     relationships:
     - rel_type: satisfies
-      spec_id: VP-14-010
+      spec_id: VP-14-015
       note: >-
         By the time a fix has been deployed, any existing embargo SHOULD
         terminate
@@ -1618,10 +1624,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant entering CS in state ···px· (public not yet set, exploit
-      now set) MUST also trigger CS→P (the pX→PX invariant) before or
-      simultaneously with the exploit transition. This compound transition
-      MUST be treated as atomic: both P and X bits are set together.
+      A Participant whose CS sets the exploit bit while the public bit is unset (···px·)
+      MUST also trigger CS→P (the pX→PX invariant).
+      It triggers CS→P before or with the exploit transition.
     rationale: >-
       The ephemeral state ···pX· (exploit public without public awareness)
       cannot exist as a stable state. Constraint C-15 requires the transition
@@ -1631,7 +1636,39 @@ groups:
       P lowercase) since state_entered fires after the X bit is set.
     verification: >-
       Integration tests in `test/demo/` confirm that entering CS with the X bit newly
-      set while P is unset atomically promotes to ···PX· and emits both CX and CP.
+      set while P is unset promotes to ···PX· and emits both CX and CP.
+    testable: true
+    preconditions:
+    - cs_pattern: "...pX."
+      description: CS matches pattern ...pX.
+    steps:
+    - order: 1
+      actor: participant
+      action: Emit CX to announce exploit public transition
+      expected: CX queued for case participants
+    - order: 2
+      actor: participant
+      action: Emit CP to announce public aware transition (C-15 constraint)
+      expected: CP queued for case participants
+    postconditions:
+    - description: CS is ···PX·; CX and CP both emitted; pX→PX invariant satisfied
+
+    stories:
+    - story_2022_018
+    - story_2022_081
+  - id: CSB-13-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant MUST treat the compound transition of CSB-13-001 as atomic, so
+      that it sets the P and X bits together.
+    rationale: >-
+      If the P and X bits were set in two steps, the participant would pass through
+      the ephemeral state ···pX·, which cannot exist as a stable state (C-15).
+    verification: >-
+      `test/core/use_cases/triggers/case/test_add_participant_status.py`
+      (`test_ephemeral_pxa_pXa_promoted_before_write`) confirms a pXa status is stored
+      as PXa, so P and X are set in one write.
     testable: true
     preconditions:
     - cs_pattern: "...pX."
@@ -1643,17 +1680,11 @@ groups:
         Transition CS to ···PX· (set both public bit P and exploit bit X
         atomically)
       expected: Receiver CS public bit P and exploit bit X both set
-    - order: 2
-      actor: participant
-      action: Emit CX to announce exploit public transition
-      expected: CX queued for case participants
-    - order: 3
-      actor: participant
-      action: Emit CP to announce public aware transition (C-15 constraint)
-      expected: CP queued for case participants
     postconditions:
-    - description: CS is ···PX·; CX and CP both emitted; pX→PX invariant satisfied
-
+    - description: CS is ···PX·, with no stored ···pX· state
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-13-001
     stories:
     - story_2022_018
     - story_2022_081
@@ -2001,8 +2032,7 @@ groups:
     kind: protocol
     statement: >-
       A participant MUST hold the VENDOR role in the case to report its own fix-ready
-      transition (f → F). A participant without the VENDOR role has no vendor-fix (vf)
-      path, and MUST NOT report or record that transition.
+      transition (f → F).
     rationale: >-
       Fix readiness (F event) represents that the actor has produced a fix. Only
       actors who develop or maintain the affected product (Vendors) can produce a
@@ -2024,11 +2054,36 @@ groups:
       expected: The check passes for a Vendor; the transition is refused otherwise
     - order: 2
       actor: participant
-      action: If the check passes, record its vf state as F and report it
-      expected: The participant's status shows F; the report goes to the CASE_MANAGER
+      action: If the check passes, report its vf state as F
+      expected: The report goes to the CASE_MANAGER
     postconditions:
-    - description: Only a VENDOR participant records or reports F
+    - description: Only a VENDOR participant reports F
 
+    stories:
+    - story_2022_107
+    - story_2022_036
+  - id: CSB-15-007
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant without the VENDOR role in the case MUST NOT record its own
+      fix-ready transition (f → F). Such a participant has no vendor-fix (vf) path.
+    rationale: >-
+      Only a Vendor can produce a fix (CSB-15-001). A recorded F from any other
+      participant would claim a fix it cannot have produced, and every reader of its
+      status would believe it.
+    adr:
+    - ADR-0075
+    verification: >-
+      `test/core/states/test_participant_transitions.py` confirms the participant
+      transition rules refuse a vendor-path assertion from an actor that lacks the
+      VENDOR role.
+    testable: true
+    postconditions:
+    - description: Only a VENDOR participant records F
+    relationships:
+    - rel_type: extends
+      spec_id: CSB-15-001
     stories:
     - story_2022_107
     - story_2022_036
@@ -2036,34 +2091,44 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      This codebase MUST refuse, in the trigger tree and before writing anything, a
-      fix-ready transition (CSB-15-001) requested by an actor whose recorded case roles
-      lack VENDOR. The participant status model MUST NOT itself reject a stray `vf`
-      dimension: enforcement sits in the trigger guard and in the receive path's refusal
-      of a whole status (RSH-09-003), which judge the actor by its recorded roles rather
-      than the roles a status claims.
+      This codebase MUST refuse a fix-ready transition (CSB-15-001) from an actor whose
+      recorded case roles lack VENDOR.
+      It refuses in the trigger tree, before it writes anything.
     rationale: >-
       The status a sender builds only claims roles; the case records which roles the
-      sender holds. A raise when the status is built would judge a sender by the roles
-      its status claims. The trigger guard and the receive path judge it by the roles
-      the case records, which is the authority for roles.
+      sender holds. The trigger guard judges the sender by the roles the case records,
+      which is the authority for roles.
     verification: >-
       `test/core/behaviors/case/nodes/test_vfd_role_guards.py`
       (`test_vendor_guard_failure_for_deployer_only_actor`,
       `test_vendor_guard_failure_for_coordinator_actor`) confirms the trigger guard
-      refuses a non-Vendor, and `test/core/models/test_participant_status_shape.py`
-      (`test_stray_vf_on_non_vendor_is_not_rejected_by_the_model`) confirms the model
-      does not raise.
+      refuses a non-Vendor.
     relationships:
     - rel_type: implements
       spec_id: CSB-15-001
+  - id: CSB-15-008
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The participant status model MUST NOT itself reject a stray `vf` dimension.
+    rationale: >-
+      A raise when the status is built would judge a sender by the roles its status
+      claims. The trigger guard (CSB-15-005) and the receive path's refusal of a whole
+      status (RSH-09-003) judge it by the roles the case records, which is the
+      authority for roles.
+    verification: >-
+      `test/core/models/test_participant_status_shape.py`
+      (`test_stray_vf_on_non_vendor_is_not_rejected_by_the_model`) confirms the model
+      does not raise.
+    relationships:
+    - rel_type: extends
+      spec_id: CSB-15-005
   - id: CSB-15-002
     priority: MUST
     kind: protocol
     statement: >-
       A participant MUST hold the DEPLOYER role in the case to report its own
-      fix-deployed transition (d → D). A participant without the DEPLOYER role has no
-      deployer (d) path, and MUST NOT report or record that transition.
+      fix-deployed transition (d → D).
     rationale: >-
       Fix deployment (D event) represents applying a fix in one's own environment.
       Only actors who are responsible for operating deployed instances (Deployers) can
@@ -2086,11 +2151,36 @@ groups:
         VENDOR-only or any other non-DEPLOYER participant
     - order: 2
       actor: participant
-      action: If the check passes, record its d state as D and report it
-      expected: The participant's status shows D; the report goes to the CASE_MANAGER
+      action: If the check passes, report its d state as D
+      expected: The report goes to the CASE_MANAGER
     postconditions:
-    - description: Only a DEPLOYER participant records or reports D
+    - description: Only a DEPLOYER participant reports D
 
+    stories:
+    - story_2022_107
+    - story_2022_036
+  - id: CSB-15-009
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant without the DEPLOYER role in the case MUST NOT record its own
+      fix-deployed transition (d → D). Such a participant has no deployer (d) path.
+    rationale: >-
+      Only a Deployer operates the deployed instances (CSB-15-002). A recorded D from
+      any other participant would claim a deployment it cannot have done.
+    adr:
+    - ADR-0075
+    verification: >-
+      `test/core/use_cases/triggers/case/test_add_participant_status.py`
+      (`test_deploy_requires_deployer_role_at_write_node`) confirms that a
+      deployer-path assertion from an actor without the DEPLOYER role writes no
+      status.
+    testable: true
+    postconditions:
+    - description: Only a DEPLOYER participant records D
+    relationships:
+    - rel_type: extends
+      spec_id: CSB-15-002
     stories:
     - story_2022_107
     - story_2022_036
@@ -2098,10 +2188,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      This codebase MUST refuse, in the trigger tree and before writing anything, any
-      deployer-path (d) assertion (CSB-15-002) requested by an actor whose recorded case
-      roles lack DEPLOYER. The participant status model MUST NOT itself reject a stray
-      `d` dimension, for the reason CSB-15-005 gives for `vf`.
+      This codebase MUST refuse any deployer-path (d) assertion (CSB-15-002) from an
+      actor whose recorded case roles lack DEPLOYER.
+      It refuses in the trigger tree, before it writes anything.
     rationale: >-
       A non-Deployer that asserts the not-deployed state `d` still claims a dimension it
       does not have. If the gate covered only `D`, such a participant could still write
@@ -2112,21 +2201,32 @@ groups:
       (`test_deploy_requires_deployer_role_at_write_node`,
       `test_d_not_deployed_requires_deployer_role_at_write_node`) and
       `test/core/behaviors/case/nodes/test_vfd_role_guards.py`
-      (`test_deployer_guard_failure_for_vendor_only_actor`) confirm the refusal, and
+      (`test_deployer_guard_failure_for_vendor_only_actor`) confirm the refusal.
+    relationships:
+    - rel_type: implements
+      spec_id: CSB-15-002
+  - id: CSB-15-010
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The participant status model MUST NOT itself reject a stray `d` dimension.
+    rationale: >-
+      The reason is the one CSB-15-008 gives for `vf`: the model sees only the roles a
+      status claims, while the trigger guard (CSB-15-006) and the receive path judge
+      the sender by the roles the case records.
+    verification: >-
       `test/core/models/test_participant_status_shape.py`
       (`test_stray_d_on_non_deployer_is_not_rejected_by_the_model`) confirms the model
       does not raise.
     relationships:
-    - rel_type: implements
-      spec_id: CSB-15-002
+    - rel_type: extends
+      spec_id: CSB-15-006
   - id: CSB-15-003
     priority: MUST
     kind: protocol
     statement: >-
-      A participant reporting that the vulnerability is public MUST record only the P
-      event (pxa → Pxa) in its participant status. The D event (fix deployed) is
-      participant-specific and distinct from the P event (public awareness), so a report
-      of P MUST NOT also advance the d dimension.
+      A participant that reports that the vulnerability is public MUST record only the
+      P event (pxa → Pxa) in its participant status.
     rationale: >-
       Conflating P and D transitions causes non-deployer actors (Finders, Reporters,
       Coordinators) to incorrectly acquire deployment state when they announce public
@@ -2144,16 +2244,36 @@ groups:
       actor: participant
       action: Record P (Pxa) in its participant status
       expected: Public awareness recorded
-    - order: 2
+    postconditions:
+    - description: The participant status records P
+
+    stories:
+    - story_2022_069
+    - story_2022_107
+  - id: CSB-15-011
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant's report of the P event MUST NOT also advance its d dimension.
+    rationale: >-
+      The D event (fix deployed) is participant-specific and distinct from the P event
+      (public awareness). A participant that reports fix deployment reports it
+      separately, and must hold the DEPLOYER role (CSB-15-002).
+    verification: >-
+      `test/core/use_cases/triggers/case/test_add_participant_status.py`
+      (`test_notify_published_status_is_its_declared_occasion`) confirms the status a
+      public-awareness report sends carries no vf or d claim.
+    testable: true
+    steps:
+    - order: 1
       actor: participant
       action: Leave the vf and d dimensions unchanged (do not advance d to D)
       expected: vf and d reflect prior state; D event not triggered by P event
     postconditions:
-    - description: >-
-        The participant status records P; its vf and d dimensions are unchanged; a
-        participant reporting fix deployment reports it separately, and must hold the
-        DEPLOYER role (CSB-15-002)
-
+    - description: The participant status's vf and d dimensions are unchanged
+    relationships:
+    - rel_type: extends
+      spec_id: CSB-15-003
     stories:
     - story_2022_069
     - story_2022_107
@@ -2227,11 +2347,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A participant MUST advance its own vendor-path (vf) or deployer-path (d)
-      dimension only along a transition the respective sub-machine permits (CS_vf for
-      the vendor path, CS_d for the deployer path). Restating the current state is a
-      status confirmation and is permitted. A backward move or an illegal jump MUST NOT
-      be recorded.
+      A participant MUST advance its own vendor-path (vf) or deployer-path (d) dimension
+      only along a transition its sub-machine permits.
+      The vendor path uses CS_vf, and the deployer path uses CS_d.
+      Restating the current state is a status confirmation and is permitted.
     rationale: >-
       A participant's status is its own claim about the case, and every other
       participant reads it. A jump the sub-machine does not permit therefore misstates
@@ -2278,15 +2397,41 @@ groups:
     stories:
     - story_2022_088
     - story_2022_074
+  - id: CSB-16-005
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant MUST NOT record a backward move or an illegal jump of its own vf
+      or d dimension.
+    rationale: >-
+      Every other participant reads a participant's status as its claim about the
+      case, so a recorded backward move or illegal jump misstates the history of the
+      vulnerability (CSB-16-001, SDO-02-004).
+    adr:
+    - ADR-0075
+    verification: >-
+      `test/core/use_cases/triggers/case/test_add_participant_status.py`
+      (`test_ac1_invalid_vf_jump_raises_and_persists_nothing`,
+      `test_backward_d_raises_and_persists_nothing`) confirms an illegal vf jump and a
+      backward d move are each refused with no status recorded.
+    testable: true
+    postconditions:
+    - description: >-
+        No participant status with an illegal vf or d jump is recorded
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-16-001
+    stories:
+    - story_2022_088
+    - story_2022_074
   - id: CSB-16-003
     priority: MUST
     kind: project
     statement: >-
       This codebase MUST validate a local vf or d write (CSB-16-001) at the write
-      boundary — the BT node or helper that writes the participant status — and not
-      only in upstream guards. An illegal transition MUST make the node return
-      `Status.FAILURE`, or the helper raise, without writing to the DataLayer. The
-      received path's weaker forward-only check is out of scope.
+      boundary, not only in upstream guards.
+      The write boundary is the BT node or helper that writes the participant status.
+      The received path's weaker forward-only check is out of scope.
     rationale: >-
       A guard can be too weak, missing or bypassed, and then an invalid jump reaches the
       write node. A check at the write boundary fails closed whatever the guards cover,
@@ -2294,26 +2439,41 @@ groups:
     verification: >-
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
       (`test_invalid_vf_jump_blocked_at_write_node`,
-      `test_same_state_vf_write_allowed_at_write_node`,
-      `test_ac1_invalid_vf_jump_raises_and_persists_nothing`) confirms an illegal vf
-      jump is refused at the write node and by the helper with nothing persisted, and
-      that a same-state write succeeds.
+      `test_same_state_vf_write_allowed_at_write_node`) confirms an illegal vf jump is
+      refused at the write node and that a same-state write succeeds.
     relationships:
     - rel_type: implements
       spec_id: CSB-16-001
+  - id: CSB-16-006
+    priority: MUST
+    kind: project
+    statement: >-
+      An illegal local vf or d transition (CSB-16-003) MUST make the write node return
+      `Status.FAILURE`, or the helper raise, without writing to the DataLayer.
+    rationale: >-
+      A refusal that still wrote part of the status would leave an invalid vf or d
+      state in the store. Failing before the write keeps the store at its prior
+      state.
+    verification: >-
+      `test/core/use_cases/triggers/case/test_add_participant_status.py`
+      (`test_invalid_vf_jump_blocked_at_write_node`,
+      `test_ac1_invalid_vf_jump_raises_and_persists_nothing`) confirms an illegal vf
+      jump is refused at the write node and by the helper with nothing persisted.
+    relationships:
+    - rel_type: extends
+      spec_id: CSB-16-003
   - id: CSB-16-002
     priority: MUST
     kind: protocol
     statement: >-
-      A participant MUST advance a PXA state it records, in its own participant status
-      or in the case status, only along a transition the PXA state machine permits.
-      Restating the current state is permitted. A backward move MUST NOT be recorded.
+      A participant MUST advance a PXA state it records only along a transition the PXA
+      state machine permits.
+      This holds in its own participant status and in the case status.
+      Restating the current state is permitted.
     rationale: >-
       PXA events are forward-only (p→P, x→X, a→A). Public awareness, a public exploit or
-      observed attacks cannot become untrue later. A backward PXA write would show a
-      false regression in the case record, and every participant reads that record. The
-      rule that limits the vf and d paths to permitted transitions (CSB-16-001) applies
-      to PXA for the same reason.
+      observed attacks cannot become untrue later. The rule that limits the vf and d
+      paths to permitted transitions (CSB-16-001) applies to PXA for the same reason.
     verification: >-
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
       (`test_ac3_backward_pxa_raises_and_persists_nothing`) confirms a backward PXA move
@@ -2343,26 +2503,63 @@ groups:
     stories:
     - story_2022_088
     - story_2022_074
+  - id: CSB-16-007
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant MUST NOT record a backward PXA move, in its own participant status
+      or in the case status.
+    rationale: >-
+      A backward PXA write would show a false regression in the case record, and every
+      participant reads that record (CSB-16-002).
+    verification: >-
+      `test/core/use_cases/triggers/case/test_add_participant_status.py`
+      (`test_ac3_backward_pxa_raises_and_persists_nothing`) confirms a backward PXA move
+      is refused and no status is recorded.
+    testable: true
+    postconditions:
+    - description: No status with an illegal PXA regression is recorded
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-16-002
+    stories:
+    - story_2022_088
+    - story_2022_074
   - id: CSB-16-004
     priority: MUST
     kind: project
     statement: >-
-      This codebase MUST validate a local PXA write (CSB-16-002) at the write boundary —
-      the BT node or helper that writes the case or participant status. A backward move
-      MUST make the node return `Status.FAILURE`, or the helper raise, without writing
-      to the DataLayer.
+      This codebase MUST validate a local PXA write (CSB-16-002) at the write boundary.
+      The write boundary is the BT node or helper that writes the case or participant
+      status.
+    rationale: >-
+      The guards can miss a backward PXA move, as they can miss a vf or d jump
+      (CSB-16-003). A check at the write boundary catches it whatever the guards
+      cover.
+    verification: >-
+      `test/core/use_cases/triggers/case/test_add_participant_status.py`
+      (`test_ac3_backward_pxa_raises_and_persists_nothing`) confirms the helper raises
+      on a backward PXA move.
+    relationships:
+    - rel_type: implements
+      spec_id: CSB-16-002
+  - id: CSB-16-008
+    priority: MUST
+    kind: project
+    statement: >-
+      A backward local PXA move (CSB-16-004) MUST make the write node return
+      `Status.FAILURE`, or the helper raise, without writing to the DataLayer.
     rationale: >-
       A backward PXA move would say that public awareness, a public exploit or observed
-      attacks are no longer true, which cannot happen. The guards can miss such a move,
-      as they can miss a vf or d jump (CSB-16-003). The write boundary refuses it and
-      persists nothing, so the store never holds a backward PXA state.
+      attacks are no longer true, which cannot happen. The write boundary refuses it
+      and persists nothing, so the store never holds a backward PXA state.
     verification: >-
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
       (`test_ac3_backward_pxa_raises_and_persists_nothing`) confirms the helper raises
       on a backward PXA move and persists nothing.
     relationships:
-    - rel_type: implements
-      spec_id: CSB-16-002
+    - rel_type: extends
+      spec_id: CSB-16-004
 - id: CSB-17
   title: CS Compound State and History Validity
   description: >-
@@ -2411,8 +2608,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A CS transition MUST change exactly one of the six CS dimensions, and
-      MUST change it from the not-yet-happened value to the happened value.
+      A CS transition MUST change exactly one of the six CS dimensions.
     rationale: >-
       CS events are irreversible and are observed one at a time; a compound
       state change of Hamming distance greater than one conflates two distinct
@@ -2472,6 +2668,31 @@ groups:
     stories:
     - story_2022_045
     - story_2022_074
+  - id: CSB-17-014
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A CS transition MUST change its one dimension from the not-yet-happened value to
+      the happened value.
+    rationale: >-
+      CS events are irreversible, so a change from the happened value back to the
+      not-yet-happened value describes no event. With CSB-17-002 this condition admits
+      72 transitions, and the ephemeral-state rule of CSB-17-003 leaves 58.
+    verification: >-
+      `test/core/states/test_cs_invariants.py` (`test_transitions_are_monotone`,
+      `test_apply_cs_event_rejects_a_repeated_event`) confirms every accepted
+      transition moves its dimension forward and a repeated event is rejected.
+    testable: true
+    postconditions:
+    - description: Only monotone transitions are accepted
+    relationships:
+    - rel_type: extends
+      spec_id: CSB-17-002
+    adr:
+    - ADR-0060
+    stories:
+    - story_2022_045
+    - story_2022_074
   - id: CSB-17-003
     priority: MUST
     kind: protocol
@@ -2500,7 +2721,7 @@ groups:
     - rel_type: refines
       spec_id: SM-09-001
       note: >-
-        SM-09-001 governs the persistence boundary: an incoming status write
+        SM-09-003 governs the persistence boundary: an incoming status write
         carrying vP or pX MUST be promoted to the forced form before it is
         stored. CSB-17-003 governs trajectory validation, where the same two
         conditions are modelled as ephemeral states with exactly one legal
@@ -2564,7 +2785,7 @@ groups:
       reject every live case. Ending in an ephemeral state is unavoidable at the
       prefix level: CSB-17-003's forced successor has not happened yet when the
       prefix is cut, which is different from persisting an ephemeral state —
-      SM-09-001 still forbids that. Pinning acceptance to CSB-17-004's prefix
+      SM-09-003 still forbids that. Pinning acceptance to CSB-17-004's prefix
       closure keeps both directions honest: a validator that merely never
       rejects a genuine prefix could still accept dead ends.
     verification: >-
@@ -2705,21 +2926,36 @@ groups:
     lint_suppress:
     - missing_story_reference
   - id: CSB-17-010
-    priority: MUST
+    priority: MUST_NOT
     kind: protocol
     statement: >-
-      Prefix validation MUST NOT require all six CS events to be present; a
-      prefix MAY end in an ephemeral state.
+      Prefix validation MUST NOT require all six CS events to be present.
     rationale: >-
-      Real cases are still in progress at validation time; requiring all six
-      events would reject every live case, and an ephemeral-ending prefix is
-      valid as long as its forced successor has not yet been observed.
+      Real cases are still in progress at validation time, so requiring all six
+      events would reject every live case.
     verification: >-
       A unit test confirms that prefix validation accepts partial CS event
-      sequences, including those ending in ephemeral states, and does not
-      require all six CS events to be present.
+      sequences and does not require all six CS events to be present.
     testable: true
 
+    stories:
+    - story_2022_045
+    - story_2022_074
+  - id: CSB-17-015
+    priority: MAY
+    kind: protocol
+    statement: >-
+      A CS history prefix MAY end in an ephemeral state.
+    rationale: >-
+      An ephemeral-ending prefix is valid as long as its forced successor has not yet
+      been observed.
+    verification: >-
+      `test/core/states/test_cs_invariants.py` (`test_accepted_prefixes`) confirms
+      that prefix validation accepts a prefix that ends in an ephemeral state.
+    testable: true
+    relationships:
+    - rel_type: extends
+      spec_id: CSB-17-010
     stories:
     - story_2022_045
     - story_2022_074
@@ -2908,8 +3144,6 @@ groups:
     statement: >-
       A held out-of-order CS ledger entry MUST NOT trigger an ephemeral-state
       violation or history-prefix validation failure at the time it is held.
-      Such checks MUST be deferred until the entry is replayed in causal order
-      during the drain.
     rationale: >-
       An ephemeral-state entry (e.g., a pX-state CaseStatus arriving before its
       P-state predecessor) is structurally valid in isolation; the violation

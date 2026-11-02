@@ -18,7 +18,7 @@ One piece of the deleted classes had no core equivalent:
 ``as_ParticipantStatus._reject_retired_vfd_keys``, which refused the retired
 ``vfd_state`` key.  It was relocated onto ``ParticipantStatus`` and later deleted
 (#3921): ``extra="forbid"`` refuses the key on in-process and stored data
-(SDO-03-005), and the parse edge refuses it by name on inbound data from
+(SDO-03-008), and the parse edge refuses it by name on inbound data from
 ``vultron.wire.as2.unknown_keys.RETIRED_NAMES`` (MV-11-002, MV-11-004).
 """
 

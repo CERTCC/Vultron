@@ -635,6 +635,7 @@ class TestApplyEmbargoInvite:
 
     @pytest.mark.spec("EP-08-003")
     @pytest.mark.spec("EMB-17-003")
+    @pytest.mark.spec("EMB-17-014")
     def test_a_reinvite_to_the_embargo_in_force_indexes_nothing(
         self, bridge, datalayer, revising_case
     ):

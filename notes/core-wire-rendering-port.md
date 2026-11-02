@@ -18,7 +18,7 @@ related_specs:
   - vocabulary-model.yaml (VM-10-001, VM-08-002, VM-08-003)
   - case-ledger-processing.yaml (CLP-07-006, CLP-07-009, CLP-07-010, CLP-07-011,
     CLP-07-013, CLP-09-002)
-  - status-dimension-objects.yaml (SDO-03-003, SDO-03-005)
+  - status-dimension-objects.yaml (SDO-03-003, SDO-03-005, SDO-03-008, SDO-03-009)
   - datalayer.yaml (DL-05-001)
   - sync-ledger-replication.yaml (SYNC-02-003)
 related_notes:
@@ -119,8 +119,8 @@ accepted through `AliasChoices` as several spellings of one declared field.
 A key matching no field must raise, never be dropped: under Pydantic's default
 `extra="ignore"` a lost `rmState` silently resets `rm.state` to `RM.START`, a
 whole RM ladder lost with no error (#2232). `CoreObject`'s `extra="forbid"`
-(ARCH-12-003) is the guarantee SDO-03-005 requires. Do not add a per-class
-`model_validator(mode="before")` reject-guard for those keys; SDO-03-005 forbids
+(ARCH-12-003) is the guarantee SDO-03-008 requires. Do not add a per-class
+`model_validator(mode="before")` reject-guard for those keys; SDO-03-009 forbids
 it.
 
 ## Persisted rows are not affected

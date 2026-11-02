@@ -35,6 +35,7 @@ from vultron.core.states.rm import (
 
 
 @pytest.mark.spec("RMB-14-004")
+@pytest.mark.spec("RMB-14-008")
 def test_rm_closes_from_received_but_not_from_valid() -> None:
     """``R → C`` joins ``I → C``, ``A → C`` and ``D → C``; ``V → C`` does not."""
     assert is_valid_rm_transition(RM.RECEIVED, RM.CLOSED)
@@ -115,6 +116,7 @@ def test_rm_closure_path_is_a_chain_of_ordinary_transitions(
 
 @pytest.mark.spec("RMB-14-005")
 @pytest.mark.spec("VP-02-004")
+@pytest.mark.spec("RMB-14-009")
 def test_rm_closure_path_from_valid_passes_through_deferred() -> None:
     """A Leave from *Valid* is recorded as ``V → D → C``, never ``V → C``."""
     assert rm_closure_path(RM.VALID) == (RM.DEFERRED, RM.CLOSED)

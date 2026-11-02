@@ -77,7 +77,7 @@ def recommend_actor_activity(
     Args:
         recommended: The actor being recommended: its profile as the sender
             holds it, or its URI, which travels as an actor reference
-            (AKM-05-005).
+            (AKM-05-017).
         target: The ``VulnerabilityCase`` (or its URI) for which the
             actor is being recommended.
         **kwargs: Optional AS2 fields forwarded to the constructor

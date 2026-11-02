@@ -80,8 +80,8 @@ The receiver uses the EM state of the case (MSM-02).
    The case moves to `EM.PROPOSED`.
    The protocol names `Invite(EmbargoEvent)` as the only form.
 
-    A received `Create(EmbargoEvent)` is not a protocol message (VAM-01-011).
-    The inbox of this implementation does not process it (VAM-01-010).
+    A received `Create(EmbargoEvent)` is not a protocol message (VAM-01-019).
+    The inbox of this implementation does not process it (VAM-01-018).
     A `Create` of an `EmbargoEvent` is the Case Manager's own ledger record of a creation-time embargo.
     So the inbox reports it as "no use case found".
     The inbox refuses a `Create` of any other `Event` as an unrecognized activity.
@@ -179,7 +179,7 @@ An Accept sent after the reply deadline is honored, because the terms you agree 
 The trigger reports not found when you hold no such Invite, or when your row is already `AGREED` or `DECLINED`.
 
 Name the Invite.
-A call without `proposal_id` answers only an open proposal, and never the embargo in force (EP-09-015).
+A call without `proposal_id` answers only an open proposal, and never the embargo in force (EP-09-030).
 So the call reports not found when no proposal is open.
 
 ---

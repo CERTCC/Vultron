@@ -58,7 +58,7 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 It takes part in embargo negotiation: it answers an `Invite(EmbargoEvent)` addressed to it, and the CASE_MANAGER records its consent or refusal in PEC ([§9 Participant Embargo Consent (PEC) State Machine](../tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)).
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-09-003", "EMB-15-004"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-09-003", "EP-09-025", "EMB-15-004"))
 ```
 
 It sends every case-scoped message to the CASE_MANAGER ([§10.2 Routing Topology](../interactions.md#102-routing-topology)).
@@ -98,7 +98,7 @@ It adds these to the Case Observer capability set:
 - The Case Owner can transfer case ownership, by a proposal to the CASE_MANAGER ([§12.3 Case Ownership Transfer](../interactions.md#123-case-ownership-transfer-n)).
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-02-005", "MSM-07-008", "MSM-07-009", "CM-21-005"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-02-005", "MSM-07-008", "MSM-07-027", "MSM-07-009", "MSM-07-030", "CM-21-005"))
 ```
 
 A human Coordinator typically provides the Case Decision capability set while a service actor provides Case Hosting.

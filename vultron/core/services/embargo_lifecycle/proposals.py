@@ -115,7 +115,7 @@ class _ProposalOperationsMixin(_PecActivationMixin):
         it (``accept_embargo_invite`` / ``activate_embargo``, EP-05-001).
         Proposing terms is consenting to them, so when *actor_id* is a
         participant of the case its row for the proposed embargo is marked
-        ``AGREED`` (MSM-07-005).
+        ``AGREED`` (MSM-07-022).
 
         The ``EmbargoEvent`` identified by *embargo_id* MUST already exist in
         the DataLayer before this method is called; the caller is responsible

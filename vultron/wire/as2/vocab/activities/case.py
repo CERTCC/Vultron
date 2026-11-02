@@ -219,7 +219,7 @@ class _OfferCaseParticipantRoleActivity(as_Offer):
 
     object_: as_CaseParticipantRole (required — carries the CVDRole)
     target: the Actor receiving the role offer (required), as the sender
-        holds it or as an actor reference (AKM-05-005)
+        holds it or as an actor reference (AKM-05-005, AKM-05-017)
     context: as_VulnerabilityCase or str URI (required)
 
     Declares **both** ``object_`` and ``target`` in
@@ -303,7 +303,7 @@ class _OfferCaseOwnershipTransferActivity(as_Offer):
     refused the bare ``target`` (CLP-07-006, #4843).
     :func:`~vultron.wire.as2.factories.offer_case_ownership_transfer_activity`
     carries a transferee known only by id as an actor reference, so it
-    travels inline (AKM-05-005).
+    travels inline (AKM-05-017).
     """
 
     object_: NamedCase = Field(

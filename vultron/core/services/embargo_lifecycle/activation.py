@@ -193,7 +193,7 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         Whoever holds an ``AGREED`` row for B — its proposer, for one — is a
         signatory by lookup, with nothing to advance.  An owner whose row for
         *embargo_id* is ``DECLINED`` has changed its answer by activating it:
-        its row moves straight to ``AGREED``, in either mode (MSM-07-008).
+        its row moves straight to ``AGREED``, in either mode (MSM-07-028).
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` to update.

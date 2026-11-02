@@ -168,7 +168,7 @@ Rejecting a revision normally keeps the prior terms in force and returns to *Act
 
 Sometimes the CS is already public, exploited, or attacked when the Case Owner rejects the last open revision.
 In that condition, the Case Manager follows the rejection with a termination in the same act.
-EM then ends in *eXited*, not in *Active* (MSM-07-009, EMB-04-002).
+EM then ends in *eXited*, not in *Active* (MSM-07-032, EMB-04-002).
 
 ```mermaid
 ---

@@ -94,7 +94,7 @@ That lapse is read from its rows and the register ([§9.3 Signatory and Lapsed](
 A participant that has already agreed to the revision is its signatory by lookup.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-18-005", "EP-05-001", "MSM-07-005"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-18-005", "EP-05-001", "EP-05-003", "MSM-07-005", "MSM-07-019", "MSM-07-020"))
 ```
 
 **The case owner rejects the revision.**
@@ -104,7 +104,7 @@ No consent row changes, the owner's included, and the prior terms stand.
 One case differs: when the rejected revision is the last open one and the case is already public, exploited or attacked, the same act also terminates the embargo.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MSM-07-009", "EMB-04-002"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MSM-07-009", "MSM-07-031", "MSM-07-032", "EMB-04-002"))
 ```
 
 **The embargo is terminated** (EM enters `Exited`).
@@ -114,7 +114,7 @@ With no `ACTIVE` entry, no participant is a signatory and none has lapsed.
 Every row for the terminated and canceled entries is frozen as it stood, so an accept that arrives afterwards records nothing.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-08-004", "MSM-07-006", "EMB-17-004"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-08-004", "MSM-07-006", "MSM-07-025", "EMB-17-004"))
 ```
 
 **After a teardown.**
@@ -123,7 +123,7 @@ The CASE_MANAGER then sends `Announce(EmbargoEvent)` to every other active parti
 No message is sent for consent, because none is written.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-09-009", "EMB-19-001", "CM-31-009"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-09-009", "EMB-19-001", "EMB-19-003", "CM-31-009"))
 ```
 
 !!! note "Recall: participant embargo consent states"

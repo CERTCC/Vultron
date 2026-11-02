@@ -181,7 +181,7 @@ def test_ej_with_pxa_set_records_the_reject_step(
     """With P/X/A set the REJECT step is still recorded as decided.
 
     The prior terms stand only until the termination that follows in the
-    same act; the node itself does not refuse (MSM-07-009).
+    same act; the node itself does not refuse (MSM-07-032).
     """
     case, active_id, revision_id = _revising_case(dl, "pxa")
     case.append_case_status(pxa=CS_pxa.Pxa)
@@ -203,7 +203,7 @@ def test_ej_with_pxa_set_records_the_reject_step(
 
 
 # ---------------------------------------------------------------------------
-# OwnerRejectionAppliesNode: the guard trial (MSM-07-009)
+# OwnerRejectionAppliesNode: the guard trial (MSM-07-032)
 # ---------------------------------------------------------------------------
 
 

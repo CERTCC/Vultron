@@ -50,6 +50,7 @@ def test_absent_request_uses_policy_window() -> None:
 
 @pytest.mark.spec("CM-28-011")
 @pytest.mark.spec("EP-07-006")
+@pytest.mark.spec("EP-07-011")
 def test_day_28_of_30_day_embargo_policy_window_is_the_end() -> None:
     assert _resolve(None, 2 * DAYS) == (
         PUBLISHED + 2 * DAYS,
@@ -58,6 +59,7 @@ def test_day_28_of_30_day_embargo_policy_window_is_the_end() -> None:
 
 
 @pytest.mark.spec("EP-07-006")
+@pytest.mark.spec("EP-07-011")
 def test_explicit_request_past_end_is_lowered() -> None:
     assert _resolve(20 * DAYS, 10 * DAYS) == (
         PUBLISHED + 10 * DAYS,

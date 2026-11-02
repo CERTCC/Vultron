@@ -31,7 +31,7 @@ CASE_MANAGER ``Update(EmbargoConsent)`` entry, which the consent slot copies.
 The rejection copies the same way: the ``Reject`` entry is the whole
 ``REJECT`` step.  When the owner rejects the last revision after disclosure,
 the CASE_MANAGER's own ``Remove`` entry follows it with the ``TERMINATE``
-step (EMB-04-002, MSM-07-009), and the teardown slot copies that one.
+step (EMB-04-002, MSM-07-032), and the teardown slot copies that one.
 """
 
 from __future__ import annotations
@@ -100,7 +100,7 @@ class ApplyEmbargoActivationFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
     the owner's ``AGREED`` row the ``Accept`` states, decided from the case
     file as the step leaves it, exactly as the CASE_MANAGER decided it
     (:func:`~vultron.core.models.embargo_consent_move.owner_agreement`).  No
-    carry-over is computed here: each is its own entry (EP-05-001).
+    carry-over is computed here: each is its own entry (EP-05-003).
 
     The embargo's record is stored from the copy the entry carries when this
     replica does not hold it, once the step has applied (EMB-18-003); a bare
@@ -163,13 +163,13 @@ class ApplyEmbargoProposalRejectionFromLedgerNode(
     The entry's ``object`` names the proposal, and the entry is the whole
     ``REJECT`` register step: the proposal is rejected and EM derives from
     what is left (EP-08-001).  No consent changes, the owner's included
-    (MSM-07-009).  A rejection already in place, so a re-delivered entry,
+    (MSM-07-031).  A rejection already in place, so a re-delivered entry,
     changes nothing.
 
     The owner's rejection of the last revision after disclosure is copied
     the same way: the revision ends ``REJECTED`` and the prior terms stand
     until the CASE_MANAGER's ``Remove`` entry that follows it carries the
-    ``TERMINATE`` step (EMB-04-002, MSM-07-009), which the teardown slot
+    ``TERMINATE`` step (EMB-04-002, MSM-07-032), which the teardown slot
     copies.  A seeded replica already past both holds the revision
     ``REJECTED``, so the entry is in place and replay moves forward only
     (ADR-0114).

@@ -87,7 +87,7 @@ class OwnerMayActivateEmbargoNode(DataLayerConditionWithPorts):
     FAILURE when CS is public, exploited or attacked (EMB-02-002: no embargo
     is activated then).  An owner whose row for the proposal is ``DECLINED``
     is not refused: activating is the owner changing its answer, and its row
-    moves straight to ``AGREED`` (MSM-07-008).  Read-only and ahead of the
+    moves straight to ``AGREED`` (MSM-07-028).  Read-only and ahead of the
     commit, so a refused activation is never ledgered: a replica copies
     the entry's step and does not re-check P/X/A (CLP-10-009, SYNC-12-001,
     CM-23-016).

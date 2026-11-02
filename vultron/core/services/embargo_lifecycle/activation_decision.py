@@ -27,10 +27,10 @@ and what each changes.  It writes nothing.
   force included: :attr:`ActivationDecision.step`.  The same activity states
   the owner's agreement, so its ``AGREED`` row
   (:attr:`ActivationDecision.owner_agreement`) is applied from that entry,
-  with no entry of its own (CLP-07-013, MSM-07-008).
+  with no entry of its own (CLP-07-013, MSM-07-028).
 - Each ``CARRY_OVER`` row of a revision that ends no later than the embargo
   it replaces is its own CASE_MANAGER ``Update(EmbargoConsent)`` entry,
-  after the ``Accept``'s (:attr:`ActivationDecision.carry_overs`, EP-05-001).
+  after the ``Accept``'s (:attr:`ActivationDecision.carry_overs`, EP-05-003).
 """
 
 from dataclasses import dataclass, field
@@ -90,7 +90,7 @@ def carry_over_changes(
 ) -> list[ConsentRowChange]:
     """``CARRY_OVER`` to the revision for every signatory of the one replaced.
 
-    The shorter arm of EP-05-001: a revision ending no later than the embargo
+    The shorter arm of EP-05-003: a revision ending no later than the embargo
     it replaces asks nothing new of an existing signatory, so each
     participant whose row for *previous_embargo_id* is ``AGREED`` is carried
     over, a ``DECLINED`` revision row included (CM-10-001).  *activated* is

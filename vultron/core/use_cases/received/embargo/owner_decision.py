@@ -115,7 +115,7 @@ class RejectEmbargoProposalOnCaseReceivedUseCase(
     Takes the trigger-activity port: after the owner's rejection of the last
     open revision after disclosure, the CASE_MANAGER commits its own
     ``Remove(EmbargoEvent)`` ending the embargo in the same act and tells
-    the participants (EMB-04-002, MSM-07-009).
+    the participants (EMB-04-002, MSM-07-032).
     """
 
     _label = "Reject(EmbargoEvent)"

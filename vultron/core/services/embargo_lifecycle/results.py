@@ -77,7 +77,7 @@ class EmbargoLifecycleResult(BaseModel):
             (e.g. an embargo was activated or cleared).
         participant_changes: Per-participant consent-row changes that
             occurred during the operation (e.g. a signatory carried over to a
-            shorter revision, EP-05-001).  A lapse is not a change: it is
+            shorter revision, EP-05-003).  A lapse is not a change: it is
             derived from the rows (CM-18-001), so nothing is written for it.
     """
 

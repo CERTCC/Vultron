@@ -374,7 +374,7 @@ groups:
     rationale: >-
       The held record is the only copy of a received activity the replay can rebuild
       it from (DL-06-006), and the sender is not answered while the item is retried
-      (ASK-07-010), so an item lost between its dequeue and its settlement is never
+      (ASK-07-014), so an item lost between its dequeue and its settlement is never
       recovered. Writes that must land together share one transaction, never a
       repair pass (ADR-0146). The act's own transaction nests inside the attempt's,
       so a failed act still keeps nothing (ADR-0151). The attempt count bounds an

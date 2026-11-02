@@ -53,7 +53,7 @@ class SvcAddNoteToCaseUseCase(SvcBTTriggerBase[NoteResult]):
     ``context``, adds it to the actor's local copy of the case, and queues
     one ``Add(Note)`` in the actor's outbox for delivery to the
     CASE_MANAGER.  The ``Add`` names the case as its ``target`` and carries
-    the note inline as its ``object`` (VAM-07-002, VAM-01-010); no
+    the note inline as its ``object`` (VAM-07-002, VAM-01-015); no
     ``Create(Note)`` is sent.  The CASE_MANAGER attaches the note and commits
     one ``add_note_to_case`` entry from it, which replicas apply.
 

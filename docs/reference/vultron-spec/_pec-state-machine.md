@@ -125,7 +125,7 @@ After an embargo is terminated, no entry is `ACTIVE`, so the termination writes 
 The position of every participant follows from the register alone.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-18-001", "MSM-07-006"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-18-001", "MSM-07-006", "MSM-07-025"))
 ```
 
 After the case is public, an exploit is public or attacks are observed, abandoning an open proposal also writes no row.
@@ -173,7 +173,7 @@ The case owner does not leave an embargo.
 The case owner ends an embargo by terminating it.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MSM-07-010", "VAM-05-011"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MSM-07-010", "MSM-07-034", "MSM-07-036", "VAM-05-011"))
 ```
 
 Only the case owner's decision changes the embargo on the case.
@@ -195,7 +195,7 @@ If the activation makes the invitation of an `INVITED` participant stale, that p
 If the owner rejects the revision instead, the old terms stand and nobody's consent changes.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-09-005", "MSM-07-008", "MSM-07-009", "EP-05-001", "MSM-07-005"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-09-005", "MSM-07-008", "MSM-07-009", "MSM-07-031", "EP-05-001", "EP-05-003", "MSM-07-005", "MSM-07-019", "MSM-07-020"))
 ```
 
 ### 9.4 Deadlines and the Pocket Veto
@@ -219,7 +219,7 @@ The deadline is explicit or defaulted:
   The default window is 7 days.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-28-001", "CM-28-002", "EP-07-001"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-28-001", "CM-28-002", "EP-07-001", "EP-07-009"))
 ```
 
 In both cases, two rules later in this section set a lower bound and an upper bound on the result.
@@ -267,7 +267,7 @@ A receiver that gets one anyway extends the deadline to the minimum, and does no
 A too-short deadline is the proposer's error, and a refusal of the invitation would penalize the invitee for that error.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-07-002", "EP-07-003", "EP-07-004"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-07-002", "EP-07-010", "EP-07-003", "EP-07-004"))
 ```
 
 **A deadline does not outlive its embargo.**
@@ -275,7 +275,7 @@ A respond-by deadline never falls after the end of the embargo it concerns.
 If a computed deadline, whether from the invitation's explicit `endTime` or from the policy window, would fall after that end, it is clamped down to the embargo's end.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-07-006", "CM-28-011"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-07-006", "EP-07-011", "CM-28-011"))
 ```
 
 An invitee needs to be able to answer while there is still something to answer about.
@@ -297,7 +297,7 @@ Three cases apply:
   The participant keeps its place in the case either way.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-17-001", "EMB-17-002", "EMB-17-003", "EMB-17-004", "EMB-17-008"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-17-001", "EMB-17-012", "EMB-17-002", "EMB-17-003", "EMB-17-004", "EMB-17-015", "EMB-17-016", "EMB-17-017", "EMB-17-008"))
 ```
 
 **A time-out and a refusal reach different states.**

@@ -60,7 +60,7 @@ class TestCoreEmbargoEventBasics:
 
 
 class TestCoreEmbargoEventNoDefaultDuration:
-    """``end_time`` carries no implicit duration (EP-04-010, ADR-0096, #3404).
+    """``end_time`` carries no implicit duration (EP-04-023, ADR-0096, #3404).
 
     The protocol default is the single fallback duration in the system and is
     resolved at case creation; an object built without stating its end is a
@@ -78,7 +78,7 @@ class TestCoreEmbargoEventNoDefaultDuration:
 
     @pytest.mark.spec("EP-04-010")
     def test_end_time_field_has_no_default(self):
-        """Inspection clause of EP-04-010: no default, no default_factory."""
+        """Inspection clause of EP-04-023: no default, no default_factory."""
         field = EmbargoEvent.model_fields["end_time"]
         assert field.is_required()
         assert field.default_factory is None
@@ -88,7 +88,7 @@ class TestCoreEmbargoEventNoDefaultDuration:
     def test_any_stated_duration_is_honoured(self):
         """The model bounds no duration: a 12-hour or 400-day end is the
         sender's claim (EP-04-007).  The bounded value is the protocol default
-        alone, enforced on ``ActorConfig`` (EP-04-005, test_actor_config)."""
+        alone, enforced on ``ActorConfig`` (EP-04-018, test_actor_config)."""
         start = datetime(2030, 1, 1, tzinfo=UTC)
         for delta in (timedelta(hours=12), timedelta(days=400)):
             e = EmbargoEvent(
@@ -194,3 +194,24 @@ def test_with_subject_keeps_a_name_the_sender_chose() -> None:
     moved = event.with_subject("https://example.org/cases/c-1")
     assert moved.name == "Widget parser embargo"
     assert moved.context == "https://example.org/cases/c-1"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "VP-05-021: an embargo over 90 days needs a documented justification "
+        "all Participants agree to; EmbargoEvent has no justification yet. "
+        "Tracked by #5637."
+    ),
+)
+@pytest.mark.spec("VP-05-021")
+def test_an_embargo_over_90_days_carries_a_justification() -> None:
+    """An embargo longer than P90D has a justification field to carry."""
+    start = datetime(2099, 1, 1, tzinfo=UTC)
+    event = EmbargoEvent(
+        context=_CONTEXT,
+        start_time=start,
+        end_time=start + timedelta(days=120),
+    )
+    assert "justification" in type(event).model_fields

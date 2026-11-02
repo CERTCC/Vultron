@@ -118,7 +118,7 @@ def test_owner_rejecting_one_of_two_revisions_with_pxa_set_is_allowed(
 
     With another revision still open, EM stays ``REVISE``.  Rejecting the
     last one returns the case to the prior terms, which the CASE_MANAGER's
-    trees end in the same act (EMB-04-002, MSM-07-009); the lifecycle
+    trees end in the same act (EMB-04-002, MSM-07-032); the lifecycle
     records the step as decided either way.
     """
     owner, dl = owner_and_dl

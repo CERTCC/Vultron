@@ -231,7 +231,7 @@ def _participant_answers(
 
 
 def _seat_manager_stake(net: LedgerNetwork, *roles: CVDRole) -> None:
-    """Give the CASE_MANAGER's record *roles*, an embargo stake (EP-09-002)."""
+    """Give the CASE_MANAGER's record *roles*, an embargo stake (EP-09-024)."""
     dl = net.stores[MANAGER]
     record = dl.read(net.case(MANAGER).actor_participant_index[MANAGER])
     assert isinstance(record, CaseParticipant)
@@ -392,7 +392,7 @@ def test_the_managers_own_accept_is_its_rows_entry():
 def test_the_managers_own_reject_is_its_update_of_the_row():
     """The CASE_MANAGER declines as its own ``Update(EmbargoConsent)``.
 
-    A CASE_MANAGER with an embargo stake (EP-09-002) commits no
+    A CASE_MANAGER with an embargo stake (EP-09-024) commits no
     ``Reject(Invite(EmbargoEvent))``: that shape from the CASE_MANAGER is its
     abandonment of the proposal (EMB-16-001, ADR-0152).  Its own consent is
     its row's entry, and the replica copies the ``DECLINED`` row from it and
@@ -485,7 +485,7 @@ def test_a_received_proposal_commits_one_row_per_participant_and_copies():
 @pytest.mark.spec("CLP-07-013")
 @pytest.mark.spec("CM-23-016")
 def test_the_managers_policy_consent_is_its_own_entry_and_is_copied():
-    """A stakeholder manager answers on its row with no Invite (EP-09-002).
+    """A stakeholder manager answers on its row with no Invite (EP-09-024).
 
     Its policy decision is a decision taken from local policy, so it is the
     CASE_MANAGER's own ``Update(EmbargoConsent)`` entry, and every replica

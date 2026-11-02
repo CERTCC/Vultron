@@ -277,7 +277,7 @@ groups:
     rationale: >-
       A trigger returns 202 and runs the behavior in the background. Without more data,
       a caller cannot tell "done" from "waiting for the decision of a different party".
-      Under ASK-01-002, success means that the actor sent the request, so success alone
+      Under ASK-01-006, success means that the actor sent the request, so success alone
       has two meanings. When the response names the request, the caller can find the
       outcome in the outstanding-ask collection (ASK-04-009).
     note: >-

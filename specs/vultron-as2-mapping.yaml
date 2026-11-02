@@ -75,13 +75,27 @@ groups:
     verification: >-
       Inspection confirms semantic extraction rehydrates an activity before pattern
       matching and that no pattern discriminates on an unhydrated string field.
-    statement: An AS2 activity MUST be rehydrated (URI string references expanded to full objects via the DataLayer) before
-      pattern matching; pattern matching MUST NOT rely on unhydrated string fields for type discrimination
+    statement: >-
+      Pattern matching MUST NOT rely on an unhydrated string field for type
+      discrimination.
     rationale: >-
       A URI string carries no type. A pattern that reads the type of an unhydrated field
       cannot tell, for example, an `Offer` of a report from an `Offer` of a case.
+  - id: VAM-01-014
+    priority: MUST
+    kind: project
+    verification: >-
+      Inspection confirms semantic extraction rehydrates an activity before pattern
+      matching.
+    statement: >-
+      Semantic extraction MUST rehydrate an AS2 activity before pattern matching,
+      expanding each URI string reference to its full object through the DataLayer.
+    rationale: >-
       Rehydration gives each field its full object, so the type that the pattern reads
       is the type of the object.
+    relationships:
+    - rel_type: extends
+      spec_id: VAM-01-004
   - id: VAM-01-005
     priority: MUST
     kind: project
@@ -98,8 +112,9 @@ groups:
   - id: VAM-01-006
     priority: MUST
     kind: project
-    statement: 'Pattern matching MUST be conservative when a non-`object_` field is a non-rehydratable URI string: such a
-      field MUST be treated as matching any expected type rather than failing the match'
+    statement: >-
+      When a non-`object_` field holds a URI string that cannot be rehydrated, pattern
+      matching MUST treat the field as matching any expected type.
     rationale: Peripheral reference fields (`actor`, `target`, `context`, etc.) do not drive semantic dispatch; conservatively
       matching them avoids false negatives when the DataLayer cannot expand every reference
     verification: A unit test confirms that a URI string in a non-`object_` field (e.g., `actor`) does not cause
@@ -197,30 +212,41 @@ groups:
     kind: project
     statement: >-
       This codebase MUST send a `CaseStatus` or a `ParticipantStatus` inline on the
-      single `Add` that attaches it (VAM-08-002, VAM-08-004), MUST send a `Note`
-      inline on the single `Add(Note)` that attaches it (VAM-07-002), and MUST send a
-      proposed `EmbargoEvent` inline on the `Invite` that proposes it (VAM-05-005). An
-      inbox MUST refuse a received `Create(CaseStatus)`, `Create(ParticipantStatus)` or
-      `Create(Note)` as an unrecognized activity, and MUST report a received
-      `Create(CaseParticipant)` or `Create(EmbargoEvent)`, each the CASE_MANAGER's own
-      record of a creation (VAM-05-016), as "no use case found" (SE-05-002, ADR-0140).
-      Only a `Create` whose object is an `EmbargoEvent` is recognized: a `Create` of
-      any other `Event` is refused as an unrecognized activity.
+      single `Add` that attaches it (VAM-08-002, VAM-08-004).
     rationale: >-
-      VAM-01-011 leaves to the receiver how to handle a stray `Create`, and this item is
-      the answer of this codebase. A `Create` stored with no ledger entry would change
-      the case file outside the ledger (CLP-07-013), and `Create(Note)` would be a
-      second way to attach a note (ADR-0137). `Create(CaseParticipant)` and
-      `Create(EmbargoEvent)` are ledger records of the CASE_MANAGER that a replica
-      copies from the ledger (ADR-0124). A received `Invite` can still name its terms by
-      URI (ADR-0123).
+      A status sent by reference would leave the receiver to fetch it before it could
+      attach it. One `Add` with the status inline is the single message that brings it
+      into the case (VAM-01-011, ADR-0137).
     verification: >-
       In `test/wire/as2/vocab/test_actvitities/test_object_types.py`, the
       `test_rejects_string` and `test_rejects_link` tests of
-      `TestAddStatusToCaseActivity`, `TestAddStatusToParticipantActivity` and
-      `TestAddNoteToCaseActivity` confirm that each status `Add` and the note `Add`
-      refuse an object given by reference. For the note emitters,
-      `test_one_add_note_queued_in_outbox` in
+      `TestAddStatusToCaseActivity` and `TestAddStatusToParticipantActivity` confirm
+      that each status `Add` refuses an object given by reference.
+    relationships:
+    - rel_type: refines
+      spec_id: VAM-01-011
+      note: this codebase's inline sending of the status records
+    - rel_type: implements
+      spec_id: VAM-08-002
+    - rel_type: implements
+      spec_id: VAM-08-004
+    adr:
+    - ADR-0137
+  - id: VAM-01-015
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST send a `Note` inline on the single `Add(Note)` that attaches
+      it (VAM-07-002).
+    rationale: >-
+      `Add(Note)` is the one message that brings a note into a case (VAM-01-011), so
+      the note travels on it. `Create(Note)` would be a second way to attach a note
+      (ADR-0137).
+    verification: >-
+      In `test/wire/as2/vocab/test_actvitities/test_object_types.py`, the
+      `test_rejects_string` and `test_rejects_link` tests of
+      `TestAddNoteToCaseActivity` confirm that the note `Add` refuses an object given
+      by reference. `test_one_add_note_queued_in_outbox` in
       `test/core/use_cases/triggers/test_note_trigger.py` confirms that the add-note
       trigger sends one `Add(Note)` with the note inline and the case as `target`.
       `test_gap_anomaly_records_note`, `test_regression_anomaly_records_note` and
@@ -230,49 +256,86 @@ groups:
       `test/core/behaviors/case/nodes/test_suggest_actor_owner_recipient.py` confirm
       the same for each CASE_MANAGER note, whose `Add(Note)` the CASE_MANAGER commits
       as its own entry rather than sends (#4829).
-      `test_em_propose_embargo_refuses_terms_by_uri` in
-      `test/wire/as2/factories/test_embargo_factories.py` confirms that the proposal
-      factory refuses terms given by URI. The parametrized test
-      `test_received_create_of_a_case_record_is_refused_case_unchanged` in
-      `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` confirms that each
-      of the received `Create` activities, including `Create(Note)` with and without a
-      case `context`, resolves to `UNKNOWN` and is refused, and that the case, the
-      ledger and the outbox stay unchanged.
-      `test_a_received_case_manager_act_is_recognized_and_unhandled` in the same file
-      confirms that a received `Create(CaseParticipant)` or `Create(EmbargoEvent)` is
-      recognized, reported unhandled, and changes nothing, and
-      `test_received_create_of_a_case_record_is_refused_case_unchanged` confirms that
-      a received `Create` of a plain `Event` is refused as unrecognized.
     relationships:
-    - rel_type: refines
-      spec_id: VAM-01-011
-      note: this codebase's inline sending and refusal of the Create forms
-    - rel_type: implements
-      spec_id: VAM-08-002
-    - rel_type: implements
-      spec_id: VAM-08-004
-    - rel_type: implements
-      spec_id: VAM-05-005
     - rel_type: implements
       spec_id: VAM-07-002
     adr:
     - ADR-0137
+  - id: VAM-01-016
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST send a proposed `EmbargoEvent` inline on the `Invite` that
+      proposes it (VAM-05-005).
+    rationale: >-
+      The proposing `Invite` is the one message that brings a proposed embargo into a
+      case (VAM-01-011). A received `Invite` can still name its terms by URI
+      (ADR-0123).
+    verification: >-
+      `test_em_propose_embargo_refuses_terms_by_uri` in
+      `test/wire/as2/factories/test_embargo_factories.py` confirms that the proposal
+      factory refuses terms given by URI.
+    relationships:
+    - rel_type: implements
+      spec_id: VAM-05-005
+    adr:
+    - ADR-0137
+  - id: VAM-01-017
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase's inbox MUST refuse a received `Create(CaseStatus)`,
+      `Create(ParticipantStatus)` or `Create(Note)` as an unrecognized activity. It
+      refuses a received `Create` of any `Event` other than an `EmbargoEvent` the same
+      way.
+    rationale: >-
+      VAM-01-011 leaves to the receiver how to handle a stray `Create`, and this item
+      is the answer of this codebase. A `Create` stored with no ledger entry would
+      change the case file outside the ledger (CLP-07-013).
+    verification: >-
+      The parametrized test
+      `test_received_create_of_a_case_record_is_refused_case_unchanged` in
+      `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` confirms that each
+      of these received `Create` activities, including `Create(Note)` with and without
+      a case `context` and a `Create` of a plain `Event`, resolves to `UNKNOWN` and is
+      refused, and that the case, the ledger and the outbox stay unchanged.
+    relationships:
+    - rel_type: refines
+      spec_id: VAM-01-019
+      note: this codebase's refusal of the Create forms
+    adr:
+    - ADR-0137
+  - id: VAM-01-018
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase's inbox MUST report a received `Create(CaseParticipant)` or
+      `Create(EmbargoEvent)` as "no use case found" (SE-05-002, ADR-0140).
+    rationale: >-
+      Each is the CASE_MANAGER's own record of a creation (VAM-05-016), so the inbox
+      recognizes it. `Create(CaseParticipant)` and `Create(EmbargoEvent)` are ledger
+      records of the CASE_MANAGER that a replica copies from the ledger (ADR-0124),
+      not messages a use case handles.
+    verification: >-
+      `test_a_received_case_manager_act_is_recognized_and_unhandled` in
+      `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` confirms that a
+      received `Create(CaseParticipant)` or `Create(EmbargoEvent)` is recognized,
+      reported unhandled, and changes nothing.
+    adr:
+    - ADR-0137
+    - ADR-0140
   - id: VAM-01-011
     priority: MUST
     kind: protocol
     adr:
     - ADR-0137
     statement: >-
-      A `CaseStatus` MUST be brought into a case only by the `Add(CaseStatus)` that
-      attaches it (VAM-08-002), a `ParticipantStatus` only by the
-      `Add(ParticipantStatus)` that attaches it (VAM-08-004), a proposed
-      `EmbargoEvent` only by the `Invite` that proposes it (VAM-05-005), and a `Note`
-      only by the `Add(Note)` that attaches it (VAM-07-002); each carries its object
-      inline or by reference. A `CaseParticipant` MUST come into existence only as the
-      CASE_MANAGER's consequence of an act it records. A received `Create` whose
-      object is a `CaseStatus`, a `ParticipantStatus`, an `EmbargoEvent`, a
-      `CaseParticipant` or a `Note` is not a protocol message, and its receiver MUST
-      NOT change the case file because of it.
+      Each of these case records MUST enter a case only by its one attaching message,
+      which carries it inline or by reference. A `CaseStatus` enters by the
+      `Add(CaseStatus)` that attaches it (VAM-08-002). A `ParticipantStatus` enters by
+      the `Add(ParticipantStatus)` that attaches it (VAM-08-004). A proposed
+      `EmbargoEvent` enters by the `Invite` that proposes it (VAM-05-005). A `Note`
+      enters by the `Add(Note)` that attaches it (VAM-07-002).
     rationale: >-
       These records mean nothing apart from their case, so a separate `Create` would
       add a "created but not attached" state needing its own ledger entry and replica
@@ -291,7 +354,9 @@ groups:
       `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` sends each of the
       `Create` activities, including `Create(Note)` with and without a case
       `context`, to an inbox and confirms that the case, the ledger and the outbox
-      stay unchanged.
+      stay unchanged. `test/core/behaviors/sync/nodes/test_canonical_entry.py` and
+      `test/core/behaviors/sync/nodes/test_conditions.py` confirm that a
+      `Create(Note)` ledger entry attaches no note.
     relationships:
     - rel_type: constrains
       spec_id: VAM-08-002
@@ -305,6 +370,54 @@ groups:
     - rel_type: constrains
       spec_id: VAM-07-002
       note: the Add(Note) is the only way a note enters a case
+  - id: VAM-01-019
+    priority: MUST_NOT
+    kind: protocol
+    adr:
+    - ADR-0137
+    statement: >-
+      A received `Create` whose object is a `CaseStatus`, a `ParticipantStatus`, an
+      `EmbargoEvent`, a `CaseParticipant` or a `Note` is not a protocol message. Its
+      receiver MUST NOT change the case file because of it.
+    rationale: >-
+      Each of these records enters a case only by its attaching message (VAM-01-011)
+      or as the CASE_MANAGER's consequence of an act it records (VAM-01-020). A
+      separate `Create` would add a "created but not attached" state needing its own
+      ledger entry and replica step (CLP-07-013, RSH-08-004) for no gain (ADR-0137).
+    stories:
+    - story_2022_088
+    - story_2022_045
+    verification: >-
+      The parametrized test
+      `test_received_create_of_a_case_record_is_refused_case_unchanged` in
+      `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` sends each of the
+      `Create` activities, including `Create(Note)` with and without a case
+      `context`, to an inbox and confirms that the case, the ledger and the outbox
+      stay unchanged. `test_a_received_case_manager_act_is_recognized_and_unhandled`
+      in the same file confirms the same for `Create(CaseParticipant)` and
+      `Create(EmbargoEvent)`.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-01-011
+  - id: VAM-01-020
+    priority: MUST
+    kind: protocol
+    adr:
+    - ADR-0137
+    statement: >-
+      A `CaseParticipant` MUST come into existence only as the CASE_MANAGER's
+      consequence of an act that it records.
+    rationale: >-
+      A participant record means nothing apart from its case, and the CASE_MANAGER
+      records each act that changes the case. A participant made any other way would
+      be a case-file change outside the ledger (CLP-07-013, ADR-0137).
+    stories:
+    - story_2022_088
+    verification: >-
+      `test_a_received_case_manager_act_is_recognized_and_unhandled` in
+      `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` confirms that a
+      received `Create(CaseParticipant)` is recognized, reported unhandled, and
+      creates no participant.
 - id: VAM-02
   title: Report Management Messages
   specs:
@@ -1065,7 +1178,7 @@ groups:
       matches the semantic type on the type of the object. An inline event lets the
       pattern read that type without depending on what the receiver's store holds. The
       vocabulary class types the object as `as_EmbargoEvent` with no reference form, so
-      a reference that the receiver cannot resolve is refused (VM-06-007) and not
+      a reference that the receiver cannot resolve is refused (VM-06-009) and not
       deferred. That is a choice of this prototype reference implementation, not a
       protocol rule.
     verification: >-
@@ -1115,7 +1228,7 @@ groups:
       semantic type on the type of the object. An inline event lets the pattern read
       that type without depending on what the receiver's store holds. The vocabulary
       class types the object as `as_EmbargoEvent` with no reference form, so a reference
-      that the receiver cannot resolve is refused (VM-06-007) and not deferred. That is
+      that the receiver cannot resolve is refused (VM-06-009) and not deferred. That is
       a choice of this prototype reference implementation, not a protocol rule.
     verification: >-
       Inspection of `_WithdrawFromEmbargoActivity` in
@@ -1419,15 +1532,33 @@ groups:
   - id: VAM-09-002
     priority: MUST_NOT
     kind: project
-    statement: '`MessageSemantics.UNKNOWN` MUST NOT have a matchable pattern: its `SEMANTIC_REGISTRY` entry MUST carry
-      `pattern=None`, and the fallback is implemented by `find_matching_semantics()` returning `UNKNOWN` when the pattern
-      loop exhausts all entries without a match'
+    statement: >-
+      `MessageSemantics.UNKNOWN` MUST NOT have a matchable pattern.
     rationale: >-
       `UNKNOWN` needs a registry entry, because `lookup_entry()` resolves the event
       class and the use case for the fallback through it. If that entry had a pattern,
       `UNKNOWN` could come from a match as well as from no match, and a reader of the
       result could not tell which. The statement says "no matchable pattern" and not "no
       entry" for that reason.
+    note: >-
+      The fallback is `find_matching_semantics()` returning `UNKNOWN` when the pattern
+      loop exhausts all entries without a match.
     verification: >-
       A unit test confirms that the `SEMANTIC_REGISTRY` entry for
       `MessageSemantics.UNKNOWN` has `pattern is None` and is ordered last.
+  - id: VAM-09-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The `SEMANTIC_REGISTRY` entry for `MessageSemantics.UNKNOWN` MUST carry
+      `pattern=None`.
+    rationale: >-
+      A `None` pattern is how the registry keeps the `UNKNOWN` entry that
+      `lookup_entry()` needs while giving the match loop nothing to select.
+    verification: >-
+      `test/test_semantic_registry.py::test_registry_unknown_is_last_and_has_no_pattern`
+      confirms that the `SEMANTIC_REGISTRY` entry for `MessageSemantics.UNKNOWN` has
+      `pattern is None`.
+    relationships:
+    - rel_type: implements
+      spec_id: VAM-09-002

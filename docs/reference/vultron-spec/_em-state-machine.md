@@ -76,7 +76,7 @@ Every cause is `EARLY`, and an `END_TIME_REACHED` termination has none.
 The termination message carries the what as `content` and the why as `terminationCause`.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-13-004", "EMB-13-005"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-13-004", "EMB-13-010", "EMB-13-011", "EMB-13-005"))
 ```
 
 !!! note "Register status is not EM state"
@@ -152,7 +152,7 @@ Each participant's replica of the case moves along the same table when it copies
 The requirements below state each move from the side of a participant that receives the message, with the CASE_MANAGER's ledger commit as the acknowledgment.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-01-001", "EMB-01-003", "EMB-02-001", "EMB-06-001", "EMB-03-001", "EMB-03-002", "EMB-04-001", "EMB-05-001", "EMB-07-001", "EMB-07-002", "EMB-07-003"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-01-001", "EMB-01-003", "EMB-02-001", "EMB-06-001", "EMB-03-001", "EMB-03-002", "EMB-04-001", "EMB-04-003", "EMB-05-001", "EMB-05-003", "EMB-07-001", "EMB-07-002", "EMB-07-003"))
 ```
 
 !!! warning "Rejecting a revision does not end the embargo"
@@ -188,7 +188,7 @@ An implementation can defer the choice to the Case Owner, or apply its own organ
 This specification does not mandate shortest-wins.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-08-001"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-08-001", "EP-08-005"))
 ```
 
 **Tacit acceptance.**
@@ -211,7 +211,7 @@ The protocol default is also not a minimum.
 A party that proposes a shorter duration gets the duration it proposed.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-04-005", "EP-04-006", "EP-04-007", "EP-04-008"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-04-005", "EP-04-018", "EP-04-019", "EP-04-006", "EP-04-007", "EP-04-008", "EP-04-020"))
 ```
 
 Outside these two default paths, the protocol recommends that participants accept or reject embargo proposals explicitly, within the period their disclosure policy defines or 14 days, whichever is shorter.
@@ -243,7 +243,7 @@ Only one of them writes rows:
   The termination writes no consent row, and every row for a final entry is frozen as it stood.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-05-001", "EP-05-002", "MSM-07-006"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-05-001", "EP-05-003", "EP-05-002", "MSM-07-006", "MSM-07-025"))
 ```
 
 [§11.2 Embargo Revision and Termination Cascades](interactions.md#112-embargo-revision-and-termination-cascades) specifies both cascades.

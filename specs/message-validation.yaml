@@ -248,7 +248,7 @@ groups:
       bare `as_Link`, get the semantic type `UNKNOWN` and a 202 status. A refusal is
       safe only when resolution looks at wire classes alone. A `CORE_TYPE_MAP` fallback
       (ARCH-12-014) resolves an inline actor's `inbox` to a core instance its wire
-      parent refuses (ARCH-22-001). The core fallback is opt-in (VM-06-008).
+      parent refuses (ARCH-22-001). The core fallback is opt-in (VM-06-013).
     verification: >-
       Unit tests in `test/wire/as2/test_parser.py` confirm that an
       `Accept(Invite(...))` whose inner object carries an unparseable timestamp is
@@ -383,7 +383,7 @@ groups:
       MV-04-003 now refuses. Reading MV-10-001 as a general licence for partial inline
       objects would entrench a workaround for a capability Vultron lacks: dereferencing a
       URI in another actor's message into the resolved object. Design discussion:
-      `notes/selective-disclosure.md`. The actor reference of AKM-05-005 is not a stub:
+      `notes/selective-disclosure.md`. The actor reference of AKM-05-017 is not a stub:
       it claims no field beyond the two the sender knows, and keeps the `type` a
       receiver routes `Offer(Actor)` and `Invite(Actor)` by (ADR-0159).
     verification: >-

@@ -454,7 +454,7 @@ def reject_embargo_trigger_bt(
     ``Reject(Invite(EmbargoEvent))``: the actor's own consent; it moves no
     register entry (ADR-0122).  Any participant other than the CASE_MANAGER
     sends it to the CASE_MANAGER.  The CASE_MANAGER, answering an embargo it
-    has a stake in (EP-09-002), sends no ``Reject``: the CASE_MANAGER's
+    has a stake in (EP-09-024), sends no ``Reject``: the CASE_MANAGER's
     ``Reject`` of a proposal is its abandonment of it (EMB-16-001,
     ADR-0152), so its own consent is committed as its ``Update(EmbargoConsent)``
     of the row (:class:`CommitOwnConsentDecisionNode`, MSM-07-017), whose
@@ -569,7 +569,7 @@ def reject_embargo_proposal_trigger_bt(
     owner rejects the proposal ``STRICT`` and commits its decision; any other
     owner asks the CASE_MANAGER.  A rejection of the last revision after
     disclosure is followed, in the same act, by the CASE_MANAGER's
-    termination (EMB-04-002, MSM-07-009), so a refused termination commits
+    termination (EMB-04-002, MSM-07-032), so a refused termination commits
     neither.
     """
     return py_trees.composites.Sequence(
@@ -782,7 +782,7 @@ def end_embargo_outliving_disclosure_bt(
     the shared :func:`terminate_embargo_bt` (BT-19-002), with the threat
     signals the case carries as the cause its ``Remove`` carries
     (EMB-13-005), so the revision ends ``REJECTED`` and the embargo
-    ``TERMINATED`` as two entries a replica copies in order (MSM-07-009).
+    ``TERMINATED`` as two entries a replica copies in order (MSM-07-032).
     Any other rejection runs *otherwise*.
 
     The arms are exclusive on the case state the ``REJECT`` left, so a

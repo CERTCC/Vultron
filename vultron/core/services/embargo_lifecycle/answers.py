@@ -117,7 +117,7 @@ class _AnswerOperationsMixin(_PecActivationMixin):
         attacked returns the case to the prior terms only inside the act:
         the caller ends the embargo in the same act, so the revision ends
         ``REJECTED`` and the embargo ``TERMINATED``, as two entries a
-        replica copies in order (EMB-04-002, MSM-07-009).  The received and
+        replica copies in order (EMB-04-002, MSM-07-032).  The received and
         trigger trees compose that termination after this step
         (``end_embargo_outliving_disclosure_bt``).
 

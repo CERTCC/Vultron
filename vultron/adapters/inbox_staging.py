@@ -282,7 +282,7 @@ class InlineObjectStaging:
         """Rebuild the parsed *activity* with its own inline objects staged.
 
         The rebuilt copy carries no received evidence; the caller decides
-        whether this delivery's evidence is the one to carry (VM-08-002).
+        whether this delivery's evidence is the one to carry (VM-08-007).
         """
 
         return self._rehydrate_with(
@@ -333,7 +333,7 @@ class InlineObjectStaging:
 
         For a redelivery of an activity still waiting on its case: the held
         copy is routed (IE-10-001), with no received evidence, because the
-        delivery being processed is not the one held (VM-08-002).
+        delivery being processed is not the one held (VM-08-010).
         """
         pending = self.held(activity_id)
         if pending is None:
@@ -347,7 +347,7 @@ class InlineObjectStaging:
         body is parsed and routed in place of the redelivered one
         (IE-10-001, ADR-0149).  It carries that body as its received
         evidence: the body is the first delivery's, sealed at its parse, so
-        the copy routed is that delivery and not this one (VM-08-002).  Only
+        the copy routed is that delivery and not this one (VM-08-009).  Only
         a resend of exactly that body gets here; ingress refuses a different
         body under the same id before any copy is rebuilt (IE-10-002).  Held
         for a replay, should the copy be deferred, it keeps the same body.
@@ -367,7 +367,7 @@ class InlineObjectStaging:
         """Rebuild a deferred activity from its record, and release it.
 
         The held received body is parsed again, so the replay carries the
-        evidence the first delivery did (VM-08-002).  The record is deleted
+        evidence the first delivery did (VM-08-008).  The record is deleted
         once read: a replay the queue defers again holds it afresh
         (:meth:`hold_for_replay`).
 

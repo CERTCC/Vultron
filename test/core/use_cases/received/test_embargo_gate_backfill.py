@@ -153,7 +153,7 @@ class _GateScenario:
         owner's ``Accept(EmbargoEvent, target=Case)`` admits it (CM-10-004).
         The revision ends sooner than the active terms, so the signatories
         (AGREED rows for the active terms) carry over by containment and stay
-        admitted (EP-05-001).
+        admitted (EP-05-003).
         """
         revision = as_EmbargoEvent(
             id_=f"{CASE_ID}/embargo_events/e2",

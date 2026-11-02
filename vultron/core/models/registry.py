@@ -35,7 +35,7 @@ CORE_VOCABULARY: dict[str, type[BaseModel]] = {}
 # Used by ``find_in_vocabulary(..., include_core=True)`` as a fallback so that
 # core-layer types can be reconstructed from persistent storage without being
 # registered in the wire ``VOCABULARY`` dict (ARCH-12-014).  Only persistence
-# read paths opt in; wire callers never see it (VM-06-008).  Populated by
+# read paths opt in; wire callers never see it (VM-06-013).  Populated by
 # ``CoreObject.__init_subclass__`` when a concrete subclass is first defined.
 CORE_TYPE_MAP: dict[str, type[BaseModel]] = {}
 

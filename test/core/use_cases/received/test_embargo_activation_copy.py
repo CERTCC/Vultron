@@ -15,11 +15,11 @@
 
 The owner's ``Accept(EmbargoEvent, target=Case)`` is one entry, and it is the
 whole ``ACTIVATE`` register step, the ``SUPERSEDE`` of the embargo in force
-included, and the owner's own agreement (CLP-07-013, MSM-07-008).  Each
+included, and the owner's own agreement (CLP-07-013, MSM-07-028).  Each
 ``CARRY_OVER`` row a shorter revision gives an existing signatory follows as
-its own CASE_MANAGER ``Update(EmbargoConsent)`` (EP-05-001).  The owner's
+its own CASE_MANAGER ``Update(EmbargoConsent)`` (EP-05-003).  The owner's
 ``Reject(EmbargoEvent, target=Case)`` is one entry too, the whole ``REJECT``
-step, and changes no consent row (MSM-07-009).  An RSVP
+step, and changes no consent row (MSM-07-031).  An RSVP
 time-out is the CASE_MANAGER's one ``Update(EmbargoConsent)`` carrying the
 ``TIMED_OUT`` row (CM-28-009, CM-28-014).  A replica copies every entry
 through the one apply function and reaches the CASE_MANAGER's register and
@@ -236,6 +236,7 @@ class TestReceivedActivation:
     @pytest.mark.spec("CLP-07-013")
     @pytest.mark.spec("EP-05-001")
     @pytest.mark.spec("MSM-07-005")
+    @pytest.mark.spec("MSM-07-023")
     def test_the_accept_then_one_update_per_carried_over_row(self):
         """A shorter revision: the Accept is the step and the owner's
         agreement; every other signatory's row is its own entry."""
@@ -347,7 +348,7 @@ class TestReceivedRejection:
     """The owner is not the CASE_MANAGER and sends its Reject to it.
 
     The ``Reject`` entry is the whole ``REJECT`` step: no consent row
-    changes, so no ``Update(EmbargoConsent)`` follows it (MSM-07-009), and
+    changes, so no ``Update(EmbargoConsent)`` follows it (MSM-07-031), and
     every replica copies the step (CM-23-016).
     """
 

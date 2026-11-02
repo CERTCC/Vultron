@@ -1607,7 +1607,7 @@ groups:
       case owner.
     rationale: >-
       A rule that only this codebase must obey binds no other implementation, so it
-      stays out of the protocol view that implementers read. EP-02-004
+      stays out of the protocol view that implementers read. EP-02-007
       (compare-and-set on the policy PUT) is the worked example: only this codebase
       must obey it, so it is `project`.
     verification: >-

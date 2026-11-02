@@ -140,14 +140,20 @@ def _replay_to_bystander(net: _Network) -> None:
 
 
 @pytest.mark.spec("EP-09-007")
+@pytest.mark.spec("EP-09-025")
 @pytest.mark.spec("RSH-08-004")
 @pytest.mark.spec("TB-06-007")
 def test_a_replica_follows_a_revision_from_proposal_to_activation():
-    """ACTIVE → REVISE → ACTIVE in the manager's store and the replica's."""
+    """ACTIVE → REVISE → ACTIVE in the manager's store and the replica's.
+
+    The replayed proposal entry is case state, not an invitation, so the
+    bystander answers nothing on it (EP-09-025).
+    """
     net = _Network("https://example.org/cases/relay-replay")
 
     revision_id = _propose(net, "revision", 90)
     _replay_to_bystander(net)
+    assert net.queued(BYSTANDER, to=MANAGER) == []
 
     for actor_id in (MANAGER, BYSTANDER):
         case = net.case(actor_id)
@@ -873,6 +879,7 @@ def test_a_replica_follows_the_managing_owners_termination_by_trigger():
 @pytest.mark.spec("MSM-07-006")
 @pytest.mark.spec("EMB-17-004")
 @pytest.mark.spec("TB-06-007")
+@pytest.mark.spec("MSM-07-025")
 def test_termination_leaves_nobody_a_signatory_in_every_store():
     """Termination writes no consent, yet no record is bound afterwards.
 
@@ -916,6 +923,7 @@ def _faults(net: _Network, sender: str, to: str):
 @pytest.mark.spec("EP-09-010")
 @pytest.mark.spec("MSM-05-001")
 @pytest.mark.parametrize("recipients", [[OWNER, BYSTANDER], []])
+@pytest.mark.spec("EP-09-026")
 def test_an_invite_with_zero_or_several_recipients_gets_a_processing_fault(
     recipients,
 ):
@@ -1025,6 +1033,7 @@ def test_a_refusal_with_no_trigger_port_stands_without_its_er(caplog):
 
 @pytest.mark.spec("EP-09-010")
 @pytest.mark.spec("MSM-05-001")
+@pytest.mark.spec("EP-09-026")
 def test_an_invite_naming_no_embargo_gets_a_processing_fault():
     """An Invite with no embargo is received but not understood: a fault."""
     net = _Network("https://example.org/cases/relay-replay-no-embargo")

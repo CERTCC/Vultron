@@ -134,7 +134,7 @@ class TestNoteUseCases:
         assert result.disposition == HandlerDisposition.APPLIED
 
     @pytest.mark.spec("HP-08-006")
-    @pytest.mark.spec("VAM-01-010")
+    @pytest.mark.spec("VAM-01-015")
     def test_add_note_to_case_stores_the_inline_note(self, make_payload):
         """An Add(Note) carrying a note the CASE_MANAGER has never seen
         stores that note, then attaches it (#4706): the case never names a
@@ -346,7 +346,7 @@ class TestNoteUseCases:
         assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
 
     @pytest.mark.spec("HP-08-006")
-    @pytest.mark.spec("VAM-01-010")
+    @pytest.mark.spec("VAM-01-015")
     def test_add_reply_note_through_ingress_is_applied(self):
         """A reply note sent through the inbox ingress is stored and attached
         with its ``in_reply_to``: the event carries the note as received, so

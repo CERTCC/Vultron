@@ -233,7 +233,7 @@ def test_no_case_means_no_context():
 
 
 # ---------------------------------------------------------------------------
-# A full case never travels in ``target`` (MV-10-001, AKM-02-003)
+# A full case never travels in ``target`` (MV-10-001, AKM-02-008)
 # ---------------------------------------------------------------------------
 
 
@@ -253,6 +253,7 @@ def test_case_target_ref_leaves_a_uri_a_stub_and_none_alone():
 
 @pytest.mark.spec("AKM-02-005")
 @pytest.mark.spec("AKM-02-003")
+@pytest.mark.spec("AKM-02-008")
 def test_factories_given_a_full_case_target_send_its_uri():
     case = as_VulnerabilityCase(
         attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="full"

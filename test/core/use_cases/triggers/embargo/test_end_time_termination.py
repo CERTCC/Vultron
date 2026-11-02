@@ -281,6 +281,7 @@ def test_lazy_check_does_nothing_for_a_participant_that_is_not_manager() -> (
 
 
 @pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("EMB-13-006")
 def test_lazy_check_on_an_ended_embargo_commits_nothing() -> None:
     world = _World(end_time=now_utc() - timedelta(hours=1))
     world.lazy_check(now_utc())
@@ -308,6 +309,7 @@ def test_sentinel_request_ends_the_embargo_at_its_end_time() -> None:
 
 
 @pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("EMB-13-008")
 def test_sentinel_request_before_the_end_time_is_refused() -> None:
     world = _World(end_time=days_from_now_utc(10))
 
@@ -319,6 +321,7 @@ def test_sentinel_request_before_the_end_time_is_refused() -> None:
 
 
 @pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("EMB-13-007")
 def test_sentinel_after_the_lazy_check_is_answered_as_already_done() -> None:
     world = _World(end_time=now_utc() - timedelta(minutes=5))
     world.lazy_check(now_utc())
@@ -330,6 +333,7 @@ def test_sentinel_after_the_lazy_check_is_answered_as_already_done() -> None:
 
 
 @pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("EMB-13-006")
 def test_lazy_check_after_the_sentinel_commits_nothing() -> None:
     world = _World(end_time=now_utc() - timedelta(minutes=5))
     world.sentinel_request()
@@ -341,6 +345,7 @@ def test_lazy_check_after_the_sentinel_commits_nothing() -> None:
 
 
 @pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("EMB-13-006")
 def test_racing_lazy_check_and_sentinel_commit_one_termination() -> None:
     """Started together, exactly one of the two commits the termination,
     and the other is answered as already done."""

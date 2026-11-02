@@ -237,7 +237,7 @@ class TestEmitCaseStatusUpdateNode:
             (CS_pxa.PXa, CS_pxa.Pxa, CS_pxa.PXa),
             # A mixed report adds its new latch and clears none.
             (CS_pxa.PxA, CS_pxa.PXa, CS_pxa.PXA),
-            # An ephemeral pX is promoted on adoption (SM-09-001).
+            # An ephemeral pX is promoted on adoption (SM-09-003).
             (CS_pxa.pxa, CS_pxa.pXa, CS_pxa.PXa),
         ],
         ids=["forward", "multi-forward", "omitted", "mixed", "promoted"],

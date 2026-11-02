@@ -270,7 +270,7 @@ class TestSvcAddNoteToCaseUseCase:
 
     @pytest.mark.spec("CLP-07-002")
     @pytest.mark.spec("VAM-07-002")
-    @pytest.mark.spec("VAM-01-010")
+    @pytest.mark.spec("VAM-01-015")
     def test_one_add_note_queued_in_outbox(self):
         """The trigger queues exactly one activity: an Add(Note) whose target
         is the case and whose object is the full note inline (#4706 AC-1)."""

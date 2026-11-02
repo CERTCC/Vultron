@@ -356,6 +356,7 @@ class TestCoreTypeMapFallback:
         assert cls is VultronReportCaseLink
 
     @pytest.mark.spec("VM-06-008")
+    @pytest.mark.spec("VM-06-013")
     def test_default_lookup_refuses_every_core_only_name(self):
         """The default lookup is wire-only: a name held only by CORE_TYPE_MAP
         raises ``KeyError`` rather than handing a wire caller a core class.
@@ -507,6 +508,7 @@ class TestWireTypeValues:
         )
 
     @pytest.mark.spec("VM-01-007")
+    @pytest.mark.spec("VM-01-010")
     @pytest.mark.spec("VM-03-002")
     def test_every_class_presenting_its_own_type_is_reachable_under_it(self):
         """VM-01-007: a class presenting its own ``type`` is what that value finds.
@@ -537,9 +539,9 @@ class TestWireTypeValues:
             + "\n".join(unreachable)
         )
 
-    @pytest.mark.spec("VM-01-007")
+    @pytest.mark.spec("VM-01-011")
     def test_every_exemption_is_live(self):
-        """VM-01-007: an exemption names a class that still needs one.
+        """VM-01-011: an exemption names a class that still needs one.
 
         An entry for a class that no longer exists, no longer presents its own
         ``type``, or has since become reachable is a stale licence.  Keys are
@@ -582,7 +584,7 @@ _BASE = f"{_VOCAB}.base.objects"
 
 #: Classes that present their own class-name-derived ``type`` but are
 #: deliberately not what that value deserializes to, each with the reason
-#: (VM-01-007).  ``test_every_exemption_is_live`` keeps this set from outliving
+#: (VM-01-011).  ``test_every_exemption_is_live`` keeps this set from outliving
 #: its members.
 _UNREGISTERED_WIRE_TYPES: dict[str, str] = {
     f"{_BASE}.base.as_Object": "abstract root of the AS2 object branch; the "
@@ -590,15 +592,15 @@ _UNREGISTERED_WIRE_TYPES: dict[str, str] = {
     f"{_VOCAB}.objects.base.as_VultronObject": "abstract root of the Vultron "
     "wire object branch; every concrete subclass declares its own `type_` "
     "(VM-05-001)",
-    f"{_BASE}.actors.as_Person": "VM-01-008 sanctioned shadow: "
+    f"{_BASE}.actors.as_Person": "VM-01-013 sanctioned shadow: "
     "as_VultronPerson owns `Person`",
-    f"{_BASE}.actors.as_Organization": "VM-01-008 sanctioned shadow: "
+    f"{_BASE}.actors.as_Organization": "VM-01-013 sanctioned shadow: "
     "as_VultronOrganization owns `Organization`",
-    f"{_BASE}.actors.as_Service": "VM-01-008 sanctioned shadow: "
+    f"{_BASE}.actors.as_Service": "VM-01-013 sanctioned shadow: "
     "as_VultronService owns `Service`",
-    f"{_BASE}.actors.as_Application": "VM-01-008 sanctioned shadow: "
+    f"{_BASE}.actors.as_Application": "VM-01-013 sanctioned shadow: "
     "as_VultronApplication owns `Application`",
-    f"{_BASE}.actors.as_Group": "VM-01-008 sanctioned shadow: "
+    f"{_BASE}.actors.as_Group": "VM-01-013 sanctioned shadow: "
     "as_VultronGroup owns `Group`",
 }
 

@@ -99,7 +99,7 @@ class _NotesMixin:
 
         The ``Add`` carries the stored note inline as its ``object``, so the
         receiver gets the note itself and not a URI it cannot dereference
-        (VAM-01-010).  The id is derived from *actor* and the note, because
+        (VAM-01-015).  The id is derived from *actor* and the note, because
         one note is attached once: a re-run hands back the body the first run
         sealed rather than queuing a second ``Add`` (ID-04-004, OX-06-002).
 

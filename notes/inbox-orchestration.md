@@ -127,7 +127,7 @@ A reader that needs a received activity later loads its body: core through
 deferred until its case is known is held whole in one `DeferredInboxActivity`
 (IO-03-004): the sealed received body and its staged inline rows, nothing derived
 from them (ADR-0149). Its replay parses the body again, so it carries the first
-delivery's evidence (VM-08-002); the replay, or the queue's expiry, deletes the
+delivery's evidence (VM-08-008); the replay, or the queue's expiry, deletes the
 record. A held out-of-order `Announce(CaseLedgerEntry)` (SYNC-14-001) is held the
 same way, as the body that arrived, and its replay (SYNC-14-009) deletes the record.
 **Hold before you queue**:
@@ -137,7 +137,7 @@ is lost, and `hold_for_replay` raises rather than queue one (DL-06-006).
 **A redelivery is detected from the receiver's own key** (IE-10-001): a deferred
 record routes the held copy, without received evidence, and keeps it for the
 replay; an intake archive routes the archived body's parse, carrying that body as
-its evidence, because it is the first delivery's sealed body (VM-08-002). The
+its evidence, because it is the first delivery's sealed body (VM-08-009, VM-08-010). The
 handler's idempotency answers it (ID-02-003). Never route the redelivered body.
 
 **Compare the body before you route the held copy** (IE-10-002): only a resend

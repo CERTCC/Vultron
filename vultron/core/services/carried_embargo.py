@@ -32,7 +32,7 @@ participant kept an embargo already torn down, with EM stuck at ACTIVE.
 a ledger entry that names an embargo, for the replica slots that apply it.
 Every path checks the inline copy and the record already held under its id
 alike (:func:`hold_embargo_for_case` for a case, EMB-18-004): its ``context``
-must be the case or one of the case's reports (EP-04-009).
+must be the case or one of the case's reports (EP-04-009, EP-04-021).
 """
 
 from pydantic import ValidationError

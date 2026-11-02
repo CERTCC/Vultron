@@ -302,6 +302,7 @@ def _propose_revision_everywhere(
 @pytest.mark.spec("RSH-08-004")
 @pytest.mark.spec("EP-05-001")
 @pytest.mark.spec("MSM-07-005")
+@pytest.mark.spec("MSM-07-024")
 def test_a_replica_carries_signatories_over_to_a_shorter_activated_revision():
     """The owner activates a shorter revision; the bystander, a signatory of
     the embargo it replaces, is carried over in both stores."""
@@ -329,6 +330,7 @@ def test_a_replica_carries_signatories_over_to_a_shorter_activated_revision():
 @pytest.mark.spec("MSM-07-009")
 @pytest.mark.spec("CM-23-016")
 @pytest.mark.spec("EMB-13-005")
+@pytest.mark.spec("MSM-07-032")
 def test_a_replica_follows_the_owners_rejection_of_a_revision_after_disclosure(
     monkeypatch,
 ):
@@ -336,7 +338,7 @@ def test_a_replica_follows_the_owners_rejection_of_a_revision_after_disclosure(
 
     The CASE_MANAGER records the rejection as decided and then terminates
     the embargo in the same act rather than returning to the prior terms
-    (EMB-04-002, MSM-07-009).  The replica copies the reject entry and then
+    (EMB-04-002, MSM-07-032).  The replica copies the reject entry and then
     the termination entry and decides nothing (CM-23-016), so it reaches
     the same register: the revision REJECTED, the embargo TERMINATED with
     the threat signal as its cause, and the same consent rows.
@@ -387,8 +389,9 @@ def test_a_replica_follows_the_owners_rejection_of_a_revision_after_disclosure(
 
 @pytest.mark.spec("MSM-07-009")
 @pytest.mark.spec("CLP-07-015")
+@pytest.mark.spec("MSM-07-032")
 def test_a_refused_termination_commits_neither_entry(monkeypatch):
-    """The rejection and the termination it causes are one act (MSM-07-009).
+    """The rejection and the termination it causes are one act (MSM-07-032).
 
     The guard's trial passes, but the termination node refuses its step:
     the act fails as a whole, so neither the ``Reject`` entry nor a
@@ -426,7 +429,7 @@ def test_a_termination_failing_after_its_remove_commits_neither_entry(
 
     The termination's stub re-issue, which runs after its ``Remove`` entry
     commits, fails: neither the ``Reject`` nor the ``Remove`` entry is kept,
-    and the fallback arm does not answer the failure (MSM-07-009).
+    and the fallback arm does not answer the failure (MSM-07-032).
     """
     net = _owned(
         LedgerNetwork("https://example.org/cases/replay-reject-late-failure")
@@ -609,10 +612,10 @@ def _create_note(net: LedgerNetwork, note_id: str) -> as_Create:
     )
 
 
-@pytest.mark.spec("VAM-01-010", "VAM-01-011", "RSH-08-004")
+@pytest.mark.spec("VAM-01-017", "VAM-01-019", "RSH-08-004")
 def test_a_create_note_changes_no_copy_of_the_case():
     """A received Create(Note) naming the case is not a protocol message
-    (VAM-01-011): the CASE_MANAGER refuses it as unrecognized, attaches
+    (VAM-01-019): the CASE_MANAGER refuses it as unrecognized, attaches
     nothing and commits nothing, so no replica has an entry to replay (#4707).
     """
     net = LedgerNetwork(
@@ -650,7 +653,7 @@ def _note_entries(net: LedgerNetwork, actor_id: str) -> list[CaseLedgerEntry]:
 @pytest.mark.spec("CM-06-005")
 @pytest.mark.spec("CM-13-007")
 @pytest.mark.spec("VAM-07-002")
-@pytest.mark.spec("VAM-01-010")
+@pytest.mark.spec("VAM-01-015")
 def test_add_note_trigger_makes_one_add_note_to_case_entry():
     """The add-note trigger sends one Add(Note) that names the case as its
     target and carries the note inline: the CASE_MANAGER commits exactly one

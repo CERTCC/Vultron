@@ -110,7 +110,7 @@ def embargo_ending_notice(
     signatories never agreed to it), or the embargo was terminated on or
     after its agreed end (expiry, which every signatory already knows).
     A revision that ends at the same instant counts as no later: it is the
-    EP-05-001 carry-over arm, so the bound participant is now bound by it.
+    EP-05-003 carry-over arm, so the bound participant is now bound by it.
 
     Raises:
         VultronNotFoundError: An embargo the case named is not in *store*.
