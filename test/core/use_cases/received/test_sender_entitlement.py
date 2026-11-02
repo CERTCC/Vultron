@@ -1272,6 +1272,8 @@ def test_embargo_reject_from_a_non_invitee_is_refused(
     ],
     ids=["activate", "reject-proposal"],
 )
+@pytest.mark.spec("MSM-07-027")
+@pytest.mark.spec("MSM-07-030")
 def test_owner_embargo_decision_from_a_non_owner_is_refused(
     cm_store, owned_case, make_payload, factory, use_case
 ):

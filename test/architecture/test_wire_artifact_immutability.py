@@ -129,7 +129,7 @@ def test_corpus_parses_and_reaches_mutable_classes():
     )
     assert mutable, (
         "no mutable core class is reachable in any parsed example, so the "
-        "per-class tamper test is not exercising what VM-08-002 guards"
+        "per-class tamper test is not exercising what VM-08-005 guards"
     )
 
 
@@ -161,6 +161,7 @@ def test_evidence_is_the_delivered_body(example_name: str):
 
 
 @pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("VM-08-005")
 @pytest.mark.parametrize("class_key", sorted(_REACHABLE))
 def test_tampering_with_a_reachable_class_leaves_the_evidence(class_key: str):
     """No object parsed from the body can reach the evidence taken from it.
@@ -185,7 +186,7 @@ def test_tampering_with_a_reachable_class_leaves_the_evidence(class_key: str):
 
         assert activity.received_evidence == body, (
             f"tampering with a parsed {class_key} in {example_name} changed the "
-            "received evidence (VM-08-002)"
+            "received evidence (VM-08-005)"
         )
 
 

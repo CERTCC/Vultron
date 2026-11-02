@@ -500,8 +500,8 @@ def test_remove_note_snapshot_is_a_canonical_signature():
     )
 
 
-@pytest.mark.spec("RMB-08-003")
 @pytest.mark.spec("VP-03-009")
+@pytest.mark.spec("RMB-08-007")
 def test_ack_report_snapshot_is_not_a_canonical_signature():
     """RK, ``Read(Offer(VulnerabilityReport))``, is never ledgered."""
     snapshot = {

@@ -115,6 +115,7 @@ def _case(datalayer) -> VulnerabilityCase:
 
 @pytest.mark.spec("EMB-16-001")
 @pytest.mark.spec("EP-09-007")
+@pytest.mark.spec("EMB-16-005")
 def test_each_entry_drops_its_proposal_and_the_last_reaches_none(
     bridge, datalayer, proposed_case
 ):
@@ -167,6 +168,7 @@ def test_an_entry_naming_no_embargo_fails(bridge, datalayer, proposed_case):
 
 
 @pytest.mark.spec("EMB-16-001")
+@pytest.mark.spec("EMB-16-005")
 def test_an_undo_after_the_reject_changes_nothing_more(
     bridge, datalayer, proposed_case
 ):

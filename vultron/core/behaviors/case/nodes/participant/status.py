@@ -71,7 +71,7 @@ class _EffectiveStates(NamedTuple):
     """The CS dimension values this node persists.
 
     Each is the requested value when one was asserted and the participant's
-    current value otherwise, with the SM-09-001 promotions applied.  The
+    current value otherwise, with the SM-09-003 promotions applied.  The
     promotions run *after* validation deliberately — they are a forced
     correction at the write boundary, not something the caller asked for — so
     ``vf`` and ``pxa`` can differ from what the evaluator saw.  ``d`` is never
@@ -234,7 +234,7 @@ class CreateParticipantStatusNode(
         eff_vf: "CS_vf | None",
         eff_pxa: CS_pxa,
     ) -> "tuple[CS_vf | None, CS_pxa]":
-        """Apply SM-09-001 pX→PX and vP→VP forced promotions."""
+        """Apply SM-09-003 pX→PX and vP→VP forced promotions."""
         if self._pxa_state is None:
             return eff_vf, eff_pxa
         if eff_pxa is CS_pxa.pXa:
@@ -262,7 +262,7 @@ class CreateParticipantStatusNode(
             if self._pxa_state is not None
             else context.current_pxa
         )
-        # AC-1: pX → PX and vP → VP forced promotions (SM-09-001)
+        # AC-1: pX → PX and vP → VP forced promotions (SM-09-003)
         eff_vf, eff_pxa = self._apply_ac1_promotions(eff_vf, eff_pxa)
         return _EffectiveStates(vf=eff_vf, d=eff_d, pxa=eff_pxa)
 

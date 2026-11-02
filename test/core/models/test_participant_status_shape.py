@@ -331,6 +331,7 @@ class TestRoleDimensionInvariant:
         assert status.d is None
 
     @pytest.mark.spec("CSB-15-005")
+    @pytest.mark.spec("CSB-15-008")
     def test_stray_vf_on_non_vendor_is_not_rejected_by_the_model(self):
         """A non-VENDOR status carrying vf constructs — the model does not raise.
 
@@ -347,6 +348,7 @@ class TestRoleDimensionInvariant:
         assert status.vf.state is CS_vf.VF
 
     @pytest.mark.spec("CSB-15-006")
+    @pytest.mark.spec("CSB-15-010")
     def test_stray_d_on_non_deployer_is_not_rejected_by_the_model(self):
         status = ParticipantStatus(
             context=_CONTEXT,
@@ -412,9 +414,10 @@ class TestParticipantStatusCarriesNoFlatShim:
 
     @pytest.mark.spec("SDO-03-003")
     @pytest.mark.spec("SDO-03-005")
+    @pytest.mark.spec("SDO-03-008")
     @pytest.mark.parametrize("flat, value", _FLAT_SHIMS)
     def test_flat_input_key_is_refused_by_extra_forbid(self, flat, value):
-        """A flat key raises through ``extra="forbid"`` (SDO-03-005)."""
+        """A flat key raises through ``extra="forbid"`` (SDO-03-008)."""
         with pytest.raises(ValidationError) as excinfo:
             ParticipantStatus.model_validate(
                 {"context": _CONTEXT, flat: value}
@@ -442,9 +445,9 @@ class TestParticipantStatusCarriesNoFlatShim:
         )
         assert read(status).name == value
 
-    @pytest.mark.spec("SDO-03-005")
+    @pytest.mark.spec("SDO-03-009")
     def test_no_reject_guard_validator(self):
-        """The refusal is ``extra="forbid"``, not a before-validator (SDO-03-005).
+        """The refusal is ``extra="forbid"``, not a before-validator (SDO-03-009).
 
         The one own before-validator is the role/dimension invariant (ADR-0075),
         which seeds a missing ``vf``/``d`` and refuses nothing.
@@ -543,3 +546,25 @@ class TestParticipantStatusBackwardRMValidator:
                 rm=RmDimension(state=RM.ACCEPTED),
                 previous_rm_state=RM.START,
             )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=pytest.fail.Exception,
+    reason=(
+        "SM-09-004: a fix-deployed-without-fix-ready status (Vf with D) is "
+        "accepted at validation time. Tracked by #5636."
+    ),
+)
+@pytest.mark.spec("SM-09-004")
+def test_a_fix_deployed_before_the_fix_is_ready_is_refused() -> None:
+    """A ``*fD*`` VFD combination is refused when the status is validated."""
+    with pytest.raises(ValidationError):
+        ParticipantStatus.model_validate(
+            {
+                "context": _CONTEXT,
+                "vf": "Vf",
+                "d": "D",
+                "cvd_role": ["VENDOR"],
+            }
+        )

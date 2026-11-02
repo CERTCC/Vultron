@@ -407,9 +407,14 @@ groups:
   - id: HTTP-09-002
     priority: MUST
     kind: project
-    statement: FastAPI route handlers that return an AS2 object MUST return an `AS2JSONResponse` instance (defined in `vultron/adapters/driving/fastapi/responses.py`).
-      They MUST NOT return a raw dict from `model_dump()`, a plain `JSONResponse`, or the wire model object directly. The
-      `response_model=` decorator argument is used for OpenAPI schema generation only.
+    statement: >-
+      A FastAPI route handler that returns an AS2 object MUST return an
+      `AS2JSONResponse` instance, from `vultron/adapters/driving/fastapi/responses.py`.
+      It does not return a raw `model_dump()` dict, a plain `JSONResponse` or the bare
+      wire model object.
+    note: >-
+      The `response_model=` decorator argument is used for OpenAPI schema generation
+      only.
     rationale: 'Returning a `Response` subclass bypasses FastAPI''s `response_model` filtering while preserving its use for
       OpenAPI schema generation (per FastAPI docs). This eliminates the subtype-field-stripping bug (HTTP-08-001) and ensures
       consistent `Content-Type: application/activity+json` across all AS2 endpoints.'

@@ -394,7 +394,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
         With *owner_id* the same case is that participant's replica instead.
         With ``embargoed=False`` the case carries no embargo and stays at
         ``EM.NONE``; *pxa* sets its P/X/A state, so a case with P set and no
-        embargo is the one EP-04-008 creates.
+        embargo is the one EP-04-020 creates.
         """
         from vultron.core.models.actor import VultronService
 
@@ -709,7 +709,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
     def test_ineligible_case_reaches_valid_at_em_none(self):
         """A case created with P set is validated at ``EM.NONE``.
 
-        EP-04-008 leaves such a case with no embargo, so DUR-07-004 does not
+        EP-04-020 leaves such a case with no embargo, so DUR-07-004 does not
         apply to it: the CASE_MANAGER records the sender's RM.VALID and the
         case stays at ``EM.NONE`` with no embargo created.
         """

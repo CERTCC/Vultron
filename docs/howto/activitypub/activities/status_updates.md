@@ -39,7 +39,7 @@ The CASE_MANAGER acts on the case of the participant record you target.
 It refuses a status whose `context` names another case (HP-08-008).
 
 The protocol names `Add(ParticipantStatus)` as the one form.
-A received `Create(ParticipantStatus)` is not a protocol message (VAM-01-011), and this implementation's inbox refuses it as an unrecognized activity (VAM-01-010).
+A received `Create(ParticipantStatus)` is not a protocol message (VAM-01-019), and this implementation's inbox refuses it as an unrecognized activity (VAM-01-017).
 
 ### Report that a vendor now knows
 
@@ -145,7 +145,7 @@ A participant's replica accepts a note only from the CASE_MANAGER.
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/add-note-to-case.md" %}
 
-A received `Create` of a note is not a protocol message, and this implementation's inbox refuses it as an unrecognized activity (VAM-01-010).
+A received `Create` of a note is not a protocol message, and this implementation's inbox refuses it as an unrecognized activity (VAM-01-017).
 
 To withdraw a note, send `Remove(Note)` to the CASE_MANAGER, targeting the case.
 The CASE_MANAGER admits it from the note's author while that author is an active participant, or from the Case Owner, and refuses it from anyone else.

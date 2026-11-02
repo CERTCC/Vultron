@@ -100,7 +100,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         """Create and persist an ``Add(Note)[target=VulnerabilityCase]`` activity.
 
         The ``Add`` carries the stored note *note_id* inline as its
-        ``object`` (VAM-01-010).  The id is derived from *actor* and the
+        ``object`` (VAM-01-015).  The id is derived from *actor* and the
         note, so a re-run names the same activity (ID-04-004).
 
         Returns ``(activity_id, activity_body)``, the body as sealed JSON.
@@ -178,7 +178,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         """Create and persist a ``Read(Offer(Report))`` ack-report activity.
 
         RK is addressed to the reporter, never to the CASE_MANAGER, and is
-        never ledgered (RMB-08-003).  ``content`` carries the trigger's
+        never ledgered (RMB-08-005, RMB-08-007).  ``content`` carries the trigger's
         optional ``note`` (TRIG-03-003).
         Returns ``(activity_id, activity_dict)``.
         """

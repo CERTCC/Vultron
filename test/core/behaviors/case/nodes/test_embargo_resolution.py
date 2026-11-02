@@ -285,6 +285,7 @@ def test_a_policy_record_in_the_store_is_not_the_actor_default(
 
 
 @pytest.mark.spec("EP-04-008")
+@pytest.mark.spec("VP-07-014")
 @pytest.mark.parametrize(
     ("has_sender", "has_actor_default", "pxa_set", "expected"),
     _RESOLUTION_TABLE,
@@ -313,7 +314,7 @@ def test_initial_embargo_resolution_table(
     else:
         _assert_duration(_active_embargo(bt_scenario), expected, before, after)
         # Both parties proposed: the shorter is active and the longer is a
-        # pending revision, so the EM state observed is REVISE (EP-04-003).
+        # pending revision, so the EM state observed is REVISE (EP-04-016).
         contested = has_sender and has_actor_default
         assert _em_state(bt_scenario) == (
             EM.REVISE if contested else EM.ACTIVE
@@ -321,6 +322,7 @@ def test_initial_embargo_resolution_table(
 
 
 @pytest.mark.spec("EP-04-005")
+@pytest.mark.spec("EP-04-019")
 def test_no_policy_no_proposal_uses_configured_protocol_default(
     bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
 ) -> None:
@@ -737,6 +739,7 @@ def test_creation_time_revision_is_registered_but_not_yet_indexed(
 
 
 @pytest.mark.spec("EP-04-012")
+@pytest.mark.spec("EP-04-028")
 def test_a_rerun_after_the_embargo_exited_initializes_nothing(
     bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
 ) -> None:
@@ -835,7 +838,7 @@ class TestCaseEmbargoAlreadyInitializedNode:
         self, bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
     ) -> None:
         """A case not yet initialized (``EM.NONE``, no embargo) runs the
-        creation arm and is initialized (EP-04-012)."""
+        creation arm and is initialized (EP-04-030)."""
         assert _em_state(bt_scenario) == EM.NONE
         assert _active_embargo(bt_scenario) is None
 
@@ -1053,7 +1056,7 @@ class TestCaseEmbargoAlreadyInitializedNode:
         expected: EM,
     ) -> None:
         """A rerun with different terms neither stores an event nor registers
-        a revision: the proposal's terms are not reconciled (EP-04-012)."""
+        a revision: the proposal's terms are not reconciled (EP-04-029)."""
         status, _, _ = _run(
             bt_scenario,
             owner_policy=owner_policy,
@@ -1400,7 +1403,7 @@ class TestCreationTimeEmbargoCommitsItsEffectsWithIt:
         assert isinstance(revision, EmbargoEvent)
         assert revision.context == CASE_ID
         # The owner ran the tree, so it is both the seeded signatory of the
-        # active terms and the proposer of the revision (MSM-07-005): one
+        # active terms and the proposer of the revision (MSM-07-022): one
         # record carries both, through the one commit.
         owner = _owner_participant(bt_scenario)
         assert owner.is_signatory(self.SENDER_EVENT_ID)
@@ -1463,7 +1466,7 @@ def _seed_reporter_participant(bt_scenario: BTTestScenario) -> str:
 class TestTheRevisionIsConsentedToByItsProposer:
     """The party whose terms lost proposed the revision (#4152).
 
-    Proposing is consenting (MSM-07-005), so that party's record gains the
+    Proposing is consenting (MSM-07-022), so that party's record gains the
     revision — not the executing actor's, which on the CASE_MANAGER's path is
     neither party.
     """

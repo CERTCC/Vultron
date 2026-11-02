@@ -444,6 +444,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
     @pytest.mark.spec("MSM-08-003")
     @pytest.mark.spec("CSB-15-003")
     @pytest.mark.spec("RSH-04-001")
+    @pytest.mark.spec("CSB-15-011")
     def test_notify_published_status_is_its_declared_occasion(self):
         """The status the notify-published trigger sends (CSB-15-003)
         carries the public-awareness occasion's distinguisher (#4569), and
@@ -1171,6 +1172,7 @@ class TestCreateParticipantStatusNode:
     # ------------------------------------------------------------------
 
     @pytest.mark.spec("CSB-16-003")
+    @pytest.mark.spec("CSB-16-006")
     def test_invalid_vf_jump_blocked_at_write_node(self):
         """CSB-16-003: illegal multi-step VF jump is rejected at the write boundary.
 
@@ -1238,6 +1240,7 @@ class TestCreateParticipantStatusNode:
 
     @pytest.mark.spec("CSB-15-006")
     @pytest.mark.spec("CSB-15-002")
+    @pytest.mark.spec("CSB-15-009")
     def test_deploy_requires_deployer_role_at_write_node(self):
         """CSB-15-002: D target is blocked when the actor has no DEPLOYER role.
 
@@ -1274,11 +1277,13 @@ class TestCreateParticipantStatusNode:
         assert "CSB-15-002" in bt_result.feedback_message
 
     # ------------------------------------------------------------------
-    # AC-1: ephemeral-state promotion at write boundary (SM-09-001)
+    # AC-1: ephemeral-state promotion at write boundary (SM-09-003)
     # ------------------------------------------------------------------
 
+    @pytest.mark.spec("CSB-13-006")
     def test_ephemeral_pxa_pXa_promoted_before_write(self):
-        """AC-1 / SM-09-001: pXa is promoted to PXa before writing."""
+        """AC-1 / SM-09-003: pXa is promoted to PXa before writing, so the
+        stored status sets P and X together (CSB-13-006)."""
         from py_trees.common import Status
 
         from vultron.core.models.participant_status import ParticipantStatus
@@ -1295,7 +1300,7 @@ class TestCreateParticipantStatusNode:
         assert stored.case_status.pxa.state is CS_pxa.PXa
 
     def test_ephemeral_pxa_pXA_promoted_before_write(self):
-        """AC-1 / SM-09-001: pXA is promoted to PXA before writing.
+        """AC-1 / SM-09-003: pXA is promoted to PXA before writing.
 
         pXA is reachable from pxA via the X event.  The test seeds pxA as the
         prior PXA state so the per-dimension precondition passes, then verifies
@@ -1321,7 +1326,7 @@ class TestCreateParticipantStatusNode:
         assert stored.case_status.pxa.state is CS_pxa.PXA
 
     def test_ephemeral_vP_promotes_vf_when_writing_pxa(self):
-        """AC-1 / SM-09-001: vP compound state forces VF promotion to Vf.
+        """AC-1 / SM-09-003: vP compound state forces VF promotion to Vf.
 
         When writing PXA=Pxa (P fires) while VF is still vf, the resulting
         vP compound state is ephemeral (vendor unaware, public aware).
@@ -1645,6 +1650,8 @@ class TestValidateTriggerTransitions:
     @pytest.mark.spec("CM-04-005")
     @pytest.mark.spec("CSB-16-001")
     @pytest.mark.spec("CSB-16-003")
+    @pytest.mark.spec("CSB-16-005")
+    @pytest.mark.spec("CSB-16-006")
     def test_ac1_invalid_vf_jump_raises_and_persists_nothing(self):
         """AC-1: vf → VF (skips Vf) raises VultronValidationError; no record written.
 
@@ -1671,6 +1678,8 @@ class TestValidateTriggerTransitions:
     @pytest.mark.spec("CM-04-005")
     @pytest.mark.spec("CSB-16-002")
     @pytest.mark.spec("CSB-16-004")
+    @pytest.mark.spec("CSB-16-007")
+    @pytest.mark.spec("CSB-16-008")
     def test_ac3_backward_pxa_raises_and_persists_nothing(self):
         """AC-3: Pxa → pxa (backward) raises VultronValidationError; no record written.
 
@@ -1691,6 +1700,7 @@ class TestValidateTriggerTransitions:
 
     @pytest.mark.spec("CSB-16-001")
     @pytest.mark.spec("CSB-16-003")
+    @pytest.mark.spec("CSB-16-005")
     def test_backward_d_raises_and_persists_nothing(self):
         """D → d (backward) on the deployer path raises; no record written.
 

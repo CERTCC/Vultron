@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The manager's and the proposer's consent rows at the proposal commit.
 
-EP-09-002 (#4180): committing a proposal records the proposer's row
+EP-09-023, EP-09-024 (#4180): committing a proposal records the proposer's row
 ``AGREED`` (proposing is consenting, ADR-0093) and, for a CASE_MANAGER that
 is itself a stakeholder, its own row too, with no Invite to the manager.
 """
@@ -63,6 +63,7 @@ def _proposal(revision, case_id: str, proposer: str):
 
 
 @pytest.mark.spec("EP-09-002")
+@pytest.mark.spec("EP-09-023")
 def test_committing_a_proposal_records_the_proposers_row_agreed(
     make_payload,
 ):
@@ -90,6 +91,7 @@ def test_committing_a_proposal_records_the_proposers_row_agreed(
 
 
 @pytest.mark.spec("EP-09-002")
+@pytest.mark.spec("EP-09-024")
 def test_a_stakeholder_manager_records_its_own_row_with_no_invite(
     make_payload,
 ):
@@ -114,6 +116,7 @@ def test_a_stakeholder_manager_records_its_own_row_with_no_invite(
 
 
 @pytest.mark.spec("EP-09-002")
+@pytest.mark.spec("EP-09-024")
 def test_a_manager_that_is_the_proposer_is_recorded_agreed(make_payload):
     case_id = "https://example.org/cases/mc-manager-proposer"
     dl, revision = _active_case_with_revision(
@@ -136,6 +139,7 @@ def test_a_manager_that_is_the_proposer_is_recorded_agreed(make_payload):
 
 
 @pytest.mark.spec("EP-09-002")
+@pytest.mark.spec("EP-09-024")
 def test_a_bare_container_manager_records_nothing(make_payload):
     case_id = "https://example.org/cases/mc-container"
     dl, revision = _active_case_with_revision(

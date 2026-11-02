@@ -112,7 +112,8 @@ def _held_actor(
     """The actor *actor_id* as this sender holds it, else its URI.
 
     The factory carries a held profile as held and a URI as an actor
-    reference (``carried_actor``, AKM-05-005, ADR-0159).
+    reference (``carried_actor``, AKM-05-005, AKM-05-017,
+    ADR-0159).
     """
     held = dl.read(actor_id)
     if isinstance(held, (as_Actor, CoreActor)):

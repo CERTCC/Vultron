@@ -125,7 +125,7 @@ bookkeeping records extend it but not `CoreObject` (ARCH-12-010); ratchets
 `test_no_wire_types_in_core_type_map` hold both directions.
 
 `find_in_vocabulary()` is wire-only unless the caller passes
-`include_core=True` (VM-06-008). Only persistence read paths ask for the core
+`include_core=True` (VM-06-013). Only persistence read paths ask for the core
 fallback. A wire-side caller must not (MV-04-004): a core class placed in a wire
 tree is rejected by the parent's field type, so the fallback degrades the parent
 instead of resolving the child. A hit there is a coincidence of naming, not a

@@ -47,7 +47,7 @@ as_VultronGroup = VultronGroup
 # which carries ``embargo_policy`` — the base ``as_Person`` would drop it. These
 # deliberately shadow the ``actors.py`` registrations; this module imports
 # ``actors`` so it always registers second. No class-name key is registered:
-# ``VultronPerson`` is no payload's ``type`` value (VM-01-008, #2982).
+# ``VultronPerson`` is no payload's ``type`` value (VM-01-012, #2982).
 WIRE_TYPE_MAP["Person"] = VultronPerson
 WIRE_TYPE_MAP["Organization"] = VultronOrganization
 WIRE_TYPE_MAP["Service"] = VultronService

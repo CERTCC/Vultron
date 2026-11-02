@@ -41,15 +41,31 @@ groups:
       POSTs and outbox delivery, with no direct read or write of a peer actor's
       DataLayer and no in-process call into a peer's use cases.
     statement: >-
-      Actors that are co-located on the same server or within the same process MUST still
-      exchange protocol messages through each other's inboxes, and MUST NOT communicate by
-      reading or writing each other's local state or by calling into each other directly.
+      Co-located actors MUST NOT communicate by reading or writing each other's local
+      state, or by calling into each other directly. Co-located actors share a server
+      or a process.
     rationale: >-
       A direct shortcut between co-located actors bypasses the inbox pipeline, so its
       exchanges skip validation, the addressee and entitlement gates, and the case
-      ledger, and leave nothing a remote participant would receive. Delivery through
-      inboxes makes co-location invisible to the protocol: the same actors behave the
-      same whether or not they share a process.
+      ledger, and leave nothing a remote participant would receive.
+  - id: AKM-01-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Co-located actors MUST still exchange protocol messages through each other's
+      inboxes. Co-located actors share a server or a process.
+    rationale: >-
+      Delivery through inboxes makes co-location invisible to the protocol: the same
+      actors behave the same whether or not they share a process.
+    verification: >-
+      `test/adapters/driven/test_delivery_backoff.py`
+      (`test_a_co_located_recipient_is_posted_to_its_inbox`) confirms delivery to an
+      actor this node hosts is an HTTP POST to its inbox, with no co-located shortcut.
+    relationships:
+    - rel_type: extends
+      spec_id: AKM-01-002
+    stories:
+    - story_2022_106
 - id: AKM-02
   title: Knowledge Boundaries
   specs:
@@ -87,9 +103,8 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      This codebase MUST carry inline every object a recipient cannot be expected to hold
-      already, and MUST use a bare reference only for an object the recipient already
-      has, such as the case it participates in.
+      This codebase MUST carry inline every object that a recipient cannot be expected
+      to hold already.
     rationale: >-
       How this codebase meets AKM-02-002; split from it so AKM-02-002 states only what
       other participants observe (MS-12-010). This codebase dereferences only the few
@@ -105,20 +120,39 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: AKM-02-002
+  - id: AKM-02-007
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST use a bare reference only for an object that its recipient
+      already holds, such as the case it participates in.
+    rationale: >-
+      How this codebase meets AKM-02-002, beside AKM-02-004. A bare reference to an
+      object the recipient holds can be matched to that object, so the recipient can
+      read what the activity acts on without a fetch.
+    verification: >-
+      `test/architecture/test_introduced_objects_inline.py` classifies every outbound
+      activity factory: each one carrying an object the recipient already holds takes
+      it through a parameter typed to refuse a bare id, and each one introducing an
+      object refuses it as a bare id.
+    relationships:
+    - rel_type: implements
+      spec_id: AKM-02-002
   - id: AKM-02-003
     priority: MUST
     kind: protocol
     statement: >-
-      A case named in an activity's `target` MUST take one of two forms: the case URI,
-      when the recipient already holds the case (a participant or the CASE_MANAGER being
-      addressed about it, as in the full-case Invite of CM-11-010); or the case stub
-      (`VulnerabilityCaseStub`, CM-11-013) the stub Invite sends to an actor that does
-      not yet hold the case. A full case MUST NOT travel in `target`.
+      A case named in an activity's `target` MUST take one of two forms. It is the case
+      URI when the recipient already holds the case. It is the case stub
+      (`VulnerabilityCaseStub`, CM-11-013) that the stub Invite sends to an actor that
+      does not yet hold the case.
     rationale: >-
       A participant or CASE_MANAGER addressed about a case already holds it and needs
       only its URI, while an actor that does not yet hold the case needs only the stub
-      to decide whether to join. A full case in `target` would either repeat what the
-      recipient holds or hand case contents to an actor that has not joined.
+      to decide whether to join.
+    note: >-
+      A recipient that already holds the case is a participant or the CASE_MANAGER
+      being addressed about it, as in the full-case Invite of CM-11-010.
     verification: >-
       `test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py` checks
       every trigger-port activity's `target`: a case there is a URI or an object of type
@@ -128,6 +162,27 @@ groups:
     stories:
     - story_2022_053
     - story_2022_024
+  - id: AKM-02-008
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An actor MUST NOT send a full case in an activity's `target`.
+    rationale: >-
+      A full case in `target` would either repeat what the recipient holds or hand
+      case contents to an actor that has not joined.
+    verification: >-
+      `test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py` checks
+      that a case in every trigger-port activity's `target` is a URI or a
+      `VulnerabilityCaseStub`, never a full case, and
+      `test/wire/as2/factories/test_case_context.py` checks that the factories send the
+      URI of a full case given as `target`.
+    relationships:
+    - rel_type: extends
+      spec_id: AKM-02-003
+    adr:
+    - ADR-0114
+    stories:
+    - story_2022_053
   - id: AKM-02-005
     priority: MUST
     kind: project
@@ -152,11 +207,10 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      An actor MUST NOT record, or send in an activity, a value for a field of an object
-      it did not author when it does not know that value. A field whose value it does
-      not know MUST stay absent. A `published` or `updated` time read from its own
-      clock, and an `inbox` or `outbox` derived from another actor's id, are such
-      values.
+      An actor MUST NOT record or send a value it does not know for a field of an object
+      it did not author. It leaves such a field absent. A `published` or `updated` time
+      read from its own clock is such a value, as is an `inbox` or `outbox` derived from
+      another actor's id.
     rationale: >-
       A receiver cannot tell an invented value from an asserted one, so it records the
       invention as the object's own claim, and the case ledger then carries it in its
@@ -361,18 +415,29 @@ groups:
     priority: SHOULD
     kind: architecture
     statement: >-
-      When an actor is first named by URI and no local record exists, the implementation
-      SHOULD attempt resolution via the injected `ActorDiscoveryCallOutBundle`
-      (Retriever call-out, ADR-0024, ADR-0025) before minting a minimal record.
-      A FAILURE result from the backend SHOULD produce an explicit WARNING rather than
-      a silent default.
+      When a URI first names an actor with no local record, the implementation SHOULD
+      query the `ActorDiscoveryCallOutBundle` before it mints a minimal record.
     rationale: >-
       A discovery backend can supply a peer's inbox and profile, so a minimal record
-      minted without asking it holds less than is available. A failed lookup that falls
-      back silently looks like success, so operators would not learn that discovery is
-      broken; the WARNING makes the degraded path visible.
+      minted without asking it holds less than is available.
+    note: >-
+      The bundle is injected, and it is a Retriever call-out (ADR-0024, ADR-0025).
     scope:
     - production
+  - id: AKM-05-016
+    priority: SHOULD
+    kind: architecture
+    statement: >-
+      When the `ActorDiscoveryCallOutBundle` backend returns a FAILURE result, the
+      implementation SHOULD log an explicit WARNING rather than fall back silently.
+    rationale: >-
+      A failed lookup that falls back silently looks like success, so operators would
+      not learn that discovery is broken. The WARNING makes the degraded path visible.
+    scope:
+    - production
+    relationships:
+    - rel_type: extends
+      spec_id: AKM-05-002
   - id: AKM-05-003
     priority: SHOULD
     kind: protocol
@@ -406,8 +471,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A production implementation MUST support object dereference (AKM-05-003): given a URI
-      it has not seen, it MUST be able to fetch the object through an API call.
+      A production implementation MUST support object dereference (AKM-05-003). Given a
+      URI it has not seen, it then fetches the object through an API call.
     rationale: >-
       A production deployment exchanges cases with independently built implementations,
       which may name objects by reference instead of inline. Without dereference it
@@ -662,31 +727,83 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An actor carried inline in an activity MUST be the sender's held profile of that
-      actor, as held. When the sender holds nothing more than the actor's URI, it MUST
-      carry an actor reference instead: an inline object with exactly the actor's `id`
-      and a `type`. A receiver MUST read the fields an actor reference lacks as unknown,
-      and MUST NOT let an actor reference replace a fuller record of that actor it
-      holds.
+      When a sender carries an actor inline in an activity, the inline actor MUST be
+      the sender's held profile of that actor, as held.
+    rationale: >-
+      A held profile is what the sender knows of the actor. Anything added to it on
+      the way out would be invented (AKM-02-006).
+    verification: >-
+      `test/wire/as2/factories/test_actor_references.py::test_a_held_actor_profile_travels_as_held`
+      checks a held profile keeps the fields it was given.
+    relationships:
+    - rel_type: refines
+      spec_id: AKM-05-001
+    adr:
+    - ADR-0159
+    stories:
+    - story_2022_053
+  - id: AKM-05-017
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a sender holds nothing more than an actor's URI, it MUST carry an actor
+      reference instead of a profile. An actor reference is an inline object with
+      exactly the actor's `id` and a `type`.
     rationale: >-
       A sender may name a peer it knows only by URI (AKM-05-001), and a receiver routes
       `Offer(Actor)` and `Invite(Actor)` by the object's `type`, so the actor must
       travel inline with a `type` even when nothing else is known. Anything beyond the
-      id and type would be invented (AKM-02-006). A reference says nothing about the
-      fields it lacks, so it cannot erase a value the receiver already holds.
+      id and type would be invented (AKM-02-006).
     verification: >-
       `test/wire/as2/factories/test_actor_references.py::test_an_actor_given_by_uri_travels_as_an_actor_reference`
-      checks the actor in each such activity is exactly an `id` and a `type`, and
-      `test/wire/as2/factories/test_actor_references.py::test_a_held_actor_profile_travels_as_held`
-      checks a held profile keeps the fields it was given.
+      checks the actor in each such activity is exactly an `id` and a `type`.
+    relationships:
+    - rel_type: extends
+      spec_id: AKM-05-005
+    - rel_type: constrains
+      spec_id: MV-10-009
+    adr:
+    - ADR-0159
+    stories:
+    - story_2022_053
+  - id: AKM-05-018
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST read each field that an actor reference lacks as unknown.
+    rationale: >-
+      A reference says nothing about the fields it lacks. A receiver that read a
+      missing field as empty would record a value nobody asserted.
+    verification: >-
+      `test/adapters/driving/fastapi/test_actor_reference_receipt.py::test_a_received_actor_reference_keeps_the_held_profile`
+      delivers an `Offer(Actor)` carrying a reference to a receiver that holds the
+      actor's full profile, and checks the fields the reference lacks keep their held
+      values.
+    relationships:
+    - rel_type: uses_definition
+      spec_id: AKM-05-017
+    adr:
+    - ADR-0159
+    stories:
+    - story_2022_053
+  - id: AKM-05-019
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A receiver MUST NOT let an actor reference replace a fuller record of that actor
+      that it holds.
+    rationale: >-
+      A reference says nothing about the fields it lacks, so it cannot erase a value
+      the receiver already holds.
+    verification: >-
       `test/adapters/driving/fastapi/test_actor_reference_receipt.py::test_a_received_actor_reference_keeps_the_held_profile`
       delivers an `Offer(Actor)` carrying a reference to a receiver that holds the
       actor's full profile, and checks the profile is unchanged.
+      `test/adapters/driving/fastapi/test_stub_invite_on_arrival.py::test_an_actor_reference_does_not_replace_the_receiver_fuller_record`
+      checks the same for the actor reference in a stub Invite.
     relationships:
-    - rel_type: refines
-      spec_id: AKM-05-001
-    - rel_type: constrains
-      spec_id: MV-10-009
+    - rel_type: uses_definition
+      spec_id: AKM-05-017
     adr:
     - ADR-0159
     stories:

@@ -154,7 +154,7 @@ def trigger_accept_embargo(
         "revision while CS is public, exploited, or attacked, the rejection "
         "also terminates the embargo in the same act (EM → EXITED), committed "
         "as the Reject entry followed by the owner's ET Remove(EmbargoEvent) "
-        "entry; a refused termination commits neither (MSM-07-009, EMB-04-002). "
+        "entry; a refused termination commits neither (MSM-07-032, EMB-04-002). "
         "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_reject_embargo",

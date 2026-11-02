@@ -792,35 +792,25 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      RK acknowledging a report submission MUST be sent by an actor the
-      `Offer(VulnerabilityReport)` was addressed to, to the reporter (the
-      Offer's actor), at any time after that actor has received the report,
-      whether or not a case exists for it. RK MUST NOT be sent to the
-      CASE_MANAGER, a receiver MUST NOT forward an RK it receives, and RK MUST
-      NOT be ledgered.
+      An actor that an `Offer(VulnerabilityReport)` was addressed to MUST send the RK
+      that acknowledges it to the reporter, the Offer's actor. It may send the RK at
+      any time after it receives the report, whether or not a case exists for it.
     rationale: >-
       The reporter checks who may acknowledge its Offer against its own record of that
       Offer (RMB-08-004). The store of each addressee also holds a record. RK answers
       the reporter's Offer and is outside the case, so it is the stated exception to
-      PCR-08-001. The CASE_MANAGER has no record of the addressees of the Offer, so it
-      cannot check an RK that it receives. A forwarded or ledgered RK can also go to
-      parties that did not receive the report.
+      PCR-08-001.
     verification: >-
       Tests marked `RMB-08-003` confirm that the ack-report trigger addresses
-      RK to the reporter alone, with or without a case, and that the received
-      AckReport handler forwards nothing and writes no ledger entry.
+      RK to the reporter alone, with or without a case.
     testable: true
     steps:
     - order: 1
       actor: receiver of the report
       action: Emit RK addressed to the Offer's actor
       expected: RK queued for the reporter only
-    - order: 2
-      actor: any receiver of RK
-      action: Record the RK at intake
-      expected: No RK forwarded, no ledger entry written
     postconditions:
-    - description: The reporter holds the RK; the CASE_MANAGER received none
+    - description: The reporter holds the RK
     relationships:
     - rel_type: refines
       spec_id: VP-03-009
@@ -834,36 +824,120 @@ groups:
     stories:
     - story_2022_016
     - story_2022_012
+  - id: RMB-08-005
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An actor MUST NOT send an RK that acknowledges a report submission to the
+      CASE_MANAGER.
+    rationale: >-
+      The CASE_MANAGER has no record of the addressees of the Offer, so it cannot
+      check an RK that it receives (RMB-08-004). An RK sent to it can also reach
+      parties that did not receive the report.
+    verification: >-
+      Tests marked `RMB-08-005` confirm that the ack-report trigger addresses RK to
+      the reporter alone and to no CASE_MANAGER, with or without a case.
+    testable: true
+    postconditions:
+    - description: The CASE_MANAGER received no RK
+    relationships:
+    - rel_type: extends
+      spec_id: RMB-08-003
+    stories:
+    - story_2022_016
+  - id: RMB-08-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A receiver of an RK that acknowledges a report submission MUST NOT forward it.
+    rationale: >-
+      RK answers the reporter's Offer outside the case. A forwarded RK can reach
+      parties that did not receive the report.
+    verification: >-
+      Tests marked `RMB-08-006` confirm that the received AckReport handler forwards
+      nothing.
+    testable: true
+    steps:
+    - order: 1
+      actor: any receiver of RK
+      action: Record the RK at intake
+      expected: No RK forwarded
+    relationships:
+    - rel_type: extends
+      spec_id: RMB-08-003
+    stories:
+    - story_2022_016
+  - id: RMB-08-007
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An actor MUST NOT write a case ledger entry for an RK that acknowledges a report
+      submission.
+    rationale: >-
+      RK is outside the case, so it is not a case event. A ledgered RK would also
+      replicate to parties that did not receive the report.
+    verification: >-
+      Tests marked `RMB-08-007` confirm that the received AckReport handler writes no
+      ledger entry, with or without a case, and that the RK snapshot is no canonical
+      ledger signature.
+    testable: true
+    steps:
+    - order: 1
+      actor: any receiver of RK
+      action: Record the RK at intake
+      expected: No ledger entry written
+    relationships:
+    - rel_type: extends
+      spec_id: RMB-08-003
+    stories:
+    - story_2022_016
   - id: RMB-08-004
     priority: MUST
     kind: protocol
     statement: >-
-      A receiver of an RK acknowledging a report submission (RMB-08-003) MUST
-      accept it only from an actor its own record of the acknowledged
-      `Offer(VulnerabilityReport)` names as an addressee, and MUST
-      refuse it (HP-01-006) when the sender is not one, or when it holds no
-      record of that Offer, writing nothing past intake and sending nothing.
+      A receiver MUST refuse an RK for a report submission (RMB-08-003, HP-01-006)
+      unless its own record of the Offer names the sender as an addressee.
+      The Offer is the `Offer(VulnerabilityReport)` that the RK acknowledges.
     rationale: >-
       The reporter sent the Offer, so only its record of the `to` of the Offer tells
       correctly who received it. The sender of the RK wrote the copy in the RK, and that
       copy can name any actor. If the reporter accepts an RK on the word of its sender,
-      any actor can claim that it has the report.
+      any actor can claim that it has the report. A receiver with no record of the
+      Offer cannot find the sender in it, so it refuses too.
     verification: >-
       Tests marked `RMB-08-004` drive the received AckReport handler with the
-      Offer's addressee, which is admitted, and with another actor, which is
-      `REFUSED` with nothing written past intake and an empty outbox.
+      Offer's addressee, which is admitted, with another actor, and with a store
+      that holds no record of the Offer, both of which are `REFUSED`.
     testable: true
     steps:
     - order: 1
       actor: reporter
       action: Check the RK sender against its recorded Offer's addressees
       expected: Admitted when the sender is an addressee; REFUSED otherwise
-    postconditions:
-    - description: A refused RK leaves only its intake record
     relationships:
     - rel_type: refines
       spec_id: HP-01-006
       note: the RK sender clause
+    stories:
+    - story_2022_016
+  - id: RMB-08-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver that refuses an RK (RMB-08-004) MUST write nothing past intake and
+      send nothing for it.
+    rationale: >-
+      A refused RK makes no claim the receiver accepts, so any write past intake or
+      any message would act on a claim it refused.
+    verification: >-
+      Tests marked `RMB-08-008` confirm that a refused RK leaves nothing written past
+      intake and an empty outbox.
+    testable: true
+    postconditions:
+    - description: A refused RK leaves only its intake record
+    relationships:
+    - rel_type: extends
+      spec_id: RMB-08-004
     stories:
     - story_2022_016
 
@@ -1451,19 +1525,37 @@ groups:
     kind: protocol
     statement: >-
       The RM transition function MUST permit closing from *Received*
-      (q^rm R → C) in addition to I → C, A → C and D → C, and MUST NOT permit
-      closing from *Valid* (VP-02-004). A `Reject` sent from RM Received — of a
-      report Offer, a stub Invite (CM-11-007) or a full-case Invite
-      (CM-11-011) — is the R → C transition.
+      (q^rm R → C), as well as I → C, A → C and D → C. A `Reject` sent from RM
+      Received, of a report Offer, a stub Invite (CM-11-007) or a full-case Invite
+      (CM-11-011), is the R → C transition.
     rationale: >-
       `Reject` means close and `TentativeReject` means invalid, so a hard no
       from *Received* needs its own edge rather than a bypass of the transition
-      table. *Valid* keeps no close edge: a participant that found a report
-      valid decides to engage or defer before it leaves (ADR-0114).
+      table.
     verification: >-
-      The RM transition table test asserts R → C is permitted and V → C is
-      not, and `docs/topics/process_models/rm/formal_model.md` states the same
+      The RM transition table test asserts R → C is permitted, and
+      `docs/topics/process_models/rm/formal_model.md` states the same
       transition function.
+    adr:
+    - ADR-0114
+    stories:
+    - story_2022_006
+  - id: RMB-14-008
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The RM transition function MUST NOT permit closing from *Valid* (VP-02-004).
+    rationale: >-
+      *Valid* keeps no close edge: a participant that found a report valid decides to
+      engage or defer before it leaves (ADR-0114).
+    verification: >-
+      The RM transition table test (`test/core/states/test_rm_close_from_received.py`)
+      asserts V → C is not permitted, and
+      `docs/topics/process_models/rm/formal_model.md` states the same transition
+      function.
+    relationships:
+    - rel_type: refines
+      spec_id: VP-02-004
     adr:
     - ADR-0114
     stories:
@@ -1473,18 +1565,35 @@ groups:
     kind: protocol
     statement: >-
       Every RM closure MUST be written as transitions the RM transition function
-      permits; no closure path may override the transition table. A
-      participant at RM Valid that leaves the case (`Leave(VulnerabilityCase)`,
-      CM-23-012) MUST be recorded as V → D → C.
+      permits, with no closure path that overrides the transition table.
     rationale: >-
       An override that skips the RM transition table lets a closure write a state that
       no permitted sequence reaches. The write-boundary check (RMB-15-001) and every
       replica then disagree with that state. R to C is in the table (RMB-14-004), and
-      Valid goes through Deferred. Thus every closure is an ordinary transition, and no
-      closure path needs the override (ADR-0114).
+      Valid goes through Deferred (RMB-14-009). Thus every closure is an ordinary
+      transition, and no closure path needs the override (ADR-0114).
     verification: >-
-      A test confirms a `Leave` from RM Valid records V → D → C, and an
-      architecture test confirms no closure path calls `force_rm_state`.
+      An architecture test confirms no closure path calls `force_rm_state`.
+    adr:
+    - ADR-0114
+    stories:
+    - story_2022_006
+  - id: RMB-14-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An actor MUST record a participant at RM Valid that leaves the case
+      (`Leave(VulnerabilityCase)`, CM-23-012) as V → D → C.
+    rationale: >-
+      V → C is not in the RM transition table (RMB-14-008), so a closure from Valid
+      that keeps to the table (RMB-14-005) goes through Deferred.
+    verification: >-
+      `test/core/states/test_rm_close_from_received.py` and
+      `test/core/use_cases/received/test_close_case_role_semantics.py` confirm a
+      `Leave` from RM Valid records V → D → C.
+    relationships:
+    - rel_type: refines
+      spec_id: RMB-14-005
     adr:
     - ADR-0114
     stories:
@@ -1546,18 +1655,17 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A BT node or helper that writes an RM state to a ParticipantStatus
-      snapshot MUST validate that the (current_rm_state → target_rm_state)
-      transition is permitted by the RM state machine using
-      is_valid_rm_transition() before persisting. A same-state write is
-      permitted (status confirmation). An illegal jump or backward move
-      MUST cause the node to return Status.FAILURE without writing to the
-      DataLayer. This is the emit-side and write-boundary rule. On the
-      receive side the CASE_MANAGER adjudicates a peer's RM declaration
-      under RSH-06-006 instead — a non-adjacent forward move is accepted and
-      flagged, not refused — and reaches the write node with adjacency
-      validation explicitly relaxed for the dimension the adjudication
-      accepted; the write node still refuses a backward move.
+      Before it persists an RM state to a ParticipantStatus snapshot, a BT node or
+      helper MUST check the transition with is_valid_rm_transition().
+      The check confirms that the RM state machine permits (current_rm_state →
+      target_rm_state).
+      A same-state write is permitted (status confirmation).
+    note: >-
+      This is the emit-side and write-boundary rule. On the receive side the
+      CASE_MANAGER adjudicates a peer's RM declaration under RSH-06-006 instead: a
+      non-adjacent forward move is accepted and flagged, not refused. It reaches the
+      write node with adjacency validation explicitly relaxed for the dimension the
+      adjudication accepted, and the write node still refuses a backward move.
     verification: A unit test confirms that a BT write node returns `Status.FAILURE` without writing to the DataLayer
       when passed an illegal RM state transition (e.g., START → CLOSED directly).
     rationale: >-
@@ -1588,3 +1696,19 @@ groups:
       spec_id: SDO-02-004
     - rel_type: refines
       spec_id: BTND-10-001
+  - id: RMB-15-002
+    priority: MUST
+    kind: project
+    statement: >-
+      On an illegal jump or a backward move, the BT node that writes the RM state MUST
+      return `Status.FAILURE` without writing to the DataLayer.
+    rationale: >-
+      A FAILURE with no write leaves the stored RM state as it was, so a refused
+      transition never reaches the DataLayer or a replica.
+    verification: >-
+      A unit test confirms that a BT write node returns `Status.FAILURE` without
+      writing to the DataLayer when passed an illegal RM state transition (e.g.,
+      START → CLOSED directly).
+    relationships:
+    - rel_type: extends
+      spec_id: RMB-15-001

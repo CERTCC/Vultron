@@ -218,7 +218,7 @@ class EnsureEmbargoExists(CaseIdInputPortMixin, DataLayerConditionWithPorts):
 
     Implements DUR-07-004: an embargo end time MUST be established before an
     embargo-eligible case reaches RM.VALID.  A case that is not
-    embargo-eligible never receives an embargo (EP-04-008) and is validated
+    embargo-eligible never receives an embargo (EP-04-020) and is validated
     at its current EM state, typically ``EM.NONE``; eligibility is read with
     :func:`~vultron.core.predicates.embargo.pxa_is_embargo_eligible`.
 

@@ -408,7 +408,7 @@ class InvalidateReportReceivedUseCase:
 class AckReportReceivedUseCase:
     # RK goes from an actor the Offer(Report) was addressed to, to the
     # reporter, which holds the Offer and checks the sender against it; it is
-    # never sent to the CASE_MANAGER (RMB-08-003, RMB-08-004).
+    # never sent to the CASE_MANAGER (RMB-08-004, RMB-08-005).
     sender_entitlement: ClassVar[SenderRule] = SenderRule.before_case(
         SenderEntitlementKind.NAMED_ACTOR
     )

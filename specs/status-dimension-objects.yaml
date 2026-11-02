@@ -56,20 +56,18 @@ groups:
     kind: project
     statement: >-
       A dimension object MUST serialize to its bare state value, not to a one-key
-      `{"state": ...}` mapping, and MUST accept both forms on input. The enclosing
-      model carries the wire spelling as a field alias — `rm` with
-      `serialization_alias="rmState"` — so the serialized result is
-      `{"rmState": "START"}`.
+      `{"state": ...}` mapping.
     rationale: >-
       A dimension holds one data field, `state`; the rest is behaviour, and behaviour
       does not serialize. The mapping form would put a container on the wire whose
-      only content is the thing it contains. Accepting both forms keeps callers that
-      construct `{"state": ...}` working and rows stored either way readable. This is
-      what lets the core class emit the payload the wire class emitted, so the wire
-      form is unchanged.
+      only content is the thing it contains. This is what lets the core class emit the
+      payload the wire class emitted, so the wire form is unchanged.
+    note: >-
+      The enclosing model carries the wire spelling as a field alias — `rm` with
+      `serialization_alias="rmState"` — so the serialized result is
+      `{"rmState": "START"}`.
     verification: >-
-      `RmDimension().model_dump(mode="json") == "START"`; `RmDimension.model_validate("ACCEPTED")`
-      and `RmDimension.model_validate({"state": "ACCEPTED"})` both succeed; and core
+      `RmDimension().model_dump(mode="json") == "START"`, and core
       `ParticipantStatus` serializes to the same AS2 payload as `as_ParticipantStatus`.
       Covered by `test/core/models/test_dimension_bare_serialization.py`.
     relationships:
@@ -77,6 +75,25 @@ groups:
       spec_id: SDO-01-001
     - rel_type: refines
       spec_id: ARCH-25-005
+    adr:
+    - ADR-0036
+    - ADR-0099
+  - id: SDO-01-005
+    priority: MUST
+    kind: project
+    statement: >-
+      A dimension object MUST accept on input both its bare state value and a one-key
+      `{"state": ...}` mapping.
+    rationale: >-
+      Accepting both forms keeps callers that construct `{"state": ...}` working, and
+      it keeps rows stored in either form readable.
+    verification: >-
+      `RmDimension.model_validate("ACCEPTED")` and
+      `RmDimension.model_validate({"state": "ACCEPTED"})` both succeed. Covered by
+      `test/core/models/test_dimension_bare_serialization.py`.
+    relationships:
+    - rel_type: extends
+      spec_id: SDO-01-004
     adr:
     - ADR-0036
     - ADR-0099
@@ -118,8 +135,23 @@ groups:
     verification: >-
       Inspection confirms each dimension object's `transition()` returns a new instance
       and leaves `self` unchanged.
-    statement: transition() MUST NOT mutate self. The caller MUST use the returned dimension object as the updated state.
+    statement: >-
+      A dimension object's `transition()` MUST NOT mutate `self`.
     rationale: Mutation of embedded Pydantic models is fragile and inconsistent with the append-only history model. See ADR-0036.
+    adr:
+    - ADR-0036
+  - id: SDO-02-006
+    priority: MUST
+    kind: project
+    statement: >-
+      A caller of a dimension object's `transition()` MUST use the returned dimension
+      object as the updated state.
+    rationale: >-
+      `transition()` leaves the original unchanged (SDO-02-003), so a caller that
+      keeps the original object keeps the old state and loses the step.
+    verification: >-
+      Inspection confirms each caller of a dimension object's `transition()` in
+      `vultron/` and `test/core/models/test_dimensions.py` uses the returned instance.
     adr:
     - ADR-0036
   - id: SDO-02-004
@@ -217,63 +249,66 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: 'CaseStatus and ParticipantStatus MUST remain round-trippable through the DataLayer after the dimension-object
-      migration: a persisted record MUST rehydrate correctly to the new dimension-object shape.'
+    statement: >-
+      After the dimension-object migration, a `CaseStatus` or `ParticipantStatus`
+      MUST round-trip through the DataLayer.
     rationale: >-
       DataLayer round-trip compatibility is a binding design constraint per LST-05-003
       and ADR-0033. A dimension field serializes as its bare state value and rehydrates
-      via Pydantic model_validate (SDO-01-004, ADR-0099). Input accepts both the bare
-      value and the one-key mapping, so a stored row in either shape rehydrates. See
-      ADR-0036.
+      via Pydantic model_validate (SDO-01-004, ADR-0099). See ADR-0036.
     relationships:
     - rel_type: depends_on
       spec_id: LST-05-003
     adr:
     - ADR-0033
     - ADR-0036
+  - id: SDO-03-007
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      The DataLayer MUST rehydrate a persisted `CaseStatus` or `ParticipantStatus`
+      record to the dimension-object shape.
+    rationale: >-
+      A record stored before the migration must still read back as the new shape.
+      Input accepts both the bare value and the one-key mapping (SDO-01-005), so a
+      stored row in either shape rehydrates.
+    relationships:
+    - rel_type: extends
+      spec_id: SDO-03-004
+    adr:
+    - ADR-0033
+    - ADR-0036
   - id: SDO-03-005
     priority: MUST
     kind: project
-    statement: Because unknown keys are ignored by default in Pydantic v2, removing a
-      flat-field migration shim from `CaseStatus` or `ParticipantStatus` MUST NOT leave
-      a retired flat key (`rm_state`, `vf_state`, `d_state`, `vfd_state`/`vfdState`,
-      `em_consent_state`/`emConsentState`, `em_state`, `pxa_state`) silently
-      discardable. The camelCase `rmState`, `vfState`, `dState`, `emState` and
-      `pxaState` are the wire aliases of the dimension fields (SDO-01), not retired
-      keys. The guarantee MUST be the `extra="forbid"` model configuration that
-      ARCH-12-003 requires of every core-branch type, not a per-class
-      `model_validator(mode="before")` reject-guard; such a guard MUST NOT be added or
-      retained for this purpose.
+    statement: >-
+      When this codebase removes a flat-field migration shim from `CaseStatus` or
+      `ParticipantStatus`, it MUST NOT leave a retired flat key silently discardable.
+      The retired flat keys are `rm_state`, `vf_state`, `d_state`,
+      `vfd_state`/`vfdState`, `em_consent_state`/`emConsentState`, `em_state` and
+      `pxa_state`.
     rationale: >-
-      With `extra="ignore"`, a flat `rm_state` key would be silently discarded and
-      `rm.state` would default to `RM.START` — a whole RM ladder lost with no error,
-      which is the defect class of issue #2232 and a violation of
-      ARCH-15-001/ARCH-15-002. `extra="forbid"` is strictly stronger than a reject-guard
-      enumerating the known flat keys: it also catches typos and stale keys from an
-      older schema, needs no per-class maintenance, and covers every registered core
-      type rather than the two named here. Because Pydantic itself raises, the failure
-      surfaces as a pydantic `ValidationError` rather than `VultronValidationError`, and
-      no wire→core recovery is attempted: there is no backstop (ADR-0082), and
-      `extra="forbid"` is the guard (ADR-0099).
-    verification: '`TestParticipantStatusCarriesNoFlatShim` in
+      Pydantic v2 ignores unknown keys by default. With `extra="ignore"`, a flat
+      `rm_state` key would be silently discarded and `rm.state` would default to
+      `RM.START` — a whole RM ladder lost with no error, which is the defect class of
+      issue #2232 and a violation of ARCH-15-001/ARCH-15-002.
+    note: >-
+      The camelCase `rmState`, `vfState`, `dState`, `emState` and `pxaState` are the
+      wire aliases of the dimension fields (SDO-01), not retired keys.
+    verification: >-
+      `TestParticipantStatusCarriesNoFlatShim` in
       `test/core/models/test_participant_status_shape.py` asserts that
-      `ParticipantStatus.model_validate` with `rm_state`, `vf_state` or `d_state` raises
-      a
-      pydantic `ValidationError` (`extra_forbidden`) rather than yielding a default
-      state,
-      that the wire spellings `rmState`, `vfState` and `dState` are read into the
-      dimension,
-      and that the class declares no reject-guard before-validator.
-      `TestCaseStatusCarriesNoFlatShim` in `test/core/models/test_dimensions.py` pins
-      the
-      same for `em_state` and `pxa_state`.'
+      `ParticipantStatus.model_validate` with `rm_state`, `vf_state` or `d_state`
+      raises a pydantic `ValidationError` (`extra_forbidden`) rather than yielding a
+      default state, and that the wire spellings `rmState`, `vfState` and `dState` are
+      read into the dimension. `TestCaseStatusCarriesNoFlatShim` in
+      `test/core/models/test_dimensions.py` pins the same for `em_state` and
+      `pxa_state`.
     relationships:
     - rel_type: depends_on
       spec_id: SDO-03-003
       note: SDO-03-003 requires the shims to go; this requirement constrains how they are removed safely.
-    - rel_type: depends_on
-      spec_id: ARCH-12-003
-      note: ARCH-12-003 supplies the `extra="forbid"` configuration that replaces the per-class reject-guard.
     - rel_type: refines
       spec_id: ARCH-15-002
     adr:
@@ -281,11 +316,62 @@ groups:
     - ADR-0063
     - ADR-0082
     - ADR-0099
+  - id: SDO-03-008
+    priority: MUST
+    kind: project
+    statement: >-
+      `CaseStatus` and `ParticipantStatus` MUST refuse a retired flat key through the
+      `extra="forbid"` model configuration that ARCH-12-003 requires of every
+      core-branch type.
+    rationale: >-
+      `extra="forbid"` is strictly stronger than a reject-guard that enumerates the
+      known flat keys. It also catches typos and stale keys from an older schema,
+      needs no per-class maintenance, and covers every registered core type rather
+      than the two named here. Because Pydantic itself raises, the failure surfaces as
+      a pydantic `ValidationError` rather than `VultronValidationError`.
+    verification: >-
+      `TestParticipantStatusCarriesNoFlatShim` in
+      `test/core/models/test_participant_status_shape.py` asserts that a retired flat
+      key raises a pydantic `ValidationError` with the `extra_forbidden` type, and
+      `TestCaseStatusCarriesNoFlatShim` in `test/core/models/test_dimensions.py` pins
+      the same for `CaseStatus`.
+    relationships:
+    - rel_type: implements
+      spec_id: SDO-03-005
+    - rel_type: depends_on
+      spec_id: ARCH-12-003
+      note: ARCH-12-003 supplies the `extra="forbid"` configuration that replaces the per-class reject-guard.
+    adr:
+    - ADR-0099
+  - id: SDO-03-009
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      This codebase MUST NOT add or keep a per-class `model_validator(mode="before")`
+      reject-guard on `CaseStatus` or `ParticipantStatus` to refuse a retired flat
+      key.
+    rationale: >-
+      `extra="forbid"` already refuses the key (SDO-03-008), so a reject-guard only
+      duplicates it and needs upkeep for each key. No wire→core recovery is attempted:
+      there is no backstop (ADR-0082), and `extra="forbid"` is the guard (ADR-0099).
+    verification: >-
+      `TestParticipantStatusCarriesNoFlatShim` in
+      `test_no_reject_guard_validator` in
+      `test/core/models/test_participant_status_shape.py` and in
+      `test/core/models/test_dimensions.py` asserts that `ParticipantStatus` and
+      `CaseStatus` declare no reject-guard before-validator.
+    relationships:
+    - rel_type: extends
+      spec_id: SDO-03-008
+    adr:
+    - ADR-0082
+    - ADR-0099
   - id: SDO-03-006
     priority: MUST
     kind: project
-    statement: A `CaseStatus`'s EM copy MUST be immutable once the status is constructed. `EmDimension` MUST be a frozen
-      model and `CaseStatus.em` a frozen field, so assigning `status.em`, `status.em.state`, or any flat EM spelling raises.
+    statement: >-
+      A `CaseStatus`'s EM copy MUST be immutable once the status is constructed.
+    note: >-
       A status with a different EM is built by construction or by the copy
       `CaseStatus.with_em` makes, never by mutation; the owning `VulnerabilityCase`
       stamps its current status that way from its embargo register. The copy's label is
@@ -303,6 +389,26 @@ groups:
       note: EMB-18-001 forbids assigning `case.current_status.em`; this requirement makes the assignment impossible.
     - rel_type: depends_on
       spec_id: SDO-03-001
+    adr:
+    - ADR-0122
+  - id: SDO-03-010
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST make `EmDimension` a frozen model and `CaseStatus.em` a frozen
+      field. Then assigning `status.em`, `status.em.state` or any flat EM spelling
+      raises.
+    rationale: >-
+      Freezing fails every write path at runtime, including dynamic ones a source
+      ratchet would miss. `EmDimension` has no transitions, so freezing removes no
+      behavior (#4321).
+    verification: >-
+      `test/core/models/test_dimensions.py` shows that `status.em = EmDimension(...)`,
+      `status.em.state = EM.X` and a flat EM assignment such as
+      `status.em_state = EM.X` each raise pydantic `ValidationError`.
+    relationships:
+    - rel_type: implements
+      spec_id: SDO-03-006
     adr:
     - ADR-0122
 - id: SDO-04

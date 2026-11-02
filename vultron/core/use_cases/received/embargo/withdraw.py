@@ -43,7 +43,7 @@ class WithdrawFromEmbargoOnCaseReceivedUseCase(_EmbargoEventReceivedUseCase):
     The sender must hold a participant record on the case (``PARTICIPANT``):
     standing to withdraw is a signatory's, and the tree's guard decides it,
     refusing with the reason a Leave of an embargo not in force, from a row
-    that is not ``AGREED``, or from the case owner (MSM-07-010).  The rule is
+    that is not ``AGREED``, or from the case owner (MSM-07-036).  The rule is
     not ``ACTIVE_PARTICIPANT``, which already requires that ``AGREED`` row
     (CM-10-004): it would turn each of those reasons into "not active", and a
     redelivered Leave, whose sender the first delivery made inactive, into a

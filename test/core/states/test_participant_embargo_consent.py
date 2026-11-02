@@ -115,7 +115,7 @@ class TestTransitionTable:
 
     @pytest.mark.spec("CM-18-003")
     def test_carry_over_lifts_a_declined_row(self) -> None:
-        """Agreeing to N days is agreeing to every shorter period (EP-05-001)."""
+        """Agreeing to N days is agreeing to every shorter period (EP-05-003)."""
         assert consent_after(S.DECLINED, T.CARRY_OVER) is S.AGREED
 
     @pytest.mark.spec("CM-18-003")

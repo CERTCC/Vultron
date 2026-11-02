@@ -120,7 +120,7 @@ ADDRESSEE_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
             f"{_C}/receive_close_case_tree.py",
             "create_close_case_received_tree",
         ),
-        # A misrouted Invite names no single addressee (EP-09-010).
+        # A misrouted Invite names no single addressee (EP-09-026).
         (
             "MISROUTED_EMBARGO_INVITE",
             f"{_E}/invite_received_tree.py",
@@ -268,7 +268,7 @@ def test_every_routed_message_carries_the_activity_the_guard_reads() -> None:
 @pytest.mark.spec("HP-01-005")
 @pytest.mark.spec("HP-01-012")
 def test_an_addressed_invite_fault_tree_carries_the_guard() -> None:
-    """The fault tree is exempt only for a misrouting (EP-09-010)."""
+    """The fault tree is exempt only for a misrouting (EP-09-026)."""
     tree = embargo_invite_fault_tree(
         "failure-class", "https://example.org/cases/c", addressed=True
     )

@@ -182,7 +182,7 @@ suspends, so the case sits in the pre-authorization state for the whole
 deadline. `add_participant_status_tree` already satisfies this — the
 participant's claim is appended, and only *adoption as canonical* is gated
 (RSH-01). An action with no representable not-yet state must be refused rather
-than asked about (ASK-02-005).
+than asked about (ASK-02-006).
 
 **The embargo Invite is an ask kind, and a relayed ask belongs to the relayer.**
 `Invite(EmbargoEvent)` is closed by `Accept`/`Reject` from the invitee, carries
@@ -191,7 +191,7 @@ its deadline in `end_time` (CM-28-012), and a late reply is still honoured
 (EP-09, ADR-0113) the CASE_MANAGER emits one Invite per participant with itself
 as `actor` and the proposer in `attributedTo`, so the manager records those as
 its own outstanding asks; the proposer records only its proposal to the manager
-(ASK-04-010). `find_protocol_pair` with no `answering` set assumes one open
+(ASK-04-010, ASK-04-013). `find_protocol_pair` with no `answering` set assumes one open
 request per type, which does not survive N simultaneous Invites of one semantic
 type. Its keyword-only `answering` set scopes the pair to one request's own reply
 ids (the request and its forward); role Offers use it so several may be open at
@@ -214,7 +214,7 @@ the Invite does a refused `Accept` (EP-09-019, `close_refused_embargo_ask`,
 `received/_pending_refusal.py`).
 
 **Asks are visible to the whole case.** An ask is an ordinary recorded entry and
-replicates normally (ASK-06-001), so a stalled decision is visible to participants.
+replicates normally (ASK-06-003), so a stalled decision is visible to participants.
 Consequently an ask must carry nothing undisclosable to them (ASK-06-002); private
 rationale goes in a `Note` directed to one participant, the way the refusal notice is
 a `Reject` directed to one (CLP-05-001). Delivering the *fact* of an ask while
@@ -275,7 +275,7 @@ Four things that look alike and are not:
 | I read your assertion, understood it, refuse it | refusal notice (`Reject`) to you alone, not recorded (CLP-05-001, CLP-05-002) |
 | I read your ask, my answer is no | `Reject` reply, ordinary recorded entry |
 | I could not read what you sent | a fault; the unreadable message is **not** recorded |
-| I read what you sent, but processing it failed | an internal-error fault, once, after the rollback (ASK-07-010) |
+| I read what you sent, but processing it failed | an internal-error fault, once, after the rollback (ASK-07-010, ASK-07-015) |
 
 The third is not a decision — nothing was adjudicated, so there is no legible
 assertion to snapshot, and CLP-03-002 already excludes unrouteable inbound from
@@ -285,7 +285,7 @@ assertion that was *understood and refused*.
 The fourth row is the inbox's job, not a tree's: one catch covers every received
 use case. Send no fault for an attempt that will be retried, only when none
 follows, or a retry that succeeds leaves a false fault that closes the ask
-(ASK-07-010, ASK-07-011, ASK-07-007).
+(ASK-07-014, ASK-07-017, ASK-07-007).
 
 The **fault statement itself** is different. "B could not process A's message" is
 a true, legible statement about a message that arrived, so it is recorded as an

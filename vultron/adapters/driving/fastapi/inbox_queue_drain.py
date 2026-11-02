@@ -13,7 +13,7 @@ This module owns that replay:
 - :class:`StoredActivityIngressAdapter` — rebuilds a held activity by id
 - :class:`ReplayAttempt` — what one replay attempt did and raised
 - :class:`ReplayDispatchAdapter` — holds the internal-error fault until the
-  item is settled (ASK-07-011)
+  item is settled (ASK-07-017)
 - :func:`drain_inbox_queue` — the replay loop and its retry decision
 """
 
@@ -99,7 +99,7 @@ class ReplayAttempt:
     dispatch adapter also holds the fault ``DispatchNode`` asks for.  The
     queue drain reads it after the attempt to decide whether the item is
     retried, dead-lettered or dropped, and whether its sender is answered
-    (ASK-07-011).
+    (ASK-07-017).
     """
 
     def __init__(self) -> None:
@@ -222,7 +222,7 @@ class ReplayDispatchAdapter:
     on *attempt* and re-raised to ``DispatchNode``, which rejects the attempt
     and asks for the sender's internal-error fault.  The fault is held, not
     sent: an attempt that is re-queued may still succeed, and a fault sent
-    before that success would be false (ASK-07-010, ASK-07-007).  The queue
+    before that success would be false (ASK-07-014, ASK-07-007).  The queue
     drain sends it only when the item is dead-lettered or dropped
     (:meth:`send_held_fault`).
 
@@ -386,7 +386,7 @@ def drain_inbox_queue(
     - any other raise, or a rejection after the rebuild and before dispatch
       (:meth:`ReplayAttempt.settle_rejection`), re-queues the item,
       unanswered, until ``max_attempts`` is used up, then dead-letters it and
-      answers its sender (ASK-07-011).
+      answers its sender (ASK-07-017).
 
     Every other attempt settles the item, and clears its attempt count.
 

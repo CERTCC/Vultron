@@ -63,7 +63,7 @@ never mutated, a new one is appended. Prefer the dimension methods
 
 `RmDimension(state=RM.START)` dumps to `"START"`; the enclosing model carries the
 wire spelling as a field alias (`rm` → `rmState`). Validation accepts both the
-bare value and the `{"state": ...}` mapping (SDO-01-004). There is no projection
+bare value and the `{"state": ...}` mapping (SDO-01-005). There is no projection
 step: a `by_alias` dump of the core object is its AS2 form (ADR-0099).
 
 Any consumer reading a dimension out of a persisted row or ledger snapshot MUST

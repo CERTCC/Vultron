@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Assert that an ``Add(Note)`` carries its note inline (VAM-01-010).
+"""Assert that an ``Add(Note)`` carries its note inline (VAM-01-015).
 
 Every emitter in this codebase sends a note on the single ``Add(Note)`` that
 attaches it, with the case as ``target`` and the full note as ``object``
@@ -46,7 +46,7 @@ def assert_add_note_carries_note_inline(
     assert body["target"] == case_id
     note = body["object"]
     assert isinstance(note, dict), (
-        f"Add(Note) must carry the note inline, not {note!r} (VAM-01-010)"
+        f"Add(Note) must carry the note inline, not {note!r} (VAM-01-015)"
     )
     assert note["type"] == "Note"
     assert note.get("id")

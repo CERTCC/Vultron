@@ -623,7 +623,7 @@ def object_from_storage(
         failures.append(f"record: {exc}")
 
     # Both-branch lookups below: a stored record may hold any persisted type,
-    # core records included, so they opt into the core fallback (VM-06-008).
+    # core records included, so they opt into the core fallback (VM-06-014).
     raw_type = stored_record.get("type")
     if isinstance(raw_type, str):
         try:

@@ -193,7 +193,7 @@ class TestPutEmbargoPolicy:
         assert profile["embargoPolicy"] == published
         actor = client_actors.get(f"/actors/{_SLUG}").json()
         assert actor["embargoPolicy"] == published
-        # The endpoint returns the record the profile carries (EP-02-002).
+        # The endpoint returns the record the profile carries (EP-02-006).
         assert client_actors.get(_PATH).json() == profile["embargoPolicy"]
 
     @pytest.mark.spec("HTTP-03-005")

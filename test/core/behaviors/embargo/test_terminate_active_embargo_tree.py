@@ -182,6 +182,7 @@ def test_child_0_is_has_active_embargo():
 
 @pytest.mark.spec("EMB-14-001")
 @pytest.mark.spec("EMB-14-004")
+@pytest.mark.spec("EMB-14-007")
 def test_child_1_is_reason_selector():
     tree = create_terminate_active_embargo_tree(
         case_id=CASE_ID, result_out=_make_result_out()
@@ -246,6 +247,7 @@ def test_reason_selector_stochastic_classes(index, cls):
         (2, TerminationCauseKind.OTHER),
     ],
 )
+@pytest.mark.spec("EMB-14-006")
 def test_each_reason_call_out_is_followed_by_its_cause(index, kind):
     tree = create_terminate_active_embargo_tree(
         case_id=CASE_ID, result_out=_make_result_out()
@@ -336,6 +338,7 @@ def test_authorize_second_child_stochastic_is_override():
 
 
 @pytest.mark.spec("EMB-14-004")
+@pytest.mark.spec("EMB-14-007")
 def test_child_3_on_embargo_exit_deterministic_is_always_succeed():
     """OnEmbargoExit (p=1.0) → AlwaysSucceed in DETERMINISTIC bundle."""
     tree = create_terminate_active_embargo_tree(
@@ -576,6 +579,7 @@ def _succeeding(field: str) -> EmbargoCallOutBundle:
 
 @pytest.mark.spec("EMB-14-001")
 @pytest.mark.spec("EMB-13-004")
+@pytest.mark.spec("VP-14-015")
 @pytest.mark.parametrize(
     "field,expected",
     [
@@ -587,6 +591,7 @@ def _succeeding(field: str) -> EmbargoCallOutBundle:
         ("exit_embargo_for_other_reason_factory", lambda w: OtherCause()),
     ],
 )
+@pytest.mark.spec("EMB-14-006")
 def test_the_chosen_reason_is_recorded_as_the_cause(field, expected):
     world = _World()
 
@@ -623,6 +628,7 @@ def test_fix_ready_with_no_fix_ready_vendor_tries_the_next_reason():
 
 @pytest.mark.spec("EMB-14-001")
 @pytest.mark.spec("EMB-14-004")
+@pytest.mark.spec("EMB-14-005")
 def test_no_reason_ends_nothing():
     world = _World()
 
