@@ -47,7 +47,7 @@ dependencies = [
     "networkx>=3.5",
     "pandas>=3.0.5",
     "pathspec>=0.12.1",
-    "pydantic==2.13.5",
+    "pydantic==2.14.2",
     "py-trees>=2.6.0",
     "scipy>=1.18.0",
     "uvicorn>=0.52.3",
