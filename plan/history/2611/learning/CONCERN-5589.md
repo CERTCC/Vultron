@@ -29,7 +29,7 @@ The recordings freshness check is the thing that catches it, and it runs daily o
 
 ## Why it is worth closing
 
-Issues #5534, #5535 and #5536 each compose two to four more scenarios onto a shared opening, and #5537 removes the hand-placed `reach_step` that is today the redundant second statement of each path. After that, a shared fragment is the only place a scenario's acts are written
+Issues #5534, #5535 and #5536 each compose two to four more scenarios onto a shared opening, and #5537 removes the hand-placed `reach_step` that is today the redundant second statement of each path. After that, a shared fragment is the only place a scenario's acts are written.
 
 ## Suggested shape
 

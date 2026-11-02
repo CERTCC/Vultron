@@ -2310,8 +2310,9 @@ groups:
           alike, so DEMOCI-11-018 still passes, and no PR check regenerates the
           recordings that would show it. The plot is read from the stories
           without running them, so it costs nothing at PR time. A deliberate
-          reorder shows as a manifest diff, which a consolidation must not
-          produce (DEMOMA-17-002). The manifest cannot see an edit inside a
+          reorder shows as a manifest diff; in a consolidation PR that diff is
+          a sign the change may alter what a scenario passes or fails on, which
+          DEMOMA-17-002 forbids. The manifest cannot see an edit inside a
           fragment's body; only a recording can.
         verification: >-
           A shape test asserts the manifest holds one entry per scenario
@@ -2339,9 +2340,9 @@ groups:
           - ADR-0098
         relationships:
           - rel_type: refines
-            spec_id: DEMOCI-11-034
-          - rel_type: depends_on
             spec_id: DEMOCI-11-005
+          - rel_type: depends_on
+            spec_id: DEMOCI-11-034
 
       - id: DEMOCI-11-019
         priority: MUST

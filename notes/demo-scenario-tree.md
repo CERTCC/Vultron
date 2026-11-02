@@ -20,6 +20,7 @@ tracks:
   - "#5537"
   - "#5589"
   - "#5591"
+  - "#5613"
 description: >
   Design for the remaining scenario-tree work (#4726): the letter-grammar names
   and how a rename keeps old URLs, the generated tree index the demo UI reads,
@@ -371,9 +372,10 @@ vendor-first half follows (#5536) and then `path=` and the hand-placed
   other, so a reordered shared fragment moves both alike and still passes.
   The plot manifest (DEMOCI-11-034, DEMOCI-11-035) closes the reorder half for
   free: it lists each composed story's choices and fragment names, read
-  without running anything, and drift-fails on any change in order. A
-  consolidation PR must leave it unchanged. It cannot see an edit inside a
-  fragment's body, so run
+  without running anything, and drift-fails on any change in order. In a
+  consolidation PR a manifest diff is a sign the PR may change what a scenario
+  passes or fails on, which DEMOMA-17-002 forbids; check it before merging. It
+  cannot see an edit inside a fragment's body, so run
   `export-demo-recordings --scenario <a> --scenario <b> --report-changes` in a
   composition PR that edits a fragment, and in every composition PR until the
   manifest is built; that run is DEMOMA-17-002's evidence.
