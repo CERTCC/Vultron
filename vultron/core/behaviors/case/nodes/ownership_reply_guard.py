@@ -73,7 +73,7 @@ _CLOSED_SPEC: dict[OfferParty, str] = {
 
 #: The requirements a refusal of a reply after the deadline cites, per party:
 #: the deadline binds an answer (CM-21-016), and an expired Offer is closed
-#: (CM-21-017), so it cannot be withdrawn (CM-21-015).
+#: (CM-21-017), so it cannot be withdrawn (CM-21-039).
 _LATE_SPEC: dict[OfferParty, str] = {
     OfferParty.TRANSFEREE: "CM-21-016",
     OfferParty.OFFERER: "CM-21-015, CM-21-017",
@@ -332,7 +332,7 @@ def case_manager_ownership_offer_open_guard(
 
     A replica skips it as ``SUCCESS``: it takes the change from the
     CASE_MANAGER alone, which the sender check establishes (PCR-03-001),
-    and changes nothing when an Offer expires (CM-21-017).  A
+    and changes nothing when an Offer expires (CM-21-043).  A
     receiver that does not hold the case is not its CASE_MANAGER (ADR-0087
     Regime 3).
     """

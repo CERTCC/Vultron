@@ -332,7 +332,7 @@ def trigger_add_on_behalf_status(
     Implements:
         TRIG-01-001, TRIG-01-002, TRIG-01-003, HTTP-03-005, TRIG-03-001,
         TRIG-03-002, TRIG-06-001, TRIG-06-002, TRIG-07-001, TRIG-12-001,
-        PRM-06-003, PRM-06-004, PRM-06-005, PRM-06-006
+        PRM-06-003, PRM-06-004, PRM-06-005, PRM-06-006, PRM-06-007, PRM-06-008
     """
     # Field by field, not ``**body.model_dump()``: the parsed body is the
     # authority for what arrived (MV-11-005); the core request adds only the

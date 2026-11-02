@@ -257,7 +257,7 @@ def ledger_tail_position(case_id: str, dl: CasePersistence) -> LedgerPosition:
     """Return the position of the last ledger entry *dl* holds for *case_id*.
 
     For the CASE_MANAGER this is the authoritative tail it stamps on a
-    full-case Invite (CM-11-010); for a participant it is the tail of its own
+    full-case Invite (CM-11-031); for a participant it is the tail of its own
     replica, which it stamps on its reply (CM-11-011).  An empty ledger's
     position is ``(-1, genesis_hash)`` (CLP-08-004).
 

@@ -229,13 +229,13 @@ _PARTICIPANT_MOVE = ("HP-01-008", "PCR-03-001", "CM-31-004", "CM-31-011")
 
 CASES = [
     # The note's author or the Case Owner at the CASE_MANAGER, which a
-    # participant alone takes the removal from (CM-30-001, PCR-03-001).
+    # participant alone takes the removal from (CM-30-003, PCR-03-001).
     *_cases(
         RemoveNoteFromCaseReceivedUseCase.sender_entitlement,
         _note,
         at_manager=(VENDOR, REPLICA),
         at_participant=(MANAGER, VENDOR),
-        marks=("HP-01-008", "CM-30-001", "PCR-03-001"),
+        marks=("HP-01-008", "CM-30-001", "CM-30-003", "PCR-03-001"),
         label="remove-note-author",
     ),
     *_cases(
@@ -243,7 +243,7 @@ CASES = [
         _note,
         at_manager=(OWNER, STRANGER),
         at_participant=(MANAGER, OWNER),
-        marks=("HP-01-008", "CM-30-001", "PCR-03-001"),
+        marks=("HP-01-008", "CM-30-001", "CM-30-003", "PCR-03-001"),
         label="remove-note-owner",
     ),
     *_cases(
@@ -267,7 +267,7 @@ CASES = [
         _plain,
         at_manager=(OWNER, VENDOR),
         at_participant=(MANAGER, OWNER),
-        marks=("HP-01-008", "CM-30-002", "PCR-03-001"),
+        marks=("HP-01-008", "CM-30-002", "CM-30-005", "PCR-03-001"),
         label="add-report",
     ),
     # An active participant proposes to the CASE_MANAGER, which relays the

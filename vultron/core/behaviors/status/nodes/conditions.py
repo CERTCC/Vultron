@@ -74,7 +74,7 @@ class AllParticipantsRMClosedConditionNode(DataLayerConditionWithPorts):
                 return False
             if isinstance(p, CaseParticipant) and not p.joined:
                 # Inert invitee that never accepted its stub Invite: not part
-                # of the case, so it cannot hold up closure (CM-11-014).
+                # of the case, so it cannot hold up closure (CM-11-041).
                 continue
             statuses = getattr(p, "participant_statuses", [])
             if not statuses:

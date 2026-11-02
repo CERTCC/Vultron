@@ -80,7 +80,7 @@ logger = logging.getLogger(__name__)
 def validated_invitee_roles(raw: list | tuple | None) -> list[CVDRole]:
     """*raw* as CVD roles, or empty when it is empty or names no valid role.
 
-    Empty makes the seating refuse (CM-11-019); it never defaults to VENDOR.
+    Empty makes the seating refuse (CM-11-049, CM-11-050); it never defaults to VENDOR.
     """
     if not raw:
         return []
@@ -132,7 +132,7 @@ class _SeatInertInviteeBase(DataLayerActionWithPorts, StateWriteCapable):
         raise NotImplementedError
 
     def _resolve_roles(self) -> list[CVDRole]:
-        """The roles the record is seated with; empty refuses (CM-11-019)."""
+        """The roles the record is seated with; empty refuses (CM-11-049)."""
         raise NotImplementedError
 
     def _build_initial_status(
@@ -209,7 +209,7 @@ class _SeatInertInviteeBase(DataLayerActionWithPorts, StateWriteCapable):
             )
             self.logger.error(
                 "%s: no roles resolved for invitee '%s' in case '%s'"
-                " — refusing inert-participant creation (CM-11-019)",
+                " — refusing inert-participant creation (CM-11-049)",
                 self.name,
                 invitee_id,
                 self.case_id,
@@ -284,7 +284,7 @@ class _SeatInertInviteeBase(DataLayerActionWithPorts, StateWriteCapable):
 
         self.logger.info(
             "%s: seated inert participant '%s' for invitee '%s' in case '%s'"
-            " (RM.RECEIVED, joined=False, CM-11-006)",
+            " (RM.RECEIVED, joined=False, CM-11-026)",
             self.name,
             participant_id,
             invitee_id,

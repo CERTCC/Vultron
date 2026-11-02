@@ -19,14 +19,14 @@ Tests for the case-joining requirements of CONCERN-4006:
   (passing since #4051).
 - PRM-06-006 — an on-behalf status assertion never creates a participant
   (passing since #4047).
-- CM-11-014 — a stub Invite carries a deadline; an unanswered invitee does
+- CM-11-014, CM-11-041 — a stub Invite carries a deadline; an unanswered invitee does
   not hold up case closure, but a joined one still at RECEIVED does (passing
   since #4049; expiry is in ``test_stub_invite_lifetime.py``).
-- CM-11-015 — a re-invite reuses the record; a re-invite to ``CLOSED`` is
+- CM-11-015, CM-11-043 — a re-invite reuses the record; a re-invite to ``CLOSED`` is
   refused (passing since #4049).
 - CM-11-016 — an embargo change re-issues an outstanding stub Invite; a
   ``Reject`` of the superseded one is still honoured (passing since #4049).
-- CM-10-007 — the stub Invite reaches the inert invitee (passing marker).
+- CM-10-009 — the stub Invite reaches the inert invitee (passing marker).
 - PRM-06-001 — the CASE_MANAGER writes only the invitee's birth status.
 
 Each test asserts observable behaviour.  See ``notes/case-joining.md``.
@@ -285,7 +285,7 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
     assert participant.consent_for(embargo.id_) == EmbargoConsentState.INVITED
 
     # The stub Invite's own entry records the creation: the record is made
-    # in the same step, from the roles the Invite names (CM-11-006).  No
+    # in the same step, from the roles the Invite names (CM-11-006, CM-11-026).  No
     # Add(CaseParticipant) follows it; that message only reinstates
     # (CM-31-011, CM-31-012).
     creation_entries = [
@@ -438,6 +438,7 @@ def test_on_behalf_assertion_for_absent_target_is_refused(
     assert list(after.case_participants) == participants_before
 
 
+@pytest.mark.spec("CM-11-041")
 @pytest.mark.spec("CM-11-014")
 def test_stub_invite_has_deadline_and_unanswered_invitee_never_blocks_closure(
     actor_store,
@@ -513,7 +514,7 @@ def test_reinvite_reuses_the_invitee_record_with_a_new_deadline(
     assert len(after.case_participants) == len(case.case_participants)
 
 
-@pytest.mark.spec("CM-11-015")
+@pytest.mark.spec("CM-11-043")
 def test_reinvite_to_closed_participant_is_refused(actor_store) -> None:
     """``CLOSED`` is terminal with no rejoin; the trigger refuses the Invite.
 
@@ -613,7 +614,7 @@ def _accept_stub_invite(
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
 
 
-@pytest.mark.spec("CM-11-014")
+@pytest.mark.spec("CM-11-041")
 def test_closure_check_skips_only_participants_that_never_joined(
     actor_store,
 ) -> None:
@@ -672,7 +673,7 @@ def test_closure_check_skips_only_participants_that_never_joined(
     )
 
 
-@pytest.mark.spec("CM-11-016")
+@pytest.mark.spec("CM-11-046")
 def test_reject_of_superseded_stub_invite_is_honoured(actor_store) -> None:
     """A hard no does not depend on which version of the ask it answers.
 
@@ -723,7 +724,7 @@ def test_reject_of_superseded_stub_invite_is_honoured(actor_store) -> None:
     )
 
 
-@pytest.mark.spec("CM-10-007")
+@pytest.mark.spec("CM-10-009")
 def test_stub_invite_is_addressed_to_the_inert_invitee(actor_store) -> None:
     """An Invite asking an actor to join is not case content.
 

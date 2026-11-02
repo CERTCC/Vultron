@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The consent copy write has one caller: the one apply function (CM-18-005).
+"""The consent copy write has one caller: the one apply function (CM-18-025).
 
 ``CaseParticipant.copy_consent_row()`` stores a row exactly as a ledger entry
 carries it, with no transition check of its own.  It is safe only because
@@ -50,11 +50,12 @@ def _callers() -> set[str]:
 
 
 @pytest.mark.spec("CM-18-005")
+@pytest.mark.spec("CM-18-025")
 def test_only_the_apply_function_calls_the_copy_write() -> None:
     assert _callers() - _ALLOWED == set(), (
         "copy_consent_row() writes a row with no transition check; only"
         " apply_embargo_change() may call it, after it checks the row's"
-        " starting state (CM-18-005, ADR-0124)"
+        " starting state (CM-18-025, ADR-0124)"
     )
 
 

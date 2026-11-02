@@ -421,7 +421,7 @@ groups:
       The hazard a late `Accept` could carry is joining on stale embargo terms,
       and the supersede rule already covers it: an embargo change or a re-invite
       replaces the stub, naming the old one in `inReplyTo`, and an `Accept` of a
-      superseded stub is refused (CM-11-016). Voiding a late reply would add no
+      superseded stub is refused (CM-11-045). Voiding a late reply would add no
       protection and would turn away an invitee that answered after the CASE_MANAGER
       stopped waiting.
     verification: >
@@ -1169,7 +1169,7 @@ groups:
     rationale: >
       Re-sending the frozen original (VM-08-003) reads to the requester as the
       original arriving late rather than a second decision, which is what
-      CP-05-005's irrevocability rule requires.
+      CP-05-012's irrevocability rule requires.
     verification: >
       A duplicate request produces an outbound reply identical to the stored
       original, including its identifier.

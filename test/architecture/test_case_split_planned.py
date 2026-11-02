@@ -19,10 +19,12 @@ satisfies them exists; see ``notes/spec-authoring-rules.md`` § "Use a
 Strict ``xfail`` for Not-Yet-Implemented Specs".
 
 Two placeholders stand in for the behaviour: a message type for the split
-proposal (CM-32-001 through CM-32-012, CM-32-016), and one for the
-split-family embargo notice (CM-32-013 through CM-32-015, VP-10-002,
-VP-10-003). Each probe names only split vocabulary, so a case-merge build,
-which may use ``sibling_cases``, cannot XPASS them. When either lands,
+proposal (CM-32-001 through CM-32-012, CM-32-016 and their split-off
+children CM-32-017 through CM-32-039 and CM-32-045), and one for the
+split-family embargo notice (CM-32-013 through CM-32-015, CM-32-040 through
+CM-32-044, VP-10-002, VP-10-003). CM-32-025 rules on a case merge, so its probe
+names merge vocabulary instead. Every other probe names only split vocabulary,
+so a case-merge build, which may use ``sibling_cases``, cannot XPASS them. When either lands,
 its tests XPASS, ``strict=True`` fails the build, and the builder replaces each
 placeholder with the behavioural check the requirement's ``verification:``
 names. That promotion is the point: this module is a ratchet, not a test of
@@ -51,6 +53,10 @@ def _split_proposal_exists() -> bool:
 
 def _family_notice_exists() -> bool:
     return _has_semantics("SPLIT_FAMILY")
+
+
+def _case_merge_exists() -> bool:
+    return _has_semantics("MERGE_CASE")
 
 
 @pytest.mark.spec("CM-32-001")
@@ -197,4 +203,280 @@ def test_a_family_notice_is_committed_and_changes_no_embargo():
     reason=f"CM-32-016: no split family exists to hold at one CASE_MANAGER yet. {_SPLIT_BUILD}",
 )
 def test_a_family_member_case_manager_role_cannot_be_delegated_away():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-017")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        f"CM-32-017: no Owner-only split proposal exists yet. {_SPLIT_BUILD}"
+    ),
+)
+def test_a_split_proposal_from_a_non_owner_is_refused():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-018")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-018: no split proposal answer exists yet. {_SPLIT_BUILD}",
+)
+def test_a_redelivered_split_proposal_creates_no_second_child():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-019")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-019: no child case is created yet. {_SPLIT_BUILD}",
+)
+def test_the_parent_case_manager_manages_the_child():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-020")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-020: no child case is created yet. {_SPLIT_BUILD}",
+)
+def test_the_child_is_attributed_to_the_splitter():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-021")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-021: no child case is created yet. {_SPLIT_BUILD}",
+)
+def test_the_child_genesis_hash_is_its_own():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-022")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-022: nothing writes the split links yet. {_SPLIT_BUILD}",
+)
+def test_split_cross_references_are_case_ids():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-023")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-023: nothing writes child_cases yet. {_SPLIT_BUILD}",
+)
+def test_a_parent_replica_takes_the_child_link_from_the_ledger():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-024")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-024: no child case is created yet. {_SPLIT_BUILD}",
+)
+def test_a_split_writes_no_sibling_cases():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-025")
+@pytest.mark.xfail(
+    strict=True,
+    reason="CM-32-025: no case merge exists yet. Tracked by #3702.",
+)
+def test_a_merge_records_no_merged_case_in_child_cases():
+    assert _case_merge_exists()
+
+
+@pytest.mark.spec("CM-32-026")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-026: no child inherits an embargo yet. {_SPLIT_BUILD}",
+)
+def test_the_owner_agrees_to_the_child_embargo():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-027")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-027: no child inherits an embargo yet. {_SPLIT_BUILD}",
+)
+def test_no_parent_consent_row_carries_over():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-028")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-028: no child inherits an embargo yet. {_SPLIT_BUILD}",
+)
+def test_no_open_parent_proposal_is_inherited():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-029")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-029: no child case is created yet. {_SPLIT_BUILD}",
+)
+def test_no_default_embargo_runs_for_a_child():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-030")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-030: no child case is created yet. {_SPLIT_BUILD}",
+)
+def test_the_child_ledger_begins_at_its_own_genesis():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-031")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-031: no split proposal exists yet. {_SPLIT_BUILD}",
+)
+def test_the_split_report_is_the_child_only_report():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-032")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-032: no split proposal exists yet. {_SPLIT_BUILD}",
+)
+def test_child_stub_invites_carry_the_split_stub_summary():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-033")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-033: no split proposal exists yet. {_SPLIT_BUILD}",
+)
+def test_a_split_proposal_with_a_parent_report_or_no_summary_is_refused():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-034")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-034: no child initialization exists yet. {_SPLIT_BUILD}",
+)
+def test_child_initialization_skips_the_reporter_steps():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-035")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-035: no child initialization exists yet. {_SPLIT_BUILD}",
+)
+def test_child_initialization_seats_the_case_manager_and_owner():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-036")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-036: no child initialization exists yet. {_SPLIT_BUILD}",
+)
+def test_authoring_the_child_report_gives_no_reporter_role():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-037")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-037: no child initialization exists yet. {_SPLIT_BUILD}",
+)
+def test_no_child_invite_before_the_creation_entry():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-038")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-038: no child case is created yet. {_SPLIT_BUILD}",
+)
+def test_parent_recipients_exclude_a_child_only_participant():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-039")
+@pytest.mark.xfail(
+    strict=True,
+    reason=f"CM-32-039: no child case is created yet. {_SPLIT_BUILD}",
+)
+def test_a_child_only_participant_gets_no_parent_entry():
+    assert _split_proposal_exists()
+
+
+@pytest.mark.spec("CM-32-040")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        f"CM-32-040: no split-family embargo notice exists yet. {_SPLIT_BUILD}"
+    ),
+)
+def test_an_earlier_end_notice_carries_id_end_time_and_rationale():
+    assert _family_notice_exists()
+
+
+@pytest.mark.spec("CM-32-041")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        f"CM-32-041: no split-family embargo notice exists yet. {_SPLIT_BUILD}"
+    ),
+)
+def test_the_earlier_end_rationale_is_on_the_child_ledger():
+    assert _family_notice_exists()
+
+
+@pytest.mark.spec("CM-32-042")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        f"CM-32-042: no split-family embargo notice exists yet. {_SPLIT_BUILD}"
+    ),
+)
+def test_an_earlier_end_proposal_with_no_rationale_is_refused():
+    assert _family_notice_exists()
+
+
+@pytest.mark.spec("CM-32-043")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        f"CM-32-043: no split-family embargo notice exists yet. {_SPLIT_BUILD}"
+    ),
+)
+def test_a_family_notice_changes_no_em_state_or_consent():
+    assert _family_notice_exists()
+
+
+@pytest.mark.spec("CM-32-044")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        f"CM-32-044: no split-family embargo notice exists yet. {_SPLIT_BUILD}"
+    ),
+)
+def test_a_family_notice_carries_only_three_items():
+    assert _family_notice_exists()
+
+
+@pytest.mark.spec("CM-32-045")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        f"CM-32-045: no split family exists to hold at one CASE_MANAGER yet. "
+        f"{_SPLIT_BUILD}"
+    ),
+)
+def test_a_delegation_out_of_the_family_is_refused():
     assert _split_proposal_exists()

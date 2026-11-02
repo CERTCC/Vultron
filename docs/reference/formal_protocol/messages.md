@@ -287,7 +287,7 @@ See [Vultron AS Activity Guides](../../howto/activitypub/activities/index.md) fo
 
     The formal messages carry no ledger position, but on the wire every case message does.
     The sender puts the tail of its copy of the case ledger in the activity's `ledgerPosition`, an object with `logIndex` and `entryHash`, when it builds the message (SYNC-18-001, [ADR-0156](../../adr/0156-every-case-activity-states-its-senders-ledger-position.md)).
-    The full-case `Invite` that asks a joined participant for $RV$, $RI$ or $RC$ carries the CASE_MANAGER's position as the floor the reply must reach, and the reply carries the participant's own (CM-11-011).
+    The full-case `Invite` that asks a joined participant for $RV$, $RI$ or $RC$ carries the CASE_MANAGER's position as the floor the reply must reach, and the reply carries the participant's own (CM-11-031, CM-11-034).
     A receiver refuses a case message that carries no position, or one that does not parse (SYNC-18-003).
 
 !!! note "Error shorthands have no direct wire counterpart"

@@ -26,7 +26,7 @@ introduction, `Create(VulnerabilityCase)`. The report goes through the
 reporter's own `submit-report` trigger (`reporter_submits_report` in
 `helpers/workflow.py`). The trigger records which actor the reporter sent the
 report to, and the reporter accepts the receiver's case introduction only
-against that record (CBT-01-005, #4675). The receiver's own behavior sends the
+against that record (CBT-01-017, #4675). The receiver's own behavior sends the
 introduction, and `verify_reporter_trusts_introduction` checks the reporter
 accepted it. `test/architecture/test_demo_reports_submitted_through_trigger.py`
 enforces this.

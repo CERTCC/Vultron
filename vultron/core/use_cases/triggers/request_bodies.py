@@ -458,7 +458,7 @@ class OfferCaseParticipantRoleRequest(CaseTriggerRequest):
     ``target`` is ``target_actor_id``, from the requesting actor.  ``role`` is
     required: it has no default, since the CASE_MANAGER refuses an Offer of
     ``CASE_OWNER`` or ``CASE_MANAGER`` and reads no missing role as a default
-    (CM-33-003).
+    (CM-33-014).
     """
 
     target_actor_id: UriString

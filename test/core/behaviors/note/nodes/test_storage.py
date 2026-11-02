@@ -104,7 +104,7 @@ class TestAttachNoteToCaseNode:
         assert refreshed is not None
         assert NOTE_ID in refreshed.notes
 
-    @pytest.mark.spec("CM-13-007")
+    @pytest.mark.spec("CM-13-010")
     def test_idempotent_when_note_already_attached(self, bridge, dl, note):
         case = as_VulnerabilityCase(
             attributed_to=CASE_OWNER_ID,

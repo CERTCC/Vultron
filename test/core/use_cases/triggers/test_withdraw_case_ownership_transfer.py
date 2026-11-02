@@ -17,7 +17,7 @@
 
 The Case Owner withdraws its ownership-transfer proposal: the trigger emits
 ``Undo(Offer(Offer(VulnerabilityCase)))`` from the owner, addressed to the
-case's CASE_MANAGER (CM-21-015, ADR-0148), and queues it in the owner's own
+case's CASE_MANAGER (CM-21-036, ADR-0148), and queues it in the owner's own
 outbox.  What the CASE_MANAGER does with it (admit only from the owner of an
 open Offer it made from the proposal, ledger it, close the Offer) is tested
 with the received use case in

@@ -19,7 +19,8 @@ The consent rows are what an embargo act reads (CM-28-007), so the
 CASE_MANAGER expires every overdue invitation of the case whenever it handles
 an embargo activity: before it commits the case owner's decision on a
 proposal, and on every other received embargo activity and embargo trigger
-(CM-28-015).  The sweep is a clock decision (CLP-10-025, ADR-0135): a
+(CM-28-015, CM-28-028, CM-28-029).  The sweep is a clock decision
+(CLP-10-025, ADR-0135): a
 received embargo tree passes :func:`embargo_clock_decisions` as its
 ``clock_decisions``, which the factory runs after the door guards and the
 case-wide decisions (the end-time check), and ``SvcEmbargoTriggerBase``

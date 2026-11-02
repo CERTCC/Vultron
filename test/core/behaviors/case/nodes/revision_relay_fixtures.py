@@ -87,7 +87,7 @@ def seed(
     The revision is an open proposal beside the embargo in force; with
     *open_proposal* false the owner has rejected it, leaving the case ACTIVE.
     The case's genesis ledger entry is committed, as the case tree's ledger
-    commit does before the relay runs (CM-14-007, CM-14-011).
+    commit does before the relay runs (CM-14-014, CM-14-011).
     """
     records = [
         participant(MANAGER, CVDRole.CASE_MANAGER),

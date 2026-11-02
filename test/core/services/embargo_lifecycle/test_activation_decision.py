@@ -124,6 +124,7 @@ def test_a_longer_revision_carries_nobody_over():
 
 
 @pytest.mark.spec("CM-18-001")
+@pytest.mark.spec("CM-18-021")
 def test_a_missing_row_for_the_replaced_embargo_raises():
     """Every register entry has a row on every participant (ADR-0122)."""
     dl = _store()

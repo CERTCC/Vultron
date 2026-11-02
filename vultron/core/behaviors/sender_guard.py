@@ -223,7 +223,7 @@ def closed_sender_turned_away(
     run ended there when the first child that failed is that door and its
     check found the sender's closure recorded.  The reason names the sender
     and the case (CM-23-018); the handler reports a repeated closing act as
-    ``SKIPPED`` (ID-05-003).
+    ``SKIPPED`` (CM-23-049, ID-05-003).
     """
     for child in root.children:
         if child.status is Status.FAILURE:

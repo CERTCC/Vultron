@@ -570,11 +570,11 @@ def test_trigger_offer_case_participant_role_missing_required_fields_returns_422
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
-@pytest.mark.spec("CM-33-003")
+@pytest.mark.spec("CM-33-014")
 def test_trigger_offer_case_participant_role_missing_role_returns_422(
     client_triggers, actor, case_obj, target_actor
 ):
-    """``role`` is required: no role is read as a default (CM-33-003)."""
+    """``role`` is required: no role is read as a default (CM-33-014)."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/offer-case-participant-role",
         json={

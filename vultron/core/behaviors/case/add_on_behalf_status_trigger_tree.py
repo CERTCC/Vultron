@@ -37,7 +37,7 @@ only write (step 4):
    to the target's record (``attach=False``): the CASE_MANAGER appends it
    when it accepts the assertion, and every replica copies that from the
    ledger (RSH-08-003, CM-23-016).  RM is carried over unchanged
-   (PRM-06-003).
+   (PRM-06-007).
 5. **sender_side_bt** — resolve the Case Manager, build the outbound
    ``Add(ParticipantStatus)`` activity, and queue it.
 """

@@ -81,7 +81,7 @@ class _SvcFullCaseInviteReplyBase(SvcActivityTriggerBase):
         if floor is None or case_id is None:
             raise VultronValidationError(
                 f"'{request.invite_id}' is not a full-case Invite: it names"
-                " no case or carries no ledger position (CM-11-010)"
+                " no case or carries no ledger position (CM-11-031)"
             )
         fresh, reason = is_ledger_fresh_for_case(case_id, self._dl)
         if not fresh:

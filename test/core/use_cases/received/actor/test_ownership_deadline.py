@@ -79,7 +79,7 @@ def _trace(dl) -> tuple[list[str], list[str]]:
 
 class TestLateAnswerIsRefused:
     """CM-21-016: the deadline binds both answers, and the expiry is not
-    ledgered (CM-21-017, ADR-0152)."""
+    ledgered (CM-21-043, ADR-0152)."""
 
     @pytest.mark.spec("CM-21-016")
     @pytest.mark.spec("CM-21-017")
@@ -152,6 +152,7 @@ class TestAnExpiredOfferIsClosed:
 
     @pytest.mark.spec("CM-21-017")
     @pytest.mark.spec("CM-21-015")
+    @pytest.mark.spec("CM-21-039")
     def test_withdrawal_of_an_expired_offer_is_refused(self, make_payload):
         """An expired Offer is closed, and a closed Offer cannot be withdrawn."""
         case_id = "https://example.org/cases/case_dl_undo"
@@ -167,6 +168,7 @@ class TestAnExpiredOfferIsClosed:
 
     @pytest.mark.spec("CM-21-017")
     @pytest.mark.spec("CM-21-014")
+    @pytest.mark.spec("CM-21-035")
     def test_new_proposal_after_an_expired_offer_is_admitted(
         self, make_payload
     ):
@@ -262,6 +264,7 @@ class TestTheActivityIsNotTheEvidence:
 
 @pytest.mark.spec("CM-21-005")
 @pytest.mark.spec("CM-21-016")
+@pytest.mark.spec("CM-21-041")
 def test_the_offer_carries_the_proposals_deadline(make_payload):
     """The proposal's inner Offer names the deadline, and the Offer the
     CASE_MANAGER makes, the one the transferee answers, carries it."""
@@ -307,6 +310,7 @@ def test_late_reply_from_a_non_party_ledgers_nothing(
 
 
 @pytest.mark.spec("CM-23-013")
+@pytest.mark.spec("CM-23-039")
 def test_a_late_reply_changes_nothing_once_the_case_is_fully_closed(
     make_payload,
 ):
@@ -325,15 +329,25 @@ def test_a_late_reply_changes_nothing_once_the_case_is_fully_closed(
 
 
 @pytest.mark.spec("CM-21-017")
-@pytest.mark.spec("CLP-12-002")
+@pytest.mark.spec("CM-21-036")
 def test_the_case_manager_authors_no_undo_of_an_offer():
-    """No CASE_MANAGER entry withdraws an expired Offer, so a replica admits
-    no CASE_MANAGER-authored ``Undo(Offer)`` (ADR-0152)."""
-    from vultron.core.behaviors.sync.nodes.canonical_entry import (
-        _CASE_AUTHORED_SIGNATURES,
+    """``Undo(Offer)`` is the Case Owner's withdrawal, never the CASE_MANAGER's.
+
+    The declared sender rule admits ``Undo(Offer)`` only from the Case Owner,
+    and only at the CASE_MANAGER (HP-01-006). The CASE_MANAGER has no
+    withdrawal of its own to send when an Offer expires (ADR-0152).
+    """
+    from vultron.core.behaviors.sender_entitlement import (
+        SenderEntitlementKind,
+        SenderRule,
+    )
+    from vultron.core.use_cases.received.actor.ownership import (
+        UndoCaseOwnershipTransferReceivedUseCase,
     )
 
-    assert ("Undo", "Offer") not in _CASE_AUTHORED_SIGNATURES
+    assert UndoCaseOwnershipTransferReceivedUseCase.sender_entitlement == (
+        SenderRule.to_case_manager(SenderEntitlementKind.CASE_OWNER)
+    )
 
 
 @pytest.mark.spec("CM-21-017")

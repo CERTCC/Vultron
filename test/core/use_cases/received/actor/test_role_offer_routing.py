@@ -39,6 +39,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlementKind,
+)
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -281,7 +284,9 @@ def _assert_recorded_and_forwarded_once(dl: SqliteDataLayer) -> None:
     assert dl.outbox_list().count(_forward_id()) == 1
 
 
-@pytest.mark.spec("CM-33-001")
+@pytest.mark.spec("CM-33-007")
+@pytest.mark.spec("CM-33-008")
+@pytest.mark.spec("CM-33-009")
 def test_case_manager_records_and_forwards_the_offer(make_payload):
     """The Offer is ledgered and forwarded; nothing is granted until Accept."""
     dl = _store(_CASE_MANAGER_ID)
@@ -298,7 +303,7 @@ def test_case_manager_records_and_forwards_the_offer(make_payload):
     assert not _target_holds(dl, CVDRole.VENDOR)
 
 
-@pytest.mark.spec("CM-33-001")
+@pytest.mark.spec("CM-33-008")
 def test_case_manager_forwards_to_the_target_only_and_answers_nothing(
     make_payload,
 ):
@@ -316,9 +321,9 @@ def test_case_manager_forwards_to_the_target_only_and_answers_nothing(
     ]
 
 
-@pytest.mark.spec("CM-24-007")
 @pytest.mark.spec("HP-01-003")
 @pytest.mark.spec("OX-06-002")
+@pytest.mark.spec("CM-24-019")
 def test_redelivered_offer_is_skipped_with_no_second_entry_or_forward(
     make_payload,
 ):
@@ -336,8 +341,8 @@ def test_redelivered_offer_is_skipped_with_no_second_entry_or_forward(
     assert dl.outbox_list() == queued
 
 
-@pytest.mark.spec("CM-24-007")
 @pytest.mark.spec("HP-01-003")
+@pytest.mark.spec("CM-24-019")
 def test_a_redelivery_after_the_forward_was_sent_sends_nothing(make_payload):
     """Delivery drained the outbox; the forward is not sent again."""
     dl = _store(_CASE_MANAGER_ID)
@@ -382,6 +387,9 @@ def test_an_offer_reusing_a_recorded_id_for_another_offer_is_refused(
 @pytest.mark.spec("CM-24-007")
 @pytest.mark.spec("CLP-07-015")
 @pytest.mark.spec("CLP-10-006")
+@pytest.mark.spec("CM-24-016")
+@pytest.mark.spec("CM-24-017")
+@pytest.mark.spec("CM-24-018")
 def test_a_forward_that_fails_keeps_nothing_and_redelivery_runs_afresh(
     make_payload,
 ):
@@ -410,9 +418,10 @@ def test_a_forward_that_fails_keeps_nothing_and_redelivery_runs_afresh(
     _assert_recorded_and_forwarded_once(dl)
 
 
-@pytest.mark.spec("CM-24-007")
 @pytest.mark.spec("CLP-07-015")
 @pytest.mark.spec("OX-06-002")
+@pytest.mark.spec("CM-24-016")
+@pytest.mark.spec("CM-24-018")
 def test_a_forward_stored_but_not_queued_is_queued_on_redelivery(
     make_payload, monkeypatch
 ):
@@ -525,6 +534,8 @@ def test_an_addressee_that_is_not_the_target_does_not_answer(make_payload):
 
 
 @pytest.mark.spec("CM-33-003")
+@pytest.mark.spec("CM-33-012")
+@pytest.mark.spec("CM-33-013")
 @pytest.mark.spec("CLP-02-005")
 @pytest.mark.parametrize(
     ("dropped", "answered"),
@@ -568,6 +579,19 @@ def _queued_offers(dl: SqliteDataLayer) -> list[Any]:
     return [item for item in _queued(dl) if _type_of(item) == "Offer"]
 
 
+@pytest.mark.spec("CM-33-010")
+@pytest.mark.spec("CM-33-011")
+def test_the_case_manager_originated_offer_path_is_omitted():
+    """CM-33-010 permits a CASE_MANAGER-originated role Offer; CM-33-011 lets
+    an implementation omit it, and this one does: at the CASE_MANAGER only
+    the Case Owner is entitled to send a role Offer."""
+    rule = OfferCaseParticipantRoleReceivedUseCase.sender_entitlement
+
+    assert rule.at_case_manager == frozenset(
+        {SenderEntitlementKind.CASE_OWNER}
+    )
+
+
 @pytest.mark.spec("CM-33-002")
 def test_offer_from_a_participant_that_is_not_the_owner_is_refused(
     make_payload,
@@ -583,6 +607,9 @@ def test_offer_from_a_participant_that_is_not_the_owner_is_refused(
 
 
 @pytest.mark.spec("CM-33-003")
+@pytest.mark.spec("CM-33-012")
+@pytest.mark.spec("CM-33-013")
+@pytest.mark.spec("CM-33-014")
 @pytest.mark.parametrize(
     ("role", "target"),
     [
@@ -635,6 +662,7 @@ def test_target_refuses_an_offer_not_sent_by_the_case_manager(make_payload):
 
 
 @pytest.mark.spec("CM-33-004")
+@pytest.mark.spec("CM-33-015")
 def test_target_answers_the_forward_to_the_case_manager_only(make_payload):
     """The CASE_MANAGER's forward is acted on, and answered to it alone."""
     dl = _store(_TARGET_ID)
@@ -650,6 +678,7 @@ def test_target_answers_the_forward_to_the_case_manager_only(make_payload):
 
 
 @pytest.mark.spec("CM-33-005")
+@pytest.mark.spec("CM-33-016")
 def test_accept_from_a_participant_that_is_not_the_target_is_refused(
     make_payload,
 ):
@@ -675,6 +704,7 @@ def test_accept_from_a_participant_that_is_not_the_target_is_refused(
 
 
 @pytest.mark.spec("CM-33-005")
+@pytest.mark.spec("CM-33-016")
 @pytest.mark.spec("CLP-05-001")
 def test_answer_to_an_offer_that_is_not_open_is_refused(make_payload):
     """A Reject after the target's Accept closed the Offer changes nothing."""
@@ -701,7 +731,7 @@ def test_answer_to_an_offer_that_is_not_open_is_refused(make_payload):
     assert "already closed" in (getattr(notices[0], "summary", None) or "")
 
 
-@pytest.mark.spec("CM-33-005")
+@pytest.mark.spec("CM-33-018")
 @pytest.mark.spec("HP-01-003")
 def test_redelivered_closing_answer_is_skipped(make_payload):
     """The answer that closed the Offer, delivered again, is a duplicate."""
@@ -737,7 +767,7 @@ def test_redelivered_closing_answer_is_skipped(make_payload):
     assert _semantic_types(dl) == entries_after_first
 
 
-@pytest.mark.spec("CM-33-005")
+@pytest.mark.spec("CM-33-017")
 def test_answer_naming_the_forward_resolves_to_the_recorded_offer(
     make_payload,
 ):
@@ -761,9 +791,11 @@ def test_answer_naming_the_forward_resolves_to_the_recorded_offer(
 
 
 class TestAdmittedAnswerIsLedgered:
-    """CM-33-006: the CASE_MANAGER commits and announces the target's answer."""
+    """CM-33-006, CM-33-019: the CASE_MANAGER commits and announces the answer."""
 
     @pytest.mark.spec("CM-33-006")
+    @pytest.mark.spec("CM-33-019")
+    @pytest.mark.spec("CM-33-020")
     @pytest.mark.spec("CLP-02-012")
     def test_accept_is_committed_granted_and_announced(self, make_payload):
         dl = _store(_CASE_MANAGER_ID)
@@ -788,6 +820,8 @@ class TestAdmittedAnswerIsLedgered:
         )
 
     @pytest.mark.spec("CM-33-006")
+    @pytest.mark.spec("CM-33-019")
+    @pytest.mark.spec("CM-33-021")
     @pytest.mark.spec("CLP-02-012")
     def test_reject_is_committed_and_announced_with_no_grant(
         self, make_payload
@@ -879,7 +913,7 @@ def test_accept_after_the_target_rejected_is_refused(make_payload):
     assert not _target_holds(dl, CVDRole.VENDOR)
 
 
-@pytest.mark.spec("CM-33-005")
+@pytest.mark.spec("CM-33-018")
 @pytest.mark.spec("HP-01-003")
 def test_redelivered_closing_reject_is_skipped(make_payload):
     dl = _store(_CASE_MANAGER_ID)
@@ -956,6 +990,7 @@ def test_answer_carrying_an_offer_for_another_role_is_refused(make_payload):
 
 
 @pytest.mark.spec("CM-33-005")
+@pytest.mark.spec("CM-33-017")
 def test_answer_naming_an_offer_no_forward_links_is_refused(make_payload):
     """An Offer the target made up, linking itself to the recorded one,
     stands for nothing: only the CASE_MANAGER's stored forward resolves."""
@@ -983,6 +1018,7 @@ def test_answer_naming_an_offer_no_forward_links_is_refused(make_payload):
 
 
 @pytest.mark.spec("CM-33-004")
+@pytest.mark.spec("CM-02-021")
 @pytest.mark.parametrize("accept", [True, False], ids=["accept", "reject"])
 def test_a_participant_refuses_an_answer_sent_to_it(make_payload, accept):
     """The answer goes to the CASE_MANAGER only; no other store acts on it."""
@@ -1078,6 +1114,7 @@ def test_a_target_that_left_the_case_cannot_answer(make_payload):
 
 
 @pytest.mark.spec("CM-02-016")
+@pytest.mark.spec("CM-02-020")
 @pytest.mark.spec("CM-33-006")
 def test_the_committed_accept_carries_the_grant_replicas_apply(make_payload):
     """Replicas grant from the entry: it names the recorded role and target."""

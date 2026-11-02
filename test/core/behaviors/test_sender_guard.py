@@ -797,6 +797,7 @@ def test_each_active_participant_guard_admits_an_active_open_sender(
 @pytest.mark.spec("CM-23-018", "CM-23-020", "CM-10-004")
 @_MAY_NOT_ACT
 @_VENDOR_GUARDS
+@pytest.mark.spec("CM-23-054")
 def test_each_active_participant_guard_refuses_a_sender_that_may_not_act(
     make_guard: Callable[[], py_trees.behaviour.Behaviour],
     standing: Callable[[CaseParticipant], None],
@@ -854,6 +855,7 @@ def test_participant_kind_reads_closure_from_the_record_it_found() -> None:
 
 
 @pytest.mark.spec("CM-23-018", "SYNC-03-005")
+@pytest.mark.spec("CM-23-048")
 def test_ledger_peer_kind_composes_the_resync_guard() -> None:
     """``LEDGER_PEER`` is guarded by the bare active check of SYNC-03-005."""
     guard = compose_sender_guard(

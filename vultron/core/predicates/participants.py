@@ -78,7 +78,7 @@ def all_participants_rm_closed(
     immediately — their convergence state is unknown and must be treated as
     incomplete.
 
-    Only participants that have joined are counted (CM-11-014): those seated
+    Only participants that have joined are counted (CM-11-041): those seated
     by the case initialization sequence and those that accepted their stub
     Invite.  An inert invitee (``joined=False``) is skipped, whatever its RM.
 

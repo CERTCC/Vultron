@@ -630,7 +630,7 @@ def check_rm_closed_termination(
     A ``close_case`` entry records the received ``Leave``; the RM transitions
     it caused are the status entries the CASE_MANAGER commits after it, one
     per step, and a replica reaches ``RM.CLOSED`` only by applying them
-    (CM-23-001).  Reading ``close_case`` as ``RM.CLOSED`` would let a missing
+    (CM-23-023).  Reading ``close_case`` as ``RM.CLOSED`` would let a missing
     step entry pass unseen (#4210).
     """
     auth = auth_entries(replicas)

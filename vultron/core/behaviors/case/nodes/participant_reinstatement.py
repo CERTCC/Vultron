@@ -57,7 +57,7 @@ class ParticipantHasJoinedNode(ParticipantMoveGuardNode):
 
     An invitee that never accepted its stub Invite is not a member, so there
     is nothing to reinstate: joining is accepting the stub Invite
-    (ADR-0114), and ``Add`` must not become a way around it (CM-31-011).
+    (ADR-0114), and ``Add`` must not become a way around it (CM-31-036).
     """
 
     def _check(self, record: CaseParticipant) -> Status:
@@ -72,7 +72,7 @@ class ParticipantHasJoinedNode(ParticipantMoveGuardNode):
 class ParticipantIsRemovedNode(ParticipantMoveGuardNode):
     """Guard: the participant an ``Add(CaseParticipant)`` names is removed.
 
-    ``Add`` only reinstates (CM-31-011, VAM-06-002), so an ``Add`` naming a
+    ``Add`` only reinstates (CM-31-036, VAM-06-002), so an ``Add`` naming a
     participant that carries no removal fact is refused, not skipped: it is
     not a repeat of an earlier reinstatement the CASE_MANAGER could tell
     apart from a request to seat a member.
@@ -126,7 +126,7 @@ def case_manager_admits_reinstatement_guard(
 
 
 class ReinstateCaseParticipantReceivedNode(ParticipantMoveEffectNode):
-    """Clear the removal fact on the named participant (CM-31-011).
+    """Clear the removal fact on the named participant (CM-31-034).
 
     Calls :meth:`CaseParticipant.clear_removal` on the shared effect frame.
     The participant does not accept again, and its status history and

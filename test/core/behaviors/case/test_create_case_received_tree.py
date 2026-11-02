@@ -222,6 +222,7 @@ def test_bound_link_selects_redelivery_and_writes_nothing(dl, make_payload):
 
 
 @pytest.mark.spec("CBT-01-011")
+@pytest.mark.spec("CBT-01-017")
 @pytest.mark.spec("HP-01-008")
 def test_no_anchor_is_refused_though_the_snapshot_names_the_sender_manager(
     dl, make_payload
@@ -465,6 +466,7 @@ def _introductions(owner_dl: SqliteDataLayer) -> list[as_Create]:
 @pytest.mark.spec("CBT-01-002")
 @pytest.mark.spec("CBT-01-007")
 @pytest.mark.spec("CM-12-003")
+@pytest.mark.spec("CBT-01-019")
 def test_report_receiver_introduces_the_case_manager_to_the_reporter():
     """The owner sends the reporter the whole case, naming the CASE_MANAGER."""
     owner_dl, status = _run_at_owner(

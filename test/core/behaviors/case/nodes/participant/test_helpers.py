@@ -164,6 +164,7 @@ class TestCreateAndAttachParticipant:
         assert bt_scenario.dl.read(participant.id_) is None
 
     @pytest.mark.spec("CM-18-001")
+    @pytest.mark.spec("CM-18-020")
     def test_stores_the_participant_with_a_row_per_register_entry(
         self,
         bt_scenario: BTTestScenario,
@@ -193,6 +194,7 @@ class TestCreateAndAttachParticipant:
         ]
 
     @pytest.mark.spec("CM-18-001")
+    @pytest.mark.spec("CM-18-020")
     def test_an_existing_participant_gains_and_saves_new_rows(
         self,
         bt_scenario: BTTestScenario,

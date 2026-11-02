@@ -440,7 +440,7 @@ def _stage_decisions(tree: py_trees.behaviour.Behaviour) -> list[str]:
     return [d.name for d in stage.decisions]
 
 
-@pytest.mark.spec("CM-28-015")
+@pytest.mark.spec("CM-28-029")
 @pytest.mark.spec("BT-15-003")
 def test_an_embargo_trigger_adds_the_overdue_invite_sweep():
     """An embargo act reads the consent rows, so its stage sweeps them after
@@ -464,7 +464,7 @@ def test_an_embargo_trigger_adds_the_overdue_invite_sweep():
     ]
 
 
-@pytest.mark.spec("CM-28-015")
+@pytest.mark.spec("CM-28-029")
 @pytest.mark.spec("BT-15-003")
 def test_terminate_embargo_takes_the_sweep_alone():
     """Terminate-embargo answers for the end-time path itself, so it takes

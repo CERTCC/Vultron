@@ -225,10 +225,10 @@ def test_case_proposal_embeds_the_offer_and_round_trips_through_the_parser():
     assert nested.context == _report().id_
 
 
-@pytest.mark.spec("CP-01-008")
+@pytest.mark.spec("CP-01-020")
 def test_case_proposal_refuses_provenance_that_names_a_different_offer():
     offer = _offer()
-    with pytest.raises(ValueError, match="CP-01-008"):
+    with pytest.raises(ValueError, match="CP-01-020"):
         as_CaseProposal(
             attributed_to=_VENDOR,
             object_=_report(),
@@ -272,7 +272,7 @@ def test_case_proposal_without_terms_extracts_none():
     assert event.proposed_embargo is None
 
 
-@pytest.mark.spec("CP-01-008")
+@pytest.mark.spec("CP-01-020")
 def test_case_proposal_refuses_a_sender_that_is_not_the_inline_offers_actor():
     offer = _offer()
     with pytest.raises(ValueError, match="offerActorId"):

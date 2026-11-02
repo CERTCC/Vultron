@@ -191,9 +191,9 @@ def _participant_store() -> SqliteDataLayer:
 
 @ANSWERS
 class TestAnswerGoesToTheCaseManager:
-    """The target answers the CASE_MANAGER only (CM-33-004, PCR-08-011)."""
+    """The target answers the CASE_MANAGER only (CM-33-015, PCR-08-011)."""
 
-    @pytest.mark.spec("CM-33-004")
+    @pytest.mark.spec("CM-33-015")
     @pytest.mark.spec("PCR-08-001")
     def test_the_answer_is_addressed_to_the_case_manager_only(
         self, node_cls, semantic_type
@@ -305,9 +305,9 @@ def _forward_node() -> ForwardRoleOfferToTargetNode:
 
 
 class TestForwardRoleOfferToTargetNode:
-    """The CASE_MANAGER forwards the recorded Offer to its target (CM-33-001)."""
+    """The CASE_MANAGER forwards the recorded Offer to its target (CM-33-008)."""
 
-    @pytest.mark.spec("CM-33-001")
+    @pytest.mark.spec("CM-33-008")
     @pytest.mark.spec("CM-24-005")
     def test_forward_names_the_recorded_offer_and_its_owner(self, bridge, dl):
         result = bridge.execute_with_setup(

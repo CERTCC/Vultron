@@ -61,12 +61,12 @@ class ForwardRoleOfferToTargetNode(_EmitSingleActivityBase):
     After the CASE_MANAGER commits the ``offer_case_participant_role`` entry
     for the Case Owner's Offer, it sends the target a new
     ``Offer(CaseParticipantRole)`` naming the same role, target and case
-    (CM-33-001).  ``actor`` and ``attributed_to`` come from the delegated-
+    (CM-33-008).  ``actor`` and ``attributed_to`` come from the delegated-
     authorship helper: the CASE_MANAGER forwards, on the Case Owner's behalf
     (CM-24-005).  The forward is addressed to the target only and carries
     ``in_reply_to`` set to the recorded Offer's id (the entry's
     ``log_object_id``), so an answer naming the forward resolves to the Offer
-    it stands for (CM-33-005).
+    it stands for (CM-33-017).
 
     The forward's id derives from the recorded Offer
     (:func:`~vultron.core.participants.role_offer.role_offer_forward_id`), so
@@ -137,7 +137,7 @@ class ForwardRoleOfferToTargetNode(_EmitSingleActivityBase):
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(
             "%s: CASE_MANAGER '%s' forwarded role offer '%s' (%s) to '%s'"
-            " in reply to recorded offer '%s' from '%s' (CM-33-001)",
+            " in reply to recorded offer '%s' from '%s' (CM-33-008)",
             self.name,
             self.actor_id,
             activity_id,
@@ -180,7 +180,7 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
     The one shape both arms of the ``AcceptOrReject`` Selector share.  The
     answer goes to the case's CASE_MANAGER only, resolved from the case,
     never to the Offer's ``actor`` or to the Case Owner that made it
-    (CM-33-004, PCR-08-001, PCR-08-011).  The answer's id derives from the
+    (CM-33-015, PCR-08-001, PCR-08-011).  The answer's id derives from the
     Offer it answers (OX-06-002), so a retry rebuilds the same answer, which
     the outbox does not queue twice.
 
@@ -188,7 +188,7 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
     refuses an Offer that names itself), and a participant never commits
     (CLP-09-001): its answer goes out with no entry in its own ledger, and
     this node tries no commit.  The CASE_MANAGER commits the answer on
-    receipt and announces the entry (CM-33-006,
+    receipt and announces the entry (CM-33-006, CM-33-019,
     ``vultron.core.behaviors.case.role_offer_answer_tree``).
 
     The outbox write is not caught: once the answer is queued a FAILURE would
@@ -320,7 +320,7 @@ class AutoAcceptCaseParticipantRoleNode(_AnswerCaseParticipantRoleOfferBase):
 
     When the target receives the CASE_MANAGER's forward of an
     ``Offer(CaseParticipantRole)`` it accepts, and the CASE_MANAGER receives
-    the answer (CM-33-004).  The send is
+    the answer (CM-33-015).  The send is
     :class:`_AnswerCaseParticipantRoleOfferBase`'s.
 
     See SE-08-003, ADR-0039.
@@ -338,9 +338,9 @@ class GrantCaseParticipantRoleNode(DataLayerAction, StateWriteCapable):
     """Grant the offered role on the CASE_MANAGER's own case replica (ADR-0039).
 
     The grant is the CASE_MANAGER's committed ``accept_case_participant_role``
-    entry, never the Offer's receipt (CM-33-001, CM-02-016), so no tree
+    entry, never the Offer's receipt (CM-33-009, CM-02-016), so no tree
     composes this node on the Offer; the target's Accept tree does, after the
-    CASE_MANAGER commits the Accept (CM-33-006,
+    CASE_MANAGER commits the Accept (CM-33-020,
     ``vultron.core.behaviors.case.role_offer_answer_tree``).  It runs as a
     ``manager_effects`` entry, so the factory's CASE_MANAGER gate (BT-17-008)
     fires it only at the CASE_MANAGER — the ledger holder, which excludes
@@ -406,7 +406,7 @@ class EmitRejectCaseParticipantRoleNode(_AnswerCaseParticipantRoleOfferBase):
     :class:`AutoAcceptCaseParticipantRoleNode`.  When the target cannot
     auto-accept the role delegation offer, this node sends an explicit
     ``Reject`` so the CASE_MANAGER, and through its ledger the Case Owner, is
-    told rather than receiving silence (CM-33-004).  The send is
+    told rather than receiving silence (CM-33-015).  The send is
     :class:`_AnswerCaseParticipantRoleOfferBase`'s.
 
     See SE-08-003, ADR-0039.

@@ -30,7 +30,7 @@ ADR-0124, CLP-07-009, CLP-07-013).  ``attributedTo`` names the participant
 actor whose consent it is, and the id is derived from that actor and the
 embargo, so the same row has the same id on every node and nothing mints one.
 A row carries no ``published`` or ``updated`` time: building one reads no
-clock (CM-23-016).
+clock (CM-23-044).
 """
 
 from datetime import datetime

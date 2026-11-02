@@ -217,7 +217,8 @@ Rows of the retired marker types are refused at load like any deleted stored typ
 already-declined answer, closed-case decline, admission decision, accept flow.
 
 - **Same proposal id** (CP-05-006): re-send the stored `Accept` unchanged under its
-  proposal-derived id, unless still pending in the outbox; create no second case.
+  proposal-derived id, unless still pending in the outbox; create no second case
+  (CP-05-013).
   "Duplicate" means only this — an exact redelivery. A second report about the same
   vulnerability is a report-management question (RMB-11-002). The case is found
   through the stored `Accept`'s `result`, not only by owner: after an ownership
@@ -226,7 +227,7 @@ already-declined answer, closed-case decline, admission decision, accept flow.
   this delivery (`RecordProposalAdmissionNode`'s `admission_record_was_prior`), not
   on the report: the report id is sender-chosen, so a redelivery may name a report
   with no case.
-- **Same proposal id, another sender** (CP-05-010): the proposal id is
+- **Same proposal id, another sender** (CP-05-010, CP-05-022): the proposal id is
   sender-chosen, so the use case declares `SenderRule.before_case(AUTHOR)` and the
   factory composes `SenderIsProposalAuthorNode` ahead of every arm. A proposal id
   whose admission record, decline record or stored proposal (`attributed_to`) names
@@ -256,7 +257,7 @@ already-declined answer, closed-case decline, admission decision, accept flow.
   (CBT-06-002), because the report id is sender-chosen. `find_case_by_report_id` is
   only the fast path; on another proposer's case the node scans for the proposer's
   own.
-- **Fully closed case** (CP-05-006, CP-05-008): a proposal that resolves to a case
+- **Fully closed case** (CP-05-014, CP-05-018): a proposal that resolves to a case
   whose ledger holds the CASE_MANAGER's own `RM.CLOSED` status entry gets
   `Reject(CaseProposal)`, and nothing is
   written for the case (CM-23-013). The factory's post-close guard cannot see it,

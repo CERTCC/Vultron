@@ -53,6 +53,7 @@ _MANAGER_CLOSED = _Entry(_STATUS, _status(_MANAGER, _MANAGER, "CLOSED"))
 
 
 @pytest.mark.spec("CM-23-013")
+@pytest.mark.spec("CM-23-028")
 def test_the_managers_own_closed_status_closes_the_case() -> None:
     entries = [_Entry("close_case"), _MANAGER_CLOSED]
     assert ledger_records_full_closure(entries, _MANAGER)
@@ -99,6 +100,7 @@ def test_an_empty_ledger_is_open() -> None:
 
 
 @pytest.mark.spec("CM-23-013")
+@pytest.mark.spec("CM-23-028")
 def test_boundary_indices_read_an_exported_ledger() -> None:
     rows: list[dict[str, object]] = [
         {"log_index": 4, "semantic_type": "close_case"},

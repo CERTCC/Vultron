@@ -108,7 +108,7 @@ def _seed_existing(
 
 
 class TestSeating:
-    @pytest.mark.spec("CM-11-006")
+    @pytest.mark.spec("CM-11-026")
     @pytest.mark.spec("BT-10-005")
     def test_seats_inert_vendor_invitee_at_rm_received(
         self, scenario: BTTestScenario
@@ -134,7 +134,7 @@ class TestSeating:
         status = _participant(scenario).participant_statuses[0]
         assert status.vf is None
 
-    @pytest.mark.spec("CM-11-006")
+    @pytest.mark.spec("CM-11-026")
     def test_active_embargo_gives_invited_consent_row(
         self, scenario: BTTestScenario
     ) -> None:
@@ -177,6 +177,7 @@ class TestSeating:
 
 
 class TestRefusals:
+    @pytest.mark.spec("CM-11-049")
     @pytest.mark.spec("CM-11-019")
     def test_no_roles_fails_and_writes_nothing(
         self, scenario: BTTestScenario
@@ -201,6 +202,7 @@ class TestRefusals:
         assert "vanished" in (result.feedback_message or "")
         assert INVITEE_ID not in _case(scenario).actor_participant_index
 
+    @pytest.mark.spec("CM-14-007")
     def test_missing_case_fails(self) -> None:
         scenario = BTTestScenario(actor_id=MANAGER_ID)
         scenario.seed(VultronService(id_=MANAGER_ID, name="Vendor Co"))
@@ -252,7 +254,7 @@ class TestIdempotency:
         assert case.actor_participant_index[INVITEE_ID] == PARTICIPANT_ID
         assert participant.embargo_consents == []
 
-    @pytest.mark.spec("CM-11-015")
+    @pytest.mark.spec("CM-11-043")
     @pytest.mark.parametrize("joined", [False, True])
     def test_closed_record_is_refused(
         self, scenario: BTTestScenario, joined: bool

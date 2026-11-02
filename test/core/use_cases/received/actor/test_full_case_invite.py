@@ -62,6 +62,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 _HASH = "ab" * 32
 
 
+@pytest.mark.spec("CM-11-031")
 @pytest.mark.spec("CM-11-010")
 def test_stub_accept_sends_announce_then_replay_then_full_case_invite(
     joining_case,  # noqa: F811
@@ -129,7 +130,7 @@ def test_a_resumed_join_does_not_send_a_second_full_case_invite(
     )
 
 
-@pytest.mark.spec("CM-11-011")
+@pytest.mark.spec("CM-11-031")
 @pytest.mark.spec("SYNC-18-001")
 def test_full_case_invite_carries_the_position_as_its_ledger_position() -> (
     None
@@ -151,6 +152,7 @@ def test_full_case_invite_carries_the_position_as_its_ledger_position() -> (
     assert event.ledger_position == position
 
 
+@pytest.mark.spec("CM-11-035")
 @pytest.mark.spec("CM-11-012")
 def test_reply_position_check_against_the_floor(joining_case) -> None:  # noqa: F811
     entries = _ledger_tail(joining_case)
@@ -228,7 +230,7 @@ def test_reply_from_an_actor_the_invite_did_not_ask_is_refused(
     assert _rm_history(joining_case)[-1] == RM.RECEIVED
 
 
-@pytest.mark.spec("CM-11-012")
+@pytest.mark.spec("CM-11-036")
 @pytest.mark.parametrize("kind", ["accept", "tentative_reject", "reject"])
 def test_a_reply_from_a_participant_that_has_not_joined_is_refused(
     joining_case,  # noqa: F811
@@ -275,7 +277,7 @@ def test_a_refused_reply_writes_no_ledger_entry(joining_case) -> None:  # noqa: 
     assert len(_ledger_tail(joining_case)) == before
 
 
-@pytest.mark.spec("CM-11-011")
+@pytest.mark.spec("CM-11-034")
 def test_a_reply_is_recorded_in_the_ledger_with_its_position(
     joining_case,  # noqa: F811
 ) -> None:
@@ -427,7 +429,7 @@ def test_a_regression_reply_is_refused_before_receipt(
     ]
 
 
-@pytest.mark.spec("CM-11-010")
+@pytest.mark.spec("CM-11-031")
 def test_stored_invite_floor_is_the_invites_ledger_position() -> None:
     from vultron.core.behaviors.case.nodes.full_case_invite import (
         stored_invite_floor,
@@ -522,7 +524,7 @@ def invitee_with_replica(joining_case):  # noqa: F811
     return dl
 
 
-@pytest.mark.spec("CM-11-010")
+@pytest.mark.spec("CM-11-032")
 @pytest.mark.spec("HP-01-006")
 def test_a_full_case_invite_from_the_case_manager_is_accepted(
     joining_case,  # noqa: F811
@@ -538,7 +540,7 @@ def test_a_full_case_invite_from_the_case_manager_is_accepted(
     assert result.disposition is not HandlerDisposition.REFUSED
 
 
-@pytest.mark.spec("CM-11-010")
+@pytest.mark.spec("CM-11-032")
 @pytest.mark.spec("HP-01-006")
 def test_a_full_case_invite_from_another_actor_is_refused_and_writes_nothing(
     joining_case,  # noqa: F811
@@ -576,7 +578,7 @@ def invitee_without_replica(joining_case):  # noqa: F811
     return dl
 
 
-@pytest.mark.spec("CM-11-010")
+@pytest.mark.spec("CM-11-032")
 @pytest.mark.spec("PCR-03-004")
 @pytest.mark.spec("HP-01-006")
 def test_before_the_announce_the_recorded_trust_anchor_is_the_case_manager(
@@ -624,7 +626,7 @@ def test_a_queue_recorded_sender_does_not_admit_a_full_case_invite(
     assert result.disposition is HandlerDisposition.REFUSED
 
 
-@pytest.mark.spec("CM-11-010")
+@pytest.mark.spec("CM-11-033")
 @pytest.mark.spec("PCR-03-004")
 @pytest.mark.spec("HP-01-006")
 def test_with_no_replica_and_no_trust_anchor_a_full_case_invite_is_refused(

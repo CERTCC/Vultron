@@ -402,7 +402,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         ``actor`` MUST be the CASE_MANAGER's ID (PCR-08-007); ``attributed_to``
         MAY carry the case owner's ID for attribution.  There is no ``cc``:
         the CASE_MANAGER commits the Invite in the tree that emits it and
-        never addresses a copy to itself (CM-17-006, ADR-0109).
+        never addresses a copy to itself (CM-17-015, ADR-0109).
         ``id_`` allows callers to supply a deterministic ID for idempotency.
         ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
         ``target`` may be a core ``VulnerabilityCase`` (the adapter projects it
@@ -639,7 +639,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         """``Update(VulnerabilityCase)`` (``update_case_owner``), the changed case.
 
         Records the case's new ``attributed_to`` after an ownership transfer
-        (CM-21-002).  *case* is the case as it will be stored: the entry
+        (CM-21-024).  *case* is the case as it will be stored: the entry
         commits before the change is saved (CLP-07-013).  *cause_id* names
         the act the change follows, as for
         :meth:`record_case_participant_updated`.
@@ -948,7 +948,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         ``activity_id`` is the Invite's id when the caller recorded it before
         the emission — the creation-time revision is indexed under its
         Invite's id at registration and relayed only after the initialization
-        sequence completes (EP-04-011, CM-14-007).  ``None`` mints a fresh id.
+        sequence completes (EP-04-011, CM-14-014).  ``None`` mints a fresh id.
         ``rsvp_deadline`` becomes the Invite's ``endTime`` (CM-28-012,
         ASK-03-004); ``published`` is the instant it was measured from and
         ``min_rsvp_window`` the configured floor the factory checks it against
@@ -1133,7 +1133,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership-transfer activity.
 
         The one Offer of a transfer, which the CASE_MANAGER makes from the
-        owner's proposal (ADR-0148, CM-21-005), with *attributed_to* the
+        owner's proposal (ADR-0148, CM-21-028), with *attributed_to* the
         owner.  *end_time*, when given, is the Offer's activity-level
         ``end_time``: the deadline to answer it (CM-21-016).  *id_*, when
         given, is the Offer's id, which the CASE_MANAGER derives from the

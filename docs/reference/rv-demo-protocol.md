@@ -178,7 +178,7 @@ The report travels inline, because the Vendor has no way to read it out of the R
 
 The `context` names the new case and the `inReplyTo` names the `Accept(CaseProposal)` that authorized it (CP-05-003).
 The case object is abbreviated here; on the wire it carries every participant inline (CBT-01-007).
-The `actor` is the Case Actor, acting as `CASE_MANAGER`, while the case's `attributedTo` names the Vendor, the Case Owner (CP-09-001).
+The `actor` is the Case Actor, acting as `CASE_MANAGER`, while the case's `attributedTo` names the Vendor, the Case Owner (CP-09-001, CP-09-011).
 
 ```json
 {
@@ -360,7 +360,7 @@ The owner's departure closes the case, and the Case Actor records nothing a part
 1. The Reporter sends `Leave(VulnerabilityCase)`.
    As a non-owner, this advances only the Reporter (CM-23-003); no other participant's RM state changes (CM-23-012).
    The Case Actor commits `close_case` for the Reporter.
-   It then moves the Reporter to `RM.CLOSED` and commits one `add_participant_status_to_participant` entry for each RM transition it writes, in order (CM-23-001).
+   It then moves the Reporter to `RM.CLOSED` and commits one `add_participant_status_to_participant` entry for each RM transition it writes, in order (CM-23-022).
    The Reporter is at `RM.ACCEPTED`, so that is one entry; a participant at `RM.VALID` would get two, for `VALID → DEFERRED` and `DEFERRED → CLOSED` (RMB-14-009).
 2. The demo waits until the Case Actor's own store shows the Reporter at `RM.CLOSED`.
    A trigger returns before its effect commits, so the demo does not let the Vendor's `Leave` overtake the Reporter's.
@@ -372,11 +372,11 @@ The owner's departure closes the case, and the Case Actor records nothing a part
    Last, it advances its own participant record to `RM.CLOSED` and commits those status entries too (CM-23-005).
    Its own status entry that reaches `RM.CLOSED` is the write boundary: the case is now fully closed (CM-23-013).
 4. Each entry is fanned out as `Announce(CaseLedgerEntry)` to every participant that has not closed, and each replica applies what it receives.
-   A closed participant receives its own closure entries and nothing after them (CM-23-004).
+   A closed participant receives its own closure entries and nothing after them (CM-23-004, CM-23-031).
    The leaving participant's replica receives its `close_case` entry and every status entry for its departure, the one that reaches `RM.CLOSED` included.
    The Reporter therefore receives none of the Vendor's closure entries.
    The Vendor receives its own `close_case` and status entries, but not the Case Actor's own status entry.
-   A replica moves a departing participant only by applying those status entries: the `close_case` entry itself changes no RM state, and a replica never works out the steps from its own stored state (CM-23-016).
+   A replica moves a departing participant only by applying those status entries: the `close_case` entry itself changes no RM state, and a replica never works out the steps from its own stored state (CM-23-023, CM-23-024).
    A participant does not write its own `RM.CLOSED`; it waits for the Case Actor's entries.
 
 ### Example: Leave(VulnerabilityCase)

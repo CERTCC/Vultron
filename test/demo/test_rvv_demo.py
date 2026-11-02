@@ -1745,7 +1745,7 @@ class TestWaitForSemanticTypeInLedger:
     wrong tail, the dump runs before the entry replicates, and the invariant
     harness fails (issue #1772).  The close phase it was found in no longer
     reads the authority's tail: a closed participant is sent nothing after its
-    own closure entries (CM-23-004).
+    own closure entries (CM-23-004, CM-23-031).
     """
 
     def _make_entries(self, case_id: str, semantic_types: list[str]) -> dict:

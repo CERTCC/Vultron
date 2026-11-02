@@ -314,7 +314,7 @@ def create_recommend_actor_to_case_received_tree(
         ],
     )
 
-    # CM-11-015: the owner may not re-invite a participant at RM.CLOSED.
+    # CM-11-043: the owner may not re-invite a participant at RM.CLOSED.
     # Anyone else's suggestion is answered as before.
     closed_is_not_reinvited = py_trees.composites.Selector(
         name="ReinviteIsNotToClosedParticipant",

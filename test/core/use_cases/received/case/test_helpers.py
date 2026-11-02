@@ -205,7 +205,7 @@ def _anchor_already_bound() -> list[VultronReportCaseLink]:
     ]
 
 
-@pytest.mark.spec("CBT-01-011", "CBT-05-002", "HP-01-006")
+@pytest.mark.spec("CBT-01-011", "CBT-01-017", "CBT-05-002", "HP-01-006")
 @pytest.mark.parametrize(
     "anchors",
     [

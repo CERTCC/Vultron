@@ -102,7 +102,7 @@ class EmitRejectCaseInviteNode(_EmitSingleActivityBase):
 class _EmitFullCaseInviteReplyNode(_EmitSingleActivityBase):
     """Create a reply to the full-case Invite and queue it in the outbox.
 
-    The reply carries the replier's own ledger position (CM-11-011); the
+    The reply carries the replier's own ledger position (CM-11-034); the
     factory derives the recipient from the persisted Invite.  Subclasses name
     the ``TriggerActivityPort`` method that builds their reply.
     """

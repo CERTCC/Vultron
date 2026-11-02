@@ -631,6 +631,7 @@ class TestSendOwnerEmbargoDecisionNode:
         assert dl.outbox_list() == []
 
     @pytest.mark.spec("CM-24-006")
+    @pytest.mark.spec("CM-24-014")
     def test_a_case_with_no_manager_is_a_fault(self):
         dl = _owner_store(with_manager=False)
 
