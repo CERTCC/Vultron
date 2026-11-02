@@ -34,8 +34,8 @@ The ``Remove`` entry is the whole register step, the ``CANCEL`` of every open
 proposal included (EP-08-004, ADR-0122): no other entry records a cancel, and
 a termination writes no consent row.  A commit that fails therefore leaves
 the register, EM and the consent rows as they were, and the queued
-``Remove`` is withdrawn from the outbox (#4653), so a retry can still end the
-embargo.
+``Remove`` is rolled back with the rest of the act (OX-03-002, ADR-0146), so
+a retry can still end the embargo.
 """
 
 from datetime import datetime

@@ -225,56 +225,59 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
             )
             self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
-        try:
-            owner_id = _resolve_owner_recipient(
-                self.datalayer, self.case_id, self.actor_id
-            )
-            if not owner_id:
-                self.feedback_message = (
-                    f"case '{self.case_id}' names no Case Owner other than "
-                    f"'{self.actor_id}' — cannot address Offer(CaseParticipant)"
+        # Built (which stores it), queued and committed in one act, so no
+        # drain delivers the Offer before its entry commits (OX-03-002).
+        with self._one_act():
+            try:
+                owner_id = _resolve_owner_recipient(
+                    self.datalayer, self.case_id, self.actor_id
                 )
-                self.logger.error("%s", self.feedback_message)
+                if not owner_id:
+                    self.feedback_message = (
+                        f"case '{self.case_id}' names no Case Owner other than "
+                        f"'{self.actor_id}' — cannot address Offer(CaseParticipant)"
+                    )
+                    self.logger.error("%s", self.feedback_message)
+                    return Status.FAILURE
+                # The id is derived from the recommendation the Offer forwards,
+                # so a retry for the same recommendation rebuilds this Offer and
+                # the outbox does not queue it twice (OX-06-002).
+                activity_id, activity_blob = factory.offer_actor_to_case(
+                    recommender_id=self.recommender_id,
+                    recommended_id=self.recommended_id,
+                    case_id=self.case_id,
+                    actor=self.actor_id,
+                    origin=self.recommendation_id,
+                    to=[owner_id],
+                    roles=roles,
+                    id_=derived_activity_id(
+                        OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE,
+                        self.actor_id,
+                        self.case_id,
+                        self.recommendation_id,
+                    ),
+                )
+                # Route through the shared emit seam (OX-14-001, ASK-04-008).
+                self._emit_through_seam(activity_id, "")
+            except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+                self.feedback_message = (
+                    f"EmitOfferCaseParticipantToOwner failed: {e}"
+                )
+                self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
                 return Status.FAILURE
-            # The id is derived from the recommendation the Offer forwards,
-            # so a retry for the same recommendation rebuilds this Offer and
-            # the outbox does not queue it twice (OX-06-002).
-            activity_id, activity_blob = factory.offer_actor_to_case(
-                recommender_id=self.recommender_id,
-                recommended_id=self.recommended_id,
+            # Record the sent Offer (ADR-0119, CM-16-010).  The exact blob is the
+            # snapshot (VM-08-003): the factory sets context.  Not caught: the
+            # Offer is queued in this act, so a failed commit rolls the queue
+            # write back and escapes to ``BTBridge`` as an internal error
+            # (BT-14-001, OX-03-002), as in ``_EmitSingleActivityBase.update()``.
+            commit_emitted_activity(
+                datalayer=cast(CaseOutboxPersistence, self.datalayer),
+                actor_id=self.actor_id,
                 case_id=self.case_id,
-                actor=self.actor_id,
-                origin=self.recommendation_id,
-                to=[owner_id],
-                roles=roles,
-                id_=derived_activity_id(
-                    OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE,
-                    self.actor_id,
-                    self.case_id,
-                    self.recommendation_id,
-                ),
+                activity_id=activity_id,
+                activity_blob=activity_blob,
+                semantic_type=OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE,
             )
-            # Route through the shared emit seam (OX-14-001, ASK-04-008).
-            self._emit_through_seam(activity_id, "")
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
-            self.feedback_message = (
-                f"EmitOfferCaseParticipantToOwner failed: {e}"
-            )
-            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
-            return Status.FAILURE
-        # Record the sent Offer (ADR-0119, CM-16-010).  The exact blob is the
-        # snapshot (VM-08-003): the factory sets context.  Not caught: the
-        # Offer is queued, so a failed commit escapes to ``BTBridge`` as an
-        # internal error and the redelivered recommendation records it
-        # (BT-14-001, OX-06-002), as in ``_EmitSingleActivityBase.update()``.
-        commit_emitted_activity(
-            datalayer=cast(CaseOutboxPersistence, self.datalayer),
-            actor_id=self.actor_id,
-            case_id=self.case_id,
-            activity_id=activity_id,
-            activity_blob=activity_blob,
-            semantic_type=OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE,
-        )
         self.logger.info(
             "%s: queued Offer(CaseParticipant) '%s' to Case Owner outbox"
             " for case '%s'",

@@ -202,7 +202,7 @@ class MakeOwnershipTransferOfferNode(_EmitSingleActivityBase):
         # queued and committed in one transaction, so a failed commit takes
         # the queued Offer back out: no transferee is sent an Offer the
         # ledger does not record (CLP-07-015, ADR-0146).
-        with cast(CaseOutboxPersistence, self.datalayer).transaction():
+        with self._one_act():
             activity_id, activity_blob = self._call_factory()
             self._emit_through_seam(activity_id, activity_blob)
             self._record_sent(activity_id, activity_blob)

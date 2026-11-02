@@ -37,6 +37,7 @@ Per specs/behavior-tree-node-design.yaml BTND-03-009 through BTND-03-011:
 
 import json
 import logging
+from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING, Any, cast, overload
 
 import py_trees
@@ -768,9 +769,12 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts, EmitCapable):
     the case ledger overrides ``_record_sent()`` to commit it: ``update()``
     calls it after the outbox write, because a ledger entry records a
     completed act and a send is complete once the activity is in this
-    actor's outbox (ADR-0119, SYNC-09-002).  The optional ``_on_success()``
-    hook is called after a successful outbox write and is useful for
-    domain-specific log messages.
+    actor's outbox (ADR-0119, SYNC-09-002).  The build, the outbox write
+    and the commit run in one act (:meth:`_one_act`), so the outbox entry
+    is not delivered before the commit, and a failed commit leaves nothing
+    queued (OX-03-002, ADR-0146).  The optional ``_on_success()`` hook is
+    called after the act commits and is useful for domain-specific log
+    messages.
 
     When *captured* is provided, ``captured["activity"]`` is set to the
     serialised activity dict on success, avoiding a follow-up ``dl.read()``
@@ -801,13 +805,24 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts, EmitCapable):
     def _record_sent(self, activity_id: str, activity_blob: str) -> None:
         """Commit the ledger entry of the activity just queued; default: none.
 
-        Called after the outbox write whether or not that write queued the
-        activity: an id already pending is the earlier attempt's send, whose
-        commit failed, so the retry records it now (OX-06-002, ADR-0119).
-        Raises when the commit fails; ``update()`` does not catch it, so the
-        exception reaches ``BTBridge`` with the activity queued and
-        unrecorded until a retry records it.
+        Called after the outbox write, in the same act (:meth:`_one_act`),
+        whether or not that write queued the activity: an id already pending
+        is not queued again (OX-06-002) and is still recorded (ADR-0119).
+        Raises when the commit fails;
+        ``update()`` does not catch it, so the act rolls back, taking the
+        outbox write with it, and the exception reaches ``BTBridge``.
         """
+
+    def _one_act(self) -> AbstractContextManager[None]:
+        """The transaction a send and the commit recording it share.
+
+        The outbox write is not visible to a drain until the act commits,
+        and is rolled back with it, so a drain the write wakes (OX-09-001)
+        cannot deliver an activity whose act then fails (OX-03-002,
+        ADR-0146).  Inside an enclosing act (an ``ActTransaction``) this is
+        part of that act.
+        """
+        return cast(CaseOutboxPersistence, self.datalayer).transaction()
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
         """Optional hook called after a successful outbox write.
@@ -857,19 +872,23 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts, EmitCapable):
         if (f := self._require_factory()) is not None:
             self.logger.error("%s", self.feedback_message)
             return f
-        try:
-            activity_id, activity_blob = self._call_factory()
-            self._emit_through_seam(activity_id, activity_blob)
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
-            self.feedback_message = f"{self.__class__.__name__} failed: {e}"
-            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
-            return Status.FAILURE
-        # Not caught: the activity is already queued, so a FAILURE here would
-        # let an enclosing Selector fall through to another arm and send a
-        # second, contradictory answer after it.  A failed commit escapes to
-        # ``BTBridge`` as an internal error instead (BT-14-001, ARCH-15-001),
-        # as in the relay node and ``_CommitCaseManagerActivityBase``.
-        self._record_sent(activity_id, activity_blob)
+        with self._one_act():
+            try:
+                activity_id, activity_blob = self._call_factory()
+                self._emit_through_seam(activity_id, activity_blob)
+            except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+                self.feedback_message = (
+                    f"{self.__class__.__name__} failed: {e}"
+                )
+                self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+                return Status.FAILURE
+            # Not caught: the activity is queued in this act, so a FAILURE
+            # here would let an enclosing Selector fall through to another
+            # arm and send a second, contradictory answer after it.  A failed
+            # commit rolls the act back and escapes to ``BTBridge`` as an
+            # internal error instead (BT-14-001, ARCH-15-001), as in the
+            # relay node and ``_CommitCaseManagerActivityBase``.
+            self._record_sent(activity_id, activity_blob)
         self._on_success(activity_id, activity_blob)
         return Status.SUCCESS
 
