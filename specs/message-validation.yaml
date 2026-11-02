@@ -261,7 +261,7 @@ groups:
       A refusal under MV-04-003 is safe only when resolution looks at wire classes
       alone. A `CORE_TYPE_MAP` fallback (ARCH-12-014) resolves an inline actor's
       `inbox` to a core instance that its wire parent refuses (ARCH-22-001). The core
-      fallback is opt-in (VM-06-008).
+      fallback is opt-in (VM-06-013).
     verification: >-
       `test_parse_activity_keeps_inline_actor_subtype_with_inline_collections` and
       `test_inline_ordered_collection_resolves_to_the_wire_class` in

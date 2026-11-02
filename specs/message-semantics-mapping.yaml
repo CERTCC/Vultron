@@ -1594,7 +1594,8 @@ groups:
     kind: protocol
     statement: >-
       The wire activity ACTIVATE_EMBARGO_ON_CASE (wire form:
-      Accept(EmbargoEvent)[target=VulnerabilityCase], the EmbargoEvent itself as the object) is
+      Accept(EmbargoEvent)[target=VulnerabilityCase], the EmbargoEvent itself as
+      the object) is
       the case owner's decision for the case. It MUST activate the named proposal's
       embargo register entry and supersede any entry in force in the same step. The
       derived EM becomes ACTIVE (EA, or EC for a revision).
@@ -1606,7 +1607,8 @@ groups:
       the rows.
     verification: >-
       Unit tests in `test/core/use_cases/received/` assert that the case owner's
-      Accept(EmbargoEvent)[target=VulnerabilityCase] at the CASE_MANAGER activates the proposal and
+      Accept(EmbargoEvent)[target=VulnerabilityCase] at the CASE_MANAGER activates
+      the proposal and
       carries signatories over to a shorter revision, and that a replica replaying the
       committed entry converges.
     relationships:
@@ -1695,7 +1697,8 @@ groups:
     kind: protocol
     statement: >-
       The wire activity REJECT_EMBARGO_PROPOSAL_ON_CASE (wire form:
-      Reject(EmbargoEvent)[target=VulnerabilityCase], the EmbargoEvent itself as the object) is
+      Reject(EmbargoEvent)[target=VulnerabilityCase], the EmbargoEvent itself as
+      the object) is
       the case owner's decision for the case. It MUST reject the named proposal's
       embargo register entry. Once no other proposal is open, the derived EM becomes
       NONE (ER) or stays ACTIVE with the prior terms in force (EJ). It stays PROPOSED or
@@ -1707,7 +1710,8 @@ groups:
       (ADR-0122).
     verification: >-
       Unit tests in `test/core/use_cases/received/` assert that the case owner's
-      Reject(EmbargoEvent)[target=VulnerabilityCase] at the CASE_MANAGER rejects the proposal and
+      Reject(EmbargoEvent)[target=VulnerabilityCase] at the CASE_MANAGER rejects
+      the proposal and
       leaves another open proposal open.
     relationships:
     - rel_type: depends_on
