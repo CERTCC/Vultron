@@ -40,7 +40,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from gh_cli import gh, run, write_github_file  # see gh_cli
 from publish_gate import MAIN_REF
 from release_tags import (
-    BOT_EMAIL,
+    BOT_GIT_IDENTITY,
     BOT_NAME,
     PUBLISH_PREFIX,
     PUBLISH_TAG_RE,
@@ -52,6 +52,7 @@ from release_tags import (
     publish_tags,
     release_tags,
     release_version,
+    tag_commit,
     workflow_publish_tags_on,
 )
 
@@ -138,24 +139,25 @@ def plan_promotion(
     """Name the release that promotes *source*, by promotion date.
 
     A commit that already carries a release tag is not tagged again. If that
-    tag is the latest release and has no GitHub Release, a run whose release
-    step failed left it, so the run drafts its release; otherwise the commit
-    is released already and the run is refused.
+    tag is the latest release, was made by this workflow and has no GitHub
+    Release, a run whose release step failed left it, so the run drafts its
+    release. In every other case the run is refused.
     """
     known = list(releases)
     names = [t.name for t in known]
-    on_commit = [
-        t.name
+    on_commit = {
+        t.name: t
         for t in known
         if t.commit == source.commit and RELEASE_TAG_RE.match(t.name)
-    ]
+    }
     if on_commit:
         tagged = latest_release(on_commit)
         assert tagged is not None
-        if tagged != latest_release(names) or has_release(tagged):
+        why = _no_resume(on_commit[tagged], latest_release(names), has_release)
+        if why:
             raise PromotionRefusedError(
                 f"{source.name} names {source.commit}, which is already "
-                f"released as {tagged}"
+                f"tagged {tagged}: {why}"
             )
         return Promotion(
             source, tagged, _previous_release(names, tagged), create_tag=False
@@ -164,6 +166,19 @@ def plan_promotion(
     return Promotion(
         source, release, _previous_release(names, release), create_tag=True
     )
+
+
+def _no_resume(
+    tag: Tag, latest: str | None, has_release: Callable[[str], bool]
+) -> str:
+    """Why a run must not draft the release of *tag*, or ``""``."""
+    if tag.name != latest:
+        return f"a later release, {latest}, exists"
+    if not tag.made_by_workflow:
+        return "that tag was not made by this workflow"
+    if has_release(tag.name):
+        return "it is released already"
+    return ""
 
 
 def release_tag_message(promotion: Promotion, actor: str, run_url: str) -> str:
@@ -184,7 +199,8 @@ def unpublished_release(tag: str, commit: str, publishes: list[Tag]) -> str:
         "on the site, so nothing showed it passed CI and the site checks.\n\n"
         "Tags are append-only, so this tag stays. Review the release; to "
         "release a published commit instead, run the **Promote a publish to "
-        "a release** workflow. Close this issue once the release is reviewed."
+        "a release** workflow. The next release tag pushed by hand that "
+        "names a publish closes this issue."
     )
 
 
@@ -240,11 +256,20 @@ def stale_site(
 
 
 def release_exists(repo: str, name: str) -> bool:
-    """Whether a GitHub Release, draft or not, exists for tag *name*."""
+    """Whether a GitHub Release, draft or not, exists for tag *name*.
+
+    Only ``gh``'s "release not found" reads as no release; any other error
+    raises, so a failed lookup never leads to a second draft.
+    """
     try:
-        gh("release", "view", name, "--repo", repo, "--json", "tagName")
-    except subprocess.CalledProcessError:
-        return False
+        gh(
+            "release", "view", name, "--repo", repo, "--json", "tagName",
+            retry=False,
+        )  # fmt: skip
+    except subprocess.CalledProcessError as error:
+        if "not found" in str(error.stderr or "").lower():
+            return False
+        raise
     return True
 
 
@@ -255,10 +280,9 @@ def push_release_tag(promotion: Promotion, message: str) -> None:
     by hand meanwhile; then the push fails, and the run with it. A tag is
     never moved or deleted.
     """
-    as_bot = ("-c", f"user.name={BOT_NAME}", "-c", f"user.email={BOT_EMAIL}")
     run(
         "git",
-        *as_bot,
+        *BOT_GIT_IDENTITY,
         "tag",
         "--annotate",
         promotion.release,
@@ -340,9 +364,16 @@ def cmd_promote(args: argparse.Namespace) -> int:
 
 
 def cmd_check(args: argparse.Namespace) -> int:
-    commit = run(
-        "git", "rev-parse", f"refs/tags/{args.tag}^{{commit}}"
-    ).strip()
+    if release_version(args.tag) is None:
+        # A ``v*`` name that is no version, such as ``vendor-drop``, is no
+        # release: nothing to check, and no report to close.
+        _report("Release tag check", f"`{args.tag}` is not a release tag.")
+        write_github_file("GITHUB_OUTPUT", "checked=false\n")
+        return 0
+    write_github_file("GITHUB_OUTPUT", "checked=true\n")
+    commit = tag_commit(args.tag)
+    if commit is None:
+        raise PromotionRefusedError(f"there is no tag {args.tag!r}")
     problem = unpublished_release(
         args.tag, commit, workflow_publish_tags_on(commit)
     )

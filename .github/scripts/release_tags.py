@@ -24,6 +24,7 @@ Nothing here creates, moves or deletes a tag.
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -40,6 +41,13 @@ RELEASE_PREFIX = "v"
 # it (ADR-0171).
 BOT_NAME = "github-actions[bot]"
 BOT_EMAIL = "41898282+github-actions[bot]@users.noreply.github.com"
+# The ``git`` options that make a tag as the bot: ``git *BOT_GIT_IDENTITY tag``.
+BOT_GIT_IDENTITY = (
+    "-c",
+    f"user.name={BOT_NAME}",
+    "-c",
+    f"user.email={BOT_EMAIL}",
+)
 
 PUBLISH_TAG_RE = re.compile(r"^publish-(\d{4}-\d{2}-\d{2})\.(\d+)$")
 # A release name ADR-0006 allows: three components, always.
@@ -230,6 +238,16 @@ def read_tags(pattern: str, *, points_at: str = "") -> list[Tag]:
             )
         )
     return tags
+
+
+def tag_commit(tag: str) -> str | None:
+    """The commit *tag* names in this clone, or ``None`` if there is no such tag."""
+    try:
+        return run(
+            "git", "rev-parse", "--verify", f"refs/tags/{tag}^{{commit}}"
+        ).strip()
+    except subprocess.CalledProcessError:
+        return None
 
 
 def publish_tags(*, points_at: str = "") -> list[Tag]:

@@ -21,6 +21,8 @@ import pytest
 
 from test.ci._fake_gh import install_fake_gh
 from test.ci._scratch_git import (
+    BOT_EMAIL,
+    BOT_NAME,
     commit as _commit,
     git as _git,
     head as _head,
@@ -70,7 +72,7 @@ def _ctx(trigger: Any, source_tag: str = "") -> Any:
 
 
 def _bot_tag(name: str = f"publish-{DAY}.1") -> Any:
-    return _gate.Tag(name, True, _gate.BOT_NAME, _gate.BOT_EMAIL)
+    return _gate.Tag(name, True, BOT_NAME, BOT_EMAIL)
 
 
 class _Calls:
@@ -367,7 +369,7 @@ def test_a_foreign_tag_is_ignored(repo: Path) -> None:
     _git(repo, "tag", "-a", f"publish-{DAY}.1", "-m", "by hand")
     _git(repo, "tag", f"publish-{DAY}.2")
     # A tag that only claims the bot's name, with someone else's address.
-    _git(repo, "tag", "-a", f"publish-{DAY}.3", "-m", "x", name=_gate.BOT_NAME)
+    _git(repo, "tag", "-a", f"publish-{DAY}.3", "-m", "x", name=BOT_NAME)
     tags = _gate.publish_tags_on(_head(repo))
     assert {t.name: t.annotated for t in tags} == {
         f"publish-{DAY}.1": True,
@@ -380,6 +382,19 @@ def test_a_foreign_tag_is_ignored(repo: Path) -> None:
     assert f"Ignored `publish-{DAY}.1`: tagged by Some Person" in notes
     assert f"Ignored `publish-{DAY}.2`: a lightweight tag" in notes
     assert f"Ignored `publish-{DAY}.3`" in notes
+
+
+@pytest.mark.spec("DOCBW-07-006")
+def test_a_bot_tag_with_a_malformed_name_is_ignored(repo: Path) -> None:
+    """Only a ``publish-YYYY-MM-DD.N`` name counts, whoever tagged it."""
+    _tag_as_bot(repo, "publish-not-a-date")
+    decision = _Calls(tags=_gate.publish_tags_on(_head(repo))).decide(
+        _ctx(Trigger.SCHEDULED)
+    )
+    assert decision.publish
+    assert decision.notes == [
+        "Ignored `publish-not-a-date`: not a publish-YYYY-MM-DD.N name."
+    ]
 
 
 def test_publish_tags_on_reads_only_publish_tags_on_the_commit(
@@ -532,7 +547,7 @@ def test_tag_message_records_trigger_and_actor(
         ),
     ],
 )
-def test_next_tag_name(existing: list[str], expected: str) -> None:
+def test_next_publish_name(existing: list[str], expected: str) -> None:
     assert _gate.next_publish_name(DAY, existing) == expected
 
 

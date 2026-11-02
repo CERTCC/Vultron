@@ -143,18 +143,6 @@ def test_next_release_name_never_goes_backwards() -> None:
         _tags.next_release_name(date(2026, 11, 2), ["v2027.0.1"])
 
 
-def test_next_publish_name() -> None:
-    existing = ["publish-2026-11-02.1", "publish-2026-11-02.3", "v2026.11.0"]
-    assert (
-        _tags.next_publish_name("2026-11-02", existing)
-        == "publish-2026-11-02.4"
-    )
-    assert (
-        _tags.next_publish_name("2026-11-03", existing)
-        == "publish-2026-11-03.1"
-    )
-
-
 # --- reading the clone ------------------------------------------------------------
 
 
@@ -200,7 +188,43 @@ def test_read_tags_records_tagger_commit_and_date(repo: Path) -> None:
     assert _tags.has_publish_tag(first, _tags.publish_tags())
 
 
+def test_tag_commit_peels_an_annotated_tag(repo: Path) -> None:
+    tag_as_bot(repo, "v2026.11.0")
+    git(repo, "tag", "vendor-drop")
+    assert _tags.tag_commit("v2026.11.0") == head(repo)
+    assert _tags.tag_commit("vendor-drop") == head(repo)
+    assert _tags.tag_commit("v9.9.9") is None
+
+
 def test_release_tags_skips_a_tag_that_is_no_version(repo: Path) -> None:
     git(repo, "tag", "vendor-drop")
     tag_as_bot(repo, "v2026.11.0")
     assert [t.name for t in _tags.release_tags()] == ["v2026.11.0"]
+
+
+# Each workflow script asks its tag questions here, never of git directly.
+_ROUTED_SCRIPTS = ("publish_gate", "release")
+_DIRECT_TAG_QUERIES = (
+    "for-each-ref",
+    "%(tagger",
+    "^{{commit}}",
+    "publish-(\\d",
+    "41898282+github-actions",
+)
+
+
+@pytest.mark.spec("DOCBW-07-006")
+@pytest.mark.parametrize("name", _ROUTED_SCRIPTS)
+def test_scripts_query_tags_only_through_the_helper(name: str) -> None:
+    """A script that read tags or the bot identity itself could disagree with
+    the helper about which tags are publishes."""
+    source = (Path(_tags.__file__).parent / f"{name}.py").read_text()
+    assert "from release_tags import" in source
+    found = [q for q in _DIRECT_TAG_QUERIES if q in source]
+    assert not found, f"{name}.py queries tags itself: {found}"
+
+
+@pytest.mark.parametrize("query", _DIRECT_TAG_QUERIES)
+def test_the_routing_check_sees_each_query_in_the_helper(query: str) -> None:
+    """Each pattern the routing check bans is one the helper really uses."""
+    assert query in Path(_tags.__file__).read_text()

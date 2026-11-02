@@ -159,19 +159,23 @@ def test_a_tagged_commit_without_a_release_gets_its_draft() -> None:
 
 @pytest.mark.spec("DOCBW-07-010")
 @pytest.mark.parametrize(
-    ("releases", "has_release"),
+    ("releases", "has_release", "why"),
     [
-        # The commit's release exists already.
-        ([_bot("v2026.11.0", "c1")], True),
-        # The commit's release is not the latest one.
-        ([_bot("v2026.11.0", "c1"), _bot("v2026.11.1", "c2")], False),
+        ([_bot("v2026.11.0", "c1")], True, "it is released already"),
+        (
+            [_bot("v2026.11.0", "c1"), _bot("v2026.11.1", "c2")],
+            False,
+            "a later release, v2026.11.1, exists",
+        ),
+        # A hand-pushed tag is no promote run's leftover.
+        ([_hand("v2026.11.0", "c1")], False, "not made by this workflow"),
     ],
-    ids=["released", "superseded"],
+    ids=["released", "superseded", "by-hand"],
 )
 def test_a_released_commit_is_not_promoted_again(
-    releases: list[Any], has_release: bool
+    releases: list[Any], has_release: bool, why: str
 ) -> None:
-    with pytest.raises(_rel.PromotionRefusedError, match="already released"):
+    with pytest.raises(_rel.PromotionRefusedError, match=why):
         _rel.plan_promotion(
             _bot("publish-2026-11-02.1"),
             releases,
@@ -299,7 +303,9 @@ class _FakeGh:
                 raise subprocess.CalledProcessError(1, ["gh", *args])
             return f"https://github.com/O/R/releases/tag/{args[2]}\n"
         if args[:2] == ("release", "view"):
-            raise subprocess.CalledProcessError(1, ["gh", *args])
+            raise subprocess.CalledProcessError(
+                1, ["gh", *args], stderr="release not found\n"
+            )
         raise AssertionError(f"unexpected gh call {args}")
 
     def creates(self) -> list[tuple[str, ...]]:
@@ -389,13 +395,63 @@ def _check(tag: str, details: Path) -> int:
 
 @pytest.mark.spec("DOCBW-07-007")
 def test_check_passes_a_release_of_a_publish(
-    repo: Path, tmp_path: Path
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     tag_as_bot(repo, "publish-2026-10-30.1")
     git(repo, "tag", "-a", "v2026.11.0", "-m", "by hand")
     details = tmp_path / "details.md"
+    out = tmp_path / "out"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
     assert _check("v2026.11.0", details) == 0
     assert not details.exists()
+    assert out.read_text() == "checked=true\n"
+
+
+@pytest.mark.spec("DOCBW-07-007")
+def test_check_skips_a_v_tag_that_is_no_release(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``vendor-drop`` matches the trigger but is no release: no report, no close."""
+    git(repo, "tag", "vendor-drop")
+    out = tmp_path / "out"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    details = tmp_path / "details.md"
+    assert _check("vendor-drop", details) == 0
+    assert not details.exists()
+    assert out.read_text() == "checked=false\n"
+
+
+def test_check_fails_on_a_tag_it_cannot_find(
+    repo: Path, tmp_path: Path
+) -> None:
+    with pytest.raises(_rel.PromotionRefusedError, match="no tag"):
+        _check("v2026.11.9", tmp_path / "details.md")
+
+
+@pytest.mark.spec("DOCBW-07-010")
+@pytest.mark.parametrize(
+    ("stderr", "expected"),
+    [("", True), ("release not found\n", False), ("HTTP 502\n", None)],
+    ids=["exists", "not-found", "api-error"],
+)
+def test_release_exists_reads_only_not_found_as_no_release(
+    monkeypatch: pytest.MonkeyPatch, stderr: str, expected: bool | None
+) -> None:
+    calls: list[bool] = []
+
+    def gh(*args: str, retry: bool = True) -> str:
+        calls.append(retry)
+        if stderr:
+            raise subprocess.CalledProcessError(1, ["gh"], stderr=stderr)
+        return "{}"
+
+    monkeypatch.setattr(_rel, "gh", gh)
+    if expected is None:
+        with pytest.raises(subprocess.CalledProcessError):
+            _rel.release_exists("O/R", "v2026.11.0")
+    else:
+        assert _rel.release_exists("O/R", "v2026.11.0") is expected
+    assert calls == [False]
 
 
 @pytest.mark.spec("DOCBW-07-007", "DOCBW-07-006")
@@ -500,8 +556,15 @@ def test_release_tag_check_workflow() -> None:
     }
     assert "release.py check" in _run_text(CHECK)
     _assert_notify_pair(
-        CHECK, "ci:workflow-release-tag-check", "unpublished-release.md"
+        CHECK,
+        "ci:workflow-release-tag-check",
+        "unpublished-release.md",
+        close_if="success() && steps.check.outputs.checked == 'true'",
     )
+    assert wf["concurrency"] == {
+        "group": "release-tag-check",
+        "cancel-in-progress": False,
+    }
 
 
 @pytest.mark.spec("DOCBW-07-008")
@@ -531,7 +594,9 @@ def test_staleness_workflow() -> None:
     )
 
 
-def _assert_notify_pair(path: Path, label: str, details: str) -> None:
+def _assert_notify_pair(
+    path: Path, label: str, details: str, close_if: str = "success()"
+) -> None:
     """One notify step on failure, with the details, and one close on success."""
     wf = load_workflow(path)
     assert _reporting_violations(wf) == []
@@ -543,7 +608,7 @@ def _assert_notify_pair(path: Path, label: str, details: str) -> None:
     by_mode = {s["with"]["mode"]: s for s in notify_steps}
     assert set(by_mode) == {"notify", "close"} and len(notify_steps) == 2
     assert by_mode["notify"]["if"] == "failure()"
-    assert by_mode["close"]["if"] == "success()"
+    assert by_mode["close"]["if"] == close_if
     assert {s["with"]["workflow-label"] for s in notify_steps} == {label}
     assert by_mode["notify"]["with"]["details-file"] == details
     assert f"--details-file {details}" in _run_text(path)

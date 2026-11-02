@@ -4,7 +4,9 @@
 # files a report. It only reports: it never blocks the tag and never moves or
 # deletes it, which the tag ruleset would refuse anyway (#5545). A release tag
 # the promote workflow pushes starts no workflow, so this one sees only tags
-# pushed by hand. The logic lives in .github/scripts/release.py.
+# pushed by hand. GitHub sends no push event when more than three tags are
+# pushed at once, so push a release tag on its own. The logic lives in
+# .github/scripts/release.py.
 name: Release tag check
 
 on:
@@ -14,6 +16,11 @@ on:
 
 permissions:
   contents: read
+
+# One check at a time, so a report and a close never race.
+concurrency:
+  group: release-tag-check
+  cancel-in-progress: false
 
 jobs:
   check:
@@ -37,6 +44,7 @@ jobs:
           fetch-tags: true
 
       - name: Check the release tag
+        id: check
         env:
           TAG: ${{ github.ref_name }}
         run: |
@@ -52,9 +60,10 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           details-file: unpublished-release.md
       # A later release tag that names a publish closes the report: the newest
-      # release is then one that was on the site.
+      # release is then one that was on the site. A v* name that is no version
+      # was not checked, so it closes nothing.
       - name: Close CI failure issue
-        if: success()
+        if: success() && steps.check.outputs.checked == 'true'
         uses: ./.github/actions/notify-failure
         with:
           mode: close

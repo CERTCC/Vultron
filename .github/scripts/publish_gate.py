@@ -54,13 +54,15 @@ from gh_cli import (  # see gh_cli
     write_github_file,
 )
 from release_tags import (
-    BOT_EMAIL,
+    BOT_GIT_IDENTITY,
     BOT_NAME,
     PUBLISH_PREFIX,
     Tag,
     next_publish_name,
+    publish_tags,
     publish_tags_on,
     split_publish_tags,
+    tag_commit,
     workflow_publish_tags_on,
 )
 
@@ -460,16 +462,6 @@ def missing_build_actions(commit: str) -> list[str]:
     ]
 
 
-def tag_commit(tag: str) -> str | None:
-    """The commit *tag* points at in this clone, or ``None``."""
-    try:
-        return run(
-            "git", "rev-parse", "--verify", f"refs/tags/{tag}^{{commit}}"
-        ).strip()
-    except subprocess.CalledProcessError:
-        return None
-
-
 def _remote_tags() -> dict[str, str]:
     """The remote's ``publish-*`` tags, by name, with their object ids."""
     out = run(
@@ -513,13 +505,12 @@ def create_tag(
     day = today or datetime.now(UTC).strftime("%Y-%m-%d")
     if found := _tag_from_this_run(sha, run_url, _remote_tags()):
         return found
-    as_bot = ("-c", f"user.name={BOT_NAME}", "-c", f"user.email={BOT_EMAIL}")
     for attempt in range(1, TAG_PUSH_ATTEMPTS + 1):
-        local = run("git", "tag", "--list", f"{PUBLISH_PREFIX}*").split()
+        local = [t.name for t in publish_tags()]
         name = next_publish_name(day, [*local, *_remote_tags()])
         run(
             "git",
-            *as_bot,
+            *BOT_GIT_IDENTITY,
             "tag",
             "--annotate",
             name,

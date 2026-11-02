@@ -896,7 +896,7 @@ groups:
           collide. A push that reports failure but landed, and a re-run of the
           tag job, find the tag already pushed, so neither makes a second one.
         verification: >-
-          `test_next_tag_name`, `test_create_tag_pushes_one_annotated_tag`,
+          `test_next_publish_name`, `test_create_tag_pushes_one_annotated_tag`,
           `test_create_tag_renumbers_past_a_taken_name`,
           `test_create_tag_accepts_a_push_that_landed`,
           `test_a_rerun_finds_the_tag_it_pushed` and
@@ -1260,10 +1260,11 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Every query of `publish-*` and `v*` tags by the publish gate, the
-          promote workflow, the release tag check and the staleness alarm MUST go
-          through the shared helper `.github/scripts/release_tags.py`, which
-          counts as a publish only an annotated `publish-YYYY-MM-DD.N` tag whose
+          The publish gate, the promote workflow, the release tag check and the
+          staleness alarm MUST read the local clone's `publish-*` and `v*` tags,
+          the commit a tag names, and the bot's tagging identity only through
+          the shared helper `.github/scripts/release_tags.py`. The helper MUST
+          count as a publish only an annotated `publish-YYYY-MM-DD.N` tag whose
           tagger is `github-actions[bot]`.
         rationale: >-
           One helper gives all four the same answer to "which commits were
@@ -1272,8 +1273,12 @@ groups:
           staleness alarm either.
         verification: >-
           `test/ci/test_release_tags.py` covers each query, a hand-pushed tag
-          included, and `test_check_reports_a_release_of_no_publish` in
-          `test/ci/test_release.py` covers the check.
+          included, and `test_scripts_query_tags_only_through_the_helper` there
+          fails when `publish_gate.py` or `release.py` reads tags or the bot
+          identity itself. `test_a_bot_tag_with_a_malformed_name_is_ignored` in
+          `test/ci/test_publish_gate.py` and
+          `test_check_reports_a_release_of_no_publish` in
+          `test/ci/test_release.py` cover the gate and the check.
         adr:
           - ADR-0171
         relationships:
