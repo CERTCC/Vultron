@@ -98,8 +98,8 @@ class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
     own closure (CM-23-004, CM-23-031): the leaver receives its
     ``close_case`` entry and its closure steps, and nothing after them.  The
     joined participants that are not active (not signatories to the active
-    embargo, or removed, CM-31-001) go to ``fanout_withheld``, so the send node can pause their
-    streams (CM-10-005).
+    embargo, or removed, CM-31-001) go to ``fanout_withheld``, so the send
+    node can pause their streams (CM-10-005).
     """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:

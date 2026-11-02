@@ -206,14 +206,14 @@ def create_close_case_received_tree(
                 │           │   └── OwnerLeaveSeq (Sequence)
                 │           │       ├── ExpirePendingInvitesOnCloseNode   # settle pending Invites (CM-23-014)
                 │           │       ├── AdvanceParticipantToRMClosedNode  # step 1: owner → RM.CLOSED
-                │           │       ├── CommitRMClosureEntriesNode   # step 1 on the ledger (CM-23-022)
+                │           │       ├── CommitRMClosureEntriesNode   # step 1, ledgered (CM-23-022)
                 │           │       ├── AdvanceCaseActorToRMClosedNode    # step 2: CaseActor → RM.CLOSED
                 │           │       └── CommitRMClosureEntriesNode   # step 2: the boundary
                 │           └── NonOwnerLeaveArm (Selector)     # Non-owner (CM-23-003)
                 │               ├── SenderIsCaseOwnerNode            # skip: sender is CASE_OWNER
                 │               └── NonOwnerLeaveSeq (Sequence)
                 │                   ├── AdvanceParticipantToRMClosedNode  # departing → RM.CLOSED
-                │                   └── CommitRMClosureEntriesNode   # each step on the ledger (CM-23-022)
+                │                   └── CommitRMClosureEntriesNode   # ledgered (CM-23-022)
                 └── DeclineOwnerCloseIfEmbargoed (Sequence)  # CM-23-011 decline arm
                     ├── CheckIsCaseOwner → ReadEmState
                     │        → IsCloseBlockedByActiveEmbargo  # decline decision

@@ -179,7 +179,7 @@ def create_accept_invite_actor_to_case_tree(
                 ├── EmitAnnounceCaseToInviteeNode        — queue Announce to invitee
                 ├── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
                 ├── CommitInviteeAcceptEntriesNode       — ledger the vendor's VF status (ADR-0114)
-                ├── EmitInviteActorToFullCaseNode        — full-case Invite with the ledger tail (CM-11-031)
+                ├── EmitInviteActorToFullCaseNode        — full-case Invite (CM-11-031)
                 └── RelayOpenProposalsToJoinerNode       — Invite to each open embargo proposal (EP-09-011)
 
     The announce, backfill and full-case Invite follow CM-17-004 steps (3)

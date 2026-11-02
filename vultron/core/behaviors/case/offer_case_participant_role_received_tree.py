@@ -89,7 +89,8 @@ def create_offer_case_participant_role_received_tree(
     store that does not hold the case (CM-33-002, CM-33-004, PCR-03-001).
     :class:`RoleOfferAdmissibleNode` then refuses an Offer the CASE_MANAGER
     may not record (CM-33-003), so a refused Offer leaves no entry and sends
-    nothing (CM-33-012, CM-33-013).  At the CASE_MANAGER the guarded commit records the Offer and
+    nothing (CM-33-012, CM-33-013).  At the CASE_MANAGER the guarded commit
+    records the Offer and
     the gated :class:`ForwardRoleOfferToTargetNode` sends it on to the target.
     The commit records the received Offer, so it precedes the forward
     (CLP-10-006); the forward is not ledgered on its own, so SYNC-09-002's

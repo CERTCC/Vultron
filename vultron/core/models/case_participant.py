@@ -255,8 +255,9 @@ class CaseParticipant(CoreObject):
         The creation write of the consent table (ADR-0122): a participant
         gets a row when an embargo is proposed (CM-18-019) and, when it
         joins, one for every entry already in the register (CM-18-020).  A
-        row it already holds is left as it is, so the call is idempotent.  It records no answer, so it is
-        not a consent change (CM-18-005).  The caller persists the record.
+        row it already holds is left as it is, so the call is idempotent.  It
+        records no answer, so it is not a consent change (CM-18-005).  The
+        caller persists the record.
 
         Returns:
             ``True`` when at least one row was written.

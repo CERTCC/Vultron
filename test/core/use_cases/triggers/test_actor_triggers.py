@@ -768,7 +768,7 @@ class TestRolesThreadingIntegration:
     @pytest.mark.spec("CM-11-048")
     @pytest.mark.spec("CM-11-019")
     def test_no_roles_is_refused_not_defaulted(self, make_payload):
-        """CM-11-048, CM-11-050: no roles → CASE_MANAGER refuses rather than defaulting to VENDOR.
+        """CM-11-048, CM-11-050: no roles → CASE_MANAGER refuses, no VENDOR default.
 
         The CASE_MANAGER must not substitute VENDOR when the inviter provides
         no roles. The full-round-trip fails at the CASE_MANAGER's receipt of

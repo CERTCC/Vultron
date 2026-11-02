@@ -951,7 +951,10 @@ class TestInviteActorUseCases:
     def test_accept_invite_actor_to_case_records_active_embargo(
         self, monkeypatch, make_payload
     ):
-        """AcceptInviteActorToCaseReceivedUseCase records the active embargo ID on the new participant (CM-10-001)."""
+        """AcceptInviteActorToCaseReceivedUseCase records the active embargo ID.
+
+        The ID goes on the new participant (CM-10-001).
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.case import VulnerabilityCase
         from vultron.enums.roles import CVDRole
