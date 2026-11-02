@@ -9,6 +9,11 @@
 # `statement:` is not). Newly added requirements are not amendments: nothing
 # built on the old text can be wrong.
 #
+# Both sides are git refs, so an uncommitted edit is invisible and the script
+# reports nothing: run it after committing the spec change (or pass an explicit
+# <head-ref>). Running it on a dirty tree is a false negative, and the PR then
+# omits a `## Spec amended` section pr-triage fails it for (#5591).
+#
 # Output: one line per amended requirement, `<ID>\t<changed|removed>\t<fields>`.
 # Exit:   0  no requirement amended
 #         1  at least one amended (the PR body needs a `## Spec amended` section)
