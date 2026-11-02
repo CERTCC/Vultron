@@ -148,7 +148,7 @@ def test_every_public_verb_method_is_mapped():
     assert not unmapped, (
         f"ActorSession verb method(s) {sorted(unmapped)} have no entry in"
         " METHOD_TO_MODEL; add one so their keywords are ratcheted against the"
-        " request model (DEMOMA-26-004)."
+        " request model (DEMOMA-26-004, DEMOMA-26-012)."
     )
 
 

@@ -31,7 +31,7 @@ before a branch point (``notes/demo-scenario-tree.md`` § "Composition"):
 * :data:`COORDINATOR_INVITES_VENDOR` stops where the Vendor's decision falls.
   The Invite has been delivered, so the CASE_MANAGER has seated the Vendor's
   inert participant with the role the Invite offers and the harness can read
-  it (CM-17-003, DEMOCI-11-047), and the Vendor has not answered yet.
+  it (CM-17-003, DEMOCI-11-013, DEMOCI-11-047), and the Vendor has not answered yet.
   ``rcv-reject`` parts here.
 * :data:`VENDOR_JOINS_THE_CASE` continues through the Vendor's acceptance and
   the replica convergence, and stops where the Reporter's decision falls.

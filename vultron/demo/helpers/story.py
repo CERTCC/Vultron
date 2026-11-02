@@ -142,7 +142,7 @@ class Choose:
                 f"{self.by!r} as the actor that decides it; the name is the "
                 "one its scenario's ROLES seats the actor under, and the "
                 "harness reads that actor's role from the canonical case "
-                "(DEMOCI-11-047)."
+                "(DEMOCI-11-013, DEMOCI-11-047)."
             )
 
     @property

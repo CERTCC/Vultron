@@ -123,9 +123,9 @@ def prose_root(tmp_path: Path) -> Path:
     # finds no file, returns ``None``, and both checks skip every row — so a
     # fixture missing them would make those mutations look unreported.
     paths.update(spec.harness_path for spec in discover_scenarios())
-    # Each scenario's narrative page and the index, because DEMOCI-11-012 and DEMOCI-11-046 check
-    # the pages under ``docs/topics/scenarios/`` and a missing directory there is
-    # a structural failure rather than an empty result.
+    # Each scenario's narrative page and the index, because DEMOCI-11-012 and
+    # DEMOCI-11-046 check the pages under ``docs/topics/scenarios/`` and a missing
+    # directory there is a structural failure rather than an empty result.
     paths.update(spec.narrative_path for spec in discover_scenarios())
     paths.add(NARRATIVE_INDEX)
     for relative in sorted(paths):

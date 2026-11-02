@@ -2475,9 +2475,10 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Each branch point of the scenario tree MUST have exactly one branch-point table
-          entry with its deciding role, presenter prompt and two or more choices. The
-          table is the one in the scenario package.
+          Each branch point MUST be defined exactly once, as one branch-point table entry
+          with its deciding role, presenter prompt and two or more choices. The table is
+          the one in the scenario package, and it holds every branch point of the
+          scenario tree.
         rationale: >-
           Live mode and offline mode must offer the same choices (ADR-0104). One table
           that holds each branch point once is the single source for both modes, so
