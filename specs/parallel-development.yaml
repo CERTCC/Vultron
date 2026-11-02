@@ -2386,9 +2386,9 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          Before a Pull Request's first push, `create-pr` MUST gate a Pull
-          Request that changes no Python with the linters and
-          `prepush-ci-mirror`, and with no unit or integration suite run.
+          Before a Pull Request that changes no Python is first pushed,
+          `create-pr` MUST gate it with the linters and `prepush-ci-mirror`.
+          That gate runs no unit or integration suite.
         rationale: >-
           A docs-only branch has nothing for the suites to catch. CI's guards
           still read its Markdown and specs, though: AGENTS.md ceilings, ADR
@@ -2863,10 +2863,10 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          When the base changed a path that a pushed Pull Request also changes,
-          and the two do not conflict, `pr-execute` MUST run the tests for the
-          shared paths on the merge of `HEAD` with the base, in a scratch
-          worktree, before it pushes.
+          When the base and a pushed Pull Request changed the same path without
+          a conflict, `pr-execute` MUST test their merge before it pushes. It
+          runs the tests for the shared paths on the merge of `HEAD` with the
+          base, in a scratch worktree.
         rationale: >-
           CI tests the Pull Request merged into its base. After the first push
           the base moves, and a fix that passes on the branch alone can fail on
