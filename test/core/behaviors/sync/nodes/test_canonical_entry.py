@@ -308,7 +308,7 @@ def test_timestamp_checks_are_not_gated_on_case_published():
 
 
 def _offer_participant_snapshot(target: object) -> dict[str, object]:
-    """``Offer(CaseParticipant, target=<case>)`` as the factory emits it."""
+    """``Offer(CaseParticipant)[target=VulnerabilityCase]`` as the factory emits it."""
     return {
         "type": "Offer",
         "actor": OWNER_ACTOR_ID,
@@ -341,7 +341,7 @@ def test_bare_target_equal_to_the_case_uri_is_accepted():
 @pytest.mark.spec("CLP-07-006")
 @pytest.mark.spec("AKM-02-002")
 def test_bare_target_naming_a_held_object_is_recorded_as_received():
-    """``Add(ParticipantStatus, target=<participant uri>)`` is not refused.
+    """``Add(ParticipantStatus)`` with a bare participant URI target is not refused.
 
     The participant a status is added to is an object the case's replicas
     hold, so its sender may name it by URI (AKM-02-002).  The commit boundary
@@ -394,7 +394,7 @@ def test_a_bare_reference_nested_in_the_object_is_recorded_as_received():
 
 @pytest.mark.spec("CLP-07-006")
 def test_bare_target_naming_the_case_is_accepted_when_nested():
-    """``Accept(Offer(..., target=<case>))`` carries the same bare target inside."""
+    """``Accept(Offer(CaseParticipant))`` carries the same bare case target inside."""
     inner = _offer_participant_snapshot(CASE_ID)
     inner["id"] = "https://example.org/activities/offer-1"
     snapshot = {
@@ -426,7 +426,10 @@ def test_bare_object_is_still_refused():
 
 
 def test_invite_with_a_bare_case_target_resolves_to_the_case_signature():
-    """``Invite(Actor, target=<case uri>)`` is ``("Invite", "VulnerabilityCase")``."""
+    """``Invite(Actor)`` with a bare case URI target signs as the full-case Invite.
+
+    The signature is ``("Invite", "VulnerabilityCase")``.
+    """
     snapshot = {
         "type": "Invite",
         "actor": OWNER_ACTOR_ID,

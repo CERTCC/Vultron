@@ -153,7 +153,7 @@ sequenceDiagram
     B->>A: Accept(Offer(Report))
     CM->>A: Create(Case)
     Note over A: case replica seeded
-    CM->>A: Add(Participant, target Case)
+    CM->>A: Add(CaseParticipant)[target=VulnerabilityCase]
     A->>CM: case traffic from here on
     CM->>A: relayed activities from other Participants
 ```

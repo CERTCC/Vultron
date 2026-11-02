@@ -42,7 +42,10 @@ def create_add_report_to_case_received_tree(
     *,
     sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
-    """Single-BT received-side tree for ``Add(Report)[target=VulnerabilityCase]`` (ADR-0111).
+    """Single-BT received-side tree for an ``Add(VulnerabilityReport)``.
+
+    The ``Add`` is ``Add(VulnerabilityReport)[target=VulnerabilityCase]``
+    (ADR-0111).
 
     Structure (the CLP-10-010 stages)::
 

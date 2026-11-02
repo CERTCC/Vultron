@@ -452,12 +452,12 @@ groups:
     verification_debt: '#2573'
     statement: >-
       CS state transitions (fix-ready, fix-deployed, published) MUST be driven through
-      participant status updates via Add(ParticipantStatus)[target=VulnerabilityCase]
+      participant status updates via Add(ParticipantStatus)[target=CaseParticipant]
       sent to the Case
       Actor inbox, not through dedicated low-level state-machine endpoints.
       RM case closure is explicitly excluded from this requirement: RM.CLOSED MUST be
       reached via the Leave(VulnerabilityCase) round-trip (CM-23-001), not via
-      Add(ParticipantStatus)[rmState=CLOSED].
+      an Add(ParticipantStatus) whose status carries rmState=CLOSED.
     rationale: >-
       CS transitions are participant facts, so they travel as `Add(ParticipantStatus)`
       to the CASE_MANAGER, which commits them to the case ledger. A dedicated
@@ -471,6 +471,10 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CM-23-001
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5222.
+    - compound_statement
   - id: DEMOMA-07-002
     priority: MUST
     kind: project
@@ -943,7 +947,8 @@ groups:
       actor: case-actor
       action: >-
         Transform Offer(Actor)[target=VulnerabilityCase] to
-        Offer(CaseParticipant{Vendor2, roles=[vendor]}, Case)
+        Offer(CaseParticipant)[target=VulnerabilityCase] naming Vendor2 with
+        roles [vendor]
       expected: Transformed offer forwarded to Vendor1 (Case Owner) inbox
     - order: 3
       actor: demo-script
@@ -1928,7 +1933,8 @@ groups:
       actor: case-actor
       action: >-
         Transform Offer(Actor)[target=VulnerabilityCase] to
-        Offer(CaseParticipant{Vendor, roles=[vendor]}, Case)
+        Offer(CaseParticipant)[target=VulnerabilityCase] naming Vendor with
+        roles [vendor]
       expected: Transformed offer forwarded to C1 (Case Owner) inbox
     - order: 3
       actor: demo-script
@@ -5394,6 +5400,10 @@ groups:
     - ADR-0114
     tags:
     - demo
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5222.
+    - compound_statement
   - id: DEMOMA-27-003
     priority: MUST
     kind: project

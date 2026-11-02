@@ -82,7 +82,7 @@ class _EmbargoMixin:
         published: datetime | None = None,
         min_rsvp_window: timedelta | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(as_EmbargoEvent, Case)`` proposal.
+        """Create and persist an ``Invite(EmbargoEvent)[context=VulnerabilityCase]``.
 
         ``attributed_to`` names the proposer of a relayed proposal (CM-24-002);
         it is forwarded only when given so a participant's own proposal keeps
@@ -198,7 +198,7 @@ class _EmbargoMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist the owner's ``Accept(as_EmbargoEvent, target=case)``.
+        """Create and persist the owner's ``Accept(EmbargoEvent)[target=VulnerabilityCase]``.
 
         ``context`` names the case as well, so the snapshot the CASE_MANAGER
         commits carries the case URI there (VM-08-003, #4085).
@@ -220,7 +220,7 @@ class _EmbargoMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist the owner's ``Reject(as_EmbargoEvent, target=case)``.
+        """Create and persist the owner's ``Reject(EmbargoEvent)[target=VulnerabilityCase]``.
 
         ``context`` names the case as well, so the snapshot the CASE_MANAGER
         commits carries the case URI there (VM-08-003, #4085).
@@ -299,7 +299,7 @@ class _EmbargoMixin:
         to: list[str] | None = None,
         attributed_to: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Remove(as_EmbargoEvent, origin=case)`` ET activity.
+        """Create and persist a ``Remove(EmbargoEvent)`` ET activity (case in ``origin``).
 
         ``context`` names the case as well: the CASE_MANAGER commits its own
         teardown as a canonical entry, whose snapshot must carry the case URI

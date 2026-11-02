@@ -884,6 +884,10 @@ groups:
     - ADR-0152
     stories:
     - story_2022_045
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5218.
+    - compound_statement
   - id: CLP-07-014
     priority: MUST_NOT
     kind: protocol

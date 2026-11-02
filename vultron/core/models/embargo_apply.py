@@ -22,7 +22,7 @@ the embargo part of the case file:
 
 - **A register step.**  The act's own activity carries the whole step: the
   owner's ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` is ``ACTIVATE``, with the
-  ``SUPERSEDE`` of the embargo in force; ``Remove(EmbargoEvent)[target=VulnerabilityCase]``
+  ``SUPERSEDE`` of the embargo in force; ``Remove(EmbargoEvent)``
   is ``TERMINATE``, with the ``CANCEL`` of every open proposal;
   ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` is ``REJECT``; the ``Invite`` that
   proposes an embargo is ``PROPOSE``; and a threat signal abandoning an open
@@ -98,7 +98,7 @@ class RegisterStepKind(StrEnum):
     ACTIVATE = auto()
     #: The owner's ``Reject(EmbargoEvent)[target=VulnerabilityCase]``.
     REJECT = auto()
-    #: ``Remove(EmbargoEvent)[target=VulnerabilityCase]``; cancels every open proposal.
+    #: ``Remove(EmbargoEvent)``; cancels every open proposal.
     TERMINATE = auto()
     #: A threat signal (CS ``P``, ``X`` or ``A``) abandoning one open proposal
     #: while no embargo is in force (EMB-16-001).

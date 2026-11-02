@@ -477,10 +477,11 @@ class _ActorsMixin:
         id_: str | None = None,
         roles: list | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an Offer(as_CaseParticipant{actor, roles}, Case).
+        """Create and persist an Offer(CaseParticipant)[target=VulnerabilityCase].
 
         Transforms the original Offer(Actor)[target=VulnerabilityCase] from a recommending
-        participant into an Offer(as_CaseParticipant) addressed to the Case Owner.
+        participant into an Offer(CaseParticipant) naming the actor and its roles,
+        addressed to the Case Owner.
         ``roles`` defaults to ``[CVDRole.VENDOR]`` when ``None`` (CM-16-003).
         ``origin`` carries the original Offer ID for causal traceability
         (CM-16-004).  An Offer already built under *id_* is returned as
@@ -599,7 +600,7 @@ class _ActorsMixin:
         to: list[str] | None = None,
         attributed_to: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Add(as_CaseParticipant, Case)`` activity.
+        """Create and persist an ``Add(CaseParticipant)[target=VulnerabilityCase]``.
 
         The participant goes inline as the store holds it, removal fact
         cleared.  Returns ``(activity_id, activity_blob)`` (CM-31-011).
@@ -624,7 +625,7 @@ class _ActorsMixin:
         attributed_to: str,
         to: list[str],
     ) -> tuple[str, str]:
-        """Create and persist the ``Remove(as_CaseParticipant, Case)`` notice.
+        """Persist the ``Remove(CaseParticipant)[target=VulnerabilityCase]`` notice.
 
         The participant goes inline as the store holds it, removal fact
         included.  Returns ``(activity_id, activity_blob)`` (CM-31-006).
@@ -650,7 +651,7 @@ class _ActorsMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> str:
-        """Create and persist an ``Add(as_ParticipantStatus, as_CaseParticipant)`` activity."""
+        """Create and persist an ``Add(ParticipantStatus)[target=CaseParticipant]``."""
         raw = self._dl.read(status_id)
         if raw is None:
             raise VultronNotFoundError(

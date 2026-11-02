@@ -209,7 +209,8 @@ class _RmCloseCaseActivity(as_Leave):
 class _OfferCaseParticipantRoleActivity(as_Offer):
     """Offer a CVDRole to an Actor in a VulnerabilityCase context (ADR-0039).
 
-    Wire format: ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``
+    Wire format: ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``,
+    whose ``target`` is the Actor offered the role.
 
     Replaces the deprecated ``_OfferCaseManagerRoleActivity`` for role
     delegation.  The ``object_`` carries the specific ``CVDRole`` being
@@ -316,7 +317,7 @@ class _OfferCaseOwnershipTransferActivity(as_Offer):
 class _ProposeCaseOwnershipTransferActivity(as_Offer):
     """The Case Owner proposes an ownership transfer to the CASE_MANAGER.
 
-    Wire format: ``Offer(Offer(VulnerabilityCase), context=VulnerabilityCase)``
+    Wire format: ``Offer(Offer(VulnerabilityCase))[context=VulnerabilityCase]``
     (ADR-0148).  The inner Offer is the template of the one Offer the
     CASE_MANAGER makes to the transferee: its object is the case, its
     ``target`` the transferee and its ``endTime`` the deadline to answer.

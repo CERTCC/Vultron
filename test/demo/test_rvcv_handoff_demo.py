@@ -1522,7 +1522,8 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
     because the original Offer exists only in the CaseActor's DataLayer.
 
     The fix: replace wait_for_object_stored with find_ownership_transfer_offer_for_actor,
-    which scans Coordinator's DataLayer for any Offer(VulnerabilityCase, target=coordinator),
+    which scans Coordinator's DataLayer for any Offer(VulnerabilityCase) whose target is
+    the Coordinator,
     and use the returned (forwarded) ID for the accept-case-ownership-transfer trigger.
     """
 

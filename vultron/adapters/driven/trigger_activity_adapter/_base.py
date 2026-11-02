@@ -137,7 +137,7 @@ def _case_for_wire(
     - ``active_embargo``: a CaseActor holding a case with only the id tore the
       embargo down locally and then could not announce it — ``terminate_embargo``
       begins by reading the ``EmbargoEvent``, so it raised
-      ``VultronNotFoundError`` mid-sequence and no ``Remove(EmbargoEvent)[target=VulnerabilityCase]``
+      ``VultronNotFoundError`` mid-sequence and no ``Remove(EmbargoEvent)``
       was ever emitted; every other replica kept an embargo the manager had
       already removed.
     - ``case_participants``: the recipient of a bootstrap ``Create`` or

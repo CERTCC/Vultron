@@ -299,7 +299,7 @@ class TestCaseTimelineEventParsing:
         assert event.target_ref == "urn:uuid:rep3"
 
     def test_invite_wrapper_surfaces_inner_target(self):
-        """Accept(Invite(object=Org, target=Case)) → org → case arrow label."""
+        """Accept(Invite(Actor)[target=VulnerabilityCase]) → org → case label."""
         raw = _camel_entry(
             semanticType="accept_invite_actor_to_case",
             payloadSnapshot={
@@ -325,7 +325,7 @@ class TestCaseTimelineEventParsing:
         assert event.target_label == "Coordinator → case"
 
     def test_offer_with_as_target_populates_activity_target(self):
-        """Offer(object=VulnerabilityCase, target=CaseParticipant) → arrow label."""
+        """Offer(VulnerabilityCase)[target=CaseParticipant] → arrow label."""
         raw = _camel_entry(
             semanticType="offer_case_manager_role",
             payloadSnapshot={

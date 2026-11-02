@@ -405,8 +405,8 @@ class OfferCaseParticipantRoleTriggerRequest(
 ):
     """Trigger request to offer a CVDRole to a target Actor in a Case.
 
-    Emits ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``
-    from the requesting actor (ADR-0039).
+    Emits ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``, whose
+    ``target`` is the target Actor, from the requesting actor (ADR-0039).
     """
 
 

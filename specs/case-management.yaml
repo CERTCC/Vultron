@@ -1179,6 +1179,10 @@ groups:
     stories:
     - story_2022_023
     - story_2022_025
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5217.
+    - compound_statement
   - id: CM-10-005
     priority: MUST
     kind: protocol
@@ -1400,6 +1404,10 @@ groups:
     stories:
     - story_2022_052
     - story_2022_061
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5217.
+    - compound_statement
   - id: CM-11-007
     priority: MUST
     kind: protocol
@@ -1428,6 +1436,10 @@ groups:
     stories:
     - story_2022_052
     - story_2022_006
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5217.
+    - compound_statement
   - id: CM-11-008
     priority: MUST
     kind: protocol
@@ -1495,6 +1507,10 @@ groups:
     - ADR-0156
     stories:
     - story_2022_006
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5217.
+    - compound_statement
   - id: CM-11-011
     priority: MUST
     kind: protocol
@@ -1522,6 +1538,10 @@ groups:
     stories:
     - story_2022_006
     - story_2022_062
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5217.
+    - compound_statement
   - id: CM-11-012
     priority: MUST
     kind: protocol
@@ -1709,6 +1729,10 @@ groups:
       spec_id: CM-11-007
     adr:
     - ADR-0114
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5217.
+    - compound_statement
   - id: CM-11-021
     priority: MUST
     kind: protocol
@@ -1741,6 +1765,10 @@ groups:
       spec_id: CM-11-001
     adr:
     - ADR-0114
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5217.
+    - compound_statement
   - id: CM-11-019
     priority: MUST
     kind: protocol
@@ -2349,13 +2377,16 @@ groups:
   - id: CM-16-001
     priority: MUST
     kind: protocol
-    statement: A participant wishing to suggest that another actor be invited to the case MUST send `Offer(object=Actor, target=Case)`
-      to the CASE_MANAGER's inbox, not directly to the Case Owner's inbox.
+    statement: >-
+      A participant wishing to suggest that another actor be invited to the case MUST
+      send `Offer(Actor)[target=VulnerabilityCase]` to the CASE_MANAGER's inbox, not
+      directly to the Case Owner's inbox.
     rationale: All case-scoped protocol messages MUST route through the CASE_MANAGER so the event can be recorded in the canonical
       case ledger before any downstream action is taken (ADR-0021, PCR-08-001).
-    verification: Integration tests in `test/demo/` confirm that an actor-suggestion
-      `Offer(object=Actor, target=Case)` is sent to the CASE_MANAGER's inbox, not directly to the
-      Case Owner.
+    verification: >-
+      Integration tests in `test/demo/` confirm that an actor-suggestion
+      `Offer(Actor)[target=VulnerabilityCase]` is sent to the CASE_MANAGER's inbox, not
+      directly to the Case Owner.
     relationships:
     - rel_type: implements
       spec_id: PCR-08-001
@@ -2368,7 +2399,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the CASE_MANAGER receives `Offer(object=Actor, target=Case)`, it MUST commit
+      When the CASE_MANAGER receives `Offer(Actor)[target=VulnerabilityCase]`, it MUST
+      commit
       a `CaseLedgerEntry` for the received Offer and fan out the entry to every active
       participant (CM-10-004) BEFORE taking any downstream action.
     rationale: Ledger entries record events that have already occurred; pre-committing a decision before communicating it
@@ -2438,14 +2470,18 @@ groups:
   - id: CM-16-004
     priority: MUST
     kind: protocol
-    statement: The CASE_MANAGER MUST transform the received `Offer(Actor)` into `Offer(object=CaseParticipant{attributed_to=actor,
-      case_roles=roles}, target=Case)` and send it to the Case Owner's inbox, with `origin` set to the ID of the original
-      recommender's Offer activity.
+    statement: >-
+      The CASE_MANAGER MUST transform the received `Offer(Actor)` into
+      `Offer(CaseParticipant)[target=VulnerabilityCase]`, whose `CaseParticipant` has
+      `attributed_to` set to the actor and `case_roles` set to the roles, and send it to
+      the Case Owner's inbox, with `origin` set to the ID of the original recommender's
+      Offer activity.
     rationale: The Case Owner makes a membership decision about a CaseParticipant (actor + roles), not about a bare Actor
       identity. The `origin` field preserves the causal chain without a side-channel data store.
-    verification: Integration tests in `test/demo/` confirm that the CASE_MANAGER sends a
-      transformed `Offer(object=CaseParticipant, target=Case)` to the Case Owner with `origin`
-      set to the recommender's Offer ID.
+    verification: >-
+      Integration tests in `test/demo/` confirm that the CASE_MANAGER sends a
+      transformed `Offer(CaseParticipant)[target=VulnerabilityCase]` to the Case Owner
+      with `origin` set to the recommender's Offer ID.
     stories:
     - story_2022_053
     - story_2022_046
@@ -2494,6 +2530,10 @@ groups:
     stories:
     - story_2022_054
     - story_2022_052
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5217.
+    - compound_statement
   - id: CM-16-007
     priority: MUST
     kind: protocol
@@ -2519,16 +2559,19 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a second `Offer(Actor X, Case)` arrives while a pending decision for Actor X is
-      still outstanding (no Accept or Reject yet received from the Case Owner), the CASE_MANAGER
-      MUST record the duplicate recommendation in the ledger.
+      When a second `Offer(Actor)[target=VulnerabilityCase]` for Actor X arrives while a
+      pending decision for Actor X is still outstanding (no Accept or Reject yet
+      received from the Case Owner), the CASE_MANAGER MUST record the duplicate
+      recommendation in the ledger.
     rationale: >-
       A second suggestion for the same actor is a case event, so the ledger records it.
       The Case Owner can use it as evidence for the pending decision (CM-16-016). The
       CASE_MANAGER records it but does not forward a second Offer. This keeps one
       pending decision for each actor (CM-16-017).
-    verification: Integration tests in `test/demo/` confirm that a duplicate `Offer(Actor X,
-      Case)` arriving while a prior decision is pending is recorded in the case ledger.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a duplicate
+      `Offer(Actor)[target=VulnerabilityCase]` for Actor X arriving while a prior
+      decision is pending is recorded in the case ledger.
     stories:
     - story_2022_053
     - story_2022_045
@@ -2536,13 +2579,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a second `Offer(Actor X, Case)` arrives after an Invite has already been sent
-      to Actor X (i.e., the invite is in-flight or the actor is already a participant),
-      the CASE_MANAGER MUST record the recommendation in the ledger, fan out the entry,
-      and auto-send an `Accept` of that recommender's
-      `Offer(Actor)[target=VulnerabilityCase]` (with
-      `in_reply_to` = original recommender's Offer ID) back to the second recommender.
-      The CASE_MANAGER MUST NOT send a duplicate Invite to Actor X.
+      When a second `Offer(Actor)[target=VulnerabilityCase]` for Actor X arrives after
+      an Invite has already been sent to Actor X (i.e., the invite is in-flight or the
+      actor is already a participant), the CASE_MANAGER MUST record the recommendation
+      in the ledger, fan out the entry, and auto-send an `Accept` of that recommender's
+      `Offer(Actor)[target=VulnerabilityCase]` (with `in_reply_to` = original
+      recommender's Offer ID) back to the second recommender. The CASE_MANAGER MUST NOT
+      send a duplicate Invite to Actor X.
     rationale: >-
       When the CASE_MANAGER has invited Actor X, the goal of the second recommender is
       complete. Thus the second recommender gets the answer that it would get after the
@@ -2555,6 +2598,10 @@ groups:
     stories:
     - story_2022_013
     - story_2022_053
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5217.
+    - compound_statement
   - id: CM-16-010
     priority: MUST
     kind: protocol
@@ -2599,13 +2646,14 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a second `Offer(Actor X, Case)` arrives while a pending decision for Actor X is
-      still outstanding, the CASE_MANAGER MUST record a `Note` for the Case Owner
-      indicating that a reinforcing suggestion was received, including the Case Owner's
-      identity, the second recommender's identity and any `content` from the Offer. The
-      note is the CASE_MANAGER's own `add_note_to_case` entry, attached to the case, and
-      reaches the Case Owner's inbox as that entry's `Announce(CaseLedgerEntry)`
-      (SYNC-02-002); a direct `Add(Note)` to the Case Owner is refused there (HP-01-005).
+      When a second `Offer(Actor)[target=VulnerabilityCase]` for Actor X arrives while a
+      pending decision for Actor X is still outstanding, the CASE_MANAGER MUST record a
+      `Note` for the Case Owner indicating that a reinforcing suggestion was received,
+      including the Case Owner's identity, the second recommender's identity and any
+      `content` from the Offer. The note is the CASE_MANAGER's own `add_note_to_case`
+      entry, attached to the case, and reaches the Case Owner's inbox as that entry's
+      `Announce(CaseLedgerEntry)` (SYNC-02-002); a direct `Add(Note)` to the Case Owner
+      is refused there (HP-01-005).
     rationale: >-
       A note about reinforcing suggestions gives the Case Owner more context for the
       pending decision, without a second offer workflow (CM-16-017). Participants send
@@ -2628,9 +2676,9 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      When a second `Offer(Actor X, Case)` arrives while a pending decision for Actor X is
-      still outstanding, the CASE_MANAGER MUST NOT send a second transformed
-      `Offer(CaseParticipant)` to the Case Owner.
+      When a second `Offer(Actor)[target=VulnerabilityCase]` for Actor X arrives while a
+      pending decision for Actor X is still outstanding, the CASE_MANAGER MUST NOT send
+      a second transformed `Offer(CaseParticipant)` to the Case Owner.
     rationale: Sending a duplicate transformed Offer would create a second pending decision
       for the same actor, leading to conflicting state if the Case Owner responds to both.
   - id: CM-16-018
@@ -2700,7 +2748,7 @@ groups:
     kind: protocol
     statement: >-
       The stub Invite sent by the CASE_MANAGER to a new actor MUST be
-      `Invite(object=Actor, target=VulnerabilityCaseStub)`, with the stub shaped as
+      `Invite(Actor)[target=VulnerabilityCaseStub]`, with the stub shaped as
       CM-11-013 requires. This requirement is extended by CM-17-002 and CM-17-003.
     rationale: >-
       An AS2 `Invite` names the invited party as its `object`, and the thing it is
@@ -2898,6 +2946,10 @@ groups:
       asserts the Invite is emitted and committed on the CASE_MANAGER's container with no `cc`.
     adr:
     - ADR-0109
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5217.
+    - compound_statement
   - id: CM-17-008
     priority: MUST
     kind: project
@@ -3523,6 +3575,10 @@ groups:
     stories:
     - story_2022_053
     - story_2022_063
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5217.
+    - compound_statement
   - id: CM-20-003
     priority: MUST
     kind: protocol
@@ -3550,6 +3606,10 @@ groups:
     stories:
     - story_2022_053
     - story_2022_063
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5217.
+    - compound_statement
   - id: CM-20-004
     priority: MUST_NOT
     kind: protocol
@@ -4302,7 +4362,8 @@ groups:
   description: >-
     Requirements for the canonical RM case closure path: Leave(VulnerabilityCase)
     is the sole mechanism for advancing a participant's RM state to CLOSED.
-    Add(ParticipantStatus)[rmState=CLOSED] is not a valid closure trigger.
+    An Add(ParticipantStatus) whose status carries rmState=CLOSED is not a valid
+    closure trigger.
     See ADR-0050 (Leave is canonical for RM closure) and ADR-0051
     (CASE_MANAGER RM lifecycle).
 
@@ -4319,7 +4380,8 @@ groups:
     statement: >-
       RM case closure MUST be triggered by Leave(VulnerabilityCase), and the
       CASE_MANAGER's ledger commits are the authority for it.  A participant-sent
-      Add(ParticipantStatus)[rmState=CLOSED] MUST NOT be used as a closure
+      Add(ParticipantStatus) whose status carries rmState=CLOSED MUST NOT be used as a
+      closure
       trigger.  The CASE_MANAGER MUST commit a close_case entry recording the
       received Leave, and then, in the order it writes them, one
       add_participant_status_to_participant entry for each RM transition it
@@ -4347,7 +4409,8 @@ groups:
       ledger that the replicas copy (ADR-0146). See ADR-0050.
     verification: Integration tests in `test/demo/` confirm that RM closure flows through
       `Leave(VulnerabilityCase)` -> CASE_MANAGER ledger commit -> broadcast, and that
-      `Add(ParticipantStatus)[rmState=CLOSED]` is not used as a closure trigger.
+      `Add(ParticipantStatus)` whose status carries `rmState=CLOSED` is not used as a
+      closure trigger.
       Unit tests confirm that a Leave from RM.VALID commits the close_case entry and
       then a VALID -> DEFERRED and a DEFERRED -> CLOSED status entry, in that order;
       that a replica which accepts each of those entries ends with the same per-actor
@@ -4366,6 +4429,10 @@ groups:
     stories:
     - story_2022_066
     - story_2022_067
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5217.
+    - compound_statement
   - id: CM-23-002
     priority: MUST
     kind: protocol
@@ -6307,6 +6374,10 @@ groups:
     - ADR-0116
     stories:
     - story_2022_023
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5217.
+    - compound_statement
   - id: CM-31-005
     priority: MUST
     kind: protocol
@@ -6477,6 +6548,10 @@ groups:
     - ADR-0116
     stories:
     - story_2022_052
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5217.
+    - compound_statement
   - id: CM-31-012
     priority: MUST_NOT
     kind: protocol

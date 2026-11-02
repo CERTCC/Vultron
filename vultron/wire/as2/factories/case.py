@@ -250,7 +250,7 @@ def add_report_to_case_activity(
     target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Add:
-    """Build an Add(as_VulnerabilityReport, target=as_VulnerabilityCase).
+    """Build an Add(VulnerabilityReport)[target=VulnerabilityCase].
 
     Args:
         report: The ``as_VulnerabilityReport`` to add to the case.
@@ -284,7 +284,7 @@ def add_status_to_case_activity(
     target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Add:
-    """Build an Add(as_CaseStatus, target=as_VulnerabilityCase).
+    """Build an Add(CaseStatus)[target=VulnerabilityCase].
 
     Args:
         status: The ``as_CaseStatus`` to add.
@@ -637,7 +637,7 @@ def offer_case_ownership_transfer_activity(
     target: as_ActorRef | CoreActor | None = None,
     **kwargs,
 ) -> as_Offer:
-    """Build an Offer(as_VulnerabilityCase, target=Actor) — ownership transfer.
+    """Build an Offer(VulnerabilityCase) to the transferee — ownership transfer.
 
     The case travels as its typed reference, never a copy (ADR-0165): the
     CASE_MANAGER this Offer's proposal goes to and the active participant
@@ -685,7 +685,7 @@ def propose_case_ownership_transfer_activity(
     end_time: datetime | None = None,
     **kwargs,
 ) -> as_Offer:
-    """Build Offer(Offer(VulnerabilityCase), context=case): the owner's proposal.
+    """Build Offer(Offer(VulnerabilityCase))[context=VulnerabilityCase]: the proposal.
 
     The Case Owner sends it to the CASE_MANAGER, which makes the one
     ``Offer(VulnerabilityCase)`` the transferee answers (ADR-0148,

@@ -1198,6 +1198,9 @@ groups:
     - ADR-0093
     - ADR-0122
     lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5219.
+    - compound_statement
     - missing_story_reference
   - id: MSM-07-006
     priority: MUST
@@ -1323,6 +1326,10 @@ groups:
     - ADR-0122
     stories:
     - story_2022_014
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5219.
+    - compound_statement
   - id: MSM-07-009
     priority: MUST
     kind: protocol
@@ -1372,6 +1379,10 @@ groups:
     - ADR-0122
     stories:
     - story_2022_014
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5219.
+    - compound_statement
   - id: MSM-07-010
     priority: MUST
     kind: protocol

@@ -547,7 +547,8 @@ class TestBootstrapSequence:
         """AC-2: Case-scoped activity routes directly after replica exists.
 
         After the case replica is seeded directly in the store, a
-        subsequent ``Add(Note, context=case_id)`` delivered to the same inbox
+        subsequent ``Add(Note)[target=VulnerabilityCase]`` (``context`` set to the
+        case id) delivered to the same inbox
         must be dispatched immediately — it must NOT be placed into
         ``VultronPendingCaseInbox`` (the pre-bootstrap deferral queue).
 

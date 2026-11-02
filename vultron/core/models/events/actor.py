@@ -403,8 +403,9 @@ class OfferCaseParticipantReceivedEvent(LedgerPositionedEvent):
     """Case Owner received Offer(CaseParticipant) from the CaseActor.
 
     Sent by the CaseActor to the Case Owner's inbox after transforming
-    Offer(Actor)[target=VulnerabilityCase] into Offer(CaseParticipant{actor, roles}, Case)
-    (CM-16-003, CM-16-004, ADR-0026).
+    Offer(Actor)[target=VulnerabilityCase] into
+    Offer(CaseParticipant)[target=VulnerabilityCase] naming the actor and its
+    roles (CM-16-003, CM-16-004, ADR-0026).
     """
 
     semantic_type: Literal[MessageSemantics.OFFER_CASE_PARTICIPANT] = (

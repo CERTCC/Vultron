@@ -20,15 +20,15 @@ This demo script showcases two suggestion paths per ADR-0026 (CaseActor-routed):
 
 1. Accept path, each act through its actor's trigger (#5438):
    - Reporter → CASE_MANAGER: Offer(Actor)[target=VulnerabilityCase] (``suggest-actor-to-case``)
-   - CASE_MANAGER → Case Owner: Offer(as_CaseParticipant{actor, roles}, Case)
-   - Case Owner → CASE_MANAGER: Accept(Offer(as_CaseParticipant))
+   - CASE_MANAGER → Case Owner: Offer(CaseParticipant)[target=VulnerabilityCase]
+   - Case Owner → CASE_MANAGER: Accept(Offer(CaseParticipant))
      (``accept-actor-recommendation``)
    - CASE_MANAGER → Coordinator: Invite(CaseStub+embargo+roles)
 
 2. Reject path, each act through its actor's trigger (#5459):
    - Reporter → CASE_MANAGER: Offer(Actor)[target=VulnerabilityCase] (``suggest-actor-to-case``)
-   - CASE_MANAGER → Case Owner: Offer(as_CaseParticipant{actor, roles}, Case)
-   - Case Owner → CASE_MANAGER: Reject(Offer(as_CaseParticipant))
+   - CASE_MANAGER → Case Owner: Offer(CaseParticipant)[target=VulnerabilityCase]
+   - Case Owner → CASE_MANAGER: Reject(Offer(CaseParticipant))
      (``reject-actor-recommendation``)
    - CASE_MANAGER → Reporter: RejectActorRecommendation
 
@@ -146,8 +146,8 @@ def demo_suggest_actor_accept(
 
     1. Setup: initialize case
     2. Reporter → CASE_MANAGER: Offer(Actor)[target=VulnerabilityCase]
-    3. CASE_MANAGER → Case Owner: Offer(as_CaseParticipant{actor,roles}, Case)
-    4. Case Owner → CASE_MANAGER: Accept(Offer(as_CaseParticipant))
+    3. CASE_MANAGER → Case Owner: Offer(CaseParticipant)[target=VulnerabilityCase]
+    4. Case Owner → CASE_MANAGER: Accept(Offer(CaseParticipant))
     5. CASE_MANAGER → coordinator: Invite to the case
 
     The vendor minted the case, so it holds both CASE_OWNER and CASE_MANAGER.
@@ -197,8 +197,8 @@ def demo_suggest_actor_reject(
 
     1. Setup: initialize case
     2. Reporter → CASE_MANAGER: Offer(Actor)[target=VulnerabilityCase]
-    3. CASE_MANAGER → Case Owner: Offer(as_CaseParticipant{actor,roles}, Case)
-    4. Case Owner → CASE_MANAGER: Reject(Offer(as_CaseParticipant))
+    3. CASE_MANAGER → Case Owner: Offer(CaseParticipant)[target=VulnerabilityCase]
+    4. Case Owner → CASE_MANAGER: Reject(Offer(CaseParticipant))
     5. CASE_MANAGER ledgers the Reject (CM-16-007)
     6. Verify no new participant was added
 

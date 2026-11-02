@@ -371,6 +371,10 @@ groups:
       spec_id: RSH-01-003
     - rel_type: implements
       spec_id: RSH-04-004
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5218.
+    - compound_statement
   - id: RSH-04-005
     priority: MUST
     kind: protocol
@@ -538,6 +542,10 @@ groups:
       implemented (#4885). The standalone `append_participant_status_tree`
       path (test-only, no production callers) has no case context; it MUST log
       (RSH-06-003) but MUST NOT attempt to emit a note.
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5218.
+    - compound_statement
   - id: RSH-06-005
     priority: MUST
     kind: protocol
@@ -599,6 +607,10 @@ groups:
     stories:
     - story_2022_074
     - story_2022_088
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5218.
+    - compound_statement
 - id: RSH-07
   title: Conservative Default Authorization Policy for Status Gates
   description: >
@@ -1001,6 +1013,10 @@ groups:
     - story_2022_088
     adr:
     - ADR-0107
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5218.
+    - compound_statement
   - id: RSH-09-002
     priority: MUST
     kind: protocol
@@ -1146,6 +1162,10 @@ groups:
     adr:
     - ADR-0107
     - ADR-0122
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5218.
+    - compound_statement
   - id: RSH-09-006
     priority: MUST
     kind: protocol

@@ -546,7 +546,8 @@ def test_undo_ownership_transfer_plain_offer_raises(sample_offer):
 @pytest.mark.spec("CM-21-005")
 @pytest.mark.spec("CM-21-016")
 def test_proposal_nests_the_offer_the_case_manager_will_make(sample_case):
-    """Offer(Offer(Case), context=case): the inner Offer names the case, the
+    """Offer(Offer(VulnerabilityCase))[context=VulnerabilityCase]: the inner Offer names
+    the case, the
     transferee and the deadline (ADR-0148)."""
     deadline = datetime(2030, 1, 1, tzinfo=UTC)
     result = propose_case_ownership_transfer_activity(

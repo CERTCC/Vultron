@@ -240,8 +240,8 @@ class InviteToEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
         Note this is *not* the same derivation as
         ``AcceptInviteActorToCaseReceivedEvent.invitee_id``, which reads the
         accepted Invite's ``object`` (``inner_object_id``).  An
-        ``Invite(EmbargoEvent)[target=VulnerabilityCase]`` carries the embargo as its ``object``
-        and the case as its ``context``, so ``to:`` is the only place the
+        ``Invite(EmbargoEvent)[context=VulnerabilityCase]`` carries the embargo as
+        its ``object`` and the case as its ``context``, so ``to:`` is the only place the
         invited actor appears.
         """
         recipients = self.to_recipients

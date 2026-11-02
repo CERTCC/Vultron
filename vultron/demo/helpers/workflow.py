@@ -952,9 +952,8 @@ def create_case_via_trigger(
     The trigger registers *vendor* as CASE_OWNER and CASE_MANAGER
     (CM-02-014, CM-02-015).
     A case injected as ``Create(VulnerabilityCase)`` has no CASE_MANAGER, so
-    the CASE_MANAGER-gated received handlers (``Add(Report)[target=VulnerabilityCase]``)
-    refuse
-    it.
+    the CASE_MANAGER-gated received handlers
+    (``Add(VulnerabilityReport)[target=VulnerabilityCase]``) refuse it.
 
     Returns:
         A stub ``as_VulnerabilityCase`` carrying the new case's id.

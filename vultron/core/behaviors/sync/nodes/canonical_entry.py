@@ -199,7 +199,7 @@ _ACTOR_TYPES: frozenset[str] = frozenset(
 def _snapshot_object_type(
     snapshot: dict[str, Any], case_id: str
 ) -> str | None:
-    # Invite(Actor, target=...): object_ is the actor; use target.type so the
+    # Invite(Actor)[target=...]: object_ is the actor; use target.type so the
     # signature resolves to ('Invite','VulnerabilityCaseStub') for the stub
     # Invite, or ('Invite','VulnerabilityCase'), not ('Invite','Org').
     # A target that is the case URI itself names the same thing, so it

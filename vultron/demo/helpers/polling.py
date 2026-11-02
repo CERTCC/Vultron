@@ -1136,7 +1136,7 @@ def find_ownership_transfer_offer_for_actor(
     and the CaseActor.
 
     This helper scans *client*'s DataLayer for any
-    ``Offer(target=transferee_id, object=case_id)`` (``target`` an inline Actor
+    ``Offer(VulnerabilityCase)`` whose ``target`` is *transferee_id* (an inline Actor
     or its id) and returns its ID so the
     demo can drive the ``accept-case-ownership-transfer`` trigger with the
     CaseActor's offer ID.

@@ -142,18 +142,20 @@ ADR-0121).
 
 ```text
 Case Owner triggers SvcInviteActorToCaseUseCase
-  → Case Owner sends its own Offer(Actor, Case, suggestedRoles)
+  → Case Owner sends its own Offer(Actor)[target=VulnerabilityCase],
+    carrying the suggested roles
     → CASE_MANAGER's inbox (CM-17-007, ADR-0109)
   → CASE_MANAGER's recommend-actor tree takes the owner-direct branch, since
     the recommender holds CVDRole.CASE_OWNER (it does not forward the Offer)
   → CASE_MANAGER creates the invitee's CaseParticipant (inert: RM.RECEIVED,
     VF v for a vendor, consent INVITED if an embargo is active) and commits
     the creation to the ledger (CM-11-006)
-  → CASE_MANAGER sends Invite(Actor, VulnerabilityCaseStub,
-    actor=case_actor_id, attributedTo=case_owner_id), commits it in the
+  → CASE_MANAGER sends Invite(Actor)[target=VulnerabilityCaseStub]
+    (sent by case_actor_id, attributedTo case_owner_id), commits it in the
     emitting tree, no cc: (CM-17-006) → invitee's inbox
 
-Invitee sends Accept(Invite(stub), actor=invitee_id, to=[case_actor_id])
+Invitee sends Accept(Invite(Actor)[target=VulnerabilityCaseStub])
+  (sent by invitee_id, addressed to case_actor_id)
   → CASE_MANAGER's inbox (NOT the case owner's inbox)
 
 AcceptInviteActorToCaseReceivedUseCase, at every receiver of a copy:
@@ -222,7 +224,8 @@ each answer; the owner's answer also decides the embargo.
 ```text
 Participant P sends Invite(EmbargoEvent B) → CASE_MANAGER
   CASE_MANAGER: EM NONE → PROPOSED (or ACTIVE → REVISE), commit → Announce to all
-  CASE_MANAGER: Invite(B, end_time) → each participant ≠ P, commit → Announce to all
+  CASE_MANAGER: Invite(B), end_time set → each participant ≠ P,
+    commit → Announce to all
 Each participant Q answers Accept/Reject(Invite(B))     → CASE_MANAGER
   CASE_MANAGER: record Q's consent, commit               → Announce to all
 Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER

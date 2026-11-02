@@ -750,8 +750,8 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         """Create and persist an ``Offer(CaseParticipant)[target=VulnerabilityCase]`` activity.
 
         Transforms the original ``Offer(Actor)[target=VulnerabilityCase]`` into an
-        ``Offer(CaseParticipant{actor, roles}, Case)`` addressed to the
-        Case Owner.  ``roles`` defaults to ``[CVDRole.VENDOR]`` when
+        ``Offer(CaseParticipant)[target=VulnerabilityCase]`` naming the actor and
+        its roles, addressed to the Case Owner.  ``roles`` defaults to ``[CVDRole.VENDOR]`` when
         ``None`` (CM-16-003).  ``origin`` carries the original recommender
         Offer ID so the Case Owner can trace the causal chain (CM-16-004).
         Returns ``(activity_id, activity_dict)``.
@@ -936,7 +936,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         published: datetime | None = None,
         min_rsvp_window: timedelta | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Invite(EmbargoEvent)[target=VulnerabilityCase]`` proposal.
+        """Persist an ``Invite(EmbargoEvent)[context=VulnerabilityCase]`` proposal.
 
         ``attributed_to`` carries the proposer when the CASE_MANAGER relays a
         proposal on a participant's behalf (CM-24-002, EP-09-002): ``actor`` is
@@ -1081,7 +1081,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         to: list[str] | None = None,
         attributed_to: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Remove(EmbargoEvent)[origin=VulnerabilityCase]`` ET activity.
+        """Create and persist a ``Remove(EmbargoEvent)`` ET activity.
 
         Corresponds to the ET (Embargo Termination) protocol message.
         *reason* is the termination's what, carried as ``content``

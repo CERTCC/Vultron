@@ -917,8 +917,8 @@ groups:
       and each carries only the decision it names: accepting the stub joins the case,
       the full-case Invite reply judges it (CM-11-011), and `Join` engages.
     verification: >-
-      Integration tests in `test/demo/test_invite_actor_demo.py` confirm that
-      the CASE_MANAGER leaves the invitee at RM.RECEIVED on its stub-Invite
+      `test/core/use_cases/received/actor/test_case_joining_replies.py` confirms
+      that the CASE_MANAGER leaves the invitee at RM.RECEIVED on its stub-Invite
       `Accept` and records RM.ACCEPTED only after the invitee's
       `Join(VulnerabilityCase)`.
     relationships:
@@ -929,6 +929,10 @@ groups:
     stories:
     - story_2022_054
     - story_2022_006
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5156, which only converted its
+    # activity notation; the split into one obligation per ID belongs to #5218.
+    - compound_statement
 - id: PCR-07
   title: Testing
   specs:

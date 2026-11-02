@@ -327,7 +327,7 @@ def activate_embargo_activity(
     target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Accept:
-    """Build an Accept(as_EmbargoEvent, target=VulnerabilityCase).
+    """Build an Accept(EmbargoEvent)[target=VulnerabilityCase].
 
     The case owner's activation of a proposed embargo (ADR-0122): the
     receiver activates the embargo's register entry, superseding any entry
@@ -364,7 +364,7 @@ def reject_embargo_proposal_activity(
     target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Reject:
-    """Build a Reject(as_EmbargoEvent, target=VulnerabilityCase).
+    """Build a Reject(EmbargoEvent)[target=VulnerabilityCase].
 
     The case owner's rejection of a proposed embargo (ADR-0122): the
     receiver rejects the embargo's register entry and writes no consent.
@@ -484,7 +484,7 @@ def remove_embargo_from_case_activity(
     cause: TerminationCause | None = None,
     **kwargs,
 ) -> as_Remove:
-    """Build a Remove(as_EmbargoEvent, origin=VulnerabilityCase).
+    """Build a Remove(EmbargoEvent), the case in ``origin``.
 
     Ends the embargo in force on a case (ET): the receiver terminates the
     case's ``ACTIVE`` embargo register entry and cancels every open proposal
