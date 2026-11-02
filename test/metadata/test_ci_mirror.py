@@ -9,6 +9,8 @@ throwaway repository.
 from __future__ import annotations
 
 import subprocess
+import tempfile
+import time
 from pathlib import Path
 
 import pytest
@@ -33,6 +35,14 @@ from vultron.metadata.planning.ci_mirror._workflows import (
     WorkflowStep,
     matches_filter,
 )
+
+
+@pytest.fixture(autouse=True)
+def _private_tempdir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # The mirror's logs go under the temp directory; keep them in tmp_path.
+    temp = tmp_path / "temp"
+    temp.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(temp))
 
 
 @pytest.mark.parametrize(
@@ -345,10 +355,13 @@ def test_list_plans_without_running(repo: Path, capsys):
     git(repo, "add", ".")
     git(repo, "commit", "-q", "-m", "b")
 
-    assert ci_mirror.main(["--no-fetch", "--list"]) == 0
+    # The throwaway repository has no workflows, so every check that names a
+    # CI step is a stale-registry block, and --list says so in its exit.
+    assert ci_mirror.main(["--no-fetch", "--list"]) == 1
     out = capsys.readouterr().out
     assert "PLAN guard-tests would run" in out
-    assert out.rstrip().endswith("mirror exit: 0")
+    assert "FAIL ruff-check its CI step" in out
+    assert out.rstrip().endswith("mirror exit: 1")
 
 
 def test_the_console_script_is_installed():
@@ -408,10 +421,13 @@ def test_a_local_action_without_an_action_file_is_an_error(tmp_path: Path):
 def test_list_json_reports_every_check(repo: Path, capsys):
     import json
 
-    assert ci_mirror.main(["--no-fetch", "--list", "--json"]) == 0
+    assert ci_mirror.main(["--no-fetch", "--list", "--json"]) == 1
 
     payload = json.loads(capsys.readouterr().out)
-    assert payload["exit"] == 0
+    assert payload["exit"] == 1
+    statuses = {c["id"]: c["status"] for c in payload["checks"]}
+    assert statuses["guard-tests"] == "PLAN"
+    assert "PASS" not in statuses.values()
     assert {c["id"] for c in payload["checks"]} == {
         c.id for c in MIRROR_CHECKS
     }
@@ -431,10 +447,108 @@ def test_the_base_is_fetched_from_origin(
     git(upstream, "commit", "-q", "-m", "moved")
     monkeypatch.chdir(clone)
 
-    assert ci_mirror.main(["--list"]) == 0
+    assert ci_mirror.main(["--list"]) != 2
 
     moved = subprocess.run(
         ["git", "log", "-1", "--format=%s", "origin/main"],
         cwd=clone, capture_output=True, text=True, check=True,
     ).stdout.strip()  # fmt: skip
     assert moved == "moved"
+
+
+def _result(status: CheckStatus, log: str | None = None):
+    from vultron.metadata.planning.ci_mirror._run import CheckResult
+
+    return CheckResult("c", status, "why", 1.0, log, 1)
+
+
+@pytest.mark.spec("PAD-18-021")
+@pytest.mark.parametrize(
+    "status", [CheckStatus.FAILED, CheckStatus.UNAVAILABLE]
+)
+def test_a_blocking_result_exits_1(status: CheckStatus, capsys):
+    assert (
+        ci_mirror.report([_result(CheckStatus.PASSED), _result(status)], False)
+        == 1
+    )
+
+    assert capsys.readouterr().out.rstrip().endswith("mirror exit: 1")
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        CheckStatus.PASSED,
+        CheckStatus.NOT_TRIGGERED,
+        CheckStatus.NOT_APPLICABLE,
+        CheckStatus.SKIPPED,
+    ],
+)
+def test_a_non_blocking_result_exits_0(status: CheckStatus, capsys):
+    assert ci_mirror.report([_result(status)], False) == 0
+    assert capsys.readouterr().out.rstrip().endswith("mirror exit: 0")
+
+
+def test_a_failure_prints_its_log_tail(tmp_path: Path, capsys):
+    log = tmp_path / "c.log"
+    log.write_text("first\nthe real error\n")
+
+    ci_mirror.report([_result(CheckStatus.FAILED, str(log))], False)
+
+    out = capsys.readouterr().out
+    assert f"log: {log}" in out
+    assert "the real error" in out
+
+
+def test_json_reports_real_results(capsys):
+    import json
+
+    assert ci_mirror.report([_result(CheckStatus.FAILED)], True) == 1
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["exit"] == 1
+    assert payload["checks"][0]["status"] == "FAIL"
+
+
+def test_a_later_group_member_failing_stops_nothing(tmp_path: Path):
+    marker = tmp_path / "third-ran"
+    results = run_checks(
+        [
+            _runnable("build", "true", group="site"),
+            _runnable("links", "exit 1", group="site"),
+            _runnable("boxes", f"touch {marker}", group="site"),
+        ],
+        tmp_path,
+        jobs=1,
+    )
+
+    assert [r.status for r in results] == [
+        CheckStatus.PASSED,
+        CheckStatus.FAILED,
+        CheckStatus.PASSED,
+    ]
+    assert marker.exists()
+
+
+def test_a_timeout_kills_the_whole_process_group(tmp_path: Path):
+    marker = tmp_path / "grandchild-survived"
+    script = f"bash -c 'sleep 2 && touch {marker}' & wait"
+
+    [result] = run_checks(
+        [_runnable("slow", script)], tmp_path, jobs=1, timeout=1
+    )
+
+    assert result.status is CheckStatus.FAILED
+    time.sleep(2.5)
+    assert not marker.exists()
+
+
+def test_logs_go_to_the_given_directory(tmp_path: Path):
+    logs = tmp_path / "logs"
+
+    [result] = run_checks(
+        [_runnable("ok", "echo hi")], tmp_path, jobs=1, log_dir=logs
+    )
+
+    assert result.log == str(logs / "ok.log")
+    assert (logs / "ok.log").read_text() == "hi\n"

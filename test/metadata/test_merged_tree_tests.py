@@ -10,7 +10,7 @@ stands in for the gate, so it can look at the tree it was given.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import pytest
@@ -44,6 +44,16 @@ def _commit(repo: Path, name: str, text: str) -> None:
     git(repo, "commit", "-q", "-m", name)
 
 
+@pytest.fixture(autouse=True)
+def _private_tempdir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # The log and the scratch worktree go under the temp directory.
+    import tempfile
+
+    temp = tmp_path / "temp"
+    temp.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(temp))
+
+
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A ``feature`` branch and an ``origin/main`` that moved since it forked."""
@@ -65,10 +75,16 @@ class _Gate:
     def __init__(self, code: int = 0) -> None:
         self.code = code
         self.trees: list[dict[str, str]] = []
+        self.paths: list[list[str]] = []
 
     def __call__(
-        self, scratch: Path, log: Path, env: Mapping[str, str]
+        self,
+        scratch: Path,
+        paths: Sequence[str],
+        log: Path,
+        env: Mapping[str, str],
     ) -> int:
+        self.paths.append(list(paths))
         self.trees.append(
             {p.name: p.read_text() for p in scratch.iterdir() if p.is_file()}
         )
@@ -89,12 +105,14 @@ def test_the_gate_runs_on_the_merge_of_both_sides(repo: Path, capsys):
     assert _run(gate) == 0
 
     [tree] = gate.trees
+    assert gate.paths == [["shared.txt"]]
     assert tree["shared.txt"] == "ONE base\ntwo\nthree\nfour\nFIVE branch\n"
     assert tree["base_only.txt"] == "base\n"
     out = capsys.readouterr().out
     assert "overlap_path=shared.txt" in out
     assert out.rstrip().endswith("merged-tree exit: 0")
     assert _rev(repo) == head
+    assert len(_worktrees(repo)) == 1
 
 
 @pytest.mark.spec("PAD-18-024")
@@ -137,7 +155,9 @@ def test_a_conflict_is_reported_and_leaves_no_worktree(repo: Path):
 def test_a_gate_that_raises_still_removes_the_worktree(repo: Path):
     _commit(repo, "shared.txt", "one\ntwo\nthree\nfour\nFIVE branch\n")
 
-    def boom(scratch: Path, log: Path, env: Mapping[str, str]) -> int:
+    def boom(
+        scratch: Path, paths: Sequence[str], log: Path, env: Mapping[str, str]
+    ) -> int:
         raise RuntimeError("gate crashed")
 
     with pytest.raises(RuntimeError, match="gate crashed"):
@@ -179,7 +199,9 @@ def test_the_targeted_gate_runs_the_printed_command(
     env = _fake_uv(tmp_path, command)
     log = tmp_path / "gate.log"
 
-    assert merged_tree.run_targeted_gate(tmp_path, log, env) == expected
+    assert (
+        merged_tree.run_targeted_gate(tmp_path, ["a.py"], log, env) == expected
+    )
     assert f"[merged-tree] {command}" in log.read_text()
 
 
@@ -187,15 +209,67 @@ def test_a_gate_that_cannot_be_derived_is_a_setup_error(tmp_path: Path):
     env = _fake_uv(tmp_path, "boom", code=2)
 
     with pytest.raises(merged_tree.MergedTreeError, match="could not derive"):
-        merged_tree.run_targeted_gate(tmp_path, tmp_path / "gate.log", env)
+        merged_tree.run_targeted_gate(
+            tmp_path, ["a.py"], tmp_path / "gate.log", env
+        )
 
 
 @pytest.mark.spec("PAD-18-025")
 def test_an_underivable_gate_exits_2_and_leaves_no_worktree(repo: Path):
     _commit(repo, "shared.txt", "one\ntwo\nthree\nfour\nFIVE branch\n")
 
-    def underivable(scratch: Path, log: Path, env: Mapping[str, str]) -> int:
+    def underivable(
+        scratch: Path, paths: Sequence[str], log: Path, env: Mapping[str, str]
+    ) -> int:
         raise merged_tree.MergedTreeError("could not derive the gate")
 
     assert merged_tree.main(["--no-fetch"], run_gate=underivable) == 2
     assert len(_worktrees(repo)) == 1
+
+
+@pytest.mark.spec("PAD-18-025")
+def test_sigterm_removes_the_worktree_and_exits_143(repo: Path, capsys):
+    import os
+    import signal
+
+    _commit(repo, "shared.txt", "one\ntwo\nthree\nfour\nFIVE branch\n")
+    head = _rev(repo)
+
+    def terminated(
+        scratch: Path, paths: Sequence[str], log: Path, env: Mapping[str, str]
+    ) -> int:
+        os.kill(os.getpid(), signal.SIGTERM)
+        return 0
+
+    assert merged_tree.main(["--no-fetch"], run_gate=terminated) == 143
+
+    assert "merged-tree exit: 143" in capsys.readouterr().out
+    assert len(_worktrees(repo)) == 1
+    assert _rev(repo) == head
+    assert signal.getsignal(signal.SIGTERM) is not merged_tree._on_sigterm
+
+
+def test_a_merge_that_fails_without_a_conflict_is_a_setup_error(repo: Path):
+    with pytest.raises(merged_tree.MergedTreeError, match="git merge"):
+        merged_tree._merge(repo, "no-such-base")
+
+
+@pytest.mark.spec("PAD-18-024")
+def test_the_gate_selects_tests_for_the_shared_paths_only(tmp_path: Path):
+    import os
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    argv_file = tmp_path / "argv"
+    uv = bin_dir / "uv"
+    uv.write_text(f'#!/bin/sh\necho "$@" > {argv_file}\nprintf true\n')
+    uv.chmod(0o755)
+    env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"}
+
+    merged_tree.run_targeted_gate(
+        tmp_path, ["a.py", "specs/x.yaml"], tmp_path / "gate.log", env
+    )
+
+    assert argv_file.read_text().split() == [
+        "run", "targeted-tests", "--pytest", "--paths", "a.py", "specs/x.yaml",
+    ]  # fmt: skip

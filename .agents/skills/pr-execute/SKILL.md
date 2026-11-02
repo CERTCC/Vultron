@@ -461,9 +461,13 @@ logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set pe
 timeout -k 30 1800 uv run merged-tree-tests --base <base_ref> > "$logs-merged-tree.txt" 2>&1; rc=$?; cat "$logs-merged-tree.txt"; echo "exit: $rc"; (exit $rc)
 ```
 
-The command merges `origin/<base_ref>` into a scratch worktree, runs the
-targeted set there, and removes the worktree with `git worktree remove`. It
-never runs `prune`, and the PR branch does not move (PAD-18-025). Exit `0`:
+The command merges `origin/<base_ref>` into a scratch worktree and runs there
+the tests `targeted-tests --paths` selects for the files both sides changed,
+each counted as wholly changed, as after a conflict merge. It never selects
+for the whole branch diff, which would escalate to the full suite (ADR-0173).
+It removes the worktree with `git worktree remove`, even when `timeout` stops
+it (exit `143`). It never runs `prune`, and the PR branch does not move
+(PAD-18-025). Exit `0`:
 the merge passes, or nothing overlaps now. Exit `1`: a test fails on the
 merged tree. It is a branch-owned failure under the same Test Failure Rules:
 fix it on the branch, commit, and rerun. Exit `3`: the base no longer merges

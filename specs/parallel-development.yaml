@@ -2789,6 +2789,8 @@ groups:
         - rel_type: extends
           spec_id: PAD-18-009
       - id: PAD-18-021
+        adr:
+        - ADR-0173
         priority: MUST
         kind: process
         statement: >-
@@ -2805,13 +2807,16 @@ groups:
         verification: >-
           Inspection: `create-pr` Phase 3c and `pr-execute` Phase 5 Step 3 run
           `prepush-ci-mirror` before their push steps and stop on a non-zero
-          `mirror exit:` line.
+          `exit:` line. `test/metadata/test_ci_mirror_skill_wiring.py` pins
+          both placements.
         relationships:
         - rel_type: extends
           spec_id: PAD-18-001
         - rel_type: extends
           spec_id: PAD-18-002
       - id: PAD-18-022
+        adr:
+        - ADR-0173
         priority: MUST
         kind: process
         statement: >-
@@ -2831,6 +2836,8 @@ groups:
         - rel_type: depends_on
           spec_id: PAD-18-021
       - id: PAD-18-023
+        adr:
+        - ADR-0173
         priority: MUST
         kind: process
         statement: >-
@@ -2851,28 +2858,34 @@ groups:
         - rel_type: depends_on
           spec_id: PAD-18-021
       - id: PAD-18-024
+        adr:
+        - ADR-0173
         priority: MUST
         kind: process
         statement: >-
           When the base changed a path that a pushed Pull Request also changes,
-          and the two do not conflict, `pr-execute` MUST run the targeted set on
-          the merge of `HEAD` with the base, in a scratch worktree, before it
-          pushes.
+          and the two do not conflict, `pr-execute` MUST run the tests for the
+          shared paths on the merge of `HEAD` with the base, in a scratch
+          worktree, before it pushes.
         rationale: >-
           CI tests the Pull Request merged into its base. After the first push
           the base moves, and a fix that passes on the branch alone can fail on
           a file both sides changed. Testing that merge locally catches the
           drift without merging the base into the branch, which PAD-18-004
-          forbids.
+          forbids. Selecting for the shared paths alone, as PAD-18-015 does
+          after a conflict, keeps the run from escalating to the full suite
+          for paths the base never touched (ADR-0138).
         verification: >-
           `test/metadata/test_merged_tree_tests.py`: the gate runs on a tree
-          that holds both sides' changes, and it does not run when nothing
-          overlaps. Inspection: `pr-execute` Phase 5 Step 3 runs
+          that holds both sides' changes, for the shared paths, and it does not
+          run when nothing overlaps. Inspection: `pr-execute` Phase 5 Step 3 runs
           `merged-tree-tests` on a `no-merge` verdict with a `deferred` reason.
         relationships:
         - rel_type: depends_on
           spec_id: PAD-18-004
       - id: PAD-18-025
+        adr:
+        - ADR-0173
         priority: MUST_NOT
         kind: process
         statement: >-

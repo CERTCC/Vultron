@@ -25,18 +25,19 @@ PR branch for that, so this command tests the merge somewhere else::
 When ``targeted-tests --overlap`` finds no path both sides changed, it
 prints ``merged-tree: no overlap`` and exits 0: the branch's own gate already
 covers it. Otherwise it adds a detached scratch worktree at ``HEAD``, merges
-``origin/<base>`` into that worktree only, runs the ``targeted-tests --pytest``
-command there, and removes the worktree with ``git worktree remove`` whatever
-the result. It never runs ``git worktree prune``. The PR branch and its
-checkout are not touched.
+``origin/<base>`` into that worktree only, runs there the tests that
+``targeted-tests --paths`` selects for the shared files, and removes the
+worktree with ``git worktree remove`` whatever the result. It never runs
+``git worktree prune``. The PR branch and its checkout are not touched.
 
 Output contract: one ``overlap_path=<path>`` line per shared path, the last
 lines of the test log on a failure, then ``merged-tree exit: <code>``. Exit 0
 when there is no overlap or the tests pass, 1 when they fail, 2 on a setup
 error (dirty tree, unknown base, a scratch worktree that would not add or
-remove), 3 when the base no longer merges cleanly. Exit 3 means the
-PR conflicts with its base: rerun ``sync-decision.sh``, which calls for the
-merge PAD-18-004 allows.
+remove, a merge that failed without a conflict), 3 when the base no longer
+merges cleanly, 143 when SIGTERM stopped it (after removing the worktree).
+Exit 3 means the PR conflicts with its base: rerun ``sync-decision.sh``,
+which calls for the merge PAD-18-004 allows.
 
 Requirements: specs/parallel-development.yaml PAD-18-024, PAD-18-025.
 """
@@ -46,12 +47,15 @@ from __future__ import annotations
 import argparse
 import os
 import shlex
+import signal
 import subprocess
 import sys
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
+from types import FrameType
 
+from vultron.metadata.planning.ci_mirror._run import log_tail, run_in_session
 from vultron.metadata.planning.targeted_tests import overlap
 from vultron.metadata.specs.backstop import (
     BackstopError,
@@ -61,8 +65,8 @@ from vultron.metadata.specs.backstop import (
     run_git,
 )
 
-#: Runs the gate in the scratch worktree and returns its exit code.
-GateRunner = Callable[[Path, Path, Mapping[str, str]], int]
+#: Runs the gate for the shared paths in the scratch worktree; its exit code.
+GateRunner = Callable[[Path, Sequence[str], Path, Mapping[str, str]], int]
 
 #: A throwaway identity for the scratch merge commit, which nothing keeps.
 _MERGE_IDENTITY = (
@@ -71,23 +75,27 @@ _MERGE_IDENTITY = (
     "-c", "commit.gpgsign=false",
 )  # fmt: skip
 
+#: The exit status of a run stopped by SIGTERM (128 + 15), after cleanup.
+TERMINATED = 143
+
 
 class MergedTreeError(RuntimeError):
     """The merged tree could not be built or cleaned up."""
 
 
-def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(  # nosec B603 B607 - fixed git argv
-        ["git", *args], cwd=root, capture_output=True, text=True, check=False
-    )
+class _Terminated(BaseException):
+    """SIGTERM arrived; unwinding runs every ``finally`` on the way out."""
+
+
+def _on_sigterm(signum: int, frame: FrameType | None) -> None:
+    raise _Terminated()
 
 
 def _checked(root: Path, *args: str) -> str:
-    proc = _git(root, *args)
-    if proc.returncode != 0:
-        detail = proc.stderr.strip() or f"exit {proc.returncode}"
-        raise MergedTreeError(f"git {' '.join(args)}: {detail}")
-    return proc.stdout
+    try:
+        return run_git(root)(list(args))
+    except BackstopError as exc:
+        raise MergedTreeError(str(exc)) from exc
 
 
 def shared_paths(root: Path, base_ref: str) -> list[str]:
@@ -99,22 +107,22 @@ def shared_paths(root: Path, base_ref: str) -> list[str]:
     )
 
 
-def run_targeted_gate(scratch: Path, log: Path, env: Mapping[str, str]) -> int:
-    """Derive the targeted set inside *scratch* and run it, logging to *log*.
+def run_targeted_gate(
+    scratch: Path, paths: Sequence[str], log: Path, env: Mapping[str, str]
+) -> int:
+    """Derive the targeted set for *paths* inside *scratch* and run it.
 
-    Returns pytest's exit code. A failure to derive the set is a setup error,
-    not a test failure, so it raises :class:`MergedTreeError`.
+    The set is ``targeted-tests --paths`` for the files both sides changed,
+    each counted as wholly changed, as after a conflict merge (PAD-18-015).
+    The branch's own lines were gated already; what the base can break is
+    where the two meet. Returns pytest's exit code, logging to *log*.
+
+    A failure to derive the set is a setup error, not a test failure, so it
+    raises :class:`MergedTreeError`. The tests run in their own process
+    group, so an interrupt stops their workers too.
     """
-    base = env.get("GITHUB_BASE_REF", "main")
     derive = subprocess.run(  # nosec B603 B607 - fixed argv
-        [
-            "uv",
-            "run",
-            "targeted-tests",
-            "--base",
-            f"origin/{base}",
-            "--pytest",
-        ],
+        ["uv", "run", "targeted-tests", "--pytest", "--paths", *paths],
         cwd=scratch,
         env=dict(env),
         capture_output=True,
@@ -130,19 +138,38 @@ def run_targeted_gate(scratch: Path, log: Path, env: Mapping[str, str]) -> int:
     with log.open("w", encoding="utf-8") as out:
         out.write(f"[merged-tree] {derive.stdout.strip()}\n")
         out.flush()
-        return subprocess.run(  # nosec B603 - the argv targeted-tests printed
+        code = run_in_session(
             shlex.split(derive.stdout.strip()),
             cwd=scratch,
-            env=dict(env),
-            stdout=out,
-            stderr=subprocess.STDOUT,
-            check=False,
-        ).returncode
+            env=env,
+            out=out,
+            timeout=None,
+        )
+    return 1 if code is None else code
+
+
+def _merge(scratch: Path, base: str) -> bool:
+    """Merge ``origin/<base>`` in *scratch*: True when clean, False on a conflict.
+
+    Any other failure (a bad ref, a broken repository) is a setup error.
+    """
+    merged = subprocess.run(  # nosec B603 B607 - fixed git argv
+        ["git", *_MERGE_IDENTITY, "merge", "--no-ff", "--no-edit", "--quiet",
+         f"origin/{base}"],
+        cwd=scratch, capture_output=True, text=True, check=False,
+    )  # fmt: skip
+    if merged.returncode == 0:
+        return True
+    if _checked(scratch, "diff", "--name-only", "--diff-filter=U").strip():
+        return False
+    detail = merged.stderr.strip() or f"exit {merged.returncode}"
+    raise MergedTreeError(f"git merge origin/{base}: {detail}")
 
 
 def gate_merged_tree(
     root: Path,
     base: str,
+    paths: Sequence[str],
     *,
     run_gate: GateRunner,
     log: Path,
@@ -152,32 +179,28 @@ def gate_merged_tree(
 
     Returns 0 when the gate passes, 1 when it fails, 3 when the merge
     conflicts. Raises :class:`MergedTreeError` when the worktree cannot be
-    added or removed, or the gate cannot be derived. Removal runs on every
-    path out, so no checkout is left behind.
+    added or removed, the merge fails for another reason, or the gate cannot
+    be derived. Removal runs on every path out, an interrupt included, so no
+    checkout is left behind.
     """
     scratch = Path(tempfile.mkdtemp(prefix=f"vultron-{root.name}-merged-"))
     scratch.rmdir()  # git worktree add creates the directory itself
-    _checked(
-        root, "worktree", "add", "--quiet", "--detach", str(scratch), "HEAD"
-    )
     try:
-        merged = _git(
-            scratch, *_MERGE_IDENTITY, "merge", "--no-ff", "--no-edit",
-            "--quiet", f"origin/{base}",
-        )  # fmt: skip
-        if merged.returncode != 0:
+        _checked(
+            root,
+            "worktree",
+            "add",
+            "--quiet",
+            "--detach",
+            str(scratch),
+            "HEAD",
+        )
+        if not _merge(scratch, base):
             return 3
-        code = run_gate(scratch, log, env)
-        return 0 if code == 0 else 1
+        return 0 if run_gate(scratch, paths, log, env) == 0 else 1
     finally:
-        _checked(root, "worktree", "remove", "--force", str(scratch))
-
-
-def _tail(log: Path, lines: int = 20) -> str:
-    if not log.is_file():
-        return ""
-    text = log.read_text(encoding="utf-8", errors="replace")
-    return "\n".join(text.splitlines()[-lines:])
+        if scratch.exists():
+            _checked(root, "worktree", "remove", "--force", str(scratch))
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -212,13 +235,13 @@ def _run(args: argparse.Namespace, run_gate: GateRunner) -> int:
     env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
     env |= {"PYTHONPATH": "", "GITHUB_BASE_REF": args.base}
     code = gate_merged_tree(
-        root, args.base, run_gate=run_gate, log=log, env=env
+        root, args.base, both, run_gate=run_gate, log=log, env=env
     )
     if code == 3:
         print(f"merged-tree: origin/{args.base} no longer merges cleanly")
     elif code != 0:
         print(f"merged-tree: tests failed on the merged tree; log: {log}")
-        print(_tail(log))
+        print(log_tail(log, 20))
     return code
 
 
@@ -227,12 +250,23 @@ def main(
     *,
     run_gate: GateRunner = run_targeted_gate,
 ) -> int:
-    """Entry point for ``merged-tree-tests``."""
+    """Entry point for ``merged-tree-tests``.
+
+    SIGTERM (``timeout`` sends it first) unwinds through the cleanup instead
+    of killing the process where it stands, so the scratch worktree is
+    removed and the run exits :data:`TERMINATED`.
+    """
     args = _build_parser().parse_args(argv)
+    previous = signal.signal(signal.SIGTERM, _on_sigterm)
     try:
         code = _run(args, run_gate)
     except MergedTreeError as exc:
         print(f"merged-tree-tests: {exc}", file=sys.stderr)
         code = 2
+    except _Terminated:
+        print("merged-tree-tests: terminated; scratch worktree removed")
+        code = TERMINATED
+    finally:
+        signal.signal(signal.SIGTERM, previous)
     print(f"merged-tree exit: {code}")
     return code

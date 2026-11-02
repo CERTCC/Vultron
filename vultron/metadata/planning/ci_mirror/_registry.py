@@ -76,6 +76,9 @@ class MirrorCheck:
     needs_pr: bool = False
     #: Runs after every other check, by itself: it writes into the tree others read.
     alone: bool = False
+    #: Step env values naming a GitHub expression that run without it locally,
+    #: each with why; parity refuses an expression neither here nor in ``env``.
+    drops_env: Mapping[str, str] = field(default_factory=dict)
 
 
 _PY = "python-app.yml"
@@ -93,6 +96,11 @@ SITE_PATHS = (
     "overrides/**",
     "references.bib",
     "mkdocs.yml",
+    # Root pages that docs/ pages pull in with include-markdown.
+    "CONTRIBUTING.md",
+    "ContributionInstructions.md",
+    "LICENSE.md",
+    "Acknowledgements.md",
     "uv.lock",
     "vultron/metadata/docs/**",
     ".github/actions/build-site/**",
@@ -244,6 +252,7 @@ MIRROR_CHECKS: tuple[MirrorCheck, ...] = (
         "verification-debt-owners.yml::closing-pr::"
         "Check the owner issues this PR closes",
         env={"PR_NUMBER": "{pr}"},
+        drops_env={"GH_TOKEN": "the local gh CLI reads its own login"},
         needs_pr=True,
     ),
     *(

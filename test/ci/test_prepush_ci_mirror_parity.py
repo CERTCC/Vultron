@@ -181,3 +181,68 @@ def test_a_step_inside_a_local_action_is_its_own_step(tmp_path: Path):
         "ci.yml::check::Outer > Inner: a pull_request step neither mirrored "
         "nor excluded; add a MirrorCheck or an EXCLUSIONS entry with its reason"
     ]
+
+
+@pytest.mark.spec("PAD-18-022")
+def test_two_steps_with_one_label_are_both_counted(tmp_path: Path):
+    _workflow(
+        tmp_path,
+        "ci.yml",
+        "on: pull_request\njobs:\n  j:\n    steps:\n"
+        "      - run: make a\n      - run: make b\n",
+    )
+    checks = [MirrorCheck("a", "ci.yml::j::<unnamed step>")]
+
+    assert parity_problems(tmp_path, checks, {}) == [
+        "ci.yml::j::<unnamed step> #2: a pull_request step neither mirrored "
+        "nor excluded; add a MirrorCheck or an EXCLUSIONS entry with its reason"
+    ]
+
+
+@pytest.mark.spec("PAD-18-022")
+def test_a_reusable_workflow_job_is_a_step(tmp_path: Path):
+    _workflow(
+        tmp_path,
+        "ci.yml",
+        "on: pull_request\njobs:\n  call:\n"
+        "    uses: ./.github/workflows/shared.yml\n",
+    )
+
+    assert parity_problems(tmp_path, [], {}) == [
+        "ci.yml::call::./.github/workflows/shared.yml: a pull_request step "
+        "neither mirrored nor excluded; add a MirrorCheck or an EXCLUSIONS "
+        "entry with its reason"
+    ]
+
+
+@pytest.mark.spec("PAD-18-022")
+def test_a_pull_request_target_workflow_is_counted(tmp_path: Path):
+    _workflow(
+        tmp_path,
+        "ci.yml",
+        _WORKFLOW.replace("pull_request:", "pull_request_target:"),
+    )
+
+    assert len(parity_problems(tmp_path, [], {})) == 3
+
+
+@pytest.mark.spec("PAD-18-022")
+def test_an_expression_in_step_env_needs_an_override_or_a_reason(
+    tmp_path: Path,
+):
+    _workflow(
+        tmp_path,
+        "ci.yml",
+        "on: pull_request\njobs:\n  j:\n    steps:\n      - name: Lint\n"
+        "        env:\n          TOKEN: ${{ secrets.T }}\n        run: make lint\n",
+    )
+    bare = [MirrorCheck("lint", "ci.yml::j::Lint")]
+    reasoned = [
+        MirrorCheck("lint", "ci.yml::j::Lint", drops_env={"TOKEN": "r"})
+    ]
+    overridden = [MirrorCheck("lint", "ci.yml::j::Lint", env={"TOKEN": "x"})]
+
+    [problem] = parity_problems(tmp_path, bare, {})
+    assert "TOKEN names a GitHub expression" in problem
+    assert parity_problems(tmp_path, reasoned, {}) == []
+    assert parity_problems(tmp_path, overridden, {}) == []

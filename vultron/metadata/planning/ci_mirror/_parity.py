@@ -145,6 +145,15 @@ def _check_problems(
         problems.append(
             f"{check.id}: a command differing from CI needs a note"
         )
+    if step is not None:
+        problems += [
+            f"{check.id}: its step's env {name} names a GitHub expression; "
+            "set it in the check's env, or say in drops_env why it can go"
+            for name, value in step.env.items()
+            if "${{" in value
+            and name not in check.env
+            and not check.drops_env.get(name, "").strip()
+        ]
     if check.paths is not None and not check.narrowed.strip():
         problems.append(f"{check.id}: narrowed paths need a reason")
     return problems

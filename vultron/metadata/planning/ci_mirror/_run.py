@@ -10,12 +10,13 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Plan and run the mirror: which checks the branch diff triggers, and their verdicts."""
+"""Plan and run the mirror: what the branch diff triggers, and each verdict."""
 
 from __future__ import annotations
 
 import os
 import shutil
+import signal
 import subprocess
 import tempfile
 import time
@@ -24,6 +25,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
+from typing import IO
 
 from vultron.metadata.planning.ci_mirror._registry import (
     CheckContext,
@@ -45,8 +47,13 @@ DEFAULT_TIMEOUT = 1200
 
 
 class CheckStatus(StrEnum):
-    """A check's verdict. ``FAIL`` and ``UNAVAILABLE`` block the push."""
+    """A check's verdict. ``FAIL`` and ``UNAVAILABLE`` block the push.
 
+    ``PLAN`` is ``--list``'s word for a check that would run; it never reaches
+    a real run's report.
+    """
+
+    PLANNED = "PLAN"
     PASSED = "PASS"
     FAILED = "FAIL"
     UNAVAILABLE = "UNAVAILABLE"
@@ -186,34 +193,72 @@ def plan(
     return planned
 
 
-def _log_dir(root: Path) -> Path:
-    # One directory per worktree: parallel sessions share /tmp.
-    path = Path(tempfile.gettempdir()) / f"vultron-{root.name}-ci-mirror"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+def default_log_dir(root: Path) -> Path:
+    """One log directory per worktree: parallel sessions share the temp dir."""
+    return Path(tempfile.gettempdir()) / f"vultron-{root.name}-ci-mirror"
+
+
+def log_tail(path: Path | str | None, lines: int = 15) -> str:
+    """The last *lines* of a log, or ``""`` when there is none."""
+    if path is None or not Path(path).is_file():
+        return ""
+    text = Path(path).read_text(encoding="utf-8", errors="replace")
+    return "\n".join(text.splitlines()[-lines:])
+
+
+def run_in_session(
+    argv: Sequence[str],
+    *,
+    cwd: Path,
+    env: Mapping[str, str],
+    out: IO[str],
+    timeout: float | None,
+) -> int | None:
+    """Run *argv* in its own process group; ``None`` when it timed out.
+
+    On a timeout the whole group is killed, so a grandchild (an xdist worker,
+    a site build) cannot keep running past it.
+    """
+    proc = subprocess.Popen(  # nosec B603 - argv from the registry
+        list(argv),
+        cwd=cwd,
+        env=dict(env),
+        stdout=out,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    try:
+        return proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait()
+        return None
+    except BaseException:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait()
+        raise
 
 
 def _run_one(
-    item: PlannedCheck, root: Path, base_env: Mapping[str, str], timeout: int
+    item: PlannedCheck,
+    root: Path,
+    base_env: Mapping[str, str],
+    timeout: int,
+    log_dir: Path,
 ) -> CheckResult:
     assert item.argv is not None
-    log = _log_dir(root) / f"{item.check.id}.log"
+    log = log_dir / f"{item.check.id}.log"
     started = time.monotonic()
     cwd = root / item.cwd if item.cwd else root
     with log.open("w", encoding="utf-8") as out:
-        try:
-            proc = subprocess.run(  # nosec B603 - argv from the registry
-                list(item.argv),
-                cwd=cwd,
-                env={**base_env, **item.env},
-                stdout=out,
-                stderr=subprocess.STDOUT,
-                timeout=timeout,
-                check=False,
-            )
-            code: int | None = proc.returncode
-        except subprocess.TimeoutExpired:
-            code = None
+        code = run_in_session(
+            item.argv,
+            cwd=cwd,
+            env={**base_env, **item.env},
+            out=out,
+            timeout=timeout,
+        )
+        if code is None:
             out.write(f"\n[ci-mirror] timed out after {timeout}s\n")
     seconds = time.monotonic() - started
     if code == 0:
@@ -247,12 +292,18 @@ def _run_lane(
     root: Path,
     base_env: Mapping[str, str],
     timeout: int,
+    log_dir: Path,
 ) -> list[CheckResult]:
-    """Run a group in order; once one fails, the rest have no input to read."""
+    """Run a group in order.
+
+    The first member produces what the rest read (the site build), so when it
+    fails they do not run. A later member's failure stops nothing, as in CI,
+    where each runs under ``!cancelled()``.
+    """
     results: list[CheckResult] = []
     for item in lane:
-        if results and results[-1].status.blocks:
-            failed = results[-1].id
+        if results and results[0].status.blocks:
+            failed = results[0].id
             results.append(
                 CheckResult(
                     item.check.id,
@@ -264,7 +315,7 @@ def _run_lane(
                 )
             )
             continue
-        results.append(_run_one(item, root, base_env, timeout))
+        results.append(_run_one(item, root, base_env, timeout, log_dir))
     return results
 
 
@@ -275,22 +326,26 @@ def run_checks(
     jobs: int,
     timeout: int = DEFAULT_TIMEOUT,
     env: Mapping[str, str] | None = None,
+    log_dir: Path | None = None,
 ) -> list[CheckResult]:
     """Run every planned check that is to run; report every check."""
     base_env = dict(os.environ if env is None else env)
+    logs = log_dir or default_log_dir(root)
+    logs.mkdir(parents=True, exist_ok=True)
     lanes = _groups(planned)
     shared = [lane for lane in lanes if not lane[0].check.alone]
     with ThreadPoolExecutor(max_workers=max(1, jobs)) as pool:
         ran = [
             result
             for lane_results in pool.map(
-                lambda lane: _run_lane(lane, root, base_env, timeout), shared
+                lambda lane: _run_lane(lane, root, base_env, timeout, logs),
+                shared,
             )
             for result in lane_results
         ]
     for lane in lanes:
         if lane[0].check.alone:
-            ran += _run_lane(lane, root, base_env, timeout)
+            ran += _run_lane(lane, root, base_env, timeout, logs)
     by_id = {r.id: r for r in ran}
     return [
         by_id.get(item.check.id)

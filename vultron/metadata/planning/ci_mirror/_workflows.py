@@ -19,6 +19,12 @@ where the label is the step's ``name:``, else its ``uses:`` without the
 labelled ``<outer label> > <inner label>``, so a step added inside a shared
 action is a new key too. The expansion stops at any ``uses:`` the caller
 passes as *opaque* — the setup and notification actions the mirror never runs.
+A job that calls a reusable workflow (``jobs.<id>.uses:``) has no steps, so it
+counts as one step labelled with what it calls. Two steps of one job with the
+same label get ``#2``, ``#3``, … appended, so neither hides the other.
+
+Both ``pull_request`` and ``pull_request_target`` count as pull-request
+triggers; when a workflow has both, ``pull_request``'s filters decide.
 
 Path filters follow GitHub's rules: ``*`` matches within one path segment,
 ``**`` across segments, ``?`` one character, and a ``!`` pattern removes what
@@ -37,6 +43,12 @@ from typing import Any
 import yaml
 
 WORKFLOWS_DIR = Path(".github/workflows")
+
+#: A parsed YAML mapping. ``Any`` is the YAML boundary: a workflow file's
+#: values are whatever the author wrote, and each reader narrows what it uses.
+YamlMapping = dict[Any, Any]
+
+PULL_REQUEST_EVENTS = ("pull_request", "pull_request_target")
 
 #: ``<workflow file>::<job id>::<step label>``.
 StepKey = str
@@ -81,13 +93,14 @@ class PullRequestTrigger:
         return True
 
 
-def _load(path: Path) -> dict[Any, Any]:
+def load_mapping(path: Path) -> YamlMapping:
+    """The YAML mapping in *path*, or ``{}`` when it holds anything else."""
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     return data if isinstance(data, dict) else {}
 
 
-def _on_block(data: Mapping[Any, Any]) -> Any:
-    # PyYAML reads a bare ``on:`` key as the boolean True.
+def on_block(data: Mapping[Any, Any]) -> Any:
+    """A workflow's ``on:`` value; PyYAML reads a bare ``on:`` key as True."""
     return data.get("on", data.get(True))
 
 
@@ -101,18 +114,21 @@ def _strings(value: Any) -> tuple[str, ...] | None:
 
 def pull_request_trigger(data: Mapping[Any, Any]) -> PullRequestTrigger | None:
     """The workflow's ``pull_request`` trigger, or ``None`` when it has none."""
-    on = _on_block(data)
+    on = on_block(data)
     if isinstance(on, str):
         on = [on]
     if isinstance(on, list):
         return (
             PullRequestTrigger(None, None, None)
-            if "pull_request" in on
+            if any(event in on for event in PULL_REQUEST_EVENTS)
             else None
         )
-    if not isinstance(on, dict) or "pull_request" not in on:
+    if not isinstance(on, dict):
         return None
-    event = on["pull_request"] or {}
+    name = next((e for e in PULL_REQUEST_EVENTS if e in on), None)
+    if name is None:
+        return None
+    event = on[name] or {}
     return PullRequestTrigger(
         branches=_strings(event.get("branches")),
         paths=_strings(event.get("paths")),
@@ -130,7 +146,7 @@ def pull_request_workflows(root: Path) -> dict[str, PullRequestTrigger]:
     """Each workflow file name that ``pull_request`` triggers, with its filters."""
     found: dict[str, PullRequestTrigger] = {}
     for path in workflow_files(root):
-        trigger = pull_request_trigger(_load(path))
+        trigger = pull_request_trigger(load_mapping(path))
         if trigger is not None:
             found[path.name] = trigger
     return found
@@ -146,13 +162,27 @@ def _label(step: Mapping[str, Any]) -> str:
     return _bare_uses(str(step.get("uses", ""))) or "<unnamed step>"
 
 
-def _composite_steps(root: Path, uses: str) -> list[dict[str, Any]]:
+def composite_steps(root: Path, uses: str) -> list[YamlMapping]:
+    """The steps of the local composite action *uses* names (``./…``)."""
     folder = root / uses.removeprefix("./")
     for name in ("action.yml", "action.yaml"):
         if (folder / name).is_file():
-            runs = _load(folder / name).get("runs", {})
+            runs = load_mapping(folder / name).get("runs", {})
             return [s for s in runs.get("steps", []) if isinstance(s, dict)]
     raise FileNotFoundError(f"local action {uses} has no action.yml")
+
+
+def expand_steps(
+    root: Path,
+    steps: Iterable[Mapping[str, Any]],
+    opaque: Collection[str] = (),
+) -> list[tuple[str, Mapping[str, Any]]]:
+    """*steps* in run order, each local action replaced by its own steps.
+
+    Each step comes with its label (``<outer> > <inner>`` inside an action).
+    Expansion recurses, and stops at an action named in *opaque*.
+    """
+    return list(_expand(root, steps, "", opaque))
 
 
 def _expand(
@@ -167,7 +197,7 @@ def _expand(
         if uses.startswith("./") and uses not in opaque:
             yield from _expand(
                 root,
-                _composite_steps(root, uses),
+                composite_steps(root, uses),
                 label + NEST_SEPARATOR,
                 opaque,
             )
@@ -184,8 +214,8 @@ def _env(*blocks: Any) -> dict[str, str]:
 
 
 def _run_directory(job: Mapping[str, Any]) -> str | None:
-    defaults = job.get("defaults") or {}
-    run = defaults.get("run") or {} if isinstance(defaults, dict) else {}
+    defaults = job.get("defaults")
+    run = defaults.get("run") if isinstance(defaults, dict) else None
     value = run.get("working-directory") if isinstance(run, dict) else None
     return str(value) if value else None
 
@@ -194,7 +224,7 @@ def workflow_steps(
     root: Path, workflow: str, opaque: Collection[str] = ()
 ) -> list[WorkflowStep]:
     """Every step of *workflow*, local composite actions expanded."""
-    data = _load(root / WORKFLOWS_DIR / workflow)
+    data = load_mapping(root / WORKFLOWS_DIR / workflow)
     found: list[WorkflowStep] = []
     for job_id, job in (data.get("jobs") or {}).items():
         if not isinstance(job, dict):
@@ -202,7 +232,18 @@ def workflow_steps(
         job_env = _env(data.get("env"), job.get("env"))
         job_dir = _run_directory(job)
         steps = [s for s in job.get("steps", []) if isinstance(s, dict)]
-        for label, step in _expand(root, steps, "", opaque):
+        labelled: list[tuple[str, Mapping[str, Any]]]
+        if job.get("uses"):
+            # A reusable-workflow call has no steps: the job is one step,
+            # named by its call, and never expanded as a composite action.
+            call = _bare_uses(str(job["uses"]))
+            labelled = [(call, {"uses": job["uses"]})]
+        else:
+            labelled = list(_expand(root, steps, "", opaque))
+        seen: dict[str, int] = {}
+        for name, step in labelled:
+            seen[name] = seen.get(name, 0) + 1
+            label = name if seen[name] == 1 else f"{name} #{seen[name]}"
             run = step.get("run")
             found.append(
                 WorkflowStep(

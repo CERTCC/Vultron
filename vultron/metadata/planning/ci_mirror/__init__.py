@@ -34,9 +34,10 @@ Output contract (stable; pipeline skills parse it): one line per check,
 ``<STATUS> <id> (<seconds>s) <reason>``, then ``mirror exit: <code>``.
 Exit 0 when nothing blocks, 1 when any check is ``FAIL`` or ``UNAVAILABLE``
 (its tool is not on ``PATH``), 2 on a setup error (not a repository, an
-unknown base, a dirty tree). ``NOT-TRIGGERED``, ``N/A`` and ``SKIPPED`` do
-not block; ``--skip <id>`` is for a check the caller has satisfied another way
-and must say how in the PR.
+unknown base, a dirty tree). ``--list`` prints ``PLAN`` for a check that would
+run, and exits 1 when its plan already holds a block. ``NOT-TRIGGERED``, ``N/A``
+and ``SKIPPED`` do not block. ``--skip <id>`` is for a check the caller has
+satisfied another way, and must say how in the PR.
 
 Every CI step is either mirrored here or excluded with a reason
 (``_registry.py``); ``test/ci/test_prepush_ci_mirror_parity.py`` fails on one
@@ -49,7 +50,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -70,12 +70,20 @@ from vultron.metadata.planning.ci_mirror._run import (
     CheckResult,
     CheckStatus,
     PlannedCheck,
+    log_tail,
     plan,
     run_checks,
 )
 from vultron.metadata.planning.ci_mirror._workflows import (
     pull_request_steps,
     pull_request_workflows,
+)
+from vultron.metadata.specs.backstop import (
+    BackstopError,
+    changed_paths,
+    git_toplevel,
+    merge_base,
+    run_git,
 )
 
 __all__ = [
@@ -89,27 +97,12 @@ __all__ = [
     "main",
     "opaque_actions",
     "parity_problems",
+    "report",
 ]
 
 
 class MirrorSetupError(RuntimeError):
     """The mirror cannot decide what to check: no repository, base or clean tree."""
-
-
-def _git(root: Path, *args: str) -> str:
-    proc = subprocess.run(  # nosec B603 B607 - fixed git argv
-        ["git", *args], cwd=root, capture_output=True, text=True, check=False
-    )
-    if proc.returncode != 0:
-        detail = proc.stderr.strip() or f"exit {proc.returncode}"
-        raise MirrorSetupError(f"git {' '.join(args)}: {detail}")
-    return proc.stdout
-
-
-def _branch_diff(root: Path, base_ref: str) -> tuple[str, tuple[str, ...]]:
-    start = _git(root, "merge-base", base_ref, "HEAD").strip()
-    names = _git(root, "diff", "--name-only", "--no-renames", start, "HEAD")
-    return start, tuple(sorted(set(names.splitlines())))
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -128,17 +121,23 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _setup(args: argparse.Namespace) -> tuple[Path, CheckContext]:
-    root = Path(_git(Path.cwd(), "rev-parse", "--show-toplevel").strip())
-    if not args.list and _git(root, "status", "--porcelain").strip():
-        raise MirrorSetupError(
-            "the working tree is dirty; commit first, so what the mirror "
-            "checks is what the push sends"
-        )
-    if not args.no_fetch:
-        _git(root, "fetch", "--quiet", "origin", args.base)
-    base_ref = f"origin/{args.base}"
-    _git(root, "rev-parse", "--verify", "--quiet", f"{base_ref}^{{commit}}")
-    start, changed = _branch_diff(root, base_ref)
+    try:
+        root = git_toplevel(Path.cwd())
+        git = run_git(root)
+        if not args.list and git(["status", "--porcelain"]).strip():
+            raise MirrorSetupError(
+                "the working tree is dirty; commit first, so what the mirror "
+                "checks is what the push sends"
+            )
+        if not args.no_fetch:
+            git(["fetch", "--quiet", "origin", args.base])
+        base_ref = f"origin/{args.base}"
+        start = merge_base(git, base_ref)
+        # The diff runs to the working tree; the clean-tree check above makes
+        # that HEAD on a real run, and --list may plan uncommitted work.
+        changed = tuple(changed_paths(git, start))
+    except BackstopError as exc:
+        raise MirrorSetupError(str(exc)) from exc
     placeholders = {
         "base": args.base,
         "base_ref": base_ref,
@@ -155,51 +154,37 @@ def _line(result: CheckResult) -> str:
     )
 
 
-def _tail(path: str | None, lines: int = 15) -> str:
-    if path is None:
-        return ""
-    text = Path(path).read_text(encoding="utf-8", errors="replace")
-    return "\n".join(text.splitlines()[-lines:])
-
-
-def _report(
-    planned: Sequence[PlannedCheck],
-    results: Sequence[CheckResult] | None,
-    as_json: bool,
-) -> int:
-    rows = results or [
+def _planned_rows(planned: Sequence[PlannedCheck]) -> list[CheckResult]:
+    return [
         CheckResult(
-            p.check.id, p.status or CheckStatus.PASSED, p.reason or "would run", 0.0,
-            None, None,
+            p.check.id, p.status or CheckStatus.PLANNED,
+            p.reason or "would run", 0.0, None, None,
         )
         for p in planned
     ]  # fmt: skip
-    code = 1 if results and any(r.status.blocks for r in results) else 0
+
+
+def report(rows: Sequence[CheckResult], as_json: bool) -> int:
+    """Print *rows* in the output contract; return the exit code they give."""
+    code = 1 if any(r.status.blocks for r in rows) else 0
     if as_json:
-        print(
-            json.dumps(
-                {
-                    "exit": code,
-                    "checks": [
-                        {
-                            "id": r.id,
-                            "status": r.status.value,
-                            "reason": r.reason,
-                            "seconds": round(r.seconds, 1),
-                            "log": r.log,
-                        }
-                        for r in rows
-                    ],
-                },
-                indent=2,
-            )
-        )
+        checks = [
+            {
+                "id": r.id,
+                "status": r.status.value,
+                "reason": r.reason,
+                "seconds": round(r.seconds, 1),
+                "log": r.log,
+            }
+            for r in rows
+        ]
+        print(json.dumps({"exit": code, "checks": checks}, indent=2))
         return code
     for row in rows:
-        print(_line(row) if results else f"PLAN {row.id} {row.reason}")
+        print(_line(row))
         if row.status is CheckStatus.FAILED and row.log:
             print(f"  log: {row.log}")
-            print("  " + _tail(row.log).replace("\n", "\n  "))
+            print("  " + log_tail(row.log).replace("\n", "\n  "))
     total = sum(r.seconds for r in rows)
     print(f"mirror total: {total:.1f}s of check time")
     print(f"mirror exit: {code}")
@@ -230,9 +215,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         skip=args.skip,
     )
     if args.list:
-        return _report(planned, None, args.json)
+        return report(_planned_rows(planned), args.json)
     # PYTHONPATH empty, as every CI step sets it; GITHUB_BASE_REF so the
     # merge-base guards read this base, as they do in CI.
     env = {**os.environ, "PYTHONPATH": "", "GITHUB_BASE_REF": args.base}
-    results = run_checks(planned, root, jobs=args.jobs, env=env)
-    return _report(planned, results, args.json)
+    return report(
+        run_checks(planned, root, jobs=args.jobs, env=env), args.json
+    )
