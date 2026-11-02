@@ -10,8 +10,9 @@ description: >
   Migration design for ADR-0169: splitting `CVDRole` into three enums by scope,
   giving `CaseParticipant` a separate authority field, moving actor standing off
   the participant record, and making both case-creation doors claim a position.
-  Records the enum membership, what moves where, which guard clauses retire,
-  the stored- and wire-shape change, and the order the two issues land in.
+  Records the enum membership, what moves where, which guard clause retires and
+  which only gets a name, the stored- and wire-shape change, and the order the
+  two issues land in.
 related_specs:
   - specs/participant-role-management.yaml
   - specs/case-proposal.yaml
@@ -82,20 +83,32 @@ along.
 
 ---
 
-## Two checks lose their reason to exist
+## One check retires; the other one gets its name
 
-Both encode in a guard what one shared enum made expressible. Retire the clause,
-not the node — each keeps its other checks.
+Two places hard-code the authority pair under their own names, and that shared
+silence — neither says why it is this pair — is the signal this split answers.
+Only one of them is a guard the split makes pointless. Do not read them as a
+matched set.
 
-- **`RoleOfferAdmissibleNode`'s refusal of an Offer naming Case Owner or Case
-  Manager.** A role Offer is typed to positions, so it cannot name authority
-  (CM-33-003). Its remaining clauses — target is not a participant, target
-  already holds the role, target is the case's CASE_MANAGER — stay.
-- **`PROTECTED_ROLES`, which stops a removal from stripping authority.** A
-  removal edits positions and cannot reach the authority field (CM-31-004).
+**Retires: `RoleOfferAdmissibleNode`'s refusal of an Offer naming Case Owner
+or Case Manager**, with the `UNOFFERABLE_ROLES` constant behind it. A role
+Offer is typed to positions, so it cannot name authority (CM-33-003). Retire
+that clause, not the node: its other clauses stay (CM-33-003), including the
+one that refuses an Offer carrying no readable role and never reads a missing
+role as a default. That clause survives precisely because the wire
+form still carries a string, so an unparseable value still has to be refused
+at the edge.
 
-The two places that hard-code the same pair under different names are the signal
-this split answers: neither says why they are the same pair.
+**Stays: `PROTECTED_ROLES` and `RemovalTargetIsRemovableNode`.** The earlier
+reading of this one was wrong, and the constant's own comment — "Roles a
+removal may not take away" — is where the error came from. CM-31-004 refuses
+the *removal of a participant* that holds `CASE_MANAGER` or `CASE_OWNER`,
+because a case always has a CASE_MANAGER (CM-24-006) and ownership is
+transferred before its holder leaves (CM-21-001). A removal edits no roles at
+all; it sets `removed` on the record. So the check is a protocol rule, not a
+patch on the enum: point it at the new authority field and keep it. The split
+gives it the name it lacked, and the implementation should fix that misleading
+comment while it is there.
 
 ---
 
@@ -111,8 +124,11 @@ as the invariant, so the tree is never red in between.
   in, reading the value from `ActorConfig.default_case_roles`. A claim naming no
   position refuses the proposal, and the wire model drops its "empty means owner
   only" reading.
-- **Direct case creation.** The node that seats the creator takes its position
-  the same way instead of naming only authority.
+- **Direct case creation.** `_RegisterCreatorParticipantNode`, in
+  `vultron/core/behaviors/case/create_case_trigger_tree.py`, takes its
+  position the same way instead of naming only authority. CM-02-015 asks for
+  exactly the pair it hard-codes, so that requirement is amended in the same
+  change.
 
 The configuration field is a **hint** — the value a caller reads when it has
 nothing more specific to claim — and never the authority for what a participant
@@ -147,6 +163,7 @@ written as composition (#5536, #5537).
 ## Order
 
 1. The three-way split, with the participant record, wire form and stored shape
-   following, and the two guard clauses retired. Large and mostly mechanical.
+   following, the role-Offer clause retired, and the removal check repointed at
+   the authority field. Large and mostly mechanical.
 2. The position invariant and both creation doors, in one change so no state
    lands where the invariant holds and a door violates it.

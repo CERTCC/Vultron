@@ -32,13 +32,18 @@ a proposal with an empty claim, which ADR-0133 recorded as acceptable, and the
 create-case trigger, which hard-codes owner and manager. The demo's late role refusal
 is a symptom of that.
 
-ADR-0169 splits the vocabulary three ways by scope, requires every participant to hold
-a position, and makes a case proposer claim its position at the call site. Two run-time
-guards that patch the shared enum retire, because a role Offer typed to positions
-cannot name authority and a removal that edits positions cannot reach it. Once every
-door hands over a position, the static check the concern asked for has nothing left to
-catch; the leftover want, catching a scenario that lets the wrong actor decide, needs a
-decider-to-container mapping that exists only after #5536 and #5537.
+ADR-0169 splits the vocabulary three ways by scope, requires every participant to
+hold a position, and makes a case proposer claim its position at the call site. One
+run-time guard that patches the shared enum retires: a role Offer typed to positions
+cannot name authority, so the clause refusing one has nothing left to refuse. The
+participant-removal check stays. CM-31-004 refuses the removal of a participant
+holding authority, because a case always has a CASE_MANAGER (CM-24-006) — a rule
+about which participant may be removed, not about which role a removal may strip —
+so the split gives that check the name the shared enum denied it rather than taking
+it away. Once every door hands over a position, the static check the concern asked
+for has nothing left to catch. The leftover want, catching a scenario that lets the
+wrong actor decide, needs a decider-to-container mapping that exists only once
+the two composition issues (#5536, #5537) land.
 
 Docs PR: <https://github.com/CERTCC/Vultron/pull/5618>.
 ADR: `docs/adr/0169-case-roles-split-into-position-authority-and-standing.md`.

@@ -13,7 +13,6 @@ consulted: >-
 informed: []
 partially_supersedes: 0133-the-report-receiver-states-its-case-roles-on-the-case-proposal.md
 stakeholder_type: [project-contributor]
-lint_suppress: [phantom_symbol_ref]
 ---
 
 # Case Roles Split Three Ways — Position, Case Authority and Actor Standing — and Every Participant Claims a Position
@@ -31,12 +30,12 @@ One, CVE Numbering Authority, names a **standing** of the organization that is t
 Because all eight share one enum and one list field on `CaseParticipant`, a participant record can hold authority and no position at all, and nothing refuses it.
 Two doors do exactly that today.
 A report receiver whose `ActorConfig.default_case_roles` is empty proposes a case stating an empty claim, which ADR-0133 recorded as acceptable: "a proposal without the field seats the receiver as `CASE_OWNER` only".
-`CreateCaseParticipantNode` hard-codes `[CVDRole.CASE_OWNER, CVDRole.CASE_MANAGER]` and names no position.
+The direct-mint path seats its creator with `[CVDRole.CASE_OWNER, CVDRole.CASE_MANAGER]` and names no position, because CM-02-015 asks for exactly that pair (`_RegisterCreatorParticipantNode`, in `vultron/core/behaviors/case/create_case_trigger_tree.py`).
 In both cases the owner holds no position, and the refusal surfaces far from the cause, wherever a position is later required — a Coordinator that cannot invite, a Vendor that cannot report a fix ready.
 
-Two run-time guards exist only to patch the same conflation.
-`RoleOfferAdmissibleNode` refuses a role Offer that names Case Owner or Case Manager, and `PROTECTED_ROLES` stops a participant removal from stripping them.
-Both encode in a check what one enum makes expressible in the first place.
+One run-time guard exists only to patch the conflation: `RoleOfferAdmissibleNode` refuses a role Offer that names Case Owner or Case Manager, encoding in a check what one enum makes expressible in the first place (CM-33-003).
+A second check names the same hard-coded pair for a different and durable reason: `PROTECTED_ROLES` refuses the *removal of a participant* holding either value, because a case always has a CASE_MANAGER (CM-24-006) and ownership is transferred before its holder leaves (CM-21-001, CM-31-004).
+What the two share is not a reason but a silence — neither says why it names this pair, because the enum gives it no name.
 
 How should the three kinds of role be modeled, and where does a participant's position come from?
 
@@ -73,8 +72,9 @@ That is the invariant this record fixes: a participant's roles come from an act 
 ### Consequences
 
 - Good, because a participant that holds authority and no position cannot be constructed, so the late and misattributed role refusal cannot happen.
-- Good, because two run-time guards lose their reason to exist: a role Offer is typed to positions, so it cannot name authority, and a removal that edits positions cannot reach the authority field.
+- Good, because the role-Offer guard loses its reason to exist: an Offer is typed to positions, so it cannot name authority and the clause refusing one has nothing left to refuse (CM-33-003).
 - Good, because an actor's standing stops masquerading as a case role, which is what let "holds a position" be satisfied by something that is not one.
+- Neutral, because the guard on *who may be removed* does not retire but is instead given the name it lacked: CM-31-004 refuses the removal of a participant holding authority, which is a rule about the participant and not about which role a removal may strip, so it reads the new authority field and keeps refusing.
 - Bad, because the participant's stored shape and wire form both change, and every reference to the two authority values moves to the new type — about fifty files under `vultron/` and a hundred and sixty under `test/`.
 - Bad, because an actor configured with no default position can no longer propose a case; it is refused at the proposal rather than seated without a position.
 - Neutral, because the Exploit Publisher the protocol specification already constrains gains an obvious home in the standing enum, but is not modeled here.
@@ -84,6 +84,7 @@ That is the invariant this record fixes: a participant's roles come from an act 
 A participant constructed with authority and no position raises.
 A case proposal whose claim names no position is refused at the parse edge, and the node that builds a proposal reads no configuration.
 Direct case creation seats its creator with a position.
+A removal naming a participant that holds case authority is still refused, now against the authority field.
 An architecture test confirms every value of the three enums sits in exactly one of them.
 
 ## Pros and Cons of the Options
@@ -98,8 +99,8 @@ An architecture test confirms every value of the three enums sits in exactly one
 
 - Good, because no call site moves and neither the stored shape nor the wire form changes.
 - Neutral, because it states the taxonomy, which is most of the value.
-- Bad, because the subsets are a rule beside the type rather than the type, so a role Offer can still name authority and a removal can still reach it; both guards stay.
-- Bad, because the two places that already hard-code the authority pair under their own names would cite the subset without the type stopping anything.
+- Bad, because the subsets are a rule beside the type rather than the type, so a role Offer can still name authority and its guard clause stays.
+- Bad, because the two places that already hard-code the authority pair under their own names would cite the subset without the type stopping anything, so neither would gain the name it lacks.
 
 ### One enum, and refuse only an empty claim at the two creation doors
 
