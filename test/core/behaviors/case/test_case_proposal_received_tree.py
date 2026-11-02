@@ -419,6 +419,27 @@ class TestEmitCreateVulnerabilityCaseNode:
         assert dl.outbox_list() == []
         assert any("EMB-18-003" in r.getMessage() for r in caplog.records)
 
+    @pytest.mark.spec("CP-09-004")
+    def test_unreadable_participant_fails_and_queues_nothing(self, caplog):
+        """The Create carries every participant inline, so a case naming one
+        this store lacks is never sent with a bare id."""
+        dl = self._dl()
+        case_id = "https://example.org/cases/c-unheld-participant"
+        dl.save(
+            VulnerabilityCase(
+                id_=case_id,
+                attributed_to=_CASE_ACTOR_URI,
+                case_participants=[f"{case_id}/participants/unheld"],
+            )
+        )
+
+        with caplog.at_level(logging.ERROR):
+            status = self._run_node(dl, case_id=case_id, seed=False)
+
+        assert status == py_trees.common.Status.FAILURE
+        assert dl.outbox_list() == []
+        assert any("CP-09-004" in r.getMessage() for r in caplog.records)
+
     def test_the_create_uses_case_id_as_context(self):
         """AC-1 (ADR-0045): Create(VulnerabilityCase) carries context=case_uri.
 

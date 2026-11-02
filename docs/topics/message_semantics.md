@@ -85,6 +85,7 @@ and makes the protocol available in any language or framework.
 ## Object verbosity and selective disclosure
 
 A Vultron message carries each object it names inline or by reference, and a receiver copes with either form.
+The one exception is the bootstrap `Create(VulnerabilityCase)`, which carries the case and every object nested in it inline (CBT-01-007).
 The reference implementation carries objects inline, because it fetches only a few objects by reference (AKM-05-007).
 When it sends a message about a case, the case object travels with it.
 When it sends a message about a report, the report object is included.

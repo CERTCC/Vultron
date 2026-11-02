@@ -710,9 +710,9 @@ def test_the_activity_is_sealed_complete(world, method):
     # URI or the selective-disclosure stub — never the full object.  Checked
     # at every depth: an Accept embeds the Offer or Invite it answers, and a
     # read-back-rehydrated embedded activity is where a full case leaked.
-    # CBT-01-007, AKM-02-004: a case carried as the ``object`` carries its participants and
-    # reports as objects — the recipient seeds its replica from them, and the
-    # outbox no longer expands ids at delivery time.
+    # CBT-01-007, AKM-02-004: a case carried as the ``object`` carries its
+    # participants and reports as objects — the recipient seeds its replica
+    # from them, and the outbox no longer expands ids at delivery time.
     obj = body.get("object")
     if (
         isinstance(obj, dict)

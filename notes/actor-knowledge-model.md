@@ -35,7 +35,10 @@ sender's DataLayer": that framing implies the access is possible but skipped.
 
 Corollary: **a bare object URI is resolvable only if the recipient holds the
 object or can dereference it.** The protocol allows an object inline or by a
-reference the recipient can fetch (AKM-02-002, AKM-03-001). This codebase
+reference the recipient can fetch (AKM-02-002, AKM-03-001), except in the
+bootstrap `Create(VulnerabilityCase)`, which carries its case and nested objects
+inline because its receiver has no trusted source to fetch from yet (CBT-01-007,
+ADR-0170); nothing in it is fetched (AKM-05-007). This codebase
 dereferences narrowly: the inbox fetches an object only for an activity no
 pattern matches because of it (`UNKNOWN_UNRESOLVABLE_OBJECT`), a replica's
 replaced embargo, and a proposer's profile (AKM-05-007). A bare `object` matches
@@ -48,7 +51,8 @@ inlining: every fetch is a round trip.
 ## This Codebase Carries Full Inline Objects
 
 Inlining is a prototype shortcut, not a Vultron rule (maintainer ruling
-2026-10-14, #4599; see `notes/spec-authoring-rules.md`). The project specs are
+2026-10-14, #4599; see `notes/spec-authoring-rules.md`), except in the bootstrap,
+where the protocol requires it (CBT-01-007). The project specs are
 AKM-02-004 (inline every object the recipient cannot hold), AKM-03-003 (inline
 every activity `object`) and AKM-02-005 (`target` reduces a case to its URI).
 A ledger snapshot inlines nothing of its own: it records the activity as sent,

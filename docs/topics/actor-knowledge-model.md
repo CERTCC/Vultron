@@ -63,10 +63,13 @@ So the protocol rule is about whether the recipient can obtain the object, not a
 
 > **An object the recipient cannot be expected to hold travels inline, or by a reference the recipient can dereference.**
 
-Every outbound initiating activity — `Create`, `Offer`, `Invite`, `Announce`, `Add`, `Remove`, `Update`, `Join`, `Ignore`, `Leave` — carries the domain object it acts on as its `object`, in either form (AKM-03-001).
+Every outbound initiating activity — `Create`, `Offer`, `Invite`, `Announce`, `Add`, `Remove`, `Update`, `Join`, `Ignore`, `Leave` — carries the domain object it acts on as its `object`, in either form unless the protocol requires one (AKM-03-001).
 A production implementation must support dereference (AKM-05-004).
 
 ### Where the protocol requires one form
+
+The bootstrap `Create(VulnerabilityCase)` carries the case and every object nested in it inline (CBT-01-002, CBT-01-007).
+Its receiver trusts no case manager until it accepts that message, so it has no trusted source to fetch a reference from, and it does not fetch one (AKM-05-007).
 
 The `target` field carries a case by reference only: the case URI when the recipient already holds the case, or a case stub for an actor that does not yet hold it (AKM-02-003).
 The [protocol specification §12.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n) defines what a case stub carries.

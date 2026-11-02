@@ -194,7 +194,8 @@ groups:
       A receiver identifies what an initiating activity does from its type together with
       the type of its `object`. Without the object it cannot select the use case or
       apply the change. Inline or by reference leaves the form to the implementation
-      (AKM-05-003).
+      (AKM-05-003), except where a rule fixes it, as CBT-01-002 does for the
+      bootstrap.
     verification: Integration tests in `test/demo/` confirm that outbound initiating activities carry the domain
       object they act on in their `object` field.
     stories:
@@ -492,9 +493,9 @@ groups:
       A receiver MUST fetch an object it lacks, and needs to process a received
       activity, from the actor that holds it. A case's object is held by the
       case's CASE_MANAGER, and an actor's profile by that actor. An object the
-      protocol requires inline is not fetched, and its absence is a protocol error
-      (CBT-05-008). The bootstrap's case and nested objects are such objects
-      (CBT-01-002, CBT-01-007).
+      protocol requires inline, as it does the bootstrap's case and nested objects
+      (CBT-01-002, CBT-01-007), is not fetched. A bootstrap missing a participant
+      record is refused (CBT-05-008).
     rationale: >-
       A sender may name by reference an object its receiver is expected to hold
       (CLP-07-006, AKM-02-002), and a replica that lacks it, through a gap or a lag,
@@ -510,7 +511,9 @@ groups:
       `Create(CaseProposal)` names by id (CP-01-014). A bare `object` matches no
       pattern that tests the object by its type (SE-01-006), so every activity whose
       `object` the receiver lacks is fetched for, except a `Read(CaseLedgerEntry)`
-      position statement, which its `ledgerPosition` identifies. A bare reference in
+      position statement, which its `ledgerPosition` identifies. Nothing is fetched
+      for a case the receiver does not hold yet, as at the bootstrap: it names no
+      host to ask. A bare reference in
       `target` or `context` is not fetched: it matches (SE-01-007), and its handler
       decides.
     verification: >-
@@ -518,7 +521,11 @@ groups:
       activity through the inbox run with a fake fetcher and checks it is fetched from
       the right actor; `test/core/services/test_dereference.py` checks a bare object a
       replica lacks is fetched from the case host and a proposer's profile from the
-      proposer.
+      proposer. For the exception,
+      `test/core/services/test_dereference.py::TestReferencesToFetch::test_nothing_is_fetched_for_a_case_the_receiver_does_not_hold`
+      checks nothing is fetched for a case the receiver does not hold, and
+      `test/core/use_cases/received/case/test_helpers.py::test_bootstrap_bare_uri_participant_is_refused`
+      checks a bootstrap participant named by bare URI is refused, not fetched.
     relationships:
     - rel_type: implements
       spec_id: AKM-05-003

@@ -48,8 +48,9 @@ The invariant is:
 
 - The bootstrap `Create(VulnerabilityCase)` carries the complete case and every domain object nested in it inline.
 - A receiver does not fetch an object the protocol requires inline.
-  A missing or reference-only object of that kind is a protocol error, and the receiver refuses the bootstrap.
+  A bootstrap whose participant record is missing or named only by reference is a protocol error, and the receiver refuses it.
 
+The CASE_MANAGER's own `Create(VulnerabilityCase)` to the Case Owner, which the Case Owner seeds from before it trusts the CASE_MANAGER, carries its participant records inline for the same reason.
 Every other message keeps the general rule: an object may travel inline or by reference, and a receiver fetches what it lacks and needs.
 
 ### Consequences
@@ -58,12 +59,14 @@ Every other message keeps the general rule: an object may travel inline or by re
 - Good, because the protocol now states the refusal the reference implementation already performs, so the refusal is no longer a prototype shortcut.
 - Good, because the receiver's checks run on one message, with nothing left to fetch.
 - Bad, because a large case makes a large bootstrap message.
+- Neutral, because the receiver's refusal covers participant records, which its later checks read; a report the receiver already holds, such as the one it submitted, it can still read from its own store when the sender names it by reference.
 - Neutral, because a `Create` whose own `object` is a bare URI cannot be recognised as a bootstrap until its type is known, and a receiver that holds no case has no host to fetch it from, so it is not processed.
 
 ## Validation
 
 - A test sends a bootstrap whose participant is a bare URI and finds it refused before anything is stored.
 - A test checks that the bootstrap a sender builds carries the case, its participants and its reports as full objects.
+- A test gives a sender a case naming a participant its own store cannot read and finds the bootstrap is not sent.
 
 ## Pros and Cons of the Options
 

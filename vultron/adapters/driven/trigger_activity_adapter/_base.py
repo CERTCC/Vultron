@@ -179,10 +179,37 @@ def _case_for_wire(
 #: Case list fields whose bare ids are carried as objects by ``_case_for_wire``.
 #: ``_AS_LIST_REF_FIELDS`` is the DataLayer's own list of list-reference fields
 #: (the ones its retired delivery-time ``hydrate()`` expanded); the reports are
-#: added because a recipient seeding a case needs them too (CBT-01-007).
+#: added because a recipient seeding a case needs them too (CBT-01-007,
+#: AKM-02-004).
 _CARRIED_LIST_FIELDS: frozenset[str] = _AS_LIST_REF_FIELDS | {
     "vulnerability_reports"
 }
+
+
+def _require_bootstrap_inline(case: Any, case_id: str) -> None:
+    """Refuse a bootstrap case that still names a participant by bare id.
+
+    The bootstrap ``Create(VulnerabilityCase)`` carries every participant
+    inline (CBT-01-007), and its receiver refuses one named by id rather than
+    fetch it (CBT-05-008, AKM-05-007). :func:`_case_for_wire` leaves an id it
+    cannot resolve as the id, so a case it returns with a bare participant is
+    one every receiver would refuse.
+
+    Raises:
+        VultronValidationError: If ``case_participants`` still holds a bare id.
+    """
+    bare = [
+        item
+        for item in getattr(case, "case_participants", None) or []
+        if isinstance(item, str)
+    ]
+    if bare:
+        raise VultronValidationError(
+            f"case '{case_id}' names participants {bare}, which the sending"
+            " actor's own store cannot read, so the bootstrap"
+            " Create(VulnerabilityCase) cannot carry them inline"
+            " (CBT-01-007, CBT-05-008); refusing to send it"
+        )
 
 
 def _carried_embargo(dl: CasePersistence, case: Any, case_id: str) -> Any:
