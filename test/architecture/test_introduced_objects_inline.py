@@ -24,7 +24,7 @@ delivery does not depend on a fetch.  Two ratchets hold this:
   so it cannot be added unexamined.
 - every example activity an implementer copies carries what it introduces
   inline, including the reports and participants of a case it creates or
-  announces (CBT-01-012).
+  announces (CBT-01-007, AKM-02-004).
 
 References to objects the receiver already holds may stay bare: a case in
 ``target``, the participant a status is added to, an actor named by URI
@@ -552,7 +552,7 @@ _INTRODUCING_TYPES = frozenset(
 )
 
 #: Case fields a case put on the wire as the introduced object carries inline:
-#: the receiver seeds its replica from them (CBT-01-012).
+#: the receiver seeds its replica from them (CBT-01-007, AKM-02-004).
 _CASE_CARRIED_FIELDS = ("caseParticipants", "vulnerabilityReports")
 
 
@@ -582,7 +582,7 @@ def test_the_example_corpus_has_introducing_activities():
     assert _INTRODUCING_EXAMPLES
 
 
-@pytest.mark.spec("CBT-01-012")
+@pytest.mark.spec("CBT-01-007", "AKM-02-004")
 @pytest.mark.parametrize("example", sorted(_INTRODUCING_EXAMPLES))
 def test_an_example_carries_what_it_introduces_inline(example):
     body = _INTRODUCING_EXAMPLES[example]

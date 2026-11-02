@@ -98,7 +98,9 @@ by reference" (MS-12-020); the inline demand moves to a new `project` ID
 (MS-12-021; RF-02-004 / RF-02-006).
 An inline rule stays `protocol` only when inlining serves a protocol purpose the
 prototype does not explain, and its rationale names that purpose: ledger snapshot
-content the hash chain must cover is one (CLP-07-006). If no such purpose is
+content the hash chain must cover is one (CLP-07-006); the bootstrap's case and
+nested objects, which the receiver has no trusted source to fetch before it
+accepts the bootstrap, are another (CBT-01-007, ADR-0170). If no such purpose is
 evident, ask; do not invent one.
 
 **An HTTP status code is `foundation` only when HTTP itself defines it for the

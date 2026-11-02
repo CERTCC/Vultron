@@ -571,7 +571,7 @@ class TestAnnounceVulnerabilityCase:
 
 
 class TestCaseOnTheWireCarriesItsParticipants:
-    """CBT-05-005 / CBT-01-012 / AKM-02-004: a case put on the wire carries
+    """CBT-05-005 / CBT-01-007 / AKM-02-004: a case put on the wire carries
     its participants (and reports) inline, not as ids.
 
     The recipient of a bootstrap ``Create`` or ``Announce`` stores each embedded

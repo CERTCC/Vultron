@@ -2076,7 +2076,6 @@ class TestCM18007InitLedgerEntries:
         _assert_entry_carries_rows_not_status_consent(entry, vendor)
 
 
-@pytest.mark.spec("CP-09-010")
 @pytest.mark.spec("CP-09-004")
 class TestADR0041InlineParticipantsPayload:
     """ADR-0041 AC-5: Create(VulnerabilityCase) embeds inline participant objects."""

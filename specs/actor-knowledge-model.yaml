@@ -491,11 +491,17 @@ groups:
     statement: >-
       A receiver MUST fetch an object it lacks, and needs to process a received
       activity, from the actor that holds it. A case's object is held by the
-      case's CASE_MANAGER, and an actor's profile by that actor.
+      case's CASE_MANAGER, and an actor's profile by that actor. An object the
+      protocol requires inline is not fetched, and its absence is a protocol error
+      (CBT-05-008). The bootstrap's case and nested objects are such objects
+      (CBT-01-002, CBT-01-007).
     rationale: >-
       A sender may name by reference an object its receiver is expected to hold
       (CLP-07-006, AKM-02-002), and a replica that lacks it, through a gap or a lag,
-      would otherwise refuse or drop an activity that was sound.
+      would otherwise refuse or drop an activity that was sound. The bootstrap is the
+      exception: its receiver trusts no CASE_MANAGER until it accepts the bootstrap,
+      so it has no trusted source to fetch from, and the protocol requires the
+      bootstrap to carry what it needs inline instead (ADR-0170).
     note: >-
       In this codebase a receiver fetches a case object for an activity no pattern
       matches because its `object` is a bare id it does not hold
@@ -520,6 +526,7 @@ groups:
       spec_id: CLP-07-006
     adr:
     - ADR-0107
+    - ADR-0170
     stories:
     - story_2022_014
   - id: AKM-05-010
