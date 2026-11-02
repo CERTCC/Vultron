@@ -3005,8 +3005,8 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that an `Accept(Invite(EmbargoEvent))`
       received after the RSVP deadline is not rejected on timeliness grounds and is
-      evaluated against current embargo state per EMB-17-002, EMB-17-003, or
-      EMB-17-004.
+      evaluated against the case's EM state and Active Embargo per EMB-17-002,
+      EMB-17-003, or EMB-17-004.
     testable: true
     preconditions:
     - description: The referenced invitation's effective RSVP deadline has passed
@@ -3028,7 +3028,7 @@ groups:
     statement: >-
       For an `Accept(Invite(EmbargoEvent))` received after the invitation's effective
       RSVP deadline, the CASE_MANAGER MUST check whether the accepted embargo is still
-      compatible with the current one.
+      compatible with the case's Active Embargo.
       It then applies EMB-17-002, EMB-17-003 or EMB-17-004.
     rationale: >-
       A late Accept can name the embargo in force, a superseded one, or none at all.
@@ -3037,8 +3037,8 @@ groups:
     verification: >-
       `test/core/behaviors/embargo/nodes/test_late_accept.py`
       (`test_each_case_state_has_one_route`) confirms a late accept is routed by the
-      current embargo state to exactly one of the EMB-17-002, EMB-17-003 or
-      EMB-17-004 outcomes.
+      case's EM state and Active Embargo to exactly one of the EMB-17-002,
+      EMB-17-003 or EMB-17-004 outcomes.
     testable: true
     preconditions:
     - description: The referenced invitation's effective RSVP deadline has passed
@@ -3056,10 +3056,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the accepted embargo is the case's current embargo, the CASE_MANAGER MUST honour the late
-      Accept and mark the participant's consent row for it AGREED, exactly as it would for an
-      on-time Accept. A row at TIMED_OUT moves directly to AGREED (`TIMED_OUT → AGREED`,
-      ADR-0118), and so does one at DECLINED (`DECLINED → AGREED`, CM-18-003): the participant
+      When the accepted embargo is the case's Active Embargo, the CASE_MANAGER
+      MUST honour the late Accept and mark the participant's consent row for it
+      AGREED, exactly as it would for an on-time Accept. A row at TIMED_OUT moves
+      directly to AGREED (`TIMED_OUT → AGREED`, ADR-0118), and so does one at
+      DECLINED (`DECLINED → AGREED`, CM-18-003): the participant
       has changed its answer, so it is not re-invited first. The CASE_MANAGER
       honours it by committing the received Accept verbatim as
       `accept_invite_to_embargo_on_case`, carrying the row it states, as an
@@ -3072,7 +3073,7 @@ groups:
       (CLP-07-013), and a replica reaches the state an on-time Accept leaves.
     verification: >-
       Integration tests in `test/demo/` confirm that a late Accept whose embargo ID
-      matches the case's current active embargo marks the participant's consent row for it
+      matches the case's Active Embargo marks the participant's consent row for it
       AGREED, making the participant a signatory.
     testable: true
     preconditions:
@@ -3080,14 +3081,14 @@ groups:
         - ACTIVE
       description: EM state is Active
     - description: >-
-        The accepted embargo ID matches the case's current active embargo
+        The accepted embargo ID matches the case's Active Embargo
     steps:
     - order: 1
       actor: system
       action: Record the PEC AGREE transition for the accepting participant
-      expected: The participant's consent row for the current embargo is AGREED
+      expected: The participant's consent row for the Active Embargo is AGREED
     postconditions:
-    - description: The participant is a signatory to the current embargo
+    - description: The participant is a signatory to the Active Embargo
     relationships:
     - rel_type: refines
       spec_id: EMB-17-001
@@ -3102,12 +3103,12 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the accepted embargo is not the case's current embargo, the CASE_MANAGER MUST
-      send the accepting actor a fresh `Invite(EmbargoEvent)` with the current embargo.
-      An accepting participant at TIMED_OUT moves `TIMED_OUT → INVITED` for the current
-      embargo (ADR-0118).
+      When the accepted embargo is not the case's Active Embargo, the CASE_MANAGER MUST
+      send the accepting actor a fresh `Invite(EmbargoEvent)` with the Active Embargo.
+      An accepting participant at TIMED_OUT moves `TIMED_OUT → INVITED` for the Active
+      Embargo (ADR-0118).
       The fresh Invite is a relay (EP-09-002). Its `actor` is the CASE_MANAGER.
-      Its `attributedTo` names the current embargo's proposer, or the CASE_MANAGER
+      Its `attributedTo` names the Active Embargo's proposer, or the CASE_MANAGER
       itself when it made the embargo as the protocol default, without a proposal.
     rationale: >-
       Recording the stale Accept as consent would make the participant a
@@ -3119,25 +3120,25 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that a late Accept referencing a
       superseded embargo causes a fresh `Invite(EmbargoEvent)` to be emitted
-      carrying the case's current embargo, without recording the stale Accept as
+      carrying the case's Active Embargo, without recording the stale Accept as
       consent.
     testable: true
     preconditions:
     - description: >-
-        The accepted embargo ID does not match the case's current active embargo,
-        and the case has a current embargo
+        The accepted embargo ID does not match the case's Active Embargo,
+        and the case has an Active Embargo
     steps:
     - order: 1
       actor: system
       action: >-
         Emit a fresh Invite(EmbargoEvent) to the accepting actor carrying the
-        case's current embargo
+        case's Active Embargo
       expected: >-
-        Accepting participant's consent row for the current embargo is INVITED;
+        Accepting participant's consent row for the Active Embargo is INVITED;
         stale Accept is not recorded as consent
     postconditions:
     - description: >-
-        A fresh invitation for the current embargo has been sent; the actor
+        A fresh invitation for the Active Embargo has been sent; the actor
         remains a case participant
     relationships:
     - rel_type: refines
@@ -3207,7 +3208,7 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      When the accepted embargo is not the case's current embargo, the CASE_MANAGER
+      When the accepted embargo is not the case's Active Embargo, the CASE_MANAGER
       MUST NOT record the stale Accept as consent to the current terms.
     rationale: >-
       Recording the stale Accept as consent would make the participant a signatory
@@ -3222,7 +3223,7 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      When the accepted embargo is not the case's current embargo, the CASE_MANAGER
+      When the accepted embargo is not the case's Active Embargo, the CASE_MANAGER
       MUST NOT reject the accepting actor.
     rationale: >-
       Rejecting a willing participant discards coordination capacity; re-inviting
@@ -3236,8 +3237,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the case has no current embargo (EM EXITED or NONE), the CASE_MANAGER MUST
-      treat a late Accept as a no-op.
+      When the case has no Active Embargo and no Proposed Embargo (EM EXITED or
+      NONE), the CASE_MANAGER MUST treat a late Accept as a no-op.
       The no-op is not a refusal (HP-01-003).
       A redelivery of the same Accept gets the same result.
     note: >-
@@ -3298,7 +3299,7 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST NOT commit any ledger entry for a late Accept that arrives
-      when the case has no current embargo (EMB-17-004).
+      when the case has no Active Embargo and no Proposed Embargo (EMB-17-004).
     rationale: >-
       An entry acknowledging the Accept would change nothing at any receiver. Anything
       that holds the case and its ledger can see the Accept named an embargo the case
@@ -3321,7 +3322,8 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST NOT send any activity in reply to a late Accept that
-      arrives when the case has no current embargo (EMB-17-004).
+      arrives when the case has no Active Embargo and no Proposed Embargo
+      (EMB-17-004).
     rationale: >-
       There is nothing to invite the actor to, so a reply or fresh invitation would
       manufacture a negotiation nobody requested.
@@ -3343,9 +3345,10 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST leave the participant's consent rows unchanged for a late
-      Accept that arrives when the case has no current embargo (EMB-17-004). Nothing
-      is recorded after a termination (EM EXITED), and a TIMED_OUT row stays TIMED_OUT
-      when no embargo has started (EM NONE) (ADR-0118).
+      Accept that arrives when the case has no Active Embargo and no Proposed Embargo
+      (EMB-17-004). Nothing is recorded after a termination (EM EXITED), and a
+      TIMED_OUT row stays TIMED_OUT when no embargo has started (EM NONE)
+      (ADR-0118).
     rationale: >-
       The Accept names an embargo that is no longer, or not yet, in force, so no row
       can bind to it. The actor's case participation is independent of embargo
@@ -3368,8 +3371,9 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      When the case has no current embargo (EM state is EXITED or NONE), the
-      CASE_MANAGER MUST NOT issue a fresh embargo invitation to the accepting actor.
+      When the case has no Active Embargo and no Proposed Embargo (EM state is
+      EXITED or NONE), the CASE_MANAGER MUST NOT issue a fresh embargo invitation
+      to the accepting actor.
     rationale: >-
       There is no active embargo to invite the actor to; a fresh invitation would
       manufacture a negotiation nobody requested. See ADR-0065.
@@ -3383,8 +3387,9 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      When the case has no current embargo (EM state is EXITED or NONE), the
-      CASE_MANAGER MUST NOT remove the accepting actor from the case.
+      When the case has no Active Embargo and no Proposed Embargo (EM state is
+      EXITED or NONE), the CASE_MANAGER MUST NOT remove the accepting actor from
+      the case.
     rationale: >-
       Case participation is independent of embargo consent; the actor's
       willingness to coordinate must not result in their removal. See ADR-0065.
