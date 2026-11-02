@@ -271,7 +271,8 @@ File: `.claude/pr-{number}-triage.json`
     "delta_files": [],
     "reviewed_base_sha": null,
     "reviewed_head_sha": null,
-    "affected_docs_pages": []
+    "affected_docs_pages": [],
+    "build_context": {"mode": "fallback", "reason": "no build context file"}
   },
   "findings": [
     {
@@ -302,6 +303,10 @@ pre-push artifact has `pr_number: null`, fills `reviewed_base_sha` and
 `delta_files` it reviewed. `affected_docs_pages` is Phase 9 step 5's
 determination: the pre-push run writes it, and the delta run adds the pages its
 delta affects before comparing the `Docs:` line.
+
+`build_context` is Phase 1's `build-context check` result in every mode: `mode`
+is `reuse` or `fallback`, and `reason` is its `reason=` line, or the error text
+when the check exited 2 (`.agents/skills/shared/build-context.md`).
 
 `resolution` is written by `build` into the pre-push artifact only, once per
 finding, before `create-pr` (PAD-07-010): `{"status": "fixed", "note": "<what
@@ -346,6 +351,7 @@ fix on the PR head instead. The delta run's carry-forward check reads it.
 **Merge state**: ✅ mergeable (CLEAN) / ❌ CONFLICTING (DIRTY) / ⚠️ BEHIND / 📝 DRAFT / ⏳ UNKNOWN
 **Base branch**: <base_ref>
 **Needs integration tests**: yes / no
+**Context**: reused build context / loaded afresh — <reason>
 
 ---
 
