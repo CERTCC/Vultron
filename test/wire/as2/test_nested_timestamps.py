@@ -622,3 +622,38 @@ def test_extractor_refuses_a_case_status_that_bypassed_the_parser():
         VultronParseMissingPublishedError, match="case-statuses/1"
     ):
         _build_case_status_object(untimed)
+
+
+@pytest.mark.spec("CLP-15-008")
+@pytest.mark.spec("EH-07-001")
+def test_untimed_status_refusal_names_every_fault_in_the_activity():
+    """Every untimed status, and every other fault beside them, is named.
+
+    Untyped, so the case's ``caseStatuses`` field validates all three in one
+    pass and one ``ValidationError`` carries every fault.
+    """
+    status = _untimed_status("omitted")
+    del status["type"]
+    case = {
+        **KINDS["VulnerabilityCase"][0],
+        "published": SENDER_PUBLISHED,
+        "caseStatuses": [
+            {
+                **status,
+                "id": f"{CASE_ID}/s/0",
+                "published": SENDER_PUBLISHED,
+                "emState": "BOGUS",
+            },
+            {**status, "id": f"{CASE_ID}/s/1"},
+            {**status, "id": f"{CASE_ID}/s/2"},
+        ],
+    }
+
+    with pytest.raises(VultronParseMissingPublishedError) as refused:
+        parse_activity(_body(case))
+
+    message = str(refused.value)
+    assert "'object.caseStatuses[1]', 'object.caseStatuses[2]'" in message
+    assert "also refused: object.caseStatuses[0].emState" in message
+    assert "BOGUS" in message
+    assert "valid string" not in message

@@ -117,8 +117,10 @@ def _refuse_missing_claimed_time(
     and its own validator says so with :class:`MissingClaimedTimeError`.
     Pydantic buries that cause in a ``ValidationError``; finding it here lets
     the sender read the same refusal CLP-15-006 gives a top-level activity,
-    with the position of the untimed object.  Returns when *exc* holds no
-    such cause, leaving the caller's schema-fault refusal to run.
+    with the position of every untimed object.  Any other fault in the same
+    error is named too, so the sender learns of every violation at once
+    (EH-07-001).  Returns when *exc* holds no such cause, leaving the caller's
+    schema-fault refusal to run.
 
     Args:
         exc: The exception validation raised.
@@ -131,15 +133,42 @@ def _refuse_missing_claimed_time(
     """
     if not isinstance(exc, ValidationError):
         return
+    missing: list[str] = []
+    rule = ""
+    others: list[str] = []
     for error in exc.errors():
-        cause = error.get("ctx", {}).get("error")
-        if not isinstance(cause, MissingClaimedTimeError):
-            continue
         where = _join_location(path, error["loc"])
-        location = f" at {where!r}" if where else ""
-        raise VultronParseMissingPublishedError(
-            f"{prefix}Missing 'published'{location}: {cause}"
-        ) from exc
+        cause = error.get("ctx", {}).get("error")
+        if isinstance(cause, MissingClaimedTimeError):
+            missing.append(where)
+            rule = str(cause)
+        elif not _is_union_alternative(error):
+            others.append(f"{where or 'the activity'}: {error['msg']}")
+    if not missing:
+        return
+    named = [repr(where) for where in missing if where]
+    location = f" at {', '.join(named)}" if named else ""
+    also = f"; also refused: {'; '.join(others)}" if others else ""
+    raise VultronParseMissingPublishedError(
+        f"{prefix}Missing 'published'{location}: {rule}{also}"
+    ) from exc
+
+
+def _is_union_alternative(error: Any) -> bool:
+    """Whether *error* only says a value is not one member of a union.
+
+    Pydantic reports each union member a value failed, so a status in a
+    ``CaseStatus | str`` slot also fails as "not a valid string".  Such an
+    error ends on the member's schema tag; it restates the real fault rather
+    than adding one.
+    """
+    loc = error["loc"]
+    return (
+        error["type"].endswith("_type")
+        and bool(loc)
+        and isinstance(loc[-1], str)
+        and ("[" in loc[-1] or "(" in loc[-1])
+    )
 
 
 def _join_location(path: str, loc: tuple[int | str, ...]) -> str:

@@ -2813,18 +2813,14 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A receiver MUST treat an inbound activity that carries a `CaseStatus` with no
-      `published` as malformed and reject it at message validation, wherever the
-      status sits in the activity.
+      A receiver MUST reject at message validation an inbound activity carrying a
+      `CaseStatus` with no `published`, wherever the status sits in it.
     rationale: >-
-      The current status of a case is the one with the latest time (CM-29-001), so
-      every status must have one. A status without a time cannot be placed, and any
-      place a receiver chose for it would be a rule no sender agreed to. This is the
-      decision CLP-15-007 names, so the refusal happens at message validation, as for
-      an activity with no `published` (CLP-15-006), and CLP-15-007 already forbids
-      the receiver to supply its own clock instead. Participant statuses are not
-      covered: their current entry is the one appended last, so nothing reads their
-      time.
+      A case's current status is the one with the latest time (CM-29-001), so every
+      status needs one. Any place a receiver chose for an untimed status would be a
+      rule no sender agreed to. This is a decision CLP-15-007 names, so it is refused
+      at message validation, as CLP-15-006 refuses an activity with no time.
+      Participant statuses are not covered: nothing reads their time.
     verification: >-
       `test_parse_refuses_inline_case_status_without_published`,
       `test_parse_refuses_case_status_without_published_in_case_statuses` and
