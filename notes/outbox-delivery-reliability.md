@@ -9,14 +9,15 @@ description: >
   sessions under concurrent delivery, retry budgets that must stay finite,
   immediate dead-lettering of a refused sealed body (OX-13-013),
   request-derived ids for responses, the outbox-id idempotency check
-  (OX-06-002), and why the send-then-commit order (SYNC-09-002) makes a derived
-  id mandatory for a send a retry can rebuild, and a withdrawal mandatory for
-  one no retry rebuilds.
+  (OX-06-002), why the send-then-commit order (SYNC-09-002) makes a derived
+  id mandatory for a send a retry can rebuild, and why a send and the commit
+  recording it share one transaction (OX-03-002).
 related_specs:
   - specs/outbox.yaml
   - specs/sync-ledger-replication.yaml
   - specs/case-ledger-processing.yaml
 related_issues:
+  - https://github.com/CERTCC/Vultron/issues/5484
   - https://github.com/CERTCC/Vultron/issues/2302
   - https://github.com/CERTCC/Vultron/issues/3602
   - https://github.com/CERTCC/Vultron/issues/3878
@@ -158,19 +159,23 @@ emission, or every redelivery grows the store and outbox (ID-04-004, #4215).
   outbox is the only thing that stops a retry sending it again. A retry that rebuilds
   the activity under a fresh id defeats it: any emit node whose tree can run again
   after its commit failed — a redelivered request, a resumed tree, a level-triggered
-  node — MUST derive the id. Where the build, the queue write and the commit run
-  in one `transaction()` (every received act that commits to a case, the
-  embargo trigger arms, the create-case trigger and the case-proposal
-  creation; ADR-0146), a failed commit leaves nothing stored or queued, so a
-  retry starts from the beginning; prefer that to a node that looks for its own
+  node — MUST derive the id. Because the build, the queue write and the commit
+  run in one `transaction()`, a failed commit leaves nothing stored or queued, so
+  a retry starts from the beginning; never write a node that looks for its own
   sent, unrecorded activity.
-- A send that no retry rebuilds and that is not in a transaction (a
-  `_CommitCaseManagerActivityBase` node whose act opens none, such as one in a
-  trigger tree outside an `ActTransaction`) MUST withdraw the activity with
-  `outbox_withdraw` when its commit
-  fails, then raise: left pending it reaches participants with no entry
-  recording it (CLP-07-013). See
-  `_CommitCaseManagerActivityBase._withdraw_unrecorded`.
+- A node that sends and then commits the entry recording it MUST open the act's
+  transaction itself, around the build, the queue write and the commit
+  (`_EmitSingleActivityBase._one_act`), never rely on an enclosing
+  `ActTransaction`. Outside one, the queue write is visible at once, the drain it
+  wakes (OX-09-001) or the safety-net poll can deliver the activity before the
+  commit, and a commit that then fails leaves a participant holding an act no
+  entry records (OX-03-002, CLP-07-013). Withdrawing the row after the failure
+  races that drain and loses, so it is no fix; firing the wake-up after the commit
+  still leaves the poll. `_EmitSingleActivityBase.update` and
+  `_CommitCaseManagerActivityBase.update` open it; a node with its own `update`
+  that sends and commits calls `_one_act()` the same way.
+  `test/core/behaviors/test_send_delivered_after_its_act_commits.py` holds the
+  three shared frames to it with a drain that wins the race.
 - A commit that fails after the outbox write MUST escape the node, never return
   FAILURE: an enclosing Selector would read it as a guard miss and send another
   arm's answer after the queued one (BT-14-001; `_EmitSingleActivityBase.update`).

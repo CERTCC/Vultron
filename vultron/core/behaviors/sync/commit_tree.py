@@ -114,10 +114,12 @@ def commit_emitted_activity(
     the same text the outbox delivers (VM-08-003) — and the commit runs as a
     nested tree.  The caller queues the activity first: the entry records a
     completed act, and a send is complete once it is in the outbox
-    (SYNC-09-002, ADR-0119).  Returns the decoded snapshot; raises
-    ``RuntimeError`` when the ledger refused the commit, so a caller that is
-    itself a BT node fails with the activity queued and unrecorded, which a
-    retry that rebuilds it under the same id records (OX-06-002), and
+    (SYNC-09-002, ADR-0119).  The caller runs the queue write and this
+    commit in one transaction, so the activity is not delivered before the
+    entry commits (OX-03-002, ADR-0146).  Returns the decoded snapshot;
+    raises ``RuntimeError`` when the ledger refused the commit, so a caller
+    that is itself a BT node fails and its act rolls the queued activity
+    back, and
     :class:`~vultron.errors.VultronBTInternalError` when the nested commit
     failed on an internal error, so no caller absorbs it as a refusal
     (ADR-0095).

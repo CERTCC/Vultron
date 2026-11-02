@@ -24,7 +24,10 @@ snapshot dict assembled in core, which would record an activity nobody sent.
 :class:`_CommitCaseManagerActivityBase` is the one frame for that: build the
 activity as the executing actor, queue it when it has an audience, and
 commit the sealed blob.  A sent activity is committed after it is queued,
-because a ledger entry records a completed act (ADR-0119).  An act every
+because a ledger entry records a completed act (ADR-0119), and the build, the
+queue write and the commits are one transaction, so the activity is not
+delivered before its entry commits and a failed commit queues nothing
+(OX-03-002, ADR-0146).  An act every
 replica learns from the entry alone is addressed to nobody and only
 committed, as soon as it is decided; the ledger fan-out is its delivery.  The embargo decisions (``embargo/nodes/manager_commit.py``), the
 case closure (``case/nodes/leave/fully_closed.py``), the late-Accept
@@ -59,8 +62,11 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
     activity is addressed to every case-content recipient except the
     executing actor, queued when that audience is not empty, and committed
     once queued (ADR-0119); otherwise it is addressed to nobody and only
-    committed.  A queued activity whose commit fails is withdrawn from the
-    outbox before the failure is raised (:meth:`_withdraw_unrecorded`).
+    committed.  The whole act, from the build through :meth:`_record`, runs
+    in one transaction (:meth:`_one_act`): a commit that fails rolls the
+    queued activity back with everything else the act wrote, and a drain
+    woken by the queue write sees nothing until the act commits
+    (OX-03-002, OX-09-001, ADR-0146).
 
     The queue write goes through the shared emit seam
     (:meth:`_EmitSingleActivityBase._emit_through_seam`, OX-14-001); unlike
@@ -107,6 +113,13 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
+        # The build stores the activity, so it joins the act's transaction
+        # with the queue write and the commits (ADR-0146).
+        with self._one_act():
+            return self._update_in_act()
+
+    def _update_in_act(self) -> Status:
+        """Build, queue and record the act; run inside :meth:`_one_act`."""
         if self.trigger_activity_factory is None:
             # A composition fault, not a refusal: a FAILURE here can be read
             # by an enclosing Selector as a guard that did not pass (the
@@ -137,29 +150,23 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
 
         def _send_and_commit() -> None:
             # Sent before it is recorded: the entry records a completed act
-            # (ADR-0119).  A pending id is an earlier attempt's send,
-            # recorded now.
+            # (ADR-0119).  Both are in the act's transaction, so a failed
+            # commit takes the queued activity back and the failure
+            # propagates (BT-14-001).
             if to:
                 self._emit_through_seam(activity_id, blob)
-            committed = False
-            try:
-                # A nested commit inherits the outer execution's
-                # ``/sync_port``, so the entry is announced to every
-                # participant replica (SYNC-02-002).
-                commit_emitted_activity(
-                    datalayer=dl,
-                    actor_id=actor_id,
-                    case_id=self._case_id,
-                    activity_id=self._ledger_object_id(activity_id),
-                    activity_blob=blob,
-                    semantic_type=self._semantic_type,
-                    check_freshness=self._CHECK_LEDGER_FRESHNESS,
-                )
-                committed = True
-            finally:
-                # The failure itself propagates (BT-14-001).
-                if to and not committed:
-                    self._withdraw_unrecorded(dl, activity_id)
+            # A nested commit inherits the outer execution's ``/sync_port``,
+            # so the entry is announced to every participant replica
+            # (SYNC-02-002).
+            commit_emitted_activity(
+                datalayer=dl,
+                actor_id=actor_id,
+                case_id=self._case_id,
+                activity_id=self._ledger_object_id(activity_id),
+                activity_blob=blob,
+                semantic_type=self._semantic_type,
+                check_freshness=self._CHECK_LEDGER_FRESHNESS,
+            )
 
         self._record(activity_id, _send_and_commit)
         self.committed_activity_ids = [activity_id]
@@ -181,38 +188,6 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
         raises when it fails.
         """
         send_and_commit()
-
-    def _withdraw_unrecorded(
-        self, dl: CaseOutboxPersistence, activity_id: str
-    ) -> None:
-        """Take a decision whose commit failed back out of the outbox.
-
-        An act on the copy model (ADR-0124) has not changed the case yet: it
-        writes only once its entry commits, so a retry decides again and
-        builds a new activity.  An arm not yet converted wrote first, and its
-        own write stops a rerun.  Either way, left queued, the activity would
-        reach participants with no entry that records it, so it is withdrawn,
-        as the create-case trigger withdraws its ``Create`` (CLP-07-013).
-        One delivery already took cannot be withdrawn, and is reported.
-        """
-        if dl.outbox_withdraw(activity_id):
-            self.logger.warning(
-                "%s: withdrew '%s' from the outbox: its '%s' entry on case"
-                " '%s' did not commit",
-                self.name,
-                activity_id,
-                self._semantic_type,
-                self._case_id,
-            )
-            return
-        self.logger.error(
-            "%s: '%s' was already taken for delivery, but its '%s' entry on"
-            " case '%s' did not commit",
-            self.name,
-            activity_id,
-            self._semantic_type,
-            self._case_id,
-        )
 
 
 __all__ = ["_CommitCaseManagerActivityBase"]
