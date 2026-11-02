@@ -2387,13 +2387,17 @@ groups:
         kind: process
         statement: >-
           Before a Pull Request's first push, `create-pr` MUST gate a Pull
-          Request that changes no Python with the linters alone.
+          Request that changes no Python with the linters and
+          `prepush-ci-mirror`, and with no unit or integration suite run.
         rationale: >-
-          A docs-only branch has nothing for the suite to catch, so the linters are the
-          whole gate.
+          A docs-only branch has nothing for the suites to catch. CI's guards
+          still read its Markdown and specs, though: AGENTS.md ceilings, ADR
+          back-edges, line limits. Three of the #5580 audit's failures came
+          from docs-typed PRs that ran no local check at all.
         verification: >-
-          Inspection: `create-pr` Phase 3 runs linters only on its docs-PR
-          path.
+          Inspection: `create-pr` Phase 3 runs only the linters on its
+          docs-PR path, and Phase 3c runs `prepush-ci-mirror` on every PR
+          type.
       - id: PAD-18-002
         adr:
         - ADR-0126
@@ -2784,6 +2788,108 @@ groups:
         relationships:
         - rel_type: extends
           spec_id: PAD-18-009
+      - id: PAD-18-021
+        priority: MUST
+        kind: process
+        statement: >-
+          Before each push of a Pull Request branch, the agent MUST run
+          `prepush-ci-mirror` on the whole branch diff and push only when it
+          exits 0. That covers `create-pr`'s first push and each push
+          `pr-execute` makes.
+        rationale: >-
+          About one Pull Request in seven spent a push and a CI round on
+          something CI found without running a suite: a line limit, a line
+          ceiling, a link, an ADR epoch. Pre-commit hooks see only staged
+          files, and several of those checks run only in CI, so a local
+          step must run them on the diff the push sends (#5580).
+        verification: >-
+          Inspection: `create-pr` Phase 3c and `pr-execute` Phase 5 Step 3 run
+          `prepush-ci-mirror` before their push steps and stop on a non-zero
+          `mirror exit:` line.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-18-001
+        - rel_type: extends
+          spec_id: PAD-18-002
+      - id: PAD-18-022
+        priority: MUST
+        kind: process
+        statement: >-
+          Every step that a `pull_request` run of `.github/workflows/` can
+          execute MUST be either mirrored by `prepush-ci-mirror` or excluded in
+          its registry with a reason.
+        rationale: >-
+          A mirror that silently misses a new workflow step drifts back into
+          the gap it closes. Checking each step against the registry makes a
+          new CI check a failing test until someone decides whether it runs
+          locally.
+        verification: >-
+          `test/ci/test_prepush_ci_mirror_parity.py`: the registry accounts for
+          every pull-request step, names no step that does not run, and a
+          step that is neither mirrored nor excluded fails it.
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-18-021
+      - id: PAD-18-023
+        priority: MUST
+        kind: process
+        statement: >-
+          `prepush-ci-mirror` MUST run its limit-enforcing guard tests on every
+          run, whatever the Pull Request's type and whatever the targeted set
+          holds.
+        rationale: >-
+          The guards behind most mechanical CI failures are pytest files: line
+          length, statement and module limits, AGENTS.md ceilings, the OpenAPI
+          snapshot. A docs-typed Pull Request runs no pytest locally, and a fix
+          commit's targeted set can leave a guard out, so the mirror runs them
+          on every push.
+        verification: >-
+          `test/metadata/test_ci_mirror.py`: the guard check runs on an empty
+          diff and on a docs-only diff. `test/ci/test_prepush_ci_mirror_parity.py`
+          checks each guard file exists.
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-18-021
+      - id: PAD-18-024
+        priority: MUST
+        kind: process
+        statement: >-
+          When the base changed a path that a pushed Pull Request also changes,
+          and the two do not conflict, `pr-execute` MUST run the targeted set on
+          the merge of `HEAD` with the base, in a scratch worktree, before it
+          pushes.
+        rationale: >-
+          CI tests the Pull Request merged into its base. After the first push
+          the base moves, and a fix that passes on the branch alone can fail on
+          a file both sides changed. Testing that merge locally catches the
+          drift without merging the base into the branch, which PAD-18-004
+          forbids.
+        verification: >-
+          `test/metadata/test_merged_tree_tests.py`: the gate runs on a tree
+          that holds both sides' changes, and it does not run when nothing
+          overlaps. Inspection: `pr-execute` Phase 5 Step 3 runs
+          `merged-tree-tests` on a `no-merge` verdict with a `deferred` reason.
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-18-004
+      - id: PAD-18-025
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          The merged-tree run of PAD-18-024 MUST NOT move the Pull Request
+          branch or leave its scratch worktree behind.
+        rationale: >-
+          The run tests a merge that PAD-18-004 keeps out of the branch, so it
+          must leave no trace in it. `.git` is shared across host and container
+          mounts, so a stray worktree is cleaned with `git worktree remove`.
+          `git worktree prune` would destroy live worktrees.
+        verification: >-
+          `test/metadata/test_merged_tree_tests.py`: after a pass, a failure
+          and a conflict, the branch head is unchanged and no scratch worktree
+          is listed.
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-18-024
 
   - id: PAD-19
     title: Epic Claim for an Epic Run

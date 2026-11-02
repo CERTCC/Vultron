@@ -230,9 +230,11 @@ Run the appropriate suite based on PR type:
 
 ```bash
 # Linters only — no Python changed. Each tool reads its scope from config.
+# mypy and pyright go through run-if-changed.sh, so Phase 3c reuses the pass.
+G=.agents/skills/shared/run-if-changed.sh
 uv run ruff check && uv run ruff format --check
-uv run mypy
-uv run pyright
+"$G" mypy    vultron/ test/ .mypy.ini          uv.lock -- uv run mypy
+"$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run pyright
 ```
 
 If any linter fails, fix the failure, stage, and amend the relevant commit
@@ -241,8 +243,10 @@ before proceeding. Do not open a PR with lint failures.
 **Implementation PR** (`type: implementation`):
 
 ```bash
+G=.agents/skills/shared/run-if-changed.sh
 uv run ruff check --fix && uv run ruff format
-uv run ruff check && uv run mypy && uv run pyright
+uv run ruff check && "$G" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy \
+  && "$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run pyright
 logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
 timeout -k 30 1800 uv run pytest -n auto --tb=short > "$logs-unit.log" 2>&1; rc=$?; tail -5 "$logs-unit.log"; echo "exit: $rc"; (exit $rc)
 timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > "$logs-integration.log" 2>&1; rc=$?; tail -5 "$logs-integration.log"; echo "exit: $rc"; (exit $rc)
@@ -298,6 +302,27 @@ The placeholders this skill writes (`Docs: pending check-docs-sync`, `<TODO>`
 in `## Spec amended`) pass at this stage; the caller's final-stage run after
 `check-docs-sync` refuses them (PAD-20-005).
 
+### 3c — CI mirror (every PR type)
+
+Run CI's pull-request checks on the whole branch diff, last, right before the
+push (PAD-18-021). The suites above do not cover them. The mirror runs CI's
+docs, spec, ADR, Markdown and workflow checks, plus the limit-enforcing guard
+tests (PAD-18-023), on whatever PR type this is. The tree must be clean:
+commit every fix from Phases 3 and 3b first.
+
+```bash
+logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
+timeout -k 30 1800 uv run prepush-ci-mirror --base main > "$logs-mirror.txt" 2>&1; rc=$?; cat "$logs-mirror.txt"; echo "exit: $rc"; (exit $rc)
+```
+
+Read the `exit:` line. `0` lets the push go. `1` means a `FAIL` or
+`UNAVAILABLE` line: fix each `FAIL` (its `log:` path holds the output), commit,
+and rerun. `UNAVAILABLE` means the check's tool is not installed, as with
+`actionlint` in the devcontainer. Run that check some other way, then pass
+`--skip <id>` and say in the PR body how it was satisfied. `2` is a setup error
+(dirty tree, unknown base), never a pass. `NOT-TRIGGERED` and `N/A` lines are
+checks CI would not run on this diff, or that need the PR number.
+
 ---
 
 ## Phase 4 — Push and Open PR
@@ -340,6 +365,7 @@ template".
 - **Never open a non-draft PR with lint failures or failing tests.**
 - **Never push past a failing Phase 3b gate** (`spec-lint --changed-since`,
   `spec-backstop --manifest`, `pr-body-lint`).
+- **Never push past a failing Phase 3c mirror** (`prepush-ci-mirror`).
 - **Callers own `archive-history`.** This skill does not call it.
 - **Every implementation PR body gets a `Docs:` line** (Phase 1c). This skill
   writes the placeholder; it never runs `check-docs-sync` itself.
