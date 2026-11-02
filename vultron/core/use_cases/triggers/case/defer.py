@@ -35,8 +35,9 @@ logger = logging.getLogger(__name__)
 class SvcDeferCaseUseCase(SvcActivityTriggerBase):
     """Defer a case (RM → DEFERRED).
 
-    Checks that the actor may move to DEFERRED, then sends a Defer(Case)
-    activity to the CASE_MANAGER via SenderSideBT (PCR-08-001).  The actor's
+    Checks that the actor may move to DEFERRED, then sends an
+    Ignore(VulnerabilityCase) activity to the CASE_MANAGER via SenderSideBT
+    (PCR-08-001).  The actor's
     replica takes the recorded move from the ledger (RSH-08-003, CLP-07-013).
     """
 

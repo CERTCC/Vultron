@@ -543,7 +543,7 @@ Two workflows are shown:
 2. **Invalidate and close** — the reporter submits a second report.
    The vendor calls `trigger/invalidate-report` and ends the embargo of the case with `trigger/terminate-embargo`.
    Then it closes the case that it opened for the report with `trigger/leave-case`, which sends `Leave(VulnerabilityCase)`.
-   Once a case holds a report, its owner closes the case this way, never with `Close(Report)`.
+   Once a case holds a report, its owner closes the case this way, never with `Reject(Offer(VulnerabilityReport))`.
    The vendor ends the embargo first, because `leave-case` refuses the Case Owner while the embargo of the case is active.
 
 Notice that each trigger response carries the ActivityStreams activity that the actor produced.

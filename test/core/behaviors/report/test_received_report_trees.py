@@ -602,7 +602,8 @@ class TestAckReportReceivedUseCase:
 
 
 # ---------------------------------------------------------------------------
-# CloseReportReceivedUseCase (no tree: every Close(Report) is refused)
+# CloseReportReceivedUseCase (no tree: every
+# Reject(Offer(VulnerabilityReport)) is refused)
 # ---------------------------------------------------------------------------
 
 
@@ -610,7 +611,9 @@ class TestCloseReportReceivedUseCase:
     @pytest.mark.spec("CM-23-019")
     @pytest.mark.spec("CLP-10-018")
     def test_use_case_archives_and_refuses_a_close_on_a_case(self):
-        """A ``Close(Report)`` for a report a case holds is refused, archived.
+        """A ``Reject(Offer(VulnerabilityReport))`` for a case's report is refused.
+
+        The use case archives the activity and refuses it.
 
         No receiver applies one (CM-23-019), so the sender's RM does not move.
         """
@@ -781,13 +784,14 @@ class TestInvalidateReportReceivedUseCase:
 
 
 def test_report_verdict_tree_runs_case_clock_decisions_after_sender_guard():
-    """An Invalidate(Report) tree checks the addressee (HP-01-005), resolves
-    the case, checks the sender, then runs the CASE_MANAGER's clock
-    decisions, the embargo end-time check among them, before its guards
+    """A TentativeReject(Offer(VulnerabilityReport)) tree checks the addressee
+    (HP-01-005), resolves the case, checks the sender, then runs the
+    CASE_MANAGER's clock decisions, the embargo end-time check among them,
+    before its guards
     (HP-01-008, CLP-10-025, EMB-13-003).
 
-    A ``Close(Report)`` tree has no guards to run them before: it refuses
-    every sender on a case (CM-23-019).
+    A ``Reject(Offer(VulnerabilityReport))`` tree has no guards to run them
+    before: it refuses every sender on a case (CM-23-019).
     """
     tree = create_invalidate_report_received_tree(
         _make_invalidate_report_event(),

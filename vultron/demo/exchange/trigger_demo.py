@@ -35,7 +35,7 @@ Two demo workflows are shown:
    then closes the case it opened for the report via
    ``POST .../trigger/leave-case``, which sends ``Leave(VulnerabilityCase)``:
    once a case holds the report, its owner closes the case by ``Leave``, never
-   by ``Close(Report)`` (CM-23-019, TRIG-13-001).
+   by ``Reject(Offer(VulnerabilityReport))`` (CM-23-019, TRIG-13-001).
 
 Each demo verifies that the resulting ActivityStreams activity is returned in
 the response body and that the vendor's outbox is updated accordingly.
@@ -192,7 +192,8 @@ def demo_invalidate_and_close(
     3. Vendor ends the case's embargo, which would decline its close
        (CM-23-011), then calls ``POST .../trigger/leave-case`` to close the case it
        opened for the report on receipt: a ``Leave(VulnerabilityCase)``, since
-       the case's owner never sends ``Close(Report)`` for it (CM-23-019).
+       the case's owner never sends ``Reject(Offer(VulnerabilityReport))`` for
+       it (CM-23-019).
     """
     logger.info("=" * 80)
     logger.info("TRIGGER DEMO 2: Invalidate Report → Close Case")

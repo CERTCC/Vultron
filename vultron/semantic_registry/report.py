@@ -218,7 +218,8 @@ ENTRIES: list[SemanticEntry] = [
                     "Closes the report, moving the sender's RM state to "
                     "Closed. Once a case holds the report, its Case Owner "
                     "closes the case with Leave(VulnerabilityCase) instead, "
-                    "and every receiver refuses a Close(Report) for it."
+                    "and every receiver refuses a "
+                    "Reject(Offer(VulnerabilityReport)) for it."
                 ),
                 example="close_report",
                 howto=HowToGuide.REPORT_VULNERABILITY,

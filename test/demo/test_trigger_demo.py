@@ -116,8 +116,8 @@ def test_invalidate_and_close_settles_closed(demo_env, caplog):
     ``Create(CaseProposal)``), so a case exists; what distinguishes this run
     is that the vendor is never ``RM.ACCEPTED`` on it.  Once the case holds
     the report, the vendor closes it by ``Leave(VulnerabilityCase)``, not
-    ``Close(Report)`` (CM-23-019): the CaseActor ledgers the owner's closure
-    and the vendor's replica replays it, so its participant ends
+    ``Reject(Offer(VulnerabilityReport))`` (CM-23-019): the CaseActor ledgers
+    the owner's closure and the vendor's replica replays it, so its participant ends
     ``RM.CLOSED``.  Its report link keeps the ``INVALID`` it recorded.
     """
     link, vendor_rm, _ = _run(demo_env, demo.demo_invalidate_and_close, caplog)

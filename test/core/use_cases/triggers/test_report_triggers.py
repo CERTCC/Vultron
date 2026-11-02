@@ -581,8 +581,8 @@ class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
 class TestSvcRejectReportUseCase(_ReportTriggerBase):
     """execute() path tests for SvcRejectReportUseCase, before any case.
 
-    A hard reject sends ``Close(Report)``, which is the pre-case path: once a
-    case holds the report the trigger fails closed
+    A hard reject sends ``Reject(Offer(VulnerabilityReport))``, which is the
+    pre-case path: once a case holds the report the trigger fails closed
     (:class:`TestSvcRejectReportOnACase`).
     """
 
@@ -706,7 +706,10 @@ class TestSvcRejectReportOnACase(_ReportTriggerBase):
     @pytest.mark.spec("CM-23-052")
     @pytest.mark.spec("CM-23-053")
     def test_reject_report_on_a_case_raises_and_sends_nothing(self):
-        """The case's owner closes it by ``Leave``, never by Close(Report)."""
+        """The case's owner closes it by ``Leave``, never by a report closure.
+
+        No ``Reject(Offer(VulnerabilityReport))`` is sent.
+        """
         request = RejectReportTriggerRequest(
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,

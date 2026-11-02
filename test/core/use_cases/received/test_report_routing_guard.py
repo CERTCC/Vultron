@@ -13,9 +13,9 @@
 """Unit tests for InvalidateReportReceivedUseCase and CloseReportReceivedUseCase:
 which store the tree runs in, and whose RM state it writes.
 
-``Close(Report)`` writes no one's RM state any more: once a case holds the
-report every sender's is refused (CM-23-019), so only its refusal is pinned
-here.
+``Reject(Offer(VulnerabilityReport))`` writes no one's RM state any more: once
+a case holds the report every sender's is refused (CM-23-019), so only its
+refusal is pinned here.
 
 Two rules, deliberately kept apart (``notes/bt-pitfalls.md`` § "The Store Is
 Not the Subject"):
@@ -375,7 +375,9 @@ class TestCloseInvalidateDisposition:
         "sender_rm", [RM.RECEIVED, RM.INVALID, RM.VALID], ids=lambda r: r.name
     )
     def test_close_on_a_case_is_refused(self, sender_rm):
-        """No ``Close(Report)`` for a report a case holds is applied.
+        """No report closure for a report a case holds is applied.
+
+        The closure is a ``Reject(Offer(VulnerabilityReport))``.
 
         Whatever the sender's RM state, nothing moves: the sender closes by
         ``Leave(VulnerabilityCase)`` instead (CM-23-019).
