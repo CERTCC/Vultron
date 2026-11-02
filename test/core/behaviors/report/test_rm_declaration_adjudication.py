@@ -28,8 +28,8 @@ against the same rows (#3813 AC-4).
 
 The handlers run as the CASE_MANAGER, in its store; the subject of every write
 is the sender (RSH-08-001).  ``Reject(Offer(VulnerabilityReport))`` declares no
-RM state the CASE_MANAGER adjudicates: on a case every sender's is refused (CM-23-019,
-``test/core/use_cases/received/test_close_report_on_case.py``).
+RM state the CASE_MANAGER adjudicates: on a case every sender's is refused
+(CM-23-019, ``test/core/use_cases/received/test_close_report_on_case.py``).
 """
 
 import logging

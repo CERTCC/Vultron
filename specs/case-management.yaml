@@ -7712,9 +7712,8 @@ groups:
       `test_reject_report_on_a_case_raises_and_sends_nothing` in
       `test/core/use_cases/triggers/test_report_triggers.py` assert that no
       `Reject(Offer(VulnerabilityReport))` is sent for a report that belongs to a case.
-      The `leave-case`
-      tests in `test/core/use_cases/triggers/case/test_leave.py` cover how an actor on a
-      case closes its part in it instead.
+      The `leave-case` tests in `test/core/use_cases/triggers/case/test_leave.py`
+      cover how an actor on a case closes its part in it instead.
     relationships:
     - rel_type: extends
       spec_id: CM-23-019
