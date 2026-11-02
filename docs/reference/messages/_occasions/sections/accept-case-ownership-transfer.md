@@ -8,7 +8,7 @@ Accepts the ownership transfer offer.
 
     - **When…** an actor accepts an offer of case ownership
     - **Send:** `Accept(Offer(VulnerabilityCase))`
-    - **Send to:** the case manager
+    - **Send to:** the CASE_MANAGER
     - **Sent by:** the addressee of the vulnerability case offer
     - **Mapping status:** [none](../../index.md#mapping-status)
 

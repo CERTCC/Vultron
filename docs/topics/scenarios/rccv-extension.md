@@ -33,7 +33,7 @@ causal_edges:
     consequent: accept_actor_recommendation
     consequent_actor: case-actor
     note: >
-      C1, as case owner, approves C2's suggestion.
+      C1, as Case Owner, approves C2's suggestion.
   - antecedent: accept_actor_recommendation
     consequent: invite_actor_to_case
     consequent_actor: case-actor
@@ -85,7 +85,7 @@ subject: implementation
 
 The RCCV-extension scenario exercises a **two-coordinator case** where the
 second coordinator (C2) acts as a broker for the Vendor via the actor-suggestion
-flow.  The Reporter reports to C1 (the initial coordinator and case owner).  C1
+flow.  The Reporter reports to C1 (the initial coordinator and Case Owner).  C1
 invites C2; C2 then suggests the Vendor to the case.  C1 approves the suggestion
 and the Case Actor formally invites the Vendor.
 
@@ -139,7 +139,7 @@ C2 identifies the Vendor as an affected party and submits an
 
 ### 7. C1 approves the recommendation
 
-C1, as case owner, reviews and approves the suggestion.  An
+C1, as Case Owner, reviews and approves the suggestion.  An
 `accept_actor_recommendation` entry is recorded.
 
 *Antecedent:* `offer_case_participant` is in the ledger.

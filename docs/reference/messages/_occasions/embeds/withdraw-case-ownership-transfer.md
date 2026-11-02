@@ -2,12 +2,12 @@
 
 !!! info "Withdraw case ownership transfer"
 
-    Withdraws the proposal, and with it the Case Manager's offer, before the offer is answered. The current Case Owner keeps the case.
+    Withdraws the proposal, and with it the CASE_MANAGER's offer, before the offer is answered. The current Case Owner keeps the case.
 
     - **When…** the Case Owner withdraws its proposal while the offer of case ownership is open
     - **Send:** `Undo(Offer(Offer(VulnerabilityCase)))`
-    - **Send to:** the case manager
-    - **Sent by:** the case owner
+    - **Send to:** the CASE_MANAGER
+    - **Sent by:** the Case Owner
     - **Reference:** [Withdraw case ownership transfer](../../case_management.md#withdraw-case-ownership-transfer)
 
     ??? example "Example activity"

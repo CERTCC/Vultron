@@ -209,9 +209,9 @@ That answer is the Coordinator's own consent, so it carries no shorthand: Embarg
 
     | Step | Sender | Send to | Wire activity | Shorthand |
     |---|---|---|---|---|
-    | 1 | Vendor | the case manager | `Invite(EmbargoEvent)[context=VulnerabilityCase]` | `EP` |
-    | 2 | the case manager | Coordinator | `Invite(EmbargoEvent)[context=VulnerabilityCase]` | — |
-    | 3 | Coordinator | the case manager | `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])` | — |
+    | 1 | Vendor | the CASE_MANAGER | `Invite(EmbargoEvent)[context=VulnerabilityCase]` | `EP` |
+    | 2 | the CASE_MANAGER | Coordinator | `Invite(EmbargoEvent)[context=VulnerabilityCase]` | — |
+    | 3 | Coordinator | the CASE_MANAGER | `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])` | — |
 
 === "Wire JSON"
 
@@ -295,7 +295,7 @@ The `vfState` value `VF` is what distinguishes this occasion from the other clai
 
     | Step | Sender | Send to | Wire activity | Shorthand |
     |---|---|---|---|---|
-    | 1 | Vendor | the case manager | `Add(ParticipantStatus)[target=CaseParticipant]`, with `vfState` `VF` | `CF` |
+    | 1 | Vendor | the CASE_MANAGER | `Add(ParticipantStatus)[target=CaseParticipant]`, with `vfState` `VF` | `CF` |
 
 === "Wire JSON"
 
@@ -333,7 +333,7 @@ The two digests below are illustrative: they show the fields' shape and are not 
 
     | Step | Sender | Send to | Wire activity | Shorthand |
     |---|---|---|---|---|
-    | 1 | the case manager | each participant | `Announce(CaseLedgerEntry)` | — |
+    | 1 | the CASE_MANAGER | each participant | `Announce(CaseLedgerEntry)` | — |
 
 === "Wire JSON"
 

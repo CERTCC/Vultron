@@ -6,10 +6,10 @@ Fans out the newly committed ledger entry to each active participant.
 
 === "Details"
 
-    - **When…** the Case Manager has committed a case event to the case ledger
+    - **When…** the CASE_MANAGER has committed a case event to the case ledger
     - **Send:** `Announce(CaseLedgerEntry)`
     - **Send to:** a participant
-    - **Sent by:** the case manager
+    - **Sent by:** the CASE_MANAGER
     - **Mapping status:** [none](../../index.md#mapping-status)
 
 === "Example activity"

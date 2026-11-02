@@ -6,7 +6,7 @@
 
     - **When…** an invited actor agrees to join the case
     - **Send:** `Accept(Invite(Actor)[target=VulnerabilityCaseStub])`
-    - **Send to:** the case manager
+    - **Send to:** the CASE_MANAGER
     - **Sent by:** the invitee
     - **Reference:** [Accept invite to case](../../case_management.md#accept-invite-to-case)
 

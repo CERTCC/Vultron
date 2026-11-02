@@ -126,13 +126,13 @@ Each row is one occasion, and its columns say:
 |---|---|
 | When… | The sender's situation |
 | Send | The wire activity that conveys it |
-| Send to | The addressee: the case manager, a participant, or, before a case exists, an actor outside any case |
+| Send to | The addressee: the CASE_MANAGER, a participant, or, before a case exists, an actor outside any case |
 | Sent by | The standing a receiver requires of the sender |
 | Distinguished by | What tells this occasion apart from another occasion that shares its wire activity and addressee |
 | Details | The occasion's section in the message reference, named by its protocol shorthand where it has one |
 
-"The case manager" in a table is the participant that holds the CASE_MANAGER role for the case, whichever actor that is ([§10 Case Coordination](interactions.md#10-case-coordination-n)).
-A row whose "Sent by" reads "internal to the case manager" is an act the CASE_MANAGER performs on its own case.
+"The CASE_MANAGER" in a table is the participant that holds the CASE_MANAGER role for the case, whichever actor that is ([§10 Case Coordination](interactions.md#10-case-coordination-n)).
+A row whose "Sent by" reads "internal to the CASE_MANAGER" is an act the CASE_MANAGER performs on its own case.
 No receiver handles such an activity, though the CASE_MANAGER may commit it to the case ledger.
 
 ### 4.5 Report Management Messages

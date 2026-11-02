@@ -4,10 +4,10 @@
 
     Forwards the recommendation as a proposed participant record, carrying the original recommendation's ID and the default roles it assigned.
 
-    - **When…** the Case Manager presents a suggested actor to the Case Owner
+    - **When…** the CASE_MANAGER presents a suggested actor to the Case Owner
     - **Send:** `Offer(CaseParticipant)[target=VulnerabilityCase]`
     - **Send to:** a participant
-    - **Sent by:** the case manager
+    - **Sent by:** the CASE_MANAGER
     - **Reference:** [Offer case participant](../../general.md#offer-case-participant)
 
     ??? example "Example activity"

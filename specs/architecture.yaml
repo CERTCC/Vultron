@@ -2829,7 +2829,7 @@ groups:
       `test_unresolvable_activity_id_is_kept_as_string` in
       `test/wire/as2/test_rehydration_materialisation.py` asserts a `case_activity`
       reference stays an IRI rather than an activity fabricated and attributed to the
-      case owner.
+      Case Owner.
     relationships:
     - rel_type: extends
       spec_id: ARCH-25-029

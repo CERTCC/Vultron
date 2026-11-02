@@ -17,7 +17,7 @@ a scope boundary that the "case state" name obscures:
   `Add(ParticipantStatus)[target=CaseParticipant]`.
 - **`P`, `X`, `A` are case-scoped** — one per case, in the `pxaState` field of `as_CaseStatus`.
   A participant reports them in the case status its own `Add(ParticipantStatus)[target=CaseParticipant]` embeds.
-  Only the Case Manager sends `Add(CaseStatus)[target=VulnerabilityCase]`, to participants, as its record of the value it adopted, and a receiver refuses one from any other sender (RSH-04-001, RSH-04-005).
+  Only the CASE_MANAGER sends `Add(CaseStatus)[target=VulnerabilityCase]`, to participants, as its record of the value it adopted, and a receiver refuses one from any other sender (RSH-04-001, RSH-04-005).
 
 There are **no case-level `V`/`F`/`D` states**. A case-level status cannot
 express *which* vendor became aware or ready, which is the purpose of the V/F/D

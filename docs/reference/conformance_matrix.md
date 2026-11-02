@@ -33,7 +33,7 @@ The two further sets are required by the two protocol authority roles they serve
 | CVE Numbering Authority (CNA) | Required | Optional | Optional |
 | Observer | Required | Optional | Optional |
 | Case Owner | Required | Required | Optional |
-| Case Manager | Required | Optional | Required |
+| CASE_MANAGER | Required | Optional | Required |
 
 *Required* means the role cannot be held without the capability set.
 *Optional* means the set adds obligations the role does not itself need.
@@ -54,7 +54,7 @@ Which transitions a participant may drive depends on its roles ([§13.3.1 Proces
 | CVE Numbering Authority (CNA) | CVE ID assignment; a participant without the role delegates it |
 | Observer | No VFD drive obligations; may report PXA observations |
 | Case Owner | Shared EM transitions; authorizes status adoption; offers case ownership transfer |
-| Case Manager | Canonical ledger writes; case replica synchronization; roster operations on the Case Owner's behalf |
+| CASE_MANAGER | Canonical ledger writes; case replica synchronization; roster operations on the Case Owner's behalf |
 
 Any participant may report a PXA observation ([§13.4.2 Participant-Agnostic CS Transitions (PXA)](vultron-spec/conformance.md#1342-participant-agnostic-cs-transitions-pxa)); reporting is not adoption, which the CASE_MANAGER decides ([§11.3 Status Adoption: One Authorization Gate](vultron-spec/interactions.md#113-status-adoption-one-authorization-gate)).
 
@@ -67,7 +67,7 @@ The names are informative; a conformance claim lists the full capability sets.
 |---|---|---|
 | Hosting Coordinator | Case Observer + Case Decision + Case Hosting | Coordinator + Case Owner |
 | Self-coordinating Vendor | Case Observer + Case Decision + Case Hosting | Vendor + Deployer + Case Owner |
-| Bug Bounty Platform | Case Observer + Case Hosting | Case Manager (Case Decision optional) |
+| Bug Bounty Platform | Case Observer + Case Hosting | CASE_MANAGER (Case Decision optional) |
 
 ## What the matrix does not say
 

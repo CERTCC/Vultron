@@ -69,7 +69,7 @@ A production implementation must support dereference (AKM-05-004).
 ### Where the protocol requires one form
 
 The bootstrap `Create(VulnerabilityCase)` carries the case and its participant records inline (CBT-01-002, CBT-01-007).
-Its receiver trusts no case manager until it accepts that message, so it has no trusted source to fetch a reference from, and it does not fetch one (AKM-05-007).
+Its receiver trusts no CASE_MANAGER until it accepts that message, so it has no trusted source to fetch a reference from, and it does not fetch one (AKM-05-007).
 The report is not among those objects: the receiver offered it and already holds it, so the bootstrap may name it by reference.
 The reference implementation still carries the report inline when its sender holds it, a choice of the prototype rather than a protocol rule.
 
@@ -77,14 +77,14 @@ The `target` field carries a case by reference only: the case URI when the recip
 The [protocol specification §12.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n) defines what a case stub carries.
 
 A case ledger entry's payload snapshot records the asserted activity exactly as it was sent, so its nested objects are inline where the sender inlined them and by URI where the sender named them (CLP-07-006).
-The entry hash covers the snapshot and nothing outside it, which is why the case manager never fills a reference in: the record would then be its reconstruction rather than what was sent.
+The entry hash covers the snapshot and nothing outside it, which is why the CASE_MANAGER never fills a reference in: the record would then be its reconstruction rather than what was sent.
 
 ### What the reference implementation does
 
 The reference implementation dereferences only a few references (AKM-05-007).
-A participant fetches a case object it lacks from the case manager when an activity cannot be classified without it.
+A participant fetches a case object it lacks from the CASE_MANAGER when an activity cannot be classified without it.
 A replica fetches the embargo that an announced revision replaces.
-The case manager fetches a proposer's profile that the proposal names by its URI.
+The CASE_MANAGER fetches a proposer's profile that the proposal names by its URI.
 It still carries every outbound `object` inline, and a bare URI it cannot fetch is refused where the object is needed (AKM-02-004, AKM-03-003).
 The one exception is the case that a participant's `Join`, `Ignore` or `Leave` acts on, and the case of an ownership-transfer `Offer`: every receiver of these holds the case, so the activity names it by a typed reference with only its `id` and `type` (AKM-03-004).
 That is a shortcut of the prototype, not a Vultron rule; an implementation that dereferences may send references wherever the protocol allows them.

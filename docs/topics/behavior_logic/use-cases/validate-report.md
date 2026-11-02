@@ -57,7 +57,7 @@ Five things are decided from recorded state alone.
 
 Every one of those precedes the first write.
 That ordering is load-bearing rather than tidy.
-`RM.VALID` is case-scoped, and the case reaches a Participant only as a replica the case manager sends it ([ADR-0073](../../../adr/0073-per-actor-storage-isolation.md), PCR-01-003).
+`RM.VALID` is case-scoped, and the case reaches a Participant only as a replica the CASE_MANAGER sends it ([ADR-0073](../../../adr/0073-per-actor-storage-isolation.md), PCR-01-003).
 An actor that validates before its replica has arrived therefore does *nothing*, not half of the transition (RMB-15-001, DUR-07-004).
 Suppose it writes the state latch and then fails the embargo check.
 The latch now makes every later attempt take the early exit, and the two halves can never reconverge.
@@ -98,8 +98,8 @@ The reference implementation has no invalidation arm and no information-gatherin
 On success the actor emits a `validate_report` activity — `Accept(Offer(VulnerabilityReport))` on the wire, RV in the formal message set — addressed to the actor holding `CVDRole.CASE_MANAGER`.
 
 Addressing it there is not a routing detail.
-The case manager's inbox is what authors the canonical ledger entry for the event, so an activity that does not reach the case manager leaves no record in the case's shared history (CLP-10-001, [ADR-0021](../../../adr/0021-caseactor-inbox-routing-canonical-ledger.md)).
-The case manager then replicates that entry to the other Participants, which is how they learn this actor's RM state changed.
+The CASE_MANAGER's inbox is what authors the canonical ledger entry for the event, so an activity that does not reach the CASE_MANAGER leaves no record in the case's shared history (CLP-10-001, [ADR-0021](../../../adr/0021-caseactor-inbox-routing-canonical-ledger.md)).
+The CASE_MANAGER then replicates that entry to the other Participants, which is how they learn this actor's RM state changed.
 The emitting actor does not fan the message out itself (PCR-08-001).
 
 Emission failure does not fail the step.

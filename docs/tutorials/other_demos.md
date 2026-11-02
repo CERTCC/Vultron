@@ -456,7 +456,7 @@ An actor reports its own Case State (CS) progress with a participant status upda
 Vendor Awareness (CV), Fix Readiness (CF), and Fix Deployed (CD) are all `Add(ParticipantStatus)` activities.
 So are Public Awareness (CP), Exploit Public (CX), and Attacks Observed (CA).
 These three are in the case status that the participant status embeds.
-Only the Case Manager sends `Add(CaseStatus)`.
+Only the CASE_MANAGER sends `Add(CaseStatus)`.
 
 See [How to Post a Status Update or a Case Note](../howto/activitypub/activities/status_updates.md) for details.
 
