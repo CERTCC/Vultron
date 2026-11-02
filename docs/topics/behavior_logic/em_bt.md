@@ -106,7 +106,7 @@ If it is, the tree succeeds.
 
 (C) If that check fails, the tree checks whether the case is outside the embargo "habitable zone".
 The ${q^{cs}\not\in\cdot\cdot\cdot pxa}$ condition is true in three situations: someone has observed attacks, an exploit is public, or information about the vulnerability is public.
-If one of these conditions is true and the embargo state is *None* ($q^{em} \in N$), the check returns *Success*.
+If one of these conditions is true and the EM state is *None* ($q^{em} \in N$), the check returns *Success*.
 The tree then stops, as [Negotiating Embargoes](../process_models/em/negotiating.md) describes.
 
 !!! tip inline end "See also"
