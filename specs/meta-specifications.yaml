@@ -923,7 +923,7 @@ groups:
     rationale: >-
       When a person closes an owner issue manually, no pull request causes the
       change. A build failure would then make every open pull request fail, so the
-      scheduled check reports it instead (ARCH-18-004).
+      scheduled check reports it instead (ARCH-18-009).
     verification: >-
       `test_closed_owner_fails_and_open_owner_passes` and
       `test_lookup_failure_is_an_error_not_a_pass` in
@@ -2437,7 +2437,7 @@ groups:
     rationale: >-
       A merge-blocking check that reads the current date would make `main` fail when
       no commit causes the failure. The scheduled check reports the drift of the
-      clock instead (MS-14-022, ARCH-18-004).
+      clock instead (MS-14-022, ARCH-18-009).
     verification: >-
       `test_untouched_updated_never_trips_the_epoch_rule` in
       `test/metadata/test_adr_lifecycle.py` checks that an edit leaving `updated`

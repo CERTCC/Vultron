@@ -7,7 +7,7 @@
 #   act, so failing it races no other PR. Runs on every PR (no path filter: any
 #   PR body can say "Closes #N") and re-runs when the body is edited.
 # - open-owners (MS-10-024): an owner closed by hand is caused by no PR, so this never
-#   fails the build — failing would turn every PR in flight red (ARCH-18-004).
+#   fails the build — failing would turn every PR in flight red (ARCH-18-009).
 #   It runs hourly and on each push to main, and files or updates one tracking
 #   issue while any owner is closed, closing it again once all are open.
 

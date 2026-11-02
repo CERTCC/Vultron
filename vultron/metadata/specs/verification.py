@@ -54,7 +54,7 @@ An owner is checked against GitHub at two points, both in
 - ``spec-lint --check-debt-owners`` reports every marker or table entry naming
   a closed issue. CI runs it hourly and on each push to ``main`` and files one
   tracking issue rather than failing the build: an issue closed by hand is
-  caused by no PR, so failing would turn every PR in flight red (ARCH-18-004).
+  caused by no PR, so failing would turn every PR in flight red (ARCH-18-009).
 
 Runnable locally::
 
