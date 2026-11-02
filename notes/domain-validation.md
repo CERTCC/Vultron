@@ -18,7 +18,7 @@ related_specs:
   - specs/rm-behavior.yaml (RMB-14-004, RMB-14-005, RMB-14-008, RMB-14-009)
   - specs/state-machine.yaml (SM-09-001, SM-09-003)
   - specs/participant-role-management.yaml (PRM-03-003)
-  - specs/error-handling.yaml (EH-05-002, EH-07-001 through EH-07-003)
+  - specs/error-handling.yaml (EH-05-002 through EH-05-005, EH-07-001 through EH-07-004)
   - specs/code-style.yaml (CS-23-001)
   - specs/behavior-tree-node-design.yaml (BTND-10-001 through BTND-10-003)
   - specs/received-status-handling.yaml (RSH-09-001 through RSH-09-004)
@@ -315,8 +315,9 @@ its role does not license, you reopen this.**
 ### Surfacing a violation list
 
 `VultronValidationError` carries violations as structured data and renders the
-whole set in `__str__` (EH-07-003). The HTTP translation adds a `details` array
-beside `message` (EH-05-002), so clients need not parse a joined string.
+whole set in `__str__` (EH-07-003, EH-07-004). The HTTP translation adds a
+`details` array beside `message` (EH-05-002), so clients need not parse a
+joined string.
 `SvcBTTriggerBase.execute()` re-raises the exception at `result_out["error"]`, so
 a guard node only needs `result_out`. Aggregation stays within one node, so
 BT-13-001's first-failing-leaf contract is unaffected.

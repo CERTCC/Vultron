@@ -48,7 +48,7 @@ class AddNoteToCaseReceivedUseCase:
     Only the actor holding ``CVDRole.CASE_MANAGER`` attaches the note to
     ``VulnerabilityCase.notes`` and commits a ``CaseLedgerEntry``.  Other
     receivers MUST NOT update their case replica directly from
-    ``Add(Note, Case)`` messages — they receive note attachment notifications
+    ``Add(Note)[target=VulnerabilityCase]`` messages — they receive note attachment notifications
     exclusively via ``Announce(CaseLedgerEntry)`` fan-out from the
     CASE_MANAGER (SYNC-02-002).
 
@@ -90,7 +90,7 @@ class AddNoteToCaseReceivedUseCase:
         if note is None or case_id is None:
             logger.warning("add_note_to_case: missing inline note or case_id")
             return HandlerResult.refused(
-                "Add(Note, Case) is missing its inline note or case id"
+                "Add(Note)[target=VulnerabilityCase] is missing its inline note or case id"
             )
         note_id = note.id_
 
@@ -176,7 +176,7 @@ class RemoveNoteFromCaseReceivedUseCase:
         if note_id is None or case_id is None:
             logger.warning("remove_note_from_case: missing note_id or case_id")
             return HandlerResult.refused(
-                "Remove(Note, Case) is missing its note id or case id"
+                "Remove(Note)[target=VulnerabilityCase] is missing its note id or case id"
             )
         if self._dl.read_case(case_id) is None:
             logger.warning(

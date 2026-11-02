@@ -15,7 +15,8 @@
 
 """The CASE_MANAGER's record of who recommended an actor to a case.
 
-When the CASE_MANAGER receives an ``Offer(Actor, Case)`` it forwards the
+When the CASE_MANAGER receives an ``Offer(Actor)[target=VulnerabilityCase]`` it forwards
+the
 recommendation to the case owner, and once the owner decides it tells the
 recommender (CM-16-006, CM-16-007).  The decision arrives naming only the
 recommendation, so the CASE_MANAGER keeps this record to find the recommender
@@ -45,7 +46,7 @@ class ActorRecommendationRecord(CoreRecord):
 
     Attributes:
         case_id: URI of the case the actor was recommended to.
-        recommendation_id: URI of the received ``Offer(Actor, Case)``.
+        recommendation_id: URI of the received ``Offer(Actor)[target=VulnerabilityCase]``.
         recommender_id: URI of the participant that made the recommendation,
             the actor the owner's decision is reported back to.
     """
@@ -59,7 +60,8 @@ class ActorRecommendationRecord(CoreRecord):
         ..., description="URI of the case the actor was recommended to"
     )
     recommendation_id: UriString = Field(
-        ..., description="URI of the received Offer(Actor, Case)"
+        ...,
+        description="URI of the received Offer(Actor)[target=VulnerabilityCase]",
     )
     recommender_id: UriString = Field(
         ..., description="URI of the participant that made the recommendation"

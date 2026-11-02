@@ -530,7 +530,7 @@ def dead_letter_list(
 
 
 # ---------------------------------------------------------------------------
-# Inbox dead-letter store (IE-06-004)
+# Inbox dead-letter store (IE-06-008)
 # ---------------------------------------------------------------------------
 
 
@@ -576,7 +576,7 @@ def inbox_dead_letter_append(
 def inbox_dead_letter_list(
     dl: "SqliteDataLayer",
 ) -> list[InboxDeadLetterEntry]:
-    """Return this actor's inbox dead-letter entries (IE-06-004).
+    """Return this actor's inbox dead-letter entries (IE-06-008).
 
     Reconstructs :class:`InboxDeadLetterEntry` objects from the raw dicts
     stored in ``vultron_objects``.

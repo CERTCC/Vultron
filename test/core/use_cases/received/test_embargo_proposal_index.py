@@ -511,7 +511,7 @@ class TestAcceptRejectFromCoreState:
 
 
 class TestReceivedRejectPrunesOpenProposals:
-    """Only the owner's Reject(EmbargoEvent, target=Case) prunes an open
+    """Only the owner's Reject(EmbargoEvent)[target=VulnerabilityCase] prunes an open
     proposal in the CASE_MANAGER's store (EP-08-003, ADR-0122); every
     Reject(Invite(EmbargoEvent)) is consent, the owner's included (#3470).
 

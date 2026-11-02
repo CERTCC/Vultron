@@ -73,7 +73,7 @@ class _PecActivationMixin(_PecEffectsMixin):
         """The consent rows written once *embargo_id* is the embargo in force.
 
         The consent effect of the case owner's
-        ``Accept(EmbargoEvent, target=Case)`` (ADR-0122).  *ends_no_later* is
+        ``Accept(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122).  *ends_no_later* is
         ``None`` for a first activation (``PROPOSED → ACTIVE``, nothing
         replaced) and otherwise :meth:`_revision_ends_no_later`'s answer for
         the embargo replaced, taken before the case was mutated;

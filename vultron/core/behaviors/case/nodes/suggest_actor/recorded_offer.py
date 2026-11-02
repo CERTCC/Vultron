@@ -57,7 +57,8 @@ class RecordedOfferAnswer:
     """What the CASE_MANAGER recorded about the Offer an answer names.
 
     Attributes:
-        recommendation_id: The original ``Offer(Actor, Case)``, carried as
+        recommendation_id: The original ``Offer(Actor)[target=VulnerabilityCase]``,
+        carried as
             the answered Offer's ``origin`` (CM-16-004).
         recommender_id: The participant that made the recommendation, from
             the CASE_MANAGER's :class:`ActorRecommendationRecord`.

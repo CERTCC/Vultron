@@ -13,7 +13,7 @@
 
 """The owner's rejection nodes (EP-08-003, MSM-07-009).
 
-The effect of the case owner's ``Reject(EmbargoEvent, target=Case)``
+The effect of the case owner's ``Reject(EmbargoEvent)[target=VulnerabilityCase]``
 (ADR-0122): it returns EM to the prior terms (``REVISE → ACTIVE``, EJ) or to
 no embargo (``PROPOSED → NONE``, ER) and rejects the proposal in one
 lifecycle call.  Only the owner sends the activity; the received tree's

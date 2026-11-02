@@ -342,7 +342,7 @@ class TestEmbargoProposalLifecycle:
     @pytest.mark.spec("EP-09-005")
     @pytest.mark.spec("MSM-07-005")
     def test_owners_accept_of_the_embargo_activates_it(self, make_payload):
-        """The owner's Accept(EmbargoEvent, target=Case) activates the proposal.
+        """The owner's Accept(EmbargoEvent)[target=VulnerabilityCase] activates the proposal.
 
         The activation is also the owner's agreement, so its row for the
         embargo becomes ACCEPTED (ADR-0122).

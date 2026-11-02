@@ -42,7 +42,7 @@ def _archived_by_intake(dl, activity_id: str) -> bool:
 class TestOfferCaseParticipantRoleReceivedUseCase:
     """Tests for the canonical role-delegation received use case (ADR-0039).
 
-    Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase).  The
+    Offer(CaseParticipantRole)[context=VulnerabilityCase].  The
     routing through the CASE_MANAGER (CM-33) is covered in
     ``test_role_offer_routing.py``; these tests cover intake, the receiver's
     identity, and the target's answer.

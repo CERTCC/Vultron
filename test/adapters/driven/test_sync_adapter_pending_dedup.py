@@ -23,6 +23,7 @@ duplicates *in the queue*, not against ever re-sending.
 """
 
 import json
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -143,6 +144,31 @@ def test_a_different_tail_hash_is_a_new_rejection(dl):
     assert len(dl.outbox_list()) == 2
 
 
+@pytest.mark.spec("SYNC-15-017")
+@pytest.mark.spec("ID-04-004")
+def test_a_genesis_reject_asked_at_another_time_is_a_new_activity(dl):
+    """The ask time keys a genesis Reject's id; the same time reuses it."""
+    adapter = SyncActivityAdapter(dl)
+    entry = _entry(0)
+    first_ask = datetime(2026, 1, 1, tzinfo=UTC)
+    later_ask = first_ask + timedelta(seconds=601)
+
+    adapter.send_reject_log_entry(
+        entry, "", OWNER, [PEER_A], asked_at=first_ask
+    )
+    adapter.send_reject_log_entry(
+        entry, "", OWNER, [PEER_A], asked_at=first_ask
+    )
+    adapter.send_reject_log_entry(
+        entry, "", OWNER, [PEER_A], asked_at=later_ask
+    )
+    adapter.send_reject_log_entry(entry, "", OWNER, [PEER_A])
+
+    queued = dl.outbox_list()
+    assert len(queued) == 3
+    assert len(set(queued)) == 3
+
+
 def _queue_announce(dl: SqliteDataLayer, entry: CaseLedgerEntry, to: str):
     """Queue an ``Announce`` of *entry* to *to*, as a fresh adapter would."""
     assert SyncActivityAdapter(dl).send_announce_log_entry(entry, OWNER, [to])
@@ -194,7 +220,7 @@ def test_a_queued_row_with_no_sealed_body_is_not_pending(dl):
     """A row the outbox cannot deliver does not stand in for a real one.
 
     The outbox delivers only the sealed body (OX-07-001); a queued id with
-    none is never delivered, so it must not suppress the Announce that would
+    none is never delivered (OX-07-005), so it must not suppress the Announce that would
     be (SYNC-15-012).
     """
     dl.outbox_append("urn:test:unsealed-announce")

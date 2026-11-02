@@ -159,7 +159,7 @@ received", and do not add receipt bookkeeping to the actor record to feed one:
 
 ---
 
-### The Outbox Delivers the Sealed Body, Never a Re-Read (OX-07-001, VM-08-003)
+### The Outbox Delivers the Sealed Body, Never a Re-Read (OX-07-004, OX-07-005)
 
 Every adapter that persists an outbound activity also seals its JSON text
 (`vultron/adapters/outbox_sealed_body.py`), and the outbox handler relays that text

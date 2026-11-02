@@ -130,7 +130,7 @@ def add_status_to_participant_activity(
     target: as_CaseParticipantRef | None = None,
     **kwargs,
 ) -> as_Add:
-    """Build an Add(as_ParticipantStatus, target=as_CaseParticipant).
+    """Build an Add(ParticipantStatus)[target=CaseParticipant].
 
     Args:
         status: The ``as_ParticipantStatus`` to add.
@@ -163,7 +163,7 @@ def add_participant_to_case_activity(
     target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Add:
-    """Build an Add(as_CaseParticipant, target=VulnerabilityCase).
+    """Build an Add(CaseParticipant)[target=VulnerabilityCase].
 
     Args:
         participant: The ``as_CaseParticipant`` to add to the case.
@@ -198,7 +198,7 @@ def remove_participant_from_case_activity(
     target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Remove:
-    """Build a Remove(as_CaseParticipant, target=VulnerabilityCase).
+    """Build a Remove(CaseParticipant)[target=VulnerabilityCase].
 
     This MUST only be performed by the case owner.
 

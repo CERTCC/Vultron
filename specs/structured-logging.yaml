@@ -81,7 +81,7 @@ groups:
       values into the message. Enforced by ruff rules `G001`-`G004` (ADR-0094).
     verification: >-
       `ruff check` with the `G` rule family selected and no `G004` entry in
-      `[tool.ruff.lint] ignore` reports zero findings (IMPLTS-07-018). The `G`
+      `[tool.ruff.lint] ignore` reports zero findings (IMPLTS-07-026). The `G`
       rules see only a formatting expression written inside the call, so a message
       pre-built into a name and then passed (`msg = f"..."; logger.info(msg)`) is
       outside their reach and is a review finding, not a ruff one.
@@ -251,10 +251,10 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      Infrastructure log lines (persistence store/save/update, BT scaffolding,
-      HTTP handler parsing echoes, pipeline completion repeats, FSM internal
-      callbacks, per-recipient sync queue entries) MUST NOT be logged at INFO;
-      they MUST be logged at DEBUG or lower.
+      This codebase MUST log each infrastructure line at DEBUG or lower, never at INFO.
+      Infrastructure lines are persistence store, save and update lines, BT scaffolding
+      and HTTP handler parsing echoes. Pipeline completion repeats, FSM internal
+      callbacks and per-recipient sync queue entries are infrastructure lines too.
     rationale: >-
       Infrastructure lines, such as a store write or a BT setup step, repeat for each
       activity and say nothing about the protocol. At INFO they hide the state

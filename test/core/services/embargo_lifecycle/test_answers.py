@@ -306,7 +306,7 @@ def test_reject_embargo_proposal_owner_proposed_to_none(
 ) -> None:
     """Owner rejects the proposal (ER): EM → NONE; no consent row moves.
 
-    ``Reject(EmbargoEvent, target=Case)`` is the owner's decision for the
+    ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` is the owner's decision for the
     case, not its refusal as a participant (ADR-0122), so the owner's INVITED
     row stays as it was.
     """

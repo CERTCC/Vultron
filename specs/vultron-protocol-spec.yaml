@@ -663,7 +663,8 @@ groups:
       traffic ($GI$) from state-changing traffic, so the boundary covers every message
       (ADR-0085).
     verification: >-
-      A test sends a $GI$ `Add(Note, target=Case)` to the CASE_MANAGER after the
+      A test sends a $GI$ `Add(Note)[target=VulnerabilityCase]` to the CASE_MANAGER
+      after the
       owner has closed the case, and confirms it is refused and the case ledger gains
       no entry: the CASE_MANAGER ignores a $GI$ message on a Closed case.
     adr:
@@ -2580,8 +2581,9 @@ groups:
       A participant MUST NOT update its local case replica by direct mutation from an
       inbound protocol message.
     rationale: >-
-      Direct mutation from inbound messages (e.g., Add(Note, Case)) would bypass the
-      ledger ordering guarantees and create divergence from the canonical case state.
+      Direct mutation from inbound messages (e.g.,
+      Add(Note)[target=VulnerabilityCase]) would bypass the ledger ordering guarantees
+      and create divergence from the canonical case state.
       This path is distinct from VP-17-001 and is not a bypass of the CASE_MANAGER
       write constraint.
     relationships:

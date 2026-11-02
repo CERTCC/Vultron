@@ -146,7 +146,7 @@ def test_owner_rejecting_one_of_two_revisions_with_pxa_set_is_allowed(
 def test_the_owners_rejection_writes_no_consent(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """``Reject(EmbargoEvent, target=Case)`` decides; it changes no row (ADR-0122).
+    """``Reject(EmbargoEvent)[target=VulnerabilityCase]`` decides; it changes no row (ADR-0122).
 
     Neither the owner's nor any invitee's row moves: refusing terms as a
     participant is a separate ``Reject(Invite(EmbargoEvent))``.

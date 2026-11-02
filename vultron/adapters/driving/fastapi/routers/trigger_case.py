@@ -178,7 +178,7 @@ def trigger_leave_case(
     summary="Add an existing AS2 object to a case.",
     description=(
         "Adds any existing AS2 object (identified by ``object_id``) to a "
-        "VulnerabilityCase and queues an Add(object, target=case) activity "
+        "VulnerabilityCase and queues an Add(object)[target=VulnerabilityCase] activity "
         "in the actor's outbox addressed to the case's CASE_MANAGER alone, "
         "which commits it and replicates it to the participants (PCR-08-005). "
         "The object must already exist in the actor's datalayer. "
@@ -312,7 +312,7 @@ def trigger_add_report_to_case(
         "non-participant target is refused and no participant is created "
         "(PRM-06-006, ADR-0121). Writes a "
         "ParticipantStatus for the target and queues an "
-        "Add(ParticipantStatus, target=CaseParticipant) activity to the Case "
+        "Add(ParticipantStatus)[target=CaseParticipant] activity to the Case "
         'Manager. Fix readiness (``vf_state="VF"``, f→F) is refused: it is '
         "only ever self-declared by the Vendor (PRM-06-005). Returns the ids "
         "of the queued activity and the stored status."

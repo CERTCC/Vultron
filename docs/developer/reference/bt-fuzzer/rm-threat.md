@@ -10,7 +10,7 @@ In the simulation, the tree polls each tick with a random result.
 
 In production, threat monitoring is event-driven, not polling (ADR-0046).
 An external monitoring actor, or any informed participant, detects a threat signal.
-That actor then posts `Add(ParticipantStatus, CaseParticipant)` to the CASE_MANAGER with the matching Public State (PXA) change (X for exploit, A for attacks, P for public disclosure).
+That actor then posts `Add(ParticipantStatus)[target=CaseParticipant]` to the CASE_MANAGER with the matching Public State (PXA) change (X for exploit, A for attacks, P for public disclosure).
 
 The received-side behavior tree (BT) of the CASE_MANAGER, `add_participant_status_tree`, adopts the state into the case status and tears down the embargo.
 The nodes below model what that monitoring actor watches for.

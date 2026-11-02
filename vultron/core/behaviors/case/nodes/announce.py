@@ -47,6 +47,7 @@ from vultron.core.services.case_replica_seeding import (
     normalize_participant_refs,
     store_embedded_participants,
 )
+from vultron.core.services.genesis_reject_limit import forget_genesis_rejects
 from vultron.errors import (
     VultronNotFoundError,
     VultronValidationError,
@@ -189,7 +190,12 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
                     )
                 }
             )
-            self.datalayer.save(_case_to_save)
+            # The seed ends this replica's wait for the case, so the record
+            # of its last genesis Reject goes with it: a later wait must not
+            # inherit its time (SYNC-15-023, ADR-0146).
+            with self.datalayer.transaction():
+                self.datalayer.save(_case_to_save)
+                forget_genesis_rejects(self.datalayer, self.case_id)
             _store_embedded_reports(self.case_obj, self.datalayer)
             link_report_case_links(self.datalayer, self.case_obj)
             self.logger.info(

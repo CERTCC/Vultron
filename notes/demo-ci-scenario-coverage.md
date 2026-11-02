@@ -57,7 +57,8 @@ protocol phase recorded in the replicated ledger.
 - `offer_case_participant` and `accept_actor_recommendation` come only from the
   suggest-actor flow (ADR-0026).
 - `reject_invite_actor_to_case` comes only from `rcv-reject`: the Vendor sends
-  `Reject(Invite(actor, stub))`, so `accept_invite_actor_to_case` is absent. The
+  `Reject(Invite(Actor)[target=VulnerabilityCaseStub])`, so
+  `accept_invite_actor_to_case` is absent. The
   stub Reject is an RM message that closes the Vendor's inert record, `R → C`
   (ADR-0114, CM-11-007).
 - No scenario lists `add_case_participant`: replicas seat a joiner from the
@@ -90,7 +91,7 @@ canonical order, everywhere".
 | rccv-handoff | covered by rvcv-handoff | Same invite+accept+ownership-transfer; no additional phases |
 | rcv | covered by rvcv-handoff | Same invite+accept coverage; no additional phases |
 | rcv-embargo | ✓ (member) | Adds `invite_to_embargo_on_case` + `accept_invite_to_embargo_on_case` + `activate_embargo_on_case` + `remove_embargo_event_from_case` — the only scenario that proposes, activates and terminates an embargo |
-| rcv-reject | ✓ (member) | Adds `reject_invite_actor_to_case` — the only scenario where the Vendor sends `Reject(Invite(actor, stub))` (declines the stub Invite) |
+| rcv-reject | ✓ (member) | Adds `reject_invite_actor_to_case` — the only scenario where the Vendor sends `Reject(Invite(Actor)[target=VulnerabilityCaseStub])` (declines the stub Invite) |
 | rcvcv | ✓ (member) | Adds `offer_case_participant` + `accept_actor_recommendation` + ≥3-actor invite/accept chains |
 | rcvv-embargo | ✓ (member) | Same embargo semantic types as `rcv-embargo`, reached by other paths: a second revision cycle, a late vendor that signs the revised embargo, and a teardown that CS.P causes instead of a deliberate termination |
 | rv | ✓ (member) | 2-actor baseline; covers all universal semantic types (DEMOMA-16-001) with no invitation phases |

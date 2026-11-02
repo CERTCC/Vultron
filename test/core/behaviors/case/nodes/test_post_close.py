@@ -90,7 +90,7 @@ def test_refuses_at_the_case_manager_of_a_closed_case() -> None:
 def test_resolves_the_case_from_the_activity_when_the_tree_names_none() -> (
     None
 ):
-    """``Add(Note, target=Case)`` names its case only as the target."""
+    """``Add(Note)[target=VulnerabilityCase]`` names its case only as the target."""
     node, _ = _run(_store(MANAGER, closed=True), MANAGER, case_id=None)
     assert node.status == Status.FAILURE
 

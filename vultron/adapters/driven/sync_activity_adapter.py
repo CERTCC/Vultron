@@ -34,6 +34,7 @@ See also:
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 
 from vultron.adapters.driven.ledger_position_stamp import (
     with_sender_ledger_position,
@@ -97,9 +98,9 @@ def _read_queued_row(
     """Read *activity_id*'s sealed body; ``None`` when it has none.
 
     The sealed body, not the activity record: it is what the outbox delivers
-    (OX-07-001), so a row without one is never sent and is not pending.
-    Reading the record instead rehydrated every queued activity, entry and
-    payload included (#4906).  A row with no body is not remembered, so one
+    (OX-07-001), so a row without one is never sent (OX-07-005) and is not
+    pending.  Reading the record instead rehydrated every queued activity,
+    entry and payload included (#4906).  A row with no body is not remembered, so one
     sealed later is read then.
     """
     body = read_sealed_body_dict(dl, activity_id)
@@ -165,6 +166,8 @@ class SyncActivityAdapter:
         tail_hash: str,
         actor_id: str,
         to: list[str],
+        *,
+        asked_at: datetime | None = None,
     ) -> None:
         """Build and queue a ``Reject(CaseLedgerEntry)`` activity.
 
@@ -175,6 +178,12 @@ class SyncActivityAdapter:
         the same id and body, which the receiver deduplicates (ID-04-005).  A
         different tail hash is a different rejection and gets its own id.
 
+        A genesis Reject from a receiver that holds no case yet passes
+        *asked_at*, which keys the id as well: the receiver asks again only
+        after an interval (SYNC-15-016), and that request must be a new
+        activity, since the CASE_MANAGER drops a known id (SYNC-15-017,
+        ID-02-001).
+
         A backfill after a case copy (SYNC-16-007) names the chain's tail as
         both *entry* and *tail_hash*, so its id keys on the tail, not on the
         copy: the replay it asks for starts there whichever copy prompted
@@ -184,8 +193,14 @@ class SyncActivityAdapter:
 
         Spec: SYNC-03-001.
         """
+        asked = () if asked_at is None else (asked_at.isoformat(),)
         reject_id = derived_activity_id(
-            "reject-log-entry", actor_id, entry.id_, tail_hash, *sorted(to)
+            "reject-log-entry",
+            actor_id,
+            entry.id_,
+            tail_hash,
+            *sorted(to),
+            *asked,
         )
         self._queue_reject(
             reject_id,

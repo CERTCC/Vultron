@@ -50,7 +50,7 @@ An address derived from the report could not be provisioned before the report ar
 The proposal would then meet a permanent 404, and the round-trip would never start.
 
 The service URL comes from the actor's configuration, not from the server's own base URL.
-In a container deployment, that configuration is `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`.
+In a container deployment, that configuration is `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`, one of the settings in the [Node Configuration Reference](../../../reference/configuration.md).
 The server's own base URL happens to work when both actors share a container.
 When they do not share a container, a proposal sent to that URL goes back to the proposer.
 
@@ -89,7 +89,7 @@ The accepting service does the steps below, and the order is not interchangeable
 The ledger commits come after both emissions for a reason that is easy to miss.
 Each commit sends its entry to every Participant through the same first-in-first-out outbox that carries the `Create(VulnerabilityCase)`.
 A commit placed ahead of the `Create` therefore gives every Participant ledger entries for a case it does not hold yet.
-Each such entry takes the pre-genesis recovery path — buffer, `Reject`, replay from genesis — while the replica waits behind the whole fan-out (CP-09-009).
+Each such entry takes the pre-genesis recovery path — buffer, then one `Reject` per case asking for a replay from genesis — while the replica waits behind the whole fan-out (CP-09-009).
 When the service emits the case first, that recovery path is what it was designed to be: a backstop for transport reordering, not the normal route.
 
 The revision relay comes after the ledger commits, because no modification of the case may start before its initialization is complete (CM-14-007).

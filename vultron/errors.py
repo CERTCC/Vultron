@@ -48,8 +48,8 @@ class Violation(NamedTuple):
 def _render_violations(header: str, violations: Sequence[Violation]) -> str:
     """Return *header* followed by one indented line per violation.
 
-    One rendering serves both contracts: the whole set in ``str()`` (EH-07-003)
-    and the whole set in an HTTP ``message`` field (EH-05-002), which is
+    One rendering serves both contracts: the whole set in ``str()`` (EH-07-004)
+    and the whole set in an HTTP ``message`` field (EH-05-005), which is
     ``str()`` of the same exception.
     """
     lines = [f"{header} ({len(violations)} violation(s)):"]
@@ -64,11 +64,11 @@ class VultronError(Exception):
 class CarriesViolations:
     """Mixin: structured multi-violation carriage for a ``VultronError``.
 
-    EH-07-003 requires an exception raised for more than one violation to keep
-    them as structured data and to render the whole set in ``str()``, so no
-    caller parses a joined message.  Subclasses set ``self.violations`` in
-    ``__init__``; this mixin owns the rendering.  It must precede
-    :class:`VultronError` in the bases so its ``__str__`` wraps
+    EH-07-003 and EH-07-004 require an exception raised for more than one
+    violation to keep them as structured data and to render the whole set in
+    ``str()``, so no caller parses a joined message.  Subclasses set
+    ``self.violations`` in ``__init__``; this mixin owns the rendering.  It
+    must precede :class:`VultronError` in the bases so its ``__str__`` wraps
     ``Exception.__str__``.
     """
 
@@ -162,7 +162,7 @@ class VultronValidationError(CarriesViolations, VultronError, ValueError):
     ``violations``: they are kept as structured data on the exception and
     ``str()`` renders the whole set (via :class:`CarriesViolations`), so no
     caller has to parse the joined message to recover the individual rules
-    (EH-07-003).  This follows :exc:`DemoFailureError`'s shape, the house
+    (EH-07-003, EH-07-004).  This follows :exc:`DemoFailureError`'s shape, the house
     pattern for accumulate-all-then-fail (DEMOCI-01-003).
 
     ``ValueError`` is in the base classes for the same reason as
@@ -335,8 +335,8 @@ class VultronReusedActivityIdError(VultronProtocolViolationError):
 
     An activity id names one activity (ID-01-001), so a second body under an
     id the receiver already holds is not a redelivery: it is refused at
-    ingress and neither body is routed (IE-10-002).  The comparison is an
-    exact match of the sealed received texts (VM-08-002).
+    ingress and neither body is routed (IE-10-002, IE-10-003).  The
+    comparison is an exact match of the sealed received texts (VM-08-002).
 
     The message names the reused id, which becomes the inbox outcome's
     ``failure_reason``; the sending actor is kept on :attr:`actor_id` for the

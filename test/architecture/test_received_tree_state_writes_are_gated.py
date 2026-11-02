@@ -246,6 +246,11 @@ _PROPOSAL_INDEX = (
     "records which Invite proposed an embargo to this replica, a per-replica"
     " correlation the replay never displaces (EP-09-003, EP-09-007)"
 )
+_GENESIS_REJECT = (
+    "queues a participant's genesis Reject and records when it last sent one"
+    " for the missing case, its own request bookkeeping, not a record of the"
+    " case (SYNC-15-016, SYNC-15-021)"
+)
 _HELD_ANNOUNCE = (
     "holds or releases a received out-of-order Announce(CaseLedgerEntry) for"
     " its replay, the receiver's inbox bookkeeping, never a ledger entry or"
@@ -343,6 +348,10 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
     (f"{_B}.sync.nodes.receive", "BufferOutOfOrderEntryNode"): _HELD_ANNOUNCE,
     (f"{_B}.sync.nodes.receive", "BufferPreGenesisEntryNode"): _HELD_ANNOUNCE,
     (f"{_B}.sync.nodes.receive", "PersistReceivedLogEntryNode"): _LEDGER,
+    (
+        f"{_B}.sync.nodes.genesis_reject",
+        "SendGenesisRejectOnMissingCaseNode",
+    ): _GENESIS_REJECT,
     (
         f"{_B}.sync.nodes.replay_held",
         "ReplayHeldSuccessorNode",

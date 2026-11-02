@@ -15,7 +15,8 @@
 
 """Reading and stamping the lifetime of a stub Invite (CM-11-014..016).
 
-A stub ``Invite(Actor, CaseStub)`` is an ask with a deadline (ASK-03-004).  The
+A stub ``Invite(Actor)[target=VulnerabilityCaseStub]`` is an ask with a deadline
+(ASK-03-004).  The
 CASE_MANAGER stamps ``Invite.end_time`` the way it stamps an embargo Invite's
 (CM-28-012, :func:`~vultron.core.behaviors.embargo.rsvp_stamp.stamp_rsvp_deadline`),
 and every question about the Invite's life is answered from the CASE_MANAGER's
@@ -107,7 +108,7 @@ def record_of(obj: Any) -> RecordedStubInvite | None:
     if not isinstance(case_id, str) or not invitee_id or not invite_id:
         return None
     # Plain attribute access: the stub's embargo reference shares its name with
-    # a retired wire key, and no core string constant may spell one (MV-11-004).
+    # a retired wire key, and no core string constant may spell one (MV-11-011).
     try:
         embargo = target.active_embargo
     except AttributeError:

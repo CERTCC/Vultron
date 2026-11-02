@@ -97,7 +97,7 @@ class TestNoteUseCases:
         return case
 
     def test_add_note_to_case_appends_note(self, monkeypatch, make_payload):
-        """CaseActor appends note ID to case.notes on Add(Note, Case)."""
+        """CaseActor appends note ID to case.notes on Add(Note)[target=VulnerabilityCase]."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://example.org/cases/case_n1/actor",
@@ -512,7 +512,8 @@ class TestNoteUseCases:
     def test_add_note_refused_for_non_case_manager(
         self, monkeypatch, make_payload
     ):
-        """A non-manager receiving Add(Note, Case) neither attaches nor commits.
+        """A non-manager receiving Add(Note)[target=VulnerabilityCase] neither attaches
+        nor commits.
 
         Case replica updates arrive exclusively via Announce(CaseLedgerEntry)
         fan-out (SYNC-02-002). The BT CheckIsCaseManagerNode guard keeps the

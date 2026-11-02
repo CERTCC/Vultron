@@ -37,8 +37,8 @@ one would recreate the margin problem the corpus exists to fix.
 ## Meta-Ratchet
 
 `test/architecture/test_ratchet_hygiene.py` fails when any sibling file contains
-`ast.parse(` or `.rglob(` outside `_corpus.py` (TB-13-003), so every ratchet
-routes discovery through the one cache. When a new ratchet needs a file set the
+`ast.parse(` or `.rglob(` outside `_corpus.py` (TB-13-003, TB-13-009), so every
+ratchet routes discovery through the one cache. When a new ratchet needs a file set the
 corpus does not offer, extend the corpus rather than reaching for a spelling the
 hygiene check does not pattern-match: the rule is about one cache, not the
 literal substring.

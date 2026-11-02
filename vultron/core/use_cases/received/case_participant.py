@@ -259,7 +259,7 @@ class AddCaseParticipantToCaseReceivedUseCase(
         )
 
     _LABEL: ClassVar[str] = "AddCaseParticipantReceivedBT"
-    _MESSAGE: ClassVar[str] = "Add(CaseParticipant, Case)"
+    _MESSAGE: ClassVar[str] = "Add(CaseParticipant)[target=VulnerabilityCase]"
     _EFFECTS: ClassVar[tuple[type[py_trees.behaviour.Behaviour], ...]] = (
         ReinstateCaseParticipantReceivedNode,
         BackfillAdmittedParticipantsNode,
@@ -315,7 +315,9 @@ class RemoveCaseParticipantFromCaseReceivedUseCase(
         )
 
     _LABEL: ClassVar[str] = "RemoveCaseParticipantReceivedBT"
-    _MESSAGE: ClassVar[str] = "Remove(CaseParticipant, Case)"
+    _MESSAGE: ClassVar[str] = (
+        "Remove(CaseParticipant)[target=VulnerabilityCase]"
+    )
     _SKIP_GUARDS: ClassVar[tuple[type[py_trees.behaviour.Behaviour], ...]] = (
         ParticipantNotYetRemovedNode,
     )

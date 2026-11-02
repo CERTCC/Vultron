@@ -106,7 +106,7 @@ downstream to fill in a bare ID. If the error fires, fix the activity builder.
   `published`/`updated` or an `inbox`/`outbox` derived from an id is invented: a
   receiver cannot tell it from an asserted value, and a rebuild under the same id
   stops matching (OX-06-002). Leave the field absent. Delivery to a derived
-  `{actor}/inbox/` is addressing, used only when no inbox is held (OX-12-009).
+  `{actor}/inbox/` is addressing, used only when no inbox is held (OX-12-010).
 - **Only a hosted actor states its own endpoints.** Neither actor model derives
   `inbox`/`outbox` from the id; the node states them for the actor it hosts at
   creation (`hosted_endpoints`, `vultron/core/models/actor.py`), so its published

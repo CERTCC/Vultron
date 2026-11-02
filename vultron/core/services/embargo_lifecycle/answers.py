@@ -16,9 +16,9 @@
 ``accept_embargo_invite`` records an ``Accept(Invite(EmbargoEvent))``: the
 sender's own consent, whoever sends it, the case owner included (ADR-0122).
 ``reject_embargo_proposal`` applies the case owner's
-``Reject(EmbargoEvent, target=Case)``: its decision for the case, which
+``Reject(EmbargoEvent)[target=VulnerabilityCase]``: its decision for the case, which
 rejects the proposal's register entry and writes no consent.  The owner's
-``Accept(EmbargoEvent, target=Case)`` is ``activate_embargo``
+``Accept(EmbargoEvent)[target=VulnerabilityCase]`` is ``activate_embargo``
 (:mod:`.activation`).  Consent is per embargo (CM-10-001): a signatory's
 answer to a *proposed* revision is about those terms only, and consent to
 the active embargo is re-evaluated only when the owner activates a revision
@@ -102,7 +102,7 @@ class _AnswerOperationsMixin(_PecActivationMixin):
     ) -> EmbargoLifecycleResult:
         """Apply the case owner's rejection of an open proposal (ER / EJ).
 
-        ``Reject(EmbargoEvent, target=Case)`` (ADR-0122): the proposal's
+        ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122): the proposal's
         register entry is rejected.  EM is derived from what is left:
         ``NONE`` or ``ACTIVE`` when no other proposal is open, and still
         ``PROPOSED``/``REVISE`` while one is (EP-08-001).  No participant's

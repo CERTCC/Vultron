@@ -1,6 +1,6 @@
 """Typed-dispatch tests: extract_stamped() returns the correct per-semantic subclass.
 
-Spec: SE-03-001 (semantic-extraction), CS-10-002 (FooReceivedEvent naming).
+Spec: SE-03-001 (semantic-extraction), CS-10-006 (FooReceivedEvent naming).
 Covers AC4 of ISSUE-2489: new typed-dispatch tests for ≥3 representative semantics.
 """
 
@@ -25,7 +25,7 @@ class TestTypedEventDispatch:
     """extract_stamped() returns the narrowed per-semantic subclass, not bare VultronEvent."""
 
     @pytest.mark.spec("SE-03-001")
-    @pytest.mark.spec("CS-10-002")
+    @pytest.mark.spec("CS-10-006")
     def test_create_report_returns_create_report_received_event(self):
         from vultron.core.models.events.report import CreateReportReceivedEvent
 
@@ -35,7 +35,7 @@ class TestTypedEventDispatch:
         assert isinstance(event, CreateReportReceivedEvent)
 
     @pytest.mark.spec("SE-03-001")
-    @pytest.mark.spec("CS-10-002")
+    @pytest.mark.spec("CS-10-006")
     def test_accept_case_proposal_returns_accept_case_proposal_received_event(
         self,
     ):
@@ -58,7 +58,7 @@ class TestTypedEventDispatch:
         assert isinstance(event, AcceptCaseProposalReceivedEvent)
 
     @pytest.mark.spec("SE-03-001")
-    @pytest.mark.spec("CS-10-002")
+    @pytest.mark.spec("CS-10-006")
     def test_offer_actor_to_case_returns_offer_actor_to_case_received_event(
         self,
     ):
@@ -78,7 +78,7 @@ class TestTypedEventDispatch:
         assert isinstance(event, OfferActorToCaseReceivedEvent)
 
     @pytest.mark.spec("SE-03-001")
-    @pytest.mark.spec("CS-10-002")
+    @pytest.mark.spec("CS-10-006")
     def test_event_semantic_type_matches_subclass_literal(self):
         """semantic_type on the returned event matches the subclass's narrowed Literal."""
         from vultron.core.models.events.base import MessageSemantics

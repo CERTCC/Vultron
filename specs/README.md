@@ -345,7 +345,7 @@ related requirements across files.
 - **`code-style.yaml`** - Python formatting, import organization, circular import
   prevention, optional-field non-emptiness (CS-08-001), code reuse (CS-09-001),
   typed port/adapter interfaces (CS-10-001), domain event naming convention
-  (`FooActivity` vs `FooEvent`, CS-10-002), type annotation strictness
+  (`FooActivity` vs `FooEvent`, CS-10-002 and CS-10-006), type annotation strictness
   (no `Any`, CS-11-001), domain-centric class naming (CS-12-001)
 - **`tech-stack.yaml`** - Normative technology constraints: runtime, persistence,
   tooling, code quality tooling (including pyright gradual adoption, IMPLTS-*),

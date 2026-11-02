@@ -149,7 +149,7 @@ def _send_stub_invite(
 ) -> dict[str, Any]:
     """Invite *invitee_id* as the owner *actor_id*; return the Invite emitted.
 
-    The owner's trigger sends its own ``Offer(Actor, Case)`` to the
+    The owner's trigger sends its own ``Offer(Actor)[target=VulnerabilityCase]`` to the
     CASE_MANAGER; the CASE_MANAGER emits the Invite (CM-17-007, ADR-0109).
     *actor_id* is both here — the store's owner holds CASE_MANAGER — so the
     Offer is delivered to the same store, as ADR-0109 lets an owner that is

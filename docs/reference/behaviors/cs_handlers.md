@@ -21,7 +21,7 @@ The behavioral requirements for these trees are specified in the
 
 ## Add Case Status Tree
 
-Handles receipt of an `Add(CaseStatus, VulnerabilityCase)` activity, which a participant replica admits from the case's CASE_MANAGER alone (RSH-04-005).
+Handles receipt of an `Add(CaseStatus)[target=VulnerabilityCase]` activity, which a participant replica admits from the case's CASE_MANAGER alone (RSH-04-005).
 It runs the idempotency check, ephemeral-state guard, history-prefix guard and a whole accept-or-reject check of EM and P/X/A, and writes nothing: the replica takes the status from the ledger.
 Constructed from
 `vultron.core.behaviors.status.add_case_status_tree.add_case_status_tree`.
@@ -54,7 +54,7 @@ print("```")
 
 ## Add Participant Status Tree
 
-Handles receipt of an `Add(ParticipantStatus, CaseParticipant)` activity.
+Handles receipt of an `Add(ParticipantStatus)[target=CaseParticipant]` activity.
 Implements the StatusAdoptionGate workflow (ADR-0046, RSH-01): verifies the sender is a participant, appends the raw peer status, then gates adoption through the adoption call-out; an adopted P, X or A ends an active embargo in the same act, because the adoption also authorizes the teardown (ADR-0166).
 An adopted P, X or A reaches the case status here, and nowhere else on the received side (RSH-01-003).
 Constructed from

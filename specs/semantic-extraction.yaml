@@ -48,16 +48,31 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The semantic extraction algorithm MUST rehydrate a URI string reference before pattern
-      matching, and MUST handle both fully expanded objects and unresolved URI strings
-      defensively.
+      The semantic extraction algorithm MUST rehydrate a URI string reference before
+      pattern matching.
     rationale: >-
-      How this codebase meets SE-01-002. Split from SE-01-002 so it states only the rule
-      ActivityStreams sets (MS-12-010).
+      This is how this codebase meets SE-01-002. A pattern matches an object by its
+      type, and a bare URI has no type, so a reference must become the object before
+      matching (SE-01-006).
     verification: >-
       Inspection of `vultron/wire/` confirms that the semantic extraction algorithm
-      attempts to rehydrate bare URI string `object_` values before pattern matching,
-      handling both expanded objects and unresolved URI strings defensively.
+      attempts to rehydrate bare URI string `object_` values before pattern matching.
+    relationships:
+    - rel_type: implements
+      spec_id: SE-01-002
+  - id: SE-01-008
+    priority: MUST
+    kind: project
+    statement: >-
+      The semantic extraction algorithm MUST handle both fully expanded objects and
+      unresolved URI strings defensively.
+    rationale: >-
+      A rehydration can fail, so extraction can still meet a URI string after it. If
+      it assumes an expanded object, an unresolved reference raises where it should
+      give a defined result.
+    verification: >-
+      Inspection of `vultron/wire/` confirms that the semantic extraction algorithm
+      handles both expanded objects and unresolved URI strings defensively.
     relationships:
     - rel_type: implements
       spec_id: SE-01-002
@@ -223,23 +238,54 @@ groups:
       `SEMANTIC_REGISTRY` has a non-`None` `activity_` field and a
       non-`None` `object_` field.
   - id: SE-03-004
-    priority: MUST
+    priority: MUST_NOT
     kind: project
     statement: >-
-      An `ActivityPattern` MUST NOT discriminate on the sender's identity or role: it
+      An `ActivityPattern` MUST NOT discriminate on the sender's identity or role. It
       matches only the activity's type and the types of its object, target, context and
-      recipients. When the CASE_MANAGER performs the same verb on the same kind of object
-      as a participant, its activity MUST match the participant's pattern, and whether the
-      sender may send it MUST be decided after routing, by the handler's sender-entitlement
-      check (HP-01-006, HP-01-007).
+      recipients.
     rationale: >-
       A semantic type says what an activity is; the sender's standing says whether it is
       permitted (ADR-0152). A matcher that read the sender would need to know who holds
       the CASE_MANAGER role for each case, and would give one shape two meanings depending
       on who sent it.
     verification: >-
-      A unit test confirms that `ActivityPattern` and every subclass declare no field for
-      the sender's identity or role.
+      `test_no_pattern_class_has_a_field_for_the_sender` in
+      `test/wire/as2/test_pattern_ignores_sender.py` confirms that `ActivityPattern`
+      and every subclass declare no field for the sender's identity or role.
+    adr:
+    - ADR-0152
+  - id: SE-03-005
+    priority: MUST
+    kind: project
+    statement: >-
+      When the CASE_MANAGER performs the same verb on the same kind of object as a
+      participant, its activity MUST match the participant's pattern.
+    rationale: >-
+      One shape has one meaning. A CASE_MANAGER activity that matched its own pattern
+      would need a pattern that reads the sender, which SE-03-004 forbids.
+    verification: >-
+      `test_changing_only_the_sender_changes_no_match` in
+      `test/wire/as2/test_pattern_ignores_sender.py` confirms that a change of sender
+      alone changes no match.
+    relationships:
+    - rel_type: refines
+      spec_id: SE-03-004
+    adr:
+    - ADR-0152
+  - id: SE-03-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The handler's sender-entitlement check (HP-01-006, HP-01-007) MUST decide, after
+      routing, whether the sender of a matched activity may send it.
+    rationale: >-
+      The pattern does not read the sender (SE-03-004), so routing cannot refuse a
+      sender. The handler knows the case and its roles, so it is the one place that can
+      judge the sender's standing.
+    verification: >-
+      `test/architecture/test_sender_entitlement_ratchet.py::test_use_case_has_sender_entitlement_declared`
+      fails on a received use case that declares no sender entitlement.
     relationships:
     - rel_type: depends_on
       spec_id: HP-01-006
@@ -283,9 +329,8 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Dead-letter records for unresolvable-object_ activities MUST include: the full activity
-      JSON, the unresolvable URI, the actor ID, and a timestamp. They MUST be stored in a
-      DataLayer collection accessible for administrative review and retry.
+      A dead-letter record for an unresolvable-`object_` activity MUST include the full
+      activity JSON, the unresolvable URI, the actor ID, and a timestamp.
     rationale: >-
       The record must keep the data that the receiver needs to try the activity again
       when its object becomes available. The record must also show who sent the activity
@@ -294,7 +339,22 @@ groups:
     verification: >-
       A unit test confirms that the dead-letter record for an unresolvable-`object_`
       activity contains the full activity JSON, the unresolvable URI, the actor ID,
-      and a timestamp, and is stored in the DataLayer collection.
+      and a timestamp.
+  - id: SE-04-005
+    priority: MUST
+    kind: project
+    statement: >-
+      The receiver MUST store each dead-letter record for an unresolvable-`object_`
+      activity in a DataLayer collection open to administrative review and retry.
+    rationale: >-
+      A record that no one can read or replay keeps the activity but does not let an
+      operator act on it.
+    verification: >-
+      A unit test confirms that the dead-letter record for an unresolvable-`object_`
+      activity is stored in the DataLayer collection.
+    relationships:
+    - rel_type: extends
+      spec_id: SE-04-003
   - id: SE-04-004
     priority: MUST
     kind: project
@@ -329,32 +389,64 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A pattern's semantic type MUST have a use-case class in the mapping returned by
-      `use_case_map()` when, and only when, its `SEMANTIC_REGISTRY` entry is handled on
-      receipt. An entry whose `use_case_class` is `None` is recognized but not handled:
-      the dispatcher MUST report a received activity of that type as "no use case found",
-      a `REFUSED` verdict logged at INFO with the activity and actor IDs, and MUST NOT
-      raise, send a `ProcessingFault` or treat the activity as unrecognized (SE-04).
+      A semantic type MUST have a use-case class in the `use_case_map()` mapping when,
+      and only when, its `SEMANTIC_REGISTRY` entry is handled on receipt. An entry whose
+      `use_case_class` is `None` is recognized but not handled.
     rationale: >-
       Recognizing a semantic type does not imply a handler for it (ADR-0140 item 5).
       Several CASE_MANAGER shapes are written to the ledger but never handled when
-      received (ADR-0152), and the registry still has to label them. "No use case found"
-      says the receiver does not handle the message, not that the message is invalid, so
-      it is not answered with a fault. No handler ran, so the verdict is not `processed`
-      (UCORG-05-012).
+      received (ADR-0152), and the registry still has to label them.
     verification: >-
-      A unit test confirms that `use_case_map()` holds exactly the `SEMANTIC_REGISTRY`
-      entries that name a use case, each mapped to that entry's class, and that every
-      dispatcher fallback names one. A test drives a recognized type with no use case
-      through the inbox and confirms a `rejected` outcome whose reason says no use case
-      was found, one INFO record carrying the activity and actor IDs, no traceback and an
-      empty outbox.
+      A unit test in `test/test_semantic_registry.py` confirms that `use_case_map()`
+      holds exactly the `SEMANTIC_REGISTRY` entries that name a use case, each mapped
+      to that entry's class, and that every dispatcher fallback names one.
     relationships:
     - rel_type: refines
       spec_id: UCORG-05-012
     adr:
     - ADR-0140
     - ADR-0152
+  - id: SE-05-005
+    priority: MUST
+    kind: project
+    statement: >-
+      The dispatcher MUST report a received activity whose entry is recognized but not
+      handled (SE-05-002) as "no use case found". The report is a `REFUSED` verdict,
+      logged at INFO with the activity and actor IDs.
+    rationale: >-
+      "No use case found" says the receiver does not handle the message, not that the
+      message is invalid. No handler ran, so the verdict is not `processed`
+      (UCORG-05-012).
+    verification: >-
+      A test in `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` drives a
+      recognized type with no use case through the inbox and confirms a `rejected`
+      outcome whose reason says no use case was found, and one INFO record carrying
+      the activity and actor IDs.
+    relationships:
+    - rel_type: extends
+      spec_id: SE-05-002
+    adr:
+    - ADR-0140
+  - id: SE-05-006
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      For a recognized but unhandled activity (SE-05-002), the dispatcher MUST NOT
+      raise, send a `ProcessingFault` or treat the activity as unrecognized (SE-04).
+    rationale: >-
+      The message is not invalid, so it is not answered with a fault, and a raise would
+      make it look like a bug. An unrecognized activity goes to the SE-04 path, which
+      is for a shape that the registry does not know.
+    verification: >-
+      `test/test_behavior_dispatcher.py` confirms that the dispatcher returns a refusal
+      rather than raising, and a test in
+      `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` confirms no traceback
+      and an empty outbox for such an activity.
+    relationships:
+    - rel_type: extends
+      spec_id: SE-05-002
+    adr:
+    - ADR-0140
   - id: SE-05-003
     priority: MUST
     kind: project
@@ -394,8 +486,9 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      `RegistryOrderError` MUST be a named exception class in the semantic extraction
-      module. It MUST NOT be raised as a generic `ValueError` or `AssertionError`.
+      The registry order guard MUST raise `RegistryOrderError`, a named exception class
+      in the semantic extraction module, not a generic `ValueError` or
+      `AssertionError`.
     rationale: >-
       With a dedicated exception, a test or a caller can tell an order defect from any
       other `ValueError` or failed assertion. The import failure also names its cause.
@@ -407,9 +500,8 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      The registry order guard MUST have a companion unit test that asserts correct ordering
-      is maintained for all registered patterns. The test MUST fail if the guard raises
-      `RegistryOrderError` on the current registry.
+      The registry order guard MUST have a companion unit test that runs the guard on
+      the current registry and fails if it raises `RegistryOrderError`.
     rationale: >-
       The import-time guard protects the registry only when a process imports the
       module. A test that calls the guard on the current registry makes an order defect
@@ -440,17 +532,29 @@ groups:
     verification_debt: '#2575'
     statement: >-
       Phrase templates MUST use named slots drawn from the set `{actor}`, `{object}`,
-      `{target}`, `{context}`, `{origin}`, `{inner_object}`. Slot names MUST be
-      human-facing role identifiers, not Python field names from `VultronEvent`.
+      `{target}`, `{context}`, `{origin}`, `{inner_object}`.
     rationale: >-
-      A slot name tells the role of a value in the sentence. Thus a phrase reads
-      correctly to its author and stays correct when a `VultronEvent` field gets a new
-      name. The render pipeline fills only `{actor}`, `{object}` and `{target}`. The
-      other names are reserved, and SE-07-005 stops phrases from using them until the
-      pipeline fills them.
+      A fixed set of slots lets a check find a phrase that uses an unknown slot. The
+      render pipeline fills only `{actor}`, `{object}` and `{target}`. The other names
+      are reserved, and SE-07-005 stops phrases from using them until the pipeline
+      fills them.
     relationships:
     - rel_type: refines
       spec_id: SE-07-001
+  - id: SE-07-007
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      Each phrase template slot name MUST be a human-facing role identifier, not a
+      Python field name from `VultronEvent`.
+    rationale: >-
+      A slot name tells the role of a value in the sentence. Thus a phrase reads
+      correctly to its author and stays correct when a `VultronEvent` field gets a new
+      name.
+    relationships:
+    - rel_type: extends
+      spec_id: SE-07-002
   - id: SE-07-003
     priority: MUST
     kind: project
@@ -486,11 +590,9 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      A unit test MUST assert that no phrase in `SEMANTIC_REGISTRY` references a
-      slot name outside the set currently populated by the runtime render pipeline
-      (`{actor}`, `{object}`, `{target}`). This test MUST fail if a phrase is added
-      that uses `{context}`, `{origin}`, `{inner_object}`, or any other slot name
-      not listed here, until the render pipeline is extended to populate that slot.
+      A unit test MUST fail when a phrase in `SEMANTIC_REGISTRY` uses a slot outside the
+      set the render pipeline fills today: `{actor}`, `{object}` and `{target}`. The set
+      grows only when the pipeline fills another slot.
     rationale: >-
       The SE-07-004 test fills each slot with a placeholder. Thus it cannot find a
       phrase that uses a slot that the render pipeline never fills. Such a phrase
@@ -528,20 +630,37 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      When two or more `ActivityPattern` entries share the same `activity_` type AND
-      `object_` type, the more-specific pattern MUST include an additional discriminator
-      field (e.g. `target_`, `context_`) that unambiguously distinguishes it from the
-      less-specific pattern. The more-specific pattern MUST appear before the less-specific
-      one in `SEMANTIC_REGISTRY`.
+      When two or more `ActivityPattern` entries share an `activity_` type and an
+      `object_` type, the more-specific one MUST add a discriminator field (e.g.
+      `target_`, `context_`). The field distinguishes it unambiguously from the
+      less-specific pattern.
     rationale: >-
       Without an additional discriminator, two patterns sharing the same verb and object
       type are indistinguishable; the first matching entry always wins.
-      `_validate_registry_order()` enforces ordering at import time.
     verification: >-
       Inspection of `vultron/wire/` confirms that every `ActivityPattern` sharing
       activity and object type with another entry adds a `target_` or `context_`
-      discriminator field, and `_validate_registry_order()` enforces that the
-      more-specific pattern precedes the less-specific one.
+      discriminator field.
+    relationships:
+    - rel_type: refines
+      spec_id: SE-03-002
+    adr:
+    - ADR-0039
+  - id: SE-08-006
+    priority: MUST
+    kind: project
+    statement: >-
+      For two `ActivityPattern` entries that SE-08-001 covers, the more-specific
+      pattern MUST appear before the less-specific one in `SEMANTIC_REGISTRY`.
+    rationale: >-
+      The registry returns the first match, so a less-specific pattern listed first
+      shadows the more-specific one. `_validate_registry_order()` enforces the order at
+      import time.
+    verification: >-
+      `test_validate_registry_order_reversed_pair_raises` and
+      `test_live_registry_import_guard_passes` in `test/test_semantic_registry.py`
+      confirm that `_validate_registry_order()` refuses a less-specific pattern listed
+      first, and passes on the current `SEMANTIC_REGISTRY`.
     relationships:
     - rel_type: refines
       spec_id: SE-03-002
@@ -580,8 +699,8 @@ groups:
       omits the target causes a silent routing error. This sender can be minimally
       conformant or have a defect. The pattern order of the receiver is then its only
       protection. A distinct object type removes this risk, and the wire shape then
-      tells its own meaning (ADR-0039). `Offer(CaseParticipantRole,
-      context=VulnerabilityCase)` is the canonical example. See
+      tells its own meaning (ADR-0039).
+      `Offer(CaseParticipantRole)[context=VulnerabilityCase]` is the canonical example. See
       `notes/activitystreams-state-update.md` § "Patterns Sharing a Verb and Object Need
       a Strict Discriminator".
     relationships:

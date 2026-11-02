@@ -235,7 +235,7 @@ async def outbox_handler(
     ``HttpDeliveryAdapter``) and does not block the HTTP response because
     this coroutine is scheduled as a FastAPI BackgroundTask (OX-03-003).
 
-    Only one drain of *actor_id*'s outbox runs at a time (OX-01-004): a call
+    Only one drain of *actor_id*'s outbox runs at a time (OX-01-004, OX-01-007): a call
     made while another is draining asks that drain to look at the queue
     once more before it finishes, and returns.  Within the drain, rows are
     scheduled in per-recipient lanes — see :mod:`outbox_lanes` (ADR-0112).

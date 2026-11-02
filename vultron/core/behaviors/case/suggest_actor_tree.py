@@ -18,7 +18,7 @@
 Three factories run on the CASE_MANAGER's inbox:
 
 - :func:`create_recommend_actor_to_case_received_tree`  — the CASE_MANAGER
-  handles ``Offer(Actor, Case)`` from a recommending participant
+  handles ``Offer(Actor)[target=VulnerabilityCase]`` from a recommending participant
   (CM-16-001..004).
 - :func:`create_accept_actor_recommendation_received_tree` — the CASE_MANAGER
   handles ``Accept(Offer(CaseParticipant))`` from the Case Owner (CM-16-006).
@@ -35,7 +35,7 @@ to enforce CLP-10-006 ordering (ledger commit before effect nodes).
 
 A fourth, :func:`create_recommendation_answer_received_tree`, runs on the
 recommender's inbox: it handles the CASE_MANAGER's ``Accept`` or
-``Reject(Offer(Actor, Case))`` answer (``ACCEPT_ACTOR_RECOMMENDATION``,
+``Reject(Offer(Actor)[target=VulnerabilityCase])`` answer (``ACCEPT_ACTOR_RECOMMENDATION``,
 ``REJECT_ACTOR_RECOMMENDATION``; CM-16-006, CM-16-007, CM-16-009), and
 records no entry and runs no effect.
 
@@ -146,7 +146,8 @@ def create_recommend_actor_to_case_received_tree(
     *,
     sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
-    """Received-side BT for Offer(Actor, Case) on the CASE_MANAGER's inbox.
+    """Received-side BT for Offer(Actor)[target=VulnerabilityCase] on the CASE_MANAGER's
+    inbox.
 
     Refuses, before any commit, the recommendation of a removed participant:
     it is sent no stub Invite, and only the Case Owner's
@@ -204,7 +205,8 @@ def create_recommend_actor_to_case_received_tree(
     case ledger is written or anything is forwarded (HP-01-006, #3668).
 
     Args:
-        recommendation_id: ID of the incoming ``Offer(Actor, Case)`` activity.
+        recommendation_id: ID of the incoming ``Offer(Actor)[target=VulnerabilityCase]``
+        activity.
         recommender_id: Actor ID of the recommending participant.
         recommended_id: Actor ID of the suggested new participant.
         case_id: ID of the VulnerabilityCase.
@@ -624,7 +626,7 @@ def create_recommendation_answer_received_tree(
     """Received-side BT for the CASE_MANAGER's answer on a recommender's inbox.
 
     The answer is ``Accept`` or ``Reject`` of the recommender's own
-    ``Offer(Actor, Case)`` (CM-16-006, CM-16-007, CM-16-009).  The
+    ``Offer(Actor)[target=VulnerabilityCase]`` (CM-16-006, CM-16-007, CM-16-009).  The
     CASE_MANAGER ledgered it when it sent it (CM-16-010), and the recommender
     takes that entry from the ledger; a participant never commits
     (CLP-09-001), so this receipt records no entry on the CLP-02-013 ground of

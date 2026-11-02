@@ -54,7 +54,7 @@ def test_handler_result_inherits_use_case_result() -> None:
 
 
 def test_handler_result_fields_are_disposition_reason_and_unhandled() -> None:
-    """UCORG-05-005: no raw dict payload fields."""
+    """UCORG-05-017, UCORG-05-019: no raw dict payload fields."""
     assert set(HandlerResult.model_fields) == {
         "disposition",
         "reason",
@@ -297,7 +297,7 @@ def test_trigger_result_subtype_declares_exactly_its_body_keys(
     payload: dict[str, Any],
     expected_keys: set[str],
 ) -> None:
-    """UCORG-05-005: each subtype's field set is its verb's response body."""
+    """UCORG-05-015: each subtype's field set is its verb's response body."""
     assert issubclass(result_cls, TriggerResult)
     result = result_cls.model_validate(payload)
     assert set(result_cls.model_fields) == expected_keys
@@ -315,7 +315,7 @@ def test_trigger_result_subtype_rejects_an_unknown_key(
     payload: dict[str, Any],
     expected_keys: set[str],
 ) -> None:
-    """UCORG-05-005: a use case that grows a return key fails loudly."""
+    """UCORG-05-016: a use case that grows a return key fails loudly."""
     with pytest.raises(ValidationError, match=r"extra_forbidden|Extra inputs"):
         result_cls.model_validate({**payload, "surprise": 1})
 

@@ -116,7 +116,7 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Announce", "VulnerabilityCase"),
     ("Offer", "CaseParticipant"),
     # Role-delegation offer (ADR-0039, SE-08-003): the CASE_MANAGER records an
-    # ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``
+    # ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``
     # it receives as a protocol-significant assertion (CLP-07-001).  Like its
     # sibling ``Offer(CaseParticipant)`` recommendation it moves no replica
     # state — the offer is a proposal, not the grant (CLP-07-005, #3764).
@@ -199,7 +199,7 @@ _ACTOR_TYPES: frozenset[str] = frozenset(
 def _snapshot_object_type(
     snapshot: dict[str, Any], case_id: str
 ) -> str | None:
-    # Invite(Actor, target=...): object_ is the actor; use target.type so the
+    # Invite(Actor)[target=...]: object_ is the actor; use target.type so the
     # signature resolves to ('Invite','VulnerabilityCaseStub') for the stub
     # Invite, or ('Invite','VulnerabilityCase'), not ('Invite','Org').
     # A target that is the case URI itself names the same thing, so it

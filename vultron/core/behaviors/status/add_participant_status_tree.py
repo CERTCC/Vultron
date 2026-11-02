@@ -204,7 +204,7 @@ def add_participant_status_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create the behavior tree for the AddParticipantStatus workflow.
 
-    Handles receipt of an ``Add(ParticipantStatus, CaseParticipant)``
+    Handles receipt of an ``Add(ParticipantStatus)[target=CaseParticipant]``
     activity.  Implements the DEMOMA-07-003 workflow with StatusAdoptionGate
     authorization (ADR-0046, RSH-01-001 to RSH-01-004).
 

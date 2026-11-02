@@ -412,7 +412,7 @@ class _PecEffectsMixin(_ActivationArmMixin):
 
         A ``Reject(Invite(EmbargoEvent))`` is always the sender's own consent,
         the case owner's included (ADR-0122): the owner's decision for the
-        case is a separate ``Reject(EmbargoEvent, target=Case)`` that writes
+        case is a separate ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` that writes
         no consent.  It declines the named embargo's row only, whether that
         embargo is in force or proposed, and with *no* embargo in force a
         Reject of one proposal declines that proposal's row only (CM-18-001).

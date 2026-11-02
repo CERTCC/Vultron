@@ -42,6 +42,7 @@ from vultron.core.behaviors.sync.nodes import (
     CheckHashMatchesNode,
     CheckLedgerEntryAlreadyStoredNode,
     ReconstructChainTailNode,
+    SendGenesisRejectOnMissingCaseNode,
     SendRejectLogEntryNode,
 )
 from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
@@ -132,8 +133,10 @@ def _announce_verdict(
 ) -> HandlerResult:
     """Classify a finished ``AnnounceLogEntryReceivedBT`` run (HP-01-003).
 
-    ``SendRejectLogEntryNode`` always returns ``FAILURE`` after it sends, so a
-    completed reject marks an entry this replica answered with ``Reject``.
+    ``SendRejectLogEntryNode`` always returns ``FAILURE``, so a failed one
+    marks an entry the Reject arm handled: answered with a ``Reject``, or,
+    for a case this replica does not hold, with the genesis Reject withheld
+    because one was sent within the interval (SYNC-15-016).
     """
     verdict = verdict_from_bt(tree, result, label="AnnounceLogEntryReceivedBT")
     if verdict.disposition is HandlerDisposition.APPLIED:
@@ -152,6 +155,14 @@ def _announce_verdict(
     if verdict.disposition is not HandlerDisposition.REFUSED:
         return verdict
     return _refused_announce_verdict(tree, request, entry) or verdict
+
+
+def _genesis_reject_withheld(tree: py_trees.behaviour.Behaviour) -> bool:
+    """Whether the missing-case arm withheld its genesis Reject."""
+    return any(
+        isinstance(node, SendGenesisRejectOnMissingCaseNode) and node.withheld
+        for node in tree.iterate()
+    )
 
 
 def _refused_announce_verdict(
@@ -200,16 +211,30 @@ def _refused_announce_verdict(
             " (SYNC-16-007)"
         )
     if node_failed(tree, SendRejectLogEntryNode):
-        if node_failed(tree, ReconstructChainTailNode):
+        return _rejected_announce_verdict(tree, entry)
+    return None
+
+
+def _rejected_announce_verdict(
+    tree: py_trees.behaviour.Behaviour, entry: CaseLedgerEntry
+) -> HandlerResult | None:
+    """Name the Reject arm a failed announce run ended in, if either."""
+    if node_failed(tree, ReconstructChainTailNode):
+        if _genesis_reject_withheld(tree):
             return HandlerResult.refused(
-                f"case '{entry.case_id}' is not seeded here; Reject sent for"
-                " replay from genesis (SYNC-15-001)"
+                f"case '{entry.case_id}' is not seeded here; a Reject for"
+                " replay from genesis was already sent within the interval,"
+                " so none is sent again (SYNC-15-016)"
             )
-        if node_failed(tree, CheckHashMatchesNode):
-            return HandlerResult.refused(
-                f"ledger entry '{entry.id_}' does not extend the local chain"
-                " tail; Reject sent (SYNC-03-001)"
-            )
+        return HandlerResult.refused(
+            f"case '{entry.case_id}' is not seeded here; Reject sent for"
+            " replay from genesis (SYNC-15-001)"
+        )
+    if node_failed(tree, CheckHashMatchesNode):
+        return HandlerResult.refused(
+            f"ledger entry '{entry.id_}' does not extend the local chain"
+            " tail; Reject sent (SYNC-03-001)"
+        )
     return None
 
 

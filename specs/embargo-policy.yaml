@@ -2204,8 +2204,9 @@ groups:
     statement: >-
       The case owner MAY accept or reject an open revision at any time, without waiting for
       any other participant to answer the revision Invite. The owner's
-      `Accept(EmbargoEvent, target=Case)` activates the revision and the owner's
-      `Reject(EmbargoEvent, target=Case)` keeps the prior terms (MSM-07-008, MSM-07-009);
+      `Accept(EmbargoEvent)[target=VulnerabilityCase]` activates the revision and the owner's
+      `Reject(EmbargoEvent)[target=VulnerabilityCase]` keeps the prior terms
+      (MSM-07-008, MSM-07-009);
       either is committed as a ledger entry and decides the embargo. The owner's `Accept` or
       `Reject` of the revision Invite is only its own consent (MSM-07-003, MSM-07-004).
     rationale: >-

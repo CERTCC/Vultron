@@ -246,7 +246,7 @@ class TestAddObjectToCaseSemantics:
                 id="case-status",
             ),
             pytest.param(
-                # Add(ParticipantStatus, <case URI>) matches the
+                # An Add(ParticipantStatus) targeting a case URI matches the
                 # participant-status pattern, whose target is permissive;
                 # it is still not an addition to the case.
                 lambda case_id: as_ParticipantStatus(context=case_id),

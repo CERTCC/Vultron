@@ -67,7 +67,7 @@ def recommend_actor_activity(
     suggested_roles: list[str] | None = None,
     **kwargs,
 ) -> as_Offer:
-    """Build an Offer(Actor, target=VulnerabilityCase) — actor recommendation.
+    """Build an Offer(Actor)[target=VulnerabilityCase] — actor recommendation.
 
     Recommends another actor for participation in a case. The case
     owner may then accept or reject the recommendation via
@@ -193,12 +193,15 @@ def offer_case_participant_activity(
     roles: list[CVDRole] | None = None,
     **kwargs,
 ) -> as_Offer:
-    """Build an Offer(as_CaseParticipant{actor, roles}, Case) for the Case Owner.
+    """Build an Offer(CaseParticipant)[target=VulnerabilityCase] for the Case Owner.
 
-    Transforms the original ``Offer(Actor, Case)`` recommendation into a
-    typed ``Offer(as_CaseParticipant{actor, roles=[VENDOR]}, Case)`` addressed
-    to the Case Owner.  ``origin`` in ``kwargs`` SHOULD carry the ID of the
-    original ``Offer(Actor, Case)`` for causal traceability (CM-16-004).
+    Transforms the original ``Offer(Actor)[target=VulnerabilityCase]``
+    recommendation into a typed
+    ``Offer(CaseParticipant)[target=VulnerabilityCase]``, its participant
+    carrying ``roles=[VENDOR]``, addressed to the Case Owner.  ``origin`` in
+    ``kwargs`` SHOULD carry the ID of the original
+    ``Offer(Actor)[target=VulnerabilityCase]`` for causal traceability
+    (CM-16-004).
 
     Args:
         recommended: The actor being recommended as a participant.

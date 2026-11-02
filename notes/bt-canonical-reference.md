@@ -111,7 +111,8 @@ upstream of Vultron, which starts at `Offer(VulnerabilityReport)`.
 | `>_ProcessEMMessagesBt_78` + `>__HandleEt_98` | ET (embargo terminate) | `RemoveEmbargoEventFromCaseReceivedUseCase` |
 | `>_ProcessCSMessagesBt_277` | CV/CF/CD/CP/CX messages | CS-state use cases |
 
-A Participant's `Accept`/`Reject(Invite(Event))` is its own consent (PEC), handled by
+A Participant's `Accept`/`Reject(Invite(EmbargoEvent))` is its own consent (PEC),
+handled by
 `AcceptInviteToEmbargoOnCaseReceivedUseCase` and
 `RejectInviteToEmbargoOnCaseReceivedUseCase`; it has no canonical subtree, because
 the canonical tree models the case's view of the embargo, not PEC (MSM-02-010).

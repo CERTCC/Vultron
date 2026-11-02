@@ -115,6 +115,10 @@ from vultron.core.behaviors.sync.nodes.fanout import (
 )
 from vultron.core.behaviors.sync.nodes.genesis_announce import (
     AnnounceCaseOnGenesisRejectNode,
+    GenesisRejectAlreadyAnsweredNode,
+)
+from vultron.core.behaviors.sync.nodes.genesis_reject import (
+    SendGenesisRejectOnMissingCaseNode,
 )
 from vultron.core.behaviors.sync.nodes.hash_mismatch import (
     ReportHashMismatchNode,
@@ -252,6 +256,7 @@ __all__ = [
     # replay_held
     "ReplayHeldSuccessorNode",
     "SendRejectLogEntryNode",
+    "SendGenesisRejectOnMissingCaseNode",
     "CheckHashOrRejectOnMismatchNode",
     # chain
     "ReconstructChainTailNode",
@@ -270,6 +275,7 @@ __all__ = [
     "ResendOwedInvitesNode",
     # replay
     "AnnounceCaseOnGenesisRejectNode",
+    "GenesisRejectAlreadyAnsweredNode",
     # hash_mismatch (SYNC-03-010)
     "ReportHashMismatchNode",
     # reseed (SYNC-16)

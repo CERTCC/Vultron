@@ -253,7 +253,7 @@ class _OwnerDirectInvite:
     """The owner's trigger, then the CASE_MANAGER's receipt of its Offer.
 
     Under ADR-0109 the owner's container never emits as the CASE_MANAGER: the
-    owner sends its own ``Offer(Actor, Case)`` and the CASE_MANAGER's
+    owner sends its own ``Offer(Actor)[target=VulnerabilityCase]`` and the CASE_MANAGER's
     recommend-actor received tree emits the ``Invite`` (CM-17-007).  This
     harness runs both halves against two stores so a test can inspect either.
     """

@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The CASE_MANAGER's ``Invite(Actor, CaseStub)`` emit node.
+"""The CASE_MANAGER's ``Invite(Actor)[target=VulnerabilityCaseStub]`` emit node.
 
 Split out of ``actor.py`` (BTND-07-004).  Every stub Invite it emits carries a
 reply deadline (CM-11-014); a replacement issued after an embargo change names
@@ -146,7 +146,8 @@ def commit_stub_invite(
 
 
 class _StubInviteEmitBase(_EmitSingleActivityBase):
-    """Create Invite(Actor, CaseStub), queue it in this actor's outbox, and commit it.
+    """Create Invite(Actor)[target=VulnerabilityCaseStub], queue it in this actor's
+    outbox, and commit it.
 
     The shared build of :class:`EmitInviteActorToCaseNode`.  A subclass names
     the invitee (:meth:`_invitee`), the roles the Invite offers
@@ -200,12 +201,13 @@ class _StubInviteEmitBase(_EmitSingleActivityBase):
         return earlier[-1].invite_id if earlier else None
 
     def _call_factory(self) -> tuple[str, str]:
-        """Build the Invite(Actor, CaseStub) activity."""
+        """Build the Invite(Actor)[target=VulnerabilityCaseStub] activity."""
         roles = self._read_suggested_roles()
         if roles is not None and not roles:
             raise ValueError(
                 f"suggested_roles for actor '{self._invitee()}' is empty"
-                " — cannot emit Invite(Actor, CaseStub) without at least one role"
+                " — cannot emit Invite(Actor)[target=VulnerabilityCaseStub]"
+                " without at least one role"
             )
         assert self.datalayer is not None and self.actor_id is not None
         assert self.trigger_activity_factory is not None
@@ -244,7 +246,8 @@ class _StubInviteEmitBase(_EmitSingleActivityBase):
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(
-            "Actor '%s' emitted Invite(Actor, CaseStub) to '%s' for case '%s'",
+            "Actor '%s' emitted Invite(Actor)[target=VulnerabilityCaseStub]"
+            " to '%s' for case '%s'",
             self.actor_id,
             self._invitee(),
             self.case_id,
@@ -252,7 +255,8 @@ class _StubInviteEmitBase(_EmitSingleActivityBase):
 
 
 class EmitInviteActorToCaseNode(_StubInviteEmitBase):
-    """Create Invite(Actor, CaseStub), queue it in this actor's outbox, and commit it.
+    """Create Invite(Actor)[target=VulnerabilityCaseStub], queue it in this actor's
+    outbox, and commit it.
 
     Runs only in a CASE_MANAGER-gated received tree, so ``self.actor_id`` is
     the CASE_MANAGER and the store is its own (BT-05-006, CM-24-004).  The
@@ -263,8 +267,9 @@ class EmitInviteActorToCaseNode(_StubInviteEmitBase):
     the Invite ever gets (CM-17-006).  An optional ``attributed_to`` carries
     the participant who asked for the invitation (PCR-08-007).
 
-    ``answers`` names the request this Invite answers — the ``Offer(Actor,
-    Case)`` that asked for it.  Given, the Invite's id is derived from the
+    ``answers`` names the request this Invite answers — the
+    ``Offer(Actor)[target=VulnerabilityCase]`` that asked for it.  Given, the Invite's
+    id is derived from the
     CASE_MANAGER and that request, so a retry of the tree for the same request
     rebuilds the same Invite, and the outbox, finding it already pending,
     does not queue it twice (OX-06-002, ID-04-004, ADR-0119).  Absent, the

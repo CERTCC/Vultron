@@ -1,8 +1,8 @@
 """Use case for the canonical role-delegation wire format (ADR-0039).
 
-Handles ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``
+Handles ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``
 introduced by ADR-0039 as the replacement for the deprecated
-``Offer(VulnerabilityCase, target=CaseParticipant)`` format.  The Case Owner
+``Offer(VulnerabilityCase)[target=CaseParticipant]`` format.  The Case Owner
 sends it to the CASE_MANAGER, which checks it, records it and forwards it to
 the target; the target answers the CASE_MANAGER (CM-33).
 """
@@ -47,7 +47,8 @@ _LABEL = "OfferCaseParticipantRoleReceivedBT"
 
 
 class OfferCaseParticipantRoleReceivedUseCase:
-    """Handle an incoming ``Offer(CaseParticipantRole, ...)`` (ADR-0039, CM-33).
+    """Handle an incoming ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``
+    (ADR-0039, CM-33).
 
     At the CASE_MANAGER the sender must be the Case Owner (CM-33-002); at any
     other store, the target's, it must be the CASE_MANAGER forwarding it

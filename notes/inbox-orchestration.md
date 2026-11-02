@@ -56,11 +56,11 @@ drain on the container (IE-06-003). See [bt-integration](bt-integration.md) §
 
 ## Exception: Synchronous Route-Level Guards
 
-IO-03-003b forbids inbox policy in the FastAPI path, with one narrow exception: a
-**synchronous guard that refuses an activity before the 202** may live at the route,
-because the sender needs a 4xx and the check must run before `BackgroundTasks`
-schedules the handler. The addressing check (IE-11-001, ADR-0068) is the example. A
-route-level guard:
+IO-03-003b forbids inbox policy in the FastAPI path, with one narrow exception
+(IO-03-007): a **synchronous guard that refuses an activity before the 202** may live
+at the route, because the sender needs a 4xx and the check must run before
+`BackgroundTasks` schedules the handler. The addressing check (IE-11-001, ADR-0068)
+is the example. A route-level guard:
 
 - produces a synchronous HTTP response, not a flag for a downstream node;
 - does not duplicate orchestration logic that belongs in the core BT;
@@ -72,7 +72,7 @@ route-level guard:
 
 `process_payload` takes exactly two adapters (`vultron/core/behaviors/inbox/models.py`):
 `IngressPayloadAdapter` owns parse and rehydrate, keeping wire knowledge out of the BT;
-`DispatchAdapter` runs the use-case path and returns its `HandlerResult` (IO-03-001).
+`DispatchAdapter` runs the use-case path and returns its `HandlerResult` (IO-03-005).
 Collapsing them re-couples parsing to dispatch; splitting further lets callers invoke
 the steps out of order.
 
@@ -125,7 +125,7 @@ A reader that needs a received activity later loads its body: core through
 `read_received_activity` (a read-only view), a reply through
 `vultron/adapters/received_archive.py`; never under the sender's id. An activity
 deferred until its case is known is held whole in one `DeferredInboxActivity`
-(IO-03-004): the sealed received body and its staged inline rows, nothing derived
+(IO-03-009): the sealed received body and its staged inline rows, nothing derived
 from them (ADR-0149). Its replay parses the body again, so it carries the first
 delivery's evidence (VM-08-008); the replay, or the queue's expiry, deletes the
 record. A held out-of-order `Announce(CaseLedgerEntry)` (SYNC-14-001) is held the

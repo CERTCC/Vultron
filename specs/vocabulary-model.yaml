@@ -746,7 +746,7 @@ groups:
       inbound object whose `type` is registered only there.
     relationships:
     - rel_type: refines
-      spec_id: MV-04-003
+      spec_id: MV-04-004
     adr:
     - ADR-0090
   - id: VM-06-013

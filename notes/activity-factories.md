@@ -62,4 +62,4 @@ object is enriched, pass the complete domain object and let the factory derive
 the enrichment; never pre-build a partial stub in the adapter. A hand-built
 stub silently omits fields the object would have supplied: an adapter-built
 case stub once carried only the embargo URI, dropping the terms CM-17-002
-requires. Rule: AF-01-005.
+requires. Rules: AF-01-005 to AF-01-007.

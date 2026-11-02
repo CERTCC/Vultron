@@ -20,7 +20,7 @@ class keeps ``extra="forbid"`` (ARCH-12-003, MV-11-004); it simply never sees an
 inbound unknown key, because this walk removes them first.
 
 The near-miss test is exactly the normalisation above plus :data:`RETIRED_NAMES`.
-No edit distance or other similarity measure is used (MV-11-002).
+No edit distance or other similarity measure is used (MV-11-009).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -56,7 +56,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 #: The JSON-LD context key every object may carry (MV-11-001).  It is the only
 #: JSON-LD keyword that is a declared spelling: ``@id`` and ``@type`` are near
 #: misses of ``id`` and ``type`` by design, because AS2 compacts them away (AS2
-#: Core section 2.1), so they MUST NOT be declared or exempted (MV-11-002).
+#: Core section 2.1), so they MUST NOT be declared or exempted (MV-11-007).
 CONTEXT_KEY = "@context"
 
 # Field names whose values are opaque data blobs (declared ``dict[str, Any]``),
@@ -79,7 +79,7 @@ _VFD_RETIRED = (
 )
 
 #: Names the protocol once read and no longer does, mapped to the replacement
-#: a sender should use (MV-11-002, MV-11-004).  Matched by name, not by
+#: a sender should use (MV-11-002, MV-11-011).  Matched by name, not by
 #: normalisation, and the only place a received key is judged: core types
 #: carry no per-class guard for a wire key (SDO-03-009) — ``extra="forbid"``
 #: refuses these on in-process and stored data, and a renamed stored field
@@ -291,7 +291,7 @@ def resolve_inline_class(value: dict[str, Any]) -> type[BaseModel] | None:
 
     Returns ``None`` when the dict names no string ``type`` or the wire
     registry holds no class for it, which leaves the dict for its parent field
-    to validate (MV-04-003).  The lookup is ``find_in_vocabulary``'s wire-only
+    to validate (MV-04-004).  The lookup is ``find_in_vocabulary``'s wire-only
     default (VM-06-008, ISSUE-3217).  Shared by this partition, which calls it
     on the raw dict, and the parser's expansion, which calls it on the
     partitioned one; both calls answer the same class.

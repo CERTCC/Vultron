@@ -60,7 +60,8 @@ OFFER_CASE_PARTICIPANT_REPLY_TYPES: frozenset[str] = frozenset(
     }
 )
 
-#: Reply semantic types that close an ``Invite(Actor, CaseStub)`` protocol pair.
+#: Reply semantic types that close an ``Invite(Actor)[target=VulnerabilityCaseStub]``
+#: protocol pair.
 INVITE_ACTOR_TO_CASE_REPLY_TYPES: frozenset[str] = frozenset(
     {
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE.value,
@@ -147,7 +148,8 @@ class AskExpiry(StrEnum):
     """A late reply authorizes nothing; the asker must ask again."""
 
 
-#: Expiry consequence of an ``Invite(Actor, CaseStub)`` (ASK-03-002): stale.
+#: Expiry consequence of an ``Invite(Actor)[target=VulnerabilityCaseStub]``
+#: (ASK-03-002): stale.
 #: Expiry only means the CASE_MANAGER stops waiting; a late ``Accept`` still
 #: joins and a late ``Reject`` still closes the record.  The hazard of stale
 #: embargo terms is already covered by the supersede rule (CM-11-016).  The

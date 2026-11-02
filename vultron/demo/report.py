@@ -424,7 +424,7 @@ class CaseTimelineEvent(BaseModel):
         activity_target_ref: Full id of the ActivityStreams destination/target
             object — the case or participant that is the *destination* of an
             Offer/Invite (e.g. the case in
-            ``Accept(Invite(object=Org, target=Case))``).
+            ``Accept(Invite(Actor)[target=VulnerabilityCase])``).
         activity_target_type: Wire type of the destination/target object.
         received_at: Server-generated receipt timestamp (``receivedAt``).
         rm_state / em_state / vf_state / d_state / pxa_state: Resulting
@@ -469,7 +469,7 @@ class CaseTimelineEvent(BaseModel):
         raw_object = payload.get("object") or payload.get("object_")
         # Unwrap AS wrapper activities (Accept, Reject, Offer, Invite) until we
         # reach the innermost non-wrapper object (handles Accept(Offer(X))
-        # and Accept(Invite(object=X, target=Y)) chains).  Track the innermost
+        # and Accept(Invite(X)[target=Y]) chains).  Track the innermost
         # wrapper's own ``target`` field so callers of nested wrappers (e.g.
         # accept_invite_actor_to_case) still surface the destination.
         _inner_target = None

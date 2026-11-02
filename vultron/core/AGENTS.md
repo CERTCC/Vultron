@@ -13,7 +13,7 @@
 - **Handler use cases** (processing received messages): Use `Received` suffix
   (e.g., `CreateReportReceivedUseCase`). See CS-12-002.
 - **Trigger use cases** (actor-initiated actions): Use `Svc` prefix
-  (e.g., `SvcEngageCaseUseCase`). See CS-12-002.
+  (e.g., `SvcEngageCaseUseCase`). See CS-12-003.
 - **Trigger-side module functions** (e.g. `state_ledger_positions_trigger` in
   `use_cases/triggers/sync.py`): Use a `_trigger` **suffix** (not an `svc_`
   prefix). The `Svc` prefix is reserved for use-case class names only.

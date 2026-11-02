@@ -15,8 +15,8 @@
 
 """Ledger replay of the case owner's embargo decisions (RSH-08-004).
 
-The CASE_MANAGER commits the owner's ``Accept(EmbargoEvent, target=Case)``
-and ``Reject(EmbargoEvent, target=Case)`` (ADR-0122, EP-09-005) and applies
+The CASE_MANAGER commits the owner's ``Accept(EmbargoEvent)[target=VulnerabilityCase]``
+and ``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (ADR-0122, EP-09-005) and applies
 them to the canonical case.  :class:`ApplyEmbargoActivationFromLedgerNode`
 and :class:`ApplyEmbargoProposalRejectionFromLedgerNode` apply the same
 decision on a participant replica from the committed entry, so the replica's

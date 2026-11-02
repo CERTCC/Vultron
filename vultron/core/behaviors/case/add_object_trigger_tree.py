@@ -26,7 +26,7 @@ def add_object_trigger_bt(
     case_id: str,
     activity_builder: Callable[[str], list[str]],
 ) -> py_trees.behaviour.Behaviour:
-    """Return the trigger-side BT for ``Add(object, target=Case)``.
+    """Return the trigger-side BT for ``Add(object)[target=VulnerabilityCase]``.
 
     Routes the ``Add`` to the CASE_MANAGER alone through
     :func:`~vultron.core.behaviors.sender.send_tree.sender_side_bt`

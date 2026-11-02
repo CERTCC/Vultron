@@ -1250,7 +1250,7 @@ class TestPostCloseWriteBoundary:
     @pytest.mark.spec("CM-23-013")
     @pytest.mark.spec("VP-03-013")
     def test_post_close_add_note_is_refused_with_no_ledger_append(self):
-        """#3060 AC-1: a post-close Add(Note, target=Case) appends nothing.
+        """#3060 AC-1: a post-close Add(Note)[target=VulnerabilityCase] appends nothing.
 
         The note is not attached to the case and no entry is committed or
         announced; the CASE_MANAGER sends nothing back (non-Leave traffic

@@ -15,7 +15,7 @@
 
 """Precondition guards, diversions and the refusal stage (CLP-10-022/026).
 
-Split out of ``receive_activity_tree.py`` (CS-18-001).
+Split out of ``receive_activity_tree.py`` (CS-18-005).
 """
 
 from collections.abc import Sequence

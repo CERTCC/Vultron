@@ -89,6 +89,7 @@ def _received_entries():
     list(_received_entries()),
     ids=[semantics.name for semantics, _ in _received_entries()],
 )
+@pytest.mark.spec("SE-03-006")
 def test_use_case_has_sender_entitlement_declared(semantics, use_case_class):
     """Every received use case must declare ``sender_entitlement``."""
     assert hasattr(use_case_class, "sender_entitlement"), (

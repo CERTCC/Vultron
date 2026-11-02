@@ -5,8 +5,8 @@ Defines the typed return model and Protocol interfaces used by
 :func:`~vultron.core.behaviors.inbox.process_payload`.
 
 Per specs/inbox-orchestration.yaml:
-- IO-01-001 through IO-01-005: InboxOutcome model
-- IO-03-001: IngressPayloadAdapter and DispatchAdapter protocols
+- IO-01-001 through IO-01-008: InboxOutcome model
+- IO-03-001, IO-03-005: IngressPayloadAdapter and DispatchAdapter protocols
 - IO-03-002: PendingCaseQueuePort protocol
 """
 
@@ -56,7 +56,7 @@ class InboxOutcomeStatus(StrEnum):
 class InboxOutcome(BaseModel):
     """Result returned by every :func:`process_payload` call.
 
-    Per specs/inbox-orchestration.yaml IO-01-001 through IO-01-005.
+    Per specs/inbox-orchestration.yaml IO-01-001 through IO-01-008.
     """
 
     status: InboxOutcomeStatus
@@ -64,7 +64,7 @@ class InboxOutcome(BaseModel):
     activity_id: NonEmptyString | None = None
     failure_reason: str | None = None
     #: The activity's semantic type is recognized, but no use case handles
-    #: it ("no use case found", SE-05-002).  Only a ``rejected`` outcome is
+    #: it ("no use case found", SE-05-005).  Only a ``rejected`` outcome is
     #: unhandled; the driving adapter logs it at INFO, not WARNING, because
     #: the message is not invalid (IO-01-005).
     unhandled: bool = False
@@ -105,7 +105,7 @@ class IngressPayloadAdapter(Protocol):
 class DispatchAdapter(Protocol):
     """Adapter: VultronEvent → use-case execution.
 
-    Wraps the existing ActivityDispatcher port.  Per IO-03-001.
+    Wraps the existing ActivityDispatcher port.  Per IO-03-001, IO-03-005.
     """
 
     def dispatch(self, event: VultronEvent) -> HandlerResult:
@@ -151,7 +151,7 @@ class PendingCaseQueuePort(Protocol):
         """Persist *activity_id* in the deferred queue for *case_id*.
 
         The adapter holds the activity's received body for the replay, under
-        a key the receiver derives (DL-06-006, IO-03-004); a core reader
+        a key the receiver derives (DL-06-006, IO-03-009); a core reader
         loads it from there before intake archives it.
         """
         ...  # pragma: no cover

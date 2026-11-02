@@ -62,8 +62,8 @@ logger = logging.getLogger(__name__)
 
 # What add-object-to-case may send: every receive-side pattern that adds an
 # object *to a case*, less the types with their own flow (TRIG-10-001).  The
-# target check matters: ``Add(ParticipantStatus, <case URI>)`` would match the
-# participant-status pattern, whose permissive target accepts any URI.
+# target check matters: an ``Add(ParticipantStatus)`` targeting a case URI would
+# match the participant-status pattern, whose permissive target accepts any URI.
 _ADD_OBJECT_TO_CASE_SEMANTICS: frozenset[MessageSemantics] = frozenset(
     entry.semantics
     for entry in SEMANTIC_REGISTRY
@@ -170,7 +170,7 @@ class _CasesMixin:
     def add_object_to_case_semantics(
         self, object_id: str, case_id: str
     ) -> MessageSemantics:
-        """Return what a receiver would read ``Add(object, Case)`` as.
+        """Return what a receiver would read ``Add(object)[target=VulnerabilityCase]`` as.
 
         Builds the ``Add`` the trigger would send (unpersisted) and classifies
         it with the receive-side :func:`find_matching_semantics`, so the
@@ -208,7 +208,8 @@ class _CasesMixin:
         case_id: str,
         to: list[str],
     ) -> tuple[str, str]:
-        """Create and persist an ``Add(object, Case)`` activity addressed to *to*.
+        """Create and persist an ``Add(object)[target=VulnerabilityCase]`` activity
+        addressed to *to*.
 
         The object may be of any stored type; :func:`_to_wire_object` resolves
         it to the object the activity carries.  Callers check the type first
@@ -231,7 +232,7 @@ class _CasesMixin:
         case_id: str,
         to: list[str] | None,
     ) -> as_Add:
-        """Build, without persisting, the ``Add(object, Case)`` activity."""
+        """Build, without persisting, the ``Add(object)[target=VulnerabilityCase]`` activity."""
         # The case is addressed by its URI: every recipient of an Add to a
         # case already holds the case (AKM-02-002), and the sealed body is
         # delivered as built (VM-08-003), so a full case here would go on the

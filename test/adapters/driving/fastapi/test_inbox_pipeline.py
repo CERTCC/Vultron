@@ -84,7 +84,7 @@ def _base_case(case_id: str = CASE_ID) -> as_VulnerabilityCase:
 def _store_note_activity_whole(
     dl: SqliteDataLayer, note_id: str
 ) -> as_Activity:
-    """Store a case and a note, hold an Add(Note, Case); return it.
+    """Store a case and a note, hold an Add(Note)[target=VulnerabilityCase]; return it.
 
     The activity is held as the inbox holds a queued delivery, never under
     its own id (DL-06-006).

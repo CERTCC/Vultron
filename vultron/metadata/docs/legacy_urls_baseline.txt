@@ -353,6 +353,7 @@ reference/codebase/STACK.md
 reference/codebase/STRUCTURE.md
 reference/codebase/TESTING.md
 reference/codebase/index.md
+reference/configuration.md
 reference/conformance_matrix.md
 reference/conventions.md
 reference/csaf_crosswalk/_csaf_version.md

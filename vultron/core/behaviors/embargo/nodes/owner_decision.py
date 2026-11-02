@@ -15,8 +15,8 @@
 
 """The case owner's decision on an embargo proposal (ADR-0122).
 
-``Accept(EmbargoEvent, target=Case)`` activates a proposal and
-``Reject(EmbargoEvent, target=Case)`` rejects it.  These are the owner's
+``Accept(EmbargoEvent)[target=VulnerabilityCase]`` activates a proposal and
+``Reject(EmbargoEvent)[target=VulnerabilityCase]`` rejects it.  These are the owner's
 decisions for the case and have activities of their own, so
 ``Accept``/``Reject(Invite(EmbargoEvent))`` is always the sender's consent and
 no node branches on the sender to know what a message means.

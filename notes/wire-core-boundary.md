@@ -51,7 +51,7 @@ point is explicit and neither layer couples to the other's names:
 - A domain object MUST NOT inherit from an ActivityStreams base type; AS2
   serialization goes through the rendering port (CM-08-002, ARCH-20-001).
 - Wire payload classes carry the `Activity` suffix and domain event classes the
-  `Event` suffix (CS-10-002); domain class names use CVD vocabulary
+  `Event` suffix (CS-10-002, CS-10-006); domain class names use CVD vocabulary
   (CS-12-001).
 - Core event and use-case fields use domain names (`report_id`, `case_id`), not
   AS2 roles (`object_id`, `target_id`). The extractor's `ActivityPattern`
@@ -76,7 +76,7 @@ clean boundary needs an invariant test, not a target.
 ### ARCH-12-010 is a trap for wire-side callers
 
 Resolving an inline object's `type` inside a wire tree MUST consider wire-branch
-classes only (MV-04-003, VM-06-008). A hit in the core type map is a coincidence
+classes only (MV-04-004, VM-06-008). A hit in the core type map is a coincidence
 of naming, not a wire counterpart: it places a core class in a wire slot that the
 parent field then rejects, degrading the object to a bare `as_Link` (ISSUE-3217).
 

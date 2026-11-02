@@ -639,7 +639,7 @@ class TestOutOfOrderAnnounceBuffering:
         self._deliver(dl, e0, sync_port, replay)
         assert self._present_indices(dl) == {0, 1}
         assert held_depth(dl, CASE_URI) == 0
-        # The replay consumed the held body (IO-03-004).
+        # The replay consumed the held body (IO-03-009).
         assert dl.list_objects("DeferredInboxActivity") == []
 
     @pytest.mark.spec("SYNC-14-003")

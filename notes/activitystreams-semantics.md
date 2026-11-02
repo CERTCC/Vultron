@@ -64,7 +64,7 @@ A response to an Offer or Invite sets `object` to the full inline Offer/Invite
 object may travel inline or by reference on the wire (RF-02-004, RF-02-005), but
 this codebase requires the inline typed activity, not a bare ID string
 (RF-02-006, RF-02-007, a prototype shortcut): the internal Accept/Reject classes
-reject a string at construction. When the request came from
+reject a string at construction (RF-02-008, RF-02-009). When the request came from
 the DataLayer, `rehydrate(obj, dl=dl)` (`vultron/wire/as2/rehydration.py`)
 restores the nested typed objects the store dehydrated.
 
@@ -116,7 +116,7 @@ anywhere else, call `rehydrate()` before `find_matching_semantics()`.
 ## Accepting an Embargo Accepts the Invite
 
 Embargo negotiation works like a calendar invitation: the proposer sends
-`Invite(Actor, EmbargoEvent)`, invitees answer `Accept(Invite)` or
+`Invite(EmbargoEvent)[context=VulnerabilityCase]`, invitees answer `Accept(Invite)` or
 `Reject(Invite)`, and a counter-proposal is a new `Invite` with `inReplyTo` the
 original. The `object` of the Accept is the proposal `Invite`, not the
 `EmbargoEvent`. Background: `docs/topics/process_models/em/`.
@@ -136,7 +136,7 @@ separate activity or `Undo(Ignore)`. `Undo` means retracting a prior action's
 effects, whereas `DEFERRED → ACCEPTED` is a forward RM transition. See
 `docs/howto/activitypub/activities/manage_case.md`.
 
-## `Reject(Invite(actor, stub))` Carries the Stub in `inner_target`
+## `Reject(Invite(Actor)[target=VulnerabilityCaseStub])` Carries the Stub in `inner_target`
 
 `extract_event` does not populate `request.target` for the Reject (or Accept) of
 an Invite: the stub is the nested Invite's `target`, exposed as

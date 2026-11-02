@@ -65,7 +65,7 @@ def log_if_rejected(
     ``deferred`` stay at DEBUG — both are expected, routine outcomes.  An
     ``unhandled`` outcome (no use case found) is logged at INFO: the
     receiver does not handle the message, which does not make it an anomaly
-    (IO-01-005, SE-05-002).
+    (IO-01-008, SE-05-005).
     """
     if outcome.status is not InboxOutcomeStatus.REJECTED:
         return
@@ -337,7 +337,7 @@ def _retry_or_dead_letter(
         retry.clear_inbox_attempt_count(item_id)
         logger.error(
             "Inbox item activity_id=%s exhausted %d processing attempts for"
-            " actor_id=%s; moved to dead letter (IE-06-004).",
+            " actor_id=%s; moved to dead letter (IE-06-008).",
             item_id,
             total,
             actor_id,
@@ -454,7 +454,7 @@ def drain_inbox_queue(
                 logger.error(
                     "Inbox item activity_id=%s for actor_id=%s raised a"
                     " protocol violation; dropped as a permanent failure"
-                    " (IE-06-004).",
+                    " (IE-06-010).",
                     item_id,
                     actor_id,
                 )

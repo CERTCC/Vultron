@@ -101,7 +101,7 @@ def trigger_propose_embargo(
         "A participant accepts the current (or specified) embargo proposal "
         "with Accept(Invite(EmbargoEvent)), which records its own consent and "
         "moves no EM state. The case owner's accept is its decision for the "
-        "case, Accept(EmbargoEvent, target=Case), which activates the "
+        "case, Accept(EmbargoEvent)[target=VulnerabilityCase], which activates the "
         "embargo (EM state → ACTIVE). "
         "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
@@ -146,7 +146,7 @@ def trigger_accept_embargo(
         "own refusal as its Update(EmbargoConsent) of its row instead, and "
         "sends no Reject: the CASE_MANAGER's Reject of a proposal is its "
         "abandonment of it (MSM-07-017). The case owner's reject is its "
-        "decision for the case, Reject(EmbargoEvent, target=Case), which "
+        "decision for the case, Reject(EmbargoEvent)[target=VulnerabilityCase], which "
         "rejects the proposal "
         "(EM state PROPOSED → NONE or REVISE → ACTIVE, or unchanged while "
         "another proposal is open). "

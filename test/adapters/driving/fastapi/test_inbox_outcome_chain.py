@@ -128,6 +128,7 @@ def _process(
 
 
 @pytest.mark.spec("UCORG-05-011")
+@pytest.mark.spec("IO-01-007", "IO-01-006")
 def test_refused_handler_yields_rejected_with_its_reason(dl, body):
     outcome = _process(
         dl, body, _dispatcher_for(HandlerResult.refused("not a participant"))
@@ -141,6 +142,7 @@ def test_refused_handler_yields_rejected_with_its_reason(dl, body):
 @pytest.mark.parametrize(
     "verdict", [HandlerResult.applied(), HandlerResult.skipped("duplicate")]
 )
+@pytest.mark.spec("IO-01-006")
 def test_applied_or_skipped_handler_yields_processed(dl, body, verdict):
     outcome = _process(dl, body, _dispatcher_for(verdict))
 
@@ -149,6 +151,7 @@ def test_applied_or_skipped_handler_yields_processed(dl, body, verdict):
 
 
 @pytest.mark.spec("UCORG-05-011")
+@pytest.mark.spec("IO-01-006")
 def test_deferred_handler_yields_deferred(dl, body):
     outcome = _process(
         dl, body, _dispatcher_for(HandlerResult.deferred("awaiting entry 3"))
@@ -201,6 +204,7 @@ def test_remove_embargo_naming_no_case_is_refused_by_its_handler(dl):
 
 @pytest.mark.spec("UCORG-05-012")
 @pytest.mark.spec("SE-05-002")
+@pytest.mark.spec("SE-05-005")
 def test_unhandled_semantics_is_not_processed(dl, body):
     outcome = _process(dl, body, DirectActivityDispatcher(use_case_map={}))
 
@@ -240,6 +244,7 @@ def test_a_raised_dispatch_leaves_a_fault_in_the_outbox(dl, body):
 
 @pytest.mark.spec("SE-05-002")
 @pytest.mark.spec("IO-01-005")
+@pytest.mark.spec("SE-05-006")
 def test_unhandled_semantics_is_reported_not_raised(dl, body, caplog):
     """A recognized type no use case handles is a normal outcome (AC-2).
 
@@ -337,11 +342,13 @@ def test_pipeline_does_not_warn_for_routine_outcomes(
 
 @pytest.mark.spec("IO-01-005")
 @pytest.mark.spec("SE-05-002")
+@pytest.mark.spec("IO-01-008")
+@pytest.mark.spec("SE-05-005")
 def test_pipeline_reports_no_use_case_found_at_info_only(dl, body, caplog):
     """Through the driving adapter, no logger reports it at WARNING or above.
 
     The adapter logs a rejected outcome at WARNING, except an unhandled one,
-    which it logs at INFO (IO-01-005).
+    which it logs at INFO (IO-01-008).
     """
     caplog.set_level(logging.DEBUG)
     asyncio.run(

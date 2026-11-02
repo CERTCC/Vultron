@@ -15,8 +15,8 @@
 
 """Received-side BT factory for OfferCaseParticipantRole (ADR-0039, CM-33).
 
-Builds the tree for ``Offer(CaseParticipantRole, target=Actor,
-context=VulnerabilityCase)``.  The Offer reaches two stores.  At the case's
+Builds the tree for ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``.  The
+Offer reaches two stores.  At the case's
 CASE_MANAGER it is the Case Owner's own Offer: the CASE_MANAGER checks it,
 commits it and forwards it to the target (CM-33-001 to CM-33-003).  At the
 target it is the CASE_MANAGER's forward: the target answers it, to the

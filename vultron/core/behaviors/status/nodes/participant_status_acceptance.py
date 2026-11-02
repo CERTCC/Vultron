@@ -15,7 +15,7 @@
 
 """Whole accept or reject for a received ParticipantStatus (RSH-09, ADR-0107).
 
-An inbound ``Add(ParticipantStatus, CaseParticipant)`` states the sender's whole
+An inbound ``Add(ParticipantStatus)[target=CaseParticipant]`` states the sender's whole
 status, so the CASE_MANAGER accepts it as sent or refuses all of it
 (RSH-09-001).  It never records a status the sender did not send: a status
 rewritten before it is recorded is one nobody asserted, and the ledger exists

@@ -16,7 +16,7 @@
 """The case owner's Reject of an open embargo proposal (EP-08-003).
 
 :class:`OwnerRejectionAppliesNode` trial-applies the owner's
-``Reject(EmbargoEvent, target=Case)`` (ER or EJ, ADR-0122) among the
+``Reject(EmbargoEvent)[target=VulnerabilityCase]`` (ER or EJ, ADR-0122) among the
 received tree's guards, with the termination it causes after disclosure
 (EMB-04-002); :class:`DecideRejectedEmbargoProposalNode` applies the
 ``REJECT`` step as the CASE_MANAGER (a replica copies the committed step,
@@ -64,7 +64,7 @@ class DecideRejectedEmbargoProposalNode(
 ):
     """Apply the case owner's rejection of an open proposal (ER / EJ, EP-08-003).
 
-    The effect of ``Reject(EmbargoEvent, target=Case)``, which only the case
+    The effect of ``Reject(EmbargoEvent)[target=VulnerabilityCase]``, which only the case
     owner sends (ADR-0122); the received tree's sender guard has already
     established that.  Calls ``EmbargoLifecycle.reject_embargo_proposal``,
     which drives ``PROPOSED → NONE`` or ``REVISE → ACTIVE`` — or, while

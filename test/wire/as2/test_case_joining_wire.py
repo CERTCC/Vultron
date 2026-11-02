@@ -116,7 +116,7 @@ def test_stub_invite_target_has_its_own_type_and_id() -> None:
 
 @pytest.mark.spec("CM-11-011")
 def test_full_case_invite_replies_have_their_own_semantics() -> None:
-    """RV, RI and RC replies to ``Invite(Actor, VulnerabilityCase)`` route apart.
+    """RV, RI and RC replies to ``Invite(Actor)[target=VulnerabilityCase]`` route apart.
 
     The CASE_MANAGER records the three full-case replies as three different
     RM transitions (``R → V``, ``R → I``, ``R → C``), so the receiver must

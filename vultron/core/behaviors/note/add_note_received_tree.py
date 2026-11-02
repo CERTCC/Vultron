@@ -20,7 +20,7 @@ The canonical notification mechanism for note additions is
 (SYNC-02-002), **not** a direct ``AddNoteToCase`` broadcast to participants.
 Only the CaseActor may update the canonical case replica; non-CaseActor
 participants must not modify their local replica directly from
-``Add(Note, Case)`` messages.
+``Add(Note)[target=VulnerabilityCase]`` messages.
 See ``notes/case-communication-model.md`` for the full communication model.
 """
 
@@ -57,10 +57,11 @@ def create_add_note_to_case_received_tree(
     """Single-BT received-side tree for AddNoteToCase (ADR-0022, ADR-0111).
 
     Only the CaseActor (actor holding ``CVDRole.CASE_MANAGER``) commits a
-    canonical ``CaseLedgerEntry`` for the ``Add(Note, Case)`` and attaches the
+    canonical ``CaseLedgerEntry`` for the ``Add(Note)[target=VulnerabilityCase]`` and
+    attaches the
     note to the local case replica; the entry's ``Announce`` fan-out (via
     ``sync_port``) notifies all participants.  Non-CaseActors MUST NOT update
-    their case replica directly from ``Add(Note, Case)`` messages — they
+    their case replica directly from ``Add(Note)[target=VulnerabilityCase]`` messages — they
     receive the note attachment notification exclusively via
     ``Announce(CaseLedgerEntry)`` fan-out (SYNC-02-002).
 

@@ -86,21 +86,21 @@ class ActorConfig(BaseModel):
     Attributes:
         default_case_roles: CVD roles assigned to the local actor when it
             creates or receives ownership of a ``VulnerabilityCase``.
-            Defaults to an empty list; ``CVDRole.CASE_OWNER`` is always
+            Defaults to an empty list.  ``CVDRole.CASE_OWNER`` is always
             appended at participant-creation time (BTND-05-002).
-        auto_create_case: When ``True`` (default), create a
-            ``VulnerabilityCase`` immediately on ``Offer(Report)`` receipt
-            (CM-15-001 default; CM-12-001, CM-22-001).  When ``False``, defer
-            case creation so the receiver can send a pre-case ACK
-            (``Read(Offer(Report))``, VAM-02-003) before deciding to accept or
-            reject (CM-15-002, CM-15-003; ADR-0015, issue #1133).
+        auto_create_case: When ``True``, create a ``VulnerabilityCase``
+            immediately on ``Offer(Report)`` receipt (CM-15-001, CM-12-001,
+            CM-22-001).  When ``False``, defer case creation so the receiver
+            can send a pre-case ACK (``Read(Offer(Report))``, VAM-02-003)
+            before deciding to accept or reject (CM-15-002, CM-15-003;
+            ADR-0015).  Defaults to ``True``.
         case_actor_service_url: Base URL of the dedicated CaseActor service
             (e.g. ``http://case-actor:7999/api/v2``).  The CaseActor's identity is
             ``{this}/actors/case-actor`` — one per container, no per-case slug
-            (CP-04-005, #1872).  Required for any actor whose BT may run the
-            ``engage-case`` path.  When ``None``, the nodes that need it return
-            ``FAILURE`` with a clear error rather than guessing a base URL, since
-            a guessed identity is one no container hosts (CP-08-001, CP-08-002).
+            (CP-04-005).  Required for any actor whose BT may run the
+            ``engage-case`` path.  When it is ``None``, the nodes that need it
+            fail with a clear error rather than guess a base URL, since a
+            guessed identity is one no container hosts (CP-08-001, CP-08-002).
         protocol_default_embargo_duration: Embargo duration applied at case
             creation when neither a sender proposal nor an actor default
             (published ``EmbargoPolicy``) applies.  Constrained to

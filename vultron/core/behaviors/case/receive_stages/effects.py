@@ -17,7 +17,7 @@
 
 ``replica_effects`` run on every replica, ungated; ``manager_effects`` run
 inside the CASE_MANAGER gate the factory builds here.  Split out of
-``receive_activity_tree.py`` (CS-18-001).
+``receive_activity_tree.py`` (CS-18-005).
 """
 
 import py_trees

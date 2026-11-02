@@ -629,7 +629,7 @@
         "type": "object"
       },
       "OfferCaseParticipantRoleRequest": {
-        "description": "Request body for the offer-case-participant-role trigger endpoint (ADR-0039).\n\nEmits ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``\nfrom the requesting actor.  ``role`` is required: it has no default, since\nthe CASE_MANAGER refuses an Offer of ``CASE_OWNER`` or ``CASE_MANAGER``\nand reads no missing role as a default (CM-33-003).",
+        "description": "Request body for the offer-case-participant-role trigger endpoint (ADR-0039).\n\nEmits ``Offer(CaseParticipantRole)[context=VulnerabilityCase]``, whose\n``target`` is ``target_actor_id``, from the requesting actor.  ``role`` is\nrequired: it has no default, since the CASE_MANAGER refuses an Offer of\n``CASE_OWNER`` or ``CASE_MANAGER`` and reads no missing role as a default\n(CM-33-003).",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -1487,7 +1487,7 @@
     },
     "/api/v2/actors/{actor_id}/demo/notify-fix-deployed": {
       "post": {
-        "description": "Demo-only scaffold. Self-reports VFD state VFD (fix deployed) to the Case Manager via Add(ParticipantStatus, CaseParticipant). Only available in ``RunMode.PROTOTYPE``. Spec: DEMOMA-07-001.",
+        "description": "Demo-only scaffold. Self-reports VFD state VFD (fix deployed) to the Case Manager via Add(ParticipantStatus)[target=CaseParticipant]. Only available in ``RunMode.PROTOTYPE``. Spec: DEMOMA-07-001.",
         "operationId": "actors_demo_notify_fix_deployed",
         "parameters": [
           {
@@ -1540,7 +1540,7 @@
     },
     "/api/v2/actors/{actor_id}/demo/notify-fix-ready": {
       "post": {
-        "description": "Demo-only scaffold. Self-reports VFD state VFd (fix ready, not yet deployed) to the Case Manager via Add(ParticipantStatus, CaseParticipant). Only available in ``RunMode.PROTOTYPE``. Spec: DEMOMA-07-001.",
+        "description": "Demo-only scaffold. Self-reports VFD state VFd (fix ready, not yet deployed) to the Case Manager via Add(ParticipantStatus)[target=CaseParticipant]. Only available in ``RunMode.PROTOTYPE``. Spec: DEMOMA-07-001.",
         "operationId": "actors_demo_notify_fix_ready",
         "parameters": [
           {
@@ -1593,7 +1593,7 @@
     },
     "/api/v2/actors/{actor_id}/demo/notify-published": {
       "post": {
-        "description": "Demo-only scaffold. Self-reports VFD=VFD and PXA=Pxa (public aware) to the Case Manager via Add(ParticipantStatus, CaseParticipant). Only available in ``RunMode.PROTOTYPE``. Spec: DEMOMA-07-001.",
+        "description": "Demo-only scaffold. Self-reports VFD=VFD and PXA=Pxa (public aware) to the Case Manager via Add(ParticipantStatus)[target=CaseParticipant]. Only available in ``RunMode.PROTOTYPE``. Spec: DEMOMA-07-001.",
         "operationId": "actors_demo_notify_published",
         "parameters": [
           {
@@ -1911,7 +1911,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/accept-embargo": {
       "post": {
-        "description": "Triggers the accept-embargo behavior for the given actor. A participant accepts the current (or specified) embargo proposal with Accept(Invite(EmbargoEvent)), which records its own consent and moves no EM state. The case owner's accept is its decision for the case, Accept(EmbargoEvent, target=Case), which activates the embargo (EM state \u2192 ACTIVE). Returns the resulting activity in the response body (TRIG-04-001).",
+        "description": "Triggers the accept-embargo behavior for the given actor. A participant accepts the current (or specified) embargo proposal with Accept(Invite(EmbargoEvent)), which records its own consent and moves no EM state. The case owner's accept is its decision for the case, Accept(EmbargoEvent)[target=VulnerabilityCase], which activates the embargo (EM state \u2192 ACTIVE). Returns the resulting activity in the response body (TRIG-04-001).",
         "operationId": "actors_trigger_accept_embargo",
         "parameters": [
           {
@@ -2070,7 +2070,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/add-object-to-case": {
       "post": {
-        "description": "Adds any existing AS2 object (identified by ``object_id``) to a VulnerabilityCase and queues an Add(object, target=case) activity in the actor's outbox addressed to the case's CASE_MANAGER alone, which commits it and replicates it to the participants (PCR-08-005). The object must already exist in the actor's datalayer. Returns 422 and queues nothing when no receiver would route the object as an addition to the case, when its type has its own flow (EmbargoEvent, CaseParticipant, CaseStatus), or when the case has no CASE_MANAGER. Type-specific convenience triggers (e.g., ``add-report-to-case``) delegate here after performing type validation (TRIG-10-001).",
+        "description": "Adds any existing AS2 object (identified by ``object_id``) to a VulnerabilityCase and queues an Add(object)[target=VulnerabilityCase] activity in the actor's outbox addressed to the case's CASE_MANAGER alone, which commits it and replicates it to the participants (PCR-08-005). The object must already exist in the actor's datalayer. Returns 422 and queues nothing when no receiver would route the object as an addition to the case, when its type has its own flow (EmbargoEvent, CaseParticipant, CaseStatus), or when the case has no CASE_MANAGER. Type-specific convenience triggers (e.g., ``add-report-to-case``) delegate here after performing type validation (TRIG-10-001).",
         "operationId": "actors_trigger_add_object_to_case",
         "parameters": [
           {
@@ -2123,7 +2123,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/add-on-behalf-status": {
       "post": {
-        "description": "A Case Manager or Case Owner records, on behalf of an existing participant, the vendor's awareness (``vf_state=\"Vf\"``, v\u2192V; PRM-06-003; typically for an invitee that has not yet replied) or the deployer's deployment (``d_state=\"D\"``, d\u2192D; PRM-06-004; only for a deployer at RM Accepted, Deferred or Closed). The target must already be a participant holding the asserted role: a non-participant target is refused and no participant is created (PRM-06-006, ADR-0121). Writes a ParticipantStatus for the target and queues an Add(ParticipantStatus, target=CaseParticipant) activity to the Case Manager. Fix readiness (``vf_state=\"VF\"``, f\u2192F) is refused: it is only ever self-declared by the Vendor (PRM-06-005). Returns the ids of the queued activity and the stored status.",
+        "description": "A Case Manager or Case Owner records, on behalf of an existing participant, the vendor's awareness (``vf_state=\"Vf\"``, v\u2192V; PRM-06-003; typically for an invitee that has not yet replied) or the deployer's deployment (``d_state=\"D\"``, d\u2192D; PRM-06-004; only for a deployer at RM Accepted, Deferred or Closed). The target must already be a participant holding the asserted role: a non-participant target is refused and no participant is created (PRM-06-006, ADR-0121). Writes a ParticipantStatus for the target and queues an Add(ParticipantStatus)[target=CaseParticipant] activity to the Case Manager. Fix readiness (``vf_state=\"VF\"``, f\u2192F) is refused: it is only ever self-declared by the Vendor (PRM-06-005). Returns the ids of the queued activity and the stored status.",
         "operationId": "actors_trigger_add_on_behalf_status",
         "parameters": [
           {
@@ -2600,7 +2600,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/offer-case-participant-role": {
       "post": {
-        "description": "Emits Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase) from the requesting actor.  This is the canonical role-delegation wire format introduced by ADR-0039, replacing the deprecated offer-case-manager-role endpoint.  The Offer is addressed to the case's CASE_MANAGER, which forwards it to the target.  The ``role`` field is required, and the CASE_MANAGER refuses an Offer of ``CASE_OWNER`` or ``CASE_MANAGER`` (CM-33-003).  See SE-08-003.",
+        "description": "Emits Offer(CaseParticipantRole)[context=VulnerabilityCase], whose ``target`` is the actor offered the role, from the requesting actor.  This is the canonical role-delegation wire format introduced by ADR-0039, replacing the deprecated offer-case-manager-role endpoint.  The Offer is addressed to the case's CASE_MANAGER, which forwards it to the target.  The ``role`` field is required, and the CASE_MANAGER refuses an Offer of ``CASE_OWNER`` or ``CASE_MANAGER`` (CM-33-003).  See SE-08-003.",
         "operationId": "actors_trigger_offer_case_participant_role",
         "parameters": [
           {
@@ -2918,7 +2918,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/reject-embargo": {
       "post": {
-        "description": "Triggers the reject-embargo behavior for the given actor. A participant rejects the current (or specified) embargo proposal with Reject(Invite(EmbargoEvent)), which records its own refusal and moves no EM state. A CASE_MANAGER that is not the owner records its own refusal as its Update(EmbargoConsent) of its row instead, and sends no Reject: the CASE_MANAGER's Reject of a proposal is its abandonment of it (MSM-07-017). The case owner's reject is its decision for the case, Reject(EmbargoEvent, target=Case), which rejects the proposal (EM state PROPOSED \u2192 NONE or REVISE \u2192 ACTIVE, or unchanged while another proposal is open). When the owner is also the CASE_MANAGER and rejects the last open revision while CS is public, exploited, or attacked, the rejection also terminates the embargo in the same act (EM \u2192 EXITED), committed as the Reject entry followed by the owner's ET Remove(EmbargoEvent) entry; a refused termination commits neither (MSM-07-032, EMB-04-002). Returns the resulting activity in the response body (TRIG-04-001).",
+        "description": "Triggers the reject-embargo behavior for the given actor. A participant rejects the current (or specified) embargo proposal with Reject(Invite(EmbargoEvent)), which records its own refusal and moves no EM state. A CASE_MANAGER that is not the owner records its own refusal as its Update(EmbargoConsent) of its row instead, and sends no Reject: the CASE_MANAGER's Reject of a proposal is its abandonment of it (MSM-07-017). The case owner's reject is its decision for the case, Reject(EmbargoEvent)[target=VulnerabilityCase], which rejects the proposal (EM state PROPOSED \u2192 NONE or REVISE \u2192 ACTIVE, or unchanged while another proposal is open). When the owner is also the CASE_MANAGER and rejects the last open revision while CS is public, exploited, or attacked, the rejection also terminates the embargo in the same act (EM \u2192 EXITED), committed as the Reject entry followed by the owner's ET Remove(EmbargoEvent) entry; a refused termination commits neither (MSM-07-032, EMB-04-002). Returns the resulting activity in the response body (TRIG-04-001).",
         "operationId": "actors_trigger_reject_embargo",
         "parameters": [
           {

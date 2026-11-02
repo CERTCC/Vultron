@@ -287,7 +287,7 @@ def reject_invite_to_embargo_tree(
     consent under the MSM-07-004 rule: the named embargo's row becomes
     ``DECLINED`` and nothing else moves.  It decides no proposal: the owner's
     rejection for the case is
-    ``Reject(EmbargoEvent, target=Case)``
+    ``Reject(EmbargoEvent)[target=VulnerabilityCase]``
     (``reject_embargo_proposal_on_case_tree``).
 
     Args:

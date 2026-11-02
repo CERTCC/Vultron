@@ -173,7 +173,8 @@ groups:
       segment.
     rationale: >-
       The py_trees blackboard is global to the process. A tree factory can run
-      concurrently, for example for two `Offer(Actor, Case)` messages that the actor
+      concurrently, for example for two `Offer(Actor)[target=VulnerabilityCase]`
+      messages that the actor
       handles in parallel. Then both tree instances share one blackboard namespace. The
       first instance can write a flat key such as `suggested_roles`, and the second
       instance can overwrite it before the first instance reads it. Then the Case Owner
