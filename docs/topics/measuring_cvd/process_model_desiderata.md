@@ -184,16 +184,16 @@ A case that ends its embargo at a quorum fails the desideratum once for each tra
 The measure should count each of these failures.
 
 A lesser outcome is also worth observing.
-The case owner can end the embargo early because a quorum of vendors has a fix ready.
+The Case Owner can end the embargo early because a quorum of vendors has a fix ready.
 The terminated embargo then records the cause `FIX_READY`, with the vendors whose readiness made the quorum (EMB-13-004).
 
 But the protocol does not define a quorum.
-The `FIX_READY` cause is a claim of the case owner, and the CASE_MANAGER records it as given (EMB-13-005).
+The `FIX_READY` cause is a claim of the Case Owner, and the CASE_MANAGER records it as given (EMB-13-005).
 Thus a measure can count the cases that ended at a claimed quorum, but it cannot judge whether the quorum was sufficient.
 
 ### A rule that this page does not propose
 
-A participant SHOULD NOT close its report while an embargo is active, unless it first tells the others that it is closing and what its embargo stance is (RMB-14-003).
+A participant SHOULD NOT close its report while an embargo is active, unless it first tells the others that it is closing and whether its Embargo Consent continues (RMB-14-003).
 This page does not make $\evEx \prec \evC_i$ a desideratum.
 The desideratum would reward a bad pattern: a participant publishes early, the embargo ends, and then the participant closes its report.
 
@@ -202,8 +202,8 @@ A participant that publishes early makes the case fail $\evExOwn \prec \evP$.
 A vendor that closes its report without a fix fails $\evF_i \prec \evExOwn$.
 Also, a closed participant that agreed to the embargo is still bound by the embargo.
 
-The case owner cannot close the case while an embargo is active, because the CASE_MANAGER refuses the close (CM-23-011).
-Thus the rule that the case owner does not close the case while an embargo is active is a conformance ordering, not a desideratum.
+The Case Owner cannot close the case while an embargo is active, because the CASE_MANAGER refuses the close (CM-23-011).
+Thus the rule that the Case Owner does not close the case while an embargo is active is a conformance ordering, not a desideratum.
 
 ---
 
@@ -323,7 +323,7 @@ A history that breaks a conformance ordering shows a defect in an implementation
 | The case is initialized before anyone else is invited and before any embargo change | CM-14-007 |
 | An embargo end time is set before an embargo-eligible case reaches RM Valid | DUR-07-004 |
 | $\evS_k$ before any case content sent to $k$, while an embargo is active | CM-10-004, CM-10-005 |
-| The case owner does not close the case while an embargo is active | CM-23-011 |
+| The Case Owner does not close the case while an embargo is active | CM-23-011 |
 
 Case content includes case ledger entries, case announcements, status broadcasts, and embargo announcements.
 Participants SHOULD NOT share the report by other routes with a participant that has not agreed to the embargo either (VP-08-006, EMB-11-001).

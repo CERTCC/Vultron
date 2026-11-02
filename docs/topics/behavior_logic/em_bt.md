@@ -134,7 +134,7 @@ It returns to $q^{em} \in N$ and emits a related $ER$ message.
 
 (F) The process in the *Active* ($q^{em} \in A$) state is also simple.
 If there is a reason to [terminate](em_terminate_bt.md) the embargo, the tree terminates it.
-Otherwise, the tree checks whether the current embargo terms are acceptable.
+Otherwise, the tree checks whether the Active Embargo's terms are acceptable.
 If they are not, the tree proposes a new embargo.
 
 (G) Last, the tree handles the *Revise* EM state ($q^{em} \in R$).

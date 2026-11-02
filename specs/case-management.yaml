@@ -98,13 +98,14 @@ groups:
   - id: CM-02-004
     priority: MUST
     kind: protocol
-    statement: CASE_MANAGER MUST know the case owner
+    statement: CASE_MANAGER MUST know the Case Owner
     rationale: >-
       Only the Case Owner can do some case actions (CM-02-005). The CASE_MANAGER can
       enforce this only if it knows the Case Owner. The case records the Case Owner in
       `attributed_to`.
     verification: Inspection of `vultron/core/models/case.py` confirms that
-      `VulnerabilityCase.attributed_to` records the case owner and is readable by the CASE_MANAGER.
+      `VulnerabilityCase.attributed_to` records the Case Owner and is readable by the
+      CASE_MANAGER.
     stories:
     - story_2022_046
     - story_2022_047
@@ -114,10 +115,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      CASE_MANAGER MUST restrict the following activities to the case owner: case closure,
-      approving an embargo proposal to become active on the case and terminating an active embargo,
-      approving or rejecting participant invitations, case ownership transfer, and offering a
-      participant an additional role (CM-33-002) (see CM-02-006 for the authorisation
+      CASE_MANAGER MUST restrict the following activities to the Case Owner: case
+      closure, approving an embargo proposal to become active on the case and
+      terminating an active embargo, approving or rejecting participant invitations,
+      case ownership transfer, and offering a participant an additional role
+      (CM-33-002) (see CM-02-006 for the authorisation
       mechanism).
     rationale: >-
       These actions decide who learns about the vulnerability, under what embargo, and
@@ -126,7 +128,7 @@ groups:
       the case, change the embargo, admit a party that nobody checked, or take the case.
     verification: Integration tests in `test/demo/` confirm that case closure, embargo approval,
       participant invitation approval, and ownership transfer are only executed when triggered
-      by the case owner.
+      by the Case Owner.
     scope:
     - production
     stories:
@@ -1637,7 +1639,7 @@ groups:
     statement: >-
       When the active embargo is activated, revised or terminated while a stub
       Invite is outstanding, the CASE_MANAGER MUST re-issue the stub Invite on
-      the same participant record with the current embargo terms and a new
+      the same participant record with the embargo terms that now apply and a new
       deadline, and the replacement MUST name the Invite it supersedes by
       setting its `inReplyTo` to that Invite's id. The
       CASE_MANAGER MUST refuse an `Accept` of a superseded stub Invite, naming
@@ -1663,6 +1665,10 @@ groups:
       of it honoured.
     adr:
     - ADR-0114
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5645, which only rewords its
+    # embargo terms; the split into one obligation per ID belongs to #5217.
+    - compound_statement
     stories:
     - story_2022_014
     - story_2022_023
@@ -3277,7 +3283,7 @@ groups:
       decline of a shorter revision objects to the loss of time, not to the embargo. A
       row whose embargo is final records the past. Thus a participant cannot give more
       consent to it. The CASE_MANAGER answers a late Accept of such terms with an
-      invitation to the current embargo (EMB-17-003). A lapse and a termination are not
+      invitation to the Active Embargo (EMB-17-003). A lapse and a termination are not
       triggers. They are derived (CM-18-001, CM-18-016).
     verification: >-
       Inspection of `vultron/core/states/participant_embargo_consent.py` confirms that the
