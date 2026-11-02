@@ -2039,8 +2039,8 @@ groups:
     verification: >-
       `test_submit_report_trailing_slash_recipient_creates_case` in
       `test/core/use_cases/received/test_submit_report_received.py` addresses
-      an `Offer(VulnerabilityReport)` to the receiver with a trailing slash and asserts the
-      case is created; `test/core/predicates/test_addressing.py` pins the
+      an `Offer(VulnerabilityReport)` to the receiver with a trailing slash and
+      asserts the case is created; `test/core/predicates/test_addressing.py` pins the
       comparison.
     relationships:
     - rel_type: refines

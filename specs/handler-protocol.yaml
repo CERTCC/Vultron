@@ -220,8 +220,8 @@ groups:
       CASE_MANAGER-addressed message at an actor that is not the case's CASE_MANAGER.
       Another is a copy of an activity whose `to` does not name the receiving actor.
       `cc`, `bto` and `bcc` address no Vultron recipient (OX-08-001, ADR-0109). A
-      `cc`-only receiver thus holds such a copy, of an `Offer(VulnerabilityReport)` (HP-09-001,
-      HP-09-002, HP-10-001) as of any other activity.
+      `cc`-only receiver thus holds such a copy, of an `Offer(VulnerabilityReport)`
+      (HP-09-001, HP-09-002, HP-10-001) as of any other activity.
     rationale: >-
       The disposition is the receiver's report on its own handling (HP-01-004). If
       the receiver cannot act on a message, the sender addressed it to the wrong
@@ -235,9 +235,10 @@ groups:
       handler at a receiver that is not the CASE_MANAGER, or not an entitled addressee, and
       assert `REFUSED` with no protocol effect: an empty outbox and no case-state write.
       There is one deliberate retention: `Offer(VulnerabilityReport)`, whose handler
-      stores the report and the Offer before the addressing check so that a receiver with
-      `auto_create_case` off keeps the data for a later explicit decision (CM-15-002); the
-      refused receipt still proposes no case. A `Join(VulnerabilityCase)` names its case
+      stores the report and the Offer before the addressing check so that a
+      receiver with `auto_create_case` off keeps the data for a later explicit
+      decision (CM-15-002); the refused receipt still proposes no case. A
+      `Join(VulnerabilityCase)` names its case
       and carries no snapshot to hold (ADR-0165), so a refused one stores nothing. A
       control test per handler shows the CASE_MANAGER or entitled addressee still acts.
     adr:

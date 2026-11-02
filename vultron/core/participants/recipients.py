@@ -54,9 +54,10 @@ Record precedence matches it: the stored record first, an inline copy only as
 the fallback.
 
 The report tree's own ``Create(VulnerabilityCase)``
-(``case_creation.CreateCaseActivity``) does not come here: ``case_creation._collect_create_case_addressees``
-builds its addressees from the actor, the report and the offer rather than
-the roster, and every one of them is seated at case initialization.
+(``case_creation.CreateCaseActivity``) does not come here:
+``case_creation._collect_create_case_addressees`` builds its addressees from the
+actor, the report and the offer rather than the roster, and every one of them
+is seated at case initialization.
 
 The sender check reads the same records: :func:`may_act_on_case` is the one
 predicate behind the ``ACTIVE_PARTICIPANT`` sender standing (CM-23-020), so a

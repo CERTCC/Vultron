@@ -136,7 +136,8 @@ class TestAckReportNoStandaloneStatus:
 
 
 class TestFullReportFlow:
-    """Integration test: Offer(VulnerabilityReport) receipt → ValidateReport full flow.
+    """Integration test: Offer(VulnerabilityReport) receipt → ValidateReport full
+    flow.
 
     Per IDEA-260408-01-7 and ADR-0015:
     1. SubmitReportReceivedUseCase creates a as_VulnerabilityCase at RM.RECEIVED.
