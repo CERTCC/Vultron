@@ -812,10 +812,10 @@ class TestRolesThreadingIntegration:
 class TestInviteRetrySendsOnce:
     """A retried invite sends its Invite once and records it once (OX-06-002).
 
-    ADR-0119 records a sent act after it reaches the outbox, so a retry after
-    a send whose commit failed finds the Invite already queued.  The
+    ADR-0119 records a sent act after it reaches the outbox, in the same act,
+    so a send whose commit failed leaves nothing queued (OX-03-002).  The
     CASE_MANAGER derives the Invite's id from the owner's Offer, so the retry
-    rebuilds the same Invite, and the outbox does not queue it a second time.
+    rebuilds the same Invite, and the outbox queues it once.
     """
 
     @staticmethod
