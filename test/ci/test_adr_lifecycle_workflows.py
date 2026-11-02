@@ -1,6 +1,6 @@
 """CI verification test — the ADR epoch checks run as built (MS-14-007).
 
-The clock alone never fails a merge-blocking check (ARCH-18-004):
+The clock alone never fails a merge-blocking check (ARCH-18-009):
 
 - a pull request that materially edits an ADR fails when it leaves the status
   off its epoch, and one that gives a ``proposed`` ADR its first test-verified
