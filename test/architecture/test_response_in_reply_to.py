@@ -57,7 +57,8 @@ _RESPONSE_BASES = (
     as_TentativeReject,
 )
 
-# Response classes that build with no ``inReplyTo`` today (#5641).
+# Response classes that build with no ``inReplyTo`` today.
+# owner: #5641
 _KNOWN_GAP = frozenset(
     {
         "_AcceptActorRecommendationActivity",
