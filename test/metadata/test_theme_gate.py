@@ -23,6 +23,7 @@ from vultron.metadata.planning.theme_fit.gate import (
     ParentIssue,
     fetch_parent,
     gate_findings,
+    load_spec_topics,
     main,
     split_labels,
 )
@@ -67,6 +68,7 @@ _ALPHA_BODY = "Theme: theme:alpha — makes alpha work.\n\nDetails."
 _IDEA = "Design idea: one parser feeds every alpha check."
 _ALPHA_EPIC_BODY = f"{_ALPHA_BODY}\n{_IDEA}"
 _ALPHA_TITLE = "Alpha checks agree on every input"
+_TOPICS = frozenset({"PAD", "SYNC"})
 
 
 @pytest.fixture
@@ -255,7 +257,12 @@ class TestEpicForm:
     ) -> list[FindingKind]:
         return _kinds(
             gate_findings(
-                ["theme:alpha"], body, catalog, title=title, epic=True
+                ["theme:alpha"],
+                body,
+                catalog,
+                title=title,
+                epic=True,
+                spec_topics=_TOPICS,
             )
         )
 
@@ -267,8 +274,21 @@ class TestEpicForm:
             "Alpha checks agree, as ADR 12 says",
             "Alpha checks meet PAD-02-030",
             "Messages arrive in any order (SYNC-19)",
+            "Alpha checks agree, as adr-0099 says",
+            "Alpha checks agree, as ADR\u20130099 says",
+            "Alpha checks meet pad-02-030",
+            "Messages arrive in any order (sync-19)",
         ],
-        ids=["adr-number", "adr-spaced", "spec-id", "group-id"],
+        ids=[
+            "adr-number",
+            "adr-spaced",
+            "spec-id",
+            "group-id",
+            "adr-lowercase",
+            "adr-en-dash",
+            "spec-id-lowercase",
+            "group-id-lowercase",
+        ],
     )
     def test_an_id_in_the_title_is_refused(
         self, catalog: ThemeCatalog, title: str
@@ -282,8 +302,9 @@ class TestEpicForm:
             "Vultron cases and CSAF 2.1 documents translate into each other",
             "Peers reject CVE-2024-1234 reports with SHA-256 mismatches",
             "Readers can map Vultron states onto CVSS and AS2",
+            "Titles keep UTF-16 text and COVID-19 notes over TLS-13",
         ],
-        ids=["version", "cve-and-hash", "acronyms"],
+        ids=["version", "cve-and-hash", "acronyms", "not-a-spec-topic"],
     )
     def test_id_shaped_words_that_are_not_ids_pass(
         self, catalog: ThemeCatalog, title: str
@@ -356,6 +377,61 @@ class TestEpicForm:
         ]
 
     @pytest.mark.spec("PAD-02-034")
+    def test_a_cut_down_copy_of_the_title_is_refused(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        title = "Alpha checks agree on every input from every source"
+        body = (
+            f"{_ALPHA_BODY}\nDesign idea: alpha checks agree on every input."
+        )
+        assert self._gate(catalog, title=title, body=body) == [
+            FindingKind.DESIGN_IDEA_REPEATS
+        ]
+
+    @pytest.mark.spec("PAD-02-034")
+    def test_the_line_under_its_own_heading_is_not_a_repeat(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        body = f"{_ALPHA_BODY}\n\n## Design idea\n\n{_IDEA}\n\n## Children\n"
+        assert self._gate(catalog, body=body) == []
+
+    @pytest.mark.spec("PAD-02-034")
+    def test_a_fenced_comment_does_not_end_the_section(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        body = (
+            f"{_ALPHA_EPIC_BODY}\n\n## Design idea\n\n```sh\n# setup\n```\n"
+            "One parser feeds every alpha check.\n"
+        )
+        assert self._gate(catalog, body=body) == [
+            FindingKind.DESIGN_SECTION_REPEATS
+        ]
+
+    @pytest.mark.spec("PAD-02-038")
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "**Design idea:** one parser.",
+            "- Design idea: one parser.",
+            "design idea: x",
+        ],
+        ids=["bold", "bulleted", "lowercase"],
+    )
+    def test_a_near_miss_line_is_named(
+        self, catalog: ThemeCatalog, line: str
+    ) -> None:
+        found = gate_findings(
+            ["theme:alpha"],
+            f"{_ALPHA_BODY}\n{line}",
+            catalog,
+            title=_ALPHA_TITLE,
+            epic=True,
+        )
+        assert _kinds(found) == [FindingKind.MISSING_DESIGN_IDEA]
+        assert line[:20] in found[0][1]
+        assert "start the line with `Design idea:`" in found[0][1]
+
+    @pytest.mark.spec("PAD-02-034")
     def test_a_section_adding_detail_passes(
         self, catalog: ThemeCatalog
     ) -> None:
@@ -381,6 +457,23 @@ class TestEpicForm:
             ["theme:alpha"], _ALPHA_BODY, catalog, title="Epic: ADR-0001"
         )
         assert found == []
+
+
+class TestLoadSpecTopics:
+    def test_reads_each_file_s_top_level_id(self, tmp_path: Path) -> None:
+        (tmp_path / "a.yaml").write_text("id: PAD\ntitle: x\n")
+        (tmp_path / "b.yaml").write_text(
+            "title: y\nid: SYNC\n  - id: SYNC-01\n"
+        )
+        (tmp_path / "notes.md").write_text("id: NOPE\n")
+        assert load_spec_topics(tmp_path) == frozenset({"PAD", "SYNC"})
+
+    def test_no_topics_raises(self, tmp_path: Path) -> None:
+        with pytest.raises(FileNotFoundError):
+            load_spec_topics(tmp_path)
+
+    def test_the_repository_topics_load(self) -> None:
+        assert {"PAD", "SYNC"} <= load_spec_topics()
 
 
 def test_split_labels_accepts_comma_lists() -> None:
@@ -491,13 +584,28 @@ class TestMain:
         )
         assert main(args, run=_FakeGh("")) == 2
 
+    @pytest.mark.parametrize(
+        "title", [None, "", "  "], ids=["absent", "empty", "blank"]
+    )
     def test_epic_without_a_title_exits_2(
-        self, note: Path, body: Path
+        self, note: Path, body: Path, title: str | None
     ) -> None:
         args = self._args(note, body, "--label", "theme:alpha", "--epic")
+        if title is not None:
+            args += ["--title", title]
         with pytest.raises(SystemExit) as exc:
             main(args, run=_FakeGh(""))
         assert exc.value.code == 2
+
+    @pytest.mark.spec("PAD-02-032")
+    def test_epic_title_group_id_uses_the_repository_topics(
+        self, note: Path, tmp_path: Path
+    ) -> None:
+        body = tmp_path / "epic.md"
+        body.write_text(_ALPHA_EPIC_BODY, encoding="utf-8")
+        args = self._args(note, body, "--label", "theme:alpha", "--epic")
+        assert main([*args, "--title", "Alpha (SYNC-19)"], _FakeGh("")) == 1
+        assert main([*args, "--title", "Alpha (UTF-16)"], _FakeGh("")) == 0
 
     @pytest.mark.spec("PAD-02-032")
     def test_epic_title_is_checked(

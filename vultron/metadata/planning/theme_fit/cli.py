@@ -44,6 +44,7 @@ from vultron.metadata.planning.gh import (
 )
 from vultron.metadata.planning.theme_fit.analyze import analyze
 from vultron.metadata.planning.theme_fit.fetch import fetch_open_issues
+from vultron.metadata.planning.theme_fit.gate import load_spec_topics
 from vultron.metadata.planning.theme_fit.render import (
     GITHUB_BODY_LIMIT,
     render_coherence,
@@ -104,7 +105,8 @@ def main(argv: list[str] | None = None, run: Runner = run_gh) -> int:
 
     try:
         catalog = load_theme_catalog(args.catalog)
-    except (MetadataLoadError, FileNotFoundError) as exc:
+        spec_topics = load_spec_topics()
+    except (MetadataLoadError, OSError, UnicodeDecodeError) as exc:
         print(f"theme-fit: {exc}", file=sys.stderr)
         return 2
     try:
@@ -117,7 +119,12 @@ def main(argv: list[str] | None = None, run: Runner = run_gh) -> int:
         )
         return 2
 
-    report = analyze(issues, catalog, schedule_read=not args.no_schedule)
+    report = analyze(
+        issues,
+        catalog,
+        schedule_read=not args.no_schedule,
+        spec_topics=spec_topics,
+    )
     if args.json:
         print(json.dumps(report.to_json(), indent=2))
     elif args.coherence:

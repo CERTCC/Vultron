@@ -55,6 +55,15 @@ DESIGN_IDEA_LINE = re.compile(r"^Design idea:\s*(?P<idea>\S.*)$")
 The approach after the colon must not be empty.
 """
 
+NEAR_DESIGN_IDEA_LINE = re.compile(r"^\W*design\s+idea\W*:", re.IGNORECASE)
+"""A line that looks like a ``Design idea:`` line but is not one.
+
+A bulleted, bold or lowercase form; named in the finding so an author who
+wrote one knows why it does not count.
+"""
+
+_FENCE = re.compile(r"^(```|~~~)")
+
 DESIGN_IDEA_HEADING = re.compile(
     r"^#{1,6}\s+Design idea\s*#*\s*$", re.IGNORECASE
 )
@@ -62,14 +71,38 @@ DESIGN_IDEA_HEADING = re.compile(
 
 _HEADING = re.compile(r"^#{1,6}(?:\s|$)")
 
-TITLE_ID_PATTERN = re.compile(
-    r"\b(?:ADR[- ]?\d{1,4}|[A-Z]{2,}[A-Z0-9]*-\d{2}(?:-\d{3})?)\b"
-)
-"""An ADR number or a spec ID or group ID in an Epic title (PAD-02-032).
+_DASH = r"[-\u2010-\u2015]"
 
-A spec ID's group number is two digits, so ``CVE-2024`` and ``SHA-256`` do not
-match.
-"""
+_ADR_NUMBER = re.compile(rf"\bADR\s*{_DASH}?\s*\d{{1,4}}\b", re.IGNORECASE)
+_FULL_SPEC_ID = re.compile(
+    rf"\b[A-Z]{{2,8}}{_DASH}\d{{2}}{_DASH}\d{{3}}\b", re.IGNORECASE
+)
+_GROUP_ID = re.compile(
+    rf"\b(?P<prefix>[A-Z]{{2,8}}){_DASH}\d{{2}}\b", re.IGNORECASE
+)
+
+
+def title_ids(title: str, spec_topics: frozenset[str]) -> tuple[str, ...]:
+    """The ADR numbers and spec IDs in an Epic *title*, in title order.
+
+    PAD-02-032. An ADR number (``ADR-0099``) and a full requirement ID
+    (``PAD-02-030``, MS-04-001) count in any case and with any dash. A bare
+    group ID (``SYNC-19``) counts only when its prefix is one of the
+    *spec_topics*, so ``UTF-16`` or ``COVID-19`` is not an ID; with no topics
+    given, group IDs are not looked for.
+    """
+    topics = {t.casefold() for t in spec_topics}
+    found = [(m.start(), m.group()) for m in _ADR_NUMBER.finditer(title)]
+    full = list(_FULL_SPEC_ID.finditer(title))
+    found += [(m.start(), m.group()) for m in full]
+    found += [
+        (m.start(), m.group())
+        for m in _GROUP_ID.finditer(title)
+        if m["prefix"].casefold() in topics
+        and not any(f.start() == m.start() for f in full)
+    ]
+    return tuple(text for _, text in sorted(found))
+
 
 EPIC_TITLE_PREFIX = re.compile(r"^\s*Epic\s*:", re.IGNORECASE)
 """A title that opens with the ``Epic:`` label instead of a claim (PAD-02-030)."""
@@ -273,19 +306,36 @@ class OpenIssue:
         )
 
     def design_idea_sections(self) -> tuple[str, ...]:
-        """The text under each ``## Design idea`` heading, to the next heading."""
+        """The text under each ``## Design idea`` heading, to the next heading.
+
+        The ``Design idea:`` line itself is not section text, and a ``#`` line
+        inside a code fence is not a heading.
+        """
         sections: list[list[str]] = []
         current: list[str] | None = None
+        fenced = False
         for line in self.body.splitlines():
             stripped = line.strip()
-            if DESIGN_IDEA_HEADING.match(stripped):
+            if _FENCE.match(stripped):
+                fenced = not fenced
+            elif not fenced and DESIGN_IDEA_HEADING.match(stripped):
                 current = []
                 sections.append(current)
-            elif _HEADING.match(stripped):
+                continue
+            elif not fenced and _HEADING.match(stripped):
                 current = None
-            elif current is not None:
+            if current is not None and not DESIGN_IDEA_LINE.match(stripped):
                 current.append(stripped)
         return tuple(" ".join(s).strip() for s in sections)
+
+    def near_design_idea_lines(self) -> tuple[str, ...]:
+        """Lines that look like a ``Design idea:`` line but do not count."""
+        return tuple(
+            stripped
+            for line in self.body.splitlines()
+            if NEAR_DESIGN_IDEA_LINE.match(stripped := line.strip())
+            and not DESIGN_IDEA_LINE.match(stripped)
+        )
 
     def names_split(self, first: str, second: str) -> bool:
         """True when one body line names both *first* and *second*."""

@@ -26,7 +26,8 @@ consistent use of the `Epic` issue type and sub-issue wiring.
   job, and no other line or section restates either one or the title
   (PAD-02-034):
   - a `Theme: <label> — <outcome>` line naming the theme (PAD-02-018), whose
-    outcome says why the title's claim matters to that theme (PAD-02-033);
+    outcome is the consequence of the title's claim that a reader of the
+    theme notices, not the claim again (PAD-02-033);
   - a `Design idea: <approach>` line stating the approach tying the children
     together, with any mechanism, ADR numbers and spec IDs (PAD-02-038), e.g.
     `Design idea: each trigger records an outcome the caller can poll`.

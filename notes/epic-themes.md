@@ -431,16 +431,19 @@ findings, 1 with any, and 2 when the catalog or `gh` fails.
   breaches below, and a label the catalog does not list or lists as retiring.
 - **Epic form findings**, one kind each (`epic_form_findings` in
   `vultron/metadata/planning/theme_fit/analyze.py`): a title holding an ADR
-  number or a spec or group ID (`epic-title-id`, PAD-02-032), a title that
+  number or a spec ID in any case and with any dash, or a group ID whose prefix
+  is a spec topic, so `SYNC-19` counts and `UTF-16` does not (`epic-title-id`,
+  PAD-02-032), a title that
   starts with `Epic:` (`epic-title-prefix`, PAD-02-030), no `Design idea:`
-  line with text after the colon (`missing-design-idea`, PAD-02-038), a
-  `Design idea:` line holding the title or a `Theme:` outcome word for word
-  (`design-idea-repeats`, PAD-02-034), and a `## Design idea` section holding
-  the line (`design-section-repeats`, PAD-02-034).
+  line with text after the colon (`missing-design-idea`, PAD-02-038; a bold,
+  bulleted or lowercase near miss is named in the finding), a `Design idea:`
+  line holding, or a cut-down copy of, the title or a `Theme:` outcome
+  (`design-idea-repeats`, PAD-02-034), and a `## Design idea` section that
+  repeats the line (`design-section-repeats`, PAD-02-034).
 - **Form, not meaning.** Repeats are matched on words, ignoring case,
-  punctuation and spacing. A copied line of under four words counts only when
-  it is the whole `Design idea:` line, so a short phrase that recurs by chance
-  is not a repeat. Whether a title states the right claim, or a
+  punctuation and spacing, in both directions. A copied run of under four
+  words counts only when it is the whole of the other text, so a short phrase
+  that recurs by chance is not a repeat. Whether a title states the right claim, or a
   `Design idea:` line states an approach, is a reviewer's call; the check has
   no verb, audience or length heuristics. Only `Epic:` is checked as a label
   prefix: a `name: outcome` title cannot be told by its form from a claim with

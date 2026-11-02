@@ -528,6 +528,7 @@ class TestEpicForm:
             analyze(
                 [_epic_issue(1, "theme:alpha", title=title, body=body)],
                 catalog,
+                spec_topics=frozenset({"SYNC"}),
             )
         )
 
@@ -541,6 +542,7 @@ class TestEpicForm:
                 )
             ],
             catalog,
+            spec_topics=frozenset({"SYNC"}),
         )
         assert _kinds(found) == [(FindingKind.EPIC_TITLE_ID, 1)]
         assert found.findings[0].detail == "names `SYNC-19`"
@@ -634,6 +636,25 @@ class TestEpicForm:
         )
         assert self._report(catalog, "Alpha is done", body) == [
             (FindingKind.DESIGN_SECTION_REPEATS, 1)
+        ]
+
+    @pytest.mark.spec("PAD-02-032")
+    def test_a_group_id_off_the_topic_list_is_not_an_id(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        body = _FORM_BODY + _DESIGN_IDEA
+        assert self._report(catalog, "Alpha reads UTF-16 text", body) == []
+
+    @pytest.mark.spec("PAD-02-034")
+    def test_a_cut_down_copy_of_the_outcome_repeats(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        body = (
+            "Theme: theme:alpha — alpha readers notice it in every run.\n"
+            "Design idea: Alpha readers notice it.\n"
+        )
+        assert self._report(catalog, "Alpha is done", body) == [
+            (FindingKind.DESIGN_IDEA_REPEATS, 1)
         ]
 
     def test_a_well_formed_epic_is_clean(self, catalog: ThemeCatalog) -> None:

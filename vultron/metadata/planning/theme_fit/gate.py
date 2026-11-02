@@ -30,9 +30,9 @@ to the Issue about to be created, and checks the parent's theme:
 - the ``--parent``, when given, is open and carries that theme (PAD-02-017,
   PAD-01-007);
 - an Epic's ``--title`` holds no ADR number or spec ID and does not start with
-  ``Epic:``, and its body has a ``Design idea:`` line that restates neither
-  the title nor a ``Theme:`` outcome, with no ``## Design idea`` section
-  restating the line (:func:`.analyze.epic_form_findings`; PAD-02-030,
+  ``Epic:``, and its body has a ``Design idea:`` line that neither holds nor
+  cuts down the title or a ``Theme:`` outcome, with no ``## Design idea``
+  section restating the line (:func:`.analyze.epic_form_findings`; PAD-02-030,
   PAD-02-032, PAD-02-034, PAD-02-038).
 
 Every violation is printed, not only the first. Exit codes: 0 the Issue may be
@@ -43,11 +43,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+from vultron.metadata.base import repo_root
 from vultron.metadata.file_loading import MetadataLoadError
 from vultron.metadata.planning.gh import (
     DEFAULT_REPO,
@@ -91,6 +93,33 @@ class ParentIssue:
                 if label.casefold().startswith(THEME_PREFIX)
             )
         )
+
+
+_TOPIC_LINE = re.compile(r"^id:\s*(?P<topic>[A-Z][A-Z0-9]*)\s*$", re.MULTILINE)
+
+
+def load_spec_topics(specs_dir: Path | None = None) -> frozenset[str]:
+    """The topic prefix each spec file declares in its top-level ``id:``.
+
+    An Epic title's bare group ID (``SYNC-19``) is an ID only when its prefix
+    is one of these (PAD-02-032).
+
+    Args:
+        specs_dir: The spec directory; defaults to the repository's ``specs/``.
+
+    Raises:
+        FileNotFoundError: If the directory holds no spec file declaring one.
+        OSError, UnicodeDecodeError: If a spec file cannot be read.
+    """
+    folder = specs_dir if specs_dir is not None else repo_root() / "specs"
+    topics = frozenset(
+        match["topic"]
+        for path in sorted(folder.glob("*.yaml"))
+        if (match := _TOPIC_LINE.search(path.read_text(encoding="utf-8")))
+    )
+    if not topics:
+        raise FileNotFoundError(f"no spec topics found in {folder}")
+    return topics
 
 
 def fetch_parent(number: int, repo: str, run: Runner) -> ParentIssue:
@@ -158,6 +187,7 @@ def gate_findings(
     title: str = "",
     epic: bool = False,
     parent: ParentIssue | None = None,
+    spec_topics: frozenset[str] = frozenset(),
 ) -> list[tuple[FindingKind, str]]:
     """Every theme rule the Issue about to be created would break.
 
@@ -169,6 +199,8 @@ def gate_findings(
         epic: True when it is an Epic, which may carry a named second theme
             and must pass the title and body form checks.
         parent: The Issue it will be a sub-issue of, if any.
+        spec_topics: The spec topic prefixes a bare group ID in an Epic's
+            title is matched against (:func:`load_spec_topics`).
     """
     issue = OpenIssue(
         number=0,
@@ -179,7 +211,7 @@ def gate_findings(
     )
     found = list(label_findings(issue, catalog, is_leaf=True))
     if epic:
-        found.extend(epic_form_findings(issue))
+        found.extend(epic_form_findings(issue, spec_topics))
     if parent is not None:
         found.extend(_parent_findings(issue, parent))
     return found
@@ -238,8 +270,8 @@ def main(argv: list[str] | None = None, run: Runner = run_gh) -> int:
         help="the catalog note (default: notes/epic-themes.md)",
     )
     args = parser.parse_args(argv)
-    if args.epic and args.title is None:
-        parser.error("--epic needs --title")
+    if args.epic and not (args.title or "").strip():
+        parser.error("--epic needs a non-empty --title")
 
     if args.body_file == "-":
         body = sys.stdin.read()
@@ -252,7 +284,8 @@ def main(argv: list[str] | None = None, run: Runner = run_gh) -> int:
 
     try:
         catalog = load_theme_catalog(args.catalog)
-    except (MetadataLoadError, FileNotFoundError) as exc:
+        spec_topics = load_spec_topics() if args.epic else frozenset()
+    except (MetadataLoadError, OSError, UnicodeDecodeError) as exc:
         print(f"theme-gate: {exc}", file=sys.stderr)
         return 2
 
@@ -274,6 +307,7 @@ def main(argv: list[str] | None = None, run: Runner = run_gh) -> int:
         title=args.title or "",
         epic=args.epic,
         parent=parent,
+        spec_topics=spec_topics,
     )
     for kind, detail in found:
         print(

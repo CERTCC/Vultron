@@ -594,7 +594,8 @@ groups:
           spec_id: PAD-02-030
         verification: >-
           `theme-gate --epic`, which `create_epic.sh` runs with the title,
-          refuses a title holding an ADR number or a spec or group ID, and
+          refuses a title holding an ADR number, a spec ID, or a group ID whose
+          prefix is a spec topic, and
           `theme-fit` reports each open Epic with one as an `epic-title-id`
           finding. `TestEpicForm` in `test/metadata/test_theme_gate.py` and in
           `test/metadata/test_theme_fit.py` checks both, and
@@ -634,9 +635,9 @@ groups:
         verification: >-
           A reviewer checks the body with PAD-02-033. The repeats a script can
           see, `theme-gate --epic` refuses and `theme-fit` reports: a
-          `Design idea:` line holding the title or a `Theme:` outcome word for
-          word (`design-idea-repeats`), and a `## Design idea` section holding
-          the line (`design-section-repeats`). `TestEpicForm` in
+          `Design idea:` line holding, or a cut-down copy of, the title or a
+          `Theme:` outcome (`design-idea-repeats`), and a `## Design idea`
+          section that repeats the line (`design-section-repeats`). `TestEpicForm` in
           `test/metadata/test_theme_gate.py` and in
           `test/metadata/test_theme_fit.py` checks both.
       - id: PAD-02-035
