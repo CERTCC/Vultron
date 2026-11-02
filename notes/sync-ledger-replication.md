@@ -37,6 +37,7 @@ related_notes:
   - notes/case-communication-model.md
   - notes/participant-case-replica.md
   - notes/demo-ci-diagnostics.md
+  - notes/peer-broadcast-failure-semantics.md
 relevant_packages:
   - vultron/core/behaviors
   - vultron/wire/as2
@@ -100,7 +101,7 @@ everything after the last hash a participant reports.
   catch-up of a let-back-in, paused peer: that peer keeps its pause and is skipped
   for the new entry, every other recipient gets it, and the fan-out succeeds.
   Failing there would refuse every later commit in the case, since the peer's
-  pause brings the same catch-up back each time (decided on #5120).
+  pause brings the same catch-up back each time (BT-14-003, #5120).
 - **A hash refusal is reported, not recovered.** The replica sends
   `LedgerEntryRefused/HashMismatch`; the CASE_MANAGER logs it at ERROR and checks its
   own copy, and does nothing else. Replay and re-seed resend the same content, so
@@ -309,7 +310,7 @@ does not re-queue an `Announce` the outbox already holds for that peer
 
 - **Hold the Announce, never the entry alone** (SYNC-14-001). The body intake
   archived is held in a `DeferredInboxActivity`, the inbox's replay record
-  (IO-03-004); a `HeldLedgerAnnounce` row indexes it. Reason: an entry held alone
+  (IO-03-009); a `HeldLedgerAnnounce` row indexes it. Reason: an entry held alone
   can only reach the inbox again inside an Announce the replica makes up and
   attributes to the CASE_MANAGER (ISSUE-5012). Both live in the receiver's store,
   never as a `CaseLedgerEntry` (SYNC-14-005), so a restart keeps them.

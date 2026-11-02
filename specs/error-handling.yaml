@@ -73,12 +73,27 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: 'The system MUST define at least the following error categories in `vultron/errors.py`: `ValidationError` (malformed or schema-invalid input), `NotFoundError` (referenced domain object does not exist), `ProtocolError` (invalid state-machine transition or message semantics), and `SecurityError` (authentication or authorization failure). Additional categories MAY be defined as needed.'
+    statement: >-
+      This codebase MUST define at least four error categories in `vultron/errors.py`.
+      The first is `ValidationError`, for malformed or schema-invalid input. The second
+      is `NotFoundError`, for a referenced domain object that does not exist. The third
+      is `ProtocolError`, for an invalid state-machine transition or message semantics.
+      The fourth is `SecurityError`, for an authentication or authorization failure.
     rationale: >-
       A caller decides what to do from the kind of failure, not from the message text.
       Bad input, a missing object, a protocol violation and a security failure each need
       a different response, for example a different HTTP status. Fixed categories give
       each of these responses one exception type to catch.
+  - id: EH-03-002
+    priority: MAY
+    kind: project
+    statement: >-
+      This codebase MAY define more error categories in `vultron/errors.py` as it needs
+      them.
+    rationale: >-
+      The four categories of EH-03-001 are a floor. A failure that needs its own
+      response can get its own exception type, and no caller has to tell it apart by
+      message text.
 - id: EH-04
   title: Error Context
   specs:
@@ -110,19 +125,14 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      An HTTP error response reporting more than one distinct violation MUST include
-      a `details` field: an array with one entry per violation. Each entry MUST carry
-      the violation's human-readable `message`, and MUST identify whether the
-      violation is a root cause or is derived from another reported violation. The
-      `message` field MUST remain a human-readable rendering of the whole set, so a
-      caller reading only `message` still sees every violation.
+      An HTTP error response that reports more than one distinct violation MUST include
+      a `details` field, an array with one entry per violation.
     rationale: >-
       When a request has several violations and the response names only one, the caller
       fixes one problem, sends the request again and learns of the next. The rejection
       is atomic, so nothing changed between the attempts. `details` gives one entry for
       each violation, so a caller does not have to parse `message`. Such a parse breaks
-      when the order of the internal checks changes. `message` still names every
-      violation, so a caller that reads only the text loses nothing.
+      when the order of the internal checks changes.
     relationships:
     - rel_type: refines
       spec_id: EH-05-001
@@ -131,8 +141,65 @@ groups:
     adr:
     - ADR-0086
     verification: >-
-      A request invalid in two independent dimensions returns a 422 whose `details`
-      array has one entry per violation, and whose `message` names both.
+      `test_details_has_one_entry_per_violation` in
+      `test/adapters/driving/fastapi/test_errors.py` translates a two-violation error
+      and asserts a 422 whose `details` array has one entry per violation.
+  - id: EH-05-003
+    priority: MUST
+    kind: project
+    statement: >-
+      Each entry of the `details` array (EH-05-002) MUST carry the violation's
+      human-readable `message`.
+    rationale: >-
+      An entry without its own text tells the caller that a violation exists but not
+      what it is. The caller would then have to match entries to parts of the joined
+      `message`.
+    verification: >-
+      `test_each_entry_carries_its_message` in
+      `test/adapters/driving/fastapi/test_errors.py` asserts each entry's `message`.
+    relationships:
+    - rel_type: extends
+      spec_id: EH-05-002
+    adr:
+    - ADR-0086
+  - id: EH-05-004
+    priority: MUST
+    kind: project
+    statement: >-
+      Each entry of the `details` array (EH-05-002) MUST state whether its violation is
+      a root cause or is derived from another reported violation.
+    rationale: >-
+      One bad value often causes more violations. The label tells the caller which
+      entries to fix first, so a long list stays readable (EH-07-002).
+    verification: >-
+      `test_each_entry_identifies_root_or_derived` in
+      `test/adapters/driving/fastapi/test_errors.py` asserts the `classification` of
+      each entry.
+    relationships:
+    - rel_type: extends
+      spec_id: EH-05-002
+    - rel_type: uses_definition
+      spec_id: EH-07-002
+    adr:
+    - ADR-0086
+  - id: EH-05-005
+    priority: MUST
+    kind: project
+    statement: >-
+      When an HTTP error response reports more than one violation, its `message` field
+      MUST stay a human-readable rendering of the whole set.
+    rationale: >-
+      A caller that reads only `message` still sees every violation. Adding `details`
+      then makes no text-only caller worse off.
+    verification: >-
+      `test_message_still_renders_the_whole_set` in
+      `test/adapters/driving/fastapi/test_errors.py` asserts that `message` names both
+      violations.
+    relationships:
+    - rel_type: refines
+      spec_id: EH-05-001
+    adr:
+    - ADR-0086
 - id: EH-06
   title: Error Logging
   specs:
@@ -174,21 +241,20 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      When a validation boundary reports multiple violations, each violation MUST be
-      classified as root or derived. A rule reading a single dimension is always
-      root. A rule reading more than one dimension is derived when any dimension it
-      reads already carries a single-dimension violation, and root otherwise.
-      Dimension overlap is a proxy for the real test, which is remediation: a
-      violation is derived when the remediation the caller is expected to apply to
-      the overlapping single-dimension violation also clears it. The proxy holds
-      only while that premise does. For a transition fault the expected remediation
-      is asserting a legal value, which clears the entailment that read the illegal
-      one. For a role gate the expected remediation is **withdrawing the
-      assertion**, not acquiring the role — a participant does not hold a dimension
-      it has no role for at all (a non-DEPLOYER's `d` is absent, not initial;
-      ADR-0075) and an actor cannot grant itself a role. Any rule family added later
-      whose expected remediation is neither of those MUST be checked against the
-      remediation test before relying on the overlap proxy.
+      When a validation boundary reports multiple violations, it MUST classify each
+      violation as root or derived. A rule that reads one dimension is always root. A
+      rule that reads more than one dimension is derived when a dimension it reads
+      already carries a single-dimension violation. Otherwise it is root. Dimension
+      overlap is a proxy for the real test, which is remediation. A violation is derived
+      when the remediation the caller applies to the overlapping single-dimension
+      violation also clears it. The proxy holds only while that premise does. For a
+      transition fault, the expected remediation is to assert a legal value. That clears
+      the entailment that read the illegal value. For a role gate, the expected
+      remediation is to **withdraw the assertion**, not to acquire the role. A
+      participant does not hold a dimension it has no role for (a non-DEPLOYER's `d` is
+      absent, not initial; ADR-0075). An actor cannot grant itself a role. An author
+      MUST check a new rule family whose expected remediation is neither of those
+      against the remediation test before relying on the overlap proxy.
     rationale: >-
       One bad dimension often causes more violations. A list that does not rank them
       becomes a long list of errors that one fix mostly clears. The root and derived
@@ -210,14 +276,18 @@ groups:
       A cross-dimension violation whose dimensions are each individually valid is
       labelled root; the same violation is labelled derived when one of its
       dimensions independently failed its own transition check.
+    lint_suppress:
+    # compound_statement: the second MUST bounds when the first's overlap
+    # classification may be relied on; it adds no duty a separate check could
+    # verify on its own.
+    - compound_statement
   - id: EH-07-003
     priority: MUST
     kind: project
     statement: >-
-      A `VultronError` subclass raised to report multiple violations MUST carry them
-      as structured data on the exception, and MUST render the whole set in `str()`.
-      Callers MUST NOT be required to parse a joined message to recover the
-      individual violations.
+      A `VultronError` subclass raised to report multiple violations MUST carry them as
+      structured data on the exception. Then no caller has to parse a joined message to
+      recover them.
     rationale: >-
       `DemoFailureError` already establishes this shape for the demo runner
       (DEMOCI-01-003). Reusing it rather than inventing a second aggregation
@@ -231,5 +301,23 @@ groups:
     adr:
     - ADR-0086
     verification: >-
-      The raised exception exposes one structured entry per violation, and `str()`
-      names every one of them.
+      `test_violations_are_available_without_parsing_the_message` in
+      `test/test_errors.py` asserts the raised exception exposes one structured entry
+      per violation.
+  - id: EH-07-004
+    priority: MUST
+    kind: project
+    statement: >-
+      A `VultronError` subclass raised to report multiple violations MUST render the
+      whole set in `str()`.
+    rationale: >-
+      The HTTP layer and the logs use `str()` of the exception. When `str()` names every
+      violation, a reader of the text alone still sees the whole set (EH-05-005).
+    verification: >-
+      `test_str_renders_every_violation` in `test/test_errors.py` asserts that `str()`
+      names every violation.
+    relationships:
+    - rel_type: extends
+      spec_id: EH-07-003
+    adr:
+    - ADR-0086

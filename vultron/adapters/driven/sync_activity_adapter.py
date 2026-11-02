@@ -98,9 +98,9 @@ def _read_queued_row(
     """Read *activity_id*'s sealed body; ``None`` when it has none.
 
     The sealed body, not the activity record: it is what the outbox delivers
-    (OX-07-001), so a row without one is never sent and is not pending.
-    Reading the record instead rehydrated every queued activity, entry and
-    payload included (#4906).  A row with no body is not remembered, so one
+    (OX-07-001), so a row without one is never sent (OX-07-005) and is not
+    pending.  Reading the record instead rehydrated every queued activity,
+    entry and payload included (#4906).  A row with no body is not remembered, so one
     sealed later is read then.
     """
     body = read_sealed_body_dict(dl, activity_id)

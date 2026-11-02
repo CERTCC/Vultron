@@ -1,4 +1,4 @@
-"""CI verification test — the scheduled publish from tags (DOCBW-06, ADR-0169).
+"""CI verification test — the scheduled publish from tags (DOCBW-06, ADR-0171).
 
 The decisions are functions in ``.github/scripts/publish_gate.py``, tested here
 without GitHub; the skip rule, the rollback target check and the tagging run

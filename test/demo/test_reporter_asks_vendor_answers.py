@@ -58,6 +58,56 @@ def _posts(*names: str) -> list[notes.NotePost]:
     ]
 
 
+def test_a_posted_thread_returns_one_entry_per_post_in_order():
+    """``post_note_thread`` names every note, not only the last (#5536).
+
+    The vendor-first family keeps the Reporter's question and the Vendor's
+    answer as separate story props — ``rv``'s final case check names both —
+    so the list form is what the family composes against and the threading is
+    read off it: the first note replies to *in_reply_to* and each later one to
+    the note before (DEMOCI-11-017).
+    """
+    first, second = MagicMock(id_="urn:note:1"), MagicMock(id_="urn:note:2")
+    start = MagicMock(id_="urn:note:0")
+
+    with patch.object(
+        notes, "participant_adds_note_to_case", side_effect=[first, second]
+    ) as add_note:
+        posted = notes.post_note_thread(
+            MagicMock(), MagicMock(), _posts("a", "b"), in_reply_to=start
+        )
+
+    assert posted == [first, second], (
+        "every note must come back in posting order, so a caller can keep more"
+        f" than one of them as a prop; got {posted!r}"
+    )
+    assert [c.kwargs["in_reply_to"] for c in add_note.call_args_list] == [
+        "urn:note:0",
+        "urn:note:1",
+    ], "each note threads onto the one before it, the first onto in_reply_to"
+
+
+def test_a_posted_thread_reports_the_post_that_failed_in_place():
+    """A failed post is ``None`` *at its own index*, not dropped.
+
+    A caller pairs the list with the posts it asked for, so a dropped entry
+    would silently shift every prop after it onto the wrong note.
+    """
+    second = MagicMock(id_="urn:note:2")
+
+    with patch.object(
+        notes, "participant_adds_note_to_case", side_effect=[None, second]
+    ):
+        posted = notes.post_note_thread(
+            MagicMock(), MagicMock(), _posts("a", "b")
+        )
+
+    assert posted == [None, second], (
+        "the failed post must hold its place in the list, or the caller's"
+        f" props would shift onto the wrong notes; got {posted!r}"
+    )
+
+
 def test_a_note_thread_replies_to_the_note_before():
     first, second = MagicMock(id_="urn:note:1"), MagicMock(id_="urn:note:2")
     start = MagicMock(id_="urn:note:0")
@@ -89,6 +139,31 @@ def test_a_failed_note_leaves_the_next_unthreaded_not_skipped():
     assert last is second
     assert add_note.call_count == 2
     assert add_note.call_args_list[1].kwargs["in_reply_to"] is None
+
+
+def test_an_empty_thread_returns_the_note_it_was_handed():
+    """``add_note_thread`` with no posts is the note already in hand.
+
+    It is the one-note form of ``post_note_thread``, so "the last note of the
+    thread" with nothing posted is whatever the thread was told to reply to:
+    returning ``None`` instead would read as a failed post and a continuation
+    answering the thread would stop.
+    """
+    start = MagicMock(id_="urn:note:0")
+
+    with patch.object(notes, "participant_adds_note_to_case") as add_note:
+        last = notes.add_note_thread(
+            MagicMock(), MagicMock(), [], in_reply_to=start
+        )
+
+    assert last is start
+    add_note.assert_not_called()
+
+
+def test_an_empty_thread_with_nothing_in_hand_returns_none():
+    """No posts and no note to reply to is no note (``add_note_thread``)."""
+    with patch.object(notes, "participant_adds_note_to_case"):
+        assert notes.add_note_thread(MagicMock(), MagicMock(), []) is None
 
 
 @pytest.mark.spec("DEMOMA-22-001")
@@ -159,17 +234,68 @@ def test_a_failed_gate_posts_nothing_and_records_the_failure():
 
 
 @pytest.mark.spec("DEMOMA-22-001")
+def test_a_failed_gate_returns_an_empty_list_from_the_posting_form():
+    """``gated_note_posts`` posts nothing and names nothing (#5536).
+
+    The list form must say "no notes" rather than one ``None`` per post: a
+    caller keeps each entry as a story prop, and a prop kept as ``None``
+    raises at ``keep`` while an absent one lets the dependent fragment stop
+    with the gate's own failure as the cause (``StoryState.keep``).
+    """
+    from vultron.demo import utils
+
+    utils.reset_demo_failures()
+    try:
+        with (
+            patch.object(
+                notes,
+                "wait_for_case_on_container",
+                side_effect=TimeoutError("no replica"),
+            ),
+            patch.object(notes, "participant_adds_note_to_case") as add_note,
+        ):
+            posted = notes.gated_note_posts(
+                gate="replica holds the case",
+                replica_client=MagicMock(),
+                watching_client=MagicMock(),
+                case=MagicMock(),
+                posts=_posts("a", "b"),
+            )
+            last = notes.gated_note_thread(
+                gate="replica holds the case",
+                replica_client=MagicMock(),
+                watching_client=MagicMock(),
+                case=MagicMock(),
+                posts=_posts("a", "b"),
+            )
+        failures = list(utils._demo_failures)
+    finally:
+        utils.reset_demo_failures()
+
+    assert posted == [], (
+        "a failed gate must name no notes at all, so a caller keeps no prop;"
+        f" got {posted!r}"
+    )
+    assert last is None, "the one-note form of the same failure is None"
+    add_note.assert_not_called()
+    assert len(failures) == 2, (
+        "each failed gate records its own failure (DEMOCI-01-003); the"
+        f" accumulator holds {failures!r}"
+    )
+
+
+@pytest.mark.spec("DEMOMA-22-001")
 def test_reporter_asks_gates_on_the_reporter_replica_and_asks_first():
     reporter = _session("reporter")
     watching, case = MagicMock(), MagicMock()
     replies = _posts("vendor")
 
-    with patch.object(notes, "gated_note_thread") as gated:
-        last = notes.reporter_asks(
+    with patch.object(notes, "gated_note_posts") as gated:
+        posted = notes.reporter_asks(
             reporter, watching, case, "Any workaround?", replies
         )
 
-    assert last is gated.return_value
+    assert posted is gated.return_value
     kwargs = gated.call_args.kwargs
     assert kwargs["replica_client"] is reporter.client
     assert kwargs["watching_client"] is watching
@@ -179,6 +305,88 @@ def test_reporter_asks_gates_on_the_reporter_replica_and_asks_first():
         reporter, "Question from Reporter", "Any workaround?"
     )
     assert rest == replies
+
+
+@pytest.mark.spec("DEMOMA-22-001")
+def test_reporter_asks_returns_the_question_and_each_reply_in_order():
+    """Every note of the thread, question first (#5536).
+
+    The vendor-first family keeps the Reporter's question and the Vendor's
+    answer as separate props, so the question cannot be collapsed into the
+    answer the way the one-note form did: ``rv``'s final case check names both
+    notes and its siblings reply to the answer (DEMOCI-11-017).
+    """
+    reporter, vendor = _session("reporter"), _session("vendor")
+    question = MagicMock(id_="urn:note:question")
+    answer = MagicMock(id_="urn:note:answer")
+
+    with (
+        patch.object(notes, "wait_for_case_on_container"),
+        patch.object(
+            notes,
+            "participant_adds_note_to_case",
+            side_effect=[question, answer],
+        ) as add_note,
+    ):
+        posted = notes.reporter_asks(
+            reporter,
+            MagicMock(),
+            MagicMock(id_="urn:case"),
+            notes.WORKAROUND_QUESTION,
+            [notes.vendor_answers_workaround(vendor)],
+        )
+
+    assert posted == [question, answer], (
+        "the question and each reply must come back in posting order, so each"
+        f" can be kept as its own prop; got {posted!r}"
+    )
+    asked, answered = add_note.call_args_list
+    assert asked.kwargs["poster"] is reporter.actor
+    assert asked.kwargs["note_name"] == "Question from Reporter"
+    assert asked.kwargs["note_content"] == notes.WORKAROUND_QUESTION
+    assert answered.kwargs["poster"] is vendor.actor
+    assert answered.kwargs["in_reply_to"] == "urn:note:question"
+
+
+@pytest.mark.spec("DEMOMA-22-001")
+def test_reporter_asks_returns_nothing_when_its_replica_gate_fails():
+    """A Reporter with no replica cannot post, so the thread names no note.
+
+    The Reporter posts the question from its own replica, so that replica
+    holding the case is the thread's cause (DEMOMA-22-001): the gate records
+    the timeout and the caller keeps no prop, which is how the fragments that
+    read one stop the story instead of answering a note that was never
+    posted.
+    """
+    from vultron.demo import utils
+
+    utils.reset_demo_failures()
+    try:
+        with (
+            patch.object(
+                notes,
+                "wait_for_case_on_container",
+                side_effect=TimeoutError("no replica"),
+            ),
+            patch.object(notes, "participant_adds_note_to_case") as add_note,
+        ):
+            posted = notes.reporter_asks(
+                _session("reporter"),
+                MagicMock(),
+                MagicMock(),
+                "Any workaround?",
+                _posts("vendor"),
+            )
+        failures = list(utils._demo_failures)
+    finally:
+        utils.reset_demo_failures()
+
+    assert posted == [], f"a failed gate names no notes; got {posted!r}"
+    add_note.assert_not_called()
+    assert failures and "Reporter's replica" in failures[0], (
+        "the gate's own label must be what is recorded, so the cause reads as"
+        f" the Reporter's missing replica; it recorded {failures!r}"
+    )
 
 
 # The phase-form of this check covered ``rccv-extension`` and

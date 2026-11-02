@@ -129,6 +129,7 @@ class TestVultronValidationErrorViolations:
             ],
         )
 
+    @pytest.mark.spec("EH-07-003")
     def test_violations_are_available_without_parsing_the_message(self):
         error = self._error()
 
@@ -141,8 +142,9 @@ class TestVultronValidationErrorViolations:
             ("rm", "vf"),
         ]
 
+    @pytest.mark.spec("EH-07-004")
     def test_str_renders_every_violation(self):
-        """EH-05-002: ``message`` must show the whole set, not just the first.
+        """EH-07-004: ``str()`` must show the whole set, not just the first.
 
         The HTTP layer uses ``str(exc)`` for the 422 ``message`` field, so a
         text-only consumer still sees everything.

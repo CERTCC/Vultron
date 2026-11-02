@@ -161,14 +161,13 @@ groups:
       Duplicate processing of state-change messages causes data corruption; SHOULD-level idempotency
       is insufficient for state machines
   - id: ID-04-005
-    priority: MUST
+    priority: MUST_NOT
     kind: architecture
     verification_debt: '#2569'
     statement: >-
-      A record that a handler later reads as evidence that a transition already happened — an
-      idempotency latch or guard record — MUST NOT be written until every other half of that
-      transition has succeeded. A handler MUST NOT write the latch first and then attempt the
-      remaining work.
+      A handler MUST NOT write an idempotency latch or guard record until every other
+      half of its transition has succeeded. Such a record is one that the handler later
+      reads as evidence that the transition happened.
     rationale: >-
       A guard reads the latch as proof that the transition is complete. If the latch is
       written before the rest of the transition and the rest fails, the guard reads the

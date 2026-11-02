@@ -57,16 +57,15 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
 - **`encryption.md`** · `plan`
   How to build actor signing (ADR-0164), plus open options for message encryption.
   **Load when**: building signing or verification (#1156), or designing encryption.
-- **`message-occasion-table.md`** · `plan`
-  Remaining occasion-table design: derived "Sent by"/"Send to", "When…" grammar.
-  **Load when**: extending the message occasion table or its generated fragments.
-- **`ownership-transfer-close-paths.md`** · `plan`
-  Closing a transfer Offer without an answer: owner withdrawal and answer deadlines.
-  **Load when**: implementing transfer withdrawal or deadline expiry (CM-21).
 - **`protocol-asks.md`** · `plan`
   The ask primitive: ask and terminate, conversation-state routing, ask registers.
   **Load when**: building a gate that needs another actor's answer, or an ask/reply
   exchange, ask expiry, or processing-fault notification.
+- **`role-taxonomy-split.md`** · `plan`
+  Splitting roles by scope into case position, case authority and actor standing,
+  and making both case-creation doors claim a position.
+  **Load when**: touching `CVDRole`, a participant's role fields, or where a case
+  owner's roles come from.
 - **`selective-disclosure.md`** · `plan`
   Referencing objects without inlining them, and explicit redaction of withheld fields.
   **Load when**: scoping privacy, redaction, or by-reference payload features.
@@ -139,6 +138,9 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
 - **`stub-objects.md`** · `guidance`
   The VulnerabilityCase stub, the only stub type the protocol permits.
   **Load when**: deciding whether an outbound object may be sent as a stub.
+- **`message-occasion-table.md`** · `guidance`
+  Occasion-table rules: derived "Sent by"/"Send to", "When…" grammar, distinguishers.
+  **Load when**: adding or changing a message occasion or its generated fragments.
 - **`message-type-reference.md`** · `guidance`
   Formal message shorthands versus AS2 wire forms, and the reference-page gates.
   **Load when**: claiming a shorthand maps to a wire form, or editing
@@ -187,7 +189,8 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   Which "do work" behaviors Vultron models and which it only records.
   **Load when**: scoping a new do-work behavior or its policy injection.
 - **`peer-broadcast-failure-semantics.md`** · `guidance`
-  Peer fan-out failure surfaces as FAILURE, with one narrow exception (BT-14-001).
+  Peer fan-out failure surfaces as FAILURE, with two narrow exceptions (BT-14-001,
+  BT-14-003).
   **Load when**: changing a broadcast path or its error behavior.
 
 ### Case model, ledger, and replication

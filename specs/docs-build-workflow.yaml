@@ -594,7 +594,7 @@ groups:
       Obligations of the publication workflow, `.github/workflows/deploy_site.yml`,
       beyond the build and gate obligations DOCBW-03 places on every site-building
       workflow. Publication runs on a weekday schedule from `publish-*` tags, gated
-      on `main` CI, with manual publish and rollback (ADR-0169). The gate's
+      on `main` CI, with manual publish and rollback (ADR-0171). The gate's
       decisions live in `.github/scripts/publish_gate.py`.
     specs:
       - id: DOCBW-06-001
@@ -708,12 +708,12 @@ groups:
           A manual merge to a release branch was skipped for seventeen months, so
           the site fell 6,966 commits behind `main`. A weekday schedule keeps the
           site within a working day of green `main` with no person in the loop,
-          and a manual run covers an urgent publish or a rollback (ADR-0169).
+          and a manual run covers an urgent publish or a rollback (ADR-0171).
         verification: >-
           `test_publication_workflow_triggers` in
           `test/ci/test_publish_gate.py`.
         adr:
-          - ADR-0169
+          - ADR-0171
       - id: DOCBW-06-008
         priority: MUST_NOT
         kind: project
@@ -732,7 +732,7 @@ groups:
           `test_a_non_blocking_issue_does_not_block` in
           `test/ci/test_publish_gate.py`.
         adr:
-          - ADR-0169
+          - ADR-0171
         relationships:
           - rel_type: depends_on
             spec_id: CISEC-05-003
@@ -753,7 +753,7 @@ groups:
           `test/ci/test_publish_gate.py` checks each entry against the label that
           workflow's own notify step uses.
         adr:
-          - ADR-0169
+          - ADR-0171
       - id: DOCBW-06-023
         priority: MUST_NOT
         kind: project
@@ -767,7 +767,7 @@ groups:
           `test_blocking_list_omits_the_publication_workflow` in
           `test/ci/test_publish_gate.py`.
         adr:
-          - ADR-0169
+          - ADR-0171
         relationships:
           - rel_type: extends
             spec_id: DOCBW-06-009
@@ -794,7 +794,7 @@ groups:
           `test_is_in_history` and `test_wait_for_runs_*` in
           `test/ci/test_publish_gate.py`.
         adr:
-          - ADR-0169
+          - ADR-0171
       - id: DOCBW-06-011
         priority: MUST
         kind: project
@@ -808,7 +808,7 @@ groups:
           `test_gate_command_writes_its_verdict` in
           `test/ci/test_publish_gate.py`.
         adr:
-          - ADR-0169
+          - ADR-0171
       - id: DOCBW-06-012
         priority: MUST_NOT
         kind: project
@@ -823,7 +823,7 @@ groups:
           `test/ci/test_publish_gate.py`: the deploy job runs only when the gate
           says to, and builds the run's own commit.
         adr:
-          - ADR-0169
+          - ADR-0171
       - id: DOCBW-06-013
         priority: MUST
         kind: project
@@ -840,7 +840,7 @@ groups:
           `test_a_bot_tag_does_not_skip_a_manual_run` in
           `test/ci/test_publish_gate.py`, against real tags.
         adr:
-          - ADR-0169
+          - ADR-0171
       - id: DOCBW-06-014
         priority: MUST_NOT
         kind: project
@@ -859,7 +859,7 @@ groups:
           covers a bot-made annotated tag, a human-made annotated tag and a
           lightweight tag in a scratch repository.
         adr:
-          - ADR-0169
+          - ADR-0171
         relationships:
           - rel_type: extends
             spec_id: DOCBW-06-013
@@ -875,7 +875,7 @@ groups:
         verification: >-
           `test_a_foreign_tag_is_ignored` in `test/ci/test_publish_gate.py`.
         adr:
-          - ADR-0169
+          - ADR-0171
         relationships:
           - rel_type: extends
             spec_id: DOCBW-06-014
@@ -901,7 +901,7 @@ groups:
           `test_the_tag_job_follows_the_deploy` in
           `test/ci/test_publish_gate.py`.
         adr:
-          - ADR-0169
+          - ADR-0171
       - id: DOCBW-06-017
         priority: MUST
         kind: project
@@ -915,7 +915,7 @@ groups:
           `test_tag_message_records_trigger_and_actor` in
           `test/ci/test_publish_gate.py`.
         adr:
-          - ADR-0169
+          - ADR-0171
         relationships:
           - rel_type: extends
             spec_id: DOCBW-06-016
@@ -934,7 +934,7 @@ groups:
           `test_gate_command_skips_the_gate_on_request` in
           `test/ci/test_publish_gate.py`.
         adr:
-          - ADR-0169
+          - ADR-0171
       - id: DOCBW-06-019
         priority: MUST_NOT
         kind: project
@@ -950,7 +950,7 @@ groups:
           `test/ci/test_publication_gates_in_workflows.py` fails on a
           conditional publication-gate step.
         adr:
-          - ADR-0169
+          - ADR-0171
         relationships:
           - rel_type: extends
             spec_id: DOCBW-06-002
@@ -979,7 +979,7 @@ groups:
           `test_tag_message_records_trigger_and_actor` in
           `test/ci/test_publish_gate.py`.
         adr:
-          - ADR-0169
+          - ADR-0171
       - id: DOCBW-06-021
         priority: MUST
         kind: project
@@ -999,7 +999,7 @@ groups:
           `test_one_concurrency_group_never_cancels` in
           `test/ci/test_publish_gate.py`.
         adr:
-          - ADR-0169
+          - ADR-0171
       - id: DOCBW-06-022
         priority: MUST_NOT
         kind: project
@@ -1015,7 +1015,7 @@ groups:
           `test_create_tag_renumbers_past_a_taken_name` in
           `test/ci/test_publish_gate.py`.
         adr:
-          - ADR-0169
+          - ADR-0171
       - id: DOCBW-06-026
         priority: MUST_NOT
         kind: project
@@ -1030,7 +1030,7 @@ groups:
           `test_gate_command_refuses_a_rollback_off_main` in
           `test/ci/test_publish_gate.py`.
         adr:
-          - ADR-0169
+          - ADR-0171
         relationships:
           - rel_type: extends
             spec_id: DOCBW-06-020
@@ -1050,7 +1050,7 @@ groups:
           `test_a_rollback_target_must_carry_the_build_actions` in
           `test/ci/test_publish_gate.py`.
         adr:
-          - ADR-0169
+          - ADR-0171
         relationships:
           - rel_type: extends
             spec_id: DOCBW-06-020
@@ -1067,7 +1067,7 @@ groups:
           `test_each_job_holds_only_its_permissions` in
           `test/ci/test_publish_gate.py`.
         adr:
-          - ADR-0169
+          - ADR-0171
         relationships:
           - rel_type: refines
             spec_id: CISEC-02-002
@@ -1087,7 +1087,7 @@ groups:
           `test_an_untagged_deploy_is_reported` in
           `test/ci/test_publish_gate.py`.
         adr:
-          - ADR-0169
+          - ADR-0171
         relationships:
           - rel_type: extends
             spec_id: DOCBW-06-016
@@ -1105,7 +1105,7 @@ groups:
           `test_each_job_holds_only_its_permissions` in
           `test/ci/test_publish_gate.py`.
         adr:
-          - ADR-0169
+          - ADR-0171
         relationships:
           - rel_type: extends
             spec_id: DOCBW-06-024
@@ -1123,7 +1123,7 @@ groups:
           `test_wait_for_runs_gives_up_after_the_wait` in
           `test/ci/test_publish_gate.py`.
         adr:
-          - ADR-0169
+          - ADR-0171
         relationships:
           - rel_type: extends
             spec_id: DOCBW-06-010
@@ -1142,4 +1142,4 @@ groups:
           `test_gate_command_refuses_a_run_from_a_tag` in
           `test/ci/test_publish_gate.py`.
         adr:
-          - ADR-0169
+          - ADR-0171

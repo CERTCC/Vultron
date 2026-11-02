@@ -877,7 +877,7 @@ groups:
     - rel_type: implements
       spec_id: ASK-07-010
     - rel_type: depends_on
-      spec_id: IE-06-004
+      spec_id: IE-06-008
     tags:
     - error-handling
 - id: ASK-08

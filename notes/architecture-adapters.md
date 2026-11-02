@@ -44,9 +44,9 @@ Categories".
 
 All inter-actor activity delivery goes over the REST inbox/outbox HTTP API: an
 HTTP POST to the `inbox` the sender's held profile of the recipient names, or to
-`{actor}/inbox/` only when it holds none (OX-12-009). **Actors are treated as if
-every recipient were remote** — there is no in-process shortcut for co-located
-actors. This keeps co-located and remote delivery on one code path, so demos
+`{actor}/inbox/` only when it holds none (OX-12-009, OX-12-010). **Actors are
+treated as if every recipient were remote** — there is no in-process shortcut for
+co-located actors. This keeps co-located and remote delivery on one code path, so demos
 faithfully model autonomous peers and inter-actor delivery bugs surface
 in-process instead of being masked (ADR-0042, `outbox.yaml` OX-12).
 

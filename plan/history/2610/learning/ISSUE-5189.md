@@ -30,3 +30,9 @@ CM-21-021.
 a send-content or may-act rule as `may_act_on_case`: active and not closed.
 That is the predicate every sender guard and the case-content selection use
 (`vultron/core/participants/recipients.py`).
+
+**Promoted**: 2026-10-30 — CM-21-021 (proposal) and new CM-21-022 (Accept) refuse a
+transferee that may not act on the case: active and not closed
+(`specs/case-management.yaml`). Whether Active Participant should exclude Closed
+Participants: Concern #5574.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/5581>.

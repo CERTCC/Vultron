@@ -1,4 +1,4 @@
-# Publishes the site to GitHub Pages from `publish-YYYY-MM-DD.N` tags (ADR-0169,
+# Publishes the site to GitHub Pages from `publish-YYYY-MM-DD.N` tags (ADR-0171,
 # DOCBW-06). On weekday mornings it takes the tip of `main`, checks that `main`
 # CI is green, deploys that commit and tags it. A manual run from `main` does the
 # same on demand, optionally without the CI gate, or rolls the site back to the

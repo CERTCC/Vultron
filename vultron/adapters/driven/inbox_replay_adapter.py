@@ -18,7 +18,7 @@
 Replays a held received activity, a held ``Announce(CaseLedgerEntry)``, through
 the receiving actor's own inbox as a delivery of its own (SYNC-14-009,
 ADR-0135).  The activity is already held as the body that arrived, in a
-``DeferredInboxActivity`` keyed by the receiver (IO-03-004, DL-06-006); this
+``DeferredInboxActivity`` keyed by the receiver (IO-03-009, DL-06-006); this
 adapter only appends its id to the actor's inbox queue.
 
 That queue is the inbox's existing scheduling path: the delivery that made the

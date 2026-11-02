@@ -271,8 +271,8 @@ file finds nothing:
   `receiver_engages_case()` for the direct receiver in every multi-actor
   scenario;
 - `run_invite_path_rm_triage()` calls it for an invitee whose invite is accepted
-  (CM-11-002) — not in `rcv-reject`, whose Vendor rejects;
-- `rv_demo.py` calls it through `vendor_engages_case()`.
+  (CM-11-002) — not in `rcv-reject`, whose Vendor rejects, and not for a
+  Coordinator that joins to coordinate rather than to judge the report.
 
 The `rvcv-handoff` `check_semantic_type_count(..., "engage_case", min_count=2)`
 stays scenario-specific: it asserts the count Vendor2's post-join triage implies.
@@ -352,16 +352,17 @@ but a genuine failure observed before the cancellation still files
 A scenario's dump step builds `LedgerDumpTarget`s and delegates to
 `vultron.demo.helpers.ledger_dump.dump_case_ledgers()`. It MUST NOT carry its
 own fetch/write loop, or one scenario's dump fix fails to reach the others
-(DEMOMA-17-001). It is a `_phase_dump_case_ledgers` in a scenario written as
-phases and a `_dump_ledgers` fragment in one written as composition, which
-reaches the helper through `coordinated_story.dump_coordinated_ledgers()` where
-a family shares its participant map.
+(DEMOMA-17-001). Every scenario is written as composition, so it is a
+`_dump_ledgers` fragment, which reaches the helper through
+`coordinated_story.dump_coordinated_ledgers()` where a family shares its
+participant map — the vendor-first half through
+`vendor_story.dump_vendor_ledgers()`, which drops a cast name the run never
+seated.
 
 - **Register the dump the moment a case exists**, so every later step can fail
-  without losing the ledgers (DEMOMA-23-003): a phase scenario calls
-  `harness.dump_with(lambda: _phase_dump_case_ledgers(...))` right after the
-  phase that creates the case; a story calls `state.open_case(...)`, which arms
-  the `dump=` fragment its cast opening was built with.
+  without losing the ledgers (DEMOMA-23-003): the fragment that opens the case
+  calls `state.open_case(...)`, which arms the `dump=` fragment its cast
+  opening was built with and follows the canonical ledger, both exactly once.
 - **Do not add `try/finally: assert_demo_success()` to `main()`.** The harness
   owns the accumulator; a second owner asserts before the dump runs
   (DEMOMA-23-001).

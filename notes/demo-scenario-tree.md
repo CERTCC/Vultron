@@ -172,8 +172,9 @@ on `rcv` and `rcv-reject`, then finished across the whole
 Reporter → Coordinator → Vendor family in #5534 (`rcvcv`, `rcv-embargo`,
 `rcvv-embargo`) and the two-coordinator pair in #5535 (`rccv-extension`,
 `rccv-handoff`), which is the whole coordinator-first subtree; the
-vendor-first half follows (#5536) and then `path=` and the hand-placed
-`reach_step` go (#5537).
+vendor-first half came in #5536 (`rv`, `rvv`, `rvcv-extension`,
+`rvcv-handoff`), so every scenario of the tree is composed. What remains is
+retiring `path=` and the hand-placed `reach_step` (#5537).
 
 - **The API is four names.** `vultron/demo/helpers/story.py` holds them:
   `choose(branch point, choice, by=<cast name>)` declares one decision,
@@ -244,10 +245,26 @@ vendor-first half follows (#5536) and then `path=` and the hand-placed
   `VENDOR_JOINS_THE_CASE` ⊂ `REPORTER_PROPOSES_EMBARGO`
   (`coordinated_embargo_story.py`) and `REPORTER_TELLS_THE_COORDINATOR` ⊂
   `C1_INVITES_C2` (`two_coordinator_story.py`), one per branch point the
-  subtree parts at. The root one is the report submission and the owner's
-  triage, which every coordinator-first scenario tells identically, so a
-  sub-family that parts earlier than its siblings splits the shortest prefix
-  rather than writing a second copy of the opening (#5535).
+  subtree parts at. The vendor-first half's are `REPORTER_TELLS_THE_VENDOR` ⊂
+  `THE_VENDOR_ANSWERS_THE_REPORTER` (`vendor_story.py`) ⊂
+  `THE_VENDOR_INVITES_A_COORDINATOR` (`vendor_coordinator_story.py`). The root
+  one is the report submission and the owner's triage, which every scenario of
+  a half tells identically, so a sub-family that parts earlier than its
+  siblings splits the shortest prefix rather than writing a second copy of the
+  opening (#5535).
+- **A read-only check may sit inside a shared stretch; an act may not.** `rv`
+  tells `THE_VENDOR_ANSWERS_THE_REPORTER`'s two steps with its own M1 and M2
+  replica checks between them, so it starts with the shorter prefix and places
+  the note fragment itself. A poll and a verification write nothing, so they
+  advance no stepping clock, and the four vendor-first recordings still agree
+  to the branch point: measured, `rv`'s recording came out byte-identical to
+  the one committed before the composition. Keeping the two checks where they
+  were is also what leaves `rv`'s verdict and its milestone order untouched
+  (DEMOMA-17-002, #5536). An *act* placed the same way would move the bytes,
+  and the byte-identity check would catch it. The exception is a read that
+  reads the clock itself, as `PendingAssertionStore.pending_for_subject` does
+  to check expiry (#5591, below): slipping one of those into a shared stretch
+  would move the bytes too, so measure rather than assume.
 - **A decision both halves make gets its own module, not a family's.** The
   owner-keep-case choice — keep the case and approve the joiner's suggestion,
   or hand the case over and let the new owner invite — appears in the
@@ -268,6 +285,15 @@ vendor-first half follows (#5536) and then `path=` and the hand-placed
   migration the registry accepts either form; declaring both fails discovery
   (DEMOCI-11-024), and `ScenarioSpec.composed` is how a check tells them
   apart.
+- **One opener serves every family.** The reset, the seeding and the seating a
+  family's opening does are the same three steps whichever family it is, so
+  they are written once in `story_cast.py` (`CastSeat`, `open_story_cast`,
+  `story_open_cast`) and each family supplies only its seats, in its
+  `seed_containers_*` return order, and that seeder as a closure. A second
+  family copying the first one's opener is what DEMOMA-17-001 forbids, and the
+  seat order is load-bearing: the opener binds each session to the seat's own
+  container, so a seeder returning a different number of actors raises rather
+  than seating one actor on another's client (#5536).
 - **A fragment takes the cast, not a container.** The cast and the tree-wide
   seed are fixed (DEMOCI-11-020, DEMOCI-11-025), so a fragment is handed the
   cast's `ActorSession`s under the names the story seats them under, and names
@@ -328,7 +354,13 @@ vendor-first half follows (#5536) and then `path=` and the hand-placed
   byte-identical. The two-coordinator pair came in the same way: its C2 is a
   character actor, so its opening seeds the same three containers `rcv`'s
   does, and every checked pair of the coordinator-first subtree is
-  byte-identical (#5535). A family joins `COMPOSED_FAMILIES` when
+  byte-identical (#5535). The vendor-first half measured the same way — `rv`
+  at two containers, `rvv` at three and the `rvcv` pair at four, 120 ms and
+  160 ms apart — and its opening seeds the two every one of the four uses, so
+  the Coordinator joins the `rvcv` pair's stories as an unseated container
+  like any character actor although it sits in a fixed cast slot: what decides
+  is whether *every* sibling uses it, not which slot it is in (#5536). A
+  family joins `COMPOSED_FAMILIES` when
   its scenarios share one authored opening *and* that opening writes the same
   records in every one of them (DEMOCI-11-018).
 - **A shared prefix that runs past the embargo activation is not checkable
@@ -340,7 +372,9 @@ vendor-first half follows (#5536) and then `path=` and the hand-placed
   solo runs (#5591). The table therefore names the subtree as two overlapping
   families, which is how it says "every pair but one"; collapsing them is
   #5591's acceptance criterion. Read the table's comment before adding a
-  family whose members share four or more steps.
+  family whose members share four or more steps. The vendor-first half parts
+  at ledger entry 15 or 22, well ahead of that race, so it is one family and
+  every pair of it is checked (#5536).
 - **Key a composed view on the scenario and the case, never the case alone.**
   One seed also means every scenario draws the *same* case id, which is what
   lets siblings record identical bytes for a shared opening (DEMOCI-11-025) and
@@ -429,7 +463,8 @@ reports to the harness with `reach_step` for the shared-prefix check
    `rcv` and `rcv-reject` (#5533); the rest of the
    "Coordinator invites Vendor" subtree, `rcvcv`, `rcv-embargo` and
    `rcvv-embargo` (#5534); the two-coordinator subtree, `rccv-*` (#5535); the
-   vendor-first half, `rv`, `rvv` and `rvcv-*` (#5536); then retiring `path=`
+   vendor-first half, `rv`, `rvv` and `rvcv-*` (#5536, done); then retiring
+   `path=`
    and hand-placed `reach_step` (#5537).
 2. Test starting points: #5344 (one act cheap) and #5345 (the harness, which
    stops a run at a `reach_step` mark), then the pilot #5346, then the

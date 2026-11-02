@@ -100,7 +100,7 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
     record is a fault, not a skip: the strip would leave the case with no
     ``CASE_OWNER`` holder at all, so the node raises before it changes
     anything (CM-21-001, CM-21-004).  The Accept's guards admit only an
-    active transferee (CM-21-021), so reaching it means the store lost the
+    active transferee (CM-21-022), so reaching it means the store lost the
     record the guards read.
 
     Idempotent: when the case is already owned by the new owner, returns
@@ -154,7 +154,7 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
         Read through the lookup the Accept's active-transferee guard uses
         (:func:`~vultron.core.participants.recipients.listed_participant_record`),
         so a record the guard admitted, stored or carried inline, is the one
-        this node changes (CM-21-021).
+        this node changes (CM-21-022).
         """
         assert self.datalayer is not None
         if actor_id not in case.actor_participant_index:

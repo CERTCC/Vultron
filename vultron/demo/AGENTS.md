@@ -59,8 +59,8 @@ A scenario module declares itself, and nothing else anywhere does:
 - `ROLES: list[ActorRole]` (`helpers/actor_roles.py`), one frozen role per actor
   **in `main()` parameter order**, and `CLI_HELP: str`. These generate the
   scenario's `--<role>-url` / `--<role>-id` options and its `--help`; each address
-  comes off the role's cast slot, read by the module's own `*_BASE_URL` constant or,
-  in a composed family, by its shared client factory. So **never add a
+  comes off the role's cast slot, read by the family's shared client factory, so a
+  scenario module declares no `*_BASE_URL` constant of its own. So **never add a
   `@main.command` block to `cli.py`** (DEMOCI-11-011), and mind the quiet drift
   direction the `main()`-signature ratchet catches: a keyword no role declares gets
   no option, keeps its default, and runs against the wrong container without failing.
@@ -166,18 +166,16 @@ Forensic artifacts matter most in the run that fails, so a dump placed after the
 last phase never runs when it counts (#2239: `devlogs/` empty, invariant harness
 dead on artifact download).
 
-- Wrap the whole body of `run_<name>_demo()` in
-  `with scenario_harness("<demo-name>") as harness:` — it resets the accumulator,
-  always dumps on the way out, and calls `assert_demo_success()` last; `run_story()`
-  does it for a composed scenario.
-- Register the dump as soon as a case exists: `harness.dump_with(...)` in a
-  phase scenario, `state.open_case(...)` in a story.
+- `run_story()` enters `scenario_harness("<demo-name>")` for every scenario: it
+  resets the accumulator, always dumps on the way out, and asserts success last.
+- The dump is armed as soon as a case exists, by `state.open_case(...)`, which
+  also follows the canonical ledger — both exactly once.
 - Do not re-add `try/finally: assert_demo_success()` in `main()` — a second owner
   of the accumulator asserts before the dump runs.
 - Keep the dump step thin and delegate to
   `helpers.ledger_dump.dump_case_ledgers()`. The manifest is not optional, and
-  a dump failure must never replace the scenario's exception. Both shapes of
-  the step, and the per-family wrapper, are in the note below.
+  a dump failure must never replace the scenario's exception. The step and the
+  per-family wrapper are in the note below.
 
 DEMOCI-10, DEMOMA-23, and
 [`notes/demo-ci-invariants.md`](../../notes/demo-ci-invariants.md). (ISSUE-2239)

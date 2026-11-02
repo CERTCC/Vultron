@@ -10,7 +10,7 @@ description: >
 related_specs:
   - specs/architecture.yaml (ARCH-12-001, ARCH-21-002, ARCH-25-003)
   - specs/vocabulary-model.yaml (VM-08-002, VM-08-003)
-  - specs/outbox.yaml (OX-07-001)
+  - specs/outbox.yaml (OX-07-001, OX-07-004)
   - specs/case-ledger-processing.yaml (CLP-07-006, CLP-07-011)
   - specs/case-management.yaml (CM-17-002)
   - specs/message-validation.yaml (MV-10-001)
@@ -147,7 +147,7 @@ sync adapter, the outbox route, the pending-case queue), and the sealed text is
 the `activity_blob` returned to core. The outbox handler reads the sealed body,
 applies only the last-resort guards (`to:` present, inline `object`), and hands
 the text to the emitter unchanged; nothing on the delivery path reads the
-activity record (OX-07-001). Sealing is write-once per activity id.
+activity record (OX-07-004). Sealing is write-once per activity id.
 
 Consequences for core:
 

@@ -48,7 +48,6 @@ related_notes:
   - notes/domain-validation.md
   - notes/protocol-asks.md
   - notes/structured-logging.md
-  - notes/ownership-transfer-close-paths.md
 relevant_packages:
   - py_trees
   - vultron/bt
@@ -173,7 +172,7 @@ never on the event loop:
 - The inbox background task (`run_inbox_pipeline`) is `async def` and so runs
   on the event loop; it hands the synchronous BT pipeline (`process_payload`
   and the replay loop) to `asyncio.to_thread` itself, inside the per-actor
-  asyncio lock (IE-06-003). Without that hop every inbound activity stalls the
+  asyncio lock (IE-06-007). Without that hop every inbound activity stalls the
   whole container for its BT tick (#3033).
 
 Two BT executions therefore run on different threads at once, and
@@ -420,7 +419,7 @@ receive it, so the gate could only skip. The CASE_MANAGER's own acts
 (`Update(VulnerabilityCase)`, `Create`/`Update(CaseParticipant)`,
 `Create(EmbargoEvent)`, `Create`/`Update(EmbargoConsent)`) have no received
 tree: the registry recognizes each and the dispatcher reports "no use case
-found" (SE-05-002, ADR-0140). `Create(CaseStatus)`, `Create(ParticipantStatus)`
+found" (SE-05-005, ADR-0140). `Create(CaseStatus)`, `Create(ParticipantStatus)`
 and a `Create` of any non-embargo `Event` have none either, and resolve to
 `UNKNOWN`: storing the
 record they carry would change the case file with no entry (CLP-07-013), and

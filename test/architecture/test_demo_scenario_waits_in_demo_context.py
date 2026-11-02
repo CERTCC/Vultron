@@ -23,10 +23,14 @@ scenario: ``scenario_harness`` re-raises, so a bare call crashes the whole run
 at the first failure and buries every co-occurring failure (violating the
 accumulation model, DEMOCI-01-003/004).
 
-Scenario-level code has two shapes while the scenarios migrate to composed
-stories (#5533, #5534, #5537):
+Every scenario is written as a composed story (#5533 through #5536), so
+scenario-level code is **story fragments**; the scan keeps a second arm for
+the ``_phase_*`` function a hand-written scenario module used to hold, so one
+written again is scanned rather than silently exempt:
 
-* a ``_phase_*`` function in a hand-written scenario module;
+* a ``_phase_*`` function in a scenario module, which
+  :func:`test_every_scenario_level_subject_is_a_story_fragment` now asserts
+  there are none of;
 * a **story fragment** — a module-level function taking a
   :class:`~vultron.demo.helpers.story.StoryState`, which is one step of a
   story (``vultron/demo/helpers/story.py``).  A fragment is scenario-level
@@ -40,11 +44,10 @@ stories (#5533, #5534, #5537):
 Both shapes run under ``scenario_harness`` and both own their wrap, so the
 check follows the subject rather than the directory: it scans every module
 under ``vultron/demo/`` and takes its subjects from the two shapes.
-:func:`test_the_check_has_subjects_of_both_shapes` fails if either shape stops
-being found, so retiring the ``_phase_*`` arm when the migration finishes is a
-deliberate edit rather than a gate quietly left with nothing to check
-(``notes/documentation-strategy.md`` § "A gate that resolves zero targets must
-fail").
+:func:`test_every_scenario_level_subject_is_a_story_fragment` fails if no
+fragment is found, so the check is never a gate quietly left with nothing to
+check (``notes/documentation-strategy.md`` § "A gate that resolves zero targets
+must fail"), and it fails too if a ``_phase_*`` function reappears.
 
 A raising wait invoked from scenario-level code MUST therefore sit inside a
 ``demo_step`` / ``demo_check`` / ``demo_gate`` block, OR be invoked through a
@@ -61,7 +64,9 @@ editing this test.  A demo context is a literal ``demo_step`` / ``demo_check`` /
 ``context = demo_gate if causal else demo_check``).
 
 Source: CONCERN-3384 (#3406), generalising the #1772/#1802 ledger-coverage fix;
-widened to story fragments by #5534.
+widened to story fragments by #5534; the ``_phase_*`` arm became a
+forbid-rather-than-expect assertion in #5536, when the last scenario was
+composed.
 Spec: ``specs/demo-ci.yaml`` DEMOCI-01-011.
 """
 
@@ -486,17 +491,21 @@ def test_polling_module_has_raising_and_wrapping_helpers():
     assert _WRAPPING_WAITS, "at least one real wrapping helper must exist"
 
 
-def test_the_check_has_subjects_of_both_shapes():
-    """The scan must resolve files, and a subject of each shape.
+def test_every_scenario_level_subject_is_a_story_fragment():
+    """The scan must resolve files, and every subject must be a fragment.
 
     A gate that resolves no target passes while checking nothing, and its
     false clean signal suppresses the review it replaced
     (``notes/documentation-strategy.md`` § "A gate that resolves zero targets
-    must fail").  Both arms are asserted separately because the scenarios are
-    mid-migration from ``_phase_*`` functions to composed stories: a rewrite
-    that leaves a scenario with no phases must not quietly take its checking
-    with it, and the last phase function going away is the signal to retire
-    that arm here on purpose.
+    must fail"), so the fragment arm is asserted to find subjects.
+
+    The ``_phase_*`` arm is asserted to find **none**: the story migration
+    converted the last scenario in #5536, so scenario-level code is story
+    fragments and a ``_phase_*`` function would be a plain helper, classified
+    from its own body by :func:`_classify_polling_helpers` instead.  The arm
+    stays in the scanner so a reintroduced phase function is still scanned,
+    and this assertion is what says it must not be reintroduced; the inline
+    samples below keep the arm itself honest.
     """
     assert _SCANNED_TREES, (
         "no module under vultron/demo/ holds scenario-level code, so"
@@ -505,14 +514,15 @@ def test_the_check_has_subjects_of_both_shapes():
     )
     assert _SHAPES_FOUND[_FRAGMENT], (
         f"no {_FRAGMENT} was found under vultron/demo/, so the composed"
-        " scenarios (#5533, #5534, #5537) are unchecked; a fragment is a"
+        " scenarios (#5533 through #5536) are unchecked; a fragment is a"
         f" module-level function taking a {_STORY_STATE}"
     )
-    assert _SHAPES_FOUND[_PHASE], (
-        f"no {_PHASE} was found under vultron/demo/: if the story migration"
-        " (#5533, #5534, #5537) has converted the last scenario, delete the"
-        f" {_PHASE_PREFIX}* arm of this check and this assertion with it,"
-        " rather than leaving an arm that can no longer fail"
+    assert not _SHAPES_FOUND[_PHASE], (
+        f"a {_PHASE} was found under vultron/demo/, and every scenario is"
+        " written as composition (#5536): a step of a story is a fragment"
+        f" taking a {_STORY_STATE}, so a {_PHASE_PREFIX}* function is either a"
+        " scenario that regressed to phases or a helper that should not carry"
+        f" that name. Found {_SHAPES_FOUND[_PHASE]}"
     )
 
 

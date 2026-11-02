@@ -3,13 +3,17 @@ title: Peer Broadcast Failure Semantics
 status: active
 kind: guidance
 description: >
-  Peer fan-out failure must surface as FAILURE (BT-14-001), with one exception:
+  Peer fan-out failure must surface as FAILURE (BT-14-001), with two exceptions:
   a best-effort notification after a committed mutation inside a Selector whose
-  fallback always succeeds.
+  fallback always succeeds, and a fan-out's held-back catch-up of a paused peer
+  (BT-14-003).
 related_specs:
   - specs/behavior-tree-integration.yaml
+  - specs/sync-ledger-replication.yaml
+  - specs/case-ledger-processing.yaml
 related_notes:
   - notes/bt-pitfalls.md
+  - notes/sync-ledger-replication.md
 ---
 
 # Peer Broadcast Failure Semantics
@@ -44,3 +48,13 @@ Examples: `SendAnnounceEmbargoEventNode`
 (`vultron/core/behaviors/embargo/nodes/teardown.py`) and `EmitCloseCaseNode`
 (`vultron/core/behaviors/status/nodes/lifecycle.py`). Both still fail on hard data
 errors. A node directly in a `Sequence` with no such Selector parent fails fast.
+
+## Held-Back Catch-Up Exception (BT-14-003)
+
+A fan-out whose catch-up backfill of a let-back-in, paused peer is held back at an
+older entry (SYNC-03-009) skips only that peer and returns `SUCCESS`. **Why:** the
+peer keeps its pause, so the same hold-back comes back on every later commit, and
+failing would refuse each of those acts whole (CLP-07-015). Before a new send path
+returns `FAILURE` on a hold-back inside an act, check whether a kept pause makes the
+hold-back recur on every later act; if it does, skip the stalled peer instead.
+`SendLogEntryToEachNode` (`vultron/core/behaviors/sync/nodes/fanout.py`).

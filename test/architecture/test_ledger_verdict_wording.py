@@ -119,7 +119,7 @@ def _scanned() -> tuple[tuple[str, str], ...]:
 
 #: Every banned phrase ends in "assertion" or "outcome".  Plain substring
 #: search finds those cheaply, and the case-insensitive regex then runs only on
-#: a short window ending at each hit (the TB-13-007 prefilter, for text).
+#: a short window ending at each hit (the TB-13-008 prefilter, for text).
 #: Dropping the first letter covers lower and title case, and the upper-case
 #: fragments cover all caps, so nothing is case-folded.
 _PREFILTER = ("ssertion", "SSERTION", "utcome", "UTCOME")

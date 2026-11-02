@@ -229,7 +229,7 @@ def hosted_endpoints(actor_id: str) -> HostedEndpoints:
     ``{actor_id}/inbox`` and ``{actor_id}/outbox``, so they are values the
     actor knows.  For a peer the same addresses would be guesses
     (AKM-02-006); delivery falls back to the derived inbox address itself
-    when it holds none (OX-12-009).
+    when it holds none (OX-12-010).
     """
     return HostedEndpoints(
         inbox=f"{actor_id}/inbox", outbox=f"{actor_id}/outbox"

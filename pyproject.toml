@@ -166,7 +166,7 @@ select = [
     "B",    # flake8-bugbear
     "UP",   # pyupgrade
     "SIM",  # flake8-simplify
-    "RUF",  # ruff-specific rules, including RUF100 (IMPLTS-07-020)
+    "RUF",  # ruff-specific rules, including RUF100 (IMPLTS-07-025)
     "PL",   # pylint
     "TRY",  # tryceratops
     "DTZ",  # flake8-datetimez (CS-13-001)

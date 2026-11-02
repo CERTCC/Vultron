@@ -114,6 +114,7 @@ def test_rehydrate_routes_the_inline_object_without_storing_it(dl):
 
 
 @pytest.mark.spec("IO-03-004")
+@pytest.mark.spec("IO-03-008")
 def test_rehydrate_routes_the_receivers_own_copy_over_the_inline_one(dl):
     """A held object wins, as it did when ingress skipped a duplicate."""
     dl.create(as_Note(id_=_NOTE_ID, content="held", context=_CASE_ID))
@@ -124,6 +125,7 @@ def test_rehydrate_routes_the_receivers_own_copy_over_the_inline_one(dl):
 
 
 @pytest.mark.spec("IO-03-004", "CBT-03-001", "DL-06-006", "VM-08-002")
+@pytest.mark.spec("IO-03-009")
 def test_deferred_activity_replays_with_its_inline_object(dl):
     staging = InlineObjectStaging(dl)
     queue = FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging)
@@ -158,6 +160,7 @@ def test_deferred_activity_replays_with_its_inline_object(dl):
 
 
 @pytest.mark.spec("IO-03-004", "CBT-03-003")
+@pytest.mark.spec("IO-03-009")
 def test_expired_queue_drops_the_inline_objects_held_for_replay(dl):
     staging = InlineObjectStaging(dl)
     queue = FastAPIQueuePort(dl=dl, actor_dl=dl, staging=staging)
@@ -182,6 +185,7 @@ def test_expired_queue_drops_the_inline_objects_held_for_replay(dl):
 
 
 @pytest.mark.spec("IO-03-004")
+@pytest.mark.spec("IO-03-008")
 def test_staging_store_is_empty_after_a_rebuild(dl):
     """A delivery's staged objects do not outlive its rebuild."""
     _routed(dl, _add_note_body())

@@ -86,7 +86,7 @@ See [How to Initialize a Case](../howto/activitypub/activities/initialize_case.m
 {% include-markdown "../howto/activitypub/activities/_demo_initialize_participant.md" %}
 
 This demo shows how a participant joins an existing case.
-The vendor asks the CaseActor to invite a coordinator, and the coordinator joins by accepting the Invite.
+The vendor asks the Case Actor to invite a coordinator, and the coordinator joins by accepting the Invite.
 Notice that the vendor's own copy of the case gets the coordinator from the ledger entry for the `Accept`, with no other message.
 
 See [How to Seat a Participant on an Existing Case](../howto/activitypub/activities/initialize_participant.md) for details.
@@ -299,7 +299,7 @@ The Report Submission (RS), `Offer(VulnerabilityReport)`, carries a proposed `Em
 The Reporter sends it through the `proposed_embargo_end_time` of the `submit-report` trigger.
 
 The recipient's default is the `EmbargoPolicy` on its own actor profile, published through `PUT /actors/{actor_id}/embargo-policy` (EP-04-003).
-The recipient sends that profile inline as the `actor` of its case proposal, and the CaseActor reads the default from there (CP-01-010).
+The recipient sends that profile inline as the `actor` of its case proposal, and the Case Actor reads the default from there (CP-01-010).
 
 When the case is created, the shorter of the two becomes the active embargo.
 The longer one stays pending as a revision, so the EM state is `REVISE`.
@@ -308,13 +308,13 @@ When the recipient has published no default, the terms of the Reporter apply at 
 No proposal exchange occurs before the case.
 The comparison is settled when the case is created.
 
-The CaseActor then relays the pending revision to the party whose terms won, on behalf of the party whose terms lost (EP-04-011).
+The Case Actor then relays the pending revision to the party whose terms won, on behalf of the party whose terms lost (EP-04-011).
 When the Reporter proposed 60 days, that party is the Vendor, the case owner.
 The protocol requires no automatic answer.
 So the 30-day default of the Vendor stays active, and the longer terms of the Reporter stay pending until the owner answers.
 The case stays at `REVISE`.
 
-When the Reporter proposed 10 days, the CaseActor invites the Reporter instead.
+When the Reporter proposed 10 days, the Case Actor invites the Reporter instead.
 The acceptance of the Reporter only records consent, so the case also stays at `REVISE`.
 
 ```mermaid

@@ -7,7 +7,10 @@ inboxes.
 
 Future implementation will:
 
-1. Validate the HTTP Signature on the inbound request.
+1. Validate the HTTP Message Signature on the inbound request (OX-11-002), a
+   production transport layer.  It adds to, and does not replace, each
+   addressed actor's verification of the activity's own content proof
+   (SIG-03-001, ADR-0164).
 2. Identify the addressed local actors from the activity ``to``/``cc`` fields.
 3. Enqueue one inbox delivery per addressed actor via the delivery queue port.
 

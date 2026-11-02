@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Decide whether a run of the publish workflow publishes, and tag what it did.
 
-The publish workflow (``deploy_site.yml``, ADR-0169, DOCBW-06) deploys the
+The publish workflow (``deploy_site.yml``, ADR-0171, DOCBW-06) deploys the
 site from ``publish-YYYY-MM-DD.N`` tags. This script holds its logic, so the
 workflow only wires jobs together. Every run starts from ``main``, so the
 workflow and this script are always ``main``'s reviewed copies:
@@ -51,7 +51,7 @@ TAG_PREFIX = "publish-"
 MAIN_REF = "refs/heads/main"
 # The identity this workflow tags as. git records it as the tagger of every
 # annotated tag the workflow creates; the skip rule recognises a tag the
-# workflow made by it (ADR-0169).
+# workflow made by it (ADR-0171).
 BOT_NAME = "github-actions[bot]"
 BOT_EMAIL = "41898282+github-actions[bot]@users.noreply.github.com"
 FAILURE_LABEL = "ci:main-failure"
@@ -148,7 +148,7 @@ def classify_trigger(
 
     A scheduled run publishes ``main``. A manual run must start from ``main``,
     so the workflow that runs is ``main``'s reviewed copy, never one stored at
-    a tag (ADR-0169); it rolls back when it names a ``rollback-to`` tag, and
+    a tag (ADR-0171); it rolls back when it names a ``rollback-to`` tag, and
     publishes ``main`` otherwise. Anything else is refused.
     """
     if event == "schedule":
@@ -340,7 +340,7 @@ def decide(
     open_blocking_issues: Callable[[], list[tuple[int, str]]],
     still_pending: Callable[[], list[str]],
 ) -> Decision:
-    """Apply the skip rule and the CI gate to one run (ADR-0169, DOCBW-06).
+    """Apply the skip rule and the CI gate to one run (ADR-0171, DOCBW-06).
 
     A rollback skips both. Only a scheduled run applies the skip rule; a
     manual run is a deliberate request to publish. The CI gate runs for

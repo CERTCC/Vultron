@@ -322,12 +322,12 @@ make its wait fail and assert one `GATE FAILED` and no dependent call (#5464).
 # Wrong: demo_check lets engage-case run on an uncommitted RM.VALID
 with demo_check(f"{actor.id_} reached RM.VALID"):
     wait_for_participant_rm_state(...)
-vendor_engages_case(...)  # may 422
+receiver_engages_case(...)  # may 422
 
 # Right: demo_gate skips engage-case if the precondition is unmet
 with demo_gate(f"{actor.id_} reached RM.VALID"):
     wait_for_participant_rm_state(...)
-vendor_engages_case(...)
+receiver_engages_case(...)
 ```
 
 ### Diagnosing a timeout

@@ -280,8 +280,9 @@ descriptions, so keep those accurate and put new endpoints on the right router.
 ## Module Splits: No New God Modules, Always Re-Export
 
 - **A split must not produce a new god module.** Submodules stay at or under 500 lines
-  and are split again when they re-accumulate (CS-18-001). A BT process area's leaf
-  modules go in a `nodes/` subpackage grouped by semantic concern (BTND-07-001).
+  and are split again when they re-accumulate (CS-18-002, CS-18-005). A BT process
+  area's leaf modules go in a `nodes/` subpackage grouped by semantic concern
+  (BTND-07-001).
 - **Check `wc -l` before documenting a leaf.** A BT leaf module within ~20 lines of the
   500-line cap (BTND-07-004) is split before docstrings or audit comments are added.
 - **A split re-exports what it moved, only where the old name is still a live
