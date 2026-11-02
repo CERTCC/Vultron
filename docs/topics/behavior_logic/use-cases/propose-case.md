@@ -50,7 +50,7 @@ An address derived from the report could not be provisioned before the report ar
 The proposal would then meet a permanent 404, and the round-trip would never start.
 
 The service URL comes from the actor's configuration, not from the server's own base URL.
-In a container deployment, that configuration is `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`.
+In a container deployment, that configuration is `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`, one of the settings in the [Node Configuration Reference](../../../reference/configuration.md).
 The server's own base URL happens to work when both actors share a container.
 When they do not share a container, a proposal sent to that URL goes back to the proposer.
 

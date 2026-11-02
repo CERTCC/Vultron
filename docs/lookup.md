@@ -44,6 +44,7 @@ If this is your first visit, start from the [home page](index.md) instead: it se
 - [Demo Scenarios](topics/scenarios/index.md) — One narrative page for each multi-actor demo scenario, which tells the case that scenario runs from the participants' point of view.
 - [Trigger API](reference/trigger-api.md) — The `POST /actors/{actor_id}/trigger/{behavior}` endpoints, each of which starts a protocol behavior on an actor's behalf.
 - [Case Model Fields](reference/case_model_fields.md) — The fields of the case, participant, and status objects, as the reference implementation defines them.
+- [Node Configuration](reference/configuration.md) — The settings a Vultron reference implementation node reads from config.yaml and VULTRON_* environment variables, generated from the configuration model.
 - [Architecture](reference/specs/architecture.md) — The architecture requirements of the reference implementation: structure that carries over to other languages but that Vultron compliance does not require.
 - [User Stories](reference/user_stories/index.md) — Requirements captured as user stories.
 

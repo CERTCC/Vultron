@@ -86,7 +86,7 @@ class ActorConfig(BaseModel):
     Attributes:
         default_case_roles: CVD roles assigned to the local actor when it
             creates or receives ownership of a ``VulnerabilityCase``.
-            Defaults to an empty list; ``CVDRole.CASE_OWNER`` is always
+            Defaults to an empty list.  ``CVDRole.CASE_OWNER`` is always
             appended at participant-creation time (BTND-05-002).
         auto_create_case: When ``True`` (default), create a
             ``VulnerabilityCase`` immediately on ``Offer(Report)`` receipt
