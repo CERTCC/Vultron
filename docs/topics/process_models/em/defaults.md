@@ -19,16 +19,16 @@ The parties are then free to negotiate a better embargo.
 
 ## Declaring Defaults
 
-Any CVD Participant, Reporters included, can publish a default embargo period in their vulnerability disclosure policy.
+Any CVD Participant, Reporters included, can publish a default embargo in their vulnerability disclosure policy.
 The protocol encourages report recipients, usually Vendors and Coordinators, to publish one.
 
 !!! note ""
 
-    Participants MAY include a default embargo period as part of a published Vulnerability Disclosure Policy.
+    Participants MAY include a default embargo as part of a published Vulnerability Disclosure Policy.
 
 !!! note ""
 
-    Report Recipients SHOULD post a default embargo period as part of their Vulnerability Disclosure Policy to set expectations with potential Reporters.
+    Report Recipients SHOULD post a default embargo as part of their Vulnerability Disclosure Policy to set expectations with potential Reporters.
 
 ## Embargoes Are Active at Case Creation
 
@@ -42,7 +42,7 @@ There is no embargo phase before a case exists ([ADR-0096: A Protocol Default Em
 A Reporter who wants particular terms attaches a proposed embargo to the report they submit.
 Those terms, and the Recipient's published default, are weighed together when the Recipient creates the case.
 
-When a Report Recipient has published a default embargo period (see [Declaring Defaults](#declaring-defaults)), that default acts as a **standing proposal**.
+When a Report Recipient has published a default embargo (see [Declaring Defaults](#declaring-defaults)), that default acts as a **standing proposal**.
 A Reporter who submits a report without proposing different terms has **tacitly accepted** the standing proposal, by not objecting.
 So by the time the case is created, both parties have already stated their positions.
 The Recipient did so by publishing the policy, and the Reporter did so by not contradicting it.
@@ -82,7 +82,7 @@ PEC keeps one consent row per Participant for each embargo.
 The row of the Case Owner for the default embargo is seeded `AGREED`.
 The row of a Reporter whose submission accepted the terms is also seeded `AGREED`.
 Neither party receives an invitation.
-Each of these parties is therefore a signatory.
+Each of these parties is therefore a [signatory](../../../reference/glossary.md#embargo-and-timing).
 Signatory is not a state of its own, but a read of the row of that party for the embargo in force.
 [Embargo Lifecycle](../../behavior_logic/use-cases/embargo-lifecycle.md) explains how the two scopes fit together.
 [§9.2 Transitions and Guards in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#92-transitions-and-guards) specifies consent without an invitation.
@@ -149,7 +149,7 @@ Each deployment configures the exact value.
 
 The protocol default is deliberately short.
 Its purpose is not to provide a comfortable embargo.
-Its purpose is to reward publishing a default embargo period.
+Its purpose is to reward publishing a default embargo.
 A Participant who publishes nothing gets a few days.
 A Participant who publishes a considered period gets the period they asked for.
 A generous fallback would remove the reason to publish at all.
