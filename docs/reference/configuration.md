@@ -115,6 +115,8 @@ The demo tooling reads a separate set of variables that are not node settings (C
 
 The Docker Compose files set node settings per container as environment variables; `docker/README.md` in the repository lists the values each container receives.
 
+---
+
 ## Further reading
 
 - [Run the Receive-Report Demo](../tutorials/receive_report_demo.md) — starts a node with Docker Compose, or directly under `uvicorn` with `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` set.
