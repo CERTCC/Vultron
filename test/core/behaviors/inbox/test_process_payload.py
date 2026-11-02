@@ -844,6 +844,7 @@ class TestInboundRsvpWindows:
         )
 
     @pytest.mark.spec("EP-07-001")
+    @pytest.mark.spec("EP-07-009")
     def test_no_config_applies_the_protocol_default(self) -> None:
         published = datetime.now(tz=UTC)
         assert self._deadline(self._invite(published), None) == (
@@ -852,6 +853,7 @@ class TestInboundRsvpWindows:
 
     @pytest.mark.spec("EP-07-002")
     @pytest.mark.spec("EP-07-008")
+    @pytest.mark.spec("EP-07-012")
     def test_configured_minimum_window_applies(self) -> None:
         published = datetime.now(tz=UTC)
         config = ActorConfig(min_rsvp_window=timedelta(days=4))

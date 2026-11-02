@@ -548,7 +548,7 @@ def test_an_invite_after_the_accept_cannot_replace_the_anchor(
     assert pending.invite_accepted
 
 
-@pytest.mark.spec("AKM-05-005")
+@pytest.mark.spec("AKM-05-019")
 def test_an_actor_reference_does_not_replace_the_receiver_fuller_record(
     case_actor_dl, invitee_dl
 ):

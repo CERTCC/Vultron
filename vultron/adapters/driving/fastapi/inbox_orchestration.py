@@ -262,7 +262,7 @@ class FastAPIIngressAdapter:
           No normalisation precedes the match, so a body re-serialized with
           another key order is refused too (IE-10-002 ``note:``);
         - the same body is a redelivery, routed in place of this one as the
-          copy the receiver already holds (VM-08-002, IE-10-001).  When the
+          copy the receiver already holds (VM-08-009, VM-08-010, IE-10-001).  When the
           first delivery is still deferred, its held copy is routed without
           received evidence, and the record holding it is kept for the
           replay, which carries it.  When intake already archived it, the

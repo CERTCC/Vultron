@@ -49,7 +49,7 @@ class TestDimensionState:
         """Prior core shape (ADR-0036): ``{"rm": {"state": ...}}``.
 
         Still accepted on input and still present in rows written before
-        SDO-01-004, so it stays readable.
+        SDO-01-004, so it stays readable (SDO-01-005).
         """
         status = {"rm": {"state": "RECEIVED"}}
         assert _dimension_state(status, "rm") == "RECEIVED"

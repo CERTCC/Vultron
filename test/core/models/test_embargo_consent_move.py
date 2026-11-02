@@ -176,6 +176,7 @@ class TestConsentRowMove:
 class TestOwnerAgreement:
     @pytest.mark.spec("MSM-07-008")
     @pytest.mark.parametrize("held", [_S.UNINVITED, _S.INVITED, _S.DECLINED])
+    @pytest.mark.spec("MSM-07-028")
     def test_the_owners_row_is_agreed(self, held):
         """A DECLINED row moves too: activating is changing the answer."""
         case_file = _case_file(owner={E2: held})
@@ -187,6 +188,7 @@ class TestOwnerAgreement:
         assert change.row.state is _S.AGREED
 
     @pytest.mark.spec("MSM-07-008")
+    @pytest.mark.spec("MSM-07-028")
     def test_an_agreed_owner_moves_nothing(self):
         assert owner_agreement(_case_file(owner={E2: _S.AGREED}), E2) is None
 

@@ -200,7 +200,7 @@ def test_vultron_embargo_event_required_fields():
     # context is required; omitting it must raise
     with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         EmbargoEvent(end_time=_FUTURE_DT)
-    # end_time is required too — no implicit default duration (EP-04-010,
+    # end_time is required too — no implicit default duration (EP-04-023,
     # #3404); context alone is not sufficient
     with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
         EmbargoEvent(context="urn:uuid:case-123")

@@ -289,6 +289,7 @@ def _unreached_signatories() -> set[str]:
 @pytest.mark.spec("CM-31-009")
 @pytest.mark.spec("CM-24-001")
 @pytest.mark.spec("CM-24-002")
+@pytest.mark.spec("VP-13-019")
 def test_owner_termination_sends_et_to_each_unreached_signatory() -> None:
     """Removed and departed signatories each get one ET, crediting the owner."""
     manager = _Manager()
@@ -673,7 +674,7 @@ def test_embargo_ending_notice_decision() -> None:
         a,
         short,
     )
-    # Equal terms are contained: the EP-05-001 carry-over arm.
+    # Equal terms are contained: the EP-05-003 carry-over arm.
     tie = embargo_ending_notice(dl, before=a, after=same)
     assert tie is not None and tie.kind is EmbargoEndingKind.SHORTENED
     assert embargo_ending_notice(dl, before=short, after=a) is None
@@ -785,6 +786,8 @@ def test_paused_replica_applies_the_managers_termination(
 @pytest.mark.spec("EMB-19-001")
 @pytest.mark.spec("BT-17-008")
 @pytest.mark.spec("RSH-08-003")
+@pytest.mark.spec("VP-17-002")
+@pytest.mark.spec("VP-17-003")
 def test_active_replica_takes_a_termination_from_the_ledger_not_the_remove() -> (
     None
 ):

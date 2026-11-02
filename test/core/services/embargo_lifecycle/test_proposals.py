@@ -124,6 +124,7 @@ def test_propose_embargo_idempotent_repropse(
 @pytest.mark.spec("EP-05-002")
 @pytest.mark.spec("MSM-07-005")
 @pytest.mark.spec("CM-18-002")
+@pytest.mark.spec("MSM-07-021")
 def test_propose_embargo_active_to_revise_lapses_nobody(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -179,6 +180,7 @@ def test_propose_embargo_active_to_revise_lapses_nobody(
 
 @pytest.mark.spec("EP-05-002")
 @pytest.mark.spec("MSM-07-005")
+@pytest.mark.spec("MSM-07-021")
 def test_propose_embargo_revise_to_revise_lapses_nobody(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -260,7 +262,7 @@ def test_propose_embargo_by_a_declined_participant_agrees_to_it(
 ) -> None:
     """Proposing terms it had declined is the proposer changing its answer.
 
-    Its row moves straight to AGREED (CM-18-003, MSM-07-005); no re-invite
+    Its row moves straight to AGREED (CM-18-003, MSM-07-022); no re-invite
     comes first.
     """
     owner, dl = owner_and_dl

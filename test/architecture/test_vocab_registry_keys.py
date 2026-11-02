@@ -19,7 +19,7 @@ Since #4045 the stub emits ``type: "VulnerabilityCaseStub"`` and owns that key
 ``_SANCTIONED_SHADOWS`` is a pinned exemption set, not a ratchet (ARCH-18-005): the
 ``as_Vultron*`` actor exception is enumerated by design and has no empty end state.
 
-Spec: `specs/vocabulary-model.yaml` VM-01-004, VM-01-008.
+Spec: `specs/vocabulary-model.yaml` VM-01-004, VM-01-008, VM-01-012 to VM-01-015.
 See: GitHub issue #2982.
 """
 
@@ -61,7 +61,7 @@ from vultron.wire.as2.vocab.base.registry import (
 #: bare ``from ... import WIRE_TYPE_MAP`` yields an empty dict.
 _MIN_REGISTERED_TYPES = 50
 
-#: The only ``type`` values two unflagged classes may share (VM-01-008): the
+#: The only ``type`` values two unflagged classes may share (VM-01-013): the
 #: Vultron actor subtypes deliberately shadow their base AS2 actor classes so an
 #: inbound actor keeps its extension fields. Maps each value to the class that
 #: MUST win the key.  Under ARCH-25-003 (ADR-0099) the winners are the core actor
@@ -69,7 +69,7 @@ _MIN_REGISTERED_TYPES = 50
 #: A pinned exemption set (ARCH-18-005), not a ratchet: the exception is
 #: enumerated by design and has no empty end state.
 #:
-#: permanent: VM-01-008
+#: permanent: VM-01-013
 _SANCTIONED_SHADOWS = {
     "Person": "VultronPerson",
     "Organization": "VultronOrganization",
@@ -236,7 +236,7 @@ def _registrable_wire_classes() -> list[type[as_Base]]:
 
 
 def test_no_unsanctioned_wire_type_collisions() -> None:
-    """VM-01-008: exactly one class owns each ``type`` value.
+    """VM-01-013: exactly one class owns each ``type`` value.
 
     Without this, a new class that declares an existing value (say ``"Note"``)
     silently takes the key for the whole process, decided by import order, and
@@ -256,7 +256,7 @@ def test_no_unsanctioned_wire_type_collisions() -> None:
     }
     assert not collisions, (
         "These wire 'type' values are claimed by more than one class. Mark "
-        "the non-owner `_wire_type_alias = True` (VM-01-008) {value: "
+        "the non-owner `_wire_type_alias = True` (VM-01-014) {value: "
         "classes}: " + repr(collisions)
     )
 
@@ -272,7 +272,7 @@ def test_no_unsanctioned_wire_type_collisions() -> None:
 
 
 def test_no_test_class_owns_a_wire_type_key() -> None:
-    """VM-01-008: a production ``type`` value is never owned by a test class.
+    """VM-01-014: a production ``type`` value is never owned by a test class.
 
     ``test_no_unsanctioned_wire_type_collisions`` above cannot see this case.
     Its subclass walk is scoped to ``vultron.wire.as2.vocab`` modules, so a
@@ -300,6 +300,6 @@ def test_no_test_class_owns_a_wire_type_key() -> None:
     assert not intruders, (
         "These wire 'type' values are owned by a class defined outside "
         "`vultron.` — a test stand-in that registered itself. Declare "
-        "`_wire_type_alias: ClassVar[bool] = True` on it (VM-01-008) "
+        "`_wire_type_alias: ClassVar[bool] = True` on it (VM-01-014) "
         "{value: class}: " + repr(intruders)
     )

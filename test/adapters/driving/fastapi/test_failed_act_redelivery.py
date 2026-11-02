@@ -160,6 +160,9 @@ def _fail_the_relay(client: TestClient, body: dict[str, Any]) -> None:
 @pytest.mark.spec("HP-06-003")
 @pytest.mark.spec("ASK-07-010")
 @pytest.mark.spec("ASK-07-011")
+@pytest.mark.spec("ASK-07-015")
+@pytest.mark.spec("ASK-07-016")
+@pytest.mark.spec("ASK-07-018")
 @pytest.mark.spec("ASK-07-006")
 def test_a_failed_proposal_is_applied_when_posted_again(
     served_manager, caplog: pytest.LogCaptureFixture

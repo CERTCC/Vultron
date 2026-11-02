@@ -127,7 +127,7 @@ def seed_case_actor_peers(
     The CaseActor names the participants in the activities it sends (the stub
     and full-case Invites among them) and carries each as it holds it: a seeded
     peer as its profile, an actor known only by URI as an id-and-type reference
-    (AKM-05-005, ADR-0159).  The demo reset clears its address book with every
+    (AKM-05-005, AKM-05-017, ADR-0159).  The demo reset clears its address book with every
     other record and :func:`seed_case_actor_identity` re-creates only the
     identity, so the peers ``docker/seed-configs/seed-case-actor.yaml`` gives it
     at startup are registered again here.  A ``None`` client (a topology with

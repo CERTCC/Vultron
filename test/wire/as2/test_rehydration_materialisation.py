@@ -489,7 +489,7 @@ def test_reference_resolving_to_a_non_object_is_still_refused() -> None:
 
     The residual case the rewritten test above no longer covers: the slot holds
     objects, and what came back cannot be one, so substituting it would produce an
-    opaque Pydantic error three frames away (VM-06-007).
+    opaque Pydantic error three frames away (VM-06-012).
     """
 
     class _NotAnObject:

@@ -260,6 +260,7 @@ class TestOwnerDecision:
     @pytest.mark.spec("CM-28-015")
     @pytest.mark.spec("CM-28-009")
     @pytest.mark.parametrize(("factory", "use_case", "decided"), _DECISIONS)
+    @pytest.mark.spec("MSM-07-026")
     def test_the_expiry_is_committed_before_the_decision(
         self, make_payload, factory, use_case, decided
     ):
@@ -529,6 +530,7 @@ class TestOtherEmbargoActivity:
 
     @pytest.mark.spec("CM-28-015")
     @pytest.mark.spec("MSM-07-007")
+    @pytest.mark.spec("MSM-07-026")
     def test_the_owner_learns_of_both_from_the_fan_out_alone(
         self, make_payload
     ):

@@ -91,6 +91,7 @@ def _ledger(dl, case_id: str) -> list[CaseLedgerEntry]:
 
 @pytest.mark.spec("EMB-13-004")
 @pytest.mark.parametrize("content", [None, "", "THREAT_SIGNAL", "early"])
+@pytest.mark.spec("EMB-13-009")
 def test_parse_edge_refuses_a_remove_without_a_termination_reason(
     make_payload, content
 ) -> None:
@@ -131,6 +132,7 @@ def test_parse_edge_promotes_the_reason_onto_the_event(
 
 
 @pytest.mark.spec("EMB-13-004")
+@pytest.mark.spec("EMB-13-010")
 def test_case_manager_records_an_early_remove_as_early(make_payload) -> None:
     dl, case, embargo = _case_with_embargo(
         "https://example.org/cases/tr-early", ended=False
@@ -173,6 +175,7 @@ def test_case_manager_records_an_end_time_remove_after_the_end_time(
 
 
 @pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("EMB-13-008")
 def test_case_manager_refuses_an_end_time_remove_before_the_end_time(
     make_payload,
 ) -> None:
@@ -252,6 +255,7 @@ def test_replica_replay_records_the_what_the_remove_carries() -> None:
 
 
 @pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("EMB-13-008")
 def test_replica_replay_refuses_an_end_time_entry_before_the_end_time() -> (
     None
 ):
@@ -282,6 +286,7 @@ def test_replica_replay_refuses_an_entry_without_a_reason() -> None:
 
 
 @pytest.mark.spec("EMB-13-005")
+@pytest.mark.spec("EMB-13-016")
 def test_replica_replay_copies_the_cause_the_entry_carries() -> None:
     """The replica records the entry's ``terminationCause`` as stated; its
     own case reads ``pxa``, which names no signal."""

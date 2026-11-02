@@ -106,9 +106,9 @@ def persist_creation_time_embargo(
 class CreationRevision(BaseModel):
     """The longer creation-time proposal, with the party that proposed it.
 
-    ``proposer_id`` is the party whose terms lost shortest-wins (EP-04-003):
+    ``proposer_id`` is the party whose terms lost shortest-wins (EP-04-016):
     the reporter when the sender's proposal lost, the case owner when its
-    actor default did.  Proposing is consenting (MSM-07-005), so its record,
+    actor default did.  Proposing is consenting (MSM-07-022), so its record,
     not the executing actor's, gains the revision id (#4152).
     """
 
@@ -162,15 +162,15 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
         (CM-18-003).  Only the owner's own Accept changes that answer.
 
         A *revision* is the longer creation-time proposal that lost
-        shortest-wins (EP-04-003).  It is stored and proposed through
+        shortest-wins (EP-04-016).  It is stored and proposed through
         ``propose_embargo`` (``ACTIVE → REVISE``, EMB-18-001) on behalf of
-        its ``proposer_id``, whose consent record gains it (MSM-07-005).
+        its ``proposer_id``, whose consent record gains it (MSM-07-022).
         EM is then ``REVISE``.  Its relay (EP-04-011) is the caller's: the
         case tree sends it later in the same act (ADR-0146).
 
         All of it is staged and committed through one ``save_many``, so any
         refusal or fault leaves the case at ``EM.NONE`` with nothing else
-        written, for a redelivered proposal to finish (EP-04-012, #4142).
+        written, for a redelivered proposal to finish (EP-04-030, #4142).
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` to initialize.

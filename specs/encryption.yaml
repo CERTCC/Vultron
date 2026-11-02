@@ -61,7 +61,14 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: >-
-      Private keys MUST be stored securely and MUST NOT be logged or included in API responses
+      An implementation MUST store each private key securely, and MUST NOT write one
+      to a log or include it in an API response.
+    lint_suppress:
+    # compound_statement: the storage half is production key handling (#1184), which
+    # agents may not build (AGENTS.md, ADR-0164). A split child would be a new
+    # protocol ID that the marker-coverage guard (SR-05-005) fails with no test to
+    # carry its marker. Split it when #1184 lands a key store with a test.
+    - compound_statement
     rationale: >-
       Anyone who obtains an actor's private key can read messages encrypted to it,
       including embargoed vul details, and can forge activities in its name. Logs and
@@ -196,8 +203,7 @@ groups:
       Inspection confirms decryption runs as its own stage ahead of parsing and that the
       semantic extraction code contains no decryption logic.
     statement: >-
-      The decryption layer MUST be separate from semantic extraction logic; the two concerns
-      MUST NOT be mixed
+      This codebase MUST NOT mix decryption logic into semantic extraction code.
     rationale: >-
       Kept apart, extraction stays a mapping from plaintext AS2 to semantics that can be
       tested without keys, and the encryption scheme can change (ENC-02-002) without

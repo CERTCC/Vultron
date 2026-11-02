@@ -205,7 +205,7 @@ class CommitOwnConsentDecisionNode(
 ):
     """Commit the CASE_MANAGER's own consent change as its row's entry alone.
 
-    A CASE_MANAGER with an embargo stake of its own (EP-09-002) that answers
+    A CASE_MANAGER with an embargo stake of its own (EP-09-024) that answers
     an embargo by trigger records the row it changes as its own
     ``Update(EmbargoConsent)`` entry, and builds, sends and commits no
     ``Reject(Invite(EmbargoEvent))``: the CASE_MANAGER's ``Reject`` of a

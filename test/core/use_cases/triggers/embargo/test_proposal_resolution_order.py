@@ -40,6 +40,7 @@ from typing import cast
 import pytest
 
 from test.support.embargo_register import (
+    activate,
     propose,
     reject,
     write_consent_rows,
@@ -80,13 +81,20 @@ from .conftest import _persist_actor
 
 
 def _build_case_with_two_open_proposals(
-    dl: SqliteDataLayer, owner_id: str, participant_id: str
+    dl: SqliteDataLayer,
+    owner_id: str,
+    participant_id: str,
+    *,
+    with_embargo_in_force: bool = False,
 ) -> tuple[VulnerabilityCase, str, str]:
     """Build a PROPOSED case with two open proposals in reverse expiry order.
 
     The proposal recorded *first* expires *later*, which is the counter-proposal
     shape EMB-15-003 produces: countering emits a fresh EP while the EM state
     stays PROPOSED, so arrival order puts the superseded terms in front.
+
+    With *with_embargo_in_force*, a 120-day embargo is activated first, so the
+    two proposals are open revisions of it (EP-08-005).
 
     Returns the case plus the proposal IDs of the later- and earlier-expiring
     proposals, in that order.
@@ -137,6 +145,14 @@ def _build_case_with_two_open_proposals(
         owner_id: owner_participant.id_,
         participant_id: participant.id_,
     }
+    in_force = as_EmbargoEvent(
+        context=case.id_,
+        start_time=start,
+        end_time=start + timedelta(days=120),
+    )
+    if with_embargo_in_force:
+        propose(case, in_force.id_)
+        activate(case, in_force.id_)
     # Insertion order is load-bearing: the later-expiring proposal is recorded
     # first, so a resolver that returns the first entry returns the wrong one.
     propose(case, later.id_, earlier.id_)
@@ -144,6 +160,8 @@ def _build_case_with_two_open_proposals(
     case.pending_embargo_proposal_index[earlier.id_] = earlier_proposal.id_
 
     dl.create(case)
+    if with_embargo_in_force:
+        dl.create(in_force)
     for obj in (
         later,
         earlier,
@@ -192,6 +210,31 @@ def test_default_selection_picks_the_earliest_expiring_proposal(
         "when a counter-proposal is open"
     )
     assert resolved == earlier_proposal_id
+
+
+@pytest.mark.spec("EP-08-005")
+def test_default_selection_takes_open_revisions_earliest_expiring_first(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """With an embargo in force, an accept naming no revision takes the
+    earliest-expiring one."""
+    finder, finder_dl = finder_actor_and_dl
+    owner = _persist_actor(finder_dl, "Vendor Co")
+    case, _, earlier_proposal_id = _build_case_with_two_open_proposals(
+        finder_dl, owner.id_, finder.id_, with_embargo_in_force=True
+    )
+    assert case.current_status.em.state == EM.REVISE
+
+    use_case = SvcAcceptEmbargoUseCase(
+        finder_dl,
+        AcceptEmbargoTriggerRequest(actor_id=finder.id_, case_id=case.id_),
+        trigger_activity=TriggerActivityAdapter(finder_dl),
+        sync_port=SyncActivityAdapter(finder_dl),
+        wire_render_port=As2WireRenderAdapter(),
+    )
+    use_case._prepare()
+
+    assert use_case._proposal_id == earlier_proposal_id
 
 
 def _build_case_with_one_open_proposal(

@@ -15,7 +15,8 @@
 RK goes from an actor the ``Offer(VulnerabilityReport)`` was addressed to, to
 the reporter, which checks the sender against its own record of the Offer
 (RMB-08-004).  Nobody sends RK to the CASE_MANAGER, so the handler forwards
-nothing and commits no ledger entry (RMB-08-003).
+nothing and commits no ledger entry (RMB-08-005,
+RMB-08-006, RMB-08-007).
 """
 
 from __future__ import annotations
@@ -188,6 +189,7 @@ class TestAckReportSender:
 
     @pytest.mark.spec("RMB-08-004")
     @pytest.mark.spec("HP-01-006")
+    @pytest.mark.spec("RMB-08-008")
     def test_sender_that_is_not_an_addressee_is_refused(self):
         dl = _make_store(FINDER_ID)
         before = dl.count_all()
@@ -200,6 +202,7 @@ class TestAckReportSender:
         assert dl.outbox_list() == []
 
     @pytest.mark.spec("RMB-08-004")
+    @pytest.mark.spec("RMB-08-008")
     def test_store_without_a_record_of_the_offer_refuses(self):
         dl = _make_store(FINDER_ID, offer_record=False, case=False)
         before = dl.count_all()
@@ -213,9 +216,9 @@ class TestAckReportSender:
 
 
 class TestAckReportIsNotSentToTheCaseManager:
-    """No RK is forwarded to the CASE_MANAGER or ledgered (RMB-08-003)."""
+    """No RK is forwarded (RMB-08-006) or ledgered (RMB-08-007)."""
 
-    @pytest.mark.spec("RMB-08-003")
+    @pytest.mark.spec("RMB-08-006")
     def test_own_ack_is_not_forwarded_to_the_case_manager(self):
         """The Vendor's own ``Read`` in its own inbox emits nothing (#2667)."""
         dl = _make_store(VENDOR_ID)
@@ -226,7 +229,7 @@ class TestAckReportIsNotSentToTheCaseManager:
         assert dl.outbox_list() == []
         assert _ledger_semantic_types(dl) == []
 
-    @pytest.mark.spec("RMB-08-003")
+    @pytest.mark.spec("RMB-08-007")
     def test_case_manager_commits_no_ledger_entry(self):
         """The CASE_MANAGER holds no record of the Offer, so it refuses RK."""
         dl = _make_store(CASE_ACTOR_ID, offer_record=False)
@@ -237,7 +240,7 @@ class TestAckReportIsNotSentToTheCaseManager:
         assert _ledger_semantic_types(dl) == []
         assert dl.outbox_list() == []
 
-    @pytest.mark.spec("RMB-08-003")
+    @pytest.mark.spec("RMB-08-007")
     def test_reporter_commits_no_ledger_entry_even_with_a_case(self):
         dl = _make_store(FINDER_ID)
 

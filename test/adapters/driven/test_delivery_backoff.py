@@ -162,6 +162,28 @@ class TestDeliverySuccess:
             f"{bare}/inbox/",
         ]
 
+    @pytest.mark.spec("AKM-01-003")
+    def test_a_co_located_recipient_is_posted_to_its_inbox(self):
+        """An actor this node hosts gets an inbox POST, like any remote one."""
+        from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+
+        adapter = HttpDeliveryAdapter(max_retries=0, initial_delay=0.0)
+        local = canonical_actor_uri("co-located-peer")
+
+        mock_response = MagicMock()
+        mock_response.status_code = 202
+        mock_response.raise_for_status = MagicMock()
+
+        with patch(
+            "httpx2.AsyncClient.post", new_callable=AsyncMock
+        ) as mock_post:
+            mock_post.return_value = mock_response
+            asyncio.run(adapter.emit(ACTIVITY_ID, BODY, [local]))
+
+        assert [call.args[0] for call in mock_post.call_args_list] == [
+            f"{local}/inbox/"
+        ]
+
 
 class TestDeliveryRetry:
     """Failed delivery is retried with exponential backoff (SYNC-05-001)."""

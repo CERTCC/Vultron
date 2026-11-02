@@ -329,7 +329,7 @@ class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
     """Emit RmReadReportActivity (``Read(Offer(Report))``, RK) to the reporter.
 
     RK goes from an actor the ``Offer(VulnerabilityReport)`` was addressed to,
-    to the reporter, and never to the CASE_MANAGER (RMB-08-003), so unlike its
+    to the reporter, and never to the CASE_MANAGER (RMB-08-005), so unlike its
     siblings this node does not route through the case: its one recipient is
     the Offer's actor, read from this store's ``VultronOfferRecord``
     (DL-06-001).  ``content`` is the trigger's optional note, carried on the
@@ -356,7 +356,7 @@ class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
         """Address RK to the reporter alone; ``None`` fails the emit.
 
         Overrides the case routing of the base: RK goes to the actor of the
-        recorded Offer, never to the CASE_MANAGER (RMB-08-003).  ``None`` is
+        recorded Offer, never to the CASE_MANAGER (RMB-08-005).  ``None`` is
         the base's failure signal, returned when this store holds no record
         of the Offer or when the executing actor is itself the reporter.
         """

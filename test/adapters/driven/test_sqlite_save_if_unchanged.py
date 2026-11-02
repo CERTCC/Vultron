@@ -16,7 +16,7 @@
 A read-modify-write through ``save()`` has an unguarded window: a write that
 lands between the read and the save is overwritten without anyone being told.
 These tests interleave a second writer at each point in that window and assert
-the compare-and-set refuses rather than overwriting it (EP-02-004).
+the compare-and-set refuses rather than overwriting it (EP-02-007).
 """
 
 import pytest

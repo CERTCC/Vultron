@@ -15,7 +15,7 @@
 A received act that fails keeps only intake's archive of the activity
 (CLP-07-015).  The inbox routes a later delivery of the same id as the copy
 intake archived, carrying the archived body as its received evidence
-(IE-10-001, VM-08-002), never the resent bytes.  A test of "a redelivery
+(IE-10-001, VM-08-009), never the resent bytes.  A test of "a redelivery
 after a rollback commits" builds its redelivery here, so it cannot pass only
 because the resend carries its own evidence.
 """

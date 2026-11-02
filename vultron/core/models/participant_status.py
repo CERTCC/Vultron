@@ -99,7 +99,7 @@ class ParticipantStatus(CoreObject):
     # ``rm`` -> ``{"rmState": "START"}``.  ``AliasChoices`` accepts the wire
     # spelling and the field name on input; the retired flat snake_case spellings
     # (``rm_state``, ``vf_state``, ``d_state``) are refused by ``extra="forbid"``
-    # (SDO-03-003, SDO-03-005).
+    # (SDO-03-003, SDO-03-008).
     rm: RmDimension = Field(
         default_factory=RmDimension,
         validation_alias=AliasChoices("rmState", "rm"),
@@ -150,7 +150,7 @@ class ParticipantStatus(CoreObject):
     # Nor is there a retired-key reject-guard for ``vfd_state``/``vfdState``
     # (ADR-0075), or for the flat snake_case spellings above.
     # ``extra="forbid"`` refuses them on in-process and stored data
-    # (SDO-03-005).  On inbound data the parse edge refuses ``vfd_state`` by
+    # (SDO-03-008, SDO-03-009).  On inbound data the parse edge refuses ``vfd_state`` by
     # name from the wire-side list ``vultron.wire.as2.unknown_keys.RETIRED_NAMES``,
     # and each flat spelling as a near miss of its wire spelling (``rm_state`` of
     # ``rmState``), so it needs no entry there (MV-11-002, MV-11-011).

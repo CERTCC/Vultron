@@ -17,7 +17,7 @@
 
 The first steps of ``InitializeDefaultEmbargoNode``: recognise a case whose
 EM state has left ``NONE`` — creation-time initialization already ran — so a
-repeated proposal initializes nothing twice (EP-04-012), decide whether a
+repeated proposal initializes nothing twice (EP-04-012, EP-04-028), decide whether a
 case may receive an embargo at all (EP-04-008), then resolve the duration it
 is created with (EP-04-005 through EP-04-007, EP-04-010).  The remaining
 leaf nodes live in the sibling ``embargo.py``.
@@ -84,7 +84,7 @@ class CaseEmbargoAlreadyInitializedNode(DataLayerConditionWithPorts):
     again.  Without this arm the creation arm re-ran on the existing case: the
     default path stored a second, orphan ``EmbargoEvent``, and the contested
     path registered the losing candidate as a *second* pending revision
-    (EP-04-003) — one revision per delivery of the same report (#3393).
+    (EP-04-016) — one revision per delivery of the same report (#3393).
 
     The evidence is the case's EM state, read through ``ReadEmStateNode``:
     any state other than ``EM.NONE`` means initialization has run, because
@@ -195,7 +195,7 @@ class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
     """Resolve the initial embargo duration and publish it to the blackboard.
 
     Publishes the actor default and the protocol default under distinct keys
-    (EP-04-010), and the resolved ``InitialEmbargoDuration`` — duration plus
+    (EP-04-022), and the resolved ``InitialEmbargoDuration`` — duration plus
     source — for ``CreateEmbargoEventNode``.
 
     The actor default comes only from ``owner_profile``: the case owner's

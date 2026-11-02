@@ -18,7 +18,7 @@
 A well-formed activity that breaks a protocol shape rule is received but not
 understood, and is answered with ``Create(ProcessingFault)`` (MSM-05-001): an
 ``Invite(EmbargoEvent)`` that names no embargo, or not exactly one ``to``
-recipient (EP-09-010).  The fault id derives from the Invite and the failure
+recipient (EP-09-026).  The fault id derives from the Invite and the failure
 class, so a redelivery emits nothing new (ID-04-004).
 """
 

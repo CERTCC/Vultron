@@ -129,7 +129,7 @@ authorization-flavored gate:
   `embargo/terminate_active_embargo_tree.py`) — authorizes exit, but it is a
   trigger-side seam for the actor's own voluntary exit, behind a fail-closed
   reason Selector (every `exit_embargo_*` reason factory defaults `AlwaysFail`),
-  and EMB-14-002 frames it as an optional veto. A blocking default would kill
+  and EMB-14-008 frames it as an optional veto. A blocking default would kill
   EMB-14's voluntary-exit path. The received-side teardown path is covered by
   the adoption gate, whose authorization also covers the teardown (ADR-0166).
 - **`CaseProposalCallOutBundle.evaluate_proposal_factory`**

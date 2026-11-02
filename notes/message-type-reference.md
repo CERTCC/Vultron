@@ -61,7 +61,7 @@ before claiming a shorthand maps to a wire form.
   (MSM-02-001). `Announce(EmbargoEvent)` reports the terms in force, or that a Case
   Owner's termination has been applied, and does not propose, so it is not
   tagged `EP`. The proposal carries its terms inline;
-  a separate `Create(Event)` is not a protocol message (VAM-01-011, ADR-0137).
+  a separate `Create(Event)` is not a protocol message (VAM-01-019, ADR-0137).
 - **`GI` is an open umbrella** (MSM-04-001/002). Do not write as though the
   current split-off set is complete, and do not count it in prose (MS-16-002).
   `(GI)` identifies no activity: name the act in plain language and cite `GI`
@@ -116,13 +116,14 @@ acknowledgement is cumulative via the hash chain
 - **`as:Reject` is overloaded**: a receiver cannot infer "error" from the verb.
   The embargo rejection's registry name is `reject_invite_to_embargo_on_case`
   (`reject_embargo` names only BT and factory helpers), and
-  `reject_case_ledger_entry` is the ledger NAK (MSM-05-002), not a refusal.
+  `reject_case_ledger_entry` is the ledger NAK (MSM-05-008), not a refusal.
 - **Never cite the `RmError`/`EmError`/`CsError`/`GmError` taxonomy**
   (MSM-05-004): those types never existed. `VultronError` in `vultron/errors.py`
   is an unrelated Python exception base.
 - Do not add per-message `EK`/`CK` for ledger-carried state; hash-chain continuity
   already acknowledges it.
-- **`RK` is a reply outside the case** (RMB-08-003, RMB-08-004, #4325, #4560):
+- **`RK` is a reply outside the case** (RMB-08-003, RMB-08-004, RMB-08-005 through
+  RMB-08-007, #4325, #4560):
   an addressee of the report's `Offer` sends it to the reporter, at any time
   after the report arrives, case or no case. It is never sent or forwarded to
   the CASE_MANAGER and never ledgered, so PCR-08-001 states it as an exception.
@@ -198,7 +199,7 @@ how-to tree.
   `docs/reference/messages/_occasions/`; the `msm-occasions-sync` hook runs
   `--check`, which CI runs in `docs-build-check.yml` on a `docs/` change
   (DOCBW-03-013); `test/metadata/test_msm_occasions.py` checks a `vultron/`
-  change (MSM-06-001).
+  change (MSM-06-006).
 - **Fragments render from the re-parsed YAML, not from the registry**, so the
   YAML carries every fact a fragment shows; a new column is a field on
   `OccasionRow` plus a renderer change.
@@ -229,7 +230,7 @@ how-to tree.
   around the includes; an addendum follows the section's JSON example, which is
   the section's last block.
 - **The Protocol Quick Reference's "Message Types at a Glance" section includes
-  `lookup.md` and `shorthands.md` and writes no table of its own** (MSM-06-004):
+  `lookup.md` and `shorthands.md` and writes no table of its own** (MSM-06-004, MSM-06-011):
   `shorthands.md` lists each formal shorthand with the wire activities that carry
   it, so only the generator can change what the section says is sent.
 - **Include paths start with `./`**: `include-markdown` resolves a path with no
@@ -238,7 +239,7 @@ how-to tree.
   the table's columns serve a sender.
 - `test/metadata/test_msm_occasions.py` checks each page includes its slice once,
   each section once and on no other page, and no page has an exec block of its
-  own (MSM-06-001, MSM-08-004); `mkdocs build --strict` and `docs-links` check
+  own (MSM-06-005, MSM-08-004, MSM-08-021); `mkdocs build --strict` and `docs-links` check
   the rendered links.
 
 ### How-to embeds and "Seen in" (#4432)

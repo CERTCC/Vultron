@@ -577,3 +577,12 @@ def test_application_code_reads_the_clock_only_through_now_utc() -> None:
     assert reads == [], (
         "read the clock through now_utc() (CS-13-002):\n" + "\n".join(reads)
     )
+
+
+@pytest.mark.spec("DUR-06-004")
+def test_an_interval_composed_from_now_is_in_utc() -> None:
+    """``days_from_now_utc`` adds the interval to a UTC instant, never to a
+    local-zone one, so the end it returns carries a zero offset."""
+    end = _helpers.days_from_now_utc(30)
+    assert end.utcoffset() == timedelta(0)
+    assert end.tzinfo is UTC or end.tzinfo == UTC

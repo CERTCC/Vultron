@@ -151,7 +151,7 @@ groups:
       A read-modify-write through `dl.save()` overwrites any write that lands between
       the read and the save, and nothing reports the lost write. A compare-and-set
       closes that gap without a schema change. The caller decides what a refusal means:
-      EP-02-004, for example, reads the record again and applies its change again. See
+      EP-02-008, for example, reads the record again and applies its change again. See
       notes/datalayer-design.md.
     verification: >-
       `test_writes_when_the_stored_record_is_the_one_read` and
