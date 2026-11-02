@@ -2791,14 +2791,11 @@ groups:
           each family marked as composed, and fails on a fixture pair of a
           marked family that differs in one byte before the branch point. It
           parametrizes over the families named in `COMPOSED_FAMILIES`, which a
-          family joins when its scenarios share one authored opening. One pair
-          of the Reporter → Coordinator → Vendor family is held open:
-          `{rcv-embargo, rcvv-embargo}` share four steps, so their prefix runs
-          past the embargo activation, where a read advances the recording
-          clock and the two came out 80 ms apart in a whole-tree run. The table
-          names the subtree as two overlapping families until #5591 takes the
-          clock out of that read path; collapsing them is its acceptance
-          criterion.
+          family joins when its scenarios share one authored opening, and no
+          pair of a composed family is held out. What a family must satisfy
+          first, including the rule that no read on a shared stretch may read
+          the recording clock, is stated once in
+          `notes/demo-scenario-tree.md` § "Shared-prefix check".
         adr:
           - ADR-0098
         relationships:

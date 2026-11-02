@@ -21,6 +21,10 @@ tracks:
   - "#5589"
   - "#5591"
   - "#5613"
+  - "#5649"
+  - "#5650"
+  - "#5651"
+  - "#5652"
 description: >
   Design for the remaining scenario-tree work (#4726): the letter-grammar names
   and how a rename keeps old URLs, the generated tree index the demo UI reads,
@@ -91,15 +95,19 @@ branch-point table". Read the tree there, not from a copy here.
 - **Regenerate every scenario together, in one process.** One seed and one
   cast mean a run draws the same ids in every scenario, so a single fresh
   recording beside stale siblings fails the pairwise check even when nothing
-  drifted. There is a second reason, measured in #5534: a scenario's bytes
-  depend on where it sits in the run. `rcv-embargo` stamps its
-  `activate_embargo_on_case` entry 80 ms later as the first scenario of a
-  process than as any later one, reproducibly, so
-  `export-demo-recordings --scenario rcv-embargo` and a full run disagree. The
-  daily freshness check runs `export-demo-recordings` with no `--scenario`
-  (`demo-recordings.yml`), so that is the only form whose output may be
-  committed; a per-scenario run is for looking, never for committing. The
-  leaked process state behind the 80 ms is #5591.
+  drifted. The daily freshness check runs `export-demo-recordings` with no
+  `--scenario` (`demo-recordings.yml`), so that is the form whose output is
+  committed. A per-scenario run now gives the same bytes as the whole-tree
+  one, so it is usable for looking: what made the two disagree was a
+  scenario's position in the process, and both causes are closed — a
+  pending-assertion lookup read the stepping clock, and the store that holds
+  those entries is process-global and was not dropped between runs, so the
+  first scenario of a process stamped `rcv-embargo`'s
+  `activate_embargo_on_case` entry 80 ms later than any later one (#5591).
+  **Anything else that survives a scenario run brings the dependence back**:
+  a process-global store a run writes must be dropped in
+  `vultron.demo.recordings.runner._scenario_nodes`, beside the DataLayer, the
+  py_trees blackboard and the pending-assertion registry.
 
 ## Names
 
@@ -261,10 +269,17 @@ retiring `path=` and the hand-placed `reach_step` (#5537).
   the one committed before the composition. Keeping the two checks where they
   were is also what leaves `rv`'s verdict and its milestone order untouched
   (DEMOMA-17-002, #5536). An *act* placed the same way would move the bytes,
-  and the byte-identity check would catch it. The exception is a read that
-  reads the clock itself, as `PendingAssertionStore.pending_for_subject` does
-  to check expiry (#5591, below): slipping one of those into a shared stretch
-  would move the bytes too, so measure rather than assume.
+  and the byte-identity check would catch it. **A read that reads the clock
+  is not read-only for this purpose** and would move the bytes too: under the
+  recording clock a read costs a 10 ms tick, so slipping one into a shared
+  stretch shifts every later timestamp and digest, and on a racing thread it
+  shifts them by a different amount on each run. `PendingAssertionStore`'s
+  lookups were the one such read reached from a shared stretch and no longer
+  read the clock (#5591); a new one is a defect, not a measurement problem.
+  Other read paths still read it — the decision-tree builders (#5649), five
+  guard nodes (#5650), the sync cooldown checks (#5651) and the inbound
+  extraction edge (#5652) — so a stretch that reaches one of those is not
+  byte-stable yet even though it is deterministic today.
 - **A decision both halves make gets its own module, not a family's.** The
   owner-keep-case choice — keep the case and approve the joiner's suggestion,
   or hand the case over and let the new owner invite — appears in the
@@ -363,18 +378,22 @@ retiring `path=` and the hand-placed `reach_step` (#5537).
   family joins `COMPOSED_FAMILIES` when
   its scenarios share one authored opening *and* that opening writes the same
   records in every one of them (DEMOCI-11-018).
-- **A shared prefix that runs past the embargo activation is not checkable
-  yet.** All but one pair of the coordinator-first subtree are byte-identical;
-  that one, `{rcv-embargo, rcvv-embargo}`, shares four steps, so its prefix
-  reaches ledger entry 33 — where `PendingAssertionStore.pending_for_subject`
-  reads the clock to check expiry, on a thread that races the owner's accept
-  trigger. The two came out 80 ms apart in a whole-tree run and identical in
-  solo runs (#5591). The table therefore names the subtree as two overlapping
-  families, which is how it says "every pair but one"; collapsing them is
-  #5591's acceptance criterion. Read the table's comment before adding a
-  family whose members share four or more steps. The vendor-first half parts
-  at ledger entry 15 or 22, well ahead of that race, so it is one family and
-  every pair of it is checked (#5536).
+- **No read on a shared stretch may read the recording clock, and no store a
+  run writes may survive it.** These are the two conditions beyond a shared
+  authored opening, and both are stated here: `COMPOSED_FAMILIES`, the
+  `TestComposedFamilies` comment and DEMOCI-11-018's verification cite this
+  section rather than restating it (DF-10-001). The pair that proved them is
+  `{rcv-embargo, rcvv-embargo}`: it shares four steps, so its prefix reaches
+  ledger entry 33, past the embargo activation, where
+  `PendingAssertionStore.pending_for_subject` used to read the clock to check
+  expiry on a thread racing the owner's accept trigger, and where the
+  process-global store those entries live in carried the previous scenario's
+  asks into the next run. The two came out 80 ms apart in a whole-tree run and
+  identical in solo runs until expiry moved to the write and the sweep and the
+  registry joined the per-run resets (#5591); the coordinator-first subtree is
+  one family of seven now, with every pair checked. The vendor-first half
+  parts at ledger entry 15 or 22, well ahead of that stretch, so it needed
+  neither (#5536).
 - **Key a composed view on the scenario and the case, never the case alone.**
   One seed also means every scenario draws the *same* case id, which is what
   lets siblings record identical bytes for a shared opening (DEMOCI-11-025) and
@@ -415,10 +434,10 @@ retiring `path=` and the hand-placed `reach_step` (#5537).
   manifest is built; that run is DEMOMA-17-002's evidence.
 - **Byte-comparing a fresh run with the committed files is a rejected gate.**
   The recording clock ticks 10 ms on every read, so a refactor that adds one
-  `now_utc()` call shifts every later timestamp and digest, and #5591 makes
-  some reads race. Comparing on every PR would also undo #3901's rule that no
-  PR regenerates recordings. A fresh-versus-fresh comparison of base and head
-  that ignores timestamps and digests is the open alternative.
+  `now_utc()` call shifts every later timestamp and digest. Comparing on every
+  PR would also undo #3901's rule that no PR regenerates recordings. A
+  fresh-versus-fresh comparison of base and head that ignores timestamps and
+  digests is the open alternative.
 
 ## Test starting points
 

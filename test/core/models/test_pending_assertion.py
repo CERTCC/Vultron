@@ -15,15 +15,16 @@
 
 Covers:
 - add / is_suppressed / clear semantics
-- timeout expiry (status → timed_out, no suppression after)
+- timeout expiry on a write or a sweep, never on a lookup (#5591)
 - zero timeout disables suppression entirely
 - configurable timeout override
-- module-level registry (get_pending_assertion_store, _reset_stores)
+- module-level registry (get_pending_assertion_store, reset_pending_assertion_stores)
 - expire_timed_out sweep helper
 
 Spec: SYNC-07-001 through SYNC-07-005.
 """
 
+import logging
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
@@ -35,15 +36,24 @@ from vultron.core.models.pending_assertion import (
     PendingAssertion,
     PendingAssertionStore,
     ProtocolPair,
-    _reset_stores,
     get_pending_assertion_store,
     record_pending_assertion,
+    reset_pending_assertion_stores,
 )
+from vultron.demo.determinism import deterministic_run
 
 CASE_ID = "https://example.org/cases/case-001"
 SEMANTIC_TYPE = "submit_report"
 OBJECT_ID = "https://example.org/activities/act-001"
+OTHER_OBJECT_ID = "https://example.org/activities/act-002"
 SUBJECT_ID = "https://example.org/cases/case-001/embargo_events/e1"
+
+#: The store key of the ``(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)`` entry.
+_KEY = ProtocolPair(
+    case_id=CASE_ID,
+    request_semantic_type=SEMANTIC_TYPE,
+    object_id=OBJECT_ID,
+)
 
 ACTOR_A = "https://example.org/actors/alice"
 ACTOR_B = "https://example.org/actors/bob"
@@ -57,9 +67,9 @@ ACTOR_B = "https://example.org/actors/bob"
 @pytest.fixture(autouse=True)
 def reset_registry():
     """Prevent cross-test leakage in the module-level store registry."""
-    _reset_stores()
+    reset_pending_assertion_stores()
     yield
-    _reset_stores()
+    reset_pending_assertion_stores()
 
 
 @pytest.fixture
@@ -197,36 +207,117 @@ class TestClear:
 
 
 class TestTimeout:
-    def test_expired_entry_is_not_suppressed(self, store_short):
-        """is_suppressed returns False once the timeout has elapsed."""
+    """The timeout is applied on a write or a sweep, never on a lookup (#5591).
+
+    Under the demo recording clock a read costs a tick, so a lookup that read
+    the clock moved every later timestamp in the recording when it raced
+    another thread.  An entry that has aged out must still time out
+    (SYNC-11-005), so each test below drives the expiry through the write or
+    the sweep that sees the time pass.
+    """
+
+    def test_a_sweep_stops_an_aged_out_entry_suppressing(self, store_short):
+        """is_suppressed returns False once a sweep has seen the timeout pass."""
         store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
 
         # Simulate time passing beyond the 60-second window
         future = datetime.now(UTC) + timedelta(seconds=61)
         with patch("vultron.core.models._helpers.datetime") as mock_dt:
             mock_dt.now.return_value = future
-            assert not store_short.is_suppressed(
-                CASE_ID, SEMANTIC_TYPE, OBJECT_ID
-            )
+            store_short.expire_timed_out()
 
-    def test_expired_entry_status_becomes_timed_out(self, store_short):
+        assert not store_short.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+
+    def test_a_later_write_stops_an_aged_out_entry_suppressing(
+        self, store_short
+    ):
+        """The instant a new entry carries expires the entries it outlived.
+
+        An actor that asserts anything at all sweeps as it goes, so no sweep
+        call is needed for the ask that follows another one.
+        """
         store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
 
         future = datetime.now(UTC) + timedelta(seconds=61)
         with patch("vultron.core.models._helpers.datetime") as mock_dt:
             mock_dt.now.return_value = future
-            store_short.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+            store_short.add(CASE_ID, "engage_case", OTHER_OBJECT_ID)
 
-        key = ProtocolPair(
-            case_id=CASE_ID,
-            request_semantic_type=SEMANTIC_TYPE,
-            object_id=OBJECT_ID,
+        assert not store_short.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+        assert store_short.is_suppressed(
+            CASE_ID, "engage_case", OTHER_OBJECT_ID
         )
-        assert store_short._store[key].status == "timed_out"
+
+    def test_an_aged_out_entry_status_becomes_timed_out(self, store_short):
+        store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+
+        future = datetime.now(UTC) + timedelta(seconds=61)
+        with patch("vultron.core.models._helpers.datetime") as mock_dt:
+            mock_dt.now.return_value = future
+            store_short.expire_timed_out()
+
+        assert store_short._store[_KEY].status == "timed_out"
+
+    def test_a_lookup_leaves_an_aged_out_entry_pending(self, store_short):
+        """A lookup marks nothing: that is what keeps it clock-free (#5591).
+
+        The entry still suppresses until a write or a sweep sees the time
+        pass, which is why :meth:`expire_timed_out` is what SYNC-11-005's
+        operator retry calls before it resubmits.
+        """
+        store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+
+        future = datetime.now(UTC) + timedelta(seconds=61)
+        with patch("vultron.core.models._helpers.datetime") as mock_dt:
+            mock_dt.now.return_value = future
+            suppressed = store_short.is_suppressed(
+                CASE_ID, SEMANTIC_TYPE, OBJECT_ID
+            )
+
+        assert suppressed
+        assert store_short._store[_KEY].status == "pending"
+
+    def test_a_lookup_reads_no_clock(self):
+        """Every lookup leaves the recording clock where it found it (AC-1).
+
+        Measured the way the DataLayer read paths are (#5510): a seeded run
+        mints the same next instant whether or not the lookups ran.
+        """
+        subject_lookups = 5
+
+        def next_instant(lookups: int) -> datetime:
+            with deterministic_run("pending-assertion-lookup"):
+                store = PendingAssertionStore()
+                store.add(
+                    CASE_ID, SEMANTIC_TYPE, OBJECT_ID, subject_id=SUBJECT_ID
+                )
+                for _ in range(lookups):
+                    assert store.is_suppressed(
+                        CASE_ID, SEMANTIC_TYPE, OBJECT_ID
+                    )
+                    assert (
+                        store.pending_for_subject(
+                            CASE_ID, SEMANTIC_TYPE, SUBJECT_ID
+                        )
+                        is not None
+                    )
+                    assert store.clear_activity(CASE_ID, OTHER_OBJECT_ID) == []
+                return now_utc()
+
+        assert next_instant(subject_lookups) == next_instant(0)
+
+    def test_an_unexpired_entry_still_suppresses_after_a_sweep(
+        self, store_short
+    ):
+        store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+        future = datetime.now(UTC) + timedelta(seconds=30)
+        with patch("vultron.core.models._helpers.datetime") as mock_dt:
+            mock_dt.now.return_value = future
+            assert store_short.expire_timed_out() == 0
+
+        assert store_short.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
 
     def test_timed_out_entry_logs_error(self, store_short, caplog):
-        import logging
-
         store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
         future = datetime.now(UTC) + timedelta(seconds=61)
         with caplog.at_level(
@@ -235,16 +326,9 @@ class TestTimeout:
         ):
             with patch("vultron.core.models._helpers.datetime") as mock_dt:
                 mock_dt.now.return_value = future
-                store_short.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+                store_short.expire_timed_out()
 
         assert any("timed out" in r.message for r in caplog.records)
-
-    def test_unexpired_entry_still_suppresses(self, store_short):
-        store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
-        future = datetime.now(UTC) + timedelta(seconds=30)
-        with patch("vultron.core.models._helpers.datetime") as mock_dt:
-            mock_dt.now.return_value = future
-            assert store_short.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
 
     def test_timed_out_entry_allows_subsequent_add(self, store_short):
         store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
@@ -252,11 +336,26 @@ class TestTimeout:
         with patch("vultron.core.models._helpers.datetime") as mock_dt:
             mock_dt.now.return_value = future
             # expire the entry
-            store_short.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+            store_short.expire_timed_out()
 
         # A fresh add should work and suppress again
         store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
         assert store_short.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+
+    def test_a_sweep_at_an_earlier_instant_expires_nothing_new(
+        self, store_short
+    ):
+        """The observed instant only moves forward (a peer clock running back)."""
+        store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
+        future = datetime.now(UTC) + timedelta(seconds=61)
+        past = datetime.now(UTC) - timedelta(seconds=600)
+        with patch("vultron.core.models._helpers.datetime") as mock_dt:
+            mock_dt.now.return_value = future
+            assert store_short.expire_timed_out() == 1
+            mock_dt.now.return_value = past
+            assert store_short.expire_timed_out() == 0
+
+        assert store_short._store[_KEY].status == "timed_out"
 
 
 # ---------------------------------------------------------------------------
@@ -336,7 +435,7 @@ class TestRegistry:
 
     def test_reset_stores_clears_registry(self):
         s1 = get_pending_assertion_store(ACTOR_A)
-        _reset_stores()
+        reset_pending_assertion_stores()
         s2 = get_pending_assertion_store(ACTOR_A)
         assert s1 is not s2
 
@@ -377,25 +476,20 @@ class TestPendingForSubject:
             is None
         )
 
-    def test_expired_entry_times_out_and_no_longer_matches(self, store_short):
+    def test_a_swept_entry_times_out_and_no_longer_matches(self, store_short):
         store_short.add(
             CASE_ID, SEMANTIC_TYPE, OBJECT_ID, subject_id=SUBJECT_ID
         )
         future = datetime.now(UTC) + timedelta(seconds=61)
         with patch("vultron.core.models._helpers.datetime") as mock_dt:
             mock_dt.now.return_value = future
-            assert (
-                store_short.pending_for_subject(
-                    CASE_ID, SEMANTIC_TYPE, SUBJECT_ID
-                )
-                is None
-            )
-        key = ProtocolPair(
-            case_id=CASE_ID,
-            request_semantic_type=SEMANTIC_TYPE,
-            object_id=OBJECT_ID,
+            store_short.expire_timed_out()
+
+        assert (
+            store_short.pending_for_subject(CASE_ID, SEMANTIC_TYPE, SUBJECT_ID)
+            is None
         )
-        assert store_short._store[key].status == "timed_out"
+        assert store_short._store[_KEY].status == "timed_out"
 
     def test_cleared_entry_does_not_match(self, store):
         store.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID, subject_id=SUBJECT_ID)
@@ -476,7 +570,8 @@ class TestClearActivity:
 
         with patch("vultron.core.models._helpers.datetime") as mock_dt:
             mock_dt.now.return_value = later
-            cleared = store.clear_activity(CASE_ID, OBJECT_ID)
+            store.expire_timed_out()
+        cleared = store.clear_activity(CASE_ID, OBJECT_ID)
 
         assert cleared == []
         entry = next(iter(store._store.values()))

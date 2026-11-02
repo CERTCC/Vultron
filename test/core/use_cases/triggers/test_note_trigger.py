@@ -48,8 +48,8 @@ from vultron.core.models.dimensions import (
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.pending_assertion import (
-    _reset_stores,
     get_pending_assertion_store,
+    reset_pending_assertion_stores,
 )
 from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.core.use_cases.triggers.note import SvcAddNoteToCaseUseCase
@@ -206,7 +206,7 @@ class TestSvcAddNoteToCaseUseCase:
         # _dispose_actor_stores_between_tests fixture in test/conftest.py already
         # drops every per-actor store after each test (ADR-0073), which is
         # strictly more thorough than clearing rows.
-        _reset_stores()
+        reset_pending_assertion_stores()
 
     def _execute(self, actor_id=None, in_reply_to=None):
         """Build and execute the use case; return the result dict."""
