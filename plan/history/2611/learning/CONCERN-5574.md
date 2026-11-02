@@ -9,7 +9,7 @@ Theme: theme:requirements-traceability — decides whether "active participant" 
 
 ## Summary
 
-CM-10-004 and the glossary define an **Active Participant** by roster standing: seated or joined, not removed, and a signatory while an embargo is in force. A **Closed Participant** (its own status entry records RM `CLOSED`) stays active by that definition. CM-23-004 and CM-23-018 then add "and not closed" wherever a rule means "may still receive new content or act", and the code's single test for that is `may_act_on_case` (`vultron/core/participants/recipients.py`).
+CM-10-004 and the glossary define an **Active Participant** by roster standing: seated or joined, not removed, and a signatory while an embargo is in force. A **Closed Participant** (its own status entry records RM `CLOSED`) stays active by that definition. CM-23-004 and CM-23-018 then add "and not closed" wherever a rule means "may still receive new content or act", and the code's single test for that is `_receives_case_content` (`vultron/core/participants/recipients.py`), which `may_act_on_case` and `case_content_recipients` share.
 
 So any rule that says only "active participant" includes closed participants without saying so. CM-21-021 was one such rule (#5189); `learn` on 2026-10-30 fixed it by naming "active and not closed". The maintainer expected "active" to already mean "not closed".
 
@@ -45,8 +45,8 @@ Decide one of:
 
 **Resolved**: 2026-11-02 — implementation tracked in #5661.
 Docs PR: <https://github.com/CERTCC/Vultron/pull/5660>.
-Decision: narrow "active participant" to exclude closed participants (ADR-0171,
+Decision: narrow "active participant" to exclude closed participants (ADR-0172,
 proposed). The closure entries, the capped closure resync and the closed-signatory
 embargo notice become named exceptions, and `activeParticipants` drops closed
-participants. ADR-0171 partially supersedes ADR-0114 and ADR-0116.
+participants. ADR-0172 partially supersedes ADR-0114 and ADR-0116.
 Notes: `notes/case-communication-model.md`.

@@ -11,7 +11,7 @@ consulted: >-
   specs/received-status-handling.yaml RSH-08;
   docs/reference/vultron-spec/_participant-lifecycle.md § 11.4
 informed: []
-partially_superseded_by: 0171-an-active-participant-is-not-closed.md
+partially_superseded_by: 0172-an-active-participant-is-not-closed.md
 stakeholder_type: [project-contributor]
 ---
 

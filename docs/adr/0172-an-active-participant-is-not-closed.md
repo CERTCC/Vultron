@@ -7,8 +7,8 @@ revision: 1
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; CONCERN-5574; ADR-0114, ADR-0116;
-  specs/case-management.yaml CM-10-004, CM-21-021, CM-23-004, CM-23-018,
-  CM-23-020, CM-31-003, CM-31-009;
+  specs/case-management.yaml CM-10-004, CM-10-007, CM-21-021, CM-23-004,
+  CM-23-018, CM-23-020, CM-31-002, CM-31-003, CM-31-009, CM-31-013;
   specs/sync-ledger-replication.yaml SYNC-03-005
 informed: []
 partially_supersedes:
@@ -47,7 +47,7 @@ Should "active" exclude closed participants, with the deliveries a closed partic
 
 ## Decision Outcome
 
-Chosen option: "Narrow 'active' to exclude closed participants", because it makes the word mean what rule authors already take it to mean, and it moves the burden of remembering from every rule onto the three deliveries that need the broad meaning.
+Chosen option: "Narrow 'active' to exclude closed participants, and name the closure deliveries as exceptions", because it makes the word mean what rule authors already take it to mean, and it moves the burden of remembering from every rule onto the few deliveries owed to a closed participant.
 
 ### Active means not closed
 
@@ -80,7 +80,7 @@ The roster carries every participant record inline, with its join, removal and s
 - Good, because a rule that says "active participant" no longer includes participants that have left, so the defect the ownership-transfer rule had cannot recur by omission.
 - Good, because the published `activeParticipants` agrees with the entitlement every send and every sender guard applies.
 - Good, because the deliveries owed to a closed participant are named in one place each, instead of being the unstated reason the term stayed broad.
-- Bad, because the broad test survives under another name for the three exceptions, and a rule that needs it must name it.
+- Bad, because the broad test survives under another name for the closure entries and their resync, and a rule that needs it must name it.
 - Bad, because the serialized case changes: a case with a closed participant publishes a shorter `activeParticipants`, and recorded demo transcripts that pinned the old value change with it.
 - Neutral, because ADR-0114's and ADR-0116's other decisions (the stub Invite, the inert record, removal as a stored fact) are unchanged; only their statement that RM `CLOSED` is not part of the active check is replaced.
 
@@ -97,7 +97,7 @@ The roster carries every participant record inline, with its join, removal and s
 
 - Good, because the term means what rule authors already assume.
 - Good, because the code's common test and the term become the same thing.
-- Bad, because the three closed-participant deliveries need a named broad test of their own.
+- Bad, because the closure entries and their resync need a named broad test of their own.
 - Bad, because the published collection changes on the wire.
 
 ### Keep "active" broad, and coin a separate term for "active and not closed"
@@ -117,4 +117,4 @@ The roster carries every participant record inline, with its join, removal and s
 This record replaces one decision in each of ADR-0114 and ADR-0116: that RM `CLOSED` is not part of the active check.
 Their other decisions stand.
 
-Generated spec requirements: CM-10-004, CM-23-004, CM-23-018, CM-23-020, CM-31-003, SYNC-03-005.
+Generated spec requirements: CM-10-004, CM-10-007, CM-21-021, CM-23-004, CM-23-018, CM-23-020, CM-31-002, CM-31-003, CM-31-013, SYNC-03-005.

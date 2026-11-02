@@ -6,7 +6,7 @@ description: >
   Rules for post-creation case messaging: every participant message routes
   through the CASE_MANAGER and state reaches replicas only via CaseLedgerEntry
   broadcast; which resolver to use; "active participant" excludes closed
-  participants (ADR-0171); Invite/Accept routing; the embargo relay
+  participants (ADR-0172); Invite/Accept routing; the embargo relay
   (EP-09, ADR-0113), where ledger entries carry state but never ask; the
   delegated-message pattern; and identity-spoofing antipatterns, including
   reading the CASE_MANAGER gate as a sender check (HP-01-006, ADR-0115).
@@ -100,7 +100,7 @@ and `invitation_recipients()` for consent Invites.
 `test/architecture/test_active_participant_recipient_selection.py` keeps every other
 module from listing roster ids for addressing.
 
-## "Active Participant" Excludes Closed Participants (ADR-0171)
+## "Active Participant" Excludes Closed Participants (ADR-0172)
 
 Write "active participant" for a participant that may still act and receive new case
 content, and never add "and not closed": an active participant is one whose closure
@@ -111,9 +111,8 @@ that record its own closure (CM-23-004), the capped replay that answers its
 signatory (CM-31-009). The first two admit it on "entitled apart from its closure",
 which never widens entitlement. The published `activeParticipants` follows the same
 meaning. Reason: while "active" included closed participants, a rule that said only
-"active" let a closed participant be offered the case (CM-21-021, #5189). Until the
-implementation Task of #5574 lands, CM-10-004 and the code still carry the broad
-meaning and the combined test.
+"active" let a closed participant be offered the case (CM-21-021, #5189). Until #5661
+lands, CM-10-004 and the code still carry the broad meaning and the combined test.
 
 ---
 
