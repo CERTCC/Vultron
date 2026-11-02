@@ -1569,7 +1569,8 @@ def _archived(rows: dict[str, dict]) -> dict[str, dict]:
 class TestFindCaseInviteForActor:
     """The helper that locates the CaseActor's Invite for the invitee.
 
-    In the ADR-0026 flow the CaseActor delivers an ``Invite(Actor, CaseStub)``
+    In the ADR-0026 flow the CaseActor delivers an
+    ``Invite(Actor)[target=VulnerabilityCaseStub]``
     to the suggested actor on the owner's approval, and the invite chain finds
     it so it can puppeteer Vendor2's accept (MV-10-004 seeds the replica only
     after the Accept).  Imported from :mod:`vultron.demo.helpers.polling`,
