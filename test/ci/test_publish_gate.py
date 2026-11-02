@@ -474,8 +474,13 @@ def test_a_rollback_target_must_be_on_main(repo: Path) -> None:
     _git(repo, "checkout", "-q", "-")
 
     def resolve(tag: str) -> str:
-        return _gate.resolve_rollback(
-            tag, tip, tag_commit=_gate.tag_commit, on_main=_gate.is_in_history
+        return str(
+            _gate.resolve_rollback(
+                tag,
+                tip,
+                tag_commit=_gate.tag_commit,
+                on_main=_gate.is_in_history,
+            )
         )
 
     assert resolve(f"publish-{DAY}.1") == old
@@ -637,7 +642,7 @@ def test_create_tag_accepts_a_push_that_landed(
     real_run = _gate.run
 
     def push_then_fail(*argv: str) -> str:
-        out = real_run(*argv)
+        out = str(real_run(*argv))
         if argv[:2] == ("git", "push"):
             raise subprocess.CalledProcessError(1, list(argv))
         return out
