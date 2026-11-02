@@ -78,6 +78,21 @@ def reset_demo_failures() -> None:
     _demo_failures.clear()
 
 
+def demo_failures() -> tuple[str, ...]:
+    """The failures ``demo_step``, ``demo_check`` and ``demo_gate`` recorded.
+
+    A read-only view, for the one caller that must know whether the run has
+    already failed before it does work that depends on an act that may not
+    have happened: a step mark whose role is read from the case cannot be
+    checked when the act that granted the role failed
+    (:func:`~vultron.demo.helpers.story.run_story`).  It is not a way to
+    branch on failure elsewhere — a demo helper records and skips through
+    ``demo_gate``, which keeps the first failure as the headline
+    (DEMOCI-01-003).
+    """
+    return tuple(_demo_failures)
+
+
 def assert_demo_success() -> None:
     """Raise DemoFailureError if any demo step or check failures were recorded.
 

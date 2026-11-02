@@ -1,13 +1,12 @@
 """CI verification test — the built-site gates run wherever the site builds.
 
 Implements DOCBW-03-005, DOCBW-03-006, DOCBW-03-007, DOCBW-03-008 and
-DOCBW-03-012 from ``specs/docs-build-workflow.yaml``. A workflow that builds
-``site/`` MUST run ``docs-withheld`` (the publication axis), ``docs-links`` (the
-reference axis) and ``docs-legacy-urls`` (the continuity axis) against it,
-unconditionally, and in ``deploy_site.yml`` each MUST sit between the build and
-the Pages upload. On a pull request to ``publish`` only,
-``docs-legacy-urls --require-recorded`` also runs, whatever the pull request
-changes (DOCBW-03-012).
+DOCBW-03-012 from ``specs/docs-build-workflow.yaml``. A
+workflow that builds ``site/`` MUST run ``docs-withheld`` (the publication
+axis), ``docs-links`` (the reference axis), ``docs-legacy-urls`` (the continuity
+axis) and ``docs-legacy-urls --require-recorded`` (every built page recorded)
+against it, unconditionally, and in ``deploy_site.yml`` each MUST sit between
+the build and the Pages upload.
 
 Ordering is the whole point, and it is why this is a test rather than a review
 habit. Both checks read the built tree, so a step placed before the build fails
@@ -25,6 +24,7 @@ step found inside an action inherits its caller's ``if:`` and
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -36,18 +36,22 @@ from test.ci._workflows import (
     RUN_EVEN_AFTER_FAILURE,
     WORKFLOWS_DIR,
     expanded_steps,
+    live_text,
     load_workflow,
     local_action_steps,
     neutering,
     site_building_workflows,
-    triggers,
 )
 
-# Each built-site gate's command, and the requirement it implements.
+# Each built-site gate's command, and the requirement it implements. Two share
+# a tool, so a step runs a gate only when a live line of its ``run:`` is the
+# whole command (:func:`_runs_gate`): matching a substring would let the
+# ``--require-recorded`` step stand in for a missing continuity step.
 GATES = {
     "docs-withheld": "DOCBW-03-005",
     "docs-links": "DOCBW-03-007",
     "docs-legacy-urls": "DOCBW-03-008",
+    "docs-legacy-urls --require-recorded": "DOCBW-03-012",
 }
 GATE_COMMANDS = tuple(GATES)
 UPLOAD_PAGES_ACTION = "actions/upload-pages-artifact"
@@ -93,6 +97,78 @@ def _index_of(steps: list[Step], needle: str, key: str) -> int | None:
     return None
 
 
+# A line that runs a gate: optional environment assignments, then the command.
+# Anything else on the line (``echo``, ``true ||``) means the gate may not run.
+_GATE_LINE = re.compile(
+    r"(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*uv run (?P<command>.+)"
+)
+
+
+def _runs_gate(step: Step, command: str) -> bool:
+    """Return whether a live line of *step*'s ``run:`` is exactly *command*.
+
+    Shell comments are dropped first, so a commented-out gate runs nothing.
+    """
+    for line in live_text(step.body).splitlines():
+        match = _GATE_LINE.fullmatch(line.strip())
+        if match and match["command"].strip() == command:
+            return True
+    return False
+
+
+def _gate_index(steps: list[Step], command: str) -> int | None:
+    """Return the index of the first step that runs gate *command*."""
+    for i, step in enumerate(steps):
+        if _runs_gate(step, command):
+            return i
+    return None
+
+
+def test_gate_lookup_tells_the_two_legacy_url_gates_apart():
+    continuity = {"run": "PYTHONPATH='' uv run docs-legacy-urls"}
+    recorded = {
+        "run": "PYTHONPATH='' uv run docs-legacy-urls --require-recorded"
+    }
+    steps = [Step(recorded, recorded)]
+    assert _gate_index(steps, "docs-legacy-urls") is None
+    assert _gate_index(steps, "docs-legacy-urls --require-recorded") == 0
+    steps.append(Step(continuity, continuity))
+    assert _gate_index(steps, "docs-legacy-urls") == 1
+
+
+@pytest.mark.parametrize(
+    "run",
+    [
+        "# PYTHONPATH='' uv run docs-links",
+        "echo PYTHONPATH='' uv run docs-links",
+        "true || uv run docs-links",
+        "uv run docs-links-other",
+        "uv run docs-links || true",
+        "uv run docs-links; true",
+        "uv run docs-links && echo ok",
+        "uv run docs-links | tee log",
+    ],
+    ids=[
+        "commented-out",
+        "echoed",
+        "short-circuited",
+        "other-command",
+        "or-true",
+        "then-true",
+        "and-echo",
+        "piped",
+    ],
+)
+def test_gate_lookup_rejects_a_line_that_does_not_run_the_gate(run: str):
+    step = {"run": run}
+    assert not _runs_gate(Step(step, step), "docs-links")
+
+
+def test_gate_lookup_accepts_a_trailing_comment():
+    step = {"run": "PYTHONPATH='' uv run docs-links  # DOCBW-03-007"}
+    assert _runs_gate(Step(step, step), "docs-links")
+
+
 def test_some_workflow_builds_the_site():
     """Guard the discovery step: an empty target set must fail (DF-09-009)."""
     assert site_building_workflows(), (
@@ -109,28 +185,31 @@ _CASES = [
 
 
 @pytest.mark.spec("DOCBW-03-006")
-@pytest.mark.spec("DOCBW-03-007")
-@pytest.mark.spec("DOCBW-03-008")
+@pytest.mark.spec("DOCBW-03-012")
+@pytest.mark.spec("DOCBW-03-020")
+@pytest.mark.spec("DOCBW-03-026")
 @pytest.mark.parametrize("workflow,command", _CASES)
 def test_site_building_workflow_runs_the_gate(workflow: Path, command: str):
     """Every workflow that builds the site runs every built-site gate."""
     steps = _steps(load_workflow(workflow))
-    assert _index_of(steps, command, "run") is not None, (
+    assert _gate_index(steps, command) is not None, (
         f"{workflow.name} runs 'mkdocs build' but never runs '{command}', "
         "directly or through a local action. A build that is not checked can "
         f"ship what the gate exists to stop ({GATES[command]})."
     )
 
 
-@pytest.mark.spec("DOCBW-03-006")
-@pytest.mark.spec("DOCBW-03-007")
-@pytest.mark.spec("DOCBW-03-008")
+@pytest.mark.spec("DOCBW-03-005")
+@pytest.mark.spec("DOCBW-03-012")
+@pytest.mark.spec("DOCBW-03-017")
+@pytest.mark.spec("DOCBW-03-021")
+@pytest.mark.spec("DOCBW-06-002")
 @pytest.mark.parametrize("workflow,command", _CASES)
 def test_gate_runs_after_the_build(workflow: Path, command: str):
     """The checks read ``site/``, so they are meaningless before the build."""
     steps = _steps(load_workflow(workflow))
     build = _index_of(steps, MKDOCS_BUILD, "run")
-    gate = _index_of(steps, command, "run")
+    gate = _gate_index(steps, command)
     assert build is not None and gate is not None
     assert gate > build, (
         f"In {workflow.name} the '{command}' step precedes 'mkdocs build', so "
@@ -142,6 +221,8 @@ def test_gate_runs_after_the_build(workflow: Path, command: str):
 @pytest.mark.spec("DOCBW-03-005")
 @pytest.mark.spec("DOCBW-03-007")
 @pytest.mark.spec("DOCBW-03-008")
+@pytest.mark.spec("DOCBW-03-012")
+@pytest.mark.spec("DOCBW-03-017")
 @pytest.mark.parametrize("workflow,command", _CASES)
 def test_gate_is_not_neutered(workflow: Path, command: str):
     """The step must run on every trigger and be able to fail the workflow.
@@ -151,7 +232,7 @@ def test_gate_is_not_neutered(workflow: Path, command: str):
     while gating nothing — and so does one whose calling ``uses:`` step is.
     """
     steps = _steps(load_workflow(workflow))
-    gate = _index_of(steps, command, "run")
+    gate = _gate_index(steps, command)
     assert gate is not None
     assert not _neutering(steps[gate]), (
         f"The '{command}' step in {workflow.name} cannot fail the workflow: "
@@ -160,8 +241,7 @@ def test_gate_is_not_neutered(workflow: Path, command: str):
 
 
 @pytest.mark.spec("DOCBW-03-006")
-@pytest.mark.spec("DOCBW-03-007")
-@pytest.mark.spec("DOCBW-03-008")
+@pytest.mark.spec("DOCBW-06-002")
 @pytest.mark.parametrize("command", GATE_COMMANDS)
 def test_gate_precedes_the_pages_upload(command: str):
     """In the publishing workflow each gate blocks the upload.
@@ -174,7 +254,7 @@ def test_gate_precedes_the_pages_upload(command: str):
         f"{deploy} is missing — the publishing path moved."
     )
     steps = _steps(load_workflow(deploy))
-    gate = _index_of(steps, command, "run")
+    gate = _gate_index(steps, command)
     upload = _index_of(steps, UPLOAD_PAGES_ACTION, "uses")
     assert gate is not None, f"deploy_site.yml does not run '{command}'."
     assert upload is not None, (
@@ -205,7 +285,7 @@ def test_a_conditional_action_step_neuters_the_checks_it_runs():
         }
     }
     steps = _steps(wf)
-    gate = _index_of(steps, "docs-legacy-urls", "run")
+    gate = _gate_index(steps, "docs-legacy-urls")
     assert gate is not None
     assert steps[gate].body.get("if") in RUN_EVEN_AFTER_FAILURE
     assert _neutering(steps[gate]) == ["it is conditional (if: 'false')"]
@@ -223,7 +303,7 @@ def test_every_publication_check_runs_even_if_an_earlier_one_failed():
         step
         for step in steps
         if any(
-            command in str(step.get("run", "")) for command in GATE_COMMANDS
+            _runs_gate(Step(step, step), command) for command in GATE_COMMANDS
         )
     ][1:]
     assert later, "the action runs fewer than two publication checks"
@@ -237,166 +317,3 @@ def test_every_publication_check_runs_even_if_an_earlier_one_failed():
 def test_a_run_after_failure_condition_does_not_neuter_a_gate():
     step = {"if": "${{ !cancelled() }}", "run": "uv run docs-legacy-urls"}
     assert _neutering(Step(step, step)) == []
-
-
-# --- DOCBW-03-012: a pull request to publish records every page it builds ----
-
-REQUIRE_RECORDED = "docs-legacy-urls --require-recorded"
-DOCS_BUILD_CHECK = WORKFLOWS_DIR / "docs-build-check.yml"
-PUBLISH_BASE = "github.base_ref == 'publish'"
-# The step's ``if:`` must be exactly one of these: a substring test would accept
-# ``github.base_ref == 'publish' || always()``, which runs on every base branch.
-PUBLISH_ONLY_CONDITIONS = frozenset(
-    {
-        PUBLISH_BASE,
-        f"${{{{ {PUBLISH_BASE} }}}}",
-        f"!cancelled() && {PUBLISH_BASE}",
-        f"${{{{ !cancelled() && {PUBLISH_BASE} }}}}",
-    }
-)
-# Activity types that cover a pull request's every new head commit. A
-# ``types:`` list missing one skips the check on that event.
-PULL_REQUEST_DEFAULT_TYPES = frozenset({"opened", "synchronize", "reopened"})
-
-
-def _require_recorded_step() -> Step:
-    steps = _steps(load_workflow(DOCS_BUILD_CHECK))
-    index = _index_of(steps, REQUIRE_RECORDED, "run")
-    assert index is not None, (
-        f"{DOCS_BUILD_CHECK.name} never runs '{REQUIRE_RECORDED}', so a publish "
-        "can ship a page the legacy-URL baseline does not list (DOCBW-03-012)."
-    )
-    return steps[index]
-
-
-def _runs_docs_build_check(wf_data: dict[str, Any]) -> bool:
-    """Return whether a workflow calls docs-build-check.yml unconditionally.
-
-    A job-level ``if:`` on the calling job could skip it, so such a caller does
-    not count.
-    """
-    target = f"./.github/workflows/{DOCS_BUILD_CHECK.name}"
-    return any(
-        isinstance(job, dict) and job.get("uses") == target and "if" not in job
-        for job in wf_data.get("jobs", {}).values()
-    )
-
-
-def _unfiltered_publish_pull_request(wf_data: dict[str, Any]) -> bool:
-    """Return whether a workflow runs on every pull request to ``publish``."""
-    event = triggers(wf_data).get("pull_request")
-    if not isinstance(event, dict):
-        # A bare ``pull_request:`` runs on every pull request to any branch.
-        return "pull_request" in triggers(wf_data)
-    branches = event.get("branches")
-    if branches is not None and "publish" not in branches:
-        return False
-    if "publish" in event.get("branches-ignore", []):
-        return False
-    types = event.get("types")
-    if types is not None and not PULL_REQUEST_DEFAULT_TYPES.issubset(types):
-        return False
-    return "paths" not in event and "paths-ignore" not in event
-
-
-@pytest.mark.spec("DOCBW-03-012")
-def test_require_recorded_runs_only_on_pull_requests_to_publish():
-    step = _require_recorded_step()
-    condition = " ".join(str(step.body.get("if", "")).split())
-    assert condition in PUBLISH_ONLY_CONDITIONS, (
-        f"The '{REQUIRE_RECORDED}' step must be conditioned on {PUBLISH_BASE}: "
-        "on a pull request to main a new page is not yet due (DOCBW-03-012)."
-    )
-    assert step.caller is step.body, (
-        "The step must be a workflow step, not one inside a local action."
-    )
-
-
-@pytest.mark.spec("DOCBW-03-012")
-def test_require_recorded_can_fail_the_workflow():
-    step = _require_recorded_step()
-    assert not step.body.get("continue-on-error", False), (
-        f"The '{REQUIRE_RECORDED}' step sets continue-on-error, so it gates "
-        "nothing (DOCBW-03-012)."
-    )
-
-
-@pytest.mark.spec("DOCBW-03-012")
-def test_require_recorded_is_not_in_the_shared_publication_action():
-    """deploy_site.yml and pull requests to main run that action."""
-    for step in local_action_steps(PUBLICATION_ACTION):
-        assert REQUIRE_RECORDED not in str(step.get("run", "")), (
-            f"{PUBLICATION_ACTION} runs '{REQUIRE_RECORDED}', so every pull "
-            "request to main would fail on its new pages (DOCBW-03-012)."
-        )
-
-
-@pytest.mark.spec("DOCBW-03-012")
-def test_every_pull_request_to_publish_runs_the_step():
-    """A path filter would skip a release that changes no docs.
-
-    The workflow can carry only one ``pull_request`` trigger, so the unfiltered
-    one may come from a workflow that calls it as a reusable job.
-    """
-    docs_build_check = load_workflow(DOCS_BUILD_CHECK)
-    candidates = [DOCS_BUILD_CHECK]
-    if "workflow_call" in triggers(docs_build_check):
-        candidates += [
-            path
-            for path in sorted(WORKFLOWS_DIR.glob("*.yml"))
-            if _runs_docs_build_check(load_workflow(path))
-        ]
-    assert any(
-        _unfiltered_publish_pull_request(load_workflow(path))
-        for path in candidates
-    ), (
-        f"No workflow runs {DOCS_BUILD_CHECK.name} on every pull request to "
-        "publish with no paths: filter, so a release that changes no docs is "
-        "never checked (DOCBW-03-012)."
-    )
-
-
-@pytest.mark.parametrize(
-    "event,expected",
-    [
-        ({"branches": ["publish"]}, True),
-        ({}, True),
-        ({"branches": ["main"]}, False),
-        ({"branches-ignore": ["publish"]}, False),
-        ({"branches": ["publish"], "paths": ["docs/**"]}, False),
-        ({"branches": ["publish"], "paths-ignore": ["plan/**"]}, False),
-        ({"branches": ["publish"], "types": ["closed"]}, False),
-        (
-            {
-                "branches": ["publish"],
-                "types": ["opened", "synchronize", "reopened", "edited"],
-            },
-            True,
-        ),
-        (None, True),
-    ],
-    ids=[
-        "publish",
-        "every-branch",
-        "main-only",
-        "publish-ignored",
-        "paths",
-        "paths-ignore",
-        "closed-only",
-        "default-types-and-more",
-        "bare-trigger",
-    ],
-)
-def test_unfiltered_publish_pull_request_reads_the_trigger(
-    event: dict[str, Any] | None, expected: bool
-):
-    wf = {"on": {"pull_request": event}}
-    assert _unfiltered_publish_pull_request(wf) is expected
-
-
-def test_a_conditional_caller_job_does_not_count():
-    target = f"./.github/workflows/{DOCS_BUILD_CHECK.name}"
-    assert _runs_docs_build_check({"jobs": {"j": {"uses": target}}})
-    assert not _runs_docs_build_check(
-        {"jobs": {"j": {"uses": target, "if": "false"}}}
-    )

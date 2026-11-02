@@ -484,6 +484,7 @@ def test_a_redelivered_owner_activation_entry_changes_nothing():
 
 @pytest.mark.spec("MSM-07-003")
 @pytest.mark.spec("RSH-08-004")
+@pytest.mark.spec("MSM-07-011")
 def test_the_owners_accept_of_an_invite_is_only_its_own_consent():
     """Accept(Invite(EmbargoEvent)) from the owner records its row; EM stays PROPOSED.
 

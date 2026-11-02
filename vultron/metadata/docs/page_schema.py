@@ -58,7 +58,7 @@ class StakeholderType(StrEnum):
 
 
 #: The only permitted spelling of "every stakeholder type": a bare scalar,
-#: never ``[ALL]`` and never a list naming every member (DF-11-001).
+#: never ``[ALL]`` and never a list naming every member (DF-11-027).
 ALL_STAKEHOLDERS = "ALL"
 
 #: Every ``stakeholder_type`` key in display order: each member, then ``ALL``.
@@ -142,7 +142,7 @@ class PageType(StrEnum):
     The four Diátaxis content types, plus ``routing`` for a page that mainly
     gives directions: the home page, the start pages, and indexes that only
     route. A page's type is independent of its ``contents:`` shape: an index
-    whose links are a routing page's (DF-11-005) but whose prose mostly
+    whose links are a routing page's (DF-11-028) but whose prose mostly
     explains is ``explanation``.
     """
 
@@ -331,7 +331,7 @@ class WorkingRecordFrontmatter(BaseModel):
     level, no page type and no subject. Each absence is enforced rather than
     defaulted: a level on a decision record is a category error, not a
     harmless extra, the working record's door (DF-11-003) already says what
-    kind of page it is (DF-11-018), and the working record is out of the nav
+    kind of page it is (DF-11-036), and the working record is out of the nav
     whose sections the subject is checked over (DF-11-026).
     """
 
@@ -345,7 +345,7 @@ class WorkingRecordFrontmatter(BaseModel):
     def no_level(cls, value: object) -> object:
         """Refuse any declared level, including ``null``."""
         raise ValueError(
-            "a working-record page must not declare a level (DF-11-012)"
+            "a working-record page must not declare a level (DF-11-033)"
         )
 
     @field_validator("page_type", mode="before")
@@ -353,7 +353,7 @@ class WorkingRecordFrontmatter(BaseModel):
     def no_page_type(cls, value: object) -> object:
         """Refuse any declared page type, including ``null``."""
         raise ValueError(
-            "a working-record page must not declare a page_type (DF-11-018)"
+            "a working-record page must not declare a page_type (DF-11-036)"
         )
 
     @field_validator("subject", mode="before")

@@ -24,7 +24,7 @@ from vultron.core.states.cs import CS_d, CS_vf
 _DISCLAIMER = "This file is auto-generated. Do not edit."
 
 # Every generated page is project working record (DF-11-003): it is addressed
-# to contributors and carries no level (DF-11-012).
+# to contributors and carries no level (DF-11-033).
 _WORKING_RECORD_DECLARATION = "stakeholder_type: [project-contributor]\n"
 
 # CS_vf/CS_d StrEnum names are terse protocol symbols, not prose. Map them to

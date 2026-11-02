@@ -117,8 +117,8 @@ groups:
         kind: process
         statement: >-
           When the last open sub-issue of an Epic is closed, the Epic MUST be
-          closed. An Epic that has never had a sub-issue MUST NOT be closed by
-          this rule.
+          closed. This rule does not apply to an Epic that has never had a
+          sub-issue.
         rationale: >-
           An Epic reaches "all children closed" only once its tasks are done
           and no further planning is open. Work that arrives later belongs to a
@@ -131,7 +131,7 @@ groups:
     title: Label Taxonomy
     specs:
       - id: PAD-02-001
-        priority: MUST
+        priority: MUST_NOT
         kind: process
         verification_debt: '#2571'
         statement: >-
@@ -215,16 +215,14 @@ groups:
         kind: process
         verification_debt: '#2571'
         statement: >-
-          Epic Issues MUST be created using the GitHub `Epic` issue type (via
-          GraphQL `createIssue` with the Epic issue type's `issueTypeId`, discovered
-          via the GraphQL `issueTypes` query) and MUST be added to GitHub Project #24
-          with a `Schedule` value (Focus/Now/Next/Later/Someday) matching the
-          work's priority.
+          An agent or person who creates an Epic Issue MUST give it the GitHub
+          `Epic` issue type. They set it through the GraphQL `createIssue`
+          mutation with the type's `issueTypeId`, which the `issueTypes` query
+          returns.
         rationale: >-
-          Skills identify an Epic by its issue type, not by a label. An Epic that is not
-          on the board, or that has no `Schedule` value, gives its children no tier.
-          Only GraphQL can set the issue type, and it needs the ID of the type, which a
-          query must find first.
+          Skills identify an Epic by its issue type, not by a label. Only GraphQL can
+          set the issue type, and it needs the ID of the type, which a query must find
+          first.
       - id: PAD-02-013
         priority: MUST
         kind: process
@@ -555,12 +553,24 @@ groups:
         statement: >-
           The `Schedule` field (Focus/Now/Next/Later/Someday) on Epic Issues on
           GitHub Project #24 MUST be the authoritative source for work
-          priority ordering. Priority changes MUST be made by updating the
-          `Schedule` field on the relevant Epic — not by maintaining any
-          external file.
+          priority ordering.
         rationale: >-
           The Project #24 board is the single source of truth for scheduling,
           and scheduling is decided per body of work, not per issue.
+      - id: PAD-03-004
+        priority: MUST
+        kind: process
+        verification_debt: '#2571'
+        statement: >-
+          A person or skill that changes work priority MUST update the
+          `Schedule` field on the relevant Epic, not an external file.
+        rationale: >-
+          Selection reads only the `Schedule` field (PAD-03-003). A priority
+          change kept in a file does not reach selection, and the file and the
+          board then disagree.
+        relationships:
+        - rel_type: derives_from
+          spec_id: PAD-03-001
       - id: PAD-03-002
         priority: MUST_NOT
         kind: process
@@ -620,21 +630,64 @@ groups:
         kind: process
         statement: >-
           After creating the claim branch, the agent MUST assign the Issue to
-          the triggering user, MUST set its Project #24 `Status` to
-          `In Progress` (PAD-16-008), and MUST post a comment on the Issue
-          identifying the agent session and branch name. An Epic claimed this
-          way (to plan it) MUST NOT be assigned and carries no `Status`: its
-          assignee is the epic-run claim (PAD-19-001, PAD-16-012).
+          the triggering user.
         rationale: >-
-          The branch is the lock, but humans and the board read the assignee and
-          `Status`. A claim that does not set them holds the Issue but shows it as free.
-          The comment connects the Issue to its session and branch, so a person can
-          trace a stale claim. On an Epic, the assignee shows that an epic run holds it,
-          so a planning claim must not set that signal.
+          The branch is the lock, but humans read the assignee. A claim that does not
+          set it holds the Issue but shows it as free.
         verification: >-
           `test/metadata/test_claim_scripts.py`: a successful claim assigns
-          `@me`, comments with the branch name, and sets `Status`, all through
-          `announce-claim.sh`; a claim on an Epic only comments.
+          `@me` through `announce-claim.sh`.
+      - id: PAD-04-005
+        priority: MUST
+        kind: process
+        statement: >-
+          After creating the claim branch, the agent MUST set the Issue's
+          Project #24 `Status` to `In Progress` (PAD-16-008).
+        rationale: >-
+          The board reads `Status`. A claim that does not set it holds the Issue but
+          shows it on the board as free.
+        verification: >-
+          `test/metadata/test_claim_scripts.py`: a successful claim sets
+          `Status` through `announce-claim.sh`.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-04-002
+      - id: PAD-04-006
+        priority: MUST
+        kind: process
+        statement: >-
+          After creating the claim branch, the agent MUST post a comment on the
+          Issue that identifies the agent session and the branch name.
+        rationale: >-
+          The comment connects the Issue to its session and branch, so a person can
+          trace a stale claim.
+        verification: >-
+          `test/metadata/test_claim_scripts.py`: a successful claim comments
+          with the branch name through `announce-claim.sh`, and a claim on an
+          Epic comments too. Nothing yet checks that the comment identifies the
+          agent session: the comment `announce-claim.sh` posts names only the
+          branch.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-04-002
+      - id: PAD-04-007
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          An agent that claims an Epic this way, to plan it, MUST NOT assign
+          the Epic or set its `Status`.
+        rationale: >-
+          An Epic carries no `Status` (PAD-16-012). Its assignee is the epic-run
+          claim (PAD-19-001), so it shows that an epic run holds the Epic. A planning
+          claim must not set that signal.
+        verification: >-
+          `test/metadata/test_claim_scripts.py`: a claim on an Epic only
+          comments, with no assignment and no `Status`.
+        relationships:
+        - rel_type: supersedes
+          spec_id: PAD-04-002
+        - rel_type: supersedes
+          spec_id: PAD-04-005
       - id: PAD-04-003
         priority: MUST_NOT
         kind: process
@@ -880,18 +933,29 @@ groups:
         kind: process
         verification_debt: '#2571'
         statement: >-
-          The pre-push review MUST run against the branch diff relative to
-          `origin/main` with every change committed, and MUST be given the
-          draft PR body so it can check the author's `Self-check:` record
-          (PAD-07-009).
+          The `build` skill MUST run the pre-push review against the branch
+          diff relative to `origin/main`, with every change committed.
         rationale: >-
           The reviewer reads only committed work, so it does not see uncommitted work.
           The comparison with `origin/main` keeps the review on the change that the
-          branch makes. The draft body lets the reviewer check the self-check record of
-          the author.
+          branch makes.
         relationships:
         - rel_type: refines
           spec_id: PAD-07-001
+      - id: PAD-07-011
+        adr:
+        - ADR-0139
+        priority: MUST
+        kind: process
+        verification_debt: '#2571'
+        statement: >-
+          The `build` skill MUST give the pre-push review the draft PR body.
+        rationale: >-
+          The draft body lets the reviewer check the author's `Self-check:` record
+          (PAD-07-009), which exists only in that body before the push.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-07-005
       - id: PAD-07-002
         adr:
         - ADR-0139
@@ -914,15 +978,28 @@ groups:
         verification_debt: '#2571'
         statement: >-
           The `build` skill MUST resolve every pre-push review finding by its
-          decision outcome before invoking `create-pr`, and MUST record each
-          finding's resolution in the pre-push artifact.
+          decision outcome before invoking `create-pr`.
         rationale: >-
           An unresolved finding is a known defect that reaches the PR anyway, at the
-          cost of a fix commit and a CI run. The recorded resolution lets the post-push
-          triage confirm each fix on the PR head (PAD-07-007).
+          cost of a fix commit and a CI run.
         relationships:
         - rel_type: refines
           spec_id: PAD-07-001
+      - id: PAD-07-010
+        adr:
+        - ADR-0139
+        priority: MUST
+        kind: process
+        verification_debt: '#2571'
+        statement: >-
+          The `build` skill MUST record each pre-push review finding's
+          resolution in the pre-push artifact.
+        rationale: >-
+          The recorded resolution lets the post-push triage confirm each fix on the PR
+          head (PAD-07-013).
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-07-003
       - id: PAD-07-006
         adr:
         - ADR-0139
@@ -932,7 +1009,7 @@ groups:
         statement: >-
           The `build` skill MUST NOT re-run the pre-push review after
           resolving its findings. The post-push triage reviews those fixes as
-          part of its delta (PAD-07-007).
+          part of its delta (PAD-07-012).
         rationale: >-
           A second full review before the push would repeat every phase on a
           diff that changed only where the fixes landed; the delta review
@@ -959,23 +1036,57 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          When a pre-push artifact exists for a PR's branch and PAD-07-008
-          does not call for a full triage, `pr-triage` MUST run the phases
-          that need the PR (issue linkage as posted, PR body format, the
-          `Docs:` line comparison, CI status, and merge state), MUST re-run
-          the PR-independent phases on the delta alone, and MUST confirm each
-          pre-push finding's recorded resolution on the PR head, re-emitting
-          any finding whose fix is absent. The delta is the change to the
-          branch's own added and removed lines between the reviewed head and
-          the PR head.
+          This rule applies when a PR's branch has a pre-push artifact and
+          PAD-07-008 does not call for a full triage. Then `pr-triage` MUST
+          run the phases that need the PR. These are issue linkage as
+          posted, PR body format, the `Docs:` line comparison, CI status, and
+          merge state.
         rationale: >-
-          Every phase still runs, once per change. Defining the delta on the
-          branch's own lines keeps `create-pr`'s cherry-pick onto a newer
-          base out of it.
+          The pre-push review ran before the PR existed, so it could not run these
+          phases. Running them here means that every phase still runs, once per
+          change.
         verification: >-
           Inspection: `pr-triage` § "Modes" assigns each phase to the
-          pre-push or the delta run, and `prepush-delta.sh` compares only the
-          added and removed lines of the reviewed and current branch diffs.
+          pre-push or the delta run.
+      - id: PAD-07-012
+        adr:
+        - ADR-0139
+        priority: MUST
+        kind: process
+        statement: >-
+          In the triage that PAD-07-007 describes, `pr-triage` MUST re-run the
+          PR-independent phases on the delta alone. The delta is the change to
+          the branch's own added and removed lines between the reviewed head
+          and the PR head.
+        rationale: >-
+          The pre-push review already ran these phases on the rest of the change.
+          Defining the delta on the branch's own lines keeps `create-pr`'s cherry-pick
+          onto a newer base out of it.
+        verification: >-
+          Inspection: `prepush-delta.sh` compares only the added and removed
+          lines of the reviewed and current branch diffs.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-07-007
+      - id: PAD-07-013
+        adr:
+        - ADR-0139
+        priority: MUST
+        kind: process
+        statement: >-
+          In the triage that PAD-07-007 describes, `pr-triage` MUST confirm each
+          pre-push finding's recorded resolution on the PR head, re-emitting each
+          finding whose fix is absent.
+        rationale: >-
+          A recorded resolution is a claim by the author. A fix that did not reach the
+          PR head leaves the defect in the change that merges.
+        verification: >-
+          Inspection: the "Carry-forward check (delta mode)" of `pr-triage`
+          § "Modes" checks each recorded resolution on the PR head and
+          re-emits a finding whose fix is absent.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-07-007
       - id: PAD-07-008
         adr:
         - ADR-0139
@@ -1007,21 +1118,35 @@ groups:
         kind: process
         statement: >-
           The `build` and `bugfix` skills MUST run the four-item pre-review
-          self-check (affected-text sweep, failure-path pass, branch
-          coverage, and reuse check) on the finished diff and record its four
-          results under `Self-check:` in the PR body's `## Verification`
-          section. The code-review subagent of `pr-triage` MUST be given the
-          same four items as review prompts.
+          self-check on the finished diff and record its results. They record
+          the four results under `Self-check:` in the `## Verification`
+          section of the PR body. The four items are the affected-text sweep,
+          the failure-path pass, branch coverage, and the reuse check.
         rationale: >-
           About 45% of post-push triage findings fall into these four
           oversights. A written result per item shows the reviewer the check
-          ran, and the reviewer checking the same four items against the
-          diff catches what the author missed.
+          ran.
         verification: >-
           Inspection: `build` Phase 5 and `bugfix` Phase 4 run
-          `shared/pre-review-self-check.md`, `pr-body-guide.md` carries the
-          `Self-check:` lines, and `pr-triage` Phase 8 passes that file to the
-          code-review subagent.
+          `shared/pre-review-self-check.md`, and `pr-body-guide.md` carries the
+          `Self-check:` lines.
+      - id: PAD-07-014
+        adr:
+        - ADR-0139
+        priority: MUST
+        kind: process
+        statement: >-
+          `pr-triage` MUST give its code-review subagent the four items of the
+          PAD-07-009 self-check as review prompts.
+        rationale: >-
+          A reviewer that checks the same four items against the diff catches what the
+          author missed.
+        verification: >-
+          Inspection: `pr-triage` Phase 8 passes
+          `shared/pre-review-self-check.md` to the code-review subagent.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-07-009
 
   - id: PAD-08
     title: Build Skill — Issue-Based Task Selection
@@ -1098,29 +1223,50 @@ groups:
         verification_debt: '#2571'
         statement: >-
           After the docs-only PR is opened, `plan-issue` MUST create a
-          GitHub Issue with: a title and description derived from the spec,
-          the `size:` label derived from the AC count per PAD-05-001, and a
-          link to the spec file in the body. The Issue MUST be added to
-          GitHub Project #24 as a sub-issue of an Epic (PAD-01-007), with no
-          `Schedule` value (PAD-02-001).
+          GitHub Issue for the spec. The Issue has a title and description
+          derived from the spec, and a link to the spec file in its body. It
+          carries the `size:` label derived from the AC count per PAD-05-001.
         rationale: >-
           The Issue is the unit agents select and claim, so it must carry what selection
-          reads: a size estimate, a link to the governing spec, and an Epic ancestor
-          that gives it a tier. A `Schedule` value of its own would only restate or
-          contradict its Epic's (PAD-02-001).
+          reads: a size estimate and a link to the governing spec.
+      - id: PAD-09-004
+        priority: MUST
+        kind: process
+        verification_debt: '#2571'
+        statement: >-
+          `plan-issue` MUST add the Issue to GitHub Project #24 as a sub-issue
+          of an Epic (PAD-01-007), with no `Schedule` value (PAD-02-001).
+        rationale: >-
+          The Epic ancestor gives the Issue its tier, so selection can reach it. A
+          `Schedule` value of its own would only restate or contradict its Epic's
+          (PAD-02-001).
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-09-002
       - id: PAD-09-003
         priority: MUST_NOT
         kind: process
         verification_debt: '#2571'
         statement: >-
-          `plan-issue` MUST NOT begin implementation work. It MUST stop after
-          creating the Issue. Implementation work begins only when the Issue
-          is Ready (PAD-16-004) and is selected under its Epic's `Schedule`
-          tier on GitHub Project #24.
+          `plan-issue` MUST NOT begin implementation work.
         rationale: >-
           Planning and building are separate steps, so a human can review the plan and
-          its docs PR before code depends on them. If planning starts the build at once,
-          it also skips the Epic tier that decides when the work is worth doing.
+          its docs PR before code depends on them. Implementation work begins only when
+          the Issue is Ready (PAD-16-004) and is selected under its Epic's `Schedule`
+          tier on GitHub Project #24 (PAD-15-003). If planning starts the build at
+          once, it skips the Epic tier that decides when the work is worth doing.
+      - id: PAD-09-005
+        priority: MUST
+        kind: process
+        verification_debt: '#2571'
+        statement: >-
+          `plan-issue` MUST stop after creating the Issue.
+        rationale: >-
+          A clear end point keeps the planning run from doing any step that belongs to
+          a later run, such as claiming or building the Issue.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-09-003
 
   - id: PAD-10
     title: Orphan Recovery — Stale Claim Sweeper
@@ -1148,12 +1294,23 @@ groups:
         verification_debt: '#2571'
         statement: >-
           When the sweeper identifies an orphaned claim, it MUST apply the
-          `stale-claim` label to the Issue and MUST post a comment identifying
-          the orphaned branch and requesting human review.
+          `stale-claim` label to the Issue.
         rationale: >-
           The sweeper cannot tell abandoned work from slow work, so it marks the claim
-          and asks a person instead of releasing it. The comment names the branch so
-          that the person can check what is on it.
+          instead of releasing it.
+      - id: PAD-10-003
+        priority: MUST
+        kind: process
+        verification_debt: '#2571'
+        statement: >-
+          When the sweeper identifies an orphaned claim, it MUST post a comment
+          on the Issue that names the orphaned branch and asks for human review.
+        rationale: >-
+          Only a person can decide whether the claimed work is abandoned. The comment
+          names the branch so that the person can check what is on it.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-10-002
   - id: PAD-11
     title: Merge Conflict Recovery
     specs:
@@ -1161,30 +1318,40 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          When an open PR has merge conflicts with its base branch, the agent
-          syncing it MUST merge the base branch into the task branch and
-          resolve the conflicts. It MUST NOT rebase a branch that has an open
-          PR.
+          When an open PR conflicts with its base branch, the syncing agent
+          MUST merge the base into the task branch and resolve the conflicts.
+        rationale: >-
+          A merge commit keeps the commits that reviewers commented on and the
+          `commit_ref` values that the triage and execute artifacts recorded.
+        verification: >-
+          Inspection: `pr-execute` Phase 5 Step 2 resolves a `CONFLICTING` PR
+          with `sync-with-main.sh`, which merges the base.
+      - id: PAD-11-006
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          The agent syncing an open PR MUST NOT rebase its branch.
         rationale: >-
           Rebasing a pushed branch rewrites the commits reviewers commented on
           and the `commit_ref` values the triage and execute artifacts
-          recorded. A merge commit keeps both valid.
+          recorded.
         verification: >-
-          Inspection: `pr-execute` Phase 5 Step 2 resolves a `CONFLICTING` PR
-          with `sync-with-main.sh`, which merges the base, and no step of
-          `pr-execute` rebases the branch.
+          Inspection: no step of `pr-execute` rebases the branch.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-11-001
       - id: PAD-11-002
         priority: MUST
         kind: process
         statement: >-
           After resolving the merge, the agent MUST push the merge commit with
-          a normal push and MUST NOT force-push the branch. CI re-runs
-          automatically on the updated head.
+          a normal push, not a force-push.
         rationale: >-
           A merge only adds commits, so a normal push succeeds unless the
           remote branch moved. A push that git rejects as non-fast-forward
           means another push landed or someone rewrote the remote branch;
-          either is a reason to fetch and inspect, never to force.
+          either is a reason to fetch and inspect, never to force. CI re-runs
+          automatically on the updated head.
         verification: >-
           Inspection: `pr-execute` Phase 5 Step 4 pushes without `--force`
           and, when git rejects the push as non-fast-forward, stops and
@@ -1252,13 +1419,25 @@ groups:
         verification_debt: '#2571'
         statement: >-
           For each Epic surfaced in triage, the `review-priorities` skill MUST
-          use `ask_user` to determine which `Schedule` tier to place it in, or
-          whether to close or defer it. For each unparented non-Epic Issue, it
-          MUST ask which Epic the Issue belongs under.
+          use `ask_user` to choose its `Schedule` tier, or to close or defer
+          it.
         rationale: >-
           Scheduling is a human decision (PAD-03-002), so the skill asks rather than
-          guesses a tier or a parent. An Issue with no Epic has no tier at all, so the
-          question for it is where it belongs.
+          guesses a tier.
+      - id: PAD-12-004
+        priority: MUST
+        kind: process
+        verification_debt: '#2571'
+        statement: >-
+          For each unparented non-Epic Issue, the `review-priorities` skill
+          MUST ask which Epic the Issue belongs under.
+        rationale: >-
+          An Issue with no Epic has no tier at all, so the question for it is where it
+          belongs. The skill asks rather than guesses a parent, because placement is a
+          human decision (PAD-03-002).
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-12-002
       - id: PAD-12-003
         priority: MUST
         kind: process
@@ -1310,10 +1489,11 @@ groups:
         kind: process
         verification_debt: '#2571'
         statement: >-
-          A GitHub Actions workflow MUST be created to implement the
-          stale-claim sweeper (PAD-10): run on `schedule` (weekly) and
-          `workflow_dispatch`, scan for orphaned claims per PAD-10-001,
-          apply `stale-claim` label and post comment per PAD-10-002.
+          A GitHub Actions workflow MUST implement the stale-claim sweeper
+          (PAD-10). It runs on `schedule` (weekly) and `workflow_dispatch`.
+          It scans for orphaned claims per PAD-10-001, applies the
+          `stale-claim` label per PAD-10-002, and posts a comment per
+          PAD-10-003.
         rationale: >-
           Abandoned claims come from sessions that ended, so the sweeper must run when
           no agent session is active. A scheduled workflow runs without one, and
@@ -1390,18 +1570,33 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          A work bundle MUST be selected in two stages: eligibility (open,
-          unassigned, no `stale-claim`, `needs-info`, or `ready-for-human`
-          label, all `blockedBy` CLOSED, leaf, not held by an epic run per
-          PAD-19-002), then fit. Clearing eligibility MUST NOT by itself make
-          an Issue a bundle member.
+          Bundle selection MUST pick a work bundle in two stages: eligibility,
+          then fit. An eligible Issue is open, unassigned and a leaf, and every
+          `blockedBy` Issue is CLOSED. It carries no `stale-claim`,
+          `needs-info`, or `ready-for-human` label, and no epic run holds it
+          (PAD-19-002).
+        rationale: >-
+          Eligibility rules out the Issues that are not free to take before any fit rule
+          weighs them. Each refusal then belongs to one stage (PAD-15-006).
+        verification: >-
+          `test/metadata/test_bundle_fit.py::TestEligibility` covers stage one.
+      - id: PAD-15-012
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          Bundle selection MUST NOT make an Issue a bundle member only because
+          it clears eligibility.
         rationale: >-
           Clearing eligibility shows only that an Issue is free to take. Without a fit
           stage, selection takes candidates in sub-issue order and can propose an Idea,
           a `Someday` Concern and two `size:L` Tasks as equal members of one bundle.
         verification: >-
-          `test/metadata/test_bundle_fit.py::TestEligibility` covers stage one
-          and every other class in that file covers a fit rule applied after it.
+          In `test/metadata/test_bundle_fit.py`, `TestWorkflowPartition`,
+          `TestScheduleTier`, `TestSizeBudget`, `TestReviewCeiling` and
+          `TestCoherenceHints` cover the fit rules applied after eligibility.
+        relationships:
+        - rel_type: derives_from
+          spec_id: PAD-15-001
       - id: PAD-15-002
         priority: MUST
         kind: process
@@ -1421,25 +1616,54 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          Bundle candidates MUST be ordered by their governing Project #24
-          `Schedule` tier per PAD-03-001, which is the tier of the candidate's
-          nearest Epic ancestor (PAD-02-001). A leaf's own `Schedule` value
-          MUST NOT be read. Sub-issue list order MUST be used only to break
-          ties.
+          Bundle selection MUST order candidates by their governing Project #24
+          `Schedule` tier per PAD-03-001. That tier is the tier of the
+          candidate's nearest Epic ancestor (PAD-02-001).
         rationale: >-
-          The order of the sub-issue list is a manual order and has no priority meaning.
-          If selection used it as the priority signal, it would override the
-          authoritative field. Only Epics carry `Schedule`, so a value on a leaf is
-          always drift.
+          The `Schedule` field is the authoritative priority signal (PAD-03-001), and
+          only Epics carry it, so a candidate's priority is its Epic's tier.
         verification: >-
           `test/metadata/test_bundle_fit.py::TestScheduleTier` asserts tier
-          ordering (including that `Focus` outranks `Now`), that the Epic's
+          ordering (including that `Focus` outranks `Now`), and that the Epic's
           tier reaches the sort inside `select_bundle` and not only
-          `effective_schedule`, and that ties fall back to list order.
+          `effective_schedule`.
           `test_every_board_tier_is_ranked_or_excluded` ratchets the tier list
           against the Schedule options documented in
           `.agents/skills/shared/board-id.sh`, because a tier in neither set
           ranks last rather than failing.
+      - id: PAD-15-013
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          Bundle selection MUST NOT read a leaf's own `Schedule` value.
+        rationale: >-
+          Only Epics carry `Schedule` (PAD-02-001), so a value on a leaf is always
+          drift.
+        verification: >-
+          Not met today: `effective_schedule` in
+          `vultron/metadata/planning/bundle_fit/select.py` lets an explicit leaf
+          tier win, and `test_bundle_fit.py` asserts it. #3710 owns the fix,
+          which adds a test that a leaf's own `Schedule` changes no rank or
+          exclusion.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-15-003
+      - id: PAD-15-014
+        priority: MUST
+        kind: process
+        statement: >-
+          Bundle selection MUST use sub-issue list order only to break ties.
+        rationale: >-
+          The order of the sub-issue list is a manual order and has no priority meaning.
+          If selection used it as the priority signal, it would override the
+          authoritative field.
+        verification: >-
+          `TestScheduleTier::test_ties_break_on_list_order` in
+          `test/metadata/test_bundle_fit.py` asserts that ties fall back to
+          list order.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-15-003
       - id: PAD-15-004
         priority: MUST_NOT
         kind: process
@@ -1455,9 +1679,9 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          A bundle MUST be bounded by a total size budget computed from the
-          PAD-05 `size:` label weights, weighting an unlabelled Issue as the
-          largest bundlable size. Member count MUST also remain bounded.
+          Bundle selection MUST bound a bundle by a total size budget computed
+          from the PAD-05 `size:` label weights. It weights an unlabelled Issue
+          as the largest bundlable size.
         rationale: >-
           A bundle is implemented as one PR, so the budget is a review budget.
           An unlabelled Issue is unmeasured rather than small, so counting it as
@@ -1468,8 +1692,22 @@ groups:
           `test/metadata/test_bundle_fit.py::TestSizeBudget` asserts the weights
           derive from the band table, the unsized-as-largest rule, that the
           largest of several `size:` labels is both the weight and the label
-          reported, the budget and member ceilings, and that a refused oversized
-          candidate does not end the scan.
+          reported, the budget ceiling, and that a refused oversized candidate
+          does not end the scan.
+      - id: PAD-15-015
+        priority: MUST
+        kind: process
+        statement: >-
+          Bundle selection MUST bound the number of members in a bundle.
+        rationale: >-
+          The size budget alone admits many small members. Each member adds acceptance
+          criteria and a `Closes #N` line that one review must cover.
+        verification: >-
+          `TestSizeBudget::test_member_ceiling_applies_under_budget` in
+          `test/metadata/test_bundle_fit.py` asserts the member ceiling.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-15-005
       - id: PAD-15-011
         priority: MUST_NOT
         kind: process
@@ -1503,43 +1741,78 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          Thematic coherence of a bundle MUST be decided by stating the single
-          design idea its members share in one sentence. Mechanical overlap
-          signals MAY be surfaced as evidence but MUST NOT be treated as the
-          coherence verdict.
+          The agent proposing a bundle MUST decide its thematic coherence by
+          stating, in one sentence, the single design idea its members share.
         rationale: >-
           Cutting by a superficial shared keyword rather than design grain produces
           plausible-looking but wrong work units — the same failure `calve-epics`
           guards against when shaping the Epic forest.
         verification: >-
-          A bundle proposal states the shared design idea in one sentence;
-          `test/metadata/test_bundle_fit.py::TestCoherenceHints` asserts the tool
-          emits overlap evidence only, and never a member decision.
+          A bundle proposal states the shared design idea in one sentence.
+      - id: PAD-15-016
+        priority: MAY
+        kind: process
+        statement: >-
+          The agent proposing a bundle MAY surface mechanical overlap signals as
+          evidence of coherence.
+        rationale: >-
+          A shared spec ID, label or file path can point a person to a design idea that
+          members share, even though it cannot prove one.
+        verification: >-
+          `test/metadata/test_bundle_fit.py::TestCoherenceHints` asserts the
+          tool emits overlap evidence.
+      - id: PAD-15-017
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          The agent proposing a bundle MUST NOT treat mechanical overlap signals
+          as the coherence verdict.
+        rationale: >-
+          A shared keyword is a superficial match, not design grain. A verdict taken
+          from it gives the same wrong work units that PAD-15-007 exists to stop.
+        verification: >-
+          `test/metadata/test_bundle_fit.py::TestCoherenceHints` asserts the
+          tool emits overlap evidence only, and never a member decision.
+        relationships:
+        - rel_type: constrains
+          spec_id: PAD-15-016
+        - rel_type: constrains
+          spec_id: PAD-15-007
       - id: PAD-15-008
         priority: MUST
         kind: process
         statement: >-
           A skill given several Issue numbers MUST implement every member and
           open one Pull Request whose body carries one `Closes #N` line per
-          member. It MUST NOT silently work only the first member or silently
-          drop a member.
+          member.
         rationale: >-
           Getting more than one Issue done in a single PR is the entire purpose
           of bundling; executing one member and discarding the rest defeats it.
-          A member dropped for grain is reported, not silently omitted.
         verification: >-
-          A bundle PR body lists one `Closes #N` per member in bundle order, and
-          any member dropped for grain is named with its reason.
+          A bundle PR body lists one `Closes #N` per member in bundle order.
+      - id: PAD-15-018
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          A skill given several Issue numbers MUST NOT silently work only the
+          first member or silently drop a member.
+        rationale: >-
+          A member dropped for grain is reported, not silently omitted, so the person
+          who asked for the bundle sees what it did not deliver.
+        verification: >-
+          A bundle PR body names any member dropped for grain, with its reason.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-15-008
       - id: PAD-15-009
         priority: MUST
         kind: process
         statement: >-
-          Every bundle member MUST be claimed onto the single branch named for
-          the first member, and each member MUST receive the tests and
-          acceptance-criteria coverage it would receive if worked alone.
+          The agent claiming a bundle MUST claim every member onto the single
+          branch named for the first member.
         rationale: >-
           Branch creation is the distributed lock (PAD-04), so one bundle is one
-          lock. A bundle amortises context loading, never rigor.
+          lock.
         verification: >-
           `.agents/skills/shared/claim-issue.sh` assigns and comments on every
           member of the bundle it is given while creating exactly one branch. It
@@ -1547,6 +1820,23 @@ groups:
           repeated member, and on a mid-bundle failure names the members already
           claimed and deletes the branch, locally and on GitHub, so the claim
           can be retried (`test/metadata/test_claim_scripts.py`).
+      - id: PAD-15-019
+        priority: MUST
+        kind: process
+        statement: >-
+          A skill working a bundle MUST give each member the tests and
+          acceptance-criteria coverage it would receive if worked alone.
+        rationale: >-
+          A bundle saves the cost of loading context once per Issue. It does not
+          lower the rigor that each Issue needs.
+        verification: >-
+          Inspection: `.agents/skills/shared/bundling.md` § "Executing a bundle"
+          and the `build` skill's Constraints require each member to be built to
+          the standard it would get alone, with its own tests and its own
+          acceptance criteria.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-15-009
 
   - id: PAD-16
     title: Project Board Status Path
@@ -1573,18 +1863,32 @@ groups:
         kind: process
         statement: >-
           An Issue's `Status` MUST be reproducible from facts recorded
-          elsewhere alone: its open or closed state, issue type, sub-issues,
-          acceptance-criteria lines, `blockedBy` relationships, labels, Epic
-          ancestor, assignee and claim branch, and linked Pull Requests. A
-          value that those facts do not produce is drift and MUST be corrected
-          to the reproduced value.
+          elsewhere alone. These facts are its open or closed state, issue
+          type, sub-issues, acceptance-criteria lines, `blockedBy`
+          relationships and labels. They also include its Epic ancestor,
+          assignee and claim branch, and linked Pull Requests.
         rationale: >-
           A second copy of claim or review state that a person maintains drifts from the
-          branch and PR it describes. A computed copy can drift too, but a new
-          computation repairs it with no human.
+          branch and PR it describes.
         verification: >-
           Recomputing `Status` from the listed facts for every item on
           Project #24 reproduces every recorded value.
+      - id: PAD-16-013
+        priority: MUST
+        kind: process
+        statement: >-
+          A `Status` value that the PAD-16-002 facts do not produce is drift.
+          An agent or tool that finds drift MUST correct the value to the
+          reproduced value.
+        rationale: >-
+          A computed copy can drift too, but a new computation repairs it with no
+          human.
+        verification: >-
+          Inspection: after a correction pass, every `Status` value on
+          Project #24 equals the value that the PAD-16-002 facts produce.
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-16-002
       - id: PAD-16-003
         priority: MUST_NOT
         kind: process
@@ -1698,16 +2002,23 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          A closed Issue MUST be `Done`, whatever its close reason. An Issue
-          that will not be actioned MUST be closed with GitHub's "not planned"
-          (or "duplicate") close reason, not marked with a label.
+          A closed Issue MUST be `Done`, whatever its close reason.
         rationale: >-
           A closed Issue is finished as far as the board is concerned, so one value
-          covers every close. GitHub's close reason already records why the Issue
-          closed, and a label would be a second copy that can drift (PAD-16-002).
+          covers every close.
         verification: >-
-          Inspection: every closed non-Epic item on Project #24 is at `Done`,
-          and no `wontfix` label exists.
+          Inspection: every closed non-Epic item on Project #24 is at `Done`.
+      - id: PAD-16-014
+        priority: MUST
+        kind: process
+        statement: >-
+          Whoever decides not to action an Issue MUST close it with the "not
+          planned" or "duplicate" close reason, not a label.
+        rationale: >-
+          GitHub's close reason already records why the Issue closed, and a label would
+          be a second copy that can drift (PAD-16-002).
+        verification: >-
+          Inspection: no `wontfix` label exists.
       - id: PAD-16-011
         priority: MUST
         kind: process
@@ -1824,17 +2135,29 @@ groups:
         statement: >-
           Before an implementation Pull Request's first push, `create-pr` MUST
           run the full local unit and integration suites and push only when
-          both pass. A Pull Request that changes no Python MUST be gated by
-          the linters alone.
+          both pass.
         rationale: >-
           One full run keeps an obviously broken branch out of CI. It is the
           only point where the local suite is not repeating a CI run that is
-          about to happen anyway. A docs-only branch has nothing for the suite
-          to catch, so the linters are the whole gate.
+          about to happen anyway.
         verification: >-
           Inspection: `create-pr` Phase 3 runs both suites on its
           implementation-PR path before its push step and stops on a non-zero
-          `exit:` line, and runs linters only on its docs-PR path.
+          `exit:` line.
+      - id: PAD-18-010
+        adr:
+        - ADR-0126
+        priority: MUST
+        kind: process
+        statement: >-
+          Before a Pull Request's first push, `create-pr` MUST gate a Pull
+          Request that changes no Python with the linters alone.
+        rationale: >-
+          A docs-only branch has nothing for the suite to catch, so the linters are the
+          whole gate.
+        verification: >-
+          Inspection: `create-pr` Phase 3 runs linters only on its docs-PR
+          path.
       - id: PAD-18-002
         adr:
         - ADR-0126
@@ -1842,31 +2165,43 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          After a Pull Request's first push, a fix commit MUST be gated locally
-          by the linters plus the targeted test set for the branch diff: every
-          test file that imports a changed symbol, the mirror test file of
-          every changed module, every changed test file itself,
-          `test/architecture/`, and `test/metadata/`. The run MUST select
-          those files with the integration marker enabled, so that
-          marker-bearing tests among them are not deselected. A conflict
-          merge with no fix in it is not a fix commit; PAD-18-004 sets its
+          After a PR's first push, an agent MUST gate each fix commit locally
+          with the linters and the branch diff's targeted test set. The set
+          holds each test file that imports a changed symbol, the mirror test
+          file of each changed module, and each changed test file.
+          It also holds `test/architecture/` and `test/metadata/`. A conflict
+          merge with no fix in it is not a fix commit; PAD-18-015 sets its
           gate.
         rationale: >-
-          A full local run after a one-line fix costs nine to eighteen minutes
-          on a 2-CPU slot; CI then runs the full suite again in six to nine.
-          The targeted set catches a broken fix before that round trip at a
-          fraction of the cost. `test/architecture/` and `test/metadata/` are
-          named because their ratchets and generated-file checks read the
-          tree rather than import a symbol, and they were where nearly every
-          red local full run failed (ADR-0143). A changed test file is named
-          explicitly because the import index cannot reach it: no `vultron`
-          symbol changed, and the mirror lookup covers only `vultron/` paths.
-          The marker clause is needed because `addopts` carries
-          `-m 'not integration'`, dropping those tests from a file list.
+          After a one-line fix, a full local run costs 9 to 18 minutes on a
+          2-CPU slot, and CI then runs the full suite again in 6 to 9. The
+          targeted set catches a broken fix first, at a fraction of that cost.
+          The checks in `test/architecture/` and `test/metadata/` read the
+          tree, not an imported symbol, and nearly every red local full run
+          failed there (ADR-0143). The import index cannot reach a changed test
+          file: no `vultron` symbol changed, and the mirror lookup covers only
+          `vultron/` paths.
         verification: >-
           Inspection: `pr-execute` gates post-first-push fixes with the
-          targeted-test command, not the full suite, and the command it runs
-          overrides the `not integration` default.
+          targeted-test command, not the full suite.
+      - id: PAD-18-011
+        adr:
+        - ADR-0126
+        - ADR-0143
+        priority: MUST
+        kind: process
+        statement: >-
+          The fix-commit gate of PAD-18-002 MUST select its test files with the
+          integration marker enabled.
+        rationale: >-
+          `addopts` carries `-m 'not integration'`, which drops marker-bearing tests
+          from a file list. Enabling the marker keeps those tests in the gate.
+        verification: >-
+          Inspection: the command that `pr-execute` runs overrides the
+          `not integration` default.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-18-002
       - id: PAD-18-003
         adr:
         - ADR-0126
@@ -1874,32 +2209,62 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          The fix-commit gate of PAD-18-002 MUST escalate from the targeted
-          set to the full unit and integration suites when the branch diff
-          touches shared test infrastructure (`conftest.py`, test fixtures,
-          factories, helpers or data files outside the directories PAD-18-002
-          always selects, `pyproject.toml`, `uv.lock`, `vultron/__init__.py`),
-          and MUST NOT escalate for any other path. When the fix is for a CI
-          failure in a test the targeted set does not include, that test's
-          file MUST be added to the gate.
+          The PAD-18-002 gate MUST escalate to the full unit and integration
+          suites when the branch diff touches shared test infrastructure.
+          That infrastructure is `conftest.py`, `pyproject.toml`, `uv.lock`,
+          `vultron/__init__.py`, and test fixtures, factories, helpers or data
+          files outside the directories PAD-18-002 always selects.
         rationale: >-
           The import index cannot see tests that reach a change through fixtures or
-          configuration. Only those paths need the whole suite. The gate selects code in
-          an integration-bearing layer (`vultron/core/behaviors/`, `vultron/adapters/`,
-          and similar) by its importers, like all other code, and includes
-          integration-marked importers. Escalation on such a layer would send most code
-          Pull Requests to a full local run on each fix commit. That run repeats, more
-          slowly, the full run that CI makes on the push (ADR-0143). For a CI failure
-          outside the set, the gate runs that test, not the whole suite, because CI runs
-          the rest again on the push. The key is the branch diff, not the fix commit, so
-          a fix on top of a `conftest.py` change still escalates. This list does not
-          control the gate after a conflict merge. PAD-18-004 sets that gate.
+          configuration. Only those paths need the whole suite. The key is the branch
+          diff, not the fix commit, so a fix on top of a `conftest.py` change still
+          escalates. This list does not control the gate after a conflict merge.
+          PAD-18-015 sets that gate.
         verification: >-
           Inspection: the targeted-test command reports `full` for a branch
-          diff that touches any listed path, and a targeted set for a branch
-          diff that touches only integration-bearing paths.
+          diff that touches any listed path.
         relationships:
         - rel_type: refines
+          spec_id: PAD-18-002
+      - id: PAD-18-012
+        adr:
+        - ADR-0126
+        - ADR-0143
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          The fix-commit gate of PAD-18-002 MUST NOT escalate to the full
+          suites for any path that PAD-18-003 does not list.
+        rationale: >-
+          The gate selects code in an integration-bearing layer
+          (`vultron/core/behaviors/`, `vultron/adapters/`, and similar) by its
+          importers, like all other code, and includes integration-marked
+          importers. Escalation on such a layer would send most code Pull Requests
+          to a full local run on each fix commit. That run repeats, more slowly,
+          the full run that CI makes on the push (ADR-0143).
+        verification: >-
+          Inspection: the targeted-test command reports a targeted set for a
+          branch diff that touches only integration-bearing paths.
+        relationships:
+        - rel_type: constrains
+          spec_id: PAD-18-003
+      - id: PAD-18-013
+        adr:
+        - ADR-0126
+        - ADR-0143
+        priority: MUST
+        kind: process
+        statement: >-
+          When a fix targets a CI failure outside the targeted set, the agent
+          MUST add the failing test's file to the PAD-18-002 gate.
+        rationale: >-
+          For a CI failure outside the set, the gate runs that test, not the whole
+          suite, because CI runs the rest again on the push.
+        verification: >-
+          Inspection: `pr-execute` Phase 5 Step 3 appends the file of a CI
+          failure outside a targeted set to the gate command.
+        relationships:
+        - rel_type: extends
           spec_id: PAD-18-002
       - id: PAD-18-004
         adr:
@@ -1911,43 +2276,75 @@ groups:
         statement: >-
           After a Pull Request's first push, an agent MUST merge the base
           branch into it locally only when the Pull Request conflicts with
-          the base: GitHub reports it `CONFLICTING` or `DIRTY`, or a trial
-          merge (`git merge-tree`) conflicts. A Pull Request GitHub reports
-          `BEHIND` without a conflict MUST be updated on GitHub
-          (`gh pr update-branch`), with no local merge and no local suite run.
-          Files changed on both sides without a conflict MUST NOT cause a
-          merge. After resolving a conflict, the agent MUST gate the merge
-          with the linters plus the targeted set for the conflicted files
-          alone, each treated as wholly changed, plus `test/architecture/`
-          and `test/metadata/`, escalating to the full suite only when a
-          conflicted file is a `conftest.py`, `pyproject.toml`, `uv.lock`,
-          or `vultron/__init__.py`.
+          the base. A conflict means that GitHub reports it `CONFLICTING` or
+          `DIRTY`, or that a trial merge (`git merge-tree`) conflicts. Files
+          changed on both sides without a conflict are not a conflict.
         rationale: >-
           CI already tests the merge of the PR into its base at each push, and no
           repository rule requires branches to be up to date. A conflict is the only
           sync that needs an agent, because someone must resolve it. GitHub can make
-          every clean merge, and CI tests it. A merge on file overlap alone, or a gate
-          from the whole branch diff, would send most merges to a full local suite run
-          for paths that the merge did not change. The gate treats a conflicted file as
-          wholly changed, because both sides edited it. The rest of the merge changed no
-          line that the PR wrote, and CI runs the full suite on the push. The agent
-          clears `BEHIND` on GitHub because, in that state, GitHub itself refuses the
-          merge until the branch contains the base. `gh pr update-branch` makes the same
-          merge commit that a local merge makes. No ruleset causes `BEHIND` today.
+          every clean merge, and CI tests it. A merge on file overlap alone would send
+          most merges to a full local suite run for paths that the merge did not
+          change.
         verification: >-
           Inspection: `pr-execute` Phase 5 Step 2 merges the base locally on
-          `CONFLICTING`, `DIRTY`, or a `git merge-tree` conflict only, runs
-          `gh pr update-branch` on a conflict-free `BEHIND`, and records an
-          overlap as `merge_reason: "deferred"` without merging; Step 3 gates
-          a conflict merge with `targeted-tests --paths`, which reports `full`
-          only for the listed configuration files.
+          `CONFLICTING`, `DIRTY`, or a `git merge-tree` conflict only, and
+          records an overlap as `merge_reason: "deferred"` without merging.
         relationships:
         - rel_type: extends
           spec_id: PAD-11-001
           note: >-
-            PAD-11-001 says how a conflicted PR is synced (merge, never
-            rebase); this adds when a pushed PR is synced at all (on
-            conflict only, or on GitHub for `BEHIND`).
+            PAD-11-001 and PAD-11-006 say how a conflicted PR is synced
+            (merge, never rebase); this adds when a pushed PR is synced at
+            all (on conflict only).
+      - id: PAD-18-014
+        adr:
+        - ADR-0126
+        - ADR-0138
+        - ADR-0143
+        priority: MUST
+        kind: process
+        statement: >-
+          When GitHub reports a pushed PR `BEHIND` without a conflict, the
+          agent MUST update it on GitHub with `gh pr update-branch`. It does
+          no local merge and no local suite run.
+        rationale: >-
+          In the `BEHIND` state, GitHub itself refuses the merge until the branch
+          contains the base. `gh pr update-branch` makes the same merge commit that a
+          local merge makes, and CI tests it. No ruleset causes `BEHIND` today.
+        verification: >-
+          Inspection: `pr-execute` Phase 5 Step 2 runs `gh pr update-branch`
+          on a conflict-free `BEHIND`.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-18-004
+      - id: PAD-18-015
+        adr:
+        - ADR-0126
+        - ADR-0138
+        - ADR-0143
+        priority: MUST
+        kind: process
+        statement: >-
+          After resolving a conflict, the agent MUST gate the merge with the
+          linters and the targeted set for the conflicted files alone. Each
+          conflicted file counts as wholly changed. The gate also runs
+          `test/architecture/` and `test/metadata/`. It escalates to the full
+          suite only when a conflicted file is a `conftest.py`,
+          `pyproject.toml`, `uv.lock`, or `vultron/__init__.py`.
+        rationale: >-
+          A gate from the whole branch diff would send most conflict merges to a full
+          local suite run for paths that the merge did not change. The gate treats a
+          conflicted file as wholly changed, because both sides edited it. The rest of
+          the merge changed no line that the PR wrote, and CI runs the full suite on
+          the push.
+        verification: >-
+          Inspection: `pr-execute` Phase 5 Step 3 gates a conflict merge with
+          `targeted-tests --paths`, which reports `full` only for the listed
+          configuration files.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-18-004
       - id: PAD-18-005
         adr:
         - ADR-0126
@@ -1981,28 +2378,38 @@ groups:
         statement: >-
           `pr-execute`'s summary comment MUST record the local suite runs the
           Pull Request has cost in a fixed line,
-          `Suite runs: <N> full, <M> targeted`. The count MUST include only
-          runs that happened: the first-push run of PAD-18-001, which
-          `create-pr` made before any execute artifact existed, counts as one
-          full run when `create-pr` ran the suites, and a Pull Request that
-          `create-pr` gated by the linters alone starts the full count at
-          zero.
+          `Suite runs: <N> full, <M> targeted`.
         rationale: >-
           Local suite runs are the one pipeline cost GitHub does not record.
           The execute artifact is gitignored and deleted by `pr-verify`, so
-          the PR comment is the only place the count survives. The first-push
-          run has to be counted explicitly because it happens in a different
-          skill before the comment exists; leaving it out would understate
-          every Pull Request by the single most expensive run in the
-          pipeline, which is the figure PAD-18-007 needs. Counting it for a
-          docs-only Pull Request that ran no suite would overstate the cost
-          the same way.
+          the PR comment is the only place the count survives.
         verification: >-
           Inspection: the execute comment format in
-          `.agents/skills/pr-execute/REFERENCE.md` specifies the line, and
-          its documented derivation starts the full count at one when
-          `create-pr` ran the suites before the first push and at zero when
-          it did not.
+          `.agents/skills/pr-execute/REFERENCE.md` specifies the line.
+      - id: PAD-18-016
+        adr:
+        - ADR-0126
+        priority: MUST
+        kind: process
+        statement: >-
+          The PAD-18-006 count MUST include only runs that happened. The
+          first-push run of PAD-18-001 counts as one full run when `create-pr`
+          ran the suites. A Pull Request that `create-pr` gated by the linters
+          alone starts the full count at zero.
+        rationale: >-
+          The first-push run happens in `create-pr`, before any execute artifact or
+          comment exists, so it has to be counted explicitly. Leaving it out would
+          understate every Pull Request by the single most expensive run in the
+          pipeline, which is the figure PAD-18-007 needs. Counting it for a docs-only
+          Pull Request that ran no suite would overstate the cost the same way.
+        verification: >-
+          Inspection: the documented derivation in
+          `.agents/skills/pr-execute/REFERENCE.md` starts the full count at one
+          when `create-pr` ran the suites before the first push and at zero
+          when it did not.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-18-006
       - id: PAD-18-007
         adr:
         - ADR-0126
@@ -2030,21 +2437,35 @@ groups:
         kind: process
         statement: >-
           The full local gate of PAD-18-001 MUST run exactly once before a
-          Pull Request's first push. A skill that hands off to `create-pr`
-          MUST NOT run the unit or integration suites itself.
+          Pull Request's first push.
         rationale: >-
-          If two skills run the same suites with no change to the tree between them,
-          every implementation Pull Request does the most expensive step in the pipeline
-          two times. With the gate in `create-pr` only, the gate runs immediately before
-          the push that it guards. That position is the only thing that makes the gate
-          worth its cost.
+          If the same suites run twice with no change to the tree between them, every
+          implementation Pull Request does the most expensive step in the pipeline two
+          times.
         verification: >-
-          Inspection: `build` Phase 6 runs the linters but no `pytest`
-          invocation, and `create-pr` Phase 3 is the sole pre-first-push
-          suite run.
+          Inspection: `create-pr` Phase 3 is the sole pre-first-push suite
+          run.
         relationships:
         - rel_type: refines
           spec_id: PAD-18-001
+      - id: PAD-18-017
+        adr:
+        - ADR-0126
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          A skill that hands off to `create-pr` MUST NOT run the unit or
+          integration suites itself.
+        rationale: >-
+          With the gate in `create-pr` only, the gate runs immediately before the push
+          that it guards. That position is the only thing that makes the gate worth its
+          cost.
+        verification: >-
+          Inspection: `build` Phase 6 runs the linters but no `pytest`
+          invocation.
+        relationships:
+        - rel_type: derives_from
+          spec_id: PAD-18-008
       - id: PAD-18-009
         adr:
         - ADR-0138
@@ -2052,33 +2473,75 @@ groups:
         kind: process
         statement: >-
           Immediately before merging a Pull Request, the agent merging it
-          MUST check that Pull Request alone against the current base. On a
-          conflict it MUST send the Pull Request back through the review
-          pipeline instead of merging. When the Pull Request is `BEHIND`, or
-          the base changed files it also changes, the agent MUST update it on
-          GitHub (`gh pr update-branch`) and merge only after CI passes on the
-          updated head, updating at most once per merge. The agent MUST NOT
-          re-check or re-sync other open Pull Requests because a merge moved
-          the base.
+          MUST check that Pull Request alone against the current base.
         rationale: >-
-          Where files overlap, a clean merge is most likely to hide a behavior conflict.
           The base that the Pull Request lands on is known only at the time of the
-          merge. An update on GitHub tests that exact combination in CI, with no agent,
-          no local merge and no local suite run. A sweep of every open Pull Request
-          after each merge makes every merge invalidate every other ready Pull Request.
-          An update each time the base moves during the CI wait has the same result. CI
-          on `main` catches a semantic conflict between files that neither side shares
-          (ADR-0126).
+          merge.
         verification: >-
           Inspection: `work-epic-tasks` step 4 runs the merge-state,
           `git merge-tree`, and `targeted-tests --overlap` checks on the Pull
-          Request about to merge, re-runs `pr-ship` only on a conflict, runs
-          `gh pr update-branch` and `wait-for-ci.sh` before merging a `BEHIND`
-          or overlapping Pull Request, and has no post-merge sweep of other
-          Pull Requests.
+          Request about to merge.
         relationships:
         - rel_type: depends_on
           spec_id: PAD-18-004
+      - id: PAD-18-018
+        adr:
+        - ADR-0138
+        priority: MUST
+        kind: process
+        statement: >-
+          When the PAD-18-009 check finds a conflict, the agent MUST send the
+          Pull Request back through the review pipeline instead of merging it.
+        rationale: >-
+          Someone must resolve a conflict, and the resolved tree needs review and CI
+          again before it can merge.
+        verification: >-
+          Inspection: `work-epic-tasks` step 4 re-runs `pr-ship` only on a
+          conflict.
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-18-009
+      - id: PAD-18-019
+        adr:
+        - ADR-0138
+        priority: MUST
+        kind: process
+        statement: >-
+          When the PR is `BEHIND`, or the base changed files that it also
+          changes, the agent MUST update it on GitHub before the merge. It
+          uses `gh pr update-branch`, updates at most once per merge, and
+          merges only after CI passes on the updated head.
+        rationale: >-
+          Where files overlap, a clean merge is most likely to hide a behavior conflict.
+          An update on GitHub tests that exact combination in CI, with no agent, no
+          local merge and no local suite run. An update each time the base moves during
+          the CI wait would make every merge invalidate every other ready Pull
+          Request.
+        verification: >-
+          Inspection: `work-epic-tasks` step 4 runs `gh pr update-branch` and
+          `wait-for-ci.sh` before merging a `BEHIND` or overlapping Pull
+          Request.
+        relationships:
+        - rel_type: depends_on
+          spec_id: PAD-18-009
+      - id: PAD-18-020
+        adr:
+        - ADR-0138
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          The agent merging a Pull Request MUST NOT re-check or re-sync other
+          open Pull Requests because a merge moved the base.
+        rationale: >-
+          A sweep of every open Pull Request after each merge makes every merge
+          invalidate every other ready Pull Request. CI on `main` catches a semantic
+          conflict between files that neither side shares (ADR-0126).
+        verification: >-
+          Inspection: `work-epic-tasks` step 4 has no post-merge sweep of other
+          Pull Requests.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-18-009
 
   - id: PAD-19
     title: Epic Claim for an Epic Run
@@ -2093,61 +2556,113 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          An epic run MUST claim its Epic after its plan is approved and before
-          any build starts, by assigning the Epic and posting a claim comment.
-          The claim MUST NOT use a label, a branch, or a Project #24 field, and
-          MUST be refused for an Epic that is already assigned.
+          An epic run MUST claim its Epic after plan approval and before any
+          build starts. It assigns the Epic and posts a claim comment.
+        rationale: >-
+          The run's plan lives in a gitignored local file. Until the run marks its Epic
+          on GitHub, other agents see the Tasks of later waves as free.
+        verification: >-
+          `test/metadata/test_claim_scripts.py::TestEpicClaim`: `claim-epic.sh`
+          assigns and comments, and refuses a closed or non-Epic issue.
+          `TestWorkEpicTasksSkill` pins that `work-epic-tasks` calls it at step 3
+          (approval), before step 4 starts any build.
+      - id: PAD-19-007
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          An epic run's claim MUST NOT use a label, a branch, or a Project #24
+          field.
         rationale: >-
           An Epic carries no `Status` (PAD-16-012) and no claim branch, and the
           assignee is a fact GitHub keeps rather than a marker someone must
-          maintain. Refusing an assigned Epic stops a second run on one Epic.
-          The check and the assignment are two calls, so two runs started at
-          the same moment can both pass; runs are started by a person, so that
-          race is accepted rather than locked.
+          maintain.
         verification: >-
           `test/metadata/test_claim_scripts.py::TestEpicClaim`: `claim-epic.sh`
-          assigns and comments without setting `Status` or creating a branch,
-          and refuses an assigned, closed, or non-Epic issue.
-          `TestWorkEpicTasksSkill` pins that `work-epic-tasks` calls it at step 3
-          (approval), before step 4 starts any build.
+          claims without setting `Status` or creating a branch.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-19-001
+      - id: PAD-19-008
+        priority: MUST
+        kind: process
+        statement: >-
+          An epic run MUST refuse to claim an Epic that is already assigned.
+        rationale: >-
+          Refusing an assigned Epic stops a second run on one Epic. The check and the
+          assignment are two calls, so two runs started at the same moment can both
+          pass. A person starts each run, so the project accepts that race and does not
+          lock against it.
+        verification: >-
+          `test/metadata/test_claim_scripts.py::TestEpicClaim`: `claim-epic.sh`
+          refuses an assigned Epic.
+        relationships:
+        - rel_type: extends
+          spec_id: PAD-19-001
       - id: PAD-19-002
         priority: MUST
         kind: process
         statement: >-
           While an Epic is assigned, every open Task and Feature whose nearest
-          Epic ancestor it is MUST be held: selection MUST report it as not
-          workable, with the reason. Bugs, Ideas, and Concerns under that Epic
-          MUST NOT be held.
+          Epic ancestor it is MUST be held. Selection then reports each one as
+          not workable, with the reason.
         rationale: >-
           The run owns the build lane, including Tasks planned for later waves.
-          Bugs, Ideas, and Concerns are left open on purpose so other agents
-          can keep fixing and planning while the run builds.
         verification: >-
           `test/metadata/test_bundle_fit.py::TestEpicClaim` and
           `test/metadata/test_claim_scripts.py`: `bundle-fit` rejects Task and
           Feature candidates under an assigned Epic at the eligibility stage,
-          keeps Bug, Idea, and Concern candidates, and `claim-issue.sh` refuses
-          a held Task but claims a Bug.
+          and `claim-issue.sh` refuses a held Task.
+      - id: PAD-19-009
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          The epic-run hold (PAD-19-002) MUST NOT apply to a Bug, Idea, or
+          Concern under an assigned Epic.
+        rationale: >-
+          Bugs, Ideas, and Concerns are left open on purpose so other agents
+          can keep fixing and planning while the run builds.
+        verification: >-
+          `test/metadata/test_bundle_fit.py::TestEpicClaim` and
+          `test/metadata/test_claim_scripts.py`: `bundle-fit` keeps Bug, Idea,
+          and Concern candidates under an assigned Epic, and `claim-issue.sh`
+          claims a Bug.
+        relationships:
+        - rel_type: constrains
+          spec_id: PAD-19-002
       - id: PAD-19-003
         priority: MUST
         kind: process
         statement: >-
-          An explicit request to build a held Task or Feature MUST stop and ask
-          the user, unless the caller names that Epic as its epic run
-          (`--epic-run <Epic>`). The epic run MUST name its Epic this way for
-          every build it starts.
+          An agent explicitly asked to build a held Task or Feature MUST stop
+          and ask the user, unless the caller passes `--epic-run <Epic>` for
+          that Epic.
         rationale: >-
           Every agent runs as the same GitHub user, so the Epic's assignee
-          cannot tell the run from a stray session. Only the run knows it is
-          the run.
+          cannot tell the run from a stray session. Asking the user keeps a stray
+          session out of the lane that the run holds.
         verification: >-
           `test/metadata/test_claim_scripts.py`: `claim-issue.sh` exits 3 for a
           held Task, and claims it when `--epic-run` names its Epic but not
-          another one; `TestWorkEpicTasksSkill` pins that `work-epic-tasks`
-          step 4 starts every build as `build <N> --epic-run <EPIC>`.
+          another one.
         relationships:
         - rel_type: refines
           spec_id: PAD-19-002
+      - id: PAD-19-010
+        priority: MUST
+        kind: process
+        statement: >-
+          An epic run MUST name its Epic with `--epic-run <Epic>` for every
+          build it starts.
+        rationale: >-
+          Only the run knows it is the run. A build that does not name the Epic stops
+          at the PAD-19-003 check, even for the run's own Tasks.
+        verification: >-
+          `TestWorkEpicTasksSkill` in `test/metadata/test_claim_scripts.py`
+          pins that `work-epic-tasks` step 4 starts every build as
+          `build <N> --epic-run <EPIC>`.
+        relationships:
+        - rel_type: derives_from
+          spec_id: PAD-19-003
       - id: PAD-19-004
         priority: MUST
         kind: process
@@ -2184,19 +2699,30 @@ groups:
         - rel_type: refines
           spec_id: PAD-10-001
       - id: PAD-19-006
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          An epic run MUST NOT hold the Bugs it plans.
+        rationale: >-
+          Holding Bugs would stop other agents fixing them for the whole run.
+        verification: >-
+          `test/metadata/test_claim_scripts.py::TestClaimIssue`:
+          `claim-issue.sh` claims a Bug under an assigned Epic.
+      - id: PAD-19-011
         priority: MUST
         kind: process
         statement: >-
-          An epic run MUST NOT hold the Bugs it plans. A planned Bug that another
-          agent claimed first MUST be dropped when its wave starts and reported
-          as taken elsewhere.
+          When a wave starts, an epic run MUST drop each planned Bug that
+          another agent claimed first and report it as taken elsewhere.
         rationale: >-
-          Holding Bugs would stop other agents fixing them for the whole run.
-          Dropping one that was taken is cheaper than coordinating over it.
+          Dropping a Bug that was taken is cheaper than coordinating over it.
         verification: >-
           `test/metadata/test_claim_scripts.py::TestWorkEpicTasksSkill`:
           `work-epic-tasks` step 4 drops a Bug taken elsewhere and step 6
           reports it.
+        relationships:
+        - rel_type: derives_from
+          spec_id: PAD-19-006
 
   - id: PAD-20
     title: Pre-Push Mechanical PR Checks
@@ -2211,16 +2737,31 @@ groups:
         kind: process
         statement: >-
           `pr-body-lint` MUST check, each under a stable rule ID, every rule of
-          `.agents/skills/shared/pr-body-guide.md` that needs no judgment, and
-          the guide MUST list every rule ID the tool checks.
+          `.agents/skills/shared/pr-body-guide.md` that needs no judgment.
+        rationale: >-
+          A rule that needs no judgment is one a tool can apply the same way every
+          time. A stable ID lets the guide, a finding and a test name the same rule.
+        verification: >-
+          `test/metadata/test_pr_body_lint.py` has a test class per rule.
+        tags:
+          - tooling
+      - id: PAD-20-006
+        priority: MUST
+        kind: process
+        statement: >-
+          `.agents/skills/shared/pr-body-guide.md` MUST list every rule ID that
+          `pr-body-lint` checks.
         rationale: >-
           One list in two places drifts. Pinning the guide's rule table to the
           tool's own rule list makes a rule the tool adds, or one the guide
           drops, fail a test instead of a later triage.
         verification: >-
-          `test/metadata/test_pr_body_lint.py` has a test class per rule, and
-          `TestGuideListsTheRules` fails when the guide's rule table and
-          `RULES` disagree in either direction.
+          `TestGuideListsTheRules` in `test/metadata/test_pr_body_lint.py`
+          fails when the guide's rule table and `RULES` disagree in either
+          direction.
+        relationships:
+          - rel_type: extends
+            spec_id: PAD-20-001
         tags:
           - tooling
       - id: PAD-20-002
@@ -2229,23 +2770,52 @@ groups:
         statement: >-
           Before a Pull Request's first push, `create-pr` MUST run
           `pr-body-lint` on the composed body and push only when it exits 0.
-          For an implementation Pull Request it MUST also run `spec-backstop
-          --manifest` and push only when that exits 0, and the body's `## Specs`
-          section MUST carry the resolved manifest file verbatim.
         rationale: >-
-          A gate that is run but not required to pass catches nothing, and a body that
-          reports a tool's result by hand can misstate it. Requiring the exit status,
-          and pasting the file the tool resolved, leaves nothing to retype.
+          A gate that is run but not required to pass catches nothing.
         verification: >-
           `test/metadata/test_pr_body_lint.py::TestSkillsRunTheGates` pins that
-          `create-pr`'s pre-push gate runs `pr-body-lint`, `spec-backstop
-          --manifest` and `pr-body-lint --manifest`, and
-          `TestManifestVerbatim` covers the verbatim check.
+          `create-pr`'s pre-push gate runs `pr-body-lint`.
         relationships:
           - rel_type: depends_on
             spec_id: PAD-20-001
+        tags:
+          - tooling
+      - id: PAD-20-007
+        priority: MUST
+        kind: process
+        statement: >-
+          Before an implementation Pull Request's first push, `create-pr` MUST
+          run `spec-backstop --manifest` and push only when it exits 0.
+        rationale: >-
+          A gate that is run but not required to pass catches nothing. The manifest
+          names the specs that the change claims to follow, so a failed resolution
+          stops the push.
+        verification: >-
+          `test/metadata/test_pr_body_lint.py::TestSkillsRunTheGates` pins that
+          `create-pr`'s pre-push gate runs `spec-backstop --manifest`.
+        relationships:
           - rel_type: depends_on
             spec_id: SR-12-019
+          - rel_type: extends
+            spec_id: PAD-20-002
+        tags:
+          - tooling
+      - id: PAD-20-008
+        priority: MUST
+        kind: process
+        statement: >-
+          The `## Specs` section of an implementation Pull Request's body MUST
+          carry the manifest file that `spec-backstop` resolved, verbatim.
+        rationale: >-
+          A body that reports a tool's result by hand can misstate it. Pasting the file
+          that the tool resolved leaves nothing to retype.
+        verification: >-
+          `test/metadata/test_pr_body_lint.py::TestSkillsRunTheGates` pins that
+          `create-pr`'s pre-push gate runs `pr-body-lint --manifest`, and
+          `TestManifestVerbatim` covers the verbatim check.
+        relationships:
+          - rel_type: depends_on
+            spec_id: PAD-20-007
         tags:
           - tooling
       - id: PAD-20-003
@@ -2269,7 +2839,7 @@ groups:
           - rel_type: depends_on
             spec_id: MS-10-027
           - rel_type: depends_on
-            spec_id: PD-10-003
+            spec_id: PD-10-005
         tags:
           - tooling
       - id: PAD-20-004
@@ -2277,15 +2847,29 @@ groups:
         kind: process
         statement: >-
           `pr-triage` MUST run `pr-body-lint --stage final` first in its body
-          phase and report each finding it prints, and MUST judge by hand only
-          the body rules the tool does not check.
+          phase and report each finding it prints.
         rationale: >-
-          Triage keeps every check, but a rule that a tool checks is not a judgment. A
-          manual reading of such a rule from the guide can miss findings that the tool
-          catches every time.
+          A manual reading of a tool-checked rule from the guide can miss findings that
+          the tool catches every time.
         verification: >-
           `test/metadata/test_pr_body_lint.py::TestSkillsRunTheGates` pins that
           `pr-triage` Phase 3 runs `pr-body-lint --stage final`.
+        relationships:
+          - rel_type: depends_on
+            spec_id: PAD-20-001
+        tags:
+          - tooling
+      - id: PAD-20-009
+        priority: MUST
+        kind: process
+        statement: >-
+          In its body phase, `pr-triage` MUST judge by hand only the body rules
+          that `pr-body-lint` does not check.
+        rationale: >-
+          Triage keeps every check, but a rule that a tool checks is not a judgment.
+        verification: >-
+          Inspection: `pr-triage` Phase 3 says not to re-check by hand what
+          `pr-body-lint` checks, then lists the rules that it judges by hand.
         relationships:
           - rel_type: depends_on
             spec_id: PAD-20-001
@@ -2295,9 +2879,9 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          Once the `Docs:` line is recorded (PD-03-008), the session that opened
-          the Pull Request MUST run `pr-body-lint --stage final` on its body and
-          fix every finding before it ends.
+          After it records the `Docs:` line (PD-03-013), the session that opened
+          a PR MUST run `pr-body-lint --stage final` on the body and fix every
+          finding.
         rationale: >-
           The placeholder `create-pr` writes is legal before the push and a FAIL
           after it. The final stage is the point where the placeholder must be
@@ -2308,6 +2892,6 @@ groups:
           final-stage refusal of the placeholder.
         relationships:
           - rel_type: refines
-            spec_id: PD-03-008
+            spec_id: PD-03-013
         tags:
           - tooling

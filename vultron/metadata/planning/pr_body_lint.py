@@ -17,10 +17,10 @@ A Pull Request body is judged against
 judgment — where the closing references sit, which sections exist, what form
 the ``Docs:`` line takes — are checked here, each under a stable ID that the
 guide lists (:data:`RULES`), so the guide and the tool stay one list
-(PAD-20-001). ``create-pr`` runs it on the composed body before the first push
-(PAD-20-002); ``pr-triage`` runs it first in its body phases and judges only
+(PAD-20-001, PAD-20-006). ``create-pr`` runs it on the composed body before the
+first push (PAD-20-002); ``pr-triage`` runs it first in its body phases and judges only
 what it cannot check, such as whether the body's claims match the diff
-(PAD-20-004).
+(PAD-20-004, PAD-20-009).
 
 Usage::
 
@@ -32,7 +32,7 @@ Usage::
 
 Two stages: ``pre-push`` (default) accepts the placeholders ``create-pr``
 writes — ``Docs: pending check-docs-sync`` and ``<TODO>`` in ``## Spec
-amended`` — and ``final`` refuses them (PD-03-008).
+amended`` — and ``final`` refuses them (PD-03-013).
 
 Like the rest of ``planning/``, the tool never calls GitHub itself: an open
 PR's body, base branch and head commit arrive as the ``gh pr view`` JSON
@@ -49,7 +49,7 @@ payload or manifest, bad base ref, a checkout not at the PR's head, failed
 ``spec-amendments.sh`` call).
 
 Requirements: specs/parallel-development.yaml PAD-20;
-specs/project-documentation.yaml PD-03-008.
+specs/project-documentation.yaml PD-03-008, PD-03-013.
 """
 
 from __future__ import annotations
@@ -213,7 +213,7 @@ class BodyFacts:
         stage: Whether the placeholders ``create-pr`` writes are accepted.
         manifest: The resolved Spec manifest text, when one was given.
         closes_work_item: The PR closes a ``Task``, ``Feature`` or ``Bug``,
-            which needs a ``Docs:`` line whatever the template (PD-03-008).
+            which needs a ``Docs:`` line whatever the template (PD-03-013).
     """
 
     pr_type: PrType
@@ -397,7 +397,7 @@ def _check_docs(body: _Body, facts: BodyFacts) -> Iterator[Finding]:
             yield Finding(
                 "PRB-08",
                 "the `Docs:` line is still the placeholder; replace it with "
-                "the line check-docs-sync reported (PD-03-008)",
+                "the line check-docs-sync reported (PD-03-013)",
             )
         elif not _DOCS_FINAL_RE.match(line):
             yield Finding(
@@ -601,7 +601,7 @@ def _parser() -> argparse.ArgumentParser:
         "--closes-work-item",
         action="store_true",
         help="The PR closes a Task, Feature or Bug: require a Docs: line "
-        "even on a docs PR (PD-03-008)",
+        "even on a docs PR (PD-03-013)",
     )
     parser.add_argument(
         "--list-rules", action="store_true", help="Print the rules and exit"

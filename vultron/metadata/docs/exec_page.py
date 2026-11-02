@@ -14,7 +14,7 @@
 
 A requirement callout or catalog page printed from an exec block links other
 pages by built-site URL, and on the specification's single-page edition
-(``full.md``) it links in-page instead (DF-12-002). Both need the page being
+(``full.md``) it links in-page instead (DF-12-011). Both need the page being
 rendered, and ``markdown-exec`` gives a block no page: a fragment included by
 several pages runs the same code on each.
 

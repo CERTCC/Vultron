@@ -6,7 +6,7 @@ description: >
   (PD-03-007) behind a blocking lint-docs gate, offers write-docs for large
   multi-page rewrites, and files a type:Task issue when those are deferred.
   Emits the exact `Docs:` line the caller MUST write into an implementation or
-  bug-fix PR body in place of create-pr's placeholder (PD-03-008). Invoked after the PR is pushed (while
+  bug-fix PR body in place of create-pr's placeholder (PD-03-013). Invoked after the PR is pushed (while
   CI runs), by build (Phase 8), bugfix (Phase 4 finalize), and learn (Phase 8).
 ---
 
@@ -14,8 +14,8 @@ description: >
 
 Verify that `docs/` is in sync with the current implementation changes.
 Normative requirements: `specs/project-documentation.yaml` **PD-03-007**
-(what the PR must contain) and **PD-03-008** (when this runs, and that its
-result is recorded).
+(what the PR must contain), **PD-03-008** (when this runs) and **PD-03-013**
+(that its result is recorded).
 
 ## When to invoke
 
@@ -28,7 +28,7 @@ finalize), and `learn` (Phase 8) for consistency.
 bug-fix PRs (`build`, `bugfix`). Running this skill is half the obligation:
 the caller MUST replace the PR body's
 `Docs: pending check-docs-sync` placeholder with the line Step 5 emits, and the
-session is not done while the placeholder remains (PD-03-008). `pr-triage`
+session is not done while the placeholder remains (PD-03-013). `pr-triage`
 reports a missing or placeholder `Docs:` line as a FAIL (PD-03-009), so an
 unrecorded run is indistinguishable from no run. `learn` opens a docs-only
 PR, which carries no `Docs:` line, so it applies the updates and records
@@ -232,4 +232,4 @@ Add `--closes-work-item` for a docs PR that closes a `Task`, `Feature` or `Bug`.
 - Cite PD-03-007 in every Task issue body.
 - Always end with the `Docs:` line (Step 5). On an implementation or bug-fix
   PR, a run that emits none leaves the caller nothing to record, and the
-  placeholder stays (PD-03-008).
+  placeholder stays (PD-03-013).

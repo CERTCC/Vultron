@@ -32,7 +32,7 @@ relevant_packages:
   - vultron/core/use_cases/received/actor/
   - vultron/demo/exchange/transfer_ownership_demo.py
   - vultron/demo/scenario/rvcv_handoff_demo.py
-  - vultron/demo/scenario/rccv_handoff_demo.py
+  - vultron/demo/helpers/owner_decision_story.py
 ---
 
 # Ownership Transfer Protocol — Routing and Cascade Model
@@ -139,9 +139,9 @@ before the Offer's state is read (#4437).
   PCR-03-001).
 - **An answer names the CASE_MANAGER's Offer by its id.** The ledgered Offer is the
   one the transferee holds, so `recorded_ownership_offer()` reads the entry by its
-  `log_object_id` and follows no link (ADR-0148). Never match by time: with
-  second-precision stamps a late answer closes a newer Offer recorded in the same
-  second (#4565).
+  `log_object_id` and follows no link (ADR-0148). Never match by time: a peer may
+  claim `published` at whole seconds (ADR-0167), so two Offers can share a stamp
+  and a late answer then closes the newer one (#4565).
 - **Either answer closes the Offer for the other.** The Accept and the Reject share
   `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, so an Accept after a Reject (or the
   reverse) is refused as "already answered".
@@ -290,12 +290,18 @@ CASE_MANAGER inbox receives Reject
 
 ## Demos
 
-- **Address the Accept to the CASE_MANAGER and hand-deliver nothing.** The handoff
-  scenarios (`rvcv_handoff_demo.py`, `rccv_handoff_demo.py`) gate on the
-  `accept_case_ownership_transfer` entry on a **non-party** actor's own replica (the
-  Reporter), since only the CASE_MANAGER's fan-out can put it there (CM-21-007,
-  EDF-06-002). `test/architecture/test_handoff_scenarios_verify_broadcast.py` enforces
-  this for every scenario defining `_phase_ownership_handoff`.
+- **Address the Accept to the CASE_MANAGER and hand-deliver nothing.** A handoff
+  gates on the `accept_case_ownership_transfer` entry on a **non-party** actor's
+  own replica (the Reporter), since only the CASE_MANAGER's fan-out can put it
+  there (CM-21-007, EDF-06-002).
+  `test/architecture/test_handoff_scenarios_verify_broadcast.py` enforces this
+  for **every function that calls the offer trigger**, under
+  `vultron/demo/scenario/` and `vultron/demo/helpers/` alike — keyed on the
+  trigger, not on a `_phase_ownership_handoff` name, because a handoff written
+  as a story fragment carries no phase function and the name-keyed ratchet
+  silently narrowed to one scenario when `rccv-handoff` was composed (#5535).
+  The shared fragment is `owner_decision_story.the_owner_hands_the_case_over`,
+  whose witness is a `Part` the caller names and defaults to the Reporter.
 - **Accept the CASE_MANAGER's Offer, not the proposal.** The CASE_MANAGER makes the
   Offer under an id it derives (CM-21-005, EDF-06-004); find it on the transferee
   with `find_ownership_transfer_offer_for_actor` and use that id in the accept

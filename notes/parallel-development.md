@@ -117,14 +117,14 @@ mechanics are `uv run bundle-fit`, so no skill re-derives them in prose (PAD-15)
 refuses a held Task or Feature (exit 3) unless `--epic-run` names its Epic.
 Because every agent is the same GitHub user, only that flag tells the run from a
 stray session (PAD-19-003). An Epic claimed to plan it is commented on, never
-assigned: an Epic's assignee means an epic run (PAD-04-002).
+assigned: an Epic's assignee means an epic run (PAD-04-007).
 
 Pre-push review findings are FAIL, IMPROVE or DEFER
 (`.agents/skills/shared/completeness-doctrine.md`): FAIL and IMPROVE are fixed
 before the PR opens; there is no advisory category to log and forget. The
 reviewer is a fresh subagent, because an author reviewing its own change shares
 the blind spots it wrote with; the post-push triage then reviews only the
-live-PR phases and the delta (PAD-07-007, ADR-0139).
+live-PR phases and the delta (PAD-07-007, PAD-07-012, ADR-0139).
 
 ## Stale Claim Recovery
 
@@ -227,7 +227,7 @@ field has one owner, and no item carries both.
 | Answers | Which body of work matters now | Where this piece of work stands |
 | Lives on | Epics only (PAD-02-001) | Every non-Epic issue (PAD-16-001, PAD-16-012) |
 | Values | Someday → Later → Next → Now → Focus | Backlog → Ready → In Progress → In Review → Done |
-| Set by | A human (or `review-priorities`), deliberately | Mirrored from facts; never a value the facts don't produce (PAD-16-002) |
+| Set by | A human (or `review-priorities`), deliberately | Mirrored from facts; never a value the facts don't produce (PAD-16-002, PAD-16-013) |
 
 Open non-draft PRs are also board items, with a third field, `Ship stage` (PAD-17).
 

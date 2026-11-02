@@ -4,7 +4,7 @@ status: active
 kind: generated
 description: >
   Generated count of reader-facing docs/ pages per stakeholder_type and level
-  (DF-11-008). A gap here is planning input, never a merge blocker.
+  (DF-11-008, DF-11-031). A gap here is planning input, never a merge blocker.
 related_notes:
   - notes/site-information-architecture.md
 related_specs:
@@ -35,4 +35,4 @@ types is counted in both of their rows.
 | `ALL` | 12 | 3 | 0 | 0 | 0 |
 
 Reader-facing pages that declare both keys: 195.
-Working-record pages carry no level (DF-11-012) and are not counted.
+Working-record pages carry no level (DF-11-033) and are not counted.

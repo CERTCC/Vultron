@@ -32,6 +32,10 @@ jobs:
     # this reason) — a maintainer who wants one adds it by hand.
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    # Observed: up to 4.2 min over the 15 latest successful runs (2026-10-30). Cap at
+    # 15 min so a hang fails fast instead of holding a runner until GitHub's 6-h limit
+    # (TB-14-006).
+    timeout-minutes: 15
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PR: ${{ github.event.pull_request.number }}

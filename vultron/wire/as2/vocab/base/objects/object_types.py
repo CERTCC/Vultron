@@ -19,6 +19,7 @@ from typing import TypeAlias
 
 from pydantic import Field
 
+from vultron.core.models._helpers import timestamp_serializer
 from vultron.wire.as2.enums import as_ObjectType as O_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object, as_ObjectRef
@@ -144,6 +145,7 @@ class as_Tombstone(as_Object):
 
     former_type: str | None = None
     deleted: datetime | None = None
+    _serialize_deleted = timestamp_serializer("deleted")
 
 
 as_TombstoneRef: TypeAlias = ActivityStreamRef[as_Tombstone]

@@ -85,7 +85,7 @@ arrive with their host fragment.
 
 ### The landing page
 
-`index.md` is a routing page (`contents: routing`, DF-11-005): its framing
+`index.md` is a routing page (`contents: routing`, DF-11-028): its framing
 links every body page, every annex page, `open-questions.md` and `full.md`, and
 `docs-site --check` holds it to linking each member.
 
@@ -197,7 +197,7 @@ has published keeps its URL, so the closure also adds a `redirect_maps` entry to
 the answering section; without one `docs-legacy-urls` fails (#4898). Every
 open-question fragment is also included by
 `docs/topics/future_work/open_questions.md`, an Explanation page, so each must
-satisfy that host's quadrant as well (DF-09-008).
+satisfy that host's quadrant as well (DF-09-012).
 
 **`includes/`** holds shared fragments reused across sections — the state
 tables and the four-dimensions note. It is covered by
@@ -261,13 +261,13 @@ share an id.
 
 ## Page-Scoped Rules on the Pages
 
-Each page is evaluated as published (DF-09-003, DF-09-007; ADR-0092), so the
+Each page is evaluated as published (DF-09-003, DF-09-011; ADR-0092), so the
 split decides what a fragment must carry:
 
 - **Acronym expansion** (SG-07) resets per page. A fragment that is first to use
   an acronym on its page carries the expansion, even when an earlier page
   already made it. `full.md` then renders the expansion more than once, which is
-  compliant (SG-44, DF-11-007).
+  compliant (SG-44, DF-11-030).
 - **Concept order** (SG-10) holds within a page. A concept a page needs from an
   earlier page is linked to its owning page (SG-11), not assumed.
 - **Furniture** (SG-21, SG-39, SG-41) belongs to the page shell: the H1 matches
@@ -324,7 +324,7 @@ and the specification renders them in two forms:
 - **Callouts** in the narrative: an `info` admonition holding a short table of
   the requirements a passage discusses, rendered by ID in the catalog's row
   format. The ID cell links to the catalog row. A callout naming an ID of any
-  other kind fails the build (DF-12-003). Write one as a one-line exec block,
+  other kind fails the build (DF-12-012). Write one as a one-line exec block,
   `requirement_callout` from `vultron/metadata/specs/docs_render.py`:
 
   ````markdown
@@ -336,11 +336,12 @@ and the specification renders them in two forms:
 - **The Requirements Catalog**, §14, a body section after §13 Conformance:
   every requirement of the two tiers, once, one subsection per requirement
   file, files grouped onto themed pages, `foundation` rows on a page of their
-  own (DF-12-001). The catalog row is the requirement's only anchor, apart from
-  its in-page copy in `full.md` (DF-12-002): `render_for_kind` refuses the two
-  tiers, and `test_requirement_links.py` fails a page outside the catalog that
-  defines a row anchor, or a `docs/` link to a requirement that misses its row
-  (`scripts/relink_requirement_anchors.py` repoints them).
+  own (DF-12-001, DF-12-008, DF-12-009). The catalog row is the requirement's
+  only anchor, apart from its in-page copy in `full.md` (DF-12-002):
+  `render_for_kind` refuses the two tiers, and `test_requirement_links.py` fails
+  a page outside the catalog that defines a row anchor, or a `docs/` link to a
+  requirement that misses its row (DF-12-010;
+  `scripts/relink_requirement_anchors.py` repoints them).
 
 Rules for the narrative around them:
 
@@ -358,7 +359,7 @@ Rules for the narrative around them:
 - **Exec-printed links bypass the `full.md` rewrite.** The `full.md` link hook
   skips fenced code, which is how exec blocks are written, so the callout and
   catalog renderers emit in-page links themselves when rendering for `full.md`
-  (DF-12-002).
+  (DF-12-011).
 - **Placement is one table on the docs side** (DF-12-005): `CATALOG_PAGES` in
   `vultron/metadata/docs/requirement_catalog.py`. A new requirement file
   holding either tier fails `test_real_placement_table_is_sound` until it is
@@ -369,10 +370,10 @@ Rules for the narrative around them:
   correctly on each, in-page on `full.md`.
 - **The keyword check grows with reconciliation.** `RECONCILED_FRAGMENTS` in
   `vultron/metadata/docs/rfc2119_keywords.py` lists the fragments the check
-  enforces; each reconcile task adds its page's fragments (DF-12-004). A page's
+  enforces; each reconcile task adds its page's fragments (DF-12-013). A page's
   fragments include the `includes/` files they pull in, since an unlisted
   include carries keywords onto the page unchecked. A shared include must read
-  correctly on every page that includes it (DF-09-008). The check sees only
+  correctly on every page that includes it (DF-09-012). The check sees only
   upper-case keywords, so a reconcile also checks by hand the rules written
   without one ("only", "never", "cannot", "require", "every") against the
   YAML, since a keyword-free rule can contradict it unseen (CM-10-004, #4896).

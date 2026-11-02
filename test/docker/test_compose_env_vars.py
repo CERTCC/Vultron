@@ -37,13 +37,17 @@ from typing import Any
 import pytest
 import yaml
 
+from vultron.demo.helpers.cast import ALL_SLOTS
+
 COMPOSE_FILE = (
     Path(__file__).parent.parent.parent
     / "docker"
     / "docker-compose-multi-actor.yml"
 )
 
-ACTOR_SERVICES = ("reporter", "vendor", "coordinator", "case-actor", "actor5")
+#: Derived from the fixed cast (DEMOCI-11-020), so a new cast member is
+#: checked for the right env-var names without editing this list.
+ACTOR_SERVICES = tuple(slot.name for slot in ALL_SLOTS)
 
 #: Legacy env var names that must not appear in actor-service environments.
 LEGACY_ENV_VARS = ("VULTRON_BASE_URL", "VULTRON_DB_URL")

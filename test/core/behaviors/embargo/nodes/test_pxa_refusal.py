@@ -14,9 +14,9 @@
 
 """The nodes of the P/X/A refusal diversion (nodes/pxa_refusal.py).
 
-``PxaBarsEmbargoNode`` is the diversion's condition (EMB-01-002, EMB-02-002);
-``ReceiverIsInviteeNode`` and ``ErFactoryAvailableNode`` decide whether the
-ER can be sent; ``SendEmbargoProposalRefusalNode`` sends it where an answer to
+``PxaBarsEmbargoNode`` is the diversion's condition (EMB-01-002, EMB-02-004);
+``ReceiverIsInviteeNode`` and ``RefusalFactoryAvailableNode`` decide whether the
+Reject can be sent; ``SendEmbargoProposalRefusalNode`` sends it where an answer to
 the Invite goes (EP-09-003, PCR-08-001).
 """
 
@@ -35,9 +35,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.nodes.pxa_refusal import (
-    ErFactoryAvailableNode,
     PxaBarsEmbargoNode,
     ReceiverIsInviteeNode,
+    RefusalFactoryAvailableNode,
     SendEmbargoProposalRefusalNode,
 )
 from vultron.core.models.case import VulnerabilityCase
@@ -76,7 +76,7 @@ def _case_with_pxa(suffix: str, pxa: str) -> tuple[str, SqliteDataLayer]:
 
 class TestPxaBarsEmbargoNode:
     @pytest.mark.spec("EMB-01-002")
-    @pytest.mark.spec("EMB-02-002")
+    @pytest.mark.spec("EMB-02-004")
     @pytest.mark.parametrize(
         "pxa", ["Pxa", "pXa", "pxA", "PXa", "PxA", "pXA", "PXA"]
     )
@@ -124,14 +124,14 @@ class TestReceiverIsInviteeNode:
 
         assert status is Status.FAILURE
         assert OTHER_PARTICIPANT_ACTOR in node.feedback_message
-        assert "no ER sent" in caplog.text
+        assert "no Reject sent" in caplog.text
 
 
-class TestErFactoryAvailableNode:
+class TestRefusalFactoryAvailableNode:
     @pytest.mark.spec("EMB-01-002")
     def test_no_port_means_no_er(self, caplog) -> None:
         _, _, dl = make_case_with_manager("er-port-none")
-        node = ErFactoryAvailableNode(case_id="c", invite_id=_INVITE)
+        node = RefusalFactoryAvailableNode(case_id="c", invite_id=_INVITE)
 
         with caplog.at_level("WARNING"):
             status = _run(dl, node, CASE_MANAGER_ACTOR)
@@ -141,7 +141,7 @@ class TestErFactoryAvailableNode:
 
     def test_a_wired_port_passes(self) -> None:
         _, _, dl = make_case_with_manager("er-port-wired")
-        node = ErFactoryAvailableNode(case_id="c", invite_id=_INVITE)
+        node = RefusalFactoryAvailableNode(case_id="c", invite_id=_INVITE)
 
         assert (
             _run(dl, node, CASE_MANAGER_ACTOR, with_factory=True)

@@ -51,6 +51,7 @@ from vultron.demo.helpers.polling import (
     wait_for_case_participants,
     wait_for_embargo_proposal_indexed,
     wait_for_ledger_event,
+    wait_for_object_stored,
     wait_for_participant_embargo_accepted,
     wait_for_participant_embargo_consent,
     wait_for_pending_inbox_quiescent,
@@ -1347,3 +1348,91 @@ def test_participant_status_poll_refuses_unknown_dimension(dimension):
                 poll_interval=0.01,
             )
     fetch.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# wait_for_object_stored
+# ---------------------------------------------------------------------------
+
+
+class TestWaitForObjectStored:
+    """``wait_for_object_stored`` reads one actor's store until an id lands.
+
+    Written against ``rccv-handoff``'s ownership-transfer offer, which polls
+    with ``find_ownership_transfer_offer_for_actor`` instead because the
+    CaseActor's Offer carries an id of its own (CM-21-005, #2360).  The
+    primitive's tests moved here when that scenario was composed, since they
+    are facts about the primitive and not about any scenario (#5535).
+    """
+
+    OBJ_ID = "urn:uuid:offer-abc"
+
+    @staticmethod
+    def _client(**kwargs) -> MagicMock:
+        """A client whose ``dl_path`` builds an actor-scoped path, as the real one does."""
+        client = MagicMock(**kwargs)
+        client.dl_path.side_effect = lambda key="", actor_id=None: (
+            f"/actors/{actor_id or 'an-actor'}/datalayer/{key}"
+        )
+        return client
+
+    def test_it_returns_once_the_object_is_present(self):
+        """The read is actor-scoped and delegated to the client (ADR-0073).
+
+        A ``MagicMock`` would accept any hand-written path, so the delegation
+        is asserted too.
+        """
+        client = self._client()
+        client.get.return_value = {"id": self.OBJ_ID, "type": "Offer"}
+
+        wait_for_object_stored(
+            client=client, obj_id=self.OBJ_ID, timeout_seconds=1.0
+        )
+
+        client.dl_path.assert_called_with(self.OBJ_ID, actor_id=None)
+        client.get.assert_called_with(client.dl_path(self.OBJ_ID))
+
+    def test_an_actor_id_selects_that_actors_store(self):
+        """``actor_id`` names whose store the read addresses, not the client's."""
+        client = self._client()
+        client.get.return_value = {"id": self.OBJ_ID, "type": "Read"}
+
+        wait_for_object_stored(
+            client=client,
+            obj_id=self.OBJ_ID,
+            timeout_seconds=1.0,
+            actor_id="reporter",
+        )
+
+        client.dl_path.assert_called_with(self.OBJ_ID, actor_id="reporter")
+        client.get.assert_called_with(
+            f"/actors/reporter/datalayer/{self.OBJ_ID}"
+        )
+
+    @pytest.mark.parametrize("absent", [None, {}], ids=["missing", "empty"])
+    def test_an_object_that_never_lands_times_out(self, absent):
+        """An empty record reads as absence, not as a stored object."""
+        client = self._client()
+        client.get.return_value = absent
+
+        with pytest.raises(AssertionError, match="Timed out waiting"):
+            wait_for_object_stored(
+                client=client,
+                obj_id=self.OBJ_ID,
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
+
+    def test_a_transient_read_error_is_retried(self):
+        """A poll outlives one failed read; only the budget ends it."""
+        client = self._client()
+        client.get.side_effect = [
+            RuntimeError("transient network error"),
+            {"id": self.OBJ_ID, "type": "Offer"},
+        ]
+
+        wait_for_object_stored(
+            client=client, obj_id=self.OBJ_ID, timeout_seconds=1.0
+        )
+
+        assert client.get.call_count == 2

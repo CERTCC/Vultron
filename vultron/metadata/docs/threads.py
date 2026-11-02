@@ -5,10 +5,11 @@ data on its start page), DF-11-014 (the start page's listing is generated and
 check gated), DF-11-015 (each member page and start page shows a start,
 previous, current and next table per thread), DF-11-016 (the thread check),
 DF-11-022 (a section member's box names the section), DF-11-023 (each box is a
-committed fragment placed by hand), DF-11-009 (titled by situation, never by
-``stakeholder_type``), DF-09-009 (an empty target set fails). Design
-rationale: ``notes/site-information-architecture.md`` § "Threads: staged data,
-rendered at both ends" (ADR-0150).
+committed fragment), DF-11-044 (placed by hand), DF-11-034 (the table's cells),
+DF-11-009 (titled by situation, never by ``stakeholder_type``), DF-09-009 (an
+empty target set fails). Design rationale:
+``notes/site-information-architecture.md`` § "Threads: staged data, rendered at
+both ends" (ADR-0150).
 
 A thread is a partial order, not a sequence. It lives in one place, the
 ``thread:`` frontmatter of the start page that opens it
@@ -135,7 +136,7 @@ def position(thread: StartThread, page: str) -> ThreadPosition | None:
 
     The set before a page is the preceding member of its chain, or else the
     previous stage's exit pages; the set after it is the next member of its
-    chain, or else the next stage's entry pages (DF-11-015). ``None`` when
+    chain, or else the next stage's entry pages (DF-11-034). ``None`` when
     the page is not on the thread. A page is on a thread at most once
     (DF-11-016), so the first match is the only one.
     """
@@ -392,14 +393,14 @@ def splice_thread_listing(
 BOX_DIR = f"{START_DIR}/_paths"
 
 #: Shown in a box cell whose set is empty: the first page has no previous
-#: set, the last no next set, and a start page no previous set (DF-11-015).
+#: set, the last no next set, and a start page no previous set (DF-11-034).
 EMPTY_CELL = "---"
 
 #: The box's column headings, in order (DF-11-015).
 BOX_COLUMNS = ("Start", "Previous", "Current", "Next")
 
 #: The class every rendered box carries, beside Material's admonition
-#: classes, so the built-site check can find it (DF-11-023).
+#: classes, so the built-site check can find it (DF-11-045).
 BOX_CLASS = "reading-path"
 
 #: The attributes naming the thread and the target a rendered box was made
@@ -486,7 +487,7 @@ def render_box(
 
     The box is an admonition titled by the start page's situation, the same
     for every reader: no ``stakeholder_type``, no level, no script, no query
-    string (DF-11-009, DF-11-015). A member's box names its stage, as a page
+    string (DF-11-009, DF-11-035). A member's box names its stage, as a page
     or, for a ``page.md#anchor`` member, a section (DF-11-022); a start page's
     names none. The table is HTML whose cells ``md_in_html`` processes as
     Markdown, so MkDocs rewrites and validates every link in it; links are

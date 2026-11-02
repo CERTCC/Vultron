@@ -145,7 +145,7 @@ def trigger_accept_embargo(
         "moves no EM state. A CASE_MANAGER that is not the owner records its "
         "own refusal as its Update(EmbargoConsent) of its row instead, and "
         "sends no Reject: the CASE_MANAGER's Reject of a proposal is its "
-        "abandonment of it (MSM-07-004). The case owner's reject is its "
+        "abandonment of it (MSM-07-017). The case owner's reject is its "
         "decision for the case, Reject(EmbargoEvent, target=Case), which "
         "rejects the proposal "
         "(EM state PROPOSED → NONE or REVISE → ACTIVE, or unchanged while "

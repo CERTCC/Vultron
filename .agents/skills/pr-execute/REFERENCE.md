@@ -10,7 +10,7 @@ Detailed criteria consumed during execution. Referenced from SKILL.md.
 informational for execute. The local gate's scope comes from `targeted-tests`
 (SKILL.md Phase 5 Step 3), which gates these integration-bearing paths by
 their importers, integration-marked ones included, and never escalates on
-them (PAD-18-003, ADR-0143):
+them (PAD-18-012, ADR-0143):
 
 - `vultron/demo/` — any demo script or orchestration file
 - `integration_tests/` — any integration test file
@@ -24,7 +24,7 @@ infrastructure: `conftest.py`, test fixtures, factories, helpers or data files
 outside `test/architecture/` and `test/metadata/`, `pyproject.toml`,
 `uv.lock`, and `vultron/__init__.py` (PAD-18-003). The gate after a conflict
 merge (`--paths`) escalates on shared test configuration only: `conftest.py`,
-`pyproject.toml`, `uv.lock`, `vultron/__init__.py` (PAD-18-004).
+`pyproject.toml`, `uv.lock`, `vultron/__init__.py` (PAD-18-015).
 
 The docker-driven scripts under `integration_tests/` are not pytest tests; CI
 runs them. A local `full` gate is `pytest -m ""`, every marker enabled.
@@ -254,7 +254,7 @@ Rules that do not bend:
   `git grep -nE '^(<<<<<<<|=======|>>>>>>>)'` must be empty.
 - **Re-run the gate after resolving**, even if it passed pre-merge: the
   tests for the conflicted files, `targeted-tests --paths <conflicted files>`
-  (PAD-18-004), escalated to the full suite when it reports `full`
+  (PAD-18-015), escalated to the full suite when it reports `full`
   (SKILL.md Phase 5 Step 3).
 - **Never resolve a conflict you do not understand.** Abort
   (`sync-with-main.sh --abort`), record the merge-state finding as `skipped` with
@@ -425,8 +425,8 @@ diverge (indicating execute was interrupted before completion).
 |---|---|
 | `base_ref` | Branch checked against — copied from `pr_metadata.base_ref`, not assumed to be `main` |
 | `conflict_free` | `true` if, at the end of Phase 5, the branch has no unresolved conflict with the base: no merge was required, or the required merge completed with no markers left |
-| `merge_required` | `true` if Phase 5 Step 2 merged in any iteration — locally on a conflict, or on GitHub for `BEHIND` (PAD-18-004); `false` otherwise, including when an overlap was deferred |
-| `merge_reason` | `"conflicting"` (local merge), `"behind"` (`gh pr update-branch`), `"deferred"` (overlap only: no merge, left to the merger's update-branch, PAD-18-009), or `null` when Step 2 found none of these |
+| `merge_required` | `true` if Phase 5 Step 2 merged in any iteration — locally on a conflict, or on GitHub for `BEHIND` (PAD-18-004, PAD-18-014); `false` otherwise, including when an overlap was deferred |
+| `merge_reason` | `"conflicting"` (local merge), `"behind"` (`gh pr update-branch`), `"deferred"` (overlap only: no merge, left to the merger's update-branch, PAD-18-019), or `null` when Step 2 found none of these |
 | `overlap_paths` | Paths `targeted-tests --overlap` listed; `[]` when none. Recorded for the merger, never acted on by execute |
 | `sync_commit_ref` | Merge commit SHA (local, or GitHub's after `update-branch`), or `null` when `merge_required` is `false`. When a required merge finds the branch already contains the base (`sync-with-main.sh` exit `0` with nothing merged), record `HEAD`'s SHA: the merge was satisfied |
 | `conflicts_resolved` | Paths that had conflict markers; `[]` for a clean merge or no merge |
@@ -450,7 +450,7 @@ suite (`pytest -m ""`), which includes the integration-marked tests.
 
 | Field | Meaning |
 |---|---|
-| `full` | Full-suite local runs this PR has cost, including `create-pr`'s first-push run **only when it ran** (PAD-18-001, PAD-18-006) |
+| `full` | Full-suite local runs this PR has cost, including `create-pr`'s first-push run **only when it ran** (PAD-18-016) |
 | `targeted` | Targeted-set gate runs this PR has cost |
 
 Derivation, so the count is cumulative across every execute run on the PR:
@@ -462,7 +462,7 @@ Derivation, so the count is cumulative across every execute run on the PR:
    happened: start from `full = 1, targeted = 0` when `create-pr` ran the full
    suites before the first push (an implementation PR that changes Python, on
    the happy path), and from `full = 0, targeted = 0` when it ran none — a
-   docs-only PR gated by the linters alone (PAD-18-001). Decide from the PR
+   docs-only PR gated by the linters alone (PAD-18-010, PAD-18-016). Decide from the PR
    body's `## Verification` section and the changed files: a PR whose diff
    changes no Python ran no first-push suite.
 3. Add each Phase 5 Step 3 gate run of this execute run: one to `full` per

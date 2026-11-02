@@ -87,11 +87,10 @@ class TestSteppingClock:
 
 class TestDeterministicRun:
     def test_now_utc_reads_the_recording_clock(self):
-        # The first read moves the clock one step, less than a second, and
-        # `now_utc()` keeps whole seconds.
-        assert timedelta(seconds=1) > RECORDING_CLOCK_STEP
+        # The first read moves the clock one step, and `now_utc()` keeps
+        # microseconds, so the step shows (CS-13-007).
         with deterministic_run("rv"):
-            assert now_utc() == RECORDING_EPOCH
+            assert now_utc() == RECORDING_EPOCH + RECORDING_CLOCK_STEP
 
     def test_the_clock_advances_across_reads(self):
         with deterministic_run("rv", start=_START, step=timedelta(seconds=1)):

@@ -54,6 +54,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.manage_embargo_tree import (
     create_manage_embargo_tree,
 )
+from vultron.demo.determinism import reset_blackboard
 from vultron.demo.fuzzer.bundles.embargo import EMBARGO_STOCHASTIC
 from vultron.demo.fuzzer.bundles.prioritization import (
     PRIORITIZATION_STOCHASTIC,
@@ -192,7 +193,7 @@ def _run_embargo_full_tree(n_ticks: int = N_TICKS) -> None:
     )
 
     for tick in range(1, n_ticks + 1):
-        py_trees.blackboard.Blackboard.storage.clear()
+        reset_blackboard()
         tree = create_manage_embargo_tree(
             case_id=_DEMO_CASE_ID,
             call_out=EMBARGO_STOCHASTIC,
@@ -224,7 +225,7 @@ def run_stochastic_demo(n_ticks: int = N_TICKS) -> None:
     """
     logger.info("=== Stochastic Bundle Demo — start ===")
 
-    py_trees.blackboard.Blackboard.storage.clear()
+    reset_blackboard()
     try:
         _run_domain_nodes("validation", _validation_nodes(), n_ticks)
         _run_domain_nodes("prioritization", _prioritization_nodes(), n_ticks)
@@ -233,7 +234,7 @@ def run_stochastic_demo(n_ticks: int = N_TICKS) -> None:
         )
         _run_embargo_full_tree(n_ticks)
     finally:
-        py_trees.blackboard.Blackboard.storage.clear()
+        reset_blackboard()
 
     logger.info("=== Stochastic Bundle Demo — complete ===")
 

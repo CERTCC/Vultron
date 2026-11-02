@@ -137,7 +137,7 @@ will not link the issue in the sidebar and triage will flag a FAIL.
 
 ### 1c — Docs placeholder (implementation PRs)
 
-Every implementation or bug-fix PR body carries a `Docs:` line (PD-03-008;
+Every implementation or bug-fix PR body carries a `Docs:` line (PD-03-013;
 scope defined in `.agents/skills/shared/pr-body-guide.md` § "Implementation PR
 rules"), whether the body was inferred above or supplied by the caller. Apply
 this whenever `type` is `implementation` (passed or inferred) **or** the
@@ -263,8 +263,8 @@ failing tests or lint errors.
 ### 3b — Pre-push body and spec gates (every PR type)
 
 Run these after the suites, on the freshened branch, immediately before the
-push (PAD-20-002, PAD-20-003). Write the composed body to a file first; Phase 4
-opens the PR from that same file.
+push (PAD-20-002, PAD-20-003, PAD-20-007). Write the composed body to a file
+first; Phase 4 opens the PR from that same file.
 
 ```bash
 # Spec rules scoped to what the branch changed: a protocol requirement whose
@@ -326,7 +326,7 @@ URL — token included — as the branch's remote in `.git/config` (#3893).
 
 If Phase 2 exited with code `1` (cherry-pick conflict): run Phase 3 on the
 un-freshened branch first — the first-push gate applies to this push too
-(PAD-18-001), and no other skill runs the suites before it (PAD-18-008). Then
+(PAD-18-001), and no other skill runs the suites before it (PAD-18-017). Then
 push the branch as-is with the same `git push -u origin HEAD`, and open a draft
 PR with `needs-rebase` label per [REFERENCE.md](REFERENCE.md) § "Conflict PR
 template".

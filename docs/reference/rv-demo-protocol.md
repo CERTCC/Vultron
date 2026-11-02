@@ -28,9 +28,11 @@ The `rv` scenario uses three of them, one per logical actor:
 
 | Actor | CVD role(s) | Container | Actor id |
 |:------|:------------|:----------|:---------|
-| Reporter | `REPORTER` | `reporter` | `http://reporter:7999/api/v2/actors/{id}` |
-| Vendor | `VENDOR`, `CASE_OWNER` | `vendor` | `http://vendor:7999/api/v2/actors/{id}` |
+| Reporter | `REPORTER` | `actor0` | `http://actor0:7999/api/v2/actors/actor0` |
+| Vendor | `VENDOR`, `CASE_OWNER` | `actor1` | `http://actor1:7999/api/v2/actors/actor1` |
 | Case Actor | `CASE_MANAGER` | `case-actor` | `http://case-actor:7999/api/v2/actors/case-actor` |
+
+The container names carry no CVD role, because every scenario runs on one fixed cast and a container plays a different part in different scenarios ([The cast](../tutorials/container_demos.md#the-cast)).
 
 The **Case Actor** is the actor that enacts the `CASE_MANAGER` role for the case.
 It is the single writer of the canonical case ledger, and every case-scoped activity a participant sends is addressed to it ([The CASE_MANAGER and the Case Ledger](../topics/case_lifecycle/case_manager_and_ledger.md)).
@@ -159,15 +161,15 @@ The report travels inline, because the Vendor has no way to read it out of the R
 {
   "type": "Offer",
   "id": "urn:uuid:711dacfa-…",
-  "actor": "http://reporter:7999/api/v2/actors/{reporter_id}",
-  "to": ["http://vendor:7999/api/v2/actors/{vendor_id}"],
-  "target": {"type": "Organization", "id": "http://vendor:7999/api/v2/actors/{vendor_id}"},
+  "actor": "http://actor0:7999/api/v2/actors/actor0",
+  "to": ["http://actor1:7999/api/v2/actors/actor1"],
+  "target": {"type": "Organization", "id": "http://actor1:7999/api/v2/actors/actor1"},
   "object": {
     "type": "VulnerabilityReport",
     "id": "urn:uuid:3fed4100-…",
     "name": "Remote Code Execution in Network Stack",
     "content": "A critical remote code execution vulnerability was discovered…",
-    "attributedTo": "http://reporter:7999/api/v2/actors/{reporter_id}"
+    "attributedTo": "http://actor0:7999/api/v2/actors/actor0"
   }
 }
 ```
@@ -183,13 +185,13 @@ The `actor` is the Case Actor, acting as `CASE_MANAGER`, while the case's `attri
   "type": "Create",
   "id": "urn:uuid:ac0e2f61-…",
   "actor": "http://case-actor:7999/api/v2/actors/case-actor",
-  "to": ["http://vendor:7999/api/v2/actors/{vendor_id}"],
+  "to": ["http://actor1:7999/api/v2/actors/actor1"],
   "context": "urn:uuid:8eee4e72-…",
   "inReplyTo": "urn:uuid:15f958ea-…",
   "object": {
     "type": "VulnerabilityCase",
     "id": "urn:uuid:8eee4e72-…",
-    "attributedTo": "http://vendor:7999/api/v2/actors/{vendor_id}"
+    "attributedTo": "http://actor1:7999/api/v2/actors/actor1"
   }
 }
 ```
@@ -383,12 +385,12 @@ The owner's departure closes the case, and the Case Actor records nothing a part
 {
   "type": "Leave",
   "id": "urn:uuid:541b09bc-…",
-  "actor": "http://vendor:7999/api/v2/actors/{vendor_id}",
+  "actor": "http://actor1:7999/api/v2/actors/actor1",
   "to": ["http://case-actor:7999/api/v2/actors/case-actor"],
   "object": {
     "type": "VulnerabilityCase",
     "id": "urn:uuid:8eee4e72-…",
-    "attributedTo": "http://vendor:7999/api/v2/actors/{vendor_id}"
+    "attributedTo": "http://actor1:7999/api/v2/actors/actor1"
   }
 }
 ```

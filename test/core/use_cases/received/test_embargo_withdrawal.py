@@ -18,7 +18,7 @@ open proposal's row it had agreed to become ``DECLINED``, the withdrawal is
 committed to the ledger, and no register entry moves.  Every refusal is
 decided before the commit, so nothing is ledgered for it (CLP-10-009,
 SYNC-12-001).  A ``Reject(Invite(EmbargoEvent))`` of the active embargo from
-an ``AGREED`` row is refused the same way (MSM-07-004).
+an ``AGREED`` row is refused the same way (MSM-07-014).
 """
 
 from typing import Any, cast
@@ -394,7 +394,7 @@ def _reject(
     return result, reject.id_
 
 
-@pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("MSM-07-014")
 @pytest.mark.spec("CLP-10-009")
 def test_a_reject_of_the_embargo_in_force_from_an_agreed_row_is_refused(
     make_payload,
@@ -412,7 +412,7 @@ def test_a_reject_of_the_embargo_in_force_from_an_agreed_row_is_refused(
         _INVITED_REVISION: "INVITED",
     }
     assert _ledger(dl) == []
-    # MSM-07-004: the signatory learns why (CLP-05-001).
+    # MSM-07-014: the signatory learns why (CLP-05-001).
     assert_refusal_notice(
         dl,
         manager=_MANAGER,
@@ -424,6 +424,7 @@ def test_a_reject_of_the_embargo_in_force_from_an_agreed_row_is_refused(
 
 
 @pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("MSM-07-015")
 def test_a_signatorys_reject_of_a_revision_leaves_it_bound(make_payload):
     """Refusing a revision declines that row only; the active row stays."""
     dl = _store()

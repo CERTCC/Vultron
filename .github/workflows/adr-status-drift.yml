@@ -28,6 +28,10 @@ jobs:
   report-drift:
     name: ADR Status Matches Epoch (reports, never fails)
     runs-on: ubuntu-latest
+    # Observed: up to 1.3 min over the 15 latest successful runs (2026-10-30). Cap at
+    # 5 min so a hang fails fast instead of holding a runner until GitHub's 6-h limit
+    # (TB-14-006).
+    timeout-minutes: 5
     permissions:
       contents: read
       issues: write

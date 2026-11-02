@@ -1,11 +1,6 @@
 name: Docs Build and Link Check
 on:
   pull_request:
-    # A pull request to publish runs this workflow through
-    # docs-publish-check.yml instead, on every such pull request whatever it
-    # changes (DOCBW-03-012). Ignoring publish here keeps it from running twice.
-    branches-ignore:
-      - publish
     paths:
       - 'docs/**'
       - 'overrides/**'
@@ -23,7 +18,7 @@ on:
       # reruns it.
       - 'vultron/**'
       - 'specs/**'
-      # Runs the built-site gates (DOCBW-03-005/007/008, DF-11-023).
+      # Runs the built-site gates (DOCBW-03-005/007/008/012, DF-11-023).
       - '.github/actions/check-site-publication/**'
       # The shared build (DOCBW-06-004) and the environment it installs.
       - '.github/actions/build-site/**'
@@ -33,7 +28,6 @@ on:
       - 'LICENSE.md'
       - 'Acknowledgements.md'
       - '.github/workflows/docs-build-check.yml'
-  workflow_call:
   workflow_dispatch:
 
 permissions:
@@ -42,6 +36,10 @@ permissions:
 jobs:
   docs-build-check:
     runs-on: ubuntu-latest
+    # Observed: 1.5–4.5 min typical, one 16-min run, over the 15 latest successful
+    # runs (2026-10-30). Cap at 30 min so a hang fails fast instead of holding a
+    # runner until GitHub's 6-h limit (TB-14-006).
+    timeout-minutes: 30
     steps:
       # Only loads the local actions: build-site re-checks out the repository
       # with the history and tags the build needs (DOCBW-06-004).
@@ -56,23 +54,12 @@ jobs:
 
       # Runs against the built site above, so it must follow that step: no
       # withheld artifact was built, every internal reference resolves, and
-      # every URL an earlier publish served still resolves. The same action
-      # gates deploy_site.yml.
+      # every URL an earlier publish served still resolves, and every page
+      # built is recorded so a later deploy cannot drop its URL unnoticed. For
+      # a pull request the checked-out commit is its merge result: what its
+      # base branch holds once it merges. The same action gates deploy_site.yml.
       - name: Check site publication
         uses: ./.github/actions/check-site-publication
-
-      # DOCBW-03-012: a publish must not ship a page the continuity check above
-      # does not know about, or a later publish could drop its URL unnoticed.
-      # Runs on pull requests to publish only (through docs-publish-check.yml),
-      # because on a pull request to main a new page is not yet due. It reads
-      # the checked-out commit, which for a pull request is its merge result:
-      # what publish will serve once the pull request merges. Kept out of the
-      # check-site-publication action so deploy_site.yml and pull requests to
-      # main do not run it.
-      - name: Check every built page is recorded
-        if: ${{ !cancelled() && github.base_ref == 'publish' }}
-        run: |
-          PYTHONPATH='' uv run docs-legacy-urls --require-recorded
 
       # The source gates: the ADR index and the docs source gates
       # (DOCBW-03-013, DOCBW-03-014). They read the docs/ sources, not the

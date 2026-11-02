@@ -169,7 +169,7 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
 
 - `accept_embargo_invite` / `record_embargo_rejection` record a sender's own
   consent to `Accept`/`Reject(Invite(EmbargoEvent))` — the owner's included —
-  and move no register entry (MSM-07-003, MSM-07-004).
+  and move no register entry (MSM-07-011, MSM-07-013).
 - `activate_embargo` / `reject_embargo_proposal` apply the owner's
   `Accept`/`Reject(EmbargoEvent, target=Case)` (MSM-07-008, MSM-07-009).
 - No operation branches on whether the sender is the owner. The accept and
@@ -288,10 +288,11 @@ catch-up path.
   diversion of the received tree (`pxa_invite_refusal`, `pxa_accept_refusal`
   in `vultron/core/behaviors/embargo/refusal_tree.py`, CLP-10-026), never a
   refusal effect: refusal effects run only at the CASE_MANAGER and are skipped
-  on a redelivery, and a participant owes the ER too and re-queues an ER
-  sealed but never queued (ID-04-005). It stores the Invite's `EmbargoEvent`
-  first; the ER factory reads the proposal from intake's archive, never a copy
-  under the sender's id (DL-06-006). It answers where
+  on a redelivery, and a participant owes the `Reject` too and re-queues one
+  sealed but never queued (EMB-01-007, ID-04-005). The `Reject` is the
+  receiver's own answer, not ER (MSM-02-010). It stores the Invite's
+  `EmbargoEvent` first; the refusal factory reads the proposal from intake's
+  archive, never a copy under the sender's id (DL-06-006). It answers where
   any Invite answer goes: the CASE_MANAGER answers the proposer, a participant
   answers the CASE_MANAGER, never a peer (PCR-08-001). An Invite naming its
   terms by URI only is still answered (ADR-0123).
@@ -299,18 +300,19 @@ catch-up path.
   embargo to it), so a later P/X/A never contradicts an earlier answer.
   "Already archived" is not that signal: intake archives the Invite before
   any guard runs (CLP-10-017).
-- **The ER is its own record** (ADR-0123). Its id derives from the rejecting
-  actor and the Invite, a tree node queues it (CLP-10-020), and the sealed ER is
-  written before the queue append (ID-04-005), so a redelivery is `SKIPPED`.
+- **The refusal `Reject` is its own record** (ADR-0123). Its id derives from the
+  rejecting actor and the Invite, a tree node queues it (CLP-10-020), and the
+  sealed `Reject` is written before the queue append (EMB-01-006), so a
+  redelivery is `SKIPPED`.
 - An Invite naming no `to` recipient, several, or no embargo is answered with
-  `Create(ProcessingFault)`, not ER (EP-09-010, MSM-05-001), by the one tree
+  `Create(ProcessingFault)`, not a `Reject` (EP-09-010, MSM-05-001), by the one tree
   `received_embargo_invite_tree` builds for it (`invite_received_tree.py`),
   after the post-close boundary.
 
-**A participant answers a revision on a P/X/A case with ER, never ET**
-(EMB-03-003, ADR-0118). Termination belongs to the owner, or to the
-CASE_MANAGER when delegated (EP-09-008); a participant's ET would write shared
-EM state it does not own. The duty binds only the addressee: the
+**A participant answers a revision on a P/X/A case with its own `Reject` of the
+Invite, never ET** (EMB-03-003, EMB-03-004, ADR-0118). Termination belongs to
+the owner, or to the CASE_MANAGER when delegated (EP-09-008); a participant's ET
+would write shared EM state it does not own. The duty binds only the addressee: the
 `ActivityAddressedToReceiverNode` door guard that `create_receive_activity_tree`
 places in every received tree refuses an unaddressed copy before anything
 answers it (HP-01-005, CLP-10-010).
@@ -344,7 +346,8 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
    node without a write (EMB-18-002). Lifecycle nodes catch `VultronError` and
    return `FAILURE`; triggers are thin orchestrators over the service.
 2. **On `VultronInvalidStateTransitionError` from a P/X/A guard**, the case is no
-   longer embargo-eligible: do not retry; emit ER to the proposer.
+   longer embargo-eligible: do not retry; answer the proposer with a `Reject` of
+   the Invite.
 3. **Consent cascades are automatic.** `propose_embargo()` changes no consent
    except recording the proposer's (ADR-0093). An activation records the
    owner's agreement; a *shorter* replacement carries every signatory over
@@ -424,7 +427,8 @@ every other participant learns the result from the ledger.
 1. A participant sends its `Invite(EmbargoEvent)` to the CASE_MANAGER only. The
    published-default path emits no proposal, so nothing is relayed for it.
 2. The CASE_MANAGER adjudicates: still eligible → `propose_embargo` under the
-   role gate and the proposal is committed; P/X/A set → ER (EMB-01-002). The
+   role gate and the proposal is committed; P/X/A set → its `Reject` of the
+   Invite (EMB-01-002). The
    fan-out tells replicas only that the case is under proposal or revision
    (EP-09-001).
 3. The CASE_MANAGER relays an Invite to **every participant except the
@@ -477,8 +481,9 @@ arms built by `_by_role()` (BT-17-001). Ratchet:
   activity to the CASE_MANAGER and `SvcEmbargoTriggerBase` records it with
   `record_pending_assertion()` (SYNC-11-002), keyed by `subject_id`, so a repeat
   inside the window is suppressed. The announced commit clears it (SYNC-11-003);
-  a refused proposal, or an `Accept` refused with ER, is closed by the
-  manager's `Reject` (`close_refused_embargo_ask`); a participant takes a
+  a refused proposal, or an `Accept` refused with a `Reject` of the Invite
+  (EMB-02-004), is closed by the manager's `Reject` (EP-09-019,
+  `close_refused_embargo_ask`); a participant takes a
   `Reject(Invite(EmbargoEvent))` from the CASE_MANAGER alone.
 
 The receive-side cascade (`ThreatTerminationBranchNode`) reaches the same
@@ -507,13 +512,14 @@ tells the manager's `Reject` from a participant's by the payload's `actor`
 (`sent_by_case_manager`), copies the `CANCEL` from it, and finds each later
 `Undo` already in place.
 
-**A non-manager sends no ER for the abandonment (EMB-16-002).** Its ER would read
-at the manager as declining the proposal (MSM-07-004), an abandonment it has no
-standing to make; its P/X/A status already reaches the manager, which abandons
-on that. `LeaveAbandonmentToCaseManagerNode` writes and sends nothing. This is
-distinct from EMB-01-002: a proposal *addressed to* a participant that believes
-P/X/A is set is still answered with ER, manager or not. Participant self-status
-(RM) keeps its local write.
+**A non-manager sends no ER for the abandonment (EMB-16-002).** Its `Reject` of
+the Invite would read at the manager as declining the proposal (MSM-07-004), an
+abandonment it has no standing to make; its P/X/A status already reaches the
+manager, which abandons on that. `LeaveAbandonmentToCaseManagerNode` writes and
+sends nothing. This is distinct from EMB-01-002: a proposal *addressed to* a
+participant that believes P/X/A is set is still answered with its own `Reject`
+of the Invite, manager or not. Participant self-status (RM) keeps its local
+write.
 
 **The role is never unfilled** (CM-24-006, CM-24-008). No "no manager" arm belongs
 in any embargo tree; a resolver that finds nobody fails.
@@ -568,4 +574,5 @@ listed (`PARTICIPANT`). The invitee rows use `SenderIsInviteeNode`.
   (HP-01-007, CLP-10-005).
 
 The `Remove` row at the CASE_MANAGER is not stated by a spec; it
-follows EP-09-005 (the owner decides) and the ER-never-ET rule above.
+follows EP-09-005 (the owner decides) and the reject-never-ET rule for a
+P/X/A revision above.

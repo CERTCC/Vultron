@@ -543,7 +543,7 @@ def _status_at(case: VulnerabilityCase, index: int) -> CaseStatus:
 
 
 class TestVulnerabilityCaseAppendCaseStatusClock:
-    """append_case_status stamps via now_utc() and stays ordered (CS-13-002/003)."""
+    """append_case_status stamps via now_utc() and stays ordered (CS-13-002/007)."""
 
     _PINNED = datetime(2026, 5, 4, 12, 0, 0, 123456, tzinfo=UTC)
 
@@ -554,7 +554,7 @@ class TestVulnerabilityCaseAppendCaseStatusClock:
             "datetime",
             SteppingClock(self._PINNED, step=timedelta(0)),
         )
-        return self._PINNED.replace(microsecond=0)
+        return self._PINNED
 
     def test_append_case_status_takes_its_time_from_now_utc(
         self, frozen_clock: datetime
@@ -566,7 +566,7 @@ class TestVulnerabilityCaseAppendCaseStatusClock:
         assert appended.updated == frozen_clock
         assert appended.published == frozen_clock
 
-    def test_same_second_appends_stay_strictly_ordered_at_second_precision(
+    def test_same_tick_appends_stay_strictly_ordered(
         self, frozen_clock: datetime
     ) -> None:
         case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_ACTOR)
@@ -575,11 +575,9 @@ class TestVulnerabilityCaseAppendCaseStatusClock:
         first, second = _status_at(case, -2), _status_at(case, -1)
         assert first.updated is not None and second.updated is not None
         assert first.updated < second.updated
-        for stamp in (first.updated, second.updated):
-            assert stamp.microsecond == 0
         assert case.current_status is second
 
-    def test_bump_from_a_sub_second_latest_lands_on_a_whole_second(
+    def test_bump_from_a_latest_ahead_of_the_clock_sorts_after_it(
         self, frozen_clock: datetime
     ) -> None:
         case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_ACTOR)
@@ -587,6 +585,4 @@ class TestVulnerabilityCaseAppendCaseStatusClock:
         case.current_status.updated = latest
         case.append_case_status(pxa=CS_pxa.Pxa)
         stamp = _status_at(case, -1).updated
-        assert stamp is not None
-        assert stamp > latest
-        assert stamp.microsecond == 0
+        assert stamp == latest + timedelta(microseconds=1)

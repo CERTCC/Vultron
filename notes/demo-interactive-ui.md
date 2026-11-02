@@ -155,7 +155,7 @@ Rules for the TypeScript side:
 ### Data path
 
 ```text
-actor container (reporter, vendor, coordinator, …; may host several actors)
+actor container (actor0 … actor4, case-actor; may host several actors)
   └─ GET /api/v2/actors/{id}/demo/cases/{case_id}/log/stream   (SSE, prototype-only)
         ▲  one stream per actor — each shows that actor's replica
         │

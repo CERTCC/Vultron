@@ -44,6 +44,10 @@ jobs:
   actionlint:
     name: Lint (actionlint)
     runs-on: ubuntu-latest
+    # Observed: 6–66 s over the 15 latest successful runs (2026-10-30). Cap at 5 min
+    # so a hang fails fast instead of holding a runner until GitHub's 6-h limit
+    # (TB-14-006).
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/debounce-main-push

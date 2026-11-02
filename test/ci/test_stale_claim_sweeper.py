@@ -217,7 +217,7 @@ def _sweep(monkeypatch: pytest.MonkeyPatch, fake: _FakeGitHub) -> _FakeGitHub:
     return fake
 
 
-@pytest.mark.spec("PAD-10-002")
+@pytest.mark.spec("PAD-10-002", "PAD-10-003")
 def test_an_orphaned_issue_claim_is_labelled_and_commented(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -85,7 +85,7 @@ def unregistered_narrative_pages(
     Every ``*.md`` under :data:`NARRATIVE_DIR` other than :data:`NARRATIVE_INDEX`
     must be some registered scenario's ``narrative_path`` (DEMOCI-11-012).  A
     ``_``-prefixed file is an ``{% include-markdown %}`` fragment the narratives
-    share (SG-43), not a page, so it is not checked (DF-09-007).  The
+    share (SG-43), not a page, so it is not checked (DF-09-011).  The
     converse — a registered scenario whose page is missing — is
     :func:`.sync.missing_derived_paths`' job (DEMOCI-11-003).
 

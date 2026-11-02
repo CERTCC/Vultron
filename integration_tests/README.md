@@ -114,9 +114,9 @@ use. If you need to pin specific host ports (e.g. for manual debugging or
 to run concurrent scenarios), use the `*_HOST_PORT` env vars:
 
 ```bash
-REPORTER_HOST_PORT=17901 VENDOR_HOST_PORT=17902 \
-CASE_ACTOR_HOST_PORT=17903 COORDINATOR_HOST_PORT=17904 \
-VENDOR2_HOST_PORT=17905 \
+ACTOR0_HOST_PORT=17901 ACTOR1_HOST_PORT=17902 \
+ACTOR2_HOST_PORT=17903 ACTOR3_HOST_PORT=17904 \
+ACTOR4_HOST_PORT=17905 CASE_ACTOR_HOST_PORT=17906 \
 ./integration_tests/demo/run_multi_actor_integration_test.sh
 ```
 

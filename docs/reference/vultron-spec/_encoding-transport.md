@@ -59,6 +59,17 @@ An implementation therefore cites only the Vultron URI and does not need to decl
 from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VM-10-001"))
 ```
 
+**Timestamps have one written form.**
+Every timestamp is an RFC 3339 date-time with an explicit offset, as AS2 requires.
+A Vultron node writes exactly six fractional-second digits, even when they are all zero, so one instant at one offset always has one string.
+The case ledger hashes and compares that text, so a second spelling would read as a different record.
+The fixed form is what a Vultron node writes, not what it requires to receive: a timestamp written with fewer digits still parses, and a peer may send one.
+A timestamp it carries from a peer keeps the offset that peer sent, so the same instant at another offset stays another string.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CS-13-006", "CS-13-007", "CS-13-005"))
+```
+
 **Objects travel inline or by reference.**
 As AS2 allows, an Activity carries an object inline or names it by URI, and a receiver copes with either form.
 An object the recipient cannot be expected to hold is carried inline, or named by a reference the recipient can dereference ([§4.2 Knowledge Model and Actor Isolation](layers.md#42-knowledge-model-and-actor-isolation)).
@@ -149,7 +160,7 @@ No case exists yet, so both messages go directly between the two actors.
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Offer",
       "id": "https://vultron.example/users/finndervul/activities/offer-1",
-      "published": "2026-05-30T10:00:00+00:00",
+      "published": "2026-05-30T10:00:00.000000+00:00",
       "actor": "https://vultron.example/users/finndervul",
       "to": ["https://vultron.example/organizations/vendorco"],
       "object": {
@@ -166,14 +177,14 @@ No case exists yet, so both messages go directly between the two actors.
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Read",
       "id": "https://vultron.example/organizations/vendorco/activities/read-1",
-      "published": "2026-05-30T11:00:00+00:00",
+      "published": "2026-05-30T11:00:00.000000+00:00",
       "actor": "https://vultron.example/organizations/vendorco",
       "to": ["https://vultron.example/users/finndervul"],
       "content": "We have received the report. We will get back to you soon.",
       "object": {
         "type": "Offer",
         "id": "https://vultron.example/users/finndervul/activities/offer-1",
-        "published": "2026-05-30T10:00:00+00:00",
+        "published": "2026-05-30T10:00:00.000000+00:00",
         "actor": "https://vultron.example/users/finndervul",
         "to": ["https://vultron.example/organizations/vendorco"],
         "object": {
@@ -208,7 +219,7 @@ That answer is the Coordinator's own consent, so it carries no shorthand: Embarg
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Invite",
       "id": "https://vultron.example/cases/1/embargo_proposals/1",
-      "published": "2026-06-01T18:00:00+00:00",
+      "published": "2026-06-01T18:00:00.000000+00:00",
       "actor": "https://vultron.example/organizations/vendorco",
       "to": ["https://vultron.example/case-actors/vendorco-case-actor"],
       "context": "https://vultron.example/cases/1",
@@ -217,8 +228,8 @@ That answer is the Coordinator's own consent, so it carries no shorthand: Embarg
         "type": "EmbargoEvent",
         "id": "https://vultron.example/cases/1/embargo_events/2026-08-30T00:00:00+00:00",
         "context": "https://vultron.example/cases/1",
-        "startTime": "2026-06-01T19:12:00+00:00",
-        "endTime": "2026-08-30T00:00:00+00:00"
+        "startTime": "2026-06-01T19:12:00.000000+00:00",
+        "endTime": "2026-08-30T00:00:00.000000+00:00"
       }
     }
     ```
@@ -232,15 +243,15 @@ That answer is the Coordinator's own consent, so it carries no shorthand: Embarg
       "attributedTo": "https://vultron.example/organizations/vendorco",
       "to": ["https://vultron.example/organizations/coordinator"],
       "context": "https://vultron.example/cases/1",
-      "published": "2026-06-01T19:12:00+00:00",
-      "endTime": "2026-06-08T19:12:00+00:00",
+      "published": "2026-06-01T19:12:00.000000+00:00",
+      "endTime": "2026-06-08T19:12:00.000000+00:00",
       "summary": "The vendor proposes to embargo case 1 for 90 days.",
       "object": {
         "type": "EmbargoEvent",
         "id": "https://vultron.example/cases/1/embargo_events/2026-08-30T00:00:00+00:00",
         "context": "https://vultron.example/cases/1",
-        "startTime": "2026-06-01T19:12:00+00:00",
-        "endTime": "2026-08-30T00:00:00+00:00"
+        "startTime": "2026-06-01T19:12:00.000000+00:00",
+        "endTime": "2026-08-30T00:00:00.000000+00:00"
       }
     }
     ```
@@ -250,7 +261,7 @@ That answer is the Coordinator's own consent, so it carries no shorthand: Embarg
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Accept",
       "id": "https://vultron.example/organizations/coordinator/activities/accept-1",
-      "published": "2026-06-02T09:00:00+00:00",
+      "published": "2026-06-02T09:00:00.000000+00:00",
       "actor": "https://vultron.example/organizations/coordinator",
       "to": ["https://vultron.example/case-actors/vendorco-case-actor"],
       "context": "https://vultron.example/cases/1",
@@ -261,14 +272,14 @@ That answer is the Coordinator's own consent, so it carries no shorthand: Embarg
         "attributedTo": "https://vultron.example/organizations/vendorco",
         "to": ["https://vultron.example/organizations/coordinator"],
         "context": "https://vultron.example/cases/1",
-        "published": "2026-06-01T19:12:00+00:00",
-        "endTime": "2026-06-08T19:12:00+00:00",
+        "published": "2026-06-01T19:12:00.000000+00:00",
+        "endTime": "2026-06-08T19:12:00.000000+00:00",
         "object": {
           "type": "EmbargoEvent",
           "id": "https://vultron.example/cases/1/embargo_events/2026-08-30T00:00:00+00:00",
           "context": "https://vultron.example/cases/1",
-          "startTime": "2026-06-01T19:12:00+00:00",
-          "endTime": "2026-08-30T00:00:00+00:00"
+          "startTime": "2026-06-01T19:12:00.000000+00:00",
+          "endTime": "2026-08-30T00:00:00.000000+00:00"
         }
       }
     }
@@ -292,7 +303,7 @@ The `vfState` value `VF` is what distinguishes this occasion from the other clai
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Add",
       "id": "https://vultron.example/organizations/vendorco/activities/add-status-3",
-      "published": "2026-07-15T14:00:00+00:00",
+      "published": "2026-07-15T14:00:00.000000+00:00",
       "actor": "https://vultron.example/organizations/vendorco",
       "to": ["https://vultron.example/case-actors/vendorco-case-actor"],
       "target": "https://vultron.example/cases/1/participants/vendorco",
@@ -315,6 +326,7 @@ The CASE_MANAGER has committed a case event to the case ledger and sends the ent
 Each participant checks that the entry's `prevLogHash` matches the `entryHash` of the last entry it holds ([§4.12 Ledger Replication Messages](layers.md#412-ledger-replication-messages)).
 The entry shown is the first in its case's ledger, so its `prevLogHash` is the case's own genesis hash ([CLP-08-001](requirements/ledger-replication.md#clp-08-001)).
 Its `published` is the CASE_MANAGER's commit stamp ([CLP-14-002](requirements/ledger-replication.md#clp-14-002)).
+The two digests below are illustrative: they show the fields' shape and are not computed over the example's own values, so recomputing them from what is shown will not reproduce them.
 
 === "Notation"
 
@@ -329,13 +341,13 @@ Its `published` is the CASE_MANAGER's commit stamp ([CLP-14-002](requirements/le
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Announce",
       "id": "https://vultron.example/case-actors/vendorco-case-actor/activities/announce-0",
-      "published": "2026-05-31T12:00:01+00:00",
+      "published": "2026-05-31T12:00:01.000000+00:00",
       "actor": "https://vultron.example/case-actors/vendorco-case-actor",
       "to": ["https://vultron.example/organizations/coordinator"],
       "object": {
         "type": "CaseLedgerEntry",
         "id": "https://vultron.example/cases/1/log/0",
-        "published": "2026-05-31T12:00:00+00:00",
+        "published": "2026-05-31T12:00:00.000000+00:00",
         "caseId": "https://vultron.example/cases/1",
         "logIndex": 0,
         "logObjectId": "https://vultron.example/activities/00000000-0000-0000-0000-000000000001",
@@ -343,7 +355,7 @@ Its `published` is the CASE_MANAGER's commit stamp ([CLP-14-002](requirements/le
         "payloadSnapshot": {},
         "prevLogHash": "17334082900cbfad3b45787a0ef507390580bdf1508d78e3597435d79339ab3d",
         "entryHash": "0dabc4e69c51c1fa7e30595ff3357fdcb1fbe4581aed3534bec1e92c30e84549",
-        "receivedAt": "2026-05-31T12:00:00Z"
+        "receivedAt": "2026-05-31T12:00:00.000000+00:00"
       }
     }
     ```

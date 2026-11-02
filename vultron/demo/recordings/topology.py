@@ -38,8 +38,8 @@ class ContainerTopology:
     """The Docker demo's container layout, as the recorder needs it.
 
     Attributes:
-        slot_urls: Base URL of each container slot, keyed by the slot's env var
-            (``VULTRON_VENDOR_BASE_URL`` → ``http://vendor:7999/api/v2``).
+        slot_urls: Base URL of each cast container, keyed by the slot's env
+            var (``VULTRON_ACTOR1_BASE_URL`` → ``http://actor1:7999/api/v2``).
         case_roles: Each container's ``VULTRON_ACTOR__DEFAULT_CASE_ROLES``,
             keyed by host name.  A container without the setting is absent.
         case_actor_service_url: The CaseActor every container proposes to.

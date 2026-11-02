@@ -26,14 +26,11 @@ The fix: move the ``note_id is None`` check inside ``demo_step`` so
 after the block so no downstream code runs against a ``None`` note ID.
 """
 
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import httpx2 as httpx
 
 import vultron.demo.scenario.rcv_reject_demo as demo
-from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers import invite_chain
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.utils import reset_demo_failures
 
@@ -122,142 +119,47 @@ class TestParticipantAddsNoteNoNoteId:
         assert result is None
 
 
-class TestRcvRejectInviteChainSkipsDependents:
-    """Phase 2: a failed invite trigger or delivery lookup skips the reject.
-
-    Before the fix ``invite_result.activity`` was read on a ``None`` sentinel
-    after the suppressing ``demo_step`` (crash, #3038 sibling), and the
-    delivery wait was a ``demo_check`` that let the reject post regardless
-    (EDF-06-005).
-    """
-
-    def setup_method(self):
-        reset_demo_failures()
-
-    @staticmethod
-    def _actor(id_: str = "urn:test:actor"):
-        a = MagicMock()
-        a.id_ = id_
-        return a
-
-    @staticmethod
-    def _client():
-        c = MagicMock()
-        c.get.return_value = {}
-        return c
-
-    def _run(self, *, invite_trigger, invite_lookup):
-        vendor = self._actor("urn:test:vendor")
-        with (
-            patch.object(
-                ActorSession, "invite_actor_to_case", **invite_trigger
-            ),
-            patch.object(ActorSession, "reject_case_invite") as reject_invite,
-            patch.object(
-                invite_chain, "find_case_invite_for_actor", **invite_lookup
-            ) as find_invite,
-            patch.object(demo, "get_actor_by_id", return_value=vendor),
-            # set_stub_summary is seeding infrastructure not under test here.
-            patch.object(ActorSession, "set_stub_summary"),
-            patch.object(demo, "wait_for_semantic_type_in_ledger"),
-            patch.object(demo, "wait_for_case_participants"),
-        ):
-            # Must not raise: every failure is accumulated, never escaped.
-            demo._phase_invite_vendor_reject(
-                coordinator_client=self._client(),
-                case_actor_client=self._client(),
-                vendor_client=self._client(),
-                reporter=self._actor("urn:test:reporter"),
-                coordinator_in_coordinator=self._actor("urn:test:coordinator"),
-                coordinator=self._actor("urn:test:coordinator"),
-                vendor=vendor,
-                case=self._actor("urn:test:case"),
-            )
-        return find_invite, reject_invite
-
-    def test_invite_trigger_failure_skips_lookup_and_reject(self):
-        find_invite, reject_invite = self._run(
-            invite_trigger={
-                "side_effect": RuntimeError("invite trigger failed")
-            },
-            invite_lookup={"return_value": "urn:test:invite"},
-        )
-        find_invite.assert_not_called()
-        reject_invite.assert_not_called()
-
-    def test_invite_lookup_failure_skips_reject(self):
-        _, reject_invite = self._run(
-            invite_trigger={
-                "return_value": SimpleNamespace(
-                    activity=MagicMock(id_="urn:test:invite")
-                )
-            },
-            invite_lookup={
-                "side_effect": AssertionError("timed out polling for Invite")
-            },
-        )
-        reject_invite.assert_not_called()
-
-
-class TestRcvRejectReadsTheCaseManagersStore:
-    """The rejection checks read the dedicated case-actor container (#1876).
-
-    The rejection commits only in the CASE_MANAGER's store (CLP-10-006), which
-    lives on the dedicated case-actor container; the Coordinator's container
-    cannot address it, so every post-rejection read must go through
-    ``case_actor_client``.
-    """
-
-    def setup_method(self):
-        reset_demo_failures()
-
-    def test_post_rejection_reads_go_through_case_actor_client(self):
-        coordinator_client = MagicMock()
-        case_actor_client = MagicMock()
-        vendor = MagicMock(id_="urn:test:vendor")
-        with (
-            patch.object(demo, "run_case_invite_chain") as chain,
-            patch.object(demo, "get_actor_by_id", return_value=vendor),
-            patch.object(demo, "wait_for_semantic_type_in_ledger") as ledger,
-            patch.object(demo, "wait_for_case_participants") as roster,
-            patch.object(demo, "wait_for_participant_rm_state") as rm_wait,
-            patch.object(demo, "_check_participant_rm_state_in") as rm_check,
-        ):
-            demo._phase_invite_vendor_reject(
-                coordinator_client=coordinator_client,
-                case_actor_client=case_actor_client,
-                vendor_client=MagicMock(),
-                reporter=MagicMock(id_="urn:test:reporter"),
-                coordinator_in_coordinator=MagicMock(id_="urn:test:coord"),
-                coordinator=MagicMock(id_="urn:test:coord"),
-                vendor=vendor,
-                case=MagicMock(id_="urn:test:case"),
-            )
-        assert chain.call_args.kwargs["case_manager_client"] is (
-            case_actor_client
-        )
-        assert ledger.call_args.kwargs["client"] is case_actor_client
-        assert roster.call_args.kwargs["vendor_client"] is case_actor_client
-        assert rm_wait.call_args.kwargs["client"] is case_actor_client
-        assert rm_check.call_args.kwargs["client"] is case_actor_client
-
-
 class TestRcvRejectDumpTargetsTheCaseActorContainer:
-    """The ``case-actor`` ledger is dumped from the dedicated container."""
+    """The ``case-actor`` ledger is dumped from the dedicated container.
+
+    The dump is one shared fragment now (#5534), so the export is patched
+    where that fragment looks it up — in ``coordinated_story`` — rather than on
+    this scenario's own module, which no longer imports it.
+    """
 
     def test_case_actor_target_uses_case_actor_client(self):
-        case_actor_client = MagicMock(
-            actor_id="http://case-actor:7999/api/v2/actors/case-actor"
+        """And the rejecting Vendor is named in the manifest under its own key.
+
+        The container actors are bound as seeding binds them, so the real
+        ``replica_route_key`` reads each key off the client's own actor id
+        (ADR-0073) instead of a ``MagicMock`` attribute.  The manifest is then
+        asserted as the mapping it is: that it is merely non-empty would hold
+        just as well with the wrong actor named, and naming the right one is
+        the whole of what #4248 asked for — a narrative tag on the Case
+        Actor's ``reject_invite_actor_to_case`` entry resolves through this
+        entry to the Vendor that rejected.
+        """
+        from test.demo._helpers import story_state
+        from test.demo.test_coordinated_story import _bind_container_actors
+        from vultron.demo.helpers import coordinated_story
+        from vultron.demo.helpers.coordinated_story import (
+            CASE_ACTOR_NAME,
+            COORDINATOR,
+            REPORTER,
+            VENDOR,
         )
-        with patch.object(demo, "dump_case_ledgers") as dump:
-            demo._phase_dump_case_ledgers(
-                reporter_client=MagicMock(actor_id="http://f/actors/reporter"),
-                coordinator_client=MagicMock(
-                    actor_id="http://c/actors/coordinator"
-                ),
-                case_actor_client=case_actor_client,
-                case=MagicMock(id_="urn:test:case"),
-            )
+
+        cast = (REPORTER, COORDINATOR, VENDOR)
+        state = story_state(*cast, case=MagicMock(id_="urn:c"))
+        _bind_container_actors(state, *cast)
+
+        with patch.object(coordinated_story, "dump_case_ledgers") as dump:
+            demo._dump_ledgers(state)
         targets = {t.actor_name: t for t in dump.call_args.kwargs["targets"]}
-        assert targets["case-actor"].client is case_actor_client
-        assert targets["case-actor"].route_key == "case-actor"
+        assert targets[CASE_ACTOR_NAME].client is state.case_actor_client
+        assert targets[CASE_ACTOR_NAME].route_key == CASE_ACTOR_NAME
+        assert VENDOR not in targets, (
+            "the Vendor rejected its invitation and has no replica to dump"
+        )
+        # ``{manifest name: route key}``, both the Vendor's own.
+        assert dump.call_args.kwargs["unreplicated"] == {VENDOR: VENDOR}

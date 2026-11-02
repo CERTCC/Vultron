@@ -29,7 +29,13 @@ import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models import _helpers
-from vultron.core.models._helpers import now_utc_after, require_future_aware
+from vultron.core.models._helpers import (
+    format_timestamp,
+    now_utc,
+    now_utc_after,
+    require_future_aware,
+    timestamp_serializer,
+)
 from vultron.demo.determinism import SteppingClock
 
 # --- Architecture ratchet ------------------------------------------------
@@ -390,7 +396,7 @@ def test_strip_annotated_leaves_a_bare_type_alone():
 
 
 _PINNED = datetime(2026, 5, 4, 12, 0, 0, 987654, tzinfo=UTC)
-_PINNED_SECOND = _PINNED.replace(microsecond=0)
+_TICK = timedelta(microseconds=1)
 
 
 @pytest.fixture
@@ -400,48 +406,115 @@ def _frozen_clock(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+@pytest.mark.spec("CS-13-008")
+def test_now_utc_keeps_microseconds(_frozen_clock: None) -> None:
+    assert now_utc() == _PINNED
+    assert now_utc().microsecond == 987654
+
+
+@pytest.mark.spec("CS-13-007")
+@pytest.mark.parametrize(
+    ("instant", "expected"),
+    [
+        (
+            datetime(2026, 10, 30, 12, 0, 0, tzinfo=UTC),
+            "2026-10-30T12:00:00.000000+00:00",
+        ),
+        (
+            datetime(2026, 10, 30, 12, 0, 0, 120000, tzinfo=UTC),
+            "2026-10-30T12:00:00.120000+00:00",
+        ),
+        (
+            datetime(
+                2026, 10, 30, 17, 0, 0, tzinfo=timezone(timedelta(hours=5))
+            ),
+            "2026-10-30T17:00:00.000000+05:00",
+        ),
+        (
+            datetime(2026, 10, 30, 12, 0, 0),  # noqa: DTZ001
+            "2026-10-30T12:00:00.000000+00:00",
+        ),
+        (
+            datetime.fromisoformat("2026-10-30T12:00:00Z"),
+            "2026-10-30T12:00:00.000000+00:00",
+        ),
+    ],
+    ids=[
+        "whole-second",
+        "fractional",
+        "carried-offset",
+        "naive-read-as-utc",
+        "carried-z-written-as-plus-zero",
+    ],
+)
+def test_one_instant_serializes_to_one_string(
+    instant: datetime, expected: str
+) -> None:
+    """Six digits whether or not the microseconds are zero; offset kept.
+
+    A carried ``Z`` is written as ``+00:00``: CS-13-005 keeps the offset a
+    peer sent as an offset *value*, and ``Z`` and ``+00:00`` are one offset.
+    A carried ``+05:00`` is a different offset and keeps its own text.
+    """
+    assert format_timestamp(instant) == expected
+    reparsed = datetime.fromisoformat(expected)
+    assert format_timestamp(reparsed) == expected
+
+
+@pytest.mark.spec("CS-13-007")
+@pytest.mark.parametrize("as_any", [False, True], ids=["plain", "as-any"])
+def test_timestamp_serializer_leaves_a_non_datetime_member_alone(
+    as_any: bool,
+) -> None:
+    """A union field keeps its other members' own JSON form."""
+    from pydantic import BaseModel
+
+    class _Closes(BaseModel):
+        closed: datetime | bool | None = None
+        _serialize_closed = timestamp_serializer("closed")
+
+    def dump(model: _Closes) -> dict[str, object]:
+        return model.model_dump(mode="json", serialize_as_any=as_any)
+
+    whole = datetime(2026, 10, 30, 12, 0, 0, tzinfo=UTC)
+    assert dump(_Closes(closed=whole)) == {
+        "closed": "2026-10-30T12:00:00.000000+00:00"
+    }
+    assert dump(_Closes(closed=True)) == {"closed": True}
+    assert dump(_Closes()) == {"closed": None}
+
+
 @pytest.mark.parametrize(
     "latest",
-    [None, _PINNED_SECOND - timedelta(seconds=1)],
+    [None, _PINNED - _TICK],
     ids=["no-latest", "latest-earlier"],
 )
 def test_now_utc_after_returns_now_utc_when_the_clock_is_ahead(
     _frozen_clock: None, latest: datetime | None
 ) -> None:
-    assert now_utc_after(latest) == _PINNED_SECOND
+    assert now_utc_after(latest) == _PINNED
 
 
 @pytest.mark.parametrize(
-    ("latest", "expected"),
-    [
-        (_PINNED_SECOND, _PINNED_SECOND + timedelta(seconds=1)),
-        (
-            _PINNED_SECOND + timedelta(microseconds=1),
-            _PINNED_SECOND + timedelta(seconds=1),
-        ),
-        (
-            _PINNED_SECOND + timedelta(seconds=5, microseconds=400),
-            _PINNED_SECOND + timedelta(seconds=6),
-        ),
-    ],
-    ids=["same-second", "sub-second-ahead", "peer-clock-ahead"],
+    "latest",
+    [_PINNED, _PINNED + timedelta(seconds=5, microseconds=400)],
+    ids=["same-tick", "peer-clock-ahead"],
 )
-def test_now_utc_after_bumps_to_the_next_whole_second(
-    _frozen_clock: None, latest: datetime, expected: datetime
+def test_now_utc_after_bumps_one_microsecond_past_latest(
+    _frozen_clock: None, latest: datetime
 ) -> None:
     result = now_utc_after(latest)
-    assert result == expected
+    assert result == latest + _TICK
     assert result > latest
-    assert result.microsecond == 0
 
 
 def test_now_utc_after_returns_a_bump_in_utc_for_a_peer_offset(
     _frozen_clock: None,
 ) -> None:
     plus_five = timezone(timedelta(hours=5))
-    latest = (_PINNED_SECOND + timedelta(seconds=2)).astimezone(plus_five)
+    latest = (_PINNED + timedelta(seconds=2)).astimezone(plus_five)
     result = now_utc_after(latest)
-    assert result == _PINNED_SECOND + timedelta(seconds=3)
+    assert result == _PINNED + timedelta(seconds=2) + _TICK
     assert result.utcoffset() == timedelta(0)
 
 
@@ -450,10 +523,10 @@ def test_require_future_aware_compares_against_now_utc(
 ) -> None:
     # The pinned clock is long past, so only a read through now_utc() lets a
     # value one second after it count as the future.
-    future = _PINNED_SECOND + timedelta(seconds=1)
+    future = _PINNED + timedelta(seconds=1)
     assert require_future_aware(future) == future
     with pytest.raises(ValueError, match="must be in the future"):
-        require_future_aware(_PINNED_SECOND)
+        require_future_aware(_PINNED)
 
 
 # --- CS-13-002 ratchet: every application clock read goes through now_utc --

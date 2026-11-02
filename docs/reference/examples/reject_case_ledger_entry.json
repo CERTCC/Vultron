@@ -1,27 +1,27 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Reject",
-  "id": "urn:uuid:70e64d45-605d-4d39-952c-718ee2e9a5bf",
-  "name": "https://vultron.example/organizations/vendorco Reject urn:uuid:7b881e55-1274-4cf2-81ed-3b0aff004e3c/log/2",
-  "context": "urn:uuid:7b881e55-1274-4cf2-81ed-3b0aff004e3c",
+  "id": "urn:uuid:075e41cc-704c-4715-a28f-a41f2e0b824b",
+  "name": "https://vultron.example/organizations/vendorco Reject urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454/log/2",
+  "context": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
   "actor": "https://vultron.example/organizations/vendorco",
   "ledgerPosition": {
     "logIndex": 0,
-    "entryHash": "42547c720acba6446254b049186ea3f4ef30db714bcfc242d72108b0dc2c5834"
+    "entryHash": "1f07662d2e9d998445d7ffa2a4888dda4c6bc2eaff417a370c5b6b5fb3cfd6c7"
   },
   "object": {
-    "id": "urn:uuid:7b881e55-1274-4cf2-81ed-3b0aff004e3c/log/2",
+    "id": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454/log/2",
     "type": "CaseLedgerEntry",
-    "published": "2024-01-01T12:00:00+00:00",
-    "updated": "2026-10-27T17:01:23+00:00",
-    "caseId": "urn:uuid:7b881e55-1274-4cf2-81ed-3b0aff004e3c",
+    "published": "2024-01-01T12:00:00.000000+00:00",
+    "updated": "2026-10-30T15:17:58.187759+00:00",
+    "caseId": "urn:uuid:55b17cb1-a0a6-4722-86b7-564f44777454",
     "logIndex": 2,
     "logObjectId": "https://vultron.example/activities/00000000-0000-0000-0000-000000000003",
     "semanticType": "engage_case",
     "payloadSnapshot": {},
-    "prevLogHash": "9fe5a885e2eeef86053f17ae6fd9801a850ced28bc95e308a3028633e27bb8b6",
-    "entryHash": "29a0c6d4cd24aaa88184cd55567622860e010225cd61b5d2b3c4cdb1da4e9b38",
-    "receivedAt": "2024-01-01T12:00:00Z",
+    "prevLogHash": "3cf6d017e00065fcad9c7fb6c307cc6141b21b845beb8d50b750e48057544058",
+    "entryHash": "6b7cdefa909e0b47a226f857ae431793759f9861f4526a944c312f66fd0dcd1c",
+    "receivedAt": "2024-01-01T12:00:00.000000+00:00",
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }
 }

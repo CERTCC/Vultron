@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 #: How far an actor default's realised window may drift from the published
 #: duration: the CaseActor stamps ``start_time`` and ``end_time`` on two
-#: consecutive clock reads at second precision.
+#: consecutive clock reads.
 WINDOW_TOLERANCE = timedelta(minutes=1)
 #: The protocol default may be configured no longer than this (EP-04-005).
 PROTOCOL_DEFAULT_CEILING = timedelta(days=5)

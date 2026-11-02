@@ -2,7 +2,7 @@
 
 How to write, edit, and retire a `notes/*.md` file. Read this before adding to any
 note. Requirements: `specs/notes-frontmatter.yaml` NF-01, NF-08, NF-09; archiving:
-PD-03-004/005.
+PD-03-004/005, PD-03-010/011.
 
 ## What a note is for
 

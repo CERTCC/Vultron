@@ -1045,7 +1045,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         A ``Reject`` of one Invite by one actor is a single activity, so a
         repeat refusal of a re-delivered Invite can be told from the first.
         A ``Reject`` that was sealed but is no longer pending is queued again
-        under the same id, so an ER whose queue write failed is not lost
+        under the same id, so a refusal whose queue write failed is not lost
         (ID-04-005).
         """
         ...

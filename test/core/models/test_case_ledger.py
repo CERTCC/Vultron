@@ -39,6 +39,7 @@ from unittest.mock import MagicMock
 
 import py_trees
 import pytest
+from pydantic import ValidationError
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case_ledger import (
@@ -142,8 +143,11 @@ class TestComputeGenesisHash:
     @pytest.mark.spec("CLP-08-002")
     def test_digest_is_sha256_of_the_pipe_joined_owner_anchored_inputs(self):
         owner = "https://example.org/actors/vendor"
+        # The time takes the fixed six-digit form (CS-13-007), even at a
+        # whole second.
+        stamp = "2024-01-01T00:00:00.000000+00:00"
         expected = hashlib.sha256(
-            f"{CASE_ID}|{_FIXED_CREATED_AT.isoformat()}|{owner}".encode()
+            f"{CASE_ID}|{stamp}|{owner}".encode()
         ).hexdigest()
         assert (
             compute_genesis_hash(
@@ -280,6 +284,68 @@ class TestCaseLedgerEntry:
             "verify_hash() returned False after Pydantic roundtrip — "
             "received_at or payload_snapshot was not preserved (ISSUE-2252 AC-4)"
         )
+
+    @pytest.mark.spec("CS-13-007")
+    @pytest.mark.parametrize(
+        "received_at",
+        [
+            _FIXED_CREATED_AT,
+            "2024-01-01T00:00:00Z",
+            "2024-01-01T00:00:00.000000+00:00",
+        ],
+        ids=["datetime", "whole-second-text", "fixed-form-text"],
+    )
+    def test_one_receipt_instant_hashes_alike_in_any_spelling(
+        self, received_at: object
+    ):
+        """The hash input writes ``received_at`` in the fixed form, so a
+        replica's spelling of the instant does not change the hash."""
+        entry = HashChainLedgerRecord.model_validate(
+            {
+                "case_id": CASE_ID,
+                "log_index": 0,
+                "object_id": OBJECT_ID,
+                "semantic_type": "test",
+                "prev_log_hash": _ZERO_HASH,
+                "received_at": received_at,
+            }
+        )
+        assert entry._hashable_dict()["received_at"] == (
+            "2024-01-01T00:00:00.000000+00:00"
+        )
+        assert entry.verify_hash()
+
+    @pytest.mark.parametrize("received_at", ["not a time", 12.5j])
+    def test_an_unreadable_receipt_time_is_refused(self, received_at: object):
+        """The hash input itself refuses a ``received_at`` it cannot read.
+
+        Both values would also be refused by ordinary field validation, so a
+        bare ``pytest.raises`` could not fail for the branch this names.  The
+        locus tells them apart: the model-level validator that builds the hash
+        input reports an empty ``loc``, while field validation reports
+        ``("received_at",)``.
+        """
+        with pytest.raises(ValidationError) as exc_info:
+            HashChainLedgerRecord.model_validate(
+                {
+                    "case_id": CASE_ID,
+                    "log_index": 0,
+                    "object_id": OBJECT_ID,
+                    "semantic_type": "test",
+                    "prev_log_hash": _ZERO_HASH,
+                    "received_at": received_at,
+                }
+            )
+        assert [e["loc"] for e in exc_info.value.errors()] == [()]
+
+    def test_a_raw_datetime_in_a_snapshot_hashes_in_the_fixed_form(self):
+        """``_canonical_bytes`` writes a stray ``datetime`` in the fixed form."""
+        stamp = datetime(2024, 1, 1, tzinfo=UTC)
+        assert _canonical_bytes({"at": stamp}) == (
+            b'{"at":"2024-01-01T00:00:00.000000+00:00"}'
+        )
+        with pytest.raises(TypeError, match="no canonical JSON form"):
+            _canonical_bytes({"x": object()})
 
     def test_term_defaults_to_none(self):
         entry = HashChainLedgerRecord(

@@ -29,7 +29,7 @@ def _keywords(text: str, path: str = FRAGMENT) -> list[tuple[int, str]]:
     return [(f.line, f.keyword) for f in fragment_keyword_faults(path, text)]
 
 
-@pytest.mark.spec("DF-12-004")
+@pytest.mark.spec("DF-12-004", "DF-12-013")
 def test_reconciled_fragments_hold_no_keyword_in_prose() -> None:
     faults = keyword_faults(DOCS)
     assert not faults, "\n".join(map(str, faults))
@@ -142,6 +142,7 @@ def test_real_conventions_paragraph_is_found() -> None:
     assert min(exempt) > heading
 
 
+@pytest.mark.spec("DF-12-014")
 def test_empty_target_set_fails(tmp_path: Path) -> None:
     with pytest.raises(NoKeywordTargetsError, match="DF-09-009"):
         keyword_faults(tmp_path, [])

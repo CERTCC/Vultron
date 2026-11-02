@@ -159,7 +159,7 @@ A Participant never declares its own consent state.
 | Embargo Proposal (EP) or Revision (EV), `Invite(EmbargoEvent)` on the case | `NONE` to `PROPOSED`, or `ACTIVE` to `REVISE`; a further proposal leaves it where it is | every other Participant gets an `UNINVITED` row for the proposed embargo, the proposer's row is `AGREED`, because proposing terms is consenting to them, and no row for the embargo in force changes (CM-18-001, MSM-07-005, EP-05-002) |
 | A relayed `Invite(EmbargoEvent)` to one Participant | none | the invitee's row for that embargo moves from `UNINVITED`, `DECLINED` or `TIMED_OUT` to `INVITED`, carrying the invitation's RSVP deadline; a signatory asked about a revision keeps its `AGREED` row for the embargo in force (MSM-07-002, EP-09-004, CM-28-013) |
 | `Accept(Invite(EmbargoEvent))`, from any Participant, the case owner included | none | the sender's row for those terms becomes `AGREED`; that makes it a signatory only once they are the embargo in force (MSM-07-003) |
-| `Reject(Invite(EmbargoEvent))`, from any Participant, the case owner included | none | the sender's row for those terms becomes `DECLINED`; refused from an `AGREED` row for the embargo in force, because withdrawal is `Leave(EmbargoEvent)` (MSM-07-004, MSM-07-010) |
+| `Reject(Invite(EmbargoEvent))`, from any Participant, the case owner included | none | the sender's row for those terms becomes `DECLINED`; refused from an `AGREED` row for the embargo in force, because withdrawal is `Leave(EmbargoEvent)` (MSM-07-004, MSM-07-010, MSM-07-014) |
 | The case owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]` (EA, or EC for a revision) | to `ACTIVE`, or to `REVISE` while another proposal stays open | the owner's row for the activated embargo becomes `AGREED` unless it already is; a revision that ends no later than the embargo it replaces carries over every Participant whose row for the replaced embargo is `AGREED`, and one that ends later writes nothing, so a signatory that has not agreed to it has lapsed (MSM-07-005, MSM-07-008) |
 | The case owner's `Reject(EmbargoEvent)[target=VulnerabilityCase]` (ER, or EJ for a revision) | `PROPOSED` to `NONE`, or `REVISE` to `ACTIVE` with the prior terms standing, once no other proposal is open; once public disclosure, a public exploit or an attack is known, the rejection of the last open revision is followed in the same act by the case manager's termination (ET, EMB-04-002), so the revision ends `REJECTED` and the embargo `TERMINATED` | none, the owner's included (MSM-07-009) |
 | Withdrawal, `Leave(EmbargoEvent)` of the embargo in force | none | the withdrawing Participant's `AGREED` row for the embargo in force becomes `DECLINED`, as does every row it had marked `AGREED` for an open revision; the embargo stays in force for everyone else (MSM-07-010) |
@@ -178,10 +178,10 @@ Another example is a lapsed signatory.
 That Participant answers the Invite by naming that Invite (EP-09-012).
 
 A signatory leaves the embargo in force with `Leave(EmbargoEvent)`, not with a Reject.
-The case manager refuses a signatory's Reject of the active embargo (MSM-07-004, MSM-07-010).
+The case manager refuses a signatory's Reject of the active embargo (MSM-07-010, MSM-07-014).
 A signatory that rejects a *proposed* revision refuses only those terms.
 It stays a signatory to the embargo in force.
-In both cases, the case's embargo does not change, because an answer to an Invite changes no embargo register entry (MSM-07-003, MSM-07-004).
+In both cases, the case's embargo does not change, because an answer to an Invite changes no embargo register entry (MSM-07-011, MSM-07-013).
 
 The protocol-level view of consent is in [§9.2 Transitions and Guards in the specification](../../../reference/vultron-spec/tracking-models.md#92-transitions-and-guards).
 
@@ -207,7 +207,7 @@ An act whose entry fails to commit changes nothing.
 |---|---|---|
 | Proposal or revision, `Invite(EmbargoEvent)` on the case | the new embargo, now proposed | a `Create(EmbargoConsent)` for every Participant: the proposer's row `AGREED`, because proposing terms is consenting to them, and every other row `UNINVITED` |
 | Relayed invitation, `Invite(EmbargoEvent)` to one Participant | no register change | an `Update(EmbargoConsent)` moving the invitee's row to `INVITED`, with its respond-by deadline (CM-28-013) |
-| Case manager's own answer to a proposal, by its policy or by its own `accept` or `reject` request | no register change, and no `Accept` or `Reject` is sent | an `Update(EmbargoConsent)` for the case manager's own row, `AGREED` or `DECLINED` (MSM-07-004) |
+| Case manager's own answer to a proposal, by its policy or by its own `accept` or `reject` request | no register change, and no `Accept` or `Reject` is sent | an `Update(EmbargoConsent)` for the case manager's own row, `AGREED` or `DECLINED` (MSM-07-017) |
 | Participant's answer, `Accept` or `Reject` of `Invite(EmbargoEvent)` | the row the answer states, `AGREED` or `DECLINED` | nothing: the answer is that row's entry |
 | Owner's activation, `Accept(EmbargoEvent)[target=VulnerabilityCase]` | the activation, the supersession of the embargo it replaces, and the owner's own `AGREED` row | an `Update(EmbargoConsent)` for each signatory carried over to terms that end no later (EP-05-001) |
 | Owner's rejection, `Reject(EmbargoEvent)[target=VulnerabilityCase]` | the rejected proposal | nothing |
@@ -250,13 +250,18 @@ If the vulnerability is public, an exploit is public, or attacks have been obser
 This condition is not a preference that the negotiation weighs.
 It is mandatory, and it applies at every point in the lifecycle:
 
-- A proposal MUST be refused with ER, regardless of any other assessment (EMB-01-002).
-- An EA MUST NOT move the case to `ACTIVE`.
-  The actor emits ER instead (EMB-02-002).
-- An EV arriving while the case is public MUST be refused, not adopted (EMB-03-003).
+- A proposal MUST be refused, regardless of any other assessment.
+  The receiver answers the Invite with its own `Reject` of it, not with ER, which is the case owner's decision (EMB-01-002).
+- The case owner's EA MUST NOT move the case to `ACTIVE`.
+  The case manager refuses that activation before committing it (EMB-02-002).
+- A Participant's `Accept` of an Invite that arrives while the case is public is refused.
+  The case manager answers it with a `Reject` of the Invite (EMB-02-004).
+- An EV arriving while the case is public MUST NOT be adopted (EMB-03-003).
+  The receiving Participant answers the revision Invite with its own `Reject` of it (EMB-03-004).
   The embargo ends because the case is public, not because the proposal arrived.
   The proposal is at most how the actor notices.
-- An actor sitting at `EM.PROPOSED` that *observes* the case go public MUST abandon the proposal, return to `EM.NONE`, and emit ER (EMB-16-001).
+- An actor sitting at `EM.PROPOSED` that *observes* the case go public MUST abandon the proposal and return to `EM.NONE` (EMB-16-001).
+  The abandonment is ER.
   The case manager makes that abandonment for the case.
   Its committed entries notify everyone else.
   It rejects each proposal it received with `Reject(Invite(EmbargoEvent))`, which cancels the proposal.
@@ -268,9 +273,9 @@ It is mandatory, and it applies at every point in the lifecycle:
   Only the case owner, or the case manager it delegates to, decides that abandonment.
   Any other participant's status report already tells the case manager that the case went public.
   That participant therefore sends no ER as the abandonment.
-  The case manager would read such an ER as that participant declining the proposal (EMB-16-002).
+  The case manager would read that participant's `Reject` of the Invite as declining the proposal (EMB-16-002).
   That rule covers only proposals already open on the case.
-  A participant still answers with ER when it *receives* a proposal, Invite or revision while it believes the case is public, as the first item above requires (EMB-01-002).
+  A participant still answers with its own `Reject` of the Invite when it *receives* a proposal, Invite or revision while it believes the case is public, as the first item above requires (EMB-01-002).
 - An actor at `EM.EXITED` MUST NOT seek or accept a new embargo for a public case (EMB-13-002).
 
 EMB-16-001 is the rule that implementations forget, because no message triggers it.
@@ -371,7 +376,7 @@ The case owner learns of each expiry from that ledger entry, so it decides on th
 The case manager checks for overdue invitations only after it knows that the sender may send the activity.
 It checks before it judges the activity itself, so the expiry is recorded even when the case manager then refuses the activity.
 There is one exception.
-Sometimes the case manager refuses an Invite or an `Accept` because the vulnerability is already public, exploited or attacked (EMB-02-002).
+Sometimes the case manager refuses an Invite or an `Accept` because the vulnerability is already public, exploited or attacked (EMB-01-002, EMB-02-004).
 In that case, it does not check for overdue invitations, and the next embargo activity that it admits does the check.
 
 A late `Accept` is never refused merely for being late (EMB-17-001).
@@ -425,13 +430,14 @@ Assignment through an existing instance always raises.
 
 | Requirement | Obligation |
 |---|---|
-| [EMB-01-002](../../../reference/vultron-spec/requirements/state-behavior.md#emb-01-002) | A proposal MUST be refused with ER when the case is public, exploited, or attacked |
-| [EMB-02-002](../../../reference/vultron-spec/requirements/state-behavior.md#emb-02-002) | An EA MUST NOT activate an embargo on a public case; emit ER |
+| [EMB-01-002](../../../reference/vultron-spec/requirements/state-behavior.md#emb-01-002) | A proposal MUST be refused with the receiver's own `Reject` of the Invite when the case is public, exploited, or attacked |
+| [EMB-02-002](../../../reference/vultron-spec/requirements/state-behavior.md#emb-02-002) | The case owner's EA MUST NOT activate an embargo on a public case; the case manager refuses it before committing it |
+| [EMB-02-004](../../../reference/vultron-spec/requirements/state-behavior.md#emb-02-004) | A Participant's `Accept` of an Invite on a public case MUST be refused with a `Reject` of the Invite |
 | [EMB-03-001](../../../reference/vultron-spec/requirements/state-behavior.md#emb-03-001) | An EV in `EM.ACTIVE` MUST move to `EM.REVISE`, leaving the active embargo in force |
 | [EMB-06-001](../../../reference/vultron-spec/requirements/state-behavior.md#emb-06-001) | An ER in `EM.PROPOSED` MUST return the case to `EM.NONE` when it rejects the last open proposal, and leave it `PROPOSED` while another is open |
 | [EMB-13-002](../../../reference/vultron-spec/requirements/state-behavior.md#emb-13-002) | An actor at `EM.EXITED` MUST NOT accept a new embargo for a public case |
 | [EMB-15-002](../../../reference/specs/project.md#emb-15-002) | The response seam MUST bypass approval when the deciding actor is the case owner |
-| [EMB-16-001](../../../reference/vultron-spec/requirements/state-behavior.md#emb-16-001) | An actor at `EM.PROPOSED` observing the case go public MUST abandon the proposal and emit ER |
+| [EMB-16-001](../../../reference/vultron-spec/requirements/state-behavior.md#emb-16-001) | An actor at `EM.PROPOSED` observing the case go public MUST abandon the proposal; the case manager's abandonment is ER |
 | [EMB-16-002](../../../reference/vultron-spec/requirements/state-behavior.md#emb-16-002) | A participant that is not the case manager MUST NOT emit ER as that abandonment or write it itself; it still answers what it receives under EMB-01-002 |
 | [EMB-17-001](../../../reference/vultron-spec/requirements/state-behavior.md#emb-17-001) | A late `Accept` MUST NOT be refused solely because the deadline passed |
 | [EMB-18-001](../../../reference/specs/architecture.md#emb-18-001) | Every EM transition MUST route through the embargo lifecycle service or the function that applies a committed entry |

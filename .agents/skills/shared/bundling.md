@@ -22,7 +22,7 @@ assignees, no `stale-claim` label, every `blockedBy` entry `CLOSED`, and
 `subIssues.totalCount == 0` (a leaf, not a nested Epic). A Task or Feature
 whose Epic is assigned is also not workable: the Epic is claimed by an epic
 run, which owns that lane (PAD-19-002). Bugs, Ideas, and Concerns under it
-stay open.
+stay open (PAD-19-009).
 
 **Stage 2 — fit.** Should the issue be in *this* bundle? Run the tool; do not
 re-derive its rules by hand:

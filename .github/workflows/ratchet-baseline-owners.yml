@@ -27,6 +27,10 @@ jobs:
   open-owners:
     name: Owner Issues Open (reports, never fails)
     runs-on: ubuntu-latest
+    # Observed: 24 s on its only successful run; a conservative default (2026-10-30).
+    # Cap at 10 min so a hang fails fast instead of holding a runner until GitHub's
+    # 6-h limit (TB-14-006).
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python and uv

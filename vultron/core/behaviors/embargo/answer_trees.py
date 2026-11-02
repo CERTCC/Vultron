@@ -110,7 +110,7 @@ def accept_invite_to_embargo_tree(
         ├─ ClockDecisionsIfCaseManager          # the Invite expiry (CM-28-009)
         ├─ ValidateCaseExistsNode
         ├─ EmbargoAnswerNotRecorded (gated)     # repeat → SKIPPED (CM-13-005)
-        ├─ PxaAcceptRefusal (DiversionStage)    # P/X/A → ER (EMB-02-002)
+        ├─ PxaAcceptRefusal (DiversionStage)    # P/X/A → Reject (EMB-02-004)
         ├─ ReinviteLateAccepter / LateAcceptBindsNothing
         │                                       # late Accept arms (EMB-17)
         ├─ OnTimeOrHonouredAccept               # a late Accept of the
@@ -125,8 +125,9 @@ def accept_invite_to_embargo_tree(
     decision the factory runs after the door guards (CLP-10-025, CM-28-014):
     an expired invitation is ledgered ``TIMED_OUT`` (CM-28-009) before the
     Accept is judged.  A repeat of a recorded Accept then stops the tree.
-    Once P/X/A is set the receiver answers with ER instead of recording the
-    Accept (:func:`~vultron.core.behaviors.embargo.refusal_tree.pxa_accept_refusal`).
+    Once P/X/A is set the receiver answers with a ``Reject`` of the Invite
+    instead of recording the Accept
+    (:func:`~vultron.core.behaviors.embargo.refusal_tree.pxa_accept_refusal`).
     A late Accept is routed by its compatibility with the case's embargo
     (EMB-17-001): one of the embargo in force is honoured by being recorded
     as an on-time Accept is, its entry carrying the row it states
@@ -188,7 +189,7 @@ def accept_invite_to_embargo_tree(
                 answering_actor_id=accepting_actor_id,
                 answer=EmbargoConsentState.AGREED,
             ),
-            # EMB-02-002: with P/X/A set the Accept moves nothing; ER.
+            # EMB-02-004: with P/X/A set the Accept moves nothing; Reject.
             pxa_accept_refusal(
                 case_id=case_id,
                 invite_id=invite_id,
@@ -213,7 +214,7 @@ def accept_invite_to_embargo_tree(
                 result_out=expiry_out,
             ),
             # An Accept of terms the case decided, replaced or never knew
-            # records nothing (CM-18-003, MSM-07-003).
+            # records nothing and is refused (CM-18-003, MSM-07-012).
             IsAnswerableEmbargoNode(
                 case_id=case_id, embargo_id=embargo_id, accept=True
             ),
@@ -269,7 +270,7 @@ def reject_invite_to_embargo_tree(
         ├─ ClockDecisionsIfCaseManager        # overdue invites (CM-28-015)
         ├─ IsAnswerableEmbargoNode            # read-only guard (CLP-10-009)
         ├─ EmbargoAnswerNotRecorded (CASE_MANAGER gate)  # repeat guard
-        ├─ RejectIsNotWithdrawalNode          # read-only guard (MSM-07-004)
+        ├─ RejectIsNotWithdrawalNode          # read-only guard (MSM-07-014)
         ├─ EmbargoAnswerApplies (CASE_MANAGER gate)  # the row can be written
         └─ RejectInviteToEmbargoBTAct (ActTransaction)  # one act (ADR-0151)
            ├─ GuardedCommitCaseLedgerEntryBT
@@ -281,7 +282,7 @@ def reject_invite_to_embargo_tree(
     embargo) *before* the commit, so no replica is sent an entry it cannot
     replay (SYNC-12-001).  The second guard refuses a Reject of the embargo
     in force from an ``AGREED`` row: that would be a withdrawal, and
-    withdrawal is ``Leave(EmbargoEvent)`` (MSM-07-004, MSM-07-010).
+    withdrawal is ``Leave(EmbargoEvent)`` (MSM-07-014, MSM-07-010).
     :class:`RecordParticipantRejectionNode` records the rejecting actor's
     consent under the MSM-07-004 rule: the named embargo's row becomes
     ``DECLINED`` and nothing else moves.  It decides no proposal: the owner's

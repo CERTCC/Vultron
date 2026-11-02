@@ -346,7 +346,7 @@ def test_a_non_manager_neither_writes_nor_asks(indexed: bool):
 
 
 @pytest.mark.spec("CM-18-005")
-@pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("MSM-07-016")
 def test_the_managers_abandonment_changes_no_consent():
     """The abandonment declines nobody: no participant's consent moves.
 

@@ -1,4 +1,4 @@
-"""Shared helpers for tests that read ``.github/workflows/*.yml``.
+"""Shared helpers for tests that read ``.github/workflows/*.yml`` and ``*.yaml``.
 
 The docs-gate ratchets (DOCBW-03) all ask the same questions of a workflow:
 which steps does it run, in what order, and which workflows build the site at
@@ -36,6 +36,13 @@ RUN_EVEN_AFTER_FAILURE = frozenset({"${{ !cancelled() }}", "!cancelled()"})
 _IGNORED_EXIT = re.compile(
     r"\|\|\s*(?:true|:|exit\s+0)(?=\s|;|\)|$)", re.MULTILINE
 )
+
+
+def workflow_files() -> list[Path]:
+    """Return every workflow file, ``*.yml`` and ``*.yaml``, sorted by path."""
+    return sorted(
+        [*WORKFLOWS_DIR.glob("*.yml"), *WORKFLOWS_DIR.glob("*.yaml")]
+    )
 
 
 # Parsed workflow YAML is untyped by nature; ``Any`` here is the YAML boundary.
@@ -116,7 +123,7 @@ def site_building_workflows() -> list[Path]:
     """
     return sorted(
         path
-        for path in WORKFLOWS_DIR.glob("*.yml")
+        for path in workflow_files()
         if BUILD_SITE_ACTION in (text := path.read_text(encoding="utf-8"))
         or MKDOCS_SITE_BUILD.search(text)
     )

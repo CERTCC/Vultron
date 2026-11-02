@@ -51,6 +51,6 @@ Get the index from `show-history`, then open only the entries you need.
 
 Stale sections (or whole files) go to `plan/history/YYMM/note/` with source ID
 `NOTES-<file-stem>--<section-slug>`. The body states the reason and the
-superseding pointer, then `---`, then the removed text verbatim (PD-03-005).
-When every section of a file is archived, delete the file and its
-`notes/README.md` entry (PD-03-004).
+superseding pointer, then `---`, then the removed text verbatim (PD-03-005,
+PD-03-011). When every section of a file is archived, delete the file and its
+`notes/README.md` entry (PD-03-010).

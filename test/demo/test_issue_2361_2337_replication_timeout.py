@@ -36,6 +36,11 @@ early-replica budget is ``LEDGER_COVERAGE_TIMEOUT`` (30 s) and whose late-joiner
 budget is ``LATE_JOINER_COVERAGE_TIMEOUT`` (45 s), so the #2337 guards below run
 the real helper (patching its collaborators on the sync module) and assert the
 *parameters* the helper applies, not a literal.
+
+Since #5534 ``rcvcv`` is composed, so its sync-verification phase is the
+``every_replica_converges`` story fragment rather than
+``_phase_sync_verification``; the guards drive that fragment against a
+stand-in cast (:func:`~test.demo._helpers.story_state`).
 """
 
 from unittest.mock import MagicMock
@@ -43,17 +48,44 @@ from unittest.mock import MagicMock
 import vultron.demo.helpers.sync as sync_module
 import vultron.demo.scenario.rv_demo as rv_demo_module
 import vultron.demo.utils as demo_utils
+from test.demo._helpers import mock_case, story_state
 from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers.coordinated_story import REPORTER
 from vultron.demo.helpers.polling import (
     LATE_JOINER_COVERAGE_TIMEOUT,
     LEDGER_COVERAGE_TIMEOUT,
 )
-from vultron.demo.scenario.rcvcv_demo import _phase_sync_verification
+from vultron.demo.scenario.rcvcv_demo import (
+    C1,
+    C2,
+    V1,
+    V2,
+    every_replica_converges,
+)
 from vultron.demo.scenario.rv_demo import _phase_fix_lifecycle
 from vultron.demo.utils import reset_demo_failures
 
 _CASE_ID = "urn:uuid:test-case-2361-0001"
 _VENDOR_ID = "http://vendor:7999/api/v2/actors/vendor"
+
+#: The five cast names ``every_replica_converges`` reads, in ``ROLES`` order.
+_RCVCV_CAST = (REPORTER, C1, V1, C2, V2)
+
+
+def _rcvcv_state():
+    """A story state for ``rcvcv``'s sync phase, one client per container.
+
+    Each client carries its own ``base_url`` so a recorded gate failure names
+    the replica it is about, which is what these guards read.
+    """
+    state = story_state(*_RCVCV_CAST, case=mock_case(_CASE_ID))
+    for name, host in zip(
+        _RCVCV_CAST,
+        ("reporter", "c1", "v1", "c2", "v2"),
+        strict=True,
+    ):
+        state.client(name).base_url = f"http://{host}:7999/api/v2"
+    return state
 
 
 # ===========================================================================
@@ -208,22 +240,8 @@ def test_rcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
     """
     reset_demo_failures()
 
-    reporter_client = MagicMock()
-    reporter_client.base_url = "http://reporter:7999/api/v2"
-    c1_client = MagicMock()
-    c1_client.base_url = "http://c1:7999/api/v2"
-    v1_client = MagicMock()
-    v1_client.base_url = "http://v1:7999/api/v2"
-    c2_client = MagicMock()
-    c2_client.base_url = "http://c2:7999/api/v2"
-    v2_client = MagicMock()
-    v2_client.base_url = "http://v2:7999/api/v2"
-    c1 = MagicMock()
-    c1.id_ = "http://c1:7999/api/v2/actors/c1"
-    reporter = MagicMock()
-    reporter.id_ = "http://reporter:7999/api/v2/actors/reporter"
-    case = MagicMock()
-    case.id_ = _CASE_ID
+    state = _rcvcv_state()
+    reporter_client = state.client(REPORTER)
 
     monkeypatch.setattr(
         sync_module,
@@ -258,19 +276,7 @@ def test_rcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
         sync_module, "verify_replica_state", lambda *a, **kw: None
     )
 
-    _phase_sync_verification(
-        reporter_client=reporter_client,
-        c1_client=c1_client,
-        v1_client=v1_client,
-        c2_client=c2_client,
-        v2_client=v2_client,
-        c1=c1,
-        reporter=reporter,
-        case=case,
-        v1=MagicMock(),
-        c2_in_c2=MagicMock(),
-        v2=MagicMock(),
-    )
+    every_replica_converges(state)
 
     failures = demo_utils._demo_failures
     check_failures = [
@@ -302,22 +308,11 @@ def test_rcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
     """
     reset_demo_failures()
 
-    reporter_client = MagicMock()
-    reporter_client.base_url = "http://reporter:7999/api/v2"
-    c1_client = MagicMock()
-    c1_client.base_url = "http://c1:7999/api/v2"
-    v1_client = MagicMock()
-    v1_client.base_url = "http://v1:7999/api/v2"
-    c2_client = MagicMock()
-    c2_client.base_url = "http://c2:7999/api/v2"
-    v2_client = MagicMock()
-    v2_client.base_url = "http://v2:7999/api/v2"
-    c1 = MagicMock()
-    c1.id_ = "http://c1:7999/api/v2/actors/c1"
-    reporter = MagicMock()
-    reporter.id_ = "http://reporter:7999/api/v2/actors/reporter"
-    case = MagicMock()
-    case.id_ = _CASE_ID
+    state = _rcvcv_state()
+    reporter_client = state.client(REPORTER)
+    v1_client = state.client(V1)
+    c2_client = state.client(C2)
+    v2_client = state.client(V2)
 
     monkeypatch.setattr(
         sync_module,
@@ -351,19 +346,7 @@ def test_rcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
         sync_module, "verify_replica_state", lambda *a, **kw: None
     )
 
-    _phase_sync_verification(
-        reporter_client=reporter_client,
-        c1_client=c1_client,
-        v1_client=v1_client,
-        c2_client=c2_client,
-        v2_client=v2_client,
-        c1=c1,
-        reporter=reporter,
-        case=case,
-        v1=MagicMock(),
-        c2_in_c2=MagicMock(),
-        v2=MagicMock(),
-    )
+    every_replica_converges(state)
 
     reporter_timeout = timeouts_by_client_id.get(id(reporter_client))
     assert reporter_timeout is not None, (

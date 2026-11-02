@@ -36,7 +36,7 @@ from typing import Literal, Protocol
 
 from pydantic import Field
 
-from vultron.core.models._helpers import now_utc
+from vultron.core.models._helpers import now_utc, timestamp_serializer
 from vultron.core.models.base import CoreRecord, NonEmptyString
 
 
@@ -76,6 +76,7 @@ class OutboxDeadLetterEntry(CoreRecord):
     failed_recipients: list[str] = Field(default_factory=list)
     ledger_entry_id: NonEmptyString | None = None
     recorded_at: datetime = Field(default_factory=now_utc)
+    _serialize_recorded_at = timestamp_serializer("recorded_at")
 
 
 class InboxDeadLetterEntry(CoreRecord):
@@ -106,6 +107,7 @@ class InboxDeadLetterEntry(CoreRecord):
     total_attempts: int
     last_error: str = ""
     recorded_at: datetime = Field(default_factory=now_utc)
+    _serialize_recorded_at = timestamp_serializer("recorded_at")
 
 
 class OutboxRetryStore(Protocol):

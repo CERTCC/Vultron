@@ -40,6 +40,10 @@ jobs:
     name: PR Closes No Owner Still In Use
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    # Observed: up to 2.2 min over the 13 latest successful runs (2026-10-30). Cap at
+    # 10 min so a hang fails fast instead of holding a runner until GitHub's 6-h limit
+    # (TB-14-006).
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python and uv
@@ -54,6 +58,10 @@ jobs:
     name: Owner Issues Open (reports, never fails)
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    # Observed: up to 1.8 min over its 2 successful runs (2026-10-30). Cap at 10 min
+    # so a hang fails fast instead of holding a runner until GitHub's 6-h limit
+    # (TB-14-006).
+    timeout-minutes: 10
     permissions:
       contents: read
       issues: write

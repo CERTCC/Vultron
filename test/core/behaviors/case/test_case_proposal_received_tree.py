@@ -2225,10 +2225,10 @@ class TestADR0041Idempotency:
     ):
         """The same guarantee, with the timing coincidence removed.
 
-        The test above only holds when both deliveries land inside one clock
-        second.  ``now_utc`` truncates to whole seconds and ``as_Base`` stamps
-        ``published``/``updated`` with it at construction, so rebuilding a
-        snapshot a second later restamps every object it embeds — and a dedup
+        The test above does not pin the clock.  ``as_Base`` stamps
+        ``published``/``updated`` with ``now_utc`` at construction, so
+        rebuilding a snapshot on a later clock read restamps every object it
+        embeds — and a dedup
         comparing snapshots byte-for-byte then misses and appends duplicate
         indices.  That made this class's guarantee a coin flip: green locally,
         red on slower CI, which is how it was found.

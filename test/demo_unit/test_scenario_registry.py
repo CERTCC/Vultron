@@ -295,6 +295,27 @@ def test_scenario_spec_rejects_non_boolean_in_pr_set() -> None:
         )
 
 
+def test_scenario_spec_rejects_non_boolean_composed() -> None:
+    """``composed`` must be a real bool, not merely truthy.
+
+    A check reads it to tell the two declaration forms apart — a composed
+    scenario places no ``reach_step`` by hand, where one still declaring
+    ``path=`` places one per step (DEMOCI-11-019) — so a truthy non-boolean
+    would silently pick the composed branch and leave the hand-placed marks
+    unchecked.
+    """
+    with pytest.raises(DemoScenarioRegistryError, match="non-boolean"):
+        ScenarioSpec(
+            name="xy",
+            label="XY",
+            participants="Reporter + Vendor",
+            feature="Something",
+            in_pr_set=True,
+            path=_PATH,
+            composed=1,  # type: ignore[arg-type]
+        )
+
+
 def test_derived_paths_follow_the_documented_conventions() -> None:
     """Hyphens become underscores in module and harness paths, not in the page.
 

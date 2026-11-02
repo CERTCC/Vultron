@@ -97,6 +97,7 @@ class TestNormativeSet:
         assert failure.location == "docs/spec/part.md"
         assert "does not include" in str(failure)
 
+    @pytest.mark.spec("DF-12-016")
     def test_banner_through_a_shared_fragment_does_not_count(self, tmp_path):
         root = _repo(
             tmp_path,
@@ -112,6 +113,7 @@ class TestNormativeSet:
 
         assert locations == ["docs/spec/_f.md:3", "docs/spec/part.md"]
 
+    @pytest.mark.spec("DF-12-016")
     def test_other_page_including_banner_fails_at_its_line(self, tmp_path):
         root = _repo(
             tmp_path,
@@ -123,6 +125,7 @@ class TestNormativeSet:
         assert failure.location == "docs/other.md:6"
         assert "specification_governs.md" in str(failure)
 
+    @pytest.mark.spec("DF-12-016")
     def test_every_offending_directive_is_reported(self, tmp_path):
         root = _repo(
             tmp_path,
@@ -183,6 +186,7 @@ class TestNormativeSet:
         locations = sorted(str(f.location) for f in info.value.failures)
         assert locations == ["docs/conventions.md:3", "docs/conventions.md:5"]
 
+    @pytest.mark.spec("DF-12-018")
     def test_missing_declared_page_fails(self, tmp_path):
         root = _repo(tmp_path, _tree())
 

@@ -104,7 +104,7 @@ A revision that ends later causes no such notice, because those participants nev
 - **Protocol role:** each consent row that the Case Manager changes is its own ledger entry, which carries the changed row in full ([CLP-07-013](../vultron-spec/requirements/ledger-replication.md#clp-07-013)).
   An invitation whose deadline passes unanswered moves to `TIMED_OUT` this way.
   The Case Manager writes the rows carried over at activation the same way.
-- **The Case Manager's own consent:** a Case Manager with a stake in the embargo records a change of its own consent as this `Update`, never as a `Reject` of the Invite (MSM-07-004).
+- **The Case Manager's own consent:** a Case Manager with a stake in the embargo records a change of its own consent as this `Update`, never as a `Reject` of the Invite (MSM-07-017).
 - **Who sends it:** only the Case Manager.
   No use case handles it on receipt: each replica writes the row from the ledger entry.
 
@@ -113,7 +113,7 @@ A revision that ends later causes no such notice, because those participants nev
 - **Triggering transition:** none in EM.
   The sender's consent to those terms moves to `AGREED` (MSM-07-003).
 - **Who decides:** an `Accept` of the Invite is always the sender's own consent to those terms, the Case Owner's included.
-  This `Accept` changes no embargo on the case (see [The Case Owner's Decision](#the-case-owners-decision), MSM-07-003).
+  This `Accept` changes no embargo on the case (see [The Case Owner's Decision](#the-case-owners-decision), MSM-07-011).
 - **The embargo in force:** an `Accept` or `Reject` may answer an Invite for the embargo already in force, while the sender's consent to that embargo is `INVITED` or `TIMED_OUT` (EP-09-012).
   Examples are a proposal that was activated before the sender answered it, an invitation whose deadline has passed, and a re-invitation after a lapse.
   The answer names that Invite by id.
@@ -125,7 +125,7 @@ A revision that ends later causes no such notice, because those participants nev
 {% include-markdown "./_occasions/sections/refuse-embargo-revision.md" %}
 
 - **Triggering transition:** none in EM.
-  The sender's consent to the revision moves to `DECLINED`, and its consent to the embargo in force does not change (MSM-07-004).
+  The sender's consent to the revision moves to `DECLINED`, and its consent to the embargo in force does not change (MSM-07-015).
 - **Who decides:** as for proposed terms, the `Reject` is the sender's own refusal (see [The Case Owner's Decision](#the-case-owners-decision)).
 
 {% include-markdown "./_occasions/sections/agree-to-embargo-revision.md" %}
@@ -238,7 +238,7 @@ If the Case Manager refuses the termination, it commits neither entry.
 - **Open revisions:** every open revision that the sender had agreed to is declined with the `Leave`, because each revision would replace the embargo that the sender left.
 - **Refused:** a `Leave` of an embargo that is not in force, from a sender whose consent to it is not `AGREED`, or from the Case Owner, which ends an embargo by terminating it (`ET`).
 - **Not a Reject:** a `Reject` of the Invite for the embargo in force, sent by a participant that agreed to it, is refused.
-  Withdrawal is this activity (MSM-07-004).
+  Withdrawal is this activity (MSM-07-010, MSM-07-014).
 
 ## When the Case Manager Refuses a Message
 
@@ -250,9 +250,9 @@ The sender closes its pending request when the notice arrives.
 
 | Message | Refused, with the notice, when |
 |---|---|
-| `Invite(EmbargoEvent)` (`EP`, `EV`) | the embargo has ended (EM `EXITED`), which admits no proposal. The notice is a `Reject` of the Invite, the same shape as a decline, and the proposer reads it as one (EP-09-008). |
-| `Accept(Invite(EmbargoEvent))` | the `EmbargoEvent` is neither the embargo in force nor an open proposal: the register does not hold it, or the proposal was already decided, replaced or ended (CM-18-003). |
-| `Reject(Invite(EmbargoEvent))` | the `EmbargoEvent` is neither the embargo in force nor an open proposal, or the sender agreed to the embargo in force, since withdrawal is `Leave(EmbargoEvent)` (MSM-07-004). |
+| `Invite(EmbargoEvent)` (`EP`, `EV`) | the embargo has ended (EM `EXITED`), which admits no proposal. The notice is a `Reject` of the Invite, the same shape as a decline, and the proposer reads it as one (EP-09-017). |
+| `Accept(Invite(EmbargoEvent))` | the `EmbargoEvent` is neither the embargo in force nor an open proposal: the register does not hold it, or the proposal was already decided, replaced or ended (CM-18-003, MSM-07-012). |
+| `Reject(Invite(EmbargoEvent))` | the `EmbargoEvent` is neither the embargo in force nor an open proposal, or the sender agreed to the embargo in force, since withdrawal is `Leave(EmbargoEvent)` (MSM-07-014). |
 | `Accept(EmbargoEvent)[target=VulnerabilityCase]` (`EA`, `EC`) | the `EmbargoEvent` is not an open proposal of the case, or the case is public, an exploit is public, or attacks are observed (MSM-07-008, EMB-02-002). |
 | `Reject(EmbargoEvent)[target=VulnerabilityCase]` (`ER`, `EJ`) | the `EmbargoEvent` is not an open proposal of the case, or the termination the rejection would cause is refused (MSM-07-009). |
 | `Remove(EmbargoEvent)` (`ET`) | it claims `END_TIME_REACHED` before the embargo's end time, or a Case Owner's `Remove` names a `THREAT_SIGNAL` cause (EMB-13-005). |
@@ -262,7 +262,7 @@ Some deliveries get no notice:
 
 - A message that the sender has no standing to send is refused with no answer (HP-01-006).
 - A repeat of an answer already recorded, under a new id or the same one, is skipped and gets no notice (CM-13-005).
-- An `Invite` or `Accept` that arrives once the case is public, an exploit is public, or attacks are observed is answered with a `Reject` of the Invite instead (EMB-01-002, EMB-02-002).
+- An `Invite` or `Accept` that arrives once the case is public, an exploit is public, or attacks are observed is answered with a `Reject` of the Invite instead (EMB-01-002, EMB-02-004).
   The Case Manager's `Reject` of an `Accept` reaches the participant.
   The participant then closes its pending `Accept`.
 - A late `Accept` of the embargo in force is recorded in the same way as an on-time `Accept`.

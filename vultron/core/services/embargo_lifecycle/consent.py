@@ -147,13 +147,13 @@ class _ConsentOperationsMixin(_PecEffectsMixin):
         The effect of a ``Reject(Invite(EmbargoEvent))``, which is always the
         sender's own consent, the case owner's included (ADR-0122).  Applies
         the MSM-07-004 rule: the actor's row for the named embargo becomes
-        ``DECLINED`` and nothing else moves.  Refusing a *proposed* embargo
-        leaves the actor's row for the embargo in force untouched; a Reject
-        of the embargo *in force* answers it from a row that has not agreed
-        to it.  A Reject of the embargo in force from an ``AGREED`` row is not
-        a withdrawal and is refused: withdrawal is
-        :meth:`record_embargo_withdrawal` (MSM-07-010).  The owner's decision
-        on a proposal is :meth:`reject_embargo_proposal`.
+        ``DECLINED`` and no register entry moves (MSM-07-013).  Refusing a
+        *proposed* embargo leaves the actor's row for the embargo in force
+        untouched (MSM-07-015); a Reject of the embargo *in force* answers it
+        from a row that has not agreed to it.  A Reject of the embargo in force
+        from an ``AGREED`` row is not a withdrawal and is refused (MSM-07-014):
+        withdrawal is :meth:`record_embargo_withdrawal` (MSM-07-010).  The
+        owner's decision on a proposal is :meth:`reject_embargo_proposal`.
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` that owns the participant.

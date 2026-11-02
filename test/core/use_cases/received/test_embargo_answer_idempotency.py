@@ -252,7 +252,7 @@ def test_a_reject_after_an_accept_is_a_consent_change():
     assert _consent(net, BYSTANDER, embargo_id) == EmbargoConsentState.DECLINED
 
 
-@pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("MSM-07-014")
 @pytest.mark.spec("MSM-07-010")
 def test_a_reject_of_the_agreed_embargo_in_force_is_refused_leave_withdraws():
     """Accept → activation → Reject is refused: a Reject never withdraws.
@@ -290,9 +290,9 @@ def test_a_reject_of_the_agreed_embargo_in_force_is_refused_leave_withdraws():
 
 
 @pytest.mark.spec("CM-13-005")
-@pytest.mark.spec("EMB-02-002")
+@pytest.mark.spec("EMB-02-004")
 def test_a_repeat_accept_on_a_public_case_sends_no_refusal():
-    """The repeat guard runs before the P/X/A refusal, which sends an ER.
+    """The repeat guard runs before the P/X/A refusal, which sends a Reject.
 
     An Accept recorded before the case went public, repeated after, changes
     nothing and is answered with nothing.

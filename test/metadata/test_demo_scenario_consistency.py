@@ -591,7 +591,7 @@ def test_narrative_page_check_exempts_include_fragments(
     """A ``_``-prefixed fragment the narratives include is not a scenario page.
 
     Shared narrative prose is sourced from one fragment (SG-43); the fragment is
-    never published as a page of its own, so it names no scenario (DF-09-007).
+    never published as a page of its own, so it names no scenario (DF-09-011).
     """
     fragment = prose_root / NARRATIVE_DIR / "_shared_sentence.md"
     fragment.write_text("A sentence several narratives include.\n")
