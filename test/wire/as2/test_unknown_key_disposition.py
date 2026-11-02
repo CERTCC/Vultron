@@ -229,7 +229,7 @@ def test_retired_name_on_inline_object_is_refused(retired: str) -> None:
     """A retired name is in the list by name, not by normalisation (ADR-0075).
 
     Held by the wire-side ``RETIRED_NAMES`` list at the parse edge since #3921
-    deleted the core ``ParticipantStatus`` guard (AC-4; SDO-03-005, MV-11-004).
+    deleted the core ``ParticipantStatus`` guard (AC-4; SDO-03-009, MV-11-004).
     Only the naming of the retired key is pinned, not the list's wording:
     MV-11-002 requires the arriving key and the spelling it resembles, and for a
     retired name those are the same string.
@@ -666,11 +666,10 @@ def test_normalisation_is_lowercase_and_strip_non_alphanumerics(
     assert normalise(key) == expected
 
 
-@pytest.mark.spec("MV-11-004")
-@pytest.mark.spec("SDO-03-005")
+@pytest.mark.spec("SDO-03-009")
 @pytest.mark.spec("MV-11-011", "MV-11-012")
 def test_no_core_module_names_a_retired_key() -> None:
-    """The retired-name list lives wire-side only (MV-11-004, AC-4).
+    """The retired-name list lives wire-side only (MV-11-011, AC-4).
 
     A per-class reject-guard has to spell the retired key as a string to test
     for it, as ``ParticipantStatus._reject_retired_vfd_keys`` did; no string

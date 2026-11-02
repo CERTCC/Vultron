@@ -182,7 +182,7 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         ``OBSERVED`` mode a replica that never saw the proposal records it
         first, and a step the register refuses is skipped (EP-09-007).
 
-        The consent effect (EP-05-001, MSM-07-005) runs in both modes, so a
+        The consent effect (EP-05-001, EP-05-003, MSM-07-005) runs in both modes, so a
         replica syncing an announced activation keeps its consent rows in
         step with the CASE_MANAGER: the owner's row for *embargo_id* becomes
         ``AGREED`` unless it already is (activation is the owner's decision,
@@ -193,7 +193,7 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         Whoever holds an ``AGREED`` row for B — its proposer, for one — is a
         signatory by lookup, with nothing to advance.  An owner whose row for
         *embargo_id* is ``DECLINED`` has changed its answer by activating it:
-        its row moves straight to ``AGREED``, in either mode (MSM-07-008).
+        its row moves straight to ``AGREED``, in either mode (MSM-07-028).
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` to update.
@@ -207,7 +207,7 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         Raises:
             VultronNotFoundError: If *case_id* does not resolve to a case,
                 or the embargo being activated or the one it replaces cannot
-                be read (EMB-18-003, EP-05-001) — in either mode, before any
+                be read (EMB-18-003, EP-05-001, EP-05-003) — in either mode, before any
                 write.
             VultronValidationError: If either embargo record is not an
                 ``EmbargoEvent``.
@@ -220,7 +220,7 @@ class _ActivationOperationsMixin(_PecActivationMixin):
         em_before = case.em_state
         previous_embargo_id = case.active_embargo_id
         # Read the activated (and any replaced) embargo and decide the
-        # EP-05-001 arm before anything is written (fail closed, EMB-18-003).
+        # EP-05-001 / EP-05-003 arm before anything is written (fail closed, EMB-18-003).
         ends_no_later = self._activation_arm(
             previous_embargo_id=previous_embargo_id,
             activated_embargo_id=embargo_id,

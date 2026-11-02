@@ -98,9 +98,10 @@ downstream to fill in a bare ID. If the error fires, fix the activity builder.
   storage (ADR-0073) the inviter almost never holds the peer's record, so
   requiring one refuses every cross-node invitee.
 - **An actor travels as held, or as an id-and-type actor reference
-  (AKM-05-005, ADR-0159).** Carry the sender's held profile unchanged; with only
-  the URI, carry exactly `id` and `type`. A receiver reads a reference's missing
-  fields as unknown and never lets it replace a fuller record. Not a stub: it is
+  (AKM-05-005, AKM-05-017, ADR-0159).** Carry the sender's held profile unchanged;
+  with only the URI, carry exactly `id` and `type`. A receiver reads a reference's
+  missing fields as unknown and never lets it replace a fuller record (AKM-05-018,
+  AKM-05-019). Not a stub: it is
   the one other exception MV-10-001 allows. Factories take the held record or the
   URI (`carried_actor`, `vultron/wire/as2/factories/_actor.py`); the trigger
   adapter reads the held record first (`_held_actor`), and a bare `CoreActor`

@@ -294,7 +294,7 @@ class TestStatePersistsThroughTheNormalisationRoundTrip:
         return _storable_to_record(object_to_record(obj)).data_
 
     def test_em_state_survives_the_normalisation_round_trip(self):
-        # em is a frozen field (SDO-03-006): build the status with the
+        # em is a frozen field (SDO-03-010): build the status with the
         # desired EM at construction, never by assigning to em.state.
         status = CaseStatus(
             context="urn:case:1", em=EmDimension(state=EM.EXITED)

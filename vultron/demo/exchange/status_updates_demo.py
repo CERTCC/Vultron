@@ -122,7 +122,7 @@ def demo_notes_workflow(
 
     The note travels inline on the single ``Add(Note)`` that attaches it;
     this implementation does not send a separate ``Create(Note)`` ahead of
-    the ``Add`` (VAM-01-010, #4706).
+    the ``Add`` (VAM-01-015, #4706).
     """
     logger.info("=" * 80)
     logger.info("DEMO: Notes Workflow")

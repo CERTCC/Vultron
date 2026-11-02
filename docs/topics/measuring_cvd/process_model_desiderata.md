@@ -146,7 +146,7 @@ A case that achieves $\evF \prec \evP$ without an embargo is not a worse case.
 The prototype assumes that every case starts with an embargo.
 The embargo is a default that the participants publish, or the protocol default.
 Under this assumption, a new case starts in EM Active, unless $\evP$, $\evX$, or $\evA$ already occurred.
-In that condition, the case stays in EM None (EP-04-005, EP-04-008).
+In that condition, the case stays in EM None (EP-04-008, EP-04-020).
 Thus $\evE \prec \evP$ fails only when the report arrives, or the case is created, after $\evP$, $\evX$, or $\evA$ already occurred.
 
 An implementation that does not start every case with an embargo can fail this desideratum in more ways.
@@ -319,7 +319,7 @@ A history that breaks a conformance ordering shows a defect in an implementation
 | $\evV_i \prec \evF_i$ for every vendor $i$ | The vendor fix path ([History Constraints](./possible_histories.md)) |
 | $\evF_i \prec \evD_k$ for some vendor $i$, for every deployer $k$ that is not also a vendor | CSB-15-004 |
 | $\evF_i$ only once participant $i$'s RM state is Accepted, Deferred, or Closed | CSB-18-001 |
-| A report is never closed from Valid | VP-02-004, RMB-14-004 |
+| A report is never closed from Valid | VP-02-004, RMB-14-008 |
 | The case is initialized before anyone else is invited and before any embargo change | CM-14-007 |
 | An embargo end time is set before an embargo-eligible case reaches RM Valid | DUR-07-004 |
 | $\evS_k$ before any case content sent to $k$, while an embargo is active | CM-10-004, CM-10-005 |

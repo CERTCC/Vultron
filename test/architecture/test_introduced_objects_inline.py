@@ -228,7 +228,7 @@ class NoIntroduction:
 
 
 _ANSWERS = "answers an activity, which it embeds inline"
-_HELD = "acts on an object the receiver already holds (AKM-02-004)"
+_HELD = "acts on an object the receiver already holds (AKM-02-007)"
 
 
 def _answers(object_parameter: str) -> NoIntroduction:

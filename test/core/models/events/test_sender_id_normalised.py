@@ -1,4 +1,4 @@
-"""A received event refuses a sender id that is not normalised (OID-01-007).
+"""A received event refuses a sender id that is not normalised (OID-01-009).
 
 The wire extractor strips a trailing slash from the sender id before it builds
 the event, so core compares it with stored ids exactly.  A path that skips the
@@ -17,7 +17,7 @@ SENDER = "https://example.org/actors/vendor"
 ACTIVITY_ID = "https://example.org/activities/a1"
 
 
-@pytest.mark.spec("OID-01-007")
+@pytest.mark.spec("OID-01-009")
 @pytest.mark.spec("ARCH-10-001")
 @pytest.mark.parametrize(
     "event_class", [VultronEvent, AddNoteToCaseReceivedEvent]
@@ -41,7 +41,7 @@ def test_received_event_accepts_normalised_sender_id():
     assert event.actor_id == SENDER
 
 
-@pytest.mark.spec("OID-01-007")
+@pytest.mark.spec("OID-01-009")
 def test_received_event_refuses_slash_spelled_sender_id_on_assignment():
     event = VultronEvent(
         semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,

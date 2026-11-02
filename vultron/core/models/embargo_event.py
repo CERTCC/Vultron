@@ -42,7 +42,7 @@ class EmbargoEvent(CoreObject):
     # absent (ISSUE-3257).  Nothing decides on it — ``end_time`` is the time
     # embargo decisions read, and it is required with no default: the only
     # fallback duration in the system is the protocol default resolved at case
-    # creation (EP-04-005, EP-04-010, #3404), so every construction site states
+    # creation (EP-04-019, EP-04-023, #3404), so every construction site states
     # the end it means.  Both fields are read as UTC by ``CoreObject`` (#3784).
     start_time: datetime | None = Field(default_factory=now_utc)
     end_time: datetime  # pyright: ignore[reportGeneralTypeIssues]
@@ -51,7 +51,7 @@ class EmbargoEvent(CoreObject):
     def with_subject(self, subject_id: str) -> "EmbargoEvent":
         """Return this embargo re-scoped to *subject_id*, identity kept.
 
-        The rewrite EP-04-004 prescribes at case creation: the Reporter's
+        The rewrite EP-04-017 prescribes at case creation: the Reporter's
         proposed terms name the report until a case exists, then the case.
         Everything else — id, times, the sender's name — is carried as it was,
         and the copy goes through validation rather than around it.

@@ -88,7 +88,7 @@ from vultron.errors import Violation
 # `vf` value is claiming a dimension it does not have (ADR-0075).  This is the
 # same rule `_d_violations` applies to the deployer path (#2963); the two
 # dimensions had drifted apart, with `vf` gating only `{Vf, VF}`, which let a
-# non-VENDOR open a vendor path at `vf` that SM-09-001's public-disclosure
+# non-VENDOR open a vendor path at `vf` that SM-09-003's public-disclosure
 # promotion then advanced to `Vf` behind the gate's back (#3135).
 _VENDOR_ONLY_VF: dict[CS_vf, str] = {
     CS_vf.vf: "ADR-0075",

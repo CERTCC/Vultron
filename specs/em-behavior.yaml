@@ -91,16 +91,20 @@ groups:
       The refusal binds only the proposal's addressee. A receiver the proposal is not
       addressed to (HP-01-012) holds an unaddressed copy, refuses it (HP-01-005) and
       answers nothing (ADR-0118); `cc` addresses nobody (ADR-0109). The `Reject` names
-      the Invite by id and needs no terms. So an Invite that names its terms by URI only
-      is answered too (ADR-0123). A re-delivery of an Invite already answered with a
-      `Reject` is a duplicate, and gets no second `Reject` (HP-01-003).
+      the Invite by id and carries no terms. An Invite that names its terms by URI only
+      is classified as an embargo Invite only once the receiver holds the terms
+      (SE-01-006). Its `Reject` follows the fetch of those terms (AKM-05-007), and none
+      is sent when the fetch fails (AKM-05-015). A re-delivery of an Invite already
+      answered with a `Reject` is a duplicate, and gets no second `Reject` (HP-01-003).
     rationale: >-
       Embargo negotiation is not viable once public disclosure has occurred.
       VP-06-001 prohibits new embargo negotiations in these states.
       The `Reject` of the Invite tells the proposer that the receiver refuses the
       terms. It is the receiver's own consent answer (MSM-07-004), not ER: ER is the
       Case Owner's decision for the case, or the CASE_MANAGER's abandonment of the
-      proposal (MSM-02-006, MSM-02-010).
+      proposal (MSM-02-006, MSM-02-010). A bare object URI matches no pattern's object
+      type, so a receiver that lacks the terms cannot tell an embargo Invite from an
+      actor Invite until it fetches them (#5266).
     adr:
     - ADR-0118
     testable: true
@@ -606,7 +610,7 @@ groups:
       `test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo`, in
       the same file, covers the race: a revision that reaches the CASE_MANAGER
       at `ACTIVE` or `REVISE` with P, X or A already recorded is refused
-      (EP-09-001) and ends nothing, and the embargo ends only when the cascade
+      (EP-09-021) and ends nothing, and the embargo ends only when the cascade
       runs, with the threat signal as its cause.
     testable: true
     preconditions:
@@ -713,21 +717,19 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant in EM Revise (q^em ∈ R) with CS not yet public/exploit/attack
-      (q^cs ∈ ···pxa) receiving EJ MUST transition their EM state back to Active
-      (q^em R → A) when the rejected revision was the last proposal open, and
-      MUST remain in Revise (q^em R → R) while another proposal is open
-      (EMB-18-005). "Emit EK" is discharged by the CASE_MANAGER's commit of the
-      received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK message
-      is emitted (EP-09-009, MSM-02-009).
+      This rule covers a Participant in EM Revise (q^em ∈ R) whose CS is not yet
+      public/exploit/attack (q^cs ∈ ···pxa).
+      When it receives EJ for the last open proposal, it MUST move its EM state back to
+      Active (q^em R → A).
+      The CASE_MANAGER's commit of the received activity, fanned out as
+      `Announce(CaseLedgerEntry)`, discharges "Emit EK".
+      No EK message is emitted (EP-09-009, MSM-02-009).
     rationale: >-
       EJ says that a revision proposal is rejected. A rejected revision leaves the
       embargo in force and the consent to it unchanged (EP-05-002), so when no other
-      proposal is open, EM returns to Active under the terms it had. While another
-      proposal stays open, EM stays in Revise, because the register still holds an open
-      proposal (ADR-0130). The CASE_MANAGER's commit and fan-out of the received
-      activity tell every participant of the change, so no separate EK message is
-      necessary (ADR-0113).
+      proposal is open, EM returns to Active under the terms it had. The CASE_MANAGER's
+      commit and fan-out of the received activity tell every participant of the
+      change, so no separate EK message is necessary (ADR-0113).
     adr:
     - ADR-0113
     - ADR-0130
@@ -754,8 +756,8 @@ groups:
       expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
     - description: >-
-        Receiver EM state is ACTIVE (revision rejected), or REVISE while another
-        proposal is open; EK discharged by the ledger commit
+        Receiver EM state is ACTIVE (revision rejected); EK discharged by the ledger
+        commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004
@@ -763,7 +765,36 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-004
       note: 'EJ shorthand wire-type mapping'
-
+    stories:
+    - story_2022_014
+  - id: EMB-04-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      This rule covers a Participant in EM Revise (q^em ∈ R) whose CS is not yet
+      public/exploit/attack (q^cs ∈ ···pxa).
+      When it receives EJ while another proposal is open, it MUST remain in Revise (q^em
+      R → R) (EMB-18-005).
+    rationale: >-
+      While another proposal stays open, EM stays in Revise, because the register
+      still holds an open proposal (ADR-0130).
+    verification: >-
+      `test/core/states/test_em_transition_table.py`
+      (`test_rejecting_one_of_two_open_revisions_stays_in_revise`) confirms rejecting
+      one of two open revisions leaves EM in REVISE.
+    adr:
+    - ADR-0130
+    testable: true
+    preconditions:
+    - em_state:
+        - REVISE
+      cs_pattern: "...pxa"
+      description: EM state is Revise; CS matches pattern ...pxa; another proposal is open
+    postconditions:
+    - description: Receiver EM state is REVISE
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-18-005
     stories:
     - story_2022_014
   - id: EMB-04-002
@@ -780,7 +811,7 @@ groups:
       describes where the act ends: EM ends EXITED, never back in Active. Inside
       the act, the CASE_MANAGER records the rejection as decided (the revision
       REJECTED) and then terminates the embargo, as two entries a replica copies
-      in order (MSM-07-009, CM-23-016).
+      in order (MSM-07-032, CM-23-016).
     note: >-
       EJ is the Case Owner's decision, and only the CASE_MANAGER writes shared
       EM state, so the CASE_MANAGER emits the ET. The CASE_MANAGER can be the
@@ -847,21 +878,19 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant in EM Revise (q^em ∈ R) with CS not yet public/exploit/attack
-      (q^cs ∈ ···pxa) receiving EC MUST transition their EM state back to Active
-      (q^em R → A) with the revised terms when the accepted revision was the
-      last proposal open, and MUST remain in Revise (q^em R → R) under the
-      revised terms while another proposal is open (EMB-18-005). "Emit EK" is discharged by the
-      CASE_MANAGER's commit of the case owner's
-      `Accept(EmbargoEvent)[target=VulnerabilityCase]`, fanned out as
-      `Announce(CaseLedgerEntry)`; no EK message is emitted (EP-09-009, MSM-02-009).
+      This rule covers a Participant in EM Revise (q^em ∈ R) whose CS is not yet
+      public/exploit/attack (q^cs ∈ ···pxa).
+      When it receives EC for the last open proposal, it MUST move its EM state back to
+      Active (q^em R → A) with the revised terms.
+      The CASE_MANAGER's commit of the case owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]`,
+      fanned out as `Announce(CaseLedgerEntry)`, discharges "Emit EK".
+      No EK message is emitted (EP-09-009, MSM-02-009).
     rationale: >-
       EC says that the Case Owner accepts a revision. The revised terms replace the
       terms in force, so when no other proposal is open, EM returns to Active under the
-      revised terms. While another proposal stays open, EM stays in Revise under the
-      revised terms, because the register still holds an open proposal (ADR-0130). The
-      CASE_MANAGER's commit and fan-out of the owner's Accept tell every participant of
-      the change, so no separate EK message is necessary (ADR-0113).
+      revised terms. The CASE_MANAGER's commit and fan-out of the owner's Accept tell
+      every participant of the change, so no separate EK message is necessary
+      (ADR-0113).
     adr:
     - ADR-0113
     - ADR-0130
@@ -892,11 +921,10 @@ groups:
       expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
     - description: >-
-        Receiver EM state is ACTIVE with new terms, or REVISE while another
-        proposal is open; EK discharged by the ledger commit
+        Receiver EM state is ACTIVE with new terms; EK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
-      spec_id: VP-04-005
+      spec_id: VP-04-006
       note: Once accepted, revisions MAY be accepted
     - rel_type: satisfies
       spec_id: VP-11-004
@@ -904,13 +932,40 @@ groups:
     - rel_type: satisfies
       spec_id: MSM-02-005
       note: 'EC shorthand wire-type mapping'
-
     stories:
     - story_2022_014
-    lint_suppress:
-    # compound_statement: the compound pre-dates #5156, which only converted its
-    # activity notation; the split into one obligation per ID belongs to #5219.
-    - compound_statement
+  - id: EMB-05-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      This rule covers a Participant in EM Revise (q^em ∈ R) whose CS is not yet
+      public/exploit/attack (q^cs ∈ ···pxa).
+      When it receives EC while another proposal is open, it MUST remain in Revise (q^em
+      R → R) under the revised terms (EMB-18-005).
+    rationale: >-
+      The revised terms replace the terms in force at once. While another proposal
+      stays open, EM stays in Revise, because the register still holds an open
+      proposal (ADR-0130).
+    verification: >-
+      `test/core/states/test_em_transition_table.py`
+      (`test_accepting_one_of_two_open_revisions_stays_in_revise_on_its_terms`)
+      confirms accepting one of two open revisions leaves EM in REVISE with the
+      accepted revision in force.
+    adr:
+    - ADR-0130
+    testable: true
+    preconditions:
+    - em_state:
+        - REVISE
+      cs_pattern: "...pxa"
+      description: EM state is Revise; CS matches pattern ...pxa; another proposal is open
+    postconditions:
+    - description: Receiver EM state is REVISE with the revised terms
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-18-005
+    stories:
+    - story_2022_014
   - id: EMB-05-002
     priority: MUST
     kind: protocol
@@ -1532,8 +1587,8 @@ groups:
     kind: protocol
     statement: >-
       A Participant entering EM Exited SHOULD treat no participant as bound by an
-      embargo: the embargo register's `ACTIVE` entry is `TERMINATED`, and no
-      consent row is written (MSM-07-006, ADR-0118, ADR-0122).
+      embargo. The embargo register's `ACTIVE` entry is `TERMINATED`, and no consent
+      row is written (MSM-07-025, ADR-0118, ADR-0122).
     rationale: >-
       Once the embargo exits, no consent row binds anyone: with no `ACTIVE`
       register entry nobody is a signatory, and a register with a `TERMINATED`
@@ -1567,20 +1622,17 @@ groups:
     statement: >-
       When the end time of the embargo in force has passed, the CASE_MANAGER
       MUST end it with the reason `END_TIME_REACHED`, through one idempotent
-      termination path reached in either of two ways: its own lazy check when
-      it next handles the case, whether for an inbound activity or one of its
-      own triggers, or an outside request to end the embargo at its end time,
-      such as from a Sentinel monitoring embargo timers. A request to end the
-      embargo early made after its end time takes the same path. Both
-      commit the CASE_MANAGER's `Remove(EmbargoEvent)` with `content`
-      `END_TIME_REACHED` and run the full termination cascade. Whichever
-      arrives after the embargo has ended MUST commit nothing and MUST be
-      answered as already done. The outside request is made to the
-      CASE_MANAGER itself; a `Remove` received from the case owner is the
-      owner's own message and is ledgered on receipt like any other. An
-      `END_TIME_REACHED` termination claimed
-      before the embargo's end time MUST be refused, by the CASE_MANAGER
-      before it commits and by a replica that replays it.
+      termination path.
+      Two ways reach that path. One is the CASE_MANAGER's own lazy check when it
+      next handles the case, for an inbound activity or one of its own triggers.
+      The other is an outside request to end the embargo at its end time, such as
+      from a Sentinel that monitors embargo timers.
+      A request to end the embargo early, made after its end time, takes the same
+      path.
+      Each way commits the CASE_MANAGER's `Remove(EmbargoEvent)` with `content`
+      `END_TIME_REACHED` and runs the full termination cascade.
+      The outside request is made to the CASE_MANAGER itself. A `Remove` from the
+      case owner is the owner's own message, ledgered on receipt like any other.
     rationale: >-
       VP-04-001 requires every accepted embargo to have an end time, so every
       embargo reaches one; recording the end as a termination keeps EM derived
@@ -1625,24 +1677,93 @@ groups:
     stories:
     - story_2022_010
     - story_2022_026
+  - id: EMB-13-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Whichever of the lazy check and the outside request (EMB-13-003) arrives after
+      the embargo has ended MUST commit nothing.
+    rationale: >-
+      One path keeps the two from both committing: a register with a `TERMINATED`
+      entry accepts no further change (ADR-0122).
+    verification: >-
+      `test/core/use_cases/triggers/embargo/test_end_time_termination.py`
+      (`test_lazy_check_on_an_ended_embargo_commits_nothing`,
+      `test_lazy_check_after_the_sentinel_commits_nothing`,
+      `test_racing_lazy_check_and_sentinel_commit_one_termination`) confirms the
+      later arrival commits nothing.
+    testable: true
+    lint_suppress:
+    - testable_without_steps
+    adr:
+    - ADR-0122
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-13-003
+    stories:
+    - story_2022_010
+    - story_2022_026
+  - id: EMB-13-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST answer an end-time request (EMB-13-003) that arrives after
+      the embargo has ended as already done.
+    rationale: >-
+      The requester asked for an outcome the case already holds, so the answer tells
+      it the embargo is ended rather than refusing it.
+    verification: >-
+      `test/core/use_cases/triggers/embargo/test_end_time_termination.py`
+      (`test_sentinel_after_the_lazy_check_is_answered_as_already_done`) confirms the
+      later request is answered as already done.
+    testable: true
+    lint_suppress:
+    - testable_without_steps
+    adr:
+    - ADR-0122
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-13-003
+    stories:
+    - story_2022_010
+    - story_2022_026
+  - id: EMB-13-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An `END_TIME_REACHED` termination claimed before the embargo's end time MUST be
+      refused, by the CASE_MANAGER before it commits and by a replica that replays
+      it.
+    rationale: >-
+      An `END_TIME_REACHED` reason claims the end time has passed. A claim made before
+      then is false, and the content gate would stop withholding content under an
+      embargo that is still in force.
+    verification: >-
+      `test/core/use_cases/triggers/embargo/test_end_time_termination.py`
+      (`test_sentinel_request_before_the_end_time_is_refused`) and
+      `test/core/use_cases/received/test_termination_reason.py`
+      (`test_case_manager_refuses_an_end_time_remove_before_the_end_time`,
+      `test_replica_replay_refuses_an_end_time_entry_before_the_end_time`) confirm
+      the refusal at the CASE_MANAGER and at a replica.
+    testable: true
+    lint_suppress:
+    - testable_without_steps
+    adr:
+    - ADR-0122
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-13-003
+    stories:
+    - story_2022_010
+    - story_2022_026
 
   - id: EMB-13-004
     priority: MUST
     kind: protocol
     statement: >-
       A termination `Remove(EmbargoEvent)` MUST carry what ended the embargo in
-      `content`, exactly `END_TIME_REACHED` or `EARLY`, checked at the parse
-      edge, where anything else MUST be refused; its `summary` carries a
-      human-readable account the protocol does not read. The `TERMINATED`
-      register entry MUST record that reason (the what) and, when known, a
-      structured cause (the why), an object discriminated on `kind` whose
-      details depend on the kind. The kinds are `THREAT_SIGNAL`, with the
-      signals (`P`, `X`, `A`) that ended the embargo, distinct and in that
-      order; `FIX_READY`, with the vendor participants whose readiness made
-      the quorum (VP-09-007); `FIX_DEPLOYED`; and `OTHER`, whose account is
-      the `summary`. Every kind is `EARLY`: an `END_TIME_REACHED` termination
-      MUST NOT record a cause, and an `EARLY` termination with no cause is
-      valid and records the what alone.
+      `content`, exactly `END_TIME_REACHED` or `EARLY`. Its `summary` carries a
+      human-readable account the protocol does not read.
     rationale: >-
       The what is all a receiver needs to apply a termination and to check it
       against the end time; the why records the decision. A cause is a kind
@@ -1650,12 +1771,11 @@ groups:
       held by adversaries, a participant's leak) is a new kind rather than a
       change to a closed list (ADR-0122).
     verification: >-
-      `test/core/use_cases/received/test_termination_reason.py` and
-      `test/core/models/test_embargo_termination.py` cover the parse-edge
-      check and the recorded what and why for `THREAT_SIGNAL`;
-      `test/core/use_cases/received/test_termination_cause.py` builds an
-      `EARLY` termination with each of `FIX_READY`, `FIX_DEPLOYED` and
-      `OTHER`, and refuses each on `END_TIME_REACHED`.
+      `test/core/use_cases/received/test_termination_reason.py`
+      (`test_parse_edge_promotes_the_reason_onto_the_event`) and
+      `test/core/models/test_embargo_termination.py`
+      (`test_the_wire_what_has_exactly_two_values`) cover the two values of the
+      what.
     testable: true
     lint_suppress:
     - testable_without_steps
@@ -1664,7 +1784,100 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EMB-13-001
-      note: Records why the ACTIVE entry was TERMINATED
+      note: Carries what ended the ACTIVE entry
+    stories:
+    - story_2022_080
+    - story_2022_026
+  - id: EMB-13-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST refuse, at the parse edge, a termination `Remove(EmbargoEvent)`
+      whose `content` is anything other than `END_TIME_REACHED` or `EARLY`
+      (EMB-13-004).
+    rationale: >-
+      The what is all a receiver needs to apply a termination and to check it against
+      the end time, so a termination without a valid what cannot be applied.
+    verification: >-
+      `test/core/use_cases/received/test_termination_reason.py`
+      (`test_parse_edge_refuses_a_remove_without_a_termination_reason`) and
+      `test/core/models/test_embargo_termination.py`
+      (`test_content_that_is_not_a_reason_is_refused`) cover the parse-edge
+      check.
+    testable: true
+    lint_suppress:
+    - testable_without_steps
+    adr:
+    - ADR-0122
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-13-004
+    stories:
+    - story_2022_080
+    - story_2022_026
+  - id: EMB-13-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The `TERMINATED` register entry MUST record the termination's reason (the what)
+      and, when known, a structured cause (the why).
+      The cause is an object discriminated on `kind`, whose details depend on the
+      kind.
+      One kind is `THREAT_SIGNAL`, with the signals (`P`, `X`, `A`) that ended the
+      embargo, distinct and in that order.
+      Another, `FIX_READY`, has the vendor participants whose readiness made the
+      quorum (VP-09-007).
+      The other kinds are `FIX_DEPLOYED`, and `OTHER`, whose account is the
+      `summary`.
+    rationale: >-
+      The why records the decision. A cause is a kind with its own details, so a new
+      cause (adversary awareness, exploit code held by adversaries, a participant's
+      leak) is a new kind rather than a change to a closed list (ADR-0122).
+    verification: >-
+      `test/core/use_cases/received/test_termination_reason.py`
+      (`test_case_manager_records_an_early_remove_as_early`) and
+      `test/core/models/test_embargo_termination.py` cover the recorded what and the
+      why for `THREAT_SIGNAL`;
+      `test/core/use_cases/received/test_termination_cause.py`
+      (`test_an_early_termination_records_each_new_cause_kind`) builds an `EARLY`
+      termination with each of `FIX_READY`, `FIX_DEPLOYED` and `OTHER`.
+    testable: true
+    lint_suppress:
+    - testable_without_steps
+    adr:
+    - ADR-0122
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-13-004
+    - rel_type: refines
+      spec_id: EMB-13-001
+    stories:
+    - story_2022_080
+    - story_2022_026
+  - id: EMB-13-011
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An `END_TIME_REACHED` termination MUST NOT record a cause (EMB-13-010). Every
+      cause kind is `EARLY`, and an `EARLY` termination with no cause is valid and
+      records the what alone.
+    rationale: >-
+      A cause explains why an embargo ended before its end time. An embargo that ran
+      to its end time has no such cause.
+    verification: >-
+      `test/core/use_cases/received/test_termination_cause.py`
+      (`test_every_cause_kind_is_early_and_end_time_has_none`,
+      `test_an_early_termination_with_no_cause_records_the_what_alone`) refuses each
+      cause on `END_TIME_REACHED` and records an `EARLY` termination with no
+      cause.
+    testable: true
+    lint_suppress:
+    - testable_without_steps
+    adr:
+    - ADR-0122
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-13-010
     stories:
     - story_2022_080
     - story_2022_026
@@ -1674,17 +1887,7 @@ groups:
     kind: protocol
     statement: >-
       A termination `Remove(EmbargoEvent)` whose termination has a cause
-      (EMB-13-004) MUST carry it as `terminationCause`, checked at the parse
-      edge, where an unknown `kind`, a missing or malformed detail, or a cause
-      on an `END_TIME_REACHED` termination MUST be refused. On the case
-      owner's `Remove` to the CASE_MANAGER, a `FIX_READY`, `FIX_DEPLOYED` or
-      `OTHER` cause is the owner's claim, which the CASE_MANAGER MUST record
-      as given; a `THREAT_SIGNAL` cause MUST be refused before it is
-      committed, with a reason directing the sender to a case status update
-      setting `P`, `X` or `A` as the way a threat signal ends an embargo. Only a `Remove`
-      the CASE_MANAGER sends MAY name `THREAT_SIGNAL`. A replica MUST record
-      the cause the termination's ledger entry carries on its `TERMINATED`
-      entry, and MUST NOT work a cause out from its own case state.
+      (EMB-13-010) MUST carry it as `terminationCause`.
     rationale: >-
       One ledger entry is one activity, and the termination's entry is the
       whole `TERMINATE` register step (ADR-0124), so the why reaches a replica
@@ -1695,14 +1898,10 @@ groups:
       `Remove` as a status change would commit one no participant sent
       (ADR-0122).
     verification: >-
-      `test/core/use_cases/received/test_termination_cause.py` parses a
-      `Remove` carrying each cause kind, refuses each malformed cause and an
-      owner's `THREAT_SIGNAL` with a reason naming the case status update,
-      records an owner's `FIX_READY` cause whose vendors are not fix-ready
-      as given, and replays a CASE_MANAGER termination whose cause the
-      replica cannot work out from its own state (a `FIX_READY` cause, or
-      threat signals that differ from the replica's PXA) into a replica,
-      asserting the two `TERMINATED` entries are equal.
+      `test/core/use_cases/received/test_termination_cause.py`
+      (`test_parse_edge_promotes_a_carried_cause_onto_the_event`,
+      `test_the_factory_carries_the_cause_as_termination_cause`) parses a `Remove`
+      carrying each cause kind.
     testable: true
     lint_suppress:
     - testable_without_steps
@@ -1710,8 +1909,162 @@ groups:
     - ADR-0122
     relationships:
     - rel_type: refines
-      spec_id: EMB-13-004
+      spec_id: EMB-13-010
       note: Carries the recorded cause on the wire so replicas can copy it
+    stories:
+    - story_2022_080
+    - story_2022_026
+  - id: EMB-13-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      At the parse edge, a receiver MUST refuse a bad `terminationCause` (EMB-13-005).
+      A cause is bad when its `kind` is unknown, when a detail is missing or malformed,
+      or when the termination is `END_TIME_REACHED`.
+    rationale: >-
+      A cause the receiver cannot read, or one on a termination that can have none
+      (EMB-13-011), would put a `TERMINATED` entry in the register that no other
+      node can reproduce.
+    verification: >-
+      `test/core/use_cases/received/test_termination_cause.py`
+      (`test_parse_edge_refuses_a_malformed_cause`,
+      `test_parse_edge_refuses_a_cause_on_an_end_time_termination`) refuses each
+      malformed cause and a cause on `END_TIME_REACHED`.
+    testable: true
+    lint_suppress:
+    - testable_without_steps
+    adr:
+    - ADR-0122
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-13-005
+    stories:
+    - story_2022_080
+    - story_2022_026
+  - id: EMB-13-013
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A `FIX_READY`, `FIX_DEPLOYED` or `OTHER` cause on the case owner's `Remove` to the
+      CASE_MANAGER is the owner's claim.
+      The CASE_MANAGER MUST record it as given.
+    rationale: >-
+      These causes are the owner's account of its own decision, which the
+      CASE_MANAGER has no grounds to check against its own view of the case.
+    verification: >-
+      `test/core/use_cases/received/test_termination_cause.py`
+      (`test_case_manager_records_an_owner_cause_as_given`,
+      `test_an_owner_fix_ready_cause_is_not_checked_against_the_vendors`) records an
+      owner's `FIX_READY` cause whose vendors are not fix-ready as given.
+    testable: true
+    lint_suppress:
+    - testable_without_steps
+    adr:
+    - ADR-0122
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-13-005
+    stories:
+    - story_2022_080
+    - story_2022_026
+  - id: EMB-13-014
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST refuse a `THREAT_SIGNAL` cause on the case owner's `Remove`
+      before it is committed. The refusal's reason directs the sender to a case
+      status update that sets `P`, `X` or `A`, the way a threat signal ends an
+      embargo.
+    rationale: >-
+      A threat signal is a fact about the case that every participant learns from a
+      status entry. Naming it on a `Remove` while the case status does not show it
+      would leave the register and the status disagreeing, and reading the `Remove`
+      as a status change would commit one no participant sent (ADR-0122).
+    verification: >-
+      `test/core/use_cases/received/test_termination_cause.py`
+      (`test_an_owner_threat_signal_cause_is_refused_before_the_commit`) refuses an
+      owner's `THREAT_SIGNAL` with a reason naming the case status update.
+    testable: true
+    lint_suppress:
+    - testable_without_steps
+    adr:
+    - ADR-0122
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-13-005
+    stories:
+    - story_2022_080
+    - story_2022_026
+  - id: EMB-13-015
+    priority: MAY
+    kind: protocol
+    statement: >-
+      A `Remove` that the CASE_MANAGER sends MAY name `THREAT_SIGNAL` as its cause.
+      No other `Remove` names it (EMB-13-014).
+    rationale: >-
+      The CASE_MANAGER ends an embargo on a threat signal it has adopted into the case
+      status, so its `Remove` and the status agree.
+    verification: >-
+      `test/core/use_cases/received/test_termination_cause.py`
+      (`test_the_threat_cascade_remove_carries_the_signals_it_records`) confirms the
+      CASE_MANAGER's threat cascade `Remove` carries the signals it records.
+    testable: true
+    lint_suppress:
+    - testable_without_steps
+    adr:
+    - ADR-0122
+    stories:
+    - story_2022_080
+    - story_2022_026
+  - id: EMB-13-016
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A replica MUST record, on its `TERMINATED` entry, the cause that the
+      termination's ledger entry carries.
+    rationale: >-
+      One ledger entry is one activity, and the termination's entry is the whole
+      `TERMINATE` register step (ADR-0124), so the why reaches a replica replaying the
+      ledger only if the `Remove` carries it.
+    verification: >-
+      `test/core/use_cases/received/test_termination_reason.py`
+      (`test_replica_replay_copies_the_cause_the_entry_carries`) and
+      `test/core/use_cases/received/test_termination_cause.py`
+      (`test_a_replica_copies_an_owner_fix_ready_cause`) assert the replica's
+      `TERMINATED` entry equals the CASE_MANAGER's.
+    testable: true
+    lint_suppress:
+    - testable_without_steps
+    adr:
+    - ADR-0122
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-13-005
+    stories:
+    - story_2022_080
+    - story_2022_026
+  - id: EMB-13-017
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A replica MUST NOT work a termination cause out from its own case state.
+    rationale: >-
+      A replica's own view can differ from the CASE_MANAGER's, such as threat signals
+      its PXA does not carry. A cause it worked out would then disagree with the
+      CASE_MANAGER's `TERMINATED` entry (CM-23-016).
+    verification: >-
+      `test/core/use_cases/received/test_termination_cause.py`
+      (`test_a_replica_copies_signals_its_own_pxa_does_not_carry`) replays a
+      termination whose threat signals differ from the replica's PXA and asserts the
+      two `TERMINATED` entries are equal.
+    testable: true
+    lint_suppress:
+    - testable_without_steps
+    adr:
+    - ADR-0122
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-13-016
     stories:
     - story_2022_080
     - story_2022_026
@@ -1776,22 +2129,14 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An actor that ends an active embargo early of its own accord MUST name its reason
-      — a deployed fix, a ready fix, or another reason — and with no reason MUST NOT end
-      it. It MUST record the reason as the termination's cause, `FIX_DEPLOYED`,
-      `FIX_READY` or `OTHER` respectively (EMB-13-004), never as an `EARLY` termination
-      with no cause.
+      An actor that ends an active embargo early of its own accord MUST name its
+      reason: a deployed fix, a ready fix, or another reason.
     rationale: >-
-      Voluntary termination requires an auditable reason. Recording the chosen reason
-      as the cause carries it to every participant through the termination's ledger
-      entry, where a cause-less `EARLY` termination would tell them only that the
-      embargo ended.
+      Voluntary termination requires an auditable reason.
     verification: >-
       Tests in `test/core/behaviors/embargo/test_terminate_active_embargo_tree.py` run
-      the termination once per reason and assert the `TERMINATED` entry's cause is
-      `FIX_DEPLOYED`, `FIX_READY` or `OTHER` respectively, and
-      `test_no_reason_ends_nothing` asserts that with no reason the embargo stays
-      active.
+      the termination once per reason, and `test_no_reason_ends_nothing` asserts that
+      with no reason the embargo stays active.
     testable: true
     preconditions:
     - em_state:
@@ -1803,17 +2148,66 @@ groups:
       actor: actor
       action: Choose the termination reason (fix deployed, fix ready, or other)
       expected: Reason chosen
-    - order: 2
+    postconditions:
+    - description: A termination reason is chosen
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-07-001
+      note: Voluntary actor termination is a sub-case of active-embargo termination
+    stories:
+    - story_2022_080
+    - story_2022_014
+  - id: EMB-14-005
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An actor that names no reason MUST NOT end an active embargo early of its own
+      accord.
+    rationale: >-
+      A termination with no reason gives the other participants nothing to audit
+      (EMB-14-001).
+    verification: >-
+      `test/core/behaviors/embargo/test_terminate_active_embargo_tree.py`
+      (`test_no_reason_ends_nothing`) asserts that with no reason the embargo stays
+      active.
+    testable: true
+    postconditions:
+    - description: EM state is unchanged
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-14-001
+    stories:
+    - story_2022_080
+    - story_2022_014
+  - id: EMB-14-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An actor that ends an active embargo early of its own accord MUST record its
+      reason as the termination's cause (EMB-13-004).
+      The cause is `FIX_DEPLOYED`, `FIX_READY` or `OTHER` respectively, never an `EARLY`
+      termination with no cause.
+    rationale: >-
+      Recording the chosen reason as the cause carries it to every participant through
+      the termination's ledger entry, where a cause-less `EARLY` termination would tell
+      them only that the embargo ended.
+    verification: >-
+      Tests in `test/core/behaviors/embargo/test_terminate_active_embargo_tree.py` run
+      the termination once per reason and assert the `TERMINATED` entry's cause is
+      `FIX_DEPLOYED`, `FIX_READY` or `OTHER` respectively.
+    testable: true
+    steps:
+    - order: 1
       actor: actor
       action: Terminate the embargo, recording the chosen reason as its cause
       expected: ET emitted carrying the cause; EM transitions to EXITED
     postconditions:
     - description: EM state is EXITED; ET queued; termination cause recorded
     relationships:
-    - rel_type: refines
-      spec_id: EMB-07-001
-      note: Voluntary actor termination is a sub-case of active-embargo termination
-
+    - rel_type: extends
+      spec_id: EMB-14-001
+    - rel_type: uses_definition
+      spec_id: EMB-13-004
     stories:
     - story_2022_080
     - story_2022_014
@@ -1822,11 +2216,28 @@ groups:
     kind: project
     statement: >-
       The create_terminate_active_embargo_tree factory MUST require the actor to supply
-      a termination reason (EMB-14-001) before delegating to terminate_embargo_bt. The
-      reason MUST be chosen via the matching Evaluator call-out point
-      (ExitEmbargoWhenDeployed, ExitEmbargoWhenFixReady, or ExitEmbargoForOtherReason),
-      followed by EmbargoExitPolicyGuard or EmbargoExitOverride (EMB-14-002, EMB-14-003)
-      and the OnEmbargoExit actuator.
+      a termination reason (EMB-14-001) before delegating to terminate_embargo_bt.
+    rationale: >-
+      A tree that reached terminate_embargo_bt with no reason would end the embargo
+      with nothing to audit, which EMB-14-005 forbids.
+    adr:
+    - ADR-0025
+    verification: >-
+      `test/core/behaviors/embargo/test_terminate_active_embargo_tree.py`
+      (`test_no_reason_ends_nothing`) confirms that with no reason the tree ends
+      nothing.
+    relationships:
+    - rel_type: implements
+      spec_id: EMB-14-001
+  - id: EMB-14-007
+    priority: MUST
+    kind: project
+    statement: >-
+      The create_terminate_active_embargo_tree factory MUST have the actor choose the
+      reason through the matching Evaluator call-out point: ExitEmbargoWhenDeployed,
+      ExitEmbargoWhenFixReady or ExitEmbargoForOtherReason. EmbargoExitPolicyGuard or
+      EmbargoExitOverride (EMB-14-002, EMB-14-003) follows, then the OnEmbargoExit
+      actuator.
     rationale: >-
       A Selector of Evaluator call-out points gives actors a clear interface with three
       choices, and it lets a deployment inject a policy-rule backend (ADR-0025). Each
@@ -1843,19 +2254,17 @@ groups:
       `test_authorize_first_child_stochastic_is_policy_guard`,
       `test_authorize_second_child_stochastic_is_override`), and its fourth the
       OnEmbargoExit actuator
-      (`test_child_3_on_embargo_exit_deterministic_is_always_succeed`), and that with no
-      reason the tree ends nothing (`test_no_reason_ends_nothing`).
+      (`test_child_3_on_embargo_exit_deterministic_is_always_succeed`).
     relationships:
-    - rel_type: implements
-      spec_id: EMB-14-001
+    - rel_type: extends
+      spec_id: EMB-14-004
   - id: EMB-14-002
     priority: MUST
     kind: project
     statement: >-
       The create_terminate_active_embargo_tree factory MUST include an
       EmbargoExitPolicyGuard Evaluator call-out point that runs after the
-      reason Selector and before OnEmbargoExit. The guard MAY veto termination
-      regardless of the chosen reason.
+      reason Selector and before OnEmbargoExit.
     rationale: >-
       Separating the reason selection (actor intent) from the policy check
       (system authorization) allows external policy engines to block termination
@@ -1883,7 +2292,16 @@ groups:
         FAILURE: termination blocked; actor may retry with override.
     relationships:
     - rel_type: refines
-      spec_id: EMB-14-004
+      spec_id: EMB-14-007
+  - id: EMB-14-008
+    priority: MAY
+    kind: project
+    statement: >-
+      EmbargoExitPolicyGuard (EMB-14-002) MAY veto termination whatever reason the
+      actor chose.
+    rationale: >-
+      A policy engine can block termination on grounds orthogonal to the stated
+      reason, such as an active revision negotiation or a pending approval.
 
   - id: EMB-14-003
     priority: SHOULD
@@ -1891,9 +2309,7 @@ groups:
     statement: >-
       The create_terminate_active_embargo_tree factory SHOULD include an
       EmbargoExitOverride Evaluator call-out point in a Selector alongside
-      EmbargoExitPolicyGuard. When the actor explicitly accepts responsibility
-      for overriding policy, EmbargoExitOverride SHOULD return SUCCESS so that
-      termination proceeds despite a policy veto.
+      EmbargoExitPolicyGuard.
     rationale: >-
       Providing an override seam lets actors exercise their authority to exit
       in exceptional circumstances without requiring code changes. The override
@@ -1920,6 +2336,19 @@ groups:
     - rel_type: refines
       spec_id: EMB-14-002
       note: Override is the fallback arm of the policy authorization Selector
+  - id: EMB-14-009
+    priority: SHOULD
+    kind: project
+    statement: >-
+      When the actor explicitly accepts responsibility for overriding policy,
+      EmbargoExitOverride (EMB-14-003) SHOULD return SUCCESS, so that termination
+      proceeds despite a policy veto.
+    rationale: >-
+      The override exists so that an actor can exit in exceptional circumstances.
+      It does so only when the actor takes responsibility for overriding the policy.
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-14-003
 
 - id: EMB-15
   title: Inbound Embargo-Response Decision (Received Side)
@@ -2112,20 +2541,12 @@ groups:
     statement: >-
       For Flow A (EP proposing terms), the decision seam SHOULD provide a
       counter-proposal arm gated by a WillingToCounterEmbargoProposal Evaluator
-      call-out point. Countering MUST NOT introduce a new mechanism: when the
-      arm is taken, the seam delegates to the existing embargo proposal trigger
-      (propose_embargo_trigger_bt via SvcProposeEmbargoUseCase), which emits a
-      fresh EP while the EM state remains PROPOSED. The default DETERMINISTIC
-      backend for this call-out point SHOULD return FAILURE (do not counter),
-      reflecting the recommended practice of accepting and revising rather than
-      countering.
+      call-out point.
     rationale: >-
       A counter-proposal is operationally identical to proposing: the propose
       trigger already records a "counter-proposed, no state change" outcome when
-      invoked in PROPOSED. Modeling counter as routing to the existing trigger
-      avoids duplicate mechanism and keeps the EM lifecycle single-sourced.
-      Countering is intentionally low-automation and off by default; the
-      recommended path is accept-then-revise.
+      invoked in PROPOSED. Countering is intentionally low-automation and off by
+      default; the recommended path is accept-then-revise.
     testable: true
     preconditions:
     - em_state:
@@ -2138,7 +2559,34 @@ groups:
       actor: system
       action: Run WillingToCounterEmbargoProposal Evaluator call-out point
       expected: SUCCESS elects the counter arm; FAILURE (default) skips it
-    - order: 2
+    postconditions:
+    - description: >-
+        The counter arm runs only when WillingToCounterEmbargoProposal succeeds
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-15-001
+    - rel_type: satisfies
+      spec_id: EMB-01-001
+      note: Counter reuses the EP proposal path
+  - id: EMB-15-011
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The counter-proposal arm (EMB-15-003) MUST NOT introduce a new mechanism.
+      When the arm is taken, the seam delegates to the existing embargo proposal
+      trigger, propose_embargo_trigger_bt via SvcProposeEmbargoUseCase.
+      That trigger emits a fresh EP while the EM state remains PROPOSED.
+    rationale: >-
+      Modeling counter as routing to the existing trigger avoids duplicate mechanism
+      and keeps the EM lifecycle single-sourced.
+    verification: >-
+      `test/core/behaviors/embargo/test_response_decision_tree.py`
+      (`test_counter_arm_second_child_is_delegate`,
+      `test_flow_a_counter_delegation_when_willing`) confirms the counter arm ends in
+      a delegate and that taking the arm ticks the supplied counter tree.
+    testable: true
+    steps:
+    - order: 1
       actor: actor
       action: Delegate to propose_embargo_trigger_bt with new terms
       expected: New EP emitted; EM remains PROPOSED (counter recorded)
@@ -2147,11 +2595,21 @@ groups:
         Counter EP emitted via the existing proposal mechanism; no new
         counter-specific transition introduced
     relationships:
-    - rel_type: refines
-      spec_id: EMB-15-001
-    - rel_type: satisfies
-      spec_id: EMB-01-001
-      note: Counter reuses the EP proposal path
+    - rel_type: extends
+      spec_id: EMB-15-003
+  - id: EMB-15-012
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The default DETERMINISTIC backend for the WillingToCounterEmbargoProposal
+      call-out point (EMB-15-003) SHOULD return FAILURE, so that the seam does not
+      counter.
+    rationale: >-
+      The recommended practice is to accept and then revise rather than to counter,
+      so countering is off by default.
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-15-003
 
   - id: EMB-15-004
     priority: MUST
@@ -2247,13 +2705,15 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      When this codebase's embargo-response decision seam resolves to reject, it MUST
-      delegate to the existing rejection mechanism for the overture's flow
-      (EMB-15-004) rather than duplicating the transition: reject_embargo_trigger_bt
-      for Flow A, the invitee's Reject of the Invite for Flow B. It MUST honour the
-      rejection EMB-01-002 requires independent of any adjudication outcome. In this
-      prototype the owner's auto-answer to a Flow B Invite is its decision for the case,
-      not a Reject of the Invite.
+      When its embargo-response decision seam resolves to reject, this codebase MUST
+      delegate to the existing rejection mechanism (EMB-15-004) rather than duplicate
+      the transition.
+      The mechanism follows the overture's flow: reject_embargo_trigger_bt for Flow A,
+      and the invitee's Reject of the Invite for Flow B.
+    note: >-
+      In this prototype the owner's auto-answer to a Flow B Invite is its decision for
+      the case, not a Reject of the Invite. The rejection EMB-01-002 requires, whatever
+      the adjudication outcome, is EMB-15-010.
     rationale: >-
       The rejection paths already carry the EM and consent semantics. If the decision
       layer re-implemented the transition, the two copies could drift apart, and a
@@ -2285,21 +2745,19 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant in EM Proposed (q^em ∈ P) that detects a CS transition into
-      a public (q^cs ∈ ···P··), exploit-available (q^cs ∈ ····X·), or
-      attacks-observed (q^cs ∈ ·····A) state MUST abandon the proposed embargo
-      by cancelling each open proposal in the case's embargo register, so EM
-      derives None (q^em P → N), and MUST notify the other Participants. The
-      CASE_MANAGER cancels each proposal with the activity its AS2 shape
-      names: its ER, `Reject(Invite(EmbargoEvent))`, of a proposal it
-      received, committed as `reject_invite_to_embargo_on_case`, or its
-      `Undo(Invite(EmbargoEvent))` of a proposal it made itself, committed
-      as `undo_invite_to_embargo_on_case`, followed by its
-      `Undo(Invite(EmbargoEvent))` of each Invite it relayed for that
-      proposal. A proposal never relayed is cancelled all the same. The
-      entries that abandon every open proposal MUST commit in one
-      transaction (CLP-07-015), and a replica MUST apply each proposal's
-      CANCEL once, from the entry that carries it (ADR-0152).
+      A Participant in EM Proposed (q^em ∈ P) MUST abandon the proposed embargo when it
+      detects a CS transition into P, X or A.
+      The P state is public (q^cs ∈ ···P··), X is exploit-available (q^cs ∈ ····X·), and
+      A is attacks-observed (q^cs ∈ ·····A).
+      It cancels each open proposal in the case's embargo register, so EM derives None
+      (q^em P → N).
+      The CASE_MANAGER cancels a proposal it received with its ER,
+      `Reject(Invite(EmbargoEvent))`, committed as `reject_invite_to_embargo_on_case`.
+      It cancels a proposal it made itself with its `Undo(Invite(EmbargoEvent))`,
+      committed as `undo_invite_to_embargo_on_case`.
+      After either, it sends its `Undo(Invite(EmbargoEvent))` of each Invite it relayed
+      for that proposal.
+      A proposal never relayed is cancelled all the same.
     rationale: >-
       EMB-01-002 establishes that embargo negotiation is not viable once public
       disclosure, exploit availability, or attacks have occurred. EMB-01-002 is
@@ -2383,14 +2841,86 @@ groups:
     stories:
     - story_2022_080
     - story_2022_023
+  - id: EMB-16-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant that abandons a proposed embargo on a P/X/A transition
+      (EMB-16-001) MUST notify the other Participants.
+    rationale: >-
+      Continuing to negotiate a proposed embargo that is no longer viable would
+      mislead the other Participants. The CASE_MANAGER's committed entries are the
+      notice to every other Participant (EP-09-007, EP-09-009).
+    verification: >-
+      `test/core/behaviors/embargo/nodes/test_abandon.py`
+      (`test_the_manager_abandons_every_open_proposal_and_commits_each`) asserts the
+      CASE_MANAGER commits each cancelling activity.
+    testable: true
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-16-001
+    adr:
+    - ADR-0122
+    stories:
+    - story_2022_080
+    - story_2022_023
+  - id: EMB-16-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST commit the entries that abandon every open proposal
+      (EMB-16-001) in one transaction (CLP-07-015).
+    rationale: >-
+      A partly committed abandonment would leave some proposals open after the case
+      reached P/X/A, so the case's register and its replicas would disagree about
+      which proposals are still open.
+    verification: >-
+      `test/core/behaviors/embargo/nodes/test_abandon.py`
+      (`test_a_later_failed_commit_abandons_no_proposal`,
+      `test_a_failed_undo_keeps_no_part_of_the_abandonment`) asserts a failed commit
+      keeps no part of the abandonment.
+    testable: true
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-16-001
+    - rel_type: refines
+      spec_id: CLP-07-015
+    adr:
+    - ADR-0122
+    stories:
+    - story_2022_080
+    - story_2022_023
+  - id: EMB-16-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A replica MUST apply each abandoned proposal's CANCEL once, from the entry that
+      carries it (ADR-0152).
+    rationale: >-
+      The CASE_MANAGER's Reject cancels the proposal, and each Undo after it finds
+      the proposal cancelled and changes nothing. Applying the CANCEL from its own
+      entry keeps the replica's register equal to the CASE_MANAGER's.
+    verification: >-
+      `test/core/behaviors/sync/nodes/test_embargo_abandonment_effect.py`
+      (`test_each_entry_drops_its_proposal_and_the_last_reaches_none`,
+      `test_an_undo_after_the_reject_changes_nothing_more`) replays both shapes on a
+      replica.
+    testable: true
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-16-001
+    adr:
+    - ADR-0152
+    stories:
+    - story_2022_080
+    - story_2022_023
   - id: EMB-16-002
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      A Participant that does not hold the `CASE_MANAGER` role and detects a
-      P/X/A CS transition while EM is Proposed MUST NOT emit ER as the
-      abandonment of the case's open proposals, and MUST NOT write the
-      abandonment to its own EM state.
+      This rule covers a Participant without the `CASE_MANAGER` role that detects a
+      P/X/A CS transition while EM is Proposed.
+      It MUST NOT emit ER as the abandonment of the case's open proposals.
     rationale: >-
       Abandoning the case's open proposals is a decision for the case, and only the
       actor that holds the CASE_MANAGER role writes shared EM state (EMB-16-001,
@@ -2423,6 +2953,30 @@ groups:
     - ADR-0113
     stories:
     - story_2022_014
+  - id: EMB-16-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      This rule covers a Participant without the `CASE_MANAGER` role that detects a
+      P/X/A CS transition while EM is Proposed.
+      It MUST NOT write the abandonment to its own EM state.
+    rationale: >-
+      Only the actor that holds the CASE_MANAGER role writes shared EM state
+      (EMB-16-001, EP-09-008). Another Participant's EM moves when its replica replays
+      the CASE_MANAGER's entries.
+    verification: >-
+      `test/core/behaviors/embargo/nodes/test_abandon.py`
+      (`test_a_non_manager_neither_writes_nor_asks`) runs
+      `reject_proposed_embargo_bt` as a non-manager and asserts EM is unchanged.
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-16-002
+    - rel_type: depends_on
+      spec_id: EP-09-008
+    adr:
+    - ADR-0113
+    stories:
+    - story_2022_014
 - id: EMB-17
   title: Late Accept of an Expired Embargo Invitation
   description: >-
@@ -2442,9 +2996,7 @@ groups:
     statement: >-
       A CASE_MANAGER receiving an `Accept(Invite(EmbargoEvent))` after the
       invitation's effective RSVP deadline MUST NOT reject it solely because the
-      deadline has passed. It MUST evaluate whether the accepted embargo is still
-      compatible with the case's current embargo and then apply EMB-17-002,
-      EMB-17-003, or EMB-17-004.
+      deadline has passed.
     rationale: >-
       Being liberal in what is accepted serves CVD outcomes. A late accepter is
       volunteering to coordinate; refusing them converts a missed deadline into
@@ -2465,6 +3017,36 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-28-003
+    adr:
+    - ADR-0065
+    stories:
+    - story_2022_013
+    - story_2022_014
+  - id: EMB-17-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      For an `Accept(Invite(EmbargoEvent))` received after the invitation's effective
+      RSVP deadline, the CASE_MANAGER MUST check whether the accepted embargo is still
+      compatible with the current one.
+      It then applies EMB-17-002, EMB-17-003 or EMB-17-004.
+    rationale: >-
+      A late Accept can name the embargo in force, a superseded one, or none at all.
+      Each needs its own answer, so the CASE_MANAGER checks which case holds first.
+      See ADR-0065.
+    verification: >-
+      `test/core/behaviors/embargo/nodes/test_late_accept.py`
+      (`test_each_case_state_has_one_route`) confirms a late accept is routed by the
+      current embargo state to exactly one of the EMB-17-002, EMB-17-003 or
+      EMB-17-004 outcomes.
+    testable: true
+    preconditions:
+    - description: The referenced invitation's effective RSVP deadline has passed
+    postconditions:
+    - description: One of EMB-17-002, EMB-17-003, or EMB-17-004 has been applied
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-17-001
     adr:
     - ADR-0065
     stories:
@@ -2520,19 +3102,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the accepted embargo is NOT the case's current embargo (for example the embargo was
-      revised or replaced after the invitation was sent), the CASE_MANAGER MUST issue a fresh
-      `Invite(EmbargoEvent)` to the accepting actor carrying the case's current embargo. An
-      accepting participant at TIMED_OUT moves `TIMED_OUT → INVITED` for the current embargo (ADR-0118).
-      The fresh Invite is a relay (EP-09-002): its `actor` is the
-      CASE_MANAGER and its `attributedTo` names the current embargo's
-      proposer, or the CASE_MANAGER itself when it made the embargo without a
-      proposal, as it makes the protocol default. The CASE_MANAGER MUST
-      commit it as `invite_to_embargo_on_case` once it has queued it
-      (SYNC-09-002), followed by the invitee's `INVITED` row with the
-      Invite's deadline (CM-28-013), and a replica MUST apply it through the
-      relay slot: its register already holds the embargo the Invite names,
-      so the Invite proposes nothing and EM does not move (ADR-0152).
+      When the accepted embargo is not the case's current embargo, the CASE_MANAGER MUST
+      send the accepting actor a fresh `Invite(EmbargoEvent)` with the current embargo.
+      An accepting participant at TIMED_OUT moves `TIMED_OUT → INVITED` for the current
+      embargo (ADR-0118).
+      The fresh Invite is a relay (EP-09-002). Its `actor` is the CASE_MANAGER.
+      Its `attributedTo` names the current embargo's proposer, or the CASE_MANAGER
+      itself when it made the embargo as the protocol default, without a proposal.
     rationale: >-
       Recording the stale Accept as consent would make the participant a
       signatory to terms they never saw. Rejecting them would discard a
@@ -2575,6 +3151,57 @@ groups:
     stories:
     - story_2022_013
     - story_2022_014
+  - id: EMB-17-013
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Once it has queued the fresh Invite of EMB-17-003 (SYNC-09-002), the CASE_MANAGER
+      MUST commit it as `invite_to_embargo_on_case`. The invitee's `INVITED` row with
+      the Invite's deadline follows it (CM-28-013).
+    rationale: >-
+      The re-invite asks about terms somebody proposed, exactly as a relay does, so it
+      carries the relay's semantic type (ADR-0152). Committing it after it is queued
+      lets a rebuilt send keep the same id (SYNC-09-002).
+    verification: >-
+      `test/core/use_cases/received/test_embargo_answer_routing.py`
+      (`test_the_managers_reinvite_is_committed_and_replayed_by_a_replica`) confirms
+      the re-invite is committed as `invite_to_embargo_on_case`, followed by the
+      invitee's `INVITED` row.
+    testable: true
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-17-003
+    - rel_type: depends_on
+      spec_id: CM-28-013
+    adr:
+    - ADR-0152
+    stories:
+    - story_2022_013
+    - story_2022_014
+  - id: EMB-17-014
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A replica MUST apply the CASE_MANAGER's re-invite (EMB-17-003) through the
+      relay slot, so that the Invite proposes nothing and EM does not move.
+    rationale: >-
+      The replica's register already holds the embargo the Invite names, so the
+      Invite asks for consent to it and changes no embargo state (ADR-0152).
+    verification: >-
+      `test/core/use_cases/received/test_embargo_answer_routing.py`
+      (`test_the_managers_reinvite_is_committed_and_replayed_by_a_replica`) and
+      `test/core/behaviors/sync/nodes/test_embargo_relay_effect.py`
+      (`test_a_reinvite_to_the_embargo_in_force_indexes_nothing`) confirm a replica
+      applies the re-invite with no new proposal and no EM move.
+    testable: true
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-17-003
+    adr:
+    - ADR-0152
+    stories:
+    - story_2022_013
+    - story_2022_014
   - id: EMB-17-005
     priority: MUST_NOT
     kind: protocol
@@ -2609,14 +3236,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the case has no current embargo (EM state is EXITED or NONE), the late Accept
-      changes nothing, and the CASE_MANAGER MUST treat it as a no-op: it MUST NOT commit
-      any
-      ledger entry for it, MUST NOT send any activity in reply, and MUST leave the
-      participant's consent rows unchanged: nothing is recorded after a termination (EM
-      EXITED), and a TIMED_OUT row stays TIMED_OUT when no embargo has started (EM NONE)
-      (ADR-0118). A redelivery of the same Accept gets the same result. It is a correct
-      no-op, not a refusal (HP-01-003).
+      When the case has no current embargo (EM EXITED or NONE), the CASE_MANAGER MUST
+      treat a late Accept as a no-op.
+      The no-op is not a refusal (HP-01-003).
+      A redelivery of the same Accept gets the same result.
     note: >-
       EMB-13-002 independently forbids seeking or accepting new embargoes for a
       case whose CS state is public, exploit-public, or attacks-observed. This
@@ -2670,6 +3293,76 @@ groups:
     stories:
     - story_2022_013
     - story_2022_088
+  - id: EMB-17-015
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST NOT commit any ledger entry for a late Accept that arrives
+      when the case has no current embargo (EMB-17-004).
+    rationale: >-
+      An entry acknowledging the Accept would change nothing at any receiver. Anything
+      that holds the case and its ledger can see the Accept named an embargo the case
+      no longer holds, so the no-op is not ledgered (ADR-0152, CLP-02-013).
+    verification: >-
+      `test/core/use_cases/received/test_embargo_answer_routing.py`
+      (`test_a_late_accept_with_no_embargo_to_bind_records_and_sends_nothing`)
+      confirms that a late Accept arriving when EM is EXITED commits no ledger entry.
+    testable: true
+    relationships:
+    - rel_type: part_of
+      spec_id: EMB-17-004
+    adr:
+    - ADR-0152
+    stories:
+    - story_2022_013
+    - story_2022_088
+  - id: EMB-17-016
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST NOT send any activity in reply to a late Accept that
+      arrives when the case has no current embargo (EMB-17-004).
+    rationale: >-
+      There is nothing to invite the actor to, so a reply or fresh invitation would
+      manufacture a negotiation nobody requested.
+    verification: >-
+      `test/core/use_cases/received/test_embargo_answer_routing.py`
+      (`test_a_late_accept_with_no_embargo_to_bind_records_and_sends_nothing`)
+      confirms that a late Accept arriving when EM is EXITED queues nothing.
+    testable: true
+    relationships:
+    - rel_type: part_of
+      spec_id: EMB-17-004
+    adr:
+    - ADR-0152
+    stories:
+    - story_2022_013
+    - story_2022_088
+  - id: EMB-17-017
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST leave the participant's consent rows unchanged for a late
+      Accept that arrives when the case has no current embargo (EMB-17-004). Nothing
+      is recorded after a termination (EM EXITED), and a TIMED_OUT row stays TIMED_OUT
+      when no embargo has started (EM NONE) (ADR-0118).
+    rationale: >-
+      The Accept names an embargo that is no longer, or not yet, in force, so no row
+      can bind to it. The actor's case participation is independent of embargo
+      consent and survives.
+    verification: >-
+      `test/core/use_cases/received/test_embargo_answer_routing.py`
+      (`test_a_late_accept_with_no_embargo_to_bind_records_and_sends_nothing`)
+      confirms that a late Accept arriving when EM is EXITED leaves every consent row unchanged.
+    testable: true
+    relationships:
+    - rel_type: part_of
+      spec_id: EMB-17-004
+    adr:
+    - ADR-0152
+    stories:
+    - story_2022_013
+    - story_2022_088
   - id: EMB-17-007
     priority: MUST_NOT
     kind: protocol
@@ -2704,14 +3397,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the CASE_MANAGER honours a late Accept (EMB-17-002), it MUST commit
-      the received `Accept(Invite(EmbargoEvent))` verbatim as
-      `accept_invite_to_embargo_on_case`, its entry carrying the AGREED row it
-      states, exactly as it commits an on-time Accept, so that a replica copies
-      the row without re-evaluating the deadline (RSH-08-004, ADR-0124,
-      CLP-07-011). It MUST NOT commit any further entry for the same row, such
-      as its own `Update(EmbargoConsent)` of the AGREED row (CLP-07-002,
-      ADR-0152).
+      When the CASE_MANAGER honours a late Accept (EMB-17-002), it MUST commit the
+      received `Accept(Invite(EmbargoEvent))` verbatim as
+      `accept_invite_to_embargo_on_case`.
+      Its entry carries the AGREED row the Accept states, exactly as for an on-time
+      Accept.
+      A replica then copies the row without re-evaluating the deadline (RSH-08-004,
+      ADR-0124, CLP-07-011).
     rationale: >-
       Without a committed entry the replica has no signal that the row moved
       to AGREED; the replica's participant record would silently stay
@@ -2745,6 +3437,30 @@ groups:
     stories:
     - story_2022_013
     - story_2022_014
+  - id: EMB-17-018
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER honours a late Accept (EMB-17-002), it MUST NOT commit any
+      further entry for the same row.
+      An example is its own `Update(EmbargoConsent)` of the AGREED row (CLP-07-002,
+      ADR-0152).
+    rationale: >-
+      The Accept states the change, so its entry is the change's entry (CLP-07-013);
+      a follow-up `Update` of the same row would record one state change twice.
+    verification: >-
+      `test/core/use_cases/received/test_embargo_answer_routing.py`
+      (`test_an_honoured_late_accept_is_committed_and_replayed_by_a_replica`) asserts
+      no `Update(EmbargoConsent)` of the AGREED row follows the committed Accept.
+    testable: true
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-17-009
+    adr:
+    - ADR-0152
+    stories:
+    - story_2022_013
+    - story_2022_014
 
 - id: EMB-18
   title: EM Write-Boundary Consolidation
@@ -2762,16 +3478,15 @@ groups:
     kind: architecture
     verification_debt: '#2569'
     statement: >-
-      Every change to a case's embargo register, and so to the EM state derived
-      from it (ADR-0122), MUST be made through EmbargoLifecycle (its public
-      operations such as propose_embargo(), activate_embargo(), and
-      reject_embargo_proposal(), each of which applies one register step), or,
-      for an act converted to the copy model,
-      by applying the act's ledger entry through the one apply function,
-      apply_embargo_change() (ADR-0124, CM-23-016). BT nodes and helper
-      functions MUST NOT otherwise apply a register step to the case
-      themselves, or assign case.current_status.em, and then call
-      dl.save(case) as a substitute for routing through one of those two.
+      This codebase MUST make every change to a case's embargo register through
+      EmbargoLifecycle, or through apply_embargo_change() for an act converted to the
+      copy model.
+      A change to the register is also a change to the EM state derived from it
+      (ADR-0122).
+      Each public operation of EmbargoLifecycle, such as propose_embargo(),
+      activate_embargo() and reject_embargo_proposal(), applies one register step.
+      The one apply function, apply_embargo_change(), applies the act's ledger entry
+      (ADR-0124, CM-23-016).
     rationale: >-
       EmbargoLifecycle and the one apply function are the only embargo writers. A path
       that goes around both skips the fail-closed reads of EMB-18-003, the PEC cascade,
@@ -2783,15 +3498,31 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SM-04-001
+  - id: EMB-18-008
+    priority: MUST_NOT
+    kind: architecture
+    verification_debt: '#2569'
+    statement: >-
+      A BT node or helper function MUST NOT apply a register step itself, or assign
+      case.current_status.em, then call dl.save(case) in place of the EMB-18-001
+      writers.
+    rationale: >-
+      A path that goes around both writers skips the fail-closed reads of EMB-18-003,
+      the PEC cascade, and the shared starting-state and EM checks. The EM value the
+      register derives also overwrites a status EM that a path assigns directly.
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-18-001
+    adr:
+    - ADR-0122
+    - ADR-0124
   - id: EMB-18-002
     priority: MUST_NOT
     kind: architecture
     verification_debt: '#2569'
     statement: >-
-      A BT node or helper MUST NOT check an embargo register step as a
-      non-blocking warning-only guard and then proceed to write regardless of
-      the result. A refused register step MUST either raise or cause the node
-      to return Status.FAILURE without writing to the DataLayer.
+      A BT node or helper MUST NOT check an embargo register step as a non-blocking
+      warning-only guard and then write regardless of the result.
     rationale: >-
       A warning-only guard looks like validation but lets an invalid state persist. The
       correct pattern is to go through EmbargoLifecycle (EMB-18-001), which fails closed
@@ -2799,18 +3530,26 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EMB-18-001
+  - id: EMB-18-009
+    priority: MUST
+    kind: architecture
+    verification_debt: '#2569'
+    statement: >-
+      A refused embargo register step MUST either raise or make the BT node return
+      Status.FAILURE without writing to the DataLayer.
+    rationale: >-
+      A refusal that still writes lets an invalid state persist. EmbargoLifecycle
+      (EMB-18-001) fails closed in STRICT mode, so a refused step leaves the store
+      unchanged.
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-18-002
   - id: EMB-18-003
     priority: MUST
     kind: architecture
     statement: >-
       A path that activates an embargo register entry MUST already hold that
-      `EmbargoEvent`'s record in the same store. The
-      `EmbargoLifecycle` activation writers (`activate_embargo()`,
-      `initialize_creation_embargo()`) MUST read the
-      record of the embargo being activated, as well as the one it replaces
-      (EP-05-001), and MUST fail
-      closed on an unreadable one before changing the register. An unreadable
-      replaced embargo is a broken invariant, reported as a refusal, not deferred.
+      `EmbargoEvent`'s record in the same store.
     note: >-
       The writers' fail-closed read still guards every activation; a replica's fetch
       (EMB-18-007) only gives it the record before the writer reads it. The
@@ -2837,6 +3576,48 @@ groups:
       spec_id: EP-05-001
     - rel_type: depends_on
       spec_id: AKM-05-003
+  - id: EMB-18-010
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The `EmbargoLifecycle` activation writers (`activate_embargo()`,
+      `initialize_creation_embargo()`) MUST read the record of the embargo being
+      activated and of the one it replaces (EP-05-001).
+    rationale: >-
+      The EP-05-001 comparison reads the replaced embargo, so it holds only if the
+      writer reads both records before it changes the register.
+    verification: >-
+      Unit tests of `accept_embargo_invite()` and `activate_embargo()` in
+      `test/core/services/embargo_lifecycle/` assert that an unreadable activated or replaced
+      embargo raises before any write and leaves the stored case unchanged, and
+      a received-Accept test asserts the handler reports `REFUSED`.
+    testable: true
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-18-003
+    - rel_type: constrains
+      spec_id: EP-05-001
+  - id: EMB-18-011
+    priority: MUST
+    kind: architecture
+    statement: >-
+      An `EmbargoLifecycle` activation writer MUST fail closed on an unreadable
+      activated or replaced embargo (EMB-18-010) before changing the register. An
+      unreadable replaced embargo is a broken invariant, reported as a refusal, not
+      deferred.
+    rationale: >-
+      A replica can fetch the record from the CASE_MANAGER (AKM-05-003). At the
+      CASE_MANAGER, a deferral waits for a record that no path delivers, so the writer
+      refuses instead.
+    verification: >-
+      Unit tests of `accept_embargo_invite()` and `activate_embargo()` in
+      `test/core/services/embargo_lifecycle/` assert that an unreadable activated or replaced
+      embargo raises before any write and leaves the stored case unchanged, and
+      a received-Accept test asserts the handler reports `REFUSED`.
+    testable: true
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-18-010
   - id: EMB-18-007
     priority: MUST
     kind: protocol
@@ -2869,13 +3650,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A receiver MUST refuse an inline `EmbargoEvent` whose `context` is neither the case
-      that carries it nor a report that case holds (EP-04-009), and MUST refuse it before
-      writing anything: the event is not stored and no embargo state of either case
-      changes. The same refusal applies to the record the receiver already holds under
-      the embargo's id, whether the case or ledger entry carries the embargo inline or
-      names it by bare id. For a ledger entry, the case's reports are those of the
-      replica's stored case.
+      A receiver MUST refuse an inline `EmbargoEvent` whose `context` is neither the
+      case that carries it nor a report that case holds (EP-04-009).
+      The same refusal applies to the record the receiver already holds under the
+      embargo's id.
+      It applies whether the case or ledger entry carries the embargo inline or names it
+      by bare id.
+      For a ledger entry, the case's reports are those of the replica's stored case.
     rationale: >-
       An embargo belongs to the case that its `context` names. A handler stores a
       carried embargo when its store does not hold that id yet, and the first write
@@ -2903,6 +3684,28 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EMB-18-003
+  - id: EMB-18-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST make an EMB-18-004 refusal before it writes anything.
+      The event is then not stored, and no embargo state of either case changes.
+    rationale: >-
+      A handler stores a carried embargo when its store does not hold that id yet, and
+      the first write wins. A refusal after a write would leave the planted record in
+      the store for the other case to name later.
+    verification: >-
+      `test/core/services/test_carried_embargo.py`
+      (`test_an_inline_embargo_of_another_case_is_refused_unstored`,
+      `test_a_case_naming_a_held_embargo_of_another_case_is_refused_unwritten`)
+      confirms the receiver holds no record of a refused event afterwards and leaves
+      both cases' embargo state unchanged.
+    testable: true
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-18-004
+    stories:
+    - story_2022_014
   - id: EMB-18-005
     priority: MUST
     kind: protocol
@@ -2941,10 +3744,8 @@ groups:
     priority: MUST
     kind: architecture
     statement: >-
-      The EM transitions of EMB-18-005 MUST be held as one declarative table,
-      and applying an embargo register step MUST refuse, with no write, a step
-      whose EM move is not in it. The CASE_MANAGER and every replica MUST
-      apply the same check, as part of the one apply function (ADR-0124).
+      This codebase MUST hold the EM transitions of EMB-18-005 as one declarative
+      table.
     rationale: >-
       A check only in tests protects only the register states a test reaches.
       Refusing at the step makes a register defect fail when it happens, on
@@ -2953,15 +3754,53 @@ groups:
     verification: >-
       `test_em_transition_table_is_declared_and_enforced` in
       `test/core/states/test_em_transition_table.py` asserts the table is
-      declared and a step whose EM move is not in it is refused, and
-      `test_a_refused_em_move_leaves_the_case_unchanged` that the refusal
-      writes nothing to the case.
+      declared.
     adr:
     - ADR-0130
     testable: true
     relationships:
     - rel_type: refines
       spec_id: EMB-18-005
+  - id: EMB-18-013
+    priority: MUST
+    kind: architecture
+    statement: >-
+      Applying an embargo register step MUST refuse, with no write, a step whose EM
+      move is not in the EMB-18-006 table.
+    rationale: >-
+      A check only in tests protects only the register states a test reaches.
+      Refusing at the step makes a register defect fail when it happens.
+    verification: >-
+      `test_em_transition_table_is_declared_and_enforced` in
+      `test/core/states/test_em_transition_table.py` asserts a step whose EM move is
+      not in the table is refused, and
+      `test_a_refused_em_move_leaves_the_case_unchanged` that the refusal writes
+      nothing to the case.
+    adr:
+    - ADR-0130
+    testable: true
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-18-006
+  - id: EMB-18-014
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The CASE_MANAGER and every replica MUST apply the EMB-18-013 check as part of
+      the one apply function (ADR-0124).
+    rationale: >-
+      One check in the one apply function makes a register defect fail on every
+      node, not only on the node that made the step.
+    verification: >-
+      `test_a_refused_em_move_leaves_the_case_unchanged` in
+      `test/core/states/test_em_transition_table.py` drives the refusal through the
+      apply function.
+    adr:
+    - ADR-0124
+    testable: true
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-18-013
 
 - id: EMB-19
   title: Embargo Teardown Announcement
@@ -2976,10 +3815,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `Announce(EmbargoEvent)` emitted after an embargo teardown MUST be authored by
-      the actor holding the `CASE_MANAGER` role for the case, and MUST be addressed to
-      every active participant (CM-10-004) except the announcing actor. It MUST NOT be
-      addressed to the Case Manager.
+      The actor that holds the `CASE_MANAGER` role for the case MUST author the
+      `Announce(EmbargoEvent)` emitted after an embargo teardown.
     rationale: >-
       The teardown changes canonical case state, so the actor that holds the
       CASE_MANAGER role announces it, and the participants are its audience. The tree
@@ -3001,8 +3838,7 @@ groups:
       spec_id: CLP-10-001
     verification: >-
       `test/core/behaviors/embargo/test_announce_teardown_tree.py` asserts the announce
-      is authored by the CASE_MANAGER and addressed to the case's other active
-      participants, and, with each actor in its own store, that a participant
+      is authored by the CASE_MANAGER, and, with each actor in its own store, that a participant
       replica receiving the same `Remove(EmbargoEvent)` queues nothing.
     adr:
     - ADR-0109
@@ -3013,6 +3849,53 @@ groups:
     tags:
     - protocol
     - messaging
+  - id: EMB-19-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST address the teardown `Announce(EmbargoEvent)` (EMB-19-001)
+      to every active participant (CM-10-004) except itself.
+    rationale: >-
+      The teardown changes canonical case state, and the participants are the
+      audience of that change.
+    verification: >-
+      `test/core/behaviors/embargo/test_announce_teardown_tree.py`
+      (`test_emits_announce_when_active_embargo_removed`) asserts the announce is
+      addressed to the case's other active participants.
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-19-001
+    - rel_type: uses_definition
+      spec_id: CM-10-004
+    tags:
+    - protocol
+    - messaging
+    stories:
+    - story_2022_045
+    - story_2022_046
+  - id: EMB-19-004
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST NOT address the teardown `Announce(EmbargoEvent)`
+      (EMB-19-001) to the Case Manager.
+    rationale: >-
+      The tree that commits the teardown runs as the CASE_MANAGER, because the ledger
+      commit is gated on that role. An announcement addressed to the CASE_MANAGER
+      would go to the announcing actor itself and loop back for no additional record.
+    verification: >-
+      `test/core/behaviors/embargo/test_announce_teardown_tree.py`
+      (`test_emits_announce_when_active_embargo_removed`) asserts the announce is
+      not addressed to the CASE_MANAGER.
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-19-001
+    tags:
+    - protocol
+    - messaging
+    stories:
+    - story_2022_045
+    - story_2022_046
   - id: EMB-19-002
     priority: MUST
     kind: protocol

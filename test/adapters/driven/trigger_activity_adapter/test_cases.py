@@ -486,7 +486,7 @@ class TestToWireObject:
         ``WIRE_TYPE_MAP`` only by coincidence (``VulnerabilityCase``) and
         otherwise found the class itself through the core-map fallback
         (``VultronPerson``, ``VultronNote``), which ARCH-23-002 forbids and
-        VM-06-008 no longer offers by default (ISSUE-3565).
+        VM-06-013 no longer offers by default (ISSUE-3565).
         """
         assert _to_wire_object(core_obj, core_obj.id_) is core_obj
 

@@ -59,7 +59,7 @@ class CaseStatus(CoreObject):
     # Input accepts the wire spelling and the field name only.  The old flat
     # snake_case spellings (``em_state``, ``pxa_state``) are retired with their
     # shim properties (SDO-03-003): ``extra="forbid"`` refuses them on
-    # in-process and stored data (SDO-03-005), and the parse edge refuses them
+    # in-process and stored data (SDO-03-008), and the parse edge refuses them
     # inbound as near misses of ``emState`` / ``pxaState`` (MV-11-002).
     em: EmDimension = Field(
         default_factory=EmDimension,
@@ -79,7 +79,7 @@ class CaseStatus(CoreObject):
     # ``pxa.state``.  ``_ScalarDimension``'s ``_accept_bare_state`` accepts the
     # bare state value the flat wire form carries.  ``em`` is a frozen field
     # and ``EmDimension`` a frozen model, so ``status.em = ...`` and
-    # ``status.em.state = ...`` raise ``ValidationError`` (SDO-03-006,
+    # ``status.em.state = ...`` raise ``ValidationError`` (SDO-03-010,
     # EMB-18-001).  The owning ``VulnerabilityCase`` stamps the derived EM onto
     # a copy via :meth:`with_em` rather than mutating the status (ADR-0122).
 

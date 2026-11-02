@@ -266,7 +266,7 @@ def create_ack_report_received_tree(
 
     Handles receipt of a ``Read(Offer(Report))`` (AckReport, RK).  RK goes
     from an actor the ``Offer(VulnerabilityReport)`` was addressed to, to the
-    reporter, and never to the CASE_MANAGER (RMB-08-003), so the tree has no
+    reporter, and never to the CASE_MANAGER (RMB-08-005), so the tree has no
     case context, no ledger commit and nothing to emit.
 
     Steps (Sequence via :func:`create_receive_activity_tree`):

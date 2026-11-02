@@ -220,7 +220,7 @@ Every **subject** the message names (invitee, accepting/rejecting actor,
 target actor) MUST be read from the message and threaded into the tree as
 leaf-node data (ADR-0022), read **from the message, never `= receiving_actor_id`**
 — an `Invite(EmbargoEvent)` names its invitee as the sole `to:` recipient
-(EP-09-010; several or none is refused, never guessed). Full rule, both shapes:
+(EP-09-010; several or none is refused, never guessed, EP-09-026). Full rule, both shapes:
 [notes/bt-integration.md](../../notes/bt-integration.md). *ISSUE-2762*
 
 ---

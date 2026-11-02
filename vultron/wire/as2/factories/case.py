@@ -348,7 +348,7 @@ def add_note_to_case_activity(
     The note travels inline as the ``Add``'s ``object``: the ``object``
     field takes an ``as_Note`` and refuses a URI or a ``Link``, so this is
     the single message that both brings the note to its receiver and
-    attaches it to the case (VAM-07-002, VAM-01-010).  ``context`` defaults
+    attaches it to the case (VAM-07-002, VAM-01-015).  ``context`` defaults
     to the case, so a CASE_MANAGER entry's sealed snapshot carries it
     (CLP-07-007).
 
@@ -521,7 +521,7 @@ def offer_case_participant_role_activity(
             ``as_CaseParticipantRole`` object.
         target_actor: The actor that will receive the role offer: its profile
             as the sender holds it, or its URI, which travels as an actor
-            reference (AKM-05-005).
+            reference (AKM-05-017).
         case: The ``as_VulnerabilityCase`` (or its URI) the role is scoped
             to.  Only its URI goes on the wire as ``context``: the recipient
             is a participant and already holds the case (AKM-02-002), and the
@@ -648,7 +648,7 @@ def offer_case_ownership_transfer_activity(
     The transferee travels and is stored inline (DL-08-003): the CASE_MANAGER
     need not hold the transferee's profile, and its ledger snapshot must
     carry the transferee inline (CLP-07-006).  A held profile travels as held;
-    a bare actor URI travels as an actor reference (AKM-05-005).
+    a bare actor URI travels as an actor reference (AKM-05-017).
 
     Args:
         case: The case whose ownership is being offered, as the sender
@@ -887,7 +887,7 @@ def rm_invite_to_case_activity(
 
     Args:
         invitee: The actor being invited: its profile as the sender holds
-            it, or its URI, which travels as an actor reference (AKM-05-005).
+            it, or its URI, which travels as an actor reference (AKM-05-017).
         target: The case to join — either a ``VulnerabilityCase`` (projected
             to an enriched ``as_VulnerabilityCaseStub`` via
             :func:`_project_case_to_stub`), a pre-built ``as_VulnerabilityCaseStub``,
@@ -1065,7 +1065,7 @@ def rm_invite_to_full_case_activity(
 
     Args:
         invitee: The actor being asked: its profile as the sender holds it,
-            or its URI, which travels as an actor reference (AKM-05-005).
+            or its URI, which travels as an actor reference (AKM-05-017).
         case: The case, or its URI.
         ledger_tail: The CASE_MANAGER's ledger position when it issues the
             Invite.

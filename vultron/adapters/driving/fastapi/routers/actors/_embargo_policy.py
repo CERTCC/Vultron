@@ -25,10 +25,10 @@ the actors router under the per-actor store dependency (ADR-0073) rather than
 on a shared admin surface.
 
 ``PUT`` publishes (creates or replaces) the policy for a hosted actor; ``GET``
-returns the record the profile carries inline (EP-02-001, EP-02-002).  Because
+returns the record the profile carries inline (EP-02-001, EP-02-006).  Because
 a publish rewrites the whole profile, its write is a compare-and-set against
 the profile it read, so a concurrent profile update is never silently
-overwritten (EP-02-004).
+overwritten (EP-02-004, EP-02-007).
 
 The routes are included by :mod:`._routes` *ahead of* its ``GET
 /{actor_id:path}`` catch-all, which would otherwise swallow the path.
@@ -104,7 +104,7 @@ class EmbargoPolicyPublishRequest(BaseModel):
 
 
 _PUBLISH_ATTEMPTS = 3
-"""How many times a PUT re-reads the profile before refusing with 409 (EP-02-004)."""
+"""How many times a PUT re-reads the profile before refusing with 409 (EP-02-009)."""
 
 
 class ProfileChangedError(VultronError):
@@ -125,7 +125,7 @@ def publish_embargo_policy(
     profile is saved to *dl*, the actor's own store (EP-01-004).  An actor has
     one profile and the profile one policy field, so a replace overwrites the
     field and exactly one policy exists for the actor with nothing to delete
-    (EP-01-001, EP-02-005).
+    (EP-01-001, EP-02-013).
 
     *actor* is the profile as the caller read it, and the write is a
     compare-and-set against it (:meth:`DataLayer.save_if_unchanged`): the
@@ -170,7 +170,7 @@ def _publish_on_a_current_read(
     A publish whose read was overtaken by another write is re-applied to a
     fresh read, so the concurrent update is kept rather than overwritten.
     After :data:`_PUBLISH_ATTEMPTS` stale reads the request is refused with
-    409 and nothing is written (EP-02-004, #4102).
+    409 and nothing is written (EP-02-009, EP-02-010, #4102).
 
     Returns:
         The profile the policy was published on, the policy, and whether it
@@ -259,7 +259,7 @@ def put_embargo_policy(
     The handler resolves the actor (404 when this node does not host it) and
     answers; :func:`publish_embargo_policy` holds the replace semantics and
     :func:`_publish_on_a_current_read` the retry-then-409 on a concurrent
-    profile write (EP-02-004).
+    profile write (EP-02-008, EP-02-009).
     """
     actor, policy, replaced = _publish_on_a_current_read(
         datalayer, actor_id, body

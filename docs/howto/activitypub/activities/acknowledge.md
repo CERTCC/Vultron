@@ -47,7 +47,7 @@ You may acknowledge at any time after the report arrives, whether or not a case 
     {% include-markdown "../../../reference/messages/_occasions/embeds/report-acknowledgment.md" %}
 
 2. Do not send it to the CASE_MANAGER.
-   The CASE_MANAGER holds no record of who the Offer was addressed to, so nobody sends it an acknowledgment (RMB-08-003).
+   The CASE_MANAGER holds no record of who the Offer was addressed to, so nobody sends it an acknowledgment (RMB-08-005).
 3. Leave your RM state at `RECEIVED`.
    Acknowledgment is not a transition.
 

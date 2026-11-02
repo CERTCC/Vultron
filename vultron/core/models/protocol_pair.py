@@ -138,7 +138,7 @@ class AskExpiry(StrEnum):
     """What a reply that arrives after an ask's deadline does (ASK-03-002).
 
     The consequence belongs to the ask kind.  It is never configurable and
-    never carried on the ask activity (ASK-03-003).
+    never carried on the ask activity (ASK-03-003, ASK-03-009).
     """
 
     STALE = "stale"

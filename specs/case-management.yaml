@@ -172,7 +172,7 @@ groups:
       case (CP-09-001).
     rationale: >-
       `attributed_to` is the owner field of the case. Ownership checks read it
-      (MSM-07-008), and ownership transfer changes it together with the `CASE_OWNER`
+      (MSM-07-027), and ownership transfer changes it together with the `CASE_OWNER`
       role (CM-21-002). The `actor` of `Create(VulnerabilityCase)` records who *created*
       the case, not `attributed_to`. Thus the CASE_MANAGER does not become the owner
       when it creates the case.
@@ -1882,12 +1882,13 @@ groups:
       another party joins. The receiver initializes the default embargo at
       `RM.RECEIVED`, before it adds any other participant. Thus every later participant
       joins under the embargo (CM-14-010). The protocol default makes sure that a
-      receiver with no configured policy also gets an embargo with a limit (EP-04-005,
+      receiver with no configured policy also gets an embargo with a limit (EP-04-019,
       ADR-0096).
     note: >-
       Amended by ADR-0096. The condition was previously "if a default embargo policy is
-      configured", which left no embargo at all when none was. EP-04-005 now supplies a bounded
-      protocol default for that case, so the only condition on initialization is
+      configured", which left no embargo at all when none was. EP-04-019 now
+      supplies a bounded protocol default for that case, so the only condition on
+      initialization is
       embargo-eligibility (EP-04-008).
     verification: Integration tests in `test/demo/` confirm that a default embargo is initialized
       during case creation at RM.RECEIVED both when an actor default embargo policy is configured
@@ -2196,8 +2197,8 @@ groups:
       join.
     note: >-
       Amended by ADR-0096. The step was previously conditional on a configured default embargo
-      policy; EP-04-005 now supplies a bounded protocol default when none is configured, so the
-      only condition is embargo-eligibility (EP-04-008).
+      policy; EP-04-019 now supplies a bounded protocol default when none is
+      configured, so the only condition is embargo-eligibility (EP-04-008).
     verification: Integration tests in `test/demo/` confirm that step 3 sets the default embargo
       to `EM.ACTIVE` and seeds the case owner as a signatory both when an actor default policy is
       configured and when none is, and that it is skipped when the case is not embargo-eligible.
@@ -3271,7 +3272,7 @@ groups:
       path (CM-18-002). A late Accept that the CASE_MANAGER honours moves `TIMED_OUT →
       AGREED` directly (EMB-17-002), and a late explicit Reject moves `TIMED_OUT →
       DECLINED`. Only the activation of a revision that ends at or before the end of the
-      embargo it replaces causes `CARRY_OVER` (EP-05-001). `CARRY_OVER` also lifts a
+      embargo it replaces causes `CARRY_OVER` (EP-05-003). `CARRY_OVER` also lifts a
       `DECLINED` row. An agreement to N days is an agreement to every shorter period. A
       decline of a shorter revision objects to the loss of time, not to the embargo. A
       row whose embargo is final records the past. Thus a participant cannot give more
@@ -3673,7 +3674,7 @@ groups:
     rationale: >-
       Role-gated nodes such as `CheckIsCaseOwnerNode` read Case Owner authority from
       `CaseParticipant.case_roles`. `attributed_to` is the owner that the case names to
-      every reader (MSM-07-008). If a transfer updates only one of the two, one of two
+      every reader (MSM-07-027). If a transfer updates only one of the two, one of two
       faults occurs. The case names a new owner whose CASE_OWNER-gated acts are refused,
       such as embargo teardown and case closure. Or a participant holds the role but the
       case does not name it. Thus a transfer writes both.
@@ -4192,39 +4193,60 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST admit an ownership-transfer proposal (CM-21-005) only when
-      the transferee its inner Offer names is an active participant of the case
-      (CM-10-004), and MUST otherwise refuse it with no ledger commit and no Offer
-      made. It MUST admit the transferee's `Accept(Offer(VulnerabilityCase))`
-      (CM-21-011) only when the transferee is still an active participant when the
-      Accept is processed, and MUST otherwise refuse it with the case's
-      `attributed_to` and every participant's `CASE_OWNER` role unchanged. An owner
-      that means to transfer a case to an actor not active in it invites that actor
-      first.
+      The CASE_MANAGER MUST refuse an ownership-transfer proposal (CM-21-005) whose
+      transferee may not act on the case, with no ledger commit and no Offer made. A
+      transferee may act when it is an active participant (CM-10-004) whose closure the
+      case's ledger does not record (CM-23-018). An owner that means to transfer a case
+      to an actor not active in it invites that actor first.
     rationale: >-
       The new owner administers the case, its active embargo included, so it must
       first have agreed to that embargo and be entitled to the case content, as joining
       requires. An active participant holds the case, which is also what lets the Offer
       name the case by reference rather than carry it (ADR-0165). `CASE_OWNER` is held
       on a participant record (CM-21-002), so only a transferee with one can end the
-      transfer as the single owner CM-21-001 requires. The second check covers a
-      participant removed, or lapsed by an embargo revision, between the Offer and its
-      answer.
+      transfer as the single owner CM-21-001 requires. A closed participant stays
+      active by CM-10-004, but it receives no further case content (CM-23-004) and may
+      not act on the case (CM-23-018), so it cannot take the case on. The test is the
+      one every sender guard and case-content selection uses, `may_act_on_case` in
+      `vultron/core/participants/recipients.py`.
     verification: >-
       Tests marked `CM-21-021` deliver to the CASE_MANAGER a proposal naming an actor
-      off the roster, an invitee that has not accepted, a removed participant and a
-      participant that is not a signatory to the active embargo, and assert each is
-      `REFUSED` with no ledger entry and no Offer made; a test lets the transferee
-      stop being an active participant between the Offer and its Accept and asserts
-      the Accept is `REFUSED` with the owner unchanged; a test asserts that no
-      admitted Accept leaves the case with no participant holding `CASE_OWNER`.
+      off the roster, an invitee that has not accepted, a removed participant, a
+      participant that is not a signatory to the active embargo and a closed
+      participant, and assert each is `REFUSED` with no ledger entry and no Offer made.
     relationships:
     - rel_type: refines
       spec_id: CM-21-005
-    - rel_type: refines
-      spec_id: CM-21-011
     - rel_type: depends_on
       spec_id: CM-10-004
+    adr:
+    - ADR-0148
+    stories:
+    - story_2022_050
+  - id: CM-21-022
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST refuse, with ownership unchanged, the transferee's
+      `Accept(Offer(VulnerabilityCase))` (CM-21-011) when the transferee may no longer
+      act on the case (CM-21-021) as the Accept is processed. Ownership unchanged means
+      the case's `attributed_to` and every participant's `CASE_OWNER` role stay as they
+      were.
+    rationale: >-
+      The proposal check (CM-21-021) runs when the Offer is made. A participant can be
+      removed, lapse by an embargo revision, or close between the Offer and its answer,
+      so the Accept is checked again with the same test, `may_act_on_case`. A closed
+      transferee's Accept is also refused by its sender check (CM-23-018).
+    verification: >-
+      Tests marked `CM-21-022` let the transferee stop being an active participant
+      between the Offer and its Accept and assert the Accept is `REFUSED` with the owner
+      unchanged; a test asserts that no admitted Accept leaves the case with no
+      participant holding `CASE_OWNER`.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-011
+    - rel_type: refines
+      spec_id: CM-21-021
     adr:
     - ADR-0148
     stories:
@@ -4251,7 +4273,7 @@ groups:
       ADR-0041 supersedes ADR-0015.  The CASE_MANAGER is the case's authoritative
       creator, which AS2 records as the `actor` of `Create(VulnerabilityCase)`
       (ADR-0023); `attributed_to` records the case owner, which ownership checks
-      read and ownership transfer rewrites (MSM-07-008, CM-21-002).
+      read and ownership transfer rewrites (MSM-07-027, CM-21-002).
     verification: Integration tests in `test/demo/` confirm that the `VulnerabilityCase` created
       by the CASE_MANAGER has `attributed_to` equal to the proposing actor's ID and that the
       emitted `Create(VulnerabilityCase)` has the CASE_MANAGER as `actor`.
@@ -5644,8 +5666,9 @@ groups:
       let the two parties agree if an invitation is still open. See ADR-0065.
     note: >-
       Amended by ADR-0096. "Authoritative" settles precedence between the wire value and the
-      receiver's local policy window; it does not exempt the wire value from EP-07-006, which
-      clamps any computed deadline down to the embargo's own `end_time`. CM-28-011 binds the same
+      receiver's local policy window; it does not exempt the wire value from
+      EP-07-011, which clamps any computed deadline down to the embargo's own
+      `end_time`. CM-28-011 binds the same
       ceiling to the CM-18-002 fallback path. An explicit `Invite.end_time` that outlives the
       embargo is still clamped.
     verification: Integration tests in `test/demo/` confirm that when `Invite.end_time` is
@@ -5898,8 +5921,9 @@ groups:
       ADR-0113).
     verification: >-
       A test of the relay asserts every emitted Invite carries `end_time` equal to its
-      `published` plus the configured window, clamped per EP-07-002 and EP-07-006. Until the
-      implementation lands the test is a strict `xfail` naming its tracking issue.
+      `published` plus the configured window, clamped per EP-07-002, EP-07-006 and
+      EP-07-011. Until the implementation lands the test is a strict `xfail`
+      naming its tracking issue.
     relationships:
     - rel_type: refines
       spec_id: CM-28-002
@@ -6479,8 +6503,9 @@ groups:
       participant that never agreed to it, and expiry on the agreed date is already known to it. A
       past-dated `Announce(EmbargoEvent)` is not used: its meaning would depend on the receiver's
       clock, and an early end is an event, not a date that passed. "Shorter" and "longer" follow the
-      EP-05-001 split: a revision that ends at the same time as the embargo it replaces is on the
-      carry-over arm, so the bound participant is bound by it and is sent it like a shorter one.
+      EP-05-001 and EP-05-003 split: a revision that ends at the same time as the
+      embargo it replaces is on the carry-over arm, so the bound participant is
+      bound by it and is sent it like a shorter one.
     verification: >-
       Tests terminate the embargo and activate a shorter revision on a case with a removed signatory
       and a departed signatory, and assert each is sent the matching notice and no ledger entry;

@@ -213,6 +213,7 @@ def test_a_case_manager_signatory_records_and_commits_its_own_withdrawal(
 
 @pytest.mark.spec("EP-09-013")
 @pytest.mark.spec("EP-09-016")
+@pytest.mark.spec("EP-09-028")
 def test_withdrawal_with_no_embargo_in_force_is_refused(
     owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -231,6 +232,7 @@ def test_withdrawal_with_no_embargo_in_force_is_refused(
 @pytest.mark.spec("EP-09-013")
 @pytest.mark.spec("EP-09-016")
 @pytest.mark.parametrize("row", [ECS.INVITED, ECS.TIMED_OUT, ECS.DECLINED])
+@pytest.mark.spec("EP-09-028")
 def test_withdrawal_from_a_row_that_is_not_agreed_is_refused(
     finder_actor_and_dl: tuple[as_Service, SqliteDataLayer], row: ECS
 ) -> None:
@@ -248,6 +250,7 @@ def test_withdrawal_from_a_row_that_is_not_agreed_is_refused(
 @pytest.mark.spec("EP-09-013")
 @pytest.mark.spec("CM-02-005")
 @pytest.mark.spec("EP-09-016")
+@pytest.mark.spec("EP-09-028")
 def test_the_case_owner_cannot_withdraw(
     owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -292,6 +295,7 @@ def _reject_no_name(dl: SqliteDataLayer, actor_id: str, case_id: str):
 @pytest.mark.spec("EP-08-002")
 @pytest.mark.spec("EP-09-016")
 @pytest.mark.spec("MSM-07-015")
+@pytest.mark.spec("EP-09-031")
 def test_a_no_name_reject_refuses_the_revision_and_never_withdraws(
     finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:

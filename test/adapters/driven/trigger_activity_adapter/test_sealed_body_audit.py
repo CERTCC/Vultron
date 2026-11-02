@@ -675,6 +675,7 @@ def test_every_port_activity_method_has_a_recipe():
 @pytest.mark.spec("VM-08-003")
 @pytest.mark.spec("AKM-03-001")
 @pytest.mark.spec("AKM-02-003")
+@pytest.mark.spec("AKM-02-008")
 @pytest.mark.parametrize("method", sorted(RECIPES))
 def test_the_activity_is_sealed_complete(world, method):
     result = RECIPES[method](world)
@@ -729,7 +730,7 @@ def test_the_activity_is_sealed_complete(world, method):
     assert not leaks, (
         f"{method} put a full VulnerabilityCase in a reference slot:"
         f" {leaks}; address the case by URI or send the stub"
-        " (MV-10-001, AKM-02-003)"
+        " (MV-10-001, AKM-02-008)"
     )
     copies = _carried_case_copies(body)
     assert not copies, (
@@ -866,7 +867,7 @@ def test_an_actor_the_sender_holds_travels_as_held(world, method):
     assert "outbox" not in actor
 
 
-@pytest.mark.spec("AKM-05-005")
+@pytest.mark.spec("AKM-05-017")
 @pytest.mark.parametrize("method", sorted(_ROLE_DELEGATE_PATHS))
 def test_an_actor_the_sender_does_not_hold_travels_as_a_reference(
     world, method
@@ -879,7 +880,7 @@ def test_an_actor_the_sender_does_not_hold_travels_as_a_reference(
     assert actor == {"id": _CASE_ACTOR, "type": "Actor"}
 
 
-@pytest.mark.spec("AKM-05-005")
+@pytest.mark.spec("AKM-05-017")
 def test_a_uri_only_peer_record_travels_as_a_reference(world):
     """The minimal peer of ``_record_named_peer`` holds only the URI."""
     from vultron.core.models.actor import CoreActor

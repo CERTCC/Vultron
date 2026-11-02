@@ -13,7 +13,7 @@
 """Generate and check the occasion table and its fragments (ADR-0128).
 
 One generator projects the occasions on ``SEMANTIC_REGISTRY`` into committed
-artifacts, and ``--check`` fails on any difference (MSM-06-001):
+artifacts, and ``--check`` fails on any difference (MSM-06-006):
 
 - ``vultron/metadata/msm/occasions.yaml`` — the occasion table, with a
   ``format_version``.  Internal; publication belongs to #2959.
@@ -71,7 +71,7 @@ links would be checked against the wrong page, and every fragment would
 publish a URL the project then has to keep.
 
 Each section states its entry's mapping status, linked to the definition of
-the status values on ``docs/reference/messages/index.md`` (MSM-06-003).  The
+the status values on ``docs/reference/messages/index.md`` (MSM-06-010).  The
 table does not carry it: its columns serve a sender choosing what to send, and
 the status describes the formal protocol's relation to the wire form.
 
@@ -583,7 +583,7 @@ def formal_link(shorthand: ProtocolShorthand, prefix: str) -> str:
 
 
 #: The message page that defines each mapping status value, and the anchor
-#: of that definition (MSM-06-003).
+#: of that definition (MSM-06-010).
 STATUS_PAGE = "index.md"
 STATUS_ANCHOR = "mapping-status"
 
@@ -825,12 +825,12 @@ def main(argv: list[str] | None = None) -> None:
         except MetadataLoadError as exc:
             problems.append(str(exc))
     problems.extend(
-        f"{path} is stale — run '{WRITE_COMMAND}' (MSM-06-001)."
+        f"{path} is stale — run '{WRITE_COMMAND}' (MSM-06-006)."
         for path in found.stale
     )
     problems.extend(
         f"{path} is not generated from any occasion — run "
-        f"'{WRITE_COMMAND}' to delete it (MSM-06-001)."
+        f"'{WRITE_COMMAND}' to delete it (MSM-06-006)."
         for path in found.unexpected
     )
     if problems:

@@ -172,6 +172,8 @@ def _logged(caplog: pytest.LogCaptureFixture, *parts: str) -> bool:
 @pytest.mark.spec("IE-06-004")
 @pytest.mark.spec("ASK-07-010")
 @pytest.mark.spec("ASK-07-011")
+@pytest.mark.spec("ASK-07-014")
+@pytest.mark.spec("ASK-07-017")
 @pytest.mark.usefixtures("outbox_drains")
 @pytest.mark.spec("IE-06-008", "IE-06-009")
 def test_a_failing_replay_is_answered_only_when_dead_lettered(
@@ -247,6 +249,7 @@ def test_a_dead_lettered_item_stays_held(
 
 @pytest.mark.spec("IE-06-004")
 @pytest.mark.spec("ASK-07-010")
+@pytest.mark.spec("ASK-07-014")
 @pytest.mark.usefixtures("outbox_drains")
 def test_a_retry_that_succeeds_is_never_answered(
     dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch

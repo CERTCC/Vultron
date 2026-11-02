@@ -80,7 +80,7 @@ Closed has no transition out of it.
 A participant that expects to resume work on a report defers it instead of closing it.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RMB-14-004", "RMB-14-005", "RMB-14-006", "RMB-14-007", "VP-02-004"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RMB-14-004", "RMB-14-008", "RMB-14-005", "RMB-14-009", "RMB-14-006", "RMB-14-007", "VP-02-004"))
 ```
 
 !!! info "See also"

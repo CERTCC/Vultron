@@ -113,7 +113,7 @@ blank IRI is refused inbound.
 Inside a union Pydantic keeps the `Annotated` wrapper. Code that classifies a
 branch with `is str` or by set equality MUST call `strip_annotated()`
 (`vultron/core/models/_helpers.py`) first; otherwise it sees no string branch, the
-dehydration field set comes out empty, and VM-06-007 refuses a reference it should
+dehydration field set comes out empty, and VM-06-009 refuses a reference it should
 defer. Ratchets: `test/architecture/test_wire_reference_fields_reject_blank.py`,
 `test_core_reference_fields_reject_blank.py`.
 
@@ -193,7 +193,8 @@ disposition is stated once there (MV-11, ARCH-25-007/008):
    form, which `forbid` refuses.
 4. **Core `forbid` is unchanged** (MV-11-004). The retired-name list lives on the
    wire side (`unknown_keys.RETIRED_NAMES`), consulted only at the parse edge; no
-   core guard names a retired key.
+   core guard names a retired received key (MV-11-011, MV-11-012). A *stored* row's retired
+   field is refused by the shared `RetiredFieldsRecord`, a different question.
    `RETIRED_NAMES` is for keys whose *field* is gone (`vfd_state`,
    `activeEmbargo`). A retired *spelling* of a live field needs no entry: once
    the class stops declaring it, it normalises to the live spelling, so rule 2

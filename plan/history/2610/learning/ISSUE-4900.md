@@ -23,3 +23,7 @@ reader can take them as licensing a roster send.
 Observer capability set. Its prose names no recipient for a transition
 ("reports its own transitions", "the protocol recommends that it send the
 message for the transition") to avoid the conflict.
+
+**Already closed**: 2026-10-30 — tracked as #5299 AC-4, which requires VP-02-019,
+VP-03-012 and VP-05-012 to route announcements through the CASE_MANAGER (verified).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/5581>.

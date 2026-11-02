@@ -48,7 +48,7 @@ children:
 2. `AttachNoteFromResultNode` — attaches the note to the case
 3. `SenderSideBT` — enqueues one `Add(Note)` to the CASE_MANAGER, with the
    case as its `target` and the note inline as its `object`; no
-   `Create(Note)` is sent (VAM-01-010, #4706). The CASE_MANAGER stores and
+   `Create(Note)` is sent (VAM-01-015, #4706). The CASE_MANAGER stores and
    attaches the note and commits one `add_note_to_case` entry, so one note
    makes one entry (CLP-07-002).
 

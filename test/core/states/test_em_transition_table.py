@@ -189,7 +189,34 @@ def test_activating_one_proposal_leaves_the_others_open_as_revisions() -> None:
     assert _ids(tuple(register), S.PROPOSED) == ["b"]
 
 
+@pytest.mark.spec("EMB-04-003")
+def test_rejecting_one_of_two_open_revisions_stays_in_revise() -> None:
+    """EJ while another revision is open leaves EM in REVISE."""
+    two_open = _register_after(
+        "propose:a", "accept:a", "propose:b", "propose:c"
+    )
+    assert _em(two_open) is EM.REVISE
+    after = apply_register_step(two_open, rejection_changes("b"))
+    assert _em(after) is EM.REVISE
+    assert _ids(tuple(after), S.ACTIVE) == ["a"]
+
+
+@pytest.mark.spec("EMB-05-003")
+def test_accepting_one_of_two_open_revisions_stays_in_revise_on_its_terms() -> (
+    None
+):
+    """EC while another revision is open: REVISE, the accepted one in force."""
+    two_open = _register_after(
+        "propose:a", "accept:a", "propose:b", "propose:c"
+    )
+    after = apply_register_step(two_open, activation_changes(two_open, "b"))
+    assert _em(after) is EM.REVISE
+    assert _ids(tuple(after), S.ACTIVE) == ["b"]
+    assert _ids(tuple(after), S.PROPOSED) == ["c"]
+
+
 @pytest.mark.spec("EMB-18-006")
+@pytest.mark.spec("EMB-18-013")
 def test_em_transition_table_is_declared_and_enforced(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -311,6 +338,8 @@ def test_a_step_naming_no_single_em_trigger_is_refused(
 
 
 @pytest.mark.spec("EMB-18-006")
+@pytest.mark.spec("EMB-18-013")
+@pytest.mark.spec("EMB-18-014")
 def test_a_refused_em_move_leaves_the_case_unchanged(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -404,3 +433,14 @@ def test_the_em_machine_is_built_from_the_table() -> None:
         for t in machine.get_transitions(trigger=trigger)
     }
     assert exported == {(r["trigger"], r["source"], r["dest"]) for r in rows}
+
+
+@pytest.mark.spec("VP-04-005")
+@pytest.mark.spec("VP-04-006")
+def test_an_accepted_embargo_can_be_revised_and_the_revision_answered() -> (
+    None
+):
+    """A revision opens on an active embargo and can be accepted or rejected."""
+    assert is_em_transition(EM_Trigger.PROPOSE, EM.ACTIVE, EM.REVISE)
+    assert is_em_transition(EM_Trigger.ACCEPT, EM.REVISE, EM.ACTIVE)
+    assert is_em_transition(EM_Trigger.REJECT, EM.REVISE, EM.ACTIVE)

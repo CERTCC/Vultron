@@ -16,7 +16,7 @@
 
 The CaseActor carries each participant it names as it holds it: a seeded peer
 as its profile, an actor known only by URI as an id-and-type reference
-(AKM-05-005).  The demo reset clears its address book, so every scenario
+(AKM-05-005, AKM-05-017).  The demo reset clears its address book, so every scenario
 seeds it again through its ``seed_containers*`` call.
 """
 

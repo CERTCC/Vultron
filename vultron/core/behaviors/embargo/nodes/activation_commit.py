@@ -22,7 +22,7 @@ follows the copy model (ADR-0124, #4294):
 1. **Decide** —
    :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle.decide_activation`
    checks the proposal is open and P/X/A is clear (EMB-02-002), decides the
-   EP-05-001 arm and names every change; nothing is written.
+   EP-05-001 / EP-05-003 arm and names every change; nothing is written.
 2. **Trial, commit, apply** —
    :func:`~vultron.core.behaviors.embargo.copy_commit.commit_and_apply_embargo_entries`
    trial-applies every change through the one apply function, commits the
@@ -30,12 +30,12 @@ follows the copy model (ADR-0124, #4294):
 
    - the ``Accept``, which is the whole ``ACTIVATE`` register step, the
      ``SUPERSEDE`` of the embargo in force included, and states the owner's
-     ``AGREED`` row (CLP-07-013, MSM-07-008).  On the trigger path the node
+     ``AGREED`` row (CLP-07-013, MSM-07-028).  On the trigger path the node
      builds and commits it; on the received path the guarded commit
      committed it, in this act's transaction, before this node runs
      (ADR-0151), so it has no commit step here;
    - one CASE_MANAGER ``Update(EmbargoConsent)`` per ``CARRY_OVER`` row
-     (EP-05-001), after the ``Accept``.
+     (EP-05-003), after the ``Accept``.
 
 A commit that fails leaves every change whose entry did not commit unwritten
 (CLP-07-013): with the ``Accept`` unrecorded, the register, EM and the consent

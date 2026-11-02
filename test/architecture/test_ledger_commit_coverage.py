@@ -55,7 +55,7 @@ EXEMPT: dict[str, NotACaseEvent | str] = {
     "create_report": NotACaseEvent.PRE_CASE,
     "submit_report": NotACaseEvent.PRE_CASE,
     # RK answers the reporter's Offer outside the case and never reaches the
-    # CASE_MANAGER (RMB-08-003).
+    # CASE_MANAGER (RMB-08-005).
     "ack_report": NotACaseEvent.OUTSIDE_THE_CASE,
     "create_case_proposal": NotACaseEvent.PRE_CASE,
     # The proposer's receipt of the answer to its proposal: case proposal
