@@ -79,7 +79,7 @@ _VFD_RETIRED = (
 )
 
 #: Names the protocol once read and no longer does, mapped to the replacement
-#: a sender should use (MV-11-002, MV-11-004).  Matched by name, not by
+#: a sender should use (MV-11-002, MV-11-006).  Matched by name, not by
 #: normalisation, and the only place a received key is judged: core types
 #: carry no per-class guard for a wire key (SDO-03-005) — ``extra="forbid"``
 #: refuses these on in-process and stored data, and a renamed stored field

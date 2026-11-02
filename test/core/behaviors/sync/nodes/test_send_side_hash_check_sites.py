@@ -301,6 +301,7 @@ def test_fanout_backfill_of_an_intact_ledger_sends_it_all(
 
 
 @pytest.mark.spec("SYNC-03-009")
+@pytest.mark.spec("BT-14-003")
 @pytest.mark.spec("CM-10-006")
 @broken_entries
 def test_fanout_skips_a_peer_whose_catch_up_is_held_back_and_sends_the_rest(
@@ -330,6 +331,7 @@ def test_fanout_skips_a_peer_whose_catch_up_is_held_back_and_sends_the_rest(
 
 
 @pytest.mark.spec("SYNC-03-009")
+@pytest.mark.spec("BT-14-003")
 @pytest.mark.spec("CM-10-006")
 def test_a_commit_stands_when_a_peers_catch_up_is_held_back(
     bridge: BTBridge, datalayer, caplog: pytest.LogCaptureFixture
@@ -399,6 +401,7 @@ def test_admission_backfill_of_an_intact_ledger_sends_it_all(
 
 
 @pytest.mark.spec("SYNC-03-009")
+@pytest.mark.spec("BT-14-003")
 @pytest.mark.spec("CM-10-006")
 @broken_entries
 def test_admission_backfill_stops_at_a_broken_entry_and_keeps_the_pause(
@@ -481,6 +484,7 @@ def test_join_backfill_of_an_intact_ledger_sends_it_all(
 
 
 @pytest.mark.spec("SYNC-03-009")
+@pytest.mark.spec("BT-14-003")
 @pytest.mark.spec("CM-17-004")
 @broken_entries
 def test_join_backfill_stops_at_a_broken_entry_and_fails(

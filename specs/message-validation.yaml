@@ -657,8 +657,6 @@ groups:
     - rel_type: derives_from
       spec_id: ARCH-12-003
     - rel_type: refines
-      spec_id: SDO-03-005
-    - rel_type: refines
       spec_id: ARCH-25-025
     adr:
     - ADR-0099
@@ -716,5 +714,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: MV-11-002
+    - rel_type: refines
+      spec_id: SDO-03-005
     adr:
     - ADR-0099

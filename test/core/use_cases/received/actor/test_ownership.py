@@ -2880,7 +2880,7 @@ def test_an_accept_from_a_transferee_no_longer_active_is_refused(
 
     assert result.disposition is HandlerDisposition.REFUSED, result.reason
     expected = (
-        "CM-23-018" if standing is TransfereeStanding.CLOSED else "CM-21-021"
+        "CM-23-018" if standing is TransfereeStanding.CLOSED else "CM-21-022"
     )
     assert expected in (result.reason or ""), result.reason
     _assert_nothing_changed(dl, case_id, roles_before, entries_before)

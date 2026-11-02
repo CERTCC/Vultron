@@ -938,8 +938,8 @@ groups:
     statement: >-
       When a fan-out's catch-up backfill of a let-back-in, paused peer is held back at
       an older entry (SYNC-03-009), the fan-out MUST skip only that peer, keeping its
-      pause, and return SUCCESS. Every other hold-back, the join backfill and the
-      admission backfill node's included, is a failure under BT-14-001.
+      pause, and return SUCCESS. Every other hold-back, including the join
+      backfill's and the admission backfill node's, is a failure under BT-14-001.
     rationale: >-
       The skipped peer keeps its pause, so the same hold-back recurs on every later
       commit in the case. Failing the fan-out would refuse each of those acts whole
