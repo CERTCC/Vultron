@@ -51,7 +51,7 @@ sequenceDiagram
         B ->> CA: Accept(Offer(CaseParticipant)[target=VulnerabilityCase])
         CA ->> A: AcceptActorRecommendation
         CA ->>+ D: Invite(Actor)[target=VulnerabilityCaseStub]
-        note over D: The stub carries the embargo and roles.<br/>Respond to invitation (not shown)
+        note over D: The stub carries the embargo, and the Invite the roles.<br/>Respond to invitation (not shown)
         deactivate D
     else Reject Suggestion
         B ->> CA: Reject(Offer(CaseParticipant)[target=VulnerabilityCase])

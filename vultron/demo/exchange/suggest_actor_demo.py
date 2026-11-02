@@ -24,7 +24,7 @@ This demo script showcases two suggestion paths per ADR-0026 (CaseActor-routed):
    - Case Owner → CASE_MANAGER: Accept(Offer(CaseParticipant))
      (``accept-actor-recommendation``)
    - CASE_MANAGER → Coordinator: Invite(Actor)[target=VulnerabilityCaseStub],
-     the stub carrying the embargo and roles
+     the stub carrying the embargo and the Invite the intended roles
 
 2. Reject path, each act through its actor's trigger (#5459):
    - Reporter → CASE_MANAGER: Offer(Actor)[target=VulnerabilityCase] (``suggest-actor-to-case``)
