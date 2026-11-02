@@ -115,8 +115,8 @@ from vultron.metadata.specs.docs_render import requirement_callout; print(requir
 ```
 
 **The case-creation message carries the whole case inline.**
-A receiver seeds its copy of the case from this one message, and it trusts no actor to fetch a missing part from until it accepts the message.
-So the message carries the complete case and every object nested in it, such as each participant record, inline rather than by reference.
+A receiver seeds its replica of the case from this one message, and it trusts no actor to fetch a missing part from until it accepts the message.
+So the message carries the complete case and every object nested in it, such as each `CaseParticipant`, inline rather than by reference.
 A receiver that finds a required participant missing, or named only by reference, rejects the message as a protocol error.
 
 ```python exec="true" idprefix=""
