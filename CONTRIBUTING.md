@@ -50,7 +50,7 @@ before submitting a PR.
 
 A release promotes a commit the site already published: one with a
 `publish-YYYY-MM-DD.N` tag made by the
-[publish workflow](.github/workflows/deploy_site.yml). That commit passed CI and
+publish workflow (`.github/workflows/deploy_site.yml`). That commit passed CI and
 the site checks, and was live.
 
 To cut a Vultron release:
@@ -77,7 +77,7 @@ To cut a Vultron release:
 Do not tag a release by hand or from the **Draft a new release** dialog: the
 dialog's default target is the tip of `main`, which is usually not what the site
 shows. A `v*` tag pushed by hand whose commit has no `publish-*` tag files a
-failure issue through the [release tag check](.github/workflows/release_tag_check.yml).
+failure issue through the release tag check (`.github/workflows/release_tag_check.yml`).
 Release and publish tags are append-only, so a wrong tag cannot be moved or
 deleted; cut a new release instead.
 
