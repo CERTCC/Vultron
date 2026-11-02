@@ -23,8 +23,8 @@ delivery does not depend on a fetch.  Two ratchets hold this:
   factory names why it introduces nothing.  A new factory with no entry fails,
   so it cannot be added unexamined.
 - every example activity an implementer copies carries what it introduces
-  inline, including the reports and participants of a case it creates or
-  announces (CBT-01-007, AKM-02-004).
+  inline, including the participants of a case it creates or announces
+  (CBT-01-007) and, as this prototype's choice, its reports (AKM-02-004).
 
 References to objects the receiver already holds may stay bare: a case in
 ``target``, the participant a status is added to, an actor named by URI
@@ -552,7 +552,9 @@ _INTRODUCING_TYPES = frozenset(
 )
 
 #: Case fields a case put on the wire as the introduced object carries inline:
-#: the receiver seeds its replica from them (CBT-01-007, AKM-02-004).
+#: the receiver seeds its replica from them.  The participants are required
+#: inline (CBT-01-007); the reports are this prototype's choice (AKM-02-004),
+#: since a bootstrap's receiver offered its report and may be sent its id.
 _CASE_CARRIED_FIELDS = ("caseParticipants", "vulnerabilityReports")
 
 
