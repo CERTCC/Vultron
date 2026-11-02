@@ -681,6 +681,7 @@ def invitee_triages_after_joining(
     seated: Sequence[str],
     owner: str = COORDINATOR,
     owner_label: str = COORDINATOR_LABEL,
+    milestone: str | None = "M2",
     join_timeout: float = PARTICIPANT_JOIN_TIMEOUT,
     triage_timeout: float = CROSS_CONTAINER_TIMEOUT,
 ) -> None:
@@ -703,6 +704,13 @@ def invitee_triages_after_joining(
             from.  The family's Coordinator by default; a story whose owner
             changed mid-run names the owner as of this step (#5535).
         owner_label: What this scenario calls that owner in gate labels.
+        milestone: The milestone this scenario numbers the join, or ``None``
+            when it numbers it none.  A scenario's milestone numbers are its
+            own, and a shared step may not stamp one the scenario spends
+            elsewhere: ``rvv`` numbers its replica synchronization M2
+            (``docs/howto/demos/rvv-demo.md``), so a second ``✓ M2:`` line
+            for the join would make the two indistinguishable in the output
+            that page documents.  As ``close_the_case``'s ``milestone``.
         join_timeout: Seconds to wait for the roster.  A joiner reached
             through a multi-hop path needs the late-joiner budget rather than
             the default one.
@@ -716,7 +724,8 @@ def invitee_triages_after_joining(
             expected_actor_ids={state.actor_id(who) for who in seated},
             timeout_seconds=join_timeout,
         )
-        logger.info("✓ M2: %s joined case", label)
+        prefix = f"{milestone}: " if milestone else ""
+        logger.info("✓ %s%s joined case", prefix, label)
 
         run_invite_path_rm_triage(
             invited_client=state.client(name),
@@ -771,6 +780,7 @@ def invitee_joins_the_case(
     joined: StoryProp[str] | None = None,
     inviter: str = COORDINATOR,
     inviter_label: str = COORDINATOR_LABEL,
+    milestone: str | None = "M2",
     join_timeout: float = PARTICIPANT_JOIN_TIMEOUT,
     cross_container_timeout: float = CROSS_CONTAINER_TIMEOUT,
 ) -> None:
@@ -818,6 +828,9 @@ def invitee_joins_the_case(
         inviter: The Case Owner's cast name, which sends the Invite and whose
             replica the roster is read from.
         inviter_label: What this scenario calls that owner in gate labels.
+        milestone: The milestone this scenario numbers a triaging joiner's
+            arrival, or ``None`` when it numbers it none; passed on to
+            :func:`invitee_triages_after_joining`, which logs it.
         join_timeout: Seconds to wait for the roster.
         cross_container_timeout: Seconds each cross-container wait of the
             chain may take.
@@ -880,6 +893,7 @@ def invitee_joins_the_case(
             seated=seated,
             owner=inviter,
             owner_label=inviter_label,
+            milestone=milestone,
             join_timeout=join_timeout,
             triage_timeout=cross_container_timeout,
         )

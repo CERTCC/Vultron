@@ -171,6 +171,12 @@ def vendor1_invites_the_second_vendor(state: StoryState) -> None:
     ADR-0026 suggest/approve chain (DEMOMA-09-002).  Vendor2 joined by
     accepting, so it runs its own RM triage over the report it was invited
     over (CM-11-002).
+
+    ``milestone=None``: this scenario numbers no milestone for the join.  M2
+    is its replica synchronization (:func:`every_replica_converges`,
+    ``docs/howto/demos/rvv-demo.md``), and the shared step's default would
+    log a second ``✓ M2:`` line here that the page's marker table could not
+    tell from it.
     """
     invitee_joins_the_case(
         state,
@@ -180,6 +186,7 @@ def vendor1_invites_the_second_vendor(state: StoryState) -> None:
         seated=(REPORTER, VENDOR, VENDOR2),
         inviter=VENDOR,
         inviter_label=VENDOR_LABEL,
+        milestone=None,
         join_timeout=JOIN_TIMEOUT,
         cross_container_timeout=JOIN_TIMEOUT,
     )

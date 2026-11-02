@@ -47,6 +47,7 @@ call shape (``test_demo_context_managers.py`` owns their behaviour).
 import contextlib
 import inspect
 import json
+import logging
 from typing import cast
 from unittest.mock import MagicMock, patch
 
@@ -631,9 +632,35 @@ class TestVendor1InvitesTheSecondVendor:
             "seated": (REPORTER, VENDOR, VENDOR2),
             "inviter": VENDOR,
             "inviter_label": VENDOR_LABEL,
+            "milestone": None,
             "join_timeout": JOIN_TIMEOUT,
             "cross_container_timeout": JOIN_TIMEOUT,
         }
+
+    @pytest.mark.spec("DEMOMA-17-002")
+    def test_the_join_claims_no_milestone_number(self, caplog):
+        """This scenario spends M2 on its replica synchronization.
+
+        The shared join step numbers the arrival M2 by default, which every
+        coordinator-first scenario wants.  ``rvv`` does not: it already logs
+        ``✓ M2:`` for the sync phase, and ``docs/howto/demos/rvv-demo.md``
+        documents that marker, so a second ``✓ M2:`` line here would make the
+        two indistinguishable in the output that page describes (#5536).
+        """
+        state = _three_party_state()
+
+        with (
+            patch.object(coordinated_story, "wait_for_case_on_container"),
+            patch.object(coordinated_story, "run_case_invite_chain"),
+            patch.object(coordinated_story, "wait_for_case_participants"),
+            patch.object(coordinated_story, "run_invite_path_rm_triage"),
+            _no_banners(),
+            caplog.at_level(logging.INFO),
+        ):
+            demo.vendor1_invites_the_second_vendor(state)
+
+        assert "✓ Vendor2 joined case" in caplog.text
+        assert "M2" not in caplog.text
 
     @pytest.mark.spec("CM-11-002")
     def test_the_second_vendor_triages_the_report_it_was_invited_over(self):

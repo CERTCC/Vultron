@@ -41,6 +41,7 @@ half of the rule: a test that needs none of those fixtures belongs there.
 """
 
 import contextlib
+import logging
 from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import cast
@@ -1077,6 +1078,49 @@ class TestInviteeJoinsTheCase:
             _JOINER
         )
         stubs.triage.assert_called_once()
+
+    @pytest.mark.spec("DEMOMA-17-002")
+    def test_the_join_logs_the_milestone_the_scenario_numbers_it(self, caplog):
+        """The default is the coordinator-first families' ``M2``.
+
+        Every scenario that reached this step before the vendor-first half
+        was composed numbers the join M2, so the default keeps their output
+        as it was (#5536).
+        """
+        state = story_state(*_CAST, _JOINER, case=mock_case())
+
+        with caplog.at_level(logging.INFO), _join_stubs():
+            invitee_triages_after_joining(
+                state,
+                _JOINER,
+                "Joiner",
+                seated=(REPORTER, COORDINATOR, VENDOR, _JOINER),
+            )
+
+        assert "✓ M2: Joiner joined case" in caplog.text
+
+    @pytest.mark.spec("DEMOMA-17-002")
+    def test_a_scenario_that_numbers_no_join_milestone_logs_none(self, caplog):
+        """``milestone=None`` drops the number, not the line.
+
+        ``rvv`` spends M2 on its replica synchronization, so the shared
+        step's default would put a second ``✓ M2:`` line in the output
+        ``docs/howto/demos/rvv-demo.md`` documents and the two could not be
+        told apart (#5536).
+        """
+        state = story_state(*_CAST, _JOINER, case=mock_case())
+
+        with caplog.at_level(logging.INFO), _join_stubs():
+            invitee_triages_after_joining(
+                state,
+                _JOINER,
+                "Joiner",
+                seated=(REPORTER, COORDINATOR, VENDOR, _JOINER),
+                milestone=None,
+            )
+
+        assert "✓ Joiner joined case" in caplog.text
+        assert "M2" not in caplog.text
 
 
 # ---------------------------------------------------------------------------

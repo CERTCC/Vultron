@@ -193,6 +193,7 @@ The Case Actor's own store is where every closure is checked.
 
 | Marker | What it means |
 |:-------|:--------------|
+| `✓ Vendor2 joined case` | Vendor1's replica lists Vendor2, so its RM triage can start (no numbered milestone) |
 | `✅ M1:` | ≥4 participants, EM.ACTIVE, Reporter and Vendor2 have replicas |
 | `✓ M2:` | Reporter and Vendor2 DataLayers synchronized (Ledger Fanout verified) |
 | `✓ Notes exchange complete` | Question and replies committed to the case ledger (no numbered milestone) |
