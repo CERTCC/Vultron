@@ -57,7 +57,7 @@ from test.demo._helpers import (
     story_state,
 )
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers import coordinated_story, invite_chain
+from vultron.demo.helpers import coordinated_story, invite_chain, story_cast
 from vultron.demo.helpers.actor_roles import (
     ActorRole,
     case_actor_role,
@@ -72,13 +72,17 @@ from vultron.demo.helpers.cast import (
 from vultron.demo.helpers.coordinated_story import (
     CASE_ACTOR_NAME,
     COORDINATOR,
+    COORDINATOR_LABEL,
     ENGAGED_CASE,
     OWNER_TRIAGE_TIMEOUT,
     REPORTER,
+    REPORTER_LABEL,
     VENDOR,
+    VENDOR_LABEL,
     CastContainer,
     close_the_case,
     coordinated_clients,
+    coordinated_seats,
     coordinator_invites_vendor,
     dump_coordinated_ledgers,
     everyone_closes,
@@ -148,6 +152,26 @@ def _join_stubs() -> Iterator[SimpleNamespace]:
         yield SimpleNamespace(chain=chain, roster=roster, triage=triage)
 
 
+@contextlib.contextmanager
+def _recorded_gates() -> Iterator[list[str]]:
+    """Collect every ``demo_gate`` label the fragment under test opens.
+
+    A gate's label is what a reader sees when its wait times out, so a label
+    naming the family's Coordinator while the first Vendor is the one
+    inviting sends that reader to the wrong container (#5536).  Enter it
+    *after* :func:`_join_stubs`, whose ``no_demo_banners`` also patches
+    ``demo_gate``: the later patch is the one in force.
+    """
+    labels: list[str] = []
+
+    def _gate(label: str) -> contextlib.AbstractContextManager[None]:
+        labels.append(label)
+        return contextlib.nullcontext()
+
+    with patch.object(coordinated_story, "demo_gate", side_effect=_gate):
+        yield labels
+
+
 def _bind_container_actors(state: StoryState, *names: str) -> None:
     """Bind each named client's ``actor_id``, and the case actor's, as seeding does.
 
@@ -197,7 +221,15 @@ def _members(
 
 
 class TestOpenCoordinatedCast:
-    """One reset and one seeding for every scenario of the family."""
+    """One reset and one seeding for every scenario of the family.
+
+    The reset and the read-back are patched on
+    ``vultron.demo.helpers.story_cast``, not on this module: the opening every
+    composed family shares lives there (``open_story_cast``) and this family's
+    opening only supplies its seats and its seeder, so ``reset_datalayer`` and
+    ``get_actor_by_id`` are resolved on ``story_cast``.  ``seed_containers_rcv``
+    stays on this module, which is the only place that names it.
+    """
 
     def test_the_reset_covers_every_container(self):
         reporter_client = mock_client()
@@ -208,7 +240,7 @@ class TestOpenCoordinatedCast:
 
         with (
             patch.object(
-                coordinated_story,
+                story_cast,
                 "reset_datalayer",
                 return_value={"status": "ok"},
             ) as reset_mock,
@@ -221,7 +253,7 @@ class TestOpenCoordinatedCast:
                 return_value=tuple(actors),
             ),
             patch.object(
-                coordinated_story,
+                story_cast,
                 "get_actor_by_id",
                 side_effect=list(actors),
             ),
@@ -265,7 +297,7 @@ class TestOpenCoordinatedCast:
 
         with (
             patch.object(
-                coordinated_story,
+                story_cast,
                 "reset_datalayer",
                 return_value={"status": "ok"},
             ) as reset_mock,
@@ -276,7 +308,7 @@ class TestOpenCoordinatedCast:
                 return_value=tuple(actors),
             ) as seeded,
             patch.object(
-                coordinated_story,
+                story_cast,
                 "get_actor_by_id",
                 side_effect=list(actors),
             ),
@@ -304,7 +336,7 @@ class TestOpenCoordinatedCast:
     def test_a_failed_seeding_leaves_no_cast_to_tell_the_story_with(self):
         """The failure is recorded by demo_step; the story stops here."""
         with (
-            patch.object(coordinated_story, "reset_datalayer"),
+            patch.object(story_cast, "reset_datalayer"),
             patch("vultron.demo.helpers.seeding.seed_case_actor_identity"),
             patch.object(
                 coordinated_story,
@@ -321,6 +353,60 @@ class TestOpenCoordinatedCast:
                 case_actor_client=mock_client(),
                 dump=lambda _state: None,
             )
+
+
+class TestCoordinatedSeats:
+    """The three seats the shared opening hands ``open_story_cast``."""
+
+    @pytest.mark.spec("DEMOMA-17-001")
+    def test_the_seats_are_in_the_seeders_return_order(self):
+        """Seat order is ``seed_containers_rcv``'s return order.
+
+        ``open_story_cast`` zips the seats with what the seeder returned, so
+        the order is what binds each session to its own container: a seat out
+        of place would seat the Coordinator's session on the Vendor's client
+        and every later fragment would act as the wrong actor.
+        ``seed_containers_rcv`` returns ``(reporter, coordinator, vendor)``.
+        """
+        clients = {name: mock_client() for name in _CAST}
+
+        seats = coordinated_seats(
+            reporter_client=clients[REPORTER],
+            coordinator_client=clients[COORDINATOR],
+            vendor_client=clients[VENDOR],
+            reporter_id="urn:test:reporter",
+            coordinator_id="urn:test:coordinator",
+            vendor_id="urn:test:vendor",
+        )
+
+        assert [seat.name for seat in seats] == list(_CAST), (
+            "the seats must be in seed_containers_rcv's return order, which is"
+            f" what binds each session to its own container; got {seats!r}"
+        )
+        assert [seat.label for seat in seats] == [
+            REPORTER_LABEL,
+            COORDINATOR_LABEL,
+            VENDOR_LABEL,
+        ]
+        assert [seat.client for seat in seats] == [
+            clients[name] for name in _CAST
+        ], "each seat carries its own container's client (DEMOCI-11-020)"
+        assert [seat.actor_id for seat in seats] == [
+            f"urn:test:{name}" for name in _CAST
+        ]
+
+    def test_an_undeclared_actor_id_leaves_the_container_to_derive_one(self):
+        """A run given no deterministic id passes none on (``CastSeat``)."""
+        seats = coordinated_seats(
+            reporter_client=mock_client(),
+            coordinator_client=mock_client(),
+            vendor_client=mock_client(),
+        )
+
+        assert [seat.actor_id for seat in seats] == [None, None, None], (
+            "an absent --<role>-id must stay absent, so the container derives"
+            f" the actor's URI itself; got {seats!r}"
+        )
 
 
 class TestCoordinatedClients:
@@ -631,6 +717,44 @@ class TestCloseTheCase:
         assert kwargs["owner"].actor.id_ == f"urn:test:{COORDINATOR}"
         assert kwargs["owner"].client is state.client(COORDINATOR)
 
+    @pytest.mark.spec("CM-23-004")
+    def test_a_scenario_that_numbers_no_milestone_passes_none_through(self):
+        """``rvcv-handoff`` numbers no closure milestone (#5536).
+
+        Its check descriptions are then unprefixed, which is
+        ``close_case_owner_last``'s own ``milestone=None`` behaviour; the
+        wrapper's part is to pass the absence through rather than invent an
+        ``"M?"`` prefix the scenario never declared.
+        """
+        state = story_state(*_CAST, case=mock_case())
+
+        with patch.object(
+            coordinated_story, "close_case_owner_last"
+        ) as closure:
+            close_the_case(state, others=(REPORTER,), milestone=None)
+
+        kwargs = closure.call_args.kwargs
+        assert kwargs["milestone"] is None, (
+            "a scenario that numbers no closure milestone must reach"
+            " close_case_owner_last with milestone=None, so its checks are"
+            f" unprefixed (CM-23-004); got {kwargs['milestone']!r}"
+        )
+        assert [leaver.client for leaver in kwargs["others"]] == [
+            state.client(REPORTER)
+        ]
+        assert kwargs["owner"].client is state.client(COORDINATOR)
+
+    def test_the_milestone_defaults_to_none(self):
+        """The default is "numbers none", so a caller opts in to a prefix."""
+        state = story_state(*_CAST, case=mock_case())
+
+        with patch.object(
+            coordinated_story, "close_case_owner_last"
+        ) as closure:
+            close_the_case(state, others=(REPORTER,))
+
+        assert closure.call_args.kwargs["milestone"] is None
+
 
 # ---------------------------------------------------------------------------
 # The shared join for an invitee whose decision is no branch point
@@ -818,6 +942,116 @@ class TestInviteeJoinsTheCase:
             )
 
         stubs.chain.assert_not_called()
+
+    @pytest.mark.spec("CM-17-007")
+    def test_the_inviter_defaults_to_the_familys_coordinator(self):
+        """Every coordinator-first caller is unchanged by the keyword (#5536).
+
+        Only the Case Owner may invite (CM-17-007), and in this family that is
+        the Coordinator.  The default is pinned here so adding *inviter* for
+        the vendor-first family cannot quietly move the Invite, the roster
+        read or the gate label onto somebody else for the callers that pass
+        nothing.
+        """
+        state = story_state(*_CAST, _JOINER, case=mock_case())
+
+        with _join_stubs() as stubs, _recorded_gates() as labels:
+            invitee_joins_the_case(
+                state,
+                _JOINER,
+                "Joiner",
+                role=CVDRole.VENDOR,
+                seated=(REPORTER, COORDINATOR, VENDOR, _JOINER),
+            )
+
+        inviter = stubs.chain.call_args.kwargs["inviter"]
+        assert inviter.name == COORDINATOR_LABEL
+        assert inviter.client is state.client(COORDINATOR)
+        assert inviter.actor is state.actor(COORDINATOR).actor
+        assert stubs.roster.call_args.kwargs["vendor_client"] is state.client(
+            COORDINATOR
+        ), "the default roster read is the Coordinator's own replica"
+        assert labels == [
+            f"{COORDINATOR_LABEL} case has Joiner before Joiner RM triage"
+        ], f"the gate must name the default inviter; got {labels!r}"
+
+    @pytest.mark.spec("CM-17-007")
+    def test_a_named_inviter_invites_from_its_own_container(self):
+        """The vendor-first family has its first Vendor invite (#5536).
+
+        Only the Case Owner may invite (CM-17-007), and which cast member that
+        is differs by family.  Naming one must move all four of the things
+        that follow from it: the Invite's sending client, the actor the Invite
+        comes from, the replica the roster is read from, and the label that
+        tells a reader whose container to look in.
+        """
+        state = story_state(*_CAST, _JOINER, case=mock_case())
+        seated = (REPORTER, VENDOR, _JOINER)
+
+        with _join_stubs() as stubs, _recorded_gates() as labels:
+            invitee_joins_the_case(
+                state,
+                _JOINER,
+                "Joiner",
+                role=CVDRole.VENDOR,
+                seated=seated,
+                inviter=VENDOR,
+                inviter_label="Vendor1",
+            )
+
+        inviter = stubs.chain.call_args.kwargs["inviter"]
+        assert inviter.client is state.client(VENDOR), (
+            "the Invite must be sent from the named inviter's own container"
+            " (CM-17-007)"
+        )
+        assert inviter.actor is state.actor(VENDOR).actor
+        assert inviter.name == "Vendor1"
+        roster = stubs.roster.call_args.kwargs
+        assert roster["vendor_client"] is state.client(VENDOR), (
+            "a triaging invitee's roster is read from the named inviter's"
+            " replica too, not from the family's Coordinator"
+        )
+        assert roster["expected_actor_ids"] == {
+            f"urn:test:{name}" for name in seated
+        }
+        assert labels == ["Vendor1 case has Joiner before Joiner RM triage"], (
+            f"the gate must name the inviter it waited on; got {labels!r}"
+        )
+
+    @pytest.mark.spec("CM-17-007")
+    def test_a_named_inviter_also_owns_the_non_triaging_roster_gate(self):
+        """The other arm of the join reads the same replica (#5536).
+
+        A non-triaging joiner confirms the roster inside the chain's own
+        ``then``, which is a second place the Case Owner is named; a default
+        left behind there would wait on the Coordinator's replica for a case
+        the first Vendor owns.
+        """
+        state = story_state(*_CAST, _JOINER, case=mock_case())
+        seated = (REPORTER, VENDOR, _JOINER)
+
+        with _join_stubs() as stubs, _recorded_gates() as labels:
+            invitee_joins_the_case(
+                state,
+                _JOINER,
+                "Joiner",
+                role=CVDRole.COORDINATOR,
+                seated=seated,
+                triages=False,
+                joined=_JOINED,
+                inviter=VENDOR,
+                inviter_label="Vendor1",
+            )
+            stubs.chain.call_args.kwargs["then"]()
+
+        assert stubs.roster.call_args.kwargs["vendor_client"] is state.client(
+            VENDOR
+        )
+        assert labels == [
+            "Vendor1 case reflects 3 participants after Joiner joined"
+        ], f"the gate must name the inviter it waited on; got {labels!r}"
+        assert state.kept(_JOINED) == str(state.case.id_)
+        stubs.triage.assert_not_called()
 
     @pytest.mark.spec("DEMOMA-14-005")
     def test_the_triage_roster_is_read_from_the_named_owner(self):

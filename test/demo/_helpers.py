@@ -75,7 +75,6 @@ def patch_chain_shared(
             yield mock
 
 
-@contextlib.contextmanager
 def stub_scenario_harness(_demo_name: str) -> Iterator[MagicMock]:
     """Stand in for ``scenario_harness`` in a test that patches out phases.
 
@@ -228,7 +227,6 @@ def functions_referencing(module: ModuleType, name: str) -> list[str]:
     ]
 
 
-@contextlib.contextmanager
 def patched_report_submission(
     demo: ModuleType,
     *,
@@ -784,41 +782,6 @@ def null_demo_contexts(stack: contextlib.ExitStack, demo: ModuleType) -> None:
                 demo, name, side_effect=lambda _: contextlib.nullcontext()
             )
         )
-
-
-def assert_reset_reseeds_case_actor(
-    demo: ModuleType, participant_clients: Mapping[str, MagicMock]
-) -> None:
-    """Run *demo*'s ``reset_containers`` and check the case-actor half (#1876).
-
-    The participants are reset in the order given, the dedicated case-actor
-    container after them, and its CaseActor identity is then re-seeded — the
-    reset wipes it, and every proposal is delivered to it.
-
-    Args:
-        demo: The scenario module under test.
-        participant_clients: ``reset_containers`` keyword → client, in the
-            scenario's reset order.
-    """
-    case_actor_client = MagicMock(name="case_actor_client")
-    for client in (*participant_clients.values(), case_actor_client):
-        client.get.return_value = {}
-
-    with (
-        patch.object(
-            demo, "reset_datalayer", return_value={"status": "ok"}
-        ) as reset_mock,
-        patch(
-            "vultron.demo.helpers.seeding.seed_case_actor_identity"
-        ) as reseed_mock,
-    ):
-        demo.reset_containers(
-            case_actor_client=case_actor_client, **participant_clients
-        )
-
-    reset_clients = [c.kwargs["client"] for c in reset_mock.call_args_list]
-    assert reset_clients == [*participant_clients.values(), case_actor_client]
-    reseed_mock.assert_called_once_with(case_actor_client)
 
 
 def _reporter_links(

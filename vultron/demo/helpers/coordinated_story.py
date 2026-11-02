@@ -100,7 +100,6 @@ from vultron.demo.helpers.polling import (
 from vultron.demo.helpers.runner import check_all_containers
 from vultron.demo.helpers.seeding import (
     get_actor_by_id,
-    reset_containers,
     seed_containers_rcv,
 )
 from vultron.demo.helpers.story import (
@@ -111,6 +110,7 @@ from vultron.demo.helpers.story import (
     choose,
     story,
 )
+from vultron.demo.helpers.story_cast import CastSeat, open_story_cast
 from vultron.demo.helpers.sync import run_sync_verification_phase
 from vultron.demo.helpers.verification import _check_participant_rm_state_in
 from vultron.demo.helpers.workflow import (
@@ -125,7 +125,6 @@ from vultron.demo.utils import (
     demo_gate,
     demo_step,
     ref_id,
-    reset_datalayer,
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import DemoStoryError
@@ -346,22 +345,17 @@ def open_coordinated_cast(
         DemoStoryError: When the containers could not be seeded, so there is
             no cast to tell the story with.
     """
-    waiting = dict(unseated or {})
-    targets: list[tuple[str, DataLayerClient]] = [
-        (REPORTER_LABEL, reporter_client),
-        (COORDINATOR_LABEL, coordinator_client),
-        (VENDOR_LABEL, vendor_client),
-        *((slot.label, slot.client) for slot in waiting.values()),
-    ]
-    reset_containers(
-        targets,
-        reset_fn=reset_datalayer,
-        case_actor_client=case_actor_client,
-    )
-
-    seeded = None
-    with demo_step("Seeding Reporter, Coordinator, and Vendor containers"):
-        seeded = seed_containers_rcv(
+    return open_story_cast(
+        harness,
+        seats=coordinated_seats(
+            reporter_client=reporter_client,
+            coordinator_client=coordinator_client,
+            vendor_client=vendor_client,
+            reporter_id=reporter_id,
+            coordinator_id=coordinator_id,
+            vendor_id=vendor_id,
+        ),
+        seed=lambda: seed_containers_rcv(
             reporter_client=reporter_client,
             coordinator_client=coordinator_client,
             vendor_client=vendor_client,
@@ -369,34 +363,35 @@ def open_coordinated_cast(
             coordinator_actor_id=coordinator_id,
             vendor_actor_id=vendor_id,
             case_actor_client=case_actor_client,
-        )
-    if seeded is None:
-        raise DemoStoryError(
-            "the Reporter, Coordinator and Vendor containers could not be "
-            "seeded, so the story has no cast to run on; the seeding failure "
-            "is recorded above."
-        )
-    reporter, coordinator, vendor = seeded
-
-    return StoryState(
-        cast={
-            REPORTER: ActorSession(
-                client=reporter_client,
-                actor=get_actor_by_id(reporter_client, reporter.id_),
-            ),
-            COORDINATOR: ActorSession(
-                client=coordinator_client,
-                actor=get_actor_by_id(coordinator_client, coordinator.id_),
-            ),
-            VENDOR: ActorSession(
-                client=vendor_client,
-                actor=get_actor_by_id(vendor_client, vendor.id_),
-            ),
-        },
+        ),
+        seed_step="Seeding Reporter, Coordinator, and Vendor containers",
         case_actor_client=case_actor_client,
-        harness=harness,
         dump=dump,
-        unseated=waiting,
+        unseated=unseated,
+    )
+
+
+def coordinated_seats(
+    *,
+    reporter_client: DataLayerClient,
+    coordinator_client: DataLayerClient,
+    vendor_client: DataLayerClient,
+    reporter_id: str | None = None,
+    coordinator_id: str | None = None,
+    vendor_id: str | None = None,
+) -> tuple[CastSeat, CastSeat, CastSeat]:
+    """This family's three fixed-role seats, in ``seed_containers_rcv`` order.
+
+    The order is the seeder's return order, which is what binds each session
+    to its own container (:func:`~vultron.demo.helpers.story_cast\
+    .open_story_cast`).
+    """
+    return (
+        CastSeat(REPORTER, REPORTER_LABEL, reporter_client, reporter_id),
+        CastSeat(
+            COORDINATOR, COORDINATOR_LABEL, coordinator_client, coordinator_id
+        ),
+        CastSeat(VENDOR, VENDOR_LABEL, vendor_client, vendor_id),
     )
 
 
@@ -774,10 +769,12 @@ def invitee_joins_the_case(
     seated: Sequence[str],
     triages: bool = True,
     joined: StoryProp[str] | None = None,
+    inviter: str = COORDINATOR,
+    inviter_label: str = COORDINATOR_LABEL,
     join_timeout: float = PARTICIPANT_JOIN_TIMEOUT,
     cross_container_timeout: float = CROSS_CONTAINER_TIMEOUT,
 ) -> None:
-    """The Coordinator invites the seated *name*, which accepts and joins.
+    """The Case Owner invites the seated *name*, which accepts and joins.
 
     The whole invite chain in one step, for an invitee whose decision is no
     branch point of the tree: the Invite, the Accept, the case replica, the
@@ -785,6 +782,12 @@ def invitee_joins_the_case(
     .run_case_invite_chain`) and then its RM triage.  The Vendor's own join is
     the two-halved form instead, because the story's ``choose`` falls between
     the Invite and the answer.
+
+    Only the Case Owner may invite (CM-17-007), and which cast member that is
+    differs by family: the Coordinator in the coordinator-first subtree, the
+    first Vendor in the vendor-first one (#5536).  *inviter* therefore names
+    it, defaulting to this family's Coordinator, and the roster is read from
+    that member's own replica.
 
     Args:
         state: The running story's state.
@@ -812,6 +815,9 @@ def invitee_joins_the_case(
             fragment reads it.  Only the non-triaging path keeps one, so
             passing both this and ``triages=True`` raises rather than leaving
             a prop no step ever keeps.
+        inviter: The Case Owner's cast name, which sends the Invite and whose
+            replica the roster is read from.
+        inviter_label: What this scenario calls that owner in gate labels.
         join_timeout: Seconds to wait for the roster.
         cross_container_timeout: Seconds each cross-container wait of the
             chain may take.
@@ -836,11 +842,11 @@ def invitee_joins_the_case(
         # and left bare the other (DEMOCI-01-011).
         context = demo_check if joined is None else demo_gate
         with context(
-            f"Coordinator case reflects {len(seated)} participants after "
+            f"{inviter_label} case reflects {len(seated)} participants after "
             f"{label} joined"
         ):
             wait_for_case_participants(
-                vendor_client=state.client(COORDINATOR),
+                vendor_client=state.client(inviter),
                 case_id=state.case.id_,
                 expected_actor_ids={state.actor_id(who) for who in seated},
                 timeout_seconds=join_timeout,
@@ -856,9 +862,9 @@ def invitee_joins_the_case(
         invitee=invitee,
         invitee_in_own_container=invitee,
         inviter=CaseInviter(
-            name=COORDINATOR_LABEL,
-            client=state.client(COORDINATOR),
-            actor=state.actor(COORDINATOR).actor,
+            name=inviter_label,
+            client=state.client(inviter),
+            actor=state.actor(inviter).actor,
             role=role,
         ),
         invite_timeout=cross_container_timeout,
@@ -872,6 +878,8 @@ def invitee_joins_the_case(
             name,
             label,
             seated=seated,
+            owner=inviter,
+            owner_label=inviter_label,
             join_timeout=join_timeout,
             triage_timeout=cross_container_timeout,
         )
@@ -1297,7 +1305,7 @@ def close_the_case(
     *,
     others: Sequence[str],
     owner: str = COORDINATOR,
-    milestone: str,
+    milestone: str | None = None,
 ) -> None:
     """*others* leave the case in order; *owner*, the Case Owner, leaves last.
 
@@ -1311,7 +1319,9 @@ def close_the_case(
         state: The running story's state.
         others: The cast names that leave first, in leaving order.
         owner: The cast name of the Case Owner.
-        milestone: The closure milestone this scenario numbers it.
+        milestone: The closure milestone this scenario numbers it, prefixed
+            to each check's description; ``None`` for a scenario that numbers
+            none (``rvcv-handoff``).
     """
     close_case_owner_last(
         case=state.case,
@@ -1362,6 +1372,7 @@ __all__ = [
     "await_reporter_case_replica",
     "close_the_case",
     "coordinated_cast_members",
+    "coordinated_seats",
     "coordinated_clients",
     "coordinated_open_cast",
     "coordinator_and_reporter_publish",

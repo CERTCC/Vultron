@@ -11,47 +11,50 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Shared scenario harness: run phases, always dump ledgers, then assert.
+"""Shared scenario harness: run the story, always dump ledgers, then assert.
 
-Every ``run_*_demo()`` used to end with a plain call to its
-``_phase_dump_case_ledgers``. That made the forensic dump conditional on the
-scenario succeeding: an assertion escaping any earlier phase — an unguarded
-``wait_for_*`` timeout, say — skipped the dump, while ``main()``'s
-``assert_demo_success()`` still failed the job. The demo therefore failed with
-an empty ``devlogs/`` directory and the invariant-harness job died on artifact
-download, reporting nothing about the protocol (ISSUE-2239).
+Every ``run_*_demo()`` used to end with a plain call to its own ledger-dump
+phase. That made the forensic dump conditional on the scenario succeeding: an
+assertion escaping any earlier step — an unguarded ``wait_for_*`` timeout,
+say — skipped the dump, while ``main()``'s ``assert_demo_success()`` still
+failed the job. The demo therefore failed with an empty ``devlogs/`` directory
+and the invariant-harness job died on artifact download, reporting nothing
+about the protocol (ISSUE-2239).
 
 :func:`scenario_harness` fixes the shape rather than the nine call sites. It
 owns the order the whole demo suite needs (DEMOMA-23-001):
 
 1. reset the failure accumulator,
-2. run the phases,
+2. run the story,
 3. **always** dump the ledgers — in a ``finally``, guarded so a dump error can
    never replace the exception that caused the failure,
 4. assert success.
 
-Usage from a scenario module::
+Every scenario is written as a composed story (``notes/demo-scenario-tree.md``
+§ "Composition"), so :func:`~vultron.demo.helpers.story.run_story` is the one
+caller that enters the harness, and the fragment that opens the case registers
+the dump through :meth:`~vultron.demo.helpers.story.StoryState.open_case`::
 
     def run_rvv_demo(...) -> None:
-        with scenario_harness("rvv") as harness:
-            reporter, vendor, ..., case = _phase_report_submission(...)
-            harness.dump_with(
-                lambda: _phase_dump_case_ledgers(
-                    reporter_client=reporter_client, ..., case=case
-                )
-            )
-            _phase_sync_verification(...)
-            ...
+        open_cast = vendor_open_cast(..., dump=_dump_ledgers)
+        run_story("rvv", STORY, open_cast)
+
+    # inside the opening fragment, as soon as the triage returns a case:
+    state.open_case(case=case, report=report, offer=offer)
+    #   -> harness.dump_with(lambda: self.dump(self))
+    #   -> harness.follow_ledger(case_actor_client, case.id_)
 
 The dump is registered as a callable the moment the case exists, so any later
-phase can die and the harness still has something to dump. Before that point
-the harness writes a manifest-only artifact, which is enough for the invariant
-harness to distinguish "the demo produced no ledgers" from "the demo never
-ran".
+fragment can die and the harness still has something to dump (DEMOMA-23-003).
+Before that point the harness writes a manifest-only artifact, which is enough
+for the invariant harness to distinguish "the demo produced no ledgers" from
+"the demo never ran".
 
-**Step marks.** A scenario also reports reaching each step of its declared
-path (``@scenario(path=...)``) with :meth:`ScenarioHarness.reach_step`, at the
-point where it makes that decision, naming the actor that decides there.  The
+**Step marks.** A scenario also reports reaching each step of its path with
+:meth:`ScenarioHarness.reach_step`, at the point where it makes that decision,
+naming the actor that decides there.  A composed scenario places none by hand:
+``run_story`` makes the call as it passes each ``choose`` item of the story
+the path is read from (DEMOCI-11-019).  The
 harness checks the step is the next one declared and that the actor holds the
 branch point's role (DEMOCI-11-013, :mod:`.deciding_role`), and records the
 canonical ledger's tail there: how many entries the case had when the
@@ -70,12 +73,12 @@ branch point falls (DEMOCI-11-017, ``notes/demo-scenario-tree.md``)::
             "vendor-after-answer", "report-fix-ready", by=vendor.id_
         )
 
-A step that falls inside a phase function is reported with the module-level
-:func:`reach_step` (and the ledger followed with :func:`follow_ledger`), which
-go to the harness of the scenario running now, so a phase does not take the
-harness as a parameter.  Outside a harness, a phase called directly by a test
-for example, both do nothing: the marks belong to a scenario run, and the
-recorder refuses a run whose marks do not cover its declared path.
+A step reported from a helper that was handed no harness uses the module-level
+:func:`reach_step` (and the ledger is followed with :func:`follow_ledger`),
+which go to the harness of the scenario running now.  Outside a harness — a
+fragment called directly by a test, for example — both do nothing: the marks
+belong to a scenario run, and the recorder refuses a run whose marks do not
+cover its declared path.
 """
 
 import json

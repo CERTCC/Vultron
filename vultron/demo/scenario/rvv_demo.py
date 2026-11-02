@@ -15,21 +15,33 @@
 
 """Reporter → Vendor1 → Vendor2 (RVV) three-actor CVD workflow demo.
 
-Orchestrates the full VFDPxa lifecycle across separate Reporter, Vendor1,
-and Vendor2 containers with no coordinator.  Vendor1 creates the case, which
-seats the Reporter, and invites Vendor2; each vendor has an
-independent fix path (CS_vf/CS_d).  Vendor2's DataLayer is verified as a
-LedgerFanout replica of the authoritative Vendor1 state.
+Three actor containers plus a dedicated CaseActor, and no Coordinator:
 
-Spec: D5-5 (GitHub issue #1265).
+- Reporter: the report submitter, seated when the case is created
+  (CM-22-002);
+- Vendor1 (cast slot 1, the first Vendor): CASE_OWNER throughout, which
+  invites Vendor2 directly (DEMOMA-09-002);
+- Vendor2 (cast slot 3, a character actor): a second Vendor with a fix path
+  of its own (DEMOMA-09-003);
+- CaseActor (case-actor container): holds the canonical case and ledger
+  (DEMOMA-09-006).
+
+Cast (DEMOCI-11-020): every scenario runs the same containers, so a role's
+address and actor id are the same here as in its siblings.  ``ROLES`` below
+seats each actor; the cast table is ``vultron/demo/helpers/cast.py``.
+
+The story is assembled, not written out: it starts with
+:data:`~vultron.demo.helpers.vendor_story.THE_VENDOR_ANSWERS_THE_REPORTER`,
+the opening it shares with ``rv`` and the ``rvcv`` pair, and continues with
+Vendor1 inviting a second Vendor (:data:`STORY`, DEMOCI-11-019).  That shared
+opening is why this scenario's ledger and its siblings' agree byte for byte up
+to Vendor1's decision (DEMOCI-11-018).
+
+Spec: DEMOMA-09 (D5-5, GitHub issue #1265).
 """
 
 import logging
-import sys
 
-from vultron.core.states.cs import CS_vf
-from vultron.core.states.rm import RM
-from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.actor_roles import (
     ActorRole,
     case_actor_role,
@@ -37,102 +49,63 @@ from vultron.demo.helpers.actor_roles import (
     role_map,
 )
 from vultron.demo.helpers.cast import CAST, REPORTER_SLOT, VENDOR_SLOT
-from vultron.demo.helpers.closure import CaseLeaver, close_case_owner_last
-from vultron.demo.helpers.harness import (
-    follow_ledger,
-    reach_step,
-    scenario_harness,
+from vultron.demo.helpers.coordinated_story import (
+    CASE_ACTOR_NAME,
+    REPORTER,
+    REPORTER_LABEL,
+    CastContainer,
+    close_the_case,
+    coordinated_clients,
+    invitee_joins_the_case,
+    reports_published,
+    seat_character_actors,
 )
-from vultron.demo.helpers.invite_chain import (
-    CaseInviter,
-    run_case_invite_chain,
+from vultron.demo.helpers.notes import NotePost
+from vultron.demo.helpers.seeding import seed_containers_rvv
+from vultron.demo.helpers.story import (
+    StoryState,
+    UnseatedContainer,
+    choose,
+    run_story,
+    story,
 )
-from vultron.demo.helpers.ledger_dump import (
-    LedgerDumpTarget,
-    case_actor_dump_target,
-    dump_case_ledgers,
-    replica_route_key,
-)
-from vultron.demo.helpers.milestones import (
-    verify_case_active,
-    verify_fix_ready,
-    verify_publicly_disclosed,
-)
-from vultron.demo.helpers.notes import (
-    WORKAROUND_QUESTION,
-    NotePost,
-    add_note_thread,
-    reporter_asks,
-    vendor_answers_workaround,
-)
-from vultron.demo.helpers.polling import (
-    wait_for_case_em_terminated,
-    wait_for_case_on_container,
-    wait_for_case_participants,
-    wait_for_participant_rm_state,
-    wait_for_participant_vf_state,
-    wait_for_reporter_case,
-)
-from vultron.demo.helpers.seeding import (
-    get_actor_by_id,
-    reset_containers as _reset_containers,
-    seed_containers_rvv,
-)
-from vultron.demo.helpers.sync import (
-    run_sync_verification_phase,
-)
-from vultron.demo.helpers.workflow import (
-    reporter_submits_report,
-    run_direct_path_rm_triage,
-    run_invite_path_rm_triage,
+from vultron.demo.helpers.sync import run_sync_verification_phase
+from vultron.demo.helpers.vendor_story import (
+    JOIN_TIMEOUT,
+    THE_VENDOR_ANSWERS_THE_REPORTER,
+    VENDOR,
+    VENDOR2,
+    VENDOR2_LABEL,
+    VENDOR_LABEL,
+    both_vendors_report_the_fix_ready,
+    dump_vendor_ledgers,
+    required_participants_are_present,
+    the_disclosure_reached_every_replica,
+    the_embargo_ends_for,
+    the_joiners_add_their_notes,
+    vendor_open_cast,
 )
 from vultron.demo.scenario.registry import scenario
-from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
-    BASE_URL,
-    DataLayerClient,
-    assert_demo_success,
-    bound_case_actor_client,
-    check_server_availability,
-    demo_check,
-    demo_gate,
-    demo_step,
-    ref_id,
-    reset_datalayer,
-    reset_demo_failures,
-    setup_demo_logging,
-    verify_object_stored,
-)
+from vultron.demo.utils import DataLayerClient, demo_step, setup_demo_logging
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Offer,
-)
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
 
 logger = logging.getLogger(__name__)
+
+DEMO_NAME = "rvv"
 
 # The scenario's actors in main() parameter order, each seated in a container of
 # the fixed cast (DEMOCI-11-020).  The demo CLI derives this scenario's
 # sub-command options from this list (DEMOCI-11-011).
 ROLES: list[ActorRole] = [
-    ActorRole("reporter", REPORTER_SLOT, "Reporter", has_id=True),
-    ActorRole("vendor", VENDOR_SLOT, "Vendor1", has_id=True),
-    ActorRole("vendor2", CAST[3], "Vendor2", has_id=True),
+    ActorRole(REPORTER, REPORTER_SLOT, REPORTER_LABEL, has_id=True),
+    ActorRole(VENDOR, VENDOR_SLOT, VENDOR_LABEL, has_id=True),
+    ActorRole(VENDOR2, CAST[3], VENDOR2_LABEL, has_id=True),
     case_actor_role(),
 ]
+#: Indexed for the CLI factory and for ``coordinated_clients()``, which reads
+#: each actor's container address off its cast slot — so this module declares
+#: no ``*_BASE_URL`` constant of its own (DEMOCI-11-020).
 _ROLES = role_map(ROLES)
-
-# Default container base URLs — override via environment variables.
-REPORTER_BASE_URL = _ROLES["reporter"].url
-VENDOR_BASE_URL = _ROLES["vendor"].url
-VENDOR2_BASE_URL = _ROLES["vendor2"].url
-CASE_ACTOR_BASE_URL = _ROLES["case-actor"].url
 
 #: ``vultron-demo rvv --help`` text. Lives here rather than in ``cli.py``
 #: because the sub-command is generated from the registry and the scenario
@@ -146,593 +119,199 @@ fix path.
 
 \b
 Workflow:
-  1. Seed all three containers (actor records + peer registration).
-  2. Reporter submits a vulnerability report to Vendor1's inbox.
-  3. Vendor1 validates the report and engages the case.
-  4. Vendor1 invites Vendor2; Vendor2 accepts.
+  1. Seed the Reporter and Vendor1 containers (actor records + peer
+     registration); Reporter submits a vulnerability report to Vendor1's
+     inbox.
+  2. Vendor1 validates the report and engages the case.
+  3. Reporter asks about a workaround and Vendor1 answers.
+  4. Vendor2's container is seeded and Vendor1 invites Vendor2; Vendor2
+     accepts and runs its RM triage.
   5. Verify LedgerFanout replication on Reporter and Vendor2.
-  6. Both vendors independently advance through fix-ready → fix-deployed.
+  6. Both vendors independently advance to fix-ready (VFd).
   7. All participants report publication; embargo terminates.
-  8. All participants close the case.
+  8. All participants close the case; the case ledgers are dumped.
 """
 
 
-def reset_containers(
-    reporter_client: DataLayerClient,
-    vendor_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
-    case_actor_client: DataLayerClient,
-) -> None:
-    """Reset the three RVV containers and the dedicated case-actor container.
-
-    The case-actor container's CaseActor identity is re-seeded after the reset,
-    since Vendor1 proposes the case to it (DEMOMA-06-004).
-    """
-    targets: list[tuple[str, DataLayerClient]] = [
-        ("Reporter", reporter_client),
-        ("Vendor1", vendor_client),
-        ("Vendor2", vendor2_client),
-    ]
-    _reset_containers(
-        targets,
-        reset_fn=reset_datalayer,
-        case_actor_client=case_actor_client,
-    )
-
-
 # ---------------------------------------------------------------------------
-# Phase helpers
+# Fragments this scenario alone tells
 # ---------------------------------------------------------------------------
 
 
-def _phase_report_submission(
-    reporter_client: DataLayerClient,
-    vendor_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
-    case_actor_client: DataLayerClient,
-    reporter_id: str | None,
-    vendor_id: str | None,
-    vendor2_id: str | None,
-) -> tuple[
-    as_Actor,
-    as_Actor,
-    as_Actor,
-    as_Actor,
-    as_VulnerabilityReport,
-    as_Offer,
-    as_VulnerabilityCase,
-    as_Note | None,
-]:
-    """Reset, seed, submit, validate, engage, exchange notes, invite Vendor2, M1.
+def the_second_vendor_is_seeded(state: StoryState) -> None:
+    """Seed and seat Vendor2, this scenario's one character actor.
 
-    The Reporter's question and Vendor1's answer run before Vendor2 is
-    invited, so Vendor1's branch point (invite another Vendor) follows them on
-    the scenario tree (``notes/demo-scenario-tree.md``).
-
-    Returns:
-        The cast, the report and offer, the refreshed case, and Vendor1's
-        reply note (``None`` when the exchange failed), which Vendor2's note
-        answers later.
+    ``seed_containers_rvv`` creates Vendor2 and registers every actor as a
+    peer of the other two (DEMOMA-09-001); the two the shared opening already
+    seeded come back unchanged, because ``POST /actors/`` and
+    ``POST /actors/{id}/peers/`` are idempotent.  Running it here rather than
+    in the opening is what lets this scenario's recording match ``rv``'s byte
+    for byte up to Vendor1's decision (DEMOCI-11-018, #5532).
     """
-    logger.info("─" * 80)
-    logger.info("Phase 1: Report submission and case activation")
-    logger.info("─" * 80)
-
-    reset_containers(
-        reporter_client=reporter_client,
-        vendor_client=vendor_client,
-        vendor2_client=vendor2_client,
-        case_actor_client=case_actor_client,
-    )
-
-    reporter = vendor = vendor2 = None
-    reply_note: as_Note | None = None
-    with demo_step("Seeding all three containers with actor records"):
-        reporter, vendor, vendor2 = seed_containers_rvv(
-            reporter_client=reporter_client,
-            vendor_client=vendor_client,
-            vendor2_client=vendor2_client,
-            reporter_actor_id=reporter_id,
-            vendor_actor_id=vendor_id,
-            vendor2_actor_id=vendor2_id,
-            case_actor_client=case_actor_client,
+    vendor2_container = state.container(VENDOR2)
+    with demo_step("Seeding the Vendor2 container with an actor record"):
+        seeded = seed_containers_rvv(
+            reporter_client=state.client(REPORTER),
+            vendor_client=state.client(VENDOR),
+            vendor2_client=vendor2_container.client,
+            reporter_actor_id=state.actor_id(REPORTER),
+            vendor_actor_id=state.actor_id(VENDOR),
+            vendor2_actor_id=vendor2_container.actor_id,
+            case_actor_client=state.case_actor_client,
         )
+        # Seated inside the step that seeded it, and only once it reads back:
+        # the invite below names Vendor2 by actor id (#2308, EDF-06-005).
+        seat_character_actors(state, {VENDOR2: seeded[2].id_})
 
-    vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
-    vendor2_in_vendor2 = get_actor_by_id(vendor2_client, vendor2.id_)
 
-    # The Reporter's decision; its role comes from submitting the report.
-    reach_step("reporter-whom-to-tell", "vendor", by=reporter.id_)
-    report, offer = reporter_submits_report(
-        receiver_client=vendor_client,
-        reporter=reporter,
-        receiver=vendor_in_vendor,
-        reporter_client=reporter_client,
-    )
-    case = run_direct_path_rm_triage(
-        receiver_client=vendor_client,
-        receiver=vendor_in_vendor,
-        offer=offer,
-    )
+def vendor1_invites_the_second_vendor(state: StoryState) -> None:
+    """Vendor1 invites Vendor2 with ``CVDRole.VENDOR``; Vendor2 joins.
 
-    # Causal precondition: the initial case (Reporter + Vendor1 present on
-    # Vendor1's replica) must exist before Vendor2 is invited.  A demo_gate — not
-    # demo_check — because inviting/admitting Vendor2 operates on unestablished
-    # state if this times out; the gate skips the doomed dependent steps rather
-    # than cascading (DEMOCI-01-011, vultron/demo/AGENTS.md § "Never Wrap a
-    # Causal Wait in demo_check").
-    with demo_gate(
-        "Vendor1 case has Reporter + Vendor1 before inviting Vendor2"
-    ):
-        wait_for_case_participants(
-            vendor_client=vendor_client,
-            case_id=case.id_,
-            expected_actor_ids={reporter.id_, vendor.id_},
-        )
-
-        with demo_check(
-            "Reporter's DataLayer received case via Vendor1 outbox delivery"
-        ):
-            wait_for_reporter_case(
-                reporter_client=reporter_client,
-                case_id=case.id_,
-            )
-
-        # The Reporter asks and Vendor1 answers before Vendor1 decides to
-        # invite another Vendor, its branch point on the scenario tree.
-        reply_note = _phase_notes_exchange(
-            reporter_client=reporter_client,
-            vendor_client=vendor_client,
-            reporter=reporter,
-            vendor_in_vendor=vendor_in_vendor,
-            case=case,
-        )
-        follow_ledger(case_actor_client, case.id_)
-        reach_step("vendor-after-answer", "invite-vendor", by=vendor.id_)
-
-        # Vendor1 invites Vendor2 to the case; the chain nests the delivery
-        # gate, the accept and the replica wait (ADR-0058, EDF-06-005, #3038).
-        run_case_invite_chain(
-            case=case,
-            case_manager_client=case_actor_client,
-            invitee_name="Vendor2",
-            invitee_client=vendor2_client,
-            invitee=vendor2,
-            invitee_in_own_container=vendor2_in_vendor2,
-            inviter=CaseInviter(
-                name="Vendor1",
-                client=vendor_client,
-                actor=vendor_in_vendor,
-                role=CVDRole.VENDOR,
-            ),
-            invite_timeout=20.0,
-        )
-
-        # All 4 participants (Reporter + Vendor1 + Vendor2 + CaseActor) present is
-        # the precondition for Vendor2's RM triage below.
-        with demo_gate(
-            "Vendor1 case has all 4 participants before Vendor2 RM triage"
-        ):
-            wait_for_case_participants(
-                vendor_client=vendor_client,
-                case_id=case.id_,
-                expected_actor_ids={
-                    reporter.id_,
-                    vendor.id_,
-                    vendor2.id_,
-                },
-            )
-
-            # CLP-08-005: ensure Reporter's genesis hash is seeded before
-            # Announce(CaseLedgerEntry) is broadcast by the triage cycle below.
-            with demo_check(
-                "Reporter's DataLayer received case replica before Vendor2 RM"
-                " triage"
-            ):
-                wait_for_case_on_container(
-                    client=reporter_client,
-                    case_id=case.id_,
-                )
-
-            # CM-11-002: Vendor2 joined via invite-accept — run RM triage cycle.
-            run_invite_path_rm_triage(
-                invited_client=vendor2_client,
-                invited_actor=vendor2_in_vendor2,
-                offer=offer,
-                report=report,
-                reporter=reporter,
-                auth_client=case_actor_client,
-                case=case,
-                invited_obj=vendor2,
-            )
-
-    with demo_check(
-        "M1: required participants (≥4), EM.ACTIVE, reporter + vendor2 have replicas"
-    ):
-        verify_case_active(
-            receiver_client=vendor_client,
-            reporter_client=reporter_client,
-            case_id=case.id_,
-            receiver_actor_id=vendor.id_,
-            reporter_actor_id=reporter.id_,
-        )
-
-    case = as_VulnerabilityCase.model_validate(
-        vendor_client.get(vendor_client.dl_path(case.id_))
-    )
-    return (
-        reporter,
-        vendor,
-        vendor_in_vendor,
-        vendor2,
-        report,
-        offer,
-        case,
-        reply_note,
+    Vendor1 is CASE_OWNER, so it invites directly rather than through the
+    ADR-0026 suggest/approve chain (DEMOMA-09-002).  Vendor2 joined by
+    accepting, so it runs its own RM triage over the report it was invited
+    over (CM-11-002).
+    """
+    invitee_joins_the_case(
+        state,
+        VENDOR2,
+        VENDOR2_LABEL,
+        role=CVDRole.VENDOR,
+        seated=(REPORTER, VENDOR, VENDOR2),
+        inviter=VENDOR,
+        inviter_label=VENDOR_LABEL,
+        join_timeout=JOIN_TIMEOUT,
+        cross_container_timeout=JOIN_TIMEOUT,
     )
 
 
-def _phase_sync_verification(
-    reporter_client: DataLayerClient,
-    vendor_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
-    vendor: as_Actor,
-    reporter: as_Actor,
-    vendor2: as_Actor,
-    case: as_VulnerabilityCase,
-) -> None:
-    """Verify LedgerFanout replication for both Reporter and Vendor2 replicas."""
-    logger.info("─" * 80)
-    logger.info("Phase 2: Replica synchronization verification")
-    logger.info("─" * 80)
+def the_case_is_active(state: StoryState) -> None:
+    """M1: all four participants are seated and the embargo is active."""
+    required_participants_are_present(
+        state,
+        check=(
+            "M1: required participants (≥4), EM.ACTIVE, reporter + vendor2"
+            " have replicas"
+        ),
+    )
 
+
+def every_replica_converges(state: StoryState) -> None:
+    """M2: verify LedgerFanout replication for the Reporter and Vendor2.
+
+    Thin call to the shared sync helper (DEMOMA-23-007), naming only this
+    scenario's authority, replicas and late joiner (DEMOMA-09-004).
+    """
     run_sync_verification_phase(
-        auth_client=vendor_client,
-        auth_label="Vendor1",
-        auth_actor_id=vendor.id_,
-        reporter_client=reporter_client,
-        reporter_actor_id=reporter.id_,
-        replicas=[(reporter_client, "Reporter"), (vendor2_client, "Vendor2")],
-        case_id=case.id_,
-        expected_participant_ids={reporter.id_, vendor.id_, vendor2.id_},
+        auth_client=state.client(VENDOR),
+        auth_label=VENDOR_LABEL,
+        auth_actor_id=state.actor_id(VENDOR),
+        reporter_client=state.client(REPORTER),
+        reporter_actor_id=state.actor_id(REPORTER),
+        replicas=[
+            (state.client(REPORTER), REPORTER_LABEL),
+            (state.client(VENDOR2), VENDOR2_LABEL),
+        ],
+        case_id=state.case.id_,
+        expected_participant_ids={
+            state.actor_id(who) for who in (REPORTER, VENDOR, VENDOR2)
+        },
         # Vendor2 joins by invitation after the report is accepted (#2852).
-        late_joiners=(vendor2_client,),
+        late_joiners=(state.client(VENDOR2),),
         state_checks=[
-            (reporter_client, "Reporter"),
-            (vendor2_client, "Vendor2"),
+            (state.client(REPORTER), REPORTER_LABEL),
+            (state.client(VENDOR2), VENDOR2_LABEL),
         ],
     )
-
     logger.info(
-        "✓ M2: Reporter and Vendor2 DataLayers synchronized (LedgerFanout verified)"
+        "✓ M2: Reporter and Vendor2 DataLayers synchronized (LedgerFanout"
+        " verified)"
     )
 
 
-def _phase_notes_exchange(
-    reporter_client: DataLayerClient,
-    vendor_client: DataLayerClient,
-    reporter: as_Actor,
-    vendor_in_vendor: as_Actor,
-    case: as_VulnerabilityCase,
-) -> as_Note | None:
-    """The Reporter asks a question and Vendor1 answers it.
-
-    Gated on the Reporter's replica holding the case, since the Reporter posts
-    from it (DEMOMA-22-001).
-
-    Returns:
-        Vendor1's reply note, or ``None`` when the exchange or its gate failed
-        (the failure is recorded).
-    """
-    logger.info("─" * 80)
-    logger.info("Notes exchange: Reporter asks, Vendor1 answers")
-    logger.info("─" * 80)
-
-    reporter_in_reporter = get_actor_by_id(reporter_client, reporter.id_)
-    return reporter_asks(
-        ActorSession(client=reporter_client, actor=reporter_in_reporter),
-        vendor_client,
-        case,
-        WORKAROUND_QUESTION,
-        [
-            vendor_answers_workaround(
-                ActorSession(client=vendor_client, actor=vendor_in_vendor)
-            ),
-        ],
-    )
-
-
-def _phase_vendor2_note(
-    vendor_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
-    vendor2_in_vendor2: as_Actor,
-    case: as_VulnerabilityCase,
-    reply_note: as_Note | None,
-) -> as_Note | None:
-    """Vendor2, once joined, adds its status to the Reporter–Vendor1 thread."""
-    logger.info("─" * 80)
-    logger.info("Phase 3: Vendor2 status note")
-    logger.info("─" * 80)
-
-    vendor2_note = add_note_thread(
-        vendor_client,
-        case,
+def the_second_vendor_adds_its_note(state: StoryState) -> None:
+    """Vendor2, once joined, answers the thread the opening posted."""
+    the_joiners_add_their_notes(
+        state,
         [
             NotePost(
-                ActorSession(client=vendor2_client, actor=vendor2_in_vendor2),
-                "Vendor2 Status Update",
+                state.actor(VENDOR2),
+                f"{VENDOR2_LABEL} Status Update",
                 "Vendor2 can confirm the issue affects our component. "
                 "We will coordinate our fix timeline with Vendor1.",
             )
         ],
-        in_reply_to=reply_note,
     )
 
-    logger.info(
-        "✓ Notes exchange complete (question + two replies committed to case ledger)"
+
+def both_vendors_fix_the_vul(state: StoryState) -> None:
+    """Both vendors report fix ready; both stop at VFd (CSB-15-002)."""
+    both_vendors_report_the_fix_ready(
+        state,
+        milestones=(
+            "M4: Reporter replica shows both vendors CS include F (fix ready)",
+            "M5: Reporter replica shows both vendors CS include F (fix ready)"
+            " — vendors stop at VFd",
+        ),
     )
-    return vendor2_note
 
 
-def _phase_fix_lifecycle(
-    reporter_client: DataLayerClient,
-    vendor_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
-    vendor: as_Actor,
-    vendor_in_vendor: as_Actor,
-    vendor2: as_Actor,
-    vendor2_in_vendor2: as_Actor,
-    case: as_VulnerabilityCase,
-) -> None:
-    """Advance both vendors through independent fix-ready and fix-deployed paths."""
-    logger.info("─" * 80)
-    logger.info(
-        "Phase 4: Fix lifecycle — both vendors: VFd (fix ready); vendors stop at VFd (CSB-15-002)"
+def everyone_publishes(state: StoryState) -> None:
+    """Vendor1, as CASE_OWNER, publishes first; then Vendor2 and the Reporter."""
+    reports_published(state, VENDOR)
+    the_embargo_ends_for(
+        state,
+        check=(
+            f"Embargo terminated (EM.EXITED) after {VENDOR_LABEL} reports"
+            " published"
+        ),
+        watcher=VENDOR,
     )
-    logger.info("─" * 80)
-
-    with demo_gate(
-        "vendor RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (CSB-18-001)"
-    ):
-        wait_for_participant_rm_state(
-            client=vendor_client,
-            case_id=case.id_,
-            actor_id=vendor.id_,
-            expected_states={RM.ACCEPTED, RM.DEFERRED, RM.CLOSED},
-        )
-        with demo_step(f"Actor {ref_id(vendor_in_vendor)} reports fix ready"):
-            ActorSession(
-                client=vendor_client, actor=vendor_in_vendor
-            ).with_case(case).quiet().notify_fix_ready()
-        with demo_check("Vendor1 participant vf_state transitions to VF"):
-            wait_for_participant_vf_state(
-                client=vendor_client,
-                case_id=case.id_,
-                actor_id=vendor.id_,
-                expected_states={CS_vf.VF},
-            )
-
-    with demo_gate(
-        "vendor2 RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (CSB-18-001)"
-    ):
-        wait_for_participant_rm_state(
-            client=vendor2_client,
-            case_id=case.id_,
-            actor_id=vendor2.id_,
-            expected_states={RM.ACCEPTED, RM.DEFERRED, RM.CLOSED},
-        )
-        with demo_step(
-            f"Actor {ref_id(vendor2_in_vendor2)} reports fix ready"
-        ):
-            ActorSession(
-                client=vendor2_client, actor=vendor2_in_vendor2
-            ).with_case(case).quiet().notify_fix_ready()
-        with demo_check("Vendor2 participant vf_state transitions to VF"):
-            wait_for_participant_vf_state(
-                client=vendor2_client,
-                case_id=case.id_,
-                actor_id=vendor2.id_,
-                expected_states={CS_vf.VF},
-            )
-
-    with demo_check(
-        "M4: Reporter replica shows both vendors CS include F (fix ready)"
-    ):
-        wait_for_participant_vf_state(
-            client=vendor_client,
-            case_id=case.id_,
-            actor_id=vendor.id_,
-            expected_states={CS_vf.VF},
-        )
-        wait_for_participant_vf_state(
-            client=reporter_client,
-            case_id=case.id_,
-            actor_id=vendor.id_,
-            expected_states={CS_vf.VF},
-        )
-        verify_fix_ready(
-            receiver_client=vendor_client,
-            reporter_client=reporter_client,
-            case_id=case.id_,
-            receiver_actor_id=vendor.id_,
-        )
-
-    with demo_check(
-        "M5: Reporter replica shows both vendors CS include F (fix ready) — vendors stop at VFd"
-    ):
-        wait_for_participant_vf_state(
-            client=vendor_client,
-            case_id=case.id_,
-            actor_id=vendor.id_,
-            expected_states={CS_vf.VF},
-        )
-        wait_for_participant_vf_state(
-            client=reporter_client,
-            case_id=case.id_,
-            actor_id=vendor.id_,
-            expected_states={CS_vf.VF},
-        )
-        verify_fix_ready(
-            receiver_client=vendor_client,
-            reporter_client=reporter_client,
-            case_id=case.id_,
-            receiver_actor_id=vendor.id_,
-        )
-
-
-def _phase_publication(
-    reporter_client: DataLayerClient,
-    vendor_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
-    vendor: as_Actor,
-    vendor_in_vendor: as_Actor,
-    vendor2: as_Actor,
-    vendor2_in_vendor2: as_Actor,
-    reporter: as_Actor,
-    reporter_in_reporter: as_Actor,
-    case: as_VulnerabilityCase,
-) -> None:
-    """Run publication notifications and verify public disclosure state."""
-    logger.info("─" * 80)
-    logger.info(
-        "Phase 5: Publication — CS.VFDPxa + embargo teardown (EM.EXITED)"
+    reports_published(state, VENDOR2)
+    reports_published(state, REPORTER)
+    the_disclosure_reached_every_replica(
+        state,
+        check=(
+            "M6: all replicas CS.VFdPxa, EM.EXITED, all participants"
+            " public-aware"
+        ),
     )
-    logger.info("─" * 80)
-
-    with demo_step(
-        f"Actor {ref_id(vendor_in_vendor)} reports vulnerability publicly"
-        " disclosed"
-    ):
-        ActorSession(client=vendor_client, actor=vendor_in_vendor).with_case(
-            case
-        ).quiet().notify_published()
-
-    with demo_check(
-        "Embargo terminated (EM.EXITED) after Vendor1 reports published"
-    ):
-        wait_for_case_em_terminated(
-            client=vendor_client,
-            case_id=case.id_,
-        )
-
-    with demo_step(
-        f"Actor {ref_id(vendor2_in_vendor2)} reports vulnerability publicly"
-        " disclosed"
-    ):
-        ActorSession(
-            client=vendor2_client, actor=vendor2_in_vendor2
-        ).with_case(case).quiet().notify_published()
-
-    with demo_step(
-        f"Actor {ref_id(reporter_in_reporter)} reports vulnerability publicly"
-        " disclosed"
-    ):
-        ActorSession(
-            client=reporter_client, actor=reporter_in_reporter
-        ).with_case(case).quiet().notify_published()
-
-    with demo_check(
-        "M6: all replicas CS.VFdPxa, EM.EXITED, all participants public-aware"
-    ):
-        wait_for_case_em_terminated(
-            client=reporter_client,
-            case_id=case.id_,
-        )
-        wait_for_participant_vf_state(
-            client=vendor_client,
-            case_id=case.id_,
-            actor_id=vendor.id_,
-            expected_states={CS_vf.VF},
-        )
-        wait_for_participant_vf_state(
-            client=reporter_client,
-            case_id=case.id_,
-            actor_id=vendor.id_,
-            expected_states={CS_vf.VF},
-        )
-        verify_publicly_disclosed(
-            receiver_client=vendor_client,
-            reporter_client=reporter_client,
-            case_id=case.id_,
-            receiver_actor_id=vendor.id_,
-        )
 
 
-def _phase_case_closure(
-    reporter_client: DataLayerClient,
-    vendor_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
-    vendor: as_Actor,
-    vendor_in_vendor: as_Actor,
-    vendor2: as_Actor,
-    vendor2_in_vendor2: as_Actor,
-    reporter: as_Actor,
-    reporter_in_reporter: as_Actor,
-    case: as_VulnerabilityCase,
-    case_actor_client: DataLayerClient,
-) -> None:
-    """Close the case from all three participants and verify terminal state.
+def everyone_closes(state: StoryState) -> None:
+    """Vendor2 and the Reporter leave; Vendor1, the Case Owner, leaves last."""
+    close_the_case(
+        state, others=(VENDOR2, REPORTER), owner=VENDOR, milestone="M7"
+    )
 
-    Vendor2 and the Reporter leave first; Vendor1, the Case Owner, leaves
-    last, once their departures are recorded (CM-23-015) in the
-    CASE_MANAGER's store on the dedicated case-actor container.
+
+def _dump_ledgers(state: StoryState) -> None:
+    """Dump each participant's case ledger, by its devlogs name.
+
+    Thin wrapper (DEMOMA-23-002): the harness runs it on the way out, whether
+    or not an earlier step failed.  Vendor2 before it is seated has no replica
+    to read, so it is left out rather than 404ing the dump.
     """
-    logger.info("─" * 80)
-    logger.info("Phase 6: Case closure — all participants RM.CLOSED")
-    logger.info("─" * 80)
-
-    close_case_owner_last(
-        case=case,
-        milestone="M7",
-        authority_client=case_actor_client,
-        others=[
-            CaseLeaver(client=vendor2_client, actor=vendor2_in_vendor2),
-            CaseLeaver(client=reporter_client, actor=reporter_in_reporter),
-        ],
-        owner=CaseLeaver(client=vendor_client, actor=vendor_in_vendor),
-    )
+    dump_vendor_ledgers(state, (REPORTER, VENDOR, VENDOR2))
 
 
-def _phase_dump_case_ledgers(
-    reporter_client: DataLayerClient,
-    vendor_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
-    reporter: as_Actor,
-    vendor: as_Actor,
-    vendor2: as_Actor,
-    case: as_VulnerabilityCase,
-    case_actor_client: DataLayerClient,
-    demo_name: str = "rvv",
-) -> None:
-    """Dump case ledger entries from each actor container to JSONL files.
-
-    Thin scenario-specific wrapper over
-    :func:`~vultron.demo.helpers.ledger_dump.dump_case_ledgers`, which owns the
-    per-actor export, the 404 handling, and the dump manifest. This function
-    only names RVV's participants and where each one's ledger lives.
-    """
-    # Route keys come from each client's own actor id, not its display
-    # name: the key selects the store (ADR-0073), so a literal is right
-    # only while the scenario seeds deterministic named ids.
-    targets = [
-        LedgerDumpTarget(
-            "reporter",
-            reporter_client,
-            replica_route_key(reporter_client),
-        ),
-        LedgerDumpTarget(
-            "vendor", vendor_client, replica_route_key(vendor_client)
-        ),
-        LedgerDumpTarget(
-            "vendor2",
-            vendor2_client,
-            replica_route_key(vendor2_client),
-        ),
-        # The canonical ledger, from the dedicated case-actor container.
-        case_actor_dump_target(case_actor_client),
-    ]
-
-    dump_case_ledgers(demo_name=demo_name, case=case, targets=targets)
+#: The RVV story: the opening it shares with ``rv`` and the ``rvcv`` pair,
+#: then Vendor1 inviting a second Vendor and the three-party lifecycle to
+#: closure.  The registry reads this scenario's path off the ``choose`` items
+#: (DEMOCI-11-019), so it declares no ``path=``.
+STORY = story(
+    THE_VENDOR_ANSWERS_THE_REPORTER,
+    # Vendor1 decides once it has answered the Reporter's question.
+    choose("vendor-after-answer", "invite-vendor", by=VENDOR),
+    the_second_vendor_is_seeded,
+    vendor1_invites_the_second_vendor,
+    the_case_is_active,
+    every_replica_converges,
+    the_second_vendor_adds_its_note,
+    both_vendors_fix_the_vul,
+    everyone_publishes,
+    everyone_closes,
+)
 
 
 def run_rvv_demo(
@@ -753,96 +332,24 @@ def run_rvv_demo(
     logger.info("Vendor2 container: %s", vendor2_client.base_url)
     logger.info("CaseActor container: %s", case_actor_client.base_url)
 
-    with scenario_harness("rvv") as harness:
-        (
-            reporter,
-            vendor,
-            vendor_in_vendor,
-            vendor2,
-            _report,
-            _offer,
-            case,
-            reply_note,
-        ) = _phase_report_submission(
-            reporter_client,
-            vendor_client,
-            vendor2_client,
-            case_actor_client,
-            reporter_id,
-            vendor_id,
-            vendor2_id,
-        )
-
-        # Register the dump as soon as there is a case to dump, so every phase
-        # below can fail without costing us the ledgers (ISSUE-2239).
-        harness.dump_with(
-            lambda: _phase_dump_case_ledgers(
-                reporter_client=reporter_client,
-                vendor_client=vendor_client,
-                vendor2_client=vendor2_client,
-                reporter=reporter,
-                vendor=vendor,
-                vendor2=vendor2,
-                case=case,
-                case_actor_client=case_actor_client,
-                demo_name=harness.demo_name,
+    open_cast = vendor_open_cast(
+        reporter_client=reporter_client,
+        vendor_client=vendor_client,
+        case_actor_client=case_actor_client,
+        dump=_dump_ledgers,
+        reporter_id=reporter_id,
+        vendor_id=vendor_id,
+        unseated={
+            VENDOR2: UnseatedContainer(
+                VENDOR2_LABEL, vendor2_client, vendor2_id
             )
-        )
+        },
+    )
 
-        vendor2_in_vendor2 = get_actor_by_id(vendor2_client, vendor2.id_)
-        reporter_in_reporter = get_actor_by_id(reporter_client, reporter.id_)
-
-        _phase_sync_verification(
-            reporter_client,
-            vendor_client,
-            vendor2_client,
-            vendor,
-            reporter,
-            vendor2,
-            case,
-        )
-        _phase_vendor2_note(
-            vendor_client=vendor_client,
-            vendor2_client=vendor2_client,
-            vendor2_in_vendor2=vendor2_in_vendor2,
-            case=case,
-            reply_note=reply_note,
-        )
-        _phase_fix_lifecycle(
-            reporter_client,
-            vendor_client,
-            vendor2_client,
-            vendor,
-            vendor_in_vendor,
-            vendor2,
-            vendor2_in_vendor2,
-            case,
-        )
-        _phase_publication(
-            reporter_client,
-            vendor_client,
-            vendor2_client,
-            vendor,
-            vendor_in_vendor,
-            vendor2,
-            vendor2_in_vendor2,
-            reporter,
-            reporter_in_reporter,
-            case,
-        )
-        _phase_case_closure(
-            reporter_client,
-            vendor_client,
-            vendor2_client,
-            vendor,
-            vendor_in_vendor,
-            vendor2,
-            vendor2_in_vendor2,
-            reporter,
-            reporter_in_reporter,
-            case,
-            case_actor_client,
-        )
+    # run_story() owns the failure accumulator through scenario_harness: it
+    # resets it, always dumps the case ledgers, and asserts success — so a
+    # failure here never costs us the artifacts (ISSUE-2239, DEMOMA-23-001).
+    run_story(DEMO_NAME, STORY, open_cast)
 
     logger.info("=" * 80)
     logger.info("RVV DEMO COMPLETE ✓  (VFDPxa full lifecycle)")
@@ -855,15 +362,12 @@ def run_rvv_demo(
 
 
 @scenario(
-    name="rvv",
+    name=DEMO_NAME,
     label="RVV",
     participants="Reporter + Vendor1 + Vendor2",
     feature="Direct invitation of a second vendor",
     in_pr_set=False,
-    path=(
-        ("reporter-whom-to-tell", "vendor"),
-        ("vendor-after-answer", "invite-vendor"),
-    ),
+    story=STORY,
 )
 def main(
     skip_health_check: bool = False,
@@ -889,50 +393,26 @@ def main(
         vendor_id: Optional deterministic URI for the Vendor1 actor.
         vendor2_id: Optional deterministic URI for the Vendor2 actor.
     """
-    f_url = reporter_url or REPORTER_BASE_URL
-    v_url = vendor_url or VENDOR_BASE_URL
-    v2_url = vendor2_url or VENDOR2_BASE_URL
-    ca_url = case_actor_url or CASE_ACTOR_BASE_URL
-
-    reporter_client = DataLayerClient(base_url=f_url)
-    vendor_client = DataLayerClient(base_url=v_url)
-    vendor2_client = DataLayerClient(base_url=v2_url)
-    # Bound to the CaseActor: a /datalayer/ read names whose store it is about
-    # (ADR-0073).
-    case_actor_client = bound_case_actor_client(ca_url)
-
-    if not skip_health_check:
-        targets: list[tuple[str, DataLayerClient]] = [
-            ("Reporter", reporter_client),
-            ("Vendor1", vendor_client),
-            ("Vendor2", vendor2_client),
-            ("CaseActor", case_actor_client),
-        ]
-        for label, client in targets:
-            if not check_server_availability(client):
-                logger.error("=" * 80)
-                logger.error("ERROR: %s API server is not available", label)
-                logger.error("=" * 80)
-                logger.error("Cannot connect to: %s", client.base_url)
-                logger.error(
-                    "Ensure the %s container is running and healthy.", label
-                )
-                logger.error("=" * 80)
-                sys.exit(1)
-
-    # scenario_harness() inside run_rvv_demo() owns the failure accumulator: it
-    # resets it, always dumps the case ledgers, and asserts success — so a
-    # failure here never costs us the artifacts (ISSUE-2239).
+    clients = coordinated_clients(
+        _ROLES,
+        [
+            CastContainer(REPORTER, REPORTER_LABEL, reporter_url),
+            CastContainer(VENDOR, VENDOR_LABEL, vendor_url),
+            CastContainer(VENDOR2, VENDOR2_LABEL, vendor2_url),
+        ],
+        skip_health_check=skip_health_check,
+        case_actor_url=case_actor_url,
+    )
     run_rvv_demo(
-        reporter_client=reporter_client,
-        vendor_client=vendor_client,
-        vendor2_client=vendor2_client,
-        case_actor_client=case_actor_client,
+        reporter_client=clients[REPORTER],
+        vendor_client=clients[VENDOR],
+        vendor2_client=clients[VENDOR2],
+        case_actor_client=clients[CASE_ACTOR_NAME],
         **resolved_actor_ids(
             _ROLES,
-            reporter=(reporter_client, reporter_id),
-            vendor=(vendor_client, vendor_id),
-            vendor2=(vendor2_client, vendor2_id),
+            reporter=(clients[REPORTER], reporter_id),
+            vendor=(clients[VENDOR], vendor_id),
+            vendor2=(clients[VENDOR2], vendor2_id),
         ),
     )
 

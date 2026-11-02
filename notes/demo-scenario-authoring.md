@@ -239,9 +239,10 @@ once.
   later steps can gate per replica. It is never used after closure: a closed
   participant is sent nothing after the entries recording its own closure
   (CM-23-004), so no replica covers the authority's tail then.
-- A scenario's sync-verification step — its `_phase_sync_verification`, or a
-  composed story's fragment (`replicas_converge_with_vendor`,
-  `every_replica_converges`) — is a thin call to `run_sync_verification_phase`,
+- A scenario's sync-verification step — a story fragment named
+  `replicas_converge_with_vendor`, `every_replica_converges` or
+  `the_reporter_replica_converges` — is a thin call to
+  `run_sync_verification_phase`,
   declaring only its authority, Reporter, replicas, late joiners, expected
   participants and the replica pairs to state-check (DEMOMA-23-007). A replica
   whose coverage gate failed is not state-checked, and an authority with no

@@ -39,6 +39,7 @@ from pathlib import Path
 import pytest
 
 from vultron.demo import cli
+from vultron.demo.scenario import rv_demo
 from vultron.demo.scenario.registry import (
     MODULE_SUFFIX,
     SCENARIO_DIR,
@@ -210,6 +211,12 @@ def test_scenario_rejects_a_name_that_contradicts_its_module() -> None:
     still resolve, because they point at the module the decorator was copied
     *from*.  Comparing the declared name against the declaring module is what
     catches it.
+
+    The fixture declares ``rv``'s own story rather than a ``path=``, so the
+    offered spec matches the registered one exactly and the module check is
+    what rejects it; a spec that differed in any field would be rejected one
+    step earlier, by the already-registered check, and this test would pass
+    without exercising what it names.
     """
     decorate = scenario(
         name="rv",
@@ -217,7 +224,7 @@ def test_scenario_rejects_a_name_that_contradicts_its_module() -> None:
         participants="Reporter + Vendor",
         feature="Baseline two-actor CVD",
         in_pr_set=True,
-        path=_PATH,
+        story=rv_demo.STORY,
     )
 
     def impostor() -> None:
