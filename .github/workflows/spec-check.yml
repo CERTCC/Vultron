@@ -14,6 +14,13 @@ on:
       - "specs/**"
       - "vultron/metadata/specs/**"
       - "docs/reference/codebase/**"
+      # The story-page catalog is a spec input, not only a docs tree: a cited
+      # page must exist (TRACE-03-001) and a committed page is never removed
+      # (TRACE-03-002). A pull request that deletes a page and regenerates the
+      # two artifacts changes no other path here, and for an uncited page the
+      # docs gates stay green, so without this the removal guard never runs on
+      # the shape it polices.
+      - "docs/reference/user_stories/**"
       - ".github/workflows/spec-check.yml"
   pull_request:
     branches: ["main"]
@@ -21,6 +28,7 @@ on:
       - "specs/**"
       - "vultron/metadata/specs/**"
       - "docs/reference/codebase/**"
+      - "docs/reference/user_stories/**"
       - ".github/workflows/spec-check.yml"
   workflow_dispatch:
 

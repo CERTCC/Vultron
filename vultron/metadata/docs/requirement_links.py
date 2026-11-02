@@ -67,6 +67,7 @@ from vultron.metadata.docs.requirement_catalog import (
     RETIRED_KIND_PAGES,
     AnchorHome,
     CatalogPage,
+    anchor_home_of,
     anchor_homes,
     kind_page,
     source_href,
@@ -178,16 +179,21 @@ class RequirementLinker:
         spec_ids = re.split(r",\s*", text)
         if any(i.lower().rsplit("-", 1)[0] != group for i in spec_ids):
             return None  # names another group's ID: not these requirements
-        unknown = [i for i in spec_ids if i.lower() not in self._homes]
+        homes: list[AnchorHome] = []
+        unknown: list[str] = []
+        for spec_id in spec_ids:
+            home = anchor_home_of(self._homes, spec_id)
+            if home is None:
+                unknown.append(spec_id)  # report every one, not the first
+            else:
+                homes.append(home)
         if unknown:
-            stats.unknown_ids.update(
-                unknown
-            )  # report every one, not the first
+            stats.unknown_ids.update(unknown)
             return None
         stats.repointed += len(spec_ids)
         return ", ".join(
-            f"[{i}]({_href(self._homes[i.lower()][0], path)})"
-            for i in spec_ids
+            f"[{spec_id}]({_href(home, path)})"
+            for spec_id, home in zip(spec_ids, homes, strict=True)
         )
 
     def relink(self, text: str, path: str) -> tuple[str, RelinkStats]:

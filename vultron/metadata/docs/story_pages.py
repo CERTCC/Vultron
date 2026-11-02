@@ -36,6 +36,7 @@ import re
 from pathlib import Path
 
 from vultron.metadata.file_loading import MetadataLoadError
+from vultron.metadata.specs.schema import STORY_ID_PATTERN
 
 #: ``docs/``-relative directory holding the story pages and their index.
 STORY_DIR = "reference/user_stories"
@@ -43,8 +44,10 @@ STORY_DIR = "reference/user_stories"
 #: Repository-relative directory holding the story pages.
 STORY_ROOT = f"docs/{STORY_DIR}"
 
-#: A story page's file stem is its ID (SR-11-002).
-STORY_ID_RE = re.compile(r"^story_\d{4}_\d{3}$")
+#: A story page's file stem is its ID. Compiled from the one definition of
+#: that shape, so this scanner cannot disagree with ``StoryIdStr`` about which
+#: filenames are stories (SR-11-002).
+STORY_ID_RE = re.compile(STORY_ID_PATTERN)
 
 
 def story_page(story_id: str) -> str:

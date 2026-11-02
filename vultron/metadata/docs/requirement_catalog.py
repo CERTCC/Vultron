@@ -502,6 +502,20 @@ def anchor_homes(
     }
 
 
+def anchor_home_of(
+    homes: Mapping[str, tuple[AnchorHome, ...]], spec_id: str
+) -> AnchorHome | None:
+    """The page defining *spec_id*'s anchor in *homes*, or ``None``.
+
+    Keys the lookup with :func:`requirement_anchor`, which is what
+    :func:`anchor_homes` built them with. A caller that lower-cases the ID
+    itself agrees only because ``SpecIdStr`` forbids an underscore — an
+    undeclared coupling that this function removes.
+    """
+    found = homes.get(requirement_anchor(spec_id))
+    return found[0] if found else None
+
+
 __all__ = [
     "CATALOG_DIR",
     "CATALOG_INTRO",
@@ -514,6 +528,7 @@ __all__ = [
     "CatalogPage",
     "RETIRED_KIND_PAGES",
     "NotInCatalogError",
+    "anchor_home_of",
     "anchor_homes",
     "catalog_location",
     "current_page",

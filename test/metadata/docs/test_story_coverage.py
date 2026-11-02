@@ -223,6 +223,18 @@ class TestCoverage:
             in render_matrix(coverage)
         )
 
+    def test_a_story_named_twice_is_counted_once(self, tmp_path):
+        """`stories:` constrains each entry's shape, not the list's uniqueness."""
+        _write_stories(tmp_path, "story_2022_001")
+        registry = _registry(
+            "CM",
+            "Case Management",
+            _spec("CM-01-001", "story_2022_001", "story_2022_001"),
+        )
+        coverage = measure_story_coverage(tmp_path, registry)
+        assert len(coverage.by_story["story_2022_001"]) == 1
+        assert render_matrix(coverage).count("[CM-01-001](") == 1
+
     def test_a_cited_story_with_no_page_raises(self, tmp_path):
         _write_stories(tmp_path, "story_2022_001")
         registry = _registry(

@@ -33,6 +33,9 @@ CLI (``uv run story-gaps``):
     story-gaps CM CSB         the same, narrowed to those files
     story-gaps --list CM-23   the requirements themselves, grouped by file
                               then priority
+
+A selector that matches nothing exits ``2`` rather than printing an empty
+report, so a mistyped area cannot read as a finished one.
 """
 
 from __future__ import annotations
@@ -84,16 +87,56 @@ class Gap:
     suppressed: bool
 
 
+def _selects(spec_id: str, file_id: str, selector: str) -> bool:
+    """Whether *selector* names *file_id*, the requirement, or an ID prefix.
+
+    Every argument is already upper-cased. The prefix is anchored at the ``-``
+    separator, which is what keeps one file ID from reaching another's
+    requirements: a bare ``startswith`` made ``CS`` collect all sixteen of
+    CSB's gaps and ``MS`` collect MSM's and none of its own, and AR/ARCH,
+    BT/BTND, BT/BTC and DR/DRPT are the same shape.
+    """
+    return selector in (file_id, spec_id) or spec_id.startswith(f"{selector}-")
+
+
+def unmatched_selectors(
+    registry: SpecRegistry, selectors: tuple[str, ...]
+) -> tuple[str, ...]:
+    """Return the *selectors* that name no requirement in *registry*.
+
+    A selector matching nothing is a typo, and a report that renders it as
+    "no requirement is missing a story" reads as "this area is done" — the
+    empty-target-set trap, here on the selection rather than the corpus
+    (DF-09-009). Matching is against the whole registry, not the gap set, so
+    an area that genuinely has no gaps stays distinguishable from a mistyped
+    one.
+    """
+    known = [
+        (spec.id.upper(), spec_file.id.upper())
+        for spec_file in registry.files
+        for group in spec_file.groups
+        for spec in group.specs
+    ]
+    return tuple(
+        selector
+        for selector in selectors
+        if not any(
+            _selects(spec_id, file_id, selector.upper())
+            for spec_id, file_id in known
+        )
+    )
+
+
 def story_gaps(
     registry: SpecRegistry, selectors: tuple[str, ...] = ()
 ) -> tuple[Gap, ...]:
     """Return every protocol requirement with no story, narrowed by *selectors*.
 
     A selector is a spec-file ID (``CM``) or any ID prefix (``CM-23``,
-    ``CM-23-004``), matched case-insensitively on the requirement's ID; an
-    empty *selectors* selects every file. Gaps come back in spec-file order,
-    then :data:`PRIORITY_ORDER`, then requirement-ID order, which is the order
-    an area's worklist is worked in.
+    ``CM-23-004``), matched case-insensitively; an empty *selectors* selects
+    every file. Gaps come back in spec-file order, then
+    :data:`PRIORITY_ORDER`, then requirement-ID order, which is the order an
+    area's worklist is worked in.
     """
     wanted = tuple(selector.upper() for selector in selectors)
     found: list[Gap] = []
@@ -103,8 +146,7 @@ def story_gaps(
                 if spec.kind != SpecKind.PROTOCOL or spec.stories:
                     continue
                 if wanted and not any(
-                    spec.id.upper().startswith(selector)
-                    or spec_file.id.upper() == selector
+                    _selects(spec.id.upper(), spec_file.id.upper(), selector)
                     for selector in wanted
                 ):
                     continue
@@ -140,13 +182,22 @@ def _priority_counts(gaps: tuple[Gap, ...]) -> str:
     )
 
 
+def _by_file(
+    gaps: tuple[Gap, ...],
+) -> list[tuple[str, tuple[Gap, ...]]]:
+    """``(file_id, its gaps)`` in first-seen order; *gaps* is already sorted."""
+    grouped: dict[str, list[Gap]] = {}
+    for gap in gaps:
+        grouped.setdefault(gap.file_id, []).append(gap)
+    return [(file_id, tuple(found)) for file_id, found in grouped.items()]
+
+
 def summary_lines(gaps: tuple[Gap, ...]) -> list[str]:
     """One line per spec file: its total, its priorities, its suppressions."""
     if not gaps:
         return ["No kind: protocol requirement is missing a story."]
     lines: list[str] = []
-    for file_id in dict.fromkeys(gap.file_id for gap in gaps):
-        in_file = tuple(gap for gap in gaps if gap.file_id == file_id)
+    for file_id, in_file in _by_file(gaps):
         suppressed = sum(1 for gap in in_file if gap.suppressed)
         tail = f", {suppressed} suppressed" if suppressed else ""
         lines.append(
@@ -166,8 +217,7 @@ def listing_lines(gaps: tuple[Gap, ...]) -> list[str]:
     if not gaps:
         return ["No kind: protocol requirement is missing a story."]
     lines: list[str] = []
-    for file_id in dict.fromkeys(gap.file_id for gap in gaps):
-        in_file = [gap for gap in gaps if gap.file_id == file_id]
+    for file_id, in_file in _by_file(gaps):
         lines.append(f"{file_id} ({len(in_file)})")
         for priority in PRIORITY_ORDER:
             at_priority = [g for g in in_file if g.priority == priority]
@@ -189,13 +239,32 @@ def gap_report(
     *,
     detail: bool = False,
 ) -> list[str]:
-    """Return the report's lines: the worklist when *detail*, else summaries."""
+    """Return the report's lines: the worklist when *detail*, else summaries.
+
+    Raises:
+        ValueError: If a selector names no requirement in *registry*, every
+            such selector named. Reporting a typo as an empty gap set would
+            tell the reader its area was done (:func:`unmatched_selectors`).
+    """
+    unknown = unmatched_selectors(registry, selectors)
+    if unknown:
+        raise ValueError(
+            f"no spec file or requirement ID matches {', '.join(unknown)}; "
+            "a selector is a spec-file ID (CM) or a requirement-ID prefix "
+            "(CM-23)"
+        )
     gaps = story_gaps(registry, selectors)
     return listing_lines(gaps) if detail else summary_lines(gaps)
 
 
 def main(argv: list[str] | None = None) -> int:
-    """CLI entry point: ``uv run story-gaps [--list] [SELECTOR ...]``."""
+    """CLI entry point: ``uv run story-gaps [--list] [SELECTOR ...]``.
+
+    Returns ``0`` with the report, or ``2`` naming each selector that matches
+    nothing — the same exit code ``spec-dump`` gives an unknown selector
+    value (SR-07-011), so one mistyped area reads as an error, never as a
+    clean area.
+    """
     parser = argparse.ArgumentParser(
         prog="story-gaps",
         description=(
@@ -229,7 +298,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     spec_dir = args.spec_dir or repo_root() / "specs"
     registry = load_registry(spec_dir)
-    for line in gap_report(registry, tuple(args.selector), detail=args.detail):
+    try:
+        lines = gap_report(registry, tuple(args.selector), detail=args.detail)
+    except ValueError as exc:
+        print(f"story-gaps: {exc}", file=sys.stderr)
+        return 2
+    for line in lines:
         print(line)
     return 0
 
@@ -243,6 +317,7 @@ __all__ = [
     "main",
     "story_gaps",
     "summary_lines",
+    "unmatched_selectors",
 ]
 
 

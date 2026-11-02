@@ -228,9 +228,14 @@ def write_artifacts(root: Path | None = None) -> list[str]:
     """Rewrite every stale artifact in place; return the paths written.
 
     A box fragment no thread implies is deleted, and its path is returned
-    too. One pass is enough: writing a page rewrites only the text between its
-    markers, never its frontmatter, so it never changes what the coverage
-    matrix counts.
+    too. One pass is enough, because no artifact written here is an input to
+    another. A spliced page is rewritten only between its markers, never in
+    its frontmatter, so it cannot change what the coverage matrix counts; the
+    two whole-file story artifacts do carry frontmatter, but the matrix skips
+    ``traceability.md`` as working record (``WORKING_RECORD_PATTERNS``) and
+    ``table.md`` declares none, being an include fragment. A whole-file
+    artifact added here that the coverage matrix *would* count needs a second
+    pass, so check that before adding one.
     """
     written: list[str] = []
     for target, path, desired in _out_of_date(root or repo_root()):

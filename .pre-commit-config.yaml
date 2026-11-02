@@ -292,6 +292,9 @@ repos:
         language: system
         # test/ is watched because a spec's verification names its tests by
         # function name (MS-10-010): renaming or deleting a test can break a
-        # spec that is itself unchanged. About 7 s per run.
-        files: ^(specs/.*\.yaml|docs/adr/.*\.md|vultron/metadata/adr/.*\.py|test/.*\.py)$
+        # spec that is itself unchanged. The story pages are watched for the
+        # same reason: a `stories:` entry must name a page that exists
+        # (TRACE-03-001), so renaming or deleting one breaks a spec that is
+        # itself unchanged. About 7 s per run.
+        files: ^(specs/.*\.yaml|docs/adr/.*\.md|docs/reference/user_stories/.*\.md|vultron/metadata/adr/.*\.py|test/.*\.py)$
         pass_filenames: false

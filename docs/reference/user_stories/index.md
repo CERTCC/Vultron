@@ -47,6 +47,10 @@ Some of these stories describe needs the protocol has not taken up, and the stor
 Coverage is a count read from the specifications, not a judgment of how well the protocol serves a story.
 The specifications hold the mapping, so both this table and the matrix are generated from them and a check in the build fails when either one drifts.
 
+The story pages from the 2022 catalog still carry a **Support Level** line under Metadata, reading *Provided*, *Allowed*, *Unsupported* or *Out-of-scope* as of v0.4.0.
+That line is a dated judgment that coverage replaces, and it is being removed from those pages; nine of the eleven stories it calls out-of-scope are cited by requirements today.
+Read the coverage count, not the support level.
+
 ## User Stories Table
 
 {% include-markdown "./table.md" %}

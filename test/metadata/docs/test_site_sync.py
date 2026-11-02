@@ -945,12 +945,11 @@ class TestSiteSync:
         assert site_sync.stale_artifacts(root) == [STORY_MATRIX_PATH]
 
     @pytest.mark.spec("TRACE-03-003", "DF-09-009")
-    def test_a_tree_with_no_story_page_fails(self, tmp_path, monkeypatch):
+    def test_a_tree_with_no_story_page_fails(self, tmp_path):
         """An empty story catalog is a failure, not a pass (DF-09-009)."""
         root = _guides_repo(tmp_path, a=_page("A"))
         for page in (root / "docs" / STORY_DIR).glob("story_*.md"):
             page.unlink()
-        monkeypatch.setattr(site_sync, "repo_root", lambda: root)
         with pytest.raises(MetadataLoadError, match="DF-09-009"):
             site_sync.stale_artifacts(root)
 

@@ -105,12 +105,15 @@ class CatalogRemovals:
     skipped: str | None = None
 
     def failure_message(self) -> str:
-        """Name every removed page, one per line, with the remedy."""
+        """Name every removed page, one per line, with the remedy.
+
+        Only called with a non-empty ``removed``, which only a run that read
+        the base can produce, so ``base`` is set.
+        """
         listing = "\n".join(f"  {story}" for story in sorted(self.removed))
-        base = self.base[:12] if self.base else "?"
         return (
             f"{len(self.removed)} story page(s) removed since the merge base "
-            f"{base}:\n{listing}\n"
+            f"{(self.base or '')[:12]}:\n{listing}\n"
             "Restore each page and mark it superseded, naming the story IDs "
             "that replace it (TRACE-03-002). A `stories:` entry must resolve "
             "for as long as any revision of the citing spec exists, and a "
@@ -127,10 +130,20 @@ def removed_story_pages(
 ) -> CatalogRemovals:
     """The TRACE-03-002 guard: story pages this branch removed.
 
-    Arguments, skipping and errors are as
+    Arguments and skipping are as
     :func:`~vultron.metadata.specs.growth_guard.added_since_base` documents.
     Only removals fail: a page the branch adds, and one the base already
     lacked, are not this branch's doing.
+
+    Raises:
+        MetadataLoadError: If the working tree holds no story page at all,
+            which :func:`story_catalog` refuses before any comparison. The run
+            is still red, but it names the empty catalog rather than the
+            removals, because a catalog of nothing is a separate fault
+            (DF-09-009).
+        BaseExtractionError: If the merge base held no story catalog, wrapping
+            the same refusal from the materialized base tree. Neither case
+            arises in a repository whose catalog is non-empty on both sides.
     """
     seen = compare_with_base(
         story_catalog,

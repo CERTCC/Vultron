@@ -54,6 +54,7 @@ from pathlib import Path
 
 from vultron.metadata.docs.landing_pages import WRITE_COMMAND
 from vultron.metadata.docs.requirement_catalog import (
+    anchor_home_of,
     anchor_homes,
     source_href,
 )
@@ -130,6 +131,10 @@ def measure_story_coverage(
 ) -> StoryCoverage:
     """Map every story page in the catalog to the requirements citing it.
 
+    A requirement naming the same story twice is counted once: ``stories:``
+    constrains each entry's shape but not the list's uniqueness, and a repeat
+    would otherwise inflate the coverage count and print the same link twice.
+
     Raises:
         MetadataLoadError: If the story catalog resolves no pages, or a
             ``stories:`` entry names a story with no page (TRACE-03-001).
@@ -143,8 +148,8 @@ def measure_story_coverage(
     for spec_file in registry.files:
         for group in spec_file.groups:
             for spec in group.specs:
-                home = homes.get(spec.id.lower())
-                for story in spec.stories or []:
+                home = anchor_home_of(homes, spec.id)
+                for story in dict.fromkeys(spec.stories or []):
                     if story not in cited:
                         dangling[story] += 1
                         continue
@@ -155,8 +160,8 @@ def measure_story_coverage(
                             file_title=spec_file.title,
                             href=(
                                 source_href(
-                                    home[0].page,
-                                    home[0].fragment,
+                                    home.page,
+                                    home.fragment,
                                     from_page=_MATRIX_PAGE,
                                 )
                                 if home

@@ -20,6 +20,7 @@ from vultron.metadata.specs.story_gaps import (
     main,
     story_gaps,
     summary_lines,
+    unmatched_selectors,
 )
 
 
@@ -82,6 +83,8 @@ def registry() -> SpecRegistry:
                 # Not protocol, so not in the gap whatever its stories.
                 _spec("AKM-01-002", "MUST", kind="project"),
             ),
+            # File ID that CM is a prefix of: selecting CM must not reach it.
+            _spec_file("CMX", _spec("CMX-01-001", "MUST")),
         ]
     )
 
@@ -95,6 +98,7 @@ class TestSelection:
             ("CM", "CM-23-004"),
             ("CM", "CM-23-005"),
             ("CM", "CM-01-002"),
+            ("CMX", "CMX-01-001"),
         ]
 
     def test_a_requirement_with_a_story_is_not_a_gap(self, registry):
@@ -124,16 +128,41 @@ class TestSelection:
             "CM-01-002",
         }
 
+    def test_a_file_selector_does_not_reach_a_file_it_prefixes(self, registry):
+        """`CM` must not collect CMX's gaps: the CS/CSB, MS/MSM shape."""
+        assert {g.file_id for g in story_gaps(registry, ("CM",))} == {"CM"}
+        assert {g.file_id for g in story_gaps(registry, ("CMX",))} == {"CMX"}
+
+    def test_an_id_prefix_does_not_reach_a_prefix_it_extends(self, registry):
+        assert [g.spec_id for g in story_gaps(registry, ("CM-01",))] == [
+            "CM-01-001",
+            "CM-01-002",
+        ]
+
     def test_an_unmatched_selector_selects_nothing(self, registry):
         assert story_gaps(registry, ("ZZZ",)) == ()
+
+    def test_an_unmatched_selector_is_reported(self, registry):
+        assert unmatched_selectors(registry, ("ZZZ", "CM")) == ("ZZZ",)
+
+    def test_a_selector_matching_a_gapless_area_is_not_unmatched(
+        self, registry
+    ):
+        """CM-23-006 has a story, so CM-23-006 matches but yields no gap."""
+        assert unmatched_selectors(registry, ("CM-23-006",)) == ()
+        assert story_gaps(registry, ("CM-23-006",)) == ()
 
 
 @pytest.mark.spec("TRACE-03-004")
 class TestRendering:
     def test_the_default_report_is_one_line_per_spec_file(self, registry):
         lines = gap_report(registry)
-        assert [line.split()[0] for line in lines[:-1]] == ["AKM", "CM"]
-        assert lines[-1].startswith("5 requirement(s) in 2 spec file(s)")
+        assert [line.split()[0] for line in lines[:-1]] == [
+            "AKM",
+            "CM",
+            "CMX",
+        ]
+        assert lines[-1].startswith("6 requirement(s) in 3 spec file(s)")
 
     def test_a_summary_line_counts_by_priority(self, registry):
         line = next(
@@ -163,13 +192,17 @@ class TestRendering:
             "  MAY (1)",
         ]
 
-    def test_an_empty_selection_says_so(self, registry):
-        assert gap_report(registry, ("ZZZ",)) == [
-            "No kind: protocol requirement is missing a story."
-        ]
-        assert gap_report(registry, ("ZZZ",), detail=True) == [
-            "No kind: protocol requirement is missing a story."
-        ]
+    def test_a_gapless_area_says_so(self, registry):
+        """A real selector with no gaps reads as done, in both modes."""
+        done = ["No kind: protocol requirement is missing a story."]
+        assert gap_report(registry, ("CM-23-006",)) == done
+        assert gap_report(registry, ("CM-23-006",), detail=True) == done
+
+    def test_an_unmatched_selector_raises_rather_than_reading_as_done(
+        self, registry
+    ):
+        with pytest.raises(ValueError, match="ZZZ"):
+            gap_report(registry, ("ZZZ",))
 
 
 @pytest.mark.spec("TRACE-03-004")
@@ -195,3 +228,14 @@ class TestCli:
         out = capsys.readouterr().out
         assert "CM-23-004" in out
         assert "AKM-01-001" not in out
+
+    def test_an_unmatched_selector_exits_two_naming_it(
+        self, monkeypatch, capsys, registry, tmp_path
+    ):
+        monkeypatch.setattr(
+            story_gaps_module, "load_registry", lambda _dir: registry
+        )
+        assert main(["ZZZ", "--spec-dir", str(tmp_path)]) == 2
+        captured = capsys.readouterr()
+        assert "ZZZ" in captured.err
+        assert captured.out == ""
