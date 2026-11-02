@@ -79,15 +79,15 @@ def _modules_naming_the_closure_path() -> set[str]:
     }
 
 
-@pytest.mark.spec("CM-23-016")
-@pytest.mark.spec("CM-23-001")
+@pytest.mark.spec("CM-23-023")
+@pytest.mark.spec("CM-23-044")
 def test_only_case_manager_closure_sites_name_the_closure_path() -> None:
     """``rm_closure_path`` and ``RMClosureWriter`` stay in the pinned set."""
     assert _modules_naming_the_closure_path() == CLOSURE_PATH_MODULES
 
 
-@pytest.mark.spec("CM-23-016")
-@pytest.mark.spec("CM-23-001")
+@pytest.mark.spec("CM-23-023")
+@pytest.mark.spec("CM-23-044")
 def test_no_ledger_replay_node_walks_the_closure_path() -> None:
     """No node of the replay tree is defined where a closure path is walked."""
     vultron_root = _corpus.REPO_ROOT / "vultron"

@@ -145,6 +145,7 @@ _OWNER_ID = "https://example.org/actors/owner"
 
 @pytest.mark.spec("CM-21-005")
 @pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("CM-21-028")
 def test_the_offer_id_is_derived_from_the_manager_case_proposal_and_proposer():
     """The CASE_MANAGER keys its Offer by an id it derives, never by one the
     owner chose; the same proposal always derives the same id, whatever
@@ -281,6 +282,7 @@ def test_attributed_to_counts_only_on_an_offer_the_manager_sent(dl):
 
 @pytest.mark.spec("CM-21-014")
 @pytest.mark.spec("CM-21-015")
+@pytest.mark.spec("CM-21-034")
 def test_withdrawal_closes_the_offer(dl):
     """A withdrawal entry closes the Offer as an answer does (AC-7)."""
     _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
@@ -296,6 +298,7 @@ def test_withdrawal_closes_the_offer(dl):
 
 @pytest.mark.spec("CM-21-014")
 @pytest.mark.spec("CM-21-017")
+@pytest.mark.spec("CM-21-043")
 def test_an_offer_past_its_end_time_is_closed_with_no_entry(dl):
     """The ledgered Offer's own endTime closes it; nothing records the
     expiry (ADR-0152)."""
@@ -318,6 +321,7 @@ def test_an_offer_past_its_end_time_is_closed_with_no_entry(dl):
 
 
 @pytest.mark.spec("CM-21-014")
+@pytest.mark.spec("CM-21-034")
 def test_an_answered_offer_is_closed_before_its_end_time(dl):
     _ledger(
         dl,
@@ -335,6 +339,7 @@ def test_an_answered_offer_is_closed_before_its_end_time(dl):
 
 
 @pytest.mark.spec("CM-21-016")
+@pytest.mark.spec("CM-21-040")
 def test_deadline_is_read_from_the_ledgered_offer_in_utc(dl):
     """The ledgered Offer's endTime is the deadline, in UTC (CS-13-001)."""
     _ledger(
@@ -356,6 +361,7 @@ def test_deadline_is_read_from_the_ledgered_offer_in_utc(dl):
 
 
 @pytest.mark.spec("CM-21-016")
+@pytest.mark.spec("CM-21-040")
 def test_offer_without_a_deadline_never_passes_one(dl):
     _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
 

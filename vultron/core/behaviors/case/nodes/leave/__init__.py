@@ -28,7 +28,7 @@ by semantic concern (BTND-07-004):
   closure step an advance node wrote, for the leaving actor or for the
   CASE_MANAGER itself, as a canonical ``add_participant_status_to_participant``
   ledger entry and fans it out, so the replicas apply the steps rather than
-  derive them (CM-23-001, CM-23-005).
+  derive them (CM-23-022, CM-23-023, CM-23-033).
 
 - :mod:`.settle` — :class:`ExpirePendingInvitesOnCloseNode`, which expires
   every embargo Invite still awaiting a reply before the CASE_MANAGER's own

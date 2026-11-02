@@ -197,7 +197,7 @@ class _CaseOwnerParticipantMoveUseCase[
                 return refusal
             # Only the CASE_MANAGER's notice passes the replica's sender
             # guard; the replica stored it and applies the move from the
-            # ledger entry instead (CM-31-007, RSH-08-003).  The notice was
+            # ledger entry instead (CM-31-029, RSH-08-003).  The notice was
             # sent to this participant, so its first receipt is APPLIED and
             # only a redelivery, which archives nothing new, is SKIPPED
             # (HP-01-005).
@@ -237,7 +237,7 @@ class AddCaseParticipantToCaseReceivedUseCase(
     entry, clears the removal fact without asking the participant to accept
     again, backfills it once it is active (CM-10-006), sends it a direct
     notice, and sends it the active embargo's Invite when it is not
-    a signatory to it (CM-31-013).
+    a signatory to it (CM-31-040).
     """
 
     # Re-declared so ``request`` names this handler's own event class, the
@@ -291,8 +291,8 @@ class RemoveCaseParticipantFromCaseReceivedUseCase(
     removal naming the CASE_MANAGER's or the Case Owner's participant, and
     one naming no participant of the case are ``REFUSED``; removing an
     already-removed participant is ``SKIPPED``.  An accepted removal commits
-    the owner's activity as the one ledger entry (CM-31-005), sets the
-    removal fact while keeping the record (CM-31-001), and sends the removed
+    the owner's activity as the one ledger entry (CM-31-005, CM-31-025), sets the
+    removal fact while keeping the record (CM-31-001, CM-31-015), and sends the removed
     participant a direct notice (CM-31-006).
     """
 

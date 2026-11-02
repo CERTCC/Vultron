@@ -119,7 +119,7 @@ In the specification's words, it is "a minimal description of the case carrying 
 The specification, not this page, says what that description contains.
 At the wire level a stub carries at least an `id` and a `type` ([MV-10-001](../reference/vultron-spec/requirements/messages.md#mv-10-001)).
 The case stub's `type` is `VulnerabilityCaseStub`, so a recipient tells it from a full case by its type alone, and messages are routed and matched correctly.
-Its `id` is the stub's own, not the case's, and its `caseId` field names the case it describes ([CM-11-013](../reference/vultron-spec/requirements/case-management.md#cm-11-013)).
+Its `id` is the stub's own, not the case's, and its `caseId` field names the case it describes ([CM-11-037](../reference/vultron-spec/requirements/case-management.md#cm-11-037)).
 
 A minimal stub is still valid ActivityStreams 2.0.
 Almost all AS2 properties are optional, so an object with only `id` and `type` is standards-conformant.

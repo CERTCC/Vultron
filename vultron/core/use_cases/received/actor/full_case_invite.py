@@ -3,7 +3,7 @@
 After a participant joins, the CASE_MANAGER asks it to judge the case with
 ``Invite(Actor)[target=VulnerabilityCase]`` (CM-11-010).  The participant
 answers ``Accept`` (RV), ``TentativeReject`` (RI) or ``Reject`` (RC), each
-carrying its own ledger position (CM-11-011); the CASE_MANAGER refuses a
+carrying its own ledger position (CM-11-034); the CASE_MANAGER refuses a
 reply whose position is behind the Invite's floor, or names an entry its
 ledger does not hold (CM-11-012).
 """
@@ -55,7 +55,7 @@ class InviteActorToFullCaseReceivedUseCase:
     """The invitee receives the full-case ``Invite(Actor)[target=VulnerabilityCase]``.
 
     Intake archives the Invite so the invitee can answer it; the ledger
-    position it carries is the floor the reply must reach (CM-11-010).  The
+    position it carries is the floor the reply must reach (CM-11-031).  The
     invitee already holds the case from the Announce, so nothing is created
     from the Invite.
     """
@@ -186,7 +186,7 @@ class _FullCaseInviteReplyReceivedUseCase:
         # A sender the case already records as closed may act on nothing
         # further: the tree's closed-sender door stops it before the rule
         # runs, with nothing committed or sent.  Its Reject would close it
-        # again, so it is SKIPPED, and any other reply is REFUSED (CM-23-018,
+        # again, so it is SKIPPED, and any other reply is REFUSED (CM-23-049,
         # RSH-06-006, ID-05-003).  A restated reply (the RM state is already
         # recorded) changes nothing but the receipt, so it reads SKIPPED like
         # every other RM declaration (RSH-08-002).

@@ -240,7 +240,7 @@ def update_case() -> as_Update:
     """The CASE_MANAGER's ``Update(VulnerabilityCase)`` naming a new owner.
 
     On an ownership transfer the CASE_MANAGER commits the case with its new
-    ``attributed_to`` as its own ``update_case_owner`` entry (CM-21-002,
+    ``attributed_to`` as its own ``update_case_owner`` entry (CM-21-024,
     CLP-07-013).  No received use case handles it (ADR-0140 item 5), so the
     example is authored by the case actor and carries no sender-voice
     ``content``.
@@ -293,7 +293,7 @@ def offer_case_participant_role() -> as_Offer:
 
 
 def forward_case_participant_role() -> as_Offer:
-    """Build the CASE_MANAGER's forward of a recorded role Offer (CM-33-001).
+    """Build the CASE_MANAGER's forward of a recorded role Offer (CM-33-008).
 
     The CASE_MANAGER is the ``actor`` and the Case Owner that made the Offer
     is ``attributedTo`` (CM-24-005); the forward goes to the target only and
@@ -317,7 +317,7 @@ def accept_case_participant_role() -> as_Accept:
     """Build ``Accept(Offer(CaseParticipantRole))`` — the target takes the role.
 
     The target answers the CASE_MANAGER's forward, to the CASE_MANAGER
-    (CM-33-004).
+    (CM-33-015).
     """
     _coordinator = _COORDINATOR
     _offer = forward_case_participant_role()
@@ -333,7 +333,7 @@ def reject_case_participant_role() -> as_Reject:
     """Build ``Reject(Offer(CaseParticipantRole))`` — the target declines the role.
 
     The target answers the CASE_MANAGER's forward, to the CASE_MANAGER
-    (CM-33-004).
+    (CM-33-015).
     """
     _coordinator = _COORDINATOR
     _offer = forward_case_participant_role()

@@ -142,7 +142,7 @@ export function handleAcceptCaseOwnership(state: DemoState, accepterId: string):
       p.id === previousOwnerId
         ? [`CASE_OWNER moved to ${accepter.name}`, 'You retain your other roles (CM-21-008)']
         : p.id === 'caseactor'
-        ? ['Case Actor committed the ownership change to the ledger', 'Announce(CaseLedgerEntry) → all participants (CM-21-007)']
+        ? ['Case Actor committed the ownership change to the ledger', 'Announce(CaseLedgerEntry) → all participants (CM-21-030)']
         : [`${accepter.name} is now the CASE_OWNER`]
     events.push({
       id: `${eventId}-${p.id}-consequence`,

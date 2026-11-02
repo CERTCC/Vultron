@@ -205,10 +205,10 @@ class TestCloseAndInvalidateReportCommit:
             MessageSemantics.INVALIDATE_REPORT.value
         ) == (1 if commits else 0)
 
-    @pytest.mark.spec("CM-23-019")
     @pytest.mark.parametrize(
         "receiver", [MANAGER_ID, VENDOR_ID], ids=["case_manager", "other"]
     )
+    @pytest.mark.spec("CM-23-051")
     def test_close_on_a_case_commits_nothing_anywhere(self, receiver):
         """``Close(Report)`` for a report a case holds is refused (CM-23-019)."""
         dl = _store(receiver)

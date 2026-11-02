@@ -429,6 +429,7 @@ def _bootstrap_event(
     ),
 )
 @pytest.mark.spec("CBT-06-002")
+@pytest.mark.spec("CBT-06-004")
 @pytest.mark.parametrize(
     "bootstrap_order",
     [(_CREATOR_ID, _COORDINATOR_ID), (_COORDINATOR_ID, _CREATOR_ID)],

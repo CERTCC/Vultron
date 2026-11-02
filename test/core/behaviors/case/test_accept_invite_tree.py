@@ -337,7 +337,7 @@ def _case_with_inert_invitee() -> tuple[VulnerabilityCase, CaseParticipant]:
     return case, participant
 
 
-@pytest.mark.spec("CM-11-021")
+@pytest.mark.spec("CM-11-052")
 def test_accept_with_no_participant_record_is_refused_before_any_write(
     bt_scenario: BTTestScenario,
 ) -> None:
@@ -425,7 +425,7 @@ def test_activating_the_inert_record_marks_it_joined_and_keeps_rm(
 
 
 def test_accept_tree_has_no_participant_creating_node() -> None:
-    """The Accept tree creates no participant (CM-11-021, ADR-0114)."""
+    """The Accept tree creates no participant (CM-11-052, ADR-0114)."""
     from vultron.core.behaviors.case.accept_invite_tree import (
         create_accept_invite_actor_to_case_tree,
     )
@@ -505,7 +505,7 @@ def test_every_accept_invite_effect_is_inside_the_case_manager_gate():
 
 @pytest.mark.spec("CM-17-009")
 @pytest.mark.spec("CM-17-004")
-@pytest.mark.spec("CM-31-012")
+@pytest.mark.spec("CM-31-041")
 def test_case_announce_and_backfill_precede_the_first_committing_effect():
     """Effect order: seed the invitee's case before any ledger entry reaches it.
 

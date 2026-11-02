@@ -55,7 +55,7 @@ class AcceptCaseParticipantRoleReceivedEvent(LedgerPositionedEvent):
     """The CASE_MANAGER received Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase]).
 
     The ADR-0039 canonical role-delegation acceptance: the target of the
-    role offer accepted it, answering the CASE_MANAGER (CM-33-004).
+    role offer accepted it, answering the CASE_MANAGER (CM-33-015).
     See SE-08-003, ADR-0039.
     """
 
@@ -76,7 +76,7 @@ class RejectCaseParticipantRoleReceivedEvent(LedgerPositionedEvent):
     """The CASE_MANAGER received Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase]).
 
     The ADR-0039 canonical role-delegation rejection: the target of the
-    role offer declined it, answering the CASE_MANAGER (CM-33-004).
+    role offer declined it, answering the CASE_MANAGER (CM-33-015).
     See SE-08-003, ADR-0039.
     """
 
@@ -94,7 +94,7 @@ class RejectCaseParticipantRoleReceivedEvent(LedgerPositionedEvent):
 
 
 def _deadline_in_utc(v: datetime | None, field: str) -> datetime | None:
-    """Hold an answer deadline in UTC (CM-21-016, CS-13-001).
+    """Hold an answer deadline in UTC (CM-21-042, CS-13-001).
 
     The wire edge already attached UTC to a naive value; an aware one in
     another offset is converted, so core compares and reports one zone.
@@ -114,10 +114,10 @@ class ProposeCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
     makes: its object names the case, its ``target`` the transferee, and its
     ``end_time`` the deadline to answer.  The CASE_MANAGER takes only those
     three from it; the inner id, ``actor`` and ``to`` are the sender's and
-    are ignored (CM-21-005).
+    are ignored (CM-21-027).
 
     ``proposed_answer_deadline`` is the inner Offer's ``end_time``, normalised
-    to UTC at the wire edge (CM-21-016); ``None`` when it carries none.
+    to UTC at the wire edge (CM-21-042); ``None`` when it carries none.
     """
 
     semantic_type: Literal[
@@ -155,7 +155,7 @@ class OfferCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
 
     The one ``Offer(VulnerabilityCase)`` of a transfer, which the
     CASE_MANAGER makes on the Case Owner's behalf and the transferee answers
-    (ADR-0148, CM-21-005).
+    (ADR-0148, CM-21-028).
 
     ``answer_deadline`` is the Offer's activity-level ``end_time``, the
     deadline to answer it (CM-21-016), normalised to UTC at the wire edge;
@@ -172,7 +172,7 @@ class OfferCaseOwnershipTransferReceivedEvent(LedgerPositionedEvent):
     @field_validator("answer_deadline")
     @classmethod
     def _answer_deadline_is_utc(cls, v: datetime | None) -> datetime | None:
-        """Hold the deadline in UTC (CM-21-016, CS-13-001)."""
+        """Hold the deadline in UTC (CM-21-042, CS-13-001)."""
         return _deadline_in_utc(v, "answer_deadline")
 
 
@@ -346,7 +346,7 @@ class _FullCaseInviteReplyEvent(LedgerPositionedEvent):
 
     The reply's ``object`` is the Invite, so the case and the invited actor
     are the Invite's ``target`` and ``object``.  ``ledger_position`` is the
-    replier's own ledger position when it decided (CM-11-011, SYNC-18-001).
+    replier's own ledger position when it decided (CM-11-034, SYNC-18-001).
     """
 
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]

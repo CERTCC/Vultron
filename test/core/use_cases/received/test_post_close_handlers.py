@@ -18,7 +18,7 @@
 The factory's post-close guard stops a received tree before its commit and
 before any Reject, late-Accept answer or ProcessingFault the tree would send.
 After the CASE_MANAGER's own RM.CLOSED entry none of that may happen: it is
-``REFUSED``, nothing is recorded and nothing is sent (CM-23-013, CM-23-017).
+``REFUSED``, nothing is recorded and nothing is sent (CM-23-013, CM-23-046).
 """
 
 from typing import Any
@@ -84,7 +84,6 @@ def _ledger(dl: SqliteDataLayer) -> list[object]:
 
 
 @pytest.mark.spec("CM-23-013")
-@pytest.mark.spec("CM-23-017")
 @pytest.mark.parametrize(
     ("use_case", "malformed"),
     [
@@ -96,6 +95,7 @@ def _ledger(dl: SqliteDataLayer) -> list[object]:
     ],
     ids=["accept", "invite", "malformed-invite"],
 )
+@pytest.mark.spec("CM-23-046")
 def test_a_late_embargo_activity_is_refused_before_any_write(
     use_case, malformed, make_payload
 ):

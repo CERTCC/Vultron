@@ -4124,8 +4124,8 @@ groups:
     statement: >-
       The v2_late_invite phase of rcvv-embargo MUST invite V2 to the case only
       after the embargo revision (phase 3) is complete and `em_state` is confirmed
-      ACTIVE; on receiving the case invite, V2 MUST accept the current embargo
-      event, becoming a signatory to it (its consent row for the embargo is `AGREED`).
+      ACTIVE; on receiving the case invite, V2 MUST accept the Active Embargo,
+      becoming a signatory to it (its consent row for the embargo is `AGREED`).
     rationale: >-
       Inviting V2 after the revision is complete — rather than before — is the
       defining characteristic of variation (f): the coordinator delays
@@ -4139,6 +4139,10 @@ groups:
       spec_id: DEMOMA-03-003
     - rel_type: refines
       spec_id: DEMOMA-21-001
+    lint_suppress:
+    # compound_statement: the compound pre-dates #5645, which only rewords its
+    # embargo terms; the split into one obligation per ID belongs to #5222.
+    - compound_statement
 
   - id: DEMOMA-21-004
     priority: MUST
@@ -4282,8 +4286,8 @@ groups:
         v2_late_invite phase — invite V2 only after the revision is complete and
         em_state is confirmed ACTIVE (DEMOMA-21-003)
       expected: >-
-        V2 accepts the case invite and the current embargo event, reaching
-        becoming a signatory to it (DEMOMA-21-012)
+        V2 accepts the case invite and the Active Embargo, becoming a
+        signatory to it (DEMOMA-21-012)
     - order: 5
       actor: demo-script
       action: fix_lifecycle phase — advance V1 and V2 through the fix lifecycle

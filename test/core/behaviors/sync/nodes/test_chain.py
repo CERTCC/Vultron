@@ -545,3 +545,43 @@ def test_create_log_entry_node_entry_carries_hashed_received_at(
     assert entry.received_at == hashed_at
     assert entry.published == hashed_at
     assert HashChainLedgerRecord.from_ledger_entry(entry).verify_hash()
+
+
+@pytest.mark.spec("CM-02-009")
+@pytest.mark.spec("CM-02-018")
+@pytest.mark.spec("CLP-14-002")
+def test_create_log_entry_node_stamps_the_envelope_and_keeps_the_claimed_time(
+    bridge, monkeypatch
+):
+    """The envelope carries the commit stamp; the snapshot keeps the claim.
+
+    The commit clock is pinned to a second the sender never claimed, so the
+    two times can only match if one overwrote the other (ADR-0103).
+    """
+    committed_at = now_utc().replace(year=2020)
+    monkeypatch.setattr(case_ledger_module, "now_utc", lambda: committed_at)
+    snapshot = _canonical_note_snapshot(PARTICIPANT_ACTOR_ID)
+    claimed = (now_utc() - timedelta(minutes=1)).isoformat()
+    snapshot["published"] = claimed
+
+    result = bridge.execute_with_setup(
+        tree=CreateLogEntryNode(
+            case_id=CASE_ID,
+            object_id="https://example.org/activities/act-claimed",
+            semantic_type="note_added",
+            payload_snapshot=snapshot,
+            name="CreateLogEntry",
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        tail_hash=_ZERO_HASH,
+        tail_index=-1,
+    )
+
+    assert result.status == Status.SUCCESS
+    blackboard = py_trees.blackboard.Client(name="assert-claimed-time-kept")
+    blackboard.register_key(
+        key="log_entry", access=py_trees.common.Access.READ
+    )
+    entry = cast(CaseLedgerEntry, blackboard.log_entry)
+    assert entry.published == committed_at
+    assert entry.payload_snapshot["published"] == claimed

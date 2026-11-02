@@ -183,7 +183,7 @@ class IsInviteAcceptEventNode(_SingleSemanticTypeNode):
     Precondition of the ``InviteAccept`` slot: the entry is the invitee's
     ``Accept(Invite(Actor)[target=VulnerabilityCaseStub])`` message itself,
     which is the entry for the consent it signs and its ``joined`` mark
-    (ADR-0114, CM-31-012).
+    (ADR-0114, CM-31-012, CM-31-037).
 
     Per BTND-08-001, BTND-08-002, SYNC-12-001, RSH-08-004.
     """
@@ -232,7 +232,7 @@ class IsOwnershipTransferEventNode(_SingleSemanticTypeNode):
 
     The ``update_case_owner`` entry the CASE_MANAGER commits after the
     ``Accept`` of an ownership transfer, carrying the case with its new
-    ``attributed_to`` (CM-21-002, CLP-07-013).  The ``Accept`` entry itself
+    ``attributed_to`` (CM-21-024, CLP-07-013).  The ``Accept`` entry itself
     moves nothing on a replica: each change it causes is its own entry.
 
     Used as the precondition in the ``OwnershipTransferEffects`` Selector's

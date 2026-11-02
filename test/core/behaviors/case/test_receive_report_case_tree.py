@@ -398,6 +398,7 @@ class TestHappyPath:
 
     @pytest.mark.spec("BT-10-002")
     @pytest.mark.spec("BT-10-008")
+    @pytest.mark.spec("CP-06-006")
     def test_case_creator_id_is_the_case_actor_container(
         self,
         datalayer,

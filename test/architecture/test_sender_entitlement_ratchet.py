@@ -466,7 +466,7 @@ STANDING_READS: dict[Site, Listed] = {
     ): Listed(
         4,
         "in manager_effects: picks the owner's direct Invite or re-invite"
-        " (and its CM-11-015 closed-participant check) or the Offer to the"
+        " (and its CM-11-043 closed-participant check) or the Offer to the"
         " owner (CM-16)",
     ),
     Site(

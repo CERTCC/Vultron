@@ -27,7 +27,7 @@ operations:
 The ``CloseReport`` emitter fails closed when the report belongs to a case:
 an actor closes its part in a case by ``Leave(VulnerabilityCase)``, through the
 ``leave-case`` trigger (TRIG-13-001), and no actor sends ``Close(Report)`` for a
-report a case holds (CM-23-019).
+report a case holds (CM-23-052, CM-23-053).
 
 Trees are run via ``BTBridge.execute_with_setup()`` in the corresponding
 trigger use case.
@@ -171,7 +171,7 @@ def create_reject_report_trigger_tree(
 
     A report that belongs to a case is refused first, before anything is
     emitted: its Case Owner closes the case by ``Leave(VulnerabilityCase)``
-    (CM-23-019).
+    (CM-23-053).
 
     The hard-reject writes ``CLOSED`` only through a transition the RM table
     permits: from *Received* it is the ``R → C`` transition (RMB-14-004), and

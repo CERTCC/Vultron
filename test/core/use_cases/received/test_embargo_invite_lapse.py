@@ -245,6 +245,7 @@ class TestDetectAndApplyExpiry:
 
     @pytest.mark.spec("CM-18-002")
     @pytest.mark.spec("CM-28-005")
+    @pytest.mark.spec("CM-18-022")
     def test_expiry_invited_past_deadline(self):
         """INVITED times out to TIMED_OUT, not DECLINED, past its deadline."""
         dl = _make_dl()
@@ -412,14 +413,14 @@ class TestDetectAndApplyExpiry:
 
 
 class TestInviteReceiptStoresNoDeadline:
-    """Receiving an Invite stores no RSVP deadline (CM-28-013, ADR-0113).
+    """Receiving an Invite stores no RSVP deadline (CM-28-024, ADR-0113).
 
     The CASE_MANAGER records the deadline it stamped at its relay commit, and
     a replica records that same value when it replays the entry.  The Invite
     arriving in an invitee's inbox writes nothing.
     """
 
-    @pytest.mark.spec("CM-28-013")
+    @pytest.mark.spec("CM-28-024")
     def test_invite_with_deadline_stores_no_rsvp_deadline(self, make_payload):
         """An Invite carrying ``endTime`` leaves the invitee's record bare."""
         dl = _make_dl(actor_id=_INVITEE)
@@ -844,7 +845,7 @@ class TestInviteeIsTheAddressee:
 
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.consent_for(embargo_id) == EmbargoConsentState.UNINVITED
-        # Receipt stores no deadline (CM-28-013).
+        # Receipt stores no deadline (CM-28-024).
         assert all(r.rsvp_deadline is None for r in invitee.embargo_consents)
         assert answers_in_outbox(dl, _INVITEE) == ["Accept"]
 

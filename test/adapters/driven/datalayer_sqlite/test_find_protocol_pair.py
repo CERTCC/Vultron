@@ -325,6 +325,7 @@ class TestFindProtocolPairIsolation:
 
 class TestFindProtocolPairOrdering:
     @pytest.mark.spec("CM-21-014")
+    @pytest.mark.spec("CM-21-034")
     def test_reply_recorded_before_the_request_does_not_close_it(self, dl):
         """A reply that answered an earlier request leaves a later one open.
 

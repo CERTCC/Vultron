@@ -1499,7 +1499,7 @@ class TestCheckPerActorReplicaRmClosedTermination:
         assert "logIndex=7, expected 5" in violations[0]
 
     def test_a_replica_short_of_its_own_closure_is_flagged(self):
-        """The leaver must receive its own closure step (CM-23-001)."""
+        """The leaver must receive its own closure step (CM-23-031)."""
         violations = self._check(reporter=self._authority()[:3])
         assert any("expected 3" in v for v in violations)
         assert any(
@@ -1890,6 +1890,7 @@ def test_post_close_invariant_flags_a_participant_act_after_the_boundary():
 
 
 @pytest.mark.spec("CM-23-013")
+@pytest.mark.spec("CM-23-029")
 def test_post_close_invariant_allows_the_case_managers_own_entries():
     from test.ci.invariants.common import (
         check_no_participant_act_after_case_closure,

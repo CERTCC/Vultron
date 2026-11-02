@@ -1,4 +1,4 @@
-"""The shared delegated-authorship helper (CM-24-001, CM-24-002, CM-24-005)."""
+"""The shared delegated-authorship helper (CM-24-001, CM-24-002, CM-24-012)."""
 
 import pytest
 
@@ -13,6 +13,7 @@ REQUESTER = "https://example.org/actors/requester"
 
 
 @pytest.mark.spec("CM-24-001")
+@pytest.mark.spec("CM-24-012")
 def test_actor_is_the_doing_actor() -> None:
     result = delegated_authorship(
         doing_actor_id=MANAGER, requesting_actor_id=REQUESTER
@@ -22,6 +23,7 @@ def test_actor_is_the_doing_actor() -> None:
 
 @pytest.mark.spec("BT-17-015")
 @pytest.mark.spec("CM-24-002")
+@pytest.mark.spec("CM-24-012")
 def test_attributed_to_is_the_requesting_actor() -> None:
     result = delegated_authorship(
         doing_actor_id=MANAGER, requesting_actor_id=REQUESTER

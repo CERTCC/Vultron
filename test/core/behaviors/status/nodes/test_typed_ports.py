@@ -106,7 +106,7 @@ class TestAllParticipantsRMClosedConditionNodePorts:
         )
         bt_scenario.assert_failure(result)
 
-    @pytest.mark.spec("CM-11-014")
+    @pytest.mark.spec("CM-11-041")
     def test_inert_invitee_does_not_hold_up_closure(
         self, bt_scenario: BTTestScenario
     ) -> None:

@@ -601,7 +601,7 @@ class TestTheOwnerHandsTheCaseOver:
         assert JOINER.label in ran["offer"].call_args.kwargs["content"]
 
         # The CaseActor's own Offer is polled for on the new owner's replica,
-        # under an id of the CaseActor's (CM-21-005, ADR-0148).
+        # under an id of the CaseActor's (CM-21-028, ADR-0148).
         lookup = ran[
             "find_ownership_transfer_offer_for_actor"
         ].call_args.kwargs
@@ -1012,7 +1012,7 @@ class TestTheWitnessIsNotAPartyToTheTransfer:
 
     Both parties see the new owner through the offer/accept round-trip, so
     reading the ledger entry on either one's replica proves nothing about the
-    CM-21-007 broadcast. The helper refuses the pairing rather than leaving it
+    CM-21-030 broadcast. The helper refuses the pairing rather than leaving it
     to the ratchet, which reads call sites lexically and cannot see a `Part`
     passed in by a caller.
     """

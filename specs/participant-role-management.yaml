@@ -46,9 +46,10 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: 'Core code in `vultron/core/` MUST use `participant.roles` (the property) or `participant.has_role(role)` for
-      role-presence checks and role iteration; direct reads of `participant.case_roles` MUST NOT appear in core code outside
-      of the `CaseParticipant` class itself.'
+    statement: >-
+      Core code in `vultron/core/` MUST use `participant.roles` or
+      `participant.has_role(role)` for role-presence checks and role iteration, never
+      a direct read of `participant.case_roles` outside the `CaseParticipant` class.
     rationale: 'Encapsulating storage access in the class boundary allows the internal representation to change without cascading
       updates across the core.'
     tags:
@@ -75,18 +76,34 @@ groups:
   - id: PRM-02-002
     priority: MUST
     kind: project
-    statement: '`add_role()` MUST be idempotent: calling it with a role that the participant already holds MUST NOT raise
-      an error unless `raise_when_present=True`; it SHOULD log an INFO-level message when the duplicate add is silently ignored.'
-    rationale: 'Idempotent add is safe for concurrent or repeated processing. Logging the skip makes duplicate adds visible
-      for debugging.'
+    statement: >-
+      Unless `raise_when_present=True`, `add_role()` MUST ignore a role the participant
+      already holds, raising no error and leaving the role set unchanged.
+    rationale: 'Idempotent add is safe for concurrent or repeated processing.'
     verification: >-
       A unit test confirms that calling `add_role()` twice with the same role raises no
-      exception on the second call and emits an INFO-level log message.
+      exception on the second call.
     tags:
     - protocol
     stories:
     - story_2022_013
     - story_2022_063
+  - id: PRM-02-007
+    priority: SHOULD
+    kind: project
+    statement: >-
+      `add_role()` SHOULD log an INFO-level message when it ignores a duplicate add.
+    rationale: >-
+      An ignored add leaves no other trace. Logging the skip makes duplicate adds
+      visible for debugging.
+    relationships:
+    - rel_type: extends
+      spec_id: PRM-02-002
+    verification: >-
+      A unit test confirms that the second `add_role()` call with the same role emits
+      an INFO-level log message.
+    tags:
+    - protocol
   - id: PRM-02-003
     priority: MUST
     kind: project
@@ -117,17 +134,35 @@ groups:
   - id: PRM-02-005
     priority: MUST
     kind: project
-    statement: '`remove_role()` MUST be idempotent: calling it with a role that the participant does not hold MUST NOT raise
-      an error unless `raise_when_missing=True`; it SHOULD log an INFO-level message when the missing remove is silently ignored.'
-    rationale: 'Idempotent remove is safe for repeated processing. Logging the skip makes spurious removes visible for debugging.'
+    statement: >-
+      Unless `raise_when_missing=True`, `remove_role()` MUST ignore a role the
+      participant does not hold, raising no error and leaving the role set unchanged.
+    rationale: 'Idempotent remove is safe for repeated processing.'
     verification: >-
       A unit test confirms that calling `remove_role()` for an absent role raises no
-      exception and emits an INFO-level log message.
+      exception.
     tags:
     - protocol
     stories:
     - story_2022_063
     - story_2022_066
+  - id: PRM-02-008
+    priority: SHOULD
+    kind: project
+    statement: >-
+      `remove_role()` SHOULD log an INFO-level message when it ignores the removal of a
+      role the participant does not hold.
+    rationale: >-
+      An ignored remove leaves no other trace. Logging the skip makes spurious removes
+      visible for debugging.
+    relationships:
+    - rel_type: extends
+      spec_id: PRM-02-005
+    verification: >-
+      A unit test confirms that calling `remove_role()` for an absent role emits an
+      INFO-level log message.
+    tags:
+    - protocol
   - id: PRM-02-006
     priority: MUST
     kind: project
@@ -146,9 +181,11 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: 'Core code in `vultron/core/` MUST NOT mutate `case_roles` directly on a CaseParticipant instance after
-      construction (e.g. `participant.case_roles.append(...)` or `participant.case_roles = [...]` post-init). `add_role()`
-      and `remove_role()` MUST be used for all post-construction role changes.'
+    statement: >-
+      Core code in `vultron/core/` MUST make every post-construction change to a
+      CaseParticipant's `case_roles` through `add_role()` or `remove_role()`, never by
+      direct mutation. Examples of direct mutation are
+      `participant.case_roles.append(...)` and `participant.case_roles = [...]`.
     rationale: 'Direct mutation bypasses the class''s encapsulation and any future invariant checks added to the mutation
       methods. Centralising mutations in named methods is the standard object-oriented pattern.'
     tags:
@@ -177,11 +214,11 @@ groups:
       the canonical mutator accepting a core-shaped status and rejecting a
       wire-shaped one.
     statement: >-
-      Core code under `vultron/core/` MUST NOT mutate `participant_statuses`
-      directly on a CaseParticipant instance after construction (e.g.
-      `participant.participant_statuses.append(...)`). The canonical mutators on
-      `CaseParticipant` MUST be used. The mutator methods themselves, in
-      `vultron/core/models/case_participant.py`, are exempt.
+      Core code under `vultron/core/` MUST NOT mutate `participant_statuses` on a
+      CaseParticipant after construction except through the canonical `CaseParticipant`
+      mutators. An example of direct mutation is
+      `participant.participant_statuses.append(...)`. The mutator methods themselves,
+      in `vultron/core/models/case_participant.py`, are exempt.
     rationale: >-
       `ParticipantStatus` has two shapes that are not compatible (SDO-03-002, ADR-0036).
       When a status in the wire shape is added to a list of core-typed statuses, readers
@@ -264,11 +301,32 @@ groups:
     priority: SHOULD
     kind: project
     statement: 'An architecture test SHOULD enforce that no Python source file under `vultron/core/` (outside `vultron/core/models/case_participant.py`)
-      contains a direct `case_roles` mutation pattern (i.e. `\.case_roles\s*=` or `\.case_roles\.append`). The test MUST complete
-      within one second.'
-    rationale: 'A machine-checkable rule prevents regression; the one-second budget ensures it does not slow the test suite.
-      Using a targeted file-content scan (e.g. ripgrep or stdlib pathlib glob + str search) on a small, bounded directory
-      satisfies the budget constraint.'
+      contains a direct `case_roles` mutation pattern (i.e. `\.case_roles\s*=` or `\.case_roles\.append`).'
+    rationale: >-
+      A machine-checkable rule prevents regression. Using a targeted file-content
+      scan (e.g. ripgrep or stdlib pathlib glob + str search) on a small, bounded
+      directory keeps it cheap (PRM-05-005).
+    verification: >-
+      `test_no_direct_case_roles_mutation_in_core` in
+      `test/architecture/test_participant_case_roles.py` scans `vultron/core/` for the
+      two mutation patterns and fails on any match outside `case_participant.py`.
+    tags:
+    - testing
+    - tooling
+  - id: PRM-05-005
+    priority: MUST
+    kind: project
+    statement: 'The architecture test of PRM-05-004 MUST complete within one second.'
+    rationale: >-
+      The one-second budget keeps the check from slowing the test suite, so it
+      stays cheap enough to run on every change.
+    verification: >-
+      `test_case_roles_mutation_scan_completes_within_one_second` in
+      `test/architecture/test_participant_case_roles.py` times the PRM-05-004 scan and
+      fails when it takes one second or more.
+    relationships:
+    - rel_type: refines
+      spec_id: PRM-05-004
     tags:
     - testing
     - tooling
@@ -329,13 +387,12 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      A Case Manager or Case Owner MAY assert ``v→V`` (``Vf``) on behalf
-      of a Vendor-role participant when the notification or invite is evidenced
-      (any vendor acknowledgement — including
-      ``Read(Invite(Actor)[target=VulnerabilityCaseStub])`` — suffices).  The
-      target MUST already be a participant in the case — typically an inert invitee
-      that has not yet replied — and the write MUST NOT change its RM state
-      (ADR-0121).
+      A Case Manager or Case Owner MAY assert ``v→V`` (``Vf``) on behalf of a
+      Vendor-role participant when the notification or invite is evidenced. Any vendor
+      acknowledgement, including
+      ``Read(Invite(Actor)[target=VulnerabilityCaseStub])``, is evidence. The target is
+      typically an inert invitee that has not yet replied, and it must already be a
+      participant (PRM-06-006).
     rationale: >-
       Without this path, the case cannot record that an invited vendor is aware until
       the vendor replies to the Invite. A vendor acknowledgement, such as
@@ -355,28 +412,68 @@ groups:
     - protocol
     stories:
     - story_2022_061
-    lint_suppress:
-    # compound_statement: the compound pre-dates #5622, which only renamed its
-    # activity notation's types; the split into one obligation per ID belongs to #5217.
-    - compound_statement
+  - id: PRM-06-007
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An on-behalf ``v→V`` write by a Case Manager or Case Owner MUST NOT change the
+      target's RM state (ADR-0121).
+    rationale: >-
+      RM records the vendor's own report decisions. The on-behalf assertion speaks
+      only for the vendor's awareness, which its acknowledgement shows, so it leaves
+      RM where the vendor put it.
+    relationships:
+    - rel_type: extends
+      spec_id: PRM-06-003
+    verification: >-
+      ``test_changes_only_vf_of_an_inert_vendor_invitee`` in
+      ``test/core/use_cases/triggers/case/test_add_on_behalf_status.py`` asserts the
+      on-behalf write changes only the target's VF state and leaves its RM state
+      unchanged.
+    adr:
+    - ADR-0121
+    tags:
+    - protocol
+    stories:
+    - story_2022_061
   - id: PRM-06-004
     priority: MAY
     kind: protocol
     statement: >-
-      A Case Manager or Case Owner MAY assert ``d→D`` (``D``) on behalf
-      of a Deployer-role participant under the same externally-evidenced
-      pattern (a MAY, expected to be rare — for example, a deployer that joined
-      and has since gone quiet; deployment is normally self-reported by the
-      Deployer).  The target MUST already be a participant in the case, and the
-      write remains subject to the cross-machine entailments, so it succeeds
-      only for a deployer whose RM state is consistent with deployment
-      (ADR-0121).
+      A Case Manager or Case Owner MAY assert ``d→D`` (``D``) on behalf of a
+      Deployer-role participant, under the same externally-evidenced pattern as
+      PRM-06-003. The target must already be a participant (PRM-06-006).
     rationale: >-
-      Usually the deployer reports its own deployment. But a deployer that stops
-      answering can leave the case unable to record a deployment, although the case has
-      evidence of it. A narrow exception path covers this. The on-behalf limit keeps it
-      from becoming a general proxy capability. A deployer that did not join is not in
-      the case, so the case has nothing to record about it.
+      Usually the deployer reports its own deployment. But a deployer that joined and
+      has since gone quiet can leave the case unable to record a deployment, although
+      the case has evidence of it. A narrow, rare exception path covers this. The
+      on-behalf limit keeps it from becoming a general proxy capability. A deployer
+      that did not join is not in the case, so the case has nothing to record about it.
+    adr:
+    - ADR-0121
+    tags:
+    - protocol
+    stories:
+    - story_2022_061
+  - id: PRM-06-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The actor processing an on-behalf ``d→D`` assertion MUST apply the cross-machine
+      entailments, so it succeeds only for a deployer whose RM state fits deployment.
+    rationale: >-
+      The on-behalf path is an exception to self-declaration, not a way around the
+      rules every status write obeys. Without the entailments, it could record a
+      deployment for a deployer that never accepted the report.
+    relationships:
+    - rel_type: extends
+      spec_id: PRM-06-004
+    verification: >-
+      ``test_succeeds_for_deployer_at_rm_consistent_with_deployment`` and
+      ``test_refused_by_entailment_at_any_other_rm`` in
+      ``test/core/use_cases/triggers/case/test_add_on_behalf_status.py`` assert the
+      write succeeds at an RM state consistent with deployment and is refused by the
+      entailment at any other.
     adr:
     - ADR-0121
     tags:
@@ -387,11 +484,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An on-behalf status assertion whose target is not a participant in the
-      case MUST be refused before any write, and MUST NOT create a participant.
-      A status update is never a way into a case; joining is the Invite flow
-      (CM-11, ADR-0114).
+      An actor processing an on-behalf status assertion MUST refuse it before any write
+      if its target is not a case participant, creating no participant.
     rationale: >-
+      A status update is never a way into a case; joining is the Invite flow (CM-11,
+      ADR-0114).
       If a status update creates the participant that it names, it is a second path into
       a case. That path skips the Invite flow and its consent and entitlement checks. If
       the record is created before the status write, and the write is then refused, a

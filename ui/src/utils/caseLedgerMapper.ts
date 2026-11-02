@@ -1803,7 +1803,7 @@ function handleCloseCase(
   //
   // This is a DELIBERATE procedural overlay, NOT a machine transition. The Leave /
   // `force_rm_state` rule lives in behavior-tree code (leave.py, close_case_effect.py)
-  // and a prose spec statement (CM-23-012); it has no exportable transition table, so
+  // and a prose spec statement (CM-23-038); it has no exportable transition table, so
   // it MUST NOT be judged via isLegalTransition('rm', …, 'close') nor "fixed" by adding
   // an edge to the artifact — the RM machine is shared by every role, so doing so would
   // make it falsely accept an un-disposed report `close` for a vendor too, masking a

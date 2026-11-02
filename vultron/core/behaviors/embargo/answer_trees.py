@@ -177,7 +177,7 @@ def accept_invite_to_embargo_tree(
                 now=now,
                 result_out=expiry_out,
             ),
-            # Then every other overdue invitation of the case (CM-28-015).
+            # Then every other overdue invitation of the case (CM-28-028).
             *embargo_clock_decisions(case_id, now),
         ],
         precondition_guards=[

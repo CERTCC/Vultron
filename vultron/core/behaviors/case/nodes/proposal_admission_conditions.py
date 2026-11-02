@@ -62,7 +62,7 @@ class CheckProposalAlreadyAnsweredNode(DataLayerAction):
 
     Guards the admission decision against re-adjudicating a proposal the service
     already answered. Once ``Accept(CaseProposal)`` has been sent the answer
-    is irrevocable (CP-05-005), so a later "decline" must never reach the wire.
+    is irrevocable (CP-05-012), so a later "decline" must never reach the wire.
 
     The evidence is the ``CaseProposalAdmissionRecord`` for this proposal, an
     indexed single-row read.  The accept flow stores it in the same
@@ -127,16 +127,17 @@ class CheckProposalCaseFullyClosedNode(DataLayerAction):
     When the case is fully closed (its ledger holds the CASE_MANAGER's own
     ``RM.CLOSED`` status entry), the
     proposal is declined with ``Reject(CaseProposal)`` and nothing is
-    written for the case (CP-05-006, CP-05-008, CM-23-013).
+    written for the case (CP-05-014, CP-05-015, CP-05-018, CP-05-019,
+    CM-23-013).
 
     Every case the proposal resolves to is checked: the proposer's own case
-    for the report (a new proposal id from the owner, CP-05-008) and the case
-    the proposal's stored ``Accept`` names (a redelivery, CP-05-006, also from
+    for the report (a new proposal id from the owner, CP-05-018) and the case
+    the proposal's stored ``Accept`` names (a redelivery, CP-05-014, also from
     a former owner after an ownership transfer).  The lookup is
     ``proposal_case_ids``, the one ``LoadExistingCaseNode`` uses to pick the
     case the accept arm reuses, so both nodes resolve the same case.  A
     different proposer's case for the same report is never this proposal's
-    case (CP-05-008), so another party's closed case does not decline it.
+    case (CP-05-020), so another party's closed case does not decline it.
 
     **Store errors are not caught here**, and a missing DataLayer raises.  The
     node sits on a refusal arm, so FAILURE ("not closed") runs the accept arm
@@ -194,7 +195,7 @@ class CheckProposalCaseFullyClosedNode(DataLayerAction):
                 )
                 self.logger.info(
                     "%s: declining proposal '%s' from actor_id=%s: case '%s'"
-                    " is fully closed (CP-05-006, CP-05-008, CM-23-013)",
+                    " is fully closed (CP-05-014, CP-05-018, CM-23-013)",
                     self.name,
                     self._proposal_id,
                     self._proposer_uri,

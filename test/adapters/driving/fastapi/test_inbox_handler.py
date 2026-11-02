@@ -932,6 +932,7 @@ def test_pending_case_queue_expiry_sends_nothing():
 
 
 @pytest.mark.spec("EP-07-001")
+@pytest.mark.spec("CM-28-019")
 def test_prepare_for_dispatch_applies_configured_rsvp_window(monkeypatch):
     """The local actor's default RSVP window reaches extraction (#3737)."""
     from datetime import datetime, timedelta

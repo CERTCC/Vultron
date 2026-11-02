@@ -43,7 +43,7 @@ they explode the actor registry for no protocol benefit.
 - The enacting "CaseActor" is one per container, not one per case, at
   `{case_actor_service_url}/actors/case-actor` (CP-08-002/003). Its label is
   cosmetic: gate on `CVDRole.CASE_MANAGER`, never compare `actor_id` to a
-  computed case-actor id (CM-24-004, ADR-0088).
+  computed case-actor id (CM-24-009, ADR-0088).
 
 ## Only the CASE_MANAGER Writes a Replica
 

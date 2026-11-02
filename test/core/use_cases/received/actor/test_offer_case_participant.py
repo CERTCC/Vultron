@@ -555,13 +555,13 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         assert "no recommendation" in (result.reason or "")
         _assert_only_notice_to_case_owner(dl)
 
-    @pytest.mark.spec("CM-16-019")
+    @pytest.mark.spec("CM-16-023")
     def test_invitee_comes_from_the_recorded_offer_not_the_reply(self):
         """The Accept's copy of the Offer names someone else; it is ignored.
 
         The Case Owner answers the recorded Offer by id, but the reply embeds
         a copy whose CaseParticipant names another actor.
-        The Invite goes to the actor the CASE_MANAGER recorded (CM-16-019).
+        The Invite goes to the actor the CASE_MANAGER recorded (CM-16-023).
         """
         forged_id = "https://example.org/actors/forged-invitee"
         dl, _ = _seed_dl_for_case_actor()
@@ -752,10 +752,10 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             "recommender lookup must read the CASE_MANAGER's ActorRecommendationRecord"
         )
 
-    @pytest.mark.spec("CM-11-015")
+    @pytest.mark.spec("CM-11-043")
     @pytest.mark.parametrize("joined", [False, True])
     def test_closed_invitee_is_refused_before_anything_is_sent(self, joined):
-        """An invitee already at RM.CLOSED is never re-invited (CM-11-015).
+        """An invitee already at RM.CLOSED is never re-invited (CM-11-043).
 
         The refusal comes before the commit and the emits, so neither the
         Invite nor the recommender notification is queued, only the refusal
@@ -854,8 +854,8 @@ class TestAcceptRefusesAnInviteeThatCannotBeInvited:
         assert self._record(dl).joined is False
         assert len(dl.list_objects("CaseLedgerEntry")) >= 1
 
-    @pytest.mark.spec("CM-16-006")
-    @pytest.mark.spec("CM-11-015")
+    @pytest.mark.spec("CM-16-021")
+    @pytest.mark.spec("CM-11-043")
     def test_second_accept_after_join_is_refused_and_commits_nothing(self):
         dl, _ = _seed_dl_for_case_actor()
         assert self._accept(dl).disposition is HandlerDisposition.APPLIED
@@ -871,8 +871,8 @@ class TestAcceptRefusesAnInviteeThatCannotBeInvited:
         assert "joined" in (result.reason or "")
         assert len(dl.list_objects("CaseLedgerEntry")) == ledger_before
 
-    @pytest.mark.spec("CM-16-006")
-    @pytest.mark.spec("CM-11-015")
+    @pytest.mark.spec("CM-16-021")
+    @pytest.mark.spec("CM-11-043")
     def test_accept_for_a_closed_invitee_is_refused_and_commits_nothing(self):
         from vultron.core.models.dimensions import RmDimension
         from vultron.core.models.participant_status import ParticipantStatus
@@ -1339,6 +1339,51 @@ class TestRolesFromStoredOffer:
             f"expected ['{CVDRole.VENDOR.value}'], got {invite_roles!r}"
         )
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "CM-20-006: the CASE_MANAGER invites with the recorded roles"
+            " unfiltered, CASE_MANAGER and CASE_OWNER included."
+            " Tracked by #5640."
+        ),
+    )
+    @pytest.mark.spec("CM-20-006")
+    def test_an_approved_coordinator_is_invited_without_authority_roles(self):
+        """A suggested Coordinator gets neither CASE_MANAGER nor CASE_OWNER.
+
+        Even when the recorded suggestion names those roles, the Invite the
+        CASE_MANAGER emits on the owner's approval carries neither.
+        """
+        from vultron.enums.roles import CVDRole
+
+        dl, event = self._seed_and_store_offer(
+            roles=[
+                CVDRole.COORDINATOR,
+                CVDRole.CASE_MANAGER,
+                CVDRole.CASE_OWNER,
+            ]
+        )
+        AcceptOfferCaseParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        invites = [
+            obj
+            for obj in (dl.read(a) for a in dl.outbox_list())
+            if obj is not None and str(getattr(obj, "type_", "")) == "Invite"
+        ]
+        roles = {
+            r
+            for invite in invites
+            for r in (getattr(invite, "roles", None) or [])
+        }
+        assert CVDRole.CASE_MANAGER.value not in roles, roles
+        assert CVDRole.CASE_OWNER.value not in roles, roles
+
     @pytest.mark.spec("CM-16-018")
     def test_participant_case_roles_vendor_after_full_round_trip(self):
         """Full round-trip: Accept(Invite) creates participant with VENDOR role.
@@ -1468,12 +1513,12 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             received_event(accept, at=dl),
         )
 
-    @pytest.mark.spec("CM-16-019")
+    @pytest.mark.spec("CM-16-023")
     def test_invite_roles_are_the_recorded_offers_not_the_replys(self):
         """The Invite carries the recorded roles, not the reply's forged ones.
 
         The reply's copy of the Offer adds CASE_OWNER; the Invite still names
-        only what the CASE_MANAGER recorded (CM-16-019, ISSUE-1745).
+        only what the CASE_MANAGER recorded (CM-16-023, ISSUE-1745).
         """
         from vultron.enums.roles import CVDRole
 
@@ -1502,6 +1547,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             "the Invite must carry the recorded Offer's roles, not the reply's"
         )
 
+    @pytest.mark.spec("CM-11-049")
     @pytest.mark.spec("CM-11-019")
     def test_participant_case_roles_empty_refused_per_cm11019(self):
         """CM-11-019: Accept(Offer) with empty roles is REFUSED.
@@ -1517,7 +1563,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
         dl = _seed_dl_for_ac1()
 
         # Store an Offer with empty roles so the recorded answer carries
-        # none → SeatRecordedInviteeNode refuses (CM-11-019).
+        # none → SeatRecordedInviteeNode refuses (CM-11-049).
         empty_roles_offer = offer_case_participant_activity(
             as_Actor(id_=AC1_INVITEE_ID),
             target=_case_ref(AC1_CASE_ID),
@@ -1559,7 +1605,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             "Accept(Offer(CaseParticipant))"
         )
 
-    @pytest.mark.spec("CM-16-019")
+    @pytest.mark.spec("CM-16-023")
     def test_participant_takes_only_the_recorded_roles(self):
         """Full round trip: the admitted participant holds the recorded roles.
 

@@ -144,7 +144,8 @@ The two remedies close different doors:
 - `append` is closed by prohibition plus canonical mutators plus a ratchet
   (CM-27-001): `add_case_status()` (CM-27-003), `add_participant_status()`
   (PRM-03-003), `add_participant()`. The roster has no deleting mutator: removal
-  calls `CaseParticipant.record_removal()` and keeps the record (CM-31-001).
+  calls `CaseParticipant.record_removal()` and keeps the record (CM-31-001,
+  CM-31-015).
 
 ### Where `validate_assignment` goes, and where it must not
 
@@ -303,7 +304,7 @@ its role does not license, you reopen this.**
 - **A replica never walks `rm_closure_path()`** (#4091). It would walk from its own
   possibly stale stored state and write a step no ledger entry backs. The
   CASE_MANAGER ledgers a `close_case` entry for the received `Leave`, then one
-  `add_participant_status_to_participant` entry per transition (CM-23-001); a
+  `add_participant_status_to_participant` entry per transition (CM-23-022); a
   replica applies those status entries, and `close_case` changes no RM state on
   replay. The Leave record commits the `closure_steps` its advance wrote, never
   re-derived from history. Pinned by

@@ -615,6 +615,7 @@ def _closed_door_tree(*, sender_closed: bool | None) -> ReceivedActivityTree:
 
 
 @pytest.mark.spec("CM-23-018", "ID-05-003")
+@pytest.mark.spec("CM-23-049")
 def test_closed_sender_verdict_skips_a_repeated_closing_act():
     verdict = closed_sender_verdict(
         _closed_door_tree(sender_closed=True),

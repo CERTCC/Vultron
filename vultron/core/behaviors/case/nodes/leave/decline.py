@@ -43,7 +43,7 @@ class EmitRejectCloseCaseNode(_EmitSingleActivityBase):
 
     The same reply answers a ``Leave`` that arrives after the case is fully
     closed when the CASE_MANAGER's ``post_close_reply`` policy
-    is ``REJECT`` (CM-23-013, ADR-0131); ``decline_reason`` names which
+    is ``REJECT`` (CM-23-057, ADR-0131); ``decline_reason`` names which
     decline it is in the log.
 
     Subclasses :class:`_EmitSingleActivityBase`; only ``_call_factory`` is

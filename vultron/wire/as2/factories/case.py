@@ -385,7 +385,7 @@ def update_case_activity(
     """Build an Update(VulnerabilityCase).
 
     The CASE_MANAGER's ``update_case_owner`` ledger entry naming a new Case
-    Owner (CM-21-002, CLP-07-013); no received use case handles it
+    Owner (CM-21-024, CLP-07-013); no received use case handles it
     (ADR-0140).  ``context`` defaults to the case's URI (CLP-07-007).
 
     Args:
@@ -689,7 +689,7 @@ def propose_case_ownership_transfer_activity(
 
     The Case Owner sends it to the CASE_MANAGER, which makes the one
     ``Offer(VulnerabilityCase)`` the transferee answers (ADR-0148,
-    CM-21-005).  The inner Offer carries what the owner decides: the case,
+    CM-21-028).  The inner Offer carries what the owner decides: the case,
     by typed reference, as its object (ADR-0165), the transferee as its
     ``target`` and, when given, the deadline to answer as its ``end_time``
     (CM-21-016).  It is built with

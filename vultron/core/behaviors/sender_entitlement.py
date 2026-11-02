@@ -28,7 +28,7 @@ Entitlement kinds
 - ``ACTIVE_PARTICIPANT`` — sender must be an active participant per CM-10-004
   (joined and a signatory to the embargo in force) whose closure the case does
   not record: a participant at RM ``CLOSED`` may act on nothing further
-  (CM-23-018).  Every guard for it asks one predicate (CM-23-020),
+  (CM-23-018).  Every guard for it asks one predicate (CM-23-054),
   :func:`~vultron.core.participants.recipients.may_act_on_case`
 - ``PARTICIPANT`` — sender must have a participant record on the case, active
   or not, whose closure the case does not record (CM-23-018)
@@ -288,7 +288,7 @@ class SenderEntitlementKind(Enum):
     signatory to it; a removed participant is not active.  And not at RM
     ``CLOSED``: a participant that has left the case may act on nothing
     further (CM-23-018).  Every guard for this kind asks one predicate
-    (CM-23-020),
+    (CM-23-054),
     :func:`~vultron.core.participants.recipients.may_act_on_case`.  Compare
     ``PARTICIPANT``, which any open participant record on the case satisfies.
     """
@@ -312,7 +312,7 @@ class SenderEntitlementKind(Enum):
     The standing of a ``Reject(CaseLedgerEntry)`` resync request
     (SYNC-03-005): a closed participant keeps it, and the replay it is
     answered with stops at the entries that record its own closure
-    (CM-23-004, CM-23-018).  No other use case declares it (CM-23-020).
+    (CM-23-031, CM-23-048).  No other use case declares it (CM-23-020).
     """
 
     NAMED_ACTOR = ("the addressee of the {object}", "Addressee")

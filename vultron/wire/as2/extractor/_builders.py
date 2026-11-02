@@ -286,7 +286,7 @@ def _participant_ref_to_domain(ref: object) -> str | CaseParticipant | None:
     a plain string if it is a URI reference, or ``None`` if the ref is
     unusable.  This preserves participant metadata — including role lists —
     across the wire→domain extraction boundary so bootstrap trust logic can
-    inspect ``CVDRole.CASE_MANAGER`` on the extracted case (CBT-01-003).
+    inspect ``CVDRole.CASE_MANAGER`` on the extracted case (CBT-01-014).
 
     Prefers the wire model's own ``to_core()`` projection, which additionally
     carries ``participant_statuses`` across the boundary.  Hand-building the

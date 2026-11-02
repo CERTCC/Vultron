@@ -24,7 +24,7 @@ relays a contested creation's revision:
      participant holds the case before its first ``Announce(CaseLedgerEntry)``
      (CM-14-011, CP-09-009)
   9. Relay a contested creation's revision to the party whose terms won
-     (EP-04-027) — after initialization is complete (CM-14-007)
+     (EP-04-027) — after initialization is complete (CM-14-014)
 
 Steps 1-9, with the admission record ahead of them, are one act: they run in
 one ``ActTransaction`` (ADR-0146, CLP-07-015), so a failed step rolls back
@@ -32,7 +32,7 @@ the case, its records, the queued ``Accept`` and ``Create``, the relayed
 ``Invite`` and every creation entry already committed (CLP-07-013, #4442).
 Nothing is kept for a later run: a redelivery of the proposal processes it
 fresh.  Once the act commits, the durable outbox retries the delivery of
-each queued activity (OX-13, CP-05-005).
+each queued activity (OX-13, CP-05-011).
 
 Admission (CP-05-002) and idempotency (CP-05-006):
 
@@ -51,9 +51,9 @@ The top-level tree is a Selector with four branches, tried in order:
 * **Closed case** — ``DeclineClosedCaseProposalArm``: the proposal resolves to
   a fully closed case (the owner's own case for the report, or the case this
   proposal's stored ``Accept`` names), so record the decline and emit
-  ``Reject(CaseProposal)``.  Nothing is written for the case (CP-05-006,
-  CP-05-008, CM-23-013).  The factory's post-close guard cannot do this: the
-  proposal names a report, not a case.
+  ``Reject(CaseProposal)``.  Nothing is written for the case (CP-05-014,
+  CP-05-015, CP-05-018, CP-05-019, CM-23-013).  The factory's post-close guard
+  cannot do this: the proposal names a report, not a case.
 
 * **Decline** — ``DeclineProposalArm``: the ``EvaluateCaseProposal`` call-out
   point refused, so record the decline and emit ``Reject(CaseProposal)``.
@@ -186,7 +186,7 @@ CLOSED_CASE_DECLINE_REASON = (
 """The ``Reject`` summary for a proposal whose case is fully closed.
 
 It declines the delivery only: an ``Accept`` already sent for the proposal
-stands (CP-05-005, CP-05-006).
+stands (CP-05-012, CP-05-014).
 """
 
 
@@ -217,8 +217,8 @@ def create_case_proposal_received_tree(
       transaction as the ``Reject`` it answers with, so "declined with nothing
       queued" is not a state the store can hold.
 
-    **Branch 2 — closed case** (``DeclineClosedCaseProposalArm``, CP-05-006,
-    CP-05-008, CM-23-013):
+    **Branch 2 — closed case** (``DeclineClosedCaseProposalArm``, CP-05-014,
+    CP-05-018, CM-23-013):
       ``CheckProposalCaseFullyClosedNode`` finds that the proposal resolves to
       a fully closed case: the proposer's own case for *report_id* (a new
       proposal id from the owner), or the case the proposal's stored
@@ -228,7 +228,7 @@ def create_case_proposal_received_tree(
       writes nothing for the case: no ``CaseLedgerEntry`` and no case or
       participant change.  The decline record is keyed on the proposal, so
       CM-23-013 does not bar it.  The ``Reject`` declines only this delivery
-      and does not revoke a stored ``Accept`` (CP-05-005).  The closure check
+      and does not revoke a stored ``Accept`` (CP-05-012).  The closure check
       raises on a store error, and a failed decline fails the tree, so
       neither can fall through into an accept that reuses the closed case.
       The admission call-out point is not consulted.
@@ -309,13 +309,13 @@ def create_case_proposal_received_tree(
       11. ``RelayCreationTimeRevisionNode`` — relays the revision step 6
          registered, if any, as ``Invite(EmbargoEvent)`` to the party
          whose terms won (EP-04-011), and indexes the sent Invite
-         (EP-08-002); no modification precedes step 10 (CM-14-007).
+         (EP-08-002); no modification precedes step 10 (CM-14-014).
 
     If any of them fails, nothing they wrote is kept: no case, participant,
     embargo, ledger entry, ``Accept``, ``Create`` or ``Invite``, and delivery
     is told of none of the activities (DL-02-004).  A redelivery of the
     proposal then processes it fresh.  Once the act commits, the durable
-    outbox retries the delivery of each queued activity (OX-13, CP-05-005).
+    outbox retries the delivery of each queued activity (OX-13, CP-05-011).
 
     Spec: CP-05-001 through CP-05-006, CP-05-008.
     Per: ``docs/adr/0041-caseactor-authoritative-case-initialization.md``.
@@ -496,7 +496,7 @@ def create_case_proposal_received_tree(
             ),
             # EP-04-011: relay the losing terms InitializeDefaultEmbargoNode
             # registered, only now that initialization is complete
-            # (CM-14-007).  Inside the act: a failed relay rolls the creation
+            # (CM-14-014).  Inside the act: a failed relay rolls the creation
             # back, so a redelivery creates and relays it again.
             RelayCreationTimeRevisionNode(
                 proposal_id=proposal_id,
@@ -506,7 +506,7 @@ def create_case_proposal_received_tree(
         ],
     )
 
-    # CP-05-006 / CP-05-008 / CM-23-013: a proposal that resolves to a fully
+    # CP-05-014 / CP-05-018 / CM-23-013: a proposal that resolves to a fully
     # closed case — the owner's new proposal, or a redelivery of the original
     # one — is declined, and nothing is written for the case.  Ahead of the
     # admission decision: closure decides, so the call-out point is not

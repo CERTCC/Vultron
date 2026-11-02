@@ -86,12 +86,12 @@ class RecordCaseProposalRejectionNode(DataLayerAction):
             return Status.SUCCESS
 
         if link.case_id is not None:
-            # CP-06-005: once a case is established for the report, a late
+            # CP-06-007: once a case is established for the report, a late
             # Reject must not re-open the proposal (proposal_rejected lets the
             # vendor propose again).
             logger.info(
                 "%s: case '%s' already established for report '%s'"
-                " — leaving the proposal state unchanged (CP-06-005)",
+                " — leaving the proposal state unchanged (CP-06-007)",
                 self.name,
                 link.case_id,
                 self._report_id,

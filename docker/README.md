@@ -126,6 +126,13 @@ variable to use a fixed host port, or inspect the assigned port with
 | `VULTRON_SEED_CONFIG` | *(set per service)*       | Seed config JSON for local + peers    |
 | `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` | `http://case-actor:7999/api/v2` | The dedicated CaseActor every container proposes cases to (CP-08-008) |
 
+The single-container `docker-compose.yml` has no `case-actor` container. Its
+`api-dev` server is its own CaseActor service, so both `api-dev` and `demo` set
+`VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://localhost:7999/api/v2`, the
+server's own API base (CP-08-001). The demo helpers take the CaseActor identity
+from this variable only and fail with an error that names it when it is unset
+(CP-08-009).
+
 ### The dedicated `case-actor` container
 
 Every scenario's cases are created and managed by the CaseActor on the

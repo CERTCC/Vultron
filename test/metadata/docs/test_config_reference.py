@@ -96,7 +96,7 @@ def _by_key(settings: list[ConfigSetting]) -> dict[str, ConfigSetting]:
             "The one policy point for replies after the case closes: whether"
             " the CASE_MANAGER answers a late `Leave(VulnerabilityCase)` with"
             " an `as:Reject` or drops it. Every other late activity is dropped"
-            " under either setting (CM-23-013, CM-23-017, ADR-0131).",
+            " under either setting (CM-23-017, CM-23-045, ADR-0131).",
         ),
     ],
 )

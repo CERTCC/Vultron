@@ -110,13 +110,18 @@ entrypoint. `app_v2` in
 `vultron.adapters.driving.fastapi.app` is the mounted sub-app used directly
 in local dev/test patterns.
 
-Then in a separate terminal, run the unified CLI:
+Then in a separate terminal, run the unified CLI with the same variable:
 
 ```bash
+export VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://localhost:7999/api/v2
 vultron-demo --help
 vultron-demo receive-report
 vultron-demo all
 ```
+
+The demo process needs the variable too: the demo helpers take the CaseActor
+identity from it only, and fail with an error that names it when it is unset
+(CP-08-009). The `demo` service in `docker/docker-compose.yml` sets it.
 
 Enable debug logging with `--debug`, or write logs to a file with
 `--log-file PATH`:

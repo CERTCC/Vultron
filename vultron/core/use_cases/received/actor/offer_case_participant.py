@@ -296,7 +296,7 @@ class RejectOfferCaseParticipantReceivedUseCase:
         )
 
         # The tree looks up the Offer the Reject names: the recommender and
-        # the recommended actor are the recorded Offer's (CM-16-019).
+        # the recommended actor are the recorded Offer's (CM-16-023).
         tree = create_reject_actor_recommendation_received_tree(
             answer_id=activity_id,
             case_id=case_id,

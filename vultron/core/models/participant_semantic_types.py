@@ -38,7 +38,7 @@ CASE_MANAGER records as its own entries after it (CLP-07-013, ADR-0124):
   the CASE_MANAGER stored it, and a replica stores that copy.
 - :data:`UPDATE_CASE_OWNER_SEMANTIC_TYPE` -- ``Update(VulnerabilityCase)``: the
   CASE_MANAGER changed the case's ``attributed_to`` to the new owner
-  (CM-21-002).  The entry carries the case, and a replica copies its
+  (CM-21-024).  The entry carries the case, and a replica copies its
   ``attributed_to``.
 
 Each is a ``MessageSemantics`` member, so the registry labels the entry's

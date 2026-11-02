@@ -263,12 +263,12 @@ class TestEmitCloseCaseNode:
     @pytest.mark.xfail(
         strict=True,
         reason=(
-            "CM-24-006: EmitCloseCaseNode returns SUCCESS with a warning when "
+            "CM-24-014: EmitCloseCaseNode returns SUCCESS with a warning when "
             "no CASE_MANAGER was resolved. Tracked by #3964 (Concern #3918, "
             "ADR-0113)."
         ),
     )
-    @pytest.mark.spec("CM-24-006", "CM-24-008")
+    @pytest.mark.spec("CM-24-014", "CM-24-008")
     def test_fails_when_case_manager_id_missing(self, populated_dl):
         """No CASE_MANAGER resolved is a fault: FAILURE, sending nothing."""
         factory = MagicMock()

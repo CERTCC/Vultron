@@ -319,7 +319,7 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
         trigger opts out of them (:attr:`_takes_case_clock_decisions`); a
         trigger family whose acts read more of the case's clock extends the
         list, as the embargo triggers add the overdue-invitation sweep
-        (CM-28-015).  An empty list runs the trigger's own tree alone.
+        (CM-28-029).  An empty list runs the trigger's own tree alone.
         """
         if not self._takes_case_clock_decisions:
             return []
@@ -436,7 +436,7 @@ class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
 
         An embargo act reads the consent rows, so the CASE_MANAGER expires
         every overdue invitation of the case first, and the case owner's
-        decision on a proposal is taken knowing of each timeout (CM-28-015,
+        decision on a proposal is taken knowing of each timeout (CM-28-029,
         EP-09-008).  The sweep runs even when the trigger opts out of the
         case-wide decisions, as terminate-embargo does: the sweep never
         pre-empts what the trigger answers for.  The stage runs only on the

@@ -15,7 +15,7 @@
 A transfer has one ``Offer(VulnerabilityCase)``: the one the CASE_MANAGER
 makes from the Case Owner's proposal, ``Offer(Offer(VulnerabilityCase))``,
 under an id it derives from that proposal (:func:`ownership_offer_id`), with
-the owner in ``attributedTo`` (ADR-0148, CM-21-005).  The CASE_MANAGER
+the owner in ``attributedTo`` (ADR-0148, CM-21-028).  The CASE_MANAGER
 commits an ``offer_case_ownership_transfer`` entry for it once it is queued,
 and that Offer is the one the transferee holds, answers, and the one that is
 closed and expired.  "Recorded" means ledgered, and whether the Offer is
@@ -179,7 +179,7 @@ def _entry_attributed_to(entry: CaseLedgerEntry) -> str | None:
 
 
 def _entry_end_time(entry: CaseLedgerEntry) -> datetime | None:
-    """The ledgered Offer's ``end_time``, normalised to UTC (CM-21-016).
+    """The ledgered Offer's ``end_time``, normalised to UTC (CM-21-042).
 
     The snapshot carries the time as the sender wrote it; reading it here
     converts any offset to UTC, so every comparison and every message speaks

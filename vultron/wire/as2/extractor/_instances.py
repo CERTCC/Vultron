@@ -192,7 +192,7 @@ UpdateCaseOwnerPattern = ActivityPattern(
     description=(
         "The CASE_MANAGER names a new Case Owner on a vulnerability case: an "
         "UPDATE of the case carrying its new attributedTo, its own act on an "
-        "ownership transfer (CM-21-002, CLP-07-013)."
+        "ownership transfer (CM-21-024, CLP-07-013)."
     ),
     activity_=TAtype.UPDATE,
     object_=VOtype.VULNERABILITY_CASE,
@@ -331,7 +331,7 @@ AcceptCaseParticipantRolePattern = ActivityPattern(
         "Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])"
         " — acceptance of the canonical "
         "role-delegation wire format (ADR-0039). Received by the case's "
-        "CASE_MANAGER when the target actor accepts the role (CM-33-004). "
+        "CASE_MANAGER when the target actor accepts the role (CM-33-015). "
         "See SE-08-003."
     ),
     activity_=TAtype.ACCEPT,
@@ -342,7 +342,7 @@ RejectCaseParticipantRolePattern = ActivityPattern(
         "Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])"
         " — rejection of the canonical "
         "role-delegation wire format (ADR-0039). Received by the case's "
-        "CASE_MANAGER when the target actor declines the role (CM-33-004). "
+        "CASE_MANAGER when the target actor declines the role (CM-33-015). "
         "See SE-08-003."
     ),
     activity_=TAtype.REJECT,
@@ -428,7 +428,7 @@ AcceptInviteActorToFullCasePattern = ActivityPattern(
 TentativeRejectInviteActorToFullCasePattern = ActivityPattern(
     description=(
         "RI: TentativeReject(Invite(Actor)[target=VulnerabilityCase])"
-        " (VAM-04-013).  The stub Invite has no TentativeReject (CM-11-007)."
+        " (VAM-04-013).  The stub Invite has no TentativeReject (CM-11-028)."
     ),
     activity_=TAtype.TENTATIVE_REJECT,
     object_=InviteActorToFullCasePattern,

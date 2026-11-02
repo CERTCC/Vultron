@@ -71,6 +71,7 @@ class TestOfferActorToCaseReceivedUseCase:
         seed_case_manager,
         owner_is_local: bool = True,
         manager_id: str = TEST_ACTOR_ID,
+        recommender_roles: list | None = None,
     ):
         """Return DataLayer seeded with a Service actor and a case.
 
@@ -98,7 +99,9 @@ class TestOfferActorToCaseReceivedUseCase:
         )
         seed_case_manager(dl, case, manager_id)
         # The recommender must be a participant (CM-16-001).
-        seed_case_participant(dl, case, self._RECOMMENDER_ID)
+        seed_case_participant(
+            dl, case, self._RECOMMENDER_ID, roles=recommender_roles
+        )
         dl.create(local_actor)
         dl.create(case)
         return dl, local_actor_id, case_id
@@ -118,7 +121,7 @@ class TestOfferActorToCaseReceivedUseCase:
         recommended = as_Actor(id_=recommended_id)
 
         # Build Offer(Actor)[target=VulnerabilityCase] — the wire activity matched by OFFER_ACTOR_TO_CASE.
-        # CM-11-019: roles must be explicit; no default to VENDOR.
+        # CM-11-050: roles must be explicit; no default to VENDOR.
         activity = recommend_actor_activity(
             recommended,
             target=_case_ref(case_id),
@@ -153,6 +156,85 @@ class TestOfferActorToCaseReceivedUseCase:
         queued = dl.read(outbox[0])
         assert getattr(queued, "actor", None) == TEST_ACTOR_ID
         assert getattr(queued, "to", None) == [local_actor_id]
+
+    @pytest.mark.spec("CM-20-007")
+    def test_a_coordinators_suggestion_is_left_to_the_case_owner(
+        self, make_payload, seed_case_manager
+    ):
+        """A Coordinator's suggestion goes to the Case Owner to decide.
+
+        The CASE_MANAGER forwards it as ``Offer(CaseParticipant)`` to the
+        owner and invites nobody itself.
+        """
+        from vultron.enums.roles import CVDRole
+
+        dl, local_actor_id, case_id = self._setup_dl(
+            seed_case_manager, recommender_roles=[CVDRole.COORDINATOR]
+        )
+        activity = recommend_actor_activity(
+            as_Actor(id_="https://example.org/actors/vendor-new"),
+            target=_case_ref(case_id),
+            actor=self._RECOMMENDER_ID,
+            to=[TEST_ACTOR_ID],
+            suggested_roles=["vendor"],
+        )
+        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
+
+        result = OfferActorToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED, result.reason
+        queued = [dl.read(a) for a in dl.outbox_list()]
+        types = [str(getattr(q, "type_", "")) for q in queued]
+        assert "Invite" not in types, types
+        offers = [q for q in queued if str(getattr(q, "type_", "")) == "Offer"]
+        assert [getattr(q, "to", None) for q in offers] == [[local_actor_id]]
+
+    @pytest.mark.spec("CM-16-020")
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "CM-16-020: the forwarded Offer(CaseParticipant) does not carry "
+            "the recommender's reason yet. Tracked by #5642."
+        ),
+    )
+    def test_offer_actor_to_case_forwards_the_recommenders_reason(
+        self, make_payload, seed_case_manager
+    ):
+        """The recommender's reason reaches the Case Owner as ``content``."""
+        dl, _, case_id = self._setup_dl(seed_case_manager)
+        reason = "This vendor maintains the affected library."
+        activity = recommend_actor_activity(
+            as_Actor(id_="https://example.org/actors/vendor-new"),
+            target=_case_ref(case_id),
+            actor=self._RECOMMENDER_ID,
+            to=[TEST_ACTOR_ID],
+            suggested_roles=["vendor"],
+            content=reason,
+        )
+        event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID, at=dl)
+
+        result = OfferActorToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition is HandlerDisposition.APPLIED
+
+        forwarded = [
+            dl.read(a)
+            for a in dl.outbox_list()
+            if str(getattr(dl.read(a), "type_", "")) == "Offer"
+        ]
+        assert len(forwarded) == 1
+        assert reason in str(getattr(forwarded[0], "content", None) or "")
 
     @pytest.mark.spec("CM-23-018")
     def test_offer_actor_to_case_from_a_closed_recommender_is_refused(
@@ -570,13 +652,14 @@ class TestOwnerDirectInviteAtCaseManager:
         assert len(invites) == 1, f"expected one Invite, got {bodies!r}"
         return invites[0]
 
+    @pytest.mark.spec("CM-17-018")
     @pytest.mark.spec("CM-17-007")
     def test_case_manager_emits_the_invite_itself(
         self, make_payload, seed_case_manager
     ):
         dl = self._setup_dl(seed_case_manager)
 
-        # CM-11-019: roles must be explicit; no default to VENDOR.
+        # CM-11-050: roles must be explicit; no default to VENDOR.
         result = self._deliver(dl, make_payload, roles=["vendor"])
 
         assert result.disposition is HandlerDisposition.APPLIED
@@ -588,6 +671,7 @@ class TestOwnerDirectInviteAtCaseManager:
         assert "cc" not in invite
         assert invite.get("roles") == ["vendor"]
 
+    @pytest.mark.spec("CM-17-019")
     @pytest.mark.spec("CM-17-003")
     def test_requested_roles_are_carried(
         self, make_payload, seed_case_manager
@@ -629,6 +713,7 @@ class TestOwnerDirectInviteAtCaseManager:
             "ACTIVE",
         )
 
+    @pytest.mark.spec("CM-17-018")
     def test_owner_is_not_asked_to_decide(
         self, make_payload, seed_case_manager
     ):

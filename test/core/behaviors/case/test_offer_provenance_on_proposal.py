@@ -254,12 +254,12 @@ def _add_report_snapshot(dl: SqliteDataLayer) -> dict[str, Any]:
     return snapshot
 
 
-@pytest.mark.spec("CP-01-007")
+@pytest.mark.spec("CP-01-019")
 @pytest.mark.spec("PCR-01-003")
 class TestCaseActorCommitsTheProvenance:
     """CaseActor side: what the proposal carried reaches the ledger entry.
 
-    This is the assertion CP-01-007 provenance depends on, in another container.
+    This is the CP-01-019 use of the CP-01-007 provenance, in another container.
     """
 
     def test_the_snapshot_names_the_offer_the_proposal_carried(self):

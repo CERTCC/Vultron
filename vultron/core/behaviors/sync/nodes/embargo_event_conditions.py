@@ -94,7 +94,7 @@ def is_relayed_embargo_invite(
     because the manager proposed the terms (the protocol default among them),
     the Invite is a relay only when the case's register already holds the
     embargo it names, decided: such an Invite, a re-invite of a late accepter
-    (EMB-17-003) or of a reinstated participant (CM-31-013), proposes nothing
+    (EMB-17-003) or of a reinstated participant (CM-31-040), proposes nothing
     (ADR-0152).  A self-attributed Invite of a still-open proposal stays with
     the proposal slot, whose ``PROPOSE`` is then already in place.  Anything
     else is the proposal — including a proposal whose sender put a third

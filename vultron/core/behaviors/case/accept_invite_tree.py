@@ -37,7 +37,7 @@ Tree structure::
             ├── EmitAnnounceCaseToInviteeNode        — queue Announce(VulnerabilityCase)
             ├── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
             ├── CommitInviteeAcceptEntriesNode       — ledger the vendor's VF status (ADR-0114)
-            ├── EmitInviteActorToFullCaseNode        — full-case Invite, ledger tail (CM-11-010)
+            ├── EmitInviteActorToFullCaseNode        — full-case Invite, ledger tail (CM-11-031)
             └── RelayOpenProposalsToJoinerNode       — Invite to each open embargo proposal (EP-09-011)
 
 Admitting the invitee, announcing the case to it and backfilling the ledger
@@ -57,7 +57,7 @@ effects sit behind a role gate and a receiver that is not the case's
 CASE_MANAGER does nothing (#3752).
 
 Specs: PCR-08-009/PCR-08-010 (who records, identity constraint),
-CM-10-001/CM-10-003 (embargo consent), MV-10-003/MV-10-005 (announce after
+CM-10-001 (embargo consent), MV-10-003/MV-10-005 (announce after
 consent resolved). BT-06-001, BT-15-001, BT-17-001.
 """
 
@@ -179,7 +179,7 @@ def create_accept_invite_actor_to_case_tree(
                 ├── EmitAnnounceCaseToInviteeNode        — queue Announce to invitee
                 ├── BackfillCanonicalLedgerToInviteeNode — send prior ledger to invitee
                 ├── CommitInviteeAcceptEntriesNode       — ledger the vendor's VF status (ADR-0114)
-                ├── EmitInviteActorToFullCaseNode        — full-case Invite with the ledger tail (CM-11-010)
+                ├── EmitInviteActorToFullCaseNode        — full-case Invite (CM-11-031)
                 └── RelayOpenProposalsToJoinerNode       — Invite to each open embargo proposal (EP-09-011)
 
     The announce, backfill and full-case Invite follow CM-17-004 steps (3)
@@ -242,7 +242,7 @@ def create_accept_invite_actor_to_case_tree(
             InviteeHasParticipantRecordNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
-            # A superseded stub cannot be accepted (CM-11-016); an expired one
+            # A superseded stub cannot be accepted (CM-11-045); an expired one
             # can (ASK-03-008).  A redelivery of a joined invitee's Accept
             # already ended the tree above, so this never refuses a duplicate.
             StubInviteAnswerableNode(invite_id=invite_id, case_id=case_id),

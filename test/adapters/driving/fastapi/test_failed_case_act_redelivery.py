@@ -76,9 +76,9 @@ def _forwards(emitter: RecordingEmitter) -> list[dict[str, Any]]:
 
 
 @pytest.mark.spec("CLP-07-015")
-@pytest.mark.spec("CM-24-007")
 @pytest.mark.spec("IE-10-001")
 @pytest.mark.spec("ASK-07-010")
+@pytest.mark.spec("CM-24-018")
 def test_a_failed_role_offer_forward_commits_when_posted_again(
     served_manager, caplog: pytest.LogCaptureFixture
 ):

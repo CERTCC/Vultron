@@ -395,7 +395,7 @@ Vultron also keeps the end of an embargo apart from publication ([Embargo Termin
 <td markdown="span">One to many</td>
 <td markdown="span">Mechanical</td>
 <td markdown="span">Interpretive</td>
-<td markdown="span">CSAF could let an `embargo` action carry its own end date. If nothing changes, one document holds one date for each vulnerability, so a projection shows only the current embargo version, and earlier dates appear only in `summary` text. See [proposal 1](proposals.md#1-an-embargo-action-carries-its-own-end-date).</td>
+<td markdown="span">CSAF could let an `embargo` action carry its own end date. If nothing changes, one document holds one date for each vulnerability, so a projection shows only the Active Embargo's date, and earlier dates appear only in `summary` text. See [proposal 1](proposals.md#1-an-embargo-action-carries-its-own-end-date).</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">Revised embargo, EM `REVISE` and the next register entry</td>

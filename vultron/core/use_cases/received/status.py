@@ -143,7 +143,7 @@ class AddCaseStatusToCaseReceivedUseCase:
         )
 
         if (refusal := door_refusal(tree)) is not None:
-            return refusal  # a door refused: no reply, no fault (CM-23-017)
+            return refusal  # a door refused: no reply, no fault (CM-23-045)
         if (
             result.status != Status.SUCCESS
             and BTBridge.get_failure_reason(tree)
@@ -269,7 +269,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         )
 
         if (refusal := door_refusal(tree)) is not None:
-            return refusal  # a door refused: no reply, no fault (CM-23-017)
+            return refusal  # a door refused: no reply, no fault (CM-23-045)
         verdict = verdict_from_bt(tree, result, label="AddParticipantStatusBT")
         if case_id is not None:
             # Only the CASE_MANAGER adjudicates the status (HP-01-005).  With

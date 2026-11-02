@@ -101,7 +101,7 @@ The table below names each entry by its protocol message.
 A protocol message has the form of an ActivityStreams activity: a verb and the object of the verb.
 For example, `Add(ParticipantStatus)` adds a new status to a participant.
 The [message reference](../../reference/messages/index.md) describes each message.
-The case owner is the participant that created the case, or that later received ownership of the case.
+The Case Owner is the participant that created the case, or that later received ownership of the case.
 
 | Event | Belongs to | Recorded as |
 |---|---|---|
@@ -109,7 +109,7 @@ The case owner is the participant that created the case, or that later received 
 | A participant joins | The participant | The participant's acceptance of the invitation to the case, and the CASE_MANAGER's record of the new participant |
 | Report received, valid, accepted, deferred, closed | The participant | The participant's status update, `Add(ParticipantStatus)`, or the act that changes the participant's RM state: joining, validating, deferring, or leaving the case |
 | Vendor awareness, fix ready | The vendor | The vendor's status update, `Add(ParticipantStatus)`, with a new fix-path state |
-| Fix deployed | The deployer | A status update with a new deployment state, sent by the deployer, or by the CASE_MANAGER or the case owner for the deployer |
+| Fix deployed | The deployer | A status update with a new deployment state, sent by the deployer, or by the CASE_MANAGER or the Case Owner for the deployer |
 | Public awareness, public exploit, attacks observed | The case | The CASE_MANAGER's own `Add(CaseStatus)`, written when the CASE_MANAGER accepts a participant's report as the state of the case (adoption) |
 | Embargo proposed, accepted, rejected, ended | The case | The proposal's `Invite(EmbargoEvent)`, the answers to the proposal, and the termination's `Remove(EmbargoEvent)` |
 | Consent given, refused, or timed out | The participant, per embargo | The participant's `Accept` or `Reject` of the embargo Invite, or the CASE_MANAGER's `Update(EmbargoConsent)` |
@@ -161,18 +161,18 @@ The gaps in this section limit some measures.
 
 ### Statuses seated at case creation
 
-The case owner creates the case after it receives the report.
+The Case Owner creates the case after it receives the report.
 The [RM model](../process_models/rm/index.md) gives each participant a report state, such as Received, Valid, Accepted, Deferred, or Closed.
-The creation sequence puts the case owner at RM Received (CM-14-009), and puts the reporter at RM Accepted (CM-14-012).
+The creation sequence puts the Case Owner at RM Received (CM-14-009), and puts the reporter at RM Accepted (CM-14-012).
 The CASE_MANAGER commits these two statuses during the creation sequence.
 Thus the commit stamps of these two statuses show the creation time, not the time of each event.
 
-For the case owner, the time of report receipt ($\evR$) is the creation time.
-The time that the case owner actually received the report stays with the case owner, outside the case ledger.
-The time on the report gives a bound on how long the case owner held the report ([Timing Metrics Within a Case](./timing_metrics.md#intake-and-triage)).
+For the Case Owner, the time of report receipt ($\evR$) is the creation time.
+The time that the Case Owner actually received the report stays with the Case Owner, outside the case ledger.
+The time on the report gives a bound on how long the Case Owner held the report ([Timing Metrics Within a Case](./timing_metrics.md#intake-and-triage)).
 For the reporter, report acceptance ($\evAc$) is not a decision, so $\evAc$ has no interval to measure.
-The later validation and acceptance by the case owner are separate entries.
-Thus the time from case creation to the validation and acceptance by the case owner is measurable.
+The later validation and acceptance by the Case Owner are separate entries.
+Thus the time from case creation to the validation and acceptance by the Case Owner is measurable.
 
 ### Clock decisions are stamped when the CASE_MANAGER next acts
 
@@ -187,7 +187,7 @@ The CASE_MANAGER ends an embargo at the end time in one of two conditions (EMB-1
 - The CASE_MANAGER next handles the case.
 - An outside service, such as a monitor of embargo timers, tells the CASE_MANAGER to end the embargo.
 
-The CASE_MANAGER times out an unanswered Invite when it next processes an embargo activity for the case (CM-28-015).
+The CASE_MANAGER times out an unanswered Invite when it next processes an embargo activity for the case (CM-28-015, CM-28-028).
 
 The CASE_MANAGER stamps each of these changes when it makes the change.
 This time can be much later than the deadline.
@@ -203,7 +203,7 @@ The commit stamp of the termination is only the latest possible end.
 
 An offer to transfer case ownership carries an end time.
 When the end time passes, the CASE_MANAGER treats the offer as closed.
-The CASE_MANAGER does not record an entry for the expiry, because no participant's record changes (CM-21-017, ADR-0152).
+The CASE_MANAGER does not record an entry for the expiry, because no participant's record changes (CM-21-043, ADR-0152).
 A measure of the time from an offer to its expiry must get the expiry time from the end time on the ledgered offer.
 
 ### The case's public state is stamped when it is adopted
@@ -240,7 +240,7 @@ A request for a replay is also about the ledger, not about the case.
 Thus the CASE_MANAGER does not ledger refusal notices or replay requests (CLP-02-012, CLP-02-013).
 A count of refusals or replays must use the CASE_MANAGER's own logs or its outbox.
 
-### Embargo records carry no times of their own
+### Embargo register entries and consent rows carry no times of their own
 
 An entry in the embargo register holds a status.
 A participant's consent row also holds a status.
@@ -275,7 +275,7 @@ The table below shows the source of each kind of event.
 |---|---|
 | Report handling, embargo steps, consent, joining | Protocol acts. The ledger records each act when it occurs. |
 | Fix readiness | The vendor's own report |
-| Deployment | The deployer's own report, or a report for the deployer by the CASE_MANAGER or the case owner. Deployment is the event that participants report least often. |
+| Deployment | The deployer's own report, or a report for the deployer by the CASE_MANAGER or the Case Owner. Deployment is the event that participants report least often. |
 | Public exploit, attacks observed | Events outside the protocol. The case learns of them only when a participant reports them. |
 
 Parties outside the case see only what the participants publish.
