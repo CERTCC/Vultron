@@ -10,6 +10,7 @@ consulted: >-
   CP-09-007, CP-09-008; specs/configuration.yaml CFG-07-002
 informed: []
 stakeholder_type: [project-contributor]
+partially_superseded_by: 0169-case-roles-split-into-position-authority-and-standing.md
 ---
 
 # The Report Receiver States Its Case Roles on the Case Proposal

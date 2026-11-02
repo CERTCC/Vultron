@@ -1,0 +1,151 @@
+---
+title: Role Taxonomy Split — Position, Case Authority, Actor Standing
+status: active
+kind: plan
+tracks:
+  - "#5586"
+  - "#4747"
+description: >
+  Migration design for ADR-0169: splitting `CVDRole` into three enums by scope,
+  giving `CaseParticipant` a separate authority field, moving actor standing off
+  the participant record, and making both case-creation doors claim a position.
+  Records the enum membership, what moves where, which guard clauses retire,
+  the stored- and wire-shape change, and the order the two issues land in.
+related_specs:
+  - specs/participant-role-management.yaml
+  - specs/case-proposal.yaml
+  - specs/case-management.yaml
+  - specs/configuration.yaml
+related_notes:
+  - notes/participant-role-management.md
+  - notes/case-joining.md
+  - notes/demo-scenario-registry.md
+relevant_packages:
+  - vultron.enums
+  - vultron.core.models
+  - vultron.core.behaviors.case
+  - vultron.core.predicates
+  - vultron.wire.as2.vocab.objects
+---
+
+# Role Taxonomy Split — Position, Case Authority, Actor Standing
+
+ADR-0169 decides the split and why. This note holds the migration design that
+does not fit either issue body: the membership of each set, what moves off the
+participant record, which existing checks lose their reason to exist, and the
+order the work lands in.
+
+---
+
+## Membership, and the question that decides it
+
+Each value answers one question: is this fact about a position in a case, about
+authority over a case, or about the organization?
+
+| Set | Scope | Members |
+|---|---|---|
+| Case position | one case; assigned by an act in it | Reporter, Vendor, Deployer, Coordinator, Observer |
+| Case authority | one case; conferred by case creation and ownership transfer | Case Owner, Case Manager |
+| Actor standing | the actor, across every case | CVE Numbering Authority |
+
+Observer is the position floor (CM-25-001), so a participant that fits no other
+position holds it rather than none.
+
+Do **not** name the third set a *capability*. The glossary already uses
+`capability set` for a property of software (Case Observer, Case Decision, Case
+Hosting) and `capability shape` for a behavior-tree call-out kind, and both are
+deliberately kept clear of role names (ADR-0088).
+
+The Exploit Publisher is the standing set's expected second member: the protocol
+specification already constrains one in a pre-public case, with no enum value
+and nowhere on a record to hold it. It is tracked separately and does not ride
+along.
+
+---
+
+## What moves, and what stays
+
+- **`CaseParticipant` carries positions and authority in separate fields.** Its
+  stored shape and its wire form both gain a key, and the loader refuses the old
+  single-list shape with a reset note. There is no compatibility read: the
+  project breaks stored shapes rather than carrying both.
+- **Actor standing never reaches a participant record.** It lives on the actor,
+  because a copy on the participant would be a stale copy of a fact the actor
+  owns (AKM-05-005). Its one reader, `has_cna_role` by way of
+  `assign_cve_id_tree`, already asks the question of the executing actor's own
+  roles, so it keeps asking the same question against the new type.
+- **The role-read API keeps its shape.** `roles`, `has_role`, `add_role` and
+  `remove_role` continue to mean positions (PRM-01, PRM-02); authority gets its
+  own accessors rather than widening theirs, so no caller silently starts
+  reading both.
+
+---
+
+## Two checks lose their reason to exist
+
+Both encode in a guard what one shared enum made expressible. Retire the clause,
+not the node — each keeps its other checks.
+
+- **`RoleOfferAdmissibleNode`'s refusal of an Offer naming Case Owner or Case
+  Manager.** A role Offer is typed to positions, so it cannot name authority
+  (CM-33-003). Its remaining clauses — target is not a participant, target
+  already holds the role, target is the case's CASE_MANAGER — stay.
+- **`PROTECTED_ROLES`, which stops a removal from stripping authority.** A
+  removal edits positions and cannot reach the authority field (CM-31-004).
+
+The two places that hard-code the same pair under different names are the signal
+this split answers: neither says why they are the same pair.
+
+---
+
+## Both creation doors claim a position
+
+A participant with no position has no place in the protocol, because every
+permission and obligation attaches to one (CM-26-001). Two doors create a
+participant that holds only authority today, and both close in the same change
+as the invariant, so the tree is never red in between.
+
+- **The report receiver's proposal.** `ProposeReportCaseToActorNode` stops
+  reading `get_config()`. Its caller, the received-report tree, passes the claim
+  in, reading the value from `ActorConfig.default_case_roles`. A claim naming no
+  position refuses the proposal, and the wire model drops its "empty means owner
+  only" reading.
+- **Direct case creation.** The node that seats the creator takes its position
+  the same way instead of naming only authority.
+
+The configuration field is a **hint** — the value a caller reads when it has
+nothing more specific to claim — and never the authority for what a participant
+holds. A later change may let a caller claim a different position per case
+without undoing anything here; that is why the claim is the node's input rather
+than its own configuration read.
+
+---
+
+## Why the demo needed none of this stated as a cast rule
+
+The concern #5586 read the symptom as a seating rule: a decision point's actor
+must run in one of the three containers that carry a role setting. It is not. A decision
+point's actor holds the role it needs because an act gave it — submitting the
+report, claiming a position when proposing the case, or being assigned one
+through the suggest-actor flow (CM-16-003, CM-17-003). Once every door hands
+over a position, no container setting can be the reason a decision is refused,
+and the static check #5586 asked for has nothing left to catch.
+
+One consequence does belong in the demo's own rules: a container that carries no
+configured position cannot be the actor that receives the original report,
+because it has nothing to claim. The character-actor slots carry none by
+DEMOCI-11-026, so the original report goes to a fixed-role slot.
+
+The leftover want — catching a scenario that lets the *wrong* actor decide, a
+Vendor answering a Coordinator decision — is a different and weaker check, and
+it needs a decider-to-container mapping that exists only once every scenario is
+written as composition (#5536, #5537).
+
+---
+
+## Order
+
+1. The three-way split, with the participant record, wire form and stored shape
+   following, and the two guard clauses retired. Large and mostly mechanical.
+2. The position invariant and both creation doors, in one change so no state
+   lands where the invariant holds and a door violates it.
