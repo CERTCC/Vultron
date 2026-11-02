@@ -33,7 +33,10 @@ from vultron.core.behaviors.case.nodes.addressee import (
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
-from vultron.core.behaviors.sync.nodes import receive as _receive
+from vultron.core.behaviors.sync.nodes import (
+    genesis_reject as _genesis_reject,
+    receive as _receive,
+)
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     MAX_REPLAY_COOLDOWN_SECONDS,
@@ -2368,7 +2371,7 @@ def test_a_failed_genesis_reject_record_leaves_no_queued_reject(
         raise _RecordWriteFailed("store fault")
 
     with monkeypatch.context() as patch:
-        patch.setattr(_receive, "record_genesis_reject", _fail)
+        patch.setattr(_genesis_reject, "record_genesis_reject", _fail)
         try:
             _deliver_early_entry(datalayer, first)
         except _RecordWriteFailed:

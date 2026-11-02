@@ -116,6 +116,9 @@ from vultron.core.behaviors.sync.nodes.fanout import (
 from vultron.core.behaviors.sync.nodes.genesis_announce import (
     AnnounceCaseOnGenesisRejectNode,
 )
+from vultron.core.behaviors.sync.nodes.genesis_reject import (
+    SendGenesisRejectOnMissingCaseNode,
+)
 from vultron.core.behaviors.sync.nodes.hash_mismatch import (
     ReportHashMismatchNode,
 )
@@ -169,7 +172,6 @@ from vultron.core.behaviors.sync.nodes.receive import (
     CheckHashOrRejectOnMismatchNode,
     LogDeliveryConfirmationNode,
     PersistReceivedLogEntryNode,
-    SendGenesisRejectOnMissingCaseNode,
     SendRejectLogEntryNode,
 )
 from vultron.core.behaviors.sync.nodes.replay import (

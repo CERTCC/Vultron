@@ -349,7 +349,7 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
     (f"{_B}.sync.nodes.receive", "BufferPreGenesisEntryNode"): _HELD_ANNOUNCE,
     (f"{_B}.sync.nodes.receive", "PersistReceivedLogEntryNode"): _LEDGER,
     (
-        f"{_B}.sync.nodes.receive",
+        f"{_B}.sync.nodes.genesis_reject",
         "SendGenesisRejectOnMissingCaseNode",
     ): _GENESIS_REJECT,
     (
