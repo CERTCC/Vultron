@@ -3907,8 +3907,7 @@ groups:
     verification_debt: '#3612'
     statement: >-
       When a case has no participants besides the CASE_MANAGER, the teardown
-      announcement MUST be
-      skipped rather than emitted with an empty recipient list.
+      announcement MUST be skipped rather than emitted with an empty recipient list.
     rationale: >-
       An activity addressed to nobody is undeliverable, and delivery discards it anyway; constructing one
       only adds a queue entry that can never be resolved. Skipping keeps the teardown itself unaffected,

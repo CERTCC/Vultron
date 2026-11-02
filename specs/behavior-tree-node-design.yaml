@@ -514,11 +514,11 @@ groups:
     priority: MUST
     kind: project
     statement: The `CVDRoles` enum MUST include a `CASE_OWNER` flag value representing the actor who owns and manages a `VulnerabilityCase`.
-    rationale: Case ownership is a protocol-significant relationship distinct from the CVD roles (VENDOR, COORDINATOR, etc.).
-      When a vendor or coordinator receives a report and creates a case, they are both the receiving CVD actor (VENDOR or
+    rationale: Case ownership is a protocol-significant relationship distinct from the
+      CVD roles (VENDOR, COORDINATOR, etc.). When a vendor or coordinator receives a
+      report and creates a case, they are both the receiving CVD actor (VENDOR or
       COORDINATOR) and the Case Owner. Representing this explicitly avoids hardcoding
-      the assumption that the case creator
-      is always a vendor.
+      the assumption that the case creator is always a vendor.
     verification: Inspection of the `CVDRoles` enum definition confirms that a `CASE_OWNER` flag value is present.
     stories:
     - story_2022_046

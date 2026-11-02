@@ -1238,13 +1238,13 @@ groups:
       refuses it.
     rationale: >-
       The Case Owner's decision for the case has its own activity (MSM-07-008,
-      ADR-0122), so
-      an Accept of an Invite means one thing whoever sends it and no handler branches on the
-      sender to learn what it means. The PEC AGREE trigger is valid directly from UNINVITED
-      because consent can be self-determined without an invitation (ADR-0048, ADR-0091,
-      CM-18-003). Consent is per embargo (CM-10-001, ADR-0093, ADR-0122): an Accept is always
-      a statement about the embargo it names, so it always marks that embargo's row and there
-      is no first-proposal versus revision asymmetry to special-case.
+      ADR-0122), so an Accept of an Invite means one thing whoever sends it and no
+      handler branches on the sender to learn what it means. The PEC AGREE trigger is
+      valid directly from UNINVITED because consent can be self-determined without an
+      invitation (ADR-0048, ADR-0091, CM-18-003). Consent is per embargo (CM-10-001,
+      ADR-0093, ADR-0122): an Accept is always a statement about the embargo it names,
+      so it always marks that embargo's row and there is no first-proposal versus
+      revision asymmetry to special-case.
     verification: >-
       Unit tests in `test/core/services/embargo_lifecycle/test_answers.py` assert that a
       participant accepting the embargo in force, a first proposal and a proposed revision each
@@ -1274,10 +1274,9 @@ groups:
       Reject of a proposal is not its consent but its abandonment (MSM-07-016).
     rationale: >-
       Symmetric with MSM-07-003: the Case Owner's rejection of a proposal for the case
-      has its
-      own activity (MSM-07-009, ADR-0122), so a Reject of an Invite is the sender's consent
-      and nothing else. The PEC DECLINE trigger is valid directly from UNINVITED for symmetric
-      reasons to AGREE (ADR-0048, ADR-0091, CM-18-003).
+      has its own activity (MSM-07-009, ADR-0122), so a Reject of an Invite is the
+      sender's consent and nothing else. The PEC DECLINE trigger is valid directly from
+      UNINVITED for symmetric reasons to AGREE (ADR-0048, ADR-0091, CM-18-003).
     verification: >-
       Inspection of vultron/core/use_cases/received/embargo/reject.py and
       vultron/core/services/embargo_lifecycle/consent.py confirms

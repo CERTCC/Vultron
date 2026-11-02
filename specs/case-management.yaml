@@ -680,9 +680,8 @@ groups:
       `CaseStatus.em` only a stamped copy (ADR-0122). The acceptances of other
       participants stay in their own consent rows (CM-04-008).
     verification: Integration tests in `test/demo/` confirm that an embargo-accept from
-      the Case
-      Owner activates the embargo's entry in the CASE_MANAGER's embargo register, so the
-      derived EM state advances.
+      the Case Owner activates the embargo's entry in the CASE_MANAGER's embargo
+      register, so the derived EM state advances.
     adr:
     - ADR-0108
     - ADR-0122
@@ -1314,14 +1313,14 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      `CaseParticipant` MUST record its consent per embargo: one consent row for every entry in the
-      case's embargo register, naming the embargo and the participant's answer to it, `UNINVITED`
-      until it is asked (CM-18-001). A participant agrees to an embargo explicitly, by an `Accept`,
-      as its proposer, by seeding (CM-14-003, CM-14-005), or by containment, when the
-      Case Owner
-      activates a revision that ends no later than terms the participant had agreed to (EP-05-001).
-      Each invitation's RSVP deadline is stored on that invitation's `INVITED` row (CM-28-013). No
-      other record of embargo consent may exist on the participant.
+      `CaseParticipant` MUST record its consent per embargo: one consent row for every
+      entry in the case's embargo register, naming the embargo and the participant's
+      answer to it, `UNINVITED` until it is asked (CM-18-001). A participant agrees to
+      an embargo explicitly, by an `Accept`, as its proposer, by seeding (CM-14-003,
+      CM-14-005), or by containment, when the Case Owner activates a revision that ends
+      no later than terms the participant had agreed to (EP-05-001). Each invitation's
+      RSVP deadline is stored on that invitation's `INVITED` row (CM-28-013). No other
+      record of embargo consent may exist on the participant.
     rationale: >-
       Consent is per embargo (ADR-0093, ADR-0122). The CM-10-004 content gate reads the
       rows. Thus, the rows must name every embargo that binds the participant. This
@@ -2844,16 +2843,16 @@ groups:
     priority: MUST
     kind: project
     statement: When a case is created with a default embargo that reaches `EM.ACTIVE` at
-      creation time, the Case Owner MUST
-      be initialized as a signatory in the same BT node or an immediately following sibling node in the same BT subtree
+      creation time, the Case Owner MUST be initialized as a signatory in the same BT
+      node or an immediately following sibling node in the same BT subtree
     rationale: The case creator is the Case Owner by default; seeding them as a
-      signatory prevents the Case Owner from being
-      locked out of their own active embargo until a separate accept step occurs. The consent state must be set via the PEC
-      state machine (not by direct field assignment) to preserve state machine invariants.
-    verification: Integration tests in `test/demo/` confirm that when a case is created with a
-      default embargo, the Case Owner's consent row for it is marked `AGREED` in the
-      same BT
-      subtree that activates the embargo.
+      signatory prevents the Case Owner from being locked out of their own active
+      embargo until a separate accept step occurs. The consent state must be set via the
+      PEC state machine (not by direct field assignment) to preserve state machine
+      invariants.
+    verification: Integration tests in `test/demo/` confirm that when a case is created
+      with a default embargo, the Case Owner's consent row for it is marked `AGREED` in
+      the same BT subtree that activates the embargo.
     relationships:
     - rel_type: depends_on
       spec_id: CM-12-004
@@ -2933,8 +2932,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: The Case Owner's `CaseParticipant` MUST be created before the default
-      embargo is initialized, so that the
-      embargo is always associated with an existing participant
+      embargo is initialized, so that the embargo is always associated with an existing
+      participant
     rationale: An embargo without any participant lacks an owning actor. Creating the owner participant first ensures that
       the embargo is initialized in the context of an actor who can be responsible for it.
     verification: Inspection of `vultron/core/` confirms that the Case Owner's
@@ -2950,15 +2949,14 @@ groups:
     priority: MUST
     kind: protocol
     statement: When the case initialization sequence creates a default embargo, the Case
-      Owner MUST be seeded as a signatory
-      on that embargo immediately after the embargo reaches `EM.ACTIVE` state
+      Owner MUST be seeded as a signatory on that embargo immediately after the embargo
+      reaches `EM.ACTIVE` state
     rationale: The Case Owner initiated the embargo by accepting the default policy on
-      behalf of the case. Requiring a separate
-      accept step would leave the Case Owner as a non-signatory on their own active embargo.
+      behalf of the case. Requiring a separate accept step would leave the Case Owner as
+      a non-signatory on their own active embargo.
     verification: Integration tests in `test/demo/` confirm that the Case Owner is
-      seeded as
-      a signatory on the default embargo immediately after it reaches `EM.ACTIVE` during case
-      initialization.
+      seeded as a signatory on the default embargo immediately after it reaches
+      `EM.ACTIVE` during case initialization.
     relationships:
     - rel_type: depends_on
       spec_id: CM-14-001
@@ -3102,8 +3100,7 @@ groups:
     rationale: The Case Owner's participant must exist before the default embargo can be
       initialized, so that the embargo is always associated with an existing participant.
     verification: Integration tests in `test/demo/` confirm that step 2 creates the Case
-      Owner's
-      `CaseParticipant` with `RM.RECEIVED` and `CVDRole.CASE_OWNER`.
+      Owner's `CaseParticipant` with `RM.RECEIVED` and `CVDRole.CASE_OWNER`.
     stories:
     - story_2022_046
   - id: CM-14-010
@@ -3115,17 +3112,16 @@ groups:
       using the actor default where one is configured and the EP-04-005 protocol default
       otherwise.
     rationale: The embargo must be in place before any participant other than the Case
-      Owner is
-      added, so that all subsequent participants are subject to the embargo from the moment they
-      join.
+      Owner is added, so that all subsequent participants are subject to the embargo
+      from the moment they join.
     note: >-
       Amended by ADR-0096. The step was previously conditional on a configured default embargo
       policy; EP-04-019 now supplies a bounded protocol default when none is
       configured, so the only condition is embargo-eligibility (EP-04-008).
-    verification: Integration tests in `test/demo/` confirm that step 3 sets the default embargo
-      to `EM.ACTIVE` and seeds the Case Owner as a signatory both when an actor default
-      policy is
-      configured and when none is, and that it is skipped when the case is not embargo-eligible.
+    verification: Integration tests in `test/demo/` confirm that step 3 sets the default
+      embargo to `EM.ACTIVE` and seeds the Case Owner as a signatory both when an actor
+      default policy is configured and when none is, and that it is skipped when the
+      case is not embargo-eligible.
     relationships:
     - rel_type: depends_on
       spec_id: EP-04-005
@@ -4761,13 +4757,13 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      The embargo lifecycle MUST NOT write a consent row to record a lapse or an exit. Beyond the
-      `UNINVITED` row a proposal writes for every participant (CM-18-001), a proposal, the activation
-      of a longer revision and the termination of the embargo change no row of a participant that
-      has not itself been invited, has not itself answered, is not the Case Owner
-      activating the
-      embargo, or whose agreement is not being carried over by containment (EP-05-001); a
-      participant's lapsed or exited position is read from its rows and the register (CM-18-001).
+      The embargo lifecycle MUST NOT write a consent row to record a lapse or an exit.
+      Beyond the `UNINVITED` row a proposal writes for every participant (CM-18-001), a
+      proposal, the activation of a longer revision and the termination of the embargo
+      change no row of a participant that has not itself been invited, has not itself
+      answered, is not the Case Owner activating the embargo, or whose agreement is not
+      being carried over by containment (EP-05-001); a participant's lapsed or exited
+      position is read from its rows and the register (CM-18-001).
     rationale: >-
       A reader gets a lapse or an exit from the rows and the register (CM-18-001). A row
       written to record a lapse or an exit would be a second record of consent next to

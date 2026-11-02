@@ -185,9 +185,9 @@ The distinction between the two authority roles matters throughout:
   serve. It decides who is invited, which roles they hold, and whether embargo
   terms are accepted or torn down. Case ownership is never delegated, though it
   may be transferred ([§12.3 Case Ownership Transfer](interactions.md#123-case-ownership-transfer-n)).
-- The **CASE_MANAGER** is the role (`CVDRole.CASE_MANAGER`) of the participant that
-  writes the canonical case ledger, relays case-scoped messages, and acts on the
-  Case Owner's behalf.
+- The **CASE_MANAGER** is the participant that holds the `CVDRole.CASE_MANAGER`
+  role. It writes the canonical case ledger, relays case-scoped messages, and acts
+  on the Case Owner's behalf.
   The role cannot be granted by a role offer ([§12.1 Role Assignment](interactions.md#121-role-assignment-n)); how it is handed to another actor is not yet specified.
 
 Roles are assigned through the case's authority chain, not claimed. An actor does
