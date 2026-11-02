@@ -1531,10 +1531,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      This rule covers a Participant that enters CS Public Aware
+      This rule covers the CASE_MANAGER when it adopts a P value
       (q^cs → ···P··) while an embargo is active (q^em ∈ {A, R}).
-      The CASE_MANAGER MUST record the adopted P value before it ends the
-      embargo under CSB-12-001.
+      It MUST record the adopted P value before it ends the embargo under
+      CSB-12-001.
     rationale: >-
       Every replica replays the ledger in order, so a teardown committed ahead
       of its cause would show the embargo ending for no recorded reason.
@@ -1661,7 +1661,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      This rule covers the CASE_MANAGER when it adopts a X value
+      This rule covers the CASE_MANAGER when it adopts an X value
       (q^cs → ···PX·) while an embargo is active (q^em ∈ {A, R}).
       Acting for the Case Owner, it MUST end the embargo immediately, by
       emitting ET in the act that adopts the value.
@@ -1762,10 +1762,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      This rule covers a Participant that enters CS Exploit Public
+      This rule covers the CASE_MANAGER when it adopts an X value
       (q^cs → ···PX·) while an embargo is active (q^em ∈ {A, R}).
-      The CASE_MANAGER MUST record the adopted X value before it ends the
-      embargo under CSB-13-002.
+      It MUST record the adopted X value before it ends the embargo under
+      CSB-13-002.
     rationale: >-
       Every replica replays the ledger in order, so a teardown committed ahead
       of its cause would show the embargo ending for no recorded reason. The
@@ -1819,17 +1819,17 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      This rule covers the CASE_MANAGER when it adopts an A value
+      This rule covers the CASE_MANAGER when it learns of an A value
       (q^cs → ·····A) while an embargo is active (q^em ∈ {A, R}).
-      Acting for the Case Owner, it SHOULD end the embargo, by emitting ET in
-      the act that adopts the value.
+      Acting for the Case Owner, it SHOULD end the embargo by adopting the
+      value, in an act that emits ET.
     rationale: >-
       VP-09-003 recommends ending the embargo when attacks are observed. It is
-      SHOULD, not SHALL, to leave room for judgment, which the Case Owner
-      makes in deciding whether to adopt A; the adopting act then ends the
-      embargo (CSB-06-008 for a received CA, ADR-0166). The Case Owner may
-      delegate that decision in advance (RSH-07-003) and keeps the authority
-      (VP-11-006). A non-manager Participant reports A instead (CSB-14-006).
+      SHOULD, not SHALL, to leave room for judgment. Under ADR-0166 that
+      judgment is whether to adopt A: an adopted A ends the embargo in the
+      same act (CSB-06-008, RSH-03-001). The Case Owner may delegate that
+      decision in advance (RSH-07-003) and keeps the authority (VP-11-006).
+      A non-manager Participant reports A instead (CSB-14-006).
     adr:
     - ADR-0118
     - ADR-0166
@@ -1919,10 +1919,10 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      This rule covers a Participant that enters CS Attacks Observed
+      This rule covers the CASE_MANAGER when it adopts an A value
       (q^cs → ·····A) while an embargo is active (q^em ∈ {A, R}).
-      The CASE_MANAGER SHOULD record the adopted A value before it ends the
-      embargo under CSB-14-001.
+      It SHOULD record the adopted A value before it ends the embargo under
+      CSB-14-001.
     rationale: >-
       Every replica replays the ledger in order, so a teardown committed ahead
       of its cause would show the embargo ending for no recorded reason. The
