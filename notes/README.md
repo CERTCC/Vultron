@@ -321,8 +321,8 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   Project #24 or worktree slots.
 - **`epic-themes.md`** · `guidance`
   The `theme:` label catalog (a YAML block tools load) and how to classify an Issue.
-  **Load when**: creating or relabeling an Issue, routing one to an Epic, or
-  editing the theme set.
+  **Load when**: creating or relabeling an Issue, routing one to an Epic,
+  titling, fusing or splitting an Epic, or editing the theme set.
 
 ### Agent workflow and project history
 

@@ -8,7 +8,8 @@ description: >
   `theme-labels` script syncs GitHub from it. The rules for applying a theme:
   classify by outcome, one theme per leaf, an Epic's second theme only when its
   body names the split, the theme contains the grain, the `Theme:` reason line;
-  borderline examples; the `theme-fit` structural check, its untriaged list,
+  Epic titles as done-state claims, one job per Epic body line, and Epic size
+  for fusing and splitting; borderline examples; the `theme-fit` structural check, its untriaged list,
   the split line and the auto-calved marker it reads, the standing report Issue
   the daily workflow rewrites; the `theme-gate` check
   that refuses a new Issue breaking these rules; how to act on a theme-fit finding; and
@@ -302,6 +303,56 @@ Theme: theme:dev-workflow — gives every skill one shared definition of the the
   the line with the body; a label alone gives nothing to compare.
 - **The outcome is this Issue's**, not the theme's outcome copied from the
   catalog.
+
+## Epic Titles and Bodies
+
+- **Rule**: an Epic's title is a done-state claim, a present-tense sentence in
+  domain terms that turns true when the Epic closes (PAD-02-030). Name the
+  audience as its subject when one is natural (PAD-02-031); keep ADR numbers
+  and spec IDs out (PAD-02-032).
+- **Reason**: the board shows the title alone. A claim says what the Epic
+  changes, tells siblings apart, and is the Epic's close test: read it and ask
+  "is this true yet?"
+- **Other title styles fail on the board.** A feature name ("Actor signing")
+  names the area; an imperative ("Reconcile … specs") names the activity, so
+  siblings blur; a problem statement reads like a bug and says the opposite of
+  the done state; a "name: outcome" title loses the outcome when shortened and
+  its name drifts toward mechanism.
+- **Short enough to read in a board column.** No length rule beyond GitHub's
+  256-character cap; a claim that runs long usually needs a sharper verb.
+- **The title is written, not derived.** Do not trim the `Design idea:` line
+  into a title; they say different things.
+
+| Today | Claim |
+|---|---|
+| Actor signing (prototype) | Participants can verify who sent each message (prototype keys) |
+| Trigger endpoint observability contract | Trigger callers can see whether their action succeeded, was refused, or failed |
+| Arrival-order independence (SYNC-19) | Messages produce the same case outcome in any arrival order |
+
+### One job per body line
+
+| Slot | Says | Example |
+|---|---|---|
+| Title | What is true when the Epic is done | Trigger callers can see whether their action succeeded, was refused, or failed |
+| `Theme:` line | Why the claim matters to the theme | `Theme: theme:protocol-correctness — callers stop mistaking a dropped action for success` |
+| `Design idea:` line | The approach tying the children together, with mechanism and IDs | `Design idea: each trigger records an outcome the caller can poll` |
+
+- **Rule**: no line or section restates another (PAD-02-033, PAD-02-034). A
+  `## Design idea` section that repeats the line is removed.
+- **Reason**: copies drift, and the approach had no home once the title gave
+  up mechanism. The design idea as an approach is the grain `calve-epics` cuts
+  along.
+
+### Size, fusing and splitting
+
+- **Rule**: an Epic holds about as many open leaf Issues as one
+  `work-epic-tasks` run drains, about 10 (PAD-02-035).
+- **Fuse only same-claim Epics that fit together** (PAD-02-036). Coherence is
+  not enough: two Epics with one outcome that would be too big together stay
+  separate.
+- **Size-split siblings claim their own slice** (PAD-02-037): a layer, a set of spec groups,
+  or a phase. For example, "Internal errors in the code surface; none pass as
+  success or refusal" and "Lint stops new silent catches from landing".
 
 ## Borderline Examples
 
