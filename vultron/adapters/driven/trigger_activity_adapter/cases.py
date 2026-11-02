@@ -53,6 +53,7 @@ from ._base import (
     _addressing,
     _case_for_wire,
     _create_and_seal,
+    _require_bootstrap_inline,
     _seal,
     _to_wire,
     _to_wire_object,
@@ -88,7 +89,7 @@ class _CasesMixin:
         to: list[str] | None = None,
         id_: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Create(as_VulnerabilityCase)`` activity.
+        """Create and persist a ``Create(VulnerabilityCase)`` activity.
 
         ``context`` is the case, as for the proposal path's ``Create``
         (ADR-0045): the create-case trigger commits this same activity as the
@@ -96,8 +97,14 @@ class _CasesMixin:
         introduction of the case to its reporter is built here too, so it
         names its case the same way, and ``case_is_announced`` counts every
         ``Create`` built here as an announcement of its case.
+
+        Raises:
+            VultronValidationError: If the case names a participant or
+                report the sender's own store cannot read: the bootstrap
+                carries every nested object inline (CBT-01-007, CBT-05-008).
         """
         case = _case_for_wire(self._dl, case_id)
+        _require_bootstrap_inline(case, case_id)
         extra = _addressing(actor, to, id_)
         activity = create_case_activity(case=case, context=case_id, **extra)
         return _create_and_seal(self._dl, activity, "create_case")
@@ -261,7 +268,7 @@ class _CasesMixin:
         context_id: str,
         to: list[str],
     ) -> str:
-        """Create and persist an ``Announce(as_VulnerabilityCase)`` activity.
+        """Create and persist an ``Announce(VulnerabilityCase)`` activity.
 
         Reads the full case from the DataLayer, constructs the activity with
         the case inline, and persists it.  Returns the activity ID for outbox

@@ -233,7 +233,7 @@ def invite_and_await_delivery(
     decides only once it holds the Invite, and by then the CASE_MANAGER has
     seated its inert participant carrying the role the Invite offers — which
     is where the harness reads the deciding actor's role from (CM-17-003,
-    DEMOCI-11-013).  :func:`answer_case_invite` is the second half.
+    DEMOCI-11-013, DEMOCI-11-047).  :func:`answer_case_invite` is the second half.
 
     The step and gate labels are :func:`run_case_invite_chain`'s, so the two
     forms read the same in the logs and the CI diagnostics.
@@ -609,4 +609,7 @@ def reply_to_full_case_invite(
             ActorSession(
                 client=invitee_client, actor=invitee_in_own_container
             ).quiet().accept_full_case_invite(invite_id=invite_id)
-        logger.info("%s sent Accept(Invite(case)) to CaseActor", invitee_name)
+        logger.info(
+            "%s sent Accept(Invite(Actor)[target=VulnerabilityCase]) to CaseActor",
+            invitee_name,
+        )

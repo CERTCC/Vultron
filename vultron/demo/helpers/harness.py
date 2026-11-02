@@ -56,7 +56,7 @@ naming the actor that decides there.  A composed scenario places none by hand:
 ``run_story`` makes the call as it passes each ``choose`` item of the story
 the path is read from (DEMOCI-11-019).  The
 harness checks the step is the next one declared and that the actor holds the
-branch point's role (DEMOCI-11-013, :mod:`.deciding_role`), and records the
+branch point's role (DEMOCI-11-047, :mod:`.deciding_role`), and records the
 canonical ledger's tail there: how many entries the case had when the
 decision was made.  The marks are written beside the
 dump manifest on the way out, however the scenario ends, and the recorder
@@ -214,7 +214,7 @@ class ScenarioHarness:
 
         If the root step was reached before the case existed, this is where
         its deciding actor is checked: it must be the author of the case's
-        report (DEMOCI-11-013).
+        report (DEMOCI-11-047).
 
         Args:
             case_actor_client: Client bound to the CaseActor.
@@ -237,9 +237,9 @@ class ScenarioHarness:
 
         Call it where the scenario makes the decision, before the choice's
         trigger and before any step of another role that runs between the two
-        (DEMOCI-11-013).  The harness checks that *by* holds the branch
-        point's role and records the canonical ledger's tail as the step's
-        mark.
+        (DEMOCI-11-047, DEMOCI-11-048).  The harness checks that *by* holds
+        the branch point's role and records the canonical ledger's tail as the
+        step's mark.
 
         The role is read from the case the harness follows
         (:func:`~vultron.demo.helpers.deciding_role.require_case_role`).  A
@@ -296,7 +296,7 @@ class ScenarioHarness:
 
         The check runs when :meth:`follow_ledger` first names the case, so a
         scenario that reaches the root step and ends cleanly without following
-        a ledger would otherwise pass unchecked (DEMOCI-11-013).
+        a ledger would otherwise pass unchecked (DEMOCI-11-047).
 
         Raises:
             DemoScenarioStepError: When a root step is still unchecked.
@@ -306,7 +306,7 @@ class ScenarioHarness:
             raise DemoScenarioStepError(
                 f"{step} was decided by {actor_id!r} as the Reporter, but the "
                 "scenario ended without following a case ledger, so nothing "
-                "checked that it submitted the report (DEMOCI-11-013)."
+                "checked that it submitted the report (DEMOCI-11-047)."
             )
 
     def _check_role(self, step: PathStep, actor_id: str) -> None:
@@ -320,7 +320,7 @@ class ScenarioHarness:
             raise DemoScenarioStepError(
                 f"{label} is decided by the {role.name} before any case "
                 "exists; only the Reporter decides before the case, by "
-                "submitting the report (DEMOCI-11-013)."
+                "submitting the report (DEMOCI-11-047)."
             )
         self._report_submitter = (label, actor_id)
 

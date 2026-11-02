@@ -97,7 +97,8 @@ def _seed_case(bt_scenario: BTTestScenario) -> None:
 
 
 def _accept_event() -> AcceptCaseOwnershipTransferReceivedEvent:
-    """The received Accept(Offer(Case)) as a handler places it on the blackboard.
+    """The received Accept(Offer(VulnerabilityCase)), as a handler places it on the
+    blackboard.
 
     A real event, not a stand-in: intake reads it first (CLP-10-017) and a
     bare object would be a wiring fault.

@@ -159,7 +159,7 @@ class TestRegistration:
         assert "rcvv-embargo" in registered
         assert registered["rcvv-embargo"].in_pr_set is True
 
-    @pytest.mark.spec("DEMOMA-21-006")
+    @pytest.mark.spec("DEMOMA-21-021")
     def test_roles_follow_the_scenario_role_naming(self):
         assert [r.name for r in demo.ROLES] == [
             "reporter",
@@ -195,7 +195,7 @@ class TestStoryPath:
     def test_the_story_walks_the_path_the_scenario_declared(self):
         assert demo.STORY.path == EXPECTED_PATH
 
-    @pytest.mark.spec("DEMOMA-17-001")
+    @pytest.mark.spec("DEMOMA-17-001", "DEMOMA-17-003")
     @pytest.mark.spec("DEMOCI-11-018")
     def test_both_embargo_stories_share_the_prefix_objects_items(self):
         """The pair's opening is one prefix *object*, not two copies of it.
@@ -429,7 +429,7 @@ class TestTheSharedOpeningSeedsOnlyTheThree:
 
 
 # ---------------------------------------------------------------------------
-# Vendor1's revision (DEMOMA-21-002)
+# Vendor1's revision (DEMOMA-21-018)
 # ---------------------------------------------------------------------------
 
 
@@ -459,7 +459,7 @@ class TestVendor1ProposesARevision:
             vendor1_proposes_a_revision(state)
         return state, em_wait, helper
 
-    @pytest.mark.spec("DEMOMA-21-002")
+    @pytest.mark.spec("DEMOMA-21-018")
     @pytest.mark.spec("DEMOMA-21-009")
     def test_the_revision_is_relayed_and_the_new_embargo_is_kept(self):
         state, em_wait, helper = self._revise(now_in_force="urn:embargo:two")
@@ -767,7 +767,7 @@ class TestBothVendorsReportTheFixReady:
 
 
 class TestTheAccidentalCollapse:
-    """CS.P ends the embargo, and nobody terminates it (DEMOMA-21-014)."""
+    """CS.P ends the embargo, and nobody terminates it (DEMOMA-21-014, DEMOMA-21-024)."""
 
     @staticmethod
     def _collapse(state: StoryState):
@@ -791,6 +791,7 @@ class TestTheAccidentalCollapse:
 
     @pytest.mark.spec("DEMOMA-21-004")
     @pytest.mark.spec("DEMOMA-21-014")
+    @pytest.mark.spec("DEMOMA-21-024")
     def test_the_reporters_publication_is_what_ends_the_embargo(self):
         state = _state_after_vendor2_joined()
 
@@ -802,7 +803,7 @@ class TestTheAccidentalCollapse:
         assert not _demo_failures
 
     @pytest.mark.spec("DEMOMA-21-009")
-    @pytest.mark.spec("DEMOMA-21-014")
+    @pytest.mark.spec("DEMOMA-21-020")
     def test_the_teardown_is_read_where_the_case_manager_commits_it(self):
         """The commit is gated on before any replica is expected to show it."""
         state = _state_after_vendor2_joined()

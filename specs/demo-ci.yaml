@@ -73,39 +73,62 @@ groups:
         kind: project
         verification_debt: '#2573'
         statement: >-
-          DemoFailureError MUST be a subclass of VultronError and MUST be
-          defined in vultron/errors.py.
+          `DemoFailureError` MUST be a subclass of `VultronError`.
         rationale: >-
-          A typed error lets the runner and the tests tell a demo failure apart from
-          any other error. As a `VultronError` in `vultron/errors.py`, it is in the
-          same error hierarchy and the same module as the other project errors
-          (EH-01-001).
+          A typed error lets the runner and the tests tell a demo failure apart from any
+          other error. As a `VultronError`, it is in the same error hierarchy as the
+          other project errors (EH-01-001).
         relationships:
           - rel_type: refines
             spec_id: EH-01-001
             note: error-handling.yaml
+
+      - id: DEMOCI-01-012
+        priority: MUST
+        kind: project
+        verification_debt: '#2573'
+        statement: >-
+          This codebase MUST define `DemoFailureError` in `vultron/errors.py`.
+        rationale: >-
+          One module holds the project's error classes (EH-01-001). When
+          `DemoFailureError` is defined there, the runner and the tests import it from
+          the same place as every other project error.
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-01-005
 
       - id: DEMOCI-01-006
         priority: MUST
         kind: project
         verification_debt: '#2573'
         statement: >-
-          Every scenario entry-point function MUST call `reset_demo_failures()`
-          as its first action and MUST call `assert_demo_success()` as its final
-          action before returning. These two calls form the bookend contract that
-          initialises the failure accumulator and converts accumulated failures
-          into a `DemoFailureError` for CI detection.
+          Every scenario entry-point function MUST call `reset_demo_failures()` as its
+          first action.
         rationale: >-
-          DEMOCI-01-003 and DEMOCI-01-004 specify the accumulation mechanism, but
-          do not specify where the accumulator is initialised or where the final
-          assertion is made. Without explicit bookends, a scenario may inherit
-          failure state from a previous run (if not reset) or exit without
-          surfacing accumulated failures (if `assert_demo_success()` is not called).
+          DEMOCI-01-003 and DEMOCI-01-004 specify how failures accumulate, but not where
+          the accumulator starts. A scenario that does not reset it first can inherit
+          the failure state of an earlier run.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-01-003
           - rel_type: refines
             spec_id: DEMOCI-01-004
+
+      - id: DEMOCI-01-013
+        priority: MUST
+        kind: project
+        verification_debt: '#2573'
+        statement: >-
+          Every scenario entry-point function MUST call `assert_demo_success()` as its
+          last action before it returns.
+        rationale: >-
+          The call turns the accumulated failures into a `DemoFailureError`, so CI sees
+          a failed run. With the reset of DEMOCI-01-006, it forms the bookends of the
+          failure accumulator. A scenario that skips the call exits without reporting
+          the failures it recorded.
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-01-006
 
       - id: DEMOCI-01-007
         priority: MUST
@@ -170,22 +193,17 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          A scenario MUST NOT let a raising poll or verification helper's
-          timeout escape the failure accumulator. Any `wait_for_*` (or
-          equivalent verification) call that raises on timeout MUST execute
-          inside a `demo_step`, `demo_check`, or `demo_gate` context, OR be
-          invoked through a shared helper that wraps the raising call in one of
-          those contexts internally. A shared helper that encapsulates such
-          polling MUST perform the wrap itself so that every caller inherits it.
+          A scenario MUST run each poll or verification call that raises on timeout,
+          such as `wait_for_*`, inside a `demo_step`, `demo_check` or `demo_gate`
+          context. A call through a shared helper that opens the context itself also
+          meets this rule.
         rationale: >-
           DEMOCI-01-003 requires all errors of a run to be reported together. A wait
-          that raises outside a demo context stops the scenario at the first timeout.
-          Then the other failures of the run are not reported, and the one failure that
-          is reported can point at the wrong cause. Many scenario phases call these
-          waits, and a bare call looks correct in a review. Thus an architecture test
-          checks every piece of scenario-level code. When the shared helper
-          does the wrap itself, as `wait_for_participants_on_replicas` and
-          `wait_for_replica_ledger_coverage` do, every caller is safe.
+          that raises outside a demo context escapes the failure accumulator and stops
+          the scenario at the first timeout. Then the other failures of the run are not
+          reported, and the one that is can point at the wrong cause. A bare call looks
+          correct in a review, so an architecture test checks every piece of
+          scenario-level code.
         verification: >-
           An architecture test scans every module under `vultron/demo/` for the
           two shapes scenario-level code takes — a `_phase_*` function, and a
@@ -205,6 +223,27 @@ groups:
               Constrains where raising waits may run; the accumulation and
               exit-code contract of DEMOCI-01-001 and DEMOCI-01-003 is unchanged.
 
+      - id: DEMOCI-01-014
+        priority: MUST
+        kind: project
+        statement: >-
+          A shared helper that encapsulates a raising poll MUST open the `demo_step`,
+          `demo_check` or `demo_gate` context itself.
+        rationale: >-
+          Every caller of such a helper then inherits the wrap, and no caller can forget
+          it. `wait_for_participants_on_replicas` and `wait_for_replica_ledger_coverage`
+          are such helpers.
+        verification: >-
+          `test_polling_module_has_raising_and_wrapping_helpers` and
+          `test_partial_wrap_is_classified_raising_not_wrapping` in
+          `test/architecture/test_demo_scenario_waits_in_demo_context.py` count a helper
+          as wrapping only when it wraps every raising call itself, and
+          `test_scenario_level_code_wraps_raising_waits` fails a bare call to any other
+          helper.
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-01-011
+
   - id: DEMOCI-02
     title: GitHub Actions Demo Workflow
     specs:
@@ -213,14 +252,26 @@ groups:
         kind: project
         verification_debt: '#2573'
         statement: >-
-          A dedicated GitHub Actions workflow file
-          (.github/workflows/demo-integration.yml) MUST exist for running
-          the demo integration tests. It MUST NOT be merged into
-          python-app.yml.
+          This codebase MUST hold a dedicated GitHub Actions workflow,
+          `.github/workflows/demo-integration.yml`, that runs the demo integration
+          tests.
         rationale: >-
-          Keeping the demo workflow separate avoids adding Docker-compose
-          build time to the existing linting and unit-test pipeline and
-          allows the two workflows to run concurrently on PRs.
+          One workflow of its own gives the demo integration tests one place to run and
+          one result on each PR, apart from the linting and unit-test pipeline.
+
+      - id: DEMOCI-02-019
+        priority: MUST_NOT
+        kind: project
+        verification_debt: '#2573'
+        statement: >-
+          The demo integration workflow MUST NOT be merged into python-app.yml.
+        rationale: >-
+          A separate workflow keeps the Docker Compose build time out of the existing
+          linting and unit-test pipeline, and lets the two workflows run at the same
+          time on a PR.
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-02-001
 
       - id: DEMOCI-02-002
         priority: MUST
@@ -324,15 +375,25 @@ groups:
         kind: project
         verification_debt: '#2573'
         statement: >-
-          The workflow MUST upload all container logs as a CI artifact when
-          the demo job fails or is cancelled, and MUST NOT upload logs on
-          success.
+          The workflow MUST upload all container logs as a CI artifact when the demo job
+          fails or is cancelled.
         rationale: >-
-          Container logs are diagnostic data, so they are necessary only when a job
-          does not pass. A job can be cancelled when a container stops responding and
-          the job reaches its timeout. If the workflow does not collect the logs on
-          that path, nobody can find the cause of the hang. When the job passes, the
-          logs only add artifacts that nobody reads.
+          Container logs are diagnostic data, so they are necessary only when a job does
+          not pass. A job can be cancelled when a container stops responding and the job
+          reaches its timeout. If the workflow does not collect the logs on that path,
+          nobody can find the cause of the hang.
+
+      - id: DEMOCI-02-020
+        priority: MUST_NOT
+        kind: project
+        verification_debt: '#2573'
+        statement: >-
+          The workflow MUST NOT upload container logs when the demo job succeeds.
+        rationale: >-
+          When the job passes, the logs only add artifacts that nobody reads.
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-02-008
 
       - id: DEMOCI-02-009
         priority: MUST
@@ -553,45 +614,74 @@ groups:
         kind: project
         verification_debt: '#2573'
         statement: >-
-          Each demo scenario (including RVV and any future scenario) MUST be
-          added to demo-integration.yml as a separate parallel job in the same
-          PR that introduces the scenario script; the job MUST use
-          `--abort-on-container-exit --exit-code-from demo-runner`,
-          `timeout-minutes: 15`, and the same teardown and log-upload steps
-          as the rv job (DEMOCI-02-006, DEMOCI-02-009, DEMOCI-02-010)
+          Each registered scenario MUST run as its own entry of the `demo` job matrix in
+          `demo-integration.yml`, with no edit to the workflow for that scenario.
         rationale: >-
-          Running scenarios in series would make CI proportionally slower with
-          each scenario added. Parallel jobs keep wall-clock time bounded and
-          produce independent pass/fail signals per scenario. Requiring the CI
-          job in the same PR as the scenario script ensures no scenario ships
-          without CI coverage.
+          Parallel matrix entries keep the wall-clock time of CI bounded as scenarios
+          are added, and give each scenario its own result. The `scenarios` job builds
+          the matrix from the generated `.github/demo-scenarios.json` (DEMOCI-11-004).
+          Registration with `@scenario` in the same PR (DEMOCI-03-002) is thus the only
+          step that a new scenario needs (ADR-0098).
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-03-003
           - rel_type: refines
             spec_id: DEMOCI-03-002
+        adr:
+          - ADR-0098
+
+      - id: DEMOCI-03-006
+        priority: MUST
+        kind: project
+        verification_debt: '#2573'
+        statement: >-
+          The `demo` job of `demo-integration.yml` MUST run each matrix entry with
+          `--abort-on-container-exit --exit-code-from demo-runner`, `timeout-minutes:
+          15`, and the teardown and log-upload steps of DEMOCI-02-006, DEMOCI-02-009 and
+          DEMOCI-02-010.
+        rationale: >-
+          One job definition serves every matrix entry, so each scenario gets the same
+          failure signal, time limit and cleanup as `rv`. A scenario whose job differed
+          could hang past the time limit, or leave its containers running for the next
+          job.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-03-004
 
       - id: DEMOCI-03-005
         priority: MUST
         kind: project
         verification_debt: '#2573'
         statement: >-
-          Each matrix entry in the demo CI workflow MUST declare an explicit
-          `test_file` field naming the scenario-specific invariant test file
-          (e.g. `test/ci/invariants/test_rv_invariants.py`). The case-ledger
-          invariant step MUST invoke pytest with that file path directly rather
-          than using the `-m case_ledger_invariants` marker alone.
+          Each matrix entry of the demo CI workflow MUST declare a `test_file` field
+          that names the invariant test file of its scenario, such as
+          `test/ci/invariants/test_rv_invariants.py`.
         rationale: >-
-          Using the marker alone relies on each test file skipping when its
-          devlogs directory is absent — an implicit, fragile coupling between
-          the filesystem state and test selection. An explicit file path makes
-          the scenario-to-test relationship declarative and visible in each
-          generated `.github/demo-scenarios.json` entry (DEMOCI-11-004), whose
-          `test_file` is derived from the registered scenario name
-          (DEMOCI-11-003).
+          An explicit file path makes the link from a scenario to its invariant tests
+          declarative and visible in each generated `.github/demo-scenarios.json` entry
+          (DEMOCI-11-004), whose `test_file` is derived from the registered scenario
+          name (DEMOCI-11-003).
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-03-004
+
+      - id: DEMOCI-03-007
+        priority: MUST
+        kind: project
+        verification_debt: '#2573'
+        statement: >-
+          The case-ledger invariant step MUST run pytest on the `test_file` path of its
+          matrix entry, not on the `-m case_ledger_invariants` marker alone.
+        rationale: >-
+          The marker alone relies on each test file skipping when its devlogs directory
+          is absent. That is an implicit, fragile coupling between the state of the
+          filesystem and the selection of tests. The explicit path runs exactly the
+          tests of the scenario that ran.
+        relationships:
+          - rel_type: depends_on
+            spec_id: DEMOCI-03-005
 
   - id: DEMOCI-04
     title: Invariant Harness as an Independent CI Gate
@@ -620,22 +710,45 @@ groups:
         kind: project
         verification_debt: '#2573'
         statement: >-
-          The invariant-harness job MUST declare a `needs:` dependency on the
-          demo job for the same scenario matrix entry, and MUST use
-          `if: always()` so it runs regardless of whether the demo job passed
-          or failed. This applies to the demo pass and fail outcomes only; a
-          *cancelled* demo job is a distinct third outcome for which the
-          harness MUST be skipped (DEMOCI-04-007).
+          The invariant-harness job MUST declare a `needs:` dependency on the demo job
+          of the same scenario matrix entry.
         rationale: >-
           The separate invariant job exists to give a result when the demo fails.
-          `needs:` on the demo job makes it start after the demo uploads its artifacts,
-          and `if: always()` makes it run after a demo failure too. A cancelled demo
-          job uploads no artifact. If the invariant job ran after a cancellation, it
-          would fail only at `download-artifact`, and report a failure that is not
-          about the invariants (DEMOCI-04-007).
+          `needs:` on the demo job makes it start only after the demo uploads its
+          artifacts.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-04-001
+
+      - id: DEMOCI-04-010
+        priority: MUST
+        kind: project
+        verification_debt: '#2573'
+        statement: >-
+          The invariant-harness job MUST use `if: always()`, so that it runs whether the
+          demo job passed or failed.
+        rationale: >-
+          Without `if: always()`, a failed demo job skips the invariant job, and the run
+          that most needs an invariant result gets none.
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-04-002
+
+      - id: DEMOCI-04-011
+        priority: MUST
+        kind: project
+        verification_debt: '#2573'
+        statement: >-
+          The workflow MUST skip the invariant-harness job when the demo job is
+          cancelled (DEMOCI-04-007).
+        rationale: >-
+          A cancelled demo job is a third outcome, apart from pass and fail, and it
+          uploads no artifact. An invariant job that ran after a cancellation would fail
+          only at `download-artifact`, and report a failure that is not about the
+          invariants.
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-04-002
 
       - id: DEMOCI-04-003
         priority: MUST
@@ -660,12 +773,11 @@ groups:
         kind: project
         verification_debt: '#2573'
         statement: >-
-          Each demo scenario's invariant test file (e.g.
-          `test/ci/invariants/test_rv_invariants.py`) MUST include a
-          per-scenario expected-semantic-types list that is comprehensive for that
-          scenario: it MUST cover all protocol phases that the scenario is
-          designed to exercise, not only the universal phases (DEMOMA-16-001)
-          shared by all scenarios.
+          Each scenario's invariant test file, such as
+          `test/ci/invariants/test_rv_invariants.py`, MUST include an
+          expected-semantic-types list that covers every protocol phase the scenario is
+          designed to exercise. The list is not limited to the universal phases
+          (DEMOMA-16-001) that all scenarios share.
         rationale: >-
           A shared minimal list (validate_report,
           add_participant_status_to_participant, close_case, add_note_to_case,
@@ -696,7 +808,7 @@ groups:
           (DEMOCI-04-006).
         relationships:
           - rel_type: refines
-            spec_id: DEMOCI-04-002
+            spec_id: DEMOCI-04-010
           - rel_type: refines
             spec_id: DEMOCI-02-004
 
@@ -733,7 +845,7 @@ groups:
           job (CISEC-05-001) then files a `ci:main-failure` issue for a failure that did
           not occur. When the invariant job is skipped after a cancellation, the run has
           no `failure` result, and `notify` leaves the result to the newer run. The pass
-          path and the true failure path (DEMOCI-04-002) do not change. Sometimes one
+          path and the true failure path (DEMOCI-04-010) do not change. Sometimes one
           demo matrix job fails and a newer push then cancels the other matrix jobs.
           GitHub does not document whether the combined `needs.demo.result` is then
           `failure` or `cancelled`. If it is `failure`, the invariant job runs and
@@ -744,7 +856,7 @@ groups:
           invariant-harness `if:` contains `needs.demo.result != 'cancelled'`.
         relationships:
           - rel_type: refines
-            spec_id: DEMOCI-04-002
+            spec_id: DEMOCI-04-011
           - rel_type: refines
             spec_id: DEMOCI-02-013
           - rel_type: refines
@@ -836,22 +948,31 @@ groups:
         kind: project
         verification_debt: '#2573'
         statement: >-
-          The push-to-main trigger MUST carry the same Dependabot exclusion
-          semantics as the pull_request trigger where applicable. Because
-          push events to main do not originate from `dependabot/` head refs,
-          the guard need not be duplicated on the push path, but the workflow
-          MUST NOT gate the on-main run behind `github.head_ref`-based
-          conditions (which are empty on push events) in a way that would
-          skip the on-main run entirely.
+          The push-to-main trigger MUST carry the same Dependabot exclusion semantics as
+          the `pull_request` trigger, where they apply.
         rationale: >-
-          The Dependabot guard on the `scenarios` job (DEMOCI-02-004) tests
-          `github.head_ref`, which is empty on a push event. An empty string does not
-          start with `dependabot/`, so the guard passes on push. A different condition
-          on `github.head_ref` can evaluate differently on push and skip the on-main run
-          with no error. Then main has no demo result at all.
+          Push events to main do not come from `dependabot/` head refs, so the guard
+          need not be repeated on the push path. The trigger still must not run a
+          Dependabot change that the PR path would refuse.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-05-001
+
+      - id: DEMOCI-05-005
+        priority: MUST_NOT
+        kind: project
+        verification_debt: '#2573'
+        statement: >-
+          The workflow MUST NOT gate the on-main run behind a `github.head_ref`
+          condition that would skip that run entirely.
+        rationale: >-
+          `github.head_ref` is empty on a push event. The Dependabot guard of
+          DEMOCI-02-004 passes on an empty string, but a different condition on
+          `github.head_ref` can skip the on-main run with no error. Then main has no
+          demo result at all.
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-05-004
 
   - id: DEMOCI-06
     title: Demo Scenario Coverage Model — PR Validation Set vs. Full Post-Merge Set
@@ -882,14 +1003,23 @@ groups:
         kind: project
         verification_debt: '#2573'
         statement: >-
-          The scenario coverage analysis MUST inspect the actual milestone sets
-          defined in each scenario script rather than assuming they are
-          complete, and MAY update scenario milestone sets where copy-paste from
-          simpler scenarios has left them incomplete.
+          The scenario coverage analysis MUST inspect the milestone sets that each
+          scenario script defines, and not assume that they are complete.
         rationale: >-
-          Milestone sets were often copied from simpler scenarios and may
-          under-report what a scenario actually exercises; inspecting the
-          scripts directly is necessary to produce an accurate coverage matrix.
+          Milestone sets were often copied from simpler scenarios and may under-report
+          what a scenario exercises. Only the scripts show what each scenario covers, so
+          the coverage matrix is accurate only when it is built from them.
+
+      - id: DEMOCI-06-011
+        priority: MAY
+        kind: project
+        statement: >-
+          The scenario coverage analysis MAY update a scenario's milestone set where a
+          copy from a simpler scenario has left it incomplete.
+        rationale: >-
+          An analysis that finds an incomplete set can fix it in place. Then the
+          coverage matrix and the scenario agree, and the gap does not stay open for a
+          later pass.
 
       - id: DEMOCI-06-006
         priority: MUST
@@ -944,17 +1074,15 @@ groups:
         kind: project
         verification_debt: '#2573'
         statement: >-
-          The full scenario suite MUST run on push events to main, regardless
-          of which subset runs for PR validation, so that all scenario variants
-          continue to generate case-log invariant signals on the default branch.
-          The `demo-integration.yml` workflow MUST include a `push: branches:
-          ["main"]` trigger that runs all scenarios (`rv`, `rvv`,
-          `rvcv-extension`, `rvcv-handoff`, `rccv-extension`, `rccv-handoff`,
-          `rcvcv`, `rcv`, `rcv-reject`, `rcv-embargo`, `rcvv-embargo`).
+          The `demo-integration.yml` workflow MUST run the full scenario suite on a
+          `push: branches: ["main"]` trigger, whatever subset runs for PR validation.
+          The full suite is `rv`, `rvv`, `rvcv-extension`, `rvcv-handoff`,
+          `rccv-extension`, `rccv-handoff`, `rcvcv`, `rcv`, `rcv-reject`, `rcv-embargo`
+          and `rcvv-embargo`.
         rationale: >-
-          The post-merge run is the safety net for cross-PR regressions; it
-          must cover all scenarios to ensure no scenario silently degrades after
-          its covered phases are removed from the PR validation set.
+          The post-merge run is the safety net for cross-PR regressions. It covers all
+          scenarios, so every scenario variant keeps giving a case-log invariant signal
+          on the default branch, after its phases leave the PR validation set.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-06-002
@@ -1401,50 +1529,67 @@ groups:
         kind: project
         verification_debt: '#2573'
         statement: >-
-          The `workflow_dispatch` trigger in `demo-integration.yml` MUST declare
-          an optional `ref` input (`type: string`, default empty string) whose
-          description explains that it accepts a branch, tag, or SHA to check out
-          before running the full demo suite. All three `actions/checkout` steps
-          in the workflow (in the `scenarios`, `demo`, and `invariant-harness`
-          jobs) MUST unconditionally pass `ref: ${{ inputs.ref || github.ref }}`.
-          When `inputs.ref` is non-empty the suite runs against that ref; when
-          `inputs.ref` is empty or absent (all non-`workflow_dispatch` events),
-          the expression transparently falls through to `github.ref` so normal
-          `pull_request` and `push` checkouts are unaffected.
+          The `workflow_dispatch` trigger in `demo-integration.yml` MUST declare an
+          optional `ref` input of `type: string` with an empty default. Its description
+          says that it accepts a branch, tag or SHA to check out before the full demo
+          suite runs.
         rationale: >-
-          When multiple related bug-fix PRs land on a shared integration branch
-          (e.g. `fix/demo-ci`) rather than racing to `main`, the full demo suite
-          needs to be runnable against that branch without opening a dummy PR to
-          `main`. A `workflow_dispatch` `ref` input enables manual full-suite
-          validation at any point during the integration window with a single
-          button click in the GitHub UI. The unconditional expression form avoids
-          a conditional `if: inputs.ref != ''` guard that would silently break
-          normal checkout behaviour.
+          When related bug-fix PRs land on a shared integration branch (e.g.
+          `fix/demo-ci`), the full demo suite must run against that branch without a
+          dummy PR to `main`. A `workflow_dispatch` `ref` input starts that run with one
+          click in the GitHub UI.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-05-001
+
+      - id: DEMOCI-09-003
+        priority: MUST
+        kind: project
+        verification_debt: '#2573'
+        statement: >-
+          All three `actions/checkout` steps of the workflow, in the `scenarios`, `demo`
+          and `invariant-harness` jobs, MUST pass `ref: ${{ inputs.ref || github.ref }}`
+          unconditionally.
+        rationale: >-
+          When `inputs.ref` is set, the suite runs against that ref. When it is empty or
+          absent, as on every event other than `workflow_dispatch`, the expression falls
+          through to `github.ref`. A conditional `if: inputs.ref != ''` guard instead
+          would break the normal checkout with no error.
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-09-001
       - id: DEMOCI-09-002
         priority: MUST
         kind: project
         verification_debt: '#2573'
         statement: >-
-          When an integration branch (e.g. `fix/demo-ci`) has merged to `main`
-          and all its child issues are closed, the branch name MUST be removed
-          from the `pull_request` and `push` trigger `branches:` arrays in
-          `demo-integration.yml`. Any inline comments that referenced the
-          temporary branch as a `# remove when merged` note MUST also be
-          removed at the same time.
+          An integration branch such as `fix/demo-ci` is done when it has merged to
+          `main` and all its child issues are closed. A maintainer MUST then remove its
+          name from the `pull_request` and `push` trigger `branches:` arrays in
+          `demo-integration.yml`.
         rationale: >-
-          Stale branch entries in trigger arrays are dead configuration: the
-          branch no longer exists, so the entries neither fire nor provide
-          documentation value. Leaving them risks confusing future maintainers
-          about which branches are legitimate targets. Removing them (together
-          with any accompanying comments) keeps the trigger configuration
-          self-consistent and matches the actual lifecycle of integration
-          branches.
+          Stale branch entries in trigger arrays are dead configuration: the branch no
+          longer exists, so the entries neither fire nor document anything. They can
+          confuse a future maintainer about which branches are real targets.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-09-001
+
+      - id: DEMOCI-09-004
+        priority: MUST
+        kind: project
+        verification_debt: '#2573'
+        statement: >-
+          When a maintainer removes an integration branch's name from those trigger
+          arrays, the maintainer MUST also remove each `# remove when merged` comment
+          that names the branch.
+        rationale: >-
+          A comment that names a branch the triggers no longer list is as stale as the
+          entry itself. Removing both at once keeps the trigger configuration consistent
+          with the life of the integration branch.
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-09-002
 
   - id: DEMOCI-10
     title: Case-Ledger Artifact Availability on Failure
@@ -1454,17 +1599,14 @@ groups:
         kind: project
         verification_debt: '#2573'
         statement: >-
-          Every demo scenario MUST export its case ledgers from a path that runs
-          whether or not the scenario's phases succeeded — in practice, from the
-          shared scenario harness's exception path as well as its success path
-          (see DEMOMA-23-001). A scenario MUST NOT place the ledger dump only
-          after its last phase, where any escaping exception skips it.
+          Every demo scenario MUST export its case ledgers from a code path that runs
+          whether or not its phases succeed. The shared scenario harness does so on both
+          its exception path and its success path (DEMOMA-23-001).
         rationale: >-
           `demo_check` and `demo_step` record failures and do not raise. Thus an
-          exception that leaves a scenario is a serious failure, and those runs need
-          the ledgers most. If the dump runs only after the last phase, such an
-          exception skips it, and the run uploads no ledger. The artifact is then
-          missing when it is most necessary.
+          exception that leaves a scenario is a serious failure, and those runs need the
+          ledgers most. A dump placed only after the last phase is skipped by such an
+          exception, and the run uploads no ledger when it is most necessary.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-04-001
@@ -1475,29 +1617,49 @@ groups:
         verification_debt: '#2573'
         statement: >-
           The case-ledger dump MUST always write a `dump-manifest.json` under
-          `devlogs/<demo-name>/`, even when it captured no ledgers at all. The
-          manifest MUST record `demoName`, `caseId`, `ledgerFileCount`,
-          `targetCount`, an optional top-level `reason`, and one `actors[]` entry
-          per dump target carrying `actorName`, `routeKey`, `captured`,
-          `entryCount`, `ledgerFile`, and `reason`. It MUST also record an
-          `unreplicatedActors[]` list (empty when none), one `{actorName,
-          routeKey}` entry per actor that acted in the case but holds no ledger
-          replica to dump, so the invariant harness can resolve that actor's
-          entries to a name (DEMOMA-22-005).
+          `devlogs/<demo-name>/`, even when it captured no ledgers at all.
         rationale: >-
-          The `upload-artifact` step and the `invariant-harness` job's download
-          both need the artifact to exist. An always-present manifest makes the
-          download succeed unconditionally and turns "nothing was uploaded" into
-          a machine-readable statement of which actors were missing and why, so
-          the invariant harness can report a real invariant result instead of a
-          download error. The manifest's per-actor `reason` field also
-          distinguishes a network-timeout dump failure from a scenario that never
-          started: a timed-out dump records the error in the actor's `reason`
-          alongside `captured: false`, while a pre-run CI sentinel
-          (DEMOCI-10-006) records an empty `actors` array (`actors: []`).
+          The `upload-artifact` step and the download of the `invariant-harness` job
+          both need the artifact to exist. An always-present manifest makes the download
+          succeed, and turns "nothing was uploaded" into a machine-readable statement of
+          which actors were missing and why. The invariant harness can then report a
+          real result instead of a download error.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-10-001
+
+      - id: DEMOCI-10-015
+        priority: MUST
+        kind: project
+        verification_debt: '#2573'
+        statement: >-
+          The `dump-manifest.json` MUST record `demoName`, `caseId`, `ledgerFileCount`,
+          `targetCount`, an optional top-level `reason`, and one `actors[]` entry per
+          dump target. Each `actors[]` entry carries `actorName`, `routeKey`,
+          `captured`, `entryCount`, `ledgerFile` and `reason`.
+        rationale: >-
+          The per-actor `reason` tells a dump that timed out apart from a scenario that
+          never started. A timed-out dump records the error in the actor's `reason` with
+          `captured: false`, while a pre-run CI sentinel (DEMOCI-10-006) records an
+          empty `actors` array.
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-10-002
+
+      - id: DEMOCI-10-016
+        priority: MUST
+        kind: project
+        verification_debt: '#2573'
+        statement: >-
+          The `dump-manifest.json` MUST record an `unreplicatedActors[]` list, empty when
+          there is none. It holds one `{actorName, routeKey}` entry for each actor that
+          acted in the case but holds no ledger replica to dump.
+        rationale: >-
+          An actor with no replica has no ledger file to name it. The list lets the
+          invariant harness resolve the entries of that actor to a name (DEMOMA-22-005).
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-10-002
 
       - id: DEMOCI-10-003
         priority: MUST
@@ -1599,20 +1761,32 @@ groups:
         kind: project
         verification_debt: '#2573'
         statement: >-
-          The invariant-harness pytest session MUST exit non-zero when every
-          collected test was skipped.  A ``pytest_sessionfinish`` hook registered
-          in ``test/ci/invariants/conftest.py`` MUST set ``session.exitstatus = 1``
-          whenever at least one test was reported and all reported test outcomes
-          were ``"skipped"``.
+          The invariant-harness pytest session MUST exit non-zero when every collected
+          test was skipped.
         rationale: >-
           When devlogs or a scenario directory are missing, `load_devlogs()` calls
           `pytest.skip()` in a fixture, and every test in the file skips. By default,
-          pytest exits with zero when all tests skip. CI then shows the invariant job
-          as passed, but the job checked no invariant. Exit status 1 shows this empty
-          pass as a failure.
+          pytest then exits with zero, and CI shows the invariant job as passed although
+          it checked no invariant.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-10-003
+
+      - id: DEMOCI-10-017
+        priority: MUST
+        kind: project
+        verification_debt: '#2573'
+        statement: >-
+          A `pytest_sessionfinish` hook in `test/ci/invariants/conftest.py` MUST set
+          `session.exitstatus = 1` when at least one test was reported and every
+          reported outcome was `"skipped"`.
+        rationale: >-
+          The hook turns the empty pass of DEMOCI-10-005 into a failure. It acts only
+          when some test was reported, so a session with no test at all keeps the exit
+          status that pytest gives it.
+        relationships:
+          - rel_type: implements
+            spec_id: DEMOCI-10-005
 
       - id: DEMOCI-10-006
         priority: MUST
@@ -1650,10 +1824,10 @@ groups:
           - ci-cd
           - demo
         statement: >-
-          The pre-run sentinel `dump-manifest.json` MUST conform to the
-          DEMOCI-10-002 schema with `caseId: null`, `ledgerFileCount: 0`,
-          `targetCount: 0`, and a `reason` string indicating the demo-runner
-          had not yet started.
+          The pre-run sentinel `dump-manifest.json` MUST conform to the DEMOCI-10-015
+          and DEMOCI-10-016 schema. It holds `caseId: null`, `ledgerFileCount: 0`,
+          `targetCount: 0` and a `reason` string saying that the demo-runner has not
+          started.
         rationale: >-
           The sentinel must be schema-conformant so the invariant-harness job
           can parse and interpret it via the manifest-without-ledgers path
@@ -1679,23 +1853,18 @@ groups:
         kind: project
         verification_debt: '#2573'
         statement: >-
-          When a `dump-manifest.json` is present under the scenario's devlogs
-          directory and its `caseId` field is non-null,
-          `test/ci/invariants/common.py::load_devlogs()` MUST restrict the
-          returned ledger entries to those whose `case_id` matches the manifest's
-          `caseId`. It MUST NOT return entries from a different case that happen
-          to reside in the same `devlogs/` directory due to accumulated local
-          demo runs.
+          When a `dump-manifest.json` under the scenario's devlogs directory has a
+          non-null `caseId`, `test/ci/invariants/common.py::load_devlogs()` MUST return
+          only the ledger entries whose `case_id` matches it.
         rationale: >-
           Local demo runs can leave JSONL files for different cases in the same
           `devlogs/` directory. Without a filter on the case, `load_devlogs()` joins
-          them. `test_invariant_1_local_hash_chain_consistent` then sees entries from
-          two chains mixed, and reports `prevLogHash` mismatches that are not real.
-          DEMOCI-10-002 makes the manifest record `caseId`, so `load_devlogs()` can use
-          it to keep only the entries of this run.
+          them, and `test_invariant_1_local_hash_chain_consistent` reports `prevLogHash`
+          mismatches that are not real. DEMOCI-10-015 makes the manifest record
+          `caseId`, so `load_devlogs()` can keep only the entries of this run.
         relationships:
-          - rel_type: refines
-            spec_id: DEMOCI-10-002
+          - rel_type: depends_on
+            spec_id: DEMOCI-10-015
 
       - id: DEMOCI-10-014
         priority: MUST
@@ -1705,31 +1874,82 @@ groups:
           - demo
         statement: >-
           When `test/ci/invariants/common.py::load_devlogs()` fails because a
-          `dump-manifest.json` is present but no ledger files are, its failure
-          message MUST name the layer that failed: when every manifest records
-          `caseId: null` and `targetCount: 0` with a reason other than the
-          harness's crashed-dump backstop reason (the scenario aborted before a
-          case existed, or only the pre-run sentinel was written) the message
-          MUST say the ledger invariants were not exercised and point at the
-          demo-integration job for the cause; when a manifest carries the
-          crashed-dump reason the message MUST say the dump raised and that
-          whether a case existed is unknown; only when a manifest names a case
-          MAY the message call the outcome a ledger invariant failure.
+          `dump-manifest.json` is present but no ledger files are, its failure message
+          MUST name the layer that failed.
         rationale: >-
           A demo that stopped early still fails the harness (DEMOCI-10-003). But a
           message that calls an upstream demo fault "a real invariant failure" sends the
           person who examines it to the ledger, when the run tested nothing about the
           ledger. The manifest already holds the information that tells the cases apart
-          (DEMOCI-10-002, DEMOCI-10-012). The message uses it, and it does not state a
-          conclusion that the data does not support.
+          (DEMOCI-10-015, DEMOCI-10-012).
         verification: >-
-          `test/ci/invariants/test_common.py::TestLoadDevlogsManifestHandling`
-          — `test_upstream_abort_is_not_called_a_real_invariant_failure`,
+          `test/ci/invariants/test_common.py::TestLoadDevlogsManifestHandling` —
+          `test_upstream_abort_is_not_called_a_real_invariant_failure`,
           `test_crashed_dump_is_not_called_an_upstream_abort_or_an_invariant_failure`
-          and `test_missing_ledgers_for_an_existing_case_stay_a_real_invariant_failure`.
+          and `test_missing_ledgers_for_an_existing_case_stay_a_real_invariant_failure`
+          each assert the layer that the message names.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-10-003
+
+      - id: DEMOCI-10-018
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          For an upstream abort, the `load_devlogs()` message MUST say that the ledger
+          invariants were not exercised and point at the demo-integration job for the
+          cause. An upstream abort is a run whose every manifest records `caseId: null`
+          and `targetCount: 0` with a reason other than the harness's crashed-dump
+          backstop reason.
+        rationale: >-
+          Such a run aborted before a case existed, or wrote only the pre-run sentinel.
+          The cause is in the demo job, so the message sends the reader there and not to
+          the ledger.
+        verification: >-
+          `test/ci/invariants/test_common.py::TestLoadDevlogsManifestHandling::test_upstream_abort_is_not_called_a_real_invariant_failure`.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-10-014
+
+      - id: DEMOCI-10-019
+        priority: MUST
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          For a manifest with the crashed-dump reason, the `load_devlogs()` message MUST
+          say that the dump raised and that it is unknown whether a case existed.
+        rationale: >-
+          A dump that raised leaves no record of the case. The message states only what
+          the manifest supports, and does not call the run an upstream abort or an
+          invariant failure.
+        verification: >-
+          `test/ci/invariants/test_common.py::TestLoadDevlogsManifestHandling::test_crashed_dump_is_not_called_an_upstream_abort_or_an_invariant_failure`.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-10-014
+
+      - id: DEMOCI-10-020
+        priority: MAY
+        kind: project
+        tags:
+          - ci-cd
+          - demo
+        statement: >-
+          Only when a manifest names a case MAY the `load_devlogs()` failure message call
+          the outcome a ledger invariant failure.
+        rationale: >-
+          A manifest that names a case shows that the case existed and the dump ran, so
+          missing ledgers then are a fault of the ledger layer.
+        verification: >-
+          `test/ci/invariants/test_common.py::TestLoadDevlogsManifestHandling::test_missing_ledgers_for_an_existing_case_stay_a_real_invariant_failure`.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-10-014
 
   - id: DEMOCI-11
     title: Demo Scenario Registry and Derived Artifacts
@@ -1745,59 +1965,111 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Each demo scenario module under `vultron/demo/scenario/` MUST declare
-          itself to the scenario registry at import time, and the registry MUST
-          be the sole declaration point for the set of demo scenarios that are
-          implemented. A scenario that is specified but not yet built MUST NOT be
-          registered; it is declared by its spec group and the planned-scenario
-          register instead (DEMOCI-11-010).
+          Each demo scenario module under `vultron/demo/scenario/` MUST declare itself
+          to the scenario registry at import time.
         rationale: >-
-          Only the demo module can know that the demo exists. Any separate list, such
-          as a data file, an import list or a documentation table, can leave out a
-          scenario or name a scenario that does not exist, and nothing fails. A
-          specified scenario that is not built is a normal state. But a list cannot
-          show the difference between that state and a scenario that is available,
-          unless the registry holds only the built scenarios (DEMOCI-11-010).
+          Only the demo module can know that the demo exists. A declaration in the
+          module itself cannot be left out when a new module is written, and a module
+          that omits it shows as a scenario on disk that the registry lacks.
         verification: >-
-          A test asserts the registered scenario set equals the set of
-          `*_demo.py` modules present in `vultron/demo/scenario/`, so a module
-          that omits the declaration fails.
+          `test/demo_unit/test_scenario_registry.py::test_registry_matches_modules_on_disk`
+          asserts that the registered scenario set equals the set of `*_demo.py` modules
+          in `vultron/demo/scenario/`, so a module that omits the declaration fails.
         adr:
           - ADR-0098
+
+      - id: DEMOCI-11-036
+        priority: MUST
+        kind: project
+        statement: >-
+          The scenario registry MUST be the only place that declares the set of
+          implemented demo scenarios.
+        rationale: >-
+          Any separate list, such as a data file, an import list or a documentation
+          table, can leave out a scenario or name one that does not exist, and nothing
+          fails. When every list is generated from the registry, they cannot disagree.
+        verification: >-
+          `test/metadata/test_demo_scenario_artifacts.py::test_committed_artifacts_are_in_sync`
+          fails when a committed scenario artifact differs from what the registry
+          generates, and
+          `test/demo_unit/test_scenario_cli_factory.py::test_registry_is_the_only_source_of_scenario_subcommands`
+          fails when the CLI declares a scenario that the registry does not.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-11-001
+
+      - id: DEMOCI-11-037
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          This codebase MUST NOT register a scenario that is specified but not yet
+          built. Its spec group and the planned-scenario register declare it instead
+          (DEMOCI-11-010).
+        rationale: >-
+          A specified scenario that is not built is a normal state. A list cannot show
+          the difference between that state and an available scenario unless the
+          registry holds only the built scenarios.
+        verification: >-
+          `test/metadata/test_demo_scenario_consistency.py::test_partition_holds_on_the_committed_tree`
+          and `test_partition_reports_a_scenario_in_both_registers` fail when a scenario
+          is both registered and in the planned register.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-11-001
 
       - id: DEMOCI-11-002
         priority: MUST
         kind: project
         statement: >-
-          Registry discovery MUST enumerate the scenario package
-          (`pkgutil`-style traversal of `vultron/demo/scenario/`). It MUST NOT
-          rely on a hand-maintained list of imports.
+          Registry discovery MUST enumerate the scenario package with a `pkgutil`-style
+          walk of `vultron/demo/scenario/`.
         rationale: >-
-          Import-time registration only observes modules that were imported, so a
-          hand-written import list reintroduces the silent omission the registry
-          exists to remove: the new demo is written, nobody adds it to the list,
-          and every generated table looks complete and is wrong. This is the
-          discovery hazard already recorded for the AS2 vocabulary registry.
+          Import-time registration observes only the modules that were imported. A walk
+          of the package imports every module, so a new demo registers without any other
+          edit.
         verification: >-
-          The same set-equality test as DEMOCI-11-001 fails when discovery misses
-          a module, and a test asserts no hand-maintained import list governs
-          discovery.
+          `test/demo_unit/test_scenario_registry.py::test_discovery_walks_the_package`,
+          and the set-equality test of DEMOCI-11-001, fail when discovery misses a
+          module.
         adr:
           - ADR-0098
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-001
 
+      - id: DEMOCI-11-038
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          Registry discovery MUST NOT rely on a hand-maintained list of imports.
+        rationale: >-
+          A hand-written import list brings back the silent omission that the registry
+          exists to remove: the new demo is written, nobody adds it to the list, and
+          every generated table looks complete and is wrong. The AS2 vocabulary registry
+          has the same discovery hazard.
+        verification: >-
+          `test/demo_unit/test_scenario_registry.py::test_no_hand_maintained_import_list`
+          asserts that no hand-maintained import list governs discovery.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-11-002
+
       - id: DEMOCI-11-003
         priority: MUST
         kind: project
         statement: >-
-          A scenario's demo script, invariant harness, and narrative page paths
-          MUST be derived from its registered name by convention
-          (`vultron/demo/scenario/<name_>_demo.py`,
-          `test/ci/invariants/test_<name_>_invariants.py`,
-          `docs/topics/scenarios/<name>.md`, where `<name_>` replaces hyphens
-          with underscores). The registry MUST NOT store these paths.
+          The scenario registry MUST derive a scenario's demo script, invariant harness
+          and narrative page paths from its registered name, and store none of them. The
+          paths are `vultron/demo/scenario/<name_>_demo.py`,
+          `test/ci/invariants/test_<name_>_invariants.py` and
+          `docs/topics/scenarios/<name>.md`, where `<name_>` replaces hyphens with
+          underscores.
         rationale: >-
           A stored path can be wrong about itself; a derived path either resolves
           or fails a check. Every registered scenario satisfies all three
@@ -1817,22 +2089,15 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          `.github/demo-scenarios.json` MUST be generated from the scenario
-          registry and MUST remain committed. It MUST carry only the keys the CI
-          matrix consumes (`demo`, `test_file`, `full_suite_only`), and
-          `full_suite_only` MUST be an explicit boolean on every entry.
+          `.github/demo-scenarios.json` MUST be generated from the scenario registry.
         rationale: >-
-          The `scenarios` job resolves the matrix with `jq` immediately after
-          checkout, in a job with no Python environment, so the matrix cannot be
-          computed at run time and the file cannot be build-time-only. Entries
-          are splatted into `matrix: include:`, so every extra key becomes a
-          matrix variable visible to every step of two jobs. The selection filter
-          is `select(.full_suite_only == false)`, so an omitted field silently
-          drops a PR-set scenario from the matrix instead of erroring.
+          A hand-kept matrix file can disagree with the registry, and a scenario then
+          runs in CI under a wrong name or not at all. A generated file, gated by its
+          check mode (DEMOCI-11-005), always matches the registry.
         verification: >-
-          The dumper's check mode fails when the committed JSON does not match
-          the registry, and a test asserts the projection carries no keys beyond
-          the three the matrix consumes.
+          The dumper's check mode fails when the committed JSON does not match the
+          registry
+          (`test/metadata/test_demo_scenario_artifacts.py::test_matrix_json_is_the_committed_projection_of_the_registry`).
         adr:
           - ADR-0098
         relationships:
@@ -1840,6 +2105,59 @@ groups:
             spec_id: DEMOCI-06-007
           - rel_type: refines
             spec_id: DEMOCI-06-004
+
+      - id: DEMOCI-11-039
+        priority: MUST
+        kind: project
+        statement: >-
+          This codebase MUST keep `.github/demo-scenarios.json` committed.
+        rationale: >-
+          The `scenarios` job resolves the matrix with `jq` right after checkout, in a
+          job with no Python environment. The matrix thus cannot be computed at run
+          time, and the file cannot be build-time-only.
+        verification: >-
+          `test/metadata/test_demo_scenario_artifacts.py::test_matrix_json_is_the_committed_projection_of_the_registry`
+          reads the committed file and fails when it is missing or differs.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-11-004
+
+      - id: DEMOCI-11-040
+        priority: MUST
+        kind: project
+        statement: >-
+          Each entry of `.github/demo-scenarios.json` MUST carry only the keys that the
+          CI matrix consumes: `demo`, `test_file` and `full_suite_only`.
+        rationale: >-
+          The entries are splatted into `matrix: include:`, so every extra key becomes a
+          matrix variable visible to every step of two jobs.
+        verification: >-
+          `test/metadata/test_demo_scenario_artifacts.py::test_matrix_carries_only_the_keys_the_ci_matrix_consumes`.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-11-004
+
+      - id: DEMOCI-11-041
+        priority: MUST
+        kind: project
+        statement: >-
+          Every entry of `.github/demo-scenarios.json` MUST set `full_suite_only` to an
+          explicit boolean.
+        rationale: >-
+          The selection filter is `select(.full_suite_only == false)`, so an omitted
+          field silently drops a PR-set scenario from the matrix instead of raising an
+          error.
+        verification: >-
+          `test/metadata/test_demo_scenario_artifacts.py::test_matrix_full_suite_only_is_an_explicit_boolean`.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-11-004
 
       - id: DEMOCI-11-005
         priority: MUST
@@ -1865,23 +2183,42 @@ groups:
         priority: MUST_NOT
         kind: project
         statement: >-
-          Documentation outside the MkDocs tree MUST NOT use
-          `{% include-markdown %}` to source a scenario table. Such a table MUST
-          instead be generated into the file, or — where it interleaves
-          hand-written columns the registry does not hold — checked in place
-          against the registry (DEMOCI-11-007).
+          Documentation outside the MkDocs tree MUST NOT use `{% include-markdown %}` to
+          source a scenario table.
         rationale: >-
           The `include-markdown` plugin expands only during a MkDocs build, and
-          `mkdocs.yml` references neither `notes/` nor `test/ci/`. An include
-          directive in either renders as literal text to every reader on GitHub
-          and to every agent reading the raw file. Build-time rendering is the
-          stronger guarantee — no table is committed, so drift is impossible —
-          but it is available only inside the MkDocs tree.
+          `mkdocs.yml` references neither `notes/` nor `test/ci/`. An include directive
+          in either renders as literal text to every reader on GitHub and to every agent
+          that reads the raw file.
         verification: >-
-          A test asserts no file outside the MkDocs tree contains an
-          include-markdown directive for a scenario table.
+          `test/metadata/test_demo_scenario_consistency.py::test_no_stray_scenario_include_directives`
+          asserts that no file outside the MkDocs tree contains an include-markdown
+          directive for a scenario table.
         adr:
           - ADR-0098
+
+      - id: DEMOCI-11-042
+        priority: MUST
+        kind: project
+        statement: >-
+          A scenario table in documentation outside the MkDocs tree MUST be generated
+          into its file or checked in place against the registry (DEMOCI-11-007). A
+          table is checked in place when it interleaves hand-written columns that the
+          registry does not hold.
+        rationale: >-
+          Build-time rendering is the stronger guarantee, because no table is committed
+          and drift is impossible. But it is available only inside the MkDocs tree, so a
+          table outside it is generated or checked instead.
+        verification: >-
+          `test/metadata/test_demo_scenario_artifacts.py::test_committed_artifacts_are_in_sync`
+          fails a generated table that differs from the registry, and
+          `test/metadata/test_demo_scenario_consistency.py::test_notes_scenario_tables_agree_with_the_registry`
+          fails a checked table that disagrees with it.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-11-006
 
       - id: DEMOCI-11-007
         priority: MUST
@@ -1972,28 +2309,22 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Every demo scenario that has a spec group MUST appear in exactly one of
-          two places: the scenario registry, if it is implemented, or the
-          planned-scenario register in `notes/demo-future-ideas.md`, if it is
-          specified but not yet built. A planned entry MUST carry its tracking
-          issue and its spec IDs. Neither membership may be inferred from the
-          other, and a scenario MUST NOT be absent from both or present in both.
+          Every demo scenario that has a spec group MUST appear in exactly one of two
+          places. An implemented scenario is in the scenario registry, and a scenario
+          that is specified but not yet built is in the planned-scenario register in
+          `notes/demo-future-ideas.md`. Neither membership is inferred from the other.
         rationale: >-
-          Scenario authors specify a scenario before they build it. The spec group is
-          how they agree on the expected behavior first. But a scenario that is
-          specified and tracked can then show only in a table of available demos, and
-          nothing can tell it apart from a built scenario. Thus the registry holds only
-          the built scenarios, the planned register holds the specified scenarios that
-          are not built, and a check confirms that each scenario is in exactly one of
-          the two. The check also works in the other direction. DEMOMA-16-014 and
-          DEMOMA-16-015 describe scenarios that are correctly not in the registry. A
-          check from the registry to the prose alone would report agreement and ignore
-          them.
+          Scenario authors specify a scenario before they build it. But a specified
+          scenario can then show in a table of available demos, and nothing tells it
+          apart from a built one. Thus the registry holds only built scenarios, the
+          planned register holds the rest, and a check confirms that each is in exactly
+          one. The check also runs from the prose side, so the scenarios of
+          DEMOMA-16-014 and DEMOMA-16-015 are not ignored.
         verification: >-
-          A test asserts that the scenarios named by scenario spec groups
-          partition exactly into the registered set and the planned register, with
-          no scenario missing from both and none in both, and that every planned
-          entry names a tracking issue and its spec IDs.
+          A test asserts that the scenarios named by scenario spec groups partition
+          exactly into the registered set and the planned register, with no scenario
+          missing from both and none in both
+          (`test/metadata/test_demo_scenario_consistency.py::test_partition_holds_on_the_committed_tree`).
         adr:
           - ADR-0098
         relationships:
@@ -2002,35 +2333,41 @@ groups:
           - rel_type: refines
             spec_id: DEMOCI-11-007
 
+      - id: DEMOCI-11-043
+        priority: MUST
+        kind: project
+        statement: >-
+          Each entry of the planned-scenario register MUST carry its tracking issue and
+          its spec IDs.
+        rationale: >-
+          A planned entry that names no issue cannot be followed to the work that builds
+          it, and one that names no spec IDs cannot be checked against the spec groups
+          that the partition reads.
+        verification: >-
+          `test/metadata/test_demo_scenario_consistency.py::test_planned_register_rows_carry_an_issue_and_spec_ids`
+          and `test_partition_reports_an_incomplete_planned_row`.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-11-010
+
       - id: DEMOCI-11-011
         priority: MUST
         kind: project
         statement: >-
-          The demo CLI (`vultron/demo/cli.py`) MUST generate its per-scenario
-          sub-commands from the scenario registry: it MUST add exactly one
-          sub-command per registered scenario, iterating the registry rather than
-          declaring a `@main.command` block per scenario. A scenario sub-command
-          MUST NOT be hand-declared, and the CLI MUST NOT be a place a scenario
-          can be omitted from or added to independently of the registry.
+          The demo CLI, `vultron/demo/cli.py`, MUST generate its per-scenario
+          sub-commands from the scenario registry.
         rationale: >-
-          The registry is the one place that declares the scenarios. A sub-command that
-          is declared by hand is a second list, which can leave out a registered
-          scenario. Nobody can then run that scenario from the CLI. When the CLI reads
-          the registry, it has one sub-command for each registered scenario. The
-          container URL options are different for each scenario, and the registry
-          decorator holds only what the demo knows about itself (ADR-0098). Each
-          scenario module declares them in a `ROLES` list of `ActorRole` values, and one
-          command factory reads that list, as in the `ActorSession` model (DEMOMA-26). A
-          test checks that the role declaration agrees with the `main()` signature of
-          the scenario, so the two cannot become different.
+          The registry is the one place that declares the scenarios. The container URL
+          options differ for each scenario, and each scenario module declares them in a
+          `ROLES` list of `ActorRole` values. One command factory reads that list, as in
+          the `ActorSession` model (DEMOMA-26), and a test checks that the roles agree
+          with the `main()` signature of the scenario (ADR-0098).
         verification: >-
-          A test asserts every registered scenario has exactly one CLI
-          sub-command. Because a factory-built command and a hand-declared one
-          are indistinguishable at click runtime, absence of hand-wiring is
-          checked at the source level: an AST/source assertion that no
-          `@main.command` decorator in `cli.py` names a registered scenario. A
-          ratchet test asserts each scenario's declared role set matches its
-          `main()` keyword parameters.
+          `test/demo_unit/test_scenario_cli_factory.py` builds each sub-command through
+          the factory, and a ratchet test asserts that the declared role set of each
+          scenario matches its `main()` keyword parameters.
         adr:
           - ADR-0098
         relationships:
@@ -2039,87 +2376,209 @@ groups:
           - rel_type: refines
             spec_id: DC-01-002
 
-      - id: DEMOCI-11-012
+      - id: DEMOCI-11-044
         priority: MUST
         kind: project
         statement: >-
-          A scenario narrative page (`docs/topics/scenarios/<name>.md`, and the
-          index `docs/topics/scenarios/index.md`) MUST NOT declare a `status` or
-          `maturity` frontmatter key. Every markdown page under
-          `docs/topics/scenarios/` other than the index MUST be a registered
-          scenario's narrative page as derived by DEMOCI-11-003; a page whose stem
-          names no registered scenario MUST fail the check. A `_`-prefixed
-          `{% include-markdown %}` fragment that the narrative pages share is not
-          a page (DF-09-007) and is not checked.
+          The demo CLI MUST hold exactly one sub-command per registered scenario, and no
+          scenario sub-command that the registry lacks.
+        rationale: >-
+          A CLI that can omit or add a scenario on its own is a second list. A
+          registered scenario that it leaves out cannot be run from the CLI.
+        verification: >-
+          `test/demo_unit/test_scenario_registry.py::test_every_scenario_has_a_cli_subcommand`
+          and
+          `test/demo_unit/test_scenario_cli_factory.py::test_scenario_subcommands_are_exactly_the_registered_set`.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-11-011
+
+      - id: DEMOCI-11-045
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A scenario sub-command MUST NOT be hand-declared, such as with a
+          `@main.command` block in `cli.py`.
+        rationale: >-
+          A hand-declared sub-command is a second list that can drift from the registry.
+          A factory-built command and a hand-declared one look the same to click at run
+          time, so the check reads the source.
+        verification: >-
+          `test/demo_unit/test_scenario_cli_factory.py::test_no_scenario_subcommand_is_hand_declared`
+          asserts at the source level that no `@main.command` decorator in `cli.py`
+          names a registered scenario.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-11-011
+
+      - id: DEMOCI-11-012
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A scenario narrative page, `docs/topics/scenarios/<name>.md`, and the index
+          `docs/topics/scenarios/index.md` MUST NOT declare a `status` or `maturity`
+          frontmatter key.
         rationale: >-
           A page cannot know if its scenario passes (MS-16-002). A `status: stable` key
-          that nobody checks can show on a page when its scenario fails. The
-          demo-integration workflow gives the current answer, because it runs every
-          registered scenario (DEMOCI-06-003). Thus a page for a scenario that is not
-          registered describes a scenario that no CI run exercises. The `maturity` key
-          is refused too, because a page has no maturity tier (ADR-0106). Prose that
-          claims a result is wrong for the same reason, but a review must find it.
+          that nobody checks can show on a page when its scenario fails, while the
+          demo-integration workflow gives the current answer (DEMOCI-06-003). The
+          `maturity` key is refused too, because a page has no maturity tier (ADR-0106).
+          Prose that claims a result is wrong for the same reason, but a review must
+          find it.
         verification: >-
-          `uv run demo-scenarios --check` (the pre-commit hook, DEMOCI-11-005)
-          reports a page under `docs/topics/scenarios/` that no registered
-          scenario derives, and a narrative or index page whose frontmatter
-          carries `status` or `maturity`. `test/metadata/test_demo_scenario_consistency.py`
-          asserts the committed tree is clean and that each finding fires on a
-          mutated fixture copy, including through the aggregate the hook calls.
+          `uv run demo-scenarios --check` (the pre-commit hook, DEMOCI-11-005) reports a
+          narrative or index page whose frontmatter carries `status` or `maturity`.
+          `test/metadata/test_demo_scenario_consistency.py::test_no_narrative_page_declares_a_maturity_claim`
+          asserts the committed tree is clean, and
+          `test_status_claim_check_reports_each_maturity_key` that the finding fires on
+          a mutated fixture copy.
         adr:
           - ADR-0098
           - ADR-0106
         relationships:
           - rel_type: refines
-            spec_id: DEMOCI-11-003
-          - rel_type: refines
             spec_id: DEMOCI-11-007
           - rel_type: derives_from
             spec_id: MS-16-002
+
+      - id: DEMOCI-11-046
+        priority: MUST
+        kind: project
+        statement: >-
+          Every markdown page under `docs/topics/scenarios/` other than the index MUST
+          be the narrative page of a registered scenario, as DEMOCI-11-003 derives it.
+          The check fails a page whose stem names no registered scenario. A shared
+          `_`-prefixed `{% include-markdown %}` fragment is not a page (DF-09-007), and
+          the check skips it.
+        rationale: >-
+          The demo-integration workflow runs every registered scenario (DEMOCI-06-003).
+          A page for a scenario that is not registered thus describes a scenario that no
+          CI run exercises.
+        verification: >-
+          `uv run demo-scenarios --check` reports a page under `docs/topics/scenarios/`
+          that no registered scenario derives.
+          `test/metadata/test_demo_scenario_consistency.py::test_every_narrative_page_names_a_registered_scenario`,
+          `test_narrative_page_check_reports_a_stray_page` and
+          `test_narrative_page_check_exempts_include_fragments` assert the committed
+          tree, the finding and the fragment exemption.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: uses_definition
+            spec_id: DEMOCI-11-003
 
       - id: DEMOCI-11-013
         priority: MUST
         kind: project
         statement: >-
-          Every branch point of the demo scenario tree MUST be defined exactly
-          once, in a branch-point table in the scenario package, with the role
-          that decides there, the presenter prompt, and at least two choices.
-          Each choice MUST carry a presenter label and exactly one trigger,
-          called by the branch point's role: that role's next trigger on the
-          path. Steps by other roles MAY run between the decision and that
-          trigger. A choice MUST NOT be a non-trigger action (a wait, a skip or
-          a fall-through). The prompt and choice
-          labels MUST NOT be declared anywhere else, including on `@scenario`
-          and in `ui/`.
+          Each branch point MUST be defined exactly once, as one branch-point table entry
+          with its deciding role, presenter prompt and two or more choices. The table is
+          the one in the scenario package, and it holds every branch point of the
+          scenario tree.
         rationale: >-
-          Live mode offers each choice as one trigger POST, and offline mode must offer
-          the same choices (ADR-0104). A choice that is not a trigger has no live form.
-          Thus a decision not to act is written as the next trigger of the role on that
-          path ("report the fix ready", not "invite nobody"), and a party that does
-          nothing shows as what the other party does next. A presenter takes control of
-          a role at a branch point, and the scenario plays the other parties until the
-          next branch point. Thus their steps can occur between a decision and its
-          trigger. Labels in one table cannot become different between the two modes.
+          Live mode and offline mode must offer the same choices (ADR-0104). One table
+          that holds each branch point once is the single source for both modes, so
+          their prompts and choices cannot become different.
         verification: >-
-          A registry test asserts that no two branch points share an identifier;
-          that every branch point names a role, a non-empty prompt and at least
-          two choices; that every choice names a trigger behavior exposed by the
-          trigger routers (`/actors/{id}/trigger/{behavior}`) or the demo
-          trigger router (`/actors/{id}/demo/{behavior}`); and that `@scenario`
-          accepts no prompt or label argument. When a scenario reports reaching
-          a declared step, the harness fails it if the calling actor does not
-          hold the branch point's role
-          (`test/demo/test_scenario_harness.py::TestDecidingRole`). Before an
-          actor is a participant, its role comes from the act that brings it
-          in: submitting the report, or the Invite it answers. The UI's copy
-          of the labels is the generated index, whose drift test
-          (DEMOCI-11-016) fails a hand edit.
+          `test/demo_unit/test_scenario_tree.py::test_two_branch_points_may_not_share_an_id`,
+          `test_committed_table_is_well_formed` and
+          `test_malformed_branch_point_is_refused` assert that no two branch points
+          share an identifier, and that every branch point names a role, a non-empty
+          prompt and at least two choices.
         adr:
           - ADR-0098
           - ADR-0104
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-001
+
+      - id: DEMOCI-11-047
+        priority: MUST
+        kind: project
+        statement: >-
+          Each branch-point choice MUST carry a presenter label and exactly one trigger:
+          the next trigger of the branch point's role on the path.
+        rationale: >-
+          Live mode offers each choice as one trigger POST (ADR-0104). A presenter takes
+          control of a role at a branch point, so the choice is what that role does next
+          on the path.
+        verification: >-
+          `test/demo_unit/test_scenario_tree.py::test_every_choice_is_a_mounted_trigger`
+          asserts that every choice names a trigger behavior exposed by the trigger
+          routers (`/actors/{id}/trigger/{behavior}`) or the demo trigger router
+          (`/actors/{id}/demo/{behavior}`), and `test_malformed_choice_is_refused`
+          refuses a choice without its label or trigger. When a scenario reports
+          reaching a declared step, the harness fails it if the calling actor does not
+          hold the role of the branch point
+          (`test/demo/test_scenario_harness.py::TestDecidingRole`). Before an actor is a
+          participant, its role comes from the act that brings it in: submitting the
+          report, or the Invite it answers.
+        adr:
+          - ADR-0098
+          - ADR-0104
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-11-013
+
+      - id: DEMOCI-11-048
+        priority: MAY
+        kind: project
+        statement: >-
+          Steps by other roles MAY run between a branch-point decision and the trigger of
+          its choice.
+        rationale: >-
+          The scenario plays the other parties until the next branch point, so their
+          steps can occur between a decision and its trigger.
+        adr:
+          - ADR-0098
+          - ADR-0104
+
+      - id: DEMOCI-11-049
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          A branch-point choice MUST NOT be a non-trigger action, such as a wait, a skip
+          or a fall-through.
+        rationale: >-
+          A choice that is not a trigger has no live form. A decision not to act is thus
+          written as the next trigger of the role on that path ("report the fix ready",
+          not "invite nobody"), and a party that does nothing shows as what the other
+          party does next.
+        verification: >-
+          `test/demo_unit/test_scenario_tree.py::test_every_choice_is_a_mounted_trigger`
+          fails a choice that names no mounted trigger behavior.
+        adr:
+          - ADR-0098
+          - ADR-0104
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-11-013
+
+      - id: DEMOCI-11-050
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          The prompt and the choice labels MUST NOT be declared anywhere outside the
+          branch-point table, including on `@scenario` and in `ui/`.
+        rationale: >-
+          Labels held in one table cannot become different between the live and offline
+          modes. A second copy on the decorator or in the UI could drift from the table.
+        verification: >-
+          `test/demo_unit/test_scenario_tree.py::test_scenario_decorator_takes_no_prompt_or_choice_label`
+          asserts that `@scenario` accepts no prompt or label argument. The UI's copy of
+          the labels is the generated index, whose drift test (DEMOCI-11-016,
+          `test/metadata/demo_scenarios/test_export_tree.py::test_committed_index_matches_a_fresh_export`)
+          fails a hand edit.
+        adr:
+          - ADR-0098
+          - ADR-0104
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-11-013
 
       - id: DEMOCI-11-014
         priority: MUST
@@ -2189,22 +2648,18 @@ groups:
         priority: SHOULD
         kind: project
         statement: >-
-          A scenario's name SHOULD keep the letter grammar of the existing names:
-          the leading letters spell, in order, the roles that join the case (`r`
-          Reporter, `v` Vendor, `c` Coordinator, `d` Deployer, and one new letter
-          for each further role a scenario adds), and an optional hyphenated
-          suffix names the outcome. A Vendor that reports its own vul joins as a
-          Vendor, so its name begins with `v`. Names SHOULD NOT be generated from
-          the path's choices.
+          A scenario's name SHOULD keep the letter grammar of the existing names. Its
+          leading letters spell, in order, the roles that join the case. They are `r`
+          Reporter, `v` Vendor, `c` Coordinator and `d` Deployer, with one new letter
+          for each further role. An optional hyphenated suffix names the outcome. A
+          Vendor that reports its own vul joins as a Vendor, so its name begins with
+          `v`.
         rationale: >-
           A name is the stem of the module, the invariant harness, the narrative page,
           the `scenario_start` marker and the CI matrix entry, so a new name changes all
-          of them. A name generated from choices changes for every scenario below a new
-          branch point. The grammar is a naming convention that review keeps, not a
-          registry check. Some joins occur in scripted steps that no choice records, so
-          a check of the name needs the recording, and such a check costs more to keep
-          than it is worth for demo names. The Finder letter `f` is retired with the
-          Finder role (ADR-0078).
+          of them. The grammar is a naming convention that review keeps, not a registry
+          check: some joins occur in scripted steps that no choice records. The Finder
+          letter `f` is retired with the Finder role (ADR-0078).
         adr:
           - ADR-0098
           - ADR-0078
@@ -2212,29 +2667,37 @@ groups:
           - rel_type: depends_on
             spec_id: DEMOCI-11-014
 
+      - id: DEMOCI-11-051
+        priority: SHOULD_NOT
+        kind: project
+        statement: >-
+          A scenario's name SHOULD NOT be generated from the choices of its path.
+        rationale: >-
+          A name generated from choices changes for every scenario below a new branch
+          point. Each change renames the module, the harness, the page and the CI matrix
+          entry of that scenario.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-11-015
+
       - id: DEMOCI-11-016
         priority: MUST
         kind: project
         statement: >-
           The scenario-tree index the demo UI reads MUST be generated from the
-          branch-point table and the registered paths, committed under
-          `ui/src/data/`, and drift-checked per DEMOCI-11-005. It MUST carry the
-          branch-point table, the tree as nested nodes from the root, and one
-          entry per scenario with its label, its path and its recording files.
-          Recording files MUST be keyed by both actor and case.
+          branch-point table and registered paths, committed under `ui/src/data/`, and
+          drift-checked per DEMOCI-11-005.
         rationale: >-
-          The UI holds no copy of a protocol fact that a person keeps by hand
-          (ADR-0128, ADR-0104). A generated index cannot become different from the
-          registry without the drift test failing. Planned scenarios split, merge and
-          consolidate cases, so the recording of one actor can cover several cases. A
-          key on the actor alone does not fit those scenarios.
+          The UI holds no copy of a protocol fact that a person keeps by hand (ADR-0128,
+          ADR-0104). A generated index cannot become different from the registry without
+          the drift test failing.
         verification: >-
-          A drift test fails when the committed index differs from a fresh
-          export, naming the regeneration command. A shape test asserts the
-          index carries the branch-point table, a single root node whose
-          descendants include every registered scenario's ending, and one entry
-          per registered scenario whose recording files are keyed by actor and
-          then by case.
+          `test/metadata/demo_scenarios/test_export_tree.py::test_committed_index_matches_a_fresh_export`
+          fails when the committed index differs from a fresh export, and
+          `test_check_fails_on_a_stale_index_and_names_the_command` names the
+          regeneration command.
         adr:
           - ADR-0098
           - ADR-0104
@@ -2244,15 +2707,57 @@ groups:
           - rel_type: depends_on
             spec_id: DEMOCI-11-014
 
+      - id: DEMOCI-11-052
+        priority: MUST
+        kind: project
+        statement: >-
+          The scenario-tree index MUST carry the branch-point table, the tree as nested
+          nodes from the root, and one entry per scenario. Each entry holds the
+          scenario's label, path and recording files.
+        rationale: >-
+          The UI draws the tree and offers its choices from the index alone, so the
+          index carries every part that the UI shows.
+        verification: >-
+          `test/metadata/demo_scenarios/test_export_tree.py::test_index_carries_the_branch_point_table`,
+          `test_one_root_whose_endings_are_every_scenario_once` and
+          `test_one_entry_per_scenario_with_label_and_path` assert the table, a single
+          root node whose descendants include the ending of every registered scenario,
+          and one entry per registered scenario.
+        adr:
+          - ADR-0098
+          - ADR-0104
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-11-016
+
+      - id: DEMOCI-11-053
+        priority: MUST
+        kind: project
+        statement: >-
+          The scenario-tree index MUST key the recording files of each scenario by both
+          actor and case.
+        rationale: >-
+          Planned scenarios split, merge and consolidate cases, so the recording of one
+          actor can cover several cases. A key on the actor alone does not fit those
+          scenarios.
+        verification: >-
+          `test/metadata/demo_scenarios/test_export_tree.py::test_recordings_are_keyed_by_actor_then_case`.
+        adr:
+          - ADR-0098
+          - ADR-0104
+        relationships:
+          - rel_type: extends
+            spec_id: DEMOCI-11-016
+
       - id: DEMOCI-11-017
         priority: MUST
         kind: project
         statement: >-
-          For every two registered scenarios whose paths share a prefix, a check
-          MUST show that their recorded ledgers are isomorphic up to the branch
-          point where the paths part: after each recording's ids are relabeled
-          in order of first appearance, the entries MUST be equal, including
-          every reference between objects, with timestamps excluded.
+          Take two registered scenarios whose paths share a prefix. A check MUST show
+          that their recorded ledgers are isomorphic up to the branch point where the
+          paths part. Two recorded ledgers are isomorphic when their entries are equal
+          after the ids of each are relabeled in order of first appearance. The
+          comparison includes every reference between objects and excludes timestamps.
         rationale: >-
           Byte identity cannot hold for scenarios that are still copies:
           siblings place their shared steps by hand, so the order can differ
@@ -2556,7 +3061,7 @@ groups:
           These are the only cast containers that own a case, and a case is
           owned as a role (CP-01-013). Without the declaration a Coordinator
           that owns the case holds only `case_owner`, and the harness then
-          fails every Coordinator step of the scenario (#5467, DEMOCI-11-013).
+          fails every Coordinator step of the scenario (#5467, DEMOCI-11-047).
           Every other cast container declares none (DEMOCI-11-026).
         verification: >-
           A test reads the compose file and asserts that the first-Vendor slot

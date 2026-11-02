@@ -24,14 +24,15 @@ Four things are checked here, and they fail for different reasons on purpose:
   evidence (DEMOCI-11-005).
 * **The CI matrix projection stays narrow** (``test_matrix_carries_only_...``).
   Entries are splatted into ``matrix: include:``, so every extra key becomes a
-  matrix variable in every step of two jobs (DEMOCI-11-004).
+  matrix variable in every step of two jobs (DEMOCI-11-040).
 * **The specs that enumerate scenarios agree with the registry and harnesses**
   (``test_democi_06_*``, ``test_per_scenario_demoma_16_*``).  Prose is the one
   input no generator rewrites, so it drifts silently unless checked
   (DEMOCI-11-007, DEMOMA-16-008).
 
 Requirements: ``specs/demo-ci.yaml`` DEMOCI-06-002, DEMOCI-06-003,
-DEMOCI-11-004, DEMOCI-11-005, DEMOCI-11-007; ``specs/multi-actor-demo.yaml``
+DEMOCI-11-004, DEMOCI-11-005, DEMOCI-11-007, DEMOCI-11-040,
+DEMOCI-11-041; ``specs/multi-actor-demo.yaml``
 DEMOMA-16-008.
 """
 
@@ -228,7 +229,7 @@ def test_matrix_carries_only_the_keys_the_ci_matrix_consumes() -> None:
 
     Every key in an entry becomes a matrix variable visible to every step of
     both downstream jobs, so widening the projection is not a cosmetic change
-    (DEMOCI-11-004).
+    (DEMOCI-11-040).
     """
     entries = matrix_entries()
     assert entries, "the scenario registry produced an empty CI matrix"
@@ -244,7 +245,7 @@ def test_matrix_full_suite_only_is_an_explicit_boolean() -> None:
 
     The workflow filters with ``select(.full_suite_only == false)``, an exact
     comparison, so an omitted or truthy-non-boolean field drops a PR-set
-    scenario from the matrix instead of erroring (DEMOCI-11-004).
+    scenario from the matrix instead of erroring (DEMOCI-11-041).
     """
     for entry in json.loads(scenario_matrix_json()):
         assert isinstance(entry["full_suite_only"], bool), entry

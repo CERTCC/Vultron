@@ -1097,13 +1097,14 @@ class TestTheJoinersAddTheirNotes:
 
 
 # ---------------------------------------------------------------------------
-# The fix lifecycle: V1 → VFd, V2 → VFD (DEMOMA-19-004/015/016)
+# The fix lifecycle: V1 → VFd, V2 → VFD (DEMOMA-19-004/015/016/026/028/029)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.spec("DEMOMA-19-004")
 @pytest.mark.spec("DEMOMA-19-015")
 @pytest.mark.spec("DEMOMA-19-016")
+@pytest.mark.spec("DEMOMA-19-026", "DEMOMA-19-028", "DEMOMA-19-029")
 class TestBothVendorsRunTheFixLifecycle:
     """V1 stops at VFd; V2 goes on to VFD.
 
@@ -1189,7 +1190,7 @@ class TestBothVendorsRunTheFixLifecycle:
         assert max(ready) < min(deployed), order
 
     def test_neither_verification_is_called_with_the_wrong_role(self):
-        """DEMOMA-19-016, stated as the two sets of actor ids."""
+        """DEMOMA-19-016 and DEMOMA-19-029, stated as the two sets of actor ids."""
         state = _five_party_state()
         ran = self._run(state)
 
@@ -1295,11 +1296,11 @@ class TestBothVendorsRunTheFixLifecycle:
 
 
 # ---------------------------------------------------------------------------
-# Publication order and the embargo teardown (DEMOMA-19-005)
+# Publication order and the embargo teardown (DEMOMA-19-005, DEMOMA-19-027)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("DEMOMA-19-005")
+@pytest.mark.spec("DEMOMA-19-005", "DEMOMA-19-027")
 class TestV1PublishesThenTheOthers:
     """V1 publishes first and the teardown is awaited before V2 does.
 

@@ -28,7 +28,7 @@ Slug                Consumer                                        Delivery
 
 ``.github/demo-scenarios.json`` is rendered by
 :func:`scenario_matrix_json` rather than as a page, because it is JSON and its
-projection is deliberately narrower than any table (DEMOCI-11-004).
+projection is deliberately narrower than any table (DEMOCI-11-040).
 
 Usage from a ``markdown-exec`` Python block::
 
@@ -53,7 +53,7 @@ from vultron.demo.scenario.registry import (
 #: Entries are splatted into ``matrix: include:``, so every key here becomes a
 #: matrix variable visible to every step of two jobs.  Keep the projection
 #: narrow: nothing belongs here that the workflow does not read
-#: (DEMOCI-11-004).
+#: (DEMOCI-11-040).
 MATRIX_KEYS: tuple[str, ...] = ("demo", "test_file", "full_suite_only")
 
 #: Marks membership of the PR validation set in a rendered table.
@@ -234,7 +234,7 @@ def matrix_entries(
     ``full_suite_only`` is always present and always a real boolean: the
     workflow's selection filter is ``select(.full_suite_only == false)``, so an
     omitted field makes a PR-set scenario vanish from the matrix silently
-    instead of erroring (DEMOCI-11-004).
+    instead of erroring (DEMOCI-11-041).
     """
     resolved = discover_scenarios() if specs is None else specs
     return [

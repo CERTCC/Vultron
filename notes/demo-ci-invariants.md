@@ -81,7 +81,7 @@ failure path must still leave `devlogs/<demo>/dump-manifest.json` (#2239).
   sort first and satisfy an ordering check such as `check_causal_edges`.
 - **An all-skip session exits non-zero.** pytest exits 0 when everything skips,
   which reads green with nothing checked. `_AllSkipGuard` in
-  `test/ci/invariants/conftest.py` sets the exit status to 1 (DEMOCI-10-005).
+  `test/ci/invariants/conftest.py` sets the exit status to 1 (DEMOCI-10-005, DEMOCI-10-017).
 
 ### Layer 2 — Pre-harness failures (DEMOCI-10-006)
 
@@ -237,7 +237,7 @@ the check's parameter; do not skip the invariant.
 
 When a scenario phase is added or removed, change the DEMOMA-16 requirement in
 `specs/multi-actor-demo.yaml` and the harness's `_XXX_EXPECTED_SEMANTIC_TYPES` in
-the **same PR** (DEMOMA-16-008). They cannot be split across a docs PR and a
+the **same PR** (DEMOMA-16-018). They cannot be split across a docs PR and a
 later implementation PR.
 
 `test/metadata/test_demo_scenario_artifacts.py` ratchets one direction:
@@ -365,7 +365,7 @@ seated.
   opening was built with and follows the canonical ledger, both exactly once.
 - **Do not add `try/finally: assert_demo_success()` to `main()`.** The harness
   owns the accumulator; a second owner asserts before the dump runs
-  (DEMOMA-23-001).
+  (DEMOMA-23-010).
 
 To test it, make a mid-scenario phase raise with `DEVLOGS_DIR` at a `tmp_path`
 and assert the manifest exists, as

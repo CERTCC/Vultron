@@ -44,7 +44,7 @@ from vultron.demo.utils import (
 
 @pytest.fixture(scope="module")
 def demo_env(client):
-    """Route the demo's client at the in-process TestClient (DEMOMA-26-002)."""
+    """Route the demo's client at the in-process TestClient (DEMOMA-26-008)."""
     with route_exchange_demo_at_testclient(client, demo) as base:
         yield base
 

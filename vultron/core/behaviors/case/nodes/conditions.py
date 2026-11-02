@@ -53,7 +53,7 @@ class CheckAutoCaseCreationEnabledNode(py_trees.behaviour.Behaviour):
     case-creation subtree to run.  Returns ``FAILURE`` when
     ``auto_create_case`` is ``False``, so the enclosing ``Sequence`` exits
     without creating a ``VulnerabilityCase`` — enabling the pre-case ACK
-    (``Read(Offer(Report))``, VAM-02-003) protocol path (CM-15-002,
+    (``Read(Offer(VulnerabilityReport))``, VAM-02-003) protocol path (CM-15-002,
     CM-15-003; ADR-0015).
 
     The policy is supplied as a constructor argument rather than read from

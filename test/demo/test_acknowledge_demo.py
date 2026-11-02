@@ -23,7 +23,7 @@ from vultron.demo.exchange import acknowledge_demo as demo
 
 @pytest.fixture(scope="module")
 def demo_env(client):
-    """Routes the demo at the TestClient (DEMOMA-26-002)."""
+    """Routes the demo at the TestClient (DEMOMA-26-008)."""
     with route_exchange_demo_at_testclient(client, demo):
         yield
 

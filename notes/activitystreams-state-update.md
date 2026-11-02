@@ -44,10 +44,11 @@ Derive a BT-built activity's `name` from the object's own attributes
 (`object_.name or object_.id_`), never `repr()` or `str()`. The outbound adapter
 does not sanitize semantic content.
 
-## A `cc`-Only Receiver of `Offer(Report)` Refuses It
+## A `cc`-Only Receiver of `Offer(VulnerabilityReport)` Refuses It
 
-Only a `to` recipient of `Offer(Report)` creates a case; a `cc`-only receiver
-reports `REFUSED` with a reason naming the addressing (HP-01-005, HP-09-001).
+Only a `to` recipient of `Offer(VulnerabilityReport)` creates a case; a `cc`-only
+receiver reports `REFUSED` with a reason naming the addressing (HP-01-005,
+HP-09-001).
 
 ## A Received `Update(VulnerabilityCase)` Is Not Processed
 
@@ -99,9 +100,10 @@ never by its sparseness: a sparse `VulnerabilityCase` is always a case.
 
 ## Bootstrap Embeds Nested Objects Inline
 
-In this codebase every nested domain object in a `Create(VulnerabilityCase)`
-bootstrap (for example the `case_participants` records) MUST be a full inline
-object, never a URI string (CBT-01-012; the protocol allows either, CBT-01-007).
+Every nested domain object in a `Create(VulnerabilityCase)` bootstrap (for
+example the `case_participants` records) MUST be a full inline object, never a
+URI string: the protocol requires it, because the receiver has no trusted source
+to fetch from yet (CBT-01-007, ADR-0170).
 `ActivityStreamRef` accepts the string, but the receiver persists only
 materialized entries, so the participant is never stored and later participant
 guards fail. Serialize the snapshot with

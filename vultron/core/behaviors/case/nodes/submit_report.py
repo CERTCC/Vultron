@@ -92,12 +92,12 @@ class StoreSubmitReportOfferRecordNode(DataLayerActionWithPorts):
 
 
 class CheckOfferAddressedToReceiverNode(DataLayerConditionWithPorts):
-    """Only an addressee acts on an ``Offer(Report)`` (HP-09-001/002).
+    """Only an addressee acts on an ``Offer(VulnerabilityReport)`` (HP-09-001/002).
 
-    The ``Offer(Report)`` tree's own late addressee check: its tree declares
-    the ``OFFER_REPORT_STORED_FIRST`` exemption because it keeps the report
-    and the Offer before the check (CM-15-002), and this node reads the one
-    ``to`` half of the shared definition,
+    The ``Offer(VulnerabilityReport)`` tree's own late addressee check: its tree
+    declares the ``OFFER_REPORT_STORED_FIRST`` exemption because it keeps the
+    report and the Offer before the check (CM-15-002), and this node reads the
+    one ``to`` half of the shared definition,
     :func:`~vultron.core.behaviors.case.nodes.addressee.named_in_to`: case
     creation is decided from ``to`` alone (HP-09-001), so unlike the door
     guard it does not admit the sender's own copy.
@@ -151,7 +151,8 @@ class CheckOfferAddressedToReceiverNode(DataLayerConditionWithPorts):
 def submit_report_received_effects(
     request: SubmitReportReceivedEvent,
 ) -> list[py_trees.behaviour.Behaviour]:
-    """The effect nodes that keep what a received ``Offer(Report)`` carried.
+    """The effect nodes that keep what a received ``Offer(VulnerabilityReport)``
+    carried.
 
     Store the report (intake has archived the Offer); for an Offer that
     names a report, also write the offer record.  Then check that the Offer

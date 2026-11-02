@@ -51,7 +51,7 @@ def _case() -> as_VulnerabilityCase:
     return as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
 
 
-# -- construction / authority (DEMOMA-26-002) ----------------------------
+# -- construction / authority (DEMOMA-26-002, DEMOMA-26-008) -------------
 
 
 def test_is_frozen():
@@ -79,7 +79,7 @@ def test_post_init_skips_check_for_non_absolute_uris():
     ActorSession(client=MagicMock(), actor=as_Actor(id_="vendor"))
 
 
-# -- immutable copies (DEMOMA-26-003) ------------------------------------
+# -- immutable copies (DEMOMA-26-003, DEMOMA-26-009) ---------------------
 
 
 def test_with_case_returns_new_instance_and_leaves_receiver_unchanged():
@@ -112,7 +112,7 @@ def test_quiet_returns_new_silent_instance():
     assert quiet.narrate is False
 
 
-# -- case-scoped guard (DEMOMA-26-003) -----------------------------------
+# -- case-scoped guard (DEMOMA-26-010) -----------------------------------
 
 
 def test_case_scoped_method_raises_without_a_bound_case():

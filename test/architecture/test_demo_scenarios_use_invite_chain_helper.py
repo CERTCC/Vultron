@@ -11,7 +11,7 @@
 #  certain third party source code, object code, documentation and other files
 #  ("Third Party Software"). See LICENSE.md for more details.
 
-"""Architecture ratchet (DEMOMA-17-001): a scenario joins an invitee through
+"""Architecture ratchet (DEMOMA-17-001, DEMOMA-17-003): a scenario joins an invitee through
 ``run_case_invite_chain``, never by writing the invite chain out by hand.
 
 The chain — a participant triggers the invite, the invitee's DataLayer is
@@ -24,7 +24,7 @@ the variants as parameters.
 A scenario module that calls any link of the chain directly is re-introducing
 a hand-nested copy, so this test fails on the first such call.
 
-Spec: ``specs/multi-actor-demo.yaml`` DEMOMA-17-001.
+Spec: ``specs/multi-actor-demo.yaml`` DEMOMA-17-001 and DEMOMA-17-003.
 """
 
 import ast
@@ -83,7 +83,7 @@ def test_scenario_does_not_hand_write_the_invite_chain(
         f"{path.name} calls the invite chain directly at "
         + ", ".join(f"line {ln} ({name})" for ln, name in offenders)
         + "; use vultron.demo.helpers.invite_chain.run_case_invite_chain"
-        " (DEMOMA-17-001, #4192)."
+        " (DEMOMA-17-001, DEMOMA-17-003, #4192)."
     )
 
 

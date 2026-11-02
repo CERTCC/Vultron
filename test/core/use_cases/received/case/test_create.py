@@ -89,7 +89,7 @@ def _case_with_case_actor_participant() -> tuple:
 
     Returns a tuple of (as_VulnerabilityCase, CaseActorParticipant).  The
     participant is embedded INLINE in the case snapshot (not just an ID),
-    matching what a real bootstrap ``Create(as_VulnerabilityCase)`` would carry.
+    matching what a real bootstrap ``Create(VulnerabilityCase)`` would carry.
     """
     participant = as_CaseParticipant(
         case_roles=[CVDRole.CASE_MANAGER],

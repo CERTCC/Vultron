@@ -53,10 +53,11 @@ a shorthand and a wire activity as two names for one thing:
 before claiming a shorthand maps to a wire form.
 
 - **RM moves have two wire expressions, and that is not an anomaly (ADR-0108).**
-  The *act* is the report-scoped activity (`Accept(Offer(Report))` = `RV`); the
-  *declaration of resulting state* is `rmState` on a participant-status
-  broadcast. A disagreement is flagged (RSH-06), not resolved by preferring one
-  (RSH-08-002). Do not propose retiring either form.
+  The *act* is the report-scoped activity
+  (`Accept(Offer(VulnerabilityReport))` = `RV`); the *declaration of resulting
+  state* is `rmState` on a participant-status broadcast. A disagreement is
+  flagged (RSH-06), not resolved by preferring one (RSH-08-002). Do not propose
+  retiring either form.
 - **`EP` is `Invite(EmbargoEvent)[context=VulnerabilityCase]` and nothing else**
   (MSM-02-001). `Announce(EmbargoEvent)` reports the terms in force, or that a Case
   Owner's termination has been applied, and does not propose, so it is not

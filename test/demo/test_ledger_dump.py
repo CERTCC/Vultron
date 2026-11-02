@@ -38,12 +38,12 @@ def _read_sentinel(manifest_path: Path) -> Any:
 
 
 class TestWritePrerunSentinel:
-    """``write_prerun_sentinel`` writes a valid DEMOCI-10-002 manifest.
+    """``write_prerun_sentinel`` writes a valid DEMOCI-10-015 manifest.
 
     Verifies AC-1, AC-3, and AC-4 of ISSUE-2312:
 
     - The sentinel manifest is created at the expected path.
-    - Its JSON conforms to the DEMOCI-10-002 schema.
+    - Its JSON conforms to the DEMOCI-10-015 schema.
     - ``load_devlogs()`` reports a failure — not a skip — when the sentinel is
       the only artifact present (manifest-without-ledgers path, DEMOCI-10-003).
     """
@@ -62,7 +62,7 @@ class TestWritePrerunSentinel:
         )
 
     def test_manifest_conforms_to_democi_10_002_schema(self, tmp_path):
-        """Manifest has all required DEMOCI-10-002 fields with correct values."""
+        """Manifest has all required DEMOCI-10-015 fields with correct values."""
         manifest_path = write_prerun_sentinel(
             self.DEMO_NAME, output_root=tmp_path
         )

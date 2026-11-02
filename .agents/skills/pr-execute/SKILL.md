@@ -61,8 +61,12 @@ Run /pr-triage first (or /pr-ship to run the full pipeline).
 1. Detect PR number (current branch or explicit argument).
 2. Read `.claude/pr-{number}-triage.json`.
 3. Validate `schema_version == "1.0"`. If mismatch, stop and report.
-4. Extract `pr_metadata.domains` and invoke `deepen-context` with those hints
-   to load the same domain context that triage used.
+4. Extract `pr_metadata.domains` and load the same domain context that triage
+   used. Run `PYTHONPATH= uv run build-context check` first
+   (`.agents/skills/shared/build-context.md` § "Reading it"). On exit 0, load
+   what the file lists, then invoke `deepen-context` only for the domains that
+   no `hint=` line covers. On any other exit, invoke `deepen-context` with all
+   of them, as with no file.
 5. Note `pr_metadata.needs_integration_tests`. It is informational: Phase 5's
    gate does not read it: `targeted-tests` gates those paths by their
    importers, integration-marked ones included, and CI runs the rest
@@ -259,39 +263,31 @@ to read both sides and resolve it. Being behind the base, even when the base
 changed files this PR also changes, is not a reason to merge here: CI tests
 the PR merged into its base on every push, and the merger refreshes an
 overlapping PR on GitHub (`gh pr update-branch`) right before merging it, at
-no local cost (PAD-18-009, ADR-0138). Run the checks first:
+no local cost (PAD-18-009, ADR-0138). Commit Phase 2 and CI fixes first, then
+let the script decide:
 
 ```bash
-git fetch origin <base_ref> || { echo "fetch failed — stop and report"; false; }
-bash .agents/skills/shared/merge-state.sh <number>; ms=$?; echo "merge-state exit: $ms"
-git merge-tree --write-tree --name-only HEAD origin/<base_ref> > /tmp/merge-tree.txt; mt=$?; echo "merge-tree exit: $mt"
-PYTHONPATH= uv run targeted-tests --base origin/<base_ref> --overlap; ov=$?; echo "overlap exit: $ov"
+bash .agents/skills/shared/sync-decision.sh <number> <base_ref>; rc=$?; echo "sync-decision exit: $rc"
 ```
 
-If the fetch fails, stop and report: neither `merge-tree` nor `targeted-tests`
-fetches, so a stale `origin/<base_ref>` gives a stale answer. `merge-tree`
-tries the merge without touching the worktree and exits `1` when it would
-conflict, so a conflict is seen even when GitHub answers `UNKNOWN` or has not
-recomputed mergeability since the base moved. It reads committed work only;
-commit Phase 2 and CI fixes before this step. `--overlap` is recorded, not
-acted on: it lists the paths the base changed since the merge base that this
-branch also changes.
+It fetches `origin/<base_ref>`, runs `merge-state.sh`, a trial
+`git merge-tree` and `targeted-tests --overlap`, and applies the decision table
+in its header (DIRTY counts as `CONFLICTING`, first match wins). `merge-tree`
+reads committed work only, and it sees a conflict even when GitHub answers
+`UNKNOWN` or has not recomputed mergeability since the base moved. The script
+prints one `verdict=` line, a `merge_reason`, the four inputs, and
+one `conflict_path=` or `overlap_path=` line per path. Act on the verdict:
 
-Read `merge_state_status` from `merge-state.sh`'s JSON. Treat `DIRTY` as
-`CONFLICTING`, whatever the exit code. Then take the first row that matches:
-
-| `merge-state.sh` | `merge-tree` | Action |
+| `verdict=` | `merge_reason` | Action |
 |---|---|---|
-| any | not `0` or `1`, or `--overlap` exit `2` | Setup error (unknown base ref) — stop and report |
-| `1` (`CONFLICTING`) | any | Merge locally — record `merge_reason: "conflicting"` |
-| any | `1` | Merge locally — record `merge_reason: "conflicting"` |
-| `0`, `merge_state_status: BEHIND` | `0` | Update on GitHub (below) — record `merge_reason: "behind"` |
-| `0` or `2`, `--overlap` exit `1` | `0` | **Do not merge.** Record `merge_reason: "deferred"` and the listed paths; go to Step 3 |
-| `0` or `2` | `0` | **Do not merge.** Go to Step 3 |
+| `setup-error` (exit 2) | — | Stop and report its `reason=` (a failed fetch or an unknown base ref) |
+| `merge` | `conflicting` | Merge locally (below) |
+| `update-on-github` | `behind` | Update on GitHub (below) |
+| `no-merge` | `deferred` | **Do not merge.** Record the `overlap_path=` paths; go to Step 3 |
+| `no-merge` | `none` | **Do not merge.** Record `merge_reason: null`; go to Step 3 |
 
 `merge_state.merge_required` is `true` if any iteration merged (locally or on
-GitHub), and `false` only when every iteration reached one of the last two
-rows.
+GitHub), and `false` only when every iteration's verdict was `no-merge`.
 
 **`BEHIND`, updated on GitHub.** `BEHIND` is the one state in which GitHub
 itself refuses the merge until the branch contains the base, and `pr-verify`
@@ -310,8 +306,8 @@ The new merge commit is GitHub's, so the local worktree must fast-forward to it 
 any later commit (REFERENCE.md § "Merge, do not rewrite"). It changes no line the PR
 wrote, so it needs no local gate: go to Step 5, where CI tests it. Record its SHA as
 `sync_commit_ref`, and record triage's `BEHIND` finding as `outcome: fixed` with that
-SHA as `commit_ref`. If `update-branch` fails, or GitHub reports a conflict, take the
-`"conflicting"` row instead.
+SHA as `commit_ref`. If `update-branch` fails, or GitHub reports a conflict, merge
+locally as for the `merge` verdict instead.
 
 When a local merge is called for (`"conflicting"`):
 

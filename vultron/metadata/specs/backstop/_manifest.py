@@ -21,8 +21,9 @@ from vultron.metadata.specs.backstop._model import (
     Manifest,
 )
 
-_REQ_RE = re.compile(r"^[A-Z]+-\d\d-\d{3}$")
-_GROUP_RE = re.compile(r"^[A-Z]+-\d\d$")
+#: A requirement ID (``PAD-07-001``) and a group ID (``PAD-07``).
+REQ_RE = re.compile(r"^[A-Z]+-\d\d-\d{3}$")
+GROUP_RE = re.compile(r"^[A-Z]+-\d\d$")
 #: A free-text reason: an em-dash (or ``--``/`` - ``) through the end of its
 #: entry. The entry ends at a ``;`` or at a sentence-ending ``.`` that a fresh
 #: ID run follows \u2014 never at a comma, which reason prose uses freely.
@@ -53,9 +54,7 @@ def _leading_ids(text: str, topics: set[str]) -> set[str]:
         ids.update(
             token
             for token in match.group(1).split()
-            if token in topics
-            or _GROUP_RE.match(token)
-            or _REQ_RE.match(token)
+            if token in topics or GROUP_RE.match(token) or REQ_RE.match(token)
         )
     return ids
 

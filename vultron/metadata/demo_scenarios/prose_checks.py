@@ -221,7 +221,7 @@ def consistency_problems(
         lambda: partition_problems(base, loaded, resolved),
         lambda: [
             f"scenario narrative page {page} names no registered scenario, so "
-            "no CI run exercises what it describes (DEMOCI-11-012)."
+            "no CI run exercises what it describes (DEMOCI-11-046)."
             for page in unregistered_narrative_pages(base, resolved)
         ],
         lambda: [

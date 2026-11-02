@@ -116,7 +116,7 @@ def test_no_hand_maintained_import_list() -> None:
     Import-time registration only sees what was imported, so a hand-written
     import list here would recreate the silent omission the registry removes: a
     new demo is written, nobody adds it to the list, and every generated table
-    is quietly complete-looking and wrong (DEMOCI-11-002).
+    is quietly complete-looking and wrong (DEMOCI-11-038).
 
     Asserted over the AST rather than by substring so that naming a module in a
     docstring or comment — as this module's own prose does — cannot satisfy or
@@ -140,8 +140,8 @@ def test_no_hand_maintained_import_list() -> None:
     assert not offenders, (
         f"{_REGISTRY_SOURCE.name} imports scenario demo module(s) by name: "
         f"{offenders}. Discovery must enumerate the package with pkgutil "
-        "(DEMOCI-11-002); a named import list omits any module nobody "
-        "remembers to add."
+        "(DEMOCI-11-002, DEMOCI-11-038); a named import list omits any module "
+        "nobody remembers to add."
     )
 
     calls = {
@@ -188,7 +188,7 @@ def test_every_scenario_has_a_cli_subcommand(spec: ScenarioSpec) -> None:
     (DEMOCI-11-011), so this can no longer fail by someone forgetting a block —
     it fails if discovery and command registration disagree.
 
-    DEMOCI-11-011's "exactly one" has two further halves, neither of which
+    DEMOCI-11-044's "exactly one" has two further halves, neither of which
     ``main.commands`` can answer, because it is a dict keyed by command name: a
     scenario *cannot* resolve to two entries, and a hand-declared block would
     silently replace the generated one rather than coexist with it. Those are

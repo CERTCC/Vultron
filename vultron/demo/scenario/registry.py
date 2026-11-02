@@ -29,7 +29,7 @@ decorating its own ``main()``::
     def main(skip_health_check: bool = False, ...) -> None:
 
 The registry is then the **sole** declaration point for the set of scenarios
-that exist (DEMOCI-11-001), and `.github/demo-scenarios.json`, the scenario
+that exist (DEMOCI-11-036), and `.github/demo-scenarios.json`, the scenario
 tables in `test/ci/README-case-log-ratchet.md` and
 `vultron/demo/scenario/README.md`, and the narrative index at
 `docs/topics/scenarios/index.md` are all derived from it by
@@ -44,7 +44,7 @@ Two design rules are load-bearing and easy to undo by accident:
   scenario, not just the one that needed it.
 - **Discovery walks the package.** Import-time registration only sees modules
   that were imported, so a hand-maintained import list here would recreate
-  exactly the silent omission the registry exists to remove (DEMOCI-11-002).
+  exactly the silent omission the registry exists to remove (DEMOCI-11-038).
   :func:`discover_scenarios` therefore enumerates the package with ``pkgutil``
   and raises when a discovered module did not register, so a generated table
   can never come out quietly short.
@@ -222,7 +222,7 @@ class ScenarioSpec:
     #: ``(branch point id, choice id)`` pairs naming entries of
     #: :data:`~vultron.demo.scenario.branch_points.BRANCH_POINTS`
     #: (DEMOCI-11-014). The prompts and choice labels are read from that table,
-    #: never declared here (DEMOCI-11-013).
+    #: never declared here (DEMOCI-11-050).
     path: tuple[PathStep, ...]
     #: Whether :attr:`path` was read off an assembled story rather than typed
     #: on ``@scenario(path=...)`` (DEMOCI-11-019). It is not a second way to
@@ -351,7 +351,7 @@ def scenario(
         path: The scenario's full path from the root of the scenario tree, as
             ordered ``(branch point id, choice id)`` pairs (DEMOCI-11-014).
             Prompts and choice labels come from the branch-point table, so
-            this decorator takes neither (DEMOCI-11-013).
+            this decorator takes neither (DEMOCI-11-050).
         story: The scenario's assembled story
             (:mod:`vultron.demo.helpers.story`), whose choices are read as the
             path (DEMOCI-11-019).

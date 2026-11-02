@@ -88,8 +88,9 @@ class ApplyInviteRejectToParticipantNode(
 ):
     """Close the invitee's inert record and mark vendor-aware on Reject.
 
-    CM-11-007: ``Reject(Invite(stub))`` moves the inert participant record
-    from RM ``RECEIVED`` to RM ``CLOSED`` and leaves it in place as history.
+    CM-11-007: ``Reject(Invite(Actor)[target=VulnerabilityCaseStub])`` moves the
+    inert participant record from RM ``RECEIVED`` to RM ``CLOSED`` and leaves it
+    in place as history.
     CM-11-009: also advances VF to ``Vf`` for VENDOR invitees.
     PEC: applies ``DECLINED`` when the case has an active embargo.
 

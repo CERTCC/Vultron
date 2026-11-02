@@ -44,6 +44,8 @@ from vultron.metadata.specs.backstop._diff import (
     run_git,
 )
 from vultron.metadata.specs.backstop._manifest import (
+    GROUP_RE,
+    REQ_RE,
     is_resolved,
     parse_manifest,
     unresolved_groups,
@@ -83,6 +85,8 @@ from vultron.metadata.specs.backstop._symbols import (
 
 __all__ = [
     "BOILERPLATE_SYMBOLS",
+    "GROUP_RE",
+    "REQ_RE",
     "BackstopError",
     "BackstopReport",
     "FileChange",
