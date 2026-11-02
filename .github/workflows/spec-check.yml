@@ -89,8 +89,9 @@ jobs:
       - name: Run codebase docs path ratchet
         run: uv run pytest test/architecture/test_codebase_docs_paths.py --tb=short
 
-  # CISEC-05-003 (#4874): one final job reports the run, so a passing job's
-  # close step cannot close the issue a failing sibling just filed.
+  # CISEC-05-012, CISEC-05-013 (#4874): one final job reports the run, so a
+  # passing job's close step cannot close the issue a failing sibling just
+  # filed.
   notify:
     name: Notify CI failure
     runs-on: ubuntu-latest
@@ -117,8 +118,9 @@ jobs:
           mode: notify
           workflow-label: ci:workflow-spec-check
           token: ${{ secrets.GITHUB_TOKEN }}
-      # CISEC-05-002: a superseded run must not declare recovery, so the close
-      # step keeps `!contains(needs.*.result, 'cancelled')`.
+      # CISEC-05-009, CISEC-05-010: a superseded run must not declare
+      # recovery, so the close step keeps
+      # `!contains(needs.*.result, 'cancelled')`.
       - name: Close CI failure issue
         if: "!contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')"
         uses: ./.github/actions/notify-failure

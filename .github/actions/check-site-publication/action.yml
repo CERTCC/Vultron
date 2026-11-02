@@ -6,9 +6,9 @@ description: >
   is not yet recorded. Shared by every workflow that builds the site
   (docs-build-check.yml, deploy_site.yml) so the checks cannot drift apart,
   and in particular so the publishing workflow is gated by exactly what the
-  pull-request workflow is (DOCBW-03-006, DOCBW-03-007, DOCBW-03-008,
+  pull-request workflow is (DOCBW-03-006, DOCBW-03-020, DOCBW-03-026,
   DOCBW-03-012). Run it after the build, and in deploy_site.yml before the
-  Pages upload.
+  Pages upload (DOCBW-06-002).
 
 runs:
   using: composite
@@ -48,10 +48,11 @@ runs:
       run: |
         PYTHONPATH='' uv run docs-links
 
-    # DF-11-023: every page on a reading-path thread, and every start page,
+    # DF-11-045: every page on a reading-path thread, and every start page,
     # renders one box per thread it is on, placed by hand with
-    # include-markdown; a section member's box sits in its section, and no
-    # page renders a box its source does not include. It reads the built HTML,
+    # include-markdown (DF-11-044); a section member's box sits in its section
+    # (DF-11-050), and no page renders a box its source does not include
+    # (DF-11-044). It reads the built HTML,
     # so it needs the full build and is not a pre-commit hook.
     - name: Check reading-path boxes
       if: ${{ !cancelled() }}
