@@ -76,6 +76,7 @@ from vultron.demo.helpers.vendor_story import (
     VENDOR2,
     VENDOR2_LABEL,
     VENDOR_LABEL,
+    dump_vendor_ledgers,
 )
 from vultron.demo.utils import DataLayerClient, demo_step
 from vultron.enums.roles import CVDRole
@@ -241,6 +242,19 @@ THE_VENDOR_INVITES_A_COORDINATOR = story(
 # ---------------------------------------------------------------------------
 
 
+def dump_vendor_coordinator_ledgers(state: StoryState) -> None:
+    """Dump each participant's case ledger, by its devlogs name.
+
+    Thin wrapper (DEMOMA-23-002): the harness runs it on the way out, whether
+    or not an earlier step failed.  Both scenarios of the pair dump the same
+    four replicas in the same order, so it is written here once rather than
+    twice (DEMOMA-17-001); an actor the run never seated has no replica to
+    read, which :func:`~vultron.demo.helpers.vendor_story\
+    .dump_vendor_ledgers` drops rather than 404ing the dump.
+    """
+    dump_vendor_ledgers(state, DEVLOG_REPLICAS)
+
+
 def every_replica_converges(state: StoryState) -> None:
     """Verify LedgerFanout replication for the Reporter, Coordinator and Vendor2.
 
@@ -282,6 +296,7 @@ __all__ = [
     "COORDINATOR_PART",
     "DEVLOG_REPLICAS",
     "THE_VENDOR_INVITES_A_COORDINATOR",
+    "dump_vendor_coordinator_ledgers",
     "every_replica_converges",
     "the_coordinator_and_vendor2_are_seeded",
     "the_vendor_invites_the_coordinator",

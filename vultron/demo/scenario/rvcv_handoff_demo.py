@@ -73,8 +73,8 @@ from vultron.demo.helpers.story import StoryState, choose, run_story, story
 from vultron.demo.helpers.vendor_coordinator_story import (
     COORDINATOR_JOINED,
     COORDINATOR_PART,
-    DEVLOG_REPLICAS,
     THE_VENDOR_INVITES_A_COORDINATOR,
+    dump_vendor_coordinator_ledgers,
     every_replica_converges,
     unseated_coordinator_and_vendor2,
     vendor_coordinator_cast_members,
@@ -87,7 +87,6 @@ from vultron.demo.helpers.vendor_story import (
     VENDOR_LABEL,
     VENDOR_PART,
     both_vendors_report_the_fix_ready,
-    dump_vendor_ledgers,
     required_participants_are_present,
     the_disclosure_reached_every_replica,
     the_embargo_ends_for,
@@ -271,16 +270,6 @@ def everyone_closes(state: StoryState) -> None:
     )
 
 
-def _dump_ledgers(state: StoryState) -> None:
-    """Dump each participant's case ledger, by its devlogs name.
-
-    Thin wrapper (DEMOMA-23-002): the harness runs it on the way out, whether
-    or not an earlier step failed.  An actor the run never seated has no
-    replica to read, so it is left out rather than 404ing the dump.
-    """
-    dump_vendor_ledgers(state, DEVLOG_REPLICAS)
-
-
 #: The RVCV-handoff story: the opening it shares with ``rvcv-extension``, then
 #: the ownership transfer, the Coordinator inviting Vendor2, and the four-party
 #: lifecycle to closure.  The registry reads this scenario's path off the
@@ -347,7 +336,7 @@ def run_rvcv_handoff_demo(
         reporter_client=reporter_client,
         vendor_client=vendor_client,
         case_actor_client=case_actor_client,
-        dump=_dump_ledgers,
+        dump=dump_vendor_coordinator_ledgers,
         reporter_id=reporter_id,
         vendor_id=vendor_id,
         unseated=unseated_coordinator_and_vendor2(

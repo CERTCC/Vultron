@@ -222,8 +222,10 @@ first failure and hides every co-occurring one.
 3. Keep the low-level primitives raising; their unit tests depend on it.
 
 `test/architecture/test_demo_scenario_waits_in_demo_context.py` enforces the rule
-for scenario-level code: a `_phase_*` function, and a composed story's fragments
-(the callables taking a `StoryState`, wherever they live).
+for scenario-level code, which is a composed story's fragments: the callables
+taking a `StoryState`, wherever they live. It keeps a `_phase_*` arm and
+asserts no scenario has one, so a hand-written phase is reported rather than
+silently exempt (#5536).
 
 ---
 

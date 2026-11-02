@@ -105,7 +105,9 @@ from vultron.demo.helpers.story import (
 )
 from vultron.demo.helpers.vendor_coordinator_story import (
     COORDINATOR_JOINED,
+    DEVLOG_REPLICAS,
     THE_VENDOR_INVITES_A_COORDINATOR,
+    dump_vendor_coordinator_ledgers,
 )
 from vultron.demo.helpers.vendor_story import (
     THE_VENDOR_ANSWERS_THE_REPORTER,
@@ -344,7 +346,7 @@ class TestRvcvExtensionStoryShape:
             "vendor2",
             "case-actor",
         ]
-        assert demo.DEVLOG_REPLICAS == (REPORTER, VENDOR, COORDINATOR, VENDOR2)
+        assert DEVLOG_REPLICAS == (REPORTER, VENDOR, COORDINATOR, VENDOR2)
 
 
 # ---------------------------------------------------------------------------
@@ -1164,7 +1166,7 @@ class TestRvcvExtensionLedgerDump:
         state.harness.demo_name = "rvcv-extension"
 
         with patch.object(coordinated_story, "dump_case_ledgers") as dump:
-            demo._dump_ledgers(state)
+            dump_vendor_coordinator_ledgers(state)
         return dump.call_args.kwargs
 
     def test_every_seated_replica_is_dumped_plus_the_canonical_ledger(self):

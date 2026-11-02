@@ -192,8 +192,11 @@ groups:
           story fragment, which is a module-level function taking a
           `StoryState` wherever it lives (DEMOCI-11-019) — and reports every
           raising `wait_for_*` call that sits in neither a `demo_step`, a
-          `demo_check` nor a `demo_gate`. It fails when it resolves no subject
-          of either shape, so a migration that moved the last one would not
+          `demo_check` nor a `demo_gate`. It fails when it resolves no story
+          fragment, and, every scenario being written as composition, it fails
+          too when it resolves a `_phase_*` function: the scan keeps that arm
+          so one written again is covered rather than silently exempt, and the
+          assertion is what says it must not be. So a migration that moved the last one would not
           leave it passing over an empty set.
         relationships:
           - rel_type: refines

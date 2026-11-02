@@ -162,41 +162,8 @@ def open_story_cast(
     )
 
 
-def story_open_cast(
-    *,
-    seats: Sequence[CastSeat],
-    seed: CastSeeder,
-    seed_step: str,
-    case_actor_client: DataLayerClient,
-    dump: Fragment,
-    unseated: Mapping[str, UnseatedContainer] | None = None,
-) -> Callable[[ScenarioHarness], StoryState]:
-    """The ``open_cast`` callable :func:`~.story.run_story` takes.
-
-    Every scenario hands ``run_story`` a closure over :func:`open_story_cast`,
-    so it is built here rather than written out once per family.  The
-    arguments are :func:`open_story_cast`'s; the harness is the one
-    ``run_story`` enters, which is what puts a seeding failure inside the
-    harness that dumps and reports it.
-    """
-
-    def open_cast(harness: ScenarioHarness) -> StoryState:
-        return open_story_cast(
-            harness,
-            seats=seats,
-            seed=seed,
-            seed_step=seed_step,
-            case_actor_client=case_actor_client,
-            dump=dump,
-            unseated=unseated,
-        )
-
-    return open_cast
-
-
 __all__ = [
     "CastSeat",
     "CastSeeder",
     "open_story_cast",
-    "story_open_cast",
 ]

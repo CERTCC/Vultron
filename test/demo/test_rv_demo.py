@@ -639,16 +639,13 @@ class TestTheVendorHoldsTheFinalCase:
 
         final.assert_called_once()
         kwargs = final.call_args.kwargs
+        # Both ids, not None: `_assert_case_notes` skips a note it is given
+        # `None` for, so the check would pass over the thread entirely.  The
+        # props carry real `as_Note`s, so a non-None id is what each equality
+        # below asserts (DEMOCI-11-017).
+        assert question.id_ and answer.id_
         assert kwargs["question_note_id"] == question.id_
         assert kwargs["reply_note_id"] == answer.id_
-        assert kwargs["question_note_id"] is not None, (
-            "M3 must assert the Reporter's question is on the case; a None"
-            " note id silently skips the assertion (DEMOCI-11-017)"
-        )
-        assert kwargs["reply_note_id"] is not None, (
-            "M3 must assert the Vendor's answer is on the case; a None note"
-            " id silently skips the assertion (DEMOCI-11-017)"
-        )
 
     def test_the_authoritative_case_is_read_on_the_vendors_container(self):
         """The Vendor is CASE_OWNER throughout (DEMOMA-06-002)."""

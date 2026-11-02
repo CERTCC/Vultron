@@ -290,13 +290,12 @@ def vendor_open_cast(
     reports it.
 
     The closure calls :func:`open_vendor_cast` rather than
-    :func:`~vultron.demo.helpers.story_cast.story_open_cast` with the same
+    :func:`~vultron.demo.helpers.story_cast.open_story_cast` with the same
     arguments: the seats, the seeder and the step label would then exist twice
     and could drift (CS-22-001), and the opening would be reachable only
-    through this factory, so a test that patches
-    :func:`open_vendor_cast` as the first step of the run that can die would
-    patch nothing (``test/demo/test_issue_2239_ledger_dump_in_finally.py``,
-    DEMOMA-23-003).
+    through this factory, so a test that patches :func:`open_vendor_cast` as
+    the first step of the run that can die would patch nothing
+    (``test/demo/test_issue_2239_ledger_dump_in_finally.py``, DEMOMA-23-003).
     """
 
     def open_cast(harness: ScenarioHarness) -> StoryState:

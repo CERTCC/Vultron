@@ -104,6 +104,7 @@ from vultron.demo.helpers.vendor_coordinator_story import (
     COORDINATOR_PART,
     DEVLOG_REPLICAS,
     THE_VENDOR_INVITES_A_COORDINATOR,
+    dump_vendor_coordinator_ledgers,
 )
 from vultron.demo.helpers.vendor_story import (
     THE_VENDOR_ANSWERS_THE_REPORTER,
@@ -449,7 +450,7 @@ class TestRvcvHandoffCast:
     @pytest.mark.spec("DEMOMA-23-003")
     def test_the_cast_opening_arms_this_scenarios_ledger_dump(self):
         """The dump the case opening arms is this scenario's own wrapper."""
-        assert self._open()["state"].dump is demo._dump_ledgers
+        assert self._open()["state"].dump is dump_vendor_coordinator_ledgers
 
     def test_a_case_actor_id_override_is_accepted_and_unused(self):
         """``--case-actor-id`` has somewhere to go and seeds nothing with it.
@@ -994,7 +995,7 @@ class TestRvcvHandoffLedgerDump:
         )
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
-        demo._dump_ledgers(self._state_for_dump(case))
+        dump_vendor_coordinator_ledgers(self._state_for_dump(case))
 
         case_slug = "https_example.org_cases_rvcv-test-case"
         for devlogs_name in ("reporter", "vendor", "coordinator", "vendor2"):
@@ -1043,7 +1044,7 @@ class TestRvcvHandoffLedgerDump:
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
         state = self._state_for_dump(case)
 
-        demo._dump_ledgers(state)
+        dump_vendor_coordinator_ledgers(state)
 
         log_path = "/actors/case-actor/demo/cases/rvcv-with-ca/log"
         canonical = cast(MagicMock, state.case_actor_client.get_list)
@@ -1071,7 +1072,7 @@ class TestRvcvHandoffLedgerDump:
         )
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
-        demo._dump_ledgers(
+        dump_vendor_coordinator_ledgers(
             self._state_for_dump(case, seats=(REPORTER, VENDOR))
         )
 

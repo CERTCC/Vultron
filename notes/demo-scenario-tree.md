@@ -255,12 +255,16 @@ retiring `path=` and the hand-placed `reach_step` (#5537).
 - **A read-only check may sit inside a shared stretch; an act may not.** `rv`
   tells `THE_VENDOR_ANSWERS_THE_REPORTER`'s two steps with its own M1 and M2
   replica checks between them, so it starts with the shorter prefix and places
-  the note fragment itself. Only writes read the recording clock, so the two
-  checks move no byte and the four vendor-first recordings still agree to the
-  branch point; keeping them where they were is also what leaves `rv`'s
-  verdict and its milestone order untouched (DEMOMA-17-002, #5536). An *act*
-  placed the same way would move the bytes, and the byte-identity check would
-  catch it.
+  the note fragment itself. A poll and a verification write nothing, so they
+  advance no stepping clock, and the four vendor-first recordings still agree
+  to the branch point: measured, `rv`'s recording came out byte-identical to
+  the one committed before the composition. Keeping the two checks where they
+  were is also what leaves `rv`'s verdict and its milestone order untouched
+  (DEMOMA-17-002, #5536). An *act* placed the same way would move the bytes,
+  and the byte-identity check would catch it. The exception is a read that
+  reads the clock itself, as `PendingAssertionStore.pending_for_subject` does
+  to check expiry (#5591, below): slipping one of those into a shared stretch
+  would move the bytes too, so measure rather than assume.
 - **A decision both halves make gets its own module, not a family's.** The
   owner-keep-case choice — keep the case and approve the joiner's suggestion,
   or hand the case over and let the new owner invite — appears in the

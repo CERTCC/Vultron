@@ -46,7 +46,6 @@ from vultron.demo.helpers.story import UnseatedContainer
 from vultron.demo.helpers.story_cast import (
     CastSeat,
     open_story_cast,
-    story_open_cast,
 )
 from vultron.demo.utils import reset_demo_failures
 from vultron.errors import DemoStoryError
@@ -427,74 +426,3 @@ class TestOpenStoryCast:
 
         assert state.unseated is not declared
         assert state.unseated == declared
-
-
-class TestStoryOpenCast:
-    """The ``open_cast`` callable ``run_story`` takes."""
-
-    def test_the_closure_runs_the_opening_with_the_harness_it_is_handed(self):
-        """Built now, run inside the harness later (#5536).
-
-        ``run_story`` enters the harness and *then* calls ``open_cast``, which
-        is what puts a seeding failure inside the harness that dumps and
-        reports it.  So nothing may happen while the closure is being built,
-        and the harness the closure runs against must be the one it is handed
-        rather than one captured at build time.
-        """
-        seats = _seats(*_SEATS)
-        waiting = _waiting(mock_client())
-        case_actor_client = mock_client()
-        seed = MagicMock(return_value=_seeded(seats))
-
-        def dump(_state: object) -> None:
-            return None
-
-        with patch.object(story_cast, "open_story_cast") as opening:
-            open_cast = story_open_cast(
-                seats=seats,
-                seed=seed,
-                seed_step=_SEED_STEP,
-                case_actor_client=case_actor_client,
-                dump=dump,
-                unseated=waiting,
-            )
-            opening.assert_not_called()
-            harness = MagicMock()
-            state = open_cast(harness)
-
-        assert state is opening.return_value
-        assert opening.call_args.args == (harness,), (
-            "the opening must run against the harness run_story handed the"
-            f" closure; it got {opening.call_args.args!r}"
-        )
-        kwargs = opening.call_args.kwargs
-        assert kwargs == {
-            "seats": seats,
-            "seed": seed,
-            "seed_step": _SEED_STEP,
-            "case_actor_client": case_actor_client,
-            "dump": dump,
-            "unseated": waiting,
-        }, f"every argument must be passed through unchanged; got {kwargs!r}"
-        seed.assert_not_called()
-
-    def test_the_closures_seeding_failure_is_raised_to_the_harness(self):
-        """A failed seeding stops the story from inside the harness.
-
-        The closure does not catch it: ``run_story`` is already inside the
-        harness by then, so the ``DemoStoryError`` reaches the context that
-        dumps the ledgers and reports the run (``story.run_story``).
-        """
-        seats = _seats(*_SEATS)
-
-        with _opening(None) as recorder:
-            recorder.seed.side_effect = RuntimeError("container unreachable")
-            open_cast = story_open_cast(
-                seats=seats,
-                seed=recorder.seed,
-                seed_step=_SEED_STEP,
-                case_actor_client=mock_client(),
-                dump=lambda _state: None,
-            )
-            with pytest.raises(DemoStoryError, match="could not be seeded"):
-                open_cast(MagicMock())

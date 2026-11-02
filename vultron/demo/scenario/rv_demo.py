@@ -32,10 +32,10 @@ The story is assembled, not written out: it starts with
 :data:`~vultron.demo.helpers.vendor_story.REPORTER_TELLS_THE_VENDOR`, the
 opening it shares with every vendor-first scenario, and continues through the
 replica synchronization, the note thread and the Vendor's fix
-(:data:`STORY`, DEMOCI-11-019).  The two steps it tells between the opening
-and the thread — the M2 synchronization check and nothing else — read
-replicas and write nothing, so they move no byte of the recording the
-siblings must match (DEMOCI-11-018).
+(:data:`STORY`, DEMOCI-11-019).  The two steps it tells between that opening
+and the note thread its siblings post next — the M1 participant check and the
+M2 replica synchronization — read replicas and write nothing, so they move no
+byte of the recording the siblings must match (DEMOCI-11-018).
 
 Spec: DEMOMA-06 (D5-1-G5).
 """

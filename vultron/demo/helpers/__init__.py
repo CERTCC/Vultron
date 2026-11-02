@@ -95,7 +95,7 @@ Sub-modules
   continues ``THE_VENDOR_ANSWERS_THE_REPORTER`` by inviting a Coordinator.
   Not re-exported here, for the same reason.
 - :mod:`~vultron.demo.helpers.story_cast` — ``CastSeat`` and
-  ``open_story_cast`` / ``story_open_cast``: the reset, seeding and seating
+  ``open_story_cast``: the reset, seeding and seating
   every composed family's opening shares, so a second family does not copy
   the first one's (DEMOMA-17-001). Not re-exported here, for the same reason.
 - :mod:`~vultron.demo.helpers.notes` — ``participant_adds_note_to_case``.
