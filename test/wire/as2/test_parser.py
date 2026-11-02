@@ -294,6 +294,7 @@ def test_parse_activity_keeps_nested_subtype_when_nested_published_is_blank():
 
 
 @pytest.mark.spec("MV-04-003")
+@pytest.mark.spec("MV-10-009")
 def test_parse_activity_refuses_malformed_nested_object_of_known_type():
     """A nested object we recognised but cannot validate is refused, not degraded.
 
@@ -312,6 +313,7 @@ def test_parse_activity_refuses_malformed_nested_object_of_known_type():
 
 @pytest.mark.spec("ARCH-22-001")
 @pytest.mark.spec("MV-04-003")
+@pytest.mark.spec("MV-04-004")
 def test_parse_activity_keeps_inline_actor_subtype_with_inline_collections():
     """An inline actor's subtype must survive its ``inbox``/``outbox``.
 
@@ -450,6 +452,7 @@ def test_refusal_of_malformed_inline_object_names_the_field_path():
 
 @pytest.mark.spec("MV-04-003")
 @pytest.mark.spec("ARCH-22-001")
+@pytest.mark.spec("MV-04-004")
 def test_inline_ordered_collection_resolves_to_the_wire_class():
     """An inline ``OrderedCollection`` must resolve to the wire class.
 

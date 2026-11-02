@@ -73,7 +73,7 @@ class TriggerEntry:
         use_case_class: The ``Svc*UseCase`` the dispatcher constructs as
             ``(dl, request, **ports)``.
         result_type: The ``TriggerResult`` subtype ``execute()`` returns —
-            the verb's exact response-body key set (UCORG-05-005).
+            the verb's exact response-body key set (UCORG-05-015).
         exposure: General-purpose or demo-only (TRIG-08-002).
         bt_backed: Whether ``use_case_class`` runs a behavior tree through
             ``SvcBTTriggerBase``; decides which driven ports it is built with.

@@ -436,7 +436,7 @@ status exists, never when a status exists but cannot be read. Distinguish "not
 present" from "present but invalid" and assert a raise or `FAILURE` for the
 latter. Before removing or trusting a fallback, use the method in
 [notes/domain-validation.md](domain-validation.md) § "When you cannot tell
-whether a fallback is load-bearing" (CS-23-001).
+whether a fallback is load-bearing" (CS-23-002).
 
 ### A FAILURE Test Must Prove the Harness Can Produce Its Named Reason
 

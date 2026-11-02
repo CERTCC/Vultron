@@ -24,7 +24,7 @@ the staging store has been emptied.  It is held for that replay in one
 :class:`~vultron.core.models.deferred_inbox_activity.DeferredInboxActivity`
 record (:meth:`InlineObjectStaging.hold_for_replay`), keyed by the receiver:
 the received body the parser sealed, beside the staged inline rows
-(IO-03-004).  The replay parses that body again, stages it with the held rows
+(IO-03-009).  The replay parses that body again, stages it with the held rows
 and deletes the record (:meth:`InlineObjectStaging.rehydrate_deferred`).
 """
 

@@ -15,7 +15,9 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: The API MUST expose a machine-readable OpenAPI JSON schema at `/openapi.json`
+    statement: >-
+      The API MUST serve a machine-readable OpenAPI JSON schema in reply to
+      `GET /api/v2/openapi/v2.json`.
     rationale: >-
       An agent or a client generator reads the OpenAPI schema to learn the endpoints,
       their parameters and their response types. Without a machine-readable schema,
@@ -246,8 +248,9 @@ groups:
       Clients find endpoints and their response formats in the OpenAPI schema
       (AR-01-001). An endpoint that is missing from the schema is not visible to
       generated clients or to agents that read the schema.
-    verification: Inspection of the `GET /openapi.json` response confirms the action rules endpoint path and response
-      schema are present in the OpenAPI spec.
+    verification: >-
+      Inspection of the `GET /api/v2/openapi/v2.json` response confirms the action
+      rules endpoint path and response schema are present in the OpenAPI spec.
     scope:
     - production
     relationships:

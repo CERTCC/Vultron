@@ -174,7 +174,7 @@ def _refuse_a_different_body(activity: as_Activity, held: _HeldBody) -> None:
     logger.warning(
         "FastAPIIngressAdapter.rehydrate: refusing activity %s (actor %s):"
         " its id is already held (%s) with a different body, so neither"
-        " body is routed and nothing is written (IE-10-002).",
+        " body is routed and nothing is written (IE-10-002 to IE-10-005).",
         activity.id_,
         sender,
         held.kind,

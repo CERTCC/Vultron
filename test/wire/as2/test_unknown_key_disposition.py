@@ -159,6 +159,7 @@ def _info_records_naming(
     [(b, p) for _, b, p in FOREIGN_KEY_POSITIONS],
     ids=[label for label, _, _ in FOREIGN_KEY_POSITIONS],
 )
+@pytest.mark.spec("MV-11-006")
 def test_foreign_key_is_set_aside_and_reported_once(
     body: dict[str, Any], path: str, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -192,6 +193,8 @@ def test_foreign_key_is_set_aside_and_reported_once(
     [(b, a, d) for _, b, a, d in NEAR_MISS_POSITIONS],
     ids=[label for label, _, _, _ in NEAR_MISS_POSITIONS],
 )
+@pytest.mark.spec("MV-11-008")
+@pytest.mark.spec("MV-11-006")
 def test_near_miss_is_refused_naming_both_spellings(
     body: dict[str, Any], arriving: str, declared: str
 ) -> None:
@@ -487,6 +490,7 @@ def test_retired_case_embargo_field_is_refused_naming_the_register(
 
 
 @pytest.mark.spec("MV-11-002")
+@pytest.mark.spec("MV-11-009")
 def test_no_similarity_helper_in_the_parse_edge() -> None:
     """The near-miss test is normalisation plus a list; nothing fuzzier (MV-11-002).
 
@@ -524,6 +528,7 @@ def test_no_similarity_helper_in_the_parse_edge() -> None:
 
 @pytest.mark.spec("MV-11-002")
 @pytest.mark.spec("EH-07-001")
+@pytest.mark.spec("MV-11-008")
 def test_every_near_miss_is_named_in_one_refusal() -> None:
     """A refusal names every near miss at every depth, not only the first."""
     body = _envelope(
@@ -607,6 +612,7 @@ def test_foreign_key_is_reported_at_info_only(
 
 @pytest.mark.spec("MV-11-003")
 @pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("MV-11-010")
 def test_set_aside_key_survives_only_in_the_received_evidence() -> None:
     """The evidence is the only copy of a set-aside key; the body is untouched."""
     body = _with_inline_object(
@@ -660,10 +666,10 @@ def test_normalisation_is_lowercase_and_strip_non_alphanumerics(
     assert normalise(key) == expected
 
 
-@pytest.mark.spec("MV-11-006")
 @pytest.mark.spec("SDO-03-005")
+@pytest.mark.spec("MV-11-011", "MV-11-012")
 def test_no_core_module_names_a_retired_key() -> None:
-    """The retired-name list lives wire-side only (MV-11-006, AC-4).
+    """The retired-name list lives wire-side only (MV-11-011, AC-4).
 
     A per-class reject-guard has to spell the retired key as a string to test
     for it, as ``ParticipantStatus._reject_retired_vfd_keys`` did; no string
@@ -750,6 +756,7 @@ def test_near_miss_of_a_stub_key_is_refused(misspelled: str) -> None:
 
 @pytest.mark.spec("MV-10-001")
 @pytest.mark.spec("CM-11-013")
+@pytest.mark.spec("MV-10-008")
 def test_a_sparse_case_carrying_stub_keys_is_still_a_case(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -842,6 +849,7 @@ def test_partition_and_expansion_resolve_the_same_case_class(
         pytest.param("   ", id="blank"),
     ],
 )
+@pytest.mark.spec("MV-10-007")
 def test_a_stub_without_a_summary_is_refused(summary: str | None) -> None:
     """A receiver refuses a stub whose ``summary`` is absent or blank (MV-10-001).
 
@@ -893,6 +901,7 @@ def test_a_body_nested_too_deeply_is_refused_not_crashed(depth: int) -> None:
     "spelling",
     ["activeEmbargo", "active_embargo", "caseStatus", "case_status"],
 )
+@pytest.mark.spec("MV-10-008")
 def test_the_type_alone_selects_the_stub_or_the_case(
     spelling: str, wire_type: str, expected: str
 ) -> None:
@@ -1087,6 +1096,7 @@ def _registered_classes() -> list[type[BaseModel]]:
 
 
 @pytest.mark.spec("MV-11-002")
+@pytest.mark.spec("MV-11-007")
 def test_no_class_declares_a_jsonld_keyword_as_a_spelling() -> None:
     """No wire or core class accepts `@id`/`@type` on input (AC-4).
 
@@ -1118,6 +1128,7 @@ def test_no_class_declares_a_jsonld_keyword_as_a_spelling() -> None:
 
 
 @pytest.mark.spec("MV-11-002")
+@pytest.mark.spec("MV-11-007")
 def test_no_exemption_names_a_jsonld_keyword() -> None:
     """`@id`/`@type` sit in no exemption set, and no source spells them (AC-4).
 

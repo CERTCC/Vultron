@@ -61,6 +61,11 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   The ask primitive: ask and terminate, conversation-state routing, ask registers.
   **Load when**: building a gate that needs another actor's answer, or an ask/reply
   exchange, ask expiry, or processing-fault notification.
+- **`role-taxonomy-split.md`** · `plan`
+  Splitting roles by scope into case position, case authority and actor standing,
+  and making both case-creation doors claim a position.
+  **Load when**: touching `CVDRole`, a participant's role fields, or where a case
+  owner's roles come from.
 - **`selective-disclosure.md`** · `plan`
   Referencing objects without inlining them, and explicit redaction of withheld fields.
   **Load when**: scoping privacy, redaction, or by-reference payload features.

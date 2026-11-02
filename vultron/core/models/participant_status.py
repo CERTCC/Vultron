@@ -153,7 +153,7 @@ class ParticipantStatus(CoreObject):
     # (SDO-03-005).  On inbound data the parse edge refuses ``vfd_state`` by
     # name from the wire-side list ``vultron.wire.as2.unknown_keys.RETIRED_NAMES``,
     # and each flat spelling as a near miss of its wire spelling (``rm_state`` of
-    # ``rmState``), so it needs no entry there (MV-11-002, MV-11-006).
+    # ``rmState``), so it needs no entry there (MV-11-002, MV-11-011).
 
     @model_validator(mode="before")
     @classmethod

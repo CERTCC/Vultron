@@ -72,13 +72,42 @@ groups:
   - id: CS-03-001
     priority: MUST_NOT
     kind: project
-    verification_debt: '#2575'
-    statement: Wildcard imports (e.g., `from module import *`) MUST NOT be used
+    statement: >-
+      Code in this project MUST NOT use a wildcard import, such as `from module
+      import *`, outside `vultron/wire/as2/vocab/examples/vocab_examples.py`.
     rationale: >-
       A wildcard import hides where a name comes from, so a reader and a type checker
       cannot tell which names a module defines. A name that the source module adds
       later can also replace a local name without warning. In `ruff check`, `F403`
       reports a wildcard import, and `F405` reports a name that can come from one.
+      `vocab_examples.py` gathers its sibling example modules for the docs pages, so
+      it is the one exception. A test makes sure its wildcard imports never replace a
+      name.
+    verification: >-
+      `ruff check` reports each wildcard import as `F403`, and only
+      `vocab_examples.py` carries `# noqa: F403` markers.
+      `test_vocab_examples_star_imports_bind_each_name_once` in
+      `test/architecture/test_vocab_examples_star_imports.py` imports each module
+      that `vocab_examples.py` star-imports and fails when two of them bind one public
+      name to different objects; `test_checker_reports_one_name_bound_to_two_objects`
+      shows that the check fails on such a conflict.
+  - id: CS-03-005
+    priority: MUST
+    kind: project
+    statement: >-
+      Each wildcard import in `vultron/wire/as2/vocab/examples/vocab_examples.py` MUST
+      carry a `# noqa: F403` marker that cites CS-03-001.
+    rationale: >-
+      The marker tells `ruff check` that the wildcard import is intended. The citation
+      tells a reader which rule allows it, so the exception does not look like a
+      mistake.
+    verification: >-
+      `test_each_star_import_cites_cs_03_001` in
+      `test/architecture/test_vocab_examples_star_imports.py` fails on a wildcard
+      import in `vocab_examples.py` whose line lacks `# noqa: F403  # CS-03-001`.
+    relationships:
+    - rel_type: refines
+      spec_id: CS-03-001
   - id: CS-03-002
     priority: MUST
     kind: project
@@ -158,11 +187,29 @@ groups:
   - id: CS-05-005
     priority: MUST
     kind: project
-    statement: 'In production code under `vultron/`, a function-local import MUST exist only to break an import cycle
-      that reorganization has not yet removed, and MUST carry a `# noqa: PLC0415` marker whose trailing comment names the
-      issue that tracks its structural removal (the IMPLTS-07-020 baseline form). A function-local import with no cycle
-      to break MUST be hoisted to module level. A `TYPE_CHECKING`-guarded import is not a function-local import and
-      needs no marker.'
+    statement: >-
+      In production code under `vultron/`, a function-local import MUST exist only to
+      break an import cycle that reorganization has not yet removed. An import with no
+      cycle to break goes at module level.
+    rationale: >-
+      A function-local import hides a dependency from the top of the module. When
+      each one breaks a known cycle, the set of such imports is the list of cycles
+      still to remove.
+    adr:
+    - ADR-0094
+    verification: '`ruff check` invoked with no path operands (IMPLTS-07-021) reports no `PLC0415` finding; each surviving
+      marker in `vultron/` cites an open issue.'
+    relationships:
+    - rel_type: refines
+      spec_id: CS-05-002
+  - id: CS-05-007
+    priority: MUST
+    kind: project
+    statement: >-
+      Each function-local import in `vultron/` MUST carry a `# noqa: PLC0415` marker
+      whose trailing comment names the issue that tracks its structural removal (the
+      IMPLTS-07-020 baseline form). A `TYPE_CHECKING`-guarded import is not a
+      function-local import and needs no marker.
     rationale: >-
       The marker makes each deferred import visible in review, and its comment names
       the issue that removes the cycle. A new function-local import without a marker
@@ -171,11 +218,12 @@ groups:
       markers in `vultron/` therefore list every function-local import that remains.
     adr:
     - ADR-0094
-    verification: '`ruff check` invoked with no path operands (IMPLTS-07-021) reports no `PLC0415` finding; each surviving
-      marker in `vultron/` cites an open issue.'
+    verification: >-
+      `ruff check` invoked with no path operands (IMPLTS-07-021) reports no `PLC0415`
+      finding; each surviving marker in `vultron/` cites an open issue.
     relationships:
-    - rel_type: refines
-      spec_id: CS-05-002
+    - rel_type: extends
+      spec_id: CS-05-005
     - rel_type: refines
       spec_id: IMPLTS-07-020
   - id: CS-05-006
@@ -208,17 +256,6 @@ groups:
       each one needs a tracked marker (CS-05-002, CS-05-005). So a cycle found after
       the fact costs a reorganization of modules. Tracing the chain first finds the
       cycle before the import exists, when a different placement costs nothing.
-- id: CS-06
-  title: Module Size
-  specs:
-  - id: CS-06-001
-    priority: SHOULD
-    kind: project
-    statement: Prefer modules that are < ~400 lines; split large modules by responsibility and avoid single-file catchalls
-    rationale: >-
-      A small module with one responsibility is easier to read, review and test. A
-      catch-all file collects unrelated code, so changes to it conflict more often,
-      and a reader must scan code that has nothing to do with the task.
 - id: CS-07
   title: '`as_` Field Prefix Policy'
   specs:
@@ -284,20 +321,34 @@ groups:
     priority: MUST
     kind: architecture
     verification_debt: '#2569'
-    statement: Data passed across port/adapter boundaries MUST use named, domain-typed objects rather than type-erased containers
-      (plain maps, untyped base classes, or equivalent). Port interface signatures MUST declare parameters and return values
-      as specific domain types, not as generic base types or untyped collections.
+    statement: >-
+      Data passed across a port/adapter boundary MUST use named, domain-typed objects,
+      not type-erased containers such as plain maps or untyped base classes.
     rationale: Ports that accept or return type-erased containers (dicts, bare base models) serve as machine-readable contracts
       in name only — the type system cannot enforce what passes through them. Naming the specific domain type at the boundary
       makes the contract explicit, enables static verification, and surfaces layer-coupling violations at compile/analysis
       time rather than runtime.
+  - id: CS-10-004
+    priority: MUST
+    kind: architecture
+    verification_debt: '#2569'
+    statement: >-
+      A port interface signature MUST declare its parameters and return values as
+      specific domain types, not as generic base types or untyped collections.
+    rationale: >-
+      The signature is where a type checker reads the contract of a port. A specific
+      domain type there lets the checker reject a wrong object at each call site.
+    relationships:
+    - rel_type: implements
+      spec_id: CS-10-001
   - id: CS-10-003
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: In this Python codebase, port boundary types MUST be named Pydantic model classes (e.g., `VulnerabilityCase`,
-      `CaseParticipant`), not plain `dict`s or bare `BaseModel` subclasses without semantic meaning. Port `Protocol` signatures
-      MUST declare parameters and return values as these specific domain types.
+    statement: >-
+      A port boundary type MUST be a named Pydantic model class, not a plain `dict`
+      or a bare `BaseModel` subclass with no semantic meaning.
+      Examples are `VulnerabilityCase` and `CaseParticipant`.
     rationale: >-
       A bare `BaseModel` at a port says no more about its content than a `dict`: any
       model passes the type check. A named domain type lets mypy and pyright reject a
@@ -307,13 +358,42 @@ groups:
     - rel_type: implements
       spec_id: CS-10-001
       note: Python/Pydantic-specific application of the typed-port-boundary pattern
+  - id: CS-10-005
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      A port `Protocol` signature in this codebase MUST declare its parameters and
+      return values as the named domain model classes of CS-10-003.
+    rationale: >-
+      mypy and pyright check a call against the `Protocol` signature. When the
+      signature names the domain class, the checkers reject a `dict` or an unrelated
+      model at the call site.
+    relationships:
+    - rel_type: implements
+      spec_id: CS-10-004
+      note: Python form of the typed port signature
+    - rel_type: extends
+      spec_id: CS-10-003
   - id: CS-10-002
     priority: SHOULD
     kind: project
-    statement: Wire-level ActivityStreams payload classes SHOULD carry the `Activity` suffix; domain event classes SHOULD
-      carry the `Event` suffix
+    statement: >-
+      A wire-level ActivityStreams payload class SHOULD carry the `Activity` suffix.
     rationale: Distinguishes wire representation from domain intent, prevents accidental coupling between layers, and makes
       the translation point explicit. See `notes/wire-core-boundary.md` for the rationale.
+  - id: CS-10-006
+    priority: SHOULD
+    kind: project
+    statement: >-
+      A domain event class SHOULD carry the `Event` suffix.
+    rationale: >-
+      The suffix tells a reader that the class is the domain meaning of a message, not
+      its wire form. The `Activity` suffix (CS-10-002) marks the wire form, so the
+      two never look alike.
+    relationships:
+    - rel_type: extends
+      spec_id: CS-10-002
 - id: CS-11
   title: Type Annotations
   specs:
@@ -337,10 +417,25 @@ groups:
   - id: CS-12-002
     priority: SHOULD
     kind: project
-    statement: 'Use-case class names SHOULD carry a suffix that reflects their origin: classes handling inbound received messages SHOULD use the `Received` suffix (e.g., `ValidateReportReceived`); classes expressing local actor-initiated triggers SHOULD use the `Trigger` suffix (e.g., `PublishAdvisoryTrigger`).'
+    statement: >-
+      A use-case class that handles an inbound received message SHOULD carry the
+      `ReceivedUseCase` suffix, as in `ValidateReportReceivedUseCase`.
     rationale: Distinguishes messages received from external parties from actions the local actor has decided to take. This
       distinction is fundamental to the Vultron protocol model (see `notes/activitystreams-semantics.md`) and prevents accidentally
       treating incoming messages as local commands.
+  - id: CS-12-003
+    priority: SHOULD
+    kind: project
+    statement: >-
+      A use-case class for a local actor-initiated trigger SHOULD carry the `Svc`
+      prefix and the `UseCase` suffix, as in `SvcEngageCaseUseCase`.
+    rationale: >-
+      A reader can then tell at a glance an action the local actor decided to take
+      from a message that another party sent (CS-12-002). The prefix marks the class
+      only: a trigger-side module function takes a `_trigger` suffix instead.
+    relationships:
+    - rel_type: extends
+      spec_id: CS-12-002
 - id: CS-13
   title: Datetime and Timezone Conventions
   specs:
@@ -348,9 +443,23 @@ groups:
     priority: MUST
     kind: architecture
     verification_debt: '#2569'
-    statement: All datetime values produced by the application MUST be timezone-aware and MUST use UTC
-    rationale: Naive datetimes are ambiguous in a distributed system where actors may run in different timezones; UTC eliminates
-      this ambiguity
+    statement: >-
+      Every datetime value the application produces MUST be timezone-aware.
+    rationale: >-
+      Naive datetimes are ambiguous in a distributed system where actors may run in
+      different timezones.
+  - id: CS-13-009
+    priority: MUST
+    kind: architecture
+    verification_debt: '#2569'
+    statement: >-
+      Every datetime value the application produces MUST use UTC.
+    rationale: >-
+      Actors may run in different timezones. When every value the application
+      produces is in UTC, no reader needs to convert an offset to compare two times.
+    relationships:
+    - rel_type: extends
+      spec_id: CS-13-001
   - id: CS-13-002
     priority: MUST
     kind: project
@@ -412,12 +521,16 @@ groups:
       note: picks which explicit offset a wire timestamp carries
     lint_suppress:
     - missing_story_reference
+    # compound_statement: one rule that picks a wire timestamp's offset, stated
+    # for its two origins (minted here, or carried from a peer). A split would add
+    # a protocol child with no story, which the MS-12-007 guard refuses.
+    - compound_statement
   - id: CS-13-006
     priority: MUST
     kind: foundation
     statement: >-
       Wire-format datetime fields MUST serialize as RFC 3339 date-times with an
-      explicit offset; a naive or offset-free value MUST NOT reach the wire.
+      explicit offset, so no naive or offset-free value reaches the wire.
     rationale: >-
       ActivityStreams 2.0 requires every date-time value to follow the RFC 3339
       `date-time` form, in which the offset is mandatory. A peer cannot read a value
@@ -534,8 +647,12 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: When a module, function, variable, or symbol is refactored or replaced, the old symbol MUST be deleted. Compatibility
-      aliases, re-exports, and shims that exist solely to avoid updating call sites are prohibited.
+    statement: >-
+      When a refactor moves or replaces a module, function, variable or symbol, the
+      author MUST delete the old symbol. A compatibility alias, re-export or shim kept
+      only to avoid updating call sites is prohibited. A split package's `__init__.py`
+      that re-exports the old module's public names (CS-18-003) is that module's
+      public import path, not a shim.
     rationale: The codebase is in prototype development; there are no external downstream consumers that require stable import
       paths. Leaving old symbols in place accumulates technical debt and makes the codebase harder to navigate.
 - id: CS-16
@@ -571,21 +688,39 @@ groups:
   - id: CS-18-001
     priority: SHOULD
     kind: project
-    statement: A Python source file SHOULD NOT exceed 500 lines when it mixes multiple distinct responsibilities.
-      When the 500-line threshold is crossed, the module MUST be split into a subpackage whose submodules are grouped by semantic
-      concern.
+    statement: >-
+      A Python source file SHOULD NOT exceed 500 lines when it mixes multiple distinct
+      responsibilities.
     rationale: Large, multi-responsibility files accumulate technical debt, slow review cycles, and make targeted test coverage
       difficult. High-churn large files are especially prone to merge conflicts. The 500-line threshold is a practical signal,
       not a hard language constraint — a coherent single-responsibility module MAY exceed it if all concerns are tightly related.
       The key signal is mixed responsibility.
     verification: 'Any production source file exceeding 500 lines SHOULD be reviewed for mixed-responsibility concerns. A
       codebase scan MAY flag such files for triage. Applies to all layers: core, wire, adapters, use cases, and demo.'
+  - id: CS-18-005
+    priority: MUST
+    kind: project
+    statement: >-
+      When a module that mixes responsibilities crosses the 500-line threshold, an
+      author MUST split it into a subpackage whose submodules are grouped by semantic
+      concern.
+    rationale: >-
+      A subpackage keeps each concern in its own submodule, so a change to one concern
+      touches one small file. Review, tests and merges then deal with less unrelated
+      code.
+    verification: >-
+      A codebase scan lists each production source file over 500 lines (`git ls-files
+      'vultron/*.py' | xargs wc -l`); a reviewer confirms that each listed file that
+      mixes responsibilities is split into a subpackage.
+    relationships:
+    - rel_type: extends
+      spec_id: CS-18-001
   - id: CS-18-002
     priority: MUST
     kind: project
-    statement: 'When a module is split into a subpackage, the resulting submodules MUST themselves comply with CS-18-001.
-      The split pattern applies recursively: a submodule that exceeds 500 lines and mixes responsibilities MUST be further
-      decomposed.'
+    statement: >-
+      Each submodule of a split subpackage MUST itself meet CS-18-001 and CS-18-005.
+      A submodule over 500 lines that mixes responsibilities is then split again.
     rationale: Splitting a god module into a package does not eliminate the problem if individual submodules re-accumulate
       size. A recursive constraint closes this loophole.
     verification: After any split, confirm that each resulting submodule is below 500 lines or has a single well-defined responsibility.
@@ -604,7 +739,7 @@ groups:
       `from vultron.foo.nodes import SomeNode` keeps working. The split then changes
       no caller, and its diff holds only the moved code.
     relationships:
-    - rel_type: supersedes
+    - rel_type: refines
       spec_id: CS-15-001
   - id: CS-18-004
     priority: SHOULD
@@ -620,9 +755,9 @@ groups:
   - id: CS-20-001
     priority: MUST
     kind: project
-    statement: When a field or method is removed from a concrete class that structurally conforms to a `Protocol`, the matching
-      declaration MUST also be removed from the Protocol (and vice versa). Protocol members that no longer exist on any conforming
-      concrete class MUST NOT be left as stale declarations.
+    statement: >-
+      When an author removes a member from a class that conforms to a `Protocol`, the
+      author MUST remove its Protocol declaration too, and the reverse.
     rationale: >-
       mypy and pyright check only one direction: that a concrete class satisfies the
       Protocol. They do not report a Protocol member that no concrete class has any
@@ -630,6 +765,21 @@ groups:
       type check, and fail at runtime.
     verification: Diff any PR that removes a field or method from a Protocol-conforming class; confirm the matching Protocol
       declaration is also removed.
+  - id: CS-20-003
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A `Protocol` MUST NOT keep a member declaration that no conforming concrete class
+      still has.
+    rationale: >-
+      A stale member lets a caller typed against the Protocol use something that no
+      object provides. The type check passes, and the call fails at runtime.
+    verification: >-
+      Inspect each `Protocol` in `vultron/`; confirm that each declared member exists
+      on at least one conforming concrete class.
+    relationships:
+    - rel_type: extends
+      spec_id: CS-20-001
   - id: CS-20-002
     priority: MUST
     kind: project
@@ -719,36 +869,24 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      A blanket `except Exception` (or a bare `except:`) MUST NOT be used to
-      wrap domain logic in `vultron/`. An exception handler MUST catch the
-      narrowest concrete exception type(s) it can meaningfully handle, so that
-      an unexpected error surfaces loudly instead of being silently absorbed.
-      The one sanctioned broad-catch boundary is a behavior-tree node's
-      `update()` method, where converting an unexpected error into
-      `Status.FAILURE` is the documented node contract (BT-HELPER-01). Any
-      other broad catch is permitted only at a genuine framework or execution
-      boundary (e.g., the `BTBridge` execution boundary, py_trees
-      `setup()`/`initialise()`); such a site MUST be narrowed to the narrowest
-      type that covers the boundary and MUST carry an inline comment stating
-      what it guards and why.
+      Code in `vultron/` MUST NOT wrap domain logic in a blanket `except Exception` or
+      a bare `except:`. The one sanctioned broad-catch boundary is a behavior-tree
+      node's `update()` method, where converting an unexpected error into
+      `Status.FAILURE` is the documented node contract (BT-HELPER-01). Any other broad
+      catch is permitted only at a genuine framework or execution boundary, such as the
+      `BTBridge` execution boundary or py_trees `setup()`/`initialise()`.
     rationale: >-
       A broad catch handles every error the same way, including defects nobody
       expected. In this codebase an undocumented broad catch more often hides a defect
       than handles a real case. The error then shows up later as a wrong result, far
-      from its cause, or not at all. A narrow catch lets an unexpected error stop the
-      work where it happens. The inline comment at a sanctioned boundary tells a
-      reviewer what the catch is for, so a reviewer can tell a real boundary from a
-      hidden defect.
+      from its cause, or not at all.
     verification: >-
       Enforced for `vultron/core/behaviors/` by
       `test/architecture/test_no_broad_except_outside_bt_update.py`: an AST scan
       that fails on any `except Exception` outside a node's `update()` method.
       Genuine framework boundaries are recorded in that test's
       `_DECLARED_EXCLUSIONS` allow-list, one reason per entry, held as an exact
-      pinned exemption set (ARCH-18-005). When it is genuinely unclear whether a
-      broad catch is load-bearing, apply the instrument-and-count method from #3217 (log the
-      class, keys, and error reaching the handler; run the full suite; group by
-      cause) before deciding to narrow, delete, or justify it.
+      pinned exemption set (ARCH-18-005).
     exceptions:
     - A behavior-tree node's `update()` method MAY use `except Exception` to
       convert an unexpected error into `Status.FAILURE` (BT-HELPER-01).
@@ -756,3 +894,42 @@ groups:
       the narrowest covering type and accompanied by an inline comment stating
       what it guards and why; such sites are enumerated in the enforcing test's
       `_DECLARED_EXCLUSIONS` allow-list.
+  - id: CS-23-002
+    priority: MUST
+    kind: project
+    statement: >-
+      An exception handler in `vultron/` MUST catch the narrowest concrete exception
+      types it can meaningfully handle. At a framework or execution boundary, that is
+      the narrowest type that covers the boundary.
+    rationale: >-
+      A narrow catch lets an unexpected error stop the work where it happens, so it
+      surfaces loudly and is not silently absorbed.
+    verification: >-
+      `ruff check` selects `BLE`, which reports each blind `except Exception` that
+      carries no baseline marker, and
+      `test/architecture/test_no_broad_except_outside_bt_update.py` fails on a broad
+      catch outside a node's `update()` in `vultron/core/behaviors/`. When it is
+      genuinely unclear whether a broad catch is load-bearing, apply the
+      instrument-and-count method from #3217 (log the class, keys, and error reaching
+      the handler; run the full suite; group by cause) before deciding to narrow,
+      delete, or justify it.
+    relationships:
+    - rel_type: extends
+      spec_id: CS-23-001
+  - id: CS-23-003
+    priority: MUST
+    kind: project
+    statement: >-
+      A broad catch at a framework or execution boundary MUST carry an inline comment
+      that states what it guards and why.
+    rationale: >-
+      The inline comment at a sanctioned boundary tells a reviewer what the catch is
+      for, so a reviewer can tell a real boundary from a hidden defect.
+    verification: >-
+      `test_declared_exclusions_have_reasons` in
+      `test/architecture/test_no_broad_except_outside_bt_update.py` fails on a
+      `_DECLARED_EXCLUSIONS` entry with no reason; a reviewer confirms the inline
+      comment at each listed site.
+    relationships:
+    - rel_type: extends
+      spec_id: CS-23-001

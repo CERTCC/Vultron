@@ -78,7 +78,7 @@ class RetiredFieldsRecord(CoreRecord):
     ``CoreObject`` takes the same refusal by also deriving from this class.
     This refuses stored and in-process data only: on a received object the
     parse edge decides the old key first, so a retired wire key is also listed
-    in ``vultron.wire.as2.unknown_keys.RETIRED_NAMES`` (MV-11-006).
+    in ``vultron.wire.as2.unknown_keys.RETIRED_NAMES`` (MV-11-011).
     """
 
     retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {}

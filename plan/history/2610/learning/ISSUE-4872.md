@@ -32,7 +32,7 @@ string matching, so it only works because the snake-case `event_type` key
 the conflict.
 
 **Promoted**: 2026-10-30 — MV-11-004 narrowed to received keys; the retired-list
-placement moved to MV-11-006, which allows the shared `RetiredFieldsRecord` for stored
-rows (`specs/message-validation.yaml`, `notes/wire-core-boundary.md`). Maintainer
+placement is MV-11-011, and MV-11-012 says the shared `RetiredFieldsRecord` for stored
+rows is not a per-class guard (`specs/message-validation.yaml`, `notes/wire-core-boundary.md`). Maintainer
 decided to drop retired-name tracking on both sides before 1.0: #5573.
 Docs PR: <https://github.com/CERTCC/Vultron/pull/5581>.

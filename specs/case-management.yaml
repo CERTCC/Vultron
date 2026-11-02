@@ -4096,7 +4096,7 @@ groups:
     - rel_type: refines
       spec_id: CM-21-013
     - rel_type: refines
-      spec_id: CS-13-001
+      spec_id: CS-13-009
     adr:
     - ADR-0053
     - ADR-0148
@@ -5784,7 +5784,7 @@ groups:
       `rsvp_deadline` (not rejected or dropped).
     relationships:
     - rel_type: refines
-      spec_id: CS-13-001
+      spec_id: CS-13-009
     adr:
     - ADR-0065
     - ADR-0032

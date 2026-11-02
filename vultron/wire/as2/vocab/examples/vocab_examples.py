@@ -35,7 +35,7 @@ from typing import cast
 
 from pydantic import BaseModel
 
-from vultron.wire.as2.vocab.examples._base import *  # noqa: F403
+from vultron.wire.as2.vocab.examples._base import *  # noqa: F403  # CS-03-001
 from vultron.wire.as2.vocab.examples._base import (  # noqa: F401
     _CASE_ACTOR,
     _COORDINATOR,
@@ -48,7 +48,7 @@ from vultron.wire.as2.vocab.examples._base import (  # noqa: F401
     obj_to_file,
     vendor,
 )
-from vultron.wire.as2.vocab.examples.actor import *  # noqa: F403
+from vultron.wire.as2.vocab.examples.actor import *  # noqa: F403  # CS-03-001
 from vultron.wire.as2.vocab.examples.actor import (  # noqa: F401
     accept_actor_recommendation,
     accept_case_participant_offer,
@@ -58,7 +58,7 @@ from vultron.wire.as2.vocab.examples.actor import (  # noqa: F401
     reject_case_participant_offer,
     request_invite_actor_to_case,
 )
-from vultron.wire.as2.vocab.examples.case import *  # noqa: F403
+from vultron.wire.as2.vocab.examples.case import *  # noqa: F403  # CS-03-001
 from vultron.wire.as2.vocab.examples.case import (  # noqa: F401
     accept_case_ownership_transfer,
     accept_case_participant_role,
@@ -79,13 +79,13 @@ from vultron.wire.as2.vocab.examples.case import (  # noqa: F401
     undo_case_ownership_transfer,
     update_case,
 )
-from vultron.wire.as2.vocab.examples.case_proposal import *  # noqa: F403
+from vultron.wire.as2.vocab.examples.case_proposal import *  # noqa: F403  # CS-03-001
 from vultron.wire.as2.vocab.examples.case_proposal import (
     accept_case_proposal,
     create_case_proposal,
     reject_case_proposal,
 )
-from vultron.wire.as2.vocab.examples.embargo import *  # noqa: F403
+from vultron.wire.as2.vocab.examples.embargo import *  # noqa: F403  # CS-03-001
 from vultron.wire.as2.vocab.examples.embargo import (
     abandon_embargo_proposal,
     accept_embargo,
@@ -114,13 +114,13 @@ from vultron.wire.as2.vocab.examples.fault import (
     create_processing_fault,
     refusal_notice,
 )
-from vultron.wire.as2.vocab.examples.note import *  # noqa: F403
+from vultron.wire.as2.vocab.examples.note import *  # noqa: F403  # CS-03-001
 from vultron.wire.as2.vocab.examples.note import (  # noqa: F401
     add_note_to_case,
     note,
     remove_note_from_case,
 )
-from vultron.wire.as2.vocab.examples.participant import *  # noqa: F403
+from vultron.wire.as2.vocab.examples.participant import *  # noqa: F403  # CS-03-001
 from vultron.wire.as2.vocab.examples.participant import (  # noqa: F401
     accept_full_case_invite,
     accept_invite_to_case,
@@ -141,7 +141,7 @@ from vultron.wire.as2.vocab.examples.participant import (  # noqa: F401
     update_participant,
     vendor_participant,
 )
-from vultron.wire.as2.vocab.examples.report import *  # noqa: F403
+from vultron.wire.as2.vocab.examples.report import *  # noqa: F403  # CS-03-001
 from vultron.wire.as2.vocab.examples.report import (
     close_report,
     create_report,
@@ -150,7 +150,7 @@ from vultron.wire.as2.vocab.examples.report import (
     submit_report,
     validate_report,
 )
-from vultron.wire.as2.vocab.examples.status import *  # noqa: F403
+from vultron.wire.as2.vocab.examples.status import *  # noqa: F403  # CS-03-001
 from vultron.wire.as2.vocab.examples.status import (
     add_attacks_observed_to_case,
     add_attacks_observed_to_participant,
@@ -166,7 +166,7 @@ from vultron.wire.as2.vocab.examples.status import (
     case_status,
     participant_status,
 )
-from vultron.wire.as2.vocab.examples.sync import *  # noqa: F403
+from vultron.wire.as2.vocab.examples.sync import *  # noqa: F403  # CS-03-001
 from vultron.wire.as2.vocab.examples.sync import (
     announce_case_ledger_entry,
     read_case_ledger_entry,
