@@ -594,7 +594,7 @@ def test_make_dispatcher_gives_every_semantic_a_wire_render_port(monkeypatch):
 
     A received tree may write and commit records the CASE_MANAGER authors,
     whose snapshots are AS2 renderings core cannot produce itself
-    (CLP-07-009, CLP-07-013).  So a semantic with no other port still gets
+    (CLP-07-020, CLP-07-013).  So a semantic with no other port still gets
     this one, and the use case must accept it: the dispatcher calls
     ``use_case_class(dl, event, **kwargs)``.
     """
@@ -929,6 +929,75 @@ def test_pending_case_queue_expiry_sends_nothing():
     assert queue_dl.outbox_list() == []
     assert shared_dl.outbox_list() == []
     assert shared_dl.get_all("Question") == []
+
+
+@pytest.mark.spec("PCR-07-005")
+def test_pending_case_queue_expiry_changes_no_local_state():
+    """A dropped activity changed no local state (PCR-07-005, PCR-06-003).
+
+    Expiry removes the queue and the record holding the activity for its
+    replay, and nothing else: every other record in the receiver's store
+    is as it was, and no case or object the activity named was written.
+    """
+    import json
+    from datetime import datetime, timedelta
+
+    from vultron.core.models.deferred_inbox_activity import (
+        DeferredInboxActivity,
+    )
+
+    actor_id = "https://example.org/actors/reporter"
+    case_id = "https://example.org/cases/pcr-07-005"
+    note_id = "https://example.org/notes/pcr-07-005"
+    activity_id = "https://example.org/activities/pcr-07-005-note"
+    shared_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    queue_dl = shared_dl.clone_for_actor(actor_id)
+    # State the receiver already held, which expiry must leave alone.
+    queue_dl.save(
+        as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_="https://example.org/cases/already-held",
+        )
+    )
+    before = queue_dl.count_all()
+    queue_dl.save(
+        DeferredInboxActivity(
+            activity_id=activity_id,
+            received_body=json.dumps(
+                {
+                    "id": activity_id,
+                    "type": "Add",
+                    "object": {"id": note_id, "type": "Note"},
+                    "target": case_id,
+                    "context": case_id,
+                }
+            ),
+        )
+    )
+    queue_dl.save(
+        VultronPendingCaseInbox(
+            case_id=case_id,
+            activity_ids=[activity_id],
+            case_actor_id="https://example.org/actors/case-actor",
+            queued_at=datetime.now(UTC) - timedelta(minutes=10),
+        )
+    )
+
+    expired = _expire_pending_case_activities(
+        case_id=case_id,
+        queue_dl=queue_dl,
+        timeout_seconds=60,
+    )
+
+    assert expired is True
+    assert queue_dl.count_all() == before
+    assert queue_dl.read(case_id) is None
+    assert queue_dl.read(note_id) is None
+    assert queue_dl.inbox_list() == []
+    assert queue_dl.outbox_list() == []
 
 
 @pytest.mark.spec("EP-07-001")

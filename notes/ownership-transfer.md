@@ -45,7 +45,7 @@ also close without an answer, by the owner's withdrawal or its binding deadline
 (CM-21-015 to CM-21-017). Every closing entry's `semantic_type` is in
 `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, which every "is it open?" reader uses,
 so a new way to close an Offer needs no other change to close it. A
-participant's `Reject` is a case event, ledgered like its `Accept` (CLP-02-012;
+participant's `Reject` is a case event, ledgered like its `Accept` (CLP-02-016;
 [case-ledger-authority](case-ledger-authority.md#two-meanings-of-reject)).
 
 ---

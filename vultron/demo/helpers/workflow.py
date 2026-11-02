@@ -372,7 +372,7 @@ def _receiver_answers_report(
 
     The answer goes to the CASE_MANAGER of the case opened on receipt, which
     the receiver knows only once the CaseActor's ``Create(VulnerabilityCase)``
-    replica reaches its own store (ADR-0041, PCR-01-003).  That replica lands
+    replica reaches its own store (ADR-0041, PCR-01-007).  That replica lands
     after the report, on another actor's outbox delivery, so the trigger
     waits for it inside a ``demo_gate`` (ADR-0058, DEMOCI-01-007).  Answering
     first is refused: ``validate-report`` with HTTP 422, while

@@ -71,7 +71,7 @@ sequenceDiagram
 
 2. The CASE_MANAGER commits and sends `Invite(Actor)` to the actor's inbox.
    The `Invite` has a case stub as its `target`, not the case itself (CM-11-013, CM-17-001).
-   The CASE_MANAGER is the ActivityStreams `actor`, and your identity is in `attributedTo` (PCR-08-007, PCR-08-008).
+   The CASE_MANAGER is the ActivityStreams `actor`, and your identity is in `attributedTo` (PCR-08-007, PCR-08-019, PCR-08-008).
    The trigger's `202` response means only that your `Offer` was queued.
    Watch for the `Invite` on the CASE_MANAGER's ledger, not in the response.
 

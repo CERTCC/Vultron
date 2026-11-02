@@ -102,7 +102,7 @@ def test_a_replica_follows_the_managers_abandonment_of_every_proposal():
     consents = {a: _consents(net, a) for a in (MANAGER, BYSTANDER)}
 
     assert _abandon_as_manager(net) == Status.SUCCESS
-    # The manager mails itself nothing (CLP-10-001).
+    # The manager mails itself nothing (CLP-10-032).
     assert net.queued(MANAGER, to=MANAGER) == []
     _replay_to_bystander(net)
 

@@ -214,6 +214,7 @@ class TestCaseLedgerEntry:
         assert entry.semantic_type == "report_received"
         assert entry.prev_log_hash == _ZERO_HASH
 
+    @pytest.mark.spec("SYNC-01-003")
     def test_entry_hash_auto_computed(self):
         entry = HashChainLedgerRecord(
             case_id=CASE_ID,
@@ -235,6 +236,7 @@ class TestCaseLedgerEntry:
         )
         assert entry.verify_hash()
 
+    @pytest.mark.spec("SYNC-01-003")
     def test_entry_hash_tamper_detection(self):
         entry = HashChainLedgerRecord(
             case_id=CASE_ID,
@@ -357,6 +359,7 @@ class TestCaseLedgerEntry:
         )
         assert entry.term is None
 
+    @pytest.mark.spec("SYNC-08-006")
     def test_different_entries_have_different_hashes(self):
         e1 = HashChainLedgerRecord(
             case_id=CASE_ID,
@@ -417,6 +420,7 @@ class TestCaseLedgerAppend:
     ):
         assert log_with_one_entry.entries[0].log_index == 0
 
+    @pytest.mark.spec("CLP-08-001")
     def test_first_entry_prev_hash_is_genesis(
         self, log_with_one_entry: CaseLedger
     ):
@@ -430,6 +434,7 @@ class TestCaseLedgerAppend:
             == log_with_one_entry.entries[0].entry_hash
         )
 
+    @pytest.mark.spec("SYNC-01-007")
     def test_second_entry_prev_hash_equals_first_entry_hash(
         self, empty_log: CaseLedger
     ):
@@ -469,6 +474,7 @@ class TestCaseLedgerAppend:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("SYNC-01-001")
 class TestCaseLedgerAppendOnly:
     def test_entries_returns_tuple(self, log_with_one_entry: CaseLedger):
         assert isinstance(log_with_one_entry.entries, tuple)
@@ -542,6 +548,7 @@ class TestCaseLedgerVerifyChain:
         # verify_chain should detect the broken link
         assert not empty_log.verify_chain()
 
+    @pytest.mark.spec("SYNC-08-006")
     def test_all_entry_hashes_unique(self, log_with_three_entries: CaseLedger):
         hashes = [e.entry_hash for e in log_with_three_entries.entries]
         assert len(set(hashes)) == len(hashes)
@@ -846,6 +853,7 @@ class TestLedgerEntryRoundTrip:
 
         assert not ledger_entry_hash_intact(tampered)
 
+    @pytest.mark.spec("SYNC-03-012")
     @pytest.mark.spec("SYNC-03-006")
     def test_entry_stating_no_hash_is_not_intact(
         self, log_with_one_entry: CaseLedger

@@ -195,7 +195,7 @@ class TestTerminateEmbargoBT:
         self, use_builder: bool
     ):
         """The manager's ``Remove`` reaches every other participant and never
-        the manager itself (CLP-10-001, #4112) — trigger and cascade alike."""
+        the manager itself (CLP-10-032, #4112) — trigger and cascade alike."""
         _case, dl, _factory = self._run_as_manager(
             f"teb9{int(use_builder)}", use_builder=use_builder
         )

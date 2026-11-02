@@ -311,7 +311,7 @@ def test_note_at_a_replica_from_a_non_manager_is_refused() -> None:
 @pytest.mark.spec("PCR-03-001")
 @pytest.mark.spec("CLP-10-017")
 def test_add_note_at_a_replica_from_a_non_manager_stores_no_note() -> None:
-    """The refused sender's inline note is not kept (CLP-10-017)."""
+    """The refused sender's inline note is not kept (CLP-10-038)."""
     world = _World(store_owner="finder")
 
     _, note_id = world.add_note_from(world.stranger.id_)

@@ -959,6 +959,7 @@ def _sender_refused(datalayer, event) -> Status:
     return result.status
 
 
+@pytest.mark.spec("SYNC-03-011")
 @pytest.mark.spec("SYNC-03-005")
 def test_reject_from_stranger_halts_before_any_write(
     datalayer, case_manager_case

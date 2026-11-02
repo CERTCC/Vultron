@@ -108,7 +108,7 @@ class _ApplyStubReplyFromLedgerNode(_LedgerEffectNode):
         except ValueError as exc:
             self.feedback_message = (
                 f"{entry.semantic_type} entry {entry.log_index} for '{actor_id}':"
-                f" {exc} (CLP-15-006)"
+                f" {exc} (CLP-15-008)"
             )
             self.logger.exception("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

@@ -517,7 +517,7 @@ class TestFullReportFlow:
 class TestValidateReportReceivedGuardedCommit:
     """Tests for ValidateReportReceivedUseCase guarded commit behavior (AC-5).
 
-    Per ADR-0021 CLP-10-002, CLP-10-003: the received use case MUST skip the
+    Per ADR-0021 CLP-09-001, CLP-10-003: the received use case MUST skip the
     canonical commit step when receiving_actor_id != case_actor_id. These tests
     verify that the pre-flight guard works correctly.
     """
@@ -692,7 +692,7 @@ class TestValidateReportReceivedGuardedCommit:
     def test_calls_commit_bt_when_receiving_actor_is_case_actor(
         self, monkeypatch
     ):
-        """Guarded commit BT runs when receiving_actor_id == case_actor_id (CLP-10-002).
+        """Guarded commit BT runs when receiving_actor_id == case_actor_id (CLP-09-001).
 
         When all pre-flight guards pass — receiving_actor_id is set and a case
         is linked to the report with the receiving actor holding CASE_MANAGER
@@ -789,7 +789,7 @@ class TestValidateReportReceivedGuardedCommit:
 
         assert commit_tree_calls, (
             "Expected create_receive_activity_tree to be "
-            "called when receiving_actor_id == case_actor_id (CLP-10-002)"
+            "called when receiving_actor_id == case_actor_id (CLP-09-001)"
         )
         assert commit_tree_calls[0] == CASE_ID, (
             f"Expected guarded commit called for case {CASE_ID!r}, "

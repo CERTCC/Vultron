@@ -16,7 +16,7 @@
 """Judge a received case copy by the ledger position it names (SYNC-16-006).
 
 Each case stores the ledger position its case file is a projection of, and
-the position travels with the case on its wire form (SYNC-16-005).  A replica
+the position travels with the case on its wire form (SYNC-16-018).  A replica
 that already holds the case compares the copy's position with its own before
 it replaces anything:
 

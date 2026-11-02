@@ -311,6 +311,6 @@ class LedgerPositionedEvent(VultronEvent):
         The name the replay nodes read for the position a replay starts
         after, as they read it on a ``Reject(CaseLedgerEntry)``: ``""`` for
         a position at index -1, an empty ledger, so a replay starts from the
-        beginning (CLP-08-005, SYNC-18-007).
+        beginning (CLP-08-008, SYNC-18-007).
         """
         return accepted_entry_hash(self.ledger_position)

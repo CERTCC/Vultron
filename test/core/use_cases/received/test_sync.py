@@ -364,8 +364,8 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         ]
         assert len(case_entries) == 1
 
+    @pytest.mark.spec("SYNC-01-007")
     @pytest.mark.spec("SYNC-01-002")
-    @pytest.mark.spec("SYNC-01-003")
     def test_sequential_chain(self, dl, genesis_entry):
         """Accept two sequential entries; chain is maintained."""
         event0 = self._make_event(genesis_entry)
@@ -441,6 +441,7 @@ class TestOutOfOrderAnnounceBuffering:
             and isinstance(obj, CaseLedgerEntry)
         }
 
+    @pytest.mark.spec("SYNC-14-010")
     @pytest.mark.spec("SYNC-14-001")
     @pytest.mark.spec("SYNC-14-005")
     def test_forward_gap_holds_the_received_announce(
@@ -923,7 +924,7 @@ class TestPreGenesisAnnounceBuffering:
         assert result.disposition == HandlerDisposition.REFUSED
         assert dl.read(entry.id_) is None
         assert held_depth(dl, CASE_URI) == 0
-        # Refused without a Reject (SYNC-03-006), and without a fault: this
+        # Refused without a Reject (SYNC-03-012), and without a fault: this
         # store knows no CASE_MANAGER to verify the sender against
         # (SYNC-03-007, ASK-07-002).
         assert dl.outbox_list() == []
@@ -994,6 +995,7 @@ class TestAnnounceLedgerEntryDisposition:
 
         assert result.disposition == HandlerDisposition.APPLIED
 
+    @pytest.mark.spec("SYNC-13-009")
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("SYNC-03-003")
     def test_already_stored_entry_is_skipped(self, dl, genesis_entry):
@@ -1017,6 +1019,7 @@ class TestAnnounceLedgerEntryDisposition:
         assert "SYNC-03-001" in result.reason
         assert held_depth(dl, CASE_URI) == 0
 
+    @pytest.mark.spec("SYNC-03-012")
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("SYNC-03-006")
     def test_entry_failing_its_own_hash_is_refused(self, dl, genesis_entry):

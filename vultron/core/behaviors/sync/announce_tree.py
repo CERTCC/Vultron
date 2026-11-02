@@ -100,7 +100,7 @@ def _event_effect_slot(
 
     *label* names the slot (``"<label>Effects"``) and its nodes, so a tree
     dump reads the same for every slot.  ``ParticipantStatusEffects`` alone is
-    built by hand: its apply step is an ``ApplyOrFault`` selector (RSH-09-006).
+    built by hand: its apply step is an ``ApplyOrFault`` selector (RSH-09-006, RSH-09-013).
     """
     return py_trees.composites.Selector(
         name=f"{label}Effects",
@@ -236,7 +236,7 @@ def create_announce_log_entry_tree(
     # The Inverter fires SUCCESS only when the condition does NOT match (routing
     # no-op for the wrong semantic type).  When the condition matches but ApplyX
     # fails, both branches of the Selector fail, so the FAILURE propagates to
-    # LogEntryEventEffects and blocks PersistReceivedLogEntry (SYNC-12-001).
+    # LogEntryEventEffects and blocks PersistReceivedLogEntry (SYNC-12-004).
     log_entry_event_effects = py_trees.composites.Sequence(
         name="LogEntryEventEffects",
         memory=False,
@@ -277,7 +277,7 @@ def create_announce_log_entry_tree(
                             IsParticipantStatusEventNode(
                                 name="IsParticipantStatusEvent"
                             ),
-                            # RSH-09-006: either Apply succeeds or fault is
+                            # RSH-09-006, RSH-09-013: either Apply succeeds or fault is
                             # emitted to CaseActor and FAILURE propagates.
                             py_trees.composites.Selector(
                                 name="ApplyOrFault",

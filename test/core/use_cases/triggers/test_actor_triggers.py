@@ -916,11 +916,11 @@ class TestStubInviteIsRecordedAfterItIsSent:
     A ledger entry records a completed act, and a send is complete once the
     activity is in the sender's outbox (ADR-0119).  The invitee's inert
     participant record is a consequence of the Invite with no send of its
-    own, so its entry follows the Invite's at once (CLP-07-013).
+    own, so its entry follows the Invite's at once (CLP-07-021).
     """
 
     @pytest.mark.spec("SYNC-09-002")
-    @pytest.mark.spec("SBT-04-004")
+    @pytest.mark.spec("SBT-04-005")
     @pytest.mark.spec("CM-17-006")
     @pytest.mark.spec("CLP-07-013")
     @pytest.mark.spec("OX-14-002")

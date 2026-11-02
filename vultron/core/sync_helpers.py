@@ -410,7 +410,7 @@ def ledger_position_refusal(
 
 #: Top-level snapshot fields that may be stamped when a snapshot is *built*
 #: rather than carried from the assertion it records.  The CaseActor's own
-#: activities carry its clock as ``published`` at build time (CLP-14-002), so
+#: activities carry its clock as ``published`` at build time (CLP-14-011), so
 #: building one afresh for a retry yields a new value.  Treating it as part of what an entry asserts
 #: makes idempotency a race against the clock — ``now_utc`` truncates to whole
 #: seconds, so a retry that lands in the next second appends a duplicate while
@@ -418,7 +418,7 @@ def ledger_position_refusal(
 #:
 #: It is *not* true of the top-level ``published`` on a received activity: that
 #: is the sender's claimed event time, carried across the wire→core boundary
-#: (ISSUE-3149) and load-bearing for CLP-14-006/007/008 and CLP-15-003.
+#: (ISSUE-3149) and load-bearing for CLP-14-007/008/013 and CLP-15-003.
 #: Excluding it from the *equivalence* comparison is still correct — two
 #: deliveries of one assertion are the same assertion whatever their
 #: timestamps — but do not read this set as a claim that

@@ -91,7 +91,7 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
         # One tree: its door guards refuse a closed case, an unaddressed
         # copy (HP-01-005, ADR-0118) and a sender without standing first.
         # The tree embeds the guarded commit as its final step (ADR-0021,
-        # CLP-10-002, CLP-10-003).  Running it with actor_id=receiving_actor_id
+        # CLP-09-001, CLP-10-003).  Running it with actor_id=receiving_actor_id
         # means CheckIsCaseManagerNode naturally fires only when the receiving
         # actor holds the CASE_MANAGER role — no identity comparison in Python.
         tree = remove_embargo_from_case_tree(

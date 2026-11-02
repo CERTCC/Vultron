@@ -58,7 +58,7 @@ What a participant knows about another comes from the messages it has received, 
 This is what makes a participant's knowledge independent of any other participant being reachable.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("AKM-01-002", "AKM-01-003", "PCR-01-003"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("AKM-01-002", "AKM-01-003", "PCR-01-003", "PCR-01-004", "PCR-01-005", "PCR-01-006", "PCR-01-007"))
 ```
 
 **A recipient can obtain what a message names.**
@@ -245,7 +245,7 @@ A participant reports them as a claim in a `ParticipantStatus`, and the CASE_MAN
     Only the CASE_MANAGER sends `Add(CaseStatus)` ([§10.5 Claims and Canonical Status](interactions.md#105-claims-and-canonical-status)).
 
     ```python exec="true" idprefix=""
-    from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-04-001", "RSH-04-005"))
+    from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-04-001", "RSH-04-007", "RSH-04-005", "RSH-04-012"))
     ```
 
 The Vendor aware, Fix ready, fix Deployed (VFD) occasions report the sender's own progress, so receiving one updates the receiver's model of the sender rather than the receiver's own state ([§8.4 Receiving CS Messages: Own State vs. Model of Others](tracking-models.md#84-receiving-cs-messages-own-state-vs-model-of-others)).
@@ -336,7 +336,7 @@ A participant that wants to check its replica is current, after a restart for ex
 Whenever a participant states a position, the CASE_MANAGER also resends each Invite that participant still owes an answer to, as first sent, so an Invite lost before the participant could answer it reaches it again.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MSM-05-002", "MSM-05-007", "MSM-05-008", "SYNC-17-001", "SYNC-17-004", "SYNC-20-001"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MSM-05-002", "MSM-05-007", "MSM-05-008", "SYNC-17-001", "SYNC-17-004", "SYNC-17-010", "SYNC-20-001"))
 ```
 
 ### 4.13 Formal Message Set

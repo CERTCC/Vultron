@@ -105,7 +105,7 @@ class CaseCopyNotStaleNode(
         self.case_id = case_id
         self.case_obj = case_obj
         self._request = request
-        #: True only after the copy was found stale (SYNC-16-006).
+        #: True only after the copy was found stale (SYNC-16-020).
         self.is_stale = False
         #: True only after the copy was found to conflict with the chain.
         self.is_conflict = False

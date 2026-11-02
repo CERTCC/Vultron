@@ -353,6 +353,7 @@ def test_a_case_copy_names_the_position_of_the_last_commit() -> None:
     }
 
 
+@pytest.mark.spec("SYNC-16-020")
 @pytest.mark.spec("SYNC-16-006")
 @pytest.mark.spec("SYNC-16-007")
 def test_a_copy_behind_the_replica_chain_is_skipped() -> None:
@@ -421,6 +422,7 @@ def _replica_store() -> SqliteDataLayer:
     return dl
 
 
+@pytest.mark.spec("SYNC-16-020")
 @pytest.mark.spec("SYNC-16-006")
 @pytest.mark.spec("HP-01-003")
 def test_a_copy_the_chain_is_past_is_skipped() -> None:
@@ -466,6 +468,7 @@ def test_a_copy_that_conflicts_with_the_chain_is_refused_at_error(
     )
 
 
+@pytest.mark.spec("SYNC-16-022")
 @pytest.mark.spec("PCR-02-004")
 @pytest.mark.spec("SYNC-16-006")
 def test_a_copy_at_the_replicas_tail_replaces_its_case() -> None:
@@ -604,7 +607,7 @@ def test_a_reject_naming_no_entry_but_a_hash_is_refused_at_parse() -> None:
         parse_activity({**body, "target": note})
 
 
-@pytest.mark.spec("SYNC-16-005")
+@pytest.mark.spec("SYNC-16-016")
 @pytest.mark.spec("SYNC-16-007")
 def test_storing_an_entry_behind_the_case_position_leaves_it() -> None:
     """A case a copy put ahead of its chain stays at the copy's position
@@ -669,6 +672,7 @@ def test_a_first_seed_ahead_of_the_chain_stores_the_backfill_as_no_ops(
     assert all(dl.read(entry.id_) is not None for entry in entries)
 
 
+@pytest.mark.spec("SYNC-16-020")
 @pytest.mark.spec("SYNC-16-006")
 def test_a_copy_behind_the_last_replacement_is_stale() -> None:
     """Until the chain catches up, the case is at the position of the copy
@@ -742,6 +746,7 @@ def test_the_inbox_routes_the_copy_not_the_held_case() -> None:
     assert _case_name(dl) == "current copy"
 
 
+@pytest.mark.spec("SYNC-16-021")
 @pytest.mark.spec("SYNC-16-006")
 def test_a_genesis_copy_naming_another_genesis_hash_is_refused() -> None:
     """At index -1 the hash compared is the case's genesis hash: a copy whose
@@ -782,6 +787,7 @@ def test_a_genesis_copy_the_chain_is_past_is_skipped() -> None:
     assert _case_name(dl) == "replica case"
 
 
+@pytest.mark.spec("SYNC-16-021")
 @pytest.mark.spec("SYNC-16-006")
 def test_a_copy_conflicting_with_the_last_replacement_is_refused() -> None:
     """While the chain is short of the last replacing copy, the case's
@@ -1199,6 +1205,7 @@ def test_the_extracted_copy_keeps_the_position_it_names() -> None:
     )
 
 
+@pytest.mark.spec("SYNC-16-022")
 @pytest.mark.spec("SYNC-16-006")
 @pytest.mark.spec("SYNC-16-007")
 @pytest.mark.spec("IO-03-004")

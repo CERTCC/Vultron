@@ -184,11 +184,11 @@ def test_extract_refuses_a_case_object_naming_no_owner():
         extract_stamped(activity)
 
 
-@pytest.mark.spec("SYNC-16-005")
+@pytest.mark.spec("SYNC-16-019")
 def test_extract_refuses_a_case_object_naming_no_ledger_position():
     """A case that reaches extraction without a ledger position is refused.
 
-    The parse edge already refuses one (SYNC-16-005); extraction names the
+    The parse edge already refuses one (SYNC-16-019); extraction names the
     fault rather than handing core a case it would start at its empty ledger.
     """
     from vultron.wire.as2.errors import VultronParseValidationError

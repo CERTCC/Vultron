@@ -504,7 +504,7 @@ groups:
       Vultron direct messages name every recipient in `to:` (OX-08-001). The `cc:`,
       `bto:` and `bcc:` fields have no handler semantics (HP-10-001), so a value there
       is most likely a factory defect. An emitting tree commits its own ledger entry
-      (CLP-10-027, CLP-10-013), so no outbound activity has a reason to copy its own
+      (CLP-10-071, CLP-10-031), so no outbound activity has a reason to copy its own
       sender. See ADR-0109.
     adr:
     - ADR-0109

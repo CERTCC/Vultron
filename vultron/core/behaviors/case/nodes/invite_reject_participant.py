@@ -138,7 +138,7 @@ class ApplyInviteRejectToParticipantNode(
         try:
             published = reply_published(self.activity)
         except ValueError as exc:
-            self.feedback_message = f"{self.name}: {exc} (CLP-15-006)"
+            self.feedback_message = f"{self.name}: {exc} (CLP-15-008)"
             self.logger.exception("%s", self.feedback_message)
             return Status.FAILURE
 

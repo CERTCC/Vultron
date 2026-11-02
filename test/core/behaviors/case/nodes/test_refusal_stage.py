@@ -73,6 +73,7 @@ def _stage(
 
 @pytest.mark.spec("CLP-10-006")
 @pytest.mark.spec("CLP-10-022")
+@pytest.mark.spec("CLP-10-042")
 def test_an_accepted_delivery_runs_no_refusal_effect() -> None:
     stage, guard, effect = _stage(Status.SUCCESS)
 
@@ -85,6 +86,8 @@ def test_an_accepted_delivery_runs_no_refusal_effect() -> None:
 
 
 @pytest.mark.spec("CLP-10-022")
+@pytest.mark.spec("CLP-10-042")
+@pytest.mark.spec("CLP-10-046")
 def test_a_refusal_runs_the_refusal_effects_and_still_fails() -> None:
     stage, _, effect = _stage(Status.FAILURE)
 
@@ -96,6 +99,7 @@ def test_a_refusal_runs_the_refusal_effects_and_still_fails() -> None:
 
 
 @pytest.mark.spec("CLP-10-022")
+@pytest.mark.spec("CLP-10-046")
 def test_a_failed_refusal_effect_keeps_the_guards_reason(caplog) -> None:
     stage, _, effect = _stage(Status.FAILURE, effect_status=Status.FAILURE)
 
@@ -113,6 +117,7 @@ def test_a_failed_refusal_effect_keeps_the_guards_reason(caplog) -> None:
 
 
 @pytest.mark.spec("CLP-10-022")
+@pytest.mark.spec("CLP-10-044")
 def test_a_redelivery_skips_the_refusal_effects() -> None:
     stage, _, effect = _stage(
         Status.FAILURE, found_ids=["urn:uuid:already-archived"]
@@ -198,11 +203,12 @@ def _stage_with(guard: py_trees.behaviour.Behaviour, effect: _Counting):
 
 @pytest.mark.spec("CLP-10-022")
 @pytest.mark.spec("CLP-05-001")
+@pytest.mark.spec("CLP-10-042")
 def test_a_skipped_repeat_runs_no_refusal_effect() -> None:
     """A guard's failure that is an idempotent repeat is not a refusal.
 
     The repeat's effect is already in place, so a ``Reject`` of it would
-    contradict that effect (CLP-10-022, CLP-05-001).
+    contradict that effect (CLP-10-042, CLP-05-006).
     """
     guard = _RepeatGuard(repeat=True)
     effect = _Counting("Effect")
@@ -347,6 +353,7 @@ def _diverting_stage(
 
 @pytest.mark.spec("CLP-10-026")
 @pytest.mark.spec("CLP-10-022")
+@pytest.mark.spec("CLP-10-070")
 def test_a_diverted_delivery_runs_no_refusal_effect() -> None:
     """The diversion already answered the delivery (CLP-10-026)."""
     stage, diversion, effect = _diverting_stage(

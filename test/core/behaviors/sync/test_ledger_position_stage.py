@@ -181,7 +181,7 @@ def test_a_stamp_at_the_tail_is_recorded_and_sends_nothing(dl, caplog) -> None:
     assert not any("behind" in r.getMessage() for r in caplog.records)
 
 
-@pytest.mark.spec("SYNC-18-007")
+@pytest.mark.spec("SYNC-18-014")
 @pytest.mark.spec("CM-10-004")
 def test_an_inert_senders_lag_is_neither_recorded_nor_answered(dl) -> None:
     entries = seed_ledger(dl, 3)
@@ -235,6 +235,8 @@ def test_a_replay_held_back_is_logged_and_never_fails_the_stage(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("SYNC-18-012")
+@pytest.mark.spec("SYNC-18-011")
 @pytest.mark.spec("SYNC-18-005")
 @pytest.mark.spec("SYNC-16-003")
 @pytest.mark.parametrize("past_tail", [False, True], ids=["hash", "index"])
@@ -266,6 +268,7 @@ def test_a_split_is_logged_at_error_and_the_sender_reseeded(
     assert state.last_acknowledged_hash == ""
 
 
+@pytest.mark.spec("SYNC-18-012")
 @pytest.mark.spec("SYNC-18-005")
 @pytest.mark.spec("SYNC-16-004")
 def test_a_second_split_inside_the_cooldown_reseeds_nothing(dl) -> None:
@@ -280,6 +283,7 @@ def test_a_second_split_inside_the_cooldown_reseeds_nothing(dl) -> None:
     assert _reseeded(trigger) == [[SIGNATORY_ID]]
 
 
+@pytest.mark.spec("SYNC-18-013")
 @pytest.mark.spec("SYNC-18-005")
 @pytest.mark.spec("CM-10-004")
 def test_an_inert_senders_split_is_logged_and_reseeds_nothing(
@@ -422,7 +426,7 @@ def test_an_empty_replicas_stamp_is_recorded_and_replayed_from_genesis(
 ) -> None:
     """A sender holding no entry stamps index -1 and the case's genesis hash:
     a lag the ledger holds, so nothing is acknowledged and every entry is
-    replayed (CLP-08-005)."""
+    replayed (CLP-08-008)."""
     seed_ledger(dl, 2)
     case = dl.read_case(CASE_ID)
     assert case is not None

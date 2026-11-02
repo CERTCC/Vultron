@@ -22,7 +22,7 @@ They carry other protocol messages as ledger entries, and are not a Vultron prot
 
 1. The CASE_MANAGER commits a new log entry and sends it to each participant as `Announce(CaseLedgerEntry)`.
 2. A participant first recomputes the entry's hash from its content.
-   An entry that does not reproduce its `entry_hash` is refused and logged, with no `Reject` (SYNC-03-006, CLP-04-008).
+   An entry that does not reproduce its `entry_hash` is refused and logged, with no `Reject` (SYNC-03-012, CLP-04-008).
    The participant sends the CASE_MANAGER a `Create(ProcessingFault)` with failure class `LedgerEntryRefused/HashMismatch` instead (SYNC-03-007).
    The CASE_MANAGER sends nothing back for it, because a replay would resend the same content (SYNC-03-008).
 3. A participant whose local `prev_log_hash` matches the incoming entry's `prev_log_hash` accepts it and sends nothing.
@@ -34,7 +34,7 @@ They carry other protocol messages as ledger entries, and are not a Vultron prot
 
 Every case message a participant or the CASE_MANAGER sends also states how far its sender's ledger had got.
 The sender puts its ledger tail in the activity's `ledgerPosition`, the same property and shape a case copy carries (SYNC-18-001, SYNC-16-005).
-The position is the tail when the sender built the message, and a resend keeps it (SYNC-18-002).
+The position is the tail when the sender built the message, and a resend keeps it (SYNC-18-002, SYNC-18-009).
 A receiver refuses a case message that carries no position or one that does not parse (SYNC-18-003).
 The position is part of the received body, so the ledger entry for the message records it (SYNC-18-006).
 `Announce(CaseLedgerEntry)` and `Announce(VulnerabilityCase)` carry none, because the entry and the case state their own positions.
@@ -42,11 +42,11 @@ The position is part of the received body, so the ledger entry for the message r
 
 The CASE_MANAGER reads the position on every case message it receives.
 Apart from a reply to the full-case Invite, which must not be behind the Invite's own position (CM-11-012), the position never changes how it judges the message.
-A position behind its ledger tail is normal while entries are still on their way, so the CASE_MANAGER logs the lag at DEBUG and applies or refuses the message on its own merits (SYNC-18-004).
+A position behind its ledger tail is normal while entries are still on their way, so the CASE_MANAGER logs the lag at DEBUG and applies or refuses the message on its own merits (SYNC-18-004, SYNC-18-010).
 A position at or behind the tail is also the sender's statement of how far it has got, so the CASE_MANAGER answers it as it answers a `Read(CaseLedgerEntry)`.
 It records the position as the sender's acknowledged position and, when the position lags, replays every entry after it under the same rate bound and outbox de-duplication (SYNC-18-007).
 A position that names an entry the CASE_MANAGER's ledger holds with a different hash, or an index past its tail, means the sender's chain has split from the canonical ledger.
-The CASE_MANAGER logs the split at ERROR and sends the sender `Announce(VulnerabilityCase)` of its current case, at most once per re-seed cooldown (SYNC-18-005, SYNC-16-004).
+The CASE_MANAGER logs the split at ERROR and sends the sender `Announce(VulnerabilityCase)` of its current case, at most once per re-seed cooldown (SYNC-18-011, SYNC-18-012, SYNC-16-004).
 It answers only an active participant: a removed or unconsented participant's position is not recorded, and nothing is replayed or re-seeded to it (CM-10-004).
 A held position from any participant still on the roster also has the CASE_MANAGER resend each Invite that participant owes an answer to, as [Resending unanswered Invites](#resending-unanswered-invites) describes (SYNC-20-001).
 
@@ -171,7 +171,7 @@ The resend runs apart from the active-participant check.
 Any participant still on the roster is resent its Invites, even an inert one that has not consented to the embargo in force, because an Invite is how it is asked to consent.
 A resent Invite is one the participant was already sent, so it carries no withheld case content (CM-10-009).
 A removed participant is asked nothing (CM-31-013), and a closed one is sent nothing (SYNC-20-008).
-For an inert sender the rest of the answer is unchanged: nothing is replayed, no replication state is recorded, and its `Read` is still `REFUSED` (SYNC-17-002).
+For an inert sender the rest of the answer is unchanged: nothing is replayed, no replication state is recorded, and its `Read` is still `REFUSED` (SYNC-17-002, SYNC-17-009).
 
 An Invite is owed while its answer can still count (SYNC-20-002):
 
@@ -180,7 +180,7 @@ An Invite is owed while its answer can still count (SYNC-20-002):
 
 The Invite that the stating activity itself answers is not owed, and of several Invites for one embargo only the last one sent is owed.
 
-A resend is the Invite as first sent: the same id, `ledgerPosition` and RSVP deadline, from the body sealed when it was first sent (SYNC-20-003, SYNC-18-002).
+A resend is the Invite as first sent: the same id, `ledgerPosition` and RSVP deadline, from the body sealed when it was first sent (SYNC-20-003, SYNC-18-009).
 A receiver that already handled it treats it as a redelivery and does nothing, and a receiver that dropped it handles it as new.
 A resend never extends a deadline, and the full-case Invite's ledger floor is unchanged, so a reply at or beyond it is still accepted (CM-11-035).
 
@@ -215,7 +215,7 @@ Each `Announce(VulnerabilityCase)` carries the case with its `ledgerPosition`: t
 A participant that already holds the case judges the copy by that position.
 The participant skips a copy it is already past.
 It refuses a copy that names a different entry at an index the participant holds.
-Any other copy replaces the case, position included (SYNC-16-006).
+Any other copy replaces the case, position included (SYNC-16-022).
 
 After a replacement whose position is ahead of its chain, the participant sends `Reject(CaseLedgerEntry)` naming its own tail.
 It stores each entry the copy already reflects as a no-op, and does not move its case's position back (SYNC-16-007).

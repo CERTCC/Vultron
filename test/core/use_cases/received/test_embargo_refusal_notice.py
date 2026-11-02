@@ -191,7 +191,7 @@ def test_an_accept_of_an_embargo_missing_from_the_register_gets_the_notice():
 @pytest.mark.spec("CM-13-005")
 @pytest.mark.parametrize("accept", [True, False], ids=["accept", "reject"])
 def test_a_repeat_answer_under_a_new_id_gets_no_notice(accept: bool):
-    """A repeat is ``SKIPPED``, not refused (CM-13-005, CLP-10-022)."""
+    """A repeat is ``SKIPPED``, not refused (CM-13-005, CLP-10-042)."""
     net = _net(f"repeat-{accept}")
     _, invite_id = _invited(net, BYSTANDER, f"repeat-{accept}")
     first = _answer_body(net, BYSTANDER, invite_id, accept=accept, tag="1")

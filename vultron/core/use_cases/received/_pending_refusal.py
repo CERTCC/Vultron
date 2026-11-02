@@ -21,7 +21,7 @@ its pending-assertion store (EP-09-018, SYNC-11-002).  The manager's commit
 of an *admitted* ask clears that entry when it is announced (SYNC-11-003).  A
 *refused* one is never committed, so the entry closes when the CASE_MANAGER's
 ``Reject(Invite(EmbargoEvent))`` reaches the participant: of the proposal it
-sent (EP-09-017, CLP-05-001), or of the Invite whose Accept it refuses
+sent (EP-09-017, CLP-05-009), or of the Invite whose Accept it refuses
 once P/X/A is set (EMB-02-004).  A ``Reject`` from anybody
 else is a participant's answer, not the manager's refusal, and closes
 nothing.

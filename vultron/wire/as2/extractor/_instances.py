@@ -525,7 +525,7 @@ RemoveCaseParticipantFromCasePattern = ActivityPattern(
 CreateCaseParticipantPattern = ActivityPattern(
     description=(
         "The CASE_MANAGER creates a participant record: a CREATE of the "
-        "CaseParticipant carrying the record in full (ADR-0114, CLP-07-013)."
+        "CaseParticipant carrying the record in full (ADR-0114, CLP-07-021)."
     ),
     activity_=TAtype.CREATE,
     object_=VOtype.CASE_PARTICIPANT,
@@ -533,7 +533,7 @@ CreateCaseParticipantPattern = ActivityPattern(
 UpdateCaseParticipantPattern = ActivityPattern(
     description=(
         "The CASE_MANAGER changes a participant record: an UPDATE of the "
-        "CaseParticipant carrying the record in full (CLP-07-013)."
+        "CaseParticipant carrying the record in full (CLP-07-021)."
     ),
     activity_=TAtype.UPDATE,
     object_=VOtype.CASE_PARTICIPANT,

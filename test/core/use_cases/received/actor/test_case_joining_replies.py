@@ -739,7 +739,7 @@ def _advance_invitee_to(joining: _JoiningCase, state: RM) -> None:
     joining.dl.save(participant)
 
 
-@pytest.mark.spec("CM-11-004", "PCR-08-012")
+@pytest.mark.spec("CM-11-004", "PCR-08-012", "PCR-08-020")
 def test_joined_participant_is_not_accepted_until_it_sends_join(
     joining_case,
 ) -> None:

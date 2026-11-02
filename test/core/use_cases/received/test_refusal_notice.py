@@ -169,6 +169,8 @@ def _notices(net: LedgerNetwork, sender: str, to: str) -> list[Any]:
 @pytest.mark.spec("CLP-05-001")
 @pytest.mark.spec("CLP-02-005")
 @pytest.mark.spec("CLP-10-022")
+@pytest.mark.spec("CLP-05-004")
+@pytest.mark.spec("CLP-05-005")
 def test_a_precondition_refusal_queues_one_refusal_notice():
     net, _, invite_id = _network("queued")
     event = _accept_event(net, invite_id)
@@ -246,8 +248,9 @@ def test_a_refusal_notice_commits_nothing():
     assert len(net.stores[MANAGER].list_objects("CaseLedgerEntry")) == before
 
 
-@pytest.mark.spec("CLP-05-001")
 @pytest.mark.spec("CLP-02-005")
+@pytest.mark.spec("CLP-05-006")
+@pytest.mark.spec("CLP-10-042")
 def test_a_sender_guard_refusal_queues_no_notice():
     net, _, invite_id = _network("sender-guard")
     event = _accept_event(net, invite_id, sender=STRANGER)
@@ -261,8 +264,8 @@ def test_a_sender_guard_refusal_queues_no_notice():
     assert stage is not None and stage.status == Status.INVALID
 
 
-@pytest.mark.spec("CLP-05-001")
-@pytest.mark.spec("CLP-10-022")
+@pytest.mark.spec("CLP-05-006")
+@pytest.mark.spec("CLP-10-042")
 def test_a_skipped_repeat_answer_under_a_new_id_queues_no_notice():
     """A repeat answer is ``SKIPPED``, not refused, so no notice (AC-4)."""
     net, embargo_id, invite_id = _network("repeat")
@@ -281,8 +284,8 @@ def test_a_skipped_repeat_answer_under_a_new_id_queues_no_notice():
     assert _notices(net, MANAGER, BYSTANDER) == []
 
 
-@pytest.mark.spec("CLP-05-001")
-@pytest.mark.spec("CLP-10-022")
+@pytest.mark.spec("CLP-05-006")
+@pytest.mark.spec("CLP-10-044")
 def test_a_redelivery_queues_no_second_notice():
     net, _, invite_id = _network("redelivery")
     event = _accept_event(net, invite_id)
@@ -300,8 +303,7 @@ def test_a_redelivery_queues_no_second_notice():
     assert _notices(net, MANAGER, BYSTANDER) == first
 
 
-@pytest.mark.spec("CLP-05-001")
-@pytest.mark.spec("CLP-10-022")
+@pytest.mark.spec("CLP-10-043")
 def test_a_replica_queues_no_notice():
     net, _, invite_id = _network("replica")
     event = _accept_event(net, invite_id, sender=OWNER, receiver=BYSTANDER)
@@ -329,7 +331,7 @@ class _RanAfterNotice(EmitCapable, py_trees.behaviour.Behaviour):
         return Status.SUCCESS
 
 
-@pytest.mark.spec("CLP-10-022")
+@pytest.mark.spec("CLP-10-045")
 def test_a_notice_that_cannot_be_built_does_not_stop_the_next_effect(
     monkeypatch,
 ):
@@ -403,7 +405,7 @@ def _refused_and_delivered(tag: str, *, pending: bool) -> tuple[Any, Any]:
 
 
 @pytest.mark.spec("CLP-06-006")
-@pytest.mark.spec("CLP-05-001")
+@pytest.mark.spec("CLP-05-007")
 def test_the_participant_closes_its_pending_assertion(caplog):
     with caplog.at_level("WARNING"):
         (net, event), verdict = _refused_and_delivered("closed", pending=True)
@@ -421,7 +423,7 @@ def test_the_participant_closes_its_pending_assertion(caplog):
     ), warnings
 
 
-@pytest.mark.spec("CLP-05-001")
+@pytest.mark.spec("CLP-05-008")
 def test_the_participant_writes_no_case_state_and_sends_nothing():
     net, _, invite_id = _network("no-writes")
     event = _accept_event(net, invite_id)
@@ -525,8 +527,8 @@ def test_a_notice_reaching_the_case_manager_is_refused():
     assert verdict.disposition is HandlerDisposition.REFUSED
 
 
-@pytest.mark.spec("CLP-05-001")
 @pytest.mark.spec("CLP-06-006")
+@pytest.mark.spec("CLP-05-007")
 def test_a_declined_leave_closes_the_owners_pending_leave():
     """CM-23-011's ``Reject(Leave(VulnerabilityCase))`` is read here now."""
     net, _, _ = _network("declined-leave")
@@ -602,7 +604,7 @@ def test_a_refused_rm_regression_gets_the_notice_and_the_note():
     refused_id = _notices(net, MANAGER, BYSTANDER)[0].in_reply_to
     notice = _notice_for(net, cast(str, refused_id))
     assert notice["object"]["type"] == "Add"
-    # The notice names the refused dimension and why (RSH-09-002).
+    # The notice names the refused dimension and why (RSH-09-011).
     assert "rm: ACCEPTED → VALID moves RM backwards" in str(notice["summary"])
     assert any("backward" in (n.content or "") for n in _notes(net, MANAGER))
     # The notice is the one answer: no ProcessingFault as well (the user's

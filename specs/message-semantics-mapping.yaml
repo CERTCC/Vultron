@@ -564,7 +564,7 @@ groups:
       in its `pxaState`.
     rationale: >-
       A participant embeds its suggested `CaseStatus` in
-      `Add(ParticipantStatus)` (RSH-04-001), so the formal message has one wire
+      `Add(ParticipantStatus)` (RSH-04-007), so the formal message has one wire
       form per sender. The participant's is its view, not a change: the
       CASE_MANAGER adopts it, a non-owner's by default only with the Case
       Owner's authorization (RSH-07-001, RSH-07-006), as its own
@@ -600,7 +600,7 @@ groups:
       in its `pxaState`.
     rationale: >-
       A participant embeds its suggested `CaseStatus` in
-      `Add(ParticipantStatus)` (RSH-04-001), so the formal message has one wire
+      `Add(ParticipantStatus)` (RSH-04-007), so the formal message has one wire
       form per sender. The participant's is its view, not a change: the
       CASE_MANAGER adopts it, a non-owner's by default only with the Case
       Owner's authorization (RSH-07-001, RSH-07-006), as its own
@@ -636,7 +636,7 @@ groups:
       in its `pxaState`.
     rationale: >-
       A participant embeds its suggested `CaseStatus` in
-      `Add(ParticipantStatus)` (RSH-04-001), so the formal message has one wire
+      `Add(ParticipantStatus)` (RSH-04-007), so the formal message has one wire
       form per sender. The participant's is its view, not a change: the
       CASE_MANAGER adopts it, a non-owner's by default only with the Case
       Owner's authorization (RSH-07-001, RSH-07-006), as its own

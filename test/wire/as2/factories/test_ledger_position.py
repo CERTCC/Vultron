@@ -55,6 +55,7 @@ def _note():
     )
 
 
+@pytest.mark.spec("SYNC-18-008")
 @pytest.mark.spec("SYNC-18-002")
 def test_the_stamp_is_a_copy_stating_the_position() -> None:
     note = _note()
@@ -67,7 +68,7 @@ def test_the_stamp_is_a_copy_stating_the_position() -> None:
     assert dumped["ledgerPosition"] == {"logIndex": 4, "entryHash": "ab" * 32}
 
 
-@pytest.mark.spec("SYNC-18-002")
+@pytest.mark.spec("SYNC-18-009")
 def test_a_stamped_activity_keeps_its_first_position() -> None:
     first = stamp_ledger_position(_note(), _TAIL)
     later = LedgerPosition(log_index=9, entry_hash="cd" * 32)

@@ -223,7 +223,7 @@ class TestTheActivityIsNotTheEvidence:
     @pytest.mark.spec("CM-21-017")
     @pytest.mark.parametrize(
         "claimed_minutes",
-        # Inside the ledger's clock-skew tolerance (CLP-14-006/007), and on
+        # Inside the ledger's clock-skew tolerance (CLP-14-007/013), and on
         # either side of each deadline below.
         [-4, 4],
         ids=["claims-before-deadline", "claims-after-deadline"],

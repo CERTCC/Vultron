@@ -115,8 +115,9 @@ def test_the_notice_dispatches_as_a_refusal_notice():
 
 @pytest.mark.spec("CLP-05-001")
 @pytest.mark.parametrize("verb", [TAtype.INVITE, TAtype.OFFER])
+@pytest.mark.spec("CLP-05-009")
 def test_a_reject_of_an_invite_or_an_offer_is_not_the_notice(verb: TAtype):
-    """Those read as the decline of the request (CLP-05-001)."""
+    """Those read as the decline of the request (CLP-05-009)."""
     received = _received(_notice())
     inner = received.object_.model_copy(update={"type_": str(verb)})
 

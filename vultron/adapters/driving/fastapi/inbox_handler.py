@@ -154,7 +154,7 @@ def make_dispatcher() -> ActivityDispatcher:
     # Every received use case gets a TriggerActivityPort, a WireRenderPort and
     # a SyncActivityPort, on top of whatever else its semantics needs: a
     # received tree's guarded ledger commit snapshots the activity as an AS2
-    # rendering core cannot produce itself (ARCH-20-001, CLP-07-009), the
+    # rendering core cannot produce itself (ARCH-20-001, CLP-07-020), the
     # CASE_MANAGER fans the entry out to the participants (SYNC-02-003), and
     # its case-wide clock decisions build their activities (EMB-13-003).  See
     # with_received_baseline_ports for why this is not a hand-kept list

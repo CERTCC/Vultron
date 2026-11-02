@@ -401,6 +401,7 @@ def test_case_actor_legit_sender_accepted(bridge, datalayer, case_obj):
     assert datalayer.read(entry.id_) is not None
 
 
+@pytest.mark.spec("SYNC-08-007")
 @pytest.mark.spec("SYNC-03-001")
 @pytest.mark.spec("SYNC-08-005")
 def test_hash_mismatch_sends_reject_and_does_not_store(
@@ -425,7 +426,7 @@ def test_hash_mismatch_sends_reject_and_does_not_store(
     assert datalayer.read(bad_entry.id_) is None
     sync_port.send_reject_log_entry.assert_called_once()
     # The refused chain check leaves the archive of what arrived, and only
-    # that: the inlined entry is not stored (CLP-10-017, CLP-10-018).
+    # that: the inlined entry is not stored (CLP-10-038, CLP-10-018).
     assert _archived(datalayer, event)
 
 
@@ -434,6 +435,7 @@ def _tampered(entry: CaseLedgerEntry) -> CaseLedgerEntry:
     return entry.model_copy(update={"payload_snapshot": {"tampered": True}})
 
 
+@pytest.mark.spec("SYNC-03-012")
 @pytest.mark.spec("SYNC-03-006")
 @pytest.mark.spec("SYNC-12-001")
 @pytest.mark.spec("CLP-04-008")
@@ -468,6 +470,7 @@ def test_replica_refuses_entry_whose_hash_does_not_match_content(
     )
 
 
+@pytest.mark.spec("SYNC-03-012")
 @pytest.mark.spec("SYNC-03-006")
 def test_replica_does_not_buffer_forward_gap_entry_with_bad_hash(
     bridge, datalayer, case_actor, case_obj
@@ -1327,7 +1330,7 @@ class TestAnnounceLogEntryAppliesStubPath:
         )
         assert datalayer.read(entry.id_) is None
 
-    @pytest.mark.spec("CLP-15-006")
+    @pytest.mark.spec("CLP-15-008")
     def test_an_accept_entry_without_published_fails_and_changes_nothing(
         self, bridge, datalayer, case_actor, case_obj
     ):
@@ -1452,6 +1455,7 @@ def _find_node_by_name(
     return None
 
 
+@pytest.mark.spec("SYNC-12-004")
 class TestEffectsFailureBlocksPersist:
     """Apply* FAILURE must prevent PersistReceivedLogEntry from running (SYNC-12-001)."""
 
@@ -2060,6 +2064,7 @@ class TestAnnounceTreeEmitImpossibleStateFault:
 
     @pytest.mark.spec("RSH-09-006")
     @pytest.mark.spec("SYNC-12-001")
+    @pytest.mark.spec("RSH-09-013")
     def test_impossible_composite_state_emits_fault_and_blocks_persist(
         self, datalayer, case_actor, case_obj
     ):
@@ -2129,7 +2134,7 @@ class TestAnnounceTreeEmitImpossibleStateFault:
         )
         assert case_actor.id_ in call_kwargs["to"]
 
-    @pytest.mark.spec("RSH-09-006")
+    @pytest.mark.spec("RSH-09-013")
     @pytest.mark.spec("SYNC-16-002")
     def test_the_use_case_queues_the_impossible_state_fault(
         self, datalayer, case_actor, case_obj

@@ -306,7 +306,7 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
 - Each apply node stores the snapshot's `EmbargoEvent` as it applies the entry,
   so `active_embargo` never names an unreadable record
   (EMB-18-003). A replica without the case skips; one with the case that cannot
-  rebuild the embargo fails, blocking persistence (SYNC-12-001).
+  rebuild the embargo fails, blocking persistence (SYNC-12-004).
 - `test/architecture/test_embargo_relay_entries_are_replayed.py` is the ratchet;
   `test_embargo_relay_replay.py` drives the cycle across per-actor stores.
   `test/architecture/test_embargo_replica_slots_copy.py` keeps every slot above

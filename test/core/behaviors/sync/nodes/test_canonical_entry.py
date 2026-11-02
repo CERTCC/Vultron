@@ -156,19 +156,19 @@ def test_clp07_011_accepts_datetime_object_published():
     _call_with_ts(snap)
 
 
-@pytest.mark.spec("CLP-14-006")
+@pytest.mark.spec("CLP-14-013")
 def test_clp14_006_rejects_entry_before_case():
     before_case = _CASE_PUBLISHED - timedelta(minutes=6)
-    with pytest.raises(VultronCanonicalEntryError, match="CLP-14-006"):
+    with pytest.raises(VultronCanonicalEntryError, match="CLP-14-013"):
         _call_with_ts(_ts_snapshot(published=before_case))
 
 
-@pytest.mark.spec("CLP-14-006")
+@pytest.mark.spec("CLP-14-013")
 def test_clp14_006_accepts_entry_equal_to_case_published():
     _call_with_ts(_ts_snapshot(published=_CASE_PUBLISHED))
 
 
-@pytest.mark.spec("CLP-14-006")
+@pytest.mark.spec("CLP-14-013")
 def test_clp14_006_accepts_entry_within_skew_tolerance():
     """Unsynchronised clocks get slack; ADR-0079 rejected wall-clock ordering."""
     before_case = _CASE_PUBLISHED - timedelta(minutes=2)
@@ -178,7 +178,7 @@ def test_clp14_006_accepts_entry_within_skew_tolerance():
     )
 
 
-@pytest.mark.spec("CLP-14-006")
+@pytest.mark.spec("CLP-14-013")
 def test_clp14_006_skipped_when_case_published_is_none():
     """The genesis entry commits before the case is readable; that is not a bug."""
     _call_with_ts(
@@ -187,7 +187,7 @@ def test_clp14_006_skipped_when_case_published_is_none():
     )
 
 
-@pytest.mark.spec("CLP-14-006")
+@pytest.mark.spec("CLP-14-013")
 def test_clp14_006_message_renders_case_published_in_utc():
     """The violation message renders case_published in UTC (ISSUE-3222).
 
@@ -200,7 +200,7 @@ def test_clp14_006_message_renders_case_published_in_utc():
     case_published = datetime(2026, 1, 1, 12, 0, 0, tzinfo=tz_530)  # 06:30 UTC
     entry_before = datetime(2026, 1, 1, 6, 0, 0, tzinfo=UTC)
     with pytest.raises(
-        VultronCanonicalEntryError, match="CLP-14-006"
+        VultronCanonicalEntryError, match="CLP-14-013"
     ) as excinfo:
         _call_with_ts(
             _ts_snapshot(published=entry_before),
@@ -303,7 +303,7 @@ def test_timestamp_checks_are_not_gated_on_case_published():
 
 
 # ---------------------------------------------------------------------------
-# Bare ``target`` naming the entry's own case (CLP-07-006, VM-08-003, #2654)
+# Bare ``target`` naming the entry's own case (CLP-07-018, VM-08-003, #2654)
 # ---------------------------------------------------------------------------
 
 
@@ -324,6 +324,7 @@ def _offer_participant_snapshot(target: object) -> dict[str, object]:
 
 @pytest.mark.spec("CLP-07-006")
 @pytest.mark.spec("VM-08-003")
+@pytest.mark.spec("CLP-07-018")
 def test_bare_target_equal_to_the_case_uri_is_accepted():
     """A ``target`` that is the case URI names what every replica holds.
 
@@ -367,6 +368,7 @@ def test_bare_target_naming_a_held_object_is_recorded_as_received():
 
 
 @pytest.mark.spec("CLP-07-006")
+@pytest.mark.spec("CLP-07-018")
 def test_a_bare_reference_nested_in_the_object_is_recorded_as_received():
     """Only the entry's own ``object`` must be inline; nested slots are as sent.
 
@@ -393,6 +395,7 @@ def test_a_bare_reference_nested_in_the_object_is_recorded_as_received():
 
 
 @pytest.mark.spec("CLP-07-006")
+@pytest.mark.spec("CLP-07-018")
 def test_bare_target_naming_the_case_is_accepted_when_nested():
     """``Accept(Offer(CaseParticipant))`` carries the same bare case target inside."""
     inner = _offer_participant_snapshot(CASE_ID)
@@ -413,6 +416,7 @@ def test_bare_target_naming_the_case_is_accepted_when_nested():
 
 
 @pytest.mark.spec("CLP-07-006")
+@pytest.mark.spec("CLP-07-018")
 def test_bare_object_is_still_refused():
     """The entry's ``object`` travels inline: its type is half the signature."""
     snapshot = _offer_participant_snapshot(CASE_ID)
@@ -596,7 +600,7 @@ def test_an_inline_actor_profile_is_accepted():
     )
 
 
-@pytest.mark.spec("CLP-07-003")
+@pytest.mark.spec("CLP-07-017")
 def test_an_actor_naming_no_id_is_refused():
     with pytest.raises(VultronCanonicalEntryError, match="actor URI"):
         _validate_canonical_entry(

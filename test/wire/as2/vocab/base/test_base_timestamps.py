@@ -59,7 +59,7 @@ def test_supplied_timestamp_survives_verbatim(field: str):
 
 
 @pytest.mark.spec("CS-08-001")
-@pytest.mark.spec("CLP-15-006")
+@pytest.mark.spec("CLP-15-008")
 def test_blank_timestamp_is_not_the_same_as_an_omitted_key():
     """Blank reads as an explicit ``null``, not as omission — the two differ.
 

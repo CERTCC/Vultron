@@ -206,7 +206,7 @@ def test_clp_14_005_log_index_unique_by_construction():
     assert e1.log_index != e2.log_index
 
 
-@pytest.mark.spec("CLP-14-006")
+@pytest.mark.spec("CLP-14-013")
 def test_clp_14_006_entry_not_before_case_creation():
     """An assertion stamped before the case was created is rejected.
 
@@ -216,7 +216,7 @@ def test_clp_14_006_entry_not_before_case_creation():
     ``test_chain_timestamp_guard.py``.
     """
     case_created = datetime.now(tz=UTC)
-    with pytest.raises(VultronCanonicalEntryError, match="CLP-14-006"):
+    with pytest.raises(VultronCanonicalEntryError, match="CLP-14-013"):
         _validate_canonical_entry(
             case_id=CASE_ID,
             semantic_type="test",
@@ -272,6 +272,8 @@ def test_clp_14_008_stale_timestamp_payload_rejected():
 
 
 @pytest.mark.spec("CLP-14-009")
+@pytest.mark.spec("CLP-14-014")
+@pytest.mark.spec("CLP-14-015")
 def test_clp_14_009_clock_skew_tolerance_configurable():
     """CLP-14-009: the CLP-14-007/008 thresholds are deployment-configurable.
 

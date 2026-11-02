@@ -219,7 +219,7 @@ def _announce_body(case_manager_dl: SqliteDataLayer, actor: str) -> dict:
     )
 
 
-@pytest.mark.spec("PCR-06-005", "CLP-10-017", "PCR-03-004")
+@pytest.mark.spec("PCR-06-005", "PCR-06-006", "CLP-10-017", "PCR-03-004")
 def test_stub_invite_is_processed_on_arrival_and_archived(
     case_actor_dl, invitee_dl
 ):
@@ -238,7 +238,7 @@ def test_stub_invite_is_processed_on_arrival_and_archived(
     assert pending.activity_ids == [], "nothing is held back for replay"
     assert pending.case_actor_id == _CASE_ACTOR_ID
     assert pending.invite_anchored
-    # PCR-06-005: the intake archive and the anchor are the only writes;
+    # PCR-06-006: the intake archive and the anchor are the only writes;
     # ingress holds nothing under the sender's id (DL-06-006).
     stored = {
         type_: count

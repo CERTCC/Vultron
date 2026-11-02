@@ -152,7 +152,7 @@ Each nested object stays as the asserting activity carried it.
 It stays inline where its sender inlined it, and by reference where its sender named an object every replica already holds.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CLP-07-011", "CLP-07-006"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CLP-07-011", "CLP-07-006", "CLP-07-018"))
 ```
 
 The CASE_MANAGER never fills a reference in.
@@ -189,7 +189,7 @@ The six case state shorthands ([§4.9 Case State Messages](layers.md#49-case-sta
 A participant never sends `Add` of a `CaseStatus`, and a receiver refuses one from any sender other than the CASE_MANAGER.
 
 ```python exec="true" idprefix=""
-from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-04-001", "RSH-04-005"))
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-04-001", "RSH-04-007", "RSH-04-005", "RSH-04-012"))
 ```
 
 An implementation that maps all six shorthands to `CaseStatus` regardless of sender will have participants asserting authority they do not hold.

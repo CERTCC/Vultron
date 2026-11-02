@@ -83,7 +83,7 @@ class as_Activity(as_Object):
     # ``ledgerPosition``, the term a case copy already uses (SYNC-16-005).
     # Declared on the base so every inbound activity keeps it through the
     # parse (MV-11-003), and ``LedgerPosition`` refuses a malformed one at the
-    # edge.  Set only by ``vultron.wire.as2.factories`` (SYNC-18-002); which
+    # edge.  Set only by ``vultron.wire.as2.factories`` (SYNC-18-008); which
     # received activities must carry it is the event model's call
     # (SYNC-18-003).
     ledger_position: LedgerPosition | None = Field(

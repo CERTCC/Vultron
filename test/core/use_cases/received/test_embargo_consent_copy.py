@@ -309,6 +309,7 @@ class TestReplicaCopies:
         assert held_depth(replica, net.case_id) == 1
         assert _rows(net.record(BYSTANDER, BYSTANDER)) == _rows(diverged)
 
+    @pytest.mark.spec("SYNC-16-009")
     @pytest.mark.spec("SYNC-16-001")
     @pytest.mark.spec("ASK-07-004")
     @pytest.mark.spec("ID-04-004")

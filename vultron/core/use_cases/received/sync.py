@@ -288,7 +288,7 @@ class AnnounceLedgerEntryReceivedUseCase:
     ) -> None:
         self._dl = dl
         self._inbox_replay = inbox_replay
-        # Builds the replica's fault about an entry it refuses (RSH-09-006,
+        # Builds the replica's fault about an entry it refuses (RSH-09-013,
         # SYNC-03-007, SYNC-16-001).
         self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port

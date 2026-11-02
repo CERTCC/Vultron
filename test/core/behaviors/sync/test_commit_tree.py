@@ -16,6 +16,8 @@ from vultron.core.behaviors.sync.nodes import (
     CheckLedgerFreshnessNode,
     CreateLogEntryNode,
     DeclineForeignLedgerCommitNode,
+    FanOutLogEntryNode,
+    PersistLogEntryNode,
     RequireSyncPortNode,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
@@ -116,9 +118,28 @@ def test_create_commit_log_entry_tree_guards_the_mint():
     assert len(mint.children) == 6
 
 
+@pytest.mark.spec("SBT-04-004")
+@pytest.mark.spec("SBT-04-002")
+def test_commit_tree_fans_out_only_after_it_persists():
+    """The fan-out is a node of its own, after the persist step (SBT-04-004).
+
+    A failed write stops the Sequence before the fan-out runs, so no entry
+    that was never stored is announced.
+    """
+    tree = create_commit_log_entry_tree(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/act-1",
+        semantic_type="case_created",
+    )
+    _, mint = tree.children
+    kinds = [type(child) for child in mint.children]
+    assert kinds.index(PersistLogEntryNode) < kinds.index(FanOutLogEntryNode)
+    assert kinds[-1] is FanOutLogEntryNode
+
+
+@pytest.mark.spec("SYNC-01-007")
 @pytest.mark.spec("CLP-02-001")
 @pytest.mark.spec("SYNC-01-002")
-@pytest.mark.spec("SYNC-01-003")
 @pytest.mark.spec("SYNC-02-001")
 @pytest.mark.spec("SYNC-02-003")
 @pytest.mark.spec("CLP-08-004")
@@ -179,8 +200,8 @@ def test_commit_tree_without_sync_port_is_a_wiring_fault(
     assert datalayer.list_objects("CaseLedgerEntry") == []
 
 
+@pytest.mark.spec("SYNC-01-007")
 @pytest.mark.spec("SYNC-01-002")
-@pytest.mark.spec("SYNC-01-003")
 def test_commit_tree_uses_existing_tail_hash(bridge, datalayer, case_obj):
     first_entry = _make_entry(0, case_obj.genesis_hash)
     datalayer.save(first_entry)
@@ -295,6 +316,7 @@ def _tick_with_blackboard(tree, datalayer, actor_id, sync_port):
 @pytest.mark.spec("BT-05-006")
 @pytest.mark.spec("CLP-08-005")
 @pytest.mark.spec("CLP-10-014")
+@pytest.mark.spec("CLP-10-035")
 def test_commit_tree_raises_for_a_foreign_ledger(datalayer, case_obj):
     """A commit as an actor this store does not host raises, writing nothing.
 
@@ -302,7 +324,7 @@ def test_commit_tree_raises_for_a_foreign_ledger(datalayer, case_obj):
     CaseActor on another container, and the commit declined silently while a
     ``cc:`` copy carried the activity to the real log.  ADR-0109 retired both:
     no sanctioned path executes a tree as an unhosted actor, so the guard
-    raises (CLP-10-014), before the port guard, the persist or the fan-out.
+    raises (CLP-10-035), before the port guard, the persist or the fan-out.
     """
     sync_port = MagicMock(spec=SyncActivityPort)
     tree = create_commit_log_entry_tree(

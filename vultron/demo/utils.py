@@ -659,7 +659,7 @@ def read_stored_of_types(
 
 
 #: The stored type a received activity is read from: intake's archive record of
-#: the body that arrived, kept under a key the receiver derives (CLP-10-017,
+#: the body that arrived, kept under a key the receiver derives (CLP-10-036,
 #: ADR-0149).  A row of an
 #: activity type under its own id is one the actor authored, never one it
 #: received (DL-06-006).

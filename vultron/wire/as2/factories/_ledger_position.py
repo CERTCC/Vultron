@@ -17,7 +17,7 @@
 
 Every activity about a case whose ledger its sender holds states the sender's
 ledger tail for that case as ``ledgerPosition``.  This module is the one place
-the property is put on an outbound activity (SYNC-18-002): a factory that
+the property is put on an outbound activity (SYNC-18-008): a factory that
 takes a position as an argument (the full-case Invite and its replies, the
 genesis-replay ``Reject``) passes it to the activity's constructor, and every
 other case activity is stamped by :func:`stamp_ledger_position` when the

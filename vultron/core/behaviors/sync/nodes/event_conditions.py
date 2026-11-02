@@ -80,7 +80,7 @@ class IsRemoveEmbargoEventNode(_SingleSemanticTypeNode):
     The Inverter fires SUCCESS only when the condition does NOT match (routing
     no-op for the wrong semantic type).  When the condition matches but
     ApplyEmbargoTeardownNode fails, both branches of the Selector fail and
-    the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
+    the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-004).
 
     Per BTND-08-001, BTND-08-002, BT-06-001, SYNC-12-001.
     """
@@ -103,7 +103,7 @@ class IsParticipantStatusEventNode(_SingleSemanticTypeNode):
     The Inverter fires SUCCESS only when the condition does NOT match (routing
     no-op for the wrong semantic type).  When the condition matches but
     ApplyParticipantStatusFromLedgerNode fails, both branches of the Selector
-    fail and the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
+    fail and the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-004).
 
     Per BTND-08-001, BTND-08-002, DEMOMA-07-003 step 3, SYNC-12-001.
     """
@@ -131,7 +131,7 @@ class IsAddNoteEventNode(_SingleSemanticTypeNode):
     The Inverter fires SUCCESS only when the condition does NOT match (routing
     no-op for the wrong semantic type).  When the condition matches but
     ApplyNoteFromLedgerNode fails, both branches of the Selector fail and
-    the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
+    the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-004).
 
     Per BTND-08-001, BTND-08-002, SYNC-02-002, SYNC-12-001.
     """
@@ -155,7 +155,7 @@ class IsCreateEmbargoEventNode(_SingleSemanticTypeNode):
     """Precondition: SUCCESS when this log entry IS a ``create_embargo_event``.
 
     The CASE_MANAGER commits it right after a case's genesis entry, one per
-    embargo the creation wrote, carrying the embargo in full (CLP-07-013).
+    embargo the creation wrote, carrying the embargo in full (CLP-07-021).
 
     Per BTND-08-001, SYNC-12-001.
     """
@@ -218,7 +218,7 @@ class IsSubmitReportEventNode(_SingleSemanticTypeNode):
     The Inverter fires SUCCESS only when the condition does NOT match (routing
     no-op for the wrong semantic type).  When the condition matches but
     ApplyOfferReportFromLedgerNode fails, both branches of the Selector fail
-    and the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
+    and the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-004).
 
     Per BTND-08-001, BTND-08-002, SYNC-02-002, ISSUE-2134.
     """

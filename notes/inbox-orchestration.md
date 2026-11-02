@@ -115,7 +115,7 @@ the last one writes what it carries:
    stays a bare id, which no pattern's object type accepts (SE-01-006), so an
    activity whose sender carried its object inline would be read as
    `UNKNOWN_UNRESOLVABLE_OBJECT`.
-3. **The handler writes the core record, after its guards** (CLP-10-019). Intake
+3. **The handler writes the core record, after its guards** (CLP-10-039). Intake
    archives the received body as a `ReceivedActivityRecord` under the receiver's key, and
    an effect node writes any record from the copy the event carries (the add-note
    tree's `StoreReceivedObjectNode`, `SeedCaseReplicaNode`). A refusal writes nothing

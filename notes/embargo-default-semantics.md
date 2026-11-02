@@ -94,7 +94,7 @@ to `EM.ACTIVE` with no `EP`/`EA` exchange (EP-04-001). The intermediate
   which runs the creation tree, contributes no terms; `ResolveEmbargoDurationNode`
   fails unless the profile's id is `case.attributed_to`.
 - **The policy travels with the proposal and is never kept.** The CASE_MANAGER
-  cannot read the owner's store (PCR-01-003), so the owner's full profile is the
+  cannot read the owner's store (PCR-01-005), so the owner's full profile is the
   `actor` of `Create(as_CaseProposal)` (CP-01-010), or is fetched from the owner
   for that proposal alone when the `actor` is its id (AKM-05-007). It reaches
   the tree as `owner_profile`, which `BTBridge` restores after the run, so one

@@ -97,6 +97,7 @@ def committed() -> set[str]:
 
 @pytest.mark.spec("CLP-09-003")
 @pytest.mark.spec("CLP-02-013")
+@pytest.mark.spec("CLP-09-005")
 def test_every_routed_use_case_reaches_a_commit_or_is_exempt(
     committed: set[str],
 ):
@@ -109,6 +110,8 @@ def test_every_routed_use_case_reaches_a_commit_or_is_exempt(
 
 
 @pytest.mark.spec("CLP-02-013")
+@pytest.mark.spec("CLP-02-017")
+@pytest.mark.spec("CLP-09-006")
 def test_exemptions_name_a_ground_or_an_issue():
     for semantic, ground in EXEMPT.items():
         assert isinstance(ground, NotACaseEvent) or (
@@ -118,6 +121,7 @@ def test_exemptions_name_a_ground_or_an_issue():
 
 @pytest.mark.spec("CLP-02-013")
 @pytest.mark.spec("CLP-10-004")
+@pytest.mark.spec("CLP-10-033")
 def test_exemptions_name_routed_use_cases_that_do_not_commit(
     committed: set[str],
 ):

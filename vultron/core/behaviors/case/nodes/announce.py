@@ -219,7 +219,7 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
         """Replace the held case with the copy, as one transaction.
 
         The participants, reports and the case at the copy's ledger position
-        (SYNC-16-005) commit together or not at all, so a failure part-way
+        (SYNC-16-015) commit together or not at all, so a failure part-way
         leaves no replica half replaced (ADR-0146).  A store failure raises,
         and the handler reports it as an internal error.
 

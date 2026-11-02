@@ -93,6 +93,7 @@ def _seed(net: LedgerNetwork) -> list[Any]:
 
 @pytest.mark.spec("CLP-07-013")
 @pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("CLP-07-022")
 def test_a_negotiated_revision_rebuilds_from_the_ledger_alone():
     """Proposal, relayed Invites, rows, an answer, the activation and its
     carry-overs all reach an empty store from the ledger."""
@@ -187,6 +188,7 @@ def test_the_default_embargo_rebuilds_from_the_ledger_alone(make_payload):
 
 @pytest.mark.spec("CLP-07-013")
 @pytest.mark.spec("VAM-05-016")
+@pytest.mark.spec("CLP-07-021")
 def test_the_default_embargo_follows_the_genesis_entry_in_full(make_payload):
     """The CASE_MANAGER's own entry carries the embargo whole, right after
     the genesis entry, which names it by id (#5122)."""

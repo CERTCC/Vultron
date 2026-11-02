@@ -321,7 +321,7 @@ class TestSenderMustBeAParticipant:
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert status_count(dl) == before
-        # Not the receiver's either: the receiver is not the mover (RSH-08-001).
+        # Not the receiver's either: the receiver is not the mover (RSH-08-008).
         assert status_count(dl, CM_PARTICIPANT_ID) == manager_before
 
 

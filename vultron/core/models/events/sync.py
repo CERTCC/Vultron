@@ -104,7 +104,7 @@ class RejectLogEntryReceivedEvent(VultronEvent):
 
         ``""`` (empty string) when the peer states no position, or one at
         index -1, because it holds no entry: replay then starts from the
-        beginning of the recorded projection (CLP-08-005, SYNC-16-007).
+        beginning of the recorded projection (CLP-08-008, SYNC-16-007).
         """
         return accepted_entry_hash(self.ledger_position)
 

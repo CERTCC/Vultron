@@ -128,7 +128,7 @@ hashes must stay valid if the chain later becomes a Merkle tree (SYNC-01-005).
   `stamp_ledger_position()` put it on (`with_sender_ledger_position`), before the
   activity is stored or sealed, so the stored activity, the sealed body and the
   CASE_MANAGER's own entry agree. A resend relays the sealed body, so it keeps the
-  first position (SYNC-18-002, OX-07-001).
+  first position (SYNC-18-009, OX-07-001).
 - **Scope is decided by the receiver's event class.** A `LedgerPositionedEvent`
   requires the position at the parse edge (SYNC-18-003); every other received
   semantic is listed with its reason in `test/wire/as2/test_ledger_position_scope.py`.
@@ -138,12 +138,13 @@ hashes must stay valid if the chain later becomes a Merkle tree (SYNC-01-005).
   one, even for a body it could not parse, and it names no case (ASK-07-001).
   `Reject(CaseLedgerEntry)` admits no position, from a peer that holds no case yet.
 - **A lag is a record, never a refusal.** Log it at DEBUG and judge the act as
-  before (SYNC-18-004). An answer to a replaced embargo is already caught, because
-  its consent row accepts no trigger (CM-18-003); CM-11-012's floor is the one
-  per-activity rule.
+  before (SYNC-18-004, SYNC-18-010). An answer to a replaced embargo is already
+  caught, because its consent row accepts no trigger (CM-18-003); CM-11-012's
+  floor is the one per-activity rule.
 - **A split is a repair.** A position the CASE_MANAGER does not hold means the
   sender's chain split from the canonical ledger: log at ERROR and re-seed an
-  active participant through SYNC-16-003's rate-bounded path (SYNC-18-005).
+  active participant through SYNC-16-003's rate-bounded path (SYNC-18-011,
+  SYNC-18-012).
 - **The stamp is a position statement.** It says the sender has applied up to
   that entry, the fact `Read(CaseLedgerEntry)` states in a quiet period. Answer it
   the same way: record the acknowledged position and replay a lag, for active
@@ -156,7 +157,7 @@ hashes must stay valid if the chain later becomes a Merkle tree (SYNC-01-005).
 - **A test delivering to a CASE_MANAGER stamps in step with it.** Pass the receiver's
   store as `at=` to `received_event()` / `delivered()`; the bare
   `TEST_SENDER_POSITION` is not held by any real ledger, so the CASE_MANAGER reads it
-  as a split and re-seeds the sender (SYNC-18-005), which adds an
+  as a split and re-seeds the sender (SYNC-18-012), which adds an
   `Announce(VulnerabilityCase)` to the outbox or a wiring fault without a trigger port.
 
 ### Open Questions
@@ -281,7 +282,7 @@ Messages Reach Non-Signatories".
 as proof its effects were applied and skips `ProcessAndStore`. That is sound only
 if the core write path that applies effects is the sole writer. So:
 
-1. Ingress stores no inline object (CLP-10-017), and `_stage_inline_object`
+1. Ingress stores no inline object (CLP-10-038), and `_stage_inline_object`
    does not stage a `CaseLedgerEntry` even in the throwaway routing store
    (SYNC-13-002). An adapter pre-store makes the gate skip effects on first
    delivery.
@@ -308,12 +309,12 @@ per-recipient lanes (ADR-0112, OX-01-004/005/006) makes this rare, and a replay
 does not re-queue an `Announce` the outbox already holds for that peer
 (SYNC-15-012). The hold below is the backstop for loss, not the steady state.
 
-- **Hold the Announce, never the entry alone** (SYNC-14-001). The body intake
+- **Hold the Announce, never the entry alone** (SYNC-14-010). The body intake
   archived is held in a `DeferredInboxActivity`, the inbox's replay record
   (IO-03-009); a `HeldLedgerAnnounce` row indexes it. Reason: an entry held alone
   can only reach the inbox again inside an Announce the replica makes up and
   attributes to the CASE_MANAGER (ISSUE-5012). Both live in the receiver's store,
-  never as a `CaseLedgerEntry` (SYNC-14-005), so a restart keeps them.
+  never as a `CaseLedgerEntry` (SYNC-14-011), so a restart keeps them.
 - **Keyed on `prev_log_hash`**, so the successor of a new tail is one read
   (`HeldLedgerAnnounce.build_id(case_id, tail_hash)`). The operations live in
   `vultron/core/services/held_ledger_announces.py`.
@@ -342,8 +343,8 @@ does not re-queue an `Announce` the outbox already holds for that peer
 - **Replay only after success.** The node runs after the entry is stored (or
   found stored), never on a refusal: an entry refused and held is keyed on the
   current tail, so replaying on failure would loop it into itself.
-- **Bounded** (SYNC-14-006): a full holding area drops the Announce farthest
-  ahead, body and all, with a WARNING; the Reject already sent recovers it.
+- **Bounded** (SYNC-14-006, SYNC-14-013): a full holding area drops the Announce
+  farthest ahead, body and all, with a WARNING; the Reject already sent recovers it.
 
 Enqueuing for another actor means opening that actor's store explicitly
 (`store_for_actor`, DL-07-005) and calling `outbox_append` on it.
@@ -423,7 +424,8 @@ same entry forever (ADR-0142).
   `store_ledger_entry()` moves it, in the transaction that stores the entry, on
   every commit and replica store. A node that saves or snapshots a case it read
   before committing passes it through `at_stored_position()` first, or the save
-  puts the position back and the snapshot names a stale one (SYNC-16-005).
+  puts the position back and the snapshot names a stale one (SYNC-16-015,
+  SYNC-16-017).
 - **A position never moves back.** Storing an entry at or before the case's
   position leaves the position where it is: a replica seeded ahead of its chain
   stores the replayed entries as no-ops, and moving back would make the next
@@ -467,7 +469,7 @@ same entry forever (ADR-0142).
   from the reflected entry, or the replica ends short of seed-plus-replay
   (CM-23-016, #5052).
 - **Divergence is a starting-state mismatch, not invalid content.** An entry that is
-  wrong in itself, like an impossible participant status, takes RSH-09-006's fault:
+  wrong in itself, like an impossible participant status, takes RSH-09-013's fault:
   a fresh copy cannot repair it (SYNC-16-001).
 
 ## Genesis-Unavailable Buffer-and-Reject (SYNC-15)

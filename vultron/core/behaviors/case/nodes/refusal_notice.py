@@ -263,7 +263,7 @@ class ClearRefusedAssertionNode(DataLayerActionWithPorts):
     (HP-01-006).  The assertion had no effect, so the participant marks its
     pending entry cleared and logs the refusal at WARNING with the refused
     activity, this actor and the reason.  It writes no case state and sends
-    nothing: what to do next is for later behavior to decide (CLP-05-001,
+    nothing: what to do next is for later behavior to decide (CLP-05-008,
     CLP-06-005).  A notice for an activity this actor holds no pending entry
     for clears nothing and still succeeds.
 

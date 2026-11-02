@@ -140,6 +140,9 @@ class TestRevisionInvitePermutations:
     Invite indexed as the proposal it answers, and one answer.
     """
 
+    @pytest.mark.spec("SYNC-19-006")
+    @pytest.mark.spec("SYNC-19-005")
+    @pytest.mark.spec("SYNC-19-004")
     @pytest.mark.spec("SYNC-19-001")
     @pytest.mark.spec("SYNC-19-002")
     @pytest.mark.spec("SYNC-19-003")

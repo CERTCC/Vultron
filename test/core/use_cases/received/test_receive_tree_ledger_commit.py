@@ -382,6 +382,7 @@ def _assert_no_commit_stage(tree: py_trees.behaviour.Behaviour) -> None:
 
 
 @pytest.mark.spec("CLP-10-013")
+@pytest.mark.spec("CLP-10-034")
 def test_announce_case_tree_has_no_commit_stage():
     """``Announce(VulnerabilityCase)`` is the documented exemption.
 
@@ -409,6 +410,7 @@ def test_announce_case_tree_has_no_commit_stage():
 
 @pytest.mark.spec("CLP-10-013")
 @pytest.mark.spec("CLP-02-013")
+@pytest.mark.spec("CLP-10-034")
 def test_bootstrap_create_case_tree_has_no_commit_stage():
     """The bootstrap ``Create(VulnerabilityCase)`` is exempt like its Announce.
 
